@@ -39,7 +39,9 @@ IOffloadedChunkReadSessionPtr CreateOffloadedChunkReadSession(
     NTableClient::TTableSchemaPtr tableSchema,
     NCompression::ECodec codecId,
     NTransactionClient::TTimestamp overrideTimestamp,
-    bool populateCache);
+    bool populateCache,
+    bool enableHashChunkIndex,
+    bool useDirectIO);
 
 ////////////////////////////////////////////////////////////////////////////////
 

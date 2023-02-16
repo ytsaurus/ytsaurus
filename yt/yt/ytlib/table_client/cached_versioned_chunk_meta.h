@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_index.h"
 #include "chunk_meta_extensions.h"
 #include "columnar_chunk_meta.h"
 
@@ -24,12 +25,36 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct THashTableChunkIndexMeta
+{
+    struct TChunkIndexBlockMeta
+    {
+        TChunkIndexBlockMeta(
+            int blockIndex,
+            const TIndexedVersionedBlockFormatDetail& indexedBlockFormatDetail,
+            const NProto::THashTableChunkIndexSystemBlockMeta& hashTableChunkIndexSystemBlockMetaExt);
+
+        int BlockIndex;
+        THashTableChunkIndexFormatDetail FormatDetail;
+        TLegacyOwningKey BlockLastKey;
+    };
+
+    explicit THashTableChunkIndexMeta(const TTableSchemaPtr& schema);
+
+    TIndexedVersionedBlockFormatDetail IndexedBlockFormatDetail;
+    std::vector<TChunkIndexBlockMeta> ChunkIndexBlockMetas;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCachedVersionedChunkMeta
     : public TColumnarChunkMeta
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(NTableClient::NProto::THunkChunkRefsExt, HunkChunkRefsExt);
     DEFINE_BYREF_RO_PROPERTY(NTableClient::NProto::THunkChunkMetasExt, HunkChunkMetasExt);
+
+    DEFINE_BYREF_RO_PROPERTY(std::optional<THashTableChunkIndexMeta>, HashTableChunkIndexMeta);
 
     static TCachedVersionedChunkMetaPtr Create(
         bool preparedColumnarMeta,
@@ -58,6 +83,9 @@ private:
     size_t PreparedMetaSize_ = 0;
 
     DECLARE_NEW_FRIEND();
+
+
+    void ParseHashTableChunkIndexMeta(const NProto::TSystemBlockMetaExt& systemBlockMetaExt);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedVersionedChunkMeta)

@@ -14,8 +14,11 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 
+#include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/chunk_index_read_controller.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 
 #include <yt/yt/client/misc/workload.h>
@@ -59,7 +62,9 @@ public:
         TTableSchemaPtr tableSchema,
         NCompression::ECodec codecId,
         TTimestamp overrideTimestamp,
-        bool populateCache)
+        bool populateCache,
+        bool enableHashChunkIndex,
+        bool useDirectIO)
         : Bootstrap_(bootstrap)
         , Chunk_(std::move(chunk))
         , ChunkId_(Chunk_->GetId())
@@ -68,6 +73,8 @@ public:
         , ProduceAllVersions_(produceAllVersions)
         , TableSchema_(std::move(tableSchema))
         , OverrideTimestamp_(overrideTimestamp)
+        , EnableHashChunkIndex_(enableHashChunkIndex)
+        , UseDirectIO_(useDirectIO)
         , CodecId_(codecId)
         , Logger(DataNodeLogger.WithTag("ChunkId: %v, ReadSessionId: %v",
             ChunkId_,
@@ -89,6 +96,7 @@ public:
                 << TErrorAttribute("read_session_id", readSessionId);
         }
 
+        // TODO(akozhikhov): Do not create it when reading fragments (now we need it to read meta).
         UnderlyingChunkReader_ = CreateLocalChunkReader(
             New<TReplicationReaderConfig>(),
             Chunk_,
@@ -145,6 +153,8 @@ private:
     const bool ProduceAllVersions_;
     const NTableClient::TTableSchemaPtr TableSchema_;
     const NTransactionClient::TTimestamp OverrideTimestamp_;
+    const bool EnableHashChunkIndex_;
+    const bool UseDirectIO_;
     const NCompression::ECodec CodecId_;
     const NLogging::TLogger Logger;
     const NChunkClient::TChunkReaderStatisticsPtr ChunkReaderStatistics_ = New<NChunkClient::TChunkReaderStatistics>();
@@ -212,6 +222,10 @@ private:
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), ChunkId_);
 
+        if (EnableHashChunkIndex_ && chunkMeta->HashTableChunkIndexMeta()) {
+            return LookupWithChunkIndex(chunkMeta, keys);
+        }
+
         auto chunkState = New<TChunkState>(
             Bootstrap_->GetBlockCache(),
             std::move(chunkSpec),
@@ -221,9 +235,10 @@ private:
             New<TChunkReaderPerformanceCounters>(),
             GetKeyComparer(),
             /*virtualValueDirectory*/ nullptr,
-            TableSchema_);
+            TableSchema_,
+            /*chunkColumnMapping*/ nullptr);
 
-        // TODO(akozhikhov): Maybe cache this reader somehow?
+        // TODO(akozhikhov): Cache this reader and chunk state with chunk column mapping.
         return DoLookup(
             keys.Size(),
             CreateVersionedChunkReader(
@@ -236,6 +251,62 @@ private:
                 ColumnFilter_,
                 Timestamp_,
                 ProduceAllVersions_));
+    }
+
+    TFuture<TSharedRef> LookupWithChunkIndex(
+        const NTableClient::TCachedVersionedChunkMetaPtr& chunkMeta,
+        const TSharedRange<NTableClient::TUnversionedRow>& keys)
+    {
+        YT_LOG_DEBUG("Creating local chunk index read session (KeyCount: %v)",
+            keys.Size());
+
+        auto controller = CreateChunkIndexReadController(
+            Chunk_->GetId(),
+            ColumnFilter_,
+            chunkMeta,
+            keys,
+            GetKeyComparer(),
+            TableSchema_,
+            Timestamp_,
+            ProduceAllVersions_,
+            /*testingOptions*/ std::nullopt,
+            Logger);
+
+        ILocalChunkFragmentReaderPtr chunkFragmentReader;
+        try {
+            chunkFragmentReader = CreateLocalChunkFragmentReader(
+                std::move(Chunk_),
+                UseDirectIO_);
+        } catch (const std::exception& ex) {
+            return MakeFuture<TSharedRef>(TError(ex));
+        }
+
+        if (auto future = chunkFragmentReader->PrepareToReadChunkFragments(Options_)) {
+            YT_LOG_DEBUG("Will wait for chunk reader to become prepared");
+
+            return future.Apply(BIND([
+                =,
+                this_ = MakeStrong(this),
+                keyCount = keys.Size(),
+                controller = std::move(controller),
+                chunkFragmentReader = std::move(chunkFragmentReader)
+            ] () mutable {
+                return DoLookup(
+                    keyCount,
+                    CreateIndexedVersionedChunkReader(
+                        Options_,
+                        std::move(controller),
+                        std::move(chunkFragmentReader)));
+            })
+                .AsyncVia(Bootstrap_->GetStorageLookupInvoker()));
+        }
+
+        return DoLookup(
+            keys.Size(),
+            CreateIndexedVersionedChunkReader(
+                Options_,
+                std::move(controller),
+                std::move(chunkFragmentReader)));
     }
 
     TFuture<TSharedRef> DoLookup(int keyCount, IVersionedReaderPtr reader) const
@@ -268,7 +339,9 @@ IOffloadedChunkReadSessionPtr CreateOffloadedChunkReadSession(
     NTableClient::TTableSchemaPtr tableSchema,
     NCompression::ECodec codecId,
     TTimestamp overrideTimestamp,
-    bool populateCache)
+    bool populateCache,
+    bool enableHashChunkIndex,
+    bool useDirectIO)
 {
     return New<TOffloadedChunkReadSession>(
         bootstrap,
@@ -281,7 +354,9 @@ IOffloadedChunkReadSessionPtr CreateOffloadedChunkReadSession(
         std::move(tableSchema),
         codecId,
         overrideTimestamp,
-        populateCache);
+        populateCache,
+        enableHashChunkIndex,
+        useDirectIO);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

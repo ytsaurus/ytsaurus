@@ -292,6 +292,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_data_node_lookup", &TThis::EnableDataNodeLookup)
         .Default(false);
 
+    registrar.Parameter("enable_hash_chunk_index_for_lookup", &TThis::EnableHashChunkIndexForLookup)
+        .Default(false);
+
     registrar.Parameter("lookup_rpc_multiplexing_parallelism", &TThis::LookupRpcMultiplexingParallelism)
         .Default(1)
         .InRange(1, 16);

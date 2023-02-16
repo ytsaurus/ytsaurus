@@ -1301,12 +1301,15 @@ private:
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto populateCache = request->populate_cache();
+        auto enableHashChunkIndex = request->enable_hash_chunk_index();
 
-        context->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, PopulateCache: %v",
+        context->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, "
+            "PopulateCache: %v, EnableHashChunkIndex: %v",
             chunkId,
             readSessionId,
             workloadDescriptor,
-            populateCache);
+            populateCache,
+            enableHashChunkIndex);
 
         ValidateOnline();
 
@@ -1353,6 +1356,7 @@ private:
         auto codecId = CheckedEnumCast<NCompression::ECodec>(request->compression_codec());
         auto produceAllVersions = FromProto<bool>(request->produce_all_versions());
         auto overrideTimestamp = request->has_override_timestamp() ? request->override_timestamp() : NullTimestamp;
+        auto useDirectIO = request->use_direct_io();
 
         auto chunkReadSession = CreateOffloadedChunkReadSession(
             Bootstrap_,
@@ -1365,7 +1369,9 @@ private:
             std::move(tableSchema),
             codecId,
             overrideTimestamp,
-            populateCache);
+            populateCache,
+            enableHashChunkIndex,
+            useDirectIO);
 
         context->SetResponseInfo(
             "ChunkId: %v, ReadSessionId: %v, Workload: %v, "

@@ -539,7 +539,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             .ColumnFilter = columnFilter,
             .Timestamp = timestamp,
             .ProduceAllVersions = produceAllVersions,
-            .OverrideTimestamp = OverrideTimestamp_
+            .OverrideTimestamp = OverrideTimestamp_,
+            .EnableHashChunkIndex = mountConfig->EnableHashChunkIndexForLookup
         });
         return wrapReader(
             CreateVersionedOffloadingLookupReader(
@@ -798,7 +799,7 @@ void TSortedChunkStore::ValidateBlockSize(
     }
 }
 
-TKeyComparer TSortedChunkStore::GetKeyComparer()
+TKeyComparer TSortedChunkStore::GetKeyComparer() const
 {
     return KeyComparer_;
 }

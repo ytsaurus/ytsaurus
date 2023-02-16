@@ -45,7 +45,7 @@ private:
 
     using TIdMapping = TCompactVector<int, NTableClient::TypicalColumnCount>;
 
-    NTableClient::TKeyComparer GetKeyComparer() override;
+    NTableClient::TKeyComparer GetKeyComparer() const override;
 
     NTableClient::ISchemafulUnversionedReaderPtr TryCreateCacheBasedReader(
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,

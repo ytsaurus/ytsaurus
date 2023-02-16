@@ -883,6 +883,10 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
         case EChunkFormat::TableVersionedSimple:
             return createWriter.operator()<TSimpleVersionedChunkWriter<TSimpleBlockFormatAdapter>>();
         case EChunkFormat::TableVersionedIndexed:
+            if (options->CompressionCodec != NCompression::ECodec::None) {
+                THROW_ERROR_EXCEPTION("Chunk index cannot be used with compression codec %Qlv",
+                    options->CompressionCodec);
+            }
             return createWriter.operator()<TSimpleVersionedChunkWriter<TIndexedBlockFormatAdapter>>();
         case EChunkFormat::TableVersionedSlim:
             return createWriter.operator()<TSimpleVersionedChunkWriter<TSlimBlockFormatAdapter>>();

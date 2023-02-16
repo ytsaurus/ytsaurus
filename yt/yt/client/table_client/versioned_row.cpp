@@ -309,7 +309,7 @@ TVersionedRowBuilder::TVersionedRowBuilder(TRowBufferPtr buffer, bool compaction
 
 void TVersionedRowBuilder::AddKey(const TUnversionedValue& value)
 {
-    Keys_.push_back(value);
+    Keys_.push_back(Buffer_->CaptureValue(value));
 }
 
 void TVersionedRowBuilder::AddValue(const TVersionedValue& value)

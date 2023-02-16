@@ -283,14 +283,13 @@ void TSimpleVersionedBlockParser::ReadStringLike(TUnversionedValue* value, const
 
 TIndexedVersionedRowParser::TIndexedVersionedRowParser(
     const TTableSchemaPtr& chunkSchema,
-    TCompactVector<int, IndexedRowTypicalGroupCount> groupIndexesToRead)
+    std::vector<int> groupIndexesToRead)
     : TVersionedRowParserBase(chunkSchema)
     , BlockFormatDetail_(chunkSchema)
-    , GroupCount_(BlockFormatDetail_.GetGroupCount())
     , HasAggregateColumns_(chunkSchema->HasAggregateColumns())
     , GroupIndexesToRead_(std::move(groupIndexesToRead))
 {
-    GroupInfos_.resize(GroupCount_);
+    GroupInfos_.resize(BlockFormatDetail_.GetGroupCount());
 }
 
 TIndexedVersionedRowParser::TColumnDescriptor
@@ -379,16 +378,13 @@ TTimestamp TIndexedVersionedRowParser::ReadValueTimestamp(
     return *reinterpret_cast<const TTimestamp*>(ptr + sizeof(i64));
 }
 
-void TIndexedVersionedRowParser::PreprocessRow(
-    const TCompactVector<TRef, IndexedRowTypicalGroupCount>& rowData,
-    const int* groupOffsets,
-    const int* groupIndexes,
-    bool validateChecksums,
-    TVersionedRowMetadata* rowMetadata)
+void TIndexedVersionedRowParser::ValidateRowDataChecksum(
+    const TCompactVector<TRef, IndexedRowTypicalGroupCount>& rowData)
 {
     auto validateChecksum = [] (TRef data) {
         auto dataWithoutChecksum = data.Slice(0, data.Size() - sizeof(TChecksum));
-        auto expectedChecksum = *reinterpret_cast<const TChecksum*>(dataWithoutChecksum.End());
+        TChecksum expectedChecksum;
+        memcpy(&expectedChecksum, dataWithoutChecksum.End(), sizeof(TChecksum));
         auto actualChecksum = GetChecksum(dataWithoutChecksum);
         if (expectedChecksum != actualChecksum) {
             THROW_ERROR_EXCEPTION(
@@ -399,9 +395,20 @@ void TIndexedVersionedRowParser::PreprocessRow(
         }
     };
 
-    if (validateChecksums) {
-        validateChecksum(rowData[0]);
+    validateChecksum(rowData[0]);
+
+    for (int partIndex = 1; partIndex < std::ssize(rowData); ++partIndex) {
+        validateChecksum(rowData[partIndex]);
     }
+}
+
+void TIndexedVersionedRowParser::ProcessRow(
+    const TCompactVector<TRef, IndexedRowTypicalGroupCount>& rowData,
+    const int* groupOffsets,
+    const int* groupIndexes,
+    TVersionedRowMetadata* rowMetadata)
+{
+    YT_VERIFY(rowData.size() == GroupIndexesToRead_.size() + 1);
 
     auto* rowDataBegin = rowData[0].Begin();
 
@@ -441,24 +448,15 @@ void TIndexedVersionedRowParser::PreprocessRow(
     };
 
     if (rowData.size() == 1) {
-        if (GroupCount_ == 1) {
+        if (BlockFormatDetail_.GetGroupCount() == 1) {
             processGroup(rowDataPtr, 0);
         } else {
-            for (auto groupIndex = 0; groupIndex < GroupCount_; ++groupIndex) {
+            for (auto groupIndex = 0; groupIndex < BlockFormatDetail_.GetGroupCount(); ++groupIndex) {
                 auto physicalGroupIndex = groupIndexes ? groupIndexes[groupIndex] : groupIndex;
                 processGroup(rowData[0].Begin() + groupOffsets[physicalGroupIndex], groupIndex);
             }
         }
     } else {
-        YT_VERIFY(rowData.size() == GroupIndexesToRead_.size() + 1);
-        YT_VERIFY(validateChecksums);
-
-        for (int refIndex = 1; refIndex < std::ssize(rowData) - 1; ++refIndex) {
-            validateChecksum(rowData[refIndex]);
-        }
-        // Ignore full row checksum.
-        validateChecksum(rowData.back().Slice(0, rowData.back().Size() - sizeof(TChecksum)));
-
         for (int groupIndex = 0; groupIndex < std::ssize(GroupIndexesToRead_); ++groupIndex) {
             processGroup(rowData[groupIndex + 1].Begin(), GroupIndexesToRead_[groupIndex]);
         }
@@ -520,6 +518,8 @@ const TIndexedVersionedRowParser::TGroupInfo& TIndexedVersionedRowParser::GetGro
     int columnCountInGroup)
 {
     auto& groupInfo = GroupInfos_[groupIndex];
+    YT_VERIFY(groupInfo.GroupDataBegin);
+
     if (groupInfo.Initialized) {
         return groupInfo;
     }
@@ -551,7 +551,9 @@ TIndexedVersionedBlockParser::TIndexedVersionedBlockParser(
     const NProto::TDataBlockMeta& blockMeta,
     int blockFormatVersion,
     const TTableSchemaPtr& chunkSchema)
-    : TIndexedVersionedRowParser(chunkSchema)
+    : TIndexedVersionedRowParser(
+        chunkSchema,
+        /*groupIndexesToRead*/ {})
     , Block_(std::move(block))
     , RowCount_(blockMeta.row_count())
 {
@@ -565,13 +567,14 @@ TIndexedVersionedBlockParser::TIndexedVersionedBlockParser(
 
     auto* blockEnd = Block_.End();
 
-    if (GroupCount_ > 1) {
+    auto groupCount = BlockFormatDetail_.GetGroupCount();
+    if (groupCount > 1) {
         if (GroupReorderingEnabled_) {
-            blockEnd -= sizeof(i32) * RowCount_ * GroupCount_;
+            blockEnd -= sizeof(i32) * RowCount_ * groupCount;
             GroupIndexes_ = reinterpret_cast<const i32*>(blockEnd);
         }
 
-        blockEnd -= sizeof(i32) * RowCount_ * GroupCount_;
+        blockEnd -= sizeof(i32) * RowCount_ * groupCount;
         GroupOffsets_ = reinterpret_cast<const i32*>(blockEnd);
     }
 
@@ -603,22 +606,47 @@ bool TIndexedVersionedBlockParser::JumpToRowIndex(int rowIndex, TVersionedRowMet
 
     const int* groupOffsets = nullptr;
     const int* groupIndexes = nullptr;
-    if (GroupCount_ > 1) {
+    auto groupCount = BlockFormatDetail_.GetGroupCount();
+    if (groupCount > 1) {
         if (GroupReorderingEnabled_) {
-            groupIndexes = GroupIndexes_ + rowIndex * GroupCount_;
+            groupIndexes = GroupIndexes_ + rowIndex * groupCount;
         }
-        groupOffsets = GroupOffsets_ + rowIndex * GroupCount_;
+        groupOffsets = GroupOffsets_ + rowIndex * groupCount;
     }
 
-    PreprocessRow(
+    ProcessRow(
         {TRef(Block_).Slice(rowBegin, rowEnd)},
         groupOffsets,
         groupIndexes,
-        /*validateChecksums*/ false,
         rowMetadata);
 
     Valid_ = true;
     return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+TMutableVersionedRow TVersionedRowReader<TIndexedVersionedRowParser>::ProcessAndGetRow(
+    const TCompactVector<TSharedRef, IndexedRowTypicalGroupCount>& owningRowData,
+    const int* groupOffsets,
+    const int* groupIndexes,
+    TChunkedMemoryPool* memoryPool)
+{
+    TCompactVector<TRef, IndexedRowTypicalGroupCount> rowData;
+    rowData.reserve(owningRowData.size());
+    for (const auto& dataPart : owningRowData) {
+        rowData.emplace_back(dataPart);
+    }
+
+    Parser_.ValidateRowDataChecksum(rowData);
+    Parser_.ProcessRow(
+        rowData,
+        groupOffsets,
+        groupIndexes,
+        &RowMetadata_);
+
+    return GetRow(memoryPool);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

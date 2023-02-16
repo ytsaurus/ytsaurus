@@ -31,7 +31,7 @@ public:
         const TIndexedVersionedBlockFormatDetail& blockFormatDetail,
         const NLogging::TLogger& logger)
         : Config_(std::move(config))
-        , GroupCount_(blockFormatDetail.GetGroupCount())
+        , BlockFormatDetail_(blockFormatDetail)
         , Logger(logger)
     { }
 
@@ -42,6 +42,48 @@ public:
 
     std::vector<TSharedRef> BuildIndex(TSystemBlockMetaExt* systemBlockMetaExt) override
     {
+        return DoBuildIndex(systemBlockMetaExt, /*startSlotIndexes*/ {});
+    }
+
+    std::vector<TSharedRef> BuildIndex(
+        NProto::TSystemBlockMetaExt* systemBlockMetaExt,
+        const std::vector<int>& rowToSlotIndex) override
+    {
+        YT_VERIFY(Entries_.size() == rowToSlotIndex.size());
+
+        return DoBuildIndex(systemBlockMetaExt, rowToSlotIndex);
+    }
+
+private:
+    struct TChunkIndexBlock
+    {
+        TSharedRef Data;
+        TSystemBlockMeta Meta;
+    };
+
+    struct THashTableChunkIndexEntry
+        : public TChunkIndexEntry
+    {
+        explicit THashTableChunkIndexEntry(TChunkIndexEntry entry)
+            : TChunkIndexEntry(std::move(entry))
+            , Fingerprint(GetFarmFingerprint(MakeRange(Row.Keys())))
+        { }
+
+        const TFingerprint Fingerprint;
+    };
+
+    const THashTableChunkIndexWriterConfigPtr Config_;
+    // NB: Chunk writer holds this object.
+    const TIndexedVersionedBlockFormatDetail& BlockFormatDetail_;
+    const NLogging::TLogger Logger;
+
+    std::vector<THashTableChunkIndexEntry> Entries_;
+
+
+    std::vector<TSharedRef> DoBuildIndex(
+        TSystemBlockMetaExt* systemBlockMetaExt,
+        TRange<int> startSlotIndexes)
+    {
         YT_VERIFY(!Entries_.empty());
 
         NProfiling::TWallTimer timer;
@@ -49,7 +91,7 @@ public:
         int maxEntryCountInBlock;
         if (Config_->MaxBlockSize) {
             auto maxSlotCountInBlock = THashTableChunkIndexFormatDetail::GetMaxSlotCountInBlock(
-                GroupCount_,
+                BlockFormatDetail_.GetGroupCount(),
                 Config_->EnableGroupReordering,
                 *Config_->MaxBlockSize);
             maxEntryCountInBlock = maxSlotCountInBlock * Config_->LoadFactor;
@@ -68,9 +110,15 @@ public:
         while (entryIndex != std::ssize(Entries_)) {
             auto nextEntryIndex = std::min(entryIndex + maxEntryCountInBlock, static_cast<int>(Entries_.size()));
 
-            auto chunkIndexBlock = BuildChunkIndexBlock(MakeRange(
-                Entries_.begin() + entryIndex,
-                Entries_.begin() + nextEntryIndex));
+            // May be non-empty for testing purposes.
+            auto startSlotIndexesSlice = startSlotIndexes
+                ? startSlotIndexes.Slice(entryIndex, nextEntryIndex)
+                : startSlotIndexes;
+            auto chunkIndexBlock = BuildChunkIndexBlock(
+                MakeRange(
+                    Entries_.begin() + entryIndex,
+                    Entries_.begin() + nextEntryIndex),
+                startSlotIndexesSlice);
 
             blocks.push_back(std::move(chunkIndexBlock.Data));
             systemBlockMetaExt->add_system_blocks()->Swap(&chunkIndexBlock.Meta);
@@ -88,32 +136,9 @@ public:
         return blocks;
     }
 
-private:
-    struct TChunkIndexBlock
-    {
-        TSharedRef Data;
-        TSystemBlockMeta Meta;
-    };
-
-    struct THashTableChunkIndexEntry
-        : public TChunkIndexEntry
-    {
-        explicit THashTableChunkIndexEntry(TChunkIndexEntry entry)
-            : TChunkIndexEntry(std::move(entry))
-            , Fingerprint(FarmFingerprint(Row.BeginKeys(), Row.GetKeyCount()))
-        { }
-
-        const TFingerprint Fingerprint;
-    };
-
-    const THashTableChunkIndexWriterConfigPtr Config_;
-    const int GroupCount_;
-    const NLogging::TLogger Logger;
-
-    std::vector<THashTableChunkIndexEntry> Entries_;
-
-
-    TChunkIndexBlock BuildChunkIndexBlock(TRange<THashTableChunkIndexEntry> entries)
+    TChunkIndexBlock BuildChunkIndexBlock(
+        TRange<THashTableChunkIndexEntry> entries,
+        TRange<int> startSlotIndexes)
     {
         auto slotCount = std::ssize(entries) / Config_->LoadFactor;
 
@@ -130,12 +155,14 @@ private:
             THashTableChunkIndexFormatDetail formatDetail(
                 /*seed*/ RandomNumber<ui64>(),
                 slotCount,
-                GroupCount_,
+                BlockFormatDetail_.GetGroupCount(),
                 Config_->EnableGroupReordering);
 
             slotIndexToCandidateIndexes.resize(slotCount);
             for (int entryIndex = 0; entryIndex < std::ssize(entries); ++entryIndex) {
-                auto slotIndex = formatDetail.GetStartSlotIndex(entries[entryIndex].Fingerprint);
+                auto slotIndex = startSlotIndexes
+                    ? startSlotIndexes[entryIndex]
+                    : formatDetail.GetStartSlotIndex(entries[entryIndex].Fingerprint);
                 slotIndexToCandidateIndexes[slotIndex].push_back(entryIndex);
             }
 
@@ -230,6 +257,7 @@ private:
         auto* chunkIndexMetaExt = meta.MutableExtension(
             THashTableChunkIndexSystemBlockMeta::hash_table_chunk_index_system_block_meta_ext);
         chunkIndexMetaExt->set_seed(bestFormatDetail->GetSeed());
+        chunkIndexMetaExt->set_slot_count(slotCount);
         ToProto(
             chunkIndexMetaExt->mutable_last_key(),
             entries.Back().Row.Keys());

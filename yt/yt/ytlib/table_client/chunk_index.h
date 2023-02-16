@@ -20,8 +20,7 @@ void WriteChecksum(char*& buffer, i64 byteSize);
 class TIndexedVersionedBlockFormatDetail
 {
 public:
-    explicit TIndexedVersionedBlockFormatDetail(
-        const TTableSchemaPtr& schema);
+    explicit TIndexedVersionedBlockFormatDetail(const TTableSchemaPtr& schema);
 
     struct TColumnInfo
     {
@@ -33,6 +32,11 @@ public:
     TColumnInfo GetValueColumnInfo(int valueId) const;
 
     int GetGroupCount() const;
+
+    //! Returns column groups subset that should be read according to #schemaIdMapping.
+    //! Empty vector is returned in case all the groups are to be read.
+    std::vector<int> GetGroupIndexesToRead(
+        const std::vector<TColumnIdMapping>& schemaIdMapping) const;
 
 private:
     const int KeyColumnCount_;
@@ -82,21 +86,24 @@ public:
     ui64 GetSeed() const;
 
     int GetStartSlotIndex(TFingerprint fingerprint) const;
+    int GetNextSlotIndex(int slotIndex) const;
 
     int GetSectorIndex(int slotIndex) const;
 
     TSerializableFingerprint GetSerializableFingerprint(TFingerprint fingerprint) const;
     bool IsEntryPresent(TSerializableFingerprint fingerprint) const;
+    //! For testing purposes.
+    TSerializableFingerprint NarrowFingerprint(TSerializableFingerprint fingerprint, int fingerprintDomainSize) const;
 
     static int GetMaxSlotCountInBlock(int groupCount, bool groupReorderingEnabled, int maxBlockSize);
 
 private:
     static constexpr i64 SectorDataSize = SectorSize - sizeof(TChecksum);
+    static constexpr TSerializableFingerprint MinPresentEntryFingerprint = 1;
+    static_assert(MinPresentEntryFingerprint != MissingEntryFingerprint);
 
     const ui64 Seed_;
     const int SlotCount_;
-    const int GroupCount_;
-    const bool GroupReorderingEnabled_;
 
 
     static int GetEntryByteSize(int groupCount, bool groupReorderingEnabled);

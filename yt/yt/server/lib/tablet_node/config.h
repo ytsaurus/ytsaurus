@@ -228,6 +228,8 @@ public:
 
     bool EnableDataNodeLookup;
 
+    bool EnableHashChunkIndexForLookup;
+
     int LookupRpcMultiplexingParallelism;
 
     bool EnableNewScanReaderForLookup;

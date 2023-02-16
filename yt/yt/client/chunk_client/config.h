@@ -228,6 +228,10 @@ public:
     //! If |true| network throttlers will be applied even in case of requests to local host.
     bool EnableLocalThrottling;
 
+    //! Will open and read with DirectIO (unless already opened w/o DirectIO or disabled via location config).
+    // NB: Right now is used only with data node lookup + chunk index.
+    bool UseDirectIO;
+
     REGISTER_YSON_STRUCT(TReplicationReaderConfig);
 
     static void Register(TRegistrar registrar);

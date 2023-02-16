@@ -1,5 +1,6 @@
 #include "chunk_index.h"
 
+#include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
@@ -69,6 +70,26 @@ int TIndexedVersionedBlockFormatDetail::GetGroupCount() const
     return GroupCount_;
 }
 
+std::vector<int> TIndexedVersionedBlockFormatDetail::GetGroupIndexesToRead(
+    const std::vector<TColumnIdMapping>& schemaIdMapping) const
+{
+    if (GroupCount_ == 1) {
+        return {};
+    }
+
+    std::vector<int> groupIndicesToRead;
+    for (const auto& columnIdMapping : schemaIdMapping) {
+        groupIndicesToRead.push_back(GetValueColumnInfo(columnIdMapping.ChunkSchemaIndex).GroupIndex);
+    }
+
+    SortUnique(groupIndicesToRead);
+    if (GroupCount_ == std::ssize(groupIndicesToRead)) {
+        return {};
+    }
+
+    return groupIndicesToRead;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 THashTableChunkIndexFormatDetail::THashTableChunkIndexFormatDetail(
@@ -78,10 +99,8 @@ THashTableChunkIndexFormatDetail::THashTableChunkIndexFormatDetail(
     bool groupReorderingEnabled)
     : Seed_(seed)
     , SlotCount_(slotCount)
-    , GroupCount_(groupCount)
-    , GroupReorderingEnabled_(groupReorderingEnabled)
 {
-    EntryByteSize_ = GetEntryByteSize(GroupCount_, GroupReorderingEnabled_);
+    EntryByteSize_ = GetEntryByteSize(groupCount, groupReorderingEnabled);
 
     if (SectorDataSize < EntryByteSize_) {
         THROW_ERROR_EXCEPTION("Cannot build hash table chunk index for specified format parameters")
@@ -106,17 +125,21 @@ int THashTableChunkIndexFormatDetail::GetStartSlotIndex(TFingerprint fingerprint
     return FarmFingerprint(fingerprint, Seed_) % SlotCount_;
 }
 
+int THashTableChunkIndexFormatDetail::GetNextSlotIndex(int slotIndex) const
+{
+    YT_VERIFY(slotIndex < SlotCount_);
+    return slotIndex + 1 == SlotCount_ ? 0 : slotIndex + 1;
+}
+
 int THashTableChunkIndexFormatDetail::GetSectorIndex(int slotIndex) const
 {
+    YT_VERIFY(slotIndex < SlotCount_);
     return slotIndex / SlotCountInSector_;
 }
 
 THashTableChunkIndexFormatDetail::TSerializableFingerprint
 THashTableChunkIndexFormatDetail::GetSerializableFingerprint(TFingerprint fingerprint) const
 {
-    static constexpr TSerializableFingerprint MinPresentEntryFingerprint = 1;
-    static_assert(MinPresentEntryFingerprint != MissingEntryFingerprint);
-
     TSerializableFingerprint serializableFingerprint = fingerprint;
     return serializableFingerprint == MissingEntryFingerprint
         ? MinPresentEntryFingerprint
@@ -126,6 +149,23 @@ THashTableChunkIndexFormatDetail::GetSerializableFingerprint(TFingerprint finger
 bool THashTableChunkIndexFormatDetail::IsEntryPresent(TSerializableFingerprint fingerprint) const
 {
     return fingerprint != MissingEntryFingerprint;
+}
+
+THashTableChunkIndexFormatDetail::TSerializableFingerprint
+THashTableChunkIndexFormatDetail::NarrowFingerprint(
+    TSerializableFingerprint fingerprint,
+    int fingerprintDomainSize) const
+{
+    YT_VERIFY(fingerprintDomainSize > 1);
+
+    if (fingerprint == MissingEntryFingerprint) {
+        return fingerprint;
+    }
+
+    fingerprint %= fingerprintDomainSize;
+    return fingerprint == MissingEntryFingerprint
+        ? MinPresentEntryFingerprint
+        : fingerprint;
 }
 
 int THashTableChunkIndexFormatDetail::GetMaxSlotCountInBlock(

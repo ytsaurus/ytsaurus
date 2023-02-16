@@ -388,7 +388,8 @@ public:
             sessionId,
             useDedicatedAllocations);
 
-        future.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const NYT::TErrorOr<TReadResponse>&) {
+        // XXX(akozhikhov): Cannot use ApplyUnique without AsVoid() here. But this seems too heavy.
+        future.AsVoid().Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const NYT::TError& /*error*/) {
             auto duration = requestTimer.GetElapsedTime();
             for (const auto& request : requests) {
                 ModelManager_->RegisterRead(request, category, duration);
