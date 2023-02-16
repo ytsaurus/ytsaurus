@@ -299,8 +299,8 @@ public:
         response.OutputBuffers.assign(buffers.begin(), buffers.end());
 
         return AllSucceeded(std::move(futures))
-            .Apply(BIND([response = std::move(response)] {
-                return response;
+            .Apply(BIND([response = std::move(response)] () mutable {
+                return std::move(response);
             }));
     }
 

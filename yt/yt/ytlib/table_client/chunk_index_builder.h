@@ -29,6 +29,11 @@ struct IChunkIndexBuilder
     //! Builds an index and populates meta based on processed entries.
     //! Each vector item corresponds to a single system block that is to be appended to the chunk.
     virtual std::vector<TSharedRef> BuildIndex(NProto::TSystemBlockMetaExt* systemBlockMetaExt) = 0;
+
+    //! Same as above but with predefined start slot indexes for each entry. Intended for testing purposes
+    virtual std::vector<TSharedRef> BuildIndex(
+        NProto::TSystemBlockMetaExt* systemBlockMetaExt,
+        const std::vector<int>& rowToSlotIndex) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkIndexBuilder)
@@ -38,7 +43,7 @@ DEFINE_REFCOUNTED_TYPE(IChunkIndexBuilder)
 IChunkIndexBuilderPtr CreateChunkIndexBuilder(
     const TChunkIndexesWriterConfigPtr& config,
     const TIndexedVersionedBlockFormatDetail& blockFormatDetail,
-    const NLogging::TLogger& logger);
+    const NLogging::TLogger& logger = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

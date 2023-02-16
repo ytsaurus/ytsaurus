@@ -1,4 +1,5 @@
 #include <yt/yt/ytlib/table_client/chunk_index_builder.h>
+#include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/versioned_block_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_block_writer.h>
 
@@ -24,69 +25,110 @@ using namespace NCompression;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMockSimpleBlockFormatAdapter
-{
-    using TBlockReader = TSimpleVersionedBlockReader;
-
-    static std::unique_ptr<TSimpleVersionedBlockWriter> CreateBlockWriter(const TTableSchemaPtr& schema)
-    {
-        return std::make_unique<TSimpleVersionedBlockWriter>(schema);
-    }
-};
-
-class TMockChunkIndexBuilder
-    : public IChunkIndexBuilder
+class TMockSimpleBlockFormatAdapter
 {
 public:
-    void ProcessRow(TChunkIndexEntry /*entry*/) override
+    using TBlockReader = TSimpleVersionedBlockReader;
+
+    explicit TMockSimpleBlockFormatAdapter(TTableSchemaPtr schema)
+        : Schema_(std::move(schema))
+    { }
+
+    std::unique_ptr<TSimpleVersionedBlockWriter> CreateBlockWriter()
     {
-        return;
+        return std::make_unique<TSimpleVersionedBlockWriter>(Schema_);
     }
 
-    std::vector<TSharedRef> BuildIndex(NProto::TSystemBlockMetaExt* /*systemBlockMetaExt*/) override
-    {
-        return {};
-    }
+private:
+    const TTableSchemaPtr Schema_;
 };
 
-struct TMockIndexedBlockFormatAdapter
+class TMockIndexedBlockFormatAdapter
 {
+public:
     using TBlockReader = TIndexedVersionedBlockReader;
 
-    static std::unique_ptr<TIndexedVersionedBlockWriter> CreateBlockWriter(const TTableSchemaPtr& schema)
+    explicit TMockIndexedBlockFormatAdapter(TTableSchemaPtr schema)
+        : Schema_(std::move(schema))
+        , BlockFormatDetail_(Schema_)
     {
-        static std::optional<TIndexedVersionedBlockFormatDetail> blockFormatDetail;
-        blockFormatDetail.emplace(schema);
-
-        return std::make_unique<TIndexedVersionedBlockWriter>(
-            schema,
-            /*blockIndex*/ 0,
-            *blockFormatDetail,
-            New<TMockChunkIndexBuilder>());
+        ChunkIndexBuilder_ = CreateChunkIndexBuilder(
+            New<TChunkIndexesWriterConfig>(),
+            BlockFormatDetail_,
+            /*logger*/ {});
     }
+
+    std::unique_ptr<TIndexedVersionedBlockWriter> CreateBlockWriter() const
+    {
+        return std::make_unique<TIndexedVersionedBlockWriter>(
+            Schema_,
+            /*blockIndex*/ 0,
+            BlockFormatDetail_,
+            ChunkIndexBuilder_);
+    }
+
+    const IChunkIndexBuilderPtr& GetChunkIndexBuilder() const
+    {
+        return ChunkIndexBuilder_;
+    }
+
+private:
+    const TTableSchemaPtr Schema_;
+    const TIndexedVersionedBlockFormatDetail BlockFormatDetail_;
+
+    IChunkIndexBuilderPtr ChunkIndexBuilder_;
 };
 
 struct TMockSlimBlockFormatAdapter
 {
     using TBlockReader = TSlimVersionedBlockReader;
 
-    static std::unique_ptr<TSlimVersionedBlockWriter> CreateBlockWriter(const TTableSchemaPtr& schema)
+    explicit TMockSlimBlockFormatAdapter(TTableSchemaPtr schema)
+        : Schema_(std::move(schema))
+    { }
+
+    std::unique_ptr<TSlimVersionedBlockWriter> CreateBlockWriter()
     {
         return std::make_unique<TSlimVersionedBlockWriter>(
             New<TSlimVersionedWriterConfig>(),
-            schema);
+            Schema_);
     }
+
+private:
+    const TTableSchemaPtr Schema_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TMockBlockFormatAdapter>
+static const auto SimpleSchema = New<TTableSchema>(std::vector{
+    TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+    TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+    TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
+    TColumnSchema("v1", EValueType::Int64),
+    TColumnSchema("v2", EValueType::Boolean),
+    TColumnSchema("v3", EValueType::Int64)
+});
+
+static const auto SchemaWithGroups = New<TTableSchema>(std::vector{
+    TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+    TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+    TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
+    TColumnSchema("v1", EValueType::Int64).SetGroup("a"),
+    TColumnSchema("v2", EValueType::Boolean),
+    TColumnSchema("v3", EValueType::Int64).SetGroup("a")
+});
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TMockBlockFormatAdapter, bool UseSchemaWithGroups>
 class TVersionedBlocksTestOneRowBase
     : public ::testing::Test
+    , public TMockBlockFormatAdapter
 {
 protected:
-    TVersionedBlocksTestOneRowBase(TTableSchemaPtr schema)
-        : Schema(std::move(schema))
+    TVersionedBlocksTestOneRowBase()
+        : TMockBlockFormatAdapter(UseSchemaWithGroups ? SchemaWithGroups : SimpleSchema)
+        , Schema(UseSchemaWithGroups ? SchemaWithGroups : SimpleSchema)
     { }
 
     const TTableSchemaPtr Schema;
@@ -98,39 +140,41 @@ protected:
 
     TChunkedMemoryPool MemoryPool;
 
+    TMutableVersionedRow Row;
+
 
     void SetUp() override
     {
-        auto blockWriter = TMockBlockFormatAdapter::CreateBlockWriter(Schema);
+        auto blockWriter = TMockBlockFormatAdapter::CreateBlockWriter();
 
-        auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 5, 3, 1);
-        row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
-        row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
-        row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
+        Row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 5, 3, 1);
+        Row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
+        Row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
+        Row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
 
         // v1
-        row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
-        row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 3);
+        Row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
+        Row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 3);
         // v2
-        row.BeginValues()[2] = MakeVersionedBooleanValue(true, 5, 4);
-        row.BeginValues()[3] = MakeVersionedBooleanValue(false, 3, 4);
+        Row.BeginValues()[2] = MakeVersionedBooleanValue(true, 5, 4);
+        Row.BeginValues()[3] = MakeVersionedBooleanValue(false, 3, 4);
         // v3
-        row.BeginValues()[4] = MakeVersionedSentinelValue(EValueType::Null, 5, 5);
+        Row.BeginValues()[4] = MakeVersionedSentinelValue(EValueType::Null, 5, 5);
 
-        row.BeginWriteTimestamps()[2] = 3;
-        row.BeginWriteTimestamps()[1] = 5;
-        row.BeginWriteTimestamps()[0] = 11;
+        Row.BeginWriteTimestamps()[2] = 3;
+        Row.BeginWriteTimestamps()[1] = 5;
+        Row.BeginWriteTimestamps()[0] = 11;
 
-        row.BeginDeleteTimestamps()[0] = 9;
+        Row.BeginDeleteTimestamps()[0] = 9;
 
-        blockWriter->WriteRow(row);
+        blockWriter->WriteRow(Row);
 
         auto block = blockWriter->FlushBlock();
         Data = MergeRefsToRef<TDefaultBlobTag>(block.Data);
         Meta = block.Meta;
     }
 
-    void DoCheck(
+    virtual void DoCheck(
         const std::vector<TVersionedRow>& rows,
         int keyColumnCount,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
@@ -161,32 +205,163 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto SimpleSchema = New<TTableSchema>(std::vector{
-    TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-    TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-    TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
-    TColumnSchema("v1", EValueType::Int64),
-    TColumnSchema("v2", EValueType::Boolean),
-    TColumnSchema("v3", EValueType::Int64)
-});
+template <bool UseSchemaWithGroups>
+class TIndexedVersionedBlocksTestOneRowBase
+    : public TVersionedBlocksTestOneRowBase<TMockIndexedBlockFormatAdapter, UseSchemaWithGroups>
+{
+public:
+    void DoCheck(
+        const std::vector<TVersionedRow>& rows,
+        int keyColumnCount,
+        const std::vector<TColumnIdMapping>& schemaIdMapping,
+        TTimestamp timestamp,
+        bool produceAllVersions) override
+    {
+        YT_VERIFY(rows.size() == 1);
 
-template <typename TMockBlockFormatAdapter>
+        // First check block reader.
+
+        TVersionedBlocksTestOneRowBase<TMockIndexedBlockFormatAdapter, UseSchemaWithGroups>::DoCheck(
+            rows,
+            keyColumnCount,
+            schemaIdMapping,
+            timestamp,
+            produceAllVersions);
+
+        // Now check row reader.
+
+        const auto& chunkIndexBuilder = this->GetChunkIndexBuilder();
+        NProto::TSystemBlockMetaExt systemBlockMeta;
+        auto chunkIndex = chunkIndexBuilder->BuildIndex(&systemBlockMeta)[0];
+
+        TIndexedVersionedBlockFormatDetail blockFormatDetail(this->Schema);
+        auto hashTableChunkIndexBlockMeta = systemBlockMeta
+            .system_blocks(0)
+            .GetExtension(NProto::THashTableChunkIndexSystemBlockMeta::hash_table_chunk_index_system_block_meta_ext);
+        THashTableChunkIndexFormatDetail indexFormatDetail(
+            hashTableChunkIndexBlockMeta.seed(),
+            hashTableChunkIndexBlockMeta.slot_count(),
+            blockFormatDetail.GetGroupCount(),
+            /*groupReorderingEnabled*/ false);
+
+        EXPECT_EQ(1, indexFormatDetail.GetSectorCount());
+        EXPECT_EQ(THashTableChunkIndexFormatDetail::SectorSize, indexFormatDetail.GetChunkIndexByteSize());
+        EXPECT_LT(
+            static_cast<int>(sizeof(THashTableChunkIndexFormatDetail::TSerializableFingerprint)),
+            indexFormatDetail.GetEntryByteSize());
+
+        auto firstEntry = chunkIndex.Slice(0, indexFormatDetail.GetEntryByteSize()).Begin();
+        THashTableChunkIndexFormatDetail::TSerializableFingerprint firstFingerprint;
+        ReadPod(firstEntry, firstFingerprint);
+        auto firstEntryPresent = indexFormatDetail.IsEntryPresent(firstFingerprint);
+
+        auto secondEntry = chunkIndex.Slice(indexFormatDetail.GetEntryByteSize(), 2 * indexFormatDetail.GetEntryByteSize()).Begin();
+        THashTableChunkIndexFormatDetail::TSerializableFingerprint secondFingerprint;
+        ReadPod(secondEntry, secondFingerprint);
+        auto secondEntryPresent = indexFormatDetail.IsEntryPresent(secondFingerprint);
+
+        EXPECT_TRUE(firstEntryPresent ^ secondEntryPresent);
+
+        struct TChunkIndexEntry
+        {
+            int BlockIndex;
+            i64 BlockOffset;
+            i64 Length;
+            std::vector<int> GroupOffsets;
+            std::vector<int> GroupIndexes;
+        };
+
+        auto getEntry = [&] (const char* entry) {
+            TChunkIndexEntry chunkIndexEntry;
+            ReadPod(entry, chunkIndexEntry.BlockIndex);
+            ReadPod(entry, chunkIndexEntry.BlockOffset);
+            ReadPod(entry, chunkIndexEntry.Length);
+            if (blockFormatDetail.GetGroupCount() > 1) {
+                for (int i = 0; i < blockFormatDetail.GetGroupCount(); ++i) {
+                    ReadPod(entry, chunkIndexEntry.GroupOffsets.emplace_back());
+                }
+                if (/*groupReorderingEnabled*/ false) {
+                    ReadPod(entry, chunkIndexEntry.GroupIndexes.emplace_back());
+                }
+            }
+            return chunkIndexEntry;
+        };
+
+        auto chunkIndexEntry = getEntry((firstEntryPresent ? firstEntry : secondEntry));
+
+        EXPECT_EQ(0, chunkIndexEntry.BlockIndex);
+        EXPECT_EQ(0, chunkIndexEntry.BlockOffset);
+        EXPECT_LE(chunkIndexEntry.Length, std::ssize(this->Data));
+
+        auto actualRow = TIndexedVersionedRowReader(
+            keyColumnCount,
+            schemaIdMapping,
+            timestamp,
+            produceAllVersions,
+            this->Schema,
+            /*groupIndexesToRead*/ std::vector<int>{})
+            .ProcessAndGetRow(
+                {this->Data.Slice(0, chunkIndexEntry.Length)},
+                chunkIndexEntry.GroupOffsets.data(),
+                chunkIndexEntry.GroupIndexes.data(),
+                &this->MemoryPool);
+        ExpectSchemafulRowsEqual(rows[0], actualRow);
+
+        if (blockFormatDetail.GetGroupCount() > 1) {
+            auto groupIndexesToRead = blockFormatDetail.GetGroupIndexesToRead(schemaIdMapping);
+
+            TCompactVector<TSharedRef, IndexedRowTypicalGroupCount> rowData;
+            rowData.push_back(this->Data.Slice(0, chunkIndexEntry.GroupOffsets[0]));
+            for (auto groupIndex : groupIndexesToRead) {
+                rowData.push_back(this->Data.Slice(
+                    chunkIndexEntry.GroupOffsets[groupIndex],
+                    groupIndex + 1 == std::ssize(chunkIndexEntry.GroupOffsets)
+                    ? chunkIndexEntry.Length - sizeof(TChecksum)
+                    : chunkIndexEntry.GroupOffsets[groupIndex + 1]));
+            }
+
+            auto actualRow = TIndexedVersionedRowReader(
+                keyColumnCount,
+                schemaIdMapping,
+                timestamp,
+                produceAllVersions,
+                this->Schema,
+                groupIndexesToRead)
+                .ProcessAndGetRow(
+                    rowData,
+                    chunkIndexEntry.GroupOffsets.data(),
+                    chunkIndexEntry.GroupIndexes.data(),
+                    &this->MemoryPool);
+            ExpectSchemafulRowsEqual(rows[0], actualRow);
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TSimpleVersionedBlocksTestOneRowImpl = TVersionedBlocksTestOneRowBase<TMockSimpleBlockFormatAdapter, false>;
+using TIndexedVersionedBlocksTestOneRowImpl = TIndexedVersionedBlocksTestOneRowBase<false>;
+using TIndexedWithGroupsVersionedBlocksTestOneRowImpl = TIndexedVersionedBlocksTestOneRowBase<true>;
+using TSlimVersionedBlocksTestOneRowImpl = TVersionedBlocksTestOneRowBase<TMockSlimBlockFormatAdapter, false>;
+
+using TVersionedBlockTestOneRowImpls = ::testing::Types<
+    TSimpleVersionedBlocksTestOneRowImpl,
+    TIndexedVersionedBlocksTestOneRowImpl,
+    TIndexedWithGroupsVersionedBlocksTestOneRowImpl,
+    TSlimVersionedBlocksTestOneRowImpl
+>;
+
+template <typename TTestImpl>
 class TVersionedBlocksTestOneRow
-    : public TVersionedBlocksTestOneRowBase<TMockBlockFormatAdapter>
+    : public TTestImpl
 {
 public:
     TVersionedBlocksTestOneRow()
-        : TVersionedBlocksTestOneRowBase<TMockBlockFormatAdapter>(SimpleSchema)
+        : TTestImpl()
     { }
 };
 
-using TVersionedBlockFormatAdapters = ::testing::Types<
-    TMockSimpleBlockFormatAdapter,
-    TMockIndexedBlockFormatAdapter,
-    TMockSlimBlockFormatAdapter
->;
-
-TYPED_TEST_SUITE(TVersionedBlocksTestOneRow, TVersionedBlockFormatAdapters);
+TYPED_TEST_SUITE(TVersionedBlocksTestOneRow, TVersionedBlockTestOneRowImpls);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -292,57 +467,52 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadAllCommitted)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto SchemaWithGroups = New<TTableSchema>(std::vector{
-    TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-    TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-    TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
-    TColumnSchema("v1", EValueType::Int64).SetGroup("a"),
-    TColumnSchema("v2", EValueType::Boolean),
-    TColumnSchema("v3", EValueType::Int64).SetGroup("a")
-});
+using TIndexedVersionedBlockTestOneRowImpls = ::testing::Types<
+    TIndexedVersionedBlocksTestOneRowImpl,
+    TIndexedWithGroupsVersionedBlocksTestOneRowImpl
+>;
 
+template <typename TTestImpl>
 class TIndexedVersionedBlocksTestOneRow
-    : public TVersionedBlocksTestOneRowBase<TMockIndexedBlockFormatAdapter>
+    : public TTestImpl
 {
 public:
     TIndexedVersionedBlocksTestOneRow()
-        : TVersionedBlocksTestOneRowBase<TMockIndexedBlockFormatAdapter>(SchemaWithGroups)
+        : TTestImpl()
     { }
 };
 
+TYPED_TEST_SUITE(TIndexedVersionedBlocksTestOneRow, TIndexedVersionedBlockTestOneRowImpls);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TIndexedVersionedBlocksTestOneRow, IndexedBlockIsSectorAligned)
+TYPED_TEST(TIndexedVersionedBlocksTestOneRow, IndexedBlockIsSectorAligned)
 {
-    EXPECT_TRUE(this->Data.Size() > 0);
-    EXPECT_TRUE(AlignUpSpace<i64>(this->Data.Size(), THashTableChunkIndexFormatDetail::SectorSize) == 0);
+    EXPECT_LT(0, std::ssize(this->Data));
+    EXPECT_EQ(0, AlignUpSpace<i64>(this->Data.Size(), THashTableChunkIndexFormatDetail::SectorSize));
 }
 
-TEST_F(TIndexedVersionedBlocksTestOneRow, IndexedBlockWithGroups)
+TYPED_TEST(TIndexedVersionedBlocksTestOneRow, HashTableChunkIndexMeta)
 {
-    auto row = TMutableVersionedRow::Allocate(&this->MemoryPool, 5, 3, 1, 0);
-    row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
-    row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
-    row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
-    row.BeginKeys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
-    row.BeginKeys()[4] = MakeUnversionedSentinelValue(EValueType::Null, 4);
-    row.BeginValues()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 5);
-    row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 6);
-    row.BeginValues()[2] = MakeVersionedBooleanValue(true, 5, 7);
-    row.BeginWriteTimestamps()[0] = 5;
+    const auto& chunkIndexBuilder = this->GetChunkIndexBuilder();
+    NProto::TSystemBlockMetaExt systemBlockMeta;
+    auto chunkIndex = chunkIndexBuilder->BuildIndex(&systemBlockMeta);
 
-    std::vector<TVersionedRow> rows;
-    rows.push_back(row);
+    EXPECT_EQ(1, systemBlockMeta.system_blocks_size());
 
-    // Reorder value columns in reading schema.
-    std::vector<TColumnIdMapping> schemaIdMapping = {{5, 5}, {3, 6}, {4, 7}};
+    auto systemBlock = systemBlockMeta.system_blocks(0);
+    auto chunkIndexBlockMetaExt = systemBlock.GetExtension(NProto::THashTableChunkIndexSystemBlockMeta::hash_table_chunk_index_system_block_meta_ext);
+    EXPECT_EQ(2, chunkIndexBlockMetaExt.slot_count());
+    auto lastKey = ::NYT::FromProto<TLegacyOwningKey>(chunkIndexBlockMetaExt.last_key());
+    EXPECT_EQ(
+        0,
+        TComparator({ESortOrder::Ascending, ESortOrder::Ascending, ESortOrder::Ascending}).CompareKeys(
+            TKey::FromRow(lastKey),
+            TKey(this->Row.Keys())));
 
-    this->DoCheck(
-        rows,
-        this->Schema->GetKeyColumnCount() + 2, // Two padding key columns.
-        schemaIdMapping,
-        /*timestamp*/ 7,
-        /*produceAllVersions*/ false);
+    EXPECT_EQ(1, std::ssize(chunkIndex));
+    EXPECT_LT(0, std::ssize(chunkIndex[0]));
+    EXPECT_EQ(0, AlignUpSpace<i64>(chunkIndex[0].Size(), THashTableChunkIndexFormatDetail::SectorSize));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

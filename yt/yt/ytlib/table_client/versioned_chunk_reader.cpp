@@ -2150,7 +2150,6 @@ void TVersionedRowsetReader::DoReadRowset(const TError& error)
     while (true) {
         auto rowBatch = UnderlyingReader_->Read(options);
         YT_VERIFY(rowBatch);
-
         if (rowBatch->IsEmpty()) {
             // TODO(akozhikhov): Propagate cancellation from RowsetPromise_.
             UnderlyingReader_->GetReadyEvent().Subscribe(BIND(

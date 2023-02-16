@@ -35,6 +35,7 @@ struct TOffloadingReaderOptions final
     TTimestamp Timestamp;
     bool ProduceAllVersions;
     TTimestamp OverrideTimestamp;
+    bool EnableHashChunkIndex;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOffloadingReaderOptions)

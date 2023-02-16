@@ -3507,7 +3507,7 @@ class TestDynamicTablesChunkFormat(DynamicTablesBase):
     @authors("babenko")
     def test_indexed_chunk_format(self):
         sync_create_cells(1)
-        self._create_sorted_table("//tmp/t", chunk_format="table_versioned_indexed")
+        self._create_sorted_table("//tmp/t", chunk_format="table_versioned_indexed", compression_codec="none")
         assert get("//tmp/t/@optimize_for") == "lookup"
 
         sync_mount_table("//tmp/t")

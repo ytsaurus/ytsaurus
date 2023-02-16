@@ -119,6 +119,8 @@ DECLARE_REFCOUNTED_STRUCT(TP2PBlock)
 DECLARE_REFCOUNTED_STRUCT(TP2PChunk)
 DECLARE_REFCOUNTED_STRUCT(IIOThroughputMeter)
 
+DECLARE_REFCOUNTED_STRUCT(ILocalChunkFragmentReader)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_ERROR_ENUM(

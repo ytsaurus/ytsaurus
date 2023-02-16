@@ -2943,6 +2943,8 @@ private:
         req->set_produce_all_versions(Options_->ProduceAllVersions);
         req->set_override_timestamp(Options_->OverrideTimestamp);
         req->set_populate_cache(true);
+        req->set_enable_hash_chunk_index(Options_->EnableHashChunkIndex);
+        req->set_use_direct_io(ReaderConfig_->UseDirectIO);
 
         if (PeerAddressToThrottlingRate_.contains(chosenPeer.Address)) {
             YT_LOG_DEBUG("Replication reader sends LookupRows request to throttling peer "

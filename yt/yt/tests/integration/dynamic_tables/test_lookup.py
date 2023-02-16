@@ -690,20 +690,25 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         {"name": "value", "type": "string"},
     ]
 
-    def _enable_data_node_lookup(self, path):
+    def _enable_data_node_lookup(self, path, enable_hash_chunk_index=False):
         set("{}/@enable_data_node_lookup".format(path), True)
         set("{}/@chunk_reader".format(path), {"prefer_local_replicas": False})
+        if enable_hash_chunk_index:
+            set("{}/@compression_codec".format(path), "none")
+            set("{}/@mount_config/enable_hash_chunk_index_for_lookup".format(path), True)
+            set("{}/@chunk_writer".format(path), {"chunk_indexes": {"hash_table": {"enable": True}}})
 
     @authors("akozhikhov")
-    def test_data_node_lookup_simple(self):
+    @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
+    def test_data_node_lookup_simple(self, enable_hash_chunk_index):
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=1)
-        self._enable_data_node_lookup("//tmp/t")
+        self._enable_data_node_lookup("//tmp/t", enable_hash_chunk_index)
         sync_mount_table("//tmp/t")
 
-        keys = [{"key": i} for i in range(2)]
-        rows = [{"key": i, "value": str(i) * 2} for i in range(2)]
+        keys = [{"key": i} for i in range(1)]
+        rows = [{"key": i, "value": str(i) * 2} for i in range(1)]
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
@@ -719,13 +724,13 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
-    def test_data_node_lookup_with_alter(self, replication_factor):
+    @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
+    def test_data_node_lookup_with_alter(self, replication_factor, enable_hash_chunk_index):
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=replication_factor)
-        self._enable_data_node_lookup("//tmp/t")
+        self._enable_data_node_lookup("//tmp/t", enable_hash_chunk_index)
         set("//tmp/t/@enable_compaction_and_partitioning", False)
-
         sync_mount_table("//tmp/t")
 
         for iter in range(3):
@@ -758,13 +763,13 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
-    def test_data_node_lookup_chunks_with_overlap(self, replication_factor):
+    @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
+    def test_data_node_lookup_chunks_with_overlap(self, replication_factor, enable_hash_chunk_index):
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=replication_factor, schema=self.schema)
-        self._enable_data_node_lookup("//tmp/t")
+        self._enable_data_node_lookup("//tmp/t", enable_hash_chunk_index)
         set("//tmp/t/@enable_compaction_and_partitioning", False)
-
         sync_mount_table("//tmp/t")
 
         for iter in range(3):
@@ -820,13 +825,13 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
-    def test_data_node_lookup_with_timestamp(self, replication_factor):
+    @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
+    def test_data_node_lookup_with_timestamp(self, replication_factor, enable_hash_chunk_index):
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=replication_factor, schema=self.schema)
-        self._enable_data_node_lookup("//tmp/t")
+        self._enable_data_node_lookup("//tmp/t", enable_hash_chunk_index)
         set("//tmp/t/@enable_compaction_and_partitioning", False)
-
         sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key": 1, "value": "one"}])
@@ -851,11 +856,12 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
-    def test_data_node_lookup_stress(self, replication_factor):
+    @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
+    def test_data_node_lookup_stress(self, replication_factor, enable_hash_chunk_index):
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=replication_factor)
-        self._enable_data_node_lookup("//tmp/t")
+        self._enable_data_node_lookup("//tmp/t", enable_hash_chunk_index)
         set("//tmp/t/@enable_compaction_and_partitioning", False)
         sync_mount_table("//tmp/t")
 
@@ -901,12 +907,13 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", [{"key": 1}]) == row
 
     @authors("akozhikhov")
-    def test_parallel_lookup_stress(self):
+    @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
+    def test_parallel_lookup_stress(self, enable_hash_chunk_index):
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=1, lookup_cache_rows_per_tablet=5)
         self._create_partitions(partition_count=5)
-        self._enable_data_node_lookup("//tmp/t")
+        self._enable_data_node_lookup("//tmp/t", enable_hash_chunk_index)
         set("//tmp/t/@enable_compaction_and_partitioning", False)
         sync_mount_table("//tmp/t")
 

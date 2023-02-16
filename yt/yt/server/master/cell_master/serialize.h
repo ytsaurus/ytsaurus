@@ -119,6 +119,7 @@ DEFINE_ENUM(EMasterReign,
     ((SequoiaCreate)                                                (2308))  // gritukan
     ((FixAttachValidation)                                          (2309))  // gritukan
     ((RemoveNewHydraFlag)                                           (2310))  // aleksandra-zh
+    ((HashTableChunkIndex)                                          (2311))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

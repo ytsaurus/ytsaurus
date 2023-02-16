@@ -9,6 +9,8 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/name_table.h>
 
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -17,6 +19,27 @@ namespace NYT::NTableClient {
 
 using namespace NTableClient::NProto;
 using namespace NChunkClient;
+
+using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+THashTableChunkIndexMeta::THashTableChunkIndexMeta(const TTableSchemaPtr& schema)
+    : IndexedBlockFormatDetail(schema)
+{ }
+
+THashTableChunkIndexMeta::TChunkIndexBlockMeta::TChunkIndexBlockMeta(
+    int blockIndex,
+    const TIndexedVersionedBlockFormatDetail& indexedBlockFormatDetail,
+    const NProto::THashTableChunkIndexSystemBlockMeta& hashTableChunkIndexSystemBlockMetaExt)
+    : BlockIndex(blockIndex)
+    , FormatDetail(
+        hashTableChunkIndexSystemBlockMetaExt.seed(),
+        hashTableChunkIndexSystemBlockMetaExt.slot_count(),
+        indexedBlockFormatDetail.GetGroupCount(),
+        /*groupReorderingEnabled*/ false)
+    , BlockLastKey(FromProto<TLegacyOwningKey>(hashTableChunkIndexSystemBlockMetaExt.last_key()))
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +72,10 @@ TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(
     }
     if (auto optionalHunkChunkMetasExt = FindProtoExtension<THunkChunkMetasExt>(chunkMeta.extensions())) {
         HunkChunkMetasExt_ = std::move(*optionalHunkChunkMetasExt);
+    }
+
+    if (auto optionalSystemBlockMetaExt = FindProtoExtension<TSystemBlockMetaExt>(chunkMeta.extensions())) {
+        ParseHashTableChunkIndexMeta(*optionalSystemBlockMetaExt);
     }
 
     if (ColumnarMetaPrepared_) {
@@ -111,6 +138,35 @@ TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> TCachedVersionedChunkMeta::Ge
 int TCachedVersionedChunkMeta::GetChunkKeyColumnCount() const
 {
     return GetChunkSchema()->GetKeyColumnCount();
+}
+
+void TCachedVersionedChunkMeta::ParseHashTableChunkIndexMeta(
+    const TSystemBlockMetaExt& systemBlockMetaExt)
+{
+    std::vector<std::pair<int, THashTableChunkIndexSystemBlockMeta>> blockMetas;
+
+    for (int blockIndex = 0; blockIndex < systemBlockMetaExt.system_blocks_size(); ++blockIndex) {
+        const auto& systemBlockMeta = systemBlockMetaExt.system_blocks(blockIndex);
+        if (systemBlockMeta.HasExtension(THashTableChunkIndexSystemBlockMeta::hash_table_chunk_index_system_block_meta_ext)) {
+            blockMetas.emplace_back(
+                DataBlockMeta()->data_blocks_size() + blockIndex,
+                systemBlockMeta.GetExtension(
+                    THashTableChunkIndexSystemBlockMeta::hash_table_chunk_index_system_block_meta_ext));
+        }
+    }
+
+    if (blockMetas.empty()) {
+        return;
+    }
+
+    HashTableChunkIndexMeta_.emplace(GetChunkSchema());
+    HashTableChunkIndexMeta_->ChunkIndexBlockMetas.reserve(blockMetas.size());
+    for (const auto& [blockIndex, blockMeta] : blockMetas) {
+        HashTableChunkIndexMeta_->ChunkIndexBlockMetas.emplace_back(
+            blockIndex,
+            HashTableChunkIndexMeta_->IndexedBlockFormatDetail,
+            blockMeta);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

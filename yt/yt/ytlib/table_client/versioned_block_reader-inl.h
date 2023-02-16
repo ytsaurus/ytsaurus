@@ -42,9 +42,25 @@ TLegacyKey TVersionedRowReader<TRowParser>::GetKey() const
 }
 
 template <typename TRowParser>
+TMutableVersionedRow TVersionedRowReader<TRowParser>::ProcessAndGetRow(
+    const TCompactVector<TSharedRef, IndexedRowTypicalGroupCount>& /*owningRowData*/,
+    const int* /*groupOffsets*/,
+    const int* /*groupIndexes*/,
+    TChunkedMemoryPool* /*memoryPool*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
+template <>
+TMutableVersionedRow TVersionedRowReader<TIndexedVersionedRowParser>::ProcessAndGetRow(
+    const TCompactVector<TSharedRef, IndexedRowTypicalGroupCount>& owningRowData,
+    const int* groupOffsets,
+    const int* groupIndexes,
+    TChunkedMemoryPool* memoryPool);
+
+template <typename TRowParser>
 TMutableVersionedRow TVersionedRowReader<TRowParser>::GetRow(TChunkedMemoryPool* memoryPool)
 {
-    YT_VERIFY(Parser_.IsValid());
     return ProduceAllVersions_
         ? ReadRowAllVersions(memoryPool)
         : ReadRowSingleVersion(memoryPool);
@@ -286,6 +302,13 @@ bool TVersionedBlockReader<TBlockParser>::SkipToKey(TLegacyKey key)
         });
 
     return JumpToRowIndex(rowIndex);
+}
+
+template <typename TBlockParser>
+TMutableVersionedRow TVersionedBlockReader<TBlockParser>::GetRow(TChunkedMemoryPool* memoryPool)
+{
+    YT_VERIFY(Parser_.IsValid());
+    return TVersionedRowReader<TBlockParser>::GetRow(memoryPool);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -156,13 +156,13 @@ class TIndexedVersionedRowParser
 public:
     explicit TIndexedVersionedRowParser(
         const TTableSchemaPtr& chunkSchema,
-        TCompactVector<int, IndexedRowTypicalGroupCount> groupIndexesToRead = {});
+        std::vector<int> groupIndexesToRead);
 
     struct TGroupInfo
     {
         bool Initialized = false;
 
-        const char* GroupDataBegin;
+        const char* GroupDataBegin = nullptr;
 
         int ValueCount;
 
@@ -197,25 +197,26 @@ public:
         const TColumnDescriptor& columnDescriptor,
         int valueIndex) const;
 
+    void ValidateRowDataChecksum(
+        const TCompactVector<TRef, IndexedRowTypicalGroupCount>& rowData);
+
+    void ProcessRow(
+        const TCompactVector<TRef, IndexedRowTypicalGroupCount>& rowData,
+        const int* groupOffsets,
+        const int* groupIndexes,
+        TVersionedRowMetadata* rowMetadata);
+
 protected:
     const TIndexedVersionedBlockFormatDetail BlockFormatDetail_;
-    const int GroupCount_;
     const bool HasAggregateColumns_;
-    // NB: Used along with chunk index if a subset of row groups was read.
-    const TCompactVector<int, IndexedRowTypicalGroupCount> GroupIndexesToRead_;
+    // NB: Nonempty if a subset of row groups was read.
+    const std::vector<int> GroupIndexesToRead_;
 
     const bool GroupReorderingEnabled_ = false;
 
     TReadOnlyBitmap KeyNullFlags_;
     TCompactVector<TGroupInfo, IndexedRowTypicalGroupCount> GroupInfos_;
 
-
-    void PreprocessRow(
-        const TCompactVector<TRef, IndexedRowTypicalGroupCount>& rowData,
-        const int* groupOffsets,
-        const int* groupIndexes,
-        bool validateChecksums,
-        TVersionedRowMetadata* rowMetadata);
 
     void ReadKeyValue(TUnversionedValue* value, int id, const char* ptr, const char** rowData) const;
     void ReadStringLike(TUnversionedValue* value, const char* ptr) const;
@@ -273,14 +274,19 @@ public:
     TVersionedRowReader& operator=(const TVersionedRowReader<TRowParser>& other) = delete;
     TVersionedRowReader& operator=(TVersionedRowReader<TRowParser>&& other) = delete;
 
-    TLegacyKey GetKey() const;
+    TMutableVersionedRow ProcessAndGetRow(
+        const TCompactVector<TSharedRef, IndexedRowTypicalGroupCount>& owningRowData,
+        const int* groupOffsets,
+        const int* groupIndexes,
+        TChunkedMemoryPool* memoryPool);
 
 protected:
     TVersionedRowMetadata RowMetadata_;
     TRowParser Parser_;
 
 
-    // NB: Method is protected because it is intended for reads only via block reader.
+    // NB: These methods are protected because they are intended for reads only via block reader.
+    TLegacyKey GetKey() const;
     TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
 
 private:
@@ -322,7 +328,7 @@ public:
     bool SkipToKey(TLegacyKey key);
 
     using TVersionedRowReader<TBlockParser>::GetKey;
-    using TVersionedRowReader<TBlockParser>::GetRow;
+    TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
 
 private:
     using TVersionedRowReader<TBlockParser>::RowMetadata_;
@@ -338,7 +344,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 using TSimpleVersionedBlockReader = TVersionedBlockReader<TSimpleVersionedBlockParser>;
+
 using TIndexedVersionedBlockReader = TVersionedBlockReader<TIndexedVersionedBlockParser>;
+
+using TIndexedVersionedRowReader = TVersionedRowReader<TIndexedVersionedRowParser>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

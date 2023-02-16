@@ -159,6 +159,8 @@ void TReplicationReaderConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("enable_local_throttling", &TThis::EnableLocalThrottling)
         .Default(false);
+    registrar.Parameter("use_direct_io", &TThis::UseDirectIO)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         // Seems unreasonable to make backoff greater than half of total session timeout.

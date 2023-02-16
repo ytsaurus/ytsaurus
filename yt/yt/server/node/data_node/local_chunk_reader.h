@@ -2,7 +2,8 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
 
@@ -22,6 +23,21 @@ NChunkClient::IChunkReaderPtr CreateLocalChunkReader(
     IChunkPtr chunk,
     NChunkClient::IBlockCachePtr blockCache,
     NTableClient::TBlockMetaCachePtr blockMetaCache);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct ILocalChunkFragmentReader
+    : public NChunkClient::IChunkFragmentReader
+{
+    virtual TFuture<void> PrepareToReadChunkFragments(
+        const NChunkClient::TClientChunkReadOptions& options) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(ILocalChunkFragmentReader)
+
+ILocalChunkFragmentReaderPtr CreateLocalChunkFragmentReader(
+    IChunkPtr chunk,
+    bool useDirectIO);
 
 ////////////////////////////////////////////////////////////////////////////////
 

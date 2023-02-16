@@ -129,7 +129,7 @@ private:
         const NTableClient::TChunkStatePtr& chunkState,
         const TWorkloadDescriptor& workloadDescriptor);
 
-    NTableClient::TKeyComparer GetKeyComparer() override;
+    NTableClient::TKeyComparer GetKeyComparer() const override;
 
     ISortedStorePtr GetSortedBackingStore();
 };

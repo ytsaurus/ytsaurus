@@ -293,7 +293,7 @@ protected:
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         bool prepareColumnarMeta = false);
 
-    virtual NTableClient::TKeyComparer GetKeyComparer() = 0;
+    virtual NTableClient::TKeyComparer GetKeyComparer() const = 0;
 
     TTabletStoreReaderConfigPtr GetReaderConfig();
 

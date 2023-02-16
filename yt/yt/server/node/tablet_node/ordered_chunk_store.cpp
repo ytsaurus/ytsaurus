@@ -287,7 +287,7 @@ void TOrderedChunkStore::Load(TLoadContext& context)
     TChunkStoreBase::Load(context);
 }
 
-TKeyComparer TOrderedChunkStore::GetKeyComparer()
+TKeyComparer TOrderedChunkStore::GetKeyComparer() const
 {
     return TKeyComparer();
 }

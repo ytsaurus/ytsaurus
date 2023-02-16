@@ -1,9 +1,11 @@
 #include "local_chunk_reader.h"
+#include "chunk.h"
 #include "chunk_store.h"
+#include "private.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/yt/server/node/data_node/chunk.h>
+#include <yt/yt/server/lib/io/chunk_fragment.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -11,6 +13,8 @@
 #include <yt/yt/ytlib/chunk_client/config.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NDataNode {
 
@@ -21,6 +25,11 @@ using namespace NDataNode;
 using namespace NClusterNode;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
+using namespace NIO;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -220,6 +229,97 @@ IChunkReaderPtr CreateLocalChunkReader(
         std::move(chunk),
         std::move(blockCache),
         std::move(blockMetaCache));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLocalChunkFragmentReader
+    : public ILocalChunkFragmentReader
+{
+public:
+    TLocalChunkFragmentReader(
+        TChunkReadGuard guard,
+        bool useDirectIO)
+        : Guard_(std::move(guard))
+        , UseDirectIO_(useDirectIO)
+    { }
+
+    TFuture<void> PrepareToReadChunkFragments(
+        const NChunkClient::TClientChunkReadOptions& options) override
+    {
+        return Guard_.GetChunk()->PrepareToReadChunkFragments(options, UseDirectIO_);
+    }
+
+    TFuture<TReadFragmentsResponse> ReadFragments(
+        TClientChunkReadOptions options,
+        std::vector<TChunkFragmentRequest> requests) override
+    {
+        const auto& chunk = Guard_.GetChunk();
+
+        i64 fragmentsSize = 0;
+        std::vector<IIOEngine::TReadRequest> readRequests;
+        readRequests.reserve(requests.size());
+        for (const auto& request : requests) {
+            YT_VERIFY(request.ChunkId == chunk->GetId());
+
+            fragmentsSize += request.Length;
+            readRequests.push_back(chunk->MakeChunkFragmentReadRequest(
+                TChunkFragmentDescriptor{
+                    .Length = static_cast<int>(request.Length),
+                    .BlockIndex = request.BlockIndex,
+                    .BlockOffset = request.BlockOffset
+                },
+                UseDirectIO_));
+        }
+
+        YT_LOG_DEBUG("Local chunk reader will read fragments "
+            "(FragmentCount: %v, FragmentsSize: %v, UseDirectIO: %v, ReadSessionId: %v, ChunkId: %v)",
+            readRequests.size(),
+            fragmentsSize,
+            UseDirectIO_,
+            options.ReadSessionId,
+            chunk->GetId());
+
+        struct TChunkFragmentBufferTag
+        { };
+
+        const auto& ioEngine = chunk->GetLocation()->GetIOEngine();
+        return ioEngine->Read(
+            std::move(readRequests),
+            options.WorkloadDescriptor.Category,
+            GetRefCountedTypeCookie<TChunkFragmentBufferTag>(),
+            options.ReadSessionId)
+            .ApplyUnique(BIND([
+                this_ = MakeStrong(this),
+                options = std::move(options)
+            ] (IIOEngine::TReadResponse&& response) {
+                options.ChunkReaderStatistics->DataBytesReadFromDisk.fetch_add(
+                    response.PaddedBytes,
+                    std::memory_order::relaxed);
+                options.ChunkReaderStatistics->DataIORequests.fetch_add(
+                    response.IORequests,
+                    std::memory_order::relaxed);
+
+                return TReadFragmentsResponse{
+                    .Fragments = std::move(response.OutputBuffers)
+                };
+            }));
+    }
+
+private:
+    const TChunkReadGuard Guard_;
+    const bool UseDirectIO_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+ILocalChunkFragmentReaderPtr CreateLocalChunkFragmentReader(
+    IChunkPtr chunk,
+    bool useDirectIO)
+{
+    // TODO(akozhikhov): Stop throwing from this.
+    auto guard = TChunkReadGuard::Acquire(std::move(chunk));
+    return New<TLocalChunkFragmentReader>(std::move(guard), useDirectIO);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

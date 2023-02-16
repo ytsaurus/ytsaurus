@@ -138,6 +138,8 @@ constexpr int IndexedRowTypicalGroupCount = 1;
 
 class TIndexedVersionedBlockFormatDetail;
 
+DECLARE_REFCOUNTED_STRUCT(IChunkIndexReadController)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
