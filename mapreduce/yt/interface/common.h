@@ -375,6 +375,16 @@ enum EErasureCodecAttr : i8
     /// @endcond
 };
 
+///
+/// @brief Value of "schema_modification" attribute.
+///
+/// @ref NYT::TRichYPath
+enum ESchemaModificationAttr : i8
+{
+    SM_NONE_ATTR                    /* "none" */,
+    SM_UNVERSIONED_UPDATE           /* "unversioned_update" */,
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ///
@@ -992,6 +1002,9 @@ struct TRichYPath
 
     /// Specifies erasure codec that will be set on the path
     FLUENT_FIELD_OPTION(EErasureCodecAttr, ErasureCodec);
+
+    /// Specifies schema modification that will be set on the path
+    FLUENT_FIELD_OPTION(ESchemaModificationAttr, SchemaModification);
 
     /// Specifies optimize_for attribute that will be set on the path
     FLUENT_FIELD_OPTION(EOptimizeForAttr, OptimizeFor);
