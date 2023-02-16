@@ -2543,10 +2543,10 @@ private:
 
             // COMPAT(shakurov)
             if (node->TryGetExpirationTimeout()) {
-                if (node->IsTrunk() && !node->GetTouchTime(/* force */ true)) {
+                if (node->IsTrunk() && !node->GetTouchTime()) {
                     const auto* hydraContext = GetCurrentHydraContext();
                     node->SetTouchTime(hydraContext->GetTimestamp());
-                } else if (!node->IsTrunk() && node->GetTouchTime()) {
+                } else if (!node->IsTrunk() && node->GetTouchTime(/* force */ true)) {
                     node->SetTouchTime(TInstant::Zero(), /* force */ true);
                 }
             } else {
