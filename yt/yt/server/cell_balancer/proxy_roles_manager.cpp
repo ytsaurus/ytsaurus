@@ -18,7 +18,12 @@ TSpareProxiesInfo GetSpareProxiesInfo(
     const TProxyRoleToBundle& proxyRoleToBundle,
     const TSchedulerInputState& input)
 {
-    auto spareBundle = GetSpareBundleName(zoneName);
+    auto zoneIt = input.Zones.find(zoneName);
+    if (zoneIt == input.Zones.end()) {
+        return {};
+    }
+
+    auto spareBundle = GetSpareBundleName(zoneIt->second);
     auto spareProxiesIt = input.BundleProxies.find(spareBundle);
     if (spareProxiesIt == input.BundleProxies.end()) {
         return {};

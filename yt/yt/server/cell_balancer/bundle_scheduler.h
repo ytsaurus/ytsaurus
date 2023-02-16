@@ -151,7 +151,7 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetSpareBundleName(const TString& zoneName);
+TString GetSpareBundleName(const TZoneInfoPtr& zoneInfo);
 
 void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* mutations);
 
