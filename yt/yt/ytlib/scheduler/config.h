@@ -1785,7 +1785,6 @@ public:
     // Cannot be specified by user.
     bool Tentative;
     bool Probing;
-    std::optional<TString> SchedulingSegmentModule;
 
     REGISTER_YSON_STRUCT(TOperationFairShareTreeRuntimeParameters);
 

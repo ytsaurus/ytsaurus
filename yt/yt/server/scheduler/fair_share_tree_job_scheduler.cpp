@@ -1,8 +1,6 @@
 #include "fair_share_tree_job_scheduler.h"
-#include "fair_share_tree_job_scheduler_operation_shared_state.h"
 #include "fair_share_tree.h"
 #include "scheduling_context.h"
-#include "scheduling_segment_manager.h"
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
@@ -700,22 +698,34 @@ TFairShareTreeSchedulingSnapshot::TFairShareTreeSchedulingSnapshot(
     TStaticAttributesList staticAttributesList,
     THashSet<int> ssdPriorityPreemptionMedia,
     TCachedJobPreemptionStatuses cachedJobPreemptionStatuses,
-    TTreeSchedulingSegmentsState schedulingSegmentsState,
     std::vector<TSchedulingTagFilter> knownSchedulingTagFilters,
     TOperationCountsByPreemptionPriorityParameters operationCountsByPreemptionPriorityParameters,
-    TOperationIdToJobSchedulerSharedState operationIdToSharedState)
+    TFairShareTreeJobSchedulerOperationStateMap operationIdToState,
+    TFairShareTreeJobSchedulerSharedOperationStateMap operationIdToSharedState)
     : StaticAttributesList_(std::move(staticAttributesList))
     , SsdPriorityPreemptionMedia_(std::move(ssdPriorityPreemptionMedia))
     , CachedJobPreemptionStatuses_(std::move(cachedJobPreemptionStatuses))
-    , SchedulingSegmentsState_(std::move(schedulingSegmentsState))
     , KnownSchedulingTagFilters_(std::move(knownSchedulingTagFilters))
     , OperationCountsByPreemptionPriorityParameters_(std::move(operationCountsByPreemptionPriorityParameters))
+    , OperationIdToState_(std::move(operationIdToState))
     , OperationIdToSharedState_(std::move(operationIdToSharedState))
 { }
+
+const TFairShareTreeJobSchedulerOperationStatePtr& TFairShareTreeSchedulingSnapshot::GetOperationState(const TSchedulerOperationElement* element) const
+{
+    return GetOrCrash(OperationIdToState_, element->GetOperationId());
+}
 
 const TFairShareTreeJobSchedulerOperationSharedStatePtr& TFairShareTreeSchedulingSnapshot::GetOperationSharedState(const TSchedulerOperationElement* element) const
 {
     return GetOrCrash(OperationIdToSharedState_, element->GetOperationId());
+}
+
+const TFairShareTreeJobSchedulerOperationStatePtr& TFairShareTreeSchedulingSnapshot::GetEnabledOperationState(const TSchedulerOperationElement* element) const
+{
+    const auto& operationState = StaticAttributesList_.AttributesOf(element).OperationState;
+    YT_ASSERT(operationState);
+    return operationState;
 }
 
 const TFairShareTreeJobSchedulerOperationSharedStatePtr& TFairShareTreeSchedulingSnapshot::GetEnabledOperationSharedState(const TSchedulerOperationElement* element) const
@@ -913,12 +923,14 @@ void TScheduleJobsContext::AnalyzePreemptibleJobs(
 
         bool isJobForcefullyPreemptible = !IsSchedulingSegmentCompatibleWithNode(operationElement);
         if (isJobForcefullyPreemptible) {
+            const auto& operationState = TreeSnapshot_->SchedulingSnapshot()->GetEnabledOperationState(operationElement);
+
             YT_ELEMENT_LOG_DETAILED(operationElement,
                 "Job is forcefully preemptible because it is running on a node in a different scheduling segment or module "
                 "(JobId: %v, OperationId: %v, OperationSegment: %v, NodeSegment: %v, Address: %v, Module: %v)",
                 job->GetId(),
                 operationElement->GetId(),
-                operationElement->SchedulingSegment(),
+                operationState->SchedulingSegment,
                 NodeSchedulingSegment_,
                 SchedulingContext_->GetNodeDescriptor().Address,
                 SchedulingContext_->GetNodeDescriptor().DataCenter);
@@ -1979,26 +1991,28 @@ bool TScheduleJobsContext::IsSchedulingSegmentCompatibleWithNode(const TSchedule
         return true;
     }
 
-    if (!element->SchedulingSegment()) {
-        return false;
-    }
+    YT_VERIFY(TreeSnapshot_->IsElementEnabled(element));
 
-    const auto& nodeModule = TNodeSchedulingSegmentManager::GetNodeModule(
+    const auto& operationState = TreeSnapshot_->SchedulingSnapshot()->GetEnabledOperationState(element);
+
+    YT_VERIFY(operationState->SchedulingSegment);
+
+    const auto& nodeModule = TSchedulingSegmentManager::GetNodeModule(
         SchedulingContext_->GetNodeDescriptor(),
         TreeSnapshot_->TreeConfig()->SchedulingSegments->ModuleType);
-    if (IsModuleAwareSchedulingSegment(*element->SchedulingSegment())) {
-        if (!element->PersistentAttributes().SchedulingSegmentModule) {
+    if (IsModuleAwareSchedulingSegment(*operationState->SchedulingSegment)) {
+        if (!operationState->SchedulingSegmentModule) {
             // We have not decided on the operation's module yet.
             return false;
         }
 
-        return element->SchedulingSegment() == NodeSchedulingSegment_ &&
-            element->PersistentAttributes().SchedulingSegmentModule == nodeModule;
+        return operationState->SchedulingSegment == NodeSchedulingSegment_ &&
+            operationState->SchedulingSegmentModule == nodeModule;
     }
 
-    YT_VERIFY(!element->PersistentAttributes().SchedulingSegmentModule);
+    YT_VERIFY(!operationState->SchedulingSegmentModule);
 
-    return *element->SchedulingSegment() == NodeSchedulingSegment_;
+    return operationState->SchedulingSegment == NodeSchedulingSegment_;
 }
 
 bool TScheduleJobsContext::IsOperationResourceUsageOutdated(const TSchedulerOperationElement* element) const
@@ -2248,17 +2262,17 @@ TFairShareTreeJobScheduler::TFairShareTreeJobScheduler(
     , CumulativeScheduleJobsTime_(Profiler_.TimeCounter("/cumulative_schedule_jobs_time"))
     , ScheduleJobsDeadlineReachedCounter_(Profiler_.Counter("/schedule_jobs_deadline_reached"))
     , OperationCountByPreemptionPriorityBufferedProducer_(New<TBufferedProducer>())
-    , NodeSchedulingSegmentManager_(TreeId_, Logger, Profiler_)
+    , SchedulingSegmentManager_(TreeId_, Config_->SchedulingSegments, Logger, Profiler_)
 {
     InitSchedulingStages();
 
     Profiler_.AddProducer("/operation_count_by_preemption_priority", OperationCountByPreemptionPriorityBufferedProducer_);
 
-    NodeSchedulingSegmentsManagementExecutor_ = New<TPeriodicExecutor>(
+    SchedulingSegmentsManagementExecutor_ = New<TPeriodicExecutor>(
         StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy),
-        BIND(&TFairShareTreeJobScheduler::ManageNodeSchedulingSegments, MakeWeak(this)),
+        BIND(&TFairShareTreeJobScheduler::ManageSchedulingSegments, MakeWeak(this)),
         Config_->SchedulingSegments->ManagePeriod);
-    NodeSchedulingSegmentsManagementExecutor_->Start();
+    SchedulingSegmentsManagementExecutor_->Start();
 }
 
 void TFairShareTreeJobScheduler::RegisterNode(TNodeId nodeId)
@@ -2266,14 +2280,14 @@ void TFairShareTreeJobScheduler::RegisterNode(TNodeId nodeId)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     ESchedulingSegment initialSchedulingSegment = ESchedulingSegment::Default;
-    if (TInstant::Now() <= SchedulingSegmentsInitializationDeadline_) {
-        auto it = InitialPersistentSchedulingSegmentNodeStates_.find(nodeId);
-        if (it != InitialPersistentSchedulingSegmentNodeStates_.end()) {
-            initialSchedulingSegment = it->second.Segment;
-            InitialPersistentSchedulingSegmentNodeStates_.erase(it);
-        }
-    } else if (!InitialPersistentSchedulingSegmentNodeStates_.empty()) {
-        InitialPersistentSchedulingSegmentNodeStates_.clear();
+    if (auto maybeState = FindInitialNodePersistentState(nodeId)) {
+        initialSchedulingSegment = maybeState->Segment;
+
+        YT_LOG_DEBUG(
+            "Revived node's scheduling segment "
+            "(NodeId: %v, SchedulingSegment: %v)",
+            nodeId,
+            initialSchedulingSegment);
     }
 
     auto nodeShardId = StrategyHost_->GetNodeShardId(nodeId);
@@ -2511,6 +2525,23 @@ void TFairShareTreeJobScheduler::RegisterOperation(const TSchedulerOperationElem
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto operationId = element->GetOperationId();
+    auto operationState = New<TFairShareTreeJobSchedulerOperationState>(
+        element->Spec(),
+        element->IsGang());
+    if (auto maybeState = FindInitialOperationPersistentState(operationId)) {
+        operationState->SchedulingSegmentModule = std::move(maybeState->Module);
+
+        YT_LOG_DEBUG(
+            "Revived operation's scheduling segment module assignment "
+            "(OperationId: %v, SchedulingSegmentModule: %v)",
+            operationId,
+            operationState->SchedulingSegmentModule);
+    }
+
+    EmplaceOrCrash(
+        OperationIdToState_,
+        operationId,
+        std::move(operationState));
     EmplaceOrCrash(
         OperationIdToSharedState_,
         operationId,
@@ -2524,17 +2555,47 @@ void TFairShareTreeJobScheduler::UnregisterOperation(const TSchedulerOperationEl
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    EraseOrCrash(OperationIdToState_, element->GetOperationId());
     EraseOrCrash(OperationIdToSharedState_, element->GetOperationId());
+}
+
+void TFairShareTreeJobScheduler::OnOperationMaterialized(const TSchedulerOperationElement* element)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    const auto& operationState = GetOperationState(element->GetOperationId());
+    operationState->InitialAggregatedMinNeededResources = element->GetInitialAggregatedMinNeededResources();
+
+    SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationState);
+}
+
+TError TFairShareTreeJobScheduler::CheckOperationSchedulingInSeveralTreesAllowed(const TSchedulerOperationElement* element) const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    const auto& operationState = GetOperationState(element->GetOperationId());
+    auto segment = operationState->SchedulingSegment;
+    if (IsModuleAwareSchedulingSegment(*segment)) {
+        // NB: This error will be propagated to operation's failure only if operation is launched in several trees.
+        return TError(
+            "Scheduling in several trees is forbidden for operations in module-aware scheduling segments, "
+            "specify a single tree or use the \"schedule_in_single_tree\" spec option")
+            << TErrorAttribute("segment", segment);
+    }
+
+    return TError();
 }
 
 void TFairShareTreeJobScheduler::EnableOperation(const TSchedulerOperationElement* element) const
 {
-    return GetOperationSharedState(element->GetOperationId())->Enable();
+    auto operationId = element->GetOperationId();
+    GetOperationSharedState(operationId)->Enable();
 }
 
 void TFairShareTreeJobScheduler::DisableOperation(TSchedulerOperationElement* element, bool markAsNonAlive) const
 {
-    GetOperationSharedState(element->GetOperationId())->Disable();
+    auto operationId = element->GetOperationId();
+    GetOperationSharedState(operationId)->Disable();
     element->ReleaseResources(markAsNonAlive);
 }
 
@@ -2566,16 +2627,17 @@ void TFairShareTreeJobScheduler::ProcessUpdatedJob(
     const std::optional<TString>& jobInfinibandCluster,
     bool* shouldAbortJob) const
 {
+    const auto& operationState = treeSnapshot->SchedulingSnapshot()->GetEnabledOperationState(element);
     const auto& operationSharedState = treeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(element);
 
     auto delta = operationSharedState->SetJobResourceUsage(jobId, jobResources);
     element->IncreaseHierarchicalResourceUsage(delta);
     operationSharedState->UpdatePreemptibleJobsList(element);
 
-    const auto& operationSchedulingSegment = element->SchedulingSegment();
+    const auto& operationSchedulingSegment = operationState->SchedulingSegment;
     if (operationSchedulingSegment && IsModuleAwareSchedulingSegment(*operationSchedulingSegment)) {
-        const auto& operationModule = element->PersistentAttributes().SchedulingSegmentModule;
-        const auto& jobModule = TNodeSchedulingSegmentManager::GetNodeModule(
+        const auto& operationModule = operationState->SchedulingSegmentModule;
+        const auto& jobModule = TSchedulingSegmentManager::GetNodeModule(
             jobDataCenter,
             jobInfinibandCluster,
             element->TreeConfig()->SchedulingSegments->ModuleType);
@@ -2662,30 +2724,66 @@ TError TFairShareTreeJobScheduler::CheckOperationIsHung(
     int minScheduleJobCallAttempts,
     const THashSet<EDeactivationReason>& deactivationReasons)
 {
-    const auto& operationSharedState = treeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(element);
-
     if (element->PersistentAttributes().StarvationStatus == EStarvationStatus::NonStarving) {
         return TError();
     }
 
-    int deactivationCount = 0;
-    auto deactivationReasonToCount = operationSharedState->GetDeactivationReasonsFromLastNonStarvingTime();
-    for (auto reason : deactivationReasons) {
-        deactivationCount += deactivationReasonToCount[reason];
+    YT_VERIFY(treeSnapshot->IsElementEnabled(element));
+
+    const auto& operationSharedState = treeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(element);
+    {
+        int deactivationCount = 0;
+        auto deactivationReasonToCount = operationSharedState->GetDeactivationReasonsFromLastNonStarvingTime();
+        for (auto reason : deactivationReasons) {
+            deactivationCount += deactivationReasonToCount[reason];
+        }
+
+        auto lastScheduleJobSuccessTime = operationSharedState->GetLastScheduleJobSuccessTime();
+        if (activationTime + safeTimeout < now &&
+            lastScheduleJobSuccessTime + safeTimeout < now &&
+            element->GetLastNonStarvingTime() + safeTimeout < now &&
+            operationSharedState->GetRunningJobCount() == 0 &&
+            deactivationCount > minScheduleJobCallAttempts)
+        {
+            return TError("Operation has no successful scheduled jobs for a long period")
+                << TErrorAttribute("period", safeTimeout)
+                << TErrorAttribute("deactivation_count", deactivationCount)
+                << TErrorAttribute("last_schedule_job_success_time", lastScheduleJobSuccessTime)
+                << TErrorAttribute("last_non_starving_time", element->GetLastNonStarvingTime());
+        }
     }
 
-    auto lastScheduleJobSuccessTime = operationSharedState->GetLastScheduleJobSuccessTime();
-    if (activationTime + safeTimeout < now &&
-        lastScheduleJobSuccessTime + safeTimeout < now &&
-        element->GetLastNonStarvingTime() + safeTimeout < now &&
-        operationSharedState->GetRunningJobCount() == 0 &&
-        deactivationCount > minScheduleJobCallAttempts)
+    // NB(eshcherbin): See YT-14393.
+    const auto& operationState = treeSnapshot->SchedulingSnapshot()->GetEnabledOperationState(element);
     {
-        return TError("Operation has no successful scheduled jobs for a long period")
-            << TErrorAttribute("period", safeTimeout)
-            << TErrorAttribute("deactivation_count", deactivationCount)
-            << TErrorAttribute("last_schedule_job_success_time", lastScheduleJobSuccessTime)
-            << TErrorAttribute("last_non_starving_time", element->GetLastNonStarvingTime());
+        const auto& segment = operationState->SchedulingSegment;
+        const auto& schedulingSegmentModule = operationState->SchedulingSegmentModule;
+        if (segment && IsModuleAwareSchedulingSegment(*segment) && schedulingSegmentModule && !element->GetSchedulingTagFilter().IsEmpty()) {
+            auto tagFilter = element->GetSchedulingTagFilter().GetBooleanFormula().GetFormula();
+            bool isModuleFilter = false;
+            for (const auto& possibleModule : treeSnapshot->TreeConfig()->SchedulingSegments->GetModules()) {
+                auto moduleTag = TSchedulingSegmentManager::GetNodeTagFromModuleName(
+                    possibleModule,
+                    treeSnapshot->TreeConfig()->SchedulingSegments->ModuleType);
+                // NB(eshcherbin): This doesn't cover all the cases, only the most usual.
+                // Don't really want to check boolean formula satisfiability here.
+                if (tagFilter == moduleTag) {
+                    isModuleFilter = true;
+                    break;
+                }
+            }
+
+            auto operationModuleTag = TSchedulingSegmentManager::GetNodeTagFromModuleName(
+                *schedulingSegmentModule,
+                treeSnapshot->TreeConfig()->SchedulingSegments->ModuleType);
+            if (isModuleFilter && tagFilter != operationModuleTag) {
+                return TError(
+                    "Operation has a module specified in the scheduling tag filter, which causes scheduling problems; "
+                    "use \"scheduling_segment_modules\" spec option instead")
+                    << TErrorAttribute("scheduling_tag_filter", tagFilter)
+                    << TErrorAttribute("available_modules", treeSnapshot->TreeConfig()->SchedulingSegments->GetModules());
+            }
+        }
     }
 
     return TError();
@@ -2698,6 +2796,9 @@ void TFairShareTreeJobScheduler::BuildOperationProgress(
     NYTree::TFluentMap fluent)
 {
     bool isEnabled = treeSnapshot->IsElementEnabled(element);
+    const auto& operationState = isEnabled
+        ? treeSnapshot->SchedulingSnapshot()->GetEnabledOperationState(element)
+        : treeSnapshot->SchedulingSnapshot()->GetOperationState(element);
     const auto& operationSharedState = isEnabled
         ? treeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(element)
         : treeSnapshot->SchedulingSnapshot()->GetOperationSharedState(element);
@@ -2715,7 +2816,9 @@ void TFairShareTreeJobScheduler::BuildOperationProgress(
                 strategyHost->SerializeDiskQuota(operationSharedState->GetTotalDiskQuota(), fluent.GetConsumer());
             })
         .EndMap()
-        .Item("are_regular_jobs_on_ssd_nodes_allowed").Value(attributes.AreRegularJobsOnSsdNodesAllowed);
+        .Item("are_regular_jobs_on_ssd_nodes_allowed").Value(attributes.AreRegularJobsOnSsdNodesAllowed)
+        .Item("scheduling_segment").Value(operationState->SchedulingSegment)
+        .Item("scheduling_segment_module").Value(operationState->SchedulingSegmentModule);
 }
 
 void TFairShareTreeJobScheduler::BuildElementYson(
@@ -2746,25 +2849,10 @@ TJobSchedulerPostUpdateContext TFairShareTreeJobScheduler::CreatePostUpdateConte
         UpdateSsdPriorityPreemptionMedia();
     }
 
-    THashMap<TSchedulingSegmentModule, TJobResources> resourceLimitsPerModule;
-    if (Config_->SchedulingSegments->Mode != ESegmentedSchedulingMode::Disabled) {
-        for (const auto& schedulingSegmentModule : Config_->SchedulingSegments->GetModules()) {
-            auto moduleTag = TNodeSchedulingSegmentManager::GetNodeTagFromModuleName(
-                schedulingSegmentModule,
-                Config_->SchedulingSegments->ModuleType);
-            auto tagFilter = Config_->NodesFilter & TSchedulingTagFilter(MakeBooleanFormula(moduleTag));
-            resourceLimitsPerModule[schedulingSegmentModule] = StrategyHost_->GetResourceLimits(tagFilter);
-        }
-    }
-
     return TJobSchedulerPostUpdateContext{
         .RootElement = rootElement,
         .SsdPriorityPreemptionMedia = SsdPriorityPreemptionMedia_.value_or(THashSet<int>()),
-        .ManageSchedulingSegmentsContext = TManageTreeSchedulingSegmentsContext{
-            .TreeConfig = Config_,
-            .TotalResourceLimits = rootElement->GetTotalResourceLimits(),
-            .ResourceLimitsPerModule = std::move(resourceLimitsPerModule),
-        },
+        .OperationIdToState = GetOperationStateMapSnapshot(),
         .OperationIdToSharedState = OperationIdToSharedState_,
     };
 }
@@ -2791,8 +2879,6 @@ void TFairShareTreeJobScheduler::PostUpdate(
     ComputeDynamicAttributesAtUpdateRecursively(postUpdateContext->RootElement, &dynamicAttributesManager);
     BuildSchedulableIndices(&dynamicAttributesManager, postUpdateContext);
 
-    ManageSchedulingSegments(fairSharePostUpdateContext, &postUpdateContext->ManageSchedulingSegmentsContext);
-
     CollectKnownSchedulingTagFilters(fairSharePostUpdateContext, postUpdateContext);
 
     UpdateSsdNodeSchedulingAttributes(fairSharePostUpdateContext, postUpdateContext);
@@ -2808,9 +2894,9 @@ TFairShareTreeSchedulingSnapshotPtr TFairShareTreeJobScheduler::CreateScheduling
         std::move(postUpdateContext->StaticAttributesList),
         std::move(postUpdateContext->SsdPriorityPreemptionMedia),
         CachedJobPreemptionStatuses_,
-        std::move(postUpdateContext->ManageSchedulingSegmentsContext.SchedulingSegmentsState),
         std::move(postUpdateContext->KnownSchedulingTagFilters),
         std::move(postUpdateContext->OperationCountsByPreemptionPriorityParameters),
+        std::move(postUpdateContext->OperationIdToState),
         std::move(postUpdateContext->OperationIdToSharedState));
 }
 
@@ -2823,9 +2909,18 @@ void TFairShareTreeJobScheduler::OnResourceUsageSnapshotUpdate(
 
 void TFairShareTreeJobScheduler::UpdateConfig(TFairShareStrategyTreeConfigPtr config)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto oldConfig = std::move(Config_);
     Config_ = std::move(config);
 
-    NodeSchedulingSegmentsManagementExecutor_->SetPeriod(Config_->SchedulingSegments->ManagePeriod);
+    SchedulingSegmentsManagementExecutor_->SetPeriod(Config_->SchedulingSegments->ManagePeriod);
+    SchedulingSegmentManager_.UpdateConfig(Config_->SchedulingSegments);
+    if (oldConfig->SchedulingSegments->Mode != Config_->SchedulingSegments->Mode) {
+        for (const auto& [_, operationState] : OperationIdToState_) {
+            SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationState);
+        }
+    }
 
     UpdateSsdPriorityPreemptionMedia();
 }
@@ -2837,6 +2932,9 @@ void TFairShareTreeJobScheduler::BuildElementLoggingStringAttributes(
 {
     if (element->GetType() == ESchedulerElementType::Operation) {
         const auto* operationElement = static_cast<const TSchedulerOperationElement*>(element);
+        const auto& operationState = treeSnapshot->IsElementEnabled(operationElement)
+            ? treeSnapshot->SchedulingSnapshot()->GetEnabledOperationState(operationElement)
+            : treeSnapshot->SchedulingSnapshot()->GetOperationState(operationElement);
         const auto& operationSharedState = treeSnapshot->IsElementEnabled(operationElement)
             ? treeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(operationElement)
             : treeSnapshot->SchedulingSnapshot()->GetOperationSharedState(operationElement);
@@ -2845,13 +2943,16 @@ void TFairShareTreeJobScheduler::BuildElementLoggingStringAttributes(
             : TStaticAttributes{};
         delimitedBuilder->AppendFormat(
             "PreemptibleRunningJobs: %v, AggressivelyPreemptibleRunningJobs: %v, PreemptionStatusStatistics: %v, "
-            "SchedulingIndex: %v, DeactivationReasons: %v, MinNeededResourcesUnsatisfiedCount: %v",
+            "SchedulingIndex: %v, DeactivationReasons: %v, MinNeededResourcesUnsatisfiedCount: %v, "
+            "SchedulingSegment: %v, SchedulingSegmentModule: %v",
             operationSharedState->GetPreemptibleJobCount(),
             operationSharedState->GetAggressivelyPreemptibleJobCount(),
             operationSharedState->GetPreemptionStatusStatistics(),
             attributes.SchedulingIndex,
             operationSharedState->GetDeactivationReasons(),
-            operationSharedState->GetMinNeededResourcesUnsatisfiedCount());
+            operationSharedState->GetMinNeededResourcesUnsatisfiedCount(),
+            operationState->SchedulingSegment,
+            operationState->SchedulingSegmentModule);
     }
 }
 
@@ -2881,10 +2982,11 @@ void TFairShareTreeJobScheduler::InitPersistentState(
     }
 
     InitialPersistentSchedulingSegmentNodeStates_ = InitialPersistentState_->SchedulingSegmentsState->NodeStates;
+    InitialPersistentSchedulingSegmentOperationStates_ = InitialPersistentState_->SchedulingSegmentsState->OperationStates;
 
     auto now = TInstant::Now();
     SchedulingSegmentsInitializationDeadline_ = now + Config_->SchedulingSegments->InitializationTimeout;
-    NodeSchedulingSegmentManager_.SetNodeSegmentsInitializationDeadline(SchedulingSegmentsInitializationDeadline_);
+    SchedulingSegmentManager_.SetInitializationDeadline(SchedulingSegmentsInitializationDeadline_);
 }
 
 INodePtr TFairShareTreeJobScheduler::BuildPersistentState() const
@@ -3139,11 +3241,50 @@ void TFairShareTreeJobScheduler::ScheduleJobsWithPreemption(
         jobStartedUsingPreemption);
 }
 
+const TFairShareTreeJobSchedulerOperationStatePtr& TFairShareTreeJobScheduler::GetOperationState(TOperationId operationId) const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    return GetOrCrash(OperationIdToState_, operationId);
+}
+
 const TFairShareTreeJobSchedulerOperationSharedStatePtr& TFairShareTreeJobScheduler::GetOperationSharedState(TOperationId operationId) const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     return GetOrCrash(OperationIdToSharedState_, operationId);
+}
+
+std::optional<TPersistentNodeSchedulingSegmentState> TFairShareTreeJobScheduler::FindInitialNodePersistentState(TNodeId nodeId)
+{
+    std::optional<TPersistentNodeSchedulingSegmentState> maybeState;
+    if (TInstant::Now() <= SchedulingSegmentsInitializationDeadline_) {
+        auto it = InitialPersistentSchedulingSegmentNodeStates_.find(nodeId);
+        if (it != InitialPersistentSchedulingSegmentNodeStates_.end()) {
+            maybeState = std::move(it->second);
+            InitialPersistentSchedulingSegmentNodeStates_.erase(it);
+        }
+    } else if (!InitialPersistentSchedulingSegmentNodeStates_.empty()) {
+        InitialPersistentSchedulingSegmentNodeStates_.clear();
+    }
+
+    return maybeState;
+}
+
+std::optional<TPersistentOperationSchedulingSegmentState> TFairShareTreeJobScheduler::FindInitialOperationPersistentState(TOperationId operationId)
+{
+    std::optional<TPersistentOperationSchedulingSegmentState> maybeState;
+    if (TInstant::Now() <= SchedulingSegmentsInitializationDeadline_) {
+        auto it = InitialPersistentSchedulingSegmentOperationStates_.find(operationId);
+        if (it != InitialPersistentSchedulingSegmentOperationStates_.end()) {
+            maybeState = std::move(it->second);
+            InitialPersistentSchedulingSegmentOperationStates_.erase(it);
+        }
+    } else if (!InitialPersistentSchedulingSegmentOperationStates_.empty()) {
+        InitialPersistentSchedulingSegmentOperationStates_.clear();
+    }
+
+    return maybeState;
 }
 
 void TFairShareTreeJobScheduler::UpdateSsdPriorityPreemptionMedia()
@@ -3183,6 +3324,7 @@ void TFairShareTreeJobScheduler::InitializeStaticAttributes(
 
     for (const auto& [operationId, operationElement] : fairSharePostUpdateContext->EnabledOperationIdToElement) {
         auto& attributes = postUpdateContext->StaticAttributesList.AttributesOf(operationElement);
+        attributes.OperationState = GetOrCrash(postUpdateContext->OperationIdToState, operationId);
         attributes.OperationSharedState = GetOrCrash(postUpdateContext->OperationIdToSharedState, operationId);
     }
 }
@@ -3313,40 +3455,6 @@ void TFairShareTreeJobScheduler::BuildSchedulableIndices(
     }
 }
 
-void TFairShareTreeJobScheduler::ManageSchedulingSegments(
-    TFairSharePostUpdateContext* fairSharePostUpdateContext,
-    TManageTreeSchedulingSegmentsContext* manageSegmentsContext) const
-{
-    auto mode = manageSegmentsContext->TreeConfig->SchedulingSegments->Mode;
-    if (mode != ESegmentedSchedulingMode::Disabled) {
-        for (const auto& [_, operationElement] : fairSharePostUpdateContext->EnabledOperationIdToElement) {
-            EmplaceOrCrash(
-                manageSegmentsContext->Operations,
-                operationElement->GetOperationId(),
-                TOperationSchedulingSegmentContext{
-                    .ResourceDemand = operationElement->ResourceDemand(),
-                    .ResourceUsage = operationElement->ResourceUsageAtUpdate(),
-                    .DemandShare = operationElement->Attributes().DemandShare,
-                    .FairShare = operationElement->Attributes().FairShare.Total,
-                    .Segment = operationElement->SchedulingSegment(),
-                    .Module = operationElement->PersistentAttributes().SchedulingSegmentModule,
-                    .SpecifiedModules = operationElement->SpecifiedSchedulingSegmentModules(),
-                    .FailingToScheduleAtModuleSince = operationElement->PersistentAttributes().FailingToScheduleAtModuleSince,
-                });
-        }
-    }
-
-    TStrategySchedulingSegmentManager::ManageSegmentsInTree(manageSegmentsContext, TreeId_);
-
-    if (mode != ESegmentedSchedulingMode::Disabled) {
-        for (const auto& [_, operationElement] : fairSharePostUpdateContext->EnabledOperationIdToElement) {
-            const auto& operationContext = GetOrCrash(manageSegmentsContext->Operations, operationElement->GetOperationId());
-            operationElement->PersistentAttributes().SchedulingSegmentModule = operationContext.Module;
-            operationElement->PersistentAttributes().FailingToScheduleAtModuleSince = operationContext.FailingToScheduleAtModuleSince;
-        }
-    }
-}
-
 void TFairShareTreeJobScheduler::CollectKnownSchedulingTagFilters(
     TFairSharePostUpdateContext* fairSharePostUpdateContext,
     TJobSchedulerPostUpdateContext* postUpdateContext) const
@@ -3451,7 +3559,20 @@ TFairShareTreeJobSchedulerNodeState* TFairShareTreeJobScheduler::FindNodeState(T
     return it != nodeStates.end() ? &it->second : nullptr;
 }
 
-TFairShareTreeJobSchedulerNodeStateMap TFairShareTreeJobScheduler::CollectNodeStates() const
+TFairShareTreeJobSchedulerOperationStateMap TFairShareTreeJobScheduler::GetOperationStateMapSnapshot() const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    TFairShareTreeJobSchedulerOperationStateMap operationStateMapSnapshot;
+    operationStateMapSnapshot.reserve(OperationIdToState_.size());
+    for (const auto& [operationId, operationState] : OperationIdToState_) {
+        operationStateMapSnapshot.emplace(operationId, New<TFairShareTreeJobSchedulerOperationState>(*operationState));
+    }
+
+    return operationStateMapSnapshot;
+}
+
+TFairShareTreeJobSchedulerNodeStateMap TFairShareTreeJobScheduler::GetNodeStateMapSnapshot() const
 {
     const auto& nodeShardInvokers = StrategyHost_->GetNodeShardInvokers();
     std::vector<TFuture<TFairShareTreeJobSchedulerNodeStateMap>> futures;
@@ -3468,8 +3589,8 @@ TFairShareTreeJobSchedulerNodeStateMap TFairShareTreeJobScheduler::CollectNodeSt
         .ValueOrThrow();
 
     TFairShareTreeJobSchedulerNodeStateMap nodeStates;
-    for (auto&& shardNodeStates: shardResults) {
-        for (auto&& [nodeId, nodeState]: shardNodeStates) {
+    for (auto&& shardNodeStates : shardResults) {
+        for (auto&& [nodeId, nodeState] : shardNodeStates) {
             // NB(eshcherbin): Descriptor may be missing if the node has only just registered and we haven't processed any heartbeats from it.
             if (nodeState.Descriptor) {
                 EmplaceOrCrash(nodeStates, nodeId, std::move(nodeState));
@@ -3480,7 +3601,16 @@ TFairShareTreeJobSchedulerNodeStateMap TFairShareTreeJobScheduler::CollectNodeSt
     return nodeStates;
 }
 
-void TFairShareTreeJobScheduler::ApplyNewNodeSchedulingSegments(const TSetNodeSchedulingSegmentOptionsList& movedNodes)
+void TFairShareTreeJobScheduler::ApplyOperationSchedulingSegmentsChanges(const TFairShareTreeJobSchedulerOperationStateMap& changedOperationStates)
+{
+    for (const auto& [operationId, changedOperationState] : changedOperationStates) {
+        const auto& operationState = GetOperationState(operationId);
+        operationState->SchedulingSegmentModule = changedOperationState->SchedulingSegmentModule;
+        operationState->FailingToScheduleAtModuleSince = changedOperationState->FailingToScheduleAtModuleSince;
+    }
+}
+
+void TFairShareTreeJobScheduler::ApplyNodeSchedulingSegmentsChanges(const TSetNodeSchedulingSegmentOptionsList& movedNodes)
 {
     if (movedNodes.empty()) {
         return;
@@ -3534,7 +3664,7 @@ void TFairShareTreeJobScheduler::ApplyNewNodeSchedulingSegments(const TSetNodeSc
         .ThrowOnError();
 }
 
-void TFairShareTreeJobScheduler::ManageNodeSchedulingSegments()
+void TFairShareTreeJobScheduler::ManageSchedulingSegments()
 {
     VERIFY_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
 
@@ -3547,35 +3677,59 @@ void TFairShareTreeJobScheduler::ManageNodeSchedulingSegments()
         return;
     }
 
-    YT_LOG_DEBUG("Started managing node scheduling segments");
-
+    // NB(eshcherbin): Tree snapshot is used only for attributes which are unavailable otherwise.
+    // Cloned operation states and tree config from the snapshot are NOT used.
     auto treeSnapshot = host->GetTreeSnapshot();
-    TManageNodeSchedulingSegmentsContext context{
-        .Now = TInstant::Now(),
-        .TreeSegmentsState = treeSnapshot
-            ? treeSnapshot->SchedulingSnapshot()->SchedulingSegmentsState()
-            : TTreeSchedulingSegmentsState{},
-        .NodeStates = CollectNodeStates(),
-    };
+    if (!treeSnapshot) {
+        YT_LOG_DEBUG("Tree snapshot is missing, skipping scheduling segments management");
 
-    NodeSchedulingSegmentManager_.ManageNodeSegments(&context);
-
-    ApplyNewNodeSchedulingSegments(context.MovedNodes);
-
-    YT_LOG_DEBUG("Finished managing node scheduling segments");
-
-    auto now = TInstant::Now();
-    if (now > SchedulingSegmentsInitializationDeadline_) {
-        PersistentState_ = New<TPersistentFairShareTreeJobSchedulerState>();
-        PersistentState_->SchedulingSegmentsState->NodeStates = std::move(context.PersistentNodeStates);
-
-        YT_LOG_DEBUG("Saved new persistent scheduling segments state (Now: %v, Deadline: %v)",
-            now,
-            SchedulingSegmentsInitializationDeadline_);
+        return;
     }
 
-    StrategyHost_->UpdateOperationSchedulingSegmentModules(TreeId_, host->GetOperationSchedulingSegmentModuleUpdates());
-    TreeHost_->SetSchedulerTreeAlert(TreeId_, ESchedulerAlertType::ManageNodeSchedulingSegments, context.Error);
+    YT_LOG_DEBUG("Started managing scheduling segments");
+
+    auto nodeStates = GetNodeStateMapSnapshot();
+
+    TSetNodeSchedulingSegmentOptionsList movedNodes;
+    {
+        TForbidContextSwitchGuard guard;
+
+        auto now = TInstant::Now();
+        auto operationStates = GetOperationStateMapSnapshot();
+        TUpdateSchedulingSegmentsContext context{
+            .Now = now,
+            .TreeSnapshot = treeSnapshot,
+            .OperationStates = std::move(operationStates),
+            .NodeStates = std::move(nodeStates),
+        };
+
+        context.OperationStates = GetOperationStateMapSnapshot();
+
+        SchedulingSegmentManager_.UpdateSchedulingSegments(&context);
+
+        ApplyOperationSchedulingSegmentsChanges(context.OperationStates);
+        movedNodes = std::move(context.MovedNodes);
+
+        TreeHost_->SetSchedulerTreeAlert(TreeId_, ESchedulerAlertType::ManageSchedulingSegments, context.Error);
+
+        if (now > SchedulingSegmentsInitializationDeadline_) {
+            PersistentState_ = New<TPersistentFairShareTreeJobSchedulerState>();
+            PersistentState_->SchedulingSegmentsState = std::move(context.PersistentState);
+
+            YT_LOG_DEBUG("Saved new persistent scheduling segments state");
+        } else {
+            YT_LOG_DEBUG(
+                "Skipped saving persistent scheduling segments state, "
+                "because initialization deadline has not passed yet "
+                "(Now: %v, Deadline: %v)",
+                now,
+                SchedulingSegmentsInitializationDeadline_);
+        }
+    }
+
+    ApplyNodeSchedulingSegmentsChanges(movedNodes);
+
+    YT_LOG_DEBUG("Finished managing scheduling segments");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

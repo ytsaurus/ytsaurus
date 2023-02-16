@@ -12,7 +12,6 @@
 #include "bootstrap.h"
 #include "operations_cleaner.h"
 #include "controller_agent_tracker.h"
-#include "scheduling_segment_manager.h"
 #include "persistent_scheduler_state.h"
 
 #include <yt/yt/server/lib/scheduler/allocation_tracker_service_proxy.h>
@@ -1344,7 +1343,7 @@ public:
         }
 
         {
-            auto error = Strategy_->InitOperationSchedulingSegment(operation->GetId());
+            auto error = Strategy_->OnOperationMaterialized(operation->GetId());
             if (!error.IsOK()) {
                 OnOperationFailed(operation, error);
                 return;
@@ -4019,25 +4018,6 @@ private:
                     operation->GetRefCount() - 1);
             }
             operation.Reset();
-        }
-    }
-
-    // NB(eshcherbin): This is temporary.
-    void UpdateOperationSchedulingSegmentModules(const TString& treeId, const TOperationIdWithSchedulingSegmentModuleList& updates) override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YT_LOG_DEBUG("Updating scheduling segment modules in operations' runtime parameters (TreeId: %v, UpdateCount: %v)",
-            treeId,
-            updates.size());
-
-        for (const auto& [operationId, newModule] : updates) {
-            if (auto operation = FindOperation(operationId)) {
-                auto params = operation->GetRuntimeParameters();
-                GetOrCrash(params->SchedulingOptionsPerPoolTree, treeId)->SchedulingSegmentModule = newModule;
-                operation->SetRuntimeParameters(params);
-                Strategy_->ApplyOperationRuntimeParameters(operation.Get());
-            }
         }
     }
 

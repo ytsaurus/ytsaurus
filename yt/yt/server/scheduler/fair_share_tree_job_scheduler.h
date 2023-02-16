@@ -2,10 +2,12 @@
 
 #include "private.h"
 #include "fair_share_tree_job_scheduler_structs.h"
+#include "fair_share_tree_job_scheduler_operation_shared_state.h"
 #include "fair_share_tree_element.h"
 #include "fair_share_tree_snapshot.h"
 #include "fields_filter.h"
 #include "persistent_fair_share_tree_job_scheduler_state.h"
+#include "scheduling_segment_manager.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
 
@@ -43,6 +45,7 @@ struct TStaticAttributes
     bool IsAliveAtUpdate = false;
 
     // Only for operations.
+    TFairShareTreeJobSchedulerOperationStatePtr OperationState;
     TFairShareTreeJobSchedulerOperationSharedStatePtr OperationSharedState;
     bool AreRegularJobsOnSsdNodesAllowed = true;
 };
@@ -522,10 +525,6 @@ using TPreemptiveScheduleJobsStageList = TCompactVector<TPreemptiveScheduleJobsS
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TOperationIdToJobSchedulerSharedState = THashMap<TOperationId, TFairShareTreeJobSchedulerOperationSharedStatePtr>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TFairShareTreeSchedulingSnapshot
     : public TRefCounted
 {
@@ -533,7 +532,6 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TStaticAttributesList, StaticAttributesList);
     DEFINE_BYREF_RO_PROPERTY(THashSet<int>, SsdPriorityPreemptionMedia);
     DEFINE_BYREF_RO_PROPERTY(TCachedJobPreemptionStatuses, CachedJobPreemptionStatuses);
-    DEFINE_BYREF_RO_PROPERTY(TTreeSchedulingSegmentsState, SchedulingSegmentsState);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TSchedulingTagFilter>, KnownSchedulingTagFilters);
     DEFINE_BYREF_RO_PROPERTY(TOperationCountsByPreemptionPriorityParameters, OperationCountsByPreemptionPriorityParameters);
 
@@ -542,18 +540,22 @@ public:
         TStaticAttributesList staticAttributesList,
         THashSet<int> ssdPriorityPreemptionMedia,
         TCachedJobPreemptionStatuses cachedJobPreemptionStatuses,
-        TTreeSchedulingSegmentsState schedulingSegmentsState,
         std::vector<TSchedulingTagFilter> knownSchedulingTagFilters,
         TOperationCountsByPreemptionPriorityParameters operationCountsByPreemptionPriorityParameters,
-        TOperationIdToJobSchedulerSharedState operationIdToSharedState);
+        TFairShareTreeJobSchedulerOperationStateMap operationIdToState,
+        TFairShareTreeJobSchedulerSharedOperationStateMap operationIdToSharedState);
 
+    const TFairShareTreeJobSchedulerOperationStatePtr& GetOperationState(const TSchedulerOperationElement* element) const;
     const TFairShareTreeJobSchedulerOperationSharedStatePtr& GetOperationSharedState(const TSchedulerOperationElement* element) const;
-    //! Faster version of |GetOperationSharedState| which does not do an extra hashmap lookup and relies on tree indices instead.
+
+    //! Faster versions of |GetOperationState| and |GetOperationSharedState| which do not do an extra hashmap lookup and rely on tree indices instead.
+    const TFairShareTreeJobSchedulerOperationStatePtr& GetEnabledOperationState(const TSchedulerOperationElement* element) const;
     const TFairShareTreeJobSchedulerOperationSharedStatePtr& GetEnabledOperationSharedState(const TSchedulerOperationElement* element) const;
 
 private:
-    // NB(eshcherbin): Enabled operations' shared states are also stored in static attributes to eliminate a hashmap lookup during scheduling.
-    TOperationIdToJobSchedulerSharedState OperationIdToSharedState_;
+    // NB(eshcherbin): Enabled operations' states are also stored in static attributes to eliminate a hashmap lookup during scheduling.
+    TFairShareTreeJobSchedulerOperationStateMap OperationIdToState_;
+    TFairShareTreeJobSchedulerSharedOperationStateMap OperationIdToSharedState_;
     TAtomicIntrusivePtr<TDynamicAttributesListSnapshot> DynamicAttributesListSnapshot_;
 
     TDynamicAttributesListSnapshotPtr GetDynamicAttributesListSnapshot() const;
@@ -573,9 +575,9 @@ struct TJobSchedulerPostUpdateContext
     TSchedulerRootElement* RootElement;
 
     THashSet<int> SsdPriorityPreemptionMedia;
-    TManageTreeSchedulingSegmentsContext ManageSchedulingSegmentsContext;
     TStaticAttributesList StaticAttributesList;
-    TOperationIdToJobSchedulerSharedState OperationIdToSharedState;
+    TFairShareTreeJobSchedulerOperationStateMap OperationIdToState;
+    TFairShareTreeJobSchedulerSharedOperationStateMap OperationIdToSharedState;
     std::vector<TSchedulingTagFilter> KnownSchedulingTagFilters;
     TOperationCountsByPreemptionPriorityParameters OperationCountsByPreemptionPriorityParameters;
 };
@@ -586,9 +588,6 @@ struct IFairShareTreeJobSchedulerHost
     : public virtual TRefCounted
 {
     virtual TFairShareTreeSnapshotPtr GetTreeSnapshot() const noexcept = 0;
-
-    // TODO(eshcherbin): Remove when operation segments are managed by tree job scheduler.
-    virtual TOperationIdWithSchedulingSegmentModuleList GetOperationSchedulingSegmentModuleUpdates() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -616,6 +615,9 @@ public:
     //! Operation management.
     void RegisterOperation(const TSchedulerOperationElement* element);
     void UnregisterOperation(const TSchedulerOperationElement* element);
+
+    void OnOperationMaterialized(const TSchedulerOperationElement* element);
+    TError CheckOperationSchedulingInSeveralTreesAllowed(const TSchedulerOperationElement* element) const;
 
     void EnableOperation(const TSchedulerOperationElement* element) const;
     void DisableOperation(TSchedulerOperationElement* element, bool markAsNonAlive) const;
@@ -696,8 +698,6 @@ public:
         const TJobResources& jobResources);
     EJobPreemptionStatus GetJobPreemptionStatusInTest(const TSchedulerOperationElement* element, TJobId jobId) const;
 
-    void ManageNodeSchedulingSegments();
-
 private:
     const TString TreeId_;
     const NLogging::TLogger Logger;
@@ -711,11 +711,12 @@ private:
 
     NProfiling::TProfiler Profiler_;
 
-    NConcurrency::TPeriodicExecutorPtr NodeSchedulingSegmentsManagementExecutor_;
+    NConcurrency::TPeriodicExecutorPtr SchedulingSegmentsManagementExecutor_;
 
     TEnumIndexedVector<EJobSchedulingStage, TScheduleJobsStage> SchedulingStages_;
 
-    TOperationIdToJobSchedulerSharedState OperationIdToSharedState_;
+    TFairShareTreeJobSchedulerOperationStateMap OperationIdToState_;
+    TFairShareTreeJobSchedulerSharedOperationStateMap OperationIdToSharedState_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, NodeIdToLastPreemptiveSchedulingTimeLock_);
     THashMap<NNodeTrackerClient::TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime_;
@@ -732,7 +733,7 @@ private:
 
     std::optional<THashSet<int>> SsdPriorityPreemptionMedia_;
 
-    TNodeSchedulingSegmentManager NodeSchedulingSegmentManager_;
+    TSchedulingSegmentManager SchedulingSegmentManager_;
 
     // TODO(eshcherbin): Add generic data structure for state sharding.
     struct alignas(NThreading::CacheLineSize) TNodeStateShard
@@ -748,6 +749,7 @@ private:
     TPersistentFairShareTreeJobSchedulerStatePtr PersistentState_;
 
     TPersistentNodeSchedulingSegmentStateMap InitialPersistentSchedulingSegmentNodeStates_;
+    TPersistentOperationSchedulingSegmentStateMap InitialPersistentSchedulingSegmentOperationStates_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -785,7 +787,14 @@ private:
         EJobPreemptionLevel minJobPreemptionLevel,
         bool forcePreemptionAttempt);
 
+    const TFairShareTreeJobSchedulerOperationStatePtr& GetOperationState(TOperationId operationId) const;
     const TFairShareTreeJobSchedulerOperationSharedStatePtr& GetOperationSharedState(TOperationId operationId) const;
+
+    //! Node management.
+    std::optional<TPersistentNodeSchedulingSegmentState> FindInitialNodePersistentState(NNodeTrackerClient::TNodeId nodeId);
+
+    //! Operation management.
+    std::optional<TPersistentOperationSchedulingSegmentState> FindInitialOperationPersistentState(TOperationId operationId);
 
     //! Post update.
     void UpdateSsdPriorityPreemptionMedia();
@@ -800,7 +809,6 @@ private:
     void UpdateCachedJobPreemptionStatuses(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext);
     void ComputeDynamicAttributesAtUpdateRecursively(TSchedulerElement* element, TDynamicAttributesManager* dynamicAttributesManager) const;
     void BuildSchedulableIndices(TDynamicAttributesManager* dynamicAttributesManager, TJobSchedulerPostUpdateContext* context) const;
-    void ManageSchedulingSegments(TFairSharePostUpdateContext* fairSharePostUpdateContext, TManageTreeSchedulingSegmentsContext* manageSegmentsContext) const;
     void CollectKnownSchedulingTagFilters(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext) const;
     void UpdateSsdNodeSchedulingAttributes(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext) const;
     void CountOperationsByPreemptionPriority(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext) const;
@@ -809,9 +817,13 @@ private:
     const TFairShareTreeJobSchedulerNodeState* FindNodeState(NNodeTrackerClient::TNodeId nodeId) const;
     TFairShareTreeJobSchedulerNodeState* FindNodeState(NNodeTrackerClient::TNodeId nodeId);
 
-    TFairShareTreeJobSchedulerNodeStateMap CollectNodeStates() const;
+    TFairShareTreeJobSchedulerOperationStateMap GetOperationStateMapSnapshot() const;
+    TFairShareTreeJobSchedulerNodeStateMap GetNodeStateMapSnapshot() const;
 
-    void ApplyNewNodeSchedulingSegments(const TSetNodeSchedulingSegmentOptionsList& movedNodes);
+    void ApplyOperationSchedulingSegmentsChanges(const TFairShareTreeJobSchedulerOperationStateMap& changedOperationStates);
+    void ApplyNodeSchedulingSegmentsChanges(const TSetNodeSchedulingSegmentOptionsList& movedNodes);
+
+    void ManageSchedulingSegments();
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareTreeJobScheduler)

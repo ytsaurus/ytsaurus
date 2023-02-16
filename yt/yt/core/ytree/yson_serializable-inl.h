@@ -174,6 +174,8 @@ T DeserializeMapKey(TStringBuf value)
 {
     if constexpr (TEnumTraits<T>::IsEnum) {
         return TEnumTraits<T>::FromString(DecodeEnumValue(value));
+    } else if constexpr (std::is_same_v<T, TGuid>) {
+        return TGuid::FromString(value);
     } else {
         return FromString<T>(value);
     }

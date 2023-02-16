@@ -1257,27 +1257,30 @@ public:
         return bestTree;
     }
 
-    TError InitOperationSchedulingSegment(TOperationId operationId) override
+    TError OnOperationMaterialized(TOperationId operationId) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto state = GetOperationState(operationId);
-
-        bool hasModuleAwareSegment = false;
+        std::vector<TError> multiTreeSchedulingErrors;
         for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
-            auto segment = GetTree(treeId)->InitOperationSchedulingSegment(operationId);
-            hasModuleAwareSegment |= IsModuleAwareSchedulingSegment(segment);
+            auto tree = GetTree(treeId);
+            tree->OnOperationMaterialized(operationId);
+
+            if (auto error = tree->CheckOperationSchedulingInSeveralTreesAllowed(operationId); !error.IsOK()) {
+                multiTreeSchedulingErrors.push_back(TError("Scheduling in several trees is forbidden by %Qlv tree's configuration")
+                    << std::move(error));
+            }
         }
 
-        if (hasModuleAwareSegment && state->TreeIdToPoolNameMap().size() > 1) {
+        if (!multiTreeSchedulingErrors.empty() && state->TreeIdToPoolNameMap().size() > 1) {
             std::vector<TString> treeIds;
             for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
                 treeIds.push_back(treeId);
             }
 
-            return TError(
-                "Scheduling in several trees is forbidden for operations in module-aware scheduling segments, "
-                "specify a single tree or use the \"schedule_in_single_tree\" spec option")
+            return TError("Scheduling in several trees is forbidden by some trees' configuration")
+                << std::move(multiTreeSchedulingErrors)
                 << TErrorAttribute("tree_ids", treeIds);
         }
 

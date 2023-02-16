@@ -1,10 +1,10 @@
 #pragma once
 
 #include "private.h"
-#include "scheduler_tree_structs.h"
 #include "scheduler_strategy.h"
 #include "persistent_scheduler_state.h"
 
+#include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/resource_metering.h>
 
 namespace NYT::NScheduler {
@@ -43,14 +43,6 @@ struct TPoolsUpdateResult
 {
     TError Error;
     bool Updated;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TManageSchedulingSegmentsResult
-{
-    TOperationIdWithSchedulingSegmentModuleList OperationSchedulingSegmentModuleUpdates;
-    TError Error;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,7 +171,8 @@ struct IFairShareTree
         const TPersistentTreeStatePtr& persistentState,
         const TPersistentSchedulingSegmentsStatePtr& oldSchedulingSegmentsState) = 0;
 
-    virtual ESchedulingSegment InitOperationSchedulingSegment(TOperationId operationId) = 0;
+    virtual void OnOperationMaterialized(TOperationId operationId) = 0;
+    virtual TError CheckOperationSchedulingInSeveralTreesAllowed(TOperationId operationId) const = 0;
 
     virtual void BuildOperationAttributes(TOperationId operationId, NYTree::TFluentMap fluent) const = 0;
     virtual void BuildOperationProgress(TOperationId operationId, NYTree::TFluentMap fluent) const = 0;

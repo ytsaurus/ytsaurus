@@ -8,7 +8,6 @@
 #include "resource_tree_element.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
-#include "scheduling_segment_manager.h"
 #include "packing.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
@@ -91,10 +90,6 @@ struct TPersistentAttributes
     TIntegralResourcesState IntegralResourcesState;
 
     TJobResources AppliedResourceLimits = TJobResources::Infinite();
-
-    // TODO(eshcherbin): Move scheduling segment management fully to tree scheduler.
-    TSchedulingSegmentModule SchedulingSegmentModule;
-    std::optional<TInstant> FailingToScheduleAtModuleSince;
 
     void ResetOnElementEnabled();
 };
@@ -677,9 +672,6 @@ public:
     // Used by trunk node.
     DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, PendingByPool);
 
-    DEFINE_BYREF_RW_PROPERTY(std::optional<ESchedulingSegment>, SchedulingSegment);
-    DEFINE_BYREF_RW_PROPERTY(std::optional<THashSet<TString>>, SpecifiedSchedulingSegmentModules);
-
     DEFINE_BYREF_RO_PROPERTY(TJobResourcesWithQuotaList, DetailedMinNeededJobResources);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AggregatedMinNeededJobResources);
     DEFINE_BYREF_RO_PROPERTY(bool, ScheduleJobBackoffCheckEnabled, false);
@@ -761,10 +753,7 @@ public:
 
     ESchedulableStatus GetStatus() const override;
 
-    void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
-
-    void InitOrUpdateSchedulingSegment(const TFairShareStrategySchedulingSegmentsConfigPtr& schedulingSegmentsConfig);
 
     const NVectorHdrf::TJobResourcesConfig* GetStrongGuaranteeResourcesConfig() const override;
     TResourceVector GetMaxShare() const override;
@@ -853,6 +842,8 @@ public:
 
     bool IsLimitingAncestorCheckEnabled() const;
 
+    std::optional<TJobResources> GetInitialAggregatedMinNeededResources() const;
+
 protected:
     //! Pre update methods.
     void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;
@@ -919,8 +910,6 @@ public:
     TSchedulerElementPtr Clone(TSchedulerCompositeElement* clonedParent) override;
 
     ESchedulerElementType GetType() const override;
-
-    void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
     // Used for diagnostics purposes.
     TJobResources GetSpecifiedStrongGuaranteeResources() const override;
