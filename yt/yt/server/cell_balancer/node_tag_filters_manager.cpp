@@ -31,7 +31,12 @@ TSpareNodesInfo GetSpareNodesInfo(
     const TSchedulerInputState& input,
     TSchedulerMutations* mutations)
 {
-    auto spareBundle = GetSpareBundleName(zoneName);
+    auto zoneIt = input.Zones.find(zoneName);
+    if (zoneIt == input.Zones.end()) {
+        return {};
+    }
+
+    auto spareBundle = GetSpareBundleName(zoneIt->second);
     auto spareNodesIt = input.BundleNodes.find(spareBundle);
     if (spareNodesIt == input.BundleNodes.end()) {
         return {};

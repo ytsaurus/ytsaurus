@@ -6,6 +6,10 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TString DefaultSpareNodeName = "spare";
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCpuLimits::Register(TRegistrar registrar)
 {
     registrar.Parameter("write_thread_pool_size", &TThis::WriteThreadPoolSize)
@@ -224,6 +228,8 @@ void TZoneInfo::Register(TRegistrar registrar)
 
     RegisterAttribute(registrar, "spare_target_config", &TThis::SpareTargetConfig)
         .DefaultNew();
+    RegisterAttribute(registrar, "spare_bundle_name", &TThis::SpareBundleName)
+        .Default(DefaultSpareNodeName);
     RegisterAttribute(registrar, "disrupted_threshold_factor", &TThis::DisruptedThresholdFactor)
         .GreaterThan(0)
         .Default(1);

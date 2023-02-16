@@ -1383,10 +1383,9 @@ void ManageResourceLimits(TSchedulerInputState& input, TSchedulerMutations* muta
 ////////////////////////////////////////////////////////////////////////////////
 
 
-TString GetSpareBundleName(const TString& /*zoneName*/)
+TString GetSpareBundleName(const TZoneInfoPtr& zoneInfo)
 {
-    // TODO(capone212): consider adding zone name.
-    return "spare";
+    return zoneInfo->SpareBundleName;
 }
 
 THashMap<TString, TZoneDisruptedState> GetZoneDisruptedState(TSchedulerInputState& input)
@@ -2007,7 +2006,7 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
 {
     // For each zone create virtual spare bundles
     for (const auto& [zoneName, zoneInfo] : input.Zones) {
-        auto spareVirtualBundle = GetSpareBundleName(zoneName);
+        auto spareVirtualBundle = GetSpareBundleName(zoneInfo);
         auto bundleInfo = New<TBundleInfo>();
         bundleInfo->TargetConfig = zoneInfo->SpareTargetConfig;
         bundleInfo->EnableBundleController = true;

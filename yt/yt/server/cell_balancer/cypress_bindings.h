@@ -324,6 +324,7 @@ struct TZoneInfo
     THashMap<TString, TInstanceSizePtr> RpcProxySizes;
 
     TBundleConfigPtr SpareTargetConfig;
+    TString SpareBundleName;
     double DisruptedThresholdFactor;
 
     REGISTER_YSON_STRUCT(TZoneInfo);
