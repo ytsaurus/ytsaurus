@@ -103,6 +103,10 @@ object Dependencies {
     "com.softwaremill.sttp.client" %% "core" % "2.1.4"
   )
 
+  lazy val metrics = Seq(
+    "io.dropwizard.metrics" % "metrics-core" % "4.2.0" % Compile
+  )
+
   implicit class RichDependencies(deps: Seq[ModuleID]) {
     def excludeLogging: Seq[ModuleID] = deps.map(_.excludeAll(
       ExclusionRule(organization = "org.slf4j"),

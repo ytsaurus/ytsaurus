@@ -63,8 +63,7 @@ object CommonPlugin extends AutoPlugin {
     externalResolvers := Resolver.combineDefaultResolvers(resolvers.value.toVector, mavenCentral = false),
     resolvers += Resolver.mavenLocal,
     resolvers += Resolver.mavenCentral,
-    resolvers += ("YandexMediaReleases" at "http://artifactory.yandex.net/artifactory/yandex_media_releases")
-      .withAllowInsecureProtocol(true),
+    resolvers += ("YandexMediaReleases" at "https://bucket.yandex-team.ru/v1/maven/yandex_media_releases"),
     resolvers += ("YandexSparkReleases" at "https://bucket.yandex-team.ru/v1/maven/yandex_spark_releases"),
     resolvers += ("YandexSparkSnapshots" at "https://bucket.yandex-team.ru/v1/maven/yandex_spark_snapshots"),
     ThisBuild / version := (ThisBuild / spytClusterVersion).value,

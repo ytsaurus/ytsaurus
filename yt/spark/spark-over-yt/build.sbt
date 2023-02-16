@@ -142,6 +142,7 @@ lazy val `file-system` = (project in file("file-system"))
   .enablePlugins(CommonPlugin)
   .dependsOn(`yt-wrapper` % "compile->compile;test->test")
   .settings(
+    libraryDependencies ++= metrics,
     libraryDependencies ++= commonDependencies.value,
     libraryDependencies += "net.logstash.log4j" % "jsonevent-layout" % "1.7"
   )
