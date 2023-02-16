@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/atomic_ptr.h>
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NDataNode {
 
@@ -79,7 +79,7 @@ protected:
 private:
     const TDiskLocationConfigPtr StaticConfig_;
 
-    TAtomicPtr<TDiskLocationConfig> RuntimeConfig_;
+    TAtomicIntrusivePtr<TDiskLocationConfig> RuntimeConfig_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

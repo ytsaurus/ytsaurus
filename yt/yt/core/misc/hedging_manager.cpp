@@ -1,6 +1,7 @@
 #include "hedging_manager.h"
-#include "atomic_ptr.h"
 #include "config.h"
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT {
 
@@ -67,8 +68,6 @@ private:
 
     struct THedgingStatistics final
     {
-        static constexpr bool EnableHazard = true;
-
         explicit THedgingStatistics(
             TDuration hedgingDelay,
             THedgingStatisticsPtr previousStatistics = nullptr)
@@ -84,10 +83,10 @@ private:
         std::atomic<i64> BackupAttemptCount = 0;
         std::atomic<i64> BackupRequestCount = 0;
 
-        TAtomicPtr<THedgingStatistics> PreviousStatistics;
+        TAtomicIntrusivePtr<THedgingStatistics> PreviousStatistics;
     };
 
-    TAtomicPtr<THedgingStatistics> HedgingStatistics_;
+    TAtomicIntrusivePtr<THedgingStatistics> HedgingStatistics_;
 
     NProfiling::TCounter PrimaryRequestCount_;
     NProfiling::TCounter BackupAttemptCount_;
@@ -110,7 +109,8 @@ private:
 
         auto newStatistics = New<THedgingStatistics>(newHedgingDelay, currentStatistics);
 
-        if (!HedgingStatistics_.SwapIfCompare(currentStatistics, newStatistics)) {
+        void* expectedStatistics = currentStatistics.Get();
+        if (!HedgingStatistics_.CompareAndSwap(expectedStatistics, newStatistics)) {
             return HedgingStatistics_.Acquire();
         }
 

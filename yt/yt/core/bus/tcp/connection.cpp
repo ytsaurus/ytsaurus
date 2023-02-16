@@ -621,7 +621,7 @@ bool TTcpConnection::IsEndpointLocal() const
 
 TBusNetworkStatistics TTcpConnection::GetNetworkStatistics() const
 {
-    if (auto networkCounters = NetworkCounters_.Acquire()) {
+    if (auto networkCounters = NetworkCounters_.AcquireHazard()) {
         return networkCounters->ToStatistics();
     } else {
         return {};

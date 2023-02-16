@@ -79,6 +79,8 @@ class TChunkLocationConfig
     : public TDiskLocationConfig
 {
 public:
+    static constexpr bool EnableHazard = true;
+
     //! Maximum space chunks are allowed to occupy.
     //! (If not initialized then indicates to occupy all available space on drive).
     std::optional<i64> Quota;

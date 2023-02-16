@@ -7,12 +7,13 @@
 
 #include <yt/yt/ytlib/hydra/private.h>
 
-#include <yt/yt/core/misc/atomic_ptr.h>
 #include <yt/yt/core/misc/lazy_ptr.h>
 
 #include <yt/yt/core/concurrency/fls.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NHydra2 {
 
@@ -56,7 +57,7 @@ public:
     NHydra::TDistributedHydraManagerConfigPtr Get() const;
 
 private:
-    TAtomicPtr<NHydra::TDistributedHydraManagerConfig> Config_;
+    TAtomicIntrusivePtr<NHydra::TDistributedHydraManagerConfig> Config_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TConfigWrapper)
