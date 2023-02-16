@@ -95,7 +95,8 @@ TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> TCachedVersionedChunkMeta::Ge
         auto preparedMeta = New<NNewTableClient::TPreparedChunkMeta>();
         auto size = preparedMeta->Prepare(GetChunkSchema(), ColumnMeta());
 
-        if (PreparedMeta_.SwapIfCompare(nullptr, preparedMeta)) {
+        void* expectedPreparedMeta = nullptr;
+        if (PreparedMeta_.CompareAndSwap(expectedPreparedMeta, preparedMeta)) {
             PreparedMetaSize_ = size;
 
             if (MemoryTrackerGuard_) {

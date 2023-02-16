@@ -202,9 +202,6 @@ public:
     //! Returns the IO Engine with stats observer.
     const NIO::IIOEngineWorkloadModelPtr& GetIOEngineModel() const;
 
-    //! Returns the runtime configuration.
-    TChunkLocationConfigPtr GetRuntimeConfig() const;
-
     //! Updates the runtime configuration.
     void Reconfigure(TChunkLocationConfigPtr config);
 
@@ -437,7 +434,7 @@ private:
     const ITypedNodeMemoryTrackerPtr ReadMemoryTracker_;
     const ITypedNodeMemoryTrackerPtr WriteMemoryTracker_;
 
-    TAtomicPtr<TChunkLocationConfig> RuntimeConfig_;
+    TAtomicPtr<TChunkLocationConfig, /*EnableAcquireHazard*/ true> RuntimeConfig_;
 
     TChunkLocationUuid Uuid_;
 
@@ -468,6 +465,8 @@ private:
     THashSet<TChunkId> LockedChunkIds_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
+
+    THazardPtr<TChunkLocationConfig> GetRuntimeConfig() const;
 
     void DecreasePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);
     void UpdatePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);

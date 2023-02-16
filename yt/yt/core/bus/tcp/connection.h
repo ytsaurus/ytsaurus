@@ -190,7 +190,7 @@ private:
 
     TBusNetworkCounters BusCounters_;
     TBusNetworkCounters BusCountersDelta_;
-    TAtomicPtr<TBusNetworkCounters> NetworkCounters_;
+    TAtomicPtr<TBusNetworkCounters, /*EnableAcquireHazard*/ true> NetworkCounters_;
 
     bool GenerateChecksums_ = true;
 

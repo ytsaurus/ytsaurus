@@ -73,8 +73,6 @@ class TDiskLocationConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    static constexpr bool EnableHazard = true;
-
     //! Root directory for the location.
     TString Path;
 

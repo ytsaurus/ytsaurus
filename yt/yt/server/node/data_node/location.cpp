@@ -359,11 +359,11 @@ const NIO::IIOEngineWorkloadModelPtr& TChunkLocation::GetIOEngineModel() const
     return IOEngineModel_;
 }
 
-TChunkLocationConfigPtr TChunkLocation::GetRuntimeConfig() const
+THazardPtr<TChunkLocationConfig> TChunkLocation::GetRuntimeConfig() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return RuntimeConfig_.Acquire();
+    return RuntimeConfig_.AcquireHazard();
 }
 
 void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)

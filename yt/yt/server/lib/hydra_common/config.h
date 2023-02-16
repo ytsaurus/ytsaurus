@@ -296,8 +296,6 @@ class TDistributedHydraManagerConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    static constexpr bool EnableHazard = true;
-
     //! Timeout for various control RPC requests.
     TDuration ControlRpcTimeout;
 

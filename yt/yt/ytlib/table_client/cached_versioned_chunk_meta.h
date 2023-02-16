@@ -7,13 +7,16 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/yt/ytlib/new_table_client/prepared_meta.h>
 
 #include <yt/yt/core/misc/memory_usage_tracker.h>
-#include <yt/yt/core/misc/atomic_ptr.h>
 
 #include <yt/yt/core/actions/future.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <memory>
 
@@ -51,7 +54,7 @@ private:
 
     TMemoryUsageTrackerGuard MemoryTrackerGuard_;
 
-    TAtomicPtr<NNewTableClient::TPreparedChunkMeta> PreparedMeta_;
+    TAtomicIntrusivePtr<NNewTableClient::TPreparedChunkMeta> PreparedMeta_;
     size_t PreparedMetaSize_ = 0;
 
     DECLARE_NEW_FRIEND();

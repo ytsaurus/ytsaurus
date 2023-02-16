@@ -114,8 +114,6 @@ struct TKeyMeta
 
 struct TPreparedChunkMeta final
 {
-    static constexpr bool EnableHazard = true;
-
     struct TColumnGroup
     {
         TColumnGroup() = default;
