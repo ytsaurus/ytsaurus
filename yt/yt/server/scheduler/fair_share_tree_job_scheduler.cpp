@@ -2793,7 +2793,7 @@ void TFairShareTreeJobScheduler::BuildOperationProgress(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     const TSchedulerOperationElement* element,
     ISchedulerStrategyHost* const strategyHost,
-    NYTree::TFluentMap fluent)
+    TFluentMap fluent)
 {
     bool isEnabled = treeSnapshot->IsElementEnabled(element);
     const auto& operationState = isEnabled
@@ -2956,9 +2956,7 @@ void TFairShareTreeJobScheduler::BuildElementLoggingStringAttributes(
     }
 }
 
-void TFairShareTreeJobScheduler::InitPersistentState(
-    NYTree::INodePtr persistentState,
-    TPersistentSchedulingSegmentsStatePtr oldSegmentsPersistentState)
+void TFairShareTreeJobScheduler::InitPersistentState(INodePtr persistentState)
 {
     if (persistentState) {
         try {
@@ -2972,13 +2970,6 @@ void TFairShareTreeJobScheduler::InitPersistentState(
         }
     } else {
         InitialPersistentState_ = New<TPersistentFairShareTreeJobSchedulerState>();
-    }
-
-    // COMPAT(eshcherbin)
-    if (oldSegmentsPersistentState && InitialPersistentState_->SchedulingSegmentsState->NodeStates.empty()) {
-        YT_LOG_DEBUG("Using old scheduling segments state for initialization");
-
-        InitialPersistentState_->SchedulingSegmentsState = oldSegmentsPersistentState;
     }
 
     InitialPersistentSchedulingSegmentNodeStates_ = InitialPersistentState_->SchedulingSegmentsState->NodeStates;

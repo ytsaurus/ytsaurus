@@ -167,9 +167,7 @@ struct IFairShareTree
     virtual void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
 
     virtual TPersistentTreeStatePtr BuildPersistentState() const = 0;
-    virtual void InitPersistentState(
-        const TPersistentTreeStatePtr& persistentState,
-        const TPersistentSchedulingSegmentsStatePtr& oldSchedulingSegmentsState) = 0;
+    virtual void InitPersistentState(const TPersistentTreeStatePtr& persistentState) = 0;
 
     virtual void OnOperationMaterialized(TOperationId operationId) = 0;
     virtual TError CheckOperationSchedulingInSeveralTreesAllowed(TOperationId operationId) const = 0;

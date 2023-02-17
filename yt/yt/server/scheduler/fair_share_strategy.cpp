@@ -2160,9 +2160,7 @@ private:
         }
     }
 
-    void InitPersistentState(
-        const TPersistentStrategyStatePtr& persistentStrategyState,
-        const TPersistentSchedulingSegmentsStatePtr& oldPersistentSchedulingSegmentsState) override
+    void InitPersistentState(const TPersistentStrategyStatePtr& persistentStrategyState) override
     {
         YT_VERIFY(!Initialized_);
         YT_VERIFY(persistentStrategyState);
@@ -2170,29 +2168,12 @@ private:
         YT_LOG_INFO("Initializing persistent strategy state %v",
             ConvertToYsonString(persistentStrategyState, EYsonFormat::Text));
 
-        // COMPAT(eshcherbin)
-        THashMap<TString, TPersistentNodeSchedulingSegmentStateMap> idToTreeOldSegmentsState;
-        if (oldPersistentSchedulingSegmentsState) {
-            for (const auto& [nodeId, nodeState] : oldPersistentSchedulingSegmentsState->NodeStates) {
-                EmplaceOrCrash(idToTreeOldSegmentsState[nodeState.Tree], nodeId, nodeState);
-            }
-        }
-
         for (const auto& [treeId, tree] : IdToTree_) {
             auto stateIt = persistentStrategyState->TreeStates.find(treeId);
             auto treeState = stateIt != persistentStrategyState->TreeStates.end()
                 ? stateIt->second
                 : New<TPersistentTreeState>();
-
-            // COMPAT(eshcherbin)
-            TPersistentSchedulingSegmentsStatePtr oldTreeSegmentsState;
-            auto segmentsStateIt = idToTreeOldSegmentsState.find(treeId);
-            if (segmentsStateIt != idToTreeOldSegmentsState.end()) {
-                oldTreeSegmentsState = New<TPersistentSchedulingSegmentsState>();
-                oldTreeSegmentsState->NodeStates = std::move(segmentsStateIt->second);
-            }
-
-            tree->InitPersistentState(treeState, oldTreeSegmentsState);
+            tree->InitPersistentState(treeState);
         }
 
         for (const auto& [treeId, treeState] : persistentStrategyState->TreeStates) {
