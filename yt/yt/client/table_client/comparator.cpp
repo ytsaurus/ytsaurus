@@ -429,7 +429,6 @@ TKeyBoundRef ToKeyBoundRef(TUnversionedRow row, bool upper, int keyLength)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 int TestComparisonResult(int result, TRange<ESortOrder> sortOrders, bool inclusive, bool upper)
 {
     if (result != 0) {
