@@ -1,5 +1,9 @@
 package tech.ytsaurus.client.rpc;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -8,9 +12,6 @@ import java.util.concurrent.CompletionException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.channel.nio.NioEventLoopGroup;
-import org.asynchttpclient.AsyncHttpClient;
-import org.asynchttpclient.DefaultAsyncHttpClientConfig;
-import org.asynchttpclient.RequestBuilder;
 import org.junit.Before;
 import org.junit.Test;
 import tech.ytsaurus.client.YtClient;
@@ -21,7 +22,6 @@ import tech.ytsaurus.ysontree.YTree;
 
 import ru.yandex.yt.testlib.LocalYt;
 
-import static org.asynchttpclient.Dsl.asyncHttpClient;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static ru.yandex.yt.testlib.FutureUtils.getError;
@@ -42,7 +42,7 @@ public class TemporaryClusterErrorsTest {
             public List<String> value;
         }
 
-        final AsyncHttpClient httpClient;
+        final HttpClient httpClient;
         final String ytAddress;
         List<String> proxyPathList = new ArrayList<>();
         final int HTTP_TIMEOUT = 5000;
@@ -51,27 +51,22 @@ public class TemporaryClusterErrorsTest {
             this.ytAddress = ytAddress;
             // NB. we are using http client, since we are going to ban proxies
             // and we cannot use banned proxies to unban themselves.
-            httpClient = asyncHttpClient(
-                    new DefaultAsyncHttpClientConfig.Builder()
-                            .setHttpClientCodecMaxHeaderSize(65536)
-                            .build());
+            httpClient = HttpClient.newBuilder().build();
 
             {
                 var listUrl = String.format("http://%s/api/v4/list?path=//sys/rpc_proxies", ytAddress);
-                var responseFuture = httpClient.executeRequest(
-                        new RequestBuilder()
-                                .setUrl(listUrl)
-                                .build()).toCompletableFuture();
+                var responseFuture = httpClient.sendAsync(
+                        HttpRequest.newBuilder(URI.create(listUrl)).build(), HttpResponse.BodyHandlers.ofString());
                 waitOkResult(responseFuture, HTTP_TIMEOUT);
 
                 var response = responseFuture.join();
-                if (response.getStatusCode() != 200) {
+                if (response.statusCode() != 200) {
                     throw new RuntimeException("Bad response: " + response);
                 }
                 final var objectMapper = new ObjectMapper();
                 ListResponse listResponse;
                 try {
-                    listResponse = objectMapper.readValue(response.getResponseBody(), ListResponse.class);
+                    listResponse = objectMapper.readValue(response.body(), ListResponse.class);
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException(e);
                 }
@@ -93,14 +88,13 @@ public class TemporaryClusterErrorsTest {
 
         void setBanned(String proxy, boolean value) {
             var banUrl = String.format("http://%s/api/v4/set?path=%s/@banned", ytAddress, proxy);
-            var responseFuture = httpClient.executeRequest(
-                    new RequestBuilder("PUT")
-                            .setUrl(banUrl)
-                            .setBody(value ? "true" : "false"))
-                    .toCompletableFuture();
+            var responseFuture = httpClient.sendAsync(
+                    HttpRequest.newBuilder(URI.create(banUrl))
+                            .PUT(HttpRequest.BodyPublishers.ofString(value ? "true" : "false"))
+                            .build(), HttpResponse.BodyHandlers.ofInputStream());
             waitOkResult(responseFuture, HTTP_TIMEOUT);
             var response = responseFuture.join();
-            if (response.getStatusCode() != 200) {
+            if (response.statusCode() != 200) {
                 throw new RuntimeException("Bad response: " + response);
             }
         }

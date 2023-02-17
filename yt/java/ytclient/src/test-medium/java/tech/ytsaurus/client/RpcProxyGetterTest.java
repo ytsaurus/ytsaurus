@@ -1,6 +1,7 @@
 package tech.ytsaurus.client;
 
 import java.io.IOException;
+import java.net.http.HttpClient;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
@@ -12,8 +13,6 @@ import java.util.stream.Stream;
 
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import org.asynchttpclient.AsyncHttpClient;
-import org.asynchttpclient.DefaultAsyncHttpClientConfig;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,29 +24,23 @@ import tech.ytsaurus.client.rpc.RpcOptions;
 
 import ru.yandex.yt.testlib.LocalYt;
 
-import static org.asynchttpclient.Dsl.asyncHttpClient;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 
 public class RpcProxyGetterTest {
-    AsyncHttpClient httpClient;
+    HttpClient httpClient;
     EventLoopGroup eventLoopGroup;
 
     @Before
     public void before() {
         eventLoopGroup = new NioEventLoopGroup(1);
-        httpClient = asyncHttpClient(
-                new DefaultAsyncHttpClientConfig.Builder()
-                        .setThreadPoolName("YtClient-PeriodicDiscovery")
-                        .setEventLoopGroup(eventLoopGroup)
-                        .setHttpClientCodecMaxHeaderSize(65536)
-                        .build()
-        );
+        httpClient = HttpClient.newBuilder()
+                .executor(eventLoopGroup)
+                .build();
     }
 
     @After
     public void after() throws IOException {
-        httpClient.close();
         eventLoopGroup.shutdownGracefully(100, 100, TimeUnit.MILLISECONDS);
     }
 
