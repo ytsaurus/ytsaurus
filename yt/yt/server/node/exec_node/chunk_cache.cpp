@@ -1341,6 +1341,7 @@ private:
             /*hintKeys*/ nullptr,
             nameTable,
             chunkReadOptions,
+            ReaderInterruptionOptions::InterruptibleWithEmptyKey(),
             /*columnFilter*/ {},
             /*partitionTag*/ std::nullopt);
 

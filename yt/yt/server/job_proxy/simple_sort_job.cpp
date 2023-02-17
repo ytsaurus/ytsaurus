@@ -71,6 +71,7 @@ public:
                 /*hintKeys*/ nullptr,
                 nameTable,
                 ChunkReadOptions_,
+                ReaderInterruptionOptions::InterruptibleWithEmptyKey(),
                 /*columnFilter*/ {},
                 /*partitionTag*/ std::nullopt,
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));

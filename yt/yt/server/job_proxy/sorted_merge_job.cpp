@@ -94,10 +94,10 @@ public:
                     /*hintKeys*/ nullptr,
                     nameTable,
                     ChunkReadOptions_,
+                    ReaderInterruptionOptions::InterruptibleWithKeyLength(std::ssize(sortColumns)),
                     /*columnFilter*/ {},
                     /*partitionTag*/ std::nullopt,
-                    MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize),
-                    sortColumns.size());
+                    MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 
                 readers.push_back(reader);
             }

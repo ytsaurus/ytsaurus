@@ -92,10 +92,10 @@ public:
                 /*hintKeys*/ nullptr,
                 nameTable,
                 ChunkReadOptions_,
+                ReaderInterruptionOptions::InterruptibleWithEmptyKey(),
                 columnFilter,
                 partitionTag,
-                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize),
-                /*interruptDescriptorKeyLength*/ 0);
+                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
         };
 
         YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);

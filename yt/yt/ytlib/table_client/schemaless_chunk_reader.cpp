@@ -827,13 +827,6 @@ public:
         std::optional<int> partitionTag = std::nullopt,
         const TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
-    TInterruptDescriptor GetInterruptDescriptor(
-        TRange<TUnversionedRow> /*unreadRows*/) const override
-    {
-        // TODO(orlovorlov) YT-18241: support interrupts.
-        return TInterruptDescriptor{};
-    }
-
 protected:
     TSharedRange<TLegacyKey> Keys_;
 

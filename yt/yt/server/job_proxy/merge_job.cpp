@@ -93,10 +93,10 @@ public:
                 /*hintKeys*/ nullptr,
                 std::move(nameTable),
                 ChunkReadOptions_,
+                ReaderInterruptionOptions::InterruptibleWithEmptyKey(),
                 columnFilter,
                 partitionTag,
-                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize),
-                /*interruptDescriptorKeyLength*/ 0);
+                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
         };
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());

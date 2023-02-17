@@ -331,6 +331,24 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ReaderInterruptionOptions ReaderInterruptionOptions::InterruptibleWithEmptyKey()
+{
+    return ReaderInterruptionOptions{true, 0};
+}
+
+ReaderInterruptionOptions ReaderInterruptionOptions::InterruptibleWithKeyLength(
+    int descriptorKeyLength)
+{
+    return {true, descriptorKeyLength};
+}
+
+ReaderInterruptionOptions ReaderInterruptionOptions::NonInterruptible()
+{
+    return ReaderInterruptionOptions{false, -1};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchemalessMultiChunkReader
     : public ISchemalessMultiChunkReader
 {
@@ -338,7 +356,8 @@ public:
     TSchemalessMultiChunkReader(
         IMultiReaderManagerPtr multiReaderManager,
         TNameTablePtr nameTable,
-        const std::vector<TDataSliceDescriptor>& dataSliceDescriptors);
+        const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
+        bool interruptible);
 
     ~TSchemalessMultiChunkReader();
 
@@ -398,6 +417,7 @@ public:
 private:
     const IMultiReaderManagerPtr MultiReaderManager_;
     const TNameTablePtr NameTable_;
+    bool Interruptible_;
 
     ISchemalessChunkReaderPtr CurrentReader_;
     std::atomic<i64> RowIndex_ = 0;
@@ -417,9 +437,11 @@ private:
 TSchemalessMultiChunkReader::TSchemalessMultiChunkReader(
     IMultiReaderManagerPtr multiReaderManager,
     TNameTablePtr nameTable,
-    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors)
+    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
+    bool interruptible)
     : MultiReaderManager_(std::move(multiReaderManager))
     , NameTable_(nameTable)
+    , Interruptible_(interruptible)
     , RowCount_(GetCumulativeRowCount(dataSliceDescriptors))
 {
     if (dataSliceDescriptors.empty()) {
@@ -454,7 +476,7 @@ IUnversionedRowBatchPtr TSchemalessMultiChunkReader::Read(const TRowBatchReadOpt
         return batch;
     }
 
-    if (!batch) {
+    if (!batch && Interruptible_) {
         // This must fill read descriptors with values from finished readers.
         auto interruptDescriptor = CurrentReader_->GetInterruptDescriptor({});
         FinishedInterruptDescriptor_.MergeFrom(std::move(interruptDescriptor));
@@ -515,6 +537,10 @@ void TSchemalessMultiChunkReader::SkipCurrentReader()
 TInterruptDescriptor TSchemalessMultiChunkReader::GetInterruptDescriptor(
     TRange<TUnversionedRow> unreadRows) const
 {
+    if (!Interruptible_) {
+        THROW_ERROR_EXCEPTION("InterruptDescriptor request from a non-interruptable reader");
+    }
+
     static TRange<TUnversionedRow> emptyRange;
     auto state = MultiReaderManager_->GetUnreadState();
 
@@ -552,10 +578,10 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TSharedRange<TUnversionedRow> hintKeyPrefixes,
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
+    ReaderInterruptionOptions interruptionOptions,
     const TColumnFilter& columnFilter,
     std::optional<int> partitionTag,
-    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
-    int interruptDescriptorKeyLength)
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     if (!multiReaderMemoryManager) {
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
@@ -582,10 +608,11 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
                 columnFilter,
                 partitionTag,
                 multiReaderMemoryManager,
-                interruptDescriptorKeyLength),
+                interruptionOptions.InterruptDescriptorKeyLength),
             multiReaderMemoryManager),
         nameTable,
-        dataSliceDescriptors);
+        dataSliceDescriptors,
+        interruptionOptions.IsInterruptible);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -599,10 +626,10 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TSharedRange<TUnversionedRow> hintKeyPrefixes,
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
+    ReaderInterruptionOptions interruptionOptions,
     const TColumnFilter& columnFilter,
     std::optional<int> partitionTag,
-    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
-    int interruptDescriptorKeyLength)
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     if (!multiReaderMemoryManager) {
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
@@ -629,10 +656,11 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
                 columnFilter,
                 partitionTag,
                 multiReaderMemoryManager,
-                interruptDescriptorKeyLength),
+                interruptionOptions.InterruptDescriptorKeyLength),
             multiReaderMemoryManager),
         nameTable,
-        dataSliceDescriptors);
+        dataSliceDescriptors,
+        interruptionOptions.IsInterruptible);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1310,10 +1338,10 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 nullptr,
                 nameTable,
                 chunkReadOptions,
+                ReaderInterruptionOptions::InterruptibleWithEmptyKey(),
                 columnFilter,
                 /*partitionTag*/ std::nullopt,
-                /*multiReaderMemoryManager*/ nullptr,
-                /*interruptDescriptorKeyLength*/ 0);
+                /*multiReaderMemoryManager*/ nullptr);
         }
         default:
             Y_UNREACHABLE();
