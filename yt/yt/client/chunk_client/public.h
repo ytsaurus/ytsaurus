@@ -76,6 +76,7 @@ YT_DEFINE_ERROR_ENUM(
     ((MissingJournalChunkRecord)             (748))
     ((LocationDiskFailed)                    (749))
     ((LocationCrashed)                       (750))
+    ((LocationDiskWaitingReplacement)        (751))
 );
 
 using TChunkId = NObjectClient::TObjectId;

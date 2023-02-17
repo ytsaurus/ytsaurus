@@ -379,9 +379,6 @@ public:
     //! Location disk is OK.
     bool IsLocationDiskOK() const;
 
-    //! Disable alert about location disk failing.
-    void MarkLocationDiskHealthy();
-
     //! Enable alert about location disk failing.
     void MarkLocationDiskFailed();
 

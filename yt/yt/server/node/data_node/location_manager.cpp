@@ -68,9 +68,11 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    THashMap<TString, TString> diskNameToId;
     THashSet<TString> failedDisks;
 
     for (const auto& disk : disks) {
+        diskNameToId.emplace(std::make_pair(disk.DeviceName, disk.DiskId));
         if (disk.State == NContainers::EDiskState::Failed) {
             failedDisks.insert(disk.DeviceName);
         }
@@ -81,10 +83,19 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
     locationLivenessInfos.reserve(locations.size());
 
     for (const auto& location : locations) {
-        locationLivenessInfos.push_back({
-            .Location = location,
-            .LocationState = location->GetState(),
-            .IsDiskAlive = !failedDisks.contains(location->GetStaticConfig()->DeviceName)});
+        auto it = diskNameToId.find(location->GetStaticConfig()->DeviceName);
+
+        if (it == diskNameToId.end()) {
+            YT_LOG_ERROR("Unknown location disk (DeviceName: %v)",
+                location->GetStaticConfig()->DeviceName);
+        } else {
+            locationLivenessInfos.push_back(TLocationLivenessInfo{
+                .Location = location,
+                .DiskId = it->second,
+                .LocationState = location->GetState(),
+                .IsDiskAlive = !failedDisks.contains(location->GetStaticConfig()->DeviceName)
+            });
+        }
     }
 
     return locationLivenessInfos;
@@ -270,7 +281,6 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
 
         if (livenessInfo.IsDiskAlive) {
             diskWithLivenessLocations.insert(livenessInfo.DiskId);
-            location->MarkLocationDiskHealthy();
         } else {
             location->MarkLocationDiskFailed();
         }

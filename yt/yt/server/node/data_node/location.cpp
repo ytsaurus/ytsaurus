@@ -469,6 +469,7 @@ const IInvokerPtr& TChunkLocation::GetAuxPoolInvoker()
 std::vector<TChunkDescriptor> TChunkLocation::Scan()
 {
     VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    YT_VERIFY(GetState() == ELocationState::Enabling);
 
     try {
         ValidateLockFile();
@@ -483,6 +484,7 @@ std::vector<TChunkDescriptor> TChunkLocation::Scan()
     // Be optimistic and assume everything will be OK.
     // Also Disable requires State_ to be Enabled.
     ChangeState(ELocationState::Enabled);
+    LocationDisabledAlert_.Store(TError());
 
     try {
         return DoScan();
@@ -538,6 +540,12 @@ bool TChunkLocation::StartDestroy()
         GetUuid(),
         StaticConfig_->DeviceName);
 
+    LocationDiskFailedAlert_.Store(
+        TError(NChunkClient::EErrorCode::LocationDiskWaitingReplacement,
+            "Disk of chunk location is waiting replacement")
+            << TErrorAttribute("location_uuid", GetUuid())
+            << TErrorAttribute("location_path", GetPath())
+            << TErrorAttribute("location_disk", StaticConfig_->DeviceName));
     return true;
 }
 
@@ -569,7 +577,13 @@ bool TChunkLocation::FinishDestroy(
 bool TChunkLocation::OnDiskRepaired()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    return ChangeState(ELocationState::Disabled, ELocationState::Destroyed);
+
+    if (!ChangeState(ELocationState::Disabled, ELocationState::Destroyed)) {
+        return false;
+    }
+
+    LocationDiskFailedAlert_.Store(TError());
+    return true;
 }
 
 bool TChunkLocation::Resurrect()
@@ -591,7 +605,6 @@ bool TChunkLocation::Resurrect()
 
             WaitFor(ChunkStore_->InitializeLocation(MakeStrong(dynamic_cast<TStoreLocation*>(this))))
                 .ThrowOnError();
-            LocationDisabledAlert_.Store(TError());
             ChunkStoreHost_->ScheduleMasterHeartbeat();
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error during location resurrection");
@@ -1189,27 +1202,11 @@ bool TChunkLocation::IsLocationDiskOK() const
     return LocationDiskFailedAlert_.Load().IsOK();
 }
 
-void TChunkLocation::MarkLocationDiskHealthy()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    if (IsLocationDiskOK()) {
-        // do nothing
-        return;
-    }
-
-    YT_LOG_WARNING("Disk with store location repaired (LocationUuid: %v, DiskName: %v)",
-        GetUuid(),
-        StaticConfig_->DeviceName);
-
-    LocationDiskFailedAlert_.Store(TError());
-}
-
 void TChunkLocation::MarkLocationDiskFailed()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (IsLocationDiskOK()) {
+    if (!IsLocationDiskOK()) {
         // do nothing
         return;
     }
@@ -1228,7 +1225,7 @@ void TChunkLocation::MarkLocationDiskFailed()
 
 void TChunkLocation::MarkUninitializedLocationDisabled(const TError& error)
 {
-    if (!ChangeState(ELocationState::Disabling, ELocationState::Enabled)) {
+    if (!ChangeState(ELocationState::Disabling, ELocationState::Enabling)) {
         return;
     }
 
