@@ -5,10 +5,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Optional;
 
 public class RpcCredentials {
     private String user;
     private String token;
+    private ServiceTicketAuth serviceTicketAuth;
 
     public RpcCredentials() {
         this(null, null);
@@ -19,12 +21,20 @@ public class RpcCredentials {
         this.token = token;
     }
 
+    public RpcCredentials(ServiceTicketAuth serviceTicketAuth) {
+        this.serviceTicketAuth = serviceTicketAuth;
+    }
+
     public String getUser() {
         return user;
     }
 
     public String getToken() {
         return token;
+    }
+
+    public Optional<ServiceTicketAuth> getServiceTicketAuth() {
+        return Optional.ofNullable(serviceTicketAuth);
     }
 
     public RpcCredentials setUser(String user) {
@@ -35,6 +45,10 @@ public class RpcCredentials {
     public RpcCredentials setToken(String token) {
         this.token = token;
         return this;
+    }
+
+    public void setServiceTicketAuth(ServiceTicketAuth serviceTicketAuth) {
+        this.serviceTicketAuth = serviceTicketAuth;
     }
 
     public boolean isEmpty() {

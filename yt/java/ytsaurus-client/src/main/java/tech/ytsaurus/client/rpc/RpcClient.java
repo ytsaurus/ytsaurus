@@ -51,8 +51,8 @@ public interface RpcClient extends AutoCloseable {
             RpcOptions options
     );
 
-    default RpcClient withTokenAuthentication(RpcCredentials credentials) {
-        return new TokenAuthentication(this, credentials);
+    default RpcClient withAuthentication(RpcCredentials credentials) {
+        return new AuthenticationWrapper(this, credentials);
     }
 
     default RpcClient withCompression(RpcCompression compression) {

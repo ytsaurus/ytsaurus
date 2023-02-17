@@ -32,7 +32,7 @@ public class DirectYTsaurusClient extends CompoundClientImpl {
     DirectYTsaurusClient(Builder builder) {
         super(
                 new DefaultRpcBusClient(builder.busConnector, builder.address, builder.address.toString())
-                        .withTokenAuthentication(builder.credentials),
+                        .withAuthentication(builder.credentials),
                 builder.busConnector.executorService(), builder.configuration, builder.heavyExecutor,
                 builder.serializationResolver
         );
