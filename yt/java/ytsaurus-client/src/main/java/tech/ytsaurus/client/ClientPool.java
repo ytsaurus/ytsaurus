@@ -1,5 +1,11 @@
 package tech.ytsaurus.client;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -23,10 +29,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import io.netty.channel.EventLoopGroup;
-import org.asynchttpclient.AsyncHttpClient;
-import org.asynchttpclient.DefaultAsyncHttpClientConfig;
-import org.asynchttpclient.RequestBuilder;
-import org.asynchttpclient.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.misc.SerializedExecutorService;
@@ -41,8 +43,6 @@ import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-
-import static org.asynchttpclient.Dsl.asyncHttpClient;
 
 @NonNullApi
 interface FilteringRpcClientPool extends RpcClientPool {
@@ -277,21 +277,16 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
                 Objects.requireNonNull(httpBuilder.random),
                 Objects.requireNonNull(httpBuilder.options.getRpcProxySelector())
         );
-        AsyncHttpClient asyncHttpClient = asyncHttpClient(
-                new DefaultAsyncHttpClientConfig.Builder()
-                        .setThreadPoolName(httpBuilder.dataCenterName + "::periodicDiscovery")
-                        .setThreadFactory(httpBuilder.options.getDiscoveryThreadFactory())
-                        .setEventLoopGroup(httpBuilder.eventLoop)
-                        .setHttpClientCodecMaxHeaderSize(65536)
-                        .build()
-        );
+        HttpClient httpClient = HttpClient.newBuilder()
+                .executor(httpBuilder.eventLoop)
+                .build();
+
         proxyGetter = new HttpProxyGetter(
-                asyncHttpClient,
+                httpClient,
                 Objects.requireNonNull(httpBuilder.balancerAddress),
                 httpBuilder.role,
                 httpBuilder.token
         );
-        toClose.add(asyncHttpClient);
 
         executorService = httpBuilder.eventLoop;
         updatePeriodMs = httpBuilder.options.getProxyUpdateTimeout().toMillis();
@@ -810,14 +805,14 @@ interface ProxyGetter {
 @NonNullApi
 @NonNullFields
 class HttpProxyGetter implements ProxyGetter {
-    AsyncHttpClient httpClient;
+    HttpClient httpClient;
     String balancerHost;
     @Nullable
     String role;
     @Nullable
     String token;
 
-    HttpProxyGetter(AsyncHttpClient httpClient, String balancerHost, @Nullable String role, @Nullable String token) {
+    HttpProxyGetter(HttpClient httpClient, String balancerHost, @Nullable String role, @Nullable String token) {
         this.httpClient = httpClient;
         this.balancerHost = balancerHost;
         this.role = role;
@@ -830,39 +825,41 @@ class HttpProxyGetter implements ProxyGetter {
         if (role != null) {
             discoverProxiesUrl += "&role=" + role;
         }
-        RequestBuilder requestBuilder = new RequestBuilder()
-                .setUrl(discoverProxiesUrl)
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(URI.create(discoverProxiesUrl))
                 .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
                 .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT));
         if (token != null) {
             // NB. token should be set https://st.yandex-team.ru/YTADMINREQ-25316#60c516ddf76e1021d1143001
             requestBuilder.setHeader("Authorization", String.format("OAuth %s", token));
         }
-        CompletableFuture<Response> responseFuture =
-                httpClient.executeRequest(requestBuilder.build()).toCompletableFuture();
+        CompletableFuture<HttpResponse<InputStream>> responseFuture =
+                httpClient.sendAsync(requestBuilder.build(), HttpResponse.BodyHandlers.ofInputStream());
 
         CompletableFuture<List<HostPort>> resultFuture = responseFuture.thenApply((response) -> {
             // TODO: this should use common library of raw requests.
-            if (response.getStatusCode() != 200) {
+            if (response.statusCode() != 200) {
                 StringBuilder builder = new StringBuilder();
                 builder.append("Error: ");
-                builder.append(response.getStatusCode());
+                builder.append(response.statusCode());
                 builder.append("\n");
 
-                for (Map.Entry<String, String> entry : response.getHeaders()) {
+                for (Map.Entry<String, List<String>> entry : response.headers().map().entrySet()) {
                     builder.append(entry.getKey());
                     builder.append("=");
                     builder.append(entry.getValue());
                     builder.append("\n");
                 }
 
-                builder.append(new String(response.getResponseBodyAsBytes()));
-                builder.append("\n");
+                try {
+                    builder.append(new String(response.body().readAllBytes()));
+                    builder.append("\n");
+                } catch (IOException ignored) {
+                }
 
                 throw new RuntimeException(builder.toString());
             }
 
-            YTreeNode node = YTreeTextSerializer.deserialize(response.getResponseBodyAsStream());
+            YTreeNode node = YTreeTextSerializer.deserialize(response.body());
             return node
                     .mapNode()
                     .getOrThrow("proxies")

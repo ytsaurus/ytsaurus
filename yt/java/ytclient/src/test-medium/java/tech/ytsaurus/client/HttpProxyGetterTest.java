@@ -1,9 +1,13 @@
 package tech.ytsaurus.client;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -11,11 +15,6 @@ import java.util.stream.Collectors;
 
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import org.asynchttpclient.AsyncHttpClient;
-import org.asynchttpclient.DefaultAsyncHttpClientConfig;
-import org.asynchttpclient.Request;
-import org.asynchttpclient.RequestBuilder;
-import org.asynchttpclient.Response;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,30 +24,24 @@ import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
 import ru.yandex.yt.testlib.LocalYt;
 
-import static org.asynchttpclient.Dsl.asyncHttpClient;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class HttpProxyGetterTest {
-    AsyncHttpClient httpClient;
+    HttpClient httpClient;
     EventLoopGroup eventLoopGroup;
 
     @Before
     public void before() {
         eventLoopGroup = new NioEventLoopGroup(1);
-        httpClient = asyncHttpClient(
-                new DefaultAsyncHttpClientConfig.Builder()
-                        .setThreadPoolName("YtClient-PeriodicDiscovery")
-                        .setEventLoopGroup(eventLoopGroup)
-                        .setHttpClientCodecMaxHeaderSize(65536)
-                        .build()
-        );
+        httpClient = HttpClient.newBuilder()
+                .executor(eventLoopGroup)
+                .build();
     }
 
     @After
     public void after() throws IOException {
-        httpClient.close();
         eventLoopGroup.shutdownGracefully(1, 3, TimeUnit.SECONDS);
     }
 
@@ -80,18 +73,16 @@ public class HttpProxyGetterTest {
         assertThat(proxiesFromGetter.size(), greaterThan(0));
     }
 
-    public static List<String> httpListRpcProxies(AsyncHttpClient httpClient, String address) {
+    public static List<String> httpListRpcProxies(HttpClient httpClient, String address) {
         try {
-            Request request = new RequestBuilder()
-                    .setUrl(String.format("http://%s/api/v4/list?path=//sys/rpc_proxies", address))
+            HttpRequest request = HttpRequest.newBuilder(URI.create(String.format("http://%s/api/v4/list?path=//sys/rpc_proxies", address)))
                     .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
                     .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
                     .build();
-            CompletableFuture<Response> responseFuture = httpClient.executeRequest(request).toCompletableFuture();
-            var response = responseFuture.get(2, TimeUnit.SECONDS);
+            HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
 
-            assertThat(response.getStatusCode(), is(200));
-            YTreeNode node = YTreeTextSerializer.deserialize(response.getResponseBodyAsStream());
+            assertThat(response.statusCode(), is(200));
+            YTreeNode node = YTreeTextSerializer.deserialize(response.body());
             return node.mapNode()
                     .getOrThrow("value")
                     .asList().stream()
