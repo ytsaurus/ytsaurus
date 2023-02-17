@@ -30,11 +30,11 @@ TTabletCell::TTabletCell(
     TTabletCellId cellId,
     const TTabletCellStatistics& statistics,
     const TTabletCellStatus& status,
-    std::optional<TString> nodeAddress)
+    std::optional<TString> address)
     : Id(cellId)
     , Statistics(statistics)
     , Status(status)
-    , NodeAddress(std::move(nodeAddress))
+    , NodeAddress(std::move(address))
 { }
 
 bool TTabletCell::IsAlive() const

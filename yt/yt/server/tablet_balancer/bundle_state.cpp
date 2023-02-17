@@ -82,7 +82,7 @@ TTabletStatistics BuildTabletStatistics(
 
 struct TTabletCellPeer
 {
-    TString Address;
+    TNodeAddress NodeAddress;
     EPeerState State = EPeerState::None;
 };
 
@@ -90,8 +90,8 @@ void Deserialize(TTabletCellPeer& value, NYTree::INodePtr node)
 {
     auto mapNode = node->AsMap();
 
-    if (auto address = mapNode->FindChildValue<TString>("address")) {
-        value.Address = *address;
+    if (auto address = mapNode->FindChildValue<TNodeAddress>("address")) {
+        value.NodeAddress = *address;
     }
 
     if (auto stateNode = mapNode->FindChildValue<EPeerState>("state")) {
@@ -108,6 +108,7 @@ TBundleProfilingCounters::TBundleProfilingCounters(const NProfiling::TProfiler& 
     , BasicTableAttributesRequestCount(profiler.WithSparse().Counter("/master_requests/basic_table_attributes_count"))
     , ActualTableSettingsRequestCount(profiler.WithSparse().Counter("/master_requests/actual_table_settings_count"))
     , TableStatisticsRequestCount(profiler.WithSparse().Counter("/master_requests/table_statistics_count"))
+    , NodeStatisticsRequestCount(profiler.WithSparse().Counter("/master_requests/node_statistics_count"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -232,6 +233,11 @@ bool TBundleState::IsTableBalancingAllowed(const TTableSettings& table) const
         table.EnableParameterizedBalancing;
 }
 
+bool TBundleState::IsParameterizedBalancingEnabled() const
+{
+    return !Bundle_->Config->ParameterizedBalancingMetric.empty();
+}
+
 void TBundleState::DoFetchStatistics()
 {
     YT_LOG_DEBUG("Started fetching actual table settings (TableCount: %v)", Bundle_->Tables.size());
@@ -308,7 +314,7 @@ void TBundleState::DoFetchStatistics()
                         table->Id,
                         tabletResponse.TabletId);
                 }
-                cellIt->second->Tablets.push_back(tablet);
+                EmplaceOrCrash(cellIt->second->Tablets, tablet->Id, tablet);
                 tablet->Cell = cellIt->second.Get();
             } else {
                 YT_VERIFY(tabletResponse.State == ETabletState::Unmounted);
@@ -343,6 +349,22 @@ void TBundleState::DoFetchStatistics()
 
     DropMissingKeys(Tablets_, tabletIds);
     DropMissingKeys(ProfilingCounters_, finalTableIds);
+
+    Bundle_->NodeMemoryStatistics.clear();
+
+    if (IsParameterizedBalancingEnabled()) {
+        THashSet<TNodeAddress> addresses;
+        for (const auto& [id, cell] : Bundle_->TabletCells) {
+            if (cell->NodeAddress) {
+                addresses.insert(*cell->NodeAddress);
+            }
+        }
+
+        YT_LOG_DEBUG("Started fetching node statistics (NodeCount: %v)", addresses.size());
+        Counters_->NodeStatisticsRequestCount.Increment(addresses.size());
+        Bundle_->NodeMemoryStatistics = FetchNodeStatistics(addresses);
+        YT_LOG_DEBUG("Finished fetching node statistics (NodeCount: %v)", addresses.size());
+    }
 }
 
 THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTabletCells() const
@@ -371,19 +393,19 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
         auto statistics = attributes->Get<TTabletCellStatistics>("total_statistics");
         auto peers = attributes->Get<std::vector<TTabletCellPeer>>("peers");
 
-        std::optional<TString> address;
+        std::optional<TNodeAddress> address;
         for (const auto& peer : peers) {
             if (peer.State == EPeerState::Leading) {
                 if (address.has_value()) {
                     YT_LOG_WARNING("Cell has two leading peers (Cell: %v, Peers: [%v, %v])",
                         cellId,
                         address,
-                        peer.Address);
+                        peer.NodeAddress);
 
                     address.reset();
                     break;
                 }
-                address = peer.Address;
+                address = peer.NodeAddress;
             }
         }
 
@@ -391,11 +413,48 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
 
         tabletCells.emplace(cellId, TTabletCellInfo{
             .TabletCell = std::move(tabletCell),
-            .TabletToTableId = ParseTabletToTableMapping(tablets)
+            .TabletToTableId = ParseTabletToTableMapping(tablets),
         });
     }
 
     return tabletCells;
+}
+
+THashMap<TNodeAddress, TTabletCellBundle::TNodeMemoryStatistics> TBundleState::FetchNodeStatistics(
+    const THashSet<TNodeAddress>& addresses) const
+{
+    TListNodeOptions options;
+    static const TString TabletStaticPath = "/statistics/memory/tablet_static";
+    options.Attributes = TAttributeFilter({}, {TabletStaticPath});
+
+    auto nodes = WaitFor(Client_
+        ->ListNode("//sys/tablet_nodes", options))
+        .ValueOrThrow();
+    auto nodeList = ConvertTo<IListNodePtr>(nodes);
+
+    THashMap<TNodeAddress, TTabletCellBundle::TNodeMemoryStatistics> nodeStatistics;
+    for (const auto& node : nodeList->GetChildren()) {
+        const auto& address = node->AsString()->GetValue();
+        if (!addresses.contains(address)) {
+            continue;
+        }
+
+        try {
+            auto statistics = ConvertTo<TTabletCellBundle::TNodeMemoryStatistics>(
+                SyncYPathGet(node->Attributes().ToMap(), TabletStaticPath));
+
+            EmplaceOrCrash(nodeStatistics, address, std::move(statistics));
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Failed to get tablet_static attrubute for node %v",
+                address);
+        }
+    }
+
+    THROW_ERROR_EXCEPTION_IF(std::ssize(nodeStatistics) != std::ssize(addresses),
+        "Not all nodes fetched for bundle %v",
+        Bundle_->Name);
+
+    return nodeStatistics;
 }
 
 THashMap<TTableId, TTablePtr> TBundleState::FetchBasicTableAttributes(

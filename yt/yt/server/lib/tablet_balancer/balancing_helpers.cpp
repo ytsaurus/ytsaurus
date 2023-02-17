@@ -452,7 +452,11 @@ std::vector<TMoveDescriptor> ReassignInMemoryTablets(
         auto cellSize = memoryUsageIt->Memory;
         const auto& cell = memoryUsageIt->TabletCell;
 
-        std::vector<TTabletPtr> tablets(cell->Tablets.begin(), cell->Tablets.end());
+        std::vector<TTabletPtr> tablets;
+        for (const auto& [id, tablet] : cell->Tablets) {
+            tablets.push_back(tablet);
+        }
+
         std::sort(tablets.begin(), tablets.end(), [] (const TTabletPtr& lhs, const TTabletPtr& rhs) {
             return lhs->Id < rhs->Id;
         });
@@ -708,7 +712,7 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
         slackTablets[cell.Get()] = {};
         haveEmptyCells |= cell->Tablets.empty();
 
-        for (const auto& tablet : cell->Tablets) {
+        for (const auto& [id, tablet] : cell->Tablets) {
             if (!tablet->Table->TableConfig->EnableAutoTabletMove) {
                 continue;
             }
@@ -781,6 +785,34 @@ std::vector<TMoveDescriptor> ReassignTabletsParameterized(
         logger);
 
     return solver->BuildActionDescriptors();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ApplyMoveTabletAction(const TTabletPtr& tablet, const TTabletCellId& cellId)
+{
+    YT_VERIFY(tablet->Cell);
+
+    auto bundle = tablet->Table->Bundle;
+    YT_VERIFY(bundle);
+
+    auto cell = GetOrCrash(bundle->TabletCells, cellId);
+    auto sourceCell = tablet->Cell;
+
+    tablet->Cell = cell.Get();
+    EmplaceOrCrash(cell->Tablets, tablet->Id, tablet);
+    EraseOrCrash(sourceCell->Tablets, tablet->Id);
+
+    auto size = tablet->Statistics.MemorySize;
+    if (size > 0) {
+        YT_VERIFY(tablet->Table->InMemoryMode != EInMemoryMode::None);
+
+        sourceCell->Statistics.MemorySize -= size;
+        cell->Statistics.MemorySize += size;
+
+        bundle->NodeMemoryStatistics[*sourceCell->NodeAddress].Used -= size;
+        bundle->NodeMemoryStatistics[*cell->NodeAddress].Used += size;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

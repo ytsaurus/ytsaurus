@@ -17,6 +17,7 @@ TTablet::TTablet(
     , Table(std::move(table))
 { }
 
+////////////////////////////////////////////////////////////////////////////////
 
 TYsonString BuildTabletPerformanceCountersYson(
     const TTablet::TPerformanceCountersProtoList& emaCounters,

@@ -1,6 +1,9 @@
 #include "tablet_cell.h"
 #include "tablet_cell_bundle.h"
 
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/node.h>
+
 namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,6 +34,15 @@ TTabletCellBundle::TTabletCellBundle(TString name)
     : Name(std::move(name))
 { }
 
+void Deserialize(TTabletCellBundle::TNodeMemoryStatistics& value, NYTree::INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    value.Used = mapNode->GetChildValueOrThrow<i64>("used");
+
+    if (auto limit = mapNode->FindChildValue<i64>("limit")) {
+        value.Limit = *limit;
+    }
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletBalancer
