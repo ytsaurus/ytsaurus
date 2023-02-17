@@ -390,6 +390,31 @@ class TestTypedApi(object):
         assert TableSchema.from_row_type(TheRow) == expected_schema
         assert TableSchema.from_yson_type(yt.get(table + "/@schema")) == expected_schema
 
+    @authors("aleexfi")
+    def test_optional_schema_inference(self):
+        @yt_dataclass
+        class OptionalRow:
+            a: int | None
+            a: None | int
+            b: typing.Optional[str]
+
+        expected_schema = (
+            TableSchema()
+            .add_column("a", ti.Optional[ti.Int64])
+            .add_column("b", ti.Optional[ti.Utf8])
+        )
+
+        assert TableSchema.from_row_type(OptionalRow) == expected_schema
+
+    @authors("aleexfi")
+    def test_invalid_optional(self):
+        @yt_dataclass
+        class InvalidOptionalRow:
+            a: str | int
+
+        with pytest.raises(YtError):
+            TableSchema.from_row_type(InvalidOptionalRow)
+
     @authors("levysotsky")
     def test_read_ranges(self):
         table = "//tmp/table"

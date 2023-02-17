@@ -6,6 +6,7 @@ from .. import skiff
 
 import copy
 import datetime
+import types
 
 try:
     import typing
@@ -96,11 +97,22 @@ def create_annotated_type(py_type, ti_type, to_yt_type=None, from_yt_type=None):
 
 
 def _is_py_type_optional(py_type):
+    return _is_py_type_optional_old_style(py_type) or _is_py_type_optional_new_style(py_type)
+
+
+def _is_py_type_optional_old_style(py_type):
     args = getattr(py_type, "__args__", [])
     return getattr(py_type, "__module__", None) == "typing" and \
         getattr(py_type, "__origin__", None) == typing.Union and \
         len(args) == 2 and \
         args[-1] == type(None)  # noqa
+
+
+def _is_py_type_optional_new_style(py_type):
+    if getattr(py_type, "__module__", None) == "types" and getattr(type(py_type), "__name__", None) == "UnionType":
+        args = typing.get_args(py_type)
+        return len(args) == 2 and types.NoneType in args
+    return False
 
 
 def _get_integer_info():
