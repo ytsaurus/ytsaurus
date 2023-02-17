@@ -110,9 +110,6 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     registrar.Parameter("infiniband_clusters", &TThis::InfinibandClusters)
         .Default();
 
-    registrar.Parameter("module_migration_mapping", &TThis::ModuleMigrationMapping)
-        .Default();
-
     // TODO(eshcherbin): Change default to MinRemainingFeasibleCapacity.
     registrar.Parameter("module_assignment_heuristic", &TThis::ModuleAssignmentHeuristic)
         .Alias("data_center_assignment_heuristic")
@@ -134,20 +131,6 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
         }
         for (const auto& schedulingSegmentModule : config->InfinibandClusters) {
             ValidateInfinibandClusterName(schedulingSegmentModule);
-        }
-    });
-
-    registrar.Postprocessor([&] (TFairShareStrategySchedulingSegmentsConfig* config) {
-        auto validateModuleName = [&] (const TString& moduleName) {
-            if (!config->DataCenters.contains(moduleName) && !config->InfinibandClusters.contains(moduleName)) {
-                THROW_ERROR_EXCEPTION("Module migration mapping must only contain valid module names")
-                    << TErrorAttribute("invalid_module_name", moduleName);
-            }
-        };
-
-        for (const auto& [oldModule, newModule] : config->ModuleMigrationMapping) {
-            validateModuleName(oldModule);
-            validateModuleName(newModule);
         }
     });
 

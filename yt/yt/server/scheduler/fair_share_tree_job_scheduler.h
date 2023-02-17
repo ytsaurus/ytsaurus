@@ -682,9 +682,7 @@ public:
         const TSchedulerElement* element,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const;
 
-    void InitPersistentState(
-        NYTree::INodePtr persistentState,
-        TPersistentSchedulingSegmentsStatePtr oldSegmentsPersistentState);
+    void InitPersistentState(NYTree::INodePtr persistentState);
     NYTree::INodePtr BuildPersistentState() const;
 
     //! Testing.

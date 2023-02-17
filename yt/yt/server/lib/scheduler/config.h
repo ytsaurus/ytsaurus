@@ -169,9 +169,6 @@ public:
 
     THashSet<TString> InfinibandClusters;
 
-    // COMPAT(eshcherbin)
-    THashMap<TString, TString> ModuleMigrationMapping;
-
     ESchedulingSegmentModuleAssignmentHeuristic ModuleAssignmentHeuristic;
 
     ESchedulingSegmentModuleType ModuleType;

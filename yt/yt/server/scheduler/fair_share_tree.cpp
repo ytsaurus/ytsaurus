@@ -876,9 +876,7 @@ public:
         return result;
     }
 
-    void InitPersistentState(
-        const TPersistentTreeStatePtr& persistentState,
-        const TPersistentSchedulingSegmentsStatePtr& oldSchedulingSegmentsState) override
+    void InitPersistentState(const TPersistentTreeStatePtr& persistentState) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -899,7 +897,7 @@ public:
             }
         }
 
-        TreeScheduler_->InitPersistentState(persistentState->JobSchedulerState, oldSchedulingSegmentsState);
+        TreeScheduler_->InitPersistentState(persistentState->JobSchedulerState);
     }
 
     void OnOperationMaterialized(TOperationId operationId) override

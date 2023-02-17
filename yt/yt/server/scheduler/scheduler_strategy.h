@@ -238,9 +238,7 @@ struct ISchedulerStrategy
     virtual TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
 
     //! Initializes persistent strategy state.
-    virtual void InitPersistentState(
-        const TPersistentStrategyStatePtr& persistentStrategyState,
-        const TPersistentSchedulingSegmentsStatePtr& oldPersistentSchedulingSegmentsState) = 0;
+    virtual void InitPersistentState(const TPersistentStrategyStatePtr& persistentStrategyState) = 0;
 
     virtual void ApplyOperationRuntimeParameters(IOperationStrategyHost* operation) = 0;
 

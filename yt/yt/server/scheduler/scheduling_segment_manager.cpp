@@ -1,6 +1,6 @@
 #include "scheduling_segment_manager.h"
 #include "private.h"
-#include "persistent_scheduler_state.h"
+#include "persistent_fair_share_tree_job_scheduler_state.h"
 #include "fair_share_tree_snapshot.h"
 
 #include <util/generic/algorithm.h>
@@ -352,55 +352,6 @@ void TSchedulingSegmentManager::CollectFairResourceAmountPerSegment(TUpdateSched
 void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegmentsContext* context) const
 {
     auto keyResource = GetSegmentBalancingKeyResource(Config_->Mode);
-
-    // TODO(eshcherbin): Come on, remove it already!
-    // COMPAT(eshcherbin): Remove after all GPU trees with scheduling segments have fully migrated to new module type.
-    // We don't reflect this change in persistent immediately. Runtime parameters will be updated during
-    // the next scheduling segments management iteration.
-    for (auto& [operationId, operation] : context->OperationStates) {
-        if (!context->TreeSnapshot->FindEnabledOperationElement(operationId)) {
-            continue;
-        }
-
-        const auto& moduleMigrationMapping = Config_->ModuleMigrationMapping;
-        auto findNewModuleName = [&] (const TString& moduleName) -> std::optional<TString> {
-            auto it = moduleMigrationMapping.find(moduleName);
-            return it != moduleMigrationMapping.end() ? std::make_optional(it->second) : std::nullopt;
-        };
-
-        if (auto& operationModule = operation->SchedulingSegmentModule) {
-            if (auto newModuleName = findNewModuleName(*operationModule)) {
-                YT_LOG_INFO(
-                    "Migrated operation to new scheduling segment module (OperationId: %v, OldModuleName: %v, NewModuleName: %v)",
-                    operationId,
-                    operationModule,
-                    newModuleName);
-
-                operationModule = std::move(newModuleName);
-            }
-        }
-
-        // NB(eshcherbin): Specified modules should be quite rare.
-        if (auto& specifiedModules = operation->SpecifiedSchedulingSegmentModules) {
-            THashSet<TString> newSpecifiedModules;
-            bool hasChanged = false;
-            for (const auto& specifiedModule : *specifiedModules) {
-                auto newModuleName = findNewModuleName(specifiedModule);
-                hasChanged |= newModuleName.has_value();
-                InsertOrCrash(newSpecifiedModules, std::move(newModuleName).value_or(specifiedModule));
-            }
-
-            if (hasChanged) {
-                YT_LOG_DEBUG(
-                    "Migrated operation to new specified modules (OperationId: %v, OldSpecifiedModules: %v, NewSpecifiedModules: %v)",
-                    operationId,
-                    specifiedModules,
-                    newSpecifiedModules);
-
-                specifiedModules = std::move(newSpecifiedModules);
-            }
-        }
-    }
 
     struct TOperationStateWithElement
     {
@@ -965,7 +916,6 @@ void TSchedulingSegmentManager::BuildPersistentState(TUpdateSchedulingSegmentsCo
             TPersistentNodeSchedulingSegmentState{
                 .Segment = node.SchedulingSegment,
                 .Address = node.Descriptor->Address,
-                .Tree = TreeId_,
             });
     }
 

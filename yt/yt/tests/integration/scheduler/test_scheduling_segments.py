@@ -105,10 +105,10 @@ class TestSchedulingSegments(YTEnvSetup):
 
     @classmethod
     def setup_class(cls):
-        if is_asan_build():
-            pytest.skip("test suite has too high memory consumption for ASAN build")
-        if is_debug_build():
-            pytest.skip("test suite uses 10 nodes that is too much for debug build")
+        # if is_asan_build():
+        #     pytest.skip("test suite has too high memory consumption for ASAN build")
+        # if is_debug_build():
+        #     pytest.skip("test suite uses 10 nodes that is too much for debug build")
         super(TestSchedulingSegments, cls).setup_class()
 
     def setup_method(self, method):
@@ -144,8 +144,6 @@ class TestSchedulingSegments(YTEnvSetup):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             requests = [
                 make_batch_request("set", path=self._get_persistent_node_segment_states_path(), input={}),
-                # COMPAT(eshcherbin)
-                make_batch_request("remove", path="//sys/scheduler/segments_state", force=True),
             ]
             for node in ls("//sys/cluster_nodes"):
                 requests.append(make_batch_request(
@@ -764,72 +762,6 @@ class TestSchedulingSegments(YTEnvSetup):
             agent_to_incarnation[agent] = wait_and_get_incarnation(agent)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
-            update_pool_tree_config_option("default", "scheduling_segments/initialization_timeout", 60000, wait_for_orchid=False)
-
-        node_segment_orchid_path = scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment"
-        for node in ls("//sys/cluster_nodes"):
-            expected_segment = "large_gpu" \
-                if node == expected_node \
-                else "default"
-            wait(lambda: get(node_segment_orchid_path.format(node), default="") == expected_segment)
-
-        # NB(eshcherbin): See: YT-14796.
-        for agent, old_incarnation in agent_to_incarnation.items():
-            wait(lambda: old_incarnation != get("//sys/controller_agents/instances/{}/orchid/controller_agent/incarnation_id".format(agent), default=None))
-
-        wait(lambda: len(list(op.get_running_jobs())) == 1)
-        jobs = list(op.get_running_jobs())
-        assert len(jobs) == 1
-        assert jobs[0] == expected_job
-
-    # COMPAT(eshcherbin)
-    @authors("eshcherbin")
-    def test_persistent_segments_state_revive_compat(self):
-        update_controller_agent_config("snapshot_period", 300)
-
-        blocking_op = run_sleeping_vanilla(job_count=20, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 4, "enable_gpu_layers": False})
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
-        op = run_test_vanilla(
-            with_breakpoint("BREAKPOINT; sleep 1000"),
-            spec={"pool": "large_gpu"},
-            task_patch={"gpu_limit": 8, "enable_gpu_layers": False}
-        )
-
-        wait_breakpoint()
-        release_breakpoint()
-
-        wait(lambda: len(self._get_nodes_for_segment_in_tree("large_gpu")) == 1)
-        wait(lambda: len(self._get_nodes_for_segment_in_tree("default")) == 0)
-
-        large_gpu_segment_nodes = self._get_nodes_for_segment_in_tree("large_gpu")
-        assert len(large_gpu_segment_nodes) == 1
-        expected_node = large_gpu_segment_nodes[0]
-
-        jobs = list(op.get_running_jobs())
-        assert len(jobs) == 1
-        expected_job = jobs[0]
-
-        op.wait_for_fresh_snapshot()
-
-        def wait_and_get_incarnation(agent):
-            incarnation_id = None
-
-            def check():
-                incarnation_id = get("//sys/controller_agents/instances/{}/orchid/controller_agent/incarnation_id".format(agent), default=None)
-                return incarnation_id is not None
-
-            wait(check)
-            return incarnation_id
-
-        agent_to_incarnation = {}
-        for agent in ls("//sys/controller_agents/instances"):
-            agent_to_incarnation[agent] = wait_and_get_incarnation(agent)
-
-        with Restarter(self.Env, SCHEDULERS_SERVICE):
-            node_states = get(self._get_persistent_node_segment_states_path())
-            set(self._get_persistent_node_segment_states_path(), {})
-            set("//sys/scheduler/segments_state", {"node_states": node_states})
-
             update_pool_tree_config_option("default", "scheduling_segments/initialization_timeout", 60000, wait_for_orchid=False)
 
         node_segment_orchid_path = scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment"
@@ -1572,39 +1504,6 @@ class TestSchedulingSegmentsMultiInfinibandCluster(BaseTestSchedulingSegmentsMul
     def setup_method(self, method):
         super(TestSchedulingSegmentsMultiInfinibandCluster, self).setup_method(method)
         set("//sys/pool_trees/default/@config/scheduling_segments/enable_infiniband_cluster_tag_validation", True)
-
-    @authors("eshcherbin")
-    def test_module_migration(self):
-        # Set up data centers for migration.
-        ibc_to_dc = dict(zip(
-            BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS,
-            BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS))
-        print_debug("IBC to DC:", ibc_to_dc)
-        self._setup_data_centers(ibc_to_dc)
-
-        ops = []
-        for i in range(10):
-            spec = {"pool": "large_gpu"}
-            if i < 5:
-                spec["scheduling_segment_modules"] = [BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS[i % len(ibc_to_dc)]]
-
-            op = run_sleeping_vanilla(
-                task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
-            )
-            ops.append(op)
-
-        ops_ibc = []
-        for op in ops:
-            wait(lambda: self._get_operation_module(op) in self._get_all_modules())
-            ops_ibc.append(self._get_operation_module(op))
-
-        scheduling_segments_config = get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments")
-        scheduling_segments_config["module_type"] = "data_center"
-        scheduling_segments_config["module_migration_mapping"] = ibc_to_dc
-        set("//sys/pool_trees/default/@config/scheduling_segments", scheduling_segments_config)
-
-        for op, op_ibc in zip(ops, ops_ibc):
-            wait(lambda: self._get_operation_module(op) == ibc_to_dc[op_ibc])
 
 
 class TestInfinibandClusterTagValidation(YTEnvSetup):
