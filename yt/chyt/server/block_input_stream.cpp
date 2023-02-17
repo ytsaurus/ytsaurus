@@ -435,6 +435,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
             nullptr,
             TNameTable::FromSchema(*readSchemaWithVirtualColumns),
             chunkReadOptions,
+            ReaderInterruptionOptions::InterruptibleWithEmptyKey(),
             TColumnFilter(readSchemaWithVirtualColumns->GetColumnCount()),
             /*partitionTag*/ std::nullopt,
             /*multiReaderMemoryManager*/ readerMemoryManager);

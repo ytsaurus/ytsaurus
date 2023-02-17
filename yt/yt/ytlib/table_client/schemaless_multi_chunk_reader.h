@@ -46,6 +46,18 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ReaderInterruptionOptions
+{
+    bool IsInterruptible;
+    int InterruptDescriptorKeyLength;
+
+    static ReaderInterruptionOptions InterruptibleWithEmptyKey();
+    static ReaderInterruptionOptions InterruptibleWithKeyLength(int descriptorKeyLength);
+    static ReaderInterruptionOptions NonInterruptible();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
@@ -55,10 +67,10 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TSharedRange<TUnversionedRow> hintKeyPrefixes,
     TNameTablePtr nameTable,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    ReaderInterruptionOptions interruptionOptions,
     const TColumnFilter& columnFilter = {},
     std::optional<int> partitionTag = std::nullopt,
-    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr,
-    int interruptDescriptorKeyLength = 0);
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,10 +83,10 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TSharedRange<TUnversionedRow> hintKeysUnused,
     TNameTablePtr nameTable,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    ReaderInterruptionOptions interruptionOptions,
     const TColumnFilter& columnFilter = {},
     std::optional<int> partitionTag = std::nullopt,
-    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr,
-    int interruptDescriptorKeyLength = 0);
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -185,10 +185,10 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
         /*hintKeyPrefixes*/ nullptr,
         std::move(nameTable),
         chunkReadOptions,
+        ReaderInterruptionOptions::InterruptibleWithEmptyKey(),
         columnFilter,
         /*partitionTag*/ std::nullopt,
-        multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize),
-        /*interruptDescriptorKeyLength*/ 0);
+        multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 }
 
 } // namespace
@@ -424,10 +424,10 @@ public:
                     /*hintKeyPrefixes*/ nullptr,
                     nameTable,
                     ChunkReadOptions_,
+                    ReaderInterruptionOptions::InterruptibleWithKeyLength(std::ssize(sortColumns)),
                     columnFilter,
                     /*partitionTag*/ std::nullopt,
-                    memoryManager,
-                    sortColumns.size());
+                    memoryManager);
 
                 primaryKeyPrefixes[i] = FetchReaderKeyPrefixes(reader, reduceJobSpecExt.join_key_column_count(), Buffer_);
                 primaryRowCount += std::ssize(primaryKeyPrefixes[i]);
@@ -456,10 +456,10 @@ public:
                 /*hintKeyPrefixes*/ nullptr,
                 nameTable,
                 ChunkReadOptions_,
+                ReaderInterruptionOptions::InterruptibleWithKeyLength(std::ssize(sortColumns)),
                 columnFilter,
                 /*partitionTag*/ std::nullopt,
-                memoryManager,
-                sortColumns.size());
+                memoryManager);
 
             primaryReaders.emplace_back(reader);
         }
@@ -471,6 +471,7 @@ public:
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
             const auto& tableReaderConfig = JobSpecHelper_->GetJobIOConfig()->TableReader;
+
             auto reader = CreateSchemalessSequentialMultiReader(
                 tableReaderConfig,
                 options,
@@ -480,6 +481,7 @@ public:
                 hintKeyPrefixes,
                 nameTable,
                 ChunkReadOptions_,
+                ReaderInterruptionOptions::NonInterruptible(),
                 columnFilter,
                 /*partitionTag*/ std::nullopt,
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
