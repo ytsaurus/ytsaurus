@@ -110,7 +110,7 @@ TCpuStatistics TPortoResourceTracker::ExtractCpuStatistics(const TResourceUsage&
         .ThrottledTime = ExtractDuration(throttledNs),
         .ThreadCount = GetFieldOrError(resourceUsage, EStatField::ThreadCount),
         .ContextSwitches = GetFieldOrError(resourceUsage, EStatField::ContextSwitches),
-        .ContextSwitchesDiff = GetFieldOrError(resourceUsage, EStatField::ContextSwitchesDiff),
+        .ContextSwitchesDelta = GetFieldOrError(resourceUsage, EStatField::ContextSwitchesDelta),
         .PeakThreadCount = PeakThreadCount_,
         .LimitTime = ExtractDuration(limitTimeNs),
         .GuaranteeTime = ExtractDuration(guaranteeTimeNs),

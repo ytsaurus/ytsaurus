@@ -124,13 +124,11 @@ public:
 
         TErrorOr<ui64> ThreadCount;
         TErrorOr<ui64> ContextSwitches;
-        TErrorOr<ui64> ContextSwitchesDiff;
+        TErrorOr<ui64> ContextSwitchesDelta;
         TErrorOr<ui64> PeakThreadCount;
 
         TErrorOr<TDuration> LimitTime;
         TErrorOr<TDuration> GuaranteeTime;
-
-        void ValidateStatistics() const;
     };
 
     explicit TCpuAccounting(const TString& name);
@@ -178,8 +176,6 @@ public:
 
         TErrorOr<TDuration> IOTotalTime;
         TErrorOr<TDuration> IOWaitTime;
-
-        void ValidateStatistics() const;
     };
 
     struct TStatisticsItem
@@ -230,8 +226,6 @@ public:
         TErrorOr<ui64> MemoryGuarantee;
         TErrorOr<ui64> MemoryLimit;
         TErrorOr<ui64> MaxMemoryUsage;
-
-        void ValidateStatistics() const;
     };
 
     explicit TMemory(const TString& name);
@@ -262,8 +256,6 @@ public:
         TErrorOr<ui64> RxPackets;
         TErrorOr<ui64> RxDrops;
         TErrorOr<ui64> RxLimit;
-
-        void ValidateStatistics() const;
     };
 };
 

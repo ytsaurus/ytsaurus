@@ -447,7 +447,7 @@ TCpuAccounting::TStatistics& operator-=(TCpuAccounting::TStatistics& lhs, const 
     XX(SystemUsageTime)
     XX(WaitTime)
     XX(ThrottledTime)
-    XX(ContextSwitchesDiff)
+    XX(ContextSwitchesDelta)
     XX(PeakThreadCount)
     #undef XX
     return lhs;
@@ -505,30 +505,6 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
     return statistics;
 }
 
-void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsumer* consumer)
-{
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("user").Value(statistics.UserUsageTime.Value())
-            .Item("system").Value(statistics.SystemUsageTime.Value())
-            .Item("wait").Value(statistics.WaitTime.Value())
-            .Item("throttled").Value(statistics.ThrottledTime.Value())
-            .Item("context_switches").Value(statistics.ContextSwitchesDiff.Value())
-            .Item("peak_thread_count").Value(statistics.PeakThreadCount.Value())
-        .EndMap();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TCpuAccounting::TStatistics::ValidateStatistics() const
-{
-    UserUsageTime.ThrowOnError();
-    SystemUsageTime.ThrowOnError();
-    WaitTime.ThrowOnError();
-    ThrottledTime.ThrowOnError();
-    ContextSwitchesDiff.ThrowOnError();
-    PeakThreadCount.ThrowOnError();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -646,29 +622,6 @@ void TBlockIO::ThrottleOperations(i64 operations) const
     }
 }
 
-void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* consumer)
-{
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("bytes_read").Value(statistics.IOReadByte.Value())
-            .Item("bytes_written").Value(statistics.IOWriteByte.Value())
-            .Item("io_read").Value(statistics.IOReadOps.Value())
-            .Item("io_write").Value(statistics.IOWriteOps.Value())
-            .Item("io_total").Value(statistics.IOOps.Value())
-        .EndMap();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TBlockIO::TStatistics::ValidateStatistics() const
-{
-    IOReadByte.ThrowOnError();
-    IOWriteByte.ThrowOnError();
-    IOReadOps.ThrowOnError();
-    IOWriteOps.ThrowOnError();
-    IOOps.ThrowOnError();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 const TString TMemory::Name = "memory";
@@ -721,55 +674,6 @@ void TMemory::SetLimitInBytes(i64 bytes) const
 void TMemory::ForceEmpty() const
 {
     Set("memory.force_empty", "0");
-}
-
-void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* consumer)
-{
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("rss").Value(statistics.Rss.Value())
-            .Item("mapped_file").Value(statistics.MappedFile.Value())
-            .Item("major_page_faults").Value(statistics.MajorPageFaults.Value())
-        .EndMap();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TMemory::TStatistics::ValidateStatistics() const
-{
-    Rss.ThrowOnError();
-    MappedFile.ThrowOnError();
-    MajorPageFaults.ThrowOnError();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void Serialize(const TNetwork::TStatistics& statistics, NYson::IYsonConsumer* consumer)
-{
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("tx_bytes").Value(statistics.TxBytes.Value())
-            .Item("tx_packets").Value(statistics.TxPackets.Value())
-            .Item("tx_drops").Value(statistics.TxDrops.Value())
-            .Item("rx_bytes").Value(statistics.RxBytes.Value())
-            .Item("rx_packets").Value(statistics.RxPackets.Value())
-            .Item("rx_drops").Value(statistics.RxDrops.Value())
-        .EndMap();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TNetwork::TStatistics::ValidateStatistics() const
-{
-    TxBytes.ThrowOnError();
-    TxPackets.ThrowOnError();
-    TxDrops.ThrowOnError();
-    TxLimit.ThrowOnError();
-
-    RxBytes.ThrowOnError();
-    RxPackets.ThrowOnError();
-    RxDrops.ThrowOnError();
-    RxLimit.ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

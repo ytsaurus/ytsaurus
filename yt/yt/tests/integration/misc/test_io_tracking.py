@@ -5,7 +5,7 @@ import yt_commands
 from yt_commands import (
     alter_table, authors, create, get, read_journal, wait, read_table, write_file, write_journal, create_account,
     write_table, update_nodes_dynamic_config, get_singular_chunk_id, set_node_banned, sort, get_operation,
-    sync_create_cells, create_dynamic_table, sync_mount_table, insert_rows, sync_unmount_table, ls,
+    sync_create_cells, create_dynamic_table, sync_mount_table, insert_rows, sync_unmount_table, ls, print_debug,
     reduce, map_reduce, merge, erase, read_file, sorted_dicts, get_driver, remote_copy, create_pool_tree, create_pool)
 
 from yt_helpers import read_structured_log, write_log_barrier
@@ -2394,8 +2394,21 @@ class TestUserJobIOTracking(TestJobIOTrackingBase):
                 cat""".format(self.default_disk_path),
         )
 
+        # If this test failed on your virtual machine, please check your local porto version.
+        # You can call a request to porto. For example:
+        #
+        # portoctl get juggler_client io_read_ops
+        #
+        # Correct response: 9135202132091
+        # Incorrect response: Cannot get io_read_ops: InvalidProperty:(Unknown container property: io_read_ops)
         def check_statistic():
-            statistics = get(op.get_path() + "/@progress/job_statistics")["user_job"]["block_io"]
+            user_job_statistics = get(op.get_path() + "/@progress/job_statistics")["user_job"]
+
+            if "block_io" not in user_job_statistics:
+                print_debug("Cannot get block io statistics for job")
+                return False
+
+            block_io_statistic = user_job_statistics["block_io"]
             raw_events = self.wait_for_raw_events(
                 count=1,
                 from_barrier=from_barrier,
@@ -2409,9 +2422,9 @@ class TestUserJobIOTracking(TestJobIOTrackingBase):
                 sum_bytes[event["direction@"]] += event["bytes"]
                 sum_io_requests[event["direction@"]] += event["io_requests"]
 
-            return statistics["bytes_read"]["$"]["completed"]["map"]["sum"] == sum_bytes["read"] and \
-                statistics["bytes_written"]["$"]["completed"]["map"]["sum"] == sum_bytes["write"] and \
-                statistics["io_total"]["$"]["completed"]["map"]["sum"] == sum_io_requests["read"] and \
-                statistics["io_total"]["$"]["completed"]["map"]["sum"] == sum_io_requests["write"]
+            return block_io_statistic["bytes_read"]["$"]["completed"]["map"]["sum"] == sum_bytes["read"] and \
+                block_io_statistic["bytes_written"]["$"]["completed"]["map"]["sum"] == sum_bytes["write"] and \
+                block_io_statistic["io_total"]["$"]["completed"]["map"]["sum"] == sum_io_requests["read"] and \
+                block_io_statistic["io_total"]["$"]["completed"]["map"]["sum"] == sum_io_requests["write"]
 
         wait(check_statistic)

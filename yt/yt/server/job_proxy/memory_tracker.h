@@ -31,7 +31,7 @@ DEFINE_REFCOUNTED_TYPE(TProcessMemoryStatistics)
 struct TJobMemoryStatistics
     : public TRefCounted
 {
-    NContainers::TMemoryStatistics Total;
+    TJobEnvironmentMemoryStatistics Total;
     std::vector<TProcessMemoryStatisticsPtr> ProcessesStatistics;
     i64 TmpfsSize = 0;
 };

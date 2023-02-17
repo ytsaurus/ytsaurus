@@ -58,9 +58,9 @@ i64 TMemoryTracker::GetMemoryUsage()
     auto memoryStatistics = GetMemoryStatistics();
 
     i64 memoryUsage = 0;
-    memoryUsage += memoryStatistics->Total.Rss.ValueOrDefault(0UL);
+    memoryUsage += memoryStatistics->Total.Rss;
     if (Config_->IncludeMemoryMappedFiles) {
-        memoryUsage += memoryStatistics->Total.MappedFile.ValueOrDefault(0UL);
+        memoryUsage += memoryStatistics->Total.MappedFile;
     }
     memoryUsage += TmpfsManager_->GetTmpfsSize();
     return memoryUsage;
@@ -80,9 +80,10 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
 
 #ifdef _linux_
     auto memoryStatistics = New<TJobMemoryStatistics>();
-    if (auto statistics = Environment_->GetMemoryStatistics()) {
-        statistics->ValidateStatistics();
-        memoryStatistics->Total = *statistics;
+    if (auto statistics = Environment_->GetMemoryStatistics();
+        statistics.IsOK() && statistics.Value())
+    {
+        memoryStatistics->Total = *statistics.Value();
     } else {
         std::vector<int> pids;
 
@@ -138,9 +139,9 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
                     // RSS from /proc/pid/statm includes all pages resident to current process,
                     // including memory-mapped files and shared memory.
                     // Since we want to account shared memory separately, let's subtract it here.
-                    memoryStatistics->Total.Rss = memoryStatistics->Total.Rss.ValueOrDefault(0UL) +
+                    memoryStatistics->Total.Rss = memoryStatistics->Total.Rss +
                         memoryUsage.Rss - memoryUsage.Shared;
-                    memoryStatistics->Total.MappedFile = memoryStatistics->Total.MappedFile.ValueOrDefault(0UL)
+                    memoryStatistics->Total.MappedFile = memoryStatistics->Total.MappedFile
                         + memoryUsage.Shared;
 
                     try {
@@ -151,8 +152,8 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
 
                     auto processName = GetProcessName(pid);
                     auto commandLine = GetProcessCommandLine(pid);
-                    auto rss = memoryStatistics->Total.Rss.ValueOrDefault(0UL);
-                    auto shared = memoryStatistics->Total.MappedFile.ValueOrDefault(0UL);
+                    auto rss = memoryStatistics->Total.Rss;
+                    auto shared = memoryStatistics->Total.MappedFile;
 
                     auto processMemoryStatistics = New<TProcessMemoryStatistics>();
                     processMemoryStatistics->Pid = pid;
@@ -176,12 +177,12 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
         }
 
         YT_LOG_DEBUG("Current memory usage (Private: %v, Shared: %v)",
-            memoryStatistics->Total.Rss.ValueOrDefault(0UL),
-            memoryStatistics->Total.MappedFile.ValueOrDefault(0UL));
+            memoryStatistics->Total.Rss,
+            memoryStatistics->Total.MappedFile);
     }
 
-    auto memoryUsage = memoryStatistics->Total.Rss.ValueOrDefault(0UL) +
-        memoryStatistics->Total.MappedFile.ValueOrDefault(0UL);
+    auto memoryUsage = memoryStatistics->Total.Rss +
+        memoryStatistics->Total.MappedFile;
     MaxMemoryUsage_ = std::max<i64>(MaxMemoryUsage_, memoryUsage);
 
     memoryStatistics->TmpfsSize = TmpfsManager_->GetTmpfsSize();

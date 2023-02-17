@@ -51,6 +51,126 @@ static inline const NLogging::TLogger Logger("JobProxyEnvironment");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TJobEnvironmentCpuStatistics& statistics, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("user").Value(statistics.UserUsageTime)
+            .Item("system").Value(statistics.SystemUsageTime)
+            .Item("wait").Value(statistics.WaitTime)
+            .Item("throttled").Value(statistics.ThrottledTime)
+            .Item("context_switches").Value(statistics.ContextSwitchesDelta)
+            .Item("peak_thread_count").Value(statistics.PeakThreadCount)
+        .EndMap();
+}
+
+TErrorOr<TJobEnvironmentCpuStatistics> ExtractJobEnvironmentCpuStatistics(const TCpuStatistics& statistics)
+{
+    try {
+        return TJobEnvironmentCpuStatistics {
+            .UserUsageTime = statistics.UserUsageTime.ValueOrThrow(),
+            .SystemUsageTime = statistics.SystemUsageTime.ValueOrThrow(),
+            .WaitTime = statistics.WaitTime.ValueOrThrow(),
+            .ThrottledTime = statistics.ThrottledTime.ValueOrThrow(),
+            .ContextSwitchesDelta = statistics.ContextSwitchesDelta.ValueOrThrow(),
+            .PeakThreadCount = statistics.PeakThreadCount.ValueOrThrow()
+        };
+    } catch (const std::exception& ex) {
+        return TError("Extract job cpu statistics failed")
+            << ex;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TJobEnvironmentMemoryStatistics& statistics, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("rss").Value(statistics.Rss)
+            .Item("mapped_file").Value(statistics.MappedFile)
+            .Item("major_page_faults").Value(statistics.MajorPageFaults)
+        .EndMap();
+}
+
+TErrorOr<TJobEnvironmentMemoryStatistics> ExtractJobEnvironmentMemoryStatistics(const TMemoryStatistics& statistics)
+{
+    try {
+        return TJobEnvironmentMemoryStatistics {
+            .Rss = statistics.Rss.ValueOrThrow(),
+            .MappedFile = statistics.MappedFile.ValueOrThrow(),
+            .MajorPageFaults = statistics.MajorPageFaults.ValueOrThrow()
+        };
+    } catch (const std::exception& ex) {
+        return TError("Extract job memory statistics failed")
+            << ex;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TJobEnvironmentBlockIOStatistics& statistics, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("bytes_read").Value(statistics.IOReadByte)
+            .Item("bytes_written").Value(statistics.IOWriteByte)
+            .Item("io_read").Value(statistics.IOReadOps)
+            .Item("io_write").Value(statistics.IOWriteOps)
+            .Item("io_total").Value(statistics.IOOps)
+        .EndMap();
+}
+
+TErrorOr<TJobEnvironmentBlockIOStatistics> ExtractJobEnvironmentBlockIOStatistics(const TBlockIOStatistics& statistics)
+{
+    try {
+        return TJobEnvironmentBlockIOStatistics {
+            .IOReadByte = statistics.IOReadByte.ValueOrThrow(),
+            .IOWriteByte = statistics.IOWriteByte.ValueOrThrow(),
+            .IOReadOps = statistics.IOReadOps.ValueOrThrow(),
+            .IOWriteOps = statistics.IOWriteOps.ValueOrThrow(),
+            .IOOps = statistics.IOOps.ValueOrThrow()
+        };
+    } catch (const std::exception& ex) {
+        return TError("Extract job block io statistics failed")
+            << ex;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TJobEnvironmentNetworkStatistics& statistics, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("tx_bytes").Value(statistics.TxBytes)
+            .Item("tx_packets").Value(statistics.TxPackets)
+            .Item("tx_drops").Value(statistics.TxDrops)
+            .Item("rx_bytes").Value(statistics.RxBytes)
+            .Item("rx_packets").Value(statistics.RxPackets)
+            .Item("rx_drops").Value(statistics.RxDrops)
+        .EndMap();
+}
+
+TErrorOr<TJobEnvironmentNetworkStatistics> ExtractJobEnvironmentNetworkStatistics(const TNetworkStatistics& statistics)
+{
+    try {
+        return TJobEnvironmentNetworkStatistics {
+            .TxBytes = statistics.TxBytes.ValueOrThrow(),
+            .TxPackets = statistics.TxPackets.ValueOrThrow(),
+            .TxDrops = statistics.TxDrops.ValueOrThrow(),
+            .RxBytes = statistics.RxBytes.ValueOrThrow(),
+            .RxPackets = statistics.RxPackets.ValueOrThrow(),
+            .RxDrops = statistics.RxDrops.ValueOrThrow()
+        };
+    } catch (const std::exception& ex) {
+        return TError("Extract job network statistics failed")
+            << ex;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 #ifdef _linux_
 
 class TPortoUserJobEnvironment
@@ -79,31 +199,41 @@ public:
         }
     }
 
-    TCpuStatistics GetCpuStatistics() const override
+    TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetCpuStatistics() const override
     {
         if (auto resourceTracker = ResourceTracker_.Acquire()) {
-            return resourceTracker->GetCpuStatistics();
+            return ExtractJobEnvironmentCpuStatistics(resourceTracker->GetCpuStatistics());
         } else {
             return {};
         }
     }
 
-    TBlockIOStatistics GetBlockIOStatistics() const override
+    TErrorOr<std::optional<TJobEnvironmentMemoryStatistics>> GetMemoryStatistics() const override
     {
-        if (auto resourceTracker = ResourceTracker_.Acquire()) {
-            return resourceTracker->GetBlockIOStatistics();
+        auto resourceTracker = ResourceTracker_.Acquire();
+        if (Options_.EnablePortoMemoryTracking && resourceTracker) {
+            return ExtractJobEnvironmentMemoryStatistics(resourceTracker->GetMemoryStatistics());
         } else {
             return {};
         }
     }
 
-    std::optional<TNetworkStatistics> GetNetworkStatistics() const override
+    TErrorOr<std::optional<TJobEnvironmentBlockIOStatistics>> GetBlockIOStatistics() const override
+    {
+        if (auto resourceTracker = ResourceTracker_.Acquire()) {
+            return ExtractJobEnvironmentBlockIOStatistics(resourceTracker->GetBlockIOStatistics());
+        } else {
+            return {};
+        }
+    }
+
+    TErrorOr<std::optional<TJobEnvironmentNetworkStatistics>> GetNetworkStatistics() const override
     {
         auto resourceTracker = ResourceTracker_.Acquire();
         if (!Options_.NetworkAddresses.empty() && resourceTracker) {
-            return resourceTracker->GetNetworkStatistics();
+            return ExtractJobEnvironmentNetworkStatistics(resourceTracker->GetNetworkStatistics());
         } else {
-            return std::nullopt;
+            return {};
         }
     }
 
@@ -127,16 +257,6 @@ public:
     {
         if (auto instance = GetUserJobInstance()) {
             instance->SetIOThrottle(operations);
-        }
-    }
-
-    std::optional<TMemoryStatistics> GetMemoryStatistics() const override
-    {
-        auto resourceTracker = ResourceTracker_.Acquire();
-        if (Options_.EnablePortoMemoryTracking && resourceTracker) {
-            return resourceTracker->GetMemoryStatistics();
-        } else {
-            return std::nullopt;
         }
     }
 
@@ -354,14 +474,14 @@ public:
         PortoExecutor_->SubscribeFailed(BIND(&TPortoJobProxyEnvironment::OnFatalError, MakeWeak(this)));
     }
 
-    TCpuStatistics GetCpuStatistics() const override
+    TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetCpuStatistics() const override
     {
-        return ResourceTracker_->GetCpuStatistics();
+        return ExtractJobEnvironmentCpuStatistics(ResourceTracker_->GetCpuStatistics());
     }
 
-    TBlockIOStatistics GetBlockIOStatistics() const override
+    TErrorOr<std::optional<TJobEnvironmentBlockIOStatistics>> GetBlockIOStatistics() const override
     {
-        return ResourceTracker_->GetBlockIOStatistics();
+        return ExtractJobEnvironmentBlockIOStatistics(ResourceTracker_->GetBlockIOStatistics());
     }
 
     void SetCpuGuarantee(double value) override
@@ -430,22 +550,22 @@ public:
         return TDuration::Max();
     }
 
-    std::optional<TMemoryStatistics> GetMemoryStatistics() const override
-    {
-        return std::nullopt;
-    }
-
-    std::optional<TNetworkStatistics> GetNetworkStatistics() const override
-    {
-        return std::nullopt;
-    }
-
-    TCpuStatistics GetCpuStatistics() const override
+    TErrorOr<std::optional<TJobEnvironmentMemoryStatistics>> GetMemoryStatistics() const override
     {
         return {};
     }
 
-    TBlockIOStatistics GetBlockIOStatistics() const override
+    TErrorOr<std::optional<TJobEnvironmentNetworkStatistics>> GetNetworkStatistics() const override
+    {
+        return {};
+    }
+
+    TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetCpuStatistics() const override
+    {
+        return {};
+    }
+
+    TErrorOr<std::optional<TJobEnvironmentBlockIOStatistics>> GetBlockIOStatistics() const override
     {
         return {};
     }
@@ -538,12 +658,12 @@ public:
         YT_LOG_WARNING("Cpu policy is not supported in simple job environment");
     }
 
-    TCpuStatistics GetCpuStatistics() const override
+    TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetCpuStatistics() const override
     {
         return {};
     }
 
-    TBlockIOStatistics GetBlockIOStatistics() const override
+    TErrorOr<std::optional<TJobEnvironmentBlockIOStatistics>> GetBlockIOStatistics() const override
     {
         return {};
     }

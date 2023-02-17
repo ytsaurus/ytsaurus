@@ -49,7 +49,7 @@ public:
     void Fail() override;
     i64 GetStderrSize() const override;
     TSharedRef DumpSensors() override;
-    std::optional<NContainers::TCpuStatistics> GetUserJobCpuStatistics() const override;
+    std::optional<TJobEnvironmentCpuStatistics> GetUserJobCpuStatistics() const override;
 
 protected:
     const IJobHostPtr Host_;
