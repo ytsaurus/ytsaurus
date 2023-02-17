@@ -81,7 +81,10 @@ private:
     THashMap<const TTablet*, TTabletCellId> TabletToCell_;
     THashMap<TTabletCellId, double> CellToMetric_;
     THashMap<const TTablet*, double> TabletToMetric_;
-    THashMap<TString, double> NodeToMetric_;
+    THashMap<TNodeAddress, double> NodeToMetric_;
+
+    THashMap<TTabletCellId, i64> FreeCellMemory_;
+    THashMap<TNodeAddress, i64> FreeNodeMemory_;
 
     double CurrentMetric_;
     TBestAction BestAction_;
@@ -104,6 +107,22 @@ private:
 
     bool TryFindBestAction(bool canMakeSwap);
     bool ShouldTrigger() const;
+
+    bool CheckMoveFollowsMemoryLimits(
+        const TTablet* tablet,
+        TTabletCellId cell,
+        const TNodeAddress& sourceNode,
+        const TNodeAddress& destinationNode) const;
+
+    bool CheckSwapFollowsMemoryLimits(
+        const TTablet* lhsTablet,
+        const TTablet* rhsTablet,
+        TTabletCellId lhsCell,
+        TTabletCellId rhsCell,
+        const TNodeAddress& lhsNode,
+        const TNodeAddress& rhsNode) const;
+
+    void CalculateMemory();
 };
 
 TParameterizedReassignSolver::TParameterizedReassignSolver(
@@ -135,7 +154,7 @@ void TParameterizedReassignSolver::Initialize()
     for (const auto& cell : Cells_) {
         double cellMetric = 0;
 
-        for (const auto& tablet : cell->Tablets) {
+        for (const auto& [tabletId, tablet] : cell->Tablets) {
             if (!IgnoreTableWiseConfig_ && !tablet->Table->EnableParameterizedBalancing) {
                 continue;
             }
@@ -144,7 +163,7 @@ void TParameterizedReassignSolver::Initialize()
                 continue;
             }
 
-            if (TypeFromId(tablet->Id) != EObjectType::Tablet) {
+            if (TypeFromId(tabletId) != EObjectType::Tablet) {
                 continue;
             }
 
@@ -153,7 +172,7 @@ void TParameterizedReassignSolver::Initialize()
             if (tabletMetric < 0.0) {
                 THROW_ERROR_EXCEPTION("Tablet metric must be nonnegative, got %v", tabletMetric)
                     << TErrorAttribute("tablet_metric_value", tabletMetric)
-                    << TErrorAttribute("tablet_id", tablet->Id)
+                    << TErrorAttribute("tablet_id", tabletId)
                     << TErrorAttribute("metric_formula", Bundle_->Config->ParameterizedBalancingMetric);
             } else if (tabletMetric == 0.0) {
                 continue;
@@ -176,6 +195,57 @@ void TParameterizedReassignSolver::Initialize()
 
     CurrentMetric_ = CalculateTotalBundleMetric();
     YT_VERIFY(CurrentMetric_ >= 0.);
+
+    CalculateMemory();
+}
+
+void TParameterizedReassignSolver::CalculateMemory()
+{
+    THashMap<TNodeAddress, int> cellCount;
+    THashMap<TNodeAddress, i64> actualMemoryUsage;
+    THashMap<const TTabletCell*, i64> cellMemoryUsage;
+    for (const auto& cell : Cells_) {
+        ++cellCount[*cell->NodeAddress];
+        actualMemoryUsage[*cell->NodeAddress] += cell->Statistics.MemorySize;
+
+        i64 usage = 0;
+        for (const auto& [id, tablet] : cell->Tablets) {
+            usage += tablet->Statistics.MemorySize;
+        }
+
+        EmplaceOrCrash(cellMemoryUsage, cell.Get(), std::max(cell->Statistics.MemorySize, usage));
+    }
+
+    THashMap<TNodeAddress, i64> cellMemoryLimit;
+    for (const auto& [address, statistics] : Bundle_->NodeMemoryStatistics) {
+        i64 actualUsage = GetOrCrash(actualMemoryUsage, address);
+        i64 free = statistics.Limit - statistics.Used;
+        i64 unaccountedUsage = 0;
+
+        if (actualUsage > statistics.Used) {
+            YT_LOG_DEBUG("Using total cell memory as node memory usage (Node: %v, Used: %v, Sum: %v, Limit: %v)",
+                address,
+                statistics.Used,
+                actualUsage,
+                statistics.Limit);
+            THROW_ERROR_EXCEPTION_IF(
+                statistics.Limit < actualUsage,
+                "Node memory size limit is less than the actual cell memory size");
+            free = statistics.Limit - actualUsage;
+        } else {
+            unaccountedUsage = statistics.Used - actualUsage;
+        }
+
+        auto count = GetOrCrash(cellCount, address);
+
+        EmplaceOrCrash(FreeNodeMemory_, address, free);
+        EmplaceOrCrash(cellMemoryLimit, address, (statistics.Limit - unaccountedUsage) / count);
+    }
+
+    for (const auto& [cell, usage] : cellMemoryUsage) {
+        auto limit = GetOrCrash(cellMemoryLimit, *cell->NodeAddress);
+        EmplaceOrCrash(FreeCellMemory_, cell->Id, limit - usage);
+    }
 }
 
 bool TParameterizedReassignSolver::ShouldTrigger() const
@@ -247,6 +317,26 @@ double TParameterizedReassignSolver::CalculateTotalBundleMetric() const
     return cellMetric + nodeMetric;
 };
 
+bool TParameterizedReassignSolver::CheckMoveFollowsMemoryLimits(
+    const TTablet* tablet,
+    TTabletCellId cell,
+    const TNodeAddress& sourceNode,
+    const TNodeAddress& destinationNode) const
+{
+    if (tablet->Table->InMemoryMode == EInMemoryMode::None) {
+        return true;
+    }
+
+    auto freeCellMemory = GetOrCrash(FreeCellMemory_, cell);
+    auto size = tablet->Statistics.MemorySize;
+
+    if (freeCellMemory < size) {
+        return false;
+    }
+
+    return sourceNode == destinationNode || GetOrCrash(FreeNodeMemory_, destinationNode) >= size;
+}
+
 void TParameterizedReassignSolver::TryMoveTablet(
     const TTablet* tablet,
     const TTabletCell* cell)
@@ -263,6 +353,19 @@ void TParameterizedReassignSolver::TryMoveTablet(
     }
 
     auto sourceNode = *GetOrCrash(Bundle_->TabletCells, sourceCellId)->NodeAddress;
+
+    if (!CheckMoveFollowsMemoryLimits(tablet, cell->Id, sourceNode, *cell->NodeAddress)) {
+        // Cannot move due to memory limits.
+        YT_LOG_DEBUG_IF(
+            Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
+            "Cannot move tablet (TabletId: %v, CellId: %v, SourceNode: %v, DestinationNode: %v)",
+            tablet->Id,
+            cell->Id,
+            sourceNode,
+            *cell->NodeAddress);
+        return;
+    }
+
     if (sourceNode != cell->NodeAddress) {
         auto sourceNodeMetric = GetOrCrash(NodeToMetric_, sourceNode);
         auto destinationNodeMetric = GetOrCrash(NodeToMetric_, *cell->NodeAddress);
@@ -301,7 +404,7 @@ void TParameterizedReassignSolver::TryMoveTablet(
                 NodeToMetric_[*cell->NodeAddress] += tabletMetric;
             } else {
                 YT_LOG_WARNING("The best action is between cells on the same node "
-                    "(NodeAddress: %v, TabletId: %v)",
+                    "(Node: %v, TabletId: %v)",
                     sourceNode,
                     tablet->Id);
             }
@@ -314,9 +417,70 @@ void TParameterizedReassignSolver::TryMoveTablet(
                 cell->Id,
                 sourceNode,
                 *cell->NodeAddress);
+
+            auto tabletSize = tablet->Statistics.MemorySize;
+            if (tabletSize == 0) {
+                return;
+            }
+
+            FreeCellMemory_[sourceCellId] += tabletSize;
+            FreeCellMemory_[cell->Id] -= tabletSize;
+
+            if (sourceNode != cell->NodeAddress) {
+                FreeNodeMemory_[sourceNode] += tabletSize;
+                FreeNodeMemory_[*cell->NodeAddress] -= tabletSize;
+            }
         };
     }
 };
+
+bool TParameterizedReassignSolver::CheckSwapFollowsMemoryLimits(
+    const TTablet* lhsTablet,
+    const TTablet* rhsTablet,
+    TTabletCellId lhsCell,
+    TTabletCellId rhsCell,
+    const TNodeAddress& lhsNode,
+    const TNodeAddress& rhsNode) const
+{
+    i64 lhsTabletSize = lhsTablet->Statistics.MemorySize;
+    i64 rhsTabletSize = rhsTablet->Statistics.MemorySize;
+
+    i64 diff = lhsTabletSize - rhsTabletSize;
+    if (diff == 0) {
+        // Same size or both with in_memory_mode=none.
+        return true;
+    }
+
+    i64 freeLhsCellMemory = GetOrCrash(FreeCellMemory_, lhsCell);
+    i64 freeRhsCellMemory = GetOrCrash(FreeCellMemory_, rhsCell);
+
+    i64 freeLhsNodeMemory = GetOrCrash(FreeNodeMemory_, lhsNode);
+    i64 freeRhsNodeMemory = GetOrCrash(FreeNodeMemory_, rhsNode);
+
+    if (freeLhsCellMemory < 0 && freeRhsCellMemory < 0) {
+        // Both are overloaded from the beginning.
+        return false;
+    }
+
+    if (lhsNode != rhsNode && (freeLhsNodeMemory + diff < 0 || freeRhsNodeMemory - diff < 0)) {
+        return false;
+    }
+
+    if (freeLhsCellMemory + diff >= 0 && freeRhsCellMemory - diff >= 0)
+    {
+        // Perfect case.
+        return true;
+    }
+
+    // Check if one of them are overloaded from the beginning but it's better than before.
+    if (freeLhsCellMemory < 0) {
+        return diff > 0 && (freeRhsCellMemory - diff > freeLhsCellMemory);
+    } else if (freeRhsCellMemory < 0) {
+        return diff < 0 && (freeLhsCellMemory + diff > freeRhsCellMemory);
+    }
+
+    return false;
+}
 
 void TParameterizedReassignSolver::TrySwapTablets(
     const TTablet* lhsTablet,
@@ -348,6 +512,21 @@ void TParameterizedReassignSolver::TrySwapTablets(
 
     auto lhsNode = *GetOrCrash(Bundle_->TabletCells, lhsCellId)->NodeAddress;
     auto rhsNode = *GetOrCrash(Bundle_->TabletCells, rhsCellId)->NodeAddress;
+
+    if (!CheckSwapFollowsMemoryLimits(lhsTablet, rhsTablet, lhsCellId, rhsCellId, lhsNode, rhsNode)) {
+        // Cannot swap due to memory limits.
+        YT_LOG_DEBUG_IF(
+            Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
+            "Cannot swap tablets (LhsTabletId: %v, RhsTabletId: %v, "
+            "LhsCellId: %v, RhsCellId: %v, LhsNode: %v, RhsNode: %v)",
+            lhsTablet->Id,
+            rhsTablet->Id,
+            lhsCellId,
+            rhsCellId,
+            lhsNode,
+            rhsNode);
+        return;
+    }
 
     if (lhsNode != rhsNode) {
         auto lhsNodeMetric = GetOrCrash(NodeToMetric_, lhsNode);
@@ -394,7 +573,7 @@ void TParameterizedReassignSolver::TrySwapTablets(
                 NodeToMetric_[rhsNode] -= rhsTabletMetric;
             } else {
                 YT_LOG_WARNING("The best action is between cells on the same node "
-                    "(NodeAddress: %v, LhsTabletId: %v, RhsTabletId: %v)",
+                    "(Node: %v, LhsTabletId: %v, RhsTabletId: %v)",
                     lhsNode,
                     lhsTablet->Id,
                     rhsTablet->Id);
@@ -409,6 +588,19 @@ void TParameterizedReassignSolver::TrySwapTablets(
                 rhsCellId,
                 lhsNode,
                 rhsNode);
+
+            i64 tabletSizeDiff = lhsTablet->Statistics.MemorySize - rhsTablet->Statistics.MemorySize;
+            if (tabletSizeDiff == 0) {
+                return;
+            }
+
+            FreeCellMemory_[lhsCellId] += tabletSizeDiff;
+            FreeCellMemory_[rhsCellId] -= tabletSizeDiff;
+
+            if (lhsNode != rhsNode) {
+                FreeNodeMemory_[lhsNode] += tabletSizeDiff;
+                FreeNodeMemory_[rhsNode] -= tabletSizeDiff;
+            }
         };
     }
 };
@@ -461,6 +653,8 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
                 CurrentMetric_,
                 BestAction_.Metric);
             CurrentMetric_ = BestAction_.Metric;
+
+            YT_VERIFY(CurrentMetric_ >= 0);
         } else {
             YT_LOG_DEBUG("Metric-improving action was not found");
             break;

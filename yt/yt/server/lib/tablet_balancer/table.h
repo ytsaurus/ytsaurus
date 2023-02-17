@@ -13,7 +13,7 @@ struct TTable final
     const bool Sorted;
     const NYPath::TYPath Path;
     const NObjectClient::TCellTag ExternalCellTag;
-    const TTabletCellBundle* Bundle;
+    TTabletCellBundle* const Bundle;
     const TTableId Id;
 
     bool Dynamic;

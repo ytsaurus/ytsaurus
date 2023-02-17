@@ -34,6 +34,7 @@ struct TBundleProfilingCounters
     NProfiling::TCounter BasicTableAttributesRequestCount;
     NProfiling::TCounter ActualTableSettingsRequestCount;
     NProfiling::TCounter TableStatisticsRequestCount;
+    NProfiling::TCounter NodeStatisticsRequestCount;
 
     TBundleProfilingCounters(const NProfiling::TProfiler& profiler);
 };
@@ -64,6 +65,8 @@ public:
         IInvokerPtr invoker);
 
     void UpdateBundleAttributes(const NYTree::IAttributeDictionary* attributes);
+
+    bool IsParameterizedBalancingEnabled() const;
 
     TFuture<void> UpdateState();
     TFuture<void> FetchStatistics();
@@ -109,6 +112,8 @@ private:
     THashMap<TTabletCellId, TTabletCellInfo> FetchTabletCells() const;
     THashMap<TTableId, TTablePtr> FetchBasicTableAttributes(
         const THashSet<TTableId>& tableIds) const;
+    THashMap<TString, TTabletCellBundle::TNodeMemoryStatistics> FetchNodeStatistics(
+        const THashSet<TString>& addresses) const;
 
     void DoFetchStatistics();
 

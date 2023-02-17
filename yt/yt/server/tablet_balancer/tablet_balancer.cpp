@@ -125,7 +125,6 @@ private:
     void TryBalancerIteration();
 
     bool IsBalancingAllowed(const TBundleStatePtr& bundleState) const;
-    bool IsParameterizedBalancingEnabled(const TBundleStatePtr& bundleState) const;
 
     void BalanceViaReshard(const TBundleStatePtr& bundleState);
     void BalanceViaMove(const TBundleStatePtr& bundleState) const;
@@ -244,7 +243,7 @@ void TTabletBalancer::BalancerIteration()
         }
 
         if (auto it = BundleNamesToMoveOnNextIteration_.find(bundleName); it != BundleNamesToMoveOnNextIteration_.end()) {
-            if (IsParameterizedBalancingEnabled(bundle) && !ParameterizedBalancingScheduler_.IsBalancingAllowed(bundleName)) {
+            if (bundle->IsParameterizedBalancingEnabled() && !ParameterizedBalancingScheduler_.IsBalancingAllowed(bundleName)) {
                 YT_LOG_DEBUG("Skip parameterized balancing iteration due to "
                     "recalculation of performance counters (BundleName: %v)", bundleName);
             } else {
@@ -285,11 +284,6 @@ bool TTabletBalancer::IsBalancingAllowed(const TBundleStatePtr& bundleState) con
         bundleState->GetHealth() == ETabletCellHealth::Good &&
         (EnableEverywhere_ ||
          bundleState->GetBundle()->Config->EnableStandaloneTabletBalancer);
-}
-
-bool TTabletBalancer::IsParameterizedBalancingEnabled(const TBundleStatePtr& bundleState) const
-{
-    return !bundleState->GetBundle()->Config->ParameterizedBalancingMetric.empty();
 }
 
 IYPathServicePtr TTabletBalancer::GetOrchidService()
@@ -522,7 +516,7 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
     YT_LOG_DEBUG("Balancing tablets via parameterized move started (BundleName: %v)",
         bundleState->GetBundle()->Name);
 
-    if (!IsParameterizedBalancingEnabled(bundleState)) {
+    if (!bundleState->IsParameterizedBalancingEnabled()) {
         YT_LOG_DEBUG("Balance tablets via parameterized move is disabled (BundleName: %v)",
             bundleState->GetBundle()->Name);
         return;
@@ -553,6 +547,8 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
             auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), tablet->Table->Id);
             profilingCounters.ParameterizedMoves.Increment(1);
+
+            ApplyMoveTabletAction(tablet, descriptor.TabletCellId);
         }
 
         actionCount += std::ssize(descriptors);

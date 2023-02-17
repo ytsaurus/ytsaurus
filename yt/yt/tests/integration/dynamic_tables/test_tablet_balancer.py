@@ -110,10 +110,13 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             "double([/statistics/uncompressed_data_size])"
         ],
     )
-    def test_parameterized_balancing(self, parameterized_balancing_metric):
+    @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
+    def test_parameterized_balancing(self, parameterized_balancing_metric, in_memory_mode):
         cells = sync_create_cells(2)
 
-        self._create_sorted_table("//tmp/t")
+        self._create_sorted_table(
+            "//tmp/t",
+            in_memory_mode=in_memory_mode)
         set(
             "//sys/tablet_cell_bundles/default/@tablet_balancer_config/parameterized_balancing_metric",
             parameterized_balancing_metric
