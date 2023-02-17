@@ -116,7 +116,9 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
         final RpcClientFactory rpcClientFactory =
                 outageController != null
                         ? new OutageRpcClientFactoryImpl(
-                        busConnector, builder.credentials, builder.builder.compression,
+                        busConnector,
+                        builder.credentials,
+                        builder.builder.compression,
                         outageController)
                         : new RpcClientFactoryImpl(
                         busConnector,
@@ -433,7 +435,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
                 .build();
 
         /**
-         * Set authentication information i.e. username and user token.
+         * Set authentication information.
          *
          * <p>
          * When no rpc credentials is set they are loaded from environment.

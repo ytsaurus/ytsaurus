@@ -47,7 +47,7 @@ class OutageRpcClient extends RpcClientWrapper {
             @Override
             public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
                 Optional<Throwable> error = Objects.requireNonNull(controller.pollError(method, requestId));
-                if (!error.isPresent()) {
+                if (error.isEmpty()) {
                     handler.onResponse(sender, header, attachments);
                     return;
                 }
@@ -77,7 +77,7 @@ class OutageRpcClient extends RpcClientWrapper {
             @Override
             public void onFeedback(RpcClient sender, TStreamingFeedbackHeader header, List<byte[]> attachments) {
                 Optional<Throwable> error = Objects.requireNonNull(controller.pollError(method, requestId));
-                if (!error.isPresent()) {
+                if (error.isEmpty()) {
                     consumer.onFeedback(sender, header, attachments);
                     return;
                 }
@@ -88,7 +88,7 @@ class OutageRpcClient extends RpcClientWrapper {
             @Override
             public void onPayload(RpcClient sender, TStreamingPayloadHeader header, List<byte[]> attachments) {
                 Optional<Throwable> error = Objects.requireNonNull(controller.pollError(method, requestId));
-                if (!error.isPresent()) {
+                if (error.isEmpty()) {
                     consumer.onPayload(sender, header, attachments);
                     return;
                 }
@@ -104,7 +104,7 @@ class OutageRpcClient extends RpcClientWrapper {
             @Override
             public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
                 Optional<Throwable> error = Objects.requireNonNull(controller.pollError(method, requestId));
-                if (!error.isPresent()) {
+                if (error.isEmpty()) {
                     consumer.onResponse(sender, header, attachments);
                     return;
                 }

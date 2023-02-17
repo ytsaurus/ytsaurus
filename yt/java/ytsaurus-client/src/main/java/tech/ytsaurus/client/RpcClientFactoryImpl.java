@@ -28,8 +28,8 @@ class RpcClientFactoryImpl implements RpcClientFactory {
         if (!compression.isEmpty()) {
             rpcClient = rpcClient.withCompression(compression);
         }
-        if (!credentials.isEmpty()) {
-            rpcClient = rpcClient.withTokenAuthentication(credentials);
+        if (!credentials.isEmpty() || credentials.getServiceTicketAuth().isPresent()) {
+            rpcClient = rpcClient.withAuthentication(credentials);
         }
         return rpcClient;
     }

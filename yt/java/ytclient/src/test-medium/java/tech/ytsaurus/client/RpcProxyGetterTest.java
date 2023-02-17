@@ -92,9 +92,9 @@ public class RpcProxyGetterTest {
                 .collect(Collectors.toList());
 
         RpcClientFactory rpcClientFactory = new RpcClientFactoryImpl(
-                        new DefaultBusConnector(),
-                        new RpcCredentials(),
-                        new RpcCompression());
+                new DefaultBusConnector(),
+                new RpcCredentials(),
+                new RpcCompression());
         var poolClient = rpcClientFactory.create(proxiesFromList.get(0), "local-dc");
         RpcProxyGetter proxyGetter = new RpcProxyGetter(
                 List.of(HostPort.parse("example.com")),
