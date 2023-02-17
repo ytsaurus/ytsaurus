@@ -453,7 +453,7 @@ def _create_py_schema(py_type, ti_type=None, field_name=None):
         if ti_type is None:
             is_ti_type_optional = True
         return OptionalSchema(
-            _create_py_schema(py_type.__args__[0], ti_type),
+            _create_py_schema(_unwrap_optional_type(py_type), ti_type),
             is_ti_type_optional=is_ti_type_optional,
         )
     elif _get_list_item_type(py_type) is not None:
@@ -659,3 +659,8 @@ def _py_schema_to_ti_type(py_schema):
     if py_schema._is_ti_type_optional and not isinstance(py_schema, OptionalSchema):
         ti_type = ti.Optional[ti_type]
     return ti_type
+
+
+def _unwrap_optional_type(py_type):
+    args = py_type.__args__
+    return args[1] if args[0] is type(None) else args[0]  # noqa
