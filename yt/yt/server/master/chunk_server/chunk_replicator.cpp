@@ -1268,11 +1268,6 @@ void TChunkReplicator::OnReplicaRemoved(
     auto* chunk = replica.GetPtr();
     auto* node = location->GetNode();
 
-    // Fast path.
-    if (!ShouldProcessChunk(chunk)) {
-        return;
-    }
-
     // NB: It's OK to remove all replicas from replication queues here because
     // if some replica is removed we need to schedule chunk refresh anyway.
     RemoveFromChunkReplicationQueues(node, replica);
