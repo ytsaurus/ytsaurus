@@ -20,7 +20,7 @@ DEFINE_ENUM(EStatField,
     (CpuWait)
     (CpuThrottled)
     (ContextSwitches)
-    (ContextSwitchesDiff)
+    (ContextSwitchesDelta)
     (ThreadCount)
     (CpuLimit)
     (CpuGuarantee)

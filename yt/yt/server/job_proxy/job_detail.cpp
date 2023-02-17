@@ -137,7 +137,7 @@ TSharedRef TJob::DumpSensors()
     YT_UNIMPLEMENTED();
 }
 
-std::optional<NContainers::TCpuStatistics> TJob::GetUserJobCpuStatistics() const
+std::optional<TJobEnvironmentCpuStatistics> TJob::GetUserJobCpuStatistics() const
 {
     return std::nullopt;
 }

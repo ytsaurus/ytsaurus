@@ -914,16 +914,16 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
 
     if (auto environment = FindJobProxyEnvironment()) {
         try {
-            auto cpuStatistics = environment->GetCpuStatistics();
-            cpuStatistics.ValidateStatistics();
+            auto cpuStatistics = environment->GetCpuStatistics()
+                .ValueOrThrow();
             statistics.AddSample("/job_proxy/cpu", cpuStatistics);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Unable to get CPU statistics from resource controller");
         }
 
         try {
-            auto blockIOStatistics = environment->GetBlockIOStatistics();
-            blockIOStatistics.ValidateStatistics();
+            auto blockIOStatistics = environment->GetBlockIOStatistics()
+                .ValueOrThrow();
             statistics.AddSample("/job_proxy/block_io", blockIOStatistics);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Unable to get block IO statistics from resource controller");
@@ -1413,16 +1413,21 @@ TDuration TJobProxy::GetSpentCpuTime() const
 
     if (auto job = FindJob()) {
         if (auto userJobCpu = job->GetUserJobCpuStatistics()) {
-            result += userJobCpu->SystemUsageTime.ValueOrDefault(TDuration::Zero()) +
-                userJobCpu->UserUsageTime.ValueOrDefault(TDuration::Zero());
+            result += userJobCpu->SystemUsageTime +
+                userJobCpu->UserUsageTime;
         }
     }
 
     if (auto environment = FindJobProxyEnvironment()) {
-        auto jobProxyCpu = environment->GetCpuStatistics();
-        jobProxyCpu.ValidateStatistics();
-        result += jobProxyCpu.SystemUsageTime.ValueOrDefault(TDuration::Zero()) +
-            jobProxyCpu.UserUsageTime.ValueOrDefault(TDuration::Zero());
+        auto jobProxyCpu = environment->GetCpuStatistics()
+            .ValueOrThrow();
+
+        if (jobProxyCpu) {
+            result += jobProxyCpu->SystemUsageTime +
+                jobProxyCpu->UserUsageTime;
+        } else {
+            YT_LOG_WARNING("Cannot get cpu statistics from job environment");
+        }
     }
 
     return result;

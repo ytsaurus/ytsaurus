@@ -141,7 +141,7 @@ struct IJob
 
     virtual const NScheduler::TCoreInfos& GetCoreInfos() const = 0;
 
-    virtual std::optional<NContainers::TCpuStatistics> GetUserJobCpuStatistics() const = 0;
+    virtual std::optional<TJobEnvironmentCpuStatistics> GetUserJobCpuStatistics() const = 0;
 
     //! Schematized subset which is more or less common among different kinds of jobs.
     //! Used to reduce boilerplate in job implementations and to explicitly specify

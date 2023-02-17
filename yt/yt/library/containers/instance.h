@@ -19,7 +19,7 @@ const std::vector<EStatField> InstanceStatFields{
     EStatField::CpuWait,
     EStatField::CpuThrottled,
     EStatField::ContextSwitches,
-    EStatField::ContextSwitchesDiff,
+    EStatField::ContextSwitchesDelta,
     EStatField::ThreadCount,
     EStatField::CpuLimit,
     EStatField::CpuGuarantee,

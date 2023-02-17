@@ -422,7 +422,7 @@ public:
             if (auto it = NDetail::PortoStatRules.find(field)) {
                 const auto& rule = it->second;
                 properties.push_back(rule.first);
-            } else if (field == EStatField::ContextSwitchesDiff || field == EStatField::ContextSwitches) {
+            } else if (field == EStatField::ContextSwitchesDelta || field == EStatField::ContextSwitches) {
                 contextSwitchesRequested = true;
             } else if (field == EStatField::CpuUserUsage) {
                 userTimeRequested = true;
@@ -488,7 +488,7 @@ public:
             }
 
             if (contextSwitchesRequested) {
-                result[EStatField::ContextSwitchesDiff] = TotalContextSwitches_;
+                result[EStatField::ContextSwitchesDelta] = TotalContextSwitches_;
             }
         }
 

@@ -1220,11 +1220,11 @@ private:
         }
     }
 
-    std::optional<NContainers::TCpuStatistics> GetUserJobCpuStatistics() const override
+    std::optional<TJobEnvironmentCpuStatistics> GetUserJobCpuStatistics() const override
     {
         try {
-            auto statistic = UserJobEnvironment_->GetCpuStatistics();
-            statistic.ValidateStatistics();
+            auto statistic = UserJobEnvironment_->GetCpuStatistics()
+                .ValueOrThrow();
             return statistic;
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Unable to get CPU statistics for user job");
@@ -1273,17 +1273,17 @@ private:
             }
 
             try {
-                auto blockIOStatistics = UserJobEnvironment_->GetBlockIOStatistics();
-                blockIOStatistics.ValidateStatistics();
+                auto blockIOStatistics = UserJobEnvironment_->GetBlockIOStatistics()
+                    .ValueOrThrow();
                 statistics.AddSample("/user_job/block_io", blockIOStatistics);
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Unable to get block io statistics for user job");
             }
 
             try {
-                auto networkStatistics = UserJobEnvironment_->GetNetworkStatistics();
+                auto networkStatistics = UserJobEnvironment_->GetNetworkStatistics()
+                    .ValueOrThrow();
                 if (networkStatistics) {
-                    networkStatistics->ValidateStatistics();
                     statistics.AddSample("/user_job/network", *networkStatistics);
                 }
             } catch (const std::exception& ex) {
@@ -1572,30 +1572,33 @@ private:
 
     void CheckBlockIOUsage()
     {
-        NContainers::TBlockIOStatistics blockIOStats;
+        std::optional<TJobEnvironmentBlockIOStatistics> blockIOStats;
         try {
-            blockIOStats = UserJobEnvironment_->GetBlockIOStatistics();
-            blockIOStats.ValidateStatistics();
+            blockIOStats = UserJobEnvironment_->GetBlockIOStatistics()
+                .ValueOrThrow();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Unable to get block io statistics to find a woodpecker");
             return;
         }
 
-        if (UserJobSpec_.has_iops_threshold() &&
-            blockIOStats.IOOps.IsOK() &&
-            blockIOStats.IOOps.Value() > static_cast<ui64>(UserJobSpec_.iops_threshold()) &&
-            !Woodpecker_)
-        {
-            YT_LOG_INFO("Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
-                blockIOStats.IOReadOps.IsOK() ? blockIOStats.IOReadOps.Value() : 0,
-                blockIOStats.IOOps.ValueOrThrow(),
-                UserJobSpec_.iops_threshold());
-            Woodpecker_ = true;
+        if (blockIOStats) {
+            if (UserJobSpec_.has_iops_threshold() &&
+                blockIOStats->IOOps > static_cast<ui64>(UserJobSpec_.iops_threshold()) &&
+                !Woodpecker_)
+            {
+                YT_LOG_INFO("Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
+                    blockIOStats->IOReadOps,
+                    blockIOStats->IOOps,
+                    UserJobSpec_.iops_threshold());
+                Woodpecker_ = true;
 
-            if (UserJobSpec_.has_iops_throttler_limit()) {
-                YT_LOG_INFO("Setting IO throttle (Iops: %v)", UserJobSpec_.iops_throttler_limit());
-                UserJobEnvironment_->SetIOThrottle(UserJobSpec_.iops_throttler_limit());
+                if (UserJobSpec_.has_iops_throttler_limit()) {
+                    YT_LOG_INFO("Setting IO throttle (Iops: %v)", UserJobSpec_.iops_throttler_limit());
+                    UserJobEnvironment_->SetIOThrottle(UserJobSpec_.iops_throttler_limit());
+                }
             }
+        } else {
+            YT_LOG_WARNING("Cannot get block io statistics from job environment");
         }
     }
 

@@ -18,11 +18,65 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobEnvironmentCpuStatistics
+{
+    TDuration UserUsageTime;
+    TDuration SystemUsageTime;
+    TDuration WaitTime;
+    TDuration ThrottledTime;
+    ui64 ContextSwitchesDelta;
+    ui64 PeakThreadCount;
+};
+
+void Serialize(const TJobEnvironmentCpuStatistics& statistics, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJobEnvironmentMemoryStatistics
+{
+    ui64 Rss;
+    ui64 MappedFile;
+    ui64 MajorPageFaults;
+};
+
+void Serialize(const TJobEnvironmentMemoryStatistics& statistics, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJobEnvironmentBlockIOStatistics
+{
+    ui64 IOReadByte;
+    ui64 IOWriteByte;
+
+    ui64 IOReadOps;
+    ui64 IOWriteOps;
+    ui64 IOOps;
+};
+
+void Serialize(const TJobEnvironmentBlockIOStatistics& statistics, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJobEnvironmentNetworkStatistics
+{
+    ui64 TxBytes;
+    ui64 TxPackets;
+    ui64 TxDrops;
+
+    ui64 RxBytes;
+    ui64 RxPackets;
+    ui64 RxDrops;
+};
+
+void Serialize(const TJobEnvironmentNetworkStatistics& statistics, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IProfiledEnvironment
     : public virtual TRefCounted
 {
-    virtual NContainers::TCpuStatistics GetCpuStatistics() const = 0;
-    virtual NContainers::TBlockIOStatistics GetBlockIOStatistics() const = 0;
+    virtual TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetCpuStatistics() const = 0;
+    virtual TErrorOr<std::optional<TJobEnvironmentBlockIOStatistics>> GetBlockIOStatistics() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IProfiledEnvironment)
@@ -61,9 +115,9 @@ struct IUserJobEnvironment
 {
     virtual TDuration GetBlockIOWatchdogPeriod() const = 0;
 
-    virtual std::optional<NContainers::TMemoryStatistics> GetMemoryStatistics() const = 0;
+    virtual TErrorOr<std::optional<TJobEnvironmentMemoryStatistics>> GetMemoryStatistics() const = 0;
 
-    virtual std::optional<NContainers::TNetworkStatistics> GetNetworkStatistics() const = 0;
+    virtual TErrorOr<std::optional<TJobEnvironmentNetworkStatistics>> GetNetworkStatistics() const = 0;
 
     virtual void CleanProcesses() = 0;
 
