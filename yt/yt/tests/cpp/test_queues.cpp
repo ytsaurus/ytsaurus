@@ -348,13 +348,15 @@ TEST_W(TQueueApiPermissionsTest, PullConsumer)
     EXPECT_FALSE(rowsetOrError.IsOK());
     EXPECT_TRUE(rowsetOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError));
 
-    Client_->RegisterQueueConsumer(queue->GetPath(), consumer->GetRichPath(), /*vital*/ false);
+    WaitFor(Client_->RegisterQueueConsumer(queue->GetPath(), consumer->GetRichPath(), /*vital*/ false))
+        .ThrowOnError();
 
     auto rowset = WaitFor(userClient->PullConsumer(consumer->GetRichPath(), queue->GetPath(), 0, 0, {}))
         .ValueOrThrow();
     EXPECT_FALSE(rowset->GetRows().empty());
 
-    Client_->UnregisterQueueConsumer(queue->GetRichPath(), consumer->GetPath());
+    WaitFor(Client_->UnregisterQueueConsumer(queue->GetRichPath(), consumer->GetPath()))
+        .ThrowOnError();
 
     rowsetOrError = WaitFor(userClient->PullConsumer(consumer->GetPath(), queue->GetPath(), 0, 0, {}));
     EXPECT_FALSE(rowsetOrError.IsOK());
