@@ -119,11 +119,9 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         orchidRoot,
         "http_proxy");
 
-    // TODO(max42): YT-18401.
-    auto connectionConfig = ConvertTo<NNative::TConnectionCompoundConfigPtr>(Config_->Driver);
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
-    Connection_ = CreateConnection(connectionConfig, connectionOptions);
+    Connection_ = CreateConnection(Config_->ClusterConnection, connectionOptions);
     Connection_->GetClusterDirectorySynchronizer()->Start();
     // Force-start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
@@ -181,13 +179,13 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     AccessChecker_ = CreateAccessChecker(this);
 
-    auto driverV3Config = CloneNode(Config_->Driver);
-    driverV3Config->AsMap()->AddChild("api_version", ConvertToNode<i64>(3));
-    DriverV3_ = CreateDriver(Connection_, ConvertTo<TDriverConfigPtr>(driverV3Config));
+    auto driverV3Config = CloneYsonSerializable(Config_->Driver);
+    driverV3Config->ApiVersion = ApiVersion3;
+    DriverV3_ = CreateDriver(Connection_, driverV3Config);
 
-    auto driverV4Config = CloneNode(Config_->Driver);
-    driverV4Config->AsMap()->AddChild("api_version", ConvertToNode<i64>(4));
-    DriverV4_ = CreateDriver(Connection_, ConvertTo<TDriverConfigPtr>(driverV4Config));
+    auto driverV4Config = CloneYsonSerializable(Config_->Driver);
+    driverV4Config->ApiVersion = ApiVersion4;
+    DriverV4_ = CreateDriver(Connection_, driverV4Config);
 
     AuthenticationManager_ = CreateAuthenticationManager(
         Config_->Auth,

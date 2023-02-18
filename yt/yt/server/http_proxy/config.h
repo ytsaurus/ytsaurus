@@ -193,11 +193,7 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProxyConfig
-    // TODO(max42): YT-18401.
-    // Replace the following two bases with TNativeServerConfig when cluster connection is
-    // taken from "cluster_connection" field instead of "driver".
-    : public TServerConfig
-    , public TNativeSingletonsConfig
+    : public TNativeServerConfig
 {
 public:
     int Port;
@@ -207,7 +203,7 @@ public:
     NHttps::TServerConfigPtr HttpsServer;
     NHttp::TServerConfigPtr TvmOnlyHttpServer;
     NHttps::TServerConfigPtr TvmOnlyHttpsServer;
-    NYTree::INodePtr Driver;
+    NDriver::TDriverConfigPtr Driver;
 
     NAuth::TAuthenticationManagerConfigPtr Auth;
     NAuth::TAuthenticationManagerConfigPtr TvmOnlyAuth;
