@@ -6575,6 +6575,42 @@ void TOperationControllerBase::ValidateUserFileSizes()
         columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
     }
 
+    auto updateOptional = [] (auto& updated, auto patch, auto defaultValue)
+    {
+        if (!updated.has_value()) {
+            if (patch.has_value()) {
+                updated = patch;
+            } else {
+                updated = defaultValue;
+            }
+        } else if (patch.has_value()) {
+            updated = std::min(updated.value(), patch.value());
+        }
+    };
+
+    auto userFileLimitsPatch = New<TUserFileLimitsPatchConfig>();
+    for (const auto& [treeName, _] : PoolTreeControllerSettingsMap_) {
+        auto it = Config->UserFileLimitsPerTree.find(treeName);
+        bool found = it != Config->UserFileLimitsPerTree.end();
+        updateOptional(
+            userFileLimitsPatch->MaxSize,
+            found ? it->second->MaxSize : std::optional<i64>(),
+            Config->UserFileLimits->MaxSize);
+        updateOptional(
+            userFileLimitsPatch->MaxTableDataWeight,
+            found ? it->second->MaxTableDataWeight : std::optional<i64>(),
+            Config->UserFileLimits->MaxTableDataWeight);
+        updateOptional(
+            userFileLimitsPatch->MaxChunkCount,
+            found ? it->second->MaxChunkCount : std::optional<i64>(),
+            Config->UserFileLimits->MaxChunkCount);
+    }
+
+    auto userFileLimits = New<TUserFileLimitsConfig>();
+    userFileLimits->MaxSize = userFileLimitsPatch->MaxSize.value();
+    userFileLimits->MaxTableDataWeight = userFileLimitsPatch->MaxTableDataWeight.value();
+    userFileLimits->MaxChunkCount = userFileLimitsPatch->MaxChunkCount.value();
+
     for (auto& [_, files] : UserJobFiles_) {
         for (const auto& file : files) {
             YT_LOG_DEBUG("Validating user file (FileName: %v, Path: %v, Type: %v, HasColumns: %v)",
@@ -6583,36 +6619,36 @@ void TOperationControllerBase::ValidateUserFileSizes()
                 file.Type,
                 file.Path.GetColumns().operator bool());
             auto chunkCount = file.Type == NObjectClient::EObjectType::File ? file.ChunkCount : file.Chunks.size();
-            if (static_cast<i64>(chunkCount) > Config->MaxUserFileChunkCount) {
+            if (static_cast<i64>(chunkCount) > userFileLimits->MaxChunkCount) {
                 THROW_ERROR_EXCEPTION(
                     "User file %v exceeds chunk count limit: %v > %v",
                     file.Path,
                     chunkCount,
-                    Config->MaxUserFileChunkCount);
+                    userFileLimits->MaxChunkCount);
             }
             if (file.Type == NObjectClient::EObjectType::Table) {
                 i64 dataWeight = 0;
                 for (const auto& chunk : file.Chunks) {
                     dataWeight += chunk->GetDataWeight();
                 }
-                if (dataWeight > Config->MaxUserFileTableDataWeight) {
+                if (dataWeight > userFileLimits->MaxTableDataWeight) {
                     THROW_ERROR_EXCEPTION(
                         "User file table %v exceeds data weight limit: %v > %v",
                         file.Path,
                         dataWeight,
-                        Config->MaxUserFileTableDataWeight);
+                        userFileLimits->MaxTableDataWeight);
                 }
             } else {
                 i64 uncompressedSize = 0;
                 for (const auto& chunkSpec : file.ChunkSpecs) {
                     uncompressedSize += GetChunkUncompressedDataSize(chunkSpec);
                 }
-                if (uncompressedSize > Config->MaxUserFileSize) {
+                if (uncompressedSize > userFileLimits->MaxSize) {
                     THROW_ERROR_EXCEPTION(
                         "User file %v exceeds size limit: %v > %v",
                         file.Path,
                         uncompressedSize,
-                        Config->MaxUserFileSize);
+                        userFileLimits->MaxSize);
                 }
             }
         }
@@ -6831,15 +6867,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
                     file.Account = attributes.Get<TString>("account");
 
-                    i64 chunkCount = attributes.Get<i64>("chunk_count");
-                    if (file.Type == EObjectType::File && chunkCount > Config->MaxUserFileChunkCount) {
-                        THROW_ERROR_EXCEPTION(
-                            "User file %v exceeds chunk count limit: %v > %v",
-                            path,
-                            chunkCount,
-                            Config->MaxUserFileChunkCount);
-                    }
-                    file.ChunkCount = chunkCount;
+                    file.ChunkCount = attributes.Get<i64>("chunk_count");
                     file.ContentRevision = attributes.Get<NHydra::TRevision>("content_revision");
 
                     YT_LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v, SecurityTags: %v, ContentRevision: %x)",

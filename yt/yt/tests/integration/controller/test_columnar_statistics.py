@@ -28,7 +28,9 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "enable_map_job_size_adjustment": False,
-            "max_user_file_table_data_weight": 2000,
+            "user_file_limits": {
+                "max_table_data_weight": 2000,
+            },
             "operation_options": {
                 "spec_template": {
                     "use_columnar_statistics": True,
@@ -595,7 +597,9 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "enable_map_job_size_adjustment": False,
-            "max_user_file_table_data_weight": 2000,
+            "user_file_limits": {
+                "max_table_data_weight": 2000,
+            },
             "operation_options": {
                 "spec_template": {
                     "use_columnar_statistics": True,

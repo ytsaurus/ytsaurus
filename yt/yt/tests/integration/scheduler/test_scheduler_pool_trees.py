@@ -8,10 +8,10 @@ from yt_env_setup import (
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     create, ls,
-    get, set, move, remove, exists, create_pool, create_pool_tree, remove_pool_tree, write_table, map,
-    map_reduce, run_test_vanilla, run_sleeping_vanilla, abort_job, list_jobs, start_transaction, lock,
+    get, set, move, remove, exists, create_pool, create_pool_tree, remove_pool_tree, write_table, write_file,
+    map, map_reduce, run_test_vanilla, run_sleeping_vanilla, abort_job, list_jobs, start_transaction, lock,
     sync_create_cells, update_controller_agent_config, update_op_parameters, create_test_tables,
-    extract_statistic_v2, update_pool_tree_config_option)
+    extract_statistic_v2, update_pool_tree_config_option, raises_yt_error)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path, scheduler_orchid_path,
@@ -696,6 +696,45 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         wait(lambda: frozenset(ls(nodes_orchid_path)) == frozenset(nodes))
         for node, tree in zip(nodes, ["default", "other", YsonEntity()]):
             wait(lambda: get("{}/{}/tree".format(nodes_orchid_path, node)) == tree)
+
+    @authors("ignat")
+    def test_max_user_file_size(self):
+        create_pool_tree(
+            "custom",
+            config={"nodes_filter": "custom_tag"})
+        update_controller_agent_config("user_file_limits/max_size", 1000000)
+        update_controller_agent_config("user_file_limits_per_tree", {"custom": {"max_size": 500000}})
+
+        create("file", "//tmp/job_file")
+        write_file("//tmp/job_file", b"x" * 750000)
+
+        run_test_vanilla(
+            "sleep 1",
+            spec={"pool_trees": ["default"]},
+            task_patch={"file_paths": ["//tmp/job_file"]},
+            track=True)
+
+        with raises_yt_error("exceeds size limit"):
+            run_test_vanilla(
+                "sleep 1",
+                spec={"pool_trees": ["custom"]},
+                task_patch={"file_paths": ["//tmp/job_file"]},
+                track=True)
+
+        with raises_yt_error("exceeds size limit"):
+            run_test_vanilla(
+                "sleep 1",
+                spec={"pool_trees": ["default", "custom"]},
+                task_patch={"file_paths": ["//tmp/job_file"]},
+                track=True)
+
+        update_controller_agent_config("user_file_limits_per_tree/default", {"max_size": 600000})
+        with raises_yt_error("exceeds size limit"):
+            run_test_vanilla(
+                "sleep 1",
+                spec={"pool_trees": ["custom"]},
+                task_patch={"file_paths": ["//tmp/job_file"]},
+                track=True)
 
 
 @authors("renadeen")
