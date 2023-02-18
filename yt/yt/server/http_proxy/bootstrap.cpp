@@ -147,8 +147,8 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
     SetNodeByYPath(
         orchidRoot,
-        "/queue_consumer_registration_manager",
-        CreateVirtualNode(Connection_->GetQueueConsumerRegistrationManager()->GetOrchidService()));
+        "/cluster_connection",
+        CreateVirtualNode(Connection_->GetOrchidService()));
 
     Config_->BusServer->Port = Config_->RpcPort;
     RpcServer_ = NRpc::NBus::CreateBusServer(CreateBusServer(Config_->BusServer));

@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 namespace NYT::NQueueClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +46,8 @@ public:
     void Clear();
 
     //! Exports information about current applied config and cached registrations.
-    NYTree::IYPathServicePtr GetOrchidService() const;
+    // NB: If cache bypass is enabled, this call will always refresh the cache itself.
+    void BuildOrchid(NYTree::TFluentAny fluent);
 
 private:
     const TQueueConsumerRegistrationManagerConfigPtr Config_;
@@ -54,7 +57,6 @@ private:
     const std::optional<TString> ClusterName_;
     const NConcurrency::TPeriodicExecutorPtr ConfigurationRefreshExecutor_;
     const NConcurrency::TPeriodicExecutorPtr CacheRefreshExecutor_;
-    const NYTree::IYPathServicePtr OrchidService_;
     const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConfigurationSpinLock_);
@@ -79,8 +81,7 @@ private:
     TQueueConsumerRegistrationManagerConfigPtr GetDynamicConfig() const;
 
     //! Produces information about cached registrations.
-    // NB: If cache bypass is enabled, this call will always refresh the cache itself.
-    void BuildOrchid(NYson::IYsonConsumer* consumer);
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueConsumerRegistrationManager)
