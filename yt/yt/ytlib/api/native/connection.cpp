@@ -120,6 +120,8 @@ using namespace NYson;
 using namespace NDiscoveryClient;
 using namespace NRpc;
 
+using std::placeholders::_1;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -845,6 +847,7 @@ private:
                     .BeginMap()
                         .Item("channel_attributes").Value(TimestampProviderChannel_->GetEndpointAttributes())
                     .EndMap()
+                .Item("queue_consumer_registration_manager").Do(std::bind(&TQueueConsumerRegistrationManager::BuildOrchid, QueueConsumerRegistrationManager_, _1))
             .EndMap();
     }
 

@@ -68,13 +68,14 @@ TQueueConsumerRegistrationManager::TQueueConsumerRegistrationManager(
         Invoker_,
         BIND(&TQueueConsumerRegistrationManager::RefreshCache, MakeWeak(this)),
         Config_->CacheRefreshPeriod))
-    , OrchidService_(IYPathService::FromProducer(BIND(&TQueueConsumerRegistrationManager::BuildOrchid, MakeWeak(this)))->Via(Invoker_))
     , Logger(logger)
     , DynamicConfig_(Config_)
 { }
 
 void TQueueConsumerRegistrationManager::StartSync() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     YT_LOG_DEBUG("Starting queue consumer registration manager sync");
     ConfigurationRefreshExecutor_->Start();
     CacheRefreshExecutor_->Start();
@@ -82,6 +83,8 @@ void TQueueConsumerRegistrationManager::StartSync() const
 
 void TQueueConsumerRegistrationManager::StopSync() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     YT_LOG_DEBUG("Stopping queue consumer registration manager sync");
     CacheRefreshExecutor_->Stop();
     ConfigurationRefreshExecutor_->Stop();
@@ -91,6 +94,8 @@ std::optional<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::
     const TRichYPath& queue,
     const TRichYPath& consumer)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (!ClusterName_) {
         return {};
     }
@@ -124,6 +129,8 @@ void TQueueConsumerRegistrationManager::RegisterQueueConsumer(
     const TRichYPath& consumer,
     bool vital)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto registrationTableClient = CreateRegistrationTableClientOrThrow();
 
     WaitFor(registrationTableClient->Insert(std::vector{TConsumerRegistrationTableRow{
@@ -138,6 +145,8 @@ void TQueueConsumerRegistrationManager::UnregisterQueueConsumer(
     const TRichYPath& queue,
     const TRichYPath& consumer)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto registrationTableClient = CreateRegistrationTableClientOrThrow();
 
     WaitFor(registrationTableClient->Delete(std::vector{TConsumerRegistrationTableRow{
@@ -149,17 +158,16 @@ void TQueueConsumerRegistrationManager::UnregisterQueueConsumer(
 
 void TQueueConsumerRegistrationManager::Clear()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto guard = WriterGuard(CacheSpinLock_);
     Registrations_.clear();
 }
 
-IYPathServicePtr TQueueConsumerRegistrationManager::GetOrchidService() const
-{
-    return OrchidService_;
-}
-
 void TQueueConsumerRegistrationManager::RefreshCache()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     try {
         GuardedRefreshCache();
     } catch (const std::exception& ex) {
@@ -169,6 +177,8 @@ void TQueueConsumerRegistrationManager::RefreshCache()
 
 void TQueueConsumerRegistrationManager::GuardedRefreshCache()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     YT_LOG_DEBUG("Refreshing queue consumer registration cache");
 
     auto registrationTableClient = CreateRegistrationTableClientOrThrow();
@@ -188,6 +198,8 @@ void TQueueConsumerRegistrationManager::GuardedRefreshCache()
 
 void TQueueConsumerRegistrationManager::RefreshConfiguration()
 {
+    VERIFY_INVOKER_AFFINITY(Invoker_);
+
     try {
         GuardedRefreshConfiguration();
     } catch (const std::exception& ex) {
@@ -197,9 +209,11 @@ void TQueueConsumerRegistrationManager::RefreshConfiguration()
 
 void TQueueConsumerRegistrationManager::GuardedRefreshConfiguration()
 {
+    VERIFY_INVOKER_AFFINITY(Invoker_);
+
     YT_LOG_DEBUG("Refreshing queue consumer registration manager configuration");
 
-    TQueueConsumerRegistrationManagerConfigPtr newConfig = Config_;
+    auto newConfig = Config_;
 
     if (ClusterName_) {
         if (auto localConnection = Connection_.Lock()) {
@@ -245,6 +259,8 @@ void TQueueConsumerRegistrationManager::GuardedRefreshConfiguration()
 
 TConsumerRegistrationTablePtr TQueueConsumerRegistrationManager::CreateRegistrationTableClientOrThrow() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto localConnection = Connection_.Lock();
     if (!localConnection) {
         THROW_ERROR_EXCEPTION("Queue consumer registration cache owning connection expired");
@@ -266,13 +282,17 @@ TConsumerRegistrationTablePtr TQueueConsumerRegistrationManager::CreateRegistrat
 
 TQueueConsumerRegistrationManagerConfigPtr TQueueConsumerRegistrationManager::GetDynamicConfig() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto guard = ReaderGuard(ConfigurationSpinLock_);
     // NB: Always non-null, since it is initialized from the static config in the constructor.
     return DynamicConfig_;
 }
 
-void TQueueConsumerRegistrationManager::BuildOrchid(IYsonConsumer* consumer)
+void TQueueConsumerRegistrationManager::BuildOrchid(TFluentAny fluent)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto config = GetDynamicConfig();
     YT_VERIFY(config);
 
@@ -286,19 +306,20 @@ void TQueueConsumerRegistrationManager::BuildOrchid(IYsonConsumer* consumer)
         registrations = Registrations_;
     }
 
-    BuildYsonFluently(consumer).BeginMap()
-        .Item("effective_config").Value(config)
-        .Item("registrations").DoListFor(registrations, [&] (TFluentList fluent, const auto& pair) {
-            const auto& registration = pair.second;
-            fluent
-                .Item()
-                    .BeginMap()
-                        .Item("queue").Value(registration.Queue)
-                        .Item("consumer").Value(registration.Consumer)
-                        .Item("vital").Value(registration.Vital)
-                    .EndMap();
-        })
-    .EndMap();
+    fluent
+        .BeginMap()
+            .Item("effective_config").Value(config)
+            .Item("registrations").DoListFor(registrations, [&] (TFluentList fluent, const auto& pair) {
+                const auto& registration = pair.second;
+                fluent
+                    .Item()
+                        .BeginMap()
+                            .Item("queue").Value(registration.Queue)
+                            .Item("consumer").Value(registration.Consumer)
+                            .Item("vital").Value(registration.Vital)
+                        .EndMap();
+            })
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

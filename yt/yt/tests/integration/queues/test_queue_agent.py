@@ -2206,7 +2206,7 @@ class TestApiCommands(TestQueueAgentBase):
         # We don't test anything with http proxies in this suite, so there is no point in checking their orchid.
         # In native driver tests there won't be any proxies and the check will pass.
         for proxy in get("//sys/rpc_proxies").keys():
-            orchid_path = f"//sys/rpc_proxies/{proxy}/orchid/queue_consumer_registration_manager"
+            orchid_path = f"//sys/rpc_proxies/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager"
             orchid_registrations = {
                 tuple(r["queue"].split(":") + r["consumer"].split(":") + [r["vital"]])
                 for r in get(f"{orchid_path}/registrations")

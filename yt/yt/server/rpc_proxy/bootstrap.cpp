@@ -197,8 +197,8 @@ void TBootstrap::DoRun()
         CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
     SetNodeByYPath(
         orchidRoot,
-        "/queue_consumer_registration_manager",
-        CreateVirtualNode(NativeConnection_->GetQueueConsumerRegistrationManager()->GetOrchidService()));
+        "/cluster_connection",
+        CreateVirtualNode(NativeConnection_->GetOrchidService()));
     SetBuildAttributes(
         orchidRoot,
         "proxy");
