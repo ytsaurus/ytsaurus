@@ -31,7 +31,7 @@ def _get_timestamp_provider_addresses(yt_config,
         return master_connection_configs[master_connection_configs["primary_cell_tag"]]["addresses"]
 
 
-def build_configs(yt_config, ports_generator, dirs, logs_dir):
+def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version):
     discovery_configs = _build_discovery_server_configs(
         yt_config,
         ports_generator,
@@ -161,7 +161,8 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
-        yt_config=yt_config)
+        yt_config=yt_config,
+        version=binary_to_version["ytserver-http-proxy"])
 
     http_proxy_url = None
     if yt_config.http_proxy_count > 0:
@@ -930,16 +931,26 @@ def _build_http_proxy_config(proxy_dir,
                              cypress_proxy_rpc_ports,
                              ports_generator,
                              logs_dir,
-                             yt_config):
+                             yt_config,
+                             version):
     driver_config = default_config.get_driver_config()
-    update_inplace(driver_config, _build_cluster_connection_config(
+
+    cluster_connection = _build_cluster_connection_config(
         yt_config,
         master_connection_configs,
         clock_connection_config,
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
-        cypress_proxy_rpc_ports))
+        cypress_proxy_rpc_ports)
+
+    # COMPAT(max42)
+    # (22, 4) would suffice in the condition if only REX tests did not use yt binaries from package.
+    # Therefore, this compat may be safely removed even when 23.1 branch is released.
+    # By that moment package in Arcadia is, hopefully, fresh enough, and compat-tests in trunk
+    # are done against 23.1.
+    if version.abi <= (23, 1):
+        update_inplace(driver_config, cluster_connection)
 
     proxy_configs = []
 
@@ -959,9 +970,10 @@ def _build_http_proxy_config(proxy_dir,
         init_jaeger_collector(config, "http_proxy", {"http_proxy_index": str(index)})
 
         config["logging"] = _init_logging(logs_dir, "http-proxy-{}".format(index), yt_config,
-                                                has_structured_logs=True)
+                                          has_structured_logs=True)
 
-        config["driver"] = driver_config
+        config["driver"] = deepcopy(driver_config)
+        config["cluster_connection"] = deepcopy(cluster_connection)
 
         config["zookeeper_proxy"] = {
             "server": {

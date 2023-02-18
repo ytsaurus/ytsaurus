@@ -9,9 +9,14 @@
 #include <yt/yt/library/program/program_config_mixin.h>
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
 #include <yt/yt/library/program/program_setsid_mixin.h>
+
 #include <yt/yt/ytlib/program/helpers.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
+
 #include <yt/yt/core/json/json_parser.h>
+
+#include <yt/yt/core/ytree/convert.h>
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
@@ -22,6 +27,8 @@
 #include <util/system/thread.h>
 
 namespace NYT::NHttpProxy {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,7 +111,9 @@ protected:
         StartDiagnosticDump(config);
 
         if (RemoteClusterProxy_) {
-            config->Driver = DownloadClusterConnection(RemoteClusterProxy_, NHttpProxy::HttpProxyLogger);
+            // Set http proxy cluster connection.
+            auto clusterConnectionNode = DownloadClusterConnection(RemoteClusterProxy_, NHttpProxy::HttpProxyLogger);
+            config->ClusterConnection = ConvertTo<NApi::NNative::TConnectionCompoundConfigPtr>(clusterConnectionNode);
         }
 
         auto bootstrap = New<NHttpProxy::TBootstrap>(std::move(config), std::move(configNode));

@@ -45,7 +45,7 @@
     "address_resolver" = {
         "localhost_fqdn" = "localhost";
     };
-    "driver" = {
+    "cluster_connection" = {
         "master_cell_directory_synchronizer" = {
             "expire_after_successful_update_time" = 500;
             "expire_after_failed_update_time" = 500;
@@ -121,6 +121,7 @@
         };
         "secondary_masters" = [];
     };
+    driver = {};
     "auth" = {
         "blackbox_service" = {};
         "enable_authentication" = %false;

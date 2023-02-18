@@ -345,7 +345,8 @@ class YTInstance(object):
         dirs = self._prepare_directories()
 
         logger.info("Preparing configs")
-        cluster_configuration = build_configs(self.yt_config, ports_generator, dirs, self.logs_path)
+        cluster_configuration = build_configs(
+            self.yt_config, ports_generator, dirs, self.logs_path, self._binary_to_version)
 
         modify_cluster_configuration(self.yt_config, cluster_configuration)
 
