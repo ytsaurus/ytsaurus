@@ -655,6 +655,46 @@ DEFINE_REFCOUNTED_TYPE(TMemoryWatchdogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUserFileLimitsConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Maximum size of file allowed to be passed to jobs.
+    i64 MaxSize;
+    //! Maximum data weight of table file allowed to be passed to jobs.
+    i64 MaxTableDataWeight;
+    //! Maximum chunk count of file allowed to be passed to jobs.
+    i64 MaxChunkCount;
+
+    REGISTER_YSON_STRUCT(TUserFileLimitsConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserFileLimitsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUserFileLimitsPatchConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Maximum size of file allowed to be passed to jobs.
+    std::optional<i64> MaxSize;
+    //! Maximum data weight of table file allowed to be passed to jobs.
+    std::optional<i64> MaxTableDataWeight;
+    //! Maximum chunk count of file allowed to be passed to jobs.
+    std::optional<i64> MaxChunkCount;
+
+    REGISTER_YSON_STRUCT(TUserFileLimitsPatchConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserFileLimitsPatchConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TControllerAgentConfig
     : public TNativeSingletonsDynamicConfig
 {
@@ -848,14 +888,14 @@ public:
     //! Maximum number of ranges on the input table.
     int MaxRangesOnTable;
 
+    TUserFileLimitsConfigPtr UserFileLimits;
+    THashMap<TString, TUserFileLimitsPatchConfigPtr> UserFileLimitsPerTree;
+
     //! Maximum number of files per user job.
     int MaxUserFileCount;
-    //! Maximum size of file allowed to be passed to jobs.
-    i64 MaxUserFileSize;
-    //! Maximum data weight of table file allowed to be passed to jobs.
-    i64 MaxUserFileTableDataWeight;
-    //! Maximum chunk count of file allowed to be passed to jobs.
-    i64 MaxUserFileChunkCount;
+
+    // COMPAT(ignat)
+    std::optional<i64> MaxUserFileSize;
 
     //! Don't check resource demand for sanity if the number of online
     //! nodes is less than this bound.

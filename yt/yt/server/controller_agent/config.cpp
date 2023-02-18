@@ -478,6 +478,26 @@ void TMemoryWatchdogConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
 }
 
+void TUserFileLimitsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_size", &TThis::MaxSize)
+        .Default(10_GB);
+    registrar.Parameter("max_table_data_weight", &TThis::MaxTableDataWeight)
+        .Default(10_GB);
+    registrar.Parameter("max_chunk_count", &TThis::MaxChunkCount)
+        .Default(1000);
+}
+
+void TUserFileLimitsPatchConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_size", &TThis::MaxSize)
+        .Default();
+    registrar.Parameter("max_table_data_weight", &TThis::MaxTableDataWeight)
+        .Default();
+    registrar.Parameter("max_chunk_count", &TThis::MaxChunkCount)
+        .Default();
+}
+
 void TControllerAgentConfig::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -670,16 +690,17 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(100000)
         .GreaterThan(0);
 
+    registrar.Parameter("user_file_limits", &TThis::UserFileLimits)
+        .DefaultNew();
+
+    registrar.Parameter("user_file_limits_per_tree", &TThis::UserFileLimitsPerTree)
+        .Default();
+
     registrar.Parameter("max_user_file_count", &TThis::MaxUserFileCount)
         .Default(1000)
         .GreaterThan(0);
     registrar.Parameter("max_user_file_size", &TThis::MaxUserFileSize)
-        .Alias("max_file_size")
-        .Default(10_GB);
-    registrar.Parameter("max_user_file_table_data_weight", &TThis::MaxUserFileTableDataWeight)
-        .Default(10_GB);
-    registrar.Parameter("max_user_file_chunk_count", &TThis::MaxUserFileChunkCount)
-        .Default(1000);
+        .Default();
 
     registrar.Parameter("max_input_table_count", &TThis::MaxInputTableCount)
         .Default(1000)
@@ -1015,6 +1036,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
         if (config->TotalControllerMemoryLimit) {
             config->MemoryWatchdog->TotalControllerMemoryLimit = config->TotalControllerMemoryLimit;
+        }
+
+        if (config->MaxUserFileSize) {
+            config->UserFileLimits->MaxSize = *config->MaxUserFileSize;
         }
     });
 }
