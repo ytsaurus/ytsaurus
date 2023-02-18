@@ -205,8 +205,8 @@ void TJobMetrics::Persist(const TPersistenceContext& context)
 TJobMetrics& operator+=(TJobMetrics& lhs, const TJobMetrics& rhs)
 {
     std::transform(lhs.Values_.begin(), lhs.Values_.end(), rhs.Values_.begin(), lhs.Values_.begin(), std::plus<i64>());
-    for (const auto& [jobMetriDescription, value] : rhs.CustomValues_) {
-        lhs.CustomValues()[jobMetriDescription] += value;
+    for (const auto& [jobMetricDescription, value] : rhs.CustomValues_) {
+        lhs.CustomValues()[jobMetricDescription] += value;
     }
     return lhs;
 }
