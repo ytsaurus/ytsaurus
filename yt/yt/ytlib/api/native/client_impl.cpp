@@ -478,38 +478,49 @@ IChannelPtr TClient::GetReadCellChannelOrThrow(TTabletCellId cellId)
 
 IChannelPtr TClient::GetHydraAdminChannelOrThrow(TCellId cellId)
 {
-    try {
-        WaitFor(Connection_->GetCellDirectorySynchronizer()->Sync())
-            .ThrowOnError();
-    } catch (const TErrorException& ex) {
-        if (ex.Error().FindMatching(NHydra::EErrorCode::ReadOnly)) {
-            YT_LOG_WARNING(ex, "Skipping cell directory synchronization");
-        } else {
-            throw;
+    const auto& clockServerConfig = Connection_->GetStaticConfig()->ClockServers;
+    const auto& cellDirectory = Connection_->GetCellDirectory();
+
+    auto isClockServerCellId = [&] (TCellId cellId) {
+        return clockServerConfig && clockServerConfig->CellId == cellId;
+    };
+
+    auto isHiveCellId = [&] (TCellId cellId) {
+        return cellDirectory->IsCellRegistered(cellId);
+    };
+
+    auto maybeSyncCellDirectory = [&] {
+        try {
+            SyncCellsIfNeeded({cellId});
+        } catch (const TErrorException& ex) {
+            if (ex.Error().FindMatching(NHydra::EErrorCode::ReadOnly)) {
+                YT_LOG_WARNING(ex, "Skipping cell directory synchronization");
+            } else {
+                throw;
+            }
         }
+    };
+
+    // Currently, clock servers are configured statically and thus don't require
+    // cell directory synchronization. Let's get them out of the way first.
+    if (isClockServerCellId(cellId)) {
+        YT_VERIFY(clockServerConfig);
+        if (!clockServerConfig->Addresses) {
+            THROW_ERROR_EXCEPTION("Clock server addresses are empty");
+        }
+        auto channel = CreatePeerChannel(clockServerConfig, Connection_->GetChannelFactory(), EPeerKind::Leader);
+        return CreateRetryingChannel(clockServerConfig, std::move(channel));
     }
 
-    auto channel = [&] {
-        const auto& cellDirectory = Connection_->GetCellDirectory();
-        if (cellDirectory->IsCellRegistered(cellId)) {
-            return cellDirectory->GetChannelByCellIdOrThrow(cellId);
-        }
+    maybeSyncCellDirectory();
 
-        auto config = Connection_->GetStaticConfig()->ClockServers;
-        if (config && config->CellId == cellId) {
-            if (!config->Addresses) {
-                THROW_ERROR_EXCEPTION("Clock server addresses are empty");
-            }
-            return CreatePeerChannel(config, Connection_->GetChannelFactory(), EPeerKind::Leader);
-        }
+    if (isHiveCellId(cellId)) {
+        auto channel = cellDirectory->GetChannelByCellIdOrThrow(cellId);
+        return CreateRetryingChannel(Connection_->GetConfig()->HydraAdminChannel, std::move(channel));
+    }
 
-        THROW_ERROR_EXCEPTION("Unknown cell %v",
-            cellId);
-    }();
-
-    return CreateRetryingChannel(
-        Connection_->GetConfig()->HydraAdminChannel,
-        std::move(channel));
+    THROW_ERROR_EXCEPTION("Unknown cell %v",
+        cellId);
 }
 
 TCellDescriptorPtr TClient::GetCellDescriptorOrThrow(TCellId cellId)
