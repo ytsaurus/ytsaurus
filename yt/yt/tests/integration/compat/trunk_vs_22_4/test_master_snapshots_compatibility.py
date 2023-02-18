@@ -32,7 +32,7 @@ class MasterSnapshotsCompatibilityBase(YTEnvSetup):
     }
 
     ARTIFACT_COMPONENTS = {
-        "22_3": ["master"],
+        "22_4": ["master"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "node", "job-proxy", "exec", "tools"],
     }
 
@@ -104,7 +104,7 @@ class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
 
 class TestTabletCellsSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
     ARTIFACT_COMPONENTS = {
-        "22_3": ["master", "node"],
+        "22_4": ["master", "node"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "job-proxy", "exec", "tools"],
     }
 
