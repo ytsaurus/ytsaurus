@@ -56,6 +56,8 @@ public:
 
     double ParameterizedDeviationThreshold;
 
+    TString DefaultParameterizedMetric;
+
     TTimeFormula Schedule;
 
     REGISTER_YSON_STRUCT(TTabletBalancerDynamicConfig);

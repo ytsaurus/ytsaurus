@@ -131,12 +131,22 @@ TBundleState::TBundleState(
     , Counters_(New<TBundleProfilingCounters>(Profiler_))
 { }
 
-void TBundleState::UpdateBundleAttributes(const IAttributeDictionary* attributes)
+void TBundleState::UpdateBundleAttributes(
+    const IAttributeDictionary* attributes,
+    const TString& defaultParameterizedMetric)
 {
     Health_ = attributes->Get<ETabletCellHealth>("health");
-    Bundle_->Config = attributes->Get<TBundleTabletBalancerConfigPtr>("tablet_balancer_config");
     CellIds_ = attributes->Get<std::vector<TTabletCellId>>("tablet_cell_ids");
     HasUntrackedUnfinishedActions_ = false;
+
+    try {
+        Bundle_->Config = attributes->Get<TBundleTabletBalancerConfigPtr>("tablet_balancer_config");
+        PatchBundleConfig(Bundle_->Config, defaultParameterizedMetric);
+    } catch (const std::exception& ex) {
+        // TODO(alexelexa): show such errors in orchid
+        YT_LOG_ERROR(ex, "Error parsing bundle attribute \"tablet_balancer_config\", skip bundle balancing iteration");
+        Bundle_->Config.Reset();
+    }
 }
 
 TFuture<void> TBundleState::UpdateState()
@@ -229,13 +239,28 @@ bool TBundleState::IsTableBalancingAllowed(const TTableSettings& table) const
     }
 
     return table.Config->EnableAutoTabletMove ||
-        table.Config->EnableAutoReshard ||
-        table.EnableParameterizedBalancing;
+        table.Config->EnableAutoReshard;
 }
 
 bool TBundleState::IsParameterizedBalancingEnabled() const
 {
-    return !Bundle_->Config->ParameterizedBalancingMetric.empty();
+    for (const auto& [id, table] : Bundle_->Tables) {
+        if (table->InMemoryMode == EInMemoryMode::None) {
+            // Limits are not checked for ordinary tables.
+            continue;
+        }
+
+        auto groupName = table->GetBalancingGroup();
+        if (!groupName) {
+            continue;
+        }
+
+        const auto& groupConfig = GetOrCrash(Bundle_->Config->Groups, *groupName);
+        if (groupConfig->Type == EBalancingType::Parameterized && groupConfig->Enable) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void TBundleState::DoFetchStatistics()
@@ -262,7 +287,6 @@ void TBundleState::DoFetchStatistics()
         table->Dynamic = tableSettings.Dynamic;
         table->TableConfig = tableSettings.Config;
         table->InMemoryMode = tableSettings.InMemoryMode;
-        table->EnableParameterizedBalancing = tableSettings.EnableParameterizedBalancing;
 
         // Remove all tablets and write again (with statistics and other parameters).
         // This allows you to overwrite indexes correctly (Tablets[index].Index == index) and remove old tablets.
@@ -499,7 +523,6 @@ THashMap<TTableId, TBundleState::TTableSettings> TBundleState::FetchActualTableS
         Bundle_->Tables,
         [] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
             request->set_fetch_balancing_attributes(true);
-            request->add_user_attribute_keys("enable_parameterized_balancing");
         });
 
     THashMap<TTableId, TTableSettings> tableConfigs;
@@ -519,19 +542,12 @@ THashMap<TTableId, TBundleState::TTableSettings> TBundleState::FetchActualTableS
                 continue;
             }
 
-            bool enableParameterizedBalancing = false;
-            const auto& enableParameterizedBalancingProto = response.user_attributes()[0];
-            if (!enableParameterizedBalancingProto.empty()) {
-                enableParameterizedBalancing = ConvertTo<bool>(TYsonString(enableParameterizedBalancingProto));
-            }
-
             const auto& attributes = response.balancing_attributes();
             EmplaceOrCrash(tableConfigs, tableId, TTableSettings{
                 .Config = ConvertTo<TTableTabletBalancerConfigPtr>(
                     TYsonStringBuf(attributes.tablet_balancer_config())),
                 .InMemoryMode = FromProto<EInMemoryMode>(attributes.in_memory_mode()),
                 .Dynamic = attributes.dynamic(),
-                .EnableParameterizedBalancing = enableParameterizedBalancing,
             });
         }
     }
@@ -580,7 +596,7 @@ THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundle
                     .Statistics = BuildTabletStatistics(
                         tablet.statistics(),
                         statisticsFieldNames,
-                        /*saveOriginalNode*/ table->EnableParameterizedBalancing),
+                        /*saveOriginalNode*/ table->IsParameterizedBalancingEnabled()),
                     .PerformanceCounters = tablet.performance_counters(),
                 });
 

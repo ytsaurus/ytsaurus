@@ -7,6 +7,7 @@
 namespace NYT::NTabletBalancer {
 
 const TTimeFormula DefaultTabletBalancerSchedule = MakeTimeFormula("minutes % 5 == 0");
+const TString DefaultParameterizedMetricFormula = "double([/performance_counters/dynamic_row_write_data_weight_10m_rate])";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +43,8 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default(0.1)
         .GreaterThanOrEqual(0);
 
+    registrar.Parameter("default_parameterized_formula", &TThis::DefaultParameterizedMetric)
+        .Default(DefaultParameterizedMetricFormula);
     registrar.Parameter("schedule", &TThis::Schedule)
         .Default(DefaultTabletBalancerSchedule);
     registrar.Parameter("period", &TThis::Period)

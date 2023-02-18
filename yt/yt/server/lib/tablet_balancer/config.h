@@ -9,10 +9,48 @@
 
 namespace NYT::NTabletBalancer {
 
+const TString DefaultGroupName = "default";
+const TString LegacyGroupName = "legacy";
+const TString LegacyInMemoryGroupName = "legacy_in_memory";
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TParameterizedBalancingConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TString Metric;
+    std::optional<i64> MaxActionCount;
+
+    REGISTER_YSON_STRUCT(TParameterizedBalancingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TParameterizedBalancingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTabletBalancingGroupConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enable;
+    EBalancingType Type;
+    TParameterizedBalancingConfigPtr Parameterized;
+    TTimeFormula Schedule;
+
+    REGISTER_YSON_STRUCT(TTabletBalancingGroupConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletBalancingGroupConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Frozen.
-class TBundleTabletBalancerConfig
+class TMasterBundleTabletBalancerConfig
     : public NYTree::TYsonStruct
 {
 public:
@@ -43,6 +81,24 @@ public:
     //! Formula for calculating the metric of one tablet in parameterized balancing.
     TString ParameterizedBalancingMetric;
 
+    REGISTER_YSON_STRUCT(TMasterBundleTabletBalancerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterBundleTabletBalancerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBundleTabletBalancerConfig
+    : public TMasterBundleTabletBalancerConfig
+{
+public:
+    bool EnableParameterizedByDefault;
+    std::optional<TString> DefaultInMemoryGroup;
+
+    THashMap<TString, TTabletBalancingGroupConfigPtr> Groups;
+
     REGISTER_YSON_STRUCT(TBundleTabletBalancerConfig);
 
     static void Register(TRegistrar registrar);
@@ -53,7 +109,7 @@ DEFINE_REFCOUNTED_TYPE(TBundleTabletBalancerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Frozen.
-class TTableTabletBalancerConfig
+class TMasterTableTabletBalancerConfig
     : public NYTree::TYsonStruct
 {
 public:
@@ -67,7 +123,7 @@ public:
     std::optional<int> MinTabletCount;
     bool EnableVerboseLogging;
 
-    REGISTER_YSON_STRUCT(TTableTabletBalancerConfig);
+    REGISTER_YSON_STRUCT(TMasterTableTabletBalancerConfig);
 
     static void Register(TRegistrar registrar);
 
@@ -85,7 +141,29 @@ private:
     void SetTabletSizeConstraint(std::optional<i64>* member, std::optional<i64> value);
 };
 
+DEFINE_REFCOUNTED_TYPE(TMasterTableTabletBalancerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTableTabletBalancerConfig
+    : public TMasterTableTabletBalancerConfig
+{
+public:
+    std::optional<bool> EnableParameterized;
+    std::optional<TString> Group;
+
+    REGISTER_YSON_STRUCT(TTableTabletBalancerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
 DEFINE_REFCOUNTED_TYPE(TTableTabletBalancerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PatchBundleConfig(
+    const TBundleTabletBalancerConfigPtr& config,
+    const TString& defaultParameterizedMetric);
 
 ////////////////////////////////////////////////////////////////////////////////
 

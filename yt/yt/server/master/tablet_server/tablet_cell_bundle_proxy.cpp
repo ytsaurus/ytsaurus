@@ -239,7 +239,7 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::TabletBalancerConfig:
-                cellBundle->TabletBalancerConfig() = ConvertTo<TBundleTabletBalancerConfigPtr>(value);
+                cellBundle->TabletBalancerConfig() = ConvertTo<TMasterBundleTabletBalancerConfigPtr>(value);
                 return true;
 
             case EInternedAttributeKey::BundleControllerTargetConfig:

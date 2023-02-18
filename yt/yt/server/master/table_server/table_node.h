@@ -64,7 +64,7 @@ private:
         std::optional<NHydra::TRevision> ForcedHunkCompactionRevision;
         std::optional<NHydra::TRevision> ForcedChunkViewCompactionRevision;
         bool Dynamic = false;
-        NTabletBalancer::TTableTabletBalancerConfigPtr TabletBalancerConfig = New<NTabletBalancer::TTableTabletBalancerConfig>();
+        NTabletBalancer::TMasterTableTabletBalancerConfigPtr TabletBalancerConfig = New<NTabletBalancer::TMasterTableTabletBalancerConfig>();
         THashMap<NTransactionClient::TTransactionId, TDynamicTableLock> DynamicTableLocks;
         int UnconfirmedDynamicTableLockCount = 0;
         std::optional<bool> EnableDynamicStoreRead;

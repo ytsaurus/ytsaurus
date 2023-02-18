@@ -1383,7 +1383,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
 
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* lockedTable = LockThisImpl(lockRequest);
-            lockedTable->MutableTabletBalancerConfig() = ConvertTo<NTabletBalancer::TTableTabletBalancerConfigPtr>(value);
+            lockedTable->MutableTabletBalancerConfig() = ConvertTo<NTabletBalancer::TMasterTableTabletBalancerConfigPtr>(value);
             return true;
         }
 

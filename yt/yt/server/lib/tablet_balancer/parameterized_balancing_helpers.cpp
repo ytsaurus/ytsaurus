@@ -53,9 +53,10 @@ public:
     TParameterizedReassignSolver(
         TTabletCellBundlePtr bundle,
         std::vector<TString> performanceCountersKeys,
-        bool ignoreTableWiseConfig,
         int maxMoveActionCount,
         double deviationThreshold,
+        TParameterizedBalancingConfigPtr groupConfig,
+        TGroupName groupName,
         const TLogger& logger);
 
     std::vector<TMoveDescriptor> BuildActionDescriptors() override;
@@ -72,9 +73,10 @@ private:
     const TTabletCellBundlePtr Bundle_;
     const TLogger Logger;
     const int MaxMoveActionCount_;
-    const bool IgnoreTableWiseConfig_;
     const std::vector<TString> PerformanceCountersKeys_;
     const double DeviationThreshold_;
+    const TParameterizedBalancingConfigPtr GroupConfig_;
+    const TGroupName GroupName_;
 
     std::vector<TTabletCellPtr> Cells_;
 
@@ -128,16 +130,18 @@ private:
 TParameterizedReassignSolver::TParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
     std::vector<TString> performanceCountersKeys,
-    bool ignoreTableWiseConfig,
     int maxMoveActionCount,
     double deviationThreshold,
+    TParameterizedBalancingConfigPtr groupConfig,
+    TGroupName groupName,
     const TLogger& logger)
     : Bundle_(std::move(bundle))
     , Logger(logger.WithTag("BundleName: %v", Bundle_->Name))
-    , MaxMoveActionCount_(maxMoveActionCount)
-    , IgnoreTableWiseConfig_(ignoreTableWiseConfig)
+    , MaxMoveActionCount_(groupConfig->MaxActionCount.value_or(maxMoveActionCount))
     , PerformanceCountersKeys_(std::move(performanceCountersKeys))
     , DeviationThreshold_(deviationThreshold)
+    , GroupConfig_(std::move(groupConfig))
+    , GroupName_(std::move(groupName))
 { }
 
 void TParameterizedReassignSolver::Initialize()
@@ -148,22 +152,26 @@ void TParameterizedReassignSolver::Initialize()
     Cells_ = Bundle_->GetAliveCells();
 
     Evaluator_ = NOrm::NQuery::CreateExpressionEvaluator(
-        Bundle_->Config->ParameterizedBalancingMetric,
+        GroupConfig_->Metric,
         ParameterizedBalancingAttributes);
 
     for (const auto& cell : Cells_) {
         double cellMetric = 0;
 
         for (const auto& [tabletId, tablet] : cell->Tablets) {
-            if (!IgnoreTableWiseConfig_ && !tablet->Table->EnableParameterizedBalancing) {
-                continue;
-            }
-
             if (TypeFromId(tablet->Table->Id) != EObjectType::Table) {
                 continue;
             }
 
             if (TypeFromId(tabletId) != EObjectType::Tablet) {
+                continue;
+            }
+
+            if (tablet->Table->GetBalancingGroup() != GroupName_) {
+                continue;
+            }
+
+            if (!tablet->Table->IsParameterizedBalancingEnabled()) {
                 continue;
             }
 
@@ -173,7 +181,7 @@ void TParameterizedReassignSolver::Initialize()
                 THROW_ERROR_EXCEPTION("Tablet metric must be nonnegative, got %v", tabletMetric)
                     << TErrorAttribute("tablet_metric_value", tabletMetric)
                     << TErrorAttribute("tablet_id", tabletId)
-                    << TErrorAttribute("metric_formula", Bundle_->Config->ParameterizedBalancingMetric);
+                    << TErrorAttribute("metric_formula", GroupConfig_->Metric);
             } else if (tabletMetric == 0.0) {
                 continue;
             }
@@ -201,6 +209,11 @@ void TParameterizedReassignSolver::Initialize()
 
 void TParameterizedReassignSolver::CalculateMemory()
 {
+    if (Bundle_->NodeMemoryStatistics.empty()) {
+        YT_LOG_DEBUG("Don't calculate memory because there are no in-memory tables with parameterized balancing");
+        return;
+    }
+
     THashMap<TNodeAddress, int> cellCount;
     THashMap<TNodeAddress, i64> actualMemoryUsage;
     THashMap<const TTabletCell*, i64> cellMemoryUsage;
@@ -692,17 +705,19 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
 IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
     std::vector<TString> performanceCountersKeys,
-    bool ignoreTableWiseConfig,
     int moveActionLimit,
     double deviationThreshold,
+    TParameterizedBalancingConfigPtr groupConfig,
+    TGroupName groupName,
     const NLogging::TLogger& logger)
 {
     return New<TParameterizedReassignSolver>(
         std::move(bundle),
         std::move(performanceCountersKeys),
-        ignoreTableWiseConfig,
         moveActionLimit,
         deviationThreshold,
+        std::move(groupConfig),
+        std::move(groupName),
         logger);
 }
 

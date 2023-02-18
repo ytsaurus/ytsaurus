@@ -45,7 +45,7 @@ class TTabletCellBundle
     : public NCellServer::TCellBundle
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(NTabletBalancer::TBundleTabletBalancerConfigPtr, TabletBalancerConfig);
+    DEFINE_BYREF_RW_PROPERTY(NTabletBalancer::TMasterBundleTabletBalancerConfigPtr, TabletBalancerConfig);
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletAction*>, TabletActions);
     DEFINE_BYVAL_RO_PROPERTY(int, ActiveTabletActionCount);

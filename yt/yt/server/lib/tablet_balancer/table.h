@@ -25,14 +25,18 @@ struct TTable final
     TTableTabletBalancerConfigPtr TableConfig;
     std::vector<TTabletPtr> Tablets;
 
-    bool EnableParameterizedBalancing = false;
-
     TTable(
         bool sorted,
         NYPath::TYPath path,
         NObjectClient::TCellTag cellTag,
         TTableId tableId,
         TTabletCellBundle* bundle);
+
+    std::optional<TGroupName> GetBalancingGroup() const;
+
+    bool IsLegacyMoveBalancingEnabled() const;
+
+    bool IsParameterizedBalancingEnabled() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTable)
