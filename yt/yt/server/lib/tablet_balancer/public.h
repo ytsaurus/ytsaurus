@@ -20,6 +20,15 @@ using NTabletClient::TTabletId;
 
 DECLARE_REFCOUNTED_CLASS(TTableTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TBundleTabletBalancerConfig)
+DECLARE_REFCOUNTED_CLASS(TMasterTableTabletBalancerConfig)
+DECLARE_REFCOUNTED_CLASS(TMasterBundleTabletBalancerConfig)
+DECLARE_REFCOUNTED_CLASS(TTabletBalancingGroupConfig)
+DECLARE_REFCOUNTED_CLASS(TParameterizedBalancingConfig)
+
+DEFINE_ENUM(EBalancingType,
+    ((Legacy)         (0))
+    ((Parameterized)  (1))
+);
 
 struct TTabletStatistics;
 struct TTabletCellStatistics;
@@ -33,6 +42,7 @@ struct TReshardDescriptor;
 struct TMoveDescriptor;
 using TActionDescriptor = std::variant<TMoveDescriptor, TReshardDescriptor>;
 using TNodeAddress = TString;
+using TGroupName = TString;
 
 DECLARE_REFCOUNTED_STRUCT(IParameterizedReassignSolver)
 

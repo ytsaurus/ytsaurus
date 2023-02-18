@@ -32,7 +32,7 @@ static const auto& Logger = TabletServerLogger;
 
 TTabletCellBundle::TTabletCellBundle(TTabletCellBundleId id)
     : TCellBundle(id)
-    , TabletBalancerConfig_(New<TBundleTabletBalancerConfig>())
+    , TabletBalancerConfig_(New<TMasterBundleTabletBalancerConfig>())
 { }
 
 void TTabletCellBundle::IncreaseActiveTabletActionCount()

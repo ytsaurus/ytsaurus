@@ -6,7 +6,31 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
+void TParameterizedBalancingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("metric", &TThis::Metric)
+        .Default();
+    registrar.Parameter("max_action_count", &TThis::MaxActionCount)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTabletBalancingGroupConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(true);
+    registrar.Parameter("type", &TThis::Type)
+        .Default(EBalancingType::Parameterized);
+    registrar.Parameter("parameterized", &TThis::Parameterized)
+        .DefaultNew();
+    registrar.Parameter("schedule", &TThis::Schedule)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMasterBundleTabletBalancerConfig::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
 
@@ -89,7 +113,19 @@ void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTableTabletBalancerConfig::Register(TRegistrar registrar)
+void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_parameterized_by_default", &TThis::EnableParameterizedByDefault)
+        .Default(false);
+    registrar.Parameter("default_in_memory_group", &TThis::DefaultInMemoryGroup)
+        .Default();
+    registrar.Parameter("groups", &TThis::Groups)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMasterTableTabletBalancerConfig::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
 
@@ -123,22 +159,22 @@ void TTableTabletBalancerConfig::Register(TRegistrar registrar)
     });
 }
 
-void TTableTabletBalancerConfig::SetMinTabletSize(std::optional<i64> value)
+void TMasterTableTabletBalancerConfig::SetMinTabletSize(std::optional<i64> value)
 {
     SetTabletSizeConstraint(&MinTabletSize, value);
 }
 
-void TTableTabletBalancerConfig::SetDesiredTabletSize(std::optional<i64> value)
+void TMasterTableTabletBalancerConfig::SetDesiredTabletSize(std::optional<i64> value)
 {
     SetTabletSizeConstraint(&DesiredTabletSize, value);
 }
 
-void TTableTabletBalancerConfig::SetMaxTabletSize(std::optional<i64> value)
+void TMasterTableTabletBalancerConfig::SetMaxTabletSize(std::optional<i64> value)
 {
     SetTabletSizeConstraint(&MaxTabletSize, value);
 }
 
-void TTableTabletBalancerConfig::CheckTabletSizeInequalities() const
+void TMasterTableTabletBalancerConfig::CheckTabletSizeInequalities() const
 {
     if (MinTabletSize && DesiredTabletSize && *MinTabletSize > *DesiredTabletSize) {
         THROW_ERROR_EXCEPTION("\"min_tablet_size\" must be less than or equal to \"desired_tablet_size\"");
@@ -151,7 +187,7 @@ void TTableTabletBalancerConfig::CheckTabletSizeInequalities() const
     }
 }
 
-void TTableTabletBalancerConfig::SetTabletSizeConstraint(std::optional<i64>* member, std::optional<i64> value)
+void TMasterTableTabletBalancerConfig::SetTabletSizeConstraint(std::optional<i64>* member, std::optional<i64> value)
 {
     auto oldValue = *member;
     try {
@@ -160,6 +196,50 @@ void TTableTabletBalancerConfig::SetTabletSizeConstraint(std::optional<i64>* mem
     } catch (const std::exception& ex) {
         *member = oldValue;
         throw;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTableTabletBalancerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_parameterized", &TThis::EnableParameterized)
+        .Default();
+    registrar.Parameter("group", &TThis::Group)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PatchBundleConfig(
+    const TBundleTabletBalancerConfigPtr& config,
+    const TString& defaultParameterizedMetric)
+{
+    if (auto it = config->Groups.emplace(DefaultGroupName, New<TTabletBalancingGroupConfig>()); it.second) {
+        it.first->second->Parameterized->Metric = defaultParameterizedMetric;
+    }
+
+    if (auto it = config->Groups.emplace(LegacyGroupName, New<TTabletBalancingGroupConfig>()); it.second) {
+        it.first->second->Type = EBalancingType::Legacy;
+    }
+
+    if (auto it = config->Groups.emplace(LegacyInMemoryGroupName, New<TTabletBalancingGroupConfig>()); it.second) {
+        it.first->second->Type = EBalancingType::Legacy;
+    }
+
+    for (const auto& [groupName, groupConfig] : config->Groups) {
+        switch (groupConfig->Type) {
+            case EBalancingType::Legacy:
+                THROW_ERROR_EXCEPTION_IF(
+                    groupName != LegacyGroupName && groupName != LegacyInMemoryGroupName,
+                    "Group %Qv is not builtin but has legacy type",
+                    groupName);
+                break;
+            case EBalancingType::Parameterized:
+                if (groupConfig->Parameterized->Metric.Empty()) {
+                    groupConfig->Parameterized->Metric = defaultParameterizedMetric;
+                }
+        }
     }
 }
 

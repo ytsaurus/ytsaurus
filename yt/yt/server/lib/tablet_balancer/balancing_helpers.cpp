@@ -474,6 +474,10 @@ std::vector<TMoveDescriptor> ReassignInMemoryTablets(
                 continue;
             }
 
+            if (!tablet->Table->IsLegacyMoveBalancingEnabled()) {
+                continue;
+            }
+
             if (movableTables && !movableTables->contains(tablet->Id)) {
                 continue;
             }
@@ -713,7 +717,7 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
         haveEmptyCells |= cell->Tablets.empty();
 
         for (const auto& [id, tablet] : cell->Tablets) {
-            if (!tablet->Table->TableConfig->EnableAutoTabletMove) {
+            if (!tablet->Table->IsLegacyMoveBalancingEnabled()) {
                 continue;
             }
 
@@ -771,17 +775,19 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
 std::vector<TMoveDescriptor> ReassignTabletsParameterized(
     const TTabletCellBundlePtr& bundle,
     const std::vector<TString>& performanceCountersKeys,
-    bool ignoreTableWiseConfig,
     int maxMoveActionCount,
     double deviationThreshold,
+    const TParameterizedBalancingConfigPtr& groupConfig,
+    const TGroupName& groupName,
     const TLogger& logger)
 {
     auto solver = CreateParameterizedReassignSolver(
         bundle,
         performanceCountersKeys,
-        ignoreTableWiseConfig,
         maxMoveActionCount,
         deviationThreshold,
+        groupConfig,
+        groupName,
         logger);
 
     return solver->BuildActionDescriptors();

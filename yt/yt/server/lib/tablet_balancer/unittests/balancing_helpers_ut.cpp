@@ -201,6 +201,7 @@ TTestBundle CreateTabletCellBundle(
     testBundle.Bundle = New<TTabletCellBundle>("bundle");
     testBundle.Bundle->Config = ConvertTo<TBundleTabletBalancerConfigPtr>(TYsonStringBuf(bundleParams.BundleConfig));
     testBundle.Bundle->Config->EnableVerboseLogging = true;
+    PatchBundleConfig(testBundle.Bundle->Config, "");
 
     auto nodes = ConvertTo<std::vector<TTestNodePtr>>(TYsonStringBuf(bundleParams.Nodes));
     for (const auto& node : nodes) {
@@ -755,24 +756,24 @@ class TTestReassignTabletsParameterized
         /*expectedDescriptors*/ TStringBuf,
         /*moveActionLimit*/ int,
         /*distribution*/ std::vector<int>,
-        /*cellSizes*/ std::vector<i64>,
-        /*enableParameterizedBalancing*/ bool>>
+        /*cellSizes*/ std::vector<i64>>>
 { };
 
 TEST_P(TTestReassignTabletsParameterized, SimpleViaMemorySize)
 {
     const auto& params = GetParam();
     auto bundle = CreateTabletCellBundle(std::get<0>(params));
-    for (const auto& [tableId, table] : bundle.Bundle->Tables) {
-        table->EnableParameterizedBalancing = std::get<5>(params);
-    }
+
+    const auto& table = GetOrCrash(bundle.Bundle->Tables, bundle.TableIds[0]);
+    auto group = table->TableConfig->Group.value_or(DefaultGroupName);
 
     auto descriptors = ReassignTabletsParameterized(
         bundle.Bundle,
         /*performanceCountersKeys*/ {},
-        /*ignoreTableWiseConfig*/ false,
         /*moveActionLimit*/ std::get<2>(params),
         /*deviationThreshold*/ 0.0,
+        GetOrCrash(bundle.Bundle->Config->Groups, group)->Parameterized,
+        group,
         Logger);
 
     auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));
@@ -840,41 +841,56 @@ INSTANTIATE_TEST_SUITE_P(
             TTestBundleParams{
                 .Nodes = "[{node_address=home; used=100}]",
                 .Cells = "[{memory_size=100; node_address=home}; {memory_size=0; node_address=home}]",
-                .BundleConfig = "{parameterized_balancing_metric=\"int64([/statistics/memory_size]) + int64([/statistics/uncompressed_data_size])\"}",
+                .BundleConfig = "{groups={rex={parameterized={metric=\"int64([/statistics/memory_size]) + int64([/statistics/uncompressed_data_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
                         .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{}",
+                        .TableConfig = "{enable_parameterized=true; group=rex}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}},
             /*moveDescriptors*/ "[]",
             /*moveActionLimit*/ 0,
             /*distribution*/ std::vector<int>{2, 0},
-            /*cellSizes*/ std::vector<i64>{100, 0},
-            /*enableParameterizedBalancing*/ true),
+            /*cellSizes*/ std::vector<i64>{100, 0}),
         std::make_tuple( // MOVE
             TTestBundleParams{
                 .Nodes = "[{node_address=home; used=100; limit=100}]",
                 .Cells = "[{memory_size=100; node_address=home}; {memory_size=0; node_address=home}]",
-                .BundleConfig = "{parameterized_balancing_metric=\"double([/statistics/memory_size])\"}",
+                .BundleConfig = "{groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
                         .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{}",
+                        .TableConfig = "{enable_parameterized=true}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=60}"},
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=40}"}}}}},
             /*moveDescriptors*/ "[{tablet_index=1; cell_index=1};]",
             /*moveActionLimit*/ 1,
             /*distribution*/ std::vector<int>{1, 1},
-            /*cellSizes*/ std::vector<i64>{60, 40},
-            /*enableParameterizedBalancing*/ true),
+            /*cellSizes*/ std::vector<i64>{60, 40}),
+        std::make_tuple( // MOVE (group)
+            TTestBundleParams{
+                .Nodes = "[{node_address=home; used=0; limit=200}]",
+                .Cells = "[{memory_size=100; node_address=home}; {memory_size=0; node_address=home}]",
+                .BundleConfig = "{groups={rex={parameterized={metric=\"0\"}}; "
+                    "fex={parameterized={metric=\"int64([/statistics/memory_size]) + int64([/statistics/uncompressed_data_size])\"}}}}",
+                .Tables = std::vector<TTestTableParams>{
+                    TTestTableParams{
+                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
+                        .TableConfig = "{group=fex; enable_parameterized=true}",
+                        .Tablets = std::vector<TStringBuf>{
+                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=60}"},
+                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=40}"}}}}},
+            /*moveDescriptors*/ "[{tablet_index=1; cell_index=1};]",
+            /*moveActionLimit*/ 1,
+            /*distribution*/ std::vector<int>{1, 1},
+            /*cellSizes*/ std::vector<i64>{60, 40}),
         std::make_tuple( // SWAP (available action count is more than needed)
             TTestBundleParams{
                 .Nodes = "[{node_address=home; used=0; limit=200}]",
                 .Cells = "[{memory_size=70; node_address=home}; {memory_size=50; node_address=home}]",
-                .BundleConfig = "{parameterized_balancing_metric=\"double([/statistics/memory_size])\"}",
+                .BundleConfig = "{enable_parameterized_by_default=true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
                         .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
@@ -887,13 +903,12 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveDescriptors*/ "[{tablet_index=1; cell_index=1}; {tablet_index=2; cell_index=0};]",
             /*moveActionLimit*/ 3,
             /*distribution*/ std::vector<int>{2, 2},
-            /*cellSizes*/ std::vector<i64>{60, 60},
-            /*enableParameterizedBalancing*/ true),
+            /*cellSizes*/ std::vector<i64>{60, 60}),
         std::make_tuple( // DISABLE BALANCING
             TTestBundleParams{
                 .Nodes = "[{node_address=home; used=100; limit=200}]",
                 .Cells = "[{memory_size=100; node_address=home}; {memory_size=0; node_address=home}]",
-                .BundleConfig = "{parameterized_balancing_metric=\"int64([/statistics/memory_size]) + int64([/statistics/uncompressed_data_size])\"}",
+                .BundleConfig = "{groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
                         .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
@@ -904,8 +919,23 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveDescriptors*/ "[]",
             /*moveActionLimit*/ 3,
             /*distribution*/ std::vector<int>{2, 0},
-            /*cellSizes*/ std::vector<i64>{100, 0},
-            /*enableParameterizedBalancing*/ false)));
+            /*cellSizes*/ std::vector<i64>{100, 0}),
+        std::make_tuple( // DISABLE BALANCING HARD
+            TTestBundleParams{
+                .Nodes = "[{node_address=home; used=100; limit=200}]",
+                .Cells = "[{memory_size=100; node_address=home}; {memory_size=0; node_address=home}]",
+                .BundleConfig = "{groups={default={parameterized={metric=\"1\"}}}}",
+                .Tables = std::vector<TTestTableParams>{
+                    TTestTableParams{
+                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
+                        .TableConfig = "{enable_parameterized=false}",
+                        .Tablets = std::vector<TStringBuf>{
+                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
+                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}},
+            /*moveDescriptors*/ "[]",
+            /*moveActionLimit*/ 3,
+            /*distribution*/ std::vector<int>{2, 0},
+            /*cellSizes*/ std::vector<i64>{100, 0})));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -920,17 +950,18 @@ TEST_P(TTestReassignTabletsParameterizedErrors, BalancingError)
 {
     const auto& params = GetParam();
     auto bundle = CreateTabletCellBundle(std::get<0>(params));
-    for (const auto& [tableId, table] : bundle.Bundle->Tables) {
-        table->EnableParameterizedBalancing = true;
-    }
+
+    const auto& table = GetOrCrash(bundle.Bundle->Tables, bundle.TableIds[0]);
+    auto group = table->TableConfig->Group.value_or(DefaultGroupName);
 
     EXPECT_THROW_WITH_SUBSTRING(
         ReassignTabletsParameterized(
             bundle.Bundle,
             /*performanceCountersKeys*/ {},
-            /*ignoreTableWiseConfig*/ false,
             /*moveActionLimit*/ 3,
             /*deviationThreshold*/ 0.0,
+            GetOrCrash(bundle.Bundle->Config->Groups, group)->Parameterized,
+            group,
             Logger),
         ToString(std::get<1>(params)));
 }
@@ -943,7 +974,7 @@ INSTANTIATE_TEST_SUITE_P(
             TTestBundleParams{
                 .Nodes = "[{node_address=home; used=0; limit=200}]",
                 .Cells = "[{memory_size=70; node_address=home}; {memory_size=50}]",
-                .BundleConfig = "{parameterized_balancing_metric=\"double([/statistics/memory_size])\"}",
+                .BundleConfig = "{groups={default={parameterized={metric=\"double([/statistics/memory_size]\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
                         .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
@@ -958,7 +989,7 @@ INSTANTIATE_TEST_SUITE_P(
             TTestBundleParams{
                 .Nodes = "[{node_address=home; used=0; limit=100}]",
                 .Cells = "[{memory_size=70; node_address=home}; {memory_size=50; node_address=home}]",
-                .BundleConfig = "{parameterized_balancing_metric=\"double([/statistics/memory_size])\"}",
+                .BundleConfig = "{groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
                         .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
@@ -980,16 +1011,17 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, SimpleManyNodesWithInMemoryTabl
 {
     const auto& params = GetParam();
     auto bundle = CreateTabletCellBundle(std::get<0>(params));
-    for (const auto& [tableId, table] : bundle.Bundle->Tables) {
-        table->EnableParameterizedBalancing = std::get<5>(params);
-    }
+    const auto& table = GetOrCrash(bundle.Bundle->Tables, bundle.TableIds[0]);
+
+    auto group = table->TableConfig->Group.value_or(DefaultGroupName);
 
     auto descriptors = ReassignTabletsParameterized(
         bundle.Bundle,
         /*performanceCountersKeys*/ {},
-        /*ignoreTableWiseConfig*/ false,
         /*moveActionLimit*/ std::get<2>(params),
         /*deviationThreshold*/ 0.0,
+        GetOrCrash(bundle.Bundle->Config->Groups, group)->Parameterized,
+        group,
         Logger);
 
     auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));
@@ -1078,7 +1110,7 @@ INSTANTIATE_TEST_SUITE_P(
             TTestBundleParams{
                 .Nodes = "[{node_address=home1; used=120}; {node_address=home2; used=0}]",
                 .Cells = "[{memory_size=70; node_address=home1}; {memory_size=50; node_address=home1}; {memory_size=0; node_address=home2}]",
-                .BundleConfig = "{parameterized_balancing_metric=\"double([/statistics/memory_size])\"}",
+                .BundleConfig = "{enable_parameterized_by_default=true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
                         .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
@@ -1091,13 +1123,12 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveDescriptors*/ "[{tablet_index=0; cell_index=2}; {tablet_index=2; cell_index=0}]",
             /*moveActionLimit*/ 2,
             /*distribution*/ std::vector<int>{2, 1, 1},
-            /*cellSizes*/ std::vector<i64>{30, 40, 50},
-            /*enableParameterizedBalancing*/ true),
+            /*cellSizes*/ std::vector<i64>{30, 40, 50}),
         std::make_tuple(
             TTestBundleParams{
                 .Nodes = "[{node_address=home1; used=60; limit=60}; {node_address=home2; used=0; limit=5}]",
                 .Cells = "[{memory_size=40; node_address=home1}; {memory_size=20; node_address=home1}; {memory_size=0; node_address=home2}]",
-                .BundleConfig = "{parameterized_balancing_metric=\"double([/statistics/memory_size])\"}",
+                .BundleConfig = "{enable_parameterized_by_default=true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
                         .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
@@ -1110,13 +1141,12 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveDescriptors*/ "[{tablet_index=0; cell_index=1}; {tablet_index=2; cell_index=0}]",
             /*moveActionLimit*/ 2,
             /*distribution*/ std::vector<int>{2, 2, 0},
-            /*cellSizes*/ std::vector<i64>{30, 30, 0},
-            /*enableParameterizedBalancing*/ true),
+            /*cellSizes*/ std::vector<i64>{30, 30, 0}),
         std::make_tuple(
             TTestBundleParams{
                 .Nodes = "[{node_address=home1; used=40; limit=60}; {node_address=home2; used=20; limit=20}]",
                 .Cells = "[{memory_size=40; node_address=home1}; {memory_size=20; node_address=home2}]",
-                .BundleConfig = "{parameterized_balancing_metric=\"double([/statistics/memory_size])\"}",
+                .BundleConfig = "{enable_parameterized_by_default=true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
                         .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
@@ -1129,13 +1159,12 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveDescriptors*/ "[]",
             /*moveActionLimit*/ 2,
             /*distribution*/ std::vector<int>{2, 2},
-            /*cellSizes*/ std::vector<i64>{40, 20},
-            /*enableParameterizedBalancing*/ true),
+            /*cellSizes*/ std::vector<i64>{40, 20}),
         std::make_tuple(
             TTestBundleParams{
                 .Nodes = "[{node_address=home1; used=50; limit=60}; {node_address=home2; used=10; limit=20}]",
                 .Cells = "[{memory_size=50; node_address=home1}; {memory_size=10; node_address=home2}]",
-                .BundleConfig = "{parameterized_balancing_metric=\"double([/statistics/memory_size])\"}",
+                .BundleConfig = "{enable_parameterized_by_default=true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
                         .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
@@ -1148,8 +1177,7 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveDescriptors*/ "[{tablet_index=2; cell_index=1}]",
             /*moveActionLimit*/ 2,
             /*distribution*/ std::vector<int>{2, 2},
-            /*cellSizes*/ std::vector<i64>{40, 20},
-            /*enableParameterizedBalancing*/ true)));
+            /*cellSizes*/ std::vector<i64>{40, 20})));
 
 ////////////////////////////////////////////////////////////////////////////////
 

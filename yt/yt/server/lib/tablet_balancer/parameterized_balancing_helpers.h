@@ -32,9 +32,10 @@ DEFINE_REFCOUNTED_TYPE(IParameterizedReassignSolver)
 IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
     std::vector<TString> performanceCountersKeys,
-    bool ignoreTableWiseConfig,
     int maxMoveActionCount,
     double deviationThreshold,
+    TParameterizedBalancingConfigPtr groupConfig,
+    TString groupName,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -64,7 +64,9 @@ public:
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker);
 
-    void UpdateBundleAttributes(const NYTree::IAttributeDictionary* attributes);
+    void UpdateBundleAttributes(
+        const NYTree::IAttributeDictionary* attributes,
+        const TString& defaultParameterizedMetric);
 
     bool IsParameterizedBalancingEnabled() const;
 
@@ -83,7 +85,6 @@ private:
         TTableTabletBalancerConfigPtr Config;
         EInMemoryMode InMemoryMode;
         bool Dynamic;
-        bool EnableParameterizedBalancing = false;
     };
 
     struct TTabletStatisticsResponse

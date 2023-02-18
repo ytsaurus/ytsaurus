@@ -3,7 +3,7 @@ from .test_tablet_actions import TabletBalancerBase
 
 from yt_commands import (
     authors, set, get, ls, update, wait, sync_mount_table, sync_reshard_table,
-    insert_rows, sync_create_cells, sync_flush_table)
+    insert_rows, sync_create_cells, sync_flush_table, remove)
 
 from yt.common import update_inplace
 
@@ -91,6 +91,13 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         assert self._get_enable_tablet_balancer()
         assert get("//sys/tablet_balancer/config/enable_everywhere")
 
+    @authors("alexelexa")
+    def test_non_existent_group_config(self):
+        self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@tablet_balancer_config/group", "non-existent")
+        sleep(1)
+        assert get("//tmp/t/@tablet_balancer_config/group") == "non-existent"
+
 
 class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
     @classmethod
@@ -101,6 +108,80 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
                 "period" : 5000,
             },
         })
+
+    def _set_parameterized_balancing_default_metric(self, metric):
+        set(
+            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups",
+            {
+                "default": {"metric": metric}
+            }
+        )
+
+    def _set_parameterized_balancing_group_config(self, group, config):
+        set(
+            f"//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/{group}",
+            config
+        )
+
+    @authors("alexelexa")
+    def test_parameterized_balancing_auto_move(self):
+        cells = sync_create_cells(2)
+
+        self._create_sorted_table("//tmp/t")
+        config = {
+            "enable_auto_reshard": False,
+            "enable_auto_tablet_move": False,
+        }
+        set("//tmp/t/@tablet_balancer_config", config)
+
+        self._set_parameterized_balancing_default_metric("double([/statistics/uncompressed_data_size])")
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_parameterized_by_default", True)
+
+        sync_reshard_table("//tmp/t", [[], [10]])
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+
+        rows = [{"key": i, "value": str(i)} for i in range(3)]  # 3 rows
+        rows.extend([{"key": i, "value": str(i)} for i in range(10, 11)])  # 1 row
+
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        sleep(5)
+        assert all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets"))
+
+        set("//tmp/t/@tablet_balancer_config/enable_auto_tablet_move", True)
+
+        wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
+
+    @authors("alexelexa")
+    def test_parameterized_balancing_config(self):
+        cells = sync_create_cells(2)
+
+        self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
+
+        parameterized_balancing_metric = "double([/statistics/uncompressed_data_size])"
+        self._set_parameterized_balancing_default_metric(parameterized_balancing_metric)
+        self._set_parameterized_balancing_group_config("party", {"parameterized": {"metric": parameterized_balancing_metric}, "type": "parameterized"})
+
+        sync_reshard_table("//tmp/t", [[], [5]])
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+
+        rows = [{"key": i, "value": str(i)} for i in [0, 5]]  # 3 rows
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        sleep(5)
+        assert all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets"))
+
+        set("//tmp/t/@tablet_balancer_config/enable_parameterized", False)
+        set("//tmp/t/@tablet_balancer_config/group", "party")
+
+        sleep(5)
+        assert all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets"))
+
+        remove("//tmp/t/@tablet_balancer_config/enable_parameterized")
+        wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
 
     @authors("alexelexa")
     @pytest.mark.parametrize(
@@ -117,16 +198,13 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         self._create_sorted_table(
             "//tmp/t",
             in_memory_mode=in_memory_mode)
-        set(
-            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/parameterized_balancing_metric",
-            parameterized_balancing_metric
-        )
+        self._set_parameterized_balancing_default_metric(parameterized_balancing_metric)
 
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
 
         config = {
             "enable_auto_reshard": False,
-            "enable_auto_tablet_move": False,
+            "enable_auto_tablet_move": True,
         }
         set("//tmp/t/@tablet_balancer_config", config)
 
@@ -141,7 +219,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
-        set("//tmp/t/@enable_parameterized_balancing", True)
+        set("//tmp/t/@tablet_balancer_config/enable_parameterized", True)
 
         wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
 
@@ -159,16 +237,13 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         cells = sync_create_cells(2)
 
         self._create_sorted_table("//tmp/t")
-        set(
-            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/parameterized_balancing_metric",
-            parameterized_balancing_metric
-        )
+        self._set_parameterized_balancing_default_metric(parameterized_balancing_metric)
 
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
 
         config = {
             "enable_auto_reshard": False,
-            "enable_auto_tablet_move": False,
+            "enable_auto_tablet_move": True,
         }
         set("//tmp/t/@tablet_balancer_config", config)
         self._set_parameterized_deviation_threshold(0.3)
@@ -184,7 +259,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         assert(sum(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")) == 9)
         assert(sum(t["cell_id"] == cells[1] for t in get("//tmp/t/@tablets")) == 11)
 
-        set("//tmp/t/@enable_parameterized_balancing", True)
+        set("//tmp/t/@tablet_balancer_config/enable_parameterized", True)
 
         sleep(5)
 

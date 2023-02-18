@@ -67,7 +67,7 @@ void TDynamicTableLock::Persist(const NCellMaster::TPersistenceContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableNode::TDynamicTableAttributes::TDynamicTableAttributes()
-    : TabletBalancerConfig(New<NTabletBalancer::TTableTabletBalancerConfig>())
+    : TabletBalancerConfig(New<NTabletBalancer::TMasterTableTabletBalancerConfig>())
     , MountConfigStorage(New<TMountConfigStorage>())
 { }
 
@@ -259,7 +259,7 @@ void TTableNode::TDynamicTableAttributes::EndCopy(TEndCopyContext* context)
     FOR_EACH_COPYABLE_ATTRIBUTE(XX)
     #undef XX
 
-    TabletBalancerConfig = ConvertTo<NTabletBalancer::TTableTabletBalancerConfigPtr>(Load<TYsonString>(*context));
+    TabletBalancerConfig = ConvertTo<NTabletBalancer::TMasterTableTabletBalancerConfigPtr>(Load<TYsonString>(*context));
     MountConfigStorage = ConvertTo<TMountConfigStoragePtr>(Load<TYsonString>(*context));
 }
 
