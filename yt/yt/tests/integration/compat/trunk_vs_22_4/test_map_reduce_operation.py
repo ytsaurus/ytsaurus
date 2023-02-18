@@ -6,7 +6,7 @@ from yt_commands import authors
 
 class TestMapReduceCommandsCompatNewCA(BaseTestMapReduceCommands):
     ARTIFACT_COMPONENTS = {
-        "22_3": ["master", "node", "job-proxy", "exec", "tools"],
+        "22_4": ["master", "node", "job-proxy", "exec", "tools"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy"],
     }
 
@@ -30,7 +30,7 @@ class TestMapReduceCommandsCompatNewCA(BaseTestMapReduceCommands):
 
 class TestMapReduceCommandsCompatNewNodes(BaseTestMapReduceCommands):
     ARTIFACT_COMPONENTS = {
-        "22_3": ["master", "scheduler", "controller-agent"],
+        "22_4": ["master", "scheduler", "controller-agent"],
         "trunk": ["node", "job-proxy", "exec", "tools", "proxy", "http-proxy"],
     }
 
