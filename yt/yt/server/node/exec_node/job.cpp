@@ -521,13 +521,13 @@ void TJob::OnJobPrepared()
     });
 }
 
-void TJob::SetResult(const TJobResult& jobResult)
+void TJob::OnResultReceived(TJobResult jobResult)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     GuardedAction([&] {
         SetJobPhase(EJobPhase::FinalizingJobProxy);
-        DoSetResult(jobResult);
+        DoSetResult(std::move(jobResult), /*receivedFromJobProxy*/ true);
     });
 }
 
@@ -1187,13 +1187,6 @@ void TJob::SetStored(bool value)
     Stored_ = value;
 }
 
-void TJob::OnJobProxyCompleted() noexcept
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    JobProxyCompleted_ = true;
-}
-
 bool TJob::IsJobProxyCompleted() const noexcept
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -1339,22 +1332,27 @@ void TJob::DoSetResult(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    // TODO(pogorelov): Refactor this to avoid useless serialization.
     TJobResult jobResult;
     ToProto(jobResult.mutable_error(), error);
-    DoSetResult(std::move(jobResult));
+    DoSetResult(std::move(jobResult), /*receivedFromJobProxy*/ false);
 }
 
-void TJob::DoSetResult(TJobResult jobResult)
+void TJob::DoSetResult(TJobResult jobResult, bool receivedFromJobProxy)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    auto error = FromProto<TError>(jobResult.error());
+
     if (Error_ && !Error_->IsOK()) {
-        // Job result with error is already set.
+        YT_LOG_DEBUG(
+            "Job error is already set, do not overwrite (CurrentError: %v, Error: %v)",
+            Error_,
+            error);
         return;
     }
 
     if (Config_->TestJobErrorTruncation) {
-        auto error = FromProto<TError>(jobResult.error());
         if (!error.IsOK()) {
             for (int index = 0; index < 10; ++index) {
                 error.MutableInnerErrors()->push_back(TError("Test error " + ToString(index)));
@@ -1373,9 +1371,10 @@ void TJob::DoSetResult(TJobResult jobResult)
     }
 
     {
-        auto error = FromProto<TError>(jobResult.error());
         Error_ = error.Truncate();
     }
+
+    JobProxyCompleted_ = receivedFromJobProxy;
 
     FinishTime_ = TInstant::Now();
 }
