@@ -1,5 +1,7 @@
 #include "skiff_row_table_reader.h"
 
+#include <mapreduce/yt/interface/logging/yt_log.h>
+
 #include <mapreduce/yt/interface/skiff_row.h>
 
 #include <library/cpp/skiff/skiff.h>
@@ -62,6 +64,7 @@ void TSkiffRowTableReader::ReadRow(const ISkiffRowParserPtr& parser)
 
             break;
         } catch (const yexception& ex) {
+            YT_LOG_ERROR("Read error during parsing: %v", ex.what());
             if (!Retry()) {
                 throw;
             }
@@ -82,7 +85,8 @@ void TSkiffRowTableReader::SkipRow()
             Skippers_[TableIndex_]->SkipRow(&Parser_.value());
 
             break;
-        } catch (const yexception&) {
+        } catch (const yexception& ex) {
+            YT_LOG_ERROR("Read error during skipping row: %v", ex.what());
             if (!Retry()) {
                 throw;
             }
@@ -161,7 +165,8 @@ void TSkiffRowTableReader::Next()
             }
 
             break;
-        } catch (const yexception&) {
+        } catch (const yexception& ex) {
+            YT_LOG_ERROR("Read error: %v", ex.what());
             if (!PrepareRetry()) {
                 throw;
             }
