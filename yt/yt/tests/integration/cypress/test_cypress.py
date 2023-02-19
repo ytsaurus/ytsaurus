@@ -4075,7 +4075,7 @@ class TestCypressNestingLevelLimitHttpProxy(TestCypressNestingLevelLimit):
     NUM_HTTP_PROXIES = 1
 
     DELTA_PROXY_CONFIG = {
-        "driver": {
+        "cluster_connection": {
             "cypress_write_yson_nesting_level_limit": TestCypressNestingLevelLimit.DEPTH_LIMIT,
         }
     }
