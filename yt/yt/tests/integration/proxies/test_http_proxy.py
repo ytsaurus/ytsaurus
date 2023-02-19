@@ -336,9 +336,6 @@ class TestHttpProxyFraming(HttpProxyTestBase):
     # CLIENT_TIMEOUT >> KEEP_ALIVE_PERIOD to avoid false test failures
     CLIENT_TIMEOUT = 1 * 1000
     DELTA_PROXY_CONFIG = {
-        "driver": {
-            "use_ws_hack_for_get_columnar_statistics": False,
-        },
         "api": {
             "testing": {
                 "delay_before_command": {
