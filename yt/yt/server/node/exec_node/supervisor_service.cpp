@@ -242,7 +242,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, OnJobFinished)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
-        const auto& result = request->result();
+        auto result = std::move(*request->mutable_result());
         auto error = FromProto<TError>(result.error());
         context->SetRequestInfo("JobId: %v, Error: %v, ResultSize: %v, HasStatistics: %v, HasStderr: %v, HasFailedContext: %v",
             jobId,
@@ -253,9 +253,8 @@ private:
             request->has_fail_context());
 
         auto job = GetSchedulerJobOrThrow(jobId);
-        job->OnJobProxyCompleted();
 
-        job->SetResult(result);
+        job->OnResultReceived(std::move(result));
 
         auto jobReport = TNodeJobReport().Error(error);
         if (request->has_statistics()) {

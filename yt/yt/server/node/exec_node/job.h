@@ -88,7 +88,7 @@ public:
 
     void OnJobPrepared();
 
-    void SetResult(const NControllerAgent::NProto::TJobResult& jobResult);
+    void OnResultReceived(NControllerAgent::NProto::TJobResult jobResult);
 
     TJobId GetId() const;
 
@@ -189,8 +189,6 @@ public:
     bool GetStored() const;
 
     void SetStored(bool value);
-
-    void OnJobProxyCompleted() noexcept;
 
     bool IsJobProxyCompleted() const noexcept;
 
@@ -373,7 +371,7 @@ private:
 
     void DoSetResult(const TError& error);
 
-    void DoSetResult(NControllerAgent::NProto::TJobResult jobResult);
+    void DoSetResult(NControllerAgent::NProto::TJobResult jobResult, bool receivedFromJobProxy);
 
     bool HandleFinishingPhase();
 
