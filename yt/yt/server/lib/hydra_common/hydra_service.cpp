@@ -67,11 +67,6 @@ void THydraServiceBase::ValidatePeer(EPeerKind kind)
     }
 
     hydraManager->ValidatePeer(kind);
-
-    auto cancelableInvoker = hydraManager
-        ->GetAutomatonCancelableContext()
-        ->CreateInvoker(GetCurrentInvoker());
-    SetCurrentInvoker(std::move(cancelableInvoker));
 }
 
 void THydraServiceBase::SyncWithUpstream()
