@@ -108,7 +108,6 @@ private:
     NProfiling::TGauge BannedGauge_ = HttpProxyProfiler.Gauge("/banned");
 
     TPromise<void> FirstUpdateIterationFinished_ = NewPromise<void>();
-    bool Initialized_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SelfLock_);
     TCoordinatorProxyPtr Self_;
