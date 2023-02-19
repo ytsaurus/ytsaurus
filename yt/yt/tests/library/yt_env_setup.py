@@ -247,11 +247,6 @@ class YTEnvSetup(object):
         },
     }
     DELTA_PROXY_CONFIG = {}
-    _DEFAULT_DELTA_PROXY_CONFIG = {
-        "driver": {
-            "use_ws_hack_for_get_columnar_statistics": False,
-        },
-    }
     DELTA_RPC_PROXY_CONFIG = {}
     DELTA_CELL_BALANCER_CONFIG = {}
     DELTA_TABLET_BALANCER_CONFIG = {}
@@ -715,10 +710,7 @@ class YTEnvSetup(object):
 
         for index, config in enumerate(configs["http_proxy"]):
             delta_config = cls.get_param("DELTA_PROXY_CONFIG", cluster_index)
-            config = update_inplace(
-                update_inplace(config, YTEnvSetup._DEFAULT_DELTA_PROXY_CONFIG),
-                delta_config,
-            )
+            config = update_inplace(config, delta_config)
             configs["http_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_proxy_config(configs["http_proxy"])
 

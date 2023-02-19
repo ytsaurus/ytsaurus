@@ -62,9 +62,6 @@ class TestPortoMetrics(MetricsTestBase):
     KEEP_ALIVE_PERIOD = 1 * 1000
     DELTA_PROXY_CONFIG = {
         "enable_porto_resource_tracker": True,
-        "driver": {
-            "use_ws_hack_for_get_columnar_statistics": False,
-        },
         "api": {
             "testing": {
                 "delay_before_command": {
