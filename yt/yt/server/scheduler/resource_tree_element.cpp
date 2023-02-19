@@ -117,7 +117,13 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommit(const TJobResourc
 
     ResourceUsagePrecommit_ += delta;
 
-    YT_VERIFY(Dominates(ResourceUsagePrecommit_, TJobResources()));
+    if (Kind_ == EResourceTreeElementKind::Operation) {
+        YT_VERIFY(Dominates(ResourceUsagePrecommit_, TJobResources()));
+    } else {
+        // There is at most MaxNodeShardCount concurrent attempts to updated resource usage precommit hierarchically,
+        // we cannot be sure that it is non-negative but we can limit how negative it can be.
+        YT_VERIFY(ResourceUsagePrecommit_.GetUserSlots() >= -MaxNodeShardCount);
+    }
 
     return true;
 }
