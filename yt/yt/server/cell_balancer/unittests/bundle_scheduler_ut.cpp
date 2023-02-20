@@ -465,12 +465,21 @@ TEST(TBundleSchedulerTest, InitializeTargetConfig)
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
+    const auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->EnableNodeTagFilterManagement = true;
+    bundleInfo->EnableTabletNodeDynamicConfig = true;
+    bundleInfo->EnableRpcProxyManagement = true;
+    bundleInfo->EnableSystemAccountManagement = true;
+
     EXPECT_EQ(0, std::ssize(mutations.InitializedBundleTargetConfig));
 
-    input.Bundles["bigd"]->TargetConfig = {};
+    bundleInfo->TargetConfig = {};
     mutations = TSchedulerMutations{};
+    EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
 
     ScheduleBundles(input, &mutations);
+
+    EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
     EXPECT_EQ(1, std::ssize(mutations.InitializedBundleTargetConfig));
 }
 
@@ -3264,6 +3273,7 @@ TEST(TBundleSchedulerTest, DontRemoveTabletNodeCypressNodesFromBB)
     EXPECT_EQ(0, std::ssize(mutations.ProxiesToCleanup));
     EXPECT_EQ(0, std::ssize(mutations.NodesToCleanup));
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

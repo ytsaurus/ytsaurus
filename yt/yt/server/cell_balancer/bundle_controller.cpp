@@ -525,7 +525,7 @@ private:
         }
 
         for (const auto& [bundleName, bundleInfo] : input.Bundles) {
-            if (!bundleInfo->EnableBundleController) {
+            if (!bundleInfo->EnableBundleController || !bundleInfo->TargetConfig) {
                 continue;
             }
 
@@ -575,7 +575,7 @@ private:
         }
 
         for (const auto& [bundleName, bundleInfo] : input.Bundles) {
-            if (!bundleInfo->EnableBundleController) {
+            if (!bundleInfo->EnableBundleController || !bundleInfo->TargetConfig) {
                 continue;
             }
 
@@ -705,15 +705,38 @@ private:
             .Config = Config_,
         };
 
-        inputState.Zones = CypressList<TZoneInfo>(transaction, GetZonesPath());
-        inputState.Bundles = CypressList<TBundleInfo>(transaction, TabletCellBundlesPath);
-        inputState.BundleStates = CypressList<TBundleControllerState>(transaction, GetBundlesStatePath());
-        inputState.TabletNodes = CypressList<TTabletNodeInfo>(transaction, TabletNodesPath);
-        inputState.TabletCells = CypressList<TTabletCellInfo>(transaction, TabletCellsPath);
-        inputState.RpcProxies = CypressGet<TRpcProxyInfo>(transaction, RpcProxiesPath);
-        inputState.SystemAccounts = CypressList<TSystemAccount>(transaction, BundleSystemQuotasPath);
-        inputState.RootSystemAccount = GetRootSystemAccount(transaction);
-        inputState.RpcProxies = CypressGet<TRpcProxyInfo>(transaction, RpcProxiesPath);
+        YT_PROFILE_TIMING("/bundle_controller/load_timings/zones") {
+            inputState.Zones = CypressList<TZoneInfo>(transaction, GetZonesPath());
+        }
+
+        YT_PROFILE_TIMING("/bundle_controller/load_timings/tablet_cell_bundles") {
+            inputState.Bundles = CypressList<TBundleInfo>(transaction, TabletCellBundlesPath);
+        }
+
+        YT_PROFILE_TIMING("/bundle_controller/load_timings/tablet_cell_bundles_state") {
+            inputState.BundleStates = CypressList<TBundleControllerState>(transaction, GetBundlesStatePath());
+        }
+
+        YT_PROFILE_TIMING("/bundle_controller/load_timings/tablet_nodes") {
+            inputState.TabletNodes = CypressList<TTabletNodeInfo>(transaction, TabletNodesPath);
+        }
+
+        YT_PROFILE_TIMING("/bundle_controller/load_timings/tablet_cells") {
+            inputState.TabletCells = CypressList<TTabletCellInfo>(transaction, TabletCellsPath);
+        }
+
+        YT_PROFILE_TIMING("/bundle_controller/load_timings/rpc_proxies") {
+            inputState.RpcProxies = CypressGet<TRpcProxyInfo>(transaction, RpcProxiesPath);
+        }
+
+        YT_PROFILE_TIMING("/bundle_controller/load_timings/bundle_system_quotas") {
+            inputState.SystemAccounts = CypressList<TSystemAccount>(transaction, BundleSystemQuotasPath);
+        }
+
+
+        YT_PROFILE_TIMING("/bundle_controller/load_timings/system_quotas_parent_account") {
+            inputState.RootSystemAccount = GetRootSystemAccount(transaction);
+        }
 
         inputState.AllocationRequests = LoadHulkRequests<TAllocationRequest>(
             transaction,
