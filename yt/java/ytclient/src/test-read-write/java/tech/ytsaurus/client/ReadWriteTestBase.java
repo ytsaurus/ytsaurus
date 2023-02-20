@@ -14,8 +14,8 @@ import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcCompression;
-import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 
@@ -36,7 +36,10 @@ public class ReadWriteTestBase {
                 List.of(new YtCluster(localProxy)),
                 "default",
                 null,
-                new RpcCredentials("root", ""),
+                YTsaurusClientAuth.builder()
+                        .setUser("root")
+                        .setToken("")
+                        .build(),
                 new RpcCompression().setRequestCodecId(Compression.None),
                 new RpcOptions());
 
@@ -45,7 +48,10 @@ public class ReadWriteTestBase {
                 List.of(new YtCluster(localProxy)),
                 "default",
                 null,
-                new RpcCredentials("root", ""),
+                YTsaurusClientAuth.builder()
+                        .setUser("root")
+                        .setToken("")
+                        .build(),
                 new RpcCompression().setRequestCodecId(Compression.Zlib_6),
                 new RpcOptions());
 

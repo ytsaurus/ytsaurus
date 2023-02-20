@@ -9,8 +9,8 @@ import java.util.concurrent.CompletionException;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.rules.TestName;
-import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
@@ -68,7 +68,10 @@ public class YtClientTestBase {
                                 .setOperationPingPeriod(Duration.ofMillis(500))
                                 .build()
                 )
-                .setRpcCredentials(new RpcCredentials("root", ""))
+                .setAuth(YTsaurusClientAuth.builder()
+                        .setUser("root")
+                        .setToken("")
+                        .build())
                 .build();
 
         var methodName = name.getMethodName().replaceAll("[\\[\\]]", "-");

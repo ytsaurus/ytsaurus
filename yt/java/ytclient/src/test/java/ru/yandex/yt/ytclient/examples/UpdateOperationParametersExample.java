@@ -11,14 +11,17 @@ import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters.ResourceLim
 import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters.SchedulingOptions;
 
 import static ru.yandex.yt.ytclient.examples.ExamplesUtil.createConnector;
-import static ru.yandex.yt.ytclient.examples.ExamplesUtil.getCredentials;
+import static ru.yandex.yt.ytclient.examples.ExamplesUtil.getClientAuth;
 
 public class UpdateOperationParametersExample {
+    private UpdateOperationParametersExample() {
+    }
+
     public static void main(String[] args) {
         GUID operation = GUID.valueOf(args[0]);
         int userSlots = Integer.parseInt(args[1]);
         try (BusConnector connector = createConnector()) {
-            try (YtClient client = new YtClient(connector, "hahn", getCredentials())){
+            try (YtClient client = new YtClient(connector, "hahn", getClientAuth())) {
                 UpdateOperationParameters req = new UpdateOperationParameters(operation)
                         .setSchedulingOptionsPerPoolTree(Map.of(
                                 "physical",

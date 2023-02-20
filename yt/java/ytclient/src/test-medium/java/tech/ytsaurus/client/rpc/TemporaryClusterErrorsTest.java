@@ -45,7 +45,7 @@ public class TemporaryClusterErrorsTest {
         final HttpClient httpClient;
         final String ytAddress;
         List<String> proxyPathList = new ArrayList<>();
-        final int HTTP_TIMEOUT = 5000;
+        final int httpTimeout = 5000;
 
         WithBannedRpcProxies(String ytAddress) {
             this.ytAddress = ytAddress;
@@ -57,7 +57,7 @@ public class TemporaryClusterErrorsTest {
                 var listUrl = String.format("http://%s/api/v4/list?path=//sys/rpc_proxies", ytAddress);
                 var responseFuture = httpClient.sendAsync(
                         HttpRequest.newBuilder(URI.create(listUrl)).build(), HttpResponse.BodyHandlers.ofString());
-                waitOkResult(responseFuture, HTTP_TIMEOUT);
+                waitOkResult(responseFuture, httpTimeout);
 
                 var response = responseFuture.join();
                 if (response.statusCode() != 200) {
@@ -92,7 +92,7 @@ public class TemporaryClusterErrorsTest {
                     HttpRequest.newBuilder(URI.create(banUrl))
                             .PUT(HttpRequest.BodyPublishers.ofString(value ? "true" : "false"))
                             .build(), HttpResponse.BodyHandlers.ofInputStream());
-            waitOkResult(responseFuture, HTTP_TIMEOUT);
+            waitOkResult(responseFuture, httpTimeout);
             var response = responseFuture.join();
             if (response.statusCode() != 200) {
                 throw new RuntimeException("Bad response: " + response);
@@ -102,7 +102,10 @@ public class TemporaryClusterErrorsTest {
 
     @Test
     public void testMultipleClusters() {
-        final RpcCredentials credentials = new RpcCredentials("root", "");
+        final YTsaurusClientAuth auth = YTsaurusClientAuth.builder()
+                .setUser("root")
+                .setToken("")
+                .build();
 
         RpcOptions options = new RpcOptions();
         options.setGlobalTimeout(Duration.ofSeconds(1));
@@ -111,7 +114,7 @@ public class TemporaryClusterErrorsTest {
                 connector,
                 List.of(new YtCluster(LocalYt.getAddress())),
                 "localhost",
-                credentials,
+                auth,
                 options);
 
         waitOkResult(client.waitProxies(), 1000);

@@ -5,8 +5,8 @@ import java.util.List;
 
 import org.junit.Assert;
 import org.junit.Test;
-import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.ServiceTicketClientAuth;
+import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 
 import ru.yandex.passport.tvmauth.BlackboxEnv;
@@ -90,7 +90,9 @@ public class ServiceTicketAuthTest {
                 new ServiceTicketAuthTestWrapper(new MockedTvmClient());
         var client = YtClient.builder()
                 .setCluster(LocalYt.getAddress())
-                .setRpcCredentials(new RpcCredentials(serviceTicketAuth))
+                .setAuth(YTsaurusClientAuth.builder()
+                        .setServiceTicketAuth(serviceTicketAuth)
+                        .build())
                 .build();
 
         try (client) {

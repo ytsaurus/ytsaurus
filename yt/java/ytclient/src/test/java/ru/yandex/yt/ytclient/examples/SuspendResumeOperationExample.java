@@ -9,14 +9,17 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 import ru.yandex.yt.ytclient.proxy.request.ResumeOperation;
 
 import static ru.yandex.yt.ytclient.examples.ExamplesUtil.createConnector;
-import static ru.yandex.yt.ytclient.examples.ExamplesUtil.getCredentials;
+import static ru.yandex.yt.ytclient.examples.ExamplesUtil.getClientAuth;
 
 public class SuspendResumeOperationExample {
+    private SuspendResumeOperationExample() {
+    }
+
     public static void main(String[] args) throws InterruptedException {
         var operation = GUID.valueOf(args[0]);
         var cluster = (args.length > 1) ? args[1] : "hahn";
         try (var connector = createConnector()) {
-            try (var client = new YtClient(connector, cluster, getCredentials())) {
+            try (var client = new YtClient(connector, cluster, getClientAuth())) {
                 if (!isRunning(client, operation)) {
                     System.err.println("Operation " + operation + " is not running");
                     return;

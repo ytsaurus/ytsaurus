@@ -7,8 +7,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
-import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 
 import ru.yandex.yt.testlib.LocalYt;
 
@@ -19,7 +19,10 @@ import static org.hamcrest.Matchers.not;
 
 @RunWith(Parameterized.class)
 public class YtClientMiscellaneousTest {
-    private final RpcCredentials credentials = new RpcCredentials("root", "");
+    private final YTsaurusClientAuth auth = YTsaurusClientAuth.builder()
+            .setUser("root")
+            .setToken("")
+            .build();
     private final RpcOptions options;
     private String clusterName;
 
@@ -52,7 +55,7 @@ public class YtClientMiscellaneousTest {
             var yt = new YtClient(
                     busConnector,
                     denormalizedClusterName,
-                    credentials,
+                    auth,
                     options);
             try (yt; busConnector) {
                 yt.waitProxies().join();

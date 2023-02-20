@@ -12,7 +12,7 @@ public class FormatContext {
     @Nullable
     private final YTreeNode outputStreams;
 
-    public FormatContext(Builder builder) {
+    private FormatContext(Builder builder) {
         this(builder.inputTableCount, builder.outputTableCount, builder.outputStreams);
     }
 

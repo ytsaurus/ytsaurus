@@ -25,8 +25,8 @@ import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.DefaultRpcBusClient;
 import tech.ytsaurus.client.rpc.RpcClient;
 import tech.ytsaurus.client.rpc.RpcCompression;
-import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 
@@ -82,56 +82,60 @@ public final class ExamplesUtil {
         return token;
     }
 
-    public static RpcCredentials getCredentials() {
-        return new RpcCredentials(getUser(), getToken());
+    public static YTsaurusClientAuth getClientAuth() {
+        return YTsaurusClientAuth.builder()
+                .setUser(getUser())
+                .setToken(getToken())
+                .build();
     }
 
     static String getRandomHost() {
         return HOSTS[RANDOM.nextInt(HOSTS.length)];
     }
 
-    public static RpcClient createRpcClient(BusConnector connector, RpcCredentials credentials) {
-        return createRpcClient(connector, credentials, getRandomHost(), YT_PORT);
+    public static RpcClient createRpcClient(BusConnector connector, YTsaurusClientAuth auth) {
+        return createRpcClient(connector, auth, getRandomHost(), YT_PORT);
     }
 
     public static void enableCompression() {
         compressionEnabled = true;
     }
 
-    public static RpcClient createRpcClient(BusConnector connector, RpcCredentials credentials, String host, int port) {
+    public static RpcClient createRpcClient(BusConnector connector, YTsaurusClientAuth auth, String host,
+                                            int port) {
         RpcClient client = new DefaultRpcBusClient(connector, new InetSocketAddress(host, port));
 
         if (compressionEnabled) {
             return client
-                    .withAuthentication(credentials)
+                    .withAuthentication(auth)
                     .withCompression(new RpcCompression(Compression.Zlib_6));
         } else {
-            return client.withAuthentication(credentials);
+            return client.withAuthentication(auth);
         }
     }
 
     public static RpcClient createRpcClient(BusConnector connector,
-                                            RpcCredentials credentials,
+                                            YTsaurusClientAuth auth,
                                             String host,
                                             int port,
                                             String shortName) {
         RpcClient client = new DefaultRpcBusClient(connector, new InetSocketAddress(host, port), shortName);
         if (compressionEnabled) {
             return client
-                    .withAuthentication(credentials)
+                    .withAuthentication(auth)
                     .withCompression(new RpcCompression(Compression.Zlib_6));
         } else {
-            return client.withAuthentication(credentials);
+            return client.withAuthentication(auth);
         }
     }
 
-    public static void runExample(Consumer<ApiServiceClient> consumer, RpcCredentials credentials) {
-        runExample(consumer, credentials, getRandomHost());
+    public static void runExample(Consumer<ApiServiceClient> consumer, YTsaurusClientAuth auth) {
+        runExample(consumer, auth, getRandomHost());
     }
 
-    public static void runExample(Consumer<ApiServiceClient> consumer, RpcCredentials credentials, String host) {
+    public static void runExample(Consumer<ApiServiceClient> consumer, YTsaurusClientAuth auth, String host) {
         try (BusConnector connector = createConnector()) {
-            try (RpcClient rpcClient = createRpcClient(connector, credentials, host, YT_PORT)) {
+            try (RpcClient rpcClient = createRpcClient(connector, auth, host, YT_PORT)) {
                 ApiServiceClient serviceClient = new ApiServiceClientImpl(
                         rpcClient,
                         YtClientConfiguration.builder()
@@ -147,7 +151,7 @@ public final class ExamplesUtil {
     }
 
     public static void runExample(Consumer<ApiServiceClient> consumer) {
-        runExample(consumer, getCredentials());
+        runExample(consumer, getClientAuth());
     }
 
     public static void runExampleWithBalancing(Consumer<YtClient> consumer) {
@@ -158,7 +162,7 @@ public final class ExamplesUtil {
                     List.of(new YtCluster("hume")),
                     "dc",
                     null,
-                    getCredentials(),
+                    getClientAuth(),
                     new RpcCompression(Compression.Lz4),
                     new RpcOptions());
             client.waitProxies().join();

@@ -35,8 +35,8 @@ import tech.ytsaurus.client.rows.UnversionedRowSerializer;
 import tech.ytsaurus.client.rows.UnversionedValue;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcCompression;
-import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.RangeLimit;
 import tech.ytsaurus.core.cypress.YPath;
@@ -63,8 +63,12 @@ import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 
 @RunWith(Parameterized.class)
 public class YtClientTest {
-
     private static final Logger LOGGER = LoggerFactory.getLogger(YtClientTest.class);
+    private static DefaultBusConnector bus;
+    private YtClient client;
+    private String path;
+    @Parameterized.Parameter
+    public RpcCompression compression;
 
     @Parameterized.Parameters(name = "{0}")
     public static Object[] parameters() {
@@ -97,8 +101,6 @@ public class YtClientTest {
         return prefix + "/ytclient-junit/" + UUID.randomUUID();
     }
 
-    private static DefaultBusConnector bus;
-
     @BeforeClass
     public static void initBus() {
         bus = new DefaultBusConnector(new NioEventLoopGroup(2), true);
@@ -110,12 +112,6 @@ public class YtClientTest {
             bus.close();
         }
     }
-
-    @Parameterized.Parameter
-    public RpcCompression compression;
-
-    private YtClient client;
-    private String path;
 
     @Before
     public void init() {
@@ -129,7 +125,10 @@ public class YtClientTest {
                 Collections.singletonList(cluster),
                 cluster.getName(),
                 null,
-                new RpcCredentials(username, token),
+                YTsaurusClientAuth.builder()
+                        .setUser(username)
+                        .setToken(token)
+                        .build(),
                 compression,
                 new RpcOptions().setUseClientsCache(true));
 
@@ -174,11 +173,13 @@ public class YtClientTest {
         Assert.assertEquals(Arrays.asList(
                 new UnversionedRow(Arrays.asList(
                         new UnversionedValue(0, ColumnValueType.INT64, false, 1L),
-                        new UnversionedValue(1, ColumnValueType.STRING, false, "test1".getBytes(StandardCharsets.UTF_8)),
+                        new UnversionedValue(1, ColumnValueType.STRING, false,
+                                "test1".getBytes(StandardCharsets.UTF_8)),
                         new UnversionedValue(2, ColumnValueType.INT64, false, 100L))),
                 new UnversionedRow(Arrays.asList(
                         new UnversionedValue(0, ColumnValueType.INT64, false, 2L),
-                        new UnversionedValue(1, ColumnValueType.STRING, false, "test2".getBytes(StandardCharsets.UTF_8)),
+                        new UnversionedValue(1, ColumnValueType.STRING, false,
+                                "test2".getBytes(StandardCharsets.UTF_8)),
                         new UnversionedValue(2, ColumnValueType.INT64, false, 200L)))
         ), rows);
     }
@@ -216,10 +217,10 @@ public class YtClientTest {
 
         // Модифицируем - новый столбец
         client.alterTable(AlterTable.builder().setPath(writePath).setSchema(schema(b ->
-                b.beginMap()
-                        .key("name").value("v2")
-                        .key("type").value("string")
-                        .endMap())).build())
+                        b.beginMap()
+                                .key("name").value("v2")
+                                .key("type").value("string")
+                                .endMap())).build())
                 .join();
     }
 
@@ -288,8 +289,9 @@ public class YtClientTest {
 
         Assert.assertEquals(1, result.size());
         Assert.assertEquals(new UnversionedRow(Arrays.asList(
-                new UnversionedValue(0, ColumnValueType.INT64, false, 2L),
-                new UnversionedValue(1, ColumnValueType.STRING, false, "test2".getBytes(StandardCharsets.UTF_8)))),
+                        new UnversionedValue(0, ColumnValueType.INT64, false, 2L),
+                        new UnversionedValue(1, ColumnValueType.STRING, false,
+                                "test2".getBytes(StandardCharsets.UTF_8)))),
                 result.get(0));
 
     }
@@ -359,7 +361,7 @@ public class YtClientTest {
         {
             TableWriter<MappedObject> writer =
                     client.writeTable(
-                            new WriteTable<>(table, YTreeObjectSerializerFactory.forClass(MappedObject.class)))
+                                    new WriteTable<>(table, YTreeObjectSerializerFactory.forClass(MappedObject.class)))
                             .join();
             List<MappedObject> data = new ArrayList<>();
             for (int i = 0; i < 1000; ++i) {
@@ -372,9 +374,9 @@ public class YtClientTest {
 
         {
             TableReader<MappedObject> reader = client.readTable(
-                    new ReadTable<>(
-                            table,
-                            YTreeObjectSerializerFactory.forClass(MappedObject.class)))
+                            new ReadTable<>(
+                                    table,
+                                    YTreeObjectSerializerFactory.forClass(MappedObject.class)))
                     .join();
 
             reader.close().join();

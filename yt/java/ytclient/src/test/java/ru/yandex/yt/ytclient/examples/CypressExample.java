@@ -12,6 +12,8 @@ import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.rpcproxy.ETransactionType;
 
 public class CypressExample {
+    private CypressExample() {
+    }
 
     public static void main(String[] args) {
         try {
@@ -22,7 +24,7 @@ public class CypressExample {
 
             OptionSet option = parser.parse(args);
 
-            String [] hosts = null;
+            String[] hosts = null;
 
             if (option.hasArgument(proxyOpt)) {
                 String line = option.valueOf(proxyOpt);
@@ -77,7 +79,7 @@ public class CypressExample {
                     e.printStackTrace();
                     System.exit(-1);
                 }
-            }, ExamplesUtil.getCredentials(), host);
+            }, ExamplesUtil.getClientAuth(), host);
 
             System.exit(0);
         } catch (Throwable e) {

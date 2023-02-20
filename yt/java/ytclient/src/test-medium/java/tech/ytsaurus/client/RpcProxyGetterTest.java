@@ -19,8 +19,8 @@ import org.junit.Test;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.rpc.RpcClientPool;
 import tech.ytsaurus.client.rpc.RpcCompression;
-import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 
 import ru.yandex.yt.testlib.LocalYt;
 
@@ -67,7 +67,7 @@ public class RpcProxyGetterTest {
                 "local",
                 new RpcClientFactoryImpl(
                         new DefaultBusConnector(),
-                        new RpcCredentials(),
+                        YTsaurusClientAuth.empty(),
                         new RpcCompression()),
                 new RpcOptions(),
                 new Random());
@@ -93,7 +93,7 @@ public class RpcProxyGetterTest {
 
         RpcClientFactory rpcClientFactory = new RpcClientFactoryImpl(
                 new DefaultBusConnector(),
-                new RpcCredentials(),
+                YTsaurusClientAuth.empty(),
                 new RpcCompression());
         var poolClient = rpcClientFactory.create(proxiesFromList.get(0), "local-dc");
         RpcProxyGetter proxyGetter = new RpcProxyGetter(
