@@ -1830,14 +1830,11 @@ for l in sys.stdin:
         ],
     )
     def test_several_intermediate_schemas_passing(self, sort_order, method):
-        self._test_several_intermediate_schemas(sort_order, method)
-
-    def _test_several_intermediate_schemas(self, sort_order, method):
         if sort_order == "descending":
             skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
-        is_compat = "22_3" in getattr(self, "ARTIFACT_COMPONENTS", {})
+        is_compat = "22_4" in getattr(self, "ARTIFACT_COMPONENTS", {})
         if is_compat and method == "ordered_map_reduce":
             pytest.xfail("Hasn't worked before")
 
