@@ -32,7 +32,7 @@ int main() {
         //
         // Если запускать эту программу второй раз то Create пофейлится, потому что таблица уже существует.
         createResult.GetValue();
-    } catch (const yexception& ex) {
+    } catch (const std::exception& ex) {
         Cerr << "Create " << outputTable << " failed: " << ex.what() << Endl;
     }
 

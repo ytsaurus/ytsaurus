@@ -200,7 +200,7 @@ NThreading::TFuture<void> TParallelFileWriter::StartWriteTask(
             IFileWriterPtr writer = Transaction_->CreateFileWriter(filePath, TFileWriterOptions().WriterOptions(Options_.WriterOptions_.GetOrElse({})));
             task->Write(writer, HasException_);
             writer->Finish();
-        } catch (const yexception& e) {
+        } catch (const std::exception& e) {
             HasException_ = true;
             auto guard = Guard(MutexForException_);
             Exception_ = std::current_exception();

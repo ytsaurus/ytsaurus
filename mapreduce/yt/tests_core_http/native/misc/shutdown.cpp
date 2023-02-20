@@ -98,8 +98,8 @@ Y_UNIT_TEST_SUITE(Shutdown)
 
         try {
             applied.TryRethrow();
-        } catch (const yexception& exc) {
-            UNIT_ASSERT_STRING_CONTAINS_C(exc.AsStrBuf(), "cancelled", "Operation expected to be cancelled");
+        } catch (const std::exception& exc) {
+            UNIT_ASSERT_STRING_CONTAINS_C(exc.what(), "cancelled", "Operation expected to be cancelled");
         }
     }
 }

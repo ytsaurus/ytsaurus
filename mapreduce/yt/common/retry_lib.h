@@ -32,7 +32,7 @@ public:
     // Both methods must return nothing if policy doesn't want to retry this error.
     // Otherwise method should return backoff time.
     virtual TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) = 0;
-    virtual TMaybe<TDuration> OnGenericError(const yexception& e) = 0;
+    virtual TMaybe<TDuration> OnGenericError(const std::exception& e) = 0;
 
     // OnIgnoredError is called whenever client gets an error but is going to ignore it.
     virtual void OnIgnoredError(const TErrorResponse& /*e*/) = 0;
@@ -61,7 +61,7 @@ public:
 
     void NotifyNewAttempt() override;
 
-    TMaybe<TDuration> OnGenericError(const yexception& e) override;
+    TMaybe<TDuration> OnGenericError(const std::exception& e) override;
     TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) override;
     void OnIgnoredError(const TErrorResponse& e) override;
     TString GetAttemptDescription() const override;
@@ -83,13 +83,13 @@ IRetryConfigProviderPtr CreateDefaultRetryConfigProvider();
 
 // Check if error returned by YT can be retried
 bool IsRetriable(const TErrorResponse& errorResponse);
-bool IsRetriable(const yexception& ex);
+bool IsRetriable(const std::exception& ex);
 
 // Get backoff duration for errors returned by YT.
 TDuration GetBackoffDuration(const TErrorResponse& errorResponse);
 
 // Get backoff duration for errors that are not TErrorResponse.
-TDuration GetBackoffDuration(const yexception& error);
+TDuration GetBackoffDuration(const std::exception& error);
 TDuration GetBackoffDuration();
 
 ////////////////////////////////////////////////////////////////////////////////

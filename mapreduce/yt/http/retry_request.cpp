@@ -112,7 +112,7 @@ TResponseInfo RetryRequestWithPolicy(
             } else {
                 throw;
             }
-        } catch (const yexception& e) {
+        } catch (const std::exception& e) {
             LogRequestError(requestId, header, e.what(), retryPolicy->GetAttemptDescription());
             retryWithSameMutationId = true;
 

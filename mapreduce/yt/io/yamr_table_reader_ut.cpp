@@ -175,7 +175,7 @@ Y_UNIT_TEST_SUITE(TestYamrTableReader)
                 }
                 UNIT_ASSERT(tableReader.IsRawReaderExhausted());
                 UNIT_ASSERT_VALUES_EQUAL(rowCount, 3);
-            } catch (const yexception& ex) {
+            } catch (const std::exception& ex) {
                 Cerr << breakPoint << Endl;
                 Cerr << ex.what() << Endl;
                 throw;

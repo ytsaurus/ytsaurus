@@ -57,7 +57,7 @@ public:
 
 private:
     void NextImpl();
-    void OnStreamError();
+    void OnStreamError(std::exception_ptr exception, TString error);
     void CheckValidity() const;
     void PrepareParsing();
     void ParseListFragmentItem();
@@ -81,7 +81,7 @@ private:
     THolder<TRowBuilder> Builder_;
     THolder<::NYson::TYsonListParser> Parser_;
 
-    yexception Exception_;
+    std::exception_ptr Exception_;
     bool NeedParseFirst_ = true;
     bool IsLast_ = false;
 };

@@ -2192,7 +2192,7 @@ public:
                 OperationImpl_->FinishWithException(std::current_exception());
                 return PollBreak;
             }
-        } catch (const yexception& e) {
+        } catch (const std::exception& e) {
             OperationImpl_->FinishWithException(std::current_exception());
             return PollBreak;
         }
@@ -2599,7 +2599,7 @@ void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttribu
         if (*attributes.BriefState == EOperationBriefState::Failed) {
             try {
                 failedJobStderrInfo = NYT::NDetail::GetFailedJobInfo(ClientRetryPolicy_, Auth_, *Id_, TGetFailedJobInfoOptions());
-            } catch (const yexception& e) {
+            } catch (const std::exception& e) {
                 additionalExceptionText = "Cannot get job stderrs: ";
                 additionalExceptionText += e.what();
             }

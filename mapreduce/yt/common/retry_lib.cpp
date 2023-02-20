@@ -21,7 +21,7 @@ void TAttemptLimitedRetryPolicy::NotifyNewAttempt()
     ++Attempt_;
 }
 
-TMaybe<TDuration> TAttemptLimitedRetryPolicy::OnGenericError(const yexception& e)
+TMaybe<TDuration> TAttemptLimitedRetryPolicy::OnGenericError(const std::exception& e)
 {
     if (IsAttemptLimitExceeded()) {
         return Nothing();
@@ -70,7 +70,7 @@ public:
         RetryPolicy_->NotifyNewAttempt();
     }
 
-    TMaybe<TDuration> OnGenericError(const yexception& e) override
+    TMaybe<TDuration> OnGenericError(const std::exception& e) override
     {
         return RetryPolicy_->OnGenericError(e);
     }
@@ -240,7 +240,7 @@ bool IsRetriable(const TErrorResponse& errorResponse)
     return TryGetBackoffDuration(errorResponse).Defined();
 }
 
-bool IsRetriable(const yexception& ex)
+bool IsRetriable(const std::exception& ex)
 {
     if (dynamic_cast<const TRequestRetriesTimeout*>(&ex)) {
         return false;
@@ -248,7 +248,7 @@ bool IsRetriable(const yexception& ex)
     return true;
 }
 
-TDuration GetBackoffDuration(const yexception& /*error*/)
+TDuration GetBackoffDuration(const std::exception& /*error*/)
 {
     return GetBackoffDuration();
 }

@@ -44,7 +44,7 @@ public:
                 Acquired_.SetException(std::current_exception());
                 return PollBreak;
             }
-        } catch (const yexception& e) {
+        } catch (const std::exception& e) {
             if (!IsRetriable(e)) {
                 Acquired_.SetException(std::current_exception());
                 return PollBreak;

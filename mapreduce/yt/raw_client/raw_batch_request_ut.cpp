@@ -21,7 +21,7 @@ public:
     void NotifyNewAttempt() override
     { }
 
-    TMaybe<TDuration> OnGenericError(const yexception& /*e*/) override
+    TMaybe<TDuration> OnGenericError(const std::exception& /*e*/) override
     {
         return TDuration::Seconds(42);
     }

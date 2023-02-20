@@ -204,7 +204,7 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
                 throw;
             }
             NDetail::TWaitProxy::Get()->Sleep(*backoff);
-        } catch (const yexception& e) {
+        } catch (const std::exception& e) {
             LogRequestError(
                 requestId,
                 header,

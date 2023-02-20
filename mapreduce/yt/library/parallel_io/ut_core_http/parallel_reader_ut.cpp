@@ -255,7 +255,7 @@ public:
     {
         try {
             TestWithOutage(3, std::numeric_limits<size_t>::max());
-        } catch (const yexception& exception) {
+        } catch (const std::exception& exception) {
             // We cannot catch the TAbortedForTestReason exception here as it is caught
             // inside the client reader and propagated as simple yexception.
             UNIT_ASSERT_STRING_CONTAINS(exception.what(), "response was aborted");

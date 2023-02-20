@@ -38,7 +38,7 @@ Y_UNIT_TEST_SUITE(Schema) {
             writer->AddRow(TNode()("value", TNode::CreateEntity()));
             writer->Finish();
             UNIT_FAIL("expected to throw");
-        } catch (const yexception& ex) {
+        } catch (const std::exception& ex) {
             if (!TString(ex.what()).Contains("cannot have \"null\" value")) {
                 throw;
             }
@@ -48,7 +48,7 @@ Y_UNIT_TEST_SUITE(Schema) {
             writer->AddRow(TNode::CreateMap());
             writer->Finish();
             UNIT_FAIL("expected to throw");
-        } catch (const yexception& ex) {
+        } catch (const std::exception& ex) {
             if (!TString(ex.what()).Contains("cannot have \"null\" value")) {
                 throw;
             }

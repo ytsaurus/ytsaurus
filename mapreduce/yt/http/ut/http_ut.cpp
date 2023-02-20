@@ -45,7 +45,7 @@ THolder<TSimpleServer> CreateFramingEchoServer()
                 httpOutput << "\x02"; // KeepAlive.
 
                 httpOutput.Flush();
-            } catch (const yexception& exc) {
+            } catch (const std::exception& exc) {
             }
         });
 }

@@ -111,7 +111,7 @@ void TYaMRTableReader::ReadRow()
             Input_.ResetRetries();
 
             break;
-        } catch (const yexception& ) {
+        } catch (const std::exception& ) {
             if (!TLenvalTableReader::Retry()) {
                 throw;
             }
@@ -132,7 +132,7 @@ void TYaMRTableReader::SkipRow()
             ReadInteger(&value);
             CheckedSkip(&Input_, value);
             break;
-        } catch (const yexception& ) {
+        } catch (const std::exception& ) {
             if (!TLenvalTableReader::Retry()) {
                 throw;
             }
