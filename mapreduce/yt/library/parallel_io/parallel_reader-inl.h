@@ -19,7 +19,6 @@
 #include <util/generic/ptr.h>
 #include <util/generic/queue.h>
 #include <util/generic/scope.h>
-#include <util/generic/yexception.h>
 
 #include <util/memory/segmented_string_pool.h>
 
@@ -392,7 +391,7 @@ private:
                     break;
                 }
             }
-        } catch (const yexception& exception) {
+        } catch (const std::exception& exception) {
             YT_LOG_ERROR("Exception in parallel reader thread: %v",
                 exception.what());
             TGuard<TMutex> guard(Lock_);

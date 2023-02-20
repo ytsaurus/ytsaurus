@@ -201,7 +201,7 @@ void TNodeTableReader::Next()
 {
     try {
         NextImpl();
-    } catch (const yexception& ex) {
+    } catch (const std::exception& ex) {
         YT_LOG_ERROR("TNodeTableReader::Next failed: %v", ex.what());
         throw;
     }
@@ -227,10 +227,9 @@ void TNodeTableReader::NextImpl()
 
         try {
             ParseListFragmentItem();
-        } catch (yexception& ex) {
-            Exception_ = ex;
+        } catch (std::exception& ex) {
             NeedParseFirst_ = true;
-            OnStreamError();
+            OnStreamError(std::current_exception(), ex.what());
             ParseFirstListFragmentItem();
             continue;
         }
@@ -273,15 +272,15 @@ void TNodeTableReader::NextImpl()
     }
 }
 
-void TNodeTableReader::ParseFirstListFragmentItem() {
+void TNodeTableReader::ParseFirstListFragmentItem()
+{
     while (NeedParseFirst_) {
         try {
             ParseListFragmentItem();
             NeedParseFirst_ = false;
             break;
-        } catch (yexception& ex) {
-            Exception_ = ex;
-            OnStreamError();
+        } catch (std::exception& ex) {
+            OnStreamError(std::current_exception(), ex.what());
         }
     }
 }
@@ -351,16 +350,16 @@ void TNodeTableReader::PrepareParsing()
     Parser_.Reset(new ::NYson::TYsonListParser(Builder_.Get(), &Input_));
 }
 
-void TNodeTableReader::OnStreamError()
+void TNodeTableReader::OnStreamError(std::exception_ptr exception, TString error)
 {
-    YT_LOG_ERROR("Read error: %v", Exception_.what());
-    if (Input_.Retry(RangeIndex_, RowIndex_))
-    {
+    YT_LOG_ERROR("Read error: %v", error);
+    Exception_ = exception;
+    if (Input_.Retry(RangeIndex_, RowIndex_)) {
         RowIndex_.Clear();
         RangeIndex_.Clear();
         PrepareParsing();
     } else {
-        throw Exception_;
+        std::rethrow_exception(Exception_);
     }
 }
 

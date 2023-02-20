@@ -1394,7 +1394,7 @@ Y_UNIT_TEST_SUITE(BlobTableIo)
                 Y_UNUSED(cursor);
             }
             UNIT_FAIL("Expected exception!!!!");
-        } catch (yexception& ex) {
+        } catch (std::exception& ex) {
             // it's ok
         }
     }

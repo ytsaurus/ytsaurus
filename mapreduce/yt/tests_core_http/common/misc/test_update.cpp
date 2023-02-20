@@ -152,7 +152,7 @@ void DoTestSingleUpdate(NMR::TServer& server, NMR::TUpdateTable&& updateTable, T
             Y_VERIFY(d.size() == 3);
             up.AddSub(d[0], d[1], d[2]);
         }
-    } catch (const yexception& ex) {
+    } catch (const std::exception& ex) {
         Cout << "EXCEPTION OCCURED" << Endl;
     }
 }
@@ -195,7 +195,7 @@ void DoTestMultiUpdate(NMR::TServer& server, const TVector<NMR::TUpdateTable>& u
                 up.SetCurrentTable(curTableInd);
             }
         }
-    } catch (const yexception& ex) {
+    } catch (const std::exception& ex) {
         Cout << "EXCEPTION OCCURED" << Endl;
     }
 }

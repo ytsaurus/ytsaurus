@@ -93,9 +93,9 @@ public:
         Underlying_->NotifyNewAttempt();
     }
 
-    TMaybe<TDuration> OnGenericError(const yexception& e) override
+    TMaybe<TDuration> OnGenericError(const std::exception& e) override
     {
-        UpdateOperationStatus(e.AsStrBuf());
+        UpdateOperationStatus(e.what());
         return Underlying_->OnGenericError(e);
     }
 

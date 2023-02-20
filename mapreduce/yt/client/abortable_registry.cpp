@@ -59,7 +59,7 @@ void TAbortableRegistry::AbortAllAndBlockForever()
         const auto& abortable = entry.second;
         try {
             abortable->Abort();
-        } catch (yexception& ex) {
+        } catch (std::exception& ex) {
             YT_LOG_ERROR("Exception while aborting %v %v: %v",
                 abortable->GetType(),
                 id,

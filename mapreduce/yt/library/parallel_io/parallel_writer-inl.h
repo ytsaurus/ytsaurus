@@ -17,7 +17,6 @@
 #include <util/generic/maybe.h>
 #include <util/generic/ptr.h>
 #include <util/generic/scope.h>
-#include <util/generic/yexception.h>
 
 #include <util/string/builder.h>
 
@@ -162,7 +161,7 @@ private:
                 task.GetRef().Process(writer);
             }
             writer->Finish();
-        } catch (const yexception&) {
+        } catch (const std::exception&) {
             auto state = State_.exchange(EWriterState::Exception);
             if (state == EWriterState::Ok) {
                 Exception_ = std::current_exception();

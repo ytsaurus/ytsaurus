@@ -13,7 +13,6 @@
 
 #include <util/generic/guid.h>
 #include <util/generic/xrange.h>
-#include <util/generic/yexception.h>
 
 #include <cstdlib>
 

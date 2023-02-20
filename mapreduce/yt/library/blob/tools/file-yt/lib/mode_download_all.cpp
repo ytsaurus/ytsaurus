@@ -16,7 +16,6 @@
 #include <util/folder/path.h>
 #include <util/generic/guid.h>
 #include <util/generic/vector.h>
-#include <util/generic/yexception.h>
 #include <util/random/entropy.h>
 #include <util/random/fast.h>
 #include <util/system/info.h>

@@ -14,7 +14,6 @@
 #include <util/folder/path.h>
 #include <util/generic/guid.h>
 #include <util/generic/xrange.h>
-#include <util/generic/yexception.h>
 
 #include <cstdlib>
 
@@ -151,4 +150,3 @@ static int Main(const int argc, const char* argv[]) {
 int NFileYtTool::MainDownload(const int argc, const char* argv[]) {
     return ::Main(argc, argv);
 }
-

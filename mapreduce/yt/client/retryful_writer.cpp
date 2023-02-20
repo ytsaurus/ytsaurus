@@ -117,7 +117,7 @@ void TRetryfulWriter::SendThread()
         auto& buffer = maybeBuffer.GetRef();
         try {
             Send(buffer);
-        } catch (const yexception&) {
+        } catch (const std::exception&) {
             Exception_ = std::current_exception();
             EmptyBuffers_.Stop();
             break;

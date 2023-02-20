@@ -111,7 +111,7 @@ void TLenvalTableReader::Next()
             Length_ = static_cast<ui32>(value);
             RowTaken_ = false;
             AtStart_ = false;
-        } catch (const yexception& e) {
+        } catch (const std::exception& e) {
             if (!PrepareRetry()) {
                 throw;
             }

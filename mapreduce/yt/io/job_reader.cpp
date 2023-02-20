@@ -2,8 +2,6 @@
 
 #include <mapreduce/yt/interface/logging/yt_log.h>
 
-#include <util/generic/yexception.h>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////

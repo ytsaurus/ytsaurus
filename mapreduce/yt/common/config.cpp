@@ -47,7 +47,7 @@ int TConfig::GetInt(const char* var, int defaultValue)
     }
     try {
         result = FromString<int>(val);
-    } catch (const yexception& e) {
+    } catch (const std::exception& e) {
         ythrow yexception() << "Cannot parse " << var << '=' << val << " as integer: " << e.what();
     }
     return result;
@@ -103,8 +103,8 @@ TRichYPath TConfig::LoadApiFilePathOptions(const TString& ysonMap)
     TNode attributes;
     try {
         attributes = NodeFromYsonString(ysonMap);
-    } catch (const yexception& exc) {
-        ythrow yexception() << "Failed to parse YT_API_FILE_PATH_OPTIONS (it must be yson map): " << exc;
+    } catch (const std::exception& exc) {
+        ythrow yexception() << "Failed to parse YT_API_FILE_PATH_OPTIONS (it must be yson map): " << exc.what();
     }
     TNode pathNode = "";
     pathNode.Attributes() = attributes;
@@ -252,17 +252,17 @@ TProcessState::TProcessState()
 {
     try {
         FqdnHostName = ::FQDNHostName();
-    } catch (const yexception& e) {
+    } catch (const std::exception& e) {
         try {
             FqdnHostName = ::HostName();
-        } catch (const yexception& e) {
+        } catch (const std::exception& e) {
             ythrow yexception() << "Cannot get fqdn and host name: " << e.what();
         }
     }
 
     try {
         UserName = ::GetUsername();
-    } catch (const yexception& e) {
+    } catch (const std::exception& e) {
         ythrow yexception() << "Cannot get user name: " << e.what();
     }
 

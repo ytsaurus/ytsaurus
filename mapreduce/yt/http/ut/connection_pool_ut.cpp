@@ -36,7 +36,7 @@ THolder<TSimpleServer> CreateSimpleHttpServer() {
                     }
                     httpOutput.Flush();
                 }
-            } catch (const yexception&) {
+            } catch (const std::exception&) {
             }
         });
 }
