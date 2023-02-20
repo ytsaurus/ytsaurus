@@ -183,7 +183,7 @@ private:
     {
         try {
             PingTx(HttpClient_, pingableTx);
-        } catch (const yexception& e) {
+        } catch (const std::exception& e) {
             if (auto* errorResponse = dynamic_cast<const TErrorResponse*>(&e)) {
                 if (errorResponse->GetError().ContainsErrorCode(NYT::NClusterErrorCodes::NTransactionClient::NoSuchTransaction)) {
                     periodic->Stop();
