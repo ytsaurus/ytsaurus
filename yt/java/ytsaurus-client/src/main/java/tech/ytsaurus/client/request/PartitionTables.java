@@ -32,6 +32,8 @@ public class PartitionTables
     @Nullable
     private final Integer maxPartitionCount;
     @Nullable
+    private final Boolean adjustDataWeightPerPartition;
+    @Nullable
     private final Boolean enableKeyGuarantee;
     @Nullable
     private final TransactionalOptions transactionalOptions;
@@ -45,6 +47,7 @@ public class PartitionTables
         this.partitionMode = Objects.requireNonNull(builder.partitionMode);
         this.dataWeightPerPartition = Objects.requireNonNull(builder.dataWeightPerPartition);
         this.maxPartitionCount = builder.maxPartitionCount;
+        this.adjustDataWeightPerPartition = builder.adjustDataWeightPerPartition;
         this.enableKeyGuarantee = builder.enableKeyGuarantee;
         if (builder.transactionalOptions != null) {
             this.transactionalOptions = new TransactionalOptions(builder.transactionalOptions);
@@ -88,6 +91,9 @@ public class PartitionTables
         if (maxPartitionCount != null) {
             builder.setMaxPartitionCount(maxPartitionCount);
         }
+        if (adjustDataWeightPerPartition != null) {
+            builder.setAdjustDataWeightPerPartition(adjustDataWeightPerPartition);
+        }
         if (enableKeyGuarantee != null) {
             builder.setEnableKeyGuarantee(enableKeyGuarantee);
         }
@@ -104,6 +110,7 @@ public class PartitionTables
         sb.append("; DataWeightPerPartition: ").append(dataWeightPerPartition);
         if (maxPartitionCount != null) {
             sb.append("; MaxPartitionCount: ").append(maxPartitionCount);
+            sb.append("; AdjustDataWeightPerPartition: ").append(adjustDataWeightPerPartition);
         }
         sb.append(";");
     }
@@ -118,6 +125,7 @@ public class PartitionTables
                 .setPartitionMode(partitionMode)
                 .setDataWeightPerPartition(dataWeightPerPartition)
                 .setMaxPartitionCount(maxPartitionCount)
+                .setAdjustDataWeightPerPartition(adjustDataWeightPerPartition)
                 .setEnableKeyGuarantee(enableKeyGuarantee)
                 .setTransactionalOptions(transactionalOptions)
                 .setTimeout(timeout)
@@ -142,6 +150,8 @@ public class PartitionTables
         private DataSize dataWeightPerPartition;
         @Nullable
         private Integer maxPartitionCount;
+        @Nullable
+        private Boolean adjustDataWeightPerPartition = true;
         @Nullable
         private Boolean enableKeyGuarantee;
         @Nullable
@@ -184,6 +194,11 @@ public class PartitionTables
 
         public Builder setMaxPartitionCount(@Nullable Integer maxPartitionCount) {
             this.maxPartitionCount = maxPartitionCount;
+            return self();
+        }
+
+        public Builder setAdjustDataWeightPerPartition(@Nullable Boolean adjustDataWeightPerPartition) {
+            this.adjustDataWeightPerPartition = adjustDataWeightPerPartition;
             return self();
         }
 
