@@ -6,9 +6,9 @@ import org.slf4j.LoggerFactory
 import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.system.SystemUtils
-import tech.ytsaurus.client.{CompoundClient, DiscoveryMethod, YtClient, YtCluster}
+import tech.ytsaurus.client.{CompoundClient, DiscoveryMethod, YTsaurusClient, YtCluster}
 import tech.ytsaurus.client.bus.DefaultBusConnector
-import tech.ytsaurus.client.rpc.RpcOptions
+import tech.ytsaurus.client.rpc.{RpcCredentials, RpcOptions}
 
 import java.util.concurrent.ThreadFactory
 import java.util.{ArrayList => JArrayList}
@@ -124,9 +124,19 @@ trait YtClientUtils {
     )
   }
 
+  private def buildYTsaurusClient(connector: DefaultBusConnector, cluster: YtCluster,
+                                  rpcCredentials: RpcCredentials, rpcOptions: RpcOptions): YTsaurusClient = {
+    YTsaurusClient.builder()
+      .setSharedBusConnector(connector)
+      .setClusters(java.util.List.of[YtCluster](cluster))
+      .setRpcCredentials(rpcCredentials)
+      .setRpcOptions(rpcOptions)
+      .build()
+  }
+
   private def createRemoteProxiesClient(connector: DefaultBusConnector,
                                         rpcOptions: RpcOptions,
-                                        config: YtClientConfiguration): YtClient = {
+                                        config: YtClientConfiguration): YTsaurusClient = {
     val cluster = new YtCluster(
       config.shortProxy,
       config.fullProxy,
@@ -134,17 +144,12 @@ trait YtClientUtils {
       new JArrayList(),
       config.proxyRole.orNull)
 
-    val client = new YtClient(
-      connector,
-      cluster,
-      config.rpcCredentials,
-      rpcOptions
-    )
+    val client = buildYTsaurusClient(connector, cluster, config.rpcCredentials, rpcOptions)
 
     initYtClient(client)
   }
 
-  private def initYtClient(client: YtClient): YtClient = {
+  private def initYtClient(client: YTsaurusClient): YTsaurusClient = {
     try {
       client.waitProxies.join
       client
@@ -158,7 +163,7 @@ trait YtClientUtils {
   private def createByopRemoteProxiesClient(connector: DefaultBusConnector,
                                             rpcOptions: RpcOptions,
                                             config: YtClientConfiguration,
-                                            byopDiscoveryEndpoint: HostAndPort): YtClient = {
+                                            byopDiscoveryEndpoint: HostAndPort): YTsaurusClient = {
     val cluster = new YtCluster(
       s"${config.shortProxy}-byop",
       byopDiscoveryEndpoint.host,
@@ -167,12 +172,7 @@ trait YtClientUtils {
 
     rpcOptions.setPreferableDiscoveryMethod(DiscoveryMethod.HTTP)
 
-    val client = new YtClient(
-      connector,
-      cluster,
-      config.rpcCredentials,
-      rpcOptions
-    )
+    val client = buildYTsaurusClient(connector, cluster, config.rpcCredentials, rpcOptions)
 
     initYtClient(client)
   }

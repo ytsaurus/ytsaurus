@@ -1,6 +1,5 @@
 resolvers += MavenCache("local-maven", Path.userHome / ".m2" / "repository")
-resolvers += ("YandexMediaReleases" at "http://artifactory.yandex.net/artifactory/yandex_media_releases")
-  .withAllowInsecureProtocol(true)
+resolvers += ("YandexMediaReleases" at "https://bucket.yandex-team.ru/v1/maven/yandex_media_releases")
 
 addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.14.10")
 libraryDependencies ++= Seq(
@@ -25,9 +24,8 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-parser"
 ).map(_ % circeVersion)
 
-val yandexIcebergVersion = "8582813"
 libraryDependencies ++= Seq(
-  "ru.yandex" % "iceberg-inside-yt" % yandexIcebergVersion excludeAll (
+  "ru.yandex" % "java-ytsaurus-client" % "10882715" excludeAll (
     ExclusionRule(organization = "com.fasterxml.jackson.core")
   )
 )

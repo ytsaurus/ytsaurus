@@ -20,7 +20,7 @@ class SchemaConverterTest extends FlatSpec with Matchers
   behavior of "SchemaConverter"
 
   it should "convert yt schema to spark one" in {
-    val schema = new TableSchema.Builder()
+    val schema = TableSchema.builder()
       .setUniqueKeys(false)
       .addKey("a", ColumnValueType.STRING)
       .addKey("c.e", ColumnValueType.INT64)
@@ -34,7 +34,7 @@ class SchemaConverterTest extends FlatSpec with Matchers
     ))
   }
 
-  private val schema = new TableSchema.Builder().setUniqueKeys(false)
+  private val schema = TableSchema.builder().setUniqueKeys(false)
     .addValue("NULL", ColumnValueType.NULL)
     .addValue("INT64", ColumnValueType.INT64)
     .addValue("int64_3", TiType.int64())
@@ -176,7 +176,7 @@ class SchemaConverterTest extends FlatSpec with Matchers
   }
 
   it should "use schema hint" in {
-    val schema = new TableSchema.Builder()
+    val schema = TableSchema.builder()
       .setUniqueKeys(false)
       .addKey("a", ColumnValueType.STRING)
       .addValue("b", ColumnValueType.INT64)
@@ -192,7 +192,7 @@ class SchemaConverterTest extends FlatSpec with Matchers
 
   it should "convert spark schema to yt one with parsing type v3" in {
     val res = TableSchema.fromYTree(ytLogicalSchema(sparkSchema, Unordered, Map.empty, typeV3Format = true))
-    res shouldBe new TableSchema.Builder().setUniqueKeys(false)
+    res shouldBe TableSchema.builder().setUniqueKeys(false)
       .addValue("Null", TiType.nullType())
       .addValue("Long", TiType.int64())
       .addValue("UInt64", TiType.uint64())

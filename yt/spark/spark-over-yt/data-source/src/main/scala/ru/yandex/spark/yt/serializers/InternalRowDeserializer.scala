@@ -6,9 +6,9 @@ import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import org.apache.spark.unsafe.types.UTF8String
-import ru.yandex.inside.yt.kosher.common.Decimal.binaryToText
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonDecoder
 import tech.ytsaurus.client.rows.{WireRowDeserializer, WireValueDeserializer}
+import tech.ytsaurus.core.common.Decimal.binaryToText
 import tech.ytsaurus.core.tables.ColumnValueType
 import tech.ytsaurus.ysontree.{YTreeBinarySerializer, YTreeBuilder}
 

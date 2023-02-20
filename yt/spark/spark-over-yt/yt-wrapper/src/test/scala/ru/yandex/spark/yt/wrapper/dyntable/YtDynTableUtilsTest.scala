@@ -23,12 +23,12 @@ class YtDynTableUtilsTest extends AnyFlatSpec with Matchers with LocalYtClient w
   it should "get non empty pivotKeys" in {
     prepareTestTable(tmpPath, testData, Seq(Seq(), Seq(3), Seq(6, 12)))
     YtWrapper.pivotKeys(tmpPath).map(str) should contain theSameElementsInOrderAs Seq(
-      "[]", """[3]""", """[6;12]"""
+      "[]", """[3;]""", """[6;12;]"""
     )
   }
 
   it should "createDynTableAndMount" in {
-    val schema = TableSchema.builderWithUniqueKeys()
+    val schema = TableSchema.builder().setUniqueKeys(true)
       .addKey("mockKey", ColumnValueType.INT64)
       .addValue("mockValue", ColumnValueType.INT64).build()
 
@@ -50,7 +50,7 @@ class YtDynTableUtilsTest extends AnyFlatSpec with Matchers with LocalYtClient w
   }
 
   it should "count rows" in {
-    val schema = TableSchema.builderWithUniqueKeys()
+    val schema = TableSchema.builder()
       .setUniqueKeys(false)
       .addValue("value", ColumnValueType.INT64).build()
     createDynTableAndMount(tmpPath, schema)

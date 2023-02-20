@@ -5,11 +5,9 @@ import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.YtWrapper.createTable
 import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
 import ru.yandex.spark.yt.wrapper.table.YtTableSettings
-import ru.yandex.yt.ytclient.proxy.request.ReshardTable
-import ru.yandex.yt.ytclient.proxy._
-import tech.ytsaurus.client.request.GetTablePivotKeys
+import tech.ytsaurus.client.request.{GetTablePivotKeys, ModifyRowsRequest, ReshardTable, SelectRowsRequest}
 import tech.ytsaurus.client.rows.UnversionedRowset
-import tech.ytsaurus.client.{ApiServiceTransaction, CompoundClient, ModifyRowsRequest, RetryPolicy, SelectRowsRequest}
+import tech.ytsaurus.client.{ApiServiceTransaction, CompoundClient, RetryPolicy}
 import tech.ytsaurus.client.rpc.AlwaysSwitchRpcFailoverPolicy
 import tech.ytsaurus.core.cypress.YPath
 import tech.ytsaurus.core.tables.TableSchema
@@ -226,33 +224,61 @@ trait YtDynTableUtils {
 
   def insertRows(path: String, schema: TableSchema, rows: java.util.List[java.util.List[Any]],
                  parentTransaction: Option[ApiServiceTransaction])(implicit yt: CompoundClient): Unit = {
-    processModifyRowsRequest(new ModifyRowsRequest(formatPath(path), schema).addInserts(rows), parentTransaction)
+    processModifyRowsRequest(
+      ModifyRowsRequest.builder()
+        .setPath(formatPath(path))
+        .setSchema(schema)
+        .addInserts(rows)
+        .build(),
+      parentTransaction)
   }
 
   def insertRows(path: String, schema: TableSchema, rows: Seq[Seq[Any]],
                  parentTransaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Unit = {
     import scala.collection.JavaConverters._
-
-    processModifyRowsRequest(new ModifyRowsRequest(formatPath(path), schema).addInserts(rows.map(_.asJava).asJava), parentTransaction)
+    processModifyRowsRequest(
+      ModifyRowsRequest.builder()
+        .setPath(formatPath(path))
+        .setSchema(schema)
+        .addInserts(rows.map(_.asJava).asJava)
+        .build(),
+      parentTransaction)
   }
 
   def updateRow(path: String, schema: TableSchema, map: java.util.Map[String, Any],
                 parentTransaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Unit = {
-    processModifyRowsRequest(new ModifyRowsRequest(formatPath(path), schema).addUpdate(map), parentTransaction)
+    processModifyRowsRequest(
+      ModifyRowsRequest.builder()
+        .setPath(formatPath(path))
+        .setSchema(schema)
+        .addUpdate(map)
+        .build(),
+      parentTransaction
+    )
   }
 
   def deleteRow(path: String, schema: TableSchema, map: java.util.Map[String, Any],
                 parentTransaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Unit = {
-    processModifyRowsRequest(new ModifyRowsRequest(formatPath(path), schema).addDelete(map), parentTransaction)
+    processModifyRowsRequest(
+      ModifyRowsRequest.builder()
+        .setPath(formatPath(path))
+        .setSchema(schema)
+        .addDelete(map)
+        .build(),
+      parentTransaction
+    )
   }
 
   def deleteRows(path: String, schema: TableSchema, rows: Seq[java.util.Map[String, Any]],
                 parentTransaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Unit = {
-
-    val request = rows.foldLeft(new ModifyRowsRequest(formatPath(path), schema)){ case (req, next) =>
-      req.addDelete(next)
+    val request = rows.foldLeft(
+      ModifyRowsRequest.builder()
+        .setPath(formatPath(path))
+        .setSchema(schema)
+    ) {
+      case (req, next) => req.addDelete(next)
     }
-    processModifyRowsRequest(request, parentTransaction)
+    processModifyRowsRequest(request.build(), parentTransaction)
   }
 
   def tabletState(path: String)(implicit yt: CompoundClient): TabletState = {
@@ -280,11 +306,13 @@ trait YtDynTableUtils {
   def reshardTable(path: String, schema: TableSchema, pivotKeys: Seq[Seq[Any]])
                   (implicit yt: CompoundClient): Unit = {
     import scala.collection.JavaConverters._
-    val request = new ReshardTable(YPath.simple(formatPath(path))).setSchema(schema)
+    val rawRequest = ReshardTable.builder()
+      .setPath(YPath.simple(formatPath(path)))
+      .setSchema(schema)
     pivotKeys.foreach { key =>
-      request.addPivotKey(key.asJava)
+      rawRequest.addPivotKey(key.asJava)
     }
-    yt.reshardTable(request).join()
+    yt.reshardTable(rawRequest.build()).join()
   }
 
   sealed abstract class TabletState(val name: String)

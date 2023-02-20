@@ -4,8 +4,8 @@ import org.slf4j.LoggerFactory
 import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.operation.OperationStatus
-import ru.yandex.yt.ytclient.proxy.request.GetOperation
 import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.client.request.GetOperation
 import tech.ytsaurus.core.GUID
 import tech.ytsaurus.ysontree.YTreeNode
 

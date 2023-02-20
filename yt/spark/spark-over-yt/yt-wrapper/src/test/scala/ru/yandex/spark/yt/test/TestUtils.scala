@@ -2,11 +2,10 @@ package ru.yandex.spark.yt.test
 
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
-import ru.yandex.yt.ytclient.proxy.request.WriteTable
 import tech.ytsaurus.client.CompoundClient
-import tech.ytsaurus.client.request.ObjectType
+import tech.ytsaurus.client.request.{ReadSerializationContext, SerializationContext, WriteSerializationContext, WriteTable}
 import tech.ytsaurus.client.rows.{UnversionedRow, UnversionedRowSerializer, WireRowDeserializer, WireValueDeserializer}
-import tech.ytsaurus.core.cypress.YPath
+import tech.ytsaurus.core.cypress.{CypressNodeType, YPath}
 import tech.ytsaurus.core.rows.YTreeRowSerializer
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.type_info.TiType
@@ -20,7 +19,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 trait TestUtils {
-  val longColumnSchema: TableSchema = new TableSchema.Builder()
+  val longColumnSchema: TableSchema = TableSchema.builder()
     .setUniqueKeys(false)
     .addValue("value", ColumnValueType.INT64)
     .build()
@@ -28,7 +27,7 @@ trait TestUtils {
   def createEmptyTable(path: String, schema: TableSchema)
                       (implicit yt: CompoundClient): Unit = {
     import scala.collection.JavaConverters._
-    yt.createNode(path, ObjectType.Table, Map("schema" -> schema.toYTree).asJava).join()
+    yt.createNode(path, CypressNodeType.TABLE, Map("schema" -> schema.toYTree).asJava).join()
   }
 
   def readTableAsYson(path: String, transaction: Option[String] = None)
@@ -103,7 +102,10 @@ trait TestUtils {
       }
     }
     YtWrapper.createTable(path, options ++ Map("schema" -> schema, "optimize_for" -> optimizeFor.node), None)
-    val writer = yt.writeTable(new WriteTable[String](path, serializer)).join()
+    val req = WriteTable.builder[String]()
+      .setPath(path)
+      .setSerializationContext(new SerializationContext(serializer))
+    val writer = yt.writeTable(req).join()
 
     @tailrec
     def write(): Unit = {
@@ -126,8 +128,10 @@ trait TestUtils {
     YtWrapper.createTable(path, options ++ Map("schema" -> physicalSchema.toYTree,
       "optimize_for" -> optimizeFor.node), None)
 
-    val writer = yt.writeTable(new WriteTable[UnversionedRow](path,
-      new UnversionedRowSerializer(physicalSchema))).join()
+    val req = WriteTable.builder[UnversionedRow]()
+      .setPath(path)
+      .setSerializationContext(new WriteSerializationContext(new UnversionedRowSerializer(physicalSchema)))
+    val writer = yt.writeTable(req).join()
 
     @tailrec
     def write(): Unit = {
@@ -170,7 +174,7 @@ trait TestUtils {
   }
 
   def writeComplexTable(path: String)(implicit yt: CompoundClient): Unit = {
-    val ytSchema = new TableSchema.Builder()
+    val ytSchema = TableSchema.builder()
       .setUniqueKeys(false)
       .addValue("f1", ColumnValueType.ANY)
       .addValue("f2", ColumnValueType.ANY)

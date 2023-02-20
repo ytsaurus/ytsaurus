@@ -35,14 +35,14 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
 
   import spark.implicits._
 
-  private val atomicSchema = new TableSchema.Builder()
+  private val atomicSchema = TableSchema.builder()
     .setUniqueKeys(false)
     .addValue("a", ColumnValueType.INT64)
     .addValue("b", ColumnValueType.STRING)
     .addValue("c", ColumnValueType.DOUBLE)
     .build()
 
-  private val anySchema = new TableSchema.Builder()
+  private val anySchema = TableSchema.builder()
     .setUniqueKeys(false)
     .addValue("value", ColumnValueType.ANY)
     .build()
@@ -105,7 +105,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
       """{utf8 = "23"}""",
       """{utf8 = #}""",
       """{utf8 = " apache "}""",
-    ), tmpPath, new TableSchema.Builder()
+    ), tmpPath, TableSchema.builder()
       .setUniqueKeys(false)
       .addValue("utf8", TiType.optional(TiType.utf8()))
       .build()
@@ -125,7 +125,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     writeTableFromYson(Seq(
       """{date = 1; datetime = 1; timestamp = 1; interval = 1}""",
       """{date = 9999; datetime = 1611733954; timestamp = 4; interval = 5}"""
-    ), tmpPath, new TableSchema.Builder()
+    ), tmpPath, TableSchema.builder()
       .setUniqueKeys(false)
       .addValue("date", TiType.date())
       .addValue("datetime", TiType.datetime())
@@ -419,7 +419,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
             .buildMap
         ).asJava)
       .build
-    val physicalSchema = new TableSchema.Builder()
+    val physicalSchema = TableSchema.builder()
       .setUniqueKeys(false)
       .addValue("a", ColumnValueType.INT64)
       .build()
@@ -578,7 +578,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
         new UnversionedValue(4, ColumnValueType.INT64, false, x(4)),
         new UnversionedValue(5, ColumnValueType.UINT64, false, x(5)),
       ))),
-      tmpPath, new TableSchema.Builder()
+      tmpPath, TableSchema.builder()
         .setUniqueKeys(false)
         .addValue("int64", ColumnValueType.ANY)
         .addValue("double", ColumnValueType.ANY)
@@ -615,7 +615,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
   }
 
   it should "read arrow when schema was changed" in {
-    val newSchema = new TableSchema.Builder()
+    val newSchema = TableSchema.builder()
       .setUniqueKeys(false)
       .addAll(atomicSchema.getColumns)
       .addValue("d", ColumnValueType.STRING)

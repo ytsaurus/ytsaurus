@@ -11,7 +11,7 @@ import scala.language.postfixOps
 trait DynTableTestUtils {
   self: LocalYtClient =>
 
-  val testSchema: TableSchema = new TableSchema.Builder()
+  val testSchema: TableSchema = TableSchema.builder()
     .setUniqueKeys(false)
     .add(new ColumnSchema("a", ColumnValueType.INT64, ColumnSortOrder.ASCENDING))
     .add(new ColumnSchema("b", ColumnValueType.INT64, ColumnSortOrder.ASCENDING))

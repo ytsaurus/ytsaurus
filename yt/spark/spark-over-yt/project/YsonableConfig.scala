@@ -1,9 +1,7 @@
 package spyt
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.yt.ytclient.proxy.YtClient
+import tech.ytsaurus.ysontree.{YTreeBuilder, YTreeNode, YTreeTextSerializer}
+import tech.ytsaurus.client.YTsaurusClient
 import spyt.SparkPaths._
 
 import scala.annotation.tailrec
@@ -25,7 +23,7 @@ sealed trait YsonableConfig {
     }.endMap()
   }
 
-  def resolveSymlinks(implicit yt: YtClient): YsonableConfig = this
+  def resolveSymlinks(implicit yt: YTsaurusClient): YsonableConfig = this
 }
 
 object YsonableConfig {
@@ -84,7 +82,7 @@ case class SparkLaunchConfig(spark_yt_base_path: String,
                              ytserver_proxy_path: Option[String] = None,
                              layer_paths: Seq[String] = SparkLaunchConfig.defaultLayers,
                              environment: Map[String, String] = Map.empty) extends YsonableConfig {
-  override def resolveSymlinks(implicit yt: YtClient): YsonableConfig = {
+  override def resolveSymlinks(implicit yt: YTsaurusClient): YsonableConfig = {
     import SparkLaunchConfig._
     if (ytserver_proxy_path.isEmpty) {
       copy(ytserver_proxy_path = Some(resolveSymlink(defaultYtServerProxyPath)))
@@ -105,7 +103,7 @@ object SparkLaunchConfig {
     s"$ytPortoBaseLayersPath/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz"
   )
 
-  def resolveSymlink(symlink: String)(implicit yt: YtClient): String = {
+  def resolveSymlink(symlink: String)(implicit yt: YTsaurusClient): String = {
     yt.getNode(s"$symlink&/@target_path").join().stringValue()
   }
 }

@@ -14,9 +14,8 @@ import ru.yandex.spark.yt.fs.path.GlobalTableSettings
 import ru.yandex.spark.yt.serializers.InternalRowSerializer
 import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider}
-import ru.yandex.yt.ytclient.proxy.request.WriteTable
+import tech.ytsaurus.client.request.{TransactionalOptions, WriteSerializationContext, WriteTable}
 import tech.ytsaurus.client.{CompoundClient, TableWriter}
-import tech.ytsaurus.client.request.TransactionalOptions
 import tech.ytsaurus.core.GUID
 
 import java.util
@@ -152,8 +151,11 @@ class YtOutputWriter(val path: String,
 
   protected def initializeWriter(): TableWriter[InternalRow] = {
     log.debugLazy(s"Initialize new write: ${appendPath()}, transaction: $transactionGuid")
-    val request = new WriteTable[InternalRow](appendPath(), new InternalRowSerializer(schema, schemaHint, typeV3Format))
+    val request = WriteTable.builder[InternalRow]()
+      .setPath(appendPath())
+      .setSerializationContext(new WriteSerializationContext(new InternalRowSerializer(schema, schemaHint, typeV3Format)))
       .setTransactionalOptions(new TransactionalOptions(GUID.valueOf(transactionGuid)))
+      .build()
     client.writeTable(request).join()
   }
 

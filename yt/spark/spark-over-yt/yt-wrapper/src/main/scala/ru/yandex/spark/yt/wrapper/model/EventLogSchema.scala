@@ -18,13 +18,17 @@ object EventLogSchema {
     val MODIFICATION_TS = "modificationTs"
   }
 
-  val schema: TableSchema = TableSchema.builderWithUniqueKeys()
+  val schema: TableSchema = TableSchema.builder()
+    .setUniqueKeys(true)
     .addKey(ID, ColumnValueType.STRING)
     .addKey(ORDER, ColumnValueType.INT64)
-    .addValue(LOG, ColumnValueType.STRING).build()
+    .addValue(LOG, ColumnValueType.STRING)
+    .build()
 
-  val metaSchema: TableSchema = TableSchema.builderWithUniqueKeys()
+  val metaSchema: TableSchema = TableSchema.builder()
+    .setUniqueKeys(true)
     .addKey(FILENAME, ColumnValueType.STRING)
     .addValue(ID, ColumnValueType.STRING)
-    .addValue(META, ColumnValueType.ANY).build()
+    .addValue(META, ColumnValueType.ANY)
+    .build()
 }
