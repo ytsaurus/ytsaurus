@@ -92,17 +92,21 @@ IYPathService::TResolveResult TVirtualMulticellMapBase::ResolveRecursive(
     const auto& objectManager = Bootstrap_->GetObjectManager();
     IYPathServicePtr proxy;
 
-    // Cf. TObjectResolver::ResolveRoot.
+    // Cf. TPathResolver::ResolveRoot.
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto cellTag = CellTagFromId(objectId);
-    if (multicellManager->IsPrimaryMaster() && cellTag != multicellManager->GetCellTag()) {
-        proxy = objectManager->CreateRemoteProxy(cellTag);
-    } else {
-        auto* object = objectManager->FindObject(objectId);
-        if (IsObjectAlive(object) && IsValid(object)) {
-            proxy = objectManager->GetProxy(object, nullptr);
+    if (cellTag == multicellManager->GetCellTag() ||
+        multicellManager->IsRegisteredMasterCell(cellTag))
+    {
+        if (multicellManager->IsPrimaryMaster() && cellTag != multicellManager->GetCellTag()) {
+            proxy = objectManager->CreateRemoteProxy(cellTag);
+        } else {
+            auto* object = objectManager->FindObject(objectId);
+            if (IsObjectAlive(object) && IsValid(object)) {
+                proxy = objectManager->GetProxy(object, nullptr);
+            }
         }
-    }
+    } // Else it's a garbage guid. Treat it as a non-existent object ID.
 
     if (!proxy) {
         if (context->GetMethod() == "Exists") {

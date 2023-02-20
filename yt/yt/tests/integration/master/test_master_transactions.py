@@ -521,6 +521,43 @@ class TestMasterTransactions(YTEnvSetup):
         with pytest.raises(YtError):
             start_transaction(tx=tx)
 
+    @authors("shakurov")
+    def test_zero_tx_id(self):
+        assert not exists("//sys/transactions/0-0-0-0")
+        assert not exists("//sys/transactions/0-0-0-0/@")
+        with pytest.raises(YtError):
+            get("//sys/transactions/0-0-0-0")
+        with pytest.raises(YtError):
+            get("//sys/transactions/0-0-0-0/@")
+
+        # Zero guid is often treated as a null transaction ID and thus
+        # should be handled as a special case.
+        assert not exists("#0-0-0-0")
+        assert not exists("#0-0-0-0/@")
+        with pytest.raises(YtError):
+            get("#0-0-0-0")
+        with pytest.raises(YtError):
+            get("#0-0-0-0/@")
+
+    @authors("shakurov")
+    def test_bad_tx_id(self):
+        assert not exists("//sys/transactions/a-b-c-d")
+        assert not exists("//sys/transactions/a-b-c-d/@")
+        with pytest.raises(YtError):
+            get("//sys/transactions/a-b-c-d")
+            get("//sys/transactions/a-b-c-d/@")
+
+        # Unlike zero guid above, any random guid is not a valid transaction (or,
+        # indeed, any object) ID, and it's not correct to check for its existence.
+        with pytest.raises(YtError):
+            exists("#a-b-c-d")
+        with pytest.raises(YtError):
+            exists("#a-b-c-d/@")
+        with pytest.raises(YtError):
+            get("#a-b-c-d")
+        with pytest.raises(YtError):
+            get("#a-b-c-d/@")
+
 
 class TestMasterTransactionsMulticell(TestMasterTransactions):
     NUM_SECONDARY_MASTER_CELLS = 3

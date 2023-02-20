@@ -320,6 +320,12 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
             }
             Tokenizer_.Advance();
 
+            if (!objectId) {
+                // Zero guid is often used to signify a null transaction and
+                // should be treated as an ID of a special always-missing object.
+                return TMissingObjectPayload{};
+            }
+
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (CellTagFromId(objectId) != multicellManager->GetCellTag() &&
                 multicellManager->IsPrimaryMaster() &&

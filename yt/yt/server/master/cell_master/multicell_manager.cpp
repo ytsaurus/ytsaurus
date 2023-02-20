@@ -243,9 +243,9 @@ public:
     }
 
 
-    bool IsLocalMasterCellRegistered() override
+    bool IsLocalMasterCellRegistered() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
 
         if (IsPrimaryMaster()) {
             return true;
@@ -258,14 +258,14 @@ public:
         return false;
     }
 
-    bool IsRegisteredMasterCell(TCellTag cellTag) override
+    bool IsRegisteredMasterCell(TCellTag cellTag) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
 
-        return FindMasterEntry(cellTag) != nullptr;
+        return MasterEntryExists(cellTag);
     }
 
-    EMasterCellRoles GetMasterCellRoles(TCellTag cellTag) override
+    EMasterCellRoles GetMasterCellRoles(TCellTag cellTag) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -275,7 +275,7 @@ public:
         return it == MasterCellRolesMap_.end() ? EMasterCellRoles::None : it->second;
     }
 
-    TCellTagList GetRoleMasterCells(EMasterCellRole cellRole) override
+    TCellTagList GetRoleMasterCells(EMasterCellRole cellRole) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -284,7 +284,7 @@ public:
         return RoleMasterCells_[cellRole];
     }
 
-    int GetRoleMasterCellCount(EMasterCellRole cellRole) override
+    int GetRoleMasterCellCount(EMasterCellRole cellRole) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -293,7 +293,7 @@ public:
         return RoleMasterCellCounts_[cellRole].load();
     }
 
-    TString GetMasterCellName(NObjectClient::TCellTag cellTag) override
+    TString GetMasterCellName(NObjectClient::TCellTag cellTag) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -302,7 +302,7 @@ public:
         return GetOrCrash(MasterCellNameMap_, cellTag);
     }
 
-    std::optional<NObjectClient::TCellTag> FindMasterCellTagByName(const TString& cellName) override
+    std::optional<NObjectClient::TCellTag> FindMasterCellTagByName(const TString& cellName) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -312,14 +312,14 @@ public:
         return it == NameMasterCellMap_.end() ? std::nullopt : std::make_optional(it->second);
     }
 
-    const TCellTagList& GetRegisteredMasterCellTags() override
+    const TCellTagList& GetRegisteredMasterCellTags() const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
         return RegisteredMasterCellTags_;
     }
 
-    int GetRegisteredMasterCellIndex(TCellTag cellTag) override
+    int GetRegisteredMasterCellIndex(TCellTag cellTag) const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -390,9 +390,9 @@ public:
             : hiCandidates[(random - totalLoWeight) / weightPerHi];
     }
 
-    const NProto::TCellStatistics& GetClusterStatistics() override
+    const NProto::TCellStatistics& GetClusterStatistics() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Bootstrap_->VerifyPersistentStateRead();
 
         return ClusterCellStatisics_;
     }
@@ -705,7 +705,7 @@ private:
         RegisterMasterMailbox(cellTag);
 
         try {
-            if (FindMasterEntry(cellTag))  {
+            if (MasterEntryExists(cellTag))  {
                 THROW_ERROR_EXCEPTION("Attempted to re-register secondary master %v", cellTag);
             }
 
@@ -779,7 +779,7 @@ private:
             return;
         }
 
-        if (FindMasterEntry(cellTag))  {
+        if (MasterEntryExists(cellTag))  {
             YT_LOG_ALERT("Attempted to re-register secondary master, ignored (CellTag: %v)",
                 cellTag);
             return;
@@ -957,9 +957,16 @@ private:
         return it == RegisteredMasterMap_.end() ? nullptr : &it->second;
     }
 
-    TMasterEntry* GetMasterEntry(TCellTag cellTag)
+    const TMasterEntry* GetMasterEntry(TCellTag cellTag) const
     {
         return &GetOrCrash(RegisteredMasterMap_, cellTag);
+    }
+
+    bool MasterEntryExists(TCellTag cellTag) const
+    {
+        Bootstrap_->VerifyPersistentStateRead();
+
+        return RegisteredMasterMap_.contains(cellTag);
     }
 
     TMailbox* FindMasterMailbox(TCellTag cellTag)
