@@ -350,7 +350,7 @@ void FromProto(
 
 size_t THash<NYT::NScheduler::TCustomJobMetricDescription>::operator()(const NYT::NScheduler::TCustomJobMetricDescription& jobMetricDescription) const
 {
-    return THash<TString>()(jobMetricDescription.StatisticsPath) * 71 + THash<TString>()(jobMetricDescription.ProfilingName);
+    return THash<TString>()(jobMetricDescription.ProfilingName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1025,13 +1025,23 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         UpdateOptions(&config->RemoteCopyOperationOptions, config->OperationOptions);
         UpdateOptions(&config->VanillaOperationOptions, config->OperationOptions);
 
+        THashSet<TString> customJobMetricsProfilingNames;
         for (const auto& customJobMetricDescription : config->CustomJobMetrics) {
+            const auto& profilingName = customJobMetricDescription.ProfilingName;
+
+            if (customJobMetricsProfilingNames.contains(profilingName)) {
+                THROW_ERROR_EXCEPTION("Custom job metric with profiling name %Qv is already presented",
+                    profilingName);
+            }
+
             for (auto metricName : TEnumTraits<NScheduler::EJobMetricName>::GetDomainValues()) {
-                if (FormatEnum(metricName) == customJobMetricDescription.ProfilingName) {
-                    THROW_ERROR_EXCEPTION("Metric with profiling name $Qv is already presented",
-                         customJobMetricDescription.ProfilingName);
+                if (FormatEnum(metricName) == profilingName) {
+                    THROW_ERROR_EXCEPTION("Custom job metric with profiling name $Qv is already presented as builtin metric",
+                         profilingName);
                 }
             }
+
+            customJobMetricsProfilingNames.insert(profilingName);
         }
 
         if (config->TotalControllerMemoryLimit) {
