@@ -71,7 +71,7 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("reallocate_instance_budget", &TThis::ReallocateInstanceBudget)
         .GreaterThan(0)
-        .Default(3);
+        .Default(20);
 
     registrar.Parameter("remove_instance_cypress_node_after", &TThis::RemoveInstanceCypressNodeAfter)
         .Default(TDuration::Days(7));

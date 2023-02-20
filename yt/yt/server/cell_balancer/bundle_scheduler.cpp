@@ -887,7 +887,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
     input.AliveProxiesBySize.clear();
 
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
-        if (!bundleInfo->EnableBundleController) {
+        if (!bundleInfo->EnableBundleController || !bundleInfo->TargetConfig) {
             continue;
         }
 
