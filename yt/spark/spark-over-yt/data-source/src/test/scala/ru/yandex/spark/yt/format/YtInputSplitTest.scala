@@ -65,7 +65,7 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
   it should "push compatible filters" in {
     writeTableFromYson(Seq(
       """{c = 1; a = 1}"""
-    ), tmpPath, new TableSchema.Builder()
+    ), tmpPath, TableSchema.builder()
       .setUniqueKeys(false)
       .addKey("c", ColumnValueType.INT64)
       .addKey("a", ColumnValueType.INT64)
@@ -329,20 +329,20 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
     val config = FilterPushdownConfig(enabled = true, unionEnabled = true, ytPathCountLimit = 5)
     pushdownFiltersToYPath(single = false, exampleSet1, keyColumns.map(Some(_)), config, baseYPath).toString shouldBe
       """<"ranges"=
-        |[{"lower_limit"={"row_index"=2;"key"=[<"type"="min">#;2]};
-        |"upper_limit"={"row_index"=5;"key"=[5;20;<"type"="max">#]}};
-        |{"lower_limit"={"row_index"=2;"key"=[15;2]};
-        |"upper_limit"={"row_index"=5;"key"=[<"type"="max">#]}}];
-        |"columns"=["a";"b"]>//dir/path""".stripMargin.replaceAll("\n", "")
+        |[{"lower_limit"={"row_index"=2;"key"=[<"type"="min";>#;2;];};
+        |"upper_limit"={"row_index"=5;"key"=[5;20;<"type"="max";>#;];};};
+        |{"lower_limit"={"row_index"=2;"key"=[15;2;];};
+        |"upper_limit"={"row_index"=5;"key"=[<"type"="max";>#;];};};];
+        |"columns"=["a";"b";];>//dir/path""".stripMargin.replaceAll("\n", "")
 
     pushdownFiltersToYPath(single = true, exampleSet1, keyColumns.map(Some(_)), config, baseYPath).toString shouldBe
       """<"ranges"=
-        |[{"lower_limit"={"row_index"=2;"key"=[<"type"="min">#;2]};
-        |"upper_limit"={"row_index"=5;"key"=[<"type"="max">#]}}];
-        |"columns"=["a";"b"]>//dir/path""".stripMargin.replaceAll("\n", "")
+        |[{"lower_limit"={"row_index"=2;"key"=[<"type"="min";>#;2;];};
+        |"upper_limit"={"row_index"=5;"key"=[<"type"="max";>#;];};};];
+        |"columns"=["a";"b";];>//dir/path""".stripMargin.replaceAll("\n", "")
   }
 
-  private val atomicSchema = new TableSchema.Builder()
+  private val atomicSchema = TableSchema.builder()
     .setUniqueKeys(false)
     .addKey("a", ColumnValueType.INT64)
     .addKey("b", ColumnValueType.STRING)

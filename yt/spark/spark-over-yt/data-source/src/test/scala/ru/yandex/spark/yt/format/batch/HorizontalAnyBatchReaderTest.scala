@@ -6,7 +6,7 @@ import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
 import ru.yandex.spark.yt.test.{LocalSpark, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.YtWrapper.formatPath
-import ru.yandex.yt.ytclient.proxy.request.{CreateNode, WriteTable}
+import tech.ytsaurus.client.request.{CreateNode, WriteSerializationContext, WriteTable}
 import tech.ytsaurus.client.rows.{UnversionedRow, UnversionedRowSerializer, UnversionedValue}
 import tech.ytsaurus.core.cypress.{CypressNodeType, YPath}
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
@@ -42,7 +42,11 @@ class HorizontalAnyBatchReaderTest extends FlatSpec with Matchers with ReadBatch
         new UnversionedRow(List(new UnversionedValue(0, ColumnValueType.ANY, false, "{}".getBytes())).asJava),
         new UnversionedRow(List(new UnversionedValue(0, ColumnValueType.NULL, false, null)).asJava),
       ).asJava
-    val writer = yt.writeTable(new WriteTable(path, new UnversionedRowSerializer)).join()
+    val req = WriteTable.builder()
+      .setPath(path)
+      .setSerializationContext(new WriteSerializationContext(new UnversionedRowSerializer))
+      .build()
+    val writer = yt.writeTable(req).join()
 
     writer.write(rows, ytSchema)
     writer.close().join()

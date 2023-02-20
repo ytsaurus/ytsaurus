@@ -32,14 +32,14 @@ class SingleProxyYtClientTest extends FlatSpec with Matchers with LocalYt with T
   }
 
   it should "write and read table" in {
-    val schema = new TableSchema.Builder()
+    val schema = TableSchema.builder()
       .addValue("a", ColumnValueType.STRING)
       .addValue("b", ColumnValueType.INT64)
       .setUniqueKeys(false)
       .build()
     val data = Seq(
-      """{"a"="AAA";"b"=123}""",
-      """{"a"="BBB";"b"=456}"""
+      """{"a"="AAA";"b"=123;}""",
+      """{"a"="BBB";"b"=456;}"""
     )
 
     writeTableFromYson(data, tmpPath, schema)

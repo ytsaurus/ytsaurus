@@ -10,7 +10,7 @@ import ru.yandex.spark.yt.fs.YtClientConfigurationConverter._
 import ru.yandex.spark.yt.fs.path.YPathEnriched.ypath
 import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider, YtRpcClient}
 import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
-import ru.yandex.yt.TError
+import tech.ytsaurus.TError
 import tech.ytsaurus.client.CompoundClient
 import tech.ytsaurus.client.rpc.RpcError
 

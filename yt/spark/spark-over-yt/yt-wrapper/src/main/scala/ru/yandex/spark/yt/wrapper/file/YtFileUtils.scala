@@ -6,8 +6,8 @@ import ru.yandex.spark.yt.wrapper.client.{YtClientUtils, YtRpcClient}
 import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
 import tech.ytsaurus.client.CompoundClient
-import tech.ytsaurus.client.request.{CreateNode, ObjectType, ReadFile, WriteFile}
-import tech.ytsaurus.core.cypress.YPath
+import tech.ytsaurus.client.request.{CreateNode, ReadFile, WriteFile}
+import tech.ytsaurus.core.cypress.{CypressNodeType, YPath}
 import tech.ytsaurus.ysontree.YTreeNode
 
 import java.io.{FileOutputStream, OutputStream}
@@ -67,7 +67,7 @@ trait YtFileUtils {
   def createFile(path: YPath, transaction: Option[String], force: Boolean)
                 (implicit yt: CompoundClient): Unit = {
     log.debug(s"Create file: $path, transaction: $transaction")
-    val request = CreateNode.builder().setPath(path).setType(ObjectType.File).optionalTransaction(transaction).setForce(force)
+    val request = CreateNode.builder().setPath(path).setType(CypressNodeType.FILE).optionalTransaction(transaction).setForce(force)
     yt.createNode(request).join()
   }
 

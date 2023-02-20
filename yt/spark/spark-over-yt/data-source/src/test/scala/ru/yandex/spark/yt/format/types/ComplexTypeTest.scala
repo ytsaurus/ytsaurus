@@ -6,12 +6,12 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.yson.YsonType
 import org.apache.spark.sql.{Encoders, Row, SaveMode}
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.inside.yt.kosher.common.Decimal.textToBinary
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonEncoder
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.common.utils.TypeUtils
 import ru.yandex.spark.yt.format._
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
+import tech.ytsaurus.core.common.Decimal.textToBinary
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 
 import scala.collection.mutable
@@ -21,7 +21,7 @@ class ComplexTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir
   import ComplexTypeTest._
   import spark.implicits._
 
-  private val anySchema = new TableSchema.Builder()
+  private val anySchema = TableSchema.builder()
     .setUniqueKeys(false)
     .addValue("value", ColumnValueType.ANY)
     .build()

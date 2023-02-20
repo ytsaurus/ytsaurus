@@ -105,7 +105,7 @@ object YtSortedTableBaseProperties {
   }
 
   def getTableSchema(schema: Schema, keys: Seq[String]): TableSchema = {
-    schema.cols.foldLeft(new TableSchema.Builder()) {
+    schema.cols.foldLeft(TableSchema.builder()) {
       case (builder, (name, dt)) =>
         if (keys.contains(name)) {
           builder.addKey(name, getTiType(dt))

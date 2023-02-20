@@ -6,13 +6,12 @@ import ru.yandex.spark.yt.wrapper.YtJavaConverters.RichJavaMap
 import ru.yandex.spark.yt.wrapper.cypress.YtCypressUtils
 import ru.yandex.spark.yt.wrapper.operation.OperationStatus
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
-import ru.yandex.yt.rpcproxy.EOperationType
 import tech.ytsaurus.client.CompoundClient
-import tech.ytsaurus.client.request.ReadTable.SerializationContext
-import tech.ytsaurus.client.request.{CreateNode, GetOperation, ObjectType, ReadTable, StartOperation}
+import tech.ytsaurus.client.request._
 import tech.ytsaurus.client.rows.WireRowDeserializer
 import tech.ytsaurus.core.GUID
-import tech.ytsaurus.core.cypress.YPath
+import tech.ytsaurus.core.cypress.{CypressNodeType, YPath}
+import tech.ytsaurus.rpcproxy.EOperationType
 import tech.ytsaurus.ysontree.{YTreeBuilder, YTreeNode, YTreeTextSerializer}
 
 import java.nio.ByteBuffer
@@ -51,7 +50,7 @@ trait YtTableUtils {
     import scala.collection.JavaConverters._
     val request = CreateNode.builder()
       .setPath(YPath.simple(formatPath(path)))
-      .setType(ObjectType.Table)
+      .setType(CypressNodeType.TABLE)
       .setAttributes(options.asJava)
       .optionalTransaction(transaction)
     yt.createNode(request).join()
@@ -62,7 +61,7 @@ trait YtTableUtils {
                   (implicit yt: CompoundClient): TableIterator[T] = {
     val request = ReadTable.builder()
       .setPath(path)
-      .setSerializationContext(new SerializationContext(deserializer))
+      .setSerializationContext(new ReadSerializationContext(deserializer))
       .setOmitInaccessibleColumns(true)
       .setUnordered(true)
       .optionalTransaction(transaction)
@@ -70,21 +69,21 @@ trait YtTableUtils {
     new TableIterator(reader, timeout, reportBytesRead)
   }
 
+  def readTableArrowStream(path: String, timeout: Duration, transaction: Option[String],
+                           reportBytesRead: Long => Unit)
+                          (implicit yt: CompoundClient): YtArrowInputStream = {
+    val request = ReadTable.builder[ByteBuffer]().setPath(path)
+      .setSerializationContext(ReadSerializationContext.binaryArrow())
+      .optionalTransaction(transaction)
+    val reader = yt.readTable(request).join()
+    new TableCopyByteStream(reader, timeout, reportBytesRead)
+  }
+
   def readTableArrowStream(path: YPath, timeout: Duration = 1 minute,
                            transaction: Option[String] = None,
                            reportBytesRead: Long => Unit = _ => {})
                           (implicit yt: CompoundClient): YtArrowInputStream = {
     readTableArrowStream(path.toString, timeout, transaction, reportBytesRead)
-  }
-
-  def readTableArrowStream(path: String, timeout: Duration, transaction: Option[String],
-                           reportBytesRead: Long => Unit)
-                          (implicit yt: CompoundClient): YtArrowInputStream = {
-    val request = ReadTable.builder[ByteBuffer]().setPath(path)
-      .setSerializationContext(SerializationContext.binaryArrow())
-      .optionalTransaction(transaction)
-    val reader = yt.readTable(request).join()
-    new TableCopyByteStream(reader, timeout, reportBytesRead)
   }
 
   private def startedBy(builder: YTreeBuilder): YTreeBuilder = {

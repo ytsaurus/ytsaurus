@@ -15,8 +15,8 @@ import ru.yandex.spark.yt.fs.YtTableFileSystem
 import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
-import ru.yandex.yt.ytclient.proxy.request.GetNode
 import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.client.request.GetNode
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 
 class YtInferSchemaTest extends FlatSpec with Matchers with LocalSpark
@@ -25,7 +25,7 @@ class YtInferSchemaTest extends FlatSpec with Matchers with LocalSpark
 
   import spark.implicits._
 
-  private val atomicSchema = new TableSchema.Builder()
+  private val atomicSchema = TableSchema.builder()
     .setUniqueKeys(false)
     .addValue("a", ColumnValueType.INT64)
     .addValue("b", ColumnValueType.STRING)
@@ -53,7 +53,7 @@ class YtInferSchemaTest extends FlatSpec with Matchers with LocalSpark
     writeTableFromYson(Seq(
       s"""{"$columnName" = 1}""",
       s"""{"$columnName" = 2}"""
-    ), tmpPath, new TableSchema.Builder().addKey(columnName, ColumnValueType.INT64).build())
+    ), tmpPath, TableSchema.builder().addKey(columnName, ColumnValueType.INT64).build())
 
     val res = spark.read.yt(tmpPath)
 
@@ -70,7 +70,7 @@ class YtInferSchemaTest extends FlatSpec with Matchers with LocalSpark
     writeTableFromYson(Seq(
       s"""{"$columnName" = 1}""",
       s"""{"$columnName" = 2}"""
-    ), tmpPath, new TableSchema.Builder().addKey(columnName, ColumnValueType.INT64).build())
+    ), tmpPath, TableSchema.builder().addKey(columnName, ColumnValueType.INT64).build())
 
     val res = spark.read.yt(tmpPath)
 
@@ -90,7 +90,7 @@ class YtInferSchemaTest extends FlatSpec with Matchers with LocalSpark
     ), table1, atomicSchema)
     writeTableFromYson(Seq(
       """{c = 2.0; d = "t"}"""
-    ), table2, new TableSchema.Builder()
+    ), table2, TableSchema.builder()
       .setUniqueKeys(false)
       .addValue("c", ColumnValueType.DOUBLE)
       .addValue("d", ColumnValueType.STRING)
@@ -115,7 +115,7 @@ class YtInferSchemaTest extends FlatSpec with Matchers with LocalSpark
     ), table1, atomicSchema)
     writeTableFromYson(Seq(
       """{c = 2.0; d = "t"}"""
-    ), table2, new TableSchema.Builder()
+    ), table2, TableSchema.builder()
       .setUniqueKeys(false)
       .addValue("c", ColumnValueType.DOUBLE)
       .addValue("d", ColumnValueType.STRING)
@@ -141,7 +141,7 @@ class YtInferSchemaTest extends FlatSpec with Matchers with LocalSpark
     ), table1, atomicSchema)
     writeTableFromYson(Seq(
       """{c = 1.2; a = 2; b = "g"}"""
-    ), table2, new TableSchema.Builder()
+    ), table2, TableSchema.builder()
       .setUniqueKeys(false)
       .addValue("c", ColumnValueType.DOUBLE)
       .addValue("a", ColumnValueType.INT64)
@@ -166,7 +166,7 @@ class YtInferSchemaTest extends FlatSpec with Matchers with LocalSpark
     ), table1, atomicSchema)
     writeTableFromYson(Seq(
       """{c = "a"}"""
-    ), table2, new TableSchema.Builder()
+    ), table2, TableSchema.builder()
       .setUniqueKeys(false)
       .addValue("c", ColumnValueType.STRING)
       .build()
@@ -186,7 +186,7 @@ class YtInferSchemaTest extends FlatSpec with Matchers with LocalSpark
     ), table1, atomicSchema)
     writeTableFromYson(Seq(
       """{c = 0.2}"""
-    ), table2, new TableSchema.Builder()
+    ), table2, TableSchema.builder()
       .setUniqueKeys(false)
       .addValue("c", ColumnValueType.DOUBLE)
       .build()

@@ -4,9 +4,8 @@ import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.YtWrapper.RichLogger
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
-import ru.yandex.yt.ytclient.proxy.request._
 import tech.ytsaurus.client.CompoundClient
-import tech.ytsaurus.client.request.ObjectType
+import tech.ytsaurus.client.request._
 import tech.ytsaurus.core.GUID
 import tech.ytsaurus.core.cypress.{CypressNodeType, YPath}
 import tech.ytsaurus.core.request.LockMode
@@ -43,8 +42,8 @@ trait YtCypressUtils {
   def getNodeType(path: YPath, transaction: Option[String])
                  (implicit yt: CompoundClient): Option[CypressNodeType] = {
     val fp = path.justPath().attribute("type")
-    if (yt.existsNode(new ExistsNode(fp).optionalTransaction(transaction)).join()) {
-      val nt = yt.getNode(new GetNode(fp).optionalTransaction(transaction))
+    if (yt.existsNode(ExistsNode.builder().setPath(fp).optionalTransaction(transaction).build()).join()) {
+      val nt = yt.getNode(GetNode.builder().setPath(fp).optionalTransaction(transaction).build())
         .join()
         .stringValue()
       Some(CypressNodeType.R.fromName(nt))
@@ -68,11 +67,15 @@ trait YtCypressUtils {
   def createLink(sourcePath: String, destPath: String, transaction: Option[String] = None,
                  ignoreExisting: Boolean = false)(implicit yt: CompoundClient): Unit = {
     log.debug(s"Creating link $sourcePath -> $destPath, transaction $transaction")
-    yt.createNode(new CreateNode(formatPath(destPath), ObjectType.Link)
+    yt.createNode(
+      CreateNode.builder()
+      .setPath(YPath.simple(formatPath(destPath)))
+      .setType(CypressNodeType.LINK)
       .optionalTransaction(transaction)
       .setAttributes(Map[String, YTreeNode]("target_path" -> YTree.stringNode(sourcePath)).asJava)
       .setIgnoreExisting(ignoreExisting)
       .setRecursive(true)
+      .build()
     ).join()
   }
 
@@ -86,10 +89,13 @@ trait YtCypressUtils {
     log.debug(s"Create new directory: $path, transaction $transaction")
     if (!ignoreExisting || !isDir(path, transaction)) {
       yt.createNode(
-        new CreateNode(path, ObjectType.MapNode)
+        CreateNode.builder()
+          .setPath(path)
+          .setType(CypressNodeType.MAP)
           .setRecursive(true)
           .setIgnoreExisting(ignoreExisting)
           .optionalTransaction(transaction)
+          .build()
       ).join()
     }
   }
@@ -101,7 +107,7 @@ trait YtCypressUtils {
   def listDir(path: YPath, transaction: Option[String])(implicit yt: CompoundClient): Array[String] = {
     log.debug(s"List directory: $path, transaction $transaction")
     import scala.collection.JavaConverters._
-    val request = new ListNode(path).optionalTransaction(transaction)
+    val request = ListNode.builder().setPath(path).optionalTransaction(transaction).build()
     val response = yt.listNode(request).join().asList()
     response.asScala.view.map(_.stringValue()).toArray
   }
@@ -110,21 +116,34 @@ trait YtCypressUtils {
           (implicit yt: CompoundClient): Unit = {
     log.debug(s"Move: $src -> $dst, transaction $transaction, force: $force")
     yt.moveNode(
-      new MoveNode(formatPath(src), formatPath(dst))
+      MoveNode.builder()
+        .setSource(formatPath(src))
+        .setDestination(formatPath(dst))
         .setForce(force)
         .optionalTransaction(transaction)
+        .build()
     ).join()
   }
 
   def remove(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Unit = {
     log.debug(s"Remove: $path, transaction $transaction")
-    yt.removeNode(new RemoveNode(formatPath(path)).optionalTransaction(transaction)).join()
+    val request = RemoveNode.builder()
+      .setPath(YPath.simple(formatPath(path)))
+      .setRecursive(true)
+      .optionalTransaction(transaction)
+      .build()
+    yt.removeNode(request).join()
   }
 
   def removeDir(path: String, recursive: Boolean, transaction: Option[String] = None)
                (implicit yt: CompoundClient): Unit = {
     log.debug(s"Remove directory: $path, transaction $transaction")
-    yt.removeNode(new RemoveNode(formatPath(path)).setRecursive(true).optionalTransaction(transaction)).join()
+    val request = RemoveNode.builder()
+      .setPath(YPath.simple(formatPath(path)))
+      .setRecursive(true)
+      .optionalTransaction(transaction)
+      .build()
+    yt.removeNode(request).join()
   }
 
   def removeIfExists(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Unit = {
@@ -161,14 +180,14 @@ trait YtCypressUtils {
 
   def exists(path: YPath, transaction: Option[String] = None)(implicit yt: CompoundClient): Boolean = {
     log.debug(s"Exists: $path, transaction $transaction")
-    val request = new ExistsNode(path.allAttributes()).optionalTransaction(transaction)
+    val request = ExistsNode.builder().setPath(path.allAttributes()).optionalTransaction(transaction).build()
     yt.existsNode(request).join().booleanValue()
   }
 
   def attribute(path: YPath, attrName: String, transaction: Option[String])
                (implicit yt: CompoundClient): YTreeNode = {
     log.debug(s"Get attribute: $path/@$attrName, transaction $transaction")
-    val request = new GetNode(path.attribute(attrName)).optionalTransaction(transaction)
+    val request = GetNode.builder().setPath(path.attribute(attrName)).optionalTransaction(transaction).build()
     yt.getNode(request).join()
   }
 
@@ -181,7 +200,7 @@ trait YtCypressUtils {
                 (implicit yt: CompoundClient): Map[String, YTreeNode] = {
     import scala.collection.JavaConverters._
     log.debug(s"Get attributes: $path/@$attrNames, transaction $transaction")
-    val request = new GetNode(path.allAttributes()).optionalTransaction(transaction)
+    val request = GetNode.builder().setPath(path.allAttributes()).optionalTransaction(transaction).build()
     val map = yt.getNode(request).join().asMap().asScala
     val filteredMap = if (attrNames.nonEmpty) map.filterKeys(attrNames.contains) else map
     filteredMap.toMap
@@ -195,27 +214,41 @@ trait YtCypressUtils {
   def setAttribute(path: String, attrName: String, attrValue: YTreeNode, transaction: Option[String] = None)
                   (implicit yt: CompoundClient): Unit = {
     log.debug(s"Set attribute: $path/@$attrName, transaction $transaction")
-    val request = new SetNode(YPath.simple(s"${formatPath(path)}/@$attrName"), attrValue)
+    val request = SetNode.builder()
+      .setPath(YPath.simple(s"${formatPath(path)}/@$attrName"))
+      .setValue(attrValue)
       .optionalTransaction(transaction)
+      .build()
     yt.setNode(request).join()
   }
 
   def rename(src: String, dst: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Unit = {
     log.debug(s"Rename: $src -> $dst, transaction $transaction")
-    val request = new MoveNode(formatPath(src), formatPath(dst)).optionalTransaction(transaction)
+    val request = MoveNode.builder()
+      .setSource(formatPath(src))
+      .setDestination(formatPath(dst))
+      .optionalTransaction(transaction)
+      .build()
     yt.moveNode(request).join()
   }
 
   def readDocument(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): YTreeNode = {
     log.debug(s"Read document: $path, transaction $transaction")
-    val request = new GetNode(formatPath(path)).optionalTransaction(transaction)
+    val request = GetNode.builder()
+      .setPath(YPath.simple(formatPath(path)))
+      .optionalTransaction(transaction)
+      .build()
     yt.getNode(request).join()
   }
 
   def createEmptyDocument(path: String, transaction: Option[String] = None)
                          (implicit yt: CompoundClient): Unit = {
     log.debug(s"Create document: $path, transaction $transaction")
-    val request = new CreateNode(formatPath(path), ObjectType.Document).optionalTransaction(transaction)
+    val request = CreateNode.builder()
+      .setPath(YPath.simple(formatPath(path)))
+      .setType(CypressNodeType.DOCUMENT)
+      .optionalTransaction(transaction)
+      .build()
     yt.createNode(request).join()
   }
 
@@ -223,7 +256,11 @@ trait YtCypressUtils {
                                    (implicit yt: CompoundClient): Unit = {
     import YsonSyntax._
     createEmptyDocument(formatPath(path), transaction)
-    val request = new SetNode(YPath.simple(formatPath(path)), doc.toYson).optionalTransaction(transaction)
+    val request = SetNode.builder()
+      .setPath(YPath.simple(formatPath(path)))
+      .setValue(doc.toYson)
+      .optionalTransaction(transaction)
+      .build()
     yt.setNode(request).join()
   }
 
@@ -239,8 +276,13 @@ trait YtCypressUtils {
   @Deprecated
   def concatenate(from: Array[String], to: String, transaction: Option[String] = None)
                  (implicit yt: CompoundClient): Unit = {
+    import scala.collection.JavaConverters._
     log.debug(s"Concatenate: ${from.mkString(",")} -> $to, transaction $transaction")
-    val request = new ConcatenateNodes(from.map(formatPath), formatPath(to)).optionalTransaction(transaction)
+    val request = ConcatenateNodes.builder()
+      .setSourcePaths(from.map(formatPath).map(YPath.simple).toList.asJava)
+      .setDestinationPath(YPath.simple(formatPath(to)))
+      .optionalTransaction(transaction)
+      .build()
     yt.concatenateNodes(request).join()
   }
 
@@ -251,7 +293,8 @@ trait YtCypressUtils {
 
   def lockNode(path: YPath, transaction: String, mode: LockMode = LockMode.Snapshot)
               (implicit yt: CompoundClient): String = {
-    yt.lockNode(new LockNode(path, mode).optionalTransaction(Some(transaction))).join().nodeId.toString
+    val request = LockNode.builder().setPath(path).setMode(mode).optionalTransaction(Some(transaction)).build()
+    yt.lockNode(request).join().nodeId.toString
   }
 
   def lockCount(path: String)(implicit yt: CompoundClient): Long = {

@@ -11,12 +11,13 @@ import spyt.ZipPlugin.autoImport._
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
+    libraryDependencies ++= metrics,
     libraryDependencies ++= circe,
     libraryDependencies ++= sttp,
-    libraryDependencies ++= yandexIceberg,
+    libraryDependencies ++= ytsaurusClient,
     libraryDependencies ++= logging.map(_ % Provided),
     libraryDependencies ++= testDeps,
-    buildInfoKeys := Seq[BuildInfoKey](version, BuildInfoKey.constant(("ytClientVersion", yandexIcebergVersion))),
+    buildInfoKeys := Seq[BuildInfoKey](version, BuildInfoKey.constant(("ytClientVersion", ytsaurusClientVersion))),
     buildInfoPackage := "ru.yandex.spark.yt"
   )
 
@@ -91,7 +92,7 @@ lazy val `spark-submit` = (project in file("spark-submit"))
   .settings(
     libraryDependencies ++= scaldingArgs,
     libraryDependencies ++= py4j,
-    libraryDependencies ++= yandexIceberg.map(_ % Provided) ++ (ThisBuild / spytSparkForkDependency).value ++
+    libraryDependencies ++= ytsaurusClient.map(_ % Provided) ++ (ThisBuild / spytSparkForkDependency).value ++
       circe.map(_ % Provided) ++ logging.map(_ % Provided),
     assembly / assemblyJarName := s"spark-yt-submit.jar",
     assembly / assemblyShadeRules ++= clusterShadeRules,
@@ -102,7 +103,7 @@ lazy val `submit-client` = (project in file("submit-client"))
   .dependsOn(`spark-submit`, `file-system`)
   .settings(
     libraryDependencies ++= spark,
-    libraryDependencies ++= yandexIceberg ++ circe ++ logging
+    libraryDependencies ++= ytsaurusClient ++ circe ++ logging
   )
 
 lazy val `data-source` = (project in file("data-source"))
@@ -142,7 +143,6 @@ lazy val `file-system` = (project in file("file-system"))
   .enablePlugins(CommonPlugin)
   .dependsOn(`yt-wrapper` % "compile->compile;test->test")
   .settings(
-    libraryDependencies ++= metrics,
     libraryDependencies ++= commonDependencies.value,
     libraryDependencies += "net.logstash.log4j" % "jsonevent-layout" % "1.7"
   )
@@ -204,7 +204,7 @@ lazy val `e2e-test` = (project in file("e2e-test"))
 lazy val maintenance = (project in file("maintenance"))
   .dependsOn(`data-source`)
   .settings(
-    libraryDependencies ++= yandexIceberg ++ sparkRuntime ++ circe ++ logging
+    libraryDependencies ++= ytsaurusClient ++ sparkRuntime ++ circe ++ logging
   )
 
 // benchmark and test ----

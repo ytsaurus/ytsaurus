@@ -5,8 +5,8 @@ import ru.yandex.spark.launcher.AutoScaler.{OperationState, SparkState}
 import ru.yandex.spark.launcher.ClusterStateService.State
 import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.spark.yt.wrapper.discovery.{DiscoveryService, OperationSet}
-import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters.{ResourceLimits, SchedulingOptions}
 import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.client.request.UpdateOperationParameters.{ResourceLimits, SchedulingOptions}
 import tech.ytsaurus.client.request.{AbortJob, GetOperation, ResumeOperation, SuspendOperation, UpdateOperationParameters}
 import tech.ytsaurus.core.GUID
 
@@ -73,7 +73,7 @@ object ClusterStateService extends LogLazy {
       def suspendOperation(operationId: GUID): Unit = {
         log.info(s"Suspending operation $operationId")
         yt.suspendOperation(
-          new SuspendOperation.Builder().setOperationId(operationId).setAbortRunningJobs(false).build()
+          SuspendOperation.builder().setOperationId(operationId).setAbortRunningJobs(false).build()
         ).join()
       }
 
@@ -84,7 +84,7 @@ object ClusterStateService extends LogLazy {
 
       def updateUserSlots(operationId: GUID, userSlots: Long): Unit = {
         log.info(s"Updating operation parameters for $operationId: user_slots=$userSlots")
-        val req = new UpdateOperationParameters.Builder()
+        val req = UpdateOperationParameters.builder()
           .setOperationId(operationId)
           .addSchedulingOptions("physical",
             new SchedulingOptions().setResourceLimits(new ResourceLimits().setUserSlots(userSlots)))

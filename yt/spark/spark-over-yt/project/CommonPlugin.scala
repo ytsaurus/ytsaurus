@@ -105,7 +105,7 @@ object CommonPlugin extends AutoPlugin {
         ExclusionRule(organization = "org.apache.httpcomponents")
       ).map(_ % Provided)
     },
-    commonDependencies := yandexIceberg ++ (ThisBuild / spytSparkForkDependency).value ++ circe ++ logging.map(_ % Provided),
+    commonDependencies := ytsaurusClient ++ (ThisBuild / spytSparkForkDependency).value ++ circe ++ logging.map(_ % Provided),
     Global / excludeLintKeys += commonDependencies
   )
 }

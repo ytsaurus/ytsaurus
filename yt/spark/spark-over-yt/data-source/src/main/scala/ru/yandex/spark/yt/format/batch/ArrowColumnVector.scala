@@ -7,9 +7,9 @@ import org.apache.arrow.vector.holders.NullableVarCharHolder
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarArray, ColumnarMap}
 import org.apache.spark.unsafe.types.UTF8String
-import ru.yandex.inside.yt.kosher.common.Decimal.binaryToText
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.{ArrayType => IArrayType, AtomicType => IAtomicType}
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.{IndexedDataType, YsonDecoder}
+import tech.ytsaurus.core.common.Decimal.binaryToText
 
 class ArrowColumnVector(dataType: IndexedDataType,
                         vector: ValueVector,

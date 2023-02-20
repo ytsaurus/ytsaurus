@@ -5,7 +5,6 @@ import org.apache.spark.sql.v2.YtUtils
 import org.apache.spark.sql.{DataFrameReader, Row}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import ru.yandex.inside.yt.kosher.common.Decimal.textToBinary
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.ParsingTypeV3
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
@@ -13,6 +12,7 @@ import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
 import ru.yandex.spark.yt.serializers.YtLogicalType
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import tech.ytsaurus.client.rows.{UnversionedRow, UnversionedValue}
+import tech.ytsaurus.core.common.Decimal.textToBinary
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.type_info.StructType.Member
 import tech.ytsaurus.type_info.TiType
@@ -89,7 +89,7 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
     writeTableFromYson(
       data.map(
         d => s"""{ optional = ${d.map(_.toString).getOrElse("#")} }"""),
-      tmpPath, new TableSchema.Builder()
+      tmpPath, TableSchema.builder()
         .setUniqueKeys(false)
         .addValue("optional", TiType.optional(TiType.int64()))
         .build()
@@ -105,7 +105,7 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
     val data = Seq("1.23", "0.21")
     val byteDecimal = data.map(x => textToBinary(x, precision, scale))
     writeTableFromURow(byteDecimal.map(x => packToRow(x, ColumnValueType.STRING)), tmpPath,
-      new TableSchema.Builder().setUniqueKeys(false).addValue("a", TiType.decimal(precision, scale)).build())
+      TableSchema.builder().setUniqueKeys(false).addValue("a", TiType.decimal(precision, scale)).build())
 
     withConf(s"spark.yt.${ParsingTypeV3.name}", "true") {
       testEnabledAndDisabledArrow { reader =>
@@ -118,7 +118,7 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
   it should "read array from yt" in {
     val data = Seq(Seq(1L, 2L), Seq(3L, 4L, 5L))
     writeTableFromURow(
-      data.map(x => packToRow(codeList(x))), tmpPath, new TableSchema.Builder()
+      data.map(x => packToRow(codeList(x))), tmpPath, TableSchema.builder()
         .setUniqueKeys(false)
         .addValue("array", TiType.list(TiType.int64()))
         .build()
@@ -135,7 +135,7 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
   it should "read map from yt" in {
     val data = Seq(Map("1" -> true), Map("3" -> true, "4" -> false))
     writeTableFromURow(
-      data.map(x => packToRow(codeDictLikeList(x))), tmpPath, new TableSchema.Builder()
+      data.map(x => packToRow(codeDictLikeList(x))), tmpPath, TableSchema.builder()
         .setUniqueKeys(false)
         .addValue("map", TiType.dict(TiType.string(), TiType.bool()))
         .build()
@@ -150,7 +150,7 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
   }
 
   it should "read struct from yt" in {
-    val schema = new TableSchema.Builder()
+    val schema = TableSchema.builder()
       .setUniqueKeys(false)
       .addValue("struct",
         TiType.struct(
@@ -171,7 +171,7 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
   it should "read tuple from yt" in {
     val data: Seq[Array[Any]] = Seq(Array[Any](99L, 0.3), Array[Any](128L, 1.0))
     writeTableFromURow(
-      data.map { x => packToRow(codeList(x)) }, tmpPath, new TableSchema.Builder()
+      data.map { x => packToRow(codeList(x)) }, tmpPath, TableSchema.builder()
         .setUniqueKeys(false)
         .addValue("tuple",
           TiType.tuple(
@@ -188,7 +188,7 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
   it should "read tagged from yt" in {
     writeTableFromYson(
       Seq("{ tagged = 1 }", "{ tagged = 2 }"), tmpPath,
-      new TableSchema.Builder()
+      TableSchema.builder()
         .setUniqueKeys(false)
         .addValue("tagged",
           TiType.tagged(
@@ -213,7 +213,7 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
     writeTableFromURow(
       Seq(packToRow(codeList(Array[Any](1L, data(0)(1))), ColumnValueType.COMPOSITE),
         packToRow(codeList(Array[Any](0L, data(1)(0))), ColumnValueType.COMPOSITE)),
-      tmpPath, new TableSchema.Builder()
+      tmpPath, TableSchema.builder()
         .setUniqueKeys(false)
         .addValue("variant",
           TiType.variantOverTuple(
@@ -232,7 +232,7 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
     writeTableFromURow(
       Seq(packToRow(codeList(Array[Any](1L, data(0)(1))), ColumnValueType.COMPOSITE),
         packToRow(codeList(Array[Any](0L, data(1)(0))), ColumnValueType.COMPOSITE)),
-      tmpPath, new TableSchema.Builder()
+      tmpPath, TableSchema.builder()
         .setUniqueKeys(false)
         .addValue("variant",
           TiType.variantOverStruct(java.util.List.of(

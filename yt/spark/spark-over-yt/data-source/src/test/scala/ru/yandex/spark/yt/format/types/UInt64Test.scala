@@ -60,7 +60,7 @@ class UInt64Test extends FlatSpec with Matchers with LocalSpark with TmpDir with
       """{a = 1}""",
       """{a = 2}""",
       """{a = #}"""
-    ), tmpPath, new TableSchema.Builder()
+    ), tmpPath, TableSchema.builder()
       .setUniqueKeys(false)
       .addValue("a", ColumnValueType.UINT64)
       .build()
