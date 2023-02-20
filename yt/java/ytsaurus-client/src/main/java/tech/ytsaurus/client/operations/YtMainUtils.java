@@ -7,8 +7,8 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.Arrays;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 /**
  * For internal usage only. Please, don't use it in your code.

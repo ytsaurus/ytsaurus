@@ -8,10 +8,10 @@ import tech.ytsaurus.client.request.MapOperation;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.operations.OperationContext;
 import tech.ytsaurus.core.operations.Yield;
+import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.lang.NonNullApi;
 
 
 public class ExampleMapYTree {

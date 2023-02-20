@@ -1,8 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
 import tech.ytsaurus.core.cypress.YPath;
-
-import ru.yandex.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullApi;
 
 @NonNullApi
 public class UnfreezeTable extends tech.ytsaurus.client.request.UnfreezeTable.BuilderBase<UnfreezeTable> {

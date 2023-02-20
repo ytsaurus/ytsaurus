@@ -4,6 +4,7 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.type_info.TypeIO;
 import tech.ytsaurus.ysontree.YTree;
@@ -13,7 +14,6 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeNodeUtils;
 
-import ru.yandex.lang.NonNullFields;
 
 /**
  * TColumnSchema (yt/ytlib/table_client/schema.h)

@@ -4,10 +4,10 @@ import java.util.Map;
 
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 /**
  * Request for creating cypress node.

@@ -1,9 +1,9 @@
 package tech.ytsaurus.client.operations;
 
 import tech.ytsaurus.client.TransactionalClient;
+import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-import ru.yandex.lang.NonNullApi;
 
 /**
  * Interface for specs of user jobs.

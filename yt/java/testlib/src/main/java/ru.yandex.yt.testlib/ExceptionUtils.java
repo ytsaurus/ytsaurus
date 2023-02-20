@@ -1,7 +1,7 @@
 package ru.yandex.yt.testlib;
 
-import ru.yandex.lang.NonNullApi;
 
+import tech.ytsaurus.lang.NonNullApi;
 @NonNullApi
 public class ExceptionUtils {
     private ExceptionUtils() {

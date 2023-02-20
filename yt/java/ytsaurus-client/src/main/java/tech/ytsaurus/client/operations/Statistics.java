@@ -6,9 +6,9 @@ import java.util.Iterator;
 
 import tech.ytsaurus.core.operations.OperationContext;
 import tech.ytsaurus.core.operations.Yield;
+import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.lang.NonNullApi;
 
 /**
  * Allows writing statistics from user job script.

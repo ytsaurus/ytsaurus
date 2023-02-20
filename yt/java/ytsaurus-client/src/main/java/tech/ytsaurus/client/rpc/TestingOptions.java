@@ -4,8 +4,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.OutageController;
-
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullFields;
 
 @NonNullFields
 public class TestingOptions {

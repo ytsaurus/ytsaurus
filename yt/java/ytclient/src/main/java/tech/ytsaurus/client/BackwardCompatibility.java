@@ -3,9 +3,8 @@ package tech.ytsaurus.client;
 import java.util.List;
 
 import tech.ytsaurus.client.rpc.RpcClient;
-
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 /**
  * Miscellaneous stuff to help with backward compatibility.

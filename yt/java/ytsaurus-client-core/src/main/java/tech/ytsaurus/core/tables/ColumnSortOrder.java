@@ -3,8 +3,8 @@ package tech.ytsaurus.core.tables;
 import java.util.HashMap;
 import java.util.Map;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 /**
  * ESortOrder (yt/ytlib/table_client/schema.h)

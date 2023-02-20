@@ -21,12 +21,12 @@ import tech.ytsaurus.client.request.JobResult;
 import tech.ytsaurus.client.request.JobState;
 import tech.ytsaurus.client.request.ListJobs;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.ysontree.YTreeListNode;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields

@@ -3,9 +3,8 @@ package ru.yandex.yt.ytclient.proxy.request;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 @NonNullFields
 @NonNullApi

@@ -24,9 +24,8 @@ import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
-
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 /**
  * YT Client for requests in several clusters

@@ -18,9 +18,8 @@ import tech.ytsaurus.client.rpc.RpcError;
 import tech.ytsaurus.client.rpc.RpcErrorCode;
 import tech.ytsaurus.client.rpc.RpcFailoverPolicy;
 import tech.ytsaurus.client.rpc.RpcOptions;
-
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 /**
  * Class determines which errors must be retried.

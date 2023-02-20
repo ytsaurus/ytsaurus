@@ -15,8 +15,7 @@ import tech.ytsaurus.client.request.MapReduceOperation;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.operations.OperationContext;
 import tech.ytsaurus.core.operations.Yield;
-
-import ru.yandex.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullApi;
 
 public class ExampleMapReduceEntity {
 

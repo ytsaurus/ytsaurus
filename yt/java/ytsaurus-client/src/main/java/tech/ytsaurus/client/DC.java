@@ -3,8 +3,8 @@ package tech.ytsaurus.client;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 /**
  * Enum representing common Yandex datacenters

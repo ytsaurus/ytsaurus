@@ -8,11 +8,11 @@ import java.io.OutputStream;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.core.operations.Yield;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 /**
  * Implementation of {@link Statistics} which is used by default in {@link MapMain} and others.

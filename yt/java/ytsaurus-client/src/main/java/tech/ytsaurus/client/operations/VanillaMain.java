@@ -2,10 +2,8 @@ package tech.ytsaurus.client.operations;
 
 import java.io.OutputStream;
 
-
 import tech.ytsaurus.core.operations.Yield;
-
-import ru.yandex.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullApi;
 
 @NonNullApi
 class VanillaMain {

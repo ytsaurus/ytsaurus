@@ -12,11 +12,11 @@ import tech.ytsaurus.client.operations.SingleUploadFromClassPathJarsProcessor;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.JavaOptions;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields

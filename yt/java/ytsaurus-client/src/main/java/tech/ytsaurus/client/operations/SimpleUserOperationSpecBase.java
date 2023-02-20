@@ -5,10 +5,10 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.core.DataSize;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 /**
  * Base class for map and reduce operations spec

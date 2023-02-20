@@ -15,11 +15,11 @@ import tech.ytsaurus.client.rpc.RpcClientResponse;
 import tech.ytsaurus.client.rpc.RpcError;
 import tech.ytsaurus.client.rpc.RpcErrorCode;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.rpc.TReqDiscover;
 import tech.ytsaurus.rpc.TRspDiscover;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 public interface SelfCheckingClientFactory {
     RpcClient create(HostPort hostPort, String name, CompletableFuture<Void> statusFuture);

@@ -13,10 +13,10 @@ import tech.ytsaurus.client.rows.UnversionedRowSerializer;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.rpcproxy.TWriteTableMeta;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 class TableWriterBaseImpl<T> extends RawTableWriterImpl {

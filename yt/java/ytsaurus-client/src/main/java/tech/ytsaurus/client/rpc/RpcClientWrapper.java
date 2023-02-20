@@ -6,8 +6,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import ru.yandex.lang.NonNullFields;
 
+import tech.ytsaurus.lang.NonNullFields;
 /**
  * Base class for all rpc-clients that wrap other rpc clients overriding some of its methods.
  * Current implementation just calls methods of innerClient.

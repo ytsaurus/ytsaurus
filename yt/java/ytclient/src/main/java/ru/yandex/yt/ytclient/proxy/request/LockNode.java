@@ -2,9 +2,8 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.request.LockMode;
-
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 @NonNullFields
 @NonNullApi

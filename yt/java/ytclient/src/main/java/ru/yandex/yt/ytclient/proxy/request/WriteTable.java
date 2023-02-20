@@ -9,9 +9,8 @@ import tech.ytsaurus.client.rows.WireRowSerializer;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.core.tables.TableSchema;
-
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields

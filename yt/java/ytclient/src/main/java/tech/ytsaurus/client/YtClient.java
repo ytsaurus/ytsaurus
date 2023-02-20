@@ -6,9 +6,9 @@ import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.rpc.RpcCompression;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.library.svnversion.VcsVersion;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 

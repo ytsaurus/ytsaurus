@@ -2,8 +2,8 @@ package ru.yandex.yt.testlib;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 /**
  * Class helps to create YT clients to local YT instance.

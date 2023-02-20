@@ -10,10 +10,10 @@ import javax.annotation.Nullable;
 
 import com.google.protobuf.MessageLite;
 import com.google.protobuf.Parser;
+import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.rpc.TRequestHeader;
 import tech.ytsaurus.rpc.TResponseHeader;
 
-import ru.yandex.lang.NonNullApi;
 
 @NonNullApi
 public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder, ResponseType extends MessageLite>
