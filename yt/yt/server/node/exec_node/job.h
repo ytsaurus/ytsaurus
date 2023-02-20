@@ -369,9 +369,12 @@ private:
 
     void StartUserJobMonitoring();
 
-    void DoSetResult(const TError& error);
+    void DoSetResult(TError error);
 
-    void DoSetResult(NControllerAgent::NProto::TJobResult jobResult, bool receivedFromJobProxy);
+    void DoSetResult(
+        TError error,
+        std::optional<NScheduler::NProto::TSchedulerJobResultExt> jobResultExtension,
+        bool receivedFromJobProxy);
 
     bool HandleFinishingPhase();
 
