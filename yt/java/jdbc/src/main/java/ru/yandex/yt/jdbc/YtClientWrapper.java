@@ -8,8 +8,8 @@ import tech.ytsaurus.client.YtClient;
 import tech.ytsaurus.client.YtCluster;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.rpc.RpcCompression;
-import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 
 
 class YtClientWrapper {
@@ -29,7 +29,10 @@ class YtClientWrapper {
                 Collections.singletonList(cluster),
                 cluster.getName(),
                 null,
-                new RpcCredentials(properties.getUsername(), properties.getToken()),
+                YTsaurusClientAuth.builder()
+                        .setUser(properties.getUsername())
+                        .setToken(properties.getToken())
+                        .build(),
                 new RpcCompression(properties.getCompression()),
                 new RpcOptions()); // TODO: Поддержать настройки
 

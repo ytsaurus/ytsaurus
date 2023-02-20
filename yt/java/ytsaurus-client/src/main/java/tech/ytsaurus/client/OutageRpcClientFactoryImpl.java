@@ -16,11 +16,11 @@ import tech.ytsaurus.client.rpc.RpcClientResponseHandler;
 import tech.ytsaurus.client.rpc.RpcClientStreamControl;
 import tech.ytsaurus.client.rpc.RpcClientWrapper;
 import tech.ytsaurus.client.rpc.RpcCompression;
-import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.RpcRequest;
 import tech.ytsaurus.client.rpc.RpcStreamConsumer;
 import tech.ytsaurus.client.rpc.RpcUtil;
+import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.rpc.TResponseHeader;
 import tech.ytsaurus.rpc.TStreamingFeedbackHeader;
@@ -203,11 +203,11 @@ class OutageRpcClientFactoryImpl extends RpcClientFactoryImpl {
 
     OutageRpcClientFactoryImpl(
             BusConnector connector,
-            RpcCredentials credentials,
+            YTsaurusClientAuth auth,
             RpcCompression compression,
             OutageController controller
     ) {
-        super(connector, credentials, compression);
+        super(connector, auth, compression);
         this.controller = controller;
     }
 

@@ -18,8 +18,8 @@ import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcCompression;
-import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
@@ -50,7 +50,10 @@ public class RpcBackendTest {
                 List.of(new YtCluster("local", host, proxyPort)),
                 "local",
                 null,
-                new RpcCredentials(user, token),
+                YTsaurusClientAuth.builder()
+                        .setUser(user)
+                        .setToken(token)
+                        .build(),
                 new RpcCompression(Compression.Zlib_6),
                 new RpcOptions()
         );

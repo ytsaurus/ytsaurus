@@ -4,8 +4,8 @@ import java.util.List;
 
 import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.rpc.RpcCompression;
-import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
@@ -23,9 +23,9 @@ public class YtClient extends tech.ytsaurus.client.YTsaurusClient {
             BusConnector connector,
             List<YtCluster> clusters,
             String localDataCenterName,
-            RpcCredentials credentials,
+            YTsaurusClientAuth auth,
             RpcOptions options) {
-        this(connector, clusters, localDataCenterName, null, credentials, options);
+        this(connector, clusters, localDataCenterName, null, auth, options);
     }
 
     /**
@@ -37,9 +37,9 @@ public class YtClient extends tech.ytsaurus.client.YTsaurusClient {
             List<YtCluster> clusters,
             String localDataCenterName,
             String proxyRole,
-            RpcCredentials credentials,
+            YTsaurusClientAuth auth,
             RpcOptions options) {
-        this(connector, clusters, localDataCenterName, proxyRole, credentials, new RpcCompression(), options);
+        this(connector, clusters, localDataCenterName, proxyRole, auth, new RpcCompression(), options);
     }
 
     /**
@@ -51,7 +51,7 @@ public class YtClient extends tech.ytsaurus.client.YTsaurusClient {
             List<YtCluster> clusters,
             String localDataCenterName,
             String proxyRole,
-            RpcCredentials credentials,
+            YTsaurusClientAuth auth,
             RpcCompression compression,
             RpcOptions options
     ) {
@@ -61,7 +61,7 @@ public class YtClient extends tech.ytsaurus.client.YTsaurusClient {
                         .setClusters(clusters)
                         .setPreferredClusterName(localDataCenterName)
                         .setProxyRole(proxyRole)
-                        .setRpcCredentials(credentials)
+                        .setAuth(auth)
                         .setRpcCompression(compression)
                         .setYtClientConfiguration(YtClientConfiguration.builder()
                                 .setRpcOptions(options)
@@ -72,16 +72,16 @@ public class YtClient extends tech.ytsaurus.client.YTsaurusClient {
         ), YandexSerializationResolver.getInstance());
     }
 
-    public YtClient(BusConnector connector, YtCluster cluster, RpcCredentials credentials, RpcOptions options) {
-        this(connector, List.of(cluster), cluster.getName(), credentials, options);
+    public YtClient(BusConnector connector, YtCluster cluster, YTsaurusClientAuth auth, RpcOptions options) {
+        this(connector, List.of(cluster), cluster.getName(), auth, options);
     }
 
-    public YtClient(BusConnector connector, String clusterName, RpcCredentials credentials, RpcOptions options) {
-        this(connector, new YtCluster(clusterName), credentials, options);
+    public YtClient(BusConnector connector, String clusterName, YTsaurusClientAuth auth, RpcOptions options) {
+        this(connector, new YtCluster(clusterName), auth, options);
     }
 
-    public YtClient(BusConnector connector, String clusterName, RpcCredentials credentials) {
-        this(connector, clusterName, credentials, new RpcOptions());
+    public YtClient(BusConnector connector, String clusterName, YTsaurusClientAuth auth) {
+        this(connector, clusterName, auth, new RpcOptions());
     }
 
     private YtClient(BuilderWithDefaults builder) {

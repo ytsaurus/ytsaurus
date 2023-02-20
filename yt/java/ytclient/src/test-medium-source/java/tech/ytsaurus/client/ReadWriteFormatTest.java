@@ -23,8 +23,8 @@ import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.UnversionedValue;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcCompression;
-import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.ColumnValueType;
@@ -56,7 +56,10 @@ public class ReadWriteFormatTest {
                 List.of(new YtCluster(localProxy)),
                 "default",
                 null,
-                new RpcCredentials("root", ""),
+                YTsaurusClientAuth.builder()
+                        .setUser("root")
+                        .setToken("")
+                        .build(),
                 new RpcCompression().setRequestCodecId(Compression.None),
                 new RpcOptions());
 
@@ -65,7 +68,10 @@ public class ReadWriteFormatTest {
                 List.of(new YtCluster(localProxy)),
                 "default",
                 null,
-                new RpcCredentials("root", ""),
+                YTsaurusClientAuth.builder()
+                        .setUser("root")
+                        .setToken("")
+                        .build(),
                 new RpcCompression().setRequestCodecId(Compression.Zlib_6),
                 new RpcOptions());
 

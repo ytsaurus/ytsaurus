@@ -30,10 +30,10 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcClientResponse;
 import tech.ytsaurus.client.rpc.RpcClientStreamControl;
 import tech.ytsaurus.client.rpc.RpcCompression;
-import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.RpcStreamConsumer;
 import tech.ytsaurus.client.rpc.RpcUtil;
+import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 import tech.ytsaurus.rpc.TResponseHeader;
 import tech.ytsaurus.rpc.TStreamingFeedbackHeader;
 import tech.ytsaurus.rpc.TStreamingPayloadHeader;
@@ -65,14 +65,14 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
     public YTsaurusClient(
             BusConnector connector,
             YtCluster cluster,
-            RpcCredentials credentials,
+            YTsaurusClientAuth auth,
             YtClientConfiguration configuration) {
         this(new BuilderWithDefaults<>(
                         new Builder()
                                 .setSharedBusConnector(connector)
                                 .setClusters(List.of(cluster))
                                 .setPreferredClusterName(cluster.getName())
-                                .setRpcCredentials(credentials)
+                                .setAuth(auth)
                                 .setRpcCompression(new RpcCompression())
                                 .setYtClientConfiguration(configuration)
                 ), DefaultSerializationResolver.getInstance()
@@ -82,17 +82,17 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
     public YTsaurusClient(
             BusConnector connector,
             String clusterName,
-            RpcCredentials credentials,
+            YTsaurusClientAuth auth,
             YtClientConfiguration configuration
     ) {
-        this(connector, new YtCluster(clusterName), credentials, configuration);
+        this(connector, new YtCluster(clusterName), auth, configuration);
     }
 
-    public YTsaurusClient(BusConnector connector, String clusterName, RpcCredentials credentials) {
+    public YTsaurusClient(BusConnector connector, String clusterName, YTsaurusClientAuth auth) {
         this(
                 connector,
                 clusterName,
-                credentials,
+                auth,
                 YtClientConfiguration.builder().setRpcOptions(new RpcOptions()).build()
         );
     }
@@ -117,12 +117,12 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
                 outageController != null
                         ? new OutageRpcClientFactoryImpl(
                         busConnector,
-                        builder.credentials,
+                        builder.auth,
                         builder.builder.compression,
                         outageController)
                         : new RpcClientFactoryImpl(
                         busConnector,
-                        builder.credentials,
+                        builder.auth,
                         builder.builder.compression);
 
         this.poolProvider = new ClientPoolProvider(
@@ -130,7 +130,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
                 builder.builder.clusters,
                 builder.builder.preferredClusterName,
                 builder.builder.proxyRole,
-                builder.credentials,
+                builder.auth,
                 rpcClientFactory,
                 builder.builder.configuration.getRpcOptions(),
                 builder.builder.heavyExecutor);
@@ -266,7 +266,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
                 List<YtCluster> clusters,
                 @Nullable String localDataCenterName,
                 @Nullable String proxyRole,
-                RpcCredentials credentials,
+                YTsaurusClientAuth auth,
                 RpcClientFactory rpcClientFactory,
                 RpcOptions options,
                 Executor heavyExecutor
@@ -292,7 +292,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
                                     .setDataCenterName(curCluster.getName())
                                     .setBalancerAddress(curCluster.balancerFqdn, curCluster.httpPort)
                                     .setRole(proxyRole)
-                                    .setToken(credentials.getToken())
+                                    .setToken(auth.getToken().orElse(null))
                                     .setOptions(options)
                                     .setClientFactory(rpcClientFactory)
                                     .setEventLoop(eventLoopGroup)
@@ -428,7 +428,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
     public abstract static class BaseBuilder<
             TClient, TBuilder extends BaseBuilder<TClient, TBuilder>> {
         @Nullable
-        RpcCredentials credentials;
+        YTsaurusClientAuth auth;
         RpcCompression compression = new RpcCompression();
         YtClientConfiguration configuration = YtClientConfiguration.builder()
                 .setRpcOptions(new RpcOptions())
@@ -438,12 +438,12 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
          * Set authentication information.
          *
          * <p>
-         * When no rpc credentials is set they are loaded from environment.
+         * When no {@code YTsaurusClientAuth} is set, username and token are loaded from environment.
          *
-         * @see RpcCredentials#loadFromEnvironment()
+         * @see YTsaurusClientAuth#loadUserAndTokenFromEnvironment()
          */
-        public TBuilder setRpcCredentials(RpcCredentials rpcCredentials) {
-            this.credentials = rpcCredentials;
+        public TBuilder setAuth(YTsaurusClientAuth auth) {
+            this.auth = auth;
             return self();
         }
 
@@ -691,13 +691,14 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
             TBuilder extends ClientBuilder<TClient, TBuilder>> {
         final ClientBuilder<TClient, TBuilder> builder;
         final BusConnector busConnector;
-        final RpcCredentials credentials;
+        final YTsaurusClientAuth auth;
 
         public BuilderWithDefaults(ClientBuilder<TClient, TBuilder> builder) {
             this.builder = builder;
 
             busConnector = Objects.requireNonNullElseGet(builder.busConnector, DefaultBusConnector::new);
-            credentials = Objects.requireNonNullElseGet(builder.credentials, RpcCredentials::loadFromEnvironment);
+            auth = Objects.requireNonNullElseGet(builder.auth,
+                    YTsaurusClientAuth::loadUserAndTokenFromEnvironment);
         }
     }
 }

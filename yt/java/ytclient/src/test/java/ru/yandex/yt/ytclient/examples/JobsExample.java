@@ -10,9 +10,12 @@ import tech.ytsaurus.ysontree.YTreeMapNodeImpl;
 import ru.yandex.yt.ytclient.proxy.request.GetJob;
 
 import static ru.yandex.yt.ytclient.examples.ExamplesUtil.createConnector;
-import static ru.yandex.yt.ytclient.examples.ExamplesUtil.getCredentials;
+import static ru.yandex.yt.ytclient.examples.ExamplesUtil.getClientAuth;
 
 public class JobsExample {
+    private JobsExample() {
+    }
+
     static void printState(GUID job, YTreeMapNode n) {
         System.out.println("Job " + job + " state: " + n.getString("state"));
     }
@@ -21,7 +24,7 @@ public class JobsExample {
         GUID operation = GUID.valueOf(args[0]);
         GUID job = GUID.valueOf(args[1]);
         try (BusConnector connector = createConnector()) {
-            try (YtClient client = new YtClient(connector, "hahn", getCredentials())){
+            try (YtClient client = new YtClient(connector, "hahn", getClientAuth())) {
                 GetJob j = new GetJob(operation, job);
                 YTreeMapNodeImpl n = (YTreeMapNodeImpl) client.getJob(j).join();
                 printState(job, n);
@@ -30,8 +33,9 @@ public class JobsExample {
                 while (true) {
                     n = (YTreeMapNodeImpl) client.getJob(j).join();
                     printState(job, n);
-                    if ("aborted".equals(n.getString("state")))
+                    if ("aborted".equals(n.getString("state"))) {
                         break;
+                    }
                     Thread.sleep(1000L);
                 }
             }

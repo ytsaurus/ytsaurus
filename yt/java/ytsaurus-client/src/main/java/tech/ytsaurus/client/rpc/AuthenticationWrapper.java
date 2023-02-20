@@ -9,31 +9,29 @@ import tech.ytsaurus.rpc.TRequestHeader;
  * Decorator for RpcClient that adds authentication
  */
 public class AuthenticationWrapper extends RpcClientWrapper {
-    private final RpcCredentials credentials;
+    private final YTsaurusClientAuth clientAuth;
 
-    public AuthenticationWrapper(RpcClient client, RpcCredentials credentials) {
+    public AuthenticationWrapper(RpcClient client, YTsaurusClientAuth auth) {
         super(client);
-        this.credentials = Objects.requireNonNull(credentials);
+        this.clientAuth = Objects.requireNonNull(auth);
     }
 
     @Override
-    public RpcClient withAuthentication(RpcCredentials credentials) {
-        return new AuthenticationWrapper(this.innerClient, credentials);
+    public RpcClient withAuthentication(YTsaurusClientAuth auth) {
+        return new AuthenticationWrapper(this.innerClient, auth);
     }
 
     private void patchHeader(TRequestHeader.Builder header) {
-        if (!header.hasUser() && credentials.getUser() != null) {
-            header.setUser(credentials.getUser());
+        if (!header.hasUser()) {
+            clientAuth.getUser().ifPresent(header::setUser);
         }
         if (header.hasExtension(TCredentialsExt.credentialsExt)) {
             return;
         }
         TCredentialsExt.Builder credentialsExtBuilder = TCredentialsExt.newBuilder();
-        credentials.getServiceTicketAuth().ifPresent(serviceTicketAuth ->
+        clientAuth.getServiceTicketAuth().ifPresent(serviceTicketAuth ->
                 credentialsExtBuilder.setServiceTicket(serviceTicketAuth.issueServiceTicket()));
-        if (credentials.getToken() != null) {
-            credentialsExtBuilder.setToken(credentials.getToken());
-        }
+        clientAuth.getToken().ifPresent(credentialsExtBuilder::setToken);
         header.setExtension(TCredentialsExt.credentialsExt, credentialsExtBuilder.build());
     }
 
@@ -73,6 +71,6 @@ public class AuthenticationWrapper extends RpcClientWrapper {
 
     @Override
     public String toString() {
-        return credentials.getUser() + "@" + super.toString();
+        return clientAuth.getUser() + "@" + super.toString();
     }
 }

@@ -371,8 +371,8 @@ class MultiExecutor implements Closeable {
                     .setClusters(cluster)
                     .setYtClientConfiguration(builder.configuration)
                     .setRpcCompression(builder.compression);
-            if (builder.credentials != null) {
-                clientBuilder.setRpcCredentials(builder.credentials);
+            if (builder.auth != null) {
+                clientBuilder.setAuth(builder.auth);
             }
             result.add(clientBuilder.build());
         }

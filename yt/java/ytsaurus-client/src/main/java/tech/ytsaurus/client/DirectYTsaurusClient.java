@@ -9,7 +9,7 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.rpc.DefaultRpcBusClient;
-import tech.ytsaurus.client.rpc.RpcCredentials;
+import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
@@ -32,7 +32,7 @@ public class DirectYTsaurusClient extends CompoundClientImpl {
     DirectYTsaurusClient(Builder builder) {
         super(
                 new DefaultRpcBusClient(builder.busConnector, builder.address, builder.address.toString())
-                        .withAuthentication(builder.credentials),
+                        .withAuthentication(builder.auth),
                 builder.busConnector.executorService(), builder.configuration, builder.heavyExecutor,
                 builder.serializationResolver
         );
@@ -62,7 +62,7 @@ public class DirectYTsaurusClient extends CompoundClientImpl {
         @Nullable
         SocketAddress address;
         @Nullable
-        RpcCredentials credentials;
+        YTsaurusClientAuth auth;
         @Nullable
         YtClientConfiguration configuration;
         @Nullable
@@ -125,14 +125,15 @@ public class DirectYTsaurusClient extends CompoundClientImpl {
         }
 
         /**
-         * Set authentication information i.e. username and user token.
+         * Set authentication information.
          *
          * <p>
-         * When no rpc credentials is set they are loaded from environment.
-         * @see RpcCredentials#loadFromEnvironment()
+         * When no {@code YTsaurusClientAuth} is set, username and token are loaded from environment.
+         *
+         * @see YTsaurusClientAuth#loadUserAndTokenFromEnvironment()
          */
-        public Builder setRpcCredentials(RpcCredentials rpcCredentials) {
-            this.credentials = rpcCredentials;
+        public Builder setAuth(YTsaurusClientAuth auth) {
+            this.auth = auth;
             return self();
         }
 
@@ -152,8 +153,8 @@ public class DirectYTsaurusClient extends CompoundClientImpl {
             if (busConnector == null) {
                 busConnector = new DefaultBusConnector();
             }
-            if (credentials == null) {
-                credentials = RpcCredentials.loadFromEnvironment();
+            if (auth == null) {
+                auth = YTsaurusClientAuth.loadUserAndTokenFromEnvironment();
             }
             if (configuration == null) {
                 configuration = YtClientConfiguration.builder().build();

@@ -7,9 +7,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import org.junit.Test;
-import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.TestingOptions;
+import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
@@ -40,14 +40,20 @@ public class MultiYtClientIntegrationTest {
 
     YtClient clientOne = YtClient.builder()
             .setCluster(System.getenv("YT_PROXY_ONE"))
-            .setRpcCredentials(new RpcCredentials("root", ""))
+            .setAuth(YTsaurusClientAuth.builder()
+                    .setUser("root")
+                    .setToken("")
+                    .build())
             .setRpcOptions(new RpcOptions().setTestingOptions(
                     new TestingOptions().setOutageController(outageControllerOne)))
             .build();
 
     YtClient clientTwo = YtClient.builder()
             .setCluster(System.getenv("YT_PROXY_TWO"))
-            .setRpcCredentials(new RpcCredentials("root", ""))
+            .setAuth(YTsaurusClientAuth.builder()
+                    .setUser("root")
+                    .setToken("")
+                    .build())
             .setRpcOptions(new RpcOptions().setTestingOptions(
                     new TestingOptions().setOutageController(outageControllerTwo)))
             .build();
