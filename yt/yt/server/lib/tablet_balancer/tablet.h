@@ -38,7 +38,7 @@ struct TTablet final
 
     TTabletStatistics Statistics;
     TPerformanceCountersProtoList PerformanceCountersProto;
-    ETabletState State;
+    ETabletState State = ETabletState::Unmounted;
 
     TTablet(
         TTabletId tabletId,

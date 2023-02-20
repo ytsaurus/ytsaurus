@@ -16,12 +16,12 @@ struct TTable final
     TTabletCellBundle* const Bundle;
     const TTableId Id;
 
-    bool Dynamic;
+    bool Dynamic = false;
 
-    i64 CompressedDataSize;
-    i64 UncompressedDataSize;
+    i64 CompressedDataSize = 0;
+    i64 UncompressedDataSize = 0;
 
-    EInMemoryMode InMemoryMode;
+    EInMemoryMode InMemoryMode = EInMemoryMode::None;
     TTableTabletBalancerConfigPtr TableConfig;
     std::vector<TTabletPtr> Tablets;
 

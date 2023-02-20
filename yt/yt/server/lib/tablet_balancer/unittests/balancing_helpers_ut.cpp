@@ -395,7 +395,7 @@ INSTANTIATE_TEST_SUITE_P(
                 .BundleConfig = "{}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
                         .TableConfig = "{}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
@@ -407,7 +407,7 @@ INSTANTIATE_TEST_SUITE_P(
                 .BundleConfig = "{}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=none}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=none}",
                         .TableConfig = "{}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
@@ -419,7 +419,7 @@ INSTANTIATE_TEST_SUITE_P(
                 .BundleConfig = "{}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
                         .TableConfig = "{}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
@@ -497,7 +497,7 @@ INSTANTIATE_TEST_SUITE_P(
                 .BundleConfig = "{}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
                         .TableConfig = "{}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
@@ -509,7 +509,7 @@ INSTANTIATE_TEST_SUITE_P(
                 .BundleConfig = "{}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=none}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=none}",
                         .TableConfig = "{}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
@@ -521,7 +521,7 @@ INSTANTIATE_TEST_SUITE_P(
                 .BundleConfig = "{}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=none}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=none}",
                         .TableConfig = "{}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
@@ -547,7 +547,8 @@ TEST_P(TTestMergeSplitTabletsOfTable, Simple)
         const auto& table = bundle.Bundle->Tables[bundle.TableIds[tableIndex]];
 
         auto descriptors = MergeSplitTabletsOfTable(
-            table->Tablets);
+            table->Tablets,
+            Logger);
 
         for (const auto& descriptor : descriptors) {
             EXPECT_NE(expectedDescriptorsIt, expected.end());
@@ -568,7 +569,7 @@ INSTANTIATE_TEST_SUITE_P(
                 .BundleConfig = "{}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true}",
+                        .TableSettings = "{sorted=%true}",
                         .TableConfig = "{desired_tablet_count=100}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=100; memory_size=100}"}}}}},
@@ -579,7 +580,7 @@ INSTANTIATE_TEST_SUITE_P(
                 .BundleConfig = "{min_tablet_size=200}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true}",
+                        .TableSettings = "{sorted=%true}",
                         .TableConfig = "{}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=100; memory_size=100}"},
@@ -661,7 +662,7 @@ INSTANTIATE_TEST_SUITE_P(
             .BundleConfig = "{}",
             .Tables = std::vector<TTestTableParams>{
                 TTestTableParams{
-                    .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
+                    .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
                     .TableConfig = "{}",
                     .Tablets = std::vector<TStringBuf>{
                         TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
@@ -671,7 +672,7 @@ INSTANTIATE_TEST_SUITE_P(
             .BundleConfig = "{}",
             .Tables = std::vector<TTestTableParams>{
                 TTestTableParams{
-                    .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
+                    .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
                     .TableConfig = "{}",
                     .Tablets = std::vector<TStringBuf>{
                         TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
@@ -730,7 +731,7 @@ INSTANTIATE_TEST_SUITE_P(
             .BundleConfig = "{}",
             .Tables = std::vector<TTestTableParams>{
                 TTestTableParams{
-                    .TableSettings = "{sorted=true; in_memory_mode=none}",
+                    .TableSettings = "{sorted=%true; in_memory_mode=none}",
                     .TableConfig = "{}",
                     .Tablets = std::vector<TStringBuf>{
                         TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=0}"},
@@ -740,7 +741,7 @@ INSTANTIATE_TEST_SUITE_P(
             .BundleConfig = "{}",
             .Tables = std::vector<TTestTableParams>{
                 TTestTableParams{
-                    .TableSettings = "{sorted=true; in_memory_mode=none}",
+                    .TableSettings = "{sorted=%true; in_memory_mode=none}",
                     .TableConfig = "{}",
                     .Tablets = std::vector<TStringBuf>{
                         TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=0}"},
@@ -844,8 +845,8 @@ INSTANTIATE_TEST_SUITE_P(
                 .BundleConfig = "{groups={rex={parameterized={metric=\"int64([/statistics/memory_size]) + int64([/statistics/uncompressed_data_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{enable_parameterized=true; group=rex}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
+                        .TableConfig = "{enable_parameterized=%true; group=rex}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}},
@@ -860,8 +861,8 @@ INSTANTIATE_TEST_SUITE_P(
                 .BundleConfig = "{groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{enable_parameterized=true}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
+                        .TableConfig = "{enable_parameterized=%true}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=60}"},
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=40}"}}}}},
@@ -877,8 +878,8 @@ INSTANTIATE_TEST_SUITE_P(
                     "fex={parameterized={metric=\"int64([/statistics/memory_size]) + int64([/statistics/uncompressed_data_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{group=fex; enable_parameterized=true}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
+                        .TableConfig = "{group=fex; enable_parameterized=%true}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=60}"},
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=40}"}}}}},
@@ -890,10 +891,10 @@ INSTANTIATE_TEST_SUITE_P(
             TTestBundleParams{
                 .Nodes = "[{node_address=home; used=0; limit=200}]",
                 .Cells = "[{memory_size=70; node_address=home}; {memory_size=50; node_address=home}]",
-                .BundleConfig = "{enable_parameterized_by_default=true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
+                .BundleConfig = "{enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
                         .TableConfig = "{}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
@@ -911,7 +912,7 @@ INSTANTIATE_TEST_SUITE_P(
                 .BundleConfig = "{groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
                         .TableConfig = "{}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
@@ -927,8 +928,8 @@ INSTANTIATE_TEST_SUITE_P(
                 .BundleConfig = "{groups={default={parameterized={metric=\"1\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{enable_parameterized=false}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
+                        .TableConfig = "{enable_parameterized=%false}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}},
@@ -977,7 +978,7 @@ INSTANTIATE_TEST_SUITE_P(
                 .BundleConfig = "{groups={default={parameterized={metric=\"double([/statistics/memory_size]\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
                         .TableConfig = "{}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
@@ -992,7 +993,7 @@ INSTANTIATE_TEST_SUITE_P(
                 .BundleConfig = "{groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
                         .TableConfig = "{}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
@@ -1110,10 +1111,10 @@ INSTANTIATE_TEST_SUITE_P(
             TTestBundleParams{
                 .Nodes = "[{node_address=home1; used=120}; {node_address=home2; used=0}]",
                 .Cells = "[{memory_size=70; node_address=home1}; {memory_size=50; node_address=home1}; {memory_size=0; node_address=home2}]",
-                .BundleConfig = "{enable_parameterized_by_default=true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
+                .BundleConfig = "{enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
                         .TableConfig = "{}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
@@ -1128,10 +1129,10 @@ INSTANTIATE_TEST_SUITE_P(
             TTestBundleParams{
                 .Nodes = "[{node_address=home1; used=60; limit=60}; {node_address=home2; used=0; limit=5}]",
                 .Cells = "[{memory_size=40; node_address=home1}; {memory_size=20; node_address=home1}; {memory_size=0; node_address=home2}]",
-                .BundleConfig = "{enable_parameterized_by_default=true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
+                .BundleConfig = "{enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
                         .TableConfig = "{}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=20; cell_index=0; memory_size=20}"},
@@ -1146,10 +1147,10 @@ INSTANTIATE_TEST_SUITE_P(
             TTestBundleParams{
                 .Nodes = "[{node_address=home1; used=40; limit=60}; {node_address=home2; used=20; limit=20}]",
                 .Cells = "[{memory_size=40; node_address=home1}; {memory_size=20; node_address=home2}]",
-                .BundleConfig = "{enable_parameterized_by_default=true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
+                .BundleConfig = "{enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
                         .TableConfig = "{}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=20; cell_index=0; memory_size=20}"},
@@ -1164,10 +1165,10 @@ INSTANTIATE_TEST_SUITE_P(
             TTestBundleParams{
                 .Nodes = "[{node_address=home1; used=50; limit=60}; {node_address=home2; used=10; limit=20}]",
                 .Cells = "[{memory_size=50; node_address=home1}; {memory_size=10; node_address=home2}]",
-                .BundleConfig = "{enable_parameterized_by_default=true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
+                .BundleConfig = "{enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
                 .Tables = std::vector<TTestTableParams>{
                     TTestTableParams{
-                        .TableSettings = "{sorted=true; in_memory_mode=uncompressed}",
+                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
                         .TableConfig = "{}",
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=20; cell_index=0; memory_size=21}"},
