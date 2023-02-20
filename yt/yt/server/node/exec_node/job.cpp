@@ -335,9 +335,9 @@ void TJob::Abort(const TError& error)
         JobPhase_,
         timeout);
 
-    auto startAbortion = [&] () {
+    auto startAbortion = [&, error{std::move(error)}] () {
         SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
-        DoSetResult(error);
+        DoSetResult(std::move(error));
         TDelayedExecutor::Submit(
             BIND(&TJob::OnJobAbortionTimeout, MakeStrong(this))
                 .Via(Invoker_),
@@ -527,7 +527,16 @@ void TJob::OnResultReceived(TJobResult jobResult)
 
     GuardedAction([&] {
         SetJobPhase(EJobPhase::FinalizingJobProxy);
-        DoSetResult(std::move(jobResult), /*receivedFromJobProxy*/ true);
+
+        std::optional<NScheduler::NProto::TSchedulerJobResultExt> schedulerResultExtension;
+        if (jobResult.HasExtension(NScheduler::NProto::TSchedulerJobResultExt::job_result_ext)) {
+            schedulerResultExtension = std::move(
+                *jobResult.ReleaseExtension(NScheduler::NProto::TSchedulerJobResultExt::job_result_ext));
+        }
+        DoSetResult(
+            FromProto<TError>(jobResult.error()),
+            std::move(schedulerResultExtension),
+            /*receivedFromJobProxy*/ true);
     });
 }
 
@@ -1328,21 +1337,19 @@ void TJob::StartUserJobMonitoring()
         .MonitoringDescriptor(monitoringConfig.job_descriptor()));
 }
 
-void TJob::DoSetResult(const TError& error)
+void TJob::DoSetResult(TError error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    // TODO(pogorelov): Refactor this to avoid useless serialization.
-    TJobResult jobResult;
-    ToProto(jobResult.mutable_error(), error);
-    DoSetResult(std::move(jobResult), /*receivedFromJobProxy*/ false);
+    DoSetResult(std::move(error), /*jobResultExtension*/ std::nullopt, /*receivedFromJobProxy*/ false);
 }
 
-void TJob::DoSetResult(TJobResult jobResult, bool receivedFromJobProxy)
+void TJob::DoSetResult(
+    TError error,
+    std::optional<NScheduler::NProto::TSchedulerJobResultExt> jobResultExtension,
+    bool receivedFromJobProxy)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
-
-    auto error = FromProto<TError>(jobResult.error());
 
     if (Error_ && !Error_->IsOK()) {
         YT_LOG_DEBUG(
@@ -1357,17 +1364,14 @@ void TJob::DoSetResult(TJobResult jobResult, bool receivedFromJobProxy)
             for (int index = 0; index < 10; ++index) {
                 error.MutableInnerErrors()->push_back(TError("Test error " + ToString(index)));
             }
-            ToProto(jobResult.mutable_error(), error);
             YT_LOG_DEBUG(error, "TestJobErrorTruncation");
         }
     }
 
     JobResultExtension_ = std::nullopt;
-    if (jobResult.HasExtension(
-        NScheduler::NProto::TSchedulerJobResultExt::job_result_ext))
+    if (jobResultExtension)
     {
-        JobResultExtension_ = std::optional<NScheduler::NProto::TSchedulerJobResultExt>(std::move(*jobResult.ReleaseExtension(
-            NScheduler::NProto::TSchedulerJobResultExt::job_result_ext)));
+        JobResultExtension_ = std::move(jobResultExtension);
     }
 
     {
@@ -1686,7 +1690,7 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
             << initialError;
 
         YT_LOG_WARNING(checkError, "Extra GPU check command executed after job failure is also failed");
-        DoSetResult(checkError);
+        DoSetResult(std::move(checkError));
     }
 
     Cleanup();
