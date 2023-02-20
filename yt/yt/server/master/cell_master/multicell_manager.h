@@ -104,51 +104,51 @@ public:
 
     //! For primary masters, always returns |true|.
     //! For secondary masters, returns |true| if the local secondary cell is registered at the primary cell.
-    virtual bool IsLocalMasterCellRegistered() = 0;
+    virtual bool IsLocalMasterCellRegistered() const = 0;
 
     //! Returns |true| if there is a registered master cell with a given cell tag.
-    virtual bool IsRegisteredMasterCell(NObjectClient::TCellTag cellTag) = 0;
+    virtual bool IsRegisteredMasterCell(NObjectClient::TCellTag cellTag) const = 0;
 
     //! Returns the set of roles the cell is configured for.
     /*!
      *  \note Thread affinity: any
      */
-    virtual EMasterCellRoles GetMasterCellRoles(NObjectClient::TCellTag cellTag) = 0;
+    virtual EMasterCellRoles GetMasterCellRoles(NObjectClient::TCellTag cellTag) const = 0;
 
     //! Returns the set of cells configured for a given role.
     /*!
      *  \note Thread affinity: any
      */
-    virtual NObjectClient::TCellTagList GetRoleMasterCells(EMasterCellRole cellRole) = 0;
+    virtual NObjectClient::TCellTagList GetRoleMasterCells(EMasterCellRole cellRole) const = 0;
 
     //! Returns the number of cells configured for a given role.
     /*!
      *  \note Thread affinity: any
      */
-    virtual int GetRoleMasterCellCount(EMasterCellRole cellRole) = 0;
+    virtual int GetRoleMasterCellCount(EMasterCellRole cellRole) const = 0;
 
     //! Returns master cell name (cell tag is default cell name).
     //! Decimal representation of cell tag is the default.
     /*!
      *  \note Thread affinity: any
      */
-    virtual TString GetMasterCellName(NObjectClient::TCellTag cellTag) = 0;
+    virtual TString GetMasterCellName(NObjectClient::TCellTag cellTag) const = 0;
 
     //! Returns master cell tag or std::nullopt, if there is no cell with given name.
     /*!
      *  \note Thread affinity: any
      */
-    virtual std::optional<NObjectClient::TCellTag> FindMasterCellTagByName(const TString& cellName) = 0;
+    virtual std::optional<NObjectClient::TCellTag> FindMasterCellTagByName(const TString& cellName) const = 0;
 
     //! Returns the list of cell tags for all registered master cells (other than the local one),
     //! in a stable order.
     /*!`
      *  For secondary masters, the primary master is always the first element.
      */
-    virtual const NObjectClient::TCellTagList& GetRegisteredMasterCellTags() = 0;
+    virtual const NObjectClient::TCellTagList& GetRegisteredMasterCellTags() const = 0;
 
     //! Returns a stable index of a given (registered) master cell (other than the local one).
-    virtual int GetRegisteredMasterCellIndex(NObjectClient::TCellTag cellTag) = 0;
+    virtual int GetRegisteredMasterCellIndex(NObjectClient::TCellTag cellTag) const = 0;
 
     //! Picks a random (but deterministically chosen) secondary master cell to
     //! host an external chunk-owning node.
@@ -164,7 +164,7 @@ public:
     virtual NObjectClient::TCellTag PickSecondaryChunkHostCell(double bias) = 0;
 
     //! Returns the total cluster statistics by summing counters for all cells (including primary).
-    virtual const NProto::TCellStatistics& GetClusterStatistics() = 0;
+    virtual const NProto::TCellStatistics& GetClusterStatistics() const = 0;
 
     //! Returns the channel to be used for communicating with another master.
     //! This channel has a properly configured timeout.
