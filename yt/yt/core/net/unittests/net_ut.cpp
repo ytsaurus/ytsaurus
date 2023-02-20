@@ -180,12 +180,23 @@ TEST_F(TNetTest, BidirectionalTransfer)
     AllSucceeded(futures).Get().ThrowOnError();
 }
 
-TEST_F(TNetTest, ContinueReadInCaseOfWriteErrors)
+class TContinueReadInCaseOfWriteErrorsTest
+    : public TNetTest
+    , public testing::WithParamInterface<bool>
+{ };
+
+TEST_P(TContinueReadInCaseOfWriteErrorsTest, ContinueReadInCaseOfWriteErrors)
 {
     IConnectionPtr a, b;
     std::tie(a, b) = CreateConnectionPair(Poller_);
 
     auto data = TSharedRef::FromString(TString(16 * 1024, 'f'));
+    bool gracefulConnectionClose = GetParam();
+    // If server closes the connection without reading the entrie request,
+    // it causes an error 'Connection reset by peer' on client's side right after reading response.
+    if (!gracefulConnectionClose) {
+        b->Write(data).Get().ThrowOnError();
+    }
     a->Write(data).Get().ThrowOnError();
     a->Close().Get().ThrowOnError();
 
@@ -196,12 +207,21 @@ TEST_F(TNetTest, ContinueReadInCaseOfWriteErrors)
         #endif
     }
 
-    auto buffer = TSharedMutableRef::Allocate(16 * 1024);
-    auto read = b->Read(buffer).Get().Value();
+    auto buffer = TSharedMutableRef::Allocate(32 * 1024);
+    auto read = b->Read(buffer).Get().ValueOrThrow();
 
     EXPECT_EQ(data.size(), read);
     ASSERT_EQ(ToString(buffer.Slice(0, 4)), TString("ffff"));
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    TContinueReadInCaseOfWriteErrorsTest,
+    TContinueReadInCaseOfWriteErrorsTest,
+    testing::Values(
+        false,
+        true
+    )
+);
 
 TEST_F(TNetTest, StressConcurrentClose)
 {

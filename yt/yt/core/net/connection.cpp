@@ -136,7 +136,7 @@ public:
                 Buffer_.Begin() + Position_,
                 Buffer_.Size() - Position_);
             if (size == -1) {
-                if (GetLastNetworkError() == EWOULDBLOCK) {
+                if (GetLastNetworkError() == EWOULDBLOCK || bytesRead > 0) {
                     return TIOResult(Position_ == 0, bytesRead);
                 }
 
@@ -323,7 +323,7 @@ public:
             ssize_t size = HandleEintr(::writev, fd, ioVectors, ioVectorsCount);
 
             if (size == -1) {
-                if (errno == EAGAIN) {
+                if (GetLastNetworkError() == EWOULDBLOCK) {
                     return TIOResult(true, bytesWritten);
                 }
 
