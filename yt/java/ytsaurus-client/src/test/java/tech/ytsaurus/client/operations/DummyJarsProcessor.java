@@ -5,9 +5,8 @@ import java.util.Set;
 
 import tech.ytsaurus.client.TransactionalClient;
 import tech.ytsaurus.core.cypress.YPath;
-
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields

@@ -6,9 +6,8 @@ import java.util.List;
 import java.util.Random;
 
 import tech.ytsaurus.client.rpc.RpcOptions;
-
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 /**
  * ProxySelector subclasses are used to set priorities for available rpc proxies

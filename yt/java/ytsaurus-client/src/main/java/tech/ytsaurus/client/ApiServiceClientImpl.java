@@ -120,6 +120,8 @@ import tech.ytsaurus.core.cypress.RichYPathParser;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
 import tech.ytsaurus.core.rows.YTreeSerializer;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.rpc.TRequestHeader;
 import tech.ytsaurus.rpcproxy.EAtomicity;
 import tech.ytsaurus.rpcproxy.EOperationType;
@@ -147,8 +149,6 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeNodeUtils;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 /**
  * Клиент для высокоуровневой работы с ApiService

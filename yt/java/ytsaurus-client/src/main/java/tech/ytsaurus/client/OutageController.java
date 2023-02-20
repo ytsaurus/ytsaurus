@@ -9,9 +9,8 @@ import java.util.Optional;
 import java.util.Queue;
 
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields

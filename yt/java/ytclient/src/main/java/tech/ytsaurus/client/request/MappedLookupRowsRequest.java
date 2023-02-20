@@ -11,10 +11,10 @@ import tech.ytsaurus.client.rows.MappedRowSerializer;
 import tech.ytsaurus.client.rows.WireProtocolWriter;
 import tech.ytsaurus.client.rows.WireRowSerializer;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields

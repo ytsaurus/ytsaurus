@@ -8,12 +8,12 @@ import tech.ytsaurus.core.operations.CloseableIterator;
 import tech.ytsaurus.core.operations.OperationContext;
 import tech.ytsaurus.core.operations.YTreeBinarySerializer;
 import tech.ytsaurus.core.operations.Yield;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeStringNode;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 /**
  * For reading/writing of YTreeMapNode using binary yson format.

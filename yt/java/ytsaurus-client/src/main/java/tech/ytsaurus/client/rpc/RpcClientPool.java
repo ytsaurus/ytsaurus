@@ -5,8 +5,8 @@ import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
-import ru.yandex.lang.NonNullApi;
 
+import tech.ytsaurus.lang.NonNullApi;
 @NonNullApi
 public interface RpcClientPool {
     /**

@@ -8,10 +8,10 @@ import java.util.Optional;
 import javax.persistence.Entity;
 
 import tech.ytsaurus.core.utils.ClassUtils;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields

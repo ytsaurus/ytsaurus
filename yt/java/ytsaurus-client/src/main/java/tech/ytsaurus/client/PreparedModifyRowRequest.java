@@ -4,10 +4,10 @@ import java.util.List;
 
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.rpcproxy.ERowModificationType;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 /**
  * Immutable row modification request that contains serialized and compressed rowset

@@ -1,8 +1,7 @@
 package tech.ytsaurus.client;
 
 import tech.ytsaurus.core.tables.TableSchema;
-
-import ru.yandex.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullApi;
 
 @NonNullApi
 public class LookupRowsRequest extends tech.ytsaurus.client.request.LookupRowsRequest.BuilderBase<LookupRowsRequest> {

@@ -7,10 +7,10 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.TransactionalClient;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 /**
  * Spec of the map operation.

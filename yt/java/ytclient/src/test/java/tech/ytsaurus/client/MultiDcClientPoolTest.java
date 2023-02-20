@@ -14,8 +14,7 @@ import org.junit.Test;
 import tech.ytsaurus.client.rpc.DataCenterMetricsHolder;
 import tech.ytsaurus.client.rpc.RpcClient;
 import tech.ytsaurus.client.rpc.RpcClientPool;
-
-import ru.yandex.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullApi;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;

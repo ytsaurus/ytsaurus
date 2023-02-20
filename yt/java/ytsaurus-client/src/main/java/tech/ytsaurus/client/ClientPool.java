@@ -38,11 +38,11 @@ import tech.ytsaurus.client.rpc.RpcClientPool;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtFormat;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 interface FilteringRpcClientPool extends RpcClientPool {

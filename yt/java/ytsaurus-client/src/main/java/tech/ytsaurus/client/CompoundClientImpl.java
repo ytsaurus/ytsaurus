@@ -22,9 +22,8 @@ import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rpc.RpcClient;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 /**
  * Client that provides compound commands over YT (e.g. mount table and wait all tablets are mounted).

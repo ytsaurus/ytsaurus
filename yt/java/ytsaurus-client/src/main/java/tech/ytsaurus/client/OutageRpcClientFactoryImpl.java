@@ -22,12 +22,12 @@ import tech.ytsaurus.client.rpc.RpcStreamConsumer;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.rpc.TResponseHeader;
 import tech.ytsaurus.rpc.TStreamingFeedbackHeader;
 import tech.ytsaurus.rpc.TStreamingPayloadHeader;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields

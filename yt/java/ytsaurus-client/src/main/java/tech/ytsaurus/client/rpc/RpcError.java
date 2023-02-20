@@ -8,13 +8,13 @@ import java.util.function.Predicate;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.TError;
+import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.yson.YsonConsumer;
 import tech.ytsaurus.yson.YsonError;
 import tech.ytsaurus.yson.YsonParser;
 import tech.ytsaurus.yson.YsonTextWriter;
 import tech.ytsaurus.ytree.TAttribute;
 
-import ru.yandex.lang.NonNullApi;
 
 @NonNullApi
 public class RpcError extends RuntimeException {

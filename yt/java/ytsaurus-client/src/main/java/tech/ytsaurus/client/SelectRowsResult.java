@@ -13,10 +13,10 @@ import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rpc.RpcClientResponse;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.rpcproxy.TRspSelectRows;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields

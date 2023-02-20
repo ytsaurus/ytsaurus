@@ -1,9 +1,8 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
 import tech.ytsaurus.client.request.TransactionType;
-
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 /**
  * Request for starting transaction.

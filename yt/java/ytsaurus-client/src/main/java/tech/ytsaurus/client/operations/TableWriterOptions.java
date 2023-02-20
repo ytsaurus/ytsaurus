@@ -5,11 +5,11 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.core.DataSize;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
 /**
  * Immutable table writer options.

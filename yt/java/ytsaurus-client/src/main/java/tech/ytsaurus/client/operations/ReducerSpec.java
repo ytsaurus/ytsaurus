@@ -1,7 +1,7 @@
 package tech.ytsaurus.client.operations;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
+import tech.ytsaurus.lang.NonNullApi;
+import tech.ytsaurus.lang.NonNullFields;
 
 /**
  * Immutable reducer spec.
