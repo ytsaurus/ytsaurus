@@ -364,7 +364,8 @@ INodePtr FindNodeByYPathNoThrow(
 void SetNodeByYPath(
     const INodePtr& root,
     const TYPath& path,
-    const INodePtr& value);
+    const INodePtr& value,
+    bool force = false);
 
 /*!
  *  Returns |false| if the specified node does not exists.

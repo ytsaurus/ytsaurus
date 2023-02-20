@@ -620,7 +620,8 @@ INodePtr WalkNodeByYPath(
 void SetNodeByYPath(
     const INodePtr& root,
     const TYPath& path,
-    const INodePtr& value)
+    const INodePtr& value,
+    bool force)
 {
     auto currentNode = root;
 
@@ -640,12 +641,22 @@ void SetNodeByYPath(
     tokenizer.Advance();
     nextSegment();
 
+    auto factory = root->CreateFactory();
     while (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
         switch (currentNode->GetType()) {
             case ENodeType::Map: {
                 const auto& key = currentLiteralValue;
                 auto currentMap = currentNode->AsMap();
-                currentNode = currentMap->GetChildOrThrow(key);
+                if (force) {
+                    auto child = currentMap->FindChild(key);
+                    if (!child) {
+                        child = factory->CreateMap();
+                        YT_VERIFY(currentMap->AddChild(key, child));
+                    }
+                    currentNode = child;
+                } else {
+                    currentNode = currentMap->GetChildOrThrow(key);
+                }
                 break;
             }
 

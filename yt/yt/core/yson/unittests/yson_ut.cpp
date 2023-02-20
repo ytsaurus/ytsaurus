@@ -49,6 +49,16 @@ TYPED_TEST(TYsonTypedTest, SetNodeByYPath)
     EXPECT_EQ(4, ConvertTo<int>(submap->GetChildOrThrow("other_key")));
 }
 
+TYPED_TEST(TYsonTypedTest, SetNodeByYPathForce)
+{
+    auto node = NYT::NYTree::ConvertToNode(TypeParam(TStringBuf("{}")));
+    auto value = NYT::NYTree::ConvertToNode(TypeParam(TStringBuf("77")));
+
+    SetNodeByYPath(node, "/submap/other_key", value, true);
+    auto submap = node->AsMap()->GetChildOrThrow("submap")->AsMap();
+    EXPECT_EQ(77, ConvertTo<int>(submap->GetChildOrThrow("other_key")));
+}
+
 TYPED_TEST(TYsonTypedTest, RemoveNodeByYPathMap)
 {
     auto node = NYT::NYTree::ConvertToNode(TypeParam(TStringBuf("{x={y={z=1}}}")));
