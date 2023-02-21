@@ -300,11 +300,11 @@ private:
             .ValueOrThrow();
 
         if (Config_->PreallocateWriteFiles) {
-            YT_LOG_DEBUG("Preallocating test write file (WriterIndex: %v, FileSize: %v)",
+            YT_LOG_INFO("Preallocating test write file (WriterIndex: %v, FileSize: %v)",
                 info.WriterIndex,
                 Config_->MaxWriteFileSize);
 
-            WaitFor(IOEngine_->Resize({.Handle = info.Handle, .Size = Config_->MaxWriteFileSize}))
+            WaitFor(IOEngine_->Allocate({.Handle = info.Handle, .Size = Config_->MaxWriteFileSize}))
                 .ThrowOnError();
         }
     }
