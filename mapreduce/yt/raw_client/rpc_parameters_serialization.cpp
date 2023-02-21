@@ -697,6 +697,7 @@ TNode SerializeParamsForGetTablePartitions(
     if (options.MaxPartitionCount_) {
         result["max_partition_count"] = *options.MaxPartitionCount_;
     }
+    result["adjust_data_weight_per_partition"] = options.AdjustDataWeightPerPartition_;
     return result;
 }
 

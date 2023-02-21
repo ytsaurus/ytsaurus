@@ -1365,8 +1365,19 @@ struct TGetTablePartitionsOptions
     ///
     /// @brief Maximum output partition count.
     ///
-    /// Partitioning will be aborted if the output partition count exceeds this limit.
+    /// Consider the situation when the `MaxPartitionCount` is given
+    /// and the total data weight exceeds `MaxPartitionCount * DataWeightPerPartition`.
+    /// If `AdjustDataWeightPerPartition` is |true|
+    /// `GetTablePartitions` will yield partitions exceeding the `DataWeightPerPartition`.
+    /// If `AdjustDataWeightPerPartition` is |false|
+    /// the partitioning will be aborted as soon as the output partition count exceeds this limit.
     FLUENT_FIELD_OPTION(int, MaxPartitionCount);
+
+    ///
+    /// @brief Allow the data weight per partition to exceed `DataWeightPerPartition` when `MaxPartitionCount` is set.
+    ///
+    /// |True| by default.
+    FLUENT_FIELD_DEFAULT(bool, AdjustDataWeightPerPartition, true);
 };
 
 ///
