@@ -2,6 +2,7 @@ package tech.ytsaurus.client;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -31,6 +32,7 @@ import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 
 public class PartitionTablesTest {
     YtClient yt;
+    YPath tablePath;
 
     @Before
     public void init() {
@@ -50,11 +52,8 @@ public class PartitionTablesTest {
                 new RpcOptions());
 
         yt.waitProxies().join();
-    }
 
-    @Test
-    public void testBasic() {
-        YPath tablePath = YPath.simple("//tmp/partition-test-table");
+        tablePath = YPath.simple("//tmp/partition-test-table");
 
         if (!yt.existsNode(tablePath.justPath().toString()).join()) {
             yt.createNode(tablePath.justPath().toString(), CypressNodeType.TABLE).join();
@@ -84,7 +83,10 @@ public class PartitionTablesTest {
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
+    }
 
+    @Test
+    public void testBasic() {
         var result = yt.partitionTables(
                 new PartitionTables(List.of(tablePath), PartitionTablesMode.Unordered, DataSize.fromBytes(30))
         ).join();
@@ -94,6 +96,39 @@ public class PartitionTablesTest {
         Assert.assertEquals(List.of(
                 List.of(tablePath.withRange(RangeLimit.row(0), RangeLimit.row(3))),
                 List.of(tablePath.withRange(RangeLimit.row(3), RangeLimit.row(6)))
+        ), resultPaths);
+    }
+
+    @Test(expected = CompletionException.class)
+    public void testMaxPartitionCountExceeded() {
+        var request = PartitionTables
+                .builder()
+                .setPaths(List.of(tablePath))
+                .setPartitionMode(PartitionTablesMode.Unordered)
+                .setDataWeightPerPartition(DataSize.fromBytes(1))
+                .setAdjustDataWeightPerPartition(false)
+                .setMaxPartitionCount(1)
+                .build();
+
+        var result = yt.partitionTables(request).join();
+    }
+
+    @Test
+    public void testMaxPartitionCountWithDataWeightAdjustment() {
+        var request = PartitionTables
+                .builder()
+                .setPaths(List.of(tablePath))
+                .setPartitionMode(PartitionTablesMode.Unordered)
+                .setDataWeightPerPartition(DataSize.fromBytes(1))
+                .setMaxPartitionCount(1)
+                .build();
+
+        var result = yt.partitionTables(request).join();
+
+        var resultPaths = result.stream().map(MultiTablePartition::getTableRanges).collect(Collectors.toList());
+
+        Assert.assertEquals(List.of(
+                List.of(tablePath.withRange(RangeLimit.row(0), RangeLimit.row(6)))
         ), resultPaths);
     }
 }
