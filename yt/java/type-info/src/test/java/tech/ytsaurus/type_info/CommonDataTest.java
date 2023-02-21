@@ -7,9 +7,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
-import org.opentest4j.AssertionFailedError;
+import org.junit.Assert;
+import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -24,7 +23,7 @@ public class CommonDataTest {
             var context = String.format("type: %s\nyson: %s\n", typeString, typeYson);
             try {
                 var type = TypeIO.parseYson(typeYson);
-                Assertions.assertEquals(typeString, type.toString(), context);
+                Assert.assertEquals(context, typeString, type.toString());
 
                 var yson2 = TypeIO.serializeToTextYson(type);
                 TiType type2;
@@ -33,8 +32,8 @@ public class CommonDataTest {
                 } catch (Throwable t) {
                     throw new RuntimeException(String.format("Unexpected parsing error on yson: %s", yson2), t);
                 }
-                Assertions.assertEquals(type, type2, context);
-            } catch (AssertionFailedError t) {
+                Assert.assertEquals(context, type, type2);
+            } catch (AssertionError t) {
                 throw t;
             } catch (Throwable t) {
                 throw new RuntimeException(String.format("Unexpected error in %s", context), t);
@@ -49,7 +48,7 @@ public class CommonDataTest {
             var typeYson = r.get(0);
             var exceptionMessage = r.get(1);
             var context = String.format("exception: %s\nyson: %s\n", exceptionMessage, typeYson);
-            var t = Assertions.assertThrows(Throwable.class, () -> TypeIO.parseYson(typeYson), context);
+            var t = Assert.assertThrows(context, Throwable.class, () -> TypeIO.parseYson(typeYson));
             assertThat(context, decapitalize(t.getMessage()), containsString(exceptionMessage));
         }
     }
