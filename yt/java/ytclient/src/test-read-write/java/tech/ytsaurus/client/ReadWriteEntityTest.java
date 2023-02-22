@@ -42,7 +42,7 @@ public class ReadWriteEntityTest extends ReadWriteTestBase {
                 WriteTable.<ReadWriteTest.Row>builder()
                         .setPath(path)
                         .setSerializationContext(
-                                SerializationContext.skiff(ReadWriteTest.Row.class)
+                                new SerializationContext<>(ReadWriteTest.Row.class)
                         )
                         .setNeedRetries(needRetries)
                         .build()).join();
@@ -63,7 +63,7 @@ public class ReadWriteEntityTest extends ReadWriteTestBase {
                 ReadTable.<ReadWriteTest.Row>builder()
                         .setPath(path)
                         .setSerializationContext(
-                                SerializationContext.skiff(ReadWriteTest.Row.class)
+                                new SerializationContext<>(ReadWriteTest.Row.class)
                         )
                         .build()).join();
 

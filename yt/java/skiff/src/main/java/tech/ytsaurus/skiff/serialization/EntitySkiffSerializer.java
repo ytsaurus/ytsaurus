@@ -1,4 +1,4 @@
-package tech.ytsaurus.skiff.serializer;
+package tech.ytsaurus.skiff.serialization;
 
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
@@ -13,30 +13,31 @@ import java.util.HashMap;
 import java.util.List;
 
 import javax.annotation.Nullable;
-import javax.persistence.Entity;
-import javax.persistence.Transient;
 
 import tech.ytsaurus.skiff.schema.SkiffSchema;
 import tech.ytsaurus.skiff.schema.WireType;
 
+import static tech.ytsaurus.core.utils.ClassUtils.anyOfAnnotationsPresent;
 import static tech.ytsaurus.core.utils.ClassUtils.castToList;
-import static tech.ytsaurus.core.utils.ClassUtils.isFieldTransient;
+import static tech.ytsaurus.core.utils.ClassUtils.setFieldsAccessibleToTrue;
 import static tech.ytsaurus.skiff.schema.WireTypeUtil.getClassWireType;
-import static tech.ytsaurus.skiff.serializer.EntitySkiffSchemaCreator.getEntitySchema;
+import static tech.ytsaurus.skiff.serialization.EntitySkiffSchemaCreator.getEntitySchema;
 
 public class EntitySkiffSerializer<T> {
     private final SkiffSchema schema;
-    private final Field[] fields;
-    private final HashMap<Class<?>, Field[]> entityFieldsMap = new HashMap<>();
+    private final List<EntityFieldDescr> entityFieldDescriptions;
+    private final HashMap<Class<?>, List<EntityFieldDescr>> entityFieldsMap = new HashMap<>();
 
     public EntitySkiffSerializer(Class<T> entityClass) {
-        if (!entityClass.isAnnotationPresent(Entity.class)) {
+        if (!anyOfAnnotationsPresent(entityClass, JavaPersistenceApi.entityAnnotations())) {
             throw new IllegalArgumentException("Class must be annotated with @Entity");
         }
         this.schema = getEntitySchema(entityClass);
-        this.fields = entityClass.getDeclaredFields();
-        entityFieldsMap.put(entityClass, fields);
-        setFieldsAccessible(fields);
+
+        Field[] declaredFields = entityClass.getDeclaredFields();
+        this.entityFieldDescriptions = EntityFieldDescr.of(declaredFields);
+        setFieldsAccessibleToTrue(declaredFields);
+        entityFieldsMap.put(entityClass, entityFieldDescriptions);
     }
 
     public SkiffSchema getSchema() {
@@ -46,7 +47,7 @@ public class EntitySkiffSerializer<T> {
     public byte[] serialize(T object) {
         ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
         try {
-            serializeComplexObject(object, schema, fields, byteOS);
+            serializeComplexObject(object, schema, entityFieldDescriptions, byteOS);
             byteOS.flush();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -55,13 +56,7 @@ public class EntitySkiffSerializer<T> {
     }
 
     public void serialize(T object, BufferedOutputStream outputStream) {
-        serializeComplexObject(object, schema, fields, outputStream);
-    }
-
-    private static void setFieldsAccessible(Field[] fields) {
-        for (var field : fields) {
-            field.setAccessible(true);
-        }
+        serializeComplexObject(object, schema, entityFieldDescriptions, outputStream);
     }
 
     private <Type> OutputStream serializeObject(@Nullable Type object,
@@ -91,30 +86,30 @@ public class EntitySkiffSerializer<T> {
             return serializeCollection(object, objectSchema, byteOS);
         }
 
-        Field[] entityFields = entityFieldsMap.computeIfAbsent(clazz, entityClass -> {
+        var entityFields = entityFieldsMap.computeIfAbsent(clazz, entityClass -> {
             Field[] declaredFields = entityClass.getDeclaredFields();
-            setFieldsAccessible(declaredFields);
-            return declaredFields;
+            setFieldsAccessibleToTrue(declaredFields);
+            return EntityFieldDescr.of(declaredFields);
         });
         return serializeComplexObject(object, objectSchema, entityFields, byteOS);
     }
 
     private <Type> OutputStream serializeComplexObject(Type object,
                                                        SkiffSchema objectSchema,
-                                                       Field[] fields,
+                                                       List<EntityFieldDescr> fieldDescriptions,
                                                        OutputStream byteOS) {
         if (objectSchema.getWireType() != WireType.TUPLE) {
             throwInvalidSchemeException();
         }
 
         int indexInSchema = 0;
-        for (Field field : fields) {
-            if (isFieldTransient(field, Transient.class)) {
+        for (var fieldDescr : fieldDescriptions) {
+            if (fieldDescr.isTransient()) {
                 continue;
             }
             try {
                 serializeObject(
-                        field.get(object),
+                        fieldDescr.getField().get(object),
                         objectSchema.getChildren().get(indexInSchema),
                         byteOS);
                 indexInSchema++;

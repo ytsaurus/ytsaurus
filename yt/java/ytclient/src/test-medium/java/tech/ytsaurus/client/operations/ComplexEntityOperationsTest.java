@@ -213,7 +213,7 @@ public class ComplexEntityOperationsTest extends YtClientTestBase {
         TableReader<T> reader = yt.readTable(
                 ReadTable.<T>builder()
                         .setPath(path)
-                        .setSerializationContext(SerializationContext.skiff(clazz))
+                        .setSerializationContext(new SerializationContext<>(clazz))
                         .build()).join();
 
         Set<T> result = new HashSet<>();
@@ -237,7 +237,7 @@ public class ComplexEntityOperationsTest extends YtClientTestBase {
         TableWriter<T> writer = yt.writeTable(
                 WriteTable.<T>builder()
                         .setPath(path)
-                        .setSerializationContext(SerializationContext.skiff(clazz))
+                        .setSerializationContext(new SerializationContext<>(clazz))
                         .setNeedRetries(true)
                         .build()).join();
 

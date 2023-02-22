@@ -1,4 +1,4 @@
-package tech.ytsaurus.skiff.serializer;
+package tech.ytsaurus.skiff.serialization;
 
 import java.util.Map;
 import java.util.Optional;

@@ -1,4 +1,4 @@
-package serializer;
+package tech.ytsaurus.skiff.serialization;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -12,8 +12,6 @@ import javax.persistence.Entity;
 import javax.persistence.Transient;
 
 import org.junit.Test;
-import tech.ytsaurus.skiff.serializer.EntitySkiffSchemaCreator;
-import tech.ytsaurus.skiff.serializer.EntitySkiffSerializer;
 
 import static org.junit.Assert.assertArrayEquals;
 
@@ -98,7 +96,6 @@ public class EntitySkiffSerializerTest {
 
     @Test
     public void testSerializeEntity() {
-        var entitySchema = EntitySkiffSchemaCreator.getEntitySchema(Person.class);
         Person person = new Person("Ivan", 20,
                 new Phone(12345),
                 "secret", Arrays.asList("yandex", null, "spbu"), null);
@@ -148,7 +145,7 @@ public class EntitySkiffSerializerTest {
                 .put((byte) 0x00)
                 .array();
 
-        byte[] bytes = new EntitySkiffSerializer<Person>(Person.class).serialize(person);
+        byte[] bytes = new EntitySkiffSerializer<>(Person.class).serialize(person);
 
         assertArrayEquals(expectedBytes, bytes);
     }

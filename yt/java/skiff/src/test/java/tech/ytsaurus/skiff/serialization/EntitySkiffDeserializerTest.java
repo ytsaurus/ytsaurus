@@ -1,4 +1,4 @@
-package deserializer;
+package tech.ytsaurus.skiff.serialization;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -10,9 +10,6 @@ import javax.persistence.Entity;
 import javax.persistence.Transient;
 
 import org.junit.Test;
-import tech.ytsaurus.skiff.deserializer.EntitySkiffDeserializer;
-import tech.ytsaurus.skiff.serializer.EntitySkiffSchemaCreator;
-import tech.ytsaurus.skiff.serializer.EntitySkiffSerializer;
 
 import static org.junit.Assert.assertEquals;
 
@@ -157,15 +154,14 @@ public class EntitySkiffDeserializerTest {
 
     @Test
     public void testDeserializeEntity() {
-        var entitySchema = EntitySkiffSchemaCreator.getEntitySchema(Person.class);
         Person person = new Person("Ivan", 20,
                 new Phone(12345),
                 "secret", Arrays.asList("yandex", null, "spbu"), null);
 
-        byte[] bytes = new EntitySkiffSerializer<Person>(Person.class).serialize(person);
+        byte[] bytes = new EntitySkiffSerializer<>(Person.class).serialize(person);
 
-        Person deserializedPerson = EntitySkiffDeserializer
-                .deserialize(bytes, Person.class, entitySchema)
+        Person deserializedPerson = new EntitySkiffDeserializer<>(Person.class)
+                .deserialize(bytes)
                 .get();
 
         assertEquals(person, deserializedPerson);

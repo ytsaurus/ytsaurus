@@ -9,7 +9,9 @@ import tech.ytsaurus.client.rows.WireRowSerializer;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
 import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.rpcproxy.ERowsetFormat;
-import tech.ytsaurus.skiff.serializer.EntitySkiffSerializer;
+import tech.ytsaurus.skiff.serialization.EntitySkiffSerializer;
+
+import static tech.ytsaurus.skiff.serialization.EntityUtil.isEntityAnnotationPresent;
 
 public class SerializationContext<T> {
     @Nullable
@@ -40,22 +42,17 @@ public class SerializationContext<T> {
 
     public SerializationContext(Class<T> objectClazz) {
         this.objectClass = objectClazz;
+        if (!isEntityAnnotationPresent(objectClazz)) {
+            return;
+        }
+        this.skiffSerializer = new EntitySkiffSerializer<>(objectClazz);
+        this.format = Format.skiff(skiffSerializer.getSchema(), 1);
+        this.rowsetFormat = ERowsetFormat.RF_FORMAT;
+        this.attachmentReader = TableAttachmentReader.skiff(objectClass);
     }
 
     public SerializationContext(YTreeSerializer<T> serializer) {
         this.ytreeSerializer = serializer;
-    }
-
-    private SerializationContext(EntitySkiffSerializer<T> serializer, Class<T> objectClass) {
-        this.skiffSerializer = serializer;
-        this.format = Format.skiff(serializer.getSchema(), 1);
-        this.rowsetFormat = ERowsetFormat.RF_FORMAT;
-        this.attachmentReader = TableAttachmentReader.skiff(objectClass, serializer.getSchema());
-        this.objectClass = objectClass;
-    }
-
-    public static <T> SerializationContext<T> skiff(Class<T> entityClass) {
-        return new SerializationContext<>(new EntitySkiffSerializer<>(entityClass), entityClass);
     }
 
     public Optional<WireRowSerializer<T>> getWireSerializer() {

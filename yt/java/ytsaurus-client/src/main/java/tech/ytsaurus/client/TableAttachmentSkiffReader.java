@@ -5,17 +5,14 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import tech.ytsaurus.skiff.deserializer.EntitySkiffDeserializer;
-import tech.ytsaurus.skiff.deserializer.SkiffParser;
-import tech.ytsaurus.skiff.schema.SkiffSchema;
+import tech.ytsaurus.skiff.serialization.EntitySkiffDeserializer;
+import tech.ytsaurus.skiff.serialization.SkiffParser;
 
 public class TableAttachmentSkiffReader<T> extends TableAttachmentRowsetReader<T> {
-    private final Class<T> objectClass;
-    private final SkiffSchema schema;
+    private final EntitySkiffDeserializer<T> deserializer;
 
-    TableAttachmentSkiffReader(Class<T> objectClass, SkiffSchema schema) {
-        this.objectClass = objectClass;
-        this.schema = schema;
+    TableAttachmentSkiffReader(Class<T> entityClass) {
+        this.deserializer = new EntitySkiffDeserializer<>(entityClass);
     }
 
     @Override
@@ -29,7 +26,7 @@ public class TableAttachmentSkiffReader<T> extends TableAttachmentRowsetReader<T
         while (parser.hasMoreData()) {
             // only one entity schema is supported
             parser.parseInt16();
-            deserializedObjects.add(EntitySkiffDeserializer.deserialize(parser, objectClass, schema)
+            deserializedObjects.add(deserializer.deserialize(parser)
                     .orElseThrow(() -> new IllegalStateException("Cannot deserialize object")));
         }
 

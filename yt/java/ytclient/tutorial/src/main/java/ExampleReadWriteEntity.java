@@ -51,7 +51,7 @@ public class ExampleReadWriteEntity {
             TableWriter<TableRow> writer = client.writeTable(
                     WriteTable.<TableRow>builder()
                             .setPath(table)
-                            .setSerializationContext(SerializationContext.skiff(TableRow.class))
+                            .setSerializationContext(new SerializationContext<>(TableRow.class))
                             .setNeedRetries(true)
                             .build()).join();
 
@@ -83,7 +83,7 @@ public class ExampleReadWriteEntity {
             TableReader<TableRow> reader = client.readTable(
                     ReadTable.<TableRow>builder()
                             .setPath(table)
-                            .setSerializationContext(SerializationContext.skiff(TableRow.class))
+                            .setSerializationContext(new SerializationContext<>(TableRow.class))
                             .build()).join();
 
             List<TableRow> rows = new ArrayList<>();

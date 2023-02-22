@@ -8,20 +8,21 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.NoSuchElementException;
 
+
 import tech.ytsaurus.client.request.Format;
 import tech.ytsaurus.core.operations.CloseableIterator;
 import tech.ytsaurus.core.operations.OperationContext;
 import tech.ytsaurus.core.operations.Yield;
 import tech.ytsaurus.core.tables.TableSchema;
-import tech.ytsaurus.skiff.deserializer.EntitySkiffDeserializer;
-import tech.ytsaurus.skiff.deserializer.SkiffParser;
 import tech.ytsaurus.skiff.schema.SkiffSchema;
 import tech.ytsaurus.skiff.schema.WireType;
-import tech.ytsaurus.skiff.serializer.EntitySkiffSerializer;
-import tech.ytsaurus.skiff.serializer.EntityTableSchemaCreator;
+import tech.ytsaurus.skiff.serialization.EntitySkiffDeserializer;
+import tech.ytsaurus.skiff.serialization.EntitySkiffSerializer;
+import tech.ytsaurus.skiff.serialization.EntityTableSchemaCreator;
+import tech.ytsaurus.skiff.serialization.SkiffParser;
 import tech.ytsaurus.ysontree.YTreeStringNode;
 
-import static tech.ytsaurus.skiff.serializer.EntitySkiffSchemaCreator.getEntitySchema;
+import static tech.ytsaurus.skiff.serialization.EntitySkiffSchemaCreator.getEntitySchema;
 
 public class EntityTableEntryType<T> implements YTableEntryType<T> {
     private static final byte[] FIRST_TABLE_INDEX = new byte[]{0, 0};
@@ -61,6 +62,8 @@ public class EntityTableEntryType<T> implements YTableEntryType<T> {
         context.withSettingIndices(trackIndices, trackIndices);
         var parser = new SkiffParser(input);
         return new CloseableIterator<>() {
+            private final EntitySkiffDeserializer<T> entitySkiffDeserializer =
+                    new EntitySkiffDeserializer<>(entityClass);
             long rowIndex = 0;
             short tableIndex = 0;
 
@@ -72,7 +75,7 @@ public class EntityTableEntryType<T> implements YTableEntryType<T> {
             @Override
             public T next() {
                 tableIndex = parser.parseInt16();
-                var object = EntitySkiffDeserializer.deserialize(parser, entityClass, entitySchema)
+                var object = entitySkiffDeserializer.deserialize(parser)
                         .orElseThrow(NoSuchElementException::new);
                 if (trackIndices) {
                     rowIndex++;
