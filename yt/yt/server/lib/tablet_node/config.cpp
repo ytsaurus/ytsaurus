@@ -289,6 +289,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("prioritize_eden_forced_compaction", &TThis::PrioritizeEdenForcedCompaction)
         .Default(false);
 
+    registrar.Parameter("always_flush_to_eden", &TThis::AlwaysFlushToEden)
+        .Default(false);
+
     registrar.Parameter("enable_data_node_lookup", &TThis::EnableDataNodeLookup)
         .Default(false);
 

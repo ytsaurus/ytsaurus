@@ -163,9 +163,9 @@ void TReplicatedStoreManager::Rotate(bool createNewStore, NLsm::EStoreRotationRe
     LogStoreManager_->Rotate(createNewStore, reason);
 }
 
-void TReplicatedStoreManager::AddStore(IStorePtr store, bool onMount)
+void TReplicatedStoreManager::AddStore(IStorePtr store, bool onMount, bool onFlush)
 {
-    LogStoreManager_->AddStore(std::move(store), onMount);
+    LogStoreManager_->AddStore(std::move(store), onMount, onFlush);
 }
 
 void TReplicatedStoreManager::BulkAddStores(TRange<IStorePtr> /*stores*/, bool /*onMount*/)

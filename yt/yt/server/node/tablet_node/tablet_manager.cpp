@@ -1907,7 +1907,7 @@ private:
 
             auto store = CreateStore(tablet, storeType, storeId, &descriptor)->AsChunk();
             store->Initialize();
-            storeManager->AddStore(store, false);
+            storeManager->AddStore(store, /*onMount*/ false, /*onFlush*/ updateReason == ETabletStoresUpdateReason::Flush);
             addedStores.push_back(store);
 
             TStoreId backingStoreId;

@@ -481,9 +481,9 @@ void TSortedStoreManager::Remount(const NTabletNode::TTableSettings& settings)
     }
 }
 
-void TSortedStoreManager::AddStore(IStorePtr store, bool onMount)
+void TSortedStoreManager::AddStore(IStorePtr store, bool onMount, bool onFlush)
 {
-    TStoreManagerBase::AddStore(store, onMount);
+    TStoreManagerBase::AddStore(store, onMount, onFlush);
 
     auto sortedStore = store->AsSorted();
     MaxTimestampToStore_.emplace(sortedStore->GetMaxTimestamp(), sortedStore);
@@ -495,7 +495,7 @@ void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
 {
     THashMap<TPartitionId, std::vector<ISortedStorePtr>> addedStoresByPartition;
     for (const auto& store : stores) {
-        AddStore(store, onMount);
+        AddStore(store, onMount, /*onFlush*/ false);
         auto sortedStore = store->AsSorted();
         addedStoresByPartition[sortedStore->GetPartition()->GetId()].push_back(sortedStore);
     }
@@ -580,7 +580,7 @@ void TSortedStoreManager::CreateActiveStore()
             storeId);
     }
 
-    Tablet_->AddStore(ActiveStore_);
+    Tablet_->AddStore(ActiveStore_, /*onFlush*/ false);
     Tablet_->SetActiveStore(ActiveStore_);
 }
 

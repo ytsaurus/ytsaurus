@@ -579,6 +579,25 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             delete_timestamps = lookup_result[0].attributes["delete_timestamps"]
             assert len(delete_timestamps) < delete_ts_count
 
+    @authors("ifsmirnov")
+    def test_flush_to_eden(self):
+        sync_create_cells(1)
+        self._create_simple_table(
+            "//tmp/t",
+            mount_config={
+                "always_flush_to_eden": True,
+            })
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1}])
+        sync_flush_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        eden_stores = get(f"//sys/tablets/{tablet_id}/orchid/eden/stores")
+        partition_stores = get(f"//sys/tablets/{tablet_id}/orchid/partitions/0/stores")
+        assert chunk_id in eden_stores
+        assert len(partition_stores) == 0
+
 ################################################################################
 
 

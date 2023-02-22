@@ -1253,12 +1253,14 @@ const std::map<i64, IOrderedStorePtr>& TTablet::StoreRowIndexMap() const
     return StoreRowIndexMap_;
 }
 
-void TTablet::AddStore(IStorePtr store)
+void TTablet::AddStore(IStorePtr store, bool onFlush)
 {
     EmplaceOrCrash(StoreIdMap_, store->GetId(), store);
     if (IsPhysicallySorted()) {
         auto sortedStore = store->AsSorted();
-        auto* partition = GetContainingPartition(sortedStore);
+        auto* partition = onFlush && Settings_.MountConfig->AlwaysFlushToEden
+            ? GetEden()
+            : GetContainingPartition(sortedStore);
         InsertOrCrash(partition->Stores(), sortedStore);
         sortedStore->SetPartition(partition);
         UpdateOverlappingStoreCount();

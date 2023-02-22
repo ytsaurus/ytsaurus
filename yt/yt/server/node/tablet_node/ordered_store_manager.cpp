@@ -157,7 +157,7 @@ void TOrderedStoreManager::CreateActiveStore()
     auto startingRowIndex = ComputeStartingRowIndex();
     ActiveStore_->SetStartingRowIndex(startingRowIndex);
 
-    Tablet_->AddStore(ActiveStore_);
+    Tablet_->AddStore(ActiveStore_, /*onFlush*/ false);
     Tablet_->SetActiveStore(ActiveStore_);
 
     if (Tablet_->GetState() == ETabletState::UnmountFlushing ||

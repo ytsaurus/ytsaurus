@@ -52,7 +52,7 @@ public:
     void UnscheduleRotation() override;
     void Rotate(bool createNewStore, NLsm::EStoreRotationReason reason) override;
 
-    void AddStore(IStorePtr store, bool onMount) override;
+    void AddStore(IStorePtr store, bool onMount, bool onFlush) override;
     void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;
 
     void DiscardAllStores() override;
