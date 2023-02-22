@@ -100,8 +100,8 @@ struct TProtobufAnyElement
 struct TProtobufElementResolveResult
 {
     TProtobufElement Element;
-    TStringBuf HeadPath;
-    TStringBuf TailPath;
+    TString HeadPath;
+    TString TailPath;
 };
 
 struct TResolveProtobufElementByYPathOptions

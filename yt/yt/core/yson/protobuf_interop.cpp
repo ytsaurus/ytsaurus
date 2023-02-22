@@ -2731,8 +2731,9 @@ TProtobufElementResolveResult GetProtobufElementFromField(
     }
     return TProtobufElementResolveResult{
         std::move(element),
-        tokenizer.GetPrefixPlusToken(),
-        tokenizer.GetSuffix()
+        // TODO(bulatman) Get rid of the string copying, see YT-18567.
+        TString(tokenizer.GetPrefixPlusToken()),
+        TString(tokenizer.GetSuffix())
     };
 }
 
@@ -2748,8 +2749,9 @@ TProtobufElementResolveResult ResolveProtobufElementByYPath(
     auto makeResult = [&] (TProtobufElement element) {
         return TProtobufElementResolveResult{
             std::move(element),
-            tokenizer.GetPrefixPlusToken(),
-            tokenizer.GetSuffix()
+            // TODO(bulatman) Get rid of the string copying, see YT-18567.
+            TString(tokenizer.GetPrefixPlusToken()),
+            TString(tokenizer.GetSuffix())
         };
     };
 
