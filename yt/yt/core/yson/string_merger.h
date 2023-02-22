@@ -14,13 +14,10 @@ namespace NYT::NYson {
 //! YSON strings `ysonStringBufs` can be of any format, but type must be EYsonType::Node.
 //! In a case when one path is prefix of another,
 //! only YSON string corresponding to the shortest path will be used.
-//! Setting expandLists to true enables expanding lists on '*' symbol in path.
-//! There should be a list level for each '*' in path.
 TYsonString MergeYsonStrings(
     std::vector<NYPath::TYPath> paths,
     std::vector<TYsonStringBuf> ysonStringBufs,
-    EYsonFormat format = EYsonFormat::Binary,
-    bool expandLists = false);
+    EYsonFormat format = EYsonFormat::Binary);
 
 ////////////////////////////////////////////////////////////////////////////////
 
