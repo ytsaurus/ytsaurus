@@ -66,8 +66,6 @@ private:
     void RegisterSession(const ISessionPtr& session);
     void UnregisterSession(const ISessionPtr& session);
 
-    void OnLocationDisabled(const TChunkLocationPtr& location);
-
     void OnMasterDisconnected();
 
     void OnChunkRemovalScheduled(const IChunkPtr& chunk);

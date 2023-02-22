@@ -100,6 +100,10 @@ class TestHotSwap(YTEnvSetup):
 
         for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
             for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                wait(lambda: get("//sys/chunk_locations/{}/@statistics/chunk_count".format(location_uuid)) != 0)
+
+        for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
+            for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
                 wait(lambda: len(disable_chunk_locations(node, [location_uuid])) > 0)
 
         # Test second try - must returns empty lists
@@ -111,6 +115,7 @@ class TestHotSwap(YTEnvSetup):
             for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
                 wait(lambda: not get("//sys/chunk_locations/{}/@statistics/enabled".format(location_uuid)))
                 wait(lambda: get("//sys/chunk_locations/{}/@statistics/session_count".format(location_uuid)) == 0)
+                wait(lambda: get("//sys/chunk_locations/{}/@statistics/chunk_count".format(location_uuid)) == 0)
 
         wait(lambda: not can_write())
 

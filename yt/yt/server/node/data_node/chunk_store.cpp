@@ -125,9 +125,6 @@ void TChunkStore::Initialize()
             ChunkContext_,
             ChunkStoreHost_);
 
-        location->SubscribeDisabled(
-            BIND(&TChunkStore::OnLocationDisabled, MakeWeak(this), MakeWeak(location)));
-
         futures.push_back(InitializeLocation(location));
 
         Locations_.push_back(std::move(location));
@@ -400,7 +397,7 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
                     longerRowCount);
                 shorterChunk->SyncRemove(true);
                 if (shorterChunk == oldChunk) {
-                    UnregisterChunk(oldChunk);
+                    UnregisterChunk(oldChunk, false);
                 } else {
                     doRegister = false;
                 }
@@ -517,12 +514,12 @@ void TChunkStore::UpdateExistingChunk(const IChunkPtr& chunk)
     ChunkAdded_.Fire(chunk);
 }
 
-void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
+void TChunkStore::UnregisterChunk(const IChunkPtr& chunk, bool force)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     const auto& location = chunk->GetLocation();
-    if (!location->IsEnabled()) {
+    if (!(location->IsEnabled() || force)) {
         return;
     }
 
@@ -590,18 +587,34 @@ int TChunkStore::GetChunkCount() const
     return static_cast<int>(ChunkMap_.size());
 }
 
+std::vector<IChunkPtr> TChunkStore::GetLocationChunks(const TChunkLocationPtr& location)
+{
+    auto guard = ReaderGuard(ChunkMapLock_);
+
+    std::vector<IChunkPtr> chunks;
+    for (const auto& [chunkId, chunkEntry] : ChunkMap_) {
+        const auto& chunk = chunkEntry.Chunk;
+        if (chunk->GetLocation() == location) {
+            chunks.push_back(chunk);
+        }
+    }
+
+    return chunks;
+}
+
 TFuture<void> TChunkStore::RemoveChunk(const IChunkPtr& chunk)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    ChunkRemovalScheduled_.Fire(chunk);
-
     return chunk
         ->GetLocation()
-        ->RegisterAction(BIND([=, this, this_ = MakeStrong(this)] () {
-            return chunk->ScheduleRemove().Apply(
-                BIND(&TChunkStore::UnregisterChunk, MakeStrong(this), chunk));
-        }));
+        ->RegisterAction(
+            BIND([=, this, this_ = MakeStrong(this)] () {
+                ChunkRemovalScheduled_.Fire(chunk);
+
+                return chunk->ScheduleRemove().Apply(
+                    BIND(&TChunkStore::UnregisterChunk, MakeStrong(this), chunk, false));
+            }));
 }
 
 std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLocation(
@@ -779,43 +792,6 @@ bool TChunkStore::ShouldPublishDisabledLocations()
     return DynamicConfig_
         ? DynamicConfig_->PublishDisabledLocations.value_or(Config_->PublishDisabledLocations)
         : Config_->PublishDisabledLocations;
-}
-
-void TChunkStore::OnLocationDisabled(const TWeakPtr<TStoreLocation>& weakLocation)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto location = weakLocation.Lock();
-    if (!location) {
-        return;
-    }
-
-    WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
-        auto guard = WriterGuard(ChunkMapLock_);
-
-        YT_VERIFY(location->GetState() == ELocationState::Disabling);
-
-        YT_LOG_INFO("Location is disabled; unregistering all the chunks in it (LocationId: %v)",
-            location->GetId());
-
-        YT_VERIFY(!location->IsEnabled());
-
-        THashMultiMap<TChunkId, TChunkEntry> newChunkMap;
-        for (const auto& [chunkId, chunkEntry] : ChunkMap_) {
-            const auto& chunk = chunkEntry.Chunk;
-            if (chunk->GetLocation() == location) {
-                ChunkRemoved_.Fire(chunk);
-                location->RemoveChunkFiles(chunk->GetId(), false);
-            } else {
-                newChunkMap.emplace(chunkId, chunkEntry);
-            }
-        }
-
-        ChunkMap_ = std::move(newChunkMap);
-    })
-        .AsyncVia(ControlInvoker_)
-        .Run())
-        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

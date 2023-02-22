@@ -315,7 +315,8 @@ public:
                 locationConfig,
                 Bootstrap_->GetDynamicConfigManager(),
                 TChunkContext::Create(Bootstrap_),
-                CreateChunkStoreHost(Bootstrap_));
+                CreateChunkStoreHost(Bootstrap_),
+                Bootstrap_->GetChunkCache());
 
             futures.push_back(
                 BIND(&TImpl::InitializeLocation, MakeStrong(this))
@@ -323,9 +324,6 @@ public:
                     .Run(location));
 
             Locations_.push_back(location);
-
-            location->SubscribeDisabled(
-                BIND(&TChunkCache::TImpl::OnLocationDisabled, MakeWeak(this), index));
         }
 
         WaitFor(AllSucceeded(futures))
@@ -452,6 +450,32 @@ public:
             chunkReadOptions,
             // TODO(babenko): throttle prepartion
             GetUnlimitedThrottler());
+    }
+
+    TFuture<void> RemoveChunksByLocation(const TCacheLocationPtr& location)
+    {
+        return BIND([=, this, this_ = MakeStrong(this)] () {
+            auto chunks = GetAll();
+            for (const auto& chunk : chunks) {
+                if (chunk->GetLocation() == location) {
+                    TryRemove(chunk->GetKey(), /*forbidResurrection*/ true);
+                }
+            }
+
+            {
+                auto guard = Guard(RegisteredChunkMapLock_);
+                THashMap<TArtifactKey, TRegisteredChunkDescriptor> newRegisteredChunkMap;
+                for (const auto& [artifactKey, chunkDescriptor] : RegisteredChunkMap_) {
+                    if (chunkDescriptor.Location != location) {
+                        newRegisteredChunkMap.emplace(artifactKey, chunkDescriptor);
+                    }
+                }
+
+                RegisteredChunkMap_ = std::move(newRegisteredChunkMap);
+            }
+        })
+            .AsyncVia(Bootstrap_->GetControlInvoker())
+            .Run();
     }
 
 private:
@@ -1532,40 +1556,6 @@ private:
 
         ArtifactCacheReaderConfig_.Store(newNodeConfig->DataNode->ArtifactCacheReader);
     }
-
-    void OnLocationDisabled(int locationIndex)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
-            YT_LOG_INFO("Location is disabled; unregistering all the chunks in it (LocationIndex: %v)",
-                locationIndex);
-
-            const auto& location = Locations_[locationIndex];
-
-            auto chunks = GetAll();
-            for (const auto& chunk : chunks) {
-                if (chunk->GetLocation() == location) {
-                    TryRemove(chunk->GetKey(), /*forbidResurrection*/ true);
-                }
-            }
-
-            {
-                auto guard = Guard(RegisteredChunkMapLock_);
-                THashMap<TArtifactKey, TRegisteredChunkDescriptor> newRegisteredChunkMap;
-                for (const auto& [artifactKey, chunkDescriptor] : RegisteredChunkMap_) {
-                    if (chunkDescriptor.Location != location) {
-                        newRegisteredChunkMap.emplace(artifactKey, chunkDescriptor);
-                    }
-                }
-
-                RegisteredChunkMap_ = std::move(newRegisteredChunkMap);
-            }
-        })
-        .AsyncVia(Bootstrap_->GetControlInvoker())
-        .Run())
-        .ThrowOnError();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1607,6 +1597,13 @@ int TChunkCache::GetChunkCount()
     VERIFY_THREAD_AFFINITY_ANY();
 
     return Impl_->GetSize();
+}
+
+TFuture<void> TChunkCache::RemoveChunksByLocation(const TCacheLocationPtr& location)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Impl_->RemoveChunksByLocation(location);
 }
 
 TFuture<IChunkPtr> TChunkCache::DownloadArtifact(

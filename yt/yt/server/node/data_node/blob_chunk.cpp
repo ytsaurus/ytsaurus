@@ -888,29 +888,4 @@ TStoredBlobChunk::TStoredBlobChunk(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachedBlobChunk::TCachedBlobChunk(
-    TChunkContextPtr context,
-    TChunkLocationPtr location,
-    const TChunkDescriptor& descriptor,
-    TRefCountedChunkMetaPtr meta,
-    const TArtifactKey& key,
-    TClosure destroyedHandler)
-    : TBlobChunkBase(
-        std::move(context),
-        std::move(location),
-        descriptor,
-        std::move(meta))
-    , TAsyncCacheValueBase<TArtifactKey, TCachedBlobChunk>(key)
-    , DestroyedHandler_(std::move(destroyedHandler))
-{ }
-
-TCachedBlobChunk::~TCachedBlobChunk()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    DestroyedHandler_.Run();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NDataNode

@@ -87,7 +87,7 @@ public:
     void UpdateExistingChunk(const IChunkPtr& chunk);
 
     //! Unregisters the chunk but does not remove any of its files.
-    void UnregisterChunk(const IChunkPtr& chunk);
+    void UnregisterChunk(const IChunkPtr& chunk, bool force);
 
     //! Finds a chunk by id on the specified medium (or on the highest priority
     //! medium if #mediumIndex == AllMediaIndex).
@@ -124,7 +124,10 @@ public:
      */
     int GetChunkCount() const;
 
-    //! Physically removes the chunk.
+    //! Get registered chunks by location.
+    std::vector<IChunkPtr> GetLocationChunks(const TChunkLocationPtr& location);
+
+    //! Physically removes or move to trash the location chunk. This method called with registering in location actions.
     /*!
      *  This call also evicts the reader from the cache thus hopefully closing the file.
      */
@@ -229,7 +232,6 @@ private:
 
     void OnProfiling();
 
-    void OnLocationDisabled(const TWeakPtr<TStoreLocation>& weakLocation);
     void ReconfigureLocation(const TChunkLocationPtr& location);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
