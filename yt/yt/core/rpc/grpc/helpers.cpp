@@ -72,11 +72,11 @@ TStringBuf TGrpcMetadataArray::Find(const char* key) const
 
 void TGrpcMetadataArrayBuilder::Add(const char* key, TString value)
 {
+    Strings_.emplace_back(std::move(value));
     grpc_metadata metadata;
     metadata.key = grpc_slice_from_static_string(key);
-    metadata.value = grpc_slice_from_static_buffer(value.c_str(), value.length());
+    metadata.value = grpc_slice_from_static_buffer(Strings_.back().data(), Strings_.back().size());
     NativeMetadata_.push_back(metadata);
-    Strings_.emplace_back(std::move(value));
 }
 
 size_t TGrpcMetadataArrayBuilder::GetSize() const
@@ -153,12 +153,12 @@ grpc_channel_args* TGrpcChannelArgs::Unwrap()
 ////////////////////////////////////////////////////////////////////////////////
 
 TGrpcPemKeyCertPair::TGrpcPemKeyCertPair(TString privateKey, TString certChain)
-    : Native_({
-        privateKey.c_str(),
-        certChain.c_str()
-    })
-    , PrivateKey_(std::move(privateKey))
+    : PrivateKey_(std::move(privateKey))
     , CertChain_(std::move(certChain))
+    , Native_({
+        PrivateKey_.c_str(),
+        CertChain_.c_str()
+    })
 { }
 
 grpc_ssl_pem_key_cert_pair* TGrpcPemKeyCertPair::Unwrap()

@@ -236,9 +236,9 @@ public:
     grpc_ssl_pem_key_cert_pair* Unwrap();
 
 private:
-    grpc_ssl_pem_key_cert_pair Native_;
     TString PrivateKey_;
     TString CertChain_;
+    grpc_ssl_pem_key_cert_pair Native_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
