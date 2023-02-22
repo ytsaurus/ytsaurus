@@ -29,7 +29,7 @@ public class ReadWriteComplexEntityTest extends ReadWriteTestBase {
                 WriteTable.<Product>builder()
                         .setPath(path)
                         .setSerializationContext(
-                                SerializationContext.skiff(Product.class)
+                                new SerializationContext<>(Product.class)
                         )
                         .setNeedRetries(true)
                         .build()).join();
@@ -51,7 +51,7 @@ public class ReadWriteComplexEntityTest extends ReadWriteTestBase {
                 ReadTable.<Product>builder()
                         .setPath(path)
                         .setSerializationContext(
-                                SerializationContext.skiff(Product.class)
+                                new SerializationContext<>(Product.class)
                         )
                         .build()).join();
 

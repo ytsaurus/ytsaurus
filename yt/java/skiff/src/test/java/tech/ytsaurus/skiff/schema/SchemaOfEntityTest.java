@@ -8,7 +8,7 @@ import javax.persistence.Entity;
 import javax.persistence.Transient;
 
 import org.junit.Test;
-import tech.ytsaurus.skiff.serializer.EntitySkiffSchemaCreator;
+import tech.ytsaurus.skiff.serialization.EntitySkiffSchemaCreator;
 
 import static org.junit.Assert.assertEquals;
 

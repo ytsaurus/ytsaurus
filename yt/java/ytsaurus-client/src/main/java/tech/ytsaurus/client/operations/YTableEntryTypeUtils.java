@@ -5,12 +5,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-import javax.persistence.Entity;
-
 import tech.ytsaurus.core.utils.ClassUtils;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.ysontree.YTreeMapNode;
+
+import static tech.ytsaurus.skiff.serialization.EntityUtil.isEntityAnnotationPresent;
 
 
 @NonNullApi
@@ -48,7 +48,7 @@ final class YTableEntryTypeUtils {
         Class<T> clazz = ClassUtils.erasure(type);
         if (clazz.equals(YTreeMapNode.class)) {
             return ClassUtils.castToType(YTableEntryTypes.YSON);
-        } else if (clazz.isAnnotationPresent(Entity.class)) {
+        } else if (isEntityAnnotationPresent(clazz)) {
             return new EntityTableEntryType<>(clazz, isInputType && trackIndices, isInputType);
         } else {
             throw new IllegalArgumentException("Can't resolve type for " + type);

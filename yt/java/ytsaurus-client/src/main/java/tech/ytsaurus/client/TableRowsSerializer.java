@@ -27,7 +27,7 @@ import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.rpcproxy.ERowsetFormat;
 import tech.ytsaurus.rpcproxy.TRowsetDescriptor;
-import tech.ytsaurus.skiff.serializer.EntitySkiffSerializer;
+import tech.ytsaurus.skiff.serialization.EntitySkiffSerializer;
 
 
 

@@ -5,6 +5,7 @@ import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -132,8 +133,42 @@ public class ClassUtils {
         return (Class<?>) ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
     }
 
-    public static boolean isFieldTransient(Field field, Class<? extends Annotation> transientAnnotation) {
+    public static boolean isFieldTransient(Field field, Set<String> transientAnnotations) {
         return ((field.getModifiers() & Modifier.TRANSIENT) != 0 ||
-                field.isAnnotationPresent(transientAnnotation));
+                anyOfAnnotationsPresent(field, transientAnnotations));
+
+    }
+
+    public static boolean anyOfAnnotationsPresent(AnnotatedElement element,
+                                                  Set<String> annotations) {
+        return Arrays.stream(element.getDeclaredAnnotations())
+                .map(annotation -> annotation.annotationType().getName())
+                .anyMatch(annotations::contains);
+    }
+
+    public static boolean anyMatchWithAnnotation(Annotation annotation,
+                                                 Set<String> annotationNames) {
+        return annotationNames.contains(annotation.annotationType().getName());
+    }
+
+    public static Optional<Annotation> getAnnotationIfPresent(AnnotatedElement element,
+                                                              Set<String> annotations) {
+        return Arrays.stream(element.getDeclaredAnnotations())
+                .filter(annotation -> annotations.contains(annotation.annotationType().getName()))
+                .findAny();
+    }
+
+    public static <T> T getValueOfAnnotationProperty(Annotation annotation, String propertyName) {
+        try {
+            return castToType(annotation.annotationType().getDeclaredMethod(propertyName).invoke(annotation));
+        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void setFieldsAccessibleToTrue(Field[] fields) {
+        for (var field : fields) {
+            field.setAccessible(true);
+        }
     }
 }

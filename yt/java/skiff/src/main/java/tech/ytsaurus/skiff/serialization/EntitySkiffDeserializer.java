@@ -1,4 +1,4 @@
-package tech.ytsaurus.skiff.deserializer;
+package tech.ytsaurus.skiff.serialization;
 
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.Constructor;
@@ -7,48 +7,50 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nullable;
-import javax.persistence.Entity;
-import javax.persistence.Transient;
 
 import tech.ytsaurus.skiff.schema.SkiffSchema;
 import tech.ytsaurus.skiff.schema.WireType;
 import tech.ytsaurus.yson.BufferReference;
 
+import static tech.ytsaurus.core.utils.ClassUtils.anyOfAnnotationsPresent;
 import static tech.ytsaurus.core.utils.ClassUtils.castToList;
 import static tech.ytsaurus.core.utils.ClassUtils.castToType;
 import static tech.ytsaurus.core.utils.ClassUtils.getTypeParameterOfGeneric;
-import static tech.ytsaurus.core.utils.ClassUtils.isFieldTransient;
+import static tech.ytsaurus.core.utils.ClassUtils.setFieldsAccessibleToTrue;
+import static tech.ytsaurus.skiff.serialization.EntitySkiffSchemaCreator.getEntitySchema;
 
-public class EntitySkiffDeserializer {
+public class EntitySkiffDeserializer<T> {
+    private final Class<T> entityClass;
+    private final SkiffSchema schema;
+    private final HashMap<Class<?>, List<EntityFieldDescr>> entityFieldsMap = new HashMap<>();
 
-    private EntitySkiffDeserializer() {
-    }
-
-    public static <T> Optional<T> deserialize(byte[] objectBytes,
-                                              Class<T> objectClass,
-                                              SkiffSchema schema) {
-        return deserialize(new SkiffParser(new ByteArrayInputStream(objectBytes)), objectClass, schema);
-    }
-
-    public static <T> Optional<T> deserialize(SkiffParser parser,
-                                              Class<T> objectClass,
-                                              SkiffSchema schema) {
-        validateEntity(objectClass);
-
-        return Optional.ofNullable(deserializeObject(parser, objectClass, schema));
-    }
-
-    private static <T> void validateEntity(Class<T> objectClass) {
-        if (!objectClass.isAnnotationPresent(Entity.class)) {
+    public EntitySkiffDeserializer(Class<T> entityClass) {
+        if (!anyOfAnnotationsPresent(entityClass, JavaPersistenceApi.entityAnnotations())) {
             throw new IllegalArgumentException("Class must be annotated with @Entity");
         }
+        this.entityClass = entityClass;
+        this.schema = getEntitySchema(entityClass);
+
+        Field[] declaredFields = entityClass.getDeclaredFields();
+        var entityFieldDescriptions = EntityFieldDescr.of(declaredFields);
+        setFieldsAccessibleToTrue(declaredFields);
+        entityFieldsMap.put(entityClass, entityFieldDescriptions);
     }
 
-    private static <T> @Nullable T deserializeObject(SkiffParser parser, Class<T> clazz, SkiffSchema schema) {
+    public Optional<T> deserialize(byte[] objectBytes) {
+        return deserialize(new SkiffParser(new ByteArrayInputStream(objectBytes)));
+    }
+
+    public Optional<T> deserialize(SkiffParser parser) {
+        return Optional.ofNullable(deserializeObject(parser, entityClass, schema));
+    }
+
+    private <Type> @Nullable Type deserializeObject(SkiffParser parser, Class<Type> clazz, SkiffSchema schema) {
         schema = extractSchemeFromVariant(parser, schema);
 
         if (schema.getWireType().isSimpleType()) {
@@ -58,16 +60,16 @@ public class EntitySkiffDeserializer {
         return deserializeComplexObject(parser, clazz, schema);
     }
 
-    private static <T> T deserializeComplexObject(SkiffParser parser,
-                                                  Class<T> clazz,
-                                                  SkiffSchema schema) {
+    private <Type> Type deserializeComplexObject(SkiffParser parser,
+                                                 Class<Type> clazz,
+                                                 SkiffSchema schema) {
         if (schema.getWireType() != WireType.TUPLE) {
             throwInvalidSchemeException(null);
         }
 
-        T object;
+        Type object;
         try {
-            Constructor<T> defaultConstructor = clazz.getDeclaredConstructor();
+            Constructor<Type> defaultConstructor = clazz.getDeclaredConstructor();
             defaultConstructor.setAccessible(true);
             object = defaultConstructor.newInstance();
         } catch (NoSuchMethodException e) {
@@ -76,16 +78,19 @@ public class EntitySkiffDeserializer {
             throw new RuntimeException(e);
         }
 
-        Field[] fields = clazz.getDeclaredFields();
+        var fieldDescriptions = entityFieldsMap.computeIfAbsent(clazz, entityClass -> {
+            Field[] declaredFields = entityClass.getDeclaredFields();
+            setFieldsAccessibleToTrue(declaredFields);
+            return EntityFieldDescr.of(declaredFields);
+        });
         int indexInSchema = 0;
-        for (Field field : fields) {
-            if (isFieldTransient(field, Transient.class)) {
+        for (var fieldDescr : fieldDescriptions) {
+            if (fieldDescr.isTransient()) {
                 continue;
             }
             try {
-                field.setAccessible(true);
-                field.set(object, deserializeField(
-                        parser, field, schema.getChildren().get(indexInSchema)));
+                fieldDescr.getField().set(object, deserializeField(
+                        parser, fieldDescr.getField(), schema.getChildren().get(indexInSchema)));
                 indexInSchema++;
             } catch (IllegalAccessException | IndexOutOfBoundsException e) {
                 throwInvalidSchemeException(e);
@@ -94,7 +99,7 @@ public class EntitySkiffDeserializer {
         return object;
     }
 
-    private static <T> @Nullable T deserializeField(SkiffParser parser, Field field, SkiffSchema schema) {
+    private <Type> @Nullable Type deserializeField(SkiffParser parser, Field field, SkiffSchema schema) {
         if (Collection.class.isAssignableFrom(field.getType())) {
             schema = extractSchemeFromVariant(parser, schema);
             return deserializeCollection(parser, castToType(field.getType()), getTypeParameterOfGeneric(field), schema);
@@ -102,10 +107,10 @@ public class EntitySkiffDeserializer {
         return deserializeObject(parser, castToType(field.getType()), schema);
     }
 
-    private static <T, E> T deserializeCollection(SkiffParser parser,
-                                                  Class<T> clazz,
-                                                  Class<E> typeParameter,
-                                                  SkiffSchema schema) {
+    private <Type, ElemType> Type deserializeCollection(SkiffParser parser,
+                                                        Class<Type> clazz,
+                                                        Class<ElemType> typeParameter,
+                                                        SkiffSchema schema) {
         if (List.class.isAssignableFrom(clazz)) {
             return deserializeList(parser, typeParameter, schema);
         } else {
@@ -114,14 +119,14 @@ public class EntitySkiffDeserializer {
         }
     }
 
-    private static <T, E> T deserializeList(SkiffParser parser,
-                                            Class<E> typeParameter,
-                                            SkiffSchema schema) {
+    private <Type, ElemType> Type deserializeList(SkiffParser parser,
+                                                  Class<ElemType> typeParameter,
+                                                  SkiffSchema schema) {
         if (!schema.isListSchema()) {
             throwInvalidSchemeException(null);
         }
 
-        List<E> list = castToList(new ArrayList<E>());
+        List<ElemType> list = castToList(new ArrayList<ElemType>());
         byte tag;
         while ((tag = parser.parseInt8()) != (byte) 0xFF) {
             list.add(deserializeObject(parser, typeParameter, schema.getChildren().get(tag)));
@@ -129,7 +134,7 @@ public class EntitySkiffDeserializer {
         return castToType(list);
     }
 
-    private static <T> @Nullable T deserializeSimpleType(SkiffParser parser, SkiffSchema schema) {
+    private static <Type> @Nullable Type deserializeSimpleType(SkiffParser parser, SkiffSchema schema) {
         try {
             switch (schema.getWireType()) {
                 case INT_8:

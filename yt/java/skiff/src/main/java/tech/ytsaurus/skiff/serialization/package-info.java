@@ -1,6 +1,6 @@
 @NonNullApi
 @NonNullFields
-package tech.ytsaurus.skiff.serializer;
+package tech.ytsaurus.skiff.serialization;
 
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
