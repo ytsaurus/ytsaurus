@@ -329,7 +329,7 @@ void TLsmCounters::DoProfileCompaction(
     const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
     TEnumIndexedVector<EHunkCompactionReason, i64> hunkChunkCountByReason)
 {
-    counters->StoreChunks.InDataWeight.Increment(readerStatistics.data_weight());
+    counters->StoreChunks.InDataWeight.Increment(readerStatistics.unmerged_data_weight());
     counters->StoreChunks.InStoreCount.Increment(readerStatistics.chunk_count());
     counters->StoreChunks.OutDataWeight.Increment(writerStatistics.data_weight());
     counters->StoreChunks.OutStoreCount.Increment(writerStatistics.chunk_count());
