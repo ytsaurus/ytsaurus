@@ -61,7 +61,10 @@ public class CommonDataTest {
     }
 
     private List<List<String>> parseResource(String name, int expectedFieldCount) {
-        var resourceStream = getClass().getResourceAsStream(name);
+        var resourceStream = getClass().getClassLoader().getResourceAsStream(name);
+        if (resourceStream == null) {
+            resourceStream = getClass().getResourceAsStream(name);
+        }
 
         if (resourceStream == null) {
             throw new RuntimeException("Resource \"" + name + "\" not found");
