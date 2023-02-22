@@ -464,64 +464,6 @@ TEST(TYsonStringMerger, BinaryYsonStrings)
     EXPECT_TRUE(AreNodesEqual(node, expectedNode));
 }
 
-TEST(TYsonStringMerger, ListForwardSimple)
-{
-    using namespace std::literals;
-    auto element0YsonStringBuf = TYsonStringBuf{R"(["a"; "b"; "c"])"sv};
-
-    auto mergedYsonString = MergeYsonStrings(
-        {"/d/*/e"},
-        {element0YsonStringBuf},
-        EYsonFormat::Text,
-        true);
-    auto expectedYsonString = TYsonString{R"({"d"=[{"e"="a";};{"e"="b";};{"e"="c";};];})"sv};
-    EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
-}
-
-TEST(TYsonStringMerger, ListForwardRoot)
-{
-    using namespace std::literals;
-    auto element0YsonStringBuf = TYsonStringBuf{R"(["a"; "b"; "c"])"sv};
-
-    auto mergedYsonString = MergeYsonStrings(
-        {"/d/*"},
-        {element0YsonStringBuf},
-        EYsonFormat::Text,
-        true);
-    auto expectedYsonString = TYsonString{R"({"d"=["a";"b";"c";];})"sv};
-    EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
-}
-
-TEST(TYsonStringMerger, ListForwardNested)
-{
-    using namespace std::literals;
-    auto element0YsonStringBuf = TYsonStringBuf{R"([["a"; "b";]; ["c"; "d"]; ["e"; "f"];])"sv};
-
-    auto mergedYsonString = MergeYsonStrings(
-        {"/g/*/h/*/i"},
-        {element0YsonStringBuf},
-        EYsonFormat::Text,
-        true);
-    auto expectedYsonString = TYsonString{R"({"g"=[{"h"=[{"i"="a";};{"i"="b";};];};{"h"=[{"i"="c";};{"i"="d";};];};{"h"=[{"i"="e";};{"i"="f";};];};];})"sv};
-    EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
-}
-
-TEST(TYsonStringMerger, ListForwardNestedLists)
-{
-    using namespace std::literals;
-    auto element0YsonStringBuf = TYsonStringBuf{R"([["a"; "b";]; ["c"; "d"]; ["e"; "f"];])"sv};
-
-    auto mergedYsonString = MergeYsonStrings(
-        {"/g/*/*/h"},
-        {element0YsonStringBuf},
-        EYsonFormat::Text,
-        true);
-    TString expectedString{
-        R"({"g"=[[{"h"="a";};{"h"="b";};];[{"h"="c";};{"h"="d";};];[{"h"="e";};{"h"="f";};];];})"};
-    auto expectedYsonString = TYsonString{expectedString};
-    EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonStringSerializationTest

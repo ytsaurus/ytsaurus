@@ -147,62 +147,6 @@ private:
     }
 };
 
-std::tuple<NYPath::TYPath, NYTree::INodePtr> DoExpandLists(NYTree::INodePtr node, NYPath::TYPath path);
-
-NYTree::INodePtr PutChildInPath(NYTree::INodePtr child, const NYPath::TYPath& path)
-{
-    if (path.empty()) {
-        return child;
-    }
-
-    auto [newPath, newChild] = DoExpandLists(child, path);
-    if (newPath.empty()) {
-        return newChild;
-    }
-    auto node = NYTree::GetEphemeralNodeFactory()->CreateMap();
-    ForceYPath(node, newPath);
-    NYTree::SetNodeByYPath(node, newPath, newChild);
-    return node;
-}
-
-std::tuple<NYPath::TYPath, NYTree::INodePtr> DoExpandLists(NYTree::INodePtr node, NYPath::TYPath path)
-{
-    auto it = path.find("*");
-    if (it == NYPath::TYPath::npos) {
-        return {path, node};
-    }
-
-    auto outPath = path.substr(0, std::max<size_t>(0, it - 1));
-    auto inPath = path.substr(std::min(it + 1, path.size()), path.size());
-
-    THROW_ERROR_EXCEPTION_UNLESS(node->GetType() == NYTree::ENodeType::List, "\"*\" can only expand lists");
-    const auto list = node->AsList();
-
-    auto newList = NYTree::GetEphemeralNodeFactory()->CreateList();
-    auto children = list->GetChildren();
-    for (auto& child : children) {
-        list->RemoveChild(child);
-        auto newChild = PutChildInPath(child, inPath);
-        newList->AddChild(newChild);
-    }
-
-    return {outPath, newList};
-}
-
-std::optional<std::tuple<NYPath::TYPath, TYsonString>> ExpandLists(
-    NYPath::TYPath path,
-    TYsonStringBuf ysonStringBuf,
-    EYsonFormat format)
-{
-    if (path.find('*') == NYPath::TYPath::npos) {
-        return std::nullopt;
-    }
-
-    auto node = NYTree::ConvertToNode(ysonStringBuf);
-    auto [newPath, newNode] = DoExpandLists(node, path);
-    return {{newPath, ConvertToYsonString(newNode, format)}};
-}
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,28 +154,16 @@ std::optional<std::tuple<NYPath::TYPath, TYsonString>> ExpandLists(
 TYsonString MergeYsonStrings(
     std::vector<NYPath::TYPath> paths,
     std::vector<TYsonStringBuf> ysonStringBufs,
-    EYsonFormat format,
-    bool expandLists)
+    EYsonFormat format)
 {
     YT_VERIFY(paths.size() == ysonStringBufs.size());
 
-    std::vector<TYsonString> forwardedStrings;
     for (const auto& [index, path] : Enumerate(paths)) {
         const auto& ysonStringBuf = ysonStringBufs[index];
         if (ysonStringBuf.GetType() != EYsonType::Node) {
             THROW_ERROR_EXCEPTION(
                 "Yson string type can only be %v",
                 EYsonType::Node);
-        }
-
-        if (expandLists) {
-            auto result = ExpandLists(path, ysonStringBuf, format);
-            if (result.has_value()) {
-                auto& [newPath, newYsonString] = result.value();
-                paths[index] = std::move(newPath);
-                const auto& forwardedString = forwardedStrings.emplace_back(std::move(newYsonString));
-                ysonStringBufs[index] = forwardedString;
-            }
         }
     }
     auto rootNode = NYTree::GetEphemeralNodeFactory()->CreateMap();
