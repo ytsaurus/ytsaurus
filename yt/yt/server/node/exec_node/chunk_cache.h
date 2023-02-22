@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "cache_location.h"
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
@@ -81,8 +82,11 @@ public:
         const NDataNode::TArtifactKey& key,
         const TArtifactDownloadOptions& artifactDownloadOptions);
 
+    //! Remove chunks from cache.
+    TFuture<void> RemoveChunksByLocation(const TCacheLocationPtr& location);
+
     //! Cache locations.
-    DECLARE_BYREF_RO_PROPERTY(std::vector<NDataNode::TCacheLocationPtr>, Locations);
+    DECLARE_BYREF_RO_PROPERTY(std::vector<TCacheLocationPtr>, Locations);
 
 private:
     class TImpl;

@@ -173,11 +173,6 @@ class TChunkLocation
     : public TDiskLocation
 {
 public:
-    //! Raised when location becomes disabled.
-    // NB: This signal can be raised in different threads.
-    DEFINE_SIGNAL(void(), Disabled);
-
-public:
     TChunkLocation(
         ELocationType type,
         TString id,
@@ -273,17 +268,8 @@ public:
     //! Marks location as crashed during initialization. Master must not find out about this location.
     void Crash(const TError& reason);
 
-    //! Marks the location as disabled by attempting to create a lock file and marking assinged chunks
-    //! as unavailable.
-    bool ScheduleDisable(const TError& reason);
-
     //! Subscribe callback on disk health check.
     void SubscribeDiskCheckFailed(const TCallback<void(const TError&)> callback);
-
-    //! Wraps a given #callback with try/catch block that intercepts all exceptions
-    //! and calls #Disable when one happens.
-    template <class T>
-    TCallback<T()> DisableOnError(const TCallback<T()> callback);
 
     //! Updates #UsedSpace and #AvailableSpace
     void UpdateUsedSpace(i64 size);
@@ -394,6 +380,15 @@ public:
     //! To resurrect location, all chuncks are unlocked, because they need to be created anew.
     void UnlockChunk(TChunkId chunkId);
 
+    //! Marks the location as disabled by attempting to create a lock file and marking assinged chunks
+    //! as unavailable.
+    virtual bool ScheduleDisable(const TError& reason) = 0;
+
+    //! Wraps a given #callback with try/catch block that intercepts all exceptions
+    //! and calls #Disable when one happens.
+    template <class T>
+    TCallback<T()> DisableOnError(const TCallback<T()> callback);
+
     const TChunkStorePtr& GetChunkStore() const;
 
 protected:
@@ -403,6 +398,14 @@ protected:
     const IChunkStoreHostPtr ChunkStoreHost_;
 
     NProfiling::TProfiler Profiler_;
+
+    TAtomicObject<TError> LocationDisabledAlert_;
+    TAtomicObject<TError> LocationDiskFailedAlert_;
+
+    mutable std::atomic<i64> AvailableSpace_ = 0;
+    std::atomic<i64> UsedSpace_ = 0;
+    TEnumIndexedVector<ESessionType, std::atomic<int>> PerTypeSessionCount_;
+    std::atomic<int> ChunkCount_ = 0;
 
     static TString GetRelativeChunkPath(TChunkId chunkId);
     static void ForceHashDirectories(const TString& rootPath);
@@ -416,6 +419,10 @@ protected:
     i64 GetWriteThrottlingLimit() const;
 
     void RemoveChunkFilesPermanently(TChunkId chunkId);
+
+    TFuture<void> SynchronizeActions();
+    void CreateDisableLockFile(const TError& reason);
+    void ResetLocationStatistic();
 
 private:
     friend class TPendingIOGuard;
@@ -435,17 +442,9 @@ private:
 
     TChunkLocationUuid Uuid_;
 
-    TAtomicObject<TError> LocationDisabledAlert_;
-    TAtomicObject<TError> LocationDiskFailedAlert_;
-
     TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
     NProfiling::TDynamicTagPtr MediumTag_;
     NProfiling::TGauge MediumFlag_;
-
-    mutable std::atomic<i64> AvailableSpace_ = 0;
-    std::atomic<i64> UsedSpace_ = 0;
-    TEnumIndexedVector<ESessionType, std::atomic<int>> PerTypeSessionCount_;
-    std::atomic<int> ChunkCount_ = 0;
 
     TEnumIndexedVector<EChunkLocationThrottlerKind, NConcurrency::IReconfigurableThroughputThrottlerPtr> ReconfigurableThrottlers_;
     TEnumIndexedVector<EChunkLocationThrottlerKind, NConcurrency::IThroughputThrottlerPtr> Throttlers_;
@@ -546,6 +545,11 @@ public:
 
     //! Returns |true| if the location accepts new writes.
     bool IsWritable() const;
+
+    //! Marks the location as disabled by attempting to create a lock file and marking assinged chunks
+    //! as unavailable.
+    bool ScheduleDisable(const TError& reason) override;
+
 private:
     const TStoreLocationConfigPtr StaticConfig_;
 
@@ -584,6 +588,8 @@ private:
     void RemoveTrashFiles(const TTrashChunkEntry& entry);
     void MoveChunkFilesToTrash(TChunkId chunkId);
 
+    void RemoveLocationChunks();
+
     i64 GetAdditionalSpace() const override;
 
     std::optional<TChunkDescriptor> RepairBlobChunk(TChunkId chunkId);
@@ -598,32 +604,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreLocation)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCacheLocation
-    : public TChunkLocation
-{
-public:
-    TCacheLocation(
-        TString id,
-        TCacheLocationConfigPtr config,
-        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
-        TChunkContextPtr chunkContext,
-        IChunkStoreHostPtr chunkStoreHost);
-
-    const NConcurrency::IThroughputThrottlerPtr& GetInThrottler() const;
-
-private:
-    const NConcurrency::IThroughputThrottlerPtr InThrottler_;
-
-    std::optional<TChunkDescriptor> Repair(TChunkId chunkId, const TString& metaSuffix);
-    std::optional<TChunkDescriptor> RepairChunk(TChunkId chunkId) override;
-
-    std::vector<TString> GetChunkPartNames(TChunkId chunkId) const override;
-};
-
-DEFINE_REFCOUNTED_TYPE(TCacheLocation)
 
 ////////////////////////////////////////////////////////////////////////////////
 

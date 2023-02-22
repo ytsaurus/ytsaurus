@@ -159,28 +159,4 @@ DEFINE_REFCOUNTED_TYPE(TStoredBlobChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A blob chunk owned by TChunkCache.
-class TCachedBlobChunk
-    : public TBlobChunkBase
-    , public TAsyncCacheValueBase<TArtifactKey, TCachedBlobChunk>
-{
-public:
-    TCachedBlobChunk(
-        TChunkContextPtr context,
-        TChunkLocationPtr location,
-        const TChunkDescriptor& descriptor,
-        NChunkClient::TRefCountedChunkMetaPtr meta,
-        const TArtifactKey& key,
-        TClosure destroyedHandler);
-
-    ~TCachedBlobChunk();
-
-private:
-    const TClosure DestroyedHandler_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TCachedBlobChunk)
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NDataNode

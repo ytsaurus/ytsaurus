@@ -632,70 +632,6 @@ void TChunkLocation::Crash(const TError& reason)
     ChangeState(ELocationState::Crashed);
 }
 
-bool TChunkLocation::ScheduleDisable(const TError& reason)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    if (!ChangeState(ELocationState::Disabling, ELocationState::Enabled)) {
-        return false;
-    }
-
-    // No new actions can appear here. Please see TDiskLocation::RegisterAction.
-    // But for the outside world, the location will be considered enabled.
-    auto error = TError("Chunk location at %v is disabled", GetPath());
-    error = error << reason;
-    LocationDisabledAlert_.Store(error);
-
-    BIND([=, this, this_ = MakeStrong(this)] () {
-        if (Actions_.size() != 0) {
-            std::vector<TFuture<void>> futures(Actions_.begin(), Actions_.end());
-
-            WaitFor(AllSet(futures))
-                .ValueOrThrow();
-
-            YT_VERIFY(Actions_.empty());
-        }
-
-        // All actions with this location ended here.
-        YT_LOG_WARNING(reason, "Disabling location (LocationUuid: %v)", GetUuid());
-
-        // Save the reason in a file and exit.
-        // Location will be disabled during the scan in the restart process.
-        auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
-        try {
-            TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
-            TUnbufferedFileOutput fileOutput(file);
-            fileOutput << ConvertToYsonString(reason, NYson::EYsonFormat::Pretty).AsStringBuf();
-        } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error creating location lock file; aborting");
-            TProgram::Abort(EProgramExitCode::ProgramError);
-        }
-
-        auto dynamicConfig = DynamicConfigManager_->GetConfig()->DataNode;
-        if (dynamicConfig->AbortOnLocationDisabled) {
-            TProgram::Abort(EProgramExitCode::ProgramError);
-        }
-
-        Disabled_.Fire();
-
-        AvailableSpace_.store(0);
-        UsedSpace_.store(0);
-        for (auto& count : PerTypeSessionCount_) {
-            count.store(0);
-        }
-        ChunkCount_.store(0);
-
-        ChunkStoreHost_->ScheduleMasterHeartbeat();
-
-        ChangeState(ELocationState::Disabled, ELocationState::Disabling);
-        return true;
-    })
-        .AsyncVia(GetAuxPoolInvoker())
-        .Run();
-
-    return true;
-}
-
 void TChunkLocation::UpdateUsedSpace(i64 size)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -1354,6 +1290,70 @@ void TChunkLocation::PopulateAlerts(std::vector<TError>* alerts)
     }
 }
 
+TFuture<void> TChunkLocation::SynchronizeActions()
+{
+    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    YT_VERIFY(GetState() == ELocationState::Disabling);
+
+    std::vector<TFuture<void>> futures;
+    {
+        auto actionsGuard = Guard(ActionsContainerLock_);
+        futures = {Actions_.begin(), Actions_.end()};
+    }
+
+    return AllSet(futures)
+        .AsVoid()
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] () {
+            // All actions with this location ended here.
+            auto actionsGuard = Guard(ActionsContainerLock_);
+            YT_VERIFY(Actions_.empty());
+        }));
+}
+
+void TChunkLocation::CreateDisableLockFile(const TError& reason)
+{
+    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    YT_VERIFY(GetState() == ELocationState::Disabling);
+
+    // Save the reason in a file and exit.
+    // Location will be disabled during the scan in the restart process.
+    auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
+    auto dynamicConfig = DynamicConfigManager_->GetConfig()->DataNode;
+
+    try {
+        TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
+        TUnbufferedFileOutput fileOutput(file);
+        fileOutput << ConvertToYsonString(reason, NYson::EYsonFormat::Pretty).AsStringBuf();
+    } catch (const std::exception& ex) {
+        if (dynamicConfig->AbortOnLocationDisabled) {
+            YT_LOG_ERROR(ex, "Error creating location lock file; aborting");
+            TProgram::Abort(EProgramExitCode::ProgramError);
+        } else {
+            THROW_ERROR_EXCEPTION("Error creating location lock file; aborting")
+                << ex;
+        }
+    }
+
+    if (dynamicConfig->AbortOnLocationDisabled) {
+        TProgram::Abort(EProgramExitCode::ProgramError);
+    }
+}
+
+void TChunkLocation::ResetLocationStatistic()
+{
+    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    YT_VERIFY(GetState() == ELocationState::Disabling);
+
+    AvailableSpace_.store(0);
+    UsedSpace_.store(0);
+    for (auto& count : PerTypeSessionCount_) {
+        count.store(0);
+    }
+    ChunkCount_.store(0);
+
+    ChunkStoreHost_->ScheduleMasterHeartbeat();
+}
+
 const TChunkStorePtr& TChunkLocation::GetChunkStore() const
 {
     return ChunkStore_;
@@ -1819,6 +1819,66 @@ void TStoreLocation::MoveChunkFilesToTrash(TChunkId chunkId)
     }
 }
 
+void TStoreLocation::RemoveLocationChunks()
+{
+    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    YT_VERIFY(GetState() == ELocationState::Disabling);
+
+    auto locationChunks = ChunkStore_->GetLocationChunks(MakeStrong(this));
+
+    try {
+        for (const auto& chunk : locationChunks) {
+            ChunkStore_->UnregisterChunk(chunk, true);
+            UnlockChunk(chunk->GetId());
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Cannot complete unregister chunk futures")
+            << ex;
+    }
+}
+
+bool TStoreLocation::ScheduleDisable(const TError& reason)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!ChangeState(ELocationState::Disabling, ELocationState::Enabled)) {
+        return false;
+    }
+
+    YT_LOG_WARNING(reason, "Disabling location (LocationUuid: %v)", GetUuid());
+
+    // No new actions can appear here. Please see TDiskLocation::RegisterAction.
+    auto error = TError("Chunk location at %v is disabled", GetPath());
+    error = error << reason;
+    LocationDisabledAlert_.Store(error);
+
+    BIND([=, this, this_ = MakeStrong(this)] () {
+        try {
+            WaitFor(BIND(&TStoreLocation::SynchronizeActions, MakeStrong(this))
+                .AsyncVia(GetAuxPoolInvoker())
+                .Run())
+                .ThrowOnError();
+
+            CreateDisableLockFile(reason);
+            RemoveLocationChunks();
+            ResetLocationStatistic();
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Location disabling error");
+        }
+
+        auto finish = ChangeState(ELocationState::Disabled, ELocationState::Disabling);
+
+        if (!finish) {
+            YT_LOG_ALERT("Detect location state racing (CurrentState: %v)",
+                GetState());
+        }
+    })
+        .AsyncVia(GetAuxPoolInvoker())
+        .Run();
+
+    return true;
+}
+
 i64 TStoreLocation::GetAdditionalSpace() const
 {
     // NB: Unguarded access to TrashDiskSpace_ seems OK.
@@ -2054,122 +2114,6 @@ bool TStoreLocation::IsWritable() const
     }
 
     return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCacheLocation::TCacheLocation(
-    TString id,
-    TCacheLocationConfigPtr config,
-    TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
-    TChunkContextPtr chunkContext,
-    IChunkStoreHostPtr chunkStoreHost)
-    : TChunkLocation(
-        ELocationType::Cache,
-        std::move(id),
-        config,
-        std::move(dynamicConfigManager),
-        nullptr,
-        std::move(chunkContext),
-        std::move(chunkStoreHost))
-    , InThrottler_(CreateNamedReconfigurableThroughputThrottler(
-        config->InThrottler,
-        "InThrottler",
-        Logger,
-        Profiler_.WithPrefix("/cache")))
-{ }
-
-const IThroughputThrottlerPtr& TCacheLocation::GetInThrottler() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return InThrottler_;
-}
-
-std::optional<TChunkDescriptor> TCacheLocation::Repair(
-    TChunkId chunkId,
-    const TString& metaSuffix)
-{
-    auto fileName = GetChunkPath(chunkId);
-
-    auto dataFileName = fileName;
-    auto metaFileName = fileName + metaSuffix;
-
-    bool hasData = NFS::Exists(dataFileName);
-    bool hasMeta = NFS::Exists(metaFileName);
-
-    if (hasMeta && hasData) {
-        i64 dataSize = NFS::GetPathStatistics(dataFileName).Size;
-        i64 metaSize = NFS::GetPathStatistics(metaFileName).Size;
-        if (metaSize > 0) {
-            TChunkDescriptor descriptor;
-            descriptor.Id = chunkId;
-            descriptor.DiskSpace = dataSize + metaSize;
-            return descriptor;
-        }
-        YT_LOG_WARNING("Chunk meta file %v is empty, removing chunk files",
-            metaFileName);
-    } else if (hasData && !hasMeta) {
-        YT_LOG_WARNING("Chunk meta file %v is missing, removing data file %v",
-            metaFileName,
-            dataFileName);
-    } else if (!hasData && hasMeta) {
-        YT_LOG_WARNING("Chunk data file %v is missing, removing meta file %v",
-            dataFileName,
-            metaFileName);
-    }
-
-    if (hasData) {
-        NFS::Remove(dataFileName);
-    }
-    if (hasMeta) {
-        NFS::Remove(metaFileName);
-    }
-
-    return {};
-}
-
-std::optional<TChunkDescriptor> TCacheLocation::RepairChunk(TChunkId chunkId)
-{
-    std::optional<TChunkDescriptor> optionalDescriptor;
-    auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
-    switch (chunkType) {
-        case EObjectType::Chunk:
-            optionalDescriptor = Repair(chunkId, ChunkMetaSuffix);
-            break;
-
-        case EObjectType::Artifact:
-            optionalDescriptor = Repair(chunkId, ArtifactMetaSuffix);
-            break;
-
-        default:
-            YT_LOG_WARNING("Invalid type %Qlv of chunk %v, skipped",
-                chunkType,
-                chunkId);
-            break;
-    }
-    return optionalDescriptor;
-}
-
-std::vector<TString> TCacheLocation::GetChunkPartNames(TChunkId chunkId) const
-{
-    auto primaryName = ToString(chunkId);
-    switch (TypeFromId(DecodeChunkId(chunkId).Id)) {
-        case EObjectType::Chunk:
-            return {
-                primaryName,
-                primaryName + ChunkMetaSuffix
-            };
-
-        case EObjectType::Artifact:
-            return {
-                primaryName,
-                primaryName + ArtifactMetaSuffix
-            };
-
-        default:
-            YT_ABORT();
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

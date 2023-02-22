@@ -56,12 +56,6 @@ void TSessionManager::Initialize()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto& chunkStore = Bootstrap_->GetChunkStore();
-    for (const auto& location : chunkStore->Locations()) {
-        location->SubscribeDisabled(
-            BIND(&TSessionManager::OnLocationDisabled, MakeWeak(this), location));
-    }
-
     Bootstrap_->SubscribeMasterDisconnected(
         BIND_NO_PROPAGATE(&TSessionManager::OnMasterDisconnected, MakeWeak(this)));
 
@@ -130,6 +124,12 @@ ISessionPtr TSessionManager::StartSession(
     session->SubscribeFinished(
         BIND(&TSessionManager::OnSessionFinished, MakeStrong(this), MakeWeak(session))
             .Via(Bootstrap_->GetStorageLightInvoker()));
+
+    session
+        ->GetStoreLocation()
+        ->RegisterAction(BIND([=] {
+            return session->GetUnregisteredEvent();
+        }));
 
     RegisterSession(session);
 
@@ -256,35 +256,6 @@ void TSessionManager::UnregisterSession(const ISessionPtr& session)
     YT_VERIFY(SessionMap_.erase(session->GetId()) == 1);
     session->GetStoreLocation()->UpdateSessionCount(session->GetType(), -1);
     session->OnUnregistered();
-}
-
-void TSessionManager::OnLocationDisabled(const TChunkLocationPtr& location)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    // This method should be called from the Location::Disabled method synchronously (using Disabled_ signal).
-    // This is necessary for the consistent and thread-safe use of chunks.
-
-    THashMap<TSessionId, ISessionPtr> sessionMap;
-    {
-        auto guard = ReaderGuard(SessionMapLock_);
-        sessionMap = SessionMap_;
-    }
-
-    std::vector<TFuture<void>> activeSessions;
-
-    for (const auto& [sessionId, session] : sessionMap) {
-        if (location == session->GetStoreLocation()) {
-            activeSessions.push_back(session->GetUnregisteredEvent());
-        }
-    }
-
-    auto results = WaitFor(AllSet(activeSessions))
-        .ValueOrThrow();
-
-    for (const auto& result : results) {
-        YT_VERIFY(result.IsOK());
-    }
 }
 
 void TSessionManager::OnMasterDisconnected()
