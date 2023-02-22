@@ -6,12 +6,10 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/library/go/yandex/blackbox"
-	"a.yandex-team.ru/library/go/yandex/blackbox/httpbb"
+	"a.yandex-team.ru/yt/chyt/controller/internal/auth"
 	"a.yandex-team.ru/yt/chyt/controller/internal/httpserver"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/ythttp"
-	"a.yandex-team.ru/yt/internal/go/ythttputil"
 )
 
 var AliasParameter = CmdParameter{
@@ -286,7 +284,7 @@ var StartCmdDescriptor = CmdDescriptor{
 }
 
 func (a HTTPAPI) HandleStart(w http.ResponseWriter, r *http.Request) {
-	userToken, err := ythttputil.GetTokenFromHeader(r)
+	userToken, err := auth.GetTokenFromHeader(r)
 	if err != nil {
 		a.replyWithError(w, err)
 		return
@@ -341,18 +339,6 @@ func (a HTTPAPI) HandleStop(w http.ResponseWriter, r *http.Request) {
 }
 
 func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
-	var bb blackbox.Client
-
-	if !cfg.DisableAuth {
-		var err error
-		bb, err = httpbb.NewIntranet(
-			httpbb.WithLogger(l.Structured()),
-		)
-		if err != nil {
-			l.Fatal("failed to create blackbox client", log.Error(err))
-		}
-	}
-
 	r := chi.NewRouter()
 	r.Get("/ping", HandlePing)
 	r.Get("/describe", func(w http.ResponseWriter, r *http.Request) {
@@ -370,14 +356,15 @@ func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 		}
 		ctl := cfg.ControllerFactory(l, ytc, cfg.AgentInfo.StrawberryRoot, cluster, cfg.ControllerConfig)
 
-		cfg := cfg.APIConfig
-		cfg.AgentInfo.Proxy = cluster
+		apiCfg := cfg.APIConfig
+		apiCfg.AgentInfo.Proxy = cluster
 
-		api := NewHTTPAPI(ytc, cfg, ctl, l)
+		api := NewHTTPAPI(ytc, apiCfg, ctl, l)
 
 		r.Route("/"+cluster, func(r chi.Router) {
-			r.Use(ythttputil.CORS())
-			r.Use(ythttputil.Auth(bb, l.Structured()))
+			// TODO(dakovalkov): Enable CORS when cookie authentication is supported.
+			// r.Use(ythttputil.CORS())
+			r.Use(auth.Auth(cluster, cfg.DisableAuth, l.Structured()))
 			r.Post("/"+ListCmdDescriptor.Name, api.HandleList)
 			r.Post("/"+CreateCmdDescriptor.Name, api.HandleCreate)
 			r.Post("/"+RemoveCmdDescriptor.Name, api.HandleRemove)

@@ -6,12 +6,12 @@ import (
 	"reflect"
 
 	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/yt/chyt/controller/internal/auth"
 	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yterrors"
-	"a.yandex-team.ru/yt/internal/go/ythttputil"
 )
 
 // API implements all the contorller-api logic.
@@ -32,7 +32,7 @@ func NewAPI(ytc yt.Client, cfg APIConfig, ctl strawberry.Controller, l log.Logge
 }
 
 func getUser(ctx context.Context) (string, error) {
-	user, ok := ythttputil.ContextRequester(ctx)
+	user, ok := auth.ContextRequester(ctx)
 	if !ok {
 		// Actually, should never happen.
 		return "", yterrors.Err("requester is missing in the request context")
