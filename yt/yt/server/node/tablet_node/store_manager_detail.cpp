@@ -169,9 +169,9 @@ void TStoreManagerBase::UnscheduleRotation()
     RotationScheduled_ = false;
 }
 
-void TStoreManagerBase::AddStore(IStorePtr store, bool onMount)
+void TStoreManagerBase::AddStore(IStorePtr store, bool onMount, bool onFlush)
 {
-    Tablet_->AddStore(store);
+    Tablet_->AddStore(store, onFlush);
 
     if (onMount) {
         // After mount preload will be performed in StartEpoch
@@ -193,7 +193,7 @@ void TStoreManagerBase::AddStore(IStorePtr store, bool onMount)
 void TStoreManagerBase::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
 {
     for (auto store : stores) {
-        AddStore(std::move(store), onMount);
+        AddStore(std::move(store), onMount, /*onFlush*/ false);
     }
 }
 
@@ -459,7 +459,7 @@ void TStoreManagerBase::Mount(
             storeId,
             descriptor);
         store->Initialize();
-        AddStore(store->AsChunk(), true);
+        AddStore(store->AsChunk(), /*onMount*/ true, /*onFlush*/ false);
 
         if (auto chunkStore = store->AsChunk()) {
             for (const auto& ref : chunkStore->HunkChunkRefs()) {

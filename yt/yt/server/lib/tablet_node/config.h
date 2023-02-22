@@ -225,6 +225,7 @@ public:
     bool EnablePartitionSplitWhileEdenPartitioning;
     bool EnableDiscardingExpiredPartitions;
     bool PrioritizeEdenForcedCompaction;
+    bool AlwaysFlushToEden;
 
     bool EnableDataNodeLookup;
 

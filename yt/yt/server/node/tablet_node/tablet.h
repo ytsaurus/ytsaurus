@@ -596,7 +596,7 @@ public:
 
     const THashMap<TStoreId, IStorePtr>& StoreIdMap() const;
     const std::map<i64, IOrderedStorePtr>& StoreRowIndexMap() const;
-    void AddStore(IStorePtr store);
+    void AddStore(IStorePtr store, bool onFlush);
     void RemoveStore(IStorePtr store);
     IStorePtr FindStore(TStoreId id);
     IStorePtr GetStore(TStoreId id);

@@ -64,7 +64,7 @@ public:
         const NTabletNode::NProto::TMountHint& mountHint) override;
     void Remount(const TTableSettings& settings) override;
 
-    void AddStore(IStorePtr store, bool onMount) override;
+    void AddStore(IStorePtr store, bool onMount, bool onFlush) override;
     void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;
     void DiscardAllStores() override;
     void RemoveStore(IStorePtr store) override;
