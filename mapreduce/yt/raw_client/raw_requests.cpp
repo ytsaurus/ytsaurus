@@ -7,13 +7,13 @@
 #include "rpc_parameters_serialization.h"
 #include "util/generic/guid.h"
 
-#include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
 #include <mapreduce/yt/http/retry_request.h>
 
+#include <mapreduce/yt/interface/config.h>
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/operation.h>
 #include <mapreduce/yt/interface/serialize.h>

@@ -5,7 +5,7 @@
 #include "helpers.h"
 #include "http.h"
 
-#include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/interface/config.h>
 
 #include <mapreduce/yt/interface/logging/yt_log.h>
 

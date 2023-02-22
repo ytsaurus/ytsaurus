@@ -3,11 +3,11 @@
 #include "transaction.h"
 #include "transaction_pinger.h"
 
-#include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
+#include <mapreduce/yt/interface/config.h>
 #include <mapreduce/yt/interface/tvm.h>
 
 #include <mapreduce/yt/interface/logging/yt_log.h>

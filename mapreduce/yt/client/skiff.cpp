@@ -1,14 +1,15 @@
 #include "skiff.h"
 
 #include <mapreduce/yt/common/retry_lib.h>
-#include <mapreduce/yt/common/config.h>
-#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <mapreduce/yt/http/retry_request.h>
 #include <mapreduce/yt/http/requests.h>
 
+#include <mapreduce/yt/interface/config.h>
 #include <mapreduce/yt/interface/common.h>
 #include <mapreduce/yt/interface/serialize.h>
+
+#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <library/cpp/yson/node/node_builder.h>
 #include <library/cpp/yson/node/node_io.h>

@@ -8,7 +8,7 @@
 
 #include <mapreduce/yt/interface/logging/yt_log.h>
 
-#include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/interface/config.h>
 
 #include <library/cpp/json/json_reader.h>
 

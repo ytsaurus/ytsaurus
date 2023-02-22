@@ -3,12 +3,13 @@
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
-#include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/debug_metrics.h>
 #include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
 #include <mapreduce/yt/http/retry_request.h>
+
+#include <mapreduce/yt/interface/config.h>
 
 #include <mapreduce/yt/interface/logging/yt_log.h>
 

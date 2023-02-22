@@ -1,9 +1,8 @@
 #include "config.h"
 
-#include "helpers.h"
+#include "operation.h"
 
 #include <mapreduce/yt/interface/logging/yt_log.h>
-#include <mapreduce/yt/interface/operation.h>
 
 #include <library/cpp/json/json_reader.h>
 #include <library/cpp/svnversion/svnversion.h>
@@ -47,7 +46,7 @@ int TConfig::GetInt(const char* var, int defaultValue)
     }
     try {
         result = FromString<int>(val);
-    } catch (const std::exception& e) {
+    } catch (const yexception& e) {
         ythrow yexception() << "Cannot parse " << var << '=' << val << " as integer: " << e.what();
     }
     return result;
@@ -103,8 +102,8 @@ TRichYPath TConfig::LoadApiFilePathOptions(const TString& ysonMap)
     TNode attributes;
     try {
         attributes = NodeFromYsonString(ysonMap);
-    } catch (const std::exception& exc) {
-        ythrow yexception() << "Failed to parse YT_API_FILE_PATH_OPTIONS (it must be yson map): " << exc.what();
+    } catch (const yexception& exc) {
+        ythrow yexception() << "Failed to parse YT_API_FILE_PATH_OPTIONS (it must be yson map): " << exc;
     }
     TNode pathNode = "";
     pathNode.Attributes() = attributes;
@@ -252,17 +251,17 @@ TProcessState::TProcessState()
 {
     try {
         FqdnHostName = ::FQDNHostName();
-    } catch (const std::exception& e) {
+    } catch (const yexception& e) {
         try {
             FqdnHostName = ::HostName();
-        } catch (const std::exception& e) {
+        } catch (const yexception& e) {
             ythrow yexception() << "Cannot get fqdn and host name: " << e.what();
         }
     }
 
     try {
         UserName = ::GetUsername();
-    } catch (const std::exception& e) {
+    } catch (const yexception& e) {
         ythrow yexception() << "Cannot get user name: " << e.what();
     }
 

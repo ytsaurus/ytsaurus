@@ -1,6 +1,6 @@
 #include "parallel_file_writer.h"
 
-#include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/interface/config.h>
 
 #include <library/cpp/iterator/functools.h>
 

@@ -5,6 +5,7 @@
 
 #include <mapreduce/yt/http/requests.h>
 
+#include <mapreduce/yt/interface/config.h>
 #include <mapreduce/yt/interface/init.h>
 #include <mapreduce/yt/interface/operation.h>
 
@@ -13,7 +14,6 @@
 
 #include <mapreduce/yt/io/job_reader.h>
 
-#include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 

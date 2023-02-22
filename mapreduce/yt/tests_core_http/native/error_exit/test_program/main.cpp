@@ -1,7 +1,7 @@
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/logging/logger.h>
 #include <mapreduce/yt/interface/logging/yt_log.h>
-#include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/interface/config.h>
 
 #include <yt/yt/core/misc/shutdown.h>
 

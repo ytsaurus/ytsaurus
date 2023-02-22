@@ -1,8 +1,8 @@
 #pragma once
 
 #include <mapreduce/yt/interface/io.h>
+#include <mapreduce/yt/interface/config.h>
 #include <mapreduce/yt/common/helpers.h>
-#include <mapreduce/yt/common/config.h>
 
 namespace NYT {
 

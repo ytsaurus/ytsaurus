@@ -1,7 +1,6 @@
 #include "helpers.h"
 
-#include "config.h"
-
+#include <mapreduce/yt/interface/config.h>
 #include <mapreduce/yt/interface/serialize.h>
 #include <mapreduce/yt/interface/fluent.h>
 

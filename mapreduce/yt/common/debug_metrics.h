@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config.h"
+#include <mapreduce/yt/interface/config.h>
 
 #include <util/generic/strbuf.h>
 
@@ -20,4 +20,3 @@ ui64 GetDebugMetric(TStringBuf name);
 
 } // namespace NDetail
 } // namespace NYT
-

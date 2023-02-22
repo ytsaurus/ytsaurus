@@ -3,7 +3,7 @@
 #include <mapreduce/yt/interface/logging/logger.h>
 #include <mapreduce/yt/interface/client.h>
 
-#include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/interface/config.h>
 
 #include <library/cpp/yson/node/node_io.h>
 

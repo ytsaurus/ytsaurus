@@ -1,7 +1,7 @@
 #include <mapreduce/yt/examples/tutorial/simple_map_lambda/data.pb.h>
 
 #include <mapreduce/yt/library/lambda/yt_lambda.h>
-#include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/interface/config.h>
 
 #include <util/stream/output.h>
 #include <util/system/user.h>

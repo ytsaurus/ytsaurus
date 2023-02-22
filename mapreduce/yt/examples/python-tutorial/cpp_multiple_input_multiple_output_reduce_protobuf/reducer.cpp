@@ -1,7 +1,7 @@
 #include <mapreduce/yt/examples/python-tutorial/cpp_multiple_input_multiple_output_reduce_protobuf/data.pb.h>
 
 #include <mapreduce/yt/interface/client.h>
-#include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/interface/config.h>
 
 #include <util/stream/output.h>
 #include <util/system/user.h>
