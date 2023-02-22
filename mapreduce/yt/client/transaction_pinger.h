@@ -1,5 +1,7 @@
 #pragma once
 
+#include <mapreduce/yt/common/fwd.h>
+
 #include <mapreduce/yt/http/requests.h>
 
 #include <util/generic/ptr.h>
@@ -30,7 +32,7 @@ public:
     virtual void RemoveTransaction(const TPingableTransaction& pingableTx) = 0;
 };
 
-ITransactionPingerPtr CreateTransactionPinger();
+ITransactionPingerPtr CreateTransactionPinger(const TConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

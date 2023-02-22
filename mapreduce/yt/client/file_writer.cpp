@@ -13,15 +13,15 @@ TFileWriter::TFileWriter(
     const TRichYPath& path,
     IClientRetryPolicyPtr clientRetryPolicy,
     ITransactionPingerPtr transactionPinger,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TFileWriterOptions& options)
     : RetryfulWriter_(
         std::move(clientRetryPolicy),
         std::move(transactionPinger),
-        auth,
+        context,
         transactionId,
-        GetWriteFileCommand(),
+        GetWriteFileCommand(context.Config->ApiVersion),
         TMaybe<TFormat>(),
         path,
         options)

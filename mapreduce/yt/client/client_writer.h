@@ -22,7 +22,7 @@ public:
         const TRichYPath& path,
         IClientRetryPolicyPtr clientRetryPolicy,
         ITransactionPingerPtr transactionPinger,
-        const TAuth& auth,
+        const TClientContext& context,
         const TTransactionId& transactionId,
         const TMaybe<TFormat>& format,
         const TTableWriterOptions& options);

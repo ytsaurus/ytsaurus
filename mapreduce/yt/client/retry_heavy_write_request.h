@@ -11,7 +11,7 @@ namespace NYT {
 void RetryHeavyWriteRequest(
     const IClientRetryPolicyPtr& clientRetryPolicy,
     const ITransactionPingerPtr& transactionPinger,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& parentId,
     THttpHeader& header,
     std::function<THolder<IInputStream>()> streamMaker);

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "fwd.h"
+
 #include <library/cpp/yson/node/node_io.h> // backward compatibility
 
 #include <mapreduce/yt/interface/node.h>
@@ -23,12 +25,12 @@ TNode NodeFromTableSchema(const TTableSchema& schema);
 
 void MergeNodes(TNode& dst, const TNode& src);
 
-TYPath AddPathPrefix(const TYPath& path);
+TYPath AddPathPrefix(const TYPath& path, const TString& pathPrefix);
 
-TString GetWriteTableCommand();
-TString GetReadTableCommand();
-TString GetWriteFileCommand();
-TString GetReadFileCommand();
+TString GetWriteTableCommand(const TString& apiVersion);
+TString GetReadTableCommand(const TString& apiVersion);
+TString GetWriteFileCommand(const TString& apiVersion);
+TString GetReadFileCommand(const TString& apiVersion);
 
 ////////////////////////////////////////////////////////////////////////////////
 

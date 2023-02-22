@@ -8,6 +8,7 @@
 
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
+#include <mapreduce/yt/http/context.h>
 #include <mapreduce/yt/http/requests.h>
 
 #include <util/string/builder.h>
@@ -25,9 +26,9 @@ ui64 RoundUpFileSize(ui64 size)
     return (size + roundUpTo - 1) & ~(roundUpTo - 1);
 }
 
-bool UseLocalModeOptimization(const TAuth& auth, const IClientRetryPolicyPtr& clientRetryPolicy)
+bool UseLocalModeOptimization(const TClientContext& context, const IClientRetryPolicyPtr& clientRetryPolicy)
 {
-    if (!TConfig::Get()->EnableLocalModeOptimization) {
+    if (!context.Config->EnableLocalModeOptimization) {
         return false;
     }
 
@@ -36,7 +37,7 @@ bool UseLocalModeOptimization(const TAuth& auth, const IClientRetryPolicyPtr& cl
 
     {
         TReadGuard guard(mutex);
-        auto it = localModeMap.find(auth.ServerName);
+        auto it = localModeMap.find(context.ServerName);
         if (it != localModeMap.end()) {
             return it->second;
         }
@@ -47,14 +48,14 @@ bool UseLocalModeOptimization(const TAuth& auth, const IClientRetryPolicyPtr& cl
     // We don't want to pollute logs with errors about failed request,
     // so we check if path exists before getting it.
     if (NRawClient::Exists(clientRetryPolicy->CreatePolicyForGenericRequest(),
-            auth,
+            context,
             TTransactionId(),
             localModeAttr,
             TExistsOptions().ReadFrom(EMasterReadKind::Cache)))
     {
         auto fqdnNode = NRawClient::TryGet(
             clientRetryPolicy->CreatePolicyForGenericRequest(),
-            auth,
+            context,
             TTransactionId(),
             localModeAttr,
             TGetOptions().ReadFrom(EMasterReadKind::Cache));
@@ -70,7 +71,7 @@ bool UseLocalModeOptimization(const TAuth& auth, const IClientRetryPolicyPtr& cl
 
     {
         TWriteGuard guard(mutex);
-        localModeMap[auth.ServerName] = isLocalMode;
+        localModeMap[context.ServerName] = isLocalMode;
     }
 
     return isLocalMode;

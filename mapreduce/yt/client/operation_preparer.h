@@ -17,7 +17,7 @@ class TOperationPreparer
 public:
     TOperationPreparer(TClientPtr client, TTransactionId transactionId);
 
-    const TAuth& GetAuth() const;
+    const TClientContext& GetContext() const;
     TTransactionId GetTransactionId() const;
     ITransactionPingerPtr GetTransactionPinger() const;
 

@@ -180,12 +180,12 @@ void ExecuteVanilla(
 
 EOperationBriefState CheckOperation(
     const IClientRetryPolicyPtr& clientRetryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId);
 
 void WaitForOperation(
     const IClientRetryPolicyPtr& clientRetryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId);
 
 ////////////////////////////////////////////////////////////////////////////////

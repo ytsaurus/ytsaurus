@@ -40,14 +40,14 @@ TClientReader::TClientReader(
     const TRichYPath& path,
     IClientRetryPolicyPtr clientRetryPolicy,
     ITransactionPingerPtr transactionPinger,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TFormat& format,
     const TTableReaderOptions& options,
     bool useFormatFromTableAttributes)
     : Path_(path)
     , ClientRetryPolicy_(std::move(clientRetryPolicy))
-    , Auth_(auth)
+    , Context_(context)
     , ParentTransactionId_(transactionId)
     , Format_(format)
     , Options_(options)
@@ -56,20 +56,20 @@ TClientReader::TClientReader(
     if (options.CreateTransaction_) {
       ReadTransaction_ = MakeHolder<TPingableTransaction>(
           ClientRetryPolicy_,
-          Auth_,
+          Context_,
           transactionId,
           transactionPinger->GetChildTxPinger(),
           TStartTransactionOptions());
       Path_.Path(Snapshot(
         ClientRetryPolicy_,
-        Auth_,
+        Context_,
         ReadTransaction_->GetId(),
         path.Path_));
     }
 
     if (useFormatFromTableAttributes) {
         auto transactionId2 = ReadTransaction_ ? ReadTransaction_->GetId() : ParentTransactionId_;
-        auto newFormat = GetTableFormat(ClientRetryPolicy_, Auth_, transactionId2, Path_);
+        auto newFormat = GetTableFormat(ClientRetryPolicy_, Context_, transactionId2, Path_);
         if (newFormat) {
             Format_->Config = *newFormat;
         }
@@ -147,10 +147,10 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
     while (true) {
         CurrentRequestRetryPolicy_->NotifyNewAttempt();
 
-        THttpHeader header("GET", GetReadTableCommand());
-        header.SetToken(Auth_.Token);
-        if (Auth_.ServiceTicketAuth) {
-            header.SetServiceTicket(Auth_.ServiceTicketAuth->Ptr->IssueServiceTicket());
+        THttpHeader header("GET", GetReadTableCommand(Context_.Config->ApiVersion));
+        header.SetToken(Context_.Token);
+        if (Context_.ServiceTicketAuth) {
+            header.SetServiceTicket(Context_.ServiceTicketAuth->Ptr->IssueServiceTicket());
         }
         auto transactionId = (ReadTransaction_ ? ReadTransaction_->GetId() : ParentTransactionId_);
         header.AddTransactionId(transactionId);
@@ -159,7 +159,7 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
             ("enable_range_index", true));
         header.SetOutputFormat(Format_);
 
-        header.SetResponseCompression(ToString(TConfig::Get()->AcceptEncoding));
+        header.SetResponseCompression(ToString(Context_.Config->AcceptEncoding));
 
         if (rowIndex.Defined()) {
             auto& ranges = Path_.MutableRanges();
@@ -181,8 +181,8 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
         auto requestId = CreateGuidAsString();
 
         try {
-            const auto proxyName = GetProxyForHeavyRequest(Auth_);
-            Response_ = Auth_.HttpClient->Request(GetFullUrl(proxyName, Auth_, header), requestId, header);
+            const auto proxyName = GetProxyForHeavyRequest(Context_);
+            Response_ = Context_.HttpClient->Request(GetFullUrl(proxyName, Context_, header), requestId, header);
 
             Input_ = Response_->GetResponseStream();
 

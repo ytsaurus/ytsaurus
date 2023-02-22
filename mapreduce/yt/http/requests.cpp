@@ -1,5 +1,6 @@
 #include "requests.h"
 
+#include "context.h"
 #include "host_manager.h"
 #include "retry_request.h"
 
@@ -24,23 +25,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator==(const TAuth& lhs, const TAuth& rhs)
-{
-    return lhs.ServerName == rhs.ServerName &&
-           lhs.Token == rhs.Token &&
-           lhs.ServiceTicketAuth == rhs.ServiceTicketAuth &&
-           lhs.HttpClient == rhs.HttpClient &&
-           lhs.UseTLS == rhs.UseTLS &&
-           lhs.TvmOnly == rhs.TvmOnly;
-}
-
-bool operator!=(const TAuth& lhs, const TAuth& rhs)
-{
-    return !(rhs == lhs);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool ParseBoolFromResponse(const TString& response)
 {
     return GetBool(NodeFromYsonString(response));
@@ -54,13 +38,13 @@ TGUID ParseGuidFromResponse(const TString& response)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetProxyForHeavyRequest(const TAuth& auth)
+TString GetProxyForHeavyRequest(const TClientContext& context)
 {
-    if (!TConfig::Get()->UseHosts) {
-        return auth.ServerName;
+    if (!context.Config->UseHosts) {
+        return context.ServerName;
     }
 
-    return NPrivate::THostManager::Get().GetProxyForHeavyRequest(auth);
+    return NPrivate::THostManager::Get().GetProxyForHeavyRequest(context);
 }
 
 void LogRequestError(

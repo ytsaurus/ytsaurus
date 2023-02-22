@@ -1,5 +1,7 @@
 #pragma once
 
+#include "fwd.h"
+
 #include <mapreduce/yt/interface/fwd.h>
 #include <mapreduce/yt/common/fwd.h>
 
@@ -9,13 +11,7 @@
 #include <util/generic/maybe.h>
 #include <util/generic/string.h>
 
-namespace NYT {
-
-struct TAuth;
-class THttpHeader;
-class TErrorResponse;
-
-namespace NDetail {
+namespace NYT::NDetail {
 
 ////////////////////////////////////////////////////////////////////
 
@@ -40,18 +36,17 @@ struct TRequestConfig
 // If `retryPolicy == nullptr' use default, currently `TAttemptLimitedRetryPolicy(TConfig::Get()->RetryCount)`.
 TResponseInfo RetryRequestWithPolicy(
     IRequestRetryPolicyPtr retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     THttpHeader& header,
     TMaybe<TStringBuf> body = {},
     const TRequestConfig& config = TRequestConfig());
 
 TResponseInfo RequestWithoutRetry(
-    const TAuth& auth,
+    const TClientContext& context,
     THttpHeader& header,
     TMaybe<TStringBuf> body = {},
     const TRequestConfig& config = TRequestConfig());
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NDetail
-} // namespace NYT
+} // namespace NYT::NDetail

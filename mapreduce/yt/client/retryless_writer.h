@@ -2,11 +2,11 @@
 
 #include "transaction.h"
 
-
 #include <mapreduce/yt/http/helpers.h>
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/http/http_client.h>
 
+#include <mapreduce/yt/interface/config.h>
 #include <mapreduce/yt/interface/common.h>
 #include <mapreduce/yt/interface/config.h>
 #include <mapreduce/yt/interface/io.h>
@@ -28,7 +28,7 @@ class TRetrylessWriter
 public:
     template <class TWriterOptions>
     TRetrylessWriter(
-        const TAuth& auth,
+        const TClientContext& context,
         const TTransactionId& parentId,
         const TString& command,
         const TMaybe<TFormat>& format,
@@ -40,16 +40,16 @@ public:
         header.SetInputFormat(format);
         header.MergeParameters(FormIORequestParameters(path, options));
         header.AddTransactionId(parentId);
-        header.SetRequestCompression(ToString(TConfig::Get()->ContentEncoding));
-        header.SetToken(auth.Token);
-        if (auth.ServiceTicketAuth) {
-            header.SetServiceTicket(auth.ServiceTicketAuth->Ptr->IssueServiceTicket());
+        header.SetRequestCompression(ToString(context.Config->ContentEncoding));
+        header.SetToken(context.Token);
+        if (context.ServiceTicketAuth) {
+            header.SetServiceTicket(context.ServiceTicketAuth->Ptr->IssueServiceTicket());
         }
 
         TString requestId = CreateGuidAsString();
 
-        auto hostName = GetProxyForHeavyRequest(auth);
-        Request_ = auth.HttpClient->StartRequest(GetFullUrl(hostName, auth, header), requestId, header);
+        auto hostName = GetProxyForHeavyRequest(context);
+        Request_ = context.HttpClient->StartRequest(GetFullUrl(hostName, context, header), requestId, header);
         BufferedOutput_.Reset(new TBufferedOutput(Request_->GetStream(), bufferSize));
     }
 

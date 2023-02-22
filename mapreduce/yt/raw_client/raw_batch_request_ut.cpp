@@ -1,5 +1,6 @@
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 
+#include <mapreduce/yt/http/context.h>
 #include <mapreduce/yt/interface/client_method_options.h>
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/common/retry_lib.h>
@@ -72,7 +73,8 @@ TVector<TString> GetAllPathsFromRequestList(const TNode& requestList)
 
 Y_UNIT_TEST_SUITE(BatchRequestImpl) {
     Y_UNIT_TEST(ParseResponse) {
-        TRawBatchRequest batchRequest;
+        TClientContext context;
+        TRawBatchRequest batchRequest(context.Config);
 
         UNIT_ASSERT_VALUES_EQUAL(batchRequest.BatchSize(), 0);
 
@@ -96,7 +98,7 @@ Y_UNIT_TEST_SUITE(BatchRequestImpl) {
         auto testRetryPolicy = MakeIntrusive<TTestRetryPolicy>();
         const TInstant now = TInstant::Seconds(100500);
 
-        TRawBatchRequest retryBatch;
+        TRawBatchRequest retryBatch(context.Config);
         batchRequest.ParseResponse(
             TNode()
                 .Add(TNode()("output", 5))

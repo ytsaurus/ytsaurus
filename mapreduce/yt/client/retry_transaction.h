@@ -13,12 +13,12 @@ namespace NYT::NDetail {
 
 template <typename TResult>
 TResult RetryTransactionWithPolicy(
-    const IClientBasePtr& client,
+    const TClientBasePtr& client,
     std::function<TResult(ITransactionPtr)> func,
     IRequestRetryPolicyPtr retryPolicy)
 {
     if (!retryPolicy) {
-        retryPolicy = CreateDefaultRequestRetryPolicy();
+        retryPolicy = CreateDefaultRequestRetryPolicy(client->GetContext().Config);
     }
 
     while (true) {
@@ -49,7 +49,7 @@ TResult RetryTransactionWithPolicy(
             } else {
                 throw;
             }
-        } catch (const yexception& e) {
+        } catch (const std::exception& e) {
             YT_LOG_ERROR("Retry failed %v - %v",
                 e.what(),
                 retryPolicy->GetAttemptDescription());

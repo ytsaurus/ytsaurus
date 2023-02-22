@@ -66,15 +66,15 @@ TMaybe<TNode> GetCommonTableFormat(
 
 TMaybe<TNode> GetTableFormat(
     const IClientRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TRichYPath& path)
 {
     auto formatPath = path.Path_ + "/@_format";
-    if (!NDetail::NRawClient::Exists(retryPolicy->CreatePolicyForGenericRequest(), auth, transactionId, formatPath)) {
+    if (!NDetail::NRawClient::Exists(retryPolicy->CreatePolicyForGenericRequest(), context, transactionId, formatPath)) {
         return TMaybe<TNode>();
     }
-    TMaybe<TNode> format = NDetail::NRawClient::Get(retryPolicy->CreatePolicyForGenericRequest(), auth, transactionId, formatPath);
+    TMaybe<TNode> format = NDetail::NRawClient::Get(retryPolicy->CreatePolicyForGenericRequest(), context, transactionId, formatPath);
     if (format.Get()->AsString() != "yamred_dsv") {
         return TMaybe<TNode>();
     }
@@ -90,13 +90,13 @@ TMaybe<TNode> GetTableFormat(
 
 TMaybe<TNode> GetTableFormats(
     const IClientRetryPolicyPtr& clientRetryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TVector<TRichYPath>& inputs)
 {
     TVector<TMaybe<TNode>> formats;
     for (auto& table : inputs) {
-        formats.push_back(GetTableFormat(clientRetryPolicy, auth, transactionId, table));
+        formats.push_back(GetTableFormat(clientRetryPolicy, context, transactionId, table));
     }
 
     return GetCommonTableFormat(formats);
@@ -109,7 +109,7 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 NSkiff::TSkiffSchemaPtr TryCreateSkiffSchema(
-    const TAuth& auth,
+    const TClientContext& context,
     const IClientRetryPolicyPtr& clientRetryPolicy,
     const TTransactionId& transactionId,
     const TVector<TRichYPath>& tables,
@@ -123,7 +123,7 @@ NSkiff::TSkiffSchemaPtr TryCreateSkiffSchema(
         return nullptr;
     }
     return CreateSkiffSchemaIfNecessary(
-        auth,
+        context,
         clientRetryPolicy,
         transactionId,
         nodeReaderFormat,
@@ -200,14 +200,14 @@ TStructuredJobTableList ToStructuredJobTableList(const TVector<TStructuredTableP
     return result;
 }
 
-TStructuredJobTableList CanonizeStructuredTableList(const TAuth& auth, const TVector<TStructuredTablePath>& tableList)
+TStructuredJobTableList CanonizeStructuredTableList(const TClientContext& context, const TVector<TStructuredTablePath>& tableList)
 {
     TVector<TRichYPath> toCanonize;
     toCanonize.reserve(tableList.size());
     for (const auto& table : tableList) {
         toCanonize.emplace_back(table.RichYPath);
     }
-    const auto canonized = NRawClient::CanonizeYPaths(/* retryPolicy */ nullptr, auth, toCanonize);
+    const auto canonized = NRawClient::CanonizeYPaths(/* retryPolicy */ nullptr, context, toCanonize);
     Y_VERIFY(canonized.size() == tableList.size());
 
     TStructuredJobTableList result;
@@ -311,11 +311,11 @@ struct TFormatBuilder::TFormatSwitcher
 
 TFormatBuilder::TFormatBuilder(
     IClientRetryPolicyPtr clientRetryPolicy,
-    TAuth auth,
+    TClientContext context,
     TTransactionId transactionId,
     TOperationOptions operationOptions)
     : ClientRetryPolicy_(std::move(clientRetryPolicy))
-    , Auth_(std::move(auth))
+    , Context_(std::move(context))
     , TransactionId_(transactionId)
     , OperationOptions_(std::move(operationOptions))
 { }
@@ -376,7 +376,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateYamrFormat(
             Y_VERIFY(table.RichYPath, "Cannot use format from table for intermediate table");
             tableList.push_back(*table.RichYPath);
         }
-        formatFromTableAttributes = GetTableFormats(ClientRetryPolicy_, Auth_, TransactionId_, tableList);
+        formatFromTableAttributes = GetTableFormats(ClientRetryPolicy_, Context_, TransactionId_, tableList);
     }
     if (formatFromTableAttributes) {
         return {
@@ -420,7 +420,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeFormat(
             tableList.emplace_back(*table.RichYPath);
         }
         skiffSchema = TryCreateSkiffSchema(
-            Auth_,
+            Context_,
             ClientRetryPolicy_,
             TransactionId_,
             tableList,
@@ -490,7 +490,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateProtobufFormat(
     ENodeReaderFormat /*nodeReaderFormat*/,
     bool /*allowFormatFromTableAttribute*/)
 {
-    if (TConfig::Get()->UseClientProtobuf) {
+    if (Context_.Config->UseClientProtobuf) {
         return {
             TFormat::YsonBinary(),
             TSmallJobFile{
@@ -534,7 +534,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateProtobufFormat(
     }
     Y_VERIFY(!descriptorList.empty(), "Messages for proto format are unknown (empty ProtoDescriptors)");
     return {
-        TFormat::Protobuf(descriptorList, TConfig::Get()->ProtobufFormatWithDescriptors),
+        TFormat::Protobuf(descriptorList, Context_.Config->ProtobufFormatWithDescriptors),
         TSmallJobFile{
             TString("proto") + GetSuffix(direction),
             CreateProtoConfig(descriptorList)

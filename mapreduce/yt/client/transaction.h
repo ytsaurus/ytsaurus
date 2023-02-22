@@ -23,7 +23,7 @@ public:
     // Start a new transaction.
     TPingableTransaction(
         const IClientRetryPolicyPtr& retryPolicy,
-        const TAuth& auth,
+        const TClientContext& context,
         const TTransactionId& parentId,
         ITransactionPingerPtr transactionPinger,
         const TStartTransactionOptions& options);
@@ -32,7 +32,7 @@ public:
     // Attach to an existing transaction.
     TPingableTransaction(
         const IClientRetryPolicyPtr& retryPolicy,
-        const TAuth& auth,
+        const TClientContext& context,
         const TTransactionId& transactionId,
         ITransactionPingerPtr transactionPinger,
         const TAttachTransactionOptions& options);
@@ -42,7 +42,7 @@ public:
     const TTransactionId GetId() const;
 
     const std::pair<TDuration, TDuration> GetPingInterval() const;
-    const TAuth GetAuth() const;
+    const TClientContext GetContext() const;
 
     void Commit();
     void Abort();
@@ -59,7 +59,7 @@ private:
 
 private:
     IClientRetryPolicyPtr ClientRetryPolicy_;
-    TAuth Auth_;
+    TClientContext Context_;
     TTransactionId TransactionId_;
     TDuration MinPingInterval_;
     TDuration MaxPingInterval_;
@@ -75,7 +75,7 @@ private:
 
 private:
     void Init(
-        const TAuth& auth,
+        const TClientContext& context,
         const TTransactionId& transactionId,
         TDuration timeout);
 
@@ -86,7 +86,7 @@ private:
 
 TYPath Snapshot(
     const IClientRetryPolicyPtr& clientRetryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& path);
 

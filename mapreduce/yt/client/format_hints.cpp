@@ -1,6 +1,7 @@
 #include "format_hints.h"
 
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/interface/config.h>
 #include <mapreduce/yt/interface/operation.h>
 
 #include <util/string/builder.h>

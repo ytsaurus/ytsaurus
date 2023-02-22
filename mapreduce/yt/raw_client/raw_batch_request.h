@@ -38,7 +38,7 @@ public:
     };
 
 public:
-    TRawBatchRequest();
+    TRawBatchRequest(const TConfigPtr& config);
     ~TRawBatchRequest();
 
     bool IsExecuted() const;
@@ -179,6 +179,8 @@ private:
     void AddRequest(TBatchItem batchItem);
 
 private:
+    TConfigPtr Config_;
+
     TDeque<TBatchItem> BatchItemList_;
     bool Executed_ = false;
 };

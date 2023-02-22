@@ -10,9 +10,9 @@ namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TString CreateHostNameWithPort(const TString& name, const TAuth& auth);
+TString CreateHostNameWithPort(const TString& name, const TClientContext& context);
 
-TString GetFullUrl(const TString& hostName, const TAuth& auth, THttpHeader& header);
+TString GetFullUrl(const TString& hostName, const TClientContext& context, THttpHeader& header);
 
 TString TruncateForLogs(const TString& text, size_t maxSize);
 

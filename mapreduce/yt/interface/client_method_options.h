@@ -6,6 +6,7 @@
 /// Header containing options for @ref NYT::IClient methods.
 
 #include "common.h"
+#include "config.h"
 #include "format.h"
 #include "public.h"
 #include "retry_policy.h"
@@ -1029,6 +1030,13 @@ struct TCreateClientOptions
     ///
     /// E.g. set total timeout for all retries.
     FLUENT_FIELD_DEFAULT(IRetryConfigProviderPtr, RetryConfigProvider, nullptr);
+
+    /// @brief Override global config for the client.
+    ///
+    /// The config contains implementation parameters such as connection timeouts,
+    /// access token, api version and more.
+    /// @see NYT::TConfig
+    FLUENT_FIELD_DEFAULT(TConfigPtr, Config, nullptr);
 };
 
 ///

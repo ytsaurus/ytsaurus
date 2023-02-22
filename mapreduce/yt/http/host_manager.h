@@ -16,7 +16,7 @@ class THostManager
 public:
     static THostManager& Get();
 
-    TString GetProxyForHeavyRequest(const TAuth& auth);
+    TString GetProxyForHeavyRequest(const TClientContext& context);
 
     // For testing purposes only.
     void Reset();
@@ -29,7 +29,7 @@ private:
     THashMap<TString, TClusterHostList> ClusterHosts_;
 
 private:
-    static TClusterHostList GetHosts(const TAuth& auth);
+    static TClusterHostList GetHosts(const TClientContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -14,14 +14,14 @@ using namespace NRawClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactionAbortable::TTransactionAbortable(const TAuth& auth, const TTransactionId& transactionId)
-    : Auth_(auth)
+TTransactionAbortable::TTransactionAbortable(const TClientContext& context, const TTransactionId& transactionId)
+    : Context_(context)
     , TransactionId_(transactionId)
 { }
 
 void TTransactionAbortable::Abort()
 {
-    AbortTransaction(nullptr, Auth_, TransactionId_);
+    AbortTransaction(nullptr, Context_, TransactionId_);
 }
 
 TString TTransactionAbortable::GetType() const
@@ -31,16 +31,16 @@ TString TTransactionAbortable::GetType() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationAbortable::TOperationAbortable(IClientRetryPolicyPtr clientRetryPolicy, TAuth auth, const TOperationId& operationId)
+TOperationAbortable::TOperationAbortable(IClientRetryPolicyPtr clientRetryPolicy, TClientContext context, const TOperationId& operationId)
     : ClientRetryPolicy_(std::move(clientRetryPolicy))
-    , Auth_(std::move(auth))
+    , Context_(std::move(context))
     , OperationId_(operationId)
 { }
 
 
 void TOperationAbortable::Abort()
 {
-    AbortOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, OperationId_);
+    AbortOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Context_, OperationId_);
 }
 
 TString TOperationAbortable::GetType() const

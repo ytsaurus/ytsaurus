@@ -263,7 +263,7 @@ TFormat CreateSkiffFormat(const NSkiff::TSkiffSchemaPtr& schema) {
 }
 
 NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
-    const TAuth& auth,
+    const TClientContext& context,
     const IClientRetryPolicyPtr& clientRetryPolicy,
     const TTransactionId& transactionId,
     ENodeReaderFormat nodeReaderFormat,
@@ -289,8 +289,8 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
 
     auto nodes = NRawClient::BatchTransform(
         clientRetryPolicy->CreatePolicyForGenericRequest(),
-        auth,
-        NRawClient::CanonizeYPaths(clientRetryPolicy->CreatePolicyForGenericRequest(), auth, tablePaths),
+        context,
+        NRawClient::CanonizeYPaths(clientRetryPolicy->CreatePolicyForGenericRequest(), context, tablePaths),
         [&] (TRawBatchRequest& batch, const TRichYPath& path) {
             auto getOptions = TGetOptions()
                 .AttributeFilter(

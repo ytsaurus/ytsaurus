@@ -7,6 +7,7 @@
 
 #include <mapreduce/yt/common/fwd.h>
 
+#include <mapreduce/yt/http/context.h>
 #include <mapreduce/yt/http/requests.h>
 
 #include <utility>
@@ -20,13 +21,13 @@ TMaybe<TNode> GetCommonTableFormat(
 
 TMaybe<TNode> GetTableFormat(
     const IClientRetryPolicyPtr& clientRetryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TRichYPath& path);
 
 TMaybe<TNode> GetTableFormats(
     const IClientRetryPolicyPtr& clientRetryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TVector<TRichYPath>& paths);
 
@@ -68,7 +69,7 @@ using TStructuredJobTableList = TVector<TStructuredJobTable>;
 TString JobTablePathString(const TStructuredJobTable& jobTable);
 TStructuredJobTableList ToStructuredJobTableList(const TVector<TStructuredTablePath>& tableList);
 
-TStructuredJobTableList CanonizeStructuredTableList(const TAuth& auth, const TVector<TStructuredTablePath>& tableList);
+TStructuredJobTableList CanonizeStructuredTableList(const TClientContext& context, const TVector<TStructuredTablePath>& tableList);
 TVector<TRichYPath> GetPathList(
     const TStructuredJobTableList& tableList,
     const TMaybe<TVector<TTableSchema>>& schemaInferenceResult,
@@ -84,7 +85,7 @@ private:
 public:
     TFormatBuilder(
         IClientRetryPolicyPtr clientRetryPolicy,
-        TAuth auth,
+        TClientContext context,
         TTransactionId transactionId,
         TOperationOptions operationOptions);
 
@@ -130,7 +131,7 @@ public:
 
 private:
     const IClientRetryPolicyPtr ClientRetryPolicy_;
-    const TAuth Auth_;
+    const TClientContext Context_;
     const TTransactionId TransactionId_;
     const TOperationOptions OperationOptions_;
 };

@@ -1,10 +1,10 @@
 #include "host_manager.h"
 
+#include "context.h"
 #include "helpers.h"
 #include "http.h"
 #include "http_client.h"
 #include "requests.h"
-#include "util/generic/guid.h"
 
 #include <mapreduce/yt/interface/logging/yt_log.h>
 
@@ -12,6 +12,7 @@
 
 #include <library/cpp/json/json_reader.h>
 
+#include <util/generic/guid.h>
 #include <util/generic/vector.h>
 #include <util/generic/singleton.h>
 #include <util/generic/ymath.h>
@@ -91,18 +92,18 @@ void THostManager::Reset()
     ClusterHosts_.clear();
 }
 
-TString THostManager::GetProxyForHeavyRequest(const TAuth& auth)
+TString THostManager::GetProxyForHeavyRequest(const TClientContext& context)
 {
-    auto cluster = auth.ServerName;
+    auto cluster = context.ServerName;
     {
         auto guard = Guard(Lock_);
         auto it = ClusterHosts_.find(cluster);
-        if (it != ClusterHosts_.end() && it->second.GetAge() < TConfig::Get()->HostListUpdateInterval) {
+        if (it != ClusterHosts_.end() && it->second.GetAge() < context.Config->HostListUpdateInterval) {
             return it->second.ChooseHostOrThrow();
         }
     }
 
-    auto hostList = GetHosts(auth);
+    auto hostList = GetHosts(context);
     auto result = hostList.ChooseHostOrThrow();
     {
         auto guard = Guard(Lock_);
@@ -111,22 +112,22 @@ TString THostManager::GetProxyForHeavyRequest(const TAuth& auth)
     return result;
 }
 
-THostManager::TClusterHostList THostManager::GetHosts(const TAuth& auth)
+THostManager::TClusterHostList THostManager::GetHosts(const TClientContext& context)
 {
-    TString hostsEndpoint = TConfig::Get()->Hosts;
+    TString hostsEndpoint = context.Config->Hosts;
     while (hostsEndpoint.StartsWith("/")) {
         hostsEndpoint = hostsEndpoint.substr(1);
     }
     THttpHeader header("GET", hostsEndpoint, false);
 
     try {
-        auto hostName = auth.ServerName;
+        auto hostName = context.ServerName;
         auto requestId = CreateGuidAsString();
         // TODO: we need to set socket timeout here
-        auto response = auth.HttpClient->Request(GetFullUrl(hostName, auth, header), requestId, header);
+        auto response = context.HttpClient->Request(GetFullUrl(hostName, context, header), requestId, header);
         auto hosts = ParseJsonStringArray(response->GetResponse());
         for (auto& host : hosts) {
-            host = CreateHostNameWithPort(host, auth);
+            host = CreateHostNameWithPort(host, context);
         }
         return TClusterHostList(std::move(hosts));
     } catch (const std::exception& e) {

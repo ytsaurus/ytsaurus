@@ -67,14 +67,14 @@ void CheckError(const TString& requestId, NHttp::IResponsePtr response)
 
 void PingTx(NHttp::IClientPtr httpClient, const TPingableTransaction& tx)
 {
-    auto url = TString::Join("http://", tx.GetAuth().ServerName, "/api/", TConfig::Get()->ApiVersion, "/ping_tx");
+    auto url = TString::Join("http://", tx.GetContext().ServerName, "/api/", tx.GetContext().Config->ApiVersion, "/ping_tx");
     auto headers = New<NHttp::THeaders>();
     auto requestId = CreateGuidAsString();
 
     headers->Add("Host", url);
     headers->Add("User-Agent", TProcessState::Get()->ClientVersion);
 
-    const auto& token = tx.GetAuth().Token;
+    const auto& token = tx.GetContext().Token;
     if (!token.empty()) {
         headers->Add("Authorization", "OAuth " + token);
     }
@@ -91,7 +91,7 @@ void PingTx(NHttp::IClientPtr httpClient, const TPingableTransaction& tx)
 
     YT_LOG_DEBUG("REQ %v - sending request (HostName: %v; Method POST %v; X-YT-Parameters (sent in body): %v)",
         requestId,
-        tx.GetAuth().ServerName,
+        tx.GetContext().ServerName,
         url,
         strParams
     );
@@ -264,9 +264,9 @@ private:
         while (Running_) {
             TDuration waitTime = minPingInterval + (maxPingInterval - minPingInterval) * RandomNumber<float>();
             try {
-                auto noRetryPolicy = MakeIntrusive<TAttemptLimitedRetryPolicy>(1u);
-                NDetail::NRawClient::PingTx(noRetryPolicy, PingableTx_->GetAuth(), PingableTx_->GetId());
-            } catch (const yexception& e) {
+                auto noRetryPolicy = MakeIntrusive<TAttemptLimitedRetryPolicy>(1u, PingableTx_->GetContext().Config);
+                NDetail::NRawClient::PingTx(noRetryPolicy, PingableTx_->GetContext(), PingableTx_->GetId());
+            } catch (const std::exception& e) {
                 if (auto* errorResponse = dynamic_cast<const TErrorResponse*>(&e)) {
                     if (errorResponse->GetError().ContainsErrorCode(NYT::NClusterErrorCodes::NTransactionClient::NoSuchTransaction)) {
                         break;
@@ -293,22 +293,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITransactionPingerPtr CreateTransactionPinger()
+ITransactionPingerPtr CreateTransactionPinger(const TConfigPtr& config)
 {
-    if (TConfig::Get()->UseAsyncTxPinger) {
+    if (config->UseAsyncTxPinger) {
 // TODO(aleexfi): Remove it after YT-17689
 #if defined(__x86_64__) || defined(__arm64__)
         YT_LOG_DEBUG("Using async transaction pinger");
         auto httpClientConfig = NYT::New<NHttp::TClientConfig>();
         httpClientConfig->MaxIdleConnections = 16;
         auto httpPoller = NConcurrency::CreateThreadPoolPoller(
-            TConfig::Get()->AsyncHttpClientThreads,
+            config->AsyncHttpClientThreads,
             "tx_http_client_poller");
         auto httpClient = NHttp::CreateClient(std::move(httpClientConfig), std::move(httpPoller));
 
         return MakeIntrusive<TSharedTransactionPinger>(
             std::move(httpClient),
-            TConfig::Get()->AsyncTxPingerPoolThreads);
+            config->AsyncTxPingerPoolThreads);
 #else
         YT_LOG_WARNING("Async transaction pinger is not supported on your platform. Fallback to TThreadPerTransactionPinger...");
 #endif // defined(__x86_64__) || defined(__arm64__)

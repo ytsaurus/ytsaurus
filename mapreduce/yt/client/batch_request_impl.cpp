@@ -36,7 +36,7 @@ using ::NThreading::NewPromise;
 
 TBatchRequest::TBatchRequest(const TTransactionId& defaultTransaction, ::TIntrusivePtr<TClient> client)
     : DefaultTransaction_(defaultTransaction)
-    , Impl_(MakeIntrusive<TRawBatchRequest>())
+    , Impl_(MakeIntrusive<TRawBatchRequest>(client->GetContext().Config))
     , Client_(client)
 { }
 
@@ -189,7 +189,7 @@ TFuture<TCheckPermissionResponse> TBatchRequest::CheckPermission(
 
 void TBatchRequest::ExecuteBatch(const TExecuteBatchOptions& options)
 {
-    NYT::NDetail::ExecuteBatch(Client_->GetRetryPolicy()->CreatePolicyForGenericRequest(), Client_->GetAuth(), *Impl_, options);
+    NYT::NDetail::ExecuteBatch(Client_->GetRetryPolicy()->CreatePolicyForGenericRequest(), Client_->GetContext(), *Impl_, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

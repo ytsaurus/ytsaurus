@@ -2,6 +2,7 @@
 
 #include <mapreduce/yt/common/fwd.h>
 
+#include <mapreduce/yt/http/context.h>
 #include <mapreduce/yt/http/requests.h>
 
 #include <mapreduce/yt/interface/client.h>
@@ -50,7 +51,7 @@ class TYtPoller
     : public TThrRefBase
 {
 public:
-    TYtPoller(TAuth auth, const IClientRetryPolicyPtr& retryPolicy);
+    TYtPoller(TClientContext context, const IClientRetryPolicyPtr& retryPolicy);
     ~TYtPoller();
 
     void Watch(IYtPollerItemPtr item);
@@ -66,7 +67,7 @@ private:
 private:
     struct TItem;
 
-    const TAuth Auth_;
+    const TClientContext Context_;
     const IClientRetryPolicyPtr ClientRetryPolicy_;
 
 

@@ -12,8 +12,9 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAttemptLimitedRetryPolicy::TAttemptLimitedRetryPolicy(ui32 attemptLimit)
-    : AttemptLimit_(attemptLimit)
+TAttemptLimitedRetryPolicy::TAttemptLimitedRetryPolicy(ui32 attemptLimit, const TConfigPtr& config)
+    : Config_(config)
+    , AttemptLimit_(attemptLimit)
 { }
 
 void TAttemptLimitedRetryPolicy::NotifyNewAttempt()
@@ -26,7 +27,7 @@ TMaybe<TDuration> TAttemptLimitedRetryPolicy::OnGenericError(const std::exceptio
     if (IsAttemptLimitExceeded()) {
         return Nothing();
     }
-    return GetBackoffDuration(e);
+    return GetBackoffDuration(e, Config_);
 }
 
 TMaybe<TDuration> TAttemptLimitedRetryPolicy::OnRetriableError(const TErrorResponse& e)
@@ -34,7 +35,7 @@ TMaybe<TDuration> TAttemptLimitedRetryPolicy::OnRetriableError(const TErrorRespo
     if (IsAttemptLimitExceeded()) {
         return Nothing();
     }
-    return GetBackoffDuration(e);
+    return GetBackoffDuration(e, Config_);
 }
 
 void TAttemptLimitedRetryPolicy::OnIgnoredError(const TErrorResponse& /*e*/)
@@ -102,18 +103,19 @@ class TDefaultClientRetryPolicy
     : public IClientRetryPolicy
 {
 public:
-    explicit TDefaultClientRetryPolicy(IRetryConfigProviderPtr retryConfigProvider)
+    explicit TDefaultClientRetryPolicy(IRetryConfigProviderPtr retryConfigProvider, const TConfigPtr& config)
         : RetryConfigProvider_(std::move(retryConfigProvider))
+        , Config_(config)
     { }
 
     IRequestRetryPolicyPtr CreatePolicyForGenericRequest() override
     {
-        return Wrap(CreateDefaultRequestRetryPolicy());
+        return Wrap(CreateDefaultRequestRetryPolicy(Config_));
     }
 
     IRequestRetryPolicyPtr CreatePolicyForStartOperationRequest() override
     {
-        return Wrap(MakeIntrusive<TAttemptLimitedRetryPolicy>(static_cast<ui32>(TConfig::Get()->StartOperationRetryCount)));
+        return Wrap(MakeIntrusive<TAttemptLimitedRetryPolicy>(static_cast<ui32>(Config_->StartOperationRetryCount), Config_));
     }
 
     IRequestRetryPolicyPtr Wrap(IRequestRetryPolicyPtr basePolicy)
@@ -127,6 +129,7 @@ public:
 
 private:
     IRetryConfigProviderPtr RetryConfigProvider_;
+    const TConfigPtr Config_;
 };
 
 class TDefaultRetryConfigProvider
@@ -141,14 +144,14 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IRequestRetryPolicyPtr CreateDefaultRequestRetryPolicy()
+IRequestRetryPolicyPtr CreateDefaultRequestRetryPolicy(const TConfigPtr& config)
 {
-    return MakeIntrusive<TAttemptLimitedRetryPolicy>(static_cast<ui32>(TConfig::Get()->RetryCount));
+    return MakeIntrusive<TAttemptLimitedRetryPolicy>(static_cast<ui32>(config->RetryCount), config);
 }
 
-IClientRetryPolicyPtr CreateDefaultClientRetryPolicy(IRetryConfigProviderPtr retryConfigProvider)
+IClientRetryPolicyPtr CreateDefaultClientRetryPolicy(IRetryConfigProviderPtr retryConfigProvider, const TConfigPtr& config)
 {
-    return MakeIntrusive<TDefaultClientRetryPolicy>(std::move(retryConfigProvider));
+    return MakeIntrusive<TDefaultClientRetryPolicy>(std::move(retryConfigProvider), config);
 }
 IRetryConfigProviderPtr CreateDefaultRetryConfigProvider()
 {
@@ -193,11 +196,11 @@ static bool IsRetriableChunkError(const TSet<int>& codes)
     return isChunkError;
 }
 
-static TMaybe<TDuration> TryGetBackoffDuration(const TErrorResponse& errorResponse)
+static TMaybe<TDuration> TryGetBackoffDuration(const TErrorResponse& errorResponse, const TConfigPtr& config)
 {
     int httpCode = errorResponse.GetHttpCode();
     if (httpCode / 100 != 4 && !errorResponse.IsFromTrailers()) {
-        return TConfig::Get()->RetryInterval;
+        return config->RetryInterval;
     }
 
     auto allCodes = errorResponse.GetError().GetAllErrorCodes();
@@ -207,15 +210,15 @@ static TMaybe<TDuration> TryGetBackoffDuration(const TErrorResponse& errorRespon
         || allCodes.count(NRpc::RequestQueueSizeLimitExceeded))
     {
         // request rate limit exceeded
-        return TConfig::Get()->RateLimitExceededRetryInterval;
+        return config->RateLimitExceededRetryInterval;
     }
     if (errorResponse.IsConcurrentOperationsLimitReached()) {
         // limit for the number of concurrent operations exceeded
-        return TConfig::Get()->StartOperationRetryInterval;
+        return config->StartOperationRetryInterval;
     }
     if (IsRetriableChunkError(allCodes)) {
         // chunk client errors
-        return TConfig::Get()->ChunkErrorsRetryInterval;
+        return config->ChunkErrorsRetryInterval;
     }
     for (auto code : TVector<int>{
         NRpc::TransportError,
@@ -224,20 +227,21 @@ static TMaybe<TDuration> TryGetBackoffDuration(const TErrorResponse& errorRespon
         Canceled,
     }) {
         if (allCodes.contains(code)) {
-            return TConfig::Get()->RetryInterval;
+            return config->RetryInterval;
         }
     }
     return Nothing();
 }
 
-TDuration GetBackoffDuration(const TErrorResponse& errorResponse)
+TDuration GetBackoffDuration(const TErrorResponse& errorResponse, const TConfigPtr& config)
 {
-    return TryGetBackoffDuration(errorResponse).GetOrElse(TConfig::Get()->RetryInterval);
+    return TryGetBackoffDuration(errorResponse, config).GetOrElse(config->RetryInterval);
 }
 
 bool IsRetriable(const TErrorResponse& errorResponse)
 {
-    return TryGetBackoffDuration(errorResponse).Defined();
+    // Retriability of an error doesn't depend on config, so just use global one.
+    return TryGetBackoffDuration(errorResponse, TConfig::Get()).Defined();
 }
 
 bool IsRetriable(const std::exception& ex)
@@ -248,14 +252,14 @@ bool IsRetriable(const std::exception& ex)
     return true;
 }
 
-TDuration GetBackoffDuration(const std::exception& /*error*/)
+TDuration GetBackoffDuration(const std::exception& /*error*/, const TConfigPtr& config)
 {
-    return GetBackoffDuration();
+    return GetBackoffDuration(config);
 }
 
-TDuration GetBackoffDuration()
+TDuration GetBackoffDuration(const TConfigPtr& config)
 {
-    return TConfig::Get()->RetryInterval;
+    return config->RetryInterval;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
