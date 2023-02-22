@@ -6,12 +6,12 @@ import (
 	logzap "a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/library/go/ptr"
 	"a.yandex-team.ru/yt/chyt/controller/internal/api"
+	"a.yandex-team.ru/yt/chyt/controller/internal/auth"
 	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/ythttp"
 	"a.yandex-team.ru/yt/go/yterrors"
-	"a.yandex-team.ru/yt/internal/go/ythttputil"
 )
 
 type OneShotRunnerConfig struct {
@@ -62,7 +62,7 @@ func (runner *OneShotRunner) Run(alias string, specletYson yson.RawValue) error 
 		ValidatePoolAccess: ptr.Bool(false),
 	}
 	a := api.NewAPI(runner.ytc, apiConfig, runner.c, runner.l)
-	ctx := ythttputil.WithRequester(runner.ctx, "root")
+	ctx := auth.WithRequester(runner.ctx, "root")
 	if err := a.Create(ctx, alias); err != nil {
 		return err
 	}
