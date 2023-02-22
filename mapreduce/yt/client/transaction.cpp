@@ -2,9 +2,9 @@
 
 #include "transaction_pinger.h"
 
+#include <mapreduce/yt/interface/config.h>
 #include <mapreduce/yt/interface/error_codes.h>
 
-#include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 #include <mapreduce/yt/common/retry_lib.h>
 

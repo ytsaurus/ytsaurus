@@ -11,11 +11,11 @@
 #include "structured_table_formats.h"
 #include "yt_poller.h"
 
-#include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
+#include <mapreduce/yt/interface/config.h>
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/fluent.h>
 #include <mapreduce/yt/interface/format.h>

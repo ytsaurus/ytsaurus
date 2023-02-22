@@ -1,6 +1,6 @@
 #include "temp_table.h"
 
-#include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/interface/config.h>
 
 #include <util/system/yassert.h>
 

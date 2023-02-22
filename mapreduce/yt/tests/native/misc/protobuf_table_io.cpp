@@ -5,7 +5,7 @@
 #include <mapreduce/yt/tests/native/proto_lib/clashing_enums.pb.h>
 #include <mapreduce/yt/tests/native/proto_lib/row.pb.h>
 
-#include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/interface/config.h>
 
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/io.h>

@@ -2,13 +2,13 @@
 
 #include "transaction.h"
 
-#include <mapreduce/yt/common/config.h>
 
 #include <mapreduce/yt/http/helpers.h>
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/http/http_client.h>
 
 #include <mapreduce/yt/interface/common.h>
+#include <mapreduce/yt/interface/config.h>
 #include <mapreduce/yt/interface/io.h>
 #include <mapreduce/yt/interface/tvm.h>
 

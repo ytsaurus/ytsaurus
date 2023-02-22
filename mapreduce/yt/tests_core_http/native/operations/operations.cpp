@@ -13,7 +13,7 @@
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/serialize.h>
 
-#include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/interface/config.h>
 #include <mapreduce/yt/common/debug_metrics.h>
 #include <mapreduce/yt/common/helpers.h>
 

@@ -1,7 +1,7 @@
 #include <mapreduce/yt/examples/tutorial/prepare_operation/grepper.pb.h>
 
 #include <mapreduce/yt/interface/client.h>
-#include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/interface/config.h>
 
 #include <util/stream/output.h>
 #include <util/system/user.h>

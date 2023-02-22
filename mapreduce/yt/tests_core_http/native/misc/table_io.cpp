@@ -2,7 +2,7 @@
 
 #include <mapreduce/yt/tests_core_http/native/proto_lib/row.pb.h>
 
-#include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/interface/config.h>
 
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/io.h>

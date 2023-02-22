@@ -1,7 +1,7 @@
 #include "simple_server.h"
 
 #include <mapreduce/yt/http/http.h>
-#include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/interface/config.h>
 
 #include <library/cpp/threading/future/async.h>
 

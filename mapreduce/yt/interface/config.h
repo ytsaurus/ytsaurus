@@ -1,7 +1,7 @@
 #pragma once
 
-#include <mapreduce/yt/interface/node.h>
-#include <mapreduce/yt/interface/common.h>
+#include "node.h"
+#include "common.h"
 
 #include <util/generic/maybe.h>
 #include <util/generic/string.h>

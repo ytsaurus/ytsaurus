@@ -1,7 +1,7 @@
 #include <mapreduce/yt/tests_core_http/yt_unittest_lib/yt_unittest_lib.h>
 
 #include <mapreduce/yt/interface/client.h>
-#include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/interface/config.h>
 
 #include <mapreduce/yt/http/abortable_http_response.h>
 
