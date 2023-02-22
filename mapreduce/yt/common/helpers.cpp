@@ -93,32 +93,32 @@ void MergeNodes(TNode& dst, const TNode& src)
     }
 }
 
-TYPath AddPathPrefix(const TYPath& path)
+TYPath AddPathPrefix(const TYPath& path, const TString& pathPrefix)
 {
     if (path.StartsWith("//") || path.StartsWith("#")) {
         return path;
     }
-    return TConfig::Get()->Prefix + path;
+    return pathPrefix + path;
 }
 
-TString GetWriteTableCommand()
+TString GetWriteTableCommand(const TString& apiVersion)
 {
-    return TConfig::Get()->ApiVersion == "v2" ? "write" : "write_table";
+    return apiVersion == "v2" ? "write" : "write_table";
 }
 
-TString GetReadTableCommand()
+TString GetReadTableCommand(const TString& apiVersion)
 {
-    return TConfig::Get()->ApiVersion == "v2" ? "read" : "read_table";
+    return apiVersion == "v2" ? "read" : "read_table";
 }
 
-TString GetWriteFileCommand()
+TString GetWriteFileCommand(const TString& apiVersion)
 {
-    return TConfig::Get()->ApiVersion == "v2" ? "upload" : "write_file";
+    return apiVersion == "v2" ? "upload" : "write_file";
 }
 
-TString GetReadFileCommand()
+TString GetReadFileCommand(const TString& apiVersion)
 {
-    return TConfig::Get()->ApiVersion == "v2" ? "download" : "read_file";
+    return apiVersion == "v2" ? "download" : "read_file";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

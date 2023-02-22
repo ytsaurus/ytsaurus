@@ -2,6 +2,8 @@
 
 #include <mapreduce/yt/interface/common.h>
 
+#include <mapreduce/yt/http/context.h>
+
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
 #include <util/str_stl.h>
@@ -29,12 +31,12 @@ class TTransactionAbortable
     : public IAbortable
 {
 public:
-    TTransactionAbortable(const TAuth& auth, const TTransactionId& transactionId);
+    TTransactionAbortable(const TClientContext& context, const TTransactionId& transactionId);
     void Abort() override;
     TString GetType() const override;
 
 private:
-    TAuth Auth_;
+    TClientContext Context_;
     TTransactionId TransactionId_;
 };
 
@@ -44,13 +46,13 @@ class TOperationAbortable
     : public IAbortable
 {
 public:
-    TOperationAbortable(IClientRetryPolicyPtr clientRetryPolicy, TAuth auth, const TOperationId& operationId);
+    TOperationAbortable(IClientRetryPolicyPtr clientRetryPolicy, TClientContext context, const TOperationId& operationId);
     void Abort() override;
     TString GetType() const override;
 
 private:
     const IClientRetryPolicyPtr ClientRetryPolicy_;
-    const TAuth Auth_;
+    const TClientContext Context_;
     const TOperationId OperationId_;
 };
 

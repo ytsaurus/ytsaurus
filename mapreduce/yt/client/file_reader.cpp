@@ -41,13 +41,13 @@ static TMaybe<ui64> GetEndOffset(const TFileReaderOptions& options) {
 TStreamReaderBase::TStreamReaderBase(
     IClientRetryPolicyPtr clientRetryPolicy,
     ITransactionPingerPtr transactionPinger,
-    const TAuth &auth,
-    const TTransactionId &transactionId)
-    : ClientRetryPolicy_(std::move(clientRetryPolicy))
-    , Auth_(auth)
+    const TClientContext& context,
+    const TTransactionId& transactionId)
+    : Context_(context)
+    , ClientRetryPolicy_(std::move(clientRetryPolicy))
     , ReadTransaction_(MakeHolder<TPingableTransaction>(
         ClientRetryPolicy_,
-        auth,
+        context,
         transactionId,
         transactionPinger->GetChildTxPinger(),
         TStartTransactionOptions()))
@@ -57,7 +57,7 @@ TStreamReaderBase::~TStreamReaderBase() = default;
 
 TYPath TStreamReaderBase::Snapshot(const TYPath& path)
 {
-    return NYT::Snapshot(ClientRetryPolicy_, Auth_, ReadTransaction_->GetId(), path);
+    return NYT::Snapshot(ClientRetryPolicy_, Context_, ReadTransaction_->GetId(), path);
 }
 
 TString TStreamReaderBase::GetActiveRequestId() const
@@ -71,11 +71,11 @@ TString TStreamReaderBase::GetActiveRequestId() const
 
 size_t TStreamReaderBase::DoRead(void* buf, size_t len)
 {
-    const int retryCount = TConfig::Get()->ReadRetryCount;
+    const int retryCount = Context_.Config->ReadRetryCount;
     for (int attempt = 1; attempt <= retryCount; ++attempt) {
         try {
             if (!Input_) {
-                Response_ = Request(Auth_, ReadTransaction_->GetId(), CurrentOffset_);
+                Response_ = Request(Context_, ReadTransaction_->GetId(), CurrentOffset_);
                 Input_ = Response_->GetResponseStream();
             }
             if (len == 0) {
@@ -94,8 +94,8 @@ size_t TStreamReaderBase::DoRead(void* buf, size_t len)
             if (!IsRetriable(e) || attempt == retryCount) {
                 throw;
             }
-            NDetail::TWaitProxy::Get()->Sleep(GetBackoffDuration(e));
-        } catch (yexception& e) {
+            NDetail::TWaitProxy::Get()->Sleep(GetBackoffDuration(e, Context_.Config));
+        } catch (std::exception& e) {
             YT_LOG_ERROR("RSP %v - failed: %v (attempt %v of %v)",
                 GetActiveRequestId(),
                 e.what(),
@@ -108,7 +108,7 @@ size_t TStreamReaderBase::DoRead(void* buf, size_t len)
             if (attempt == retryCount) {
                 throw;
             }
-            NDetail::TWaitProxy::Get()->Sleep(GetBackoffDuration(e));
+            NDetail::TWaitProxy::Get()->Sleep(GetBackoffDuration(e, Context_.Config));
         }
         Input_ = nullptr;
     }
@@ -121,10 +121,10 @@ TFileReader::TFileReader(
     const TRichYPath& path,
     IClientRetryPolicyPtr clientRetryPolicy,
     ITransactionPingerPtr transactionPinger,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TFileReaderOptions& options)
-    : TStreamReaderBase(std::move(clientRetryPolicy), std::move(transactionPinger), auth, transactionId)
+    : TStreamReaderBase(std::move(clientRetryPolicy), std::move(transactionPinger), context, transactionId)
     , FileReaderOptions_(options)
     , Path_(path)
     , StartOffset_(FileReaderOptions_.Offset_.GetOrElse(0))
@@ -133,15 +133,15 @@ TFileReader::TFileReader(
     Path_.Path_ = TStreamReaderBase::Snapshot(Path_.Path_);
 }
 
-NHttpClient::IHttpResponsePtr TFileReader::Request(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes)
+NHttpClient::IHttpResponsePtr TFileReader::Request(const TClientContext& context, const TTransactionId& transactionId, ui64 readBytes)
 {
     const ui64 currentOffset = StartOffset_ + readBytes;
-    TString hostName = GetProxyForHeavyRequest(auth);
+    TString hostName = GetProxyForHeavyRequest(context);
 
-    THttpHeader header("GET", GetReadFileCommand());
-    header.SetToken(auth.Token);
-    if (auth.ServiceTicketAuth) {
-        header.SetServiceTicket(auth.ServiceTicketAuth->Ptr->IssueServiceTicket());
+    THttpHeader header("GET", GetReadFileCommand(context.Config->ApiVersion));
+    header.SetToken(context.Token);
+    if (context.ServiceTicketAuth) {
+        header.SetServiceTicket(context.ServiceTicketAuth->Ptr->IssueServiceTicket());
     }
     header.AddTransactionId(transactionId);
     header.SetOutputFormat(TMaybe<TFormat>()); // Binary format
@@ -153,13 +153,13 @@ NHttpClient::IHttpResponsePtr TFileReader::Request(const TAuth& auth, const TTra
     FileReaderOptions_.Offset(currentOffset);
     header.MergeParameters(FormIORequestParameters(Path_, FileReaderOptions_));
 
-    header.SetResponseCompression(ToString(TConfig::Get()->AcceptEncoding));
+    header.SetResponseCompression(ToString(context.Config->AcceptEncoding));
 
     auto requestId = CreateGuidAsString();
     NHttpClient::IHttpResponsePtr response;
     try {
-        response = auth.HttpClient->Request(GetFullUrl(hostName, auth, header), requestId, header);
-    } catch (const yexception& ex) {
+        response = context.HttpClient->Request(GetFullUrl(hostName, context, header), requestId, header);
+    } catch (const std::exception& ex) {
         LogRequestError(requestId, header, ex.what(), "");
         throw;
     }
@@ -177,24 +177,24 @@ TBlobTableReader::TBlobTableReader(
     const TKey& key,
     IClientRetryPolicyPtr retryPolicy,
     ITransactionPingerPtr transactionPinger,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TBlobTableReaderOptions& options)
-    : TStreamReaderBase(std::move(retryPolicy), std::move(transactionPinger), auth, transactionId)
+    : TStreamReaderBase(std::move(retryPolicy), std::move(transactionPinger), context, transactionId)
     , Key_(key)
     , Options_(options)
 {
     Path_ = TStreamReaderBase::Snapshot(path);
 }
 
-NHttpClient::IHttpResponsePtr TBlobTableReader::Request(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes)
+NHttpClient::IHttpResponsePtr TBlobTableReader::Request(const TClientContext& context, const TTransactionId& transactionId, ui64 readBytes)
 {
-    TString hostName = GetProxyForHeavyRequest(auth);
+    TString hostName = GetProxyForHeavyRequest(context);
 
     THttpHeader header("GET", "read_blob_table");
-    header.SetToken(auth.Token);
-    if (auth.ServiceTicketAuth) {
-        header.SetServiceTicket(auth.ServiceTicketAuth->Ptr->IssueServiceTicket());
+    header.SetToken(context.Token);
+    if (context.ServiceTicketAuth) {
+        header.SetServiceTicket(context.ServiceTicketAuth->Ptr->IssueServiceTicket());
     }
     header.AddTransactionId(transactionId);
     header.SetOutputFormat(TMaybe<TFormat>()); // Binary format
@@ -219,13 +219,13 @@ NHttpClient::IHttpResponsePtr TBlobTableReader::Request(const TAuth& auth, const
     }
     params["part_size"] = Options_.PartSize_;
     header.MergeParameters(params);
-    header.SetResponseCompression(ToString(TConfig::Get()->AcceptEncoding));
+    header.SetResponseCompression(ToString(context.Config->AcceptEncoding));
 
     auto requestId = CreateGuidAsString();
     NHttpClient::IHttpResponsePtr response;
     try {
-        response = auth.HttpClient->Request(GetFullUrl(hostName, auth, header), requestId, header);
-    } catch (const yexception& ex) {
+        response = context.HttpClient->Request(GetFullUrl(hostName, context, header), requestId, header);
+    } catch (const std::exception& ex) {
         LogRequestError(requestId, header, ex.what(), "");
         throw;
     }

@@ -16,10 +16,10 @@ namespace NYT::NDetail {
 TOperationPreparationContext::TOperationPreparationContext(
     const TStructuredJobTableList& structuredInputs,
     const TStructuredJobTableList& structuredOutputs,
-    const TAuth& auth,
+    const TClientContext& context,
     const IClientRetryPolicyPtr& retryPolicy,
     TTransactionId transactionId)
-    : Auth_(auth)
+    : Context_(context)
     , RetryPolicy_(retryPolicy)
     , TransactionId_(transactionId)
     , InputSchemas_(structuredInputs.size())
@@ -38,10 +38,10 @@ TOperationPreparationContext::TOperationPreparationContext(
 TOperationPreparationContext::TOperationPreparationContext(
     TVector<TRichYPath> inputs,
     TVector<TRichYPath> outputs,
-    const TAuth& auth,
+    const TClientContext& context,
     const IClientRetryPolicyPtr& retryPolicy,
     TTransactionId transactionId)
-    : Auth_(auth)
+    : Context_(context)
     , RetryPolicy_(retryPolicy)
     , TransactionId_(transactionId)
     , InputSchemas_(inputs.size())
@@ -70,7 +70,7 @@ int TOperationPreparationContext::GetOutputCount() const
 const TVector<TTableSchema>& TOperationPreparationContext::GetInputSchemas() const
 {
     TVector<::NThreading::TFuture<TNode>> schemaFutures;
-    NRawClient::TRawBatchRequest batch;
+    NRawClient::TRawBatchRequest batch(Context_.Config);
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputSchemas_.size()); ++tableIndex) {
         if (InputSchemasLoaded_[tableIndex]) {
             schemaFutures.emplace_back();
@@ -82,7 +82,7 @@ const TVector<TTableSchema>& TOperationPreparationContext::GetInputSchemas() con
 
     NRawClient::ExecuteBatch(
         RetryPolicy_->CreatePolicyForGenericRequest(),
-        Auth_,
+        Context_,
         batch);
 
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputSchemas_.size()); ++tableIndex) {
@@ -101,7 +101,7 @@ const TTableSchema& TOperationPreparationContext::GetInputSchema(int index) cons
         Y_VERIFY(Inputs_[index]);
         auto schemaNode = NRawClient::Get(
             RetryPolicy_->CreatePolicyForGenericRequest(),
-            Auth_,
+            Context_,
             TransactionId_,
             Inputs_[index]->Path_ + "/@schema");
         Deserialize(schema, schemaNode);

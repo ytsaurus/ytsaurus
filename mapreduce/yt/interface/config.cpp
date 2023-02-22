@@ -240,9 +240,18 @@ TConfig::TConfig()
     Reset();
 }
 
-TConfig* TConfig::Get()
+TConfigPtr TConfig::Get()
 {
-    return Singleton<TConfig>();
+    struct TConfigHolder
+    {
+        TConfigHolder()
+            : Config(::MakeIntrusive<TConfig>())
+        { }
+
+        TConfigPtr Config;
+    };
+
+    return Singleton<TConfigHolder>()->Config;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

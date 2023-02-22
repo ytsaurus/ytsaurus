@@ -9,71 +9,84 @@ namespace NYT::NDetail::NRawClient {
 
 TNode SerializeParamsForCreate(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     ENodeType type,
     const TCreateOptions& options);
 
 TNode SerializeParamsForRemove(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     const TRemoveOptions& options);
 
 TNode SerializeParamsForExists(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     const TExistsOptions& options);
 
 TNode SerializeParamsForGet(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     const TGetOptions& options);
 
 TNode SerializeParamsForSet(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     const TSetOptions& options);
 
 TNode SerializeParamsForMultisetAttributes(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     const TMultisetAttributesOptions& options);
 
 TNode SerializeParamsForList(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     const TListOptions& options);
 
 TNode SerializeParamsForCopy(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& sourcePath,
     const TYPath& destinationPath,
     const TCopyOptions& options);
 
 TNode SerializeParamsForMove(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& sourcePath,
     const TYPath& destinationPath,
     const TMoveOptions& options);
 
 TNode SerializeParamsForLink(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& targetPath,
     const TYPath& linkPath,
     const TLinkOptions& options);
 
 TNode SerializeParamsForLock(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     ELockMode mode,
     const TLockOptions& options);
 
 TNode SerializeParamsForUnlock(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     const TUnlockOptions& options);
 
 TNode SerializeParamsForConcatenate(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TVector<TRichYPath>& sourcePaths,
     const TRichYPath& destinationPath,
     const TConcatenateOptions& options);
@@ -116,14 +129,17 @@ TNode SerializeParamsForListJobs(
     const TListJobsOptions& options);
 
 TNode SerializeParametersForInsertRows(
+    const TString& pathPrefix,
     const TYPath& path,
     const TInsertRowsOptions& options);
 
 TNode SerializeParametersForDeleteRows(
+    const TString& pathPrefix,
     const TYPath& path,
     const TDeleteRowsOptions& options);
 
 TNode SerializeParametersForTrimRows(
+    const TString& pathPrefix,
     const TYPath& path,
     const TTrimRowsOptions& options);
 
@@ -141,15 +157,18 @@ TNode SerializeParamsForAlterTableReplica(
     const TAlterTableReplicaOptions& options);
 
 TNode SerializeParamsForFreezeTable(
+    const TString& pathPrefix,
     const TYPath& path,
     const TFreezeTableOptions& options);
 
 TNode SerializeParamsForUnfreezeTable(
+    const TString& pathPrefix,
     const TYPath& path,
     const TUnfreezeTableOptions& options);
 
 TNode SerializeParamsForAlterTable(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     const TAlterTableOptions& options);
 
@@ -171,6 +190,7 @@ TNode SerializeParamsForGetFileFromCache(
 
 TNode SerializeParamsForPutFileToCache(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& filePath,
     const TString& md5Signature,
     const TYPath& cachePath,
@@ -178,16 +198,19 @@ TNode SerializeParamsForPutFileToCache(
 
 TNode SerializeParamsForSkyShareTable(
     const TString& serverName,
+    const TString& pathPrefix,
     const std::vector<TYPath>& tablePaths,
     const TSkyShareTableOptions& options);
 
 TNode SerializeParamsForCheckPermission(
     const TString& user,
     EPermission permission,
+    const TString& pathPrefix,
     const TYPath& path,
     const TCheckPermissionOptions& options);
 
 TNode SerializeParamsForGetTabletInfos(
+    const TString& pathPrefix,
     const TYPath& path,
     const TVector<int>& tabletIndexes,
     const TGetTabletInfosOptions& options);
@@ -200,6 +223,7 @@ TNode SerializeParamsForCommitTransaction(
 
 TNode SerializeParamsForStartTransaction(
     const TTransactionId& parentTransactionId,
+    TDuration txTimeout,
     const TStartTransactionOptions& options);
 
 ////////////////////////////////////////////////////////////////////

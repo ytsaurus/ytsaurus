@@ -92,7 +92,7 @@ private:
         CheckErrorState();
         try {
             func();
-        } catch (const yexception&) {
+        } catch (const std::exception&) {
             HandleWriteException();
         }
     }
@@ -385,7 +385,7 @@ TAddressCache::TAddressPtr TAddressCache::Resolve(const TString& hostName)
         host = hostName.substr(0, colon);
     }
 
-    auto retryPolicy = CreateDefaultRequestRetryPolicy();
+    auto retryPolicy = CreateDefaultRequestRetryPolicy(TConfig::Get());
     auto error = yexception() << "can not resolve address of required version for host " << hostName;
     while (true) {
         address = new TNetworkAddress(host, port);

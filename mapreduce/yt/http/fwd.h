@@ -6,7 +6,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAuth;
+struct TClientContext;
 class THttpHeader;
 
 namespace NHttpClient {

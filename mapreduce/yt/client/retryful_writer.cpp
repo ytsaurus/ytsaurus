@@ -106,7 +106,7 @@ void TRetryfulWriter::Send(const TBuffer& buffer)
     };
 
     auto transactionId = (WriteTransaction_ ? WriteTransaction_->GetId() : ParentTransactionId_);
-    RetryHeavyWriteRequest(ClientRetryPolicy_, TransactionPinger_, Auth_, transactionId, header, streamMaker);
+    RetryHeavyWriteRequest(ClientRetryPolicy_, TransactionPinger_, Context_, transactionId, header, streamMaker);
 
     Parameters_ = SecondaryParameters_; // all blocks except the first one are appended
 }

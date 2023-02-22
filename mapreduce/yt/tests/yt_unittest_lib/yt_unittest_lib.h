@@ -107,6 +107,7 @@ public:
     IClientPtr CreateClient(const TCreateClientOptions& options = {}) const;
 
     IClientPtr CreateClientForUser(const TString& user, TCreateClientOptions options = {});
+
     TYPath GetWorkingDir() const;
 
 private:

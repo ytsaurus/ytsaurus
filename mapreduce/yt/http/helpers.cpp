@@ -1,5 +1,6 @@
 #include "helpers.h"
 
+#include "context.h"
 #include "requests.h"
 
 #include <mapreduce/yt/interface/logging/yt_log.h>
@@ -10,7 +11,7 @@ namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TString CreateHostNameWithPort(const TString& hostName, const TAuth& auth)
+TString CreateHostNameWithPort(const TString& hostName, const TClientContext& context)
 {
     static constexpr int HttpProxyPort = 80;
     static constexpr int HttpsProxyPort = 443;
@@ -20,12 +21,12 @@ TString CreateHostNameWithPort(const TString& hostName, const TAuth& auth)
 
     if (hostName.find(':') == TString::npos) {
         int port;
-        if (auth.TvmOnly) {
-            port = auth.UseTLS
+        if (context.TvmOnly) {
+            port = context.UseTLS
                 ? TvmOnlyHttpsProxyPort
                 : TvmOnlyHttpProxyPort;
         } else {
-            port = auth.UseTLS
+            port = context.UseTLS
                 ? HttpsProxyPort
                 : HttpProxyPort;
         }
@@ -34,9 +35,9 @@ TString CreateHostNameWithPort(const TString& hostName, const TAuth& auth)
     return hostName;
 }
 
-TString GetFullUrl(const TString& hostName, const TAuth& auth, THttpHeader& header)
+TString GetFullUrl(const TString& hostName, const TClientContext& context, THttpHeader& header)
 {
-    Y_UNUSED(auth);
+    Y_UNUSED(context);
     return Format("http://%v%v", hostName, header.GetUrl());
 }
 

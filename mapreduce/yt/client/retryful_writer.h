@@ -32,7 +32,7 @@ public:
     TRetryfulWriter(
         IClientRetryPolicyPtr clientRetryPolicy,
         ITransactionPingerPtr transactionPinger,
-        const TAuth& auth,
+        const TClientContext& context,
         const TTransactionId& parentId,
         const TString& command,
         const TMaybe<TFormat>& format,
@@ -40,7 +40,7 @@ public:
         const TWriterOptions& options)
         : ClientRetryPolicy_(std::move(clientRetryPolicy))
         , TransactionPinger_(std::move(transactionPinger))
-        , Auth_(auth)
+        , Context_(context)
         , Command_(command)
         , Format_(format)
         , BufferSize_(GetBufferSize(options.WriterOptions_))
@@ -62,10 +62,10 @@ public:
         SecondaryParameters_ = FormIORequestParameters(secondaryPath, options);
 
         if (options.CreateTransaction_) {
-            WriteTransaction_.ConstructInPlace(ClientRetryPolicy_, auth, parentId, TransactionPinger_->GetChildTxPinger(), TStartTransactionOptions());
+            WriteTransaction_.ConstructInPlace(ClientRetryPolicy_, context, parentId, TransactionPinger_->GetChildTxPinger(), TStartTransactionOptions());
             auto append = path.Append_.GetOrElse(false);
             auto lockMode = (append  ? LM_SHARED : LM_EXCLUSIVE);
-            NDetail::NRawClient::Lock(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, WriteTransaction_->GetId(), path.Path_, lockMode);
+            NDetail::NRawClient::Lock(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Context_, WriteTransaction_->GetId(), path.Path_, lockMode);
         }
 
         EmptyBuffers_.Push(TBuffer(BufferSize_ * 2));
@@ -90,7 +90,7 @@ private:
 private:
     const IClientRetryPolicyPtr ClientRetryPolicy_;
     const ITransactionPingerPtr TransactionPinger_;
-    const TAuth Auth_;
+    const TClientContext Context_;
     TString Command_;
     TMaybe<TFormat> Format_;
     const size_t BufferSize_;

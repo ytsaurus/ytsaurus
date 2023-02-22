@@ -32,9 +32,9 @@ static void SetOperationIdParam(TNode* node, const TOperationId& operationId)
     (*node)["operation_id"] = GetGuidAsString(operationId);
 }
 
-static void SetPathParam(TNode* node, const TYPath& path)
+static void SetPathParam(TNode* node, const TString& pathPrefix, const TYPath& path)
 {
-    (*node)["path"] = AddPathPrefix(path);
+    (*node)["path"] = AddPathPrefix(path, pathPrefix);
 }
 
 static TNode SerializeAttributeFilter(const TAttributeFilter& attributeFilter)
@@ -98,13 +98,14 @@ void SerializeMasterReadOptions(TNode* node, const TMasterReadOptions<T>& option
 
 TNode SerializeParamsForCreate(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     ENodeType type,
     const TCreateOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     result["recursive"] = options.Recursive_;
     result["type"] = ToString(type);
     result["ignore_existing"] = options.IgnoreExisting_;
@@ -117,12 +118,13 @@ TNode SerializeParamsForCreate(
 
 TNode SerializeParamsForRemove(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     const TRemoveOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     result["recursive"] = options.Recursive_;
     result["force"] = options.Force_;
     return result;
@@ -130,24 +132,26 @@ TNode SerializeParamsForRemove(
 
 TNode SerializeParamsForExists(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     const TExistsOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     SerializeMasterReadOptions(&result, options);
     return result;
 }
 
 TNode SerializeParamsForGet(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     const TGetOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     SerializeMasterReadOptions(&result, options);
     if (options.AttributeFilter_) {
         result["attributes"] = SerializeAttributeFilter(*options.AttributeFilter_);
@@ -160,12 +164,13 @@ TNode SerializeParamsForGet(
 
 TNode SerializeParamsForSet(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     const TSetOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     result["recursive"] = options.Recursive_;
     if (options.Force_) {
         result["force"] = *options.Force_;
@@ -175,23 +180,25 @@ TNode SerializeParamsForSet(
 
 TNode SerializeParamsForMultisetAttributes(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     [[maybe_unused]] const TMultisetAttributesOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     return result;
 }
 
 TNode SerializeParamsForList(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     const TListOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     SerializeMasterReadOptions(&result, options);
     if (options.MaxSize_) {
         result["max_size"] = *options.MaxSize_;
@@ -204,14 +211,15 @@ TNode SerializeParamsForList(
 
 TNode SerializeParamsForCopy(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& sourcePath,
     const TYPath& destinationPath,
     const TCopyOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
-    result["source_path"] = AddPathPrefix(sourcePath);
-    result["destination_path"] = AddPathPrefix(destinationPath);
+    result["source_path"] = AddPathPrefix(sourcePath, pathPrefix);
+    result["destination_path"] = AddPathPrefix(destinationPath, pathPrefix);
     result["recursive"] = options.Recursive_;
     result["force"] = options.Force_;
     result["preserve_account"] = options.PreserveAccount_;
@@ -223,14 +231,15 @@ TNode SerializeParamsForCopy(
 
 TNode SerializeParamsForMove(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& sourcePath,
     const TYPath& destinationPath,
     const TMoveOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
-    result["source_path"] = AddPathPrefix(sourcePath);
-    result["destination_path"] = AddPathPrefix(destinationPath);
+    result["source_path"] = AddPathPrefix(sourcePath, pathPrefix);
+    result["destination_path"] = AddPathPrefix(destinationPath, pathPrefix);
     result["recursive"] = options.Recursive_;
     result["force"] = options.Force_;
     result["preserve_account"] = options.PreserveAccount_;
@@ -242,14 +251,15 @@ TNode SerializeParamsForMove(
 
 TNode SerializeParamsForLink(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& targetPath,
     const TYPath& linkPath,
     const TLinkOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
-    result["target_path"] = AddPathPrefix(targetPath);
-    result["link_path"] = AddPathPrefix(linkPath);
+    result["target_path"] = AddPathPrefix(targetPath, pathPrefix);
+    result["link_path"] = AddPathPrefix(linkPath, pathPrefix);
     result["recursive"] = options.Recursive_;
     result["ignore_existing"] = options.IgnoreExisting_;
     result["force"] = options.Force_;
@@ -261,13 +271,14 @@ TNode SerializeParamsForLink(
 
 TNode SerializeParamsForLock(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     ELockMode mode,
     const TLockOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     result["mode"] = ToString(mode);
     result["waitable"] = options.Waitable_;
     if (options.AttributeKey_) {
@@ -281,18 +292,20 @@ TNode SerializeParamsForLock(
 
 TNode SerializeParamsForUnlock(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     const TUnlockOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     Y_UNUSED(options);
     return result;
 }
 
 TNode SerializeParamsForConcatenate(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TVector<TRichYPath>& sourcePaths,
     const TRichYPath& destinationPath,
     const TConcatenateOptions& options)
@@ -301,7 +314,7 @@ TNode SerializeParamsForConcatenate(
     SetTransactionIdParam(&result, transactionId);
     {
         auto actualDestination = destinationPath;
-        actualDestination.Path(AddPathPrefix(actualDestination.Path_));
+        actualDestination.Path(AddPathPrefix(actualDestination.Path_, pathPrefix));
         if (options.Append_) {
             actualDestination.Append(*options.Append_);
         }
@@ -310,7 +323,7 @@ TNode SerializeParamsForConcatenate(
     auto& sourcePathsNode = result["source_paths"];
     for (const auto& path : sourcePaths) {
         auto actualSource = path;
-        actualSource.Path(AddPathPrefix(actualSource.Path_));
+        actualSource.Path(AddPathPrefix(actualSource.Path_, pathPrefix));
         sourcePathsNode.Add(PathToNode(actualSource));
     }
     return result;
@@ -535,11 +548,12 @@ TNode SerializeParamsForListJobs(
 }
 
 TNode SerializeParametersForInsertRows(
+    const TString& pathPrefix,
     const TYPath& path,
     const TInsertRowsOptions& options)
 {
     TNode result;
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     if (options.Aggregate_) {
         result["aggregate"] = *options.Aggregate_;
     }
@@ -559,11 +573,12 @@ TNode SerializeParametersForInsertRows(
 }
 
 TNode SerializeParametersForDeleteRows(
+    const TString& pathPrefix,
     const TYPath& path,
     const TDeleteRowsOptions& options)
 {
     TNode result;
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     if (options.Atomicity_) {
         result["atomicity"] = ToString(*options.Atomicity_);
     }
@@ -577,11 +592,12 @@ TNode SerializeParametersForDeleteRows(
 }
 
 TNode SerializeParametersForTrimRows(
+    const TString& pathPrefix,
     const TYPath& path,
     const TTrimRowsOptions& /* options*/)
 {
     TNode result;
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     return result;
 }
 
@@ -622,33 +638,36 @@ TNode SerializeParamsForAlterTableReplica(const TReplicaId& replicaId, const TAl
 }
 
 TNode SerializeParamsForFreezeTable(
+    const TString& pathPrefix,
     const TYPath& path,
     const TFreezeTableOptions& options)
 {
     TNode result;
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     SetFirstLastTabletIndex(&result, options);
     return result;
 }
 
 TNode SerializeParamsForUnfreezeTable(
+    const TString& pathPrefix,
     const TYPath& path,
     const TUnfreezeTableOptions& options)
 {
     TNode result;
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     SetFirstLastTabletIndex(&result, options);
     return result;
 }
 
 TNode SerializeParamsForAlterTable(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& path,
     const TAlterTableOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     if (options.Dynamic_) {
         result["dynamic"] = *options.Dynamic_;
     }
@@ -716,6 +735,7 @@ TNode SerializeParamsForGetFileFromCache(
 
 TNode SerializeParamsForPutFileToCache(
     const TTransactionId& transactionId,
+    const TString& pathPrefix,
     const TYPath& filePath,
     const TString& md5Signature,
     const TYPath& cachePath,
@@ -723,7 +743,7 @@ TNode SerializeParamsForPutFileToCache(
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
-    SetPathParam(&result, filePath);
+    SetPathParam(&result, pathPrefix, filePath);
     result["md5"] = md5Signature;
     result["cache_path"] = cachePath;
     if (options.PreserveExpirationTimeout_) {
@@ -734,17 +754,18 @@ TNode SerializeParamsForPutFileToCache(
 
 TNode SerializeParamsForSkyShareTable(
     const TString& serverName,
+    const TString& pathPrefix,
     const std::vector<TYPath>& tablePaths,
     const TSkyShareTableOptions& options)
 {
     TNode result;
 
     if (tablePaths.size() == 1) {
-        SetPathParam(&result, tablePaths[0]);
+        SetPathParam(&result, pathPrefix, tablePaths[0]);
     } else {
         auto pathList = TNode::CreateList();
         for (const auto& p : tablePaths) {
-            pathList.Add(AddPathPrefix(p));
+            pathList.Add(AddPathPrefix(p, pathPrefix));
         }
         result["paths"] = pathList;
     }
@@ -771,11 +792,12 @@ TNode SerializeParamsForSkyShareTable(
 TNode SerializeParamsForCheckPermission(
     const TString& user,
     EPermission permission,
+    const TString& pathPrefix,
     const TYPath& path,
     const TCheckPermissionOptions& options)
 {
     TNode result;
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     result["path"] = path;
     result["user"] = user;
     result["permission"] = ToString(permission);
@@ -787,13 +809,14 @@ TNode SerializeParamsForCheckPermission(
 }
 
 TNode SerializeParamsForGetTabletInfos(
+    const TString& pathPrefix,
     const TYPath& path,
     const TVector<int>& tabletIndexes,
     const TGetTabletInfosOptions& options)
 {
     Y_UNUSED(options);
     TNode result;
-    SetPathParam(&result, path);
+    SetPathParam(&result, pathPrefix, path);
     result["tablet_indexes"] = TNode::CreateList();
     result["tablet_indexes"].AsList().assign(tabletIndexes.begin(), tabletIndexes.end());
     return result;
@@ -815,12 +838,13 @@ TNode SerializeParamsForCommitTransaction(const TTransactionId& transactionId)
 
 TNode SerializeParamsForStartTransaction(
     const TTransactionId& parentTransactionId,
+    TDuration txTimeout,
     const TStartTransactionOptions& options)
 {
     TNode result;
 
     SetTransactionIdParam(&result, parentTransactionId);
-    result["timeout"] = static_cast<i64>((options.Timeout_.GetOrElse(TConfig::Get()->TxTimeout).MilliSeconds()));
+    result["timeout"] = static_cast<i64>((options.Timeout_.GetOrElse(txTimeout).MilliSeconds()));
     if (options.Deadline_) {
         result["deadline"] = ToString(options.Deadline_);
     }

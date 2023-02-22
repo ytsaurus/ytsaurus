@@ -15,7 +15,7 @@ TClientWriter::TClientWriter(
     const TRichYPath& path,
     IClientRetryPolicyPtr clientRetryPolicy,
     ITransactionPingerPtr transactionPinger,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TMaybe<TFormat>& format,
     const TTableWriterOptions& options)
@@ -23,9 +23,9 @@ TClientWriter::TClientWriter(
 {
     if (options.SingleHttpRequest_) {
         RawWriter_.Reset(new TRetrylessWriter(
-            auth,
+            context,
             transactionId,
-            GetWriteTableCommand(),
+            GetWriteTableCommand(context.Config->ApiVersion),
             format,
             path,
             BUFFER_SIZE,
@@ -34,9 +34,9 @@ TClientWriter::TClientWriter(
         RawWriter_.Reset(new TRetryfulWriter(
             std::move(clientRetryPolicy),
             std::move(transactionPinger),
-            auth,
+            context,
             transactionId,
-            GetWriteTableCommand(),
+            GetWriteTableCommand(context.Config->ApiVersion),
             format,
             path,
             options));

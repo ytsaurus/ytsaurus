@@ -459,17 +459,17 @@ class TCoreHttpClient
     : public IHttpClient
 {
 public:
-    TCoreHttpClient(bool useTLS)
+    TCoreHttpClient(bool useTLS, const TConfigPtr& config)
         : Poller_(NConcurrency::CreateThreadPoolPoller(1, "http_poller"))  // TODO(nadya73): YT-18363: move threads count to config
     {
         if (useTLS) {
-            auto config = NYT::New<NYT::NHttps::TClientConfig>();
-            config->MaxIdleConnections = TConfig::Get()->ConnectionPoolSize;
-            Client_ = NHttps::CreateClient(config, Poller_);
+            auto httpsConfig = NYT::New<NYT::NHttps::TClientConfig>();
+            httpsConfig->MaxIdleConnections = config->ConnectionPoolSize;
+            Client_ = NHttps::CreateClient(httpsConfig, Poller_);
         } else {
-            auto config = NYT::New<NYT::NHttp::TClientConfig>();
-            config->MaxIdleConnections = TConfig::Get()->ConnectionPoolSize;
-            Client_ = NHttp::CreateClient(config, Poller_);
+            auto httpConfig = NYT::New<NYT::NHttp::TClientConfig>();
+            httpConfig->MaxIdleConnections = config->ConnectionPoolSize;
+            Client_ = NHttp::CreateClient(httpConfig, Poller_);
         }
     }
 
@@ -591,9 +591,9 @@ IHttpClientPtr CreateDefaultHttpClient()
     return std::make_shared<TDefaultHttpClient>();
 }
 
-IHttpClientPtr CreateCoreHttpClient(bool useTLS)
+IHttpClientPtr CreateCoreHttpClient(bool useTLS, const TConfigPtr& config)
 {
-    return std::make_shared<TCoreHttpClient>(useTLS);
+    return std::make_shared<TCoreHttpClient>(useTLS, config);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

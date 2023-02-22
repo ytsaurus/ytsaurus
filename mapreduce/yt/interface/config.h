@@ -1,7 +1,8 @@
 #pragma once
 
-#include "node.h"
+#include "fwd.h"
 #include "common.h"
+#include "node.h"
 
 #include <util/generic/maybe.h>
 #include <util/generic/string.h>
@@ -39,6 +40,7 @@ enum class ETraceHttpRequestsMode
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TConfig
+    : public TThrRefBase
 {
     TString Hosts;
     TString Pool;
@@ -164,7 +166,7 @@ struct TConfig
 
     TConfig();
 
-    static TConfig* Get();
+    static TConfigPtr Get();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

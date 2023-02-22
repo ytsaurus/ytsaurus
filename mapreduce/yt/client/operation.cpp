@@ -227,8 +227,8 @@ TStructuredJobTableList ApplyProtobufColumnFilters(
     }
 
     auto isDynamic = BatchTransform(
-        CreateDefaultRequestRetryPolicy(),
-        preparer.GetAuth(),
+        CreateDefaultRequestRetryPolicy(preparer.GetContext().Config),
+        preparer.GetContext(),
         tableList,
         [&] (TRawBatchRequest& batch, const auto& table) {
             return batch.Get(preparer.GetTransactionId(), table.RichYPath->Path_ + "/@dynamic", TGetOptions());
@@ -283,8 +283,8 @@ TSimpleOperationIo CreateSimpleOperationIo(
         structuredJob,
         preparer,
         options,
-        CanonizeStructuredTableList(preparer.GetAuth(), GetStructuredInputs(spec)),
-        CanonizeStructuredTableList(preparer.GetAuth(), GetStructuredOutputs(spec)),
+        CanonizeStructuredTableList(preparer.GetContext(), GetStructuredInputs(spec)),
+        CanonizeStructuredTableList(preparer.GetContext(), GetStructuredOutputs(spec)),
         hints,
         nodeReaderFormat,
         GetColumnsUsedInOperation(spec));
@@ -306,8 +306,8 @@ TSimpleOperationIo CreateSimpleOperationIo(
         }
     };
 
-    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.GetInputs());
-    auto outputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.GetOutputs());
+    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetContext(), spec.GetInputs());
+    auto outputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetContext(), spec.GetOutputs());
 
     VerifyHasElements(inputs, "input");
     VerifyHasElements(outputs, "output");
@@ -319,7 +319,7 @@ TSimpleOperationIo CreateSimpleOperationIo(
         TOperationPreparationContext(
             inputs,
             outputs,
-            preparer.GetAuth(),
+            preparer.GetContext(),
             preparer.GetClientRetryPolicy(),
             preparer.GetTransactionId()),
         &inputs,
@@ -348,7 +348,7 @@ TSimpleOperationIo CreateSimpleOperationIo(
 
 TString GetJobStderrWithRetriesAndIgnoreErrors(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId,
     const TJobId& jobId,
     const size_t stderrTailSize,
@@ -358,7 +358,7 @@ TString GetJobStderrWithRetriesAndIgnoreErrors(
     try {
         jobStderr = GetJobStderrWithRetries(
             retryPolicy,
-            auth,
+            context,
             operationId,
             jobId,
             options);
@@ -376,13 +376,13 @@ TString GetJobStderrWithRetriesAndIgnoreErrors(
 
 TVector<TFailedJobInfo> GetFailedJobInfo(
     const IClientRetryPolicyPtr& clientRetryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId,
     const TGetFailedJobInfoOptions& options)
 {
     const auto listJobsResult = ListJobs(
         clientRetryPolicy->CreatePolicyForGenericRequest(),
-        auth,
+        context,
         operationId,
         TListJobsOptions()
             .State(EJobState::Failed)
@@ -404,7 +404,7 @@ TVector<TFailedJobInfo> GetFailedJobInfo(
             // so we ignore all errors and try our luck on other jobs.
             info.Stderr = GetJobStderrWithRetriesAndIgnoreErrors(
                 clientRetryPolicy->CreatePolicyForGenericRequest(),
-                auth,
+                context,
                 operationId,
                 *job.Id,
                 stderrTailSize);
@@ -426,13 +426,13 @@ struct TGetJobsStderrOptions
 
 static TVector<TString> GetJobsStderr(
     const IClientRetryPolicyPtr& clientRetryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId,
     const TGetJobsStderrOptions& options = TGetJobsStderrOptions())
 {
     const auto listJobsResult = ListJobs(
         clientRetryPolicy->CreatePolicyForGenericRequest(),
-        auth,
+        context,
         operationId,
         TListJobsOptions().Limit(options.MaxJobCount_).WithStderr(true));
     const auto stderrTailSize = options.StderrTailSize_;
@@ -446,7 +446,7 @@ static TVector<TString> GetJobsStderr(
             // so we ignore all errors and try our luck on other jobs.
             GetJobStderrWithRetriesAndIgnoreErrors(
                 clientRetryPolicy->CreatePolicyForGenericRequest(),
-                auth,
+                context,
                 operationId,
                 *job.Id,
                 stderrTailSize)
@@ -491,7 +491,7 @@ TSimpleOperationIo CreateSimpleOperationIoHelper(
         TOperationPreparationContext(
             structuredInputs,
             structuredOutputs,
-            preparer.GetAuth(),
+            preparer.GetContext(),
             preparer.GetClientRetryPolicy(),
             preparer.GetTransactionId()),
         &structuredInputs,
@@ -499,7 +499,7 @@ TSimpleOperationIo CreateSimpleOperationIoHelper(
         hints);
 
     TVector<TSmallJobFile> formatConfigList;
-    TFormatBuilder formatBuilder(preparer.GetClientRetryPolicy(), preparer.GetAuth(), preparer.GetTransactionId(), options);
+    TFormatBuilder formatBuilder(preparer.GetClientRetryPolicy(), preparer.GetContext(), preparer.GetTransactionId(), options);
 
     auto [inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
         structuredJob,
@@ -517,7 +517,7 @@ TSimpleOperationIo CreateSimpleOperationIoHelper(
         ENodeReaderFormat::Yson,
         /* allowFormatFromTableAttribute = */ false);
 
-    const bool inferOutputSchema = options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema);
+    const bool inferOutputSchema = options.InferOutputSchema_.GetOrElse(preparer.GetContext().Config->InferTableSchema);
 
     auto outputPaths = GetPathList(
         TStructuredJobTableList(structuredOutputs.begin() + intermediateOutputTableCount, structuredOutputs.end()),
@@ -546,12 +546,12 @@ TSimpleOperationIo CreateSimpleOperationIoHelper(
 
 EOperationBriefState CheckOperation(
     const IClientRetryPolicyPtr& clientRetryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId)
 {
     auto attributes = GetOperation(
         clientRetryPolicy->CreatePolicyForGenericRequest(),
-        auth,
+        context,
         operationId,
         TGetOperationOptions().AttributeFilter(TOperationAttributeFilter()
             .Add(EOperationAttribute::State)
@@ -569,7 +569,7 @@ EOperationBriefState CheckOperation(
 
         auto failedJobInfoList = GetFailedJobInfo(
             clientRetryPolicy,
-            auth,
+            context,
             operationId,
             TGetFailedJobInfoOptions());
 
@@ -587,16 +587,16 @@ EOperationBriefState CheckOperation(
 
 void WaitForOperation(
     const IClientRetryPolicyPtr& clientRetryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId)
 {
     const TDuration checkOperationStateInterval =
-        UseLocalModeOptimization(auth, clientRetryPolicy)
+        UseLocalModeOptimization(context, clientRetryPolicy)
         ? TDuration::MilliSeconds(100)
         : TDuration::Seconds(1);
 
     while (true) {
-        auto status = CheckOperation(clientRetryPolicy, auth, operationId);
+        auto status = CheckOperation(clientRetryPolicy, context, operationId);
         if (status == EOperationBriefState::Completed) {
             YT_LOG_INFO("Operation %v completed (%v)",
                 operationId,
@@ -699,10 +699,10 @@ void BuildUserJobFluently(
 }
 
 template <typename T>
-void BuildCommonOperationPart(const TOperationSpecBase<T>& baseSpec, const TOperationOptions& options, TFluentMap fluent)
+void BuildCommonOperationPart(const TConfigPtr& config, const TOperationSpecBase<T>& baseSpec, const TOperationOptions& options, TFluentMap fluent)
 {
     const TProcessState* properties = TProcessState::Get();
-    TString pool = TConfig::Get()->Pool;
+    TString pool = config->Pool;
 
     if (baseSpec.Pool_) {
         pool = *baseSpec.Pool_;
@@ -818,9 +818,9 @@ void BuildIntermediateDataPart(const TSpec& spec, TNode* nodeSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNode MergeSpec(TNode dst, const TOperationOptions& options)
+TNode MergeSpec(TNode dst, TNode spec, const TOperationOptions& options)
 {
-    MergeNodes(dst["spec"], TConfig::Get()->Spec);
+    MergeNodes(dst["spec"], spec);
     if (options.Spec_) {
         MergeNodes(dst["spec"], *options.Spec_);
     }
@@ -833,7 +833,7 @@ void CreateDebugOutputTables(const TSpec& spec, const TOperationPreparer& prepar
     if (spec.StderrTablePath_.Defined()) {
         NYT::NDetail::Create(
             preparer.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
-            preparer.GetAuth(),
+            preparer.GetContext(),
             TTransactionId(),
             *spec.StderrTablePath_,
             NT_TABLE,
@@ -844,7 +844,7 @@ void CreateDebugOutputTables(const TSpec& spec, const TOperationPreparer& prepar
     if (spec.CoreTablePath_.Defined()) {
         NYT::NDetail::Create(
             preparer.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
-            preparer.GetAuth(),
+            preparer.GetContext(),
             TTransactionId(),
             *spec.CoreTablePath_,
             NT_TABLE,
@@ -861,7 +861,7 @@ void CreateOutputTable(
     Y_ENSURE(path.Path_, "Output table is not set");
     Create(
         preparer.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
-        preparer.GetAuth(), preparer.GetTransactionId(), path.Path_, NT_TABLE,
+        preparer.GetContext(), preparer.GetTransactionId(), path.Path_, NT_TABLE,
         TCreateOptions()
             .IgnoreExisting(true)
             .Recursive(true));
@@ -886,7 +886,7 @@ void CheckInputTablesExist(
         Y_ENSURE_EX(
             Exists(
                 preparer.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
-                preparer.GetAuth(),
+                preparer.GetContext(),
                 curTransactionId,
                 path.Path_),
             TApiUsageError() << "Input table '" << path.Path_ << "' doesn't exist");
@@ -978,13 +978,13 @@ void DoExecuteMap(
         .DoIf(spec.Ordered_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("ordered").Value(spec.Ordered_.GetRef());
         })
-        .Do(std::bind(BuildCommonOperationPart<T>, spec, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<T>, preparer->GetContext().Config, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     specNode["spec"]["job_io"]["control_attributes"]["enable_row_index"] = TNode(true);
     specNode["spec"]["job_io"]["control_attributes"]["enable_range_index"] = TNode(true);
-    if (!TConfig::Get()->TableWriter.Empty()) {
-        specNode["spec"]["job_io"]["table_writer"] = TConfig::Get()->TableWriter;
+    if (!preparer->GetContext().Config->TableWriter.Empty()) {
+        specNode["spec"]["job_io"]["table_writer"] = preparer->GetContext().Config->TableWriter;
     }
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
@@ -992,7 +992,7 @@ void DoExecuteMap(
 
     auto startOperation = [
         operation=operation.Get(),
-        spec=MergeSpec(std::move(specNode), options),
+        spec=MergeSpec(std::move(specNode), preparer->GetContext().Config->Spec, options),
         preparer,
         operationIo,
         mapper
@@ -1100,14 +1100,14 @@ void DoExecuteReduce(
                 .Item("enable_row_index").Value(true)
                 .Item("enable_range_index").Value(true)
             .EndMap()
-            .DoIf(!TConfig::Get()->TableWriter.Empty(), [&] (TFluentMap fluent) {
-                fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
+            .DoIf(!preparer->GetContext().Config->TableWriter.Empty(), [&] (TFluentMap fluent) {
+                fluent.Item("table_writer").Value(preparer->GetContext().Config->TableWriter);
             })
         .EndMap()
         .DoIf(spec.AutoMerge_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("auto_merge").Value(BuildAutoMergeSpec(*spec.AutoMerge_));
         })
-        .Do(std::bind(BuildCommonOperationPart<T>, spec, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<T>, preparer->GetContext().Config, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
@@ -1115,7 +1115,7 @@ void DoExecuteReduce(
 
     auto startOperation = [
         operation=operation.Get(),
-        spec=MergeSpec(std::move(specNode), options),
+        spec=MergeSpec(std::move(specNode), preparer->GetContext().Config->Spec, options),
         preparer,
         operationIo,
         reducer
@@ -1217,11 +1217,11 @@ void DoExecuteJoinReduce(
                 .Item("enable_row_index").Value(true)
                 .Item("enable_range_index").Value(true)
             .EndMap()
-            .DoIf(!TConfig::Get()->TableWriter.Empty(), [&] (TFluentMap fluent) {
-                fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
+            .DoIf(!preparer->GetContext().Config->TableWriter.Empty(), [&] (TFluentMap fluent) {
+                fluent.Item("table_writer").Value(preparer->GetContext().Config->TableWriter);
             })
         .EndMap()
-        .Do(std::bind(BuildCommonOperationPart<T>, spec, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<T>, preparer->GetContext().Config, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
@@ -1229,7 +1229,7 @@ void DoExecuteJoinReduce(
 
     auto startOperation = [
         operation=operation.Get(),
-        spec=MergeSpec(std::move(specNode), options),
+        spec=MergeSpec(std::move(specNode), preparer->GetContext().Config->Spec, options),
         preparer,
         reducer,
         operationIo
@@ -1388,30 +1388,30 @@ void DoExecuteMapReduce(
                 .Item("enable_row_index").Value(true)
                 .Item("enable_range_index").Value(true)
             .EndMap()
-            .DoIf(!TConfig::Get()->TableWriter.Empty(), [&] (TFluentMap fluent) {
-                fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
+            .DoIf(!preparer->GetContext().Config->TableWriter.Empty(), [&] (TFluentMap fluent) {
+                fluent.Item("table_writer").Value(preparer->GetContext().Config->TableWriter);
             })
         .EndMap()
         .Item("sort_job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_key_switch").Value(true)
             .EndMap()
-            .DoIf(!TConfig::Get()->TableWriter.Empty(), [&] (TFluentMap fluent) {
-                fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
+            .DoIf(!preparer->GetContext().Config->TableWriter.Empty(), [&] (TFluentMap fluent) {
+                fluent.Item("table_writer").Value(preparer->GetContext().Config->TableWriter);
             })
         .EndMap()
         .Item("reduce_job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_key_switch").Value(true)
             .EndMap()
-            .DoIf(!TConfig::Get()->TableWriter.Empty(), [&] (TFluentMap fluent) {
-                fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
+            .DoIf(!preparer->GetContext().Config->TableWriter.Empty(), [&] (TFluentMap fluent) {
+                fluent.Item("table_writer").Value(preparer->GetContext().Config->TableWriter);
             })
         .EndMap()
         .Do([&] (TFluentMap) {
             spec.Title_ = spec.Title_.GetOrElse(AddModeToTitleIfDebug(title + "reducer:" + reduce.GetClassName()));
         })
-        .Do(std::bind(BuildCommonOperationPart<T>, spec, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<T>, preparer->GetContext().Config, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     if (spec.Ordered_) {
@@ -1426,7 +1426,7 @@ void DoExecuteMapReduce(
 
     auto startOperation = [
         operation=operation.Get(),
-        spec=MergeSpec(std::move(specNode), options),
+        spec=MergeSpec(std::move(specNode), preparer->GetContext().Config->Spec, options),
         preparer,
         mapper,
         reduceCombiner,
@@ -1462,11 +1462,11 @@ void ExecuteMapReduce(
     TMapReduceOperationSpec spec = spec_;
 
     TMapReduceOperationIo operationIo;
-    auto structuredInputs = CanonizeStructuredTableList(preparer->GetAuth(), spec.GetStructuredInputs());
-    auto structuredMapOutputs = CanonizeStructuredTableList(preparer->GetAuth(), spec.GetStructuredMapOutputs());
-    auto structuredOutputs = CanonizeStructuredTableList(preparer->GetAuth(), spec.GetStructuredOutputs());
+    auto structuredInputs = CanonizeStructuredTableList(preparer->GetContext(), spec.GetStructuredInputs());
+    auto structuredMapOutputs = CanonizeStructuredTableList(preparer->GetContext(), spec.GetStructuredMapOutputs());
+    auto structuredOutputs = CanonizeStructuredTableList(preparer->GetContext(), spec.GetStructuredOutputs());
 
-    const bool inferOutputSchema = options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema);
+    const bool inferOutputSchema = options.InferOutputSchema_.GetOrElse(preparer->GetContext().Config->InferTableSchema);
 
     TVector<TTableSchema> currentInferenceResult;
 
@@ -1490,7 +1490,7 @@ void ExecuteMapReduce(
 
     TFormatBuilder formatBuilder(
         preparer->GetClientRetryPolicy(),
-        preparer->GetAuth(),
+        preparer->GetContext(),
         preparer->GetTransactionId(),
         options);
 
@@ -1513,7 +1513,7 @@ void ExecuteMapReduce(
             TOperationPreparationContext(
                 structuredInputs,
                 mapperOutput,
-                preparer->GetAuth(),
+                preparer->GetContext(),
                 preparer->GetClientRetryPolicy(),
                 preparer->GetTransactionId()),
             &structuredInputs,
@@ -1582,7 +1582,7 @@ void ExecuteMapReduce(
                 TOperationPreparationContext(
                     inputs,
                     outputs,
-                    preparer->GetAuth(),
+                    preparer->GetContext(),
                     preparer->GetClientRetryPolicy(),
                     preparer->GetTransactionId()),
                 &inputs,
@@ -1647,7 +1647,7 @@ void ExecuteMapReduce(
             TOperationPreparationContext(
                 structuredInputs,
                 structuredOutputs,
-                preparer->GetAuth(),
+                preparer->GetContext(),
                 preparer->GetClientRetryPolicy(),
                 preparer->GetTransactionId()),
             &structuredInputs,
@@ -1727,9 +1727,9 @@ void ExecuteRawMapReduce(
     YT_LOG_DEBUG("Starting raw map-reduce operation (PreparationId: %v)",
         preparer->GetPreparationId());
     TMapReduceOperationIo operationIo;
-    operationIo.Inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetAuth(), spec.GetInputs());
-    operationIo.MapOutputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetAuth(), spec.GetMapOutputs());
-    operationIo.Outputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetAuth(), spec.GetOutputs());
+    operationIo.Inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetContext(), spec.GetInputs());
+    operationIo.MapOutputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetContext(), spec.GetMapOutputs());
+    operationIo.Outputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetContext(), spec.GetOutputs());
 
     VerifyHasElements(operationIo.Inputs, "inputs");
     VerifyHasElements(operationIo.Outputs, "outputs");
@@ -1776,8 +1776,8 @@ void ExecuteSort(
 {
     YT_LOG_DEBUG("Starting sort operation (PreparationId: %v)",
         preparer->GetPreparationId());
-    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetAuth(), spec.Inputs_);
-    auto output = CanonizeYPath(nullptr, preparer->GetAuth(), spec.Output_);
+    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetContext(), spec.Inputs_);
+    auto output = CanonizeYPath(nullptr, preparer->GetContext(), spec.Output_);
 
     if (options.CreateOutputTables_) {
         CheckInputTablesExist(*preparer, inputs);
@@ -1792,7 +1792,7 @@ void ExecuteSort(
         .DoIf(spec.SchemaInferenceMode_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("schema_inference_mode").Value(ToString(*spec.SchemaInferenceMode_));
         })
-        .Do(std::bind(BuildCommonOperationPart<TSortOperationSpec>, spec, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<TSortOperationSpec>, preparer->GetContext().Config, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     BuildPartitionCountOperationPart(spec, &specNode["spec"]);
@@ -1801,7 +1801,7 @@ void ExecuteSort(
 
     auto startOperation = [
         operation=operation.Get(),
-        spec=MergeSpec(std::move(specNode), options),
+        spec=MergeSpec(std::move(specNode), preparer->GetContext().Config->Spec, options),
         preparer,
         inputs,
         output
@@ -1825,8 +1825,8 @@ void ExecuteMerge(
 {
     YT_LOG_DEBUG("Starting merge operation (PreparationId: %v)",
         preparer->GetPreparationId());
-    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetAuth(), spec.Inputs_);
-    auto output = CanonizeYPath(nullptr, preparer->GetAuth(), spec.Output_);
+    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetContext(), spec.Inputs_);
+    auto output = CanonizeYPath(nullptr, preparer->GetContext(), spec.Output_);
 
     if (options.CreateOutputTables_) {
         CheckInputTablesExist(*preparer, inputs);
@@ -1844,14 +1844,14 @@ void ExecuteMerge(
         .DoIf(spec.SchemaInferenceMode_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("schema_inference_mode").Value(ToString(*spec.SchemaInferenceMode_));
         })
-        .Do(std::bind(BuildCommonOperationPart<TMergeOperationSpec>, spec, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<TMergeOperationSpec>, preparer->GetContext().Config, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     BuildJobCountOperationPart(spec, &specNode["spec"]);
 
     auto startOperation = [
         operation=operation.Get(),
-        spec=MergeSpec(std::move(specNode), options),
+        spec=MergeSpec(std::move(specNode), preparer->GetContext().Config->Spec, options),
         preparer,
         inputs,
         output
@@ -1875,7 +1875,7 @@ void ExecuteErase(
 {
     YT_LOG_DEBUG("Starting erase operation (PreparationId: %v)",
         preparer->GetPreparationId());
-    auto tablePath = CanonizeYPath(nullptr, preparer->GetAuth(), spec.TablePath_);
+    auto tablePath = CanonizeYPath(nullptr, preparer->GetContext(), spec.TablePath_);
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
@@ -1884,12 +1884,12 @@ void ExecuteErase(
         .DoIf(spec.SchemaInferenceMode_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("schema_inference_mode").Value(ToString(*spec.SchemaInferenceMode_));
         })
-        .Do(std::bind(BuildCommonOperationPart<TEraseOperationSpec>, spec, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<TEraseOperationSpec>, preparer->GetContext().Config, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     auto startOperation = [
         operation=operation.Get(),
-        spec=MergeSpec(std::move(specNode), options),
+        spec=MergeSpec(std::move(specNode), preparer->GetContext().Config->Spec, options),
         preparer,
         tablePath
     ] () {
@@ -1911,8 +1911,8 @@ void ExecuteRemoteCopy(
 {
     YT_LOG_DEBUG("Starting remote copy operation (PreparationId: %v)",
         preparer->GetPreparationId());
-    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetAuth(), spec.Inputs_);
-    auto output = CanonizeYPath(nullptr, preparer->GetAuth(), spec.Output_);
+    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetContext(), spec.Inputs_);
+    auto output = CanonizeYPath(nullptr, preparer->GetContext(), spec.Output_);
 
     if (options.CreateOutputTables_) {
         CreateOutputTable(*preparer, output);
@@ -1938,12 +1938,12 @@ void ExecuteRemoteCopy(
                 "doesn't make sense without CopyAttributes == true");
             fluent.Item("attribute_keys").List(spec.AttributeKeys_);
         })
-        .Do(std::bind(BuildCommonOperationPart<TRemoteCopyOperationSpec>, spec, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<TRemoteCopyOperationSpec>, preparer->GetContext().Config, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     auto startOperation = [
         operation=operation.Get(),
-        spec=MergeSpec(specNode, options),
+        spec=MergeSpec(specNode, preparer->GetContext().Config->Spec, options),
         preparer,
         inputs,
         output
@@ -2022,8 +2022,8 @@ void ExecuteVanilla(
                     })
                     .Item("output_table_paths").List(operationIo.Outputs)
                     .Item("job_io").BeginMap()
-                        .DoIf(!TConfig::Get()->TableWriter.Empty(), [&](TFluentMap fluent) {
-                            fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
+                        .DoIf(!preparer->GetContext().Config->TableWriter.Empty(), [&](TFluentMap fluent) {
+                            fluent.Item("table_writer").Value(preparer->GetContext().Config->TableWriter);
                         })
                         .Item("control_attributes").BeginMap()
                             .Item("enable_row_index").Value(TNode(true))
@@ -2041,12 +2041,12 @@ void ExecuteVanilla(
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .Item("tasks").DoMapFor(spec.Tasks_, addTask)
-        .Do(std::bind(BuildCommonOperationPart<TVanillaOperationSpec>, spec, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<TVanillaOperationSpec>, preparer->GetContext().Config, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
 
-    auto startOperation = [operation=operation.Get(), spec=MergeSpec(std::move(specNode), options), preparer] () {
+    auto startOperation = [operation=operation.Get(), spec=MergeSpec(std::move(specNode), preparer->GetContext().Config->Spec, options), preparer] () {
         auto operationId = preparer->StartOperation(operation, "vanilla", spec, /* useStartOperationRequest */ true);
         return operationId;
     };
@@ -2062,10 +2062,10 @@ class TOperation::TOperationImpl
 public:
     TOperationImpl(
         IClientRetryPolicyPtr clientRetryPolicy,
-        TAuth auth,
+        TClientContext context,
         const TMaybe<TOperationId>& operationId = {})
         : ClientRetryPolicy_(clientRetryPolicy)
-        , Auth_(std::move(auth))
+        , Context_(std::move(context))
         , Id_(operationId)
         , PreparedPromise_(::NThreading::NewPromise<void>())
         , StartedPromise_(::NThreading::NewPromise<void>())
@@ -2119,6 +2119,8 @@ public:
     void UpdateBriefProgress(TMaybe<TOperationBriefProgress> briefProgress);
     void AnalyzeUnrecognizedSpec(TNode unrecognizedSpec);
 
+    const TClientContext& GetContext() const;
+
 private:
     void OnStarted(const TOperationId& operationId);
 
@@ -2131,7 +2133,7 @@ private:
 
 private:
     IClientRetryPolicyPtr ClientRetryPolicy_;
-    const TAuth Auth_;
+    const TClientContext Context_;
     TMaybe<TOperationId> Id_;
     TMutex Lock_;
 
@@ -2216,7 +2218,7 @@ const TOperationId& TOperation::TOperationImpl::GetId() const
 TString TOperation::TOperationImpl::GetWebInterfaceUrl() const
 {
     ValidateOperationStarted();
-    return GetOperationWebInterfaceUrl(Auth_.ServerName, *Id_);
+    return GetOperationWebInterfaceUrl(Context_.ServerName, *Id_);
 }
 
 void TOperation::TOperationImpl::OnPrepared()
@@ -2327,7 +2329,7 @@ void TOperation::TOperationImpl::OnStatusUpdated(const TString& newStatus)
         auto registry = TAbortableRegistry::Get();
         registry->Add(
             operationId,
-            ::MakeIntrusive<TOperationAbortable>(this_->ClientRetryPolicy_, this_->Auth_, operationId));
+            ::MakeIntrusive<TOperationAbortable>(this_->ClientRetryPolicy_, this_->Context_, operationId));
         // We have to own an IntrusivePtr to registry to prevent use-after-free
         auto removeOperation = [registry, operationId] (const ::NThreading::TFuture<void>&) {
             registry->Remove(operationId);
@@ -2465,7 +2467,7 @@ void TOperation::TOperationImpl::UpdateAttributesAndCall(bool needJobStatistics,
 
     TOperationAttributes attributes = NDetail::GetOperation(
         ClientRetryPolicy_->CreatePolicyForGenericRequest(),
-        Auth_,
+        Context_,
         *Id_,
         TGetOperationOptions().AttributeFilter(TOperationAttributeFilter()
             .Add(EOperationAttribute::Result)
@@ -2490,49 +2492,49 @@ void TOperation::TOperationImpl::FinishWithException(std::exception_ptr e)
 void TOperation::TOperationImpl::AbortOperation()
 {
     ValidateOperationStarted();
-    NYT::NDetail::AbortOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, *Id_);
+    NYT::NDetail::AbortOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Context_, *Id_);
 }
 
 void TOperation::TOperationImpl::CompleteOperation()
 {
     ValidateOperationStarted();
-    NYT::NDetail::CompleteOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, *Id_);
+    NYT::NDetail::CompleteOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Context_, *Id_);
 }
 
 void TOperation::TOperationImpl::SuspendOperation(const TSuspendOperationOptions& options)
 {
     ValidateOperationStarted();
-    NYT::NDetail::SuspendOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, *Id_, options);
+    NYT::NDetail::SuspendOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Context_, *Id_, options);
 }
 
 void TOperation::TOperationImpl::ResumeOperation(const TResumeOperationOptions& options)
 {
     ValidateOperationStarted();
-    NYT::NDetail::ResumeOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, *Id_, options);
+    NYT::NDetail::ResumeOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Context_, *Id_, options);
 }
 
 TOperationAttributes TOperation::TOperationImpl::GetAttributes(const TGetOperationOptions& options)
 {
     ValidateOperationStarted();
-    return NYT::NDetail::GetOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, *Id_, options);
+    return NYT::NDetail::GetOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Context_, *Id_, options);
 }
 
 void TOperation::TOperationImpl::UpdateParameters(const TUpdateOperationParametersOptions& options)
 {
     ValidateOperationStarted();
-    return NYT::NDetail::UpdateOperationParameters(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, *Id_, options);
+    return NYT::NDetail::UpdateOperationParameters(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Context_, *Id_, options);
 }
 
 TJobAttributes TOperation::TOperationImpl::GetJob(const TJobId& jobId, const TGetJobOptions& options)
 {
     ValidateOperationStarted();
-    return NYT::NDetail::GetJob(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, *Id_, jobId, options);
+    return NYT::NDetail::GetJob(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Context_, *Id_, jobId, options);
 }
 
 TListJobsResult TOperation::TOperationImpl::ListJobs(const TListJobsOptions& options)
 {
     ValidateOperationStarted();
-    return NYT::NDetail::ListJobs(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, *Id_, options);
+    return NYT::NDetail::ListJobs(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Context_, *Id_, options);
 }
 
 struct TAsyncFinishOperationsArgs
@@ -2598,7 +2600,7 @@ void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttribu
         TVector<TFailedJobInfo> failedJobStderrInfo;
         if (*attributes.BriefState == EOperationBriefState::Failed) {
             try {
-                failedJobStderrInfo = NYT::NDetail::GetFailedJobInfo(ClientRetryPolicy_, Auth_, *Id_, TGetFailedJobInfoOptions());
+                failedJobStderrInfo = NYT::NDetail::GetFailedJobInfo(ClientRetryPolicy_, Context_, *Id_, TGetFailedJobInfoOptions());
             } catch (const std::exception& e) {
                 additionalExceptionText = "Cannot get job stderrs: ";
                 additionalExceptionText += e.what();
@@ -2624,17 +2626,22 @@ void TOperation::TOperationImpl::ValidateOperationStarted() const
     }
 }
 
+const TClientContext& TOperation::TOperationImpl::GetContext() const
+{
+    return Context_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperation::TOperation(TClientPtr client)
     : Client_(std::move(client))
-    , Impl_(::MakeIntrusive<TOperationImpl>(Client_->GetRetryPolicy(), Client_->GetAuth()))
+    , Impl_(::MakeIntrusive<TOperationImpl>(Client_->GetRetryPolicy(), Client_->GetContext()))
 {
 }
 
 TOperation::TOperation(TOperationId id, TClientPtr client)
     : Client_(std::move(client))
-    , Impl_(::MakeIntrusive<TOperationImpl>(Client_->GetRetryPolicy(), Client_->GetAuth(), id))
+    , Impl_(::MakeIntrusive<TOperationImpl>(Client_->GetRetryPolicy(), Client_->GetContext(), id))
 {
 }
 
@@ -2700,7 +2707,7 @@ void TOperation::OnStatusUpdated(const TString& newStatus)
 
 TVector<TFailedJobInfo> TOperation::GetFailedJobInfo(const TGetFailedJobInfoOptions& options)
 {
-    return NYT::NDetail::GetFailedJobInfo(Client_->GetRetryPolicy(), Client_->GetAuth(), GetId(), options);
+    return NYT::NDetail::GetFailedJobInfo(Client_->GetRetryPolicy(), Client_->GetContext(), GetId(), options);
 }
 
 EOperationBriefState TOperation::GetBriefState()
@@ -2813,7 +2820,7 @@ void* SyncPrepareAndStartOperation(void* pArgs)
 void WaitIfRequired(const TOperationPtr& operation, const TClientPtr& client, const TOperationOptions& options)
 {
     auto retryPolicy = client->GetRetryPolicy();
-    auto auth = client->GetAuth();
+    auto context = client->GetContext();
     if (options.StartOperationMode_ >= TOperationOptions::EStartOperationMode::SyncStart) {
         operation->GetStartedFuture().GetValueSync();
     }
@@ -2821,8 +2828,8 @@ void WaitIfRequired(const TOperationPtr& operation, const TClientPtr& client, co
         auto finishedFuture = operation->Watch();
         TWaitProxy::Get()->WaitFuture(finishedFuture);
         finishedFuture.GetValue();
-        if (TConfig::Get()->WriteStderrSuccessfulJobs) {
-            auto stderrs = GetJobsStderr(retryPolicy, auth, operation->GetId());
+        if (context.Config->WriteStderrSuccessfulJobs) {
+            auto stderrs = GetJobsStderr(retryPolicy, context, operation->GetId());
             for (const auto& jobStderr : stderrs) {
                 if (!jobStderr.empty()) {
                     Cerr << jobStderr << '\n';

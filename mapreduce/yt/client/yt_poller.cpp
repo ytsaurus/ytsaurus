@@ -20,8 +20,10 @@ using namespace NRawClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYtPoller::TYtPoller(TAuth auth, const IClientRetryPolicyPtr& retryPolicy)
-    : Auth_(std::move(auth))
+TYtPoller::TYtPoller(
+    TClientContext context,
+    const IClientRetryPolicyPtr& retryPolicy)
+    : Context_(std::move(context))
     , ClientRetryPolicy_(retryPolicy)
     , WaiterThread_(&TYtPoller::WatchLoopProc, this)
 {
@@ -82,7 +84,7 @@ void TYtPoller::WatchLoop()
             {
                 auto ug = Unguard(Lock_);  // allow adding new items into Pending_
                 TWaitProxy::Get()->SleepUntil(nextRequest);
-                nextRequest = TInstant::Now() + TConfig::Get()->WaitLockPollInterval;
+                nextRequest = TInstant::Now() + Context_.Config->WaitLockPollInterval;
             }
             if (!Pending_.empty()) {
                 InProgress_.splice(InProgress_.end(), Pending_);
@@ -90,15 +92,15 @@ void TYtPoller::WatchLoop()
             Y_VERIFY(!InProgress_.empty());
         }
 
-        TRawBatchRequest rawBatchRequest;
+        TRawBatchRequest rawBatchRequest(Context_.Config);
 
         for (auto& item : InProgress_) {
             item->PrepareRequest(&rawBatchRequest);
         }
 
         try {
-            ExecuteBatch(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, rawBatchRequest);
-        } catch (const yexception& ex) {
+            ExecuteBatch(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Context_, rawBatchRequest);
+        } catch (const std::exception& ex) {
             YT_LOG_ERROR("Exception while executing batch request: %v", ex.what());
         }
 

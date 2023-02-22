@@ -16,7 +16,7 @@ struct IYsonConsumer;
 
 namespace NYT {
 
-struct TAuth;
+struct TClientContext;
 enum class ENodeReaderFormat : int;
 
 namespace NDetail {
@@ -59,7 +59,7 @@ void Deserialize(NSkiff::TSkiffSchemaPtr& schema, const TNode& node);
 TFormat CreateSkiffFormat(const NSkiff::TSkiffSchemaPtr& schema);
 
 NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
-    const TAuth& auth,
+    const TClientContext& context,
     const IClientRetryPolicyPtr& clientRetryPolicy,
     const TTransactionId& transactionId,
     ENodeReaderFormat nodeReaderFormat,

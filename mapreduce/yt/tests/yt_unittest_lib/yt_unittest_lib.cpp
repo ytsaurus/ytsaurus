@@ -8,6 +8,8 @@
 
 #include <mapreduce/yt/interface/logging/yt_log.h>
 
+#include <mapreduce/yt/client/client.h>
+
 #include <util/stream/printf.h>
 
 #include <util/system/env.h>
@@ -171,7 +173,7 @@ bool operator == (const TOwningYaMRRow& row1, const TOwningYaMRRow& row2) {
 ////////////////////////////////////////////////////////////////////////////////
 
 TTestFixture::TTestFixture(const TCreateClientOptions& options)
-    : Client_(CreateTestClient("", options))
+    : Client_(CreateClient(options))
     , WorkingDir_(CreateTestDirectory(Client_))
 { }
 

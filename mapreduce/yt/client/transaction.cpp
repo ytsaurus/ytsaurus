@@ -27,12 +27,12 @@ namespace NYT {
 
 TPingableTransaction::TPingableTransaction(
     const IClientRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& parentId,
     ITransactionPingerPtr transactionPinger,
     const TStartTransactionOptions& options)
     : ClientRetryPolicy_(retryPolicy)
-    , Auth_(auth)
+    , Context_(context)
     , AbortableRegistry_(NDetail::TAbortableRegistry::Get())
     , AbortOnTermination_(true)
     , AutoPingable_(options.AutoPingable_)
@@ -40,22 +40,22 @@ TPingableTransaction::TPingableTransaction(
 {
     auto transactionId = NDetail::NRawClient::StartTransaction(
         ClientRetryPolicy_->CreatePolicyForGenericRequest(),
-        auth,
+        context,
         parentId,
         options);
 
-    auto actualTimeout = options.Timeout_.GetOrElse(TConfig::Get()->TxTimeout);
-    Init(auth, transactionId, actualTimeout);
+    auto actualTimeout = options.Timeout_.GetOrElse(Context_.Config->TxTimeout);
+    Init(context, transactionId, actualTimeout);
 }
 
 TPingableTransaction::TPingableTransaction(
     const IClientRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     ITransactionPingerPtr transactionPinger,
     const TAttachTransactionOptions& options)
     : ClientRetryPolicy_(retryPolicy)
-    , Auth_(auth)
+    , Context_(context)
     , AbortableRegistry_(NDetail::TAbortableRegistry::Get())
     , AbortOnTermination_(options.AbortOnTermination_)
     , AutoPingable_(options.AutoPingable_)
@@ -63,7 +63,7 @@ TPingableTransaction::TPingableTransaction(
 {
     auto timeoutNode = NDetail::NRawClient::TryGet(
         ClientRetryPolicy_->CreatePolicyForGenericRequest(),
-        auth,
+        context,
         TTransactionId(),
         "#" + GetGuidAsString(transactionId) + "/@timeout",
         TGetOptions());
@@ -71,11 +71,11 @@ TPingableTransaction::TPingableTransaction(
         throw yexception() << "Transaction " << GetGuidAsString(transactionId) << " does not exist";
     }
     auto timeout = TDuration::MilliSeconds(timeoutNode.AsInt64());
-    Init(auth, transactionId, timeout);
+    Init(context, transactionId, timeout);
 }
 
 void TPingableTransaction::Init(
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     TDuration timeout)
 {
@@ -84,12 +84,12 @@ void TPingableTransaction::Init(
     if (AbortOnTermination_) {
         AbortableRegistry_->Add(
             TransactionId_,
-            ::MakeIntrusive<NDetail::TTransactionAbortable>(auth, TransactionId_));
+            ::MakeIntrusive<NDetail::TTransactionAbortable>(context, TransactionId_));
     }
 
     if (AutoPingable_) {
         // Compute 'MaxPingInterval_' and 'MinPingInterval_' such that 'pingInterval == (max + min) / 2'.
-        auto pingInterval = TConfig::Get()->PingInterval;
+        auto pingInterval = Context_.Config->PingInterval;
         auto safeTimeout = timeout - TDuration::Seconds(5);
         MaxPingInterval_ = Max(pingInterval, Min(safeTimeout, pingInterval * 1.5));
         MinPingInterval_ = pingInterval - (MaxPingInterval_ - pingInterval);
@@ -115,8 +115,8 @@ const std::pair<TDuration, TDuration> TPingableTransaction::GetPingInterval() co
     return {MinPingInterval_, MaxPingInterval_};
 }
 
-const TAuth TPingableTransaction::GetAuth() const {
-    return Auth_;
+const TClientContext TPingableTransaction::GetContext() const {
+    return Context_;
 }
 
 void TPingableTransaction::Commit()
@@ -151,13 +151,13 @@ void TPingableTransaction::Stop(EStopAction action)
         case EStopAction::Commit:
             NDetail::NRawClient::CommitTransaction(
                 ClientRetryPolicy_->CreatePolicyForGenericRequest(),
-                Auth_,
+                Context_,
                 TransactionId_);
             break;
         case EStopAction::Abort:
             NDetail::NRawClient::AbortTransaction(
                 ClientRetryPolicy_->CreatePolicyForGenericRequest(),
-                Auth_,
+                Context_,
                 TransactionId_);
             break;
         case EStopAction::Detach:
@@ -172,19 +172,19 @@ void TPingableTransaction::Stop(EStopAction action)
 
 TYPath Snapshot(
     const IClientRetryPolicyPtr& clientRetryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& path)
 {
     auto lockId = NDetail::NRawClient::Lock(
         clientRetryPolicy->CreatePolicyForGenericRequest(),
-        auth,
+        context,
         transactionId,
         path,
         ELockMode::LM_SNAPSHOT);
     auto lockedNodeId = NDetail::NRawClient::Get(
         clientRetryPolicy->CreatePolicyForGenericRequest(),
-        auth,
+        context,
         transactionId,
         ::TStringBuilder() << '#' << GetGuidAsString(lockId) << "/@node_id");
     return "#" + lockedNodeId.AsString();

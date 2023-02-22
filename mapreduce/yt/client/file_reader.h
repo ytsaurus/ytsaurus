@@ -1,7 +1,10 @@
 #pragma once
 
 #include <mapreduce/yt/common/fwd.h>
+
 #include <mapreduce/yt/interface/io.h>
+
+#include <mapreduce/yt/http/context.h>
 #include <mapreduce/yt/http/requests.h>
 
 class IInputStream;
@@ -21,7 +24,7 @@ public:
     TStreamReaderBase(
         IClientRetryPolicyPtr clientRetryPolicy,
         ITransactionPingerPtr transactionPinger,
-        const TAuth& auth,
+        const TClientContext& context,
         const TTransactionId& transactionId);
 
     ~TStreamReaderBase();
@@ -29,14 +32,16 @@ public:
 protected:
     TYPath Snapshot(const TYPath& path);
 
+protected:
+    const TClientContext Context_;
+
 private:
     size_t DoRead(void* buf, size_t len) override;
-    virtual NHttpClient::IHttpResponsePtr Request(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes) = 0;
+    virtual NHttpClient::IHttpResponsePtr Request(const TClientContext& context, const TTransactionId& transactionId, ui64 readBytes) = 0;
     TString GetActiveRequestId() const;
 
 private:
     const IClientRetryPolicyPtr ClientRetryPolicy_;
-    const TAuth Auth_;
     TFileReaderOptions FileReaderOptions_;
 
     NHttpClient::IHttpResponsePtr Response_;
@@ -57,12 +62,12 @@ public:
         const TRichYPath& path,
         IClientRetryPolicyPtr clientRetryPolicy,
         ITransactionPingerPtr transactionPinger,
-        const TAuth& auth,
+        const TClientContext& context,
         const TTransactionId& transactionId,
         const TFileReaderOptions& options = TFileReaderOptions());
 
 private:
-    NHttpClient::IHttpResponsePtr Request(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes) override;
+    NHttpClient::IHttpResponsePtr Request(const TClientContext& context, const TTransactionId& transactionId, ui64 readBytes) override;
 
 private:
     TFileReaderOptions FileReaderOptions_;
@@ -83,12 +88,12 @@ public:
         const TKey& key,
         IClientRetryPolicyPtr clientRetryPolicy,
         ITransactionPingerPtr transactionPinger,
-        const TAuth& auth,
+        const TClientContext& context,
         const TTransactionId& transactionId,
         const TBlobTableReaderOptions& options);
 
 private:
-    NHttpClient::IHttpResponsePtr Request(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes) override;
+    NHttpClient::IHttpResponsePtr Request(const TClientContext& context, const TTransactionId& transactionId, ui64 readBytes) override;
 
 private:
     const TKey Key_;

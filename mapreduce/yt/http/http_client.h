@@ -2,6 +2,8 @@
 
 #include "fwd.h"
 
+#include <mapreduce/yt/interface/fwd.h>
+
 #include <util/datetime/base.h>
 
 #include <util/generic/maybe.h>
@@ -67,7 +69,7 @@ public:
 
 IHttpClientPtr CreateDefaultHttpClient();
 
-IHttpClientPtr CreateCoreHttpClient(bool useTLS);
+IHttpClientPtr CreateCoreHttpClient(bool useTLS, const TConfigPtr& config);
 
 ///////////////////////////////////////////////////////////////////////////////
 

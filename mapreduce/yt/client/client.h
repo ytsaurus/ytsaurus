@@ -5,6 +5,8 @@
 #include "transaction_pinger.h"
 
 #include <mapreduce/yt/interface/client.h>
+
+#include <mapreduce/yt/http/context.h>
 #include <mapreduce/yt/http/requests.h>
 
 namespace NYT {
@@ -13,6 +15,9 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYtPoller;
+
+class TClientBase;
+using TClientBasePtr = ::TIntrusivePtr<TClientBase>;
 
 class TClient;
 using TClientPtr = ::TIntrusivePtr<TClient>;
@@ -24,7 +29,7 @@ class TClientBase
 {
 public:
     TClientBase(
-        const TAuth& auth,
+        const TClientContext& context,
         const TTransactionId& transactionId,
         IClientRetryPolicyPtr retryPolicy);
 
@@ -217,7 +222,7 @@ public:
 
     IClientPtr GetParentClient() override;
 
-    const TAuth& GetAuth() const;
+    const TClientContext& GetContext() const;
 
     const IClientRetryPolicyPtr& GetRetryPolicy() const;
 
@@ -227,7 +232,7 @@ protected:
     virtual TClientPtr GetParentClientImpl() = 0;
 
 protected:
-    const TAuth Auth_;
+    const TClientContext Context_;
     TTransactionId TransactionId_;
     IClientRetryPolicyPtr ClientRetryPolicy_;
 
@@ -283,7 +288,7 @@ public:
     // Start a new transaction.
     TTransaction(
         TClientPtr parentClient,
-        const TAuth& auth,
+        const TClientContext& context,
         const TTransactionId& parentTransactionId,
         const TStartTransactionOptions& options);
 
@@ -291,7 +296,7 @@ public:
     // Attach an existing transaction.
     TTransaction(
         TClientPtr parentClient,
-        const TAuth& auth,
+        const TClientContext& context,
         const TTransactionId& transactionId,
         const TAttachTransactionOptions& options);
 
@@ -316,6 +321,7 @@ public:
 
     ITransactionPingerPtr GetTransactionPinger() override;
 
+protected:
     TClientPtr GetParentClientImpl() override;
 
 private:
@@ -332,7 +338,7 @@ class TClient
 {
 public:
     TClient(
-        const TAuth& auth,
+        const TClientContext& context,
         const TTransactionId& globalId,
         IClientRetryPolicyPtr retryPolicy);
 

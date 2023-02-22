@@ -51,7 +51,7 @@ TStructuredJobTableList NodeToStructuredTablePaths(const TNode& node, const TOpe
             paths.emplace_back(inputNode.AsString());
         }
     }
-    paths = NRawClient::CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), paths);
+    paths = NRawClient::CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetContext(), paths);
     TStructuredJobTableList result(intermediateTableCount, TStructuredJobTable::Intermediate(TUnspecifiedTableStructure()));
     for (const auto& path : paths) {
         result.emplace_back(TStructuredJobTable{TUnspecifiedTableStructure(), path});

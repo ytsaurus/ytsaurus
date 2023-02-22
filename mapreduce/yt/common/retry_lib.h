@@ -57,7 +57,7 @@ class TAttemptLimitedRetryPolicy
     : public IRequestRetryPolicy
 {
 public:
-    explicit TAttemptLimitedRetryPolicy(ui32 attemptLimit);
+    explicit TAttemptLimitedRetryPolicy(ui32 attemptLimit, const TConfigPtr& config);
 
     void NotifyNewAttempt() override;
 
@@ -68,6 +68,9 @@ public:
 
     bool IsAttemptLimitExceeded() const;
 
+protected:
+    const TConfigPtr Config_;
+
 private:
     const ui32 AttemptLimit_;
     ui32 Attempt_ = 0;
@@ -75,8 +78,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IRequestRetryPolicyPtr CreateDefaultRequestRetryPolicy();
-IClientRetryPolicyPtr CreateDefaultClientRetryPolicy(IRetryConfigProviderPtr retryConfigProvider);
+IRequestRetryPolicyPtr CreateDefaultRequestRetryPolicy(const TConfigPtr& config);
+IClientRetryPolicyPtr CreateDefaultClientRetryPolicy(IRetryConfigProviderPtr retryConfigProvider, const TConfigPtr& config);
 IRetryConfigProviderPtr CreateDefaultRetryConfigProvider();
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,11 +89,11 @@ bool IsRetriable(const TErrorResponse& errorResponse);
 bool IsRetriable(const std::exception& ex);
 
 // Get backoff duration for errors returned by YT.
-TDuration GetBackoffDuration(const TErrorResponse& errorResponse);
+TDuration GetBackoffDuration(const TErrorResponse& errorResponse, const TConfigPtr& config);
 
 // Get backoff duration for errors that are not TErrorResponse.
-TDuration GetBackoffDuration(const std::exception& error);
-TDuration GetBackoffDuration();
+TDuration GetBackoffDuration(const std::exception& error, const TConfigPtr& config);
+TDuration GetBackoffDuration(const TConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

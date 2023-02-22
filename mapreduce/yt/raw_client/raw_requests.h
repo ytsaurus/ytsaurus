@@ -3,6 +3,7 @@
 #include "raw_batch_request.h"
 
 #include <mapreduce/yt/common/fwd.h>
+#include <mapreduce/yt/http/context.h>
 #include <mapreduce/yt/interface/client_method_options.h>
 #include <mapreduce/yt/interface/operation.h>
 
@@ -11,7 +12,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class IRequestRetryPolicy;
-struct TAuth;
+struct TClientContext;
 struct TExecuteBatchOptions;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +31,7 @@ TCheckPermissionResponse ParseCheckPermissionResponse(const TNode& node);
 // marks `batchRequest' as executed
 void ExecuteBatch(
     IRequestRetryPolicyPtr retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     TRawBatchRequest& batchRequest,
     const TExecuteBatchOptions& options = TExecuteBatchOptions());
 
@@ -40,21 +41,21 @@ void ExecuteBatch(
 
 TNode Get(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& path,
     const TGetOptions& options = TGetOptions());
 
 TNode TryGet(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& path,
     const TGetOptions& options);
 
 void Set(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& path,
     const TNode& value,
@@ -62,7 +63,7 @@ void Set(
 
 void MultisetAttributes(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& path,
     const TNode::TMapType& value,
@@ -70,14 +71,14 @@ void MultisetAttributes(
 
 bool Exists(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& path,
     const TExistsOptions& options = TExistsOptions());
 
 TNodeId Create(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& path,
     const ENodeType& type,
@@ -85,7 +86,7 @@ TNodeId Create(
 
 TNodeId Copy(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& sourcePath,
     const TYPath& destinationPath,
@@ -93,7 +94,7 @@ TNodeId Copy(
 
 TNodeId Move(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& sourcePath,
     const TYPath& destinationPath,
@@ -101,21 +102,21 @@ TNodeId Move(
 
 void Remove(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& path,
     const TRemoveOptions& options = TRemoveOptions());
 
 TNode::TListType List(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& path,
     const TListOptions& options = TListOptions());
 
 TNodeId Link(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& targetPath,
     const TYPath& linkPath,
@@ -123,7 +124,7 @@ TNodeId Link(
 
 TLockId Lock(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& path,
     ELockMode mode,
@@ -131,13 +132,13 @@ TLockId Lock(
 
 void Unlock(
     IRequestRetryPolicyPtr retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& path,
     const TUnlockOptions& options = TUnlockOptions());
 
 void Concatenate(
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TVector<TRichYPath>& sourcePaths,
     const TRichYPath& destinationPath,
@@ -149,7 +150,7 @@ void Concatenate(
 
 void PingTx(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId);
 
 //
@@ -158,40 +159,40 @@ void PingTx(
 
 TOperationAttributes GetOperation(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId,
     const TGetOperationOptions& options = TGetOperationOptions());
 
 void AbortOperation(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId);
 
 void CompleteOperation(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId);
 
 void SuspendOperation(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId,
     const TSuspendOperationOptions& options = TSuspendOperationOptions());
 
 void ResumeOperation(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId,
     const TResumeOperationOptions& options = TResumeOperationOptions());
 
 TListOperationsResult ListOperations(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TListOperationsOptions& options = TListOperationsOptions());
 
 void UpdateOperationParameters(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId,
     const TUpdateOperationParametersOptions& options = TUpdateOperationParametersOptions());
 
@@ -201,37 +202,37 @@ void UpdateOperationParameters(
 
 TJobAttributes GetJob(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId,
     const TJobId& jobId,
     const TGetJobOptions& options = TGetJobOptions());
 
 TListJobsResult ListJobs(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId,
     const TListJobsOptions& options = TListJobsOptions());
 
 ::TIntrusivePtr<IFileReader> GetJobInput(
-    const TAuth& auth,
+    const TClientContext& context,
     const TJobId& jobId,
     const TGetJobInputOptions& options = TGetJobInputOptions());
 
 ::TIntrusivePtr<IFileReader> GetJobFailContext(
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId,
     const TJobId& jobId,
     const TGetJobFailContextOptions& options = TGetJobFailContextOptions());
 
 TString GetJobStderrWithRetries(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId,
     const TJobId& jobId,
     const TGetJobStderrOptions& /* options */ = TGetJobStderrOptions());
 
 ::TIntrusivePtr<IFileReader> GetJobStderr(
-    const TAuth& auth,
+    const TClientContext& context,
     const TOperationId& operationId,
     const TJobId& jobId,
     const TGetJobStderrOptions& options = TGetJobStderrOptions());
@@ -242,7 +243,7 @@ TString GetJobStderrWithRetries(
 
 TMaybe<TYPath> GetFileFromCache(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TString& md5Signature,
     const TYPath& cachePath,
@@ -250,7 +251,7 @@ TMaybe<TYPath> GetFileFromCache(
 
 TYPath PutFileToCache(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& filePath,
     const TString& md5Signature,
@@ -263,7 +264,7 @@ TYPath PutFileToCache(
 
 TNode::TListType SkyShareTable(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const std::vector<TYPath>& tablePaths,
     const TSkyShareTableOptions& options);
 
@@ -273,7 +274,7 @@ TNode::TListType SkyShareTable(
 
 TCheckPermissionResponse CheckPermission(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TString& user,
     EPermission permission,
     const TYPath& path,
@@ -281,33 +282,33 @@ TCheckPermissionResponse CheckPermission(
 
 TVector<TTabletInfo> GetTabletInfos(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TYPath& path,
     const TVector<int>& tabletIndexes,
     const TGetTabletInfosOptions& options);
 
 TVector<TTableColumnarStatistics> GetTableColumnarStatistics(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TVector<TRichYPath>& paths,
     const TGetTableColumnarStatisticsOptions& options);
 
 TMultiTablePartitions GetTablePartitions(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TVector<TRichYPath>& paths,
     const TGetTablePartitionsOptions& options);
 
 TRichYPath CanonizeYPath(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TRichYPath& path);
 
 TVector<TRichYPath> CanonizeYPaths(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TVector<TRichYPath>& paths);
 
 //
@@ -316,33 +317,33 @@ TVector<TRichYPath> CanonizeYPaths(
 
 void AlterTable(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId,
     const TYPath& path,
     const TAlterTableOptions& options);
 
 void AlterTableReplica(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TReplicaId& replicaId,
     const TAlterTableReplicaOptions& options);
 
 void DeleteRows(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TYPath& path,
     const TNode::TListType& keys,
     const TDeleteRowsOptions& options);
 
 void FreezeTable(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TYPath& path,
     const TFreezeTableOptions& options);
 
 void UnfreezeTable(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TYPath& path,
     const TUnfreezeTableOptions& options);
 
@@ -350,17 +351,17 @@ void UnfreezeTable(
 // Transactions
 void AbortTransaction(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId);
 
 void CommitTransaction(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& transactionId);
 
 TTransactionId StartTransaction(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TTransactionId& parentId,
     const TStartTransactionOptions& options);
 
@@ -369,18 +370,18 @@ TTransactionId StartTransaction(
 template<typename TSrc, typename TBatchAdder>
 auto BatchTransform(
     const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     const TSrc& src,
     TBatchAdder batchAdder,
     const TExecuteBatchOptions& executeBatchOptions = {})
 {
-    TRawBatchRequest batch;
+    TRawBatchRequest batch(context.Config);
     using TFuture = decltype(batchAdder(batch, *std::begin(src)));
     TVector<TFuture> futures;
     for (const auto& el : src) {
         futures.push_back(batchAdder(batch, el));
     }
-    ExecuteBatch(retryPolicy, auth, batch, executeBatchOptions);
+    ExecuteBatch(retryPolicy, context, batch, executeBatchOptions);
     using TDst = decltype(futures[0].ExtractValueSync());
     TVector<TDst> result;
     result.reserve(std::size(src));

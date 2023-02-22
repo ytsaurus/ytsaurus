@@ -1,5 +1,6 @@
 #include "retry_request.h"
 
+#include "context.h"
 #include "helpers.h"
 #include "http_client.h"
 #include "requests.h"
@@ -20,7 +21,7 @@ namespace NDetail {
 ///////////////////////////////////////////////////////////////////////////////
 
 static TResponseInfo Request(
-    const TAuth& auth,
+    const TClientContext& context,
     THttpHeader& header,
     TMaybe<TStringBuf> body,
     const TString& requestId,
@@ -28,14 +29,14 @@ static TResponseInfo Request(
 {
     TString hostName;
     if (config.IsHeavy) {
-        hostName = GetProxyForHeavyRequest(auth);
+        hostName = GetProxyForHeavyRequest(context);
     } else {
-        hostName = auth.ServerName;
+        hostName = context.ServerName;
     }
 
-    auto url = GetFullUrl(hostName, auth, header);
+    auto url = GetFullUrl(hostName, context, header);
 
-    auto response = auth.HttpClient->Request(url, requestId, config.HttpConfig, header, body);
+    auto response = context.HttpClient->Request(url, requestId, config.HttpConfig, header, body);
 
     TResponseInfo result;
     result.RequestId = requestId;
@@ -45,14 +46,14 @@ static TResponseInfo Request(
 }
 
 TResponseInfo RequestWithoutRetry(
-    const TAuth& auth,
+    const TClientContext& context,
     THttpHeader& header,
     TMaybe<TStringBuf> body,
     const TRequestConfig& config)
 {
-    header.SetToken(auth.Token);
-    if (auth.ServiceTicketAuth) {
-        header.SetServiceTicket(auth.ServiceTicketAuth->Ptr->IssueServiceTicket());
+    header.SetToken(context.Token);
+    if (context.ServiceTicketAuth) {
+        header.SetServiceTicket(context.ServiceTicketAuth->Ptr->IssueServiceTicket());
     }
 
     if (header.HasMutationId()) {
@@ -60,27 +61,27 @@ TResponseInfo RequestWithoutRetry(
         header.AddMutationId();
     }
     auto requestId = CreateGuidAsString();
-    return Request(auth, header, body, requestId, config);
+    return Request(context, header, body, requestId, config);
 }
 
 
 TResponseInfo RetryRequestWithPolicy(
     IRequestRetryPolicyPtr retryPolicy,
-    const TAuth& auth,
+    const TClientContext& context,
     THttpHeader& header,
     TMaybe<TStringBuf> body,
     const TRequestConfig& config)
 {
-    header.SetToken(auth.Token);
-    if (auth.ServiceTicketAuth) {
-        header.SetServiceTicket(auth.ServiceTicketAuth->Ptr->IssueServiceTicket());
+    header.SetToken(context.Token);
+    if (context.ServiceTicketAuth) {
+        header.SetServiceTicket(context.ServiceTicketAuth->Ptr->IssueServiceTicket());
     }
 
     bool useMutationId = header.HasMutationId();
     bool retryWithSameMutationId = false;
 
     if (!retryPolicy) {
-        retryPolicy = CreateDefaultRequestRetryPolicy();
+        retryPolicy = CreateDefaultRequestRetryPolicy(context.Config);
     }
 
     while (true) {
@@ -97,7 +98,7 @@ TResponseInfo RetryRequestWithPolicy(
                 }
             }
 
-            return Request(auth, header, body, requestId, config);
+            return Request(context, header, body, requestId, config);
         } catch (const TErrorResponse& e) {
             LogRequestError(requestId, header, e.GetError().GetMessage(), retryPolicy->GetAttemptDescription());
             retryWithSameMutationId = e.IsTransportError();

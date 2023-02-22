@@ -4,6 +4,7 @@
 
 #include <mapreduce/yt/interface/io.h>
 
+#include <mapreduce/yt/http/context.h>
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/http/http_client.h>
@@ -22,7 +23,7 @@ public:
         const TRichYPath& path,
         IClientRetryPolicyPtr clientRetryPolicy,
         ITransactionPingerPtr transactionPinger,
-        const TAuth& auth,
+        const TClientContext& context,
         const TTransactionId& transactionId,
         const TFormat& format,
         const TTableReaderOptions& options,
@@ -42,7 +43,7 @@ protected:
 private:
     TRichYPath Path_;
     const IClientRetryPolicyPtr ClientRetryPolicy_;
-    const TAuth Auth_;
+    const TClientContext Context_;
     TTransactionId ParentTransactionId_;
     TMaybe<TFormat> Format_;
     TTableReaderOptions Options_;
