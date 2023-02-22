@@ -31,8 +31,6 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
-#include <yt/yt/library/tvm/tvm.h>
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT::NCppTests {

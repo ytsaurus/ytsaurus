@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/library/tvm/tvm.h>
+#include <yt/yt/library/tvm/tvm_base.h>
 
 #include <library/cpp/yt/memory/intrusive_ptr.h>
 

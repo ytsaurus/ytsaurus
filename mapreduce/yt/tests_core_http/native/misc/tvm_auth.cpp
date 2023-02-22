@@ -6,6 +6,8 @@
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/tvm.h>
 
+#include <yt/yt/library/tvm/tvm.h>
+
 #include <library/cpp/testing/unittest/registar.h>
 
 #include <library/cpp/tvmauth/client/mocked_updater.h>
