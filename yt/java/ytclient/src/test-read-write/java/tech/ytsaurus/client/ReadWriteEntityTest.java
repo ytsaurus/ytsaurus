@@ -41,11 +41,10 @@ public class ReadWriteEntityTest extends ReadWriteTestBase {
         TableWriter<ReadWriteTest.Row> writer = yt.writeTable(
                 WriteTable.<ReadWriteTest.Row>builder()
                         .setPath(path)
-                        .setSerializationContext(
-                                new SerializationContext<>(ReadWriteTest.Row.class)
-                        )
+                        .setSerializationContext(new SerializationContext<>(ReadWriteTest.Row.class))
                         .setNeedRetries(needRetries)
-                        .build()).join();
+                        .build()
+        ).join();
 
         List<Row> rows = generator.nextRows();
 
@@ -60,12 +59,8 @@ public class ReadWriteEntityTest extends ReadWriteTestBase {
         writer.close().join();
 
         TableReader<ReadWriteTest.Row> reader = yt.readTable(
-                ReadTable.<ReadWriteTest.Row>builder()
-                        .setPath(path)
-                        .setSerializationContext(
-                                new SerializationContext<>(ReadWriteTest.Row.class)
-                        )
-                        .build()).join();
+                new ReadTable<>(path, ReadWriteTest.Row.class)
+        ).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
 

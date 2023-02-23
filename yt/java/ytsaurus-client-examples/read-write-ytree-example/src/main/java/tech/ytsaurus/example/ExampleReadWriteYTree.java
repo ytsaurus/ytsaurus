@@ -7,7 +7,6 @@ import tech.ytsaurus.client.TableReader;
 import tech.ytsaurus.client.TableWriter;
 import tech.ytsaurus.client.YTsaurusClient;
 import tech.ytsaurus.client.request.ReadTable;
-import tech.ytsaurus.client.request.SerializationContext;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.ColumnValueType;
@@ -34,12 +33,8 @@ public class ExampleReadWriteYTree {
 
             // Create the writer.
             TableWriter<YTreeMapNode> writer = client.writeTable(
-                    WriteTable.<YTreeMapNode>builder()
-                            .setPath(table)
-                            .setSerializationContext(
-                                    new SerializationContext<>(YTreeMapNode.class))
-                            .setNeedRetries(true)
-                            .build()).join();
+                    new WriteTable<>(table, YTreeMapNode.class)
+            ).join();
 
             TableSchema tableSchema = TableSchema.builder()
                     .addValue("english", ColumnValueType.STRING)
@@ -78,12 +73,8 @@ public class ExampleReadWriteYTree {
 
             // Create the reader.
             TableReader<YTreeMapNode> reader = client.readTable(
-                            ReadTable.<YTreeMapNode>builder()
-                                    .setPath(table)
-                                    .setSerializationContext(
-                                            new SerializationContext<>(YTreeMapNode.class))
-                                    .build())
-                    .join();
+                    new ReadTable<>(table, YTreeMapNode.class)
+            ).join();
 
             List<YTreeMapNode> rows = new ArrayList<>();
 

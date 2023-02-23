@@ -160,7 +160,7 @@ public class EntitySkiffDeserializerTest {
 
         byte[] bytes = new EntitySkiffSerializer<>(Person.class).serialize(person);
 
-        Person deserializedPerson = new EntitySkiffDeserializer<>(Person.class)
+        Person deserializedPerson = new EntitySkiffSerializer<>(Person.class)
                 .deserialize(bytes)
                 .get();
 

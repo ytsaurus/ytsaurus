@@ -16,7 +16,6 @@ import tech.ytsaurus.core.operations.Yield;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.skiff.schema.SkiffSchema;
 import tech.ytsaurus.skiff.schema.WireType;
-import tech.ytsaurus.skiff.serialization.EntitySkiffDeserializer;
 import tech.ytsaurus.skiff.serialization.EntitySkiffSerializer;
 import tech.ytsaurus.skiff.serialization.EntityTableSchemaCreator;
 import tech.ytsaurus.skiff.serialization.SkiffParser;
@@ -62,8 +61,8 @@ public class EntityTableEntryType<T> implements YTableEntryType<T> {
         context.withSettingIndices(trackIndices, trackIndices);
         var parser = new SkiffParser(input);
         return new CloseableIterator<>() {
-            private final EntitySkiffDeserializer<T> entitySkiffDeserializer =
-                    new EntitySkiffDeserializer<>(entityClass);
+            private final EntitySkiffSerializer<T> skiffSerializer =
+                    new EntitySkiffSerializer<>(entityClass);
             long rowIndex = 0;
             short tableIndex = 0;
 
@@ -75,7 +74,7 @@ public class EntityTableEntryType<T> implements YTableEntryType<T> {
             @Override
             public T next() {
                 tableIndex = parser.parseInt16();
-                var object = entitySkiffDeserializer.deserialize(parser)
+                var object = skiffSerializer.deserialize(parser)
                         .orElseThrow(NoSuchElementException::new);
                 if (trackIndices) {
                     rowIndex++;

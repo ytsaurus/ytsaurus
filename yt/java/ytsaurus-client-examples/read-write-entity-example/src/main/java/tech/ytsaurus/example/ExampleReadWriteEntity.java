@@ -9,7 +9,6 @@ import tech.ytsaurus.client.TableReader;
 import tech.ytsaurus.client.TableWriter;
 import tech.ytsaurus.client.YTsaurusClient;
 import tech.ytsaurus.client.request.ReadTable;
-import tech.ytsaurus.client.request.SerializationContext;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.core.cypress.YPath;
 
@@ -51,11 +50,8 @@ public class ExampleReadWriteEntity {
 
             // Create the writer.
             TableWriter<TableRow> writer = client.writeTable(
-                    WriteTable.<TableRow>builder()
-                            .setPath(table)
-                            .setSerializationContext(new SerializationContext<>(TableRow.class))
-                            .setNeedRetries(true)
-                            .build()).join();
+                    new WriteTable<>(table, TableRow.class)
+            ).join();
 
             try {
                 while (true) {
@@ -83,10 +79,8 @@ public class ExampleReadWriteEntity {
 
             // Create the reader.
             TableReader<TableRow> reader = client.readTable(
-                    ReadTable.<TableRow>builder()
-                            .setPath(table)
-                            .setSerializationContext(new SerializationContext<>(TableRow.class))
-                            .build()).join();
+                    new ReadTable<>(table, TableRow.class)
+            ).join();
 
             List<TableRow> rows = new ArrayList<>();
 
