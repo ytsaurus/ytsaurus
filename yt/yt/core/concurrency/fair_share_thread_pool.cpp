@@ -1,11 +1,12 @@
 #include "fair_share_thread_pool.h"
+
 #include "private.h"
 #include "invoker_queue.h"
 #include "profiling_helpers.h"
 #include "scheduler_thread.h"
 #include "thread_pool_detail.h"
 
-#include <yt/yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/current_invoker.h>
 
 #include <yt/yt/core/misc/heap.h>
 #include <yt/yt/core/misc/ring_queue.h>

@@ -1,7 +1,7 @@
 #include "cancelable_context.h"
 #include "callback.h"
 #include "invoker_detail.h"
-#include "invoker_util.h"
+#include "current_invoker.h"
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -35,7 +35,7 @@ public:
                 return;
             }
 
-            TCurrentInvokerGuard guard(this_);
+            TCurrentInvokerGuard guard(this);
             callback();
         }));
     }

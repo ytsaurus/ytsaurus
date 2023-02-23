@@ -39,6 +39,8 @@
 
 #include <yt/yt/core/compression/codec.h>
 
+#include <yt/yt/core/actions/current_invoker.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NChaosClient;
@@ -146,7 +148,8 @@ private:
             replicationEra);
 
         // NB: Must serve the whole request within a single epoch.
-        TCurrentInvokerGuard invokerGuard(Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
+        auto epochInvoker = Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write);
+        TCurrentInvokerGuard invokerGuard(epochInvoker.Get());
 
         auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
 

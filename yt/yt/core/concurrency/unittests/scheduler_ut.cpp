@@ -1,7 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
-#include <yt/yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/current_invoker.h>
 // TODO(lukyan): Move invoker_detail to concurrency? Merge concurrency and actions?
 #include <yt/yt/core/actions/invoker_detail.h>
 
