@@ -15,7 +15,7 @@ import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.ColumnSortOrder;
 import tech.ytsaurus.core.tables.TableSchema;
-import tech.ytsaurus.type_info.TiType;
+import tech.ytsaurus.typeinfo.TiType;
 import tech.ytsaurus.ysontree.YTree;
 
 

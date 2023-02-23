@@ -5,8 +5,8 @@ import java.util.Objects;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.lang.NonNullFields;
-import tech.ytsaurus.type_info.TiType;
-import tech.ytsaurus.type_info.TypeIO;
+import tech.ytsaurus.typeinfo.TiType;
+import tech.ytsaurus.typeinfo.TypeIO;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeConvertible;

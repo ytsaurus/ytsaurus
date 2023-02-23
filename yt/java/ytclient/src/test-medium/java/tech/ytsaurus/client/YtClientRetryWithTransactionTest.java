@@ -21,7 +21,7 @@ import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
-import tech.ytsaurus.type_info.TiType;
+import tech.ytsaurus.typeinfo.TiType;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;

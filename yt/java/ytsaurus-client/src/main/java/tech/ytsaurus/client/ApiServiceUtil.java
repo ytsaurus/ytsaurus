@@ -24,8 +24,8 @@ import tech.ytsaurus.rpcproxy.ERowsetKind;
 import tech.ytsaurus.rpcproxy.TColumnSchema;
 import tech.ytsaurus.rpcproxy.TRowsetDescriptor;
 import tech.ytsaurus.rpcproxy.TTableSchema;
-import tech.ytsaurus.type_info.TiType;
-import tech.ytsaurus.type_info.TypeIO;
+import tech.ytsaurus.typeinfo.TiType;
+import tech.ytsaurus.typeinfo.TypeIO;
 
 public class ApiServiceUtil {
     public static final long MICROS_PER_SECOND = 1_000_000L;

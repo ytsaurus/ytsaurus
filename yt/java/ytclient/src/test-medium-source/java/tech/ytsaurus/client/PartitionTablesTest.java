@@ -24,7 +24,7 @@ import tech.ytsaurus.core.cypress.RangeLimit;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.TableSchema;
-import tech.ytsaurus.type_info.TiType;
+import tech.ytsaurus.typeinfo.TiType;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 

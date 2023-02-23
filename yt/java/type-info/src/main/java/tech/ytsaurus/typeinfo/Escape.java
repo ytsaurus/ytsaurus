@@ -1,4 +1,4 @@
-package tech.ytsaurus.type_info;
+package tech.ytsaurus.typeinfo;
 
 import java.util.HashMap;
 import java.util.Map;

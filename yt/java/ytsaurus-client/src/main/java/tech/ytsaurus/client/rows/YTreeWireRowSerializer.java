@@ -15,7 +15,7 @@ import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.rpcproxy.TRowsetDescriptor;
-import tech.ytsaurus.type_info.TiType;
+import tech.ytsaurus.typeinfo.TiType;
 import tech.ytsaurus.yson.ClosableYsonConsumer;
 import tech.ytsaurus.yson.YsonConsumer;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;

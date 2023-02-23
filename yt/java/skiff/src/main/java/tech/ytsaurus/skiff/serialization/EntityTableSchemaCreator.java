@@ -11,8 +11,8 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.TableSchema;
-import tech.ytsaurus.type_info.StructType;
-import tech.ytsaurus.type_info.TiType;
+import tech.ytsaurus.typeinfo.StructType;
+import tech.ytsaurus.typeinfo.TiType;
 
 import static tech.ytsaurus.core.utils.ClassUtils.anyMatchWithAnnotation;
 import static tech.ytsaurus.core.utils.ClassUtils.anyOfAnnotationsPresent;

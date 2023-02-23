@@ -1,4 +1,4 @@
-package tech.ytsaurus.type_info;
+package tech.ytsaurus.typeinfo;
 
 public class TypeInfoException extends RuntimeException {
     public TypeInfoException(String message) {

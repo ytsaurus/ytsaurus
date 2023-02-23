@@ -43,7 +43,7 @@ import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.rpcproxy.ETransactionType;
-import tech.ytsaurus.type_info.TiType;
+import tech.ytsaurus.typeinfo.TiType;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;

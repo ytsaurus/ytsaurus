@@ -1,4 +1,4 @@
-package tech.ytsaurus.type_info;
+package tech.ytsaurus.typeinfo;
 
 import java.io.BufferedReader;
 import java.io.IOException;
