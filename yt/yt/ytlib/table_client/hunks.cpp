@@ -1332,7 +1332,7 @@ protected:
     TSharedRange<TImmutableRow> EncodedRows_;
     int CurrentEncodedRowIndex_ = 0;
 
-    TSharedRange<TMutableRow> DecodableRows_;
+    std::vector<TMutableRow> DecodableRows_;
 
     IRowBatchPtr ReadyRowBatch_;
 
@@ -1348,7 +1348,6 @@ protected:
         const THunkValueChecker& valueChecker)
     {
         if (ReadyRowBatch_) {
-            DecodableRows_ = {};
             return std::move(ReadyRowBatch_);
         }
 
@@ -1371,12 +1370,11 @@ protected:
         }
 
         RowBuffer_->Clear();
+        DecodableRows_.clear();
 
         int hunkCount = 0;
         i64 totalHunkLength = 0;
-        std::vector<TMutableRow> mutableRows;
         std::vector<TUnversionedValue*> values;
-
         auto startRowIndex = CurrentEncodedRowIndex_;
         while (CurrentEncodedRowIndex_ < std::ssize(EncodedRows_) &&
                hunkCount < Config_->MaxHunkCountPerRead &&
@@ -1384,7 +1382,7 @@ protected:
         {
             auto row = EncodedRows_[CurrentEncodedRowIndex_++];
             auto mutableRow = RowBuffer_->CaptureRow(row, /*captureValues*/ false);
-            mutableRows.push_back(mutableRow);
+            DecodableRows_.push_back(mutableRow);
             rowVisitor.ForEachHunkValue(
                 mutableRow,
                 [&] (TUnversionedValue* value) {
@@ -1397,8 +1395,6 @@ protected:
         }
         auto endRowIndex = CurrentEncodedRowIndex_;
 
-        auto sharedMutableRows = MakeSharedRange(std::move(mutableRows), MakeStrong(this));
-
         YT_LOG_DEBUG("Fetching hunks in row slice (StartRowIndex: %v, EndRowIndex: %v, HunkCount: %v, TotalHunkLength: %v)",
             startRowIndex,
             endRowIndex,
@@ -1406,10 +1402,8 @@ protected:
             totalHunkLength);
 
         if (values.empty()) {
-            return MakeBatch(std::move(sharedMutableRows));
+            return MakeBatch(MakeSharedRange(std::move(DecodableRows_), MakeStrong(this)));
         }
-
-        DecodableRows_ = std::move(sharedMutableRows);
 
         ReadyEvent_ =
             DecodeHunks(
@@ -1417,9 +1411,7 @@ protected:
                 Options_,
                 MakeSharedRange(std::move(values), DecodableRows_))
             .ApplyUnique(
-                BIND(&TBatchHunkReader::OnHunksRead,
-                    MakeStrong(this),
-                    DecodableRows_));
+                BIND(&TBatchHunkReader::OnHunksRead, MakeStrong(this)));
 
         return CreateEmptyRowBatch<TImmutableRow>();
     }
@@ -1433,13 +1425,11 @@ private:
             std::move(mutableRows.ReleaseHolder())));
     }
 
-    void OnHunksRead(
-        const TSharedRange<TMutableRow>& sharedMutableRows,
-        TSharedRange<TUnversionedValue*>&& sharedValues)
+    void OnHunksRead(TSharedRange<TUnversionedValue*>&& sharedValues)
     {
         ReadyRowBatch_ = MakeBatch(MakeSharedRange(
-            sharedMutableRows,
-            sharedMutableRows,
+            std::move(DecodableRows_),
+            MakeStrong(this),
             std::move(sharedValues)));
     }
 };
