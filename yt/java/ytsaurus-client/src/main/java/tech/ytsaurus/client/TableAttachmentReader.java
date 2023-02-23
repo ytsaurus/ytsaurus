@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 import NYT.NChunkClient.NProto.DataStatistics.TDataStatistics;
 import tech.ytsaurus.client.rows.WireRowDeserializer;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.skiff.serialization.EntitySkiffSerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 public interface TableAttachmentReader<T> {
@@ -46,8 +47,8 @@ public interface TableAttachmentReader<T> {
         return new TableAttachmentYsonReader();
     }
 
-    static <T> TableAttachmentReader<T> skiff(Class<T> objectClass) {
-        return new TableAttachmentSkiffReader<>(objectClass);
+    static <T> TableAttachmentReader<T> skiff(EntitySkiffSerializer<T> serializer) {
+        return new TableAttachmentSkiffReader<>(serializer);
     }
 }
 

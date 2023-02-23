@@ -43,6 +43,13 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         this(WriteTable.<T>builder().setPath(path).setSerializationContext(serializationContext));
     }
 
+    public WriteTable(YPath path, Class<T> objectClass) {
+        this(WriteTable.<T>builder()
+                .setPath(path)
+                .setSerializationContext(new SerializationContext<>(objectClass))
+                .setNeedRetries(true));
+    }
+
     public WriteTable(YPath path, SerializationContext<T> serializationContext, TableSchema tableSchema) {
         this(WriteTable.<T>builder()
                 .setPath(path)

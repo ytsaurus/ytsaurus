@@ -48,7 +48,7 @@ public class SerializationContext<T> {
         this.skiffSerializer = new EntitySkiffSerializer<>(objectClazz);
         this.format = Format.skiff(skiffSerializer.getSchema(), 1);
         this.rowsetFormat = ERowsetFormat.RF_FORMAT;
-        this.attachmentReader = TableAttachmentReader.skiff(objectClass);
+        this.attachmentReader = TableAttachmentReader.skiff(skiffSerializer);
     }
 
     public SerializationContext(YTreeSerializer<T> serializer) {

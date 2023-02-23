@@ -11,7 +11,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import tech.ytsaurus.client.request.ReadTable;
-import tech.ytsaurus.client.request.SerializationContext;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.core.cypress.YPath;
 
@@ -26,13 +25,8 @@ public class ReadWriteComplexEntityTest extends ReadWriteTestBase {
         YPath path = YPath.simple("//tmp/write-table-example-3");
 
         TableWriter<Product> writer = yt.writeTable(
-                WriteTable.<Product>builder()
-                        .setPath(path)
-                        .setSerializationContext(
-                                new SerializationContext<>(Product.class)
-                        )
-                        .setNeedRetries(true)
-                        .build()).join();
+                new WriteTable<>(path, Product.class)
+        ).join();
 
         List<Product> products = new ArrayList<>();
 
@@ -48,12 +42,8 @@ public class ReadWriteComplexEntityTest extends ReadWriteTestBase {
         writer.close().join();
 
         TableReader<Product> reader = yt.readTable(
-                ReadTable.<Product>builder()
-                        .setPath(path)
-                        .setSerializationContext(
-                                new SerializationContext<>(Product.class)
-                        )
-                        .build()).join();
+                new ReadTable<>(path, Product.class)
+        ).join();
 
         int currentProductNumber = 0;
 

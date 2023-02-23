@@ -42,7 +42,15 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
     }
 
     public ReadTable(YPath path, SerializationContext<T> serializationContext) {
-        this(ReadTable.<T>builder().setPath(path).setSerializationContext(serializationContext));
+        this(ReadTable.<T>builder()
+                .setPath(path)
+                .setSerializationContext(serializationContext));
+    }
+
+    public ReadTable(YPath path, Class<T> objectClass) {
+        this(ReadTable.<T>builder()
+                .setPath(path)
+                .setSerializationContext(new SerializationContext<>(objectClass)));
     }
 
     public static <T> Builder<T> builder() {
