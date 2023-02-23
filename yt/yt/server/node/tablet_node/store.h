@@ -153,7 +153,6 @@ struct IChunkStore
     virtual TInstant GetCreationTime() const = 0;
 
     virtual void SetBackingStore(IDynamicStorePtr store) = 0;
-    virtual bool HasBackingStore() const = 0;
     virtual IDynamicStorePtr GetBackingStore() = 0;
 
     virtual EStorePreloadState GetPreloadState() const = 0;

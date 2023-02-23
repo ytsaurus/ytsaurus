@@ -211,7 +211,6 @@ public:
     TInstant GetCreationTime() const override;
 
     void SetBackingStore(IDynamicStorePtr store) override;
-    bool HasBackingStore() const override;
     IDynamicStorePtr GetBackingStore() override;
 
     EStorePreloadState GetPreloadState() const override;

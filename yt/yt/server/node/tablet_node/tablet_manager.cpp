@@ -483,9 +483,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (store->HasBackingStore()) {
+        if (auto backingStore = store->GetBackingStore()) {
             store->SetBackingStore(nullptr);
-            YT_LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());
+            YT_LOG_DEBUG("Backing store released (StoreId: %v, BackingStoreId: %v)",
+                store->GetId(),
+                backingStore->GetId());
             // XXX(ifsmirnov): uncomment when tablet id is stored in TStoreBase.
             // store->GetTablet()->GetStructuredLogger()->OnBackingStoreReleased(store);
         }

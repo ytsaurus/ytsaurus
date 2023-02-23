@@ -934,7 +934,7 @@ bool TSortedStoreManager::IsStoreCompactable(IStorePtr store) const
 
     // NB: Partitioning chunk stores with backing ones may interfere with conflict checking.
     auto sortedChunkStore = store->AsSortedChunk();
-    if (sortedChunkStore->HasBackingStore()) {
+    if (sortedChunkStore->GetBackingStore()) {
         return false;
     }
 
