@@ -28,13 +28,13 @@ Y_UNIT_TEST_SUITE(CustomClientConfig)
 {
     Y_UNIT_TEST(TestRetries)
     {
-        TConfig::Get()->UseAbortableResponse = true;
-        TConfig::Get()->RetryCount = 6;
-
         TConfigPtr config = MakeIntrusive<TConfig>();
         config->RetryCount = 4;
 
         TTestFixture fixture(TCreateClientOptions().Config(config));
+
+        TConfig::Get()->UseAbortableResponse = true;
+        TConfig::Get()->RetryCount = 6;
 
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
@@ -52,12 +52,12 @@ Y_UNIT_TEST_SUITE(CustomClientConfig)
 
     Y_UNIT_TEST(TestTransactionAutoPing)
     {
-        TConfig::Get()->PingInterval = TDuration::Seconds(5);
-
         auto config = MakeIntrusive<TConfig>();
         config->PingInterval = TDuration::MilliSeconds(100);
 
         TTestFixture fixture(TCreateClientOptions().Config(config));
+
+        TConfig::Get()->PingInterval = TDuration::Seconds(5);
 
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
