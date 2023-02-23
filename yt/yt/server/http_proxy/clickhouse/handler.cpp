@@ -717,7 +717,7 @@ private:
             }
 
             YT_LOG_DEBUG("Updating discovery (AgeThreshold: %v)", Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->SoftAgeThreshold);
-            Discovery_->Value()->UpdateList(Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->SoftAgeThreshold);
+            YT_UNUSED_FUTURE(Discovery_->Value()->UpdateList(Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->SoftAgeThreshold));
             auto updatedFuture = Discovery_->Value()->UpdateList(
                 forceUpdate ? Config_->ForceDiscoveryUpdateAgeThreshold : Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->HardAgeThreshold);
             if (!updatedFuture.IsSet()) {

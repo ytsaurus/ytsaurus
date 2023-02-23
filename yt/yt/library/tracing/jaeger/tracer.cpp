@@ -388,7 +388,7 @@ void TJaegerTracer::Stop()
     auto config = Config_.Load();
     Y_UNUSED(WaitFor(flushFuture.WithTimeout(config->StopTimeout)));
 
-    FlushExecutor_->Stop();
+    YT_UNUSED_FUTURE(FlushExecutor_->Stop());
     ActionQueue_->Shutdown();
 
     YT_LOG_INFO("Tracer stopped");

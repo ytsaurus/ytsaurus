@@ -104,7 +104,7 @@ void SwitchLeader(
             ToProto(req->mutable_reason(), restartReason);
 
             // Fire-and-forget.
-            req->Invoke();
+            YT_UNUSED_FUTURE(req->Invoke());
         }
     }
 }

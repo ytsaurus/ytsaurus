@@ -93,14 +93,14 @@ public:
     {
         auto mutation = CreateMutation(HydraManager_, context);
         mutation->SetAllowLeaderForwarding(true);
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     void ResumeCoordinator(TResumeCoordinatorContextPtr context) override
     {
         auto mutation = CreateMutation(HydraManager_, context);
         mutation->SetAllowLeaderForwarding(true);
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
 private:

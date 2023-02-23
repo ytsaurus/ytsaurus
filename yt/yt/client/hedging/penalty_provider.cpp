@@ -185,7 +185,7 @@ public:
 
     ~TLagPenaltyProvider()
     {
-        Executor_->Stop();
+        YT_UNUSED_FUTURE(Executor_->Stop());
     }
 
 private:

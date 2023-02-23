@@ -1955,10 +1955,10 @@ void TOperationControllerBase::ReinstallLivePreview()
             for (const auto& [key, chunkTreeId] : table->OutputChunkTreeIds) {
                 childIds.push_back(chunkTreeId);
             }
-            Host->AttachChunkTreesToLivePreview(
+            YT_UNUSED_FUTURE(Host->AttachChunkTreesToLivePreview(
                 AsyncTransaction->GetId(),
                 table->LivePreviewTableId,
-                childIds);
+                childIds));
         }
     }
 
@@ -1970,10 +1970,10 @@ void TOperationControllerBase::ReinstallLivePreview()
                 childIds.push_back(chunkId);
             }
         }
-        Host->AttachChunkTreesToLivePreview(
+        YT_UNUSED_FUTURE(Host->AttachChunkTreesToLivePreview(
             AsyncTransaction->GetId(),
             IntermediateTable->LivePreviewTableId,
-            childIds);
+            childIds));
     }
 }
 
@@ -2416,7 +2416,7 @@ void TOperationControllerBase::CommitTransactions()
     auto abortTransaction = [&] (const ITransactionPtr& transaction) {
         if (transaction && abortedTransactions.emplace(transaction).second) {
             // Fire-and-forget.
-            transaction->Abort();
+            YT_UNUSED_FUTURE(transaction->Abort());
         }
     };
     abortTransaction(InputTransaction);
@@ -3721,7 +3721,7 @@ void TOperationControllerBase::OnInputChunkAvailable(
     UnregisterUnavailableInputChunk(chunkId);
 
     if (UnavailableInputChunkIds.empty()) {
-        InputChunkScraper->Stop();
+        YT_UNUSED_FUTURE(InputChunkScraper->Stop());
     }
 
     // Update replicas in place for all input chunks with current chunkId.
@@ -4018,7 +4018,7 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
             YT_LOG_ERROR(ex, "Failed to commit debug transaction");
             // Intentionally do not wait for abort.
             // Transaction object may be in incorrect state, we need to abort using only transaction id.
-            AttachTransaction(DebugTransaction->GetId(), Client)->Abort();
+            YT_UNUSED_FUTURE(AttachTransaction(DebugTransaction->GetId(), Client)->Abort());
         }
     }
 
@@ -4938,14 +4938,14 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
     }
 
     if (hasJobsToFail) {
-        TDelayedExecutor::MakeDelayed(Spec_->TimeLimitJobFailTimeout)
+        YT_UNUSED_FUTURE(TDelayedExecutor::MakeDelayed(Spec_->TimeLimitJobFailTimeout)
             .Apply(BIND(
                 &TOperationControllerBase::OnOperationFailed,
                 MakeWeak(this),
                 error,
                 /*flush*/ true,
                 /*abortAllJoblets*/ true)
-            .Via(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default)));
+            .Via(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default))));
     } else {
         OnOperationFailed(error, /*flush*/ true);
     }
@@ -7743,10 +7743,10 @@ void TOperationControllerBase::AttachToLivePreview(
     TChunkTreeId chunkTreeId,
     NCypressClient::TNodeId tableId)
 {
-    Host->AttachChunkTreesToLivePreview(
+    YT_UNUSED_FUTURE(Host->AttachChunkTreesToLivePreview(
         AsyncTransaction->GetId(),
         tableId,
-        {chunkTreeId});
+        {chunkTreeId}));
 }
 
 void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJobSummary& jobSummary)

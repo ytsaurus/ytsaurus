@@ -969,7 +969,7 @@ private:
         if (!OperationAlertEventSenderExecutor_) {
             return;
         }
-        OperationAlertEventSenderExecutor_->Stop();
+        YT_UNUSED_FUTURE(OperationAlertEventSenderExecutor_->Stop());
         OperationAlertEventSenderExecutor_.Reset();
 
         YT_LOG_INFO("Alert event archivation stopped");
@@ -991,7 +991,7 @@ private:
         CancelableControlInvoker_ = nullptr;
 
         if (AnalysisExecutor_) {
-            AnalysisExecutor_->Stop();
+            YT_UNUSED_FUTURE(AnalysisExecutor_->Stop());
         }
         AnalysisExecutor_.Reset();
 

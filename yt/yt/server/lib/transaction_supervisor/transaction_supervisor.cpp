@@ -930,7 +930,7 @@ private:
             mutation->SetCurrentTraceContext();
 
             auto callback = [mutation = std::move(mutation), context] {
-                mutation->CommitAndReply(context);
+                YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
             };
 
             if (readyEvent.IsSet() && readyEvent.Get().IsOK()) {
@@ -968,7 +968,7 @@ private:
             auto owner = GetOwnerOrThrow();
             auto mutation = CreateMutation(owner->HydraManager_, hydraRequest);
             mutation->SetCurrentTraceContext();
-            mutation->CommitAndReply(context);
+            YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
         }
 
         DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionParticipant, AbortTransaction)
@@ -987,7 +987,7 @@ private:
             auto owner = GetOwnerOrThrow();
             auto mutation = CreateMutation(owner->HydraManager_, hydraRequest);
             mutation->SetCurrentTraceContext();
-            mutation->CommitAndReply(context);
+            YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
         }
     };
 
@@ -1079,7 +1079,7 @@ private:
             SetCommitFailed(commit, ex);
             RemoveTransientCommit(commit);
             // Best effort, fire-and-forget.
-            AbortTransaction(transactionId, true);
+            YT_UNUSED_FUTURE(AbortTransaction(transactionId, true));
             return;
         }
 
@@ -1111,7 +1111,7 @@ private:
 
         auto mutation = CreateMutation(HydraManager_, request);
         mutation->SetCurrentTraceContext();
-        mutation->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
     }
 
     TFuture<TSharedRefArray> CoordinatorAbortTransaction(
@@ -1153,7 +1153,7 @@ private:
 
         auto mutation = CreateMutation(HydraManager_, request);
         mutation->SetCurrentTraceContext();
-        mutation->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
 
         return asyncResponseMessage;
     }
@@ -1241,7 +1241,7 @@ private:
             auto* mutationContext = GetCurrentMutationContext();
             if (mutationContext->Request().Reign >= 13 && IsLeader()) {
                 // Best effort, fire-and-forget.
-                AbortTransaction(transactionId, /*force*/ true);
+                YT_UNUSED_FUTURE(AbortTransaction(transactionId, /*force*/ true));
             }
             return;
         }
@@ -1975,7 +1975,7 @@ private:
             // at all participants. We _must_ forcefully abort it.
             YT_LOG_DEBUG(timestampsOrError, "Error generating commit timestamps (TransactionId: %v)",
                 transactionId);
-            AbortTransaction(transactionId, true);
+            YT_UNUSED_FUTURE(AbortTransaction(transactionId, true));
             return;
         }
 
@@ -1997,7 +1997,7 @@ private:
                         cellTag,
                         commitTimestamp,
                         maxAllowedCommitTimestamp);
-                    AbortTransaction(transactionId, true);
+                    YT_UNUSED_FUTURE(AbortTransaction(transactionId, true));
                     return;
                 }
             }
@@ -2010,7 +2010,7 @@ private:
 
             auto mutation = CreateMutation(HydraManager_, request);
             mutation->SetCurrentTraceContext();
-            mutation->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
         } else {
             NTransactionSupervisor::NProto::TReqCoordinatorCommitSimpleTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
@@ -2020,7 +2020,7 @@ private:
 
             auto mutation = CreateMutation(HydraManager_, request);
             mutation->SetCurrentTraceContext();
-            mutation->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
         }
     }
 
@@ -2102,7 +2102,7 @@ private:
 
                 auto mutation = CreateMutation(HydraManager_, request);
                 mutation->SetCurrentTraceContext();
-                mutation->CommitAndLog(Logger);
+                YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
                 break;
             }
 
@@ -2112,7 +2112,7 @@ private:
 
                 auto mutation = CreateMutation(HydraManager_, request);
                 mutation->SetCurrentTraceContext();
-                mutation->CommitAndLog(Logger);
+                YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
                 break;
             }
 
@@ -2335,7 +2335,7 @@ private:
             EpochAutomatonInvoker_,
             BIND(&TTransactionSupervisor::OnParticipantCleanup, MakeWeak(this)),
             ParticipantCleanupPeriod);
-        ParticipantCleanupExecutor_->Stop();
+        YT_UNUSED_FUTURE(ParticipantCleanupExecutor_->Stop());
 
         YT_VERIFY(TransientCommitMap_.GetSize() == 0);
         for (auto [transactionId, commit] : PersistentCommitMap_) {
@@ -2348,7 +2348,7 @@ private:
         TCompositeAutomatonPart::OnStopLeading();
 
         if (ParticipantCleanupExecutor_) {
-            ParticipantCleanupExecutor_->Stop();
+            YT_UNUSED_FUTURE(ParticipantCleanupExecutor_->Stop());
         }
         ParticipantCleanupExecutor_.Reset();
 

@@ -49,7 +49,7 @@ TConnectionPool::TConnectionPool(
 
 TConnectionPool::~TConnectionPool()
 {
-    ExpiredConnectionsCollector_->Stop();
+    YT_UNUSED_FUTURE(ExpiredConnectionsCollector_->Stop());
 }
 
 TFuture<IConnectionPtr> TConnectionPool::Connect(const TNetworkAddress& address)

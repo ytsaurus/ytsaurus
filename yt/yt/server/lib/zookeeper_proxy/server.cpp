@@ -175,12 +175,12 @@ private:
             ? ProcessRegularRequest(request)
             : ProcessStartSessionRequest(connection, request);
 
-        connection->PostMessage(response)
+        YT_UNUSED_FUTURE(connection->PostMessage(response)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
                 if (!error.IsOK()) {
                     OnConnectionFailure(connection, error);
                 }
-            }));
+            })));
     }
 
     TMessage ProcessRegularRequest(const TMessage& /*request*/)
@@ -224,10 +224,11 @@ private:
             connectionId);
 
         if (UnregisterConnection(connection->GetConnectionId())) {
-            connection->Terminate()
+            // TODO(max42): switch to Subscribe.
+            YT_UNUSED_FUTURE(connection->Terminate()
                 .Apply(BIND([=] (const TError& error) {
                     YT_LOG_WARNING(error, "Failed to terminate connection");
-                }));
+                })));
         }
     }
 

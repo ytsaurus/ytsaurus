@@ -473,13 +473,13 @@ private:
 
         // Become a leader or a follower.
         if (candidateId == Owner_->CellManager_->GetSelfPeerId()) {
-            BIND(&TDistributedElectionManager::StartLeading, Owner_)
+            YT_UNUSED_FUTURE(BIND(&TDistributedElectionManager::StartLeading, Owner_)
                 .AsyncVia(Owner_->EpochControlInvoker_)
-                .Run();
+                .Run());
         } else {
-            BIND(&TDistributedElectionManager::StartFollowing, Owner_)
+            YT_UNUSED_FUTURE(BIND(&TDistributedElectionManager::StartFollowing, Owner_)
                 .AsyncVia(Owner_->EpochControlInvoker_)
-                .Run(candidateId, candidateStatus.VoteEpochId);
+                .Run(candidateId, candidateStatus.VoteEpochId));
         }
 
         return true;
@@ -610,7 +610,7 @@ void TDistributedElectionManager::Finalize()
 
     YT_LOG_INFO("Election instance is finalizing");
 
-    Abandon(TError("Election instance is finalizing"));
+    YT_UNUSED_FUTURE(Abandon(TError("Election instance is finalizing")));
 
     RpcServer_->UnregisterService(this);
 }
@@ -628,12 +628,12 @@ void TDistributedElectionManager::Participate()
             break;
 
         case EPeerState::Leading:
-            StopLeading(TError("Leader is requested to participate in re-elections"));
+            YT_UNUSED_FUTURE(StopLeading(TError("Leader is requested to participate in re-elections")));
             StartVoting();
             break;
 
         case EPeerState::Following:
-            StopFollowing(TError("Follower is requested to participate in re-elections"));
+            YT_UNUSED_FUTURE(StopFollowing(TError("Follower is requested to participate in re-elections")));
             StartVoting();
             break;
 
@@ -671,7 +671,7 @@ void TDistributedElectionManager::ReconfigureCell(TCellManagerPtr cellManager)
     YT_VERIFY(CellManager_->GetCellId() == cellManager->GetCellId());
 
     CellManager_ = std::move(cellManager);
-    Abandon(TError("Cell reconfigured"));
+    YT_UNUSED_FUTURE(Abandon(TError("Cell reconfigured")));
 
     YT_LOG_INFO("Peer reconfigured");
 }
@@ -748,7 +748,7 @@ void TDistributedElectionManager::OnLeaderPingLeaseExpired()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     YT_VERIFY(State_ == EPeerState::Following);
-    StopFollowing(TError("No recurrent ping from leader within timeout"));
+    YT_UNUSED_FUTURE(StopFollowing(TError("No recurrent ping from leader within timeout")));
 }
 
 bool TDistributedElectionManager::CheckQuorum()
@@ -757,7 +757,7 @@ bool TDistributedElectionManager::CheckQuorum()
         return true;
     }
 
-    StopLeading(TError("Quorum is lost"));
+    YT_UNUSED_FUTURE(StopLeading(TError("Quorum is lost")));
 
     return false;
 }

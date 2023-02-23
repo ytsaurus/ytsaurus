@@ -179,7 +179,7 @@ void TTransaction::Detach()
     auto req = Proxy_.DetachTransaction();
     ToProto(req->mutable_transaction_id(), GetId());
     // Fire-and-forget.
-    req->Invoke();
+    YT_UNUSED_FUTURE(req->Invoke());
 }
 
 void TTransaction::SubscribeCommitted(const TCommittedHandler& handler)
@@ -245,7 +245,7 @@ TFuture<TTransactionFlushResult> TTransaction::Flush()
                         State_ = ETransactionState::Flushed;
                     } else if (!rspOrError.IsOK()) {
                         YT_LOG_DEBUG(rspOrError, "Error flushing transaction");
-                        DoAbort(&guard);
+                        YT_UNUSED_FUTURE(DoAbort(&guard));
                         THROW_ERROR_EXCEPTION("Error flushing transaction %v",
                             GetId())
                             << rspOrError;
@@ -321,7 +321,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
                     if (rspOrError.IsOK() && State_ == ETransactionState::Committing) {
                         State_ = ETransactionState::Committed;
                     } else if (!rspOrError.IsOK()) {
-                        DoAbort(&guard);
+                        YT_UNUSED_FUTURE(DoAbort(&guard));
                         THROW_ERROR_EXCEPTION("Error committing transaction %v",
                             GetId())
                             << rspOrError;
@@ -471,7 +471,7 @@ void TTransaction::ModifyRows(
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)](const TError& error) {
                 if (!error.IsOK()) {
                     YT_LOG_DEBUG(error, "Error sending row modifications");
-                    Abort();
+                    YT_UNUSED_FUTURE(Abort());
                 }
             }));
 
@@ -846,7 +846,7 @@ TFuture<void> TTransaction::DoAbort(
         })));
 
     for (const auto& transaction : alienTransactions) {
-        transaction->Abort();
+        YT_UNUSED_FUTURE(transaction->Abort());
     }
 
     return AbortPromise_.ToFuture();
@@ -1045,7 +1045,7 @@ TFuture<void> TTransaction::FlushModifications()
                     State_ = ETransactionState::FlushedModifications;
                 } else if (!rspOrError.IsOK()) {
                     YT_LOG_DEBUG(rspOrError, "Error flushing transaction modifications");
-                    DoAbort(&guard);
+                    YT_UNUSED_FUTURE(DoAbort(&guard));
                     THROW_ERROR_EXCEPTION("Error flushing transaction %v modifications",
                         GetId())
                         << rspOrError;

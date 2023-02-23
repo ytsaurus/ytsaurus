@@ -47,7 +47,7 @@ void TMemoryWatchdog::Start()
 
 void TMemoryWatchdog::Stop()
 {
-    PeriodicExecutor_->Stop();
+    YT_UNUSED_FUTURE(PeriodicExecutor_->Stop());
 }
 
 void TMemoryWatchdog::CheckMemoryUsage()

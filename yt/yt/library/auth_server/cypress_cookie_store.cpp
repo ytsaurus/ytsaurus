@@ -49,7 +49,7 @@ public:
 
     void Stop() override
     {
-        UpdateExecutor_->Stop();
+        YT_UNUSED_FUTURE(UpdateExecutor_->Stop());
 
         YT_LOG_DEBUG("Stopping periodic updates in native cookie store");
     }

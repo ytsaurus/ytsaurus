@@ -103,13 +103,14 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
         }));
 
         if (cookie.IsActive()) {
-            Client_->GetReplicationCard(replicationCardId, getCardOptions).Apply(
+            // TODO(max42): switch to Subscribe.
+            YT_UNUSED_FUTURE(Client_->GetReplicationCard(replicationCardId, getCardOptions).Apply(
                 BIND([=, this, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<TReplicationCardPtr>& replicationCardOrError) mutable {
                     Cache_->EndLookup(
                         requestId,
                         std::move(cookie),
                         replicationCardOrError);
-                }));
+                })));
         }
     } else {
         replicationCardFuture = Client_->GetReplicationCard(replicationCardId, getCardOptions);

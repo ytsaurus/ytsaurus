@@ -263,7 +263,7 @@ void TBootstrap::DoRun()
 
     UpdateCypressNode();
 
-    MemberClient_->Start();
+    YT_UNUSED_FUTURE(MemberClient_->Start());
 
     AlertManager_->SubscribePopulateAlerts(BIND(&IQueueAgentShardingManager::PopulateAlerts, QueueAgentShardingManager_));
     AlertManager_->SubscribePopulateAlerts(BIND(&TQueueAgent::PopulateAlerts, QueueAgent_));

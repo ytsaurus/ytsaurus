@@ -377,7 +377,7 @@ public:
 
     ~TFileChangelogDispatcher()
     {
-        PeriodicExecutor_->Stop();
+        YT_UNUSED_FUTURE(PeriodicExecutor_->Stop());
         ActionQueue_->Shutdown();
     }
 
@@ -649,7 +649,7 @@ public:
     {
         YT_LOG_DEBUG("Destroying changelog queue (Path: %v)",
             Queue_->GetChangelog()->GetFileName());
-        Close();
+        YT_UNUSED_FUTURE(Close());
         Dispatcher_->UnregisterQueue(Queue_);
     }
 
@@ -714,21 +714,21 @@ public:
 
         // NB: Ignoring the result seems fine since the changelog
         // will propagate any possible error as the result of all further calls.
-        Dispatcher_->ForceFlushQueue(Queue_);
+        YT_UNUSED_FUTURE(Dispatcher_->ForceFlushQueue(Queue_));
         return Dispatcher_->TruncateQueue(Queue_, recordCount);
     }
 
     TFuture<void> Close() override
     {
         // NB: See #Truncate above.
-        Dispatcher_->ForceFlushQueue(Queue_);
+        YT_UNUSED_FUTURE(Dispatcher_->ForceFlushQueue(Queue_));
         return Dispatcher_->CloseQueue(Queue_);
     }
 
     TFuture<void> Finish() override
     {
         // NB: See #Truncate above.
-        Dispatcher_->ForceFlushQueue(Queue_);
+        YT_UNUSED_FUTURE(Dispatcher_->ForceFlushQueue(Queue_));
         return Dispatcher_->FinishQueue(Queue_);
     }
 

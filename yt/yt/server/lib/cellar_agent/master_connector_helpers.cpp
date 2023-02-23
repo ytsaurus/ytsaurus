@@ -95,7 +95,7 @@ void UpdateCellarFromHeartbeatResponse(
         YT_LOG_DEBUG("Requested to remove cell (CellId: %v)",
             cellId);
 
-        cellar->RemoveOccupant(slot);
+        YT_UNUSED_FUTURE(cellar->RemoveOccupant(slot));
     }
 
     for (const auto& info : response.slots_to_create()) {
