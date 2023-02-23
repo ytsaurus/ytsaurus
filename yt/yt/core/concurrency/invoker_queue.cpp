@@ -2,7 +2,7 @@
 #include "private.h"
 
 #include <yt/yt/core/actions/invoker_detail.h>
-#include <yt/yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/current_invoker.h>
 
 #include <yt/yt/core/profiling/tscp.h>
 
@@ -496,7 +496,7 @@ bool TInvokerQueue<TQueueImpl>::IsRunning() const
 }
 
 template <class TQueueImpl>
-IInvokerPtr TInvokerQueue<TQueueImpl>::GetProfilingTagSettingInvoker(int profilingTag)
+IInvoker* TInvokerQueue<TQueueImpl>::GetProfilingTagSettingInvoker(int profilingTag)
 {
     if (ProfilingTagSettingInvokers_.empty()) {
         // Fast path.
@@ -504,7 +504,7 @@ IInvokerPtr TInvokerQueue<TQueueImpl>::GetProfilingTagSettingInvoker(int profili
         return this;
     } else {
         YT_ASSERT(0 <= profilingTag && profilingTag < std::ssize(Counters_));
-        return ProfilingTagSettingInvokers_[profilingTag];
+        return ProfilingTagSettingInvokers_[profilingTag].Get();
     }
 }
 

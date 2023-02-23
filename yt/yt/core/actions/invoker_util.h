@@ -45,26 +45,5 @@ void GuardedInvoke(
     TClosure onCancel);
 
 ////////////////////////////////////////////////////////////////////////////////
-// Provides a way to work with the current invoker.
-
-IInvokerPtr GetCurrentInvoker();
-void SetCurrentInvoker(IInvokerPtr invoker);
-
-//! Swaps the current active invoker with a provided one.
-class TCurrentInvokerGuard
-    : NConcurrency::TContextSwitchGuard
-{
-public:
-    explicit TCurrentInvokerGuard(IInvokerPtr invoker);
-    ~TCurrentInvokerGuard();
-
-private:
-    void Restore();
-
-    bool Active_;
-    IInvokerPtr SavedInvoker_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

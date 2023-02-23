@@ -4,6 +4,7 @@
 #include "private.h"
 #include "profiling_helpers.h"
 
+#include <yt/yt/core/actions/current_invoker.h>
 #include <yt/yt/core/actions/invoker_util.h>
 #include <yt/yt/core/actions/invoker_detail.h>
 
@@ -448,7 +449,7 @@ private:
 
     void DoRunCallback(const TClosure& callback, TInvocationGuard /*invocationGuard*/)
     {
-        TCurrentInvokerGuard guard(UnderlyingInvoker_); // sic!
+        TCurrentInvokerGuard guard(UnderlyingInvoker_.Get()); // sic!
         callback();
     }
 

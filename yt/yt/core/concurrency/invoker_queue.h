@@ -143,7 +143,7 @@ public:
     bool IsEmpty() const;
     bool IsRunning() const;
 
-    IInvokerPtr GetProfilingTagSettingInvoker(int profilingTag);
+    IInvoker* GetProfilingTagSettingInvoker(int profilingTag);
 
 private:
     const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_;

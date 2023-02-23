@@ -2,7 +2,7 @@
 
 #include "scheduler.h"
 
-#include <yt/yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/current_invoker.h>
 #include <yt/yt/core/actions/invoker_detail.h>
 
 #include <yt/yt/core/misc/ring_queue.h>
@@ -279,8 +279,6 @@ private:
         YT_VERIFY(Queue_->TryDequeue(&callback, &bucketIndex));
         YT_VERIFY(IsValidInvokerIndex(bucketIndex));
 
-        TCurrentInvokerGuard currentInvokerGuard(Invokers_[bucketIndex]);
-
         {
             auto guard = WriterGuard(InvokerQueueStatesLock_);
 
@@ -294,6 +292,7 @@ private:
         }
 
         {
+            TCurrentInvokerGuard currentInvokerGuard(Invokers_[bucketIndex].Get());
             TCpuTimeAccounter cpuTimeAccounter(bucketIndex, Queue_.Get());
             callback();
         }

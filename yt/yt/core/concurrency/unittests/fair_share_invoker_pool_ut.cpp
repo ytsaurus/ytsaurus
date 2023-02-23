@@ -116,7 +116,7 @@ protected:
 
     int GetCurrentInvokerIndex() const
     {
-        return GetInvokerIndex(GetCurrentInvoker().Get());
+        return GetInvokerIndex(GetCurrentInvoker());
     }
 
     void ClearInvocationOrder()

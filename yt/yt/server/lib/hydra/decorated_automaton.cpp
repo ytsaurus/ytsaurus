@@ -15,6 +15,7 @@
 #include <yt/yt/ytlib/hydra/proto/hydra_service.pb.h>
 
 #include <yt/yt/core/actions/invoker_detail.h>
+#include <yt/yt/core/actions/current_invoker.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
@@ -213,7 +214,7 @@ public:
         auto lockGuard = TSystemLockGuard::Acquire(Owner_);
 
         auto doInvoke = [=, this_ = MakeStrong(this), callback = std::move(callback)] (TSystemLockGuard /*lockGuard*/) {
-            TCurrentInvokerGuard currentInvokerGuard(this_);
+            TCurrentInvokerGuard currentInvokerGuard(this);
             callback();
         };
 
@@ -246,9 +247,11 @@ public:
         auto doInvoke = [=, this, this_ = MakeStrong(this), callback = std::move(callback)] () {
             if (Owner_->GetState() != EPeerState::Leading &&
                 Owner_->GetState() != EPeerState::Following)
+            {
                 return;
+            }
 
-            TCurrentInvokerGuard guard(this_);
+            TCurrentInvokerGuard guard(this);
             callback();
         };
 
