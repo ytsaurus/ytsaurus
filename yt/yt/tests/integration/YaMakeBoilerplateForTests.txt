@@ -26,6 +26,8 @@ REQUIREMENTS(
     sb_vault:YT_TOKEN=value:ignat:robot-yt-test-token
 )
 
+INCLUDE(${ARCADIA_ROOT}/yt/restrict_licenses_tests.inc)
+
 PEERDIR(
     contrib/python/zstandard
 
