@@ -3,7 +3,7 @@ package tech.ytsaurus.core.tables;
 import java.util.List;
 
 import org.junit.Test;
-import tech.ytsaurus.type_info.TiType;
+import tech.ytsaurus.typeinfo.TiType;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
 

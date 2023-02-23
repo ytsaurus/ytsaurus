@@ -5,8 +5,7 @@ import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.ColumnSortOrder;
 import tech.ytsaurus.core.tables.TableSchema;
-import tech.ytsaurus.type_info.TiType;
-
+import tech.ytsaurus.typeinfo.TiType;
 
 public class ExampleMultiYtClient {
     private ExampleMultiYtClient() {

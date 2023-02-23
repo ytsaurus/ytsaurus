@@ -3,8 +3,8 @@ package tech.ytsaurus.skiff.serialization;
 import java.util.Map;
 import java.util.Optional;
 
-import tech.ytsaurus.type_info.TiType;
 
+import tech.ytsaurus.typeinfo.TiType;
 public class TiTypeUtil {
     private static final Map<Class<?>, TiType> SIMPLE_TYPES_MAP = Map.ofEntries(
             Map.entry(byte.class, TiType.int8()),

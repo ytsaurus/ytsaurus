@@ -1,4 +1,4 @@
-package tech.ytsaurus.type_info;
+package tech.ytsaurus.typeinfo;
 
 import org.junit.Assert;
 import org.junit.Test;
