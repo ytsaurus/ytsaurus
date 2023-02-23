@@ -952,14 +952,6 @@ void TChunkStoreBase::SetBackingStore(IDynamicStorePtr store)
     std::swap(store, BackingStore_);
 }
 
-bool TChunkStoreBase::HasBackingStore() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto guard = ReaderGuard(SpinLock_);
-    return BackingStore_.operator bool();
-}
-
 EStorePreloadState TChunkStoreBase::GetPreloadState() const
 {
     return PreloadState_;
