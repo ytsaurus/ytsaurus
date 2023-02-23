@@ -96,7 +96,8 @@ void TRequestSession<TResponse>::TryMakeNextRequest(bool forceProbation)
         }
     }
 
-    MakeRequest(address).Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+    // TODO(max42): switch to Subscribe.
+    YT_UNUSED_FUTURE(MakeRequest(address).Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
         if (!error.IsOK()) {
             AddError(error);
             TryMakeNextRequest(false);
@@ -104,7 +105,7 @@ void TRequestSession<TResponse>::TryMakeNextRequest(bool forceProbation)
         } else {
             AddressPool_->UnbanAddress(address);
         }
-    }));
+    })));
 }
 
 template <class TResponse>

@@ -84,7 +84,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto mutation = transactionManager->CreateStartTransactionMutation(context, hydraRequest);
         mutation->SetCurrentTraceContext();
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, RegisterTransactionActions)
@@ -112,7 +112,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto mutation = transactionManager->CreateRegisterTransactionActionsMutation(context);
         mutation->SetCurrentTraceContext();
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, ReplicateTransactions)
@@ -139,7 +139,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto mutation = transactionManager->CreateReplicateTransactionsMutation(context);
         mutation->SetCurrentTraceContext();
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     void ValidateTransactionsAreCoordinatedByThisCell(const std::vector<TTransactionId>& transactionIds)

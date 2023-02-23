@@ -713,6 +713,13 @@ TFuture<std::vector<TErrorOr<T>>> CancelableRunWithBoundedConcurrency(
 
 } // namespace NYT
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Used for marking unused futures for easier search.
+#define YT_UNUSED_FUTURE(var) Y_UNUSED(var)
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define FUTURE_INL_H_
 #include "future-inl.h"
 #undef FUTURE_INL_H_

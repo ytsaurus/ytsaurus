@@ -441,8 +441,8 @@ private:
         if (!mailbox) {
             NHiveServer::NProto::TReqRegisterMailbox hydraRequest;
             ToProto(hydraRequest.mutable_cell_id(), srcCellId);
-            CreateMutation(HydraManager_, hydraRequest)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(CreateMutation(HydraManager_, hydraRequest)
+                ->CommitAndLog(Logger));
 
             THROW_ERROR_EXCEPTION(
                 NHiveClient::EErrorCode::MailboxNotCreatedYet,
@@ -461,8 +461,8 @@ private:
                 firstMessageId + messageCount - 1);
 
             mailbox->SetNextTransientIncomingMessageId(nextTransientIncomingMessageId + messageCount);
-            CreatePostMessagesMutation(*request)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(CreatePostMessagesMutation(*request)
+                ->CommitAndLog(Logger));
         }
         response->set_next_transient_incoming_message_id(nextTransientIncomingMessageId);
 
@@ -497,7 +497,7 @@ private:
 
         auto mutation = CreateSendMessagesMutation(context);
         mutation->SetCurrentTraceContext();
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, SyncWithOthers)
@@ -896,8 +896,8 @@ private:
         if (IsLeader() && CellDirectory_->IsCellUnregistered(cellId)) {
             NHiveServer::NProto::TReqUnregisterMailbox req;
             ToProto(req.mutable_cell_id(), cellId);
-            CreateUnregisterMailboxMutation(req)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(CreateUnregisterMailboxMutation(req)
+                ->CommitAndLog(Logger));
             return;
         }
 
@@ -1447,8 +1447,8 @@ private:
             mailbox->GetFirstOutcomingMessageId(),
             nextPersistentIncomingMessageId - 1);
 
-        CreateAcknowledgeMessagesMutation(req)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateAcknowledgeMessagesMutation(req)
+            ->CommitAndLog(Logger));
 
         return true;
     }

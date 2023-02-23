@@ -279,7 +279,7 @@ public:
             return;
         }
 
-        UpdatePeriodicExecutor_->Stop();
+        YT_UNUSED_FUTURE(UpdatePeriodicExecutor_->Stop());
         RpcServer_->UnregisterService(this);
         Active_ = false;
     }
@@ -787,7 +787,7 @@ public:
 
     ~TDistributedThrottlerFactory()
     {
-        MemberClient_->Stop();
+        YT_UNUSED_FUTURE(MemberClient_->Stop());
         DistributedThrottlerService_->Finalize();
     }
 
@@ -915,7 +915,7 @@ private:
     {
         VERIFY_SPINLOCK_AFFINITY(Throttlers_->Lock);
 
-        MemberClient_->Start();
+        YT_UNUSED_FUTURE(MemberClient_->Start());
         Active_ = true;
     }
 
@@ -924,7 +924,7 @@ private:
         VERIFY_SPINLOCK_AFFINITY(Throttlers_->Lock);
 
         Active_ = false;
-        MemberClient_->Stop();
+        YT_UNUSED_FUTURE(MemberClient_->Stop());
     }
 
     void UpdateLimits()

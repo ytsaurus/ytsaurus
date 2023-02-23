@@ -186,7 +186,7 @@ private:
         } catch (const std::exception& e) {
             if (auto* errorResponse = dynamic_cast<const TErrorResponse*>(&e)) {
                 if (errorResponse->GetError().ContainsErrorCode(NYT::NClusterErrorCodes::NTransactionClient::NoSuchTransaction)) {
-                    periodic->Stop();
+                    YT_UNUSED_FUTURE(periodic->Stop());
                 } else if (errorResponse->GetError().ContainsErrorCode(NYT::NClusterErrorCodes::Timeout)) {
                     periodic->ScheduleOutOfBand();
                 }

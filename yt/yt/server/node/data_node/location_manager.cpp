@@ -240,7 +240,7 @@ void TLocationHealthChecker::OnDynamicConfigChanged(const TLocationHealthChecker
 
     if (oldEnabled && !newEnabled) {
         YT_LOG_DEBUG("Stopping location health checker");
-        HealthCheckerExecutor_->Stop();
+        YT_UNUSED_FUTURE(HealthCheckerExecutor_->Stop());
     } else if (!oldEnabled && newEnabled) {
         YT_LOG_DEBUG("Starting location health checker");
         HealthCheckerExecutor_->Start();
@@ -257,7 +257,7 @@ void TLocationHealthChecker::OnDiskHealthCheckFailed(
         return;
     }
 
-    LocationManager_->FailDiskByName(location->GetStaticConfig()->DeviceName, error);
+    YT_UNUSED_FUTURE(LocationManager_->FailDiskByName(location->GetStaticConfig()->DeviceName, error));
 }
 
 void TLocationHealthChecker::OnLocationsHealthCheck()

@@ -74,7 +74,7 @@ void TIntermediateChunkScraper::ResetChunkScraper()
     ResetScheduled_ = false;
 
     if (ChunkScraper_) {
-        ChunkScraper_->Stop();
+        YT_UNUSED_FUTURE(ChunkScraper_->Stop());
     }
 
     auto intermediateChunks = GetChunksCallback_();

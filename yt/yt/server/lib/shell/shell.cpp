@@ -259,7 +259,7 @@ public:
         IsRunning_ = false;
 
         TDelayedExecutor::CancelAndClear(InactivityCookie_);
-        Writer_->Abort();
+        YT_UNUSED_FUTURE(Writer_->Abort());
         Instance_->Destroy();
         Reader_->SetReadDeadline(TInstant::Now() + TerminatedShellReadTimeout);
         TerminatedPromise_.TrySet();

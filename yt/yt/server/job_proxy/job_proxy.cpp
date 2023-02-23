@@ -1099,10 +1099,10 @@ void TJobProxy::OnPrepared()
 
     auto req = SupervisorProxy_->OnJobPrepared();
     ToProto(req->mutable_job_id(), JobId_);
-    req->Invoke().Apply(BIND(
+    YT_UNUSED_FUTURE(req->Invoke().Apply(BIND(
         [this, this_ = MakeStrong(this)] (const TSupervisorServiceProxy::TErrorOrRspOnJobPreparedPtr& /*rspOrError*/) {
             Prepared_.store(true);
-        }));
+        })));
 }
 
 void TJobProxy::PrepareArtifact(

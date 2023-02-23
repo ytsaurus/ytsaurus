@@ -623,7 +623,8 @@ private:
             return;
         }
 
-        GetContainerProperty(container, "exit_status").Apply(BIND(
+        // TODO(max42): switch to Subscribe.
+        YT_UNUSED_FUTURE(GetContainerProperty(container, "exit_status").Apply(BIND(
             [=] (const TErrorOr<std::optional<TString>>& errorOrExitCode) {
                 if (!errorOrExitCode.IsOK()) {
                     result.TrySet(TError("Container finished, but exit status is unknown")
@@ -649,7 +650,7 @@ private:
                     error.MutableInnerErrors()->push_back(TError(ex));
                     result.TrySet(error);
                 }
-            }));
+            })));
     }
 
     TFuture<int> DoPollContainer(const TString& container)

@@ -180,7 +180,7 @@ void TDiscovery::DoLockNode(int epoch)
         transaction->GetId());
 
     if (Epoch_ != epoch) {
-        transaction->Abort();
+        YT_UNUSED_FUTURE(transaction->Abort());
         return;
     }
 
@@ -193,7 +193,7 @@ void TDiscovery::DoLockNode(int epoch)
         .ValueOrThrow();
 
     if (Epoch_ != epoch) {
-        transaction->Abort();
+        YT_UNUSED_FUTURE(transaction->Abort());
         return;
     }
 

@@ -175,7 +175,7 @@ void TForkExecutor::DoCleanup()
 {
     ChildPid_ = -1;
     if (WatchdogExecutor_) {
-        WatchdogExecutor_->Stop();
+        YT_UNUSED_FUTURE(WatchdogExecutor_->Stop());
         WatchdogExecutor_.Reset();
     }
 

@@ -254,7 +254,7 @@ public:
         ClientService_->Finalize();
         ServerService_->Finalize();
 
-        GossipPeriodicExecutor_->Stop();
+        YT_UNUSED_FUTURE(GossipPeriodicExecutor_->Stop());
 
         YT_LOG_INFO("Server finalized");
     }

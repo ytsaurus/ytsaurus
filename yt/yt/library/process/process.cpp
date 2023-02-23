@@ -546,7 +546,7 @@ void TSimpleProcess::AsyncPeriodicTryWait()
         return;
     }
 
-    AsyncWaitExecutor_->Stop();
+    YT_UNUSED_FUTURE(AsyncWaitExecutor_->Stop());
     AsyncWaitExecutor_ = nullptr;
 
     // This call just should return immediately

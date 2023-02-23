@@ -922,7 +922,7 @@ private:
                 YT_LOG_WARNING(error);
 
                 auto responseMessage = CreateErrorResponseMessage(RequestId_, error);
-                replyBus->Send(std::move(responseMessage), NBus::TSendOptions(EDeliveryTrackingLevel::None));
+                YT_UNUSED_FUTURE(replyBus->Send(std::move(responseMessage), NBus::TSendOptions(EDeliveryTrackingLevel::None)));
             }
         }
 

@@ -202,7 +202,7 @@ void TTabletBalancer::Stop()
 
     YT_LOG_INFO("Stopping tablet balancer instance");
 
-    PollExecutor_->Stop();
+    YT_UNUSED_FUTURE(PollExecutor_->Stop());
     ActionManager_->Stop();
 
     YT_LOG_INFO("Tablet balancer instance stopped");

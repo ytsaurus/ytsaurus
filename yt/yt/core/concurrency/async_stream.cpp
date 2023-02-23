@@ -689,7 +689,7 @@ private:
         PrefetchedBlocks_.push(block);
         PrefetchedSize_ += block.Size();
         if (block && PrefetchedSize_ < WindowSize_) {
-            Prefetch(guard);
+            YT_UNUSED_FUTURE(Prefetch(guard));
         }
     }
 
@@ -700,7 +700,7 @@ private:
         PrefetchedBlocks_.pop();
         PrefetchedSize_ -= block.Size();
         if (!OutstandingResult_ && PrefetchedSize_ < WindowSize_) {
-            Prefetch(guard);
+            YT_UNUSED_FUTURE(Prefetch(guard));
         }
         return block;
     }
@@ -817,7 +817,7 @@ private:
         }
         // Stop reading on the end of stream or full buffer.
         if (bytes != 0 && PrefetchedSize_ < WindowSize_) {
-            Prefetch(guard);
+            YT_UNUSED_FUTURE(Prefetch(guard));
         }
     }
 
@@ -828,7 +828,7 @@ private:
         Prefetched_ = TSharedMutableRef();
         PrefetchedSize_ = 0;
         if (!OutstandingResult_) {
-            Prefetch(guard);
+            YT_UNUSED_FUTURE(Prefetch(guard));
         }
         return block;
     }

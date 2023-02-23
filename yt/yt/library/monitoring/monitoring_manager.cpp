@@ -74,7 +74,7 @@ public:
             return;
 
         Started_ = false;
-        PeriodicExecutor_->Stop();
+        YT_UNUSED_FUTURE(PeriodicExecutor_->Stop());
         Root_.Reset();
     }
 

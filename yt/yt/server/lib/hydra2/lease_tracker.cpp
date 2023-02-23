@@ -225,7 +225,7 @@ void TLeaseTracker::EnableSendingTerm()
 
 void TLeaseTracker::Finalize()
 {
-    LeaseCheckExecutor_->Stop();
+    YT_UNUSED_FUTURE(LeaseCheckExecutor_->Stop());
 
     auto error = TError("Hydra instance is finalizing");
     NextCheckPromise_.TrySet(error);

@@ -301,8 +301,8 @@ public:
 
     ~TWorkloadModelManager()
     {
-        ModelCreationRoundExecutor_->Stop();
-        LatenciesMeasuringExecutor_->Stop();
+        YT_UNUSED_FUTURE(ModelCreationRoundExecutor_->Stop());
+        YT_UNUSED_FUTURE(LatenciesMeasuringExecutor_->Stop());
     }
 
     void RegisterRead(IIOEngine::TReadRequest request, EWorkloadCategory category, TDuration requestTime)
