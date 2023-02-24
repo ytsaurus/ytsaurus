@@ -160,7 +160,7 @@ Y_TEST_HOOK_AFTER_RUN(GTEST_YT_TEARDOWN)
 #ifdef _asan_enabled_
     // Wait for some time to ensure background cleanup is somewhat complete.
     Sleep(TDuration::Seconds(1));
-    NYT::FlushDeleteList();
+    NYT::ReclaimHazardPointers();
     NYT::TRefCountedTrackerFacade::Dump();
 #endif
 }

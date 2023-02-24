@@ -39,7 +39,7 @@ public:
     TValue* Find(const TFindKey& key);
 
     template <class TCtor, class TFindKey = TKey>
-    std::pair<TValue*, bool> FindOrInsert(const TFindKey& key, const TCtor& ctor);
+    std::pair<TValue*, bool> FindOrInsert(const TFindKey& key, TCtor&& ctor);
 
     //! Flushes dirty map. All keys inserted before this call will be moved to read-only portion of the map.
     //! Designed to facilitate usage of IterateReadOnly.
@@ -47,7 +47,7 @@ public:
 
     //! IterateReadOnly iterates over read-only portion of the map.
     template <class TFn>
-    void IterateReadOnly(const TFn& fn);
+    void IterateReadOnly(TFn&& fn);
 
 private:
     struct TEntry final

@@ -47,6 +47,16 @@ struct THazardPtrTraits<T, true>
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T, class TReclaimer>
+void RetireHazardPointer(T* ptr, TReclaimer /*reclaimer*/)
+{
+    RetireHazardPointer(
+        reinterpret_cast<TPackedPtr>(ptr),
+        [] (TPackedPtr packedPtr) { TReclaimer()(reinterpret_cast<T*>(packedPtr)); });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 THazardPtr<T>::THazardPtr(THazardPtr&& other)
     : Ptr_(other.Ptr_)

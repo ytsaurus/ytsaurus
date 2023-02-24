@@ -11,26 +11,10 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-struct IRowCacheMemoryTracker
-    : public IMemoryUsageTracker
-{
-    virtual i64 GetUsedBytesCount() = 0;
-};
-
-} // of namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TDeleteListFlusher
-{
-    ~TDeleteListFlusher();
-};
+DECLARE_REFCOUNTED_CLASS(TRowCacheMemoryTracker)
 
 class TRowCache
     : public TRefCounted
-    , public TDeleteListFlusher
 {
 public:
     TRowCache(
@@ -59,9 +43,13 @@ public:
     i64 GetUsedBytesCount() const;
 
 private:
-    TIntrusivePtr<NDetail::IRowCacheMemoryTracker> MemoryTracker_;
+    const TIntrusivePtr<TRowCacheMemoryTracker> MemoryTracker_;
+
+    THazardPtrReclaimGuard HazardPtrReclaimGuard_;
+
     TSlabAllocator Allocator_;
     TConcurrentCache<TCachedRow> Cache_;
+
     // Rows with revision less than FlushIndex are considered outdated.
     std::atomic<ui32> FlushIndex_ = 0;
 };
