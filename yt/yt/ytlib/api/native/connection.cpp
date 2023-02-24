@@ -832,6 +832,8 @@ private:
         bool hasMasterCache = static_cast<bool>(StaticConfig_->MasterCache);
         BuildYsonFluently(consumer)
             .BeginMap()
+                .Item("static_config").Value(StaticConfig_)
+                .Item("dynamic_config").Value(Config_.Acquire())
                 .Item("master_cache")
                     .BeginMap()
                         .Item("enabled").Value(hasMasterCache)

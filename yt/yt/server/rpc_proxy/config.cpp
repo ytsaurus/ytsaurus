@@ -122,6 +122,10 @@ void TProxyConfig::Register(TRegistrar registrar)
             config->TvmOnlyAuth = auth;
         }
     });
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->ClusterConnectionDynamicConfigPolicy = NApi::NNative::EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -245,6 +245,15 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         "rpc_client": rpc_client_config,
         "tablet_balancer": tablet_balancer_configs,
         "cypress_proxy": cypress_proxy_configs,
+        "cluster_connection": _build_cluster_connection_config(
+            yt_config,
+            master_connection_configs,
+            clock_connection_config,
+            discovery_configs,
+            timestamp_provider_addresses,
+            master_cache_addresses,
+            cypress_proxy_rpc_ports,
+            queue_agent_rpc_ports),
     }
 
     return cluster_configuration
