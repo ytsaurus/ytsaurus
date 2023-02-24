@@ -8,8 +8,9 @@
 
 #include <yt/yt/core/ytree/public.h>
 
-#include <yt/yt/core/misc/dense_map.h>
 #include <yt/yt/core/misc/property.h>
+
+#include <library/cpp/yt/small_containers/compact_flat_map.h>
 
 namespace NYT::NChunkClient {
 
@@ -46,12 +47,10 @@ struct TCodecDuration
 class TCodecStatistics
 {
 public:
-    using TCodecToDuration = SmallDenseMap<
+    using TCodecToDuration = TCompactFlatMap<
         NCompression::ECodec,
         TDuration,
-        1,
-        TEnumTraits<NCompression::ECodec>::TDenseMapInfo>;
-
+        1>;
     DEFINE_BYREF_RO_PROPERTY(TCodecToDuration, CodecToDuration);
 
 public:
