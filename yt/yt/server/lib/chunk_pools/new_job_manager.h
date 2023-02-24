@@ -71,7 +71,7 @@ private:
     std::vector<IChunkPoolInput::TCookie> InputCookies_;
 
     //! Maps pair of <stream_index, range_index> into corresponding stripe.
-    SmallDenseMap<std::pair<int, int>, TChunkStripePtr> StripeMap_;
+    THashMap<std::pair<int, int>, TChunkStripePtr> StripeMap_;
 
     const TChunkStripePtr& GetStripe(int streamIndex, int rangeIndex, bool isStripePrimary);
 };
