@@ -36,7 +36,7 @@ thread_local THazardPointerSet HazardPointers;
 
 //! A simple container based on free list which supports only Enqueue and DequeueAll.
 template <class T>
-class TDeleteQueue
+class TRetireQueue
 {
 private:
     struct TNode
@@ -63,13 +63,13 @@ private:
     }
 
 public:
-    ~TDeleteQueue()
+    ~TRetireQueue()
     {
         EraseList(Impl_.ExtractAll());
     }
 
     template <typename TCallback>
-    void DequeueAll(TCallback callback)
+    void DequeueAll(TCallback&& callback)
     {
         auto* head = Impl_.ExtractAll();
 
@@ -86,7 +86,7 @@ public:
 
     void Enqueue(T&& value)
     {
-        Impl_.Put(new TNode(std::move(value)));
+        Impl_.Put(new TNode(std::forward<T>(value)));
     }
 };
 
@@ -94,8 +94,8 @@ public:
 
 struct TRetiredPtr
 {
-    void* Ptr;
-    THazardPtrDeleter Deleter;
+    TPackedPtr PackedPtr;
+    THazardPtrReclaimer Reclaimer;
 };
 
 struct THazardThreadState
@@ -103,9 +103,9 @@ struct THazardThreadState
     THazardPointerSet* const HazardPointers;
 
     TIntrusiveLinkedListNode<THazardThreadState> RegistryNode;
-    TRingQueue<TRetiredPtr> DeleteList;
+    TRingQueue<TRetiredPtr> RetireList;
     TCompactVector<void*, 64> ProtectedPointers;
-    bool Scanning = false;
+    bool Reclaiming = false;
 
     explicit THazardThreadState(THazardPointerSet* hazardPointers)
         : HazardPointers(hazardPointers)
@@ -135,15 +135,14 @@ public:
 
     void InitThreadState();
 
-    void ScheduleObjectDeletion(void* ptr, THazardPtrDeleter deleter);
+    void RetireHazardPointer(TPackedPtr packedPtr, THazardPtrReclaimer reclaimer);
 
-    bool ScanDeleteList();
-    void FlushDeleteList();
+    void ReclaimHazardPointers(bool flush);
 
 private:
     std::atomic<int> ThreadCount_ = 0;
 
-    TDeleteQueue<TRetiredPtr> DeleteQueue_;
+    TRetireQueue<TRetiredPtr> RetireQueue_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ThreadRegistryLock_);
     TIntrusiveLinkedList<THazardThreadState, THazardThreadStateToRegistryNode> ThreadRegistry_;
@@ -152,7 +151,8 @@ private:
 
     void Shutdown();
 
-    bool Scan(THazardThreadState* threadState);
+    bool TryReclaimHazardPointers();
+    bool DoReclaimHazardPointers(THazardThreadState* threadState);
 
     THazardThreadState* AllocateThreadState();
     void DestroyThreadState(THazardThreadState* ptr);
@@ -189,8 +189,8 @@ void THazardPointerManager::Shutdown()
     }
 
     int count = 0;
-    DeleteQueue_.DequeueAll([&] (TRetiredPtr& item) {
-        item.Deleter(item.Ptr);
+    RetireQueue_.DequeueAll([&] (TRetiredPtr& item) {
+        item.Reclaimer(item.PackedPtr);
         ++count;
     });
 
@@ -200,50 +200,54 @@ void THazardPointerManager::Shutdown()
     }
 }
 
-void THazardPointerManager::ScheduleObjectDeletion(void* ptr, THazardPtrDeleter deleter)
+void THazardPointerManager::RetireHazardPointer(TPackedPtr packedPtr, THazardPtrReclaimer reclaimer)
 {
     auto* threadState = HazardThreadState;
     if (Y_UNLIKELY(!threadState)) {
         if (HazardThreadStateDestroyed) {
             // Looks like a global shutdown.
-            deleter(ptr);
+            reclaimer(packedPtr);
             return;
         }
         InitThreadState();
         threadState = HazardThreadState;
     }
 
-    threadState->DeleteList.push({ptr, deleter});
+    threadState->RetireList.push({packedPtr, reclaimer});
 
-    if (threadState->Scanning) {
+    if (threadState->Reclaiming) {
         return;
     }
 
     int threadCount = ThreadCount_.load(std::memory_order_relaxed);
-    while (std::ssize(threadState->DeleteList) >= std::max(2 * threadCount, 1)) {
-        Scan(threadState);
+    while (std::ssize(threadState->RetireList) >= std::max(2 * threadCount, 1)) {
+        DoReclaimHazardPointers(threadState);
     }
 }
 
-bool THazardPointerManager::ScanDeleteList()
+bool THazardPointerManager::TryReclaimHazardPointers()
 {
     auto* threadState = HazardThreadState;
-    if (!threadState || threadState->DeleteList.empty()) {
+    if (!threadState || threadState->RetireList.empty()) {
         return false;
     }
 
-    YT_VERIFY(!threadState->Scanning);
+    YT_VERIFY(!threadState->Reclaiming);
 
-    bool hasNewPointers = Scan(threadState);
+    bool hasNewPointers = DoReclaimHazardPointers(threadState);
     int threadCount = ThreadCount_.load(std::memory_order_relaxed);
     return
         hasNewPointers ||
-        std::ssize(threadState->DeleteList) > threadCount;
+        std::ssize(threadState->RetireList) > threadCount;
 }
 
-void THazardPointerManager::FlushDeleteList()
+void THazardPointerManager::ReclaimHazardPointers(bool flush)
 {
-    while (ScanDeleteList());
+    if (flush) {
+        while (TryReclaimHazardPointers());
+    } else {
+        TryReclaimHazardPointers();
+    }
 }
 
 void THazardPointerManager::InitThreadState()
@@ -285,9 +289,9 @@ THazardThreadState* THazardPointerManager::AllocateThreadState()
     return threadState;
 }
 
-bool THazardPointerManager::Scan(THazardThreadState* threadState)
+bool THazardPointerManager::DoReclaimHazardPointers(THazardThreadState* threadState)
 {
-    threadState->Scanning = true;
+    threadState->Reclaiming = true;
 
     // Collect protected pointers.
     auto& protectedPointers = threadState->ProtectedPointers;
@@ -310,44 +314,44 @@ bool THazardPointerManager::Scan(THazardThreadState* threadState)
 
     std::sort(protectedPointers.begin(), protectedPointers.end());
 
-    auto& deleteList = threadState->DeleteList;
+    auto& retireList = threadState->RetireList;
 
-    // Append global DeleteQueue_ to local deleteList.
-    DeleteQueue_.DequeueAll([&] (auto& item) {
-        deleteList.push(std::move(item));
+    // Append global RetireQueue_ to local retireList.
+    RetireQueue_.DequeueAll([&] (auto item) {
+        retireList.push(item);
     });
 
-    if (!protectedPointers.empty()) {
-        YT_LOG_TRACE("Scanning hazard pointers (Candidates: %v, Protected: %v)",
-            MakeFormattableView(TRingQueueIterableWrapper(deleteList), [&] (auto* builder, const auto& item) {
-                builder->AppendFormat("%v", item.Ptr);
-            }),
-            MakeFormattableView(protectedPointers, [&] (auto* builder, const auto ptr) {
-                builder->AppendFormat("%v", ptr);
-            }));
-    }
+    YT_LOG_TRACE_IF(
+        !protectedPointers.empty(),
+        "Scanning hazard pointers (Candidates: %v, Protected: %v)",
+        MakeFormattableView(TRingQueueIterableWrapper(retireList), [&] (auto* builder, auto item) {
+            builder->AppendFormat("%v", TTaggedPtr<void>::Unpack(item.PackedPtr).Ptr);
+        }),
+        MakeFormattableView(protectedPointers, [&] (auto* builder, auto ptr) {
+            builder->AppendFormat("%v", ptr);
+        }));
 
     size_t pushedCount = 0;
-    auto popCount = deleteList.size();
+    auto popCount = retireList.size();
     while (popCount-- > 0) {
-        auto item = std::move(deleteList.front());
-        deleteList.pop();
+        auto item = std::move(retireList.front());
+        retireList.pop();
 
-        void* ptr = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(item.Ptr) & PtrMask);
+        void* ptr = TTaggedPtr<void>::Unpack(item.PackedPtr).Ptr;
         if (std::binary_search(protectedPointers.begin(), protectedPointers.end(), ptr)) {
-            deleteList.push(item);
+            retireList.push(item);
             ++pushedCount;
         } else {
-            item.Deleter(item.Ptr);
+            item.Reclaimer(item.PackedPtr);
         }
     }
 
     protectedPointers.clear();
 
-    threadState->Scanning = false;
+    threadState->Reclaiming = false;
 
-    YT_VERIFY(pushedCount <= deleteList.size());
-    return pushedCount < deleteList.size();
+    YT_VERIFY(pushedCount <= retireList.size());
+    return pushedCount < retireList.size();
 }
 
 void THazardPointerManager::DestroyThreadState(THazardThreadState* threadState)
@@ -358,19 +362,19 @@ void THazardPointerManager::DestroyThreadState(THazardThreadState* threadState)
         --ThreadCount_;
     }
 
-    // Scan threadState->DeleteList and move to blocked elements to global DeleteQueue_.
+    // Scan threadState->RetireList and move to blocked elements to global RetireQueue_.
 
-    Scan(threadState);
+    DoReclaimHazardPointers(threadState);
 
     int count = 0;
-    while (!threadState->DeleteList.empty()) {
-        DeleteQueue_.Enqueue(std::move(threadState->DeleteList.front()));
-        threadState->DeleteList.pop();
+    while (!threadState->RetireList.empty()) {
+        RetireQueue_.Enqueue(std::move(threadState->RetireList.front()));
+        threadState->RetireList.pop();
         ++count;
     }
 
     if (auto* logFile = GetShutdownLogFile()) {
-        ::fprintf(logFile, "*** Hazard Pointer Manager thread state destroyed (ThreadId: %" PRISZT ", DeletedPtrCount: %d)\n",
+        ::fprintf(logFile, "*** Hazard Pointer Manager thread state destroyed (ThreadId: %" PRISZT ", RetiredPtrCount: %d)\n",
             GetCurrentThreadId(),
             count);
     }
@@ -415,32 +419,33 @@ void InitHazardThreadState()
 
 } // namespace NDetail
 
-void ScheduleObjectDeletion(void* ptr, THazardPtrDeleter deleter)
+void RetireHazardPointer(TPackedPtr packedPtr, THazardPtrReclaimer reclaimer)
 {
-    NYT::NDetail::THazardPointerManager::Get()->ScheduleObjectDeletion(ptr, deleter);
+    NYT::NDetail::THazardPointerManager::Get()->RetireHazardPointer(packedPtr, reclaimer);
 }
 
-bool ScanDeleteList()
+void ReclaimHazardPointers(bool flush)
 {
-    return NYT::NDetail::THazardPointerManager::Get()->ScanDeleteList();
-}
-
-void FlushDeleteList()
-{
-    NYT::NDetail::THazardPointerManager::Get()->FlushDeleteList();
+    NYT::NDetail::THazardPointerManager::Get()->ReclaimHazardPointers(flush);
 }
 
 /////////////////////////////////////////////////////////////////////////////
 
-THazardPtrFlushGuard::THazardPtrFlushGuard()
+THazardPtrReclaimGuard::~THazardPtrReclaimGuard()
 {
-    PushContextHandler(FlushDeleteList, nullptr);
+    ReclaimHazardPointers();
 }
 
-THazardPtrFlushGuard::~THazardPtrFlushGuard()
+/////////////////////////////////////////////////////////////////////////////
+
+THazardPtrReclaimOnContextSwitchGuard::THazardPtrReclaimOnContextSwitchGuard()
+{
+    PushContextHandler([] { ReclaimHazardPointers(); }, nullptr);
+}
+
+THazardPtrReclaimOnContextSwitchGuard::~THazardPtrReclaimOnContextSwitchGuard()
 {
     PopContextHandler();
-    FlushDeleteList();
 }
 
 /////////////////////////////////////////////////////////////////////////////

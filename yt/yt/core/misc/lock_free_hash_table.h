@@ -94,8 +94,8 @@ public:
 
         static void DeleteEntry(TEntry entry)
         {
-            ScheduleObjectDeletion(ValueFromEntry(entry), [] (void* ptr) {
-                Unref(static_cast<T*>(ptr));
+            RetireHazardPointer(ValueFromEntry(entry), [] (auto* ptr) {
+                Unref(ptr);
             });
         }
     };

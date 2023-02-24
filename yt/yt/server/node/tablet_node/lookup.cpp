@@ -915,7 +915,7 @@ private:
 
     std::vector<TTabletLookupRequest> TabletRequests_;
 
-    TDeleteListFlusher FlushGuard_;
+    THazardPtrReclaimGuard HazardPtrReclaimGuard_;
 
     std::optional<TDuration> CpuTime_;
     // This flag is used to increment wasted_* profiling counters in case of failed lookup.

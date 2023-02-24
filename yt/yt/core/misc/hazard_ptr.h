@@ -12,19 +12,31 @@ namespace NYT {
 
 extern const NLogging::TLogger LockFreePtrLogger;
 
-bool ScanDeleteList();
-void FlushDeleteList();
+void ReclaimHazardPointers(bool flush = true);
 
-using THazardPtrDeleter = void(*)(void*);
+using THazardPtrReclaimer = void(*)(TPackedPtr packedPtr);
+void RetireHazardPointer(TPackedPtr packedPtr, THazardPtrReclaimer reclaimer);
 
-void ScheduleObjectDeletion(void* ptr, THazardPtrDeleter deleter);
+//! NB: #reclaimer must be stateless.
+template <class T, class TReclaimer>
+void RetireHazardPointer(T* ptr, TReclaimer reclaimer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct THazardPtrFlushGuard
+//! Relcaims hazard pointers on destruction.
+struct THazardPtrReclaimGuard
 {
-    THazardPtrFlushGuard();
-    ~THazardPtrFlushGuard();
+    ~THazardPtrReclaimGuard();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Relcaims hazard pointers on destruction and also on context switch.
+struct THazardPtrReclaimOnContextSwitchGuard
+    : public THazardPtrReclaimGuard
+{
+    THazardPtrReclaimOnContextSwitchGuard();
+    ~THazardPtrReclaimOnContextSwitchGuard();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

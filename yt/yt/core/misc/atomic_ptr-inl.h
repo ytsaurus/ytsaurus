@@ -60,8 +60,8 @@ void TAtomicPtr<T, EnableAcquireHazard>::Drop(T* ptr)
 {
     if (ptr) {
         if constexpr (EnableAcquireHazard) {
-            ScheduleObjectDeletion(ptr, [] (void* ptr) {
-                Unref(static_cast<T*>(ptr));
+            RetireHazardPointer(ptr, [] (T* ptr) {
+                Unref(ptr);
             });
         } else {
             Unref(ptr);

@@ -22,8 +22,8 @@ TLockFreeHashTable<T>::~TLockFreeHashTable()
         auto tableEntry = HashTable_[index].load(std::memory_order::relaxed);
         auto stamp = StampFromEntry(tableEntry);
         if (stamp != 0) {
-            ScheduleObjectDeletion(ValueFromEntry(tableEntry), [] (void* ptr) {
-                Unref(static_cast<T*>(ptr));
+            RetireHazardPointer(ValueFromEntry(tableEntry), [] (auto* ptr) {
+                Unref(ptr);
             });
         }
     }

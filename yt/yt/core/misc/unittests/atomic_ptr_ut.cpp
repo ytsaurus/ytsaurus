@@ -68,12 +68,12 @@ TEST(TAtomicPtrTest, AcquireHazard)
     EXPECT_EQ(obj->GetRefCount(), 2);
 
     atomicPtr.Reset();
-    FlushDeleteList();
+    ReclaimHazardPointers();
 
     EXPECT_EQ(obj->GetRefCount(), 2);
 
     hazardObj.Reset();
-    FlushDeleteList();
+    ReclaimHazardPointers();
 
     EXPECT_EQ(obj->GetRefCount(), 1);
 }

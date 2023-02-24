@@ -87,7 +87,7 @@ private:
 TEST(THazardPtrTest, RefCountedPtrBehavior)
 {
     // Ensure that delete list is empty.
-    FlushDeleteList();
+    ReclaimHazardPointers();
 
     TStringStream output;
     TTestAllocator allocator(&output);
@@ -107,7 +107,7 @@ TEST(THazardPtrTest, RefCountedPtrBehavior)
 
     EXPECT_STREQ("AC!!!D", output.Str().c_str());
 
-    ScanDeleteList();
+    ReclaimHazardPointers(/*flush*/ false);
 
     EXPECT_STREQ("AC!!!DF", output.Str().c_str());
 }
@@ -115,7 +115,7 @@ TEST(THazardPtrTest, RefCountedPtrBehavior)
 TEST(THazardPtrTest, DelayedDeallocation)
 {
     // Ensure that delete list is empty.
-    FlushDeleteList();
+    ReclaimHazardPointers();
 
     TStringStream output;
     TTestAllocator allocator(&output);
@@ -134,12 +134,12 @@ TEST(THazardPtrTest, DelayedDeallocation)
     EXPECT_TRUE(hazardPtr);
     EXPECT_FALSE(MakeStrong(hazardPtr));
 
-    ScanDeleteList();
+    ReclaimHazardPointers(/*flush*/ false);
 
     EXPECT_STREQ("AC!D", output.Str().c_str());
 
     hazardPtr.Reset();
-    ScanDeleteList();
+    ReclaimHazardPointers(/*flush*/ false);
 
     EXPECT_STREQ("AC!DF", output.Str().c_str());
 }
@@ -147,7 +147,7 @@ TEST(THazardPtrTest, DelayedDeallocation)
 TEST(THazardPtrTest, DelayedDeallocationWithMultipleHPs)
 {
     // Ensure that delete list is empty.
-    FlushDeleteList();
+    ReclaimHazardPointers();
 
     TStringStream output;
     TTestAllocator allocator(&output);
@@ -170,16 +170,16 @@ TEST(THazardPtrTest, DelayedDeallocationWithMultipleHPs)
     EXPECT_TRUE(hazardPtr1);
     EXPECT_FALSE(MakeStrong(hazardPtr1));
 
-    ScanDeleteList();
+    ReclaimHazardPointers(/*flush*/ false);
 
     EXPECT_STREQ("AC!D", output.Str().c_str());
 
     hazardPtr1.Reset();
-    ScanDeleteList();
+    ReclaimHazardPointers(/*flush*/ false);
 
     EXPECT_STREQ("AC!D", output.Str().c_str());
     hazardPtr2.Reset();
-    ScanDeleteList();
+    ReclaimHazardPointers(/*flush*/ false);
 
     EXPECT_STREQ("AC!DF", output.Str().c_str());
 }
@@ -187,7 +187,7 @@ TEST(THazardPtrTest, DelayedDeallocationWithMultipleHPs)
 TEST(THazardPtrTest, CombinedLogic)
 {
     // Ensure that delete list is empty.
-    FlushDeleteList();
+    ReclaimHazardPointers();
 
     TStringStream output;
     TTestAllocator allocator(&output);
@@ -206,17 +206,17 @@ TEST(THazardPtrTest, CombinedLogic)
 
     EXPECT_STREQ("AC!", output.Str().c_str());
 
-    ScheduleObjectDeletion(rawPtr, [] (void* ptr) {
-        Unref(static_cast<TSampleObject*>(ptr));
+    RetireHazardPointer(rawPtr, [] (auto* ptr) {
+        Unref(ptr);
     });
 
-    ScanDeleteList();
+    ReclaimHazardPointers(/*flush*/ false);
 
     EXPECT_STREQ("AC!", output.Str().c_str());
 
     {
         hazardPtr.Reset();
-        ScanDeleteList();
+        ReclaimHazardPointers(/*flush*/ false);
 
         EXPECT_STREQ("AC!D", output.Str().c_str());
     }
@@ -226,12 +226,12 @@ TEST(THazardPtrTest, CombinedLogic)
             return rawPtr;
         });
 
-        ScanDeleteList();
+        ReclaimHazardPointers(/*flush*/ false);
         EXPECT_STREQ("AC!D", output.Str().c_str());
     }
 
     {
-        ScanDeleteList();
+        ReclaimHazardPointers(/*flush*/ false);
         EXPECT_STREQ("AC!DF", output.Str().c_str());
     }
 }
@@ -269,7 +269,7 @@ private:
 TEST(THazardPtrTest, DelayedDeallocationPolymorphic)
 {
     // Ensure that delete list is empty.
-    FlushDeleteList();
+    ReclaimHazardPointers();
 
     TStringStream output;
     TTestAllocator allocator(&output);
@@ -285,12 +285,12 @@ TEST(THazardPtrTest, DelayedDeallocationPolymorphic)
 
     EXPECT_STREQ("AC!D", output.Str().c_str());
 
-    ScanDeleteList();
+    ReclaimHazardPointers(/*flush*/ false);
 
     EXPECT_STREQ("AC!D", output.Str().c_str());
 
     hazardPtr.Reset();
-    ScanDeleteList();
+    ReclaimHazardPointers(/*flush*/ false);
 
     EXPECT_STREQ("AC!DF", output.Str().c_str());
 }
@@ -302,7 +302,7 @@ NThreading::TEvent Finish;
 TEST(THazardPtrTest, SupportFork)
 {
     // Ensure that delete list is empty.
-    FlushDeleteList();
+    ReclaimHazardPointers();
 
     TStringStream output;
     TTestAllocator allocator(&output);
@@ -336,7 +336,7 @@ TEST(THazardPtrTest, SupportFork)
 
     EXPECT_STREQ("AC!D", output.Str().c_str());
 
-    ScanDeleteList();
+    ReclaimHazardPointers(/*flush*/ false);
 
     EXPECT_STREQ("AC!D", output.Str().c_str());
 
@@ -351,11 +351,11 @@ TEST(THazardPtrTest, SupportFork)
 
         EXPECT_TRUE(hazardPtr);
 
-        ScanDeleteList();
+        ReclaimHazardPointers(/*flush*/ false);
         EXPECT_STREQ("AC!D", output.Str().c_str());
 
         hazardPtr.Reset();
-        ScanDeleteList();
+        ReclaimHazardPointers(/*flush*/ false);
 
         EXPECT_STREQ("AC!DF", output.Str().c_str());
 
@@ -365,7 +365,7 @@ TEST(THazardPtrTest, SupportFork)
     } else {
         Sleep(TDuration::Seconds(1));
         hazardPtr.Reset();
-        ScanDeleteList();
+        ReclaimHazardPointers(/*flush*/ false);
 
         EXPECT_STREQ("AC!DF", output.Str().c_str());
 

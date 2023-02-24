@@ -6,20 +6,12 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDeleteListFlusher::~TDeleteListFlusher()
-{
-    FlushDeleteList();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTRowCacheMemoryTracker
-    : public NDetail::IRowCacheMemoryTracker
+class TRowCacheMemoryTracker
+    : public IMemoryUsageTracker
 {
 public:
-    explicit TTRowCacheMemoryTracker(IMemoryUsageTrackerPtr underlying)
+    explicit TRowCacheMemoryTracker(IMemoryUsageTrackerPtr underlying)
         : Underlying_(std::move(underlying))
-        , Size_{0}
     { }
 
     TError TryAcquire(i64 size) override
@@ -57,15 +49,17 @@ public:
         Underlying_->SetLimit(size);
     }
 
-    i64 GetUsedBytesCount() override
+    i64 GetUsedBytesCount()
     {
         return Size_.load();
     }
 
 private:
     const IMemoryUsageTrackerPtr Underlying_;
-    std::atomic<i64> Size_;
+    std::atomic<i64> Size_ = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(TRowCacheMemoryTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,7 +67,7 @@ TRowCache::TRowCache(
     size_t elementCount,
     const NProfiling::TProfiler& profiler,
     IMemoryUsageTrackerPtr memoryTracker)
-    : MemoryTracker_(New<TTRowCacheMemoryTracker>(std::move(memoryTracker)))
+    : MemoryTracker_(New<TRowCacheMemoryTracker>(std::move(memoryTracker)))
     , Allocator_(profiler.WithPrefix("/slab_allocator"), MemoryTracker_)
     , Cache_(elementCount)
 { }
@@ -187,7 +181,7 @@ void TRowCache::UpdateItems(
 
 void TRowCache::ReallocateItems(const NLogging::TLogger& Logger)
 {
-    THazardPtrFlushGuard flushGuard;
+    THazardPtrReclaimGuard reclaimGuard;
 
     bool hasReallocatedArenas = Allocator_.ReallocateArenasIfNeeded();
 

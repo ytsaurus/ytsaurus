@@ -785,7 +785,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             rowCache->SetFlushIndex(storeFlushIndex);
         }
 
-        THazardPtrFlushGuard flushGuard;
+        THazardPtrReclaimOnContextSwitchGuard reclaimGuard;
 
         TRowBatchReadOptions readOptions{
             .MaxRowsPerRead = MaxRowsPerFlushRead
