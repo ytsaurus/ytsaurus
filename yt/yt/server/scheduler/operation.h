@@ -18,7 +18,6 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/crash_handler.h>
-#include <yt/yt/core/misc/dense_map.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
@@ -27,6 +26,8 @@
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 
 #include <library/cpp/yt/memory/ref.h>
+
+#include <library/cpp/yt/small_containers/compact_flat_map.h>
 
 namespace NYT::NScheduler {
 
@@ -95,11 +96,10 @@ struct TOperationAlert
 
 void Deserialize(TOperationAlert& event, NYTree::INodePtr node);
 
-using TOperationAlertMap = SmallDenseMap<
+using TOperationAlertMap = TCompactFlatMap<
     EOperationAlertType,
     TOperationAlert,
-    2,
-    TEnumTraits<EOperationAlertType>::TDenseMapInfo>;
+    2>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
