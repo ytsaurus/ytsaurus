@@ -103,7 +103,6 @@ constexpr int MaxMediumCount = 120; // leave some room for sentinels
 
 template <typename T>
 using TMediumMap = SmallDenseMap<int, T>;
-using TMediumIntMap = TMediumMap<int>;
 
 //! Used as an expected upper bound in TCompactVector.
 /*

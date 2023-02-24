@@ -536,8 +536,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     // An arbitrary replica that violates consistent placement requirements - per medium.
     TMediumMap<std::array<TChunkLocation*, ChunkReplicaIndexBound>> inconsistentlyPlacedSealedReplicas;
 
-    TMediumIntMap totalReplicaCounts;
-    TMediumIntMap totalDecommissionedReplicaCounts;
+    TMediumMap<int> totalReplicaCounts;
+    TMediumMap<int> totalDecommissionedReplicaCounts;
 
     NErasure::TPartIndexSet replicaIndexes;
 
@@ -931,8 +931,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     // An arbitrary replica that violates consistent placement requirements - per medium.
     TMediumMap<TChunkLocationPtrWithReplicaIndex> inconsistentlyPlacedReplica;
 
-    TMediumIntMap replicaCount;
-    TMediumIntMap decommissionedReplicaCount;
+    TMediumMap<int> replicaCount;
+    TMediumMap<int> decommissionedReplicaCount;
     TMediumMap<TChunkLocationPtrWithReplicaIndexList> decommissionedReplicas;
     int totalReplicaCount = 0;
     int totalDecommissionedReplicaCount = 0;
