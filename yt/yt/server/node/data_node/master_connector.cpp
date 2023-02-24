@@ -162,7 +162,7 @@ public:
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         heartbeat.set_write_sessions_disabled(sessionManager->GetDisableWriteSessions());
 
-        TMediumIntMap chunkCounts;
+        TMediumMap<int> chunkCounts;
 
         int storedChunkCount = 0;
 
