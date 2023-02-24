@@ -50,6 +50,13 @@ using TTableReplicaIdList = TCompactVector<
     NTabletClient::TTableReplicaId,
     NTabletClient::TypicalTableReplicaCount>;
 
+//! See comment in helpers.h
+DEFINE_ENUM(EClusterConnectionDynamicConfigPolicy,
+    (FromStaticConfig)
+    (FromClusterDirectoryWithStaticPatch)
+    (FromClusterDirectory)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative

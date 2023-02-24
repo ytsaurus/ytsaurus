@@ -547,18 +547,7 @@ class YTEnvSetup(object):
         if len(cls.Env.configs["master"]) > 0:
             clusters = {}
             for instance in [cls.Env] + cls.remote_envs:
-                clusters[instance._cluster_name] = {
-                    "primary_master": instance.configs["master"][0]["primary_master"],
-                    "secondary_masters": instance.configs["master"][0]["secondary_masters"],
-                    "timestamp_provider": instance.configs["master"][0]["timestamp_provider"],
-                    "table_mount_cache": instance.configs["driver"]["table_mount_cache"],
-                    "permission_cache": instance.configs["driver"]["permission_cache"],
-                    "cell_directory_synchronizer": instance.configs["driver"]["cell_directory_synchronizer"],
-                    "cluster_directory_synchronizer": instance.configs["driver"]["cluster_directory_synchronizer"],
-                    "queue_agent": instance.configs["master"][0]["cluster_connection"]["queue_agent"],
-                }
-                if "tvm_id" in instance.configs["driver"]:
-                    clusters[instance._cluster_name]["tvm_id"] = instance.configs["driver"]["tvm_id"]
+                clusters[instance._cluster_name] = instance.get_cluster_configuration()["cluster_connection"]
 
             for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
                 cluster_name = cls.get_cluster_name(cluster_index)
@@ -568,7 +557,9 @@ class YTEnvSetup(object):
 
                 requests = [
                     yt_commands.make_batch_request("set", path="//sys/@cluster_name", input=cluster_name),
-                    yt_commands.make_batch_request("set", path="//sys/clusters", input=clusters)
+                    yt_commands.make_batch_request("set", path="//sys/clusters", input=clusters),
+                    yt_commands.make_batch_request("set", path="//sys/@cluster_connection",
+                                                   input=clusters[cluster_name])
                 ]
                 responses = yt_commands.execute_batch(requests, driver=driver)
                 for response in responses:

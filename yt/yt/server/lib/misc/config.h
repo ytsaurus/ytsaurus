@@ -60,6 +60,8 @@ class TNativeServerConfig
 public:
     NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
 
+    NApi::NNative::EClusterConnectionDynamicConfigPolicy ClusterConnectionDynamicConfigPolicy;
+
     REGISTER_YSON_STRUCT(TNativeServerConfig);
 
     static void Register(TRegistrar registrar);

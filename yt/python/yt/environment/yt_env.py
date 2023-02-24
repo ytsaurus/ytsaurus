@@ -585,6 +585,9 @@ class YTInstance(object):
             node_address = "{}:{}".format(node_address, node_config["rpc_port"])
         return node_address
 
+    def get_cluster_configuration(self):
+        return self._cluster_configuration
+
     # TODO(max42): remove this method and rename all its usages to get_http_proxy_address.
     def get_proxy_address(self):
         return self.get_http_proxy_address()

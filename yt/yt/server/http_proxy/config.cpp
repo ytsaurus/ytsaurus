@@ -217,6 +217,10 @@ void TProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("zookeeper_proxy", &TThis::ZookeeperProxy)
         .Default();
 
+    registrar.Preprocessor([] (TThis* config) {
+        config->ClusterConnectionDynamicConfigPolicy = NApi::NNative::EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch;
+    });
+
     registrar.Postprocessor([] (TThis* config) {
         if (!config->TvmOnlyAuth && config->Auth && config->Auth->TvmService) {
             auto auth = New<TAuthenticationManagerConfig>();
