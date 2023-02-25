@@ -64,7 +64,8 @@ XX(TGuid)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-struct TUnversionedValueConversionTraits<T, typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type>
+requires TEnumTraits<T>::IsEnum
+struct TUnversionedValueConversionTraits<T>
 {
     static constexpr bool Scalar = true;
     static constexpr bool Inline = !TEnumTraits<T>::IsStringSerializableEnum;
@@ -120,13 +121,13 @@ struct TRowValueTypesChecker
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+requires TEnumTraits<T>::IsEnum
 void ToUnversionedValue(
     TUnversionedValue* unversionedValue,
     T value,
     const TRowBufferPtr& rowBuffer,
     int id,
-    EValueFlags flags,
-    typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type*)
+    EValueFlags flags)
 {
     if constexpr (TEnumTraits<T>::IsStringSerializableEnum) {
         ToUnversionedValue(unversionedValue, NYT::FormatEnum(value), rowBuffer, id, flags);
@@ -138,10 +139,10 @@ void ToUnversionedValue(
 }
 
 template <class T>
+requires TEnumTraits<T>::IsEnum
 void FromUnversionedValue(
     T* value,
-    TUnversionedValue unversionedValue,
-    typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type*)
+    TUnversionedValue unversionedValue)
 {
     switch (unversionedValue.Type) {
         case EValueType::Int64:

@@ -187,7 +187,7 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
     const auto& schedulerPoolManager = context.GetBootstrap()->GetSchedulerPoolManager();
     const auto& knownPoolAttributes = schedulerPoolManager->GetKnownPoolAttributes();
 
-    if (context.GetVersion() != NCellMaster::GetCurrentReign() && !IsRoot_) {
+    if (ToUnderlying(context.GetVersion()) != NCellMaster::GetCurrentReign() && !IsRoot_) {
         // Some attributes could become unknown.
         // We will move them from known attributes map to unknown attributes map.
         THashMap<TString, TYsonString> oldSpecifiedAttributes;
@@ -214,7 +214,7 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
 
     FullConfig_->Load(ConvertToNode(SpecifiedAttributes_));
 
-    if (context.GetVersion() != NCellMaster::GetCurrentReign() && !IsRoot_ && Attributes_) {
+    if (ToUnderlying(context.GetVersion()) != NCellMaster::GetCurrentReign() && !IsRoot_ && Attributes_) {
         // Move attributes from unknown attributes map to known attributes map.
         TCompactVector<TString, 3> keysToRemove;
         for (const auto& [key, value] : Attributes_->Attributes()) {

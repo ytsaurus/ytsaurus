@@ -101,10 +101,8 @@ void Serialize(IInputStream& input, NYson::IYsonConsumer* consumer);
 
 // Enums
 template <class T>
-void Serialize(
-    T value,
-    NYson::IYsonConsumer* consumer,
-    typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type* = nullptr);
+requires TEnumTraits<T>::IsEnum
+void Serialize(T value, NYson::IYsonConsumer* consumer);
 
 // std::optional
 template <class T>
@@ -196,10 +194,8 @@ void Deserialize(TGuid& value, INodePtr node);
 
 // Enums
 template <class T>
-void Deserialize(
-    T& value,
-    INodePtr node,
-    typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type* = nullptr);
+requires TEnumTraits<T>::IsEnum
+void Deserialize(T& value, INodePtr node);
 
 // std::optional
 template <class T>

@@ -91,33 +91,29 @@ typename std::enable_if_t<std::is_convertible_v<T*, ::google::protobuf::MessageL
 }
 
 template <class T>
-typename std::enable_if<TEnumTraits<T>::IsEnum && !TEnumTraits<T>::IsBitEnum, void>::type ToProto(
-    int* serialized,
-    T original)
+requires TEnumTraits<T>::IsEnum && (!TEnumTraits<T>::IsBitEnum)
+void ToProto(int* serialized, T original)
 {
     *serialized = static_cast<int>(original);
 }
 
 template <class T>
-typename std::enable_if<TEnumTraits<T>::IsEnum && !TEnumTraits<T>::IsBitEnum, void>::type FromProto(
-    T* original,
-    int serialized)
+requires TEnumTraits<T>::IsEnum && (!TEnumTraits<T>::IsBitEnum)
+void FromProto(T* original, int serialized)
 {
     *original = static_cast<T>(serialized);
 }
 
 template <class T>
-typename std::enable_if<TEnumTraits<T>::IsEnum && TEnumTraits<T>::IsBitEnum, void>::type ToProto(
-    ui64* serialized,
-    T original)
+requires TEnumTraits<T>::IsBitEnum
+void ToProto(ui64* serialized, T original)
 {
     *serialized = static_cast<ui64>(original);
 }
 
 template <class T>
-typename std::enable_if<TEnumTraits<T>::IsEnum && TEnumTraits<T>::IsBitEnum, void>::type FromProto(
-    T* original,
-    ui64 serialized)
+requires TEnumTraits<T>::IsBitEnum
+void FromProto(T* original, ui64 serialized)
 {
     *original = static_cast<T>(serialized);
 }

@@ -475,6 +475,8 @@ void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema&
         ? TStableName(protoSchema.stable_name())
         : TStableName(protoSchema.name()));
 
+    auto physicalType = CheckedEnumCast<EValueType>(protoSchema.type());
+
     TLogicalTypePtr columnType;
     if (protoSchema.has_type_v3()) {
         columnType = ConvertTo<TTypeV3LogicalTypeWrapper>(TYsonStringBuf(protoSchema.type_v3())).LogicalType;
@@ -484,35 +486,33 @@ void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema&
                 << TErrorAttribute("type_v3", ToString(*columnType))
                 << TErrorAttribute("required", protoSchema.required());
         }
-        if (protoSchema.has_logical_type() && v1Type != protoSchema.logical_type()) {
+        if (protoSchema.has_logical_type() && v1Type != NYT::FromProto<ESimpleLogicalValueType>(protoSchema.logical_type())) {
             THROW_ERROR_EXCEPTION("Fields \"type_v3\" and \"logical_type\" do not match")
                 << TErrorAttribute("type_v3", ToString(*columnType))
-                << TErrorAttribute("logical_type", protoSchema.logical_type());
+                << TErrorAttribute("logical_type", NYT::FromProto<ESimpleLogicalValueType>(protoSchema.logical_type()));
         }
-        if (protoSchema.has_type() && GetPhysicalType(v1Type) != protoSchema.type()) {
+        if (protoSchema.has_type() && GetPhysicalType(v1Type) != physicalType) {
             THROW_ERROR_EXCEPTION("Fields \"type_v3\" and \"logical_type\" do not match")
                 << TErrorAttribute("type_v3", ToString(*columnType))
                 << TErrorAttribute("type", protoSchema.type());
         }
     } else if (protoSchema.has_logical_type()) {
-        auto simpleLogicalType = CheckedEnumCast<ESimpleLogicalValueType>(protoSchema.logical_type());
-        columnType = MakeLogicalType(simpleLogicalType, protoSchema.required());
-        if (protoSchema.has_type() && GetPhysicalType(simpleLogicalType) != protoSchema.type()) {
+        auto logicalType = CheckedEnumCast<ESimpleLogicalValueType>(protoSchema.logical_type());
+        columnType = MakeLogicalType(logicalType, protoSchema.required());
+        if (protoSchema.has_type() && GetPhysicalType(logicalType) != physicalType) {
             THROW_ERROR_EXCEPTION("Fields \"logical_type\" and \"type\" do not match")
                 << TErrorAttribute("logical_type", ToString(*columnType))
                 << TErrorAttribute("type", protoSchema.type());
         }
     } else if (protoSchema.has_type()) {
-        columnType = MakeLogicalType(
-            GetLogicalType(CheckedEnumCast<EValueType>(protoSchema.type())),
-            protoSchema.required());
+        columnType = MakeLogicalType(GetLogicalType(physicalType), protoSchema.required());
     }
 
     if (!columnType) {
         THROW_ERROR_EXCEPTION("Type is not specified");
     }
-    schema->SetLogicalType(std::move(columnType));
 
+    schema->SetLogicalType(std::move(columnType));
     schema->SetLock(protoSchema.has_lock() ? std::make_optional(protoSchema.lock()) : std::nullopt);
     schema->SetExpression(protoSchema.has_expression() ? std::make_optional(protoSchema.expression()) : std::nullopt);
     schema->SetAggregate(protoSchema.has_aggregate() ? std::make_optional(protoSchema.aggregate()) : std::nullopt);
