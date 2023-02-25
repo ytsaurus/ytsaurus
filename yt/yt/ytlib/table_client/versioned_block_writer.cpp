@@ -56,6 +56,12 @@ TVersionedBlockWriterBase::TVersionedBlockWriterBase(
     }
 }
 
+void TVersionedBlockWriterBase::UpdateMinMaxTimestamp(TTimestamp timestamp)
+{
+    MaxTimestamp_ = std::max(MaxTimestamp_, timestamp);
+    MinTimestamp_ = std::min(MinTimestamp_, timestamp);
+}
+
 TBlock TVersionedBlockWriterBase::FlushBlock(
     std::vector<TSharedRef> blockParts,
     TDataBlockMeta meta)
@@ -116,16 +122,14 @@ void TSimpleVersionedBlockWriter::WriteRow(TVersionedRow row)
     for (const auto* it = row.BeginWriteTimestamps(); it != row.EndWriteTimestamps(); ++it) {
         auto timestamp = *it;
         WritePod(TimestampStream_, timestamp);
-        MaxTimestamp_ = std::max(MaxTimestamp_, timestamp);
-        MinTimestamp_ = std::min(MinTimestamp_, timestamp);
+        UpdateMinMaxTimestamp(timestamp);
     }
 
     TimestampCount_ += row.GetDeleteTimestampCount();
     for (const auto* it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
         auto timestamp = *it;
         WritePod(TimestampStream_, timestamp);
-        MaxTimestamp_ = std::max(MaxTimestamp_, timestamp);
-        MinTimestamp_ = std::min(MinTimestamp_, timestamp);
+        UpdateMinMaxTimestamp(timestamp);
     }
 
     ValueCount_ += row.GetValueCount();

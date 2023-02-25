@@ -346,10 +346,12 @@ void TSlimVersionedBlockWriter::WriteRow(TVersionedRow row)
 
     for (auto timestamp : row.DeleteTimestamps()) {
         WritePod<ui32>(ptr, GetTimestampIndex(timestamp));
+        UpdateMinMaxTimestamp(timestamp);
     }
 
     for (const auto& value : row.Values()) {
         WritePod<ui32>(ptr, GetTimestampIndex(value.Timestamp));
+        UpdateMinMaxTimestamp(value.Timestamp);
     }
 
     for (const auto& value : row.Values()) {

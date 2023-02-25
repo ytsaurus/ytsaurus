@@ -46,6 +46,8 @@ protected:
     TMemoryUsageTrackerGuard MemoryGuard_;
 
 
+    void UpdateMinMaxTimestamp(TTimestamp timestamp);
+
     TBlock FlushBlock(
         std::vector<TSharedRef> blockParts,
         NProto::TDataBlockMeta meta);
