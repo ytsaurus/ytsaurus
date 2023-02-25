@@ -64,6 +64,7 @@ DEFINE_ENUM(ETableChunkFormat,
     ((VersionedSimple)                 (2))
     ((VersionedColumnar)               (5))
     ((VersionedIndexed)                (8))
+    ((VersionedSlim)                   (9))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
