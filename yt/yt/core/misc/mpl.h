@@ -56,35 +56,6 @@ struct TIsPod
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Generates a type trait that checks existence of a member called |X|.
-/*!
- * See http://en.wikibooks.org/wiki/More_C%2B%2B_Idioms/Member_Detector
- */
-#define DEFINE_MPL_MEMBER_DETECTOR(X)                                                    \
-    template <class T>                                                                   \
-    class THas##X##Member                                                                \
-    {                                                                                    \
-    private:                                                                             \
-        struct Fallback { int X; };                                                      \
-        struct Derived : T, Fallback { };                                                \
-                                                                                         \
-        template <typename U, U> struct Check;                                           \
-                                                                                         \
-        using ArrayOfOne = char[1];                                                      \
-        using ArrayOfTwo = char[2];                                                      \
-                                                                                         \
-        template <typename U> static ArrayOfOne & func(Check<int Fallback::*, &U::X> *); \
-        template <typename U> static ArrayOfTwo & func(...);                             \
-                                                                                         \
-    public:                                                                              \
-        enum                                                                             \
-        {                                                                                \
-            Value = sizeof(func<Derived>(0)) == 2                                        \
-        };                                                                               \
-    }
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TDerived, template <class...> class TTemplatedBase>
 concept DerivedFromSpecializationOf = requires(const TDerived& instance)
 {

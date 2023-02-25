@@ -3073,8 +3073,6 @@ private:
     // TABLES (TRANSACTIONAL)
     ////////////////////////////////////////////////////////////////////////////////
 
-    DEFINE_MPL_MEMBER_DETECTOR(retention_timestamp);
-
     template <class TContext, class TRequest, class TOptions>
     static void LookupRowsPrelude(
         const TIntrusivePtr<TContext>& context,
@@ -3092,7 +3090,7 @@ private:
 
         options->Timestamp = request->timestamp();
 
-        if constexpr (THasretention_timestampMember<TRequest>::Value) {
+        if constexpr (requires { request->retention_timestamp(); }) {
             options->RetentionTimestamp = request->retention_timestamp();
         }
 
