@@ -41,7 +41,7 @@ DEFINE_ENUM(EPerfEventType,
 class TPerfEventCounter final
 {
 public:
-    TPerfEventCounter(EPerfEventType type);
+    explicit TPerfEventCounter(EPerfEventType type);
     ~TPerfEventCounter();
 
     TPerfEventCounter(const TPerfEventCounter&) = delete;

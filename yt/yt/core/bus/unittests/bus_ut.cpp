@@ -224,11 +224,11 @@ TEST_F(TBusTest, Terminate)
         BIND([&] (const TError& error) {
             terminated.Set(error);
         }));
-    auto error = TError(54321, "Terminated");
+    auto error = TError(TErrorCode(54321), "Terminated");
     bus->Terminate(error);
-    bus->Terminate(TError(12345, "Ignored"));
+    bus->Terminate(TError(TErrorCode(12345), "Ignored"));
     EXPECT_EQ(terminated.Get().GetCode(), error.GetCode());
-    bus->Terminate(TError(12345, "Ignored"));
+    bus->Terminate(TError(TErrorCode(12345), "Ignored"));
 
     auto result = bus->Send(message, NBus::TSendOptions(EDeliveryTrackingLevel::Full));
     EXPECT_TRUE(result.IsSet());
@@ -256,7 +256,7 @@ TEST_F(TBusTest, TerminateBeforeAccept)
         BIND([&] (const TError& error) {
             terminated.Set(error);
         }));
-    auto error = TError(54321, "Terminated");
+    auto error = TError(TErrorCode(54321), "Terminated");
     bus->Terminate(error);
     EXPECT_FALSE(terminated.IsSet());
 

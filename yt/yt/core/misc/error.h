@@ -31,12 +31,13 @@ class TErrorCode
 public:
     using TUnderlying = int;
 
-    TErrorCode();
-    TErrorCode(int value);
+    constexpr TErrorCode();
+    explicit constexpr TErrorCode(int value);
     template <class E>
-    TErrorCode(E value, typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type* = nullptr);
+    requires std::is_enum_v<E>
+    constexpr TErrorCode(E value);
 
-    operator int() const;
+    constexpr operator int() const;
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
@@ -49,17 +50,10 @@ void FormatValue(TStringBuilderBase* builder, TErrorCode code, TStringBuf spec);
 TString ToString(TErrorCode code);
 
 template <class E>
-typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator == (E lhs, TErrorCode rhs);
-template <class E>
-typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator != (E lhs, TErrorCode rhs);
+requires std::is_enum_v<E>
+constexpr bool operator == (TErrorCode lhs, E rhs);
 
-template <class E>
-typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator == (TErrorCode lhs, E rhs);
-template <class E>
-typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator != (TErrorCode lhs, E rhs);
-
-inline bool operator == (TErrorCode lhs, TErrorCode rhs);
-inline bool operator != (TErrorCode lhs, TErrorCode rhs);
+constexpr bool operator == (TErrorCode lhs, TErrorCode rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

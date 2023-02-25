@@ -22,7 +22,7 @@ TReign GetCurrentReign()
 bool ValidateSnapshotReign(TReign reign)
 {
     for (auto value : TEnumTraits<EMasterReign>::GetDomainValues()) {
-        if (value == reign) {
+        if (ToUnderlying(value) == reign) {
             return true;
         }
     }

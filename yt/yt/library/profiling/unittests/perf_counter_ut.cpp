@@ -4,6 +4,7 @@
 #include <yt/yt/library/profiling/perf/counters.h>
 
 #include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/proc.h>
 
 namespace NYT::NProfiling {
 namespace {
@@ -16,7 +17,8 @@ void IgnorePermissionError(const TFn& fn)
     try {
         fn();
     } catch (const TErrorException& ex) {
-        if (ex.Error().FindMatching(4213)) {
+        constexpr auto PermissionErrorCode = TErrorCode(LinuxErrorCodeBase + EACCES);
+        if (ex.Error().FindMatching(PermissionErrorCode)) {
             return;
         }
 

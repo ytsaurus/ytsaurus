@@ -378,7 +378,7 @@ TError TError::FromSystem()
 
 TError TError::FromSystem(int error)
 {
-    return TError(LinuxErrorCodeBase + error, LastSystemErrorText(error)) <<
+    return TError(TErrorCode(LinuxErrorCodeBase + error), LastSystemErrorText(error)) <<
         TErrorAttribute("errno", error);
 }
 
@@ -990,7 +990,7 @@ void FromProto(TError* error, const NYT::NProto::TError& protoError)
         return;
     }
 
-    error->SetCode(protoError.code());
+    error->SetCode(TErrorCode(protoError.code()));
     error->SetMessage(protoError.message());
     if (protoError.has_attributes()) {
         error->Impl_->SetAttributes(FromProto(protoError.attributes()));

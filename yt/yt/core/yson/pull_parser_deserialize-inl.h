@@ -213,7 +213,8 @@ void Deserialize(std::optional<T>& value, TYsonPullParserCursor* cursor, std::en
 
 // Enum.
 template <class T>
-void Deserialize(T& value, TYsonPullParserCursor* cursor, std::enable_if_t<TEnumTraits<T>::IsEnum, void*>)
+requires TEnumTraits<T>::IsEnum
+void Deserialize(T& value, TYsonPullParserCursor* cursor)
 {
     MaybeSkipAttributes(cursor);
     if constexpr (TEnumTraits<T>::IsBitEnum) {

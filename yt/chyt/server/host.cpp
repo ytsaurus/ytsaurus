@@ -77,6 +77,8 @@ using namespace NTracing;
 using namespace NChunkClient;
 using namespace NConcurrency;
 
+using NYT::FromProto;
+
 static const auto& Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -767,7 +769,7 @@ private:
         auto responseIt = responses.begin();
         for (auto [name, attributes] : nodes) {
             if (!responseIt->IsOK() || responseIt->Value()->instance_id() != name ||
-                responseIt->Value()->instance_state() == EInstanceState::Stopped)
+                FromProto<EInstanceState>(responseIt->Value()->instance_state()) == EInstanceState::Stopped)
             {
                 YT_LOG_WARNING("Banning instance (Address: %v, HttpPort: %v, TcpPort: %v, RpcPort: %v, JobId: %v, State: %v)",
                     attributes->Get<TString>("host"),
@@ -775,7 +777,7 @@ private:
                     attributes->Get<ui64>("tcp_port"),
                     attributes->Get<ui64>("rpc_port"),
                     name,
-                    (responseIt->IsOK() ? Format("%v", EInstanceState(responseIt->Value()->instance_state())) : "Request failed"));
+                    (responseIt->IsOK() ? Format("%v", FromProto<EInstanceState>(responseIt->Value()->instance_state())) : "Request failed"));
                 dead.push_back(name);
             } else {
                 alive.push_back(name);

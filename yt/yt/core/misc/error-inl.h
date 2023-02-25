@@ -10,56 +10,35 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TErrorCode::TErrorCode()
+inline constexpr TErrorCode::TErrorCode()
     : Value_(static_cast<int>(NYT::EErrorCode::OK))
 { }
 
-inline TErrorCode::TErrorCode(int value)
+inline constexpr TErrorCode::TErrorCode(int value)
     : Value_(value)
 { }
 
 template <class E>
-TErrorCode::TErrorCode(E value, typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type*)
+requires std::is_enum_v<E>
+constexpr TErrorCode::TErrorCode(E value)
     : Value_(static_cast<int>(value))
 { }
 
-inline TErrorCode::operator int() const
+inline constexpr TErrorCode::operator int() const
 {
     return Value_;
 }
 
 template <class E>
-typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator == (E lhs, TErrorCode rhs)
+requires std::is_enum_v<E>
+constexpr bool operator == (TErrorCode lhs, E rhs)
 {
     return static_cast<int>(lhs) == static_cast<int>(rhs);
 }
 
-template <class E>
-typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator != (E lhs, TErrorCode rhs)
-{
-    return !(lhs == rhs);
-}
-
-template <class E>
-typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator == (TErrorCode lhs, E rhs)
+constexpr inline bool operator == (TErrorCode lhs, TErrorCode rhs)
 {
     return static_cast<int>(lhs) == static_cast<int>(rhs);
-}
-
-template <class E>
-typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator != (TErrorCode lhs, E rhs)
-{
-    return !(lhs == rhs);
-}
-
-inline bool operator == (TErrorCode lhs, TErrorCode rhs)
-{
-    return static_cast<int>(lhs) == static_cast<int>(rhs);
-}
-
-inline bool operator != (TErrorCode lhs, TErrorCode rhs)
-{
-    return !(lhs == rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

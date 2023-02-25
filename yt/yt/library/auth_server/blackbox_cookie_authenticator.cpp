@@ -126,7 +126,8 @@ private:
             return TError("Blackbox returned invalid response");
         }
 
-        if (statusId.Value() != EBlackboxStatus::Valid && statusId.Value() != EBlackboxStatus::NeedReset) {
+        auto status = static_cast<EBlackboxStatus>(statusId.Value());
+        if (status != EBlackboxStatus::Valid && status != EBlackboxStatus::NeedReset) {
             auto error = GetByYPath<TString>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
             return TError(NRpc::EErrorCode::InvalidCredentials, "Blackbox rejected session cookie")
