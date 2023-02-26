@@ -256,15 +256,15 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(20)])  # 20 rows, one row per tablet
         sync_flush_table("//tmp/t")
 
-        assert(sum(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")) == 9)
-        assert(sum(t["cell_id"] == cells[1] for t in get("//tmp/t/@tablets")) == 11)
+        assert (sum(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")) == 9)
+        assert (sum(t["cell_id"] == cells[1] for t in get("//tmp/t/@tablets")) == 11)
 
         set("//tmp/t/@tablet_balancer_config/enable_parameterized", True)
 
         sleep(5)
 
-        assert(sum(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")) == 9)
-        assert(sum(t["cell_id"] == cells[1] for t in get("//tmp/t/@tablets")) == 11)
+        assert (sum(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")) == 9)
+        assert (sum(t["cell_id"] == cells[1] for t in get("//tmp/t/@tablets")) == 11)
 
         self._set_parameterized_deviation_threshold(0.)
         wait(lambda: sum(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")) == 10)
