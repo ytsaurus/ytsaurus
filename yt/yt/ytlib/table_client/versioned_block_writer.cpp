@@ -633,8 +633,7 @@ char* TIndexedVersionedBlockWriter::EncodeTimestampData(char* buffer)
         for (const auto* it = begin; it != end; ++it) {
             TTimestamp timestamp = *it;
             WritePod(buffer, timestamp);
-            MaxTimestamp_ = std::max(MaxTimestamp_, timestamp);
-            MinTimestamp_ = std::min(MinTimestamp_, timestamp);
+            UpdateMinMaxTimestamp(timestamp);
         }
     };
     writeTimestamps(row.BeginWriteTimestamps(), row.EndWriteTimestamps());
