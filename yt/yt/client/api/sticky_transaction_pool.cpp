@@ -145,7 +145,7 @@ private:
         YT_LOG_DEBUG("Sticky transaction lease expired (TransactionId: %v)",
             transactionId);
 
-        transaction->Abort();
+        YT_UNUSED_FUTURE(transaction->Abort());
     }
 
     void OnStickyTransactionCommitted(TTransactionId transactionId)

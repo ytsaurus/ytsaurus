@@ -214,7 +214,7 @@ void TBootstrap::HandleSigint()
         YT_LOG_INFO("Host is not set up");
         discoveryStopFuture = VoidFuture;
     }
-    discoveryStopFuture.Apply(BIND([this] {
+    YT_UNUSED_FUTURE(discoveryStopFuture.Apply(BIND([this] {
         TDelayedExecutor::WaitForDuration(Config_->GracefulInterruptionDelay);
         if (Host_) {
             Y_UNUSED(WaitFor(Host_->GetIdleFuture()));
@@ -234,7 +234,7 @@ void TBootstrap::HandleSigint()
         NLogging::TLogManager::Get()->Shutdown();
         WriteToStderr("*** Server gracefully stopped ***\n");
         _exit(GracefulInterruptionExitCode);
-    }).Via(GetControlInvoker()));
+    }).Via(GetControlInvoker())));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

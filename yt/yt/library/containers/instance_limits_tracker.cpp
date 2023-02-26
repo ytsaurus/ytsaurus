@@ -42,7 +42,7 @@ void TInstanceLimitsTracker::Start()
 void TInstanceLimitsTracker::Stop()
 {
     if (Running_) {
-        Executor_->Stop();
+        YT_UNUSED_FUTURE(Executor_->Stop());
         Running_ = false;
         YT_LOG_INFO("Instance limits tracker stopped");
     }

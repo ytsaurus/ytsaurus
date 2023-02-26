@@ -41,7 +41,7 @@ TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const T
             guard.Release();
 
             DoGet(entry->Key, context)
-                .Apply(BIND([entry] (const TErrorOr<TValue>& value) {
+                .Subscribe(BIND([entry] (const TErrorOr<TValue>& value) {
                     auto transientError = !value.IsOK() && !value.FindMatching(NRpc::EErrorCode::InvalidCredentials);
 
                     auto guard = Guard(entry->Lock);

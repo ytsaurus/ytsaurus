@@ -160,7 +160,7 @@ public:
             return;
         }
 
-        changelogFuture.Apply(BIND([this, this_ = MakeStrong(this), changelogId] (const TErrorOr<IChangelogPtr>& changelogOrError) {
+        changelogFuture.Subscribe(BIND([this, this_ = MakeStrong(this), changelogId] (const TErrorOr<IChangelogPtr>& changelogOrError) {
             if (changelogOrError.IsOK()) {
                 CloseChangelog(changelogOrError.Value(), changelogId);
             } else {
@@ -180,7 +180,7 @@ public:
         // NB: Changelog is captured into a closure to prevent
         // its destruction before closing.
         changelog->Close()
-            .Apply(BIND(&TChangelogDiscarder::OnChangelogDiscarded, MakeStrong(this), changelog, changelogId));
+            .Subscribe(BIND(&TChangelogDiscarder::OnChangelogDiscarded, MakeStrong(this), changelog, changelogId));
     }
 
 private:
@@ -527,7 +527,7 @@ public:
         SuspendedPromise_.Reset();
         UnderlyingStream_ = CreateZeroCopyAdapter(underlyingStream);
         for (const auto& syncBlock : SyncBlocks_) {
-            ForwardBlock(syncBlock);
+            YT_UNUSED_FUTURE(ForwardBlock(syncBlock));
         }
         SyncBlocks_.clear();
         guard.Release();
