@@ -262,7 +262,7 @@ class YTInstance(object):
         self._default_client_config = {"enable_token": False}
 
         self._open_port_iterator = _get_ports_generator(yt_config)
-        self._prepare_environment(self._open_port_iterator, modify_configs_func)
+        self._prepare_builtin_environment(self._open_port_iterator, modify_configs_func)
 
     def _prepare_directories(self):
         master_dirs = []
@@ -301,7 +301,44 @@ class YTInstance(object):
                 "tablet_balancer": self._make_service_dirs("tablet_balancer", self.yt_config.tablet_balancer_count),
                 "cypress_proxy": self._make_service_dirs("cypress_proxy", self.yt_config.cypress_proxy_count)}
 
-    def _prepare_environment(self, ports_generator, modify_configs_func):
+    def _log_component_line(self, binary, name, count, is_external=False):
+        if isinstance(count, int) and count == 0:
+            return
+        if binary is not None and binary not in self._binary_to_version:
+            return
+
+        count = str(count)
+        if binary is not None:
+            version = " (version: {})".format(self._binary_to_version[binary].literal)
+        else:
+            version = ""
+
+        if is_external:
+            external_marker = " [external]"
+        else:
+            external_marker = ""
+
+        logger.info("  {} {}{}{}".format(name.ljust(20), count.ljust(15), version, external_marker))
+
+    def prepare_external_component(self, binary, lowercase_with_underscores_name, human_readable_name, configs, force_overwrite=False):
+        self._log_component_line(binary, human_readable_name, len(configs), is_external=True)
+
+        config_paths = []
+
+        for index, config in enumerate(configs):
+            config_name = "{}-{}.yson".format(lowercase_with_underscores_name, index)
+            config_path = os.path.join(self.configs_path, config_name)
+            if self._load_existing_environment and not force_overwrite:
+                config = read_config(config_path)
+            else:
+                write_config(config, config_path)
+
+            config_paths.append(config_path)
+            self._service_processes[lowercase_with_underscores_name].append(None)
+
+        return config_paths
+
+    def _prepare_builtin_environment(self, ports_generator, modify_configs_func):
         service_infos = [
             ("ytserver-clock", "clocks", self.yt_config.clock_count),
             ("ytserver-discovery", "discovery servers", self.yt_config.discovery_server_count),
@@ -322,18 +359,7 @@ class YTInstance(object):
 
         logger.info("Start preparing cluster instance as follows:")
         for binary, name, count in service_infos:
-            if isinstance(count, int) and count == 0:
-                continue
-            if binary is not None and binary not in self._binary_to_version:
-                continue
-
-            count = str(count)
-            if binary is not None:
-                version = "(version: {})".format(self._binary_to_version[binary].literal)
-            else:
-                version = ""
-
-            logger.info("  {} {} {}".format(name.ljust(20), count.ljust(15), version))
+            self._log_component_line(binary, name, count, is_external=False)
 
         logger.info("  {} {}".format("working dir".ljust(20), self.path.ljust(15)))
 
@@ -993,24 +1019,37 @@ class YTInstance(object):
 
             return p
 
-    def _run_yt_component(self, component, name=None, config_option=None):
-        if name is None:
-            name = component
+    def run_yt_component(self, component, config_paths, name=None, config_option=None):
         if config_option is None:
             config_option = "--config"
+        if name is None:
+            name = component
 
         logger.info("Starting %s", name)
 
-        for index in xrange(len(self.configs[name])):
+        pids = []
+        for index in xrange(len(config_paths)):
             with push_front_env_path(self.bin_path):
-                args = [_get_yt_binary_path("ytserver-" + component, custom_paths=self.custom_paths)]
+                binary_path = _get_yt_binary_path("ytserver-" + component, custom_paths=self.custom_paths)
+                if binary_path is None:
+                    raise YtError("Could not start component '{}', make sure it is available in PATH".format(component),
+                                  attributes={"path_env": os.environ.get("PATH")})
+                args = [binary_path]
             if self._kill_child_processes:
                 args.extend(["--pdeathsig", str(int(signal.SIGKILL))])
-            args.extend([config_option, self.config_paths[name][index]])
+            args.extend([config_option, config_paths[index]])
 
-            number = None if len(self.configs[name]) == 1 else index
+            number = None if len(config_paths) == 1 else index
             with push_front_env_path(self.bin_path):
-                self._run(args, name, number=number)
+                run_result = self._run(args, name, number=number)
+                if run_result is not None:
+                    pids.append(run_result.pid)
+        return pids
+
+    def _run_builtin_yt_component(self, component, name=None, config_option=None):
+        if name is None:
+            name = component
+        self.run_yt_component(component, self.config_paths[name], name=name, config_option=config_option)
 
     def _get_master_name(self, master_name, cell_index):
         if cell_index == 0:
@@ -1051,7 +1090,7 @@ class YTInstance(object):
         master_name = self._get_master_name("master", cell_index)
         secondary = cell_index > 0
 
-        self._run_yt_component("master", name=master_name)
+        self._run_builtin_yt_component("master", name=master_name)
 
         def quorum_ready():
             self._validate_processes_are_running(master_name)
@@ -1127,7 +1166,7 @@ class YTInstance(object):
             self._service_processes["clock"].append(None)
 
     def start_clock(self, sync=True):
-        self._run_yt_component("clock")
+        self._run_builtin_yt_component("clock")
 
         def quorum_ready():
             self._validate_processes_are_running("clock")
@@ -1164,7 +1203,7 @@ class YTInstance(object):
             self._service_processes["discovery"].append(None)
 
     def start_discovery_server(self, sync=True):
-        self._run_yt_component("discovery")
+        self._run_builtin_yt_component("discovery")
 
     def _prepare_queue_agents(self, queue_agent_configs):
         for queue_agent_index in xrange(self.yt_config.queue_agent_count):
@@ -1184,7 +1223,7 @@ class YTInstance(object):
             self._service_processes["queue_agent"].append(None)
 
     def start_queue_agents(self, sync=True):
-        self._run_yt_component("queue-agent", name="queue_agent")
+        self._run_builtin_yt_component("queue-agent", name="queue_agent")
 
         client = self._create_cluster_client()
 
@@ -1228,7 +1267,7 @@ class YTInstance(object):
             self._service_processes["timestamp_provider"].append(None)
 
     def start_timestamp_providers(self, sync=True):
-        self._run_yt_component("timestamp-provider", name="timestamp_provider")
+        self._run_builtin_yt_component("timestamp-provider", name="timestamp_provider")
 
         def timestamp_providers_ready():
             self._validate_processes_are_running("timestamp_provider")
@@ -1265,7 +1304,7 @@ class YTInstance(object):
             self._service_processes["cell_balancer"].append(None)
 
     def start_cell_balancers(self, sync=True):
-        self._run_yt_component("cell-balancer", name="cell_balancer")
+        self._run_builtin_yt_component("cell-balancer", name="cell_balancer")
 
         client = self._create_cluster_client()
 
@@ -1331,7 +1370,7 @@ class YTInstance(object):
             self._service_processes["node"].append(None)
 
     def start_nodes(self, sync=True):
-        self._run_yt_component("node")
+        self._run_builtin_yt_component("node")
 
         def nodes_ready():
             self._validate_processes_are_running("node")
@@ -1370,7 +1409,7 @@ class YTInstance(object):
             self._service_processes["chaos_node"].append(None)
 
     def start_chaos_nodes(self, sync=True):
-        self._run_yt_component("node", name="chaos_node")
+        self._run_builtin_yt_component("node", name="chaos_node")
 
         def chaos_nodes_ready():
             self._validate_processes_are_running("node")
@@ -1399,7 +1438,7 @@ class YTInstance(object):
             self._service_processes["master_cache"].append(None)
 
     def start_master_caches(self, sync=True):
-        self._run_yt_component("master-cache", name="master_cache")
+        self._run_builtin_yt_component("master-cache", name="master_cache")
 
         def master_caches_ready():
             self._validate_processes_are_running("master_cache")
@@ -1485,7 +1524,7 @@ class YTInstance(object):
         if not client.exists("//sys/pools"):
             client.link("//sys/pool_trees/default", "//sys/pools", ignore_existing=True)
 
-        self._run_yt_component("scheduler")
+        self._run_builtin_yt_component("scheduler")
 
         def schedulers_ready():
             def check_node_state(node):
@@ -1552,7 +1591,7 @@ class YTInstance(object):
         self._wait_or_skip(lambda: self._wait_for(schedulers_ready, "scheduler"), sync)
 
     def start_controller_agents(self, sync=True):
-        self._run_yt_component("controller-agent", name="controller_agent")
+        self._run_builtin_yt_component("controller-agent", name="controller_agent")
 
         def controller_agents_ready():
             self._validate_processes_are_running("controller_agent")
@@ -1730,7 +1769,7 @@ class YTInstance(object):
                 write_config(rpc_client_config, rpc_client_config_path)
 
     def start_http_proxy(self, sync=True):
-        self._run_yt_component("http-proxy", name="http_proxy")
+        self._run_builtin_yt_component("http-proxy", name="http_proxy")
 
         def proxy_ready():
             self._validate_processes_are_running("http_proxy")
@@ -1748,7 +1787,7 @@ class YTInstance(object):
         self._wait_or_skip(lambda: self._wait_for(proxy_ready, "http_proxy", max_wait_time=20), sync)
 
     def start_rpc_proxy(self, sync=True):
-        self._run_yt_component("proxy", name="rpc_proxy")
+        self._run_builtin_yt_component("proxy", name="rpc_proxy")
 
         client = self._create_cluster_client()
 
@@ -1795,7 +1834,7 @@ class YTInstance(object):
             self._service_processes["tablet_balancer"].append(None)
 
     def start_tablet_balancers(self, sync=True):
-        self._run_yt_component("tablet-balancer", name="tablet_balancer")
+        self._run_builtin_yt_component("tablet-balancer", name="tablet_balancer")
 
         def tablet_balancer_ready():
             self._validate_processes_are_running("tablet_balancer")
@@ -1823,7 +1862,7 @@ class YTInstance(object):
             self._service_processes["cypress_proxy"].append(None)
 
     def start_cypress_proxies(self, sync=True):
-        self._run_yt_component("cypress-proxy", name="cypress_proxy")
+        self._run_builtin_yt_component("cypress-proxy", name="cypress_proxy")
 
         def cypress_proxy_ready():
             self._validate_processes_are_running("cypress_proxy")
