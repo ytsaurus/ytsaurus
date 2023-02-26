@@ -1252,9 +1252,9 @@ def _build_cluster_connection_config(yt_config,
             "retry_backoff_time": 100
         },
         "node_directory_synchronizer": {
-            "sync_period": 100,
-            "expire_after_successful_update_time": 100,
-            "expire_after_failed_update_time": 100,
+            "sync_period": 500,
+            "expire_after_successful_update_time": 500,
+            "expire_after_failed_update_time": 500,
         },
         "upload_transaction_timeout": 5000,
         # TODO(gritukan): Turn on after 22.2 compat tests will be removed.
