@@ -21,6 +21,7 @@
 
 #include <yt/yt/server/master/cypress_server/config.h>
 
+#include <yt/yt/server/master/tablet_server/chaos_helpers.h>
 #include <yt/yt/server/master/tablet_server/hunk_storage_node.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
@@ -281,7 +282,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             }
 
             if (replicationProgress) {
-                tabletManager->ScatterReplicationProgress(node, *replicationProgress);
+                ScatterReplicationProgress(node, *replicationProgress);
             }
 
             node->SetUpstreamReplicaId(upstreamReplicaId);
