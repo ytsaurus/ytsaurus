@@ -264,9 +264,9 @@ void TBlobChunkBase::DoReadMeta(
                     Location_->GetId());
 
                 if (const auto& chunkStore = Location_->GetChunkStore()) {
-                    chunkStore->RemoveChunk(this);
+                    YT_UNUSED_FUTURE(chunkStore->RemoveChunk(this));
                 } else {
-                    ScheduleRemove();
+                    YT_UNUSED_FUTURE(ScheduleRemove());
                 }
             }
         } else if (error.FindMatching(NFS::EErrorCode::IOError)) {
@@ -564,9 +564,9 @@ void TBlobChunkBase::OnBlocksRead(
                     Location_->GetId());
 
                 if (const auto& chunkStore = Location_->GetChunkStore()) {
-                    chunkStore->RemoveChunk(this);
+                    YT_UNUSED_FUTURE(chunkStore->RemoveChunk(this));
                 } else {
-                    ScheduleRemove();
+                    YT_UNUSED_FUTURE(ScheduleRemove());
                 }
             }
         } else if (blocksOrError.FindMatching(NFS::EErrorCode::IOError)) {
@@ -787,7 +787,7 @@ TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(
     YT_VERIFY(ReadLockCounter_.load() > 0);
 
     if (PreparedReader_) {
-        PreparedReader_->PrepareToReadChunkFragments(options, useDirectIO);
+        YT_UNUSED_FUTURE(PreparedReader_->PrepareToReadChunkFragments(options, useDirectIO));
         return {};
     }
 

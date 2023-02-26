@@ -515,7 +515,7 @@ public:
         SuspendedPromise_.Reset();
         UnderlyingStream_ = CreateZeroCopyAdapter(underlyingStream);
         for (const auto& syncBlock : SyncBlocks_) {
-            ForwardBlock(syncBlock);
+            YT_UNUSED_FUTURE(ForwardBlock(syncBlock));
         }
         SyncBlocks_.clear();
         guard.Release();

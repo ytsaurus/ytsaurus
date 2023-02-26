@@ -67,7 +67,7 @@ void TTransactionListener::StopProbeTransaction(const ITransactionPtr& transacti
     TransactionIdToProbeExecutor_.erase(it);
     IgnoredTransactionIds_.push_back(transaction->GetId());
     guard.Release();
-    executor->Stop();
+    YT_UNUSED_FUTURE(executor->Stop());
 }
 
 bool TTransactionListener::IsAborted() const

@@ -314,7 +314,7 @@ void TConnection::Terminate()
 {
     YT_LOG_DEBUG("Terminating connection");
     ChannelPool_->Terminate(TError("Connection terminated"));
-    UpdateProxyListExecutor_->Stop();
+    YT_UNUSED_FUTURE(UpdateProxyListExecutor_->Stop());
 }
 
 const TConnectionConfigPtr& TConnection::GetConfig()

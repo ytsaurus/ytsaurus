@@ -171,7 +171,7 @@ private:
         Error_ = error
             << TErrorAttribute("listener", Name_);
         Acceptor_->Unarm(ServerSocket_, this);
-        Acceptor_->Unregister(this);
+        YT_UNUSED_FUTURE(Acceptor_->Unregister(this));
     }
 
     bool TryAccept(TPromise<IConnectionPtr> &promise)

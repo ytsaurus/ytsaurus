@@ -50,7 +50,7 @@ TEST_F(TAsyncReaderWriterLockTest, WriteMode)
 
 TEST_F(TAsyncReaderWriterLockTest, WriteAfterRead)
 {
-    lock.AcquireReader();
+    YT_UNUSED_FUTURE(lock.AcquireReader());
 
     auto future = lock.AcquireWriter();
     EXPECT_FALSE(future.IsSet());
@@ -63,7 +63,7 @@ TEST_F(TAsyncReaderWriterLockTest, WriteAfterRead)
 
 TEST_F(TAsyncReaderWriterLockTest, ServeWriteFirst)
 {
-    lock.AcquireReader();
+    YT_UNUSED_FUTURE(lock.AcquireReader());
 
     auto writeFuture = lock.AcquireWriter();
     EXPECT_FALSE(writeFuture.IsSet());

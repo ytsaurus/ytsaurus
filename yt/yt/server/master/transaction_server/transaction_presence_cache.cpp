@@ -76,7 +76,7 @@ void TTransactionPresenceCache::Stop()
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
 
-    EvictionExecutor_->Stop();
+    YT_UNUSED_FUTURE(EvictionExecutor_->Stop());
     EvictionExecutor_.Reset();
 }
 

@@ -697,7 +697,7 @@ private:
                 .ThrowOnError();
         }
 
-        Discovery_->StartPolling();
+        YT_UNUSED_FUTURE(Discovery_->StartPolling());
 
         auto attributes = ConvertToAttributes(THashMap<TString, INodePtr>{
             {"host", ConvertToNode(Config_->Address)},
@@ -717,7 +717,7 @@ private:
 
         // Update after entering the group guarantees that we will notify all
         // alive instances via gossip about new one.
-        Discovery_->UpdateList();
+        YT_UNUSED_FUTURE(Discovery_->UpdateList());
     }
 
     THashMap<TString, NYTree::IAttributeDictionaryPtr> FilterNodesByCliqueId(const THashMap<TString, NYTree::IAttributeDictionaryPtr>& nodes) const
@@ -833,7 +833,7 @@ private:
             return;
         }
 
-        Discovery_->UpdateList(Config_->Gossip->UnknownInstanceAgeThreshold);
+        YT_UNUSED_FUTURE(Discovery_->UpdateList(Config_->Gossip->UnknownInstanceAgeThreshold));
     }
 
     void CreateOrchidNode()
