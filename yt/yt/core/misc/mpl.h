@@ -64,44 +64,4 @@ concept DerivedFromSpecializationOf = requires(const TDerived& instance)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-constexpr T Max(T x)
-{
-    return x;
-}
-
-template <class T>
-constexpr T Max(T x, T y)
-{
-    return x < y ? y : x;
-}
-
-template <class T, class... Ts>
-constexpr T Max(T x, Ts... args)
-{
-    return Max(x, Max(args...));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-constexpr T Min(T x)
-{
-    return x;
-}
-
-template <class T>
-constexpr T Min(T x, T y)
-{
-    return x < y ? x : y;
-}
-
-template <class T, class... Ts>
-constexpr T Min(T x, Ts... args)
-{
-    return Min(x, Min(args...));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NMpl
