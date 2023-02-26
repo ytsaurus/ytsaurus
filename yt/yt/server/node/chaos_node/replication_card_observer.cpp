@@ -73,7 +73,7 @@ public:
 
     void Stop() override
     {
-        ObserveExecutor_->Stop();
+        YT_UNUSED_FUTURE(ObserveExecutor_->Stop());
     }
 
 private:
@@ -118,7 +118,7 @@ private:
 
                 const auto& hydraManager = Slot_->GetHydraManager();
                 auto mutation = CreateMutation(hydraManager, request);
-                mutation->CommitAndLog(Logger);
+                YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
             }
 
             YT_LOG_DEBUG("Replication card observer finished round (RoundIndex: %v, WillYield: %v)",

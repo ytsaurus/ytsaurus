@@ -231,7 +231,7 @@ private:
         Peers_.clear();
 
         if (AssignExecutor_) {
-            AssignExecutor_->Stop();
+            YT_UNUSED_FUTURE(AssignExecutor_->Stop());
             AssignExecutor_.Reset();
         }
 

@@ -144,10 +144,10 @@ private:
         Running_ = true;
 
         QuantumFinished_ = NewPromise<void>();
-        QuantumFinished_
+        YT_UNUSED_FUTURE(QuantumFinished_
             .ToFuture()
             .Apply(BIND(&TQuantizedExecutor::OnQuantumFinished, MakeWeak(this), QuantumIndex_)
-                .Via(ControlInvoker_));
+                .Via(ControlInvoker_)));
 
         TDelayedExecutor::Submit(
             BIND(&TQuantizedExecutor::OnTimeoutReached, MakeWeak(this), QuantumIndex_),

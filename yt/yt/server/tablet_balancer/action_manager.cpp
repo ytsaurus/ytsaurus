@@ -227,7 +227,7 @@ void TActionManager::Stop()
     Started_ = false;
     PrerequisiteTransactionId_ = NullTransactionId;
 
-    PollExecutor_->Stop();
+    YT_UNUSED_FUTURE(PollExecutor_->Stop());
 
     YT_LOG_INFO("Tablet action manager stopped");
 }

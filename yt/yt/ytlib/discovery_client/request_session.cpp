@@ -97,7 +97,7 @@ void TServerAddressPool::SetConfig(const TDiscoveryConnectionConfigPtr& config)
         YT_LOG_INFO("Server address pool config changed (Addresses: %v)",
             config->Addresses);
 
-        EndpointsUpdateExecutor_->Stop();
+        YT_UNUSED_FUTURE(EndpointsUpdateExecutor_->Stop());
         ResolvedAddressesFuture_ = VoidFuture;
 
         SetAddresses(*config->Addresses);

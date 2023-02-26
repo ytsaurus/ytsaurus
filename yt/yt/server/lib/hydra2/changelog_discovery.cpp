@@ -42,9 +42,9 @@ public:
 
     TFuture<TChangelogInfo> Run()
     {
-        BIND(&TDiscoverChangelogSession::DoRun, MakeStrong(this))
+        YT_UNUSED_FUTURE(BIND(&TDiscoverChangelogSession::DoRun, MakeStrong(this))
             .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
-            .Run();
+            .Run());
         return Promise_;
     }
 
@@ -167,9 +167,9 @@ public:
 
     TFuture<TChangelogQuorumInfo> Run()
     {
-        BIND(&TComputeQuorumInfoSession::DoRun, MakeStrong(this))
+        YT_UNUSED_FUTURE(BIND(&TComputeQuorumInfoSession::DoRun, MakeStrong(this))
             .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
-            .Run();
+            .Run());
         return Promise_;
     }
 
@@ -313,9 +313,9 @@ public:
 
     TFuture<std::pair<int, int>> Run()
     {
-        BIND(&TComputeQuorumLatestChangelogIdSession::DoRun, MakeStrong(this))
+        YT_UNUSED_FUTURE(BIND(&TComputeQuorumLatestChangelogIdSession::DoRun, MakeStrong(this))
             .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
-            .Run();
+            .Run());
         return Promise_;
     }
 

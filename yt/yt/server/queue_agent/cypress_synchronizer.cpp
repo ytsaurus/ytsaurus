@@ -577,7 +577,7 @@ public:
     {
         // NB: We can't have context switches happen in this callback, so sync operations could potentially be performed
         // after a call to CypressSynchronizer::Stop().
-        PassExecutor_->Stop();
+        YT_UNUSED_FUTURE(PassExecutor_->Stop());
 
         Active_ = false;
     }

@@ -470,7 +470,7 @@ public:
             if (Config_->EnableScheduleJobHeartbeats) {
                 ScheduleJobHeartbeatExecutor_->Start();
             } else {
-                ScheduleJobHeartbeatExecutor_->Stop();
+                YT_UNUSED_FUTURE(ScheduleJobHeartbeatExecutor_->Stop());
             }
         }
 
@@ -1375,7 +1375,7 @@ private:
         CachedExecNodeDescriptorsByTags_->Clear();
 
         if (HeartbeatExecutor_) {
-            HeartbeatExecutor_->Stop();
+            YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
             HeartbeatExecutor_.Reset();
         }
 

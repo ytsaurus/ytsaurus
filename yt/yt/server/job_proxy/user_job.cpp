@@ -1044,7 +1044,7 @@ private:
                 // But if stderr transferring fiber itself fails, child process may hang
                 // if it wants to write more stderr. So we abort input (and therefore close the pipe) here.
                 if (asyncInput == StderrPipeReader_) {
-                    asyncInput->Abort();
+                    YT_UNUSED_FUTURE(asyncInput->Abort());
                 }
 
                 THROW_ERROR error;
@@ -1099,7 +1099,7 @@ private:
                         << TErrorAttribute("fd", jobDescriptor);
                 }
             } catch (const std::exception& ex) {
-                reader->Abort();
+                YT_UNUSED_FUTURE(reader->Abort());
                 NotFullyConsumed_.store(true);
                 if (throwOnFailure) {
                     throw;
@@ -1357,15 +1357,15 @@ private:
         CleanupUserProcesses();
 
         for (const auto& reader : TablePipeReaders_) {
-            reader->Abort();
+            YT_UNUSED_FUTURE(reader->Abort());
         }
 
         for (const auto& writer : TablePipeWriters_) {
-            writer->Abort();
+            YT_UNUSED_FUTURE(writer->Abort());
         }
 
         if (StatisticsPipeReader_) {
-            StatisticsPipeReader_->Abort();
+            YT_UNUSED_FUTURE(StatisticsPipeReader_->Abort());
         }
 
         if (!JobStarted_) {
@@ -1373,10 +1373,10 @@ private:
             // and output action may hang.
             // But if job is started we want to save as much stderr as possible
             // so we don't close stderr in that case.
-            StderrPipeReader_->Abort();
+            YT_UNUSED_FUTURE(StderrPipeReader_->Abort());
 
             if (ProfilePipeReader_) {
-                ProfilePipeReader_->Abort();
+                YT_UNUSED_FUTURE(ProfilePipeReader_->Abort());
             }
         }
     }
@@ -1509,7 +1509,7 @@ private:
         // If the job didn't read input to the end, pipe writer could be blocked,
         // because we didn't close the reader end (see check_input_fully_consumed).
         for (const auto& writer : TablePipeWriters_) {
-            writer->Abort();
+            YT_UNUSED_FUTURE(writer->Abort());
         }
 
         // Now make sure that input pipes are also completed.

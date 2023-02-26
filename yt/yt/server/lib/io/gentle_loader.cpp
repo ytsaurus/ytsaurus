@@ -494,7 +494,7 @@ public:
 
     ~TProbesCongestionDetector()
     {
-        ProbesExecutor_->Stop();
+        YT_UNUSED_FUTURE(ProbesExecutor_->Stop());
     }
 
     ECongestedStatus GetCongestionStatus()
@@ -603,7 +603,7 @@ public:
 
     ~TCongestionDetector()
     {
-        ProbesExecutor_->Stop();
+        YT_UNUSED_FUTURE(ProbesExecutor_->Stop());
     }
 
     TCongestedState GetState() const
@@ -856,9 +856,9 @@ public:
     {
         YT_VERIFY(!Started_);
         Started_ = true;
-        BIND(&TGentleLoader::Run, MakeStrong(this), std::move(workloadModel))
+        YT_UNUSED_FUTURE(BIND(&TGentleLoader::Run, MakeStrong(this), std::move(workloadModel))
             .AsyncVia(Invoker_)
-            .Run();
+            .Run());
     }
 
     virtual void Stop() override

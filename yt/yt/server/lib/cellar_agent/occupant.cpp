@@ -313,7 +313,7 @@ public:
                 newPrerequisiteTransactionId);
             PrerequisiteTransactionId_ = newPrerequisiteTransactionId;
             if (ElectionManager_) {
-                ElectionManager_->Abandon(TError("Cell slot reconfigured"));
+                YT_UNUSED_FUTURE(ElectionManager_->Abandon(TError("Cell slot reconfigured")));
             }
         }
 

@@ -230,7 +230,7 @@ public:
     {
         auto mutation = CreateMutation(GetHydraManager(), message);
         GetEpochAutomatonInvoker()->Invoke(BIND([=, this, this_ = MakeStrong(this), mutation = std::move(mutation)] {
-            mutation->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
         }));
     }
 

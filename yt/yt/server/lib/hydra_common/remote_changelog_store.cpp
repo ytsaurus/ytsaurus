@@ -218,7 +218,7 @@ public:
     void Abort() override
     {
         if (PrerequisiteTransaction_) {
-            PrerequisiteTransaction_->Abort();
+            YT_UNUSED_FUTURE(PrerequisiteTransaction_->Abort());
         }
     }
 
