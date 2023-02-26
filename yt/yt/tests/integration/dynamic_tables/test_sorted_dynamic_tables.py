@@ -2425,3 +2425,91 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         sync_unmount_table("//tmp/t")
         with pytest.raises(YtError):
             sync_reshard_table("//tmp/t", 4, enable_slicing=True, first_tablet_index=0, last_tablet_index=1)
+
+
+##################################################################
+
+
+class TestSortedDynamicTablesChunkFormat(TestSortedDynamicTablesBase):
+    @authors("babenko")
+    def test_validate_chunk_format_on_mount(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        assert get("//tmp/t/@optimize_for") == "lookup"
+
+        set("//tmp/t/@chunk_format", "table_unversioned_schemaful")
+        with raises_yt_error("is not a valid versioned chunk format"):
+            mount_table("//tmp/t")
+
+        set("//tmp/t/@chunk_format", "table_versioned_columnar")
+        with raises_yt_error('is not a valid "lookup" chunk format'):
+            mount_table("//tmp/t")
+
+    @authors("babenko")
+    def test_indexed_chunk_format(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", chunk_format="table_versioned_indexed", compression_codec="none")
+        assert get("//tmp/t/@optimize_for") == "lookup"
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value": "test"}])
+
+        sync_unmount_table("//tmp/t")
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        assert get(f"#{chunk_id}/@chunk_format") == "table_versioned_indexed"
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize(
+        "chunk_format",
+        ["table_versioned_simple", "table_versioned_slim", "table_versioned_columnar", "table_versioned_indexed"])
+    def test_major_timestamp_in_compaction(self, chunk_format):
+        sync_create_cells(1)
+
+        self._create_simple_table(
+            "//tmp/t",
+            chunk_format=chunk_format)
+        if chunk_format == "table_versioned_indexed":
+            set("//tmp/t/@compression_codec", "none")
+
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        set("//tmp/t/@enable_lsm_verbose_logging", True)
+        sync_mount_table("//tmp/t")
+
+        # Make it the largest chunk, so it will be skipped from compaction after sorting by size.
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(1000)])
+        sync_flush_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}]) == [{"key": 0, "value": "0"}, {"key": 1, "value": "1"}]
+        first_chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(first_chunk_ids) == 1
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "00"}, {"key": 1, "value": "11"}])
+        sync_flush_table("//tmp/t")
+        delete_rows("//tmp/t", [{"key": 0}])
+        sync_flush_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}]) == [{"key": 1, "value": "11"}]
+
+        set("//tmp/t/@min_compaction_store_count", 2)
+        # The first chunk will be the only skipped chunk as it is the largest one.
+        set("//tmp/t/@compaction_data_size_base", get("#{}/@compressed_data_size".format(first_chunk_ids[0])) - 1)
+        # Otherwise retention timestamp is capped.
+        set("//tmp/t/@min_data_ttl", 0)
+
+        set("//tmp/t/@enable_compaction_and_partitioning", True)
+
+        chunk_ids_before_compaction = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids_before_compaction) == 3
+
+        remount_table("//tmp/t")
+
+        def _compaction_finished():
+            chunk_ids = get("//tmp/t/@chunk_ids")
+            if len(chunk_ids) != 2:
+                return False
+            return builtins.set(chunk_ids).intersection(builtins.set(chunk_ids_before_compaction)) == \
+                builtins.set(first_chunk_ids)
+
+        wait(lambda: _compaction_finished())
+
+        assert lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}]) == [{"key": 1, "value": "11"}]

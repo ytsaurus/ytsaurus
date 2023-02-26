@@ -26,8 +26,7 @@ from yt_commands import (
     sync_remove_tablet_cells, set_node_decommissioned, create_dynamic_table, build_snapshot, get_driver,
     AsyncLastCommittedTimestamp, create_medium, raises_yt_error, get_tablet_errors,
     suspend_tablet_cells, resume_tablet_cells,
-    ban_node, unban_node, decommission_node, recommission_node, disable_tablet_cells_on_node, enable_tablet_cells_on_node,
-    get_singular_chunk_id)
+    ban_node, unban_node, decommission_node, recommission_node, disable_tablet_cells_on_node, enable_tablet_cells_on_node)
 
 from yt_type_helpers import make_schema, optional_type
 import yt_error_codes
@@ -3484,35 +3483,3 @@ class TestTabletCellJanitor(DynamicTablesBase):
 
         for cell_id in cell_ids:
             wait(lambda: _check(cell_id))
-
-
-##################################################################
-
-
-class TestDynamicTablesChunkFormat(DynamicTablesBase):
-    @authors("babenko")
-    def test_validate_chunk_format_on_mount(self):
-        sync_create_cells(1)
-        self._create_sorted_table("//tmp/t")
-        assert get("//tmp/t/@optimize_for") == "lookup"
-
-        set("//tmp/t/@chunk_format", "table_unversioned_schemaful")
-        with raises_yt_error("is not a valid versioned chunk format"):
-            mount_table("//tmp/t")
-
-        set("//tmp/t/@chunk_format", "table_versioned_columnar")
-        with raises_yt_error('is not a valid "lookup" chunk format'):
-            mount_table("//tmp/t")
-
-    @authors("babenko")
-    def test_indexed_chunk_format(self):
-        sync_create_cells(1)
-        self._create_sorted_table("//tmp/t", chunk_format="table_versioned_indexed", compression_codec="none")
-        assert get("//tmp/t/@optimize_for") == "lookup"
-
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": 0, "value": "test"}])
-
-        sync_unmount_table("//tmp/t")
-        chunk_id = get_singular_chunk_id("//tmp/t")
-        assert get(f"#{chunk_id}/@chunk_format") == "table_versioned_indexed"
