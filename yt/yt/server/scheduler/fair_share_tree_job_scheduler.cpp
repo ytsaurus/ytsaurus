@@ -1837,11 +1837,11 @@ TControllerScheduleJobResultPtr TScheduleJobsContext::DoScheduleJob(
 
         ++SchedulingStatistics_.ControllerScheduleJobTimedOutCount;
 
-        StrategyHost_->SetOperationAlert(
+        YT_UNUSED_FUTURE(StrategyHost_->SetOperationAlert(
             element->GetOperationId(),
             EOperationAlertType::ScheduleJobTimedOut,
             TError("Job scheduling timed out: either scheduler is under heavy load or operation is too heavy"),
-            TreeSnapshot_->ControllerConfig()->ScheduleJobTimeoutAlertResetTime);
+            TreeSnapshot_->ControllerConfig()->ScheduleJobTimeoutAlertResetTime));
     }
 
     return scheduleJobResult;

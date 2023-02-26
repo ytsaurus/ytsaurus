@@ -250,7 +250,7 @@ public:
 
         CancelableContext_->Cancel(error);
 
-        ElectionManager_->Abandon(error);
+        YT_UNUSED_FUTURE(ElectionManager_->Abandon(error));
 
         if (ControlState_ != EPeerState::None) {
             RpcServer_->UnregisterService(this);
@@ -1180,7 +1180,7 @@ private:
         context->SetResponseInfo();
 
         auto mutation = CreateMutation(this, *request);
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
 
@@ -1275,7 +1275,7 @@ private:
         }
 
         YT_LOG_WARNING(error, "Restarting Hydra instance");
-        ElectionManager_->Abandon(error);
+        YT_UNUSED_FUTURE(ElectionManager_->Abandon(error));
     }
 
     void DoParticipate()
@@ -1378,7 +1378,7 @@ private:
         auto checkpointer = AutomatonEpochContext_->Checkpointer;
         if (checkpointer->CanBuildSnapshot()) {
             bool setReadOnly = false;
-            BuildSnapshotAndWatch(setReadOnly);
+            YT_UNUSED_FUTURE(BuildSnapshotAndWatch(setReadOnly));
         } else if (checkpointer->CanRotateChangelogs() && !snapshotIsMandatory) {
             YT_LOG_WARNING("Cannot build a snapshot, just rotating changelogs");
             RotateChangelogAndWatch();

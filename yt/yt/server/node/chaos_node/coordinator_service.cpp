@@ -80,9 +80,9 @@ private:
             request->actions_size());
 
         const auto& transactionManager = Slot_->GetTransactionManager();
-        transactionManager
+        YT_UNUSED_FUTURE(transactionManager
             ->CreateRegisterTransactionActionsMutation(context)
-            ->CommitAndReply(context);
+            ->CommitAndReply(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCardEra)

@@ -411,7 +411,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
 
         if (snapshotSize == 0) {
             YT_LOG_WARNING("Empty snapshot found, skipping it");
-            transaction->Abort();
+            YT_UNUSED_FUTURE(transaction->Abort());
             return;
         }
 
