@@ -279,10 +279,6 @@ def get_cell_balancer_config():
 def get_controller_agent_config():
     return yson.loads(b"""
 {
-    node_directory_synchronizer = {
-        sync_period = 100;
-    };
-
     cluster_connection = {
     };
 
@@ -384,12 +380,8 @@ def get_node_config():
         rate_limit = 100;
     };
 
-    node_directory_synchronizer = {
-        sync_period = 100;
-    };
-
     dynamic_config_manager = {
-        update_period = 50;
+        update_period = 500;
     };
 
     cluster_connection = {
@@ -599,12 +591,8 @@ def get_chaos_node_config():
 {
     orchid_cache_update_period = 0;
 
-    node_directory_synchronizer = {
-        sync_period = 100;
-    };
-
     dynamic_config_manager = {
-        update_period = 50;
+        update_period = 500;
     };
 
     cluster_connection = {
@@ -781,7 +769,7 @@ def get_proxy_config():
     };
 
     dynamic_config_manager = {
-        update_period = 100;
+        update_period = 500;
     };
 }
 """)

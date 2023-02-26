@@ -2517,10 +2517,7 @@ class TestIdleSlots(YTEnvSetup):
                     "idle_cpu_fraction": 0.2,
                 },
             },
-        },
-        "dynamic_config_manager": {
-            "update_period": 50,
-        },
+        }
     }
 
     def _get_job_info(self, op):
@@ -2668,10 +2665,7 @@ class TestCpuSet(YTEnvSetup):
                     }
                 ],
             },
-        },
-        "dynamic_config_manager": {
-            "update_period": 50,
-        },
+        }
     }
 
     def _get_job_info(self, op):
