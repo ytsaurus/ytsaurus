@@ -26,23 +26,22 @@ TFuture<T> TAsyncBatcher<T>::Run()
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(Lock_);
-    if (!PendingPromise_) {
-        PendingPromise_ = NewPromise<void>();
-        if (BatchingDelay_) {
-            TDelayedExecutor::Submit(
-                BIND_NO_PROPAGATE(&TAsyncBatcher::OnDeadlineReached, MakeWeak(this)),
-                BatchingDelay_);
-        } else {
+    auto promise = PendingPromise_;
+    if (!promise) {
+        promise = PendingPromise_ = NewPromise<void>();
+        if (BatchingDelay_ == TDuration::Zero()) {
             DeadlineReached_ = true;
-
             if (!ActivePromise_) {
                 NTracing::TNullTraceContextGuard traceContextGuard;
                 DoRun(guard);
-                return ActivePromise_;
             }
+        } else {
+            TDelayedExecutor::Submit(
+                BIND_NO_PROPAGATE(&TAsyncBatcher::OnDeadlineReached, MakeWeak(this)),
+                BatchingDelay_);
         }
     }
-    return PendingPromise_
+    return promise
         .ToFuture()
         .ToUncancelable();
 }
