@@ -19,4 +19,13 @@ inline const NProfiling::TProfiler TabletServerProfiler("/tablet_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TReqUpdateTabletStores;
+class TReqUpdateHunkTabletStores;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTabletServer

@@ -80,6 +80,7 @@ DECLARE_REFCOUNTED_STRUCT(ITabletCellBalancerProvider)
 DECLARE_REFCOUNTED_STRUCT(ITabletNodeTracker)
 DECLARE_REFCOUNTED_STRUCT(IBackupManager)
 DECLARE_REFCOUNTED_CLASS(TMountConfigStorage)
+DECLARE_REFCOUNTED_STRUCT(ITabletChunkManager)
 
 struct ITabletCellBalancer;
 

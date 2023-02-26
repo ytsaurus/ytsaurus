@@ -21,6 +21,7 @@
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
 #include <yt/yt/server/master/tablet_server/backup_manager.h>
+#include <yt/yt/server/master/tablet_server/chaos_helpers.h>
 #include <yt/yt/server/master/tablet_server/config.h>
 #include <yt/yt/server/master/tablet_server/mount_config_storage.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
@@ -610,7 +611,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(tabletManager->GatherReplicationProgress(trunkTable));
+                .Value(GatherReplicationProgress(trunkTable));
             return true;
 
         case EInternedAttributeKey::EnableTabletBalancer:
@@ -1961,7 +1962,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     }
 
     if (options.ReplicationProgress) {
-        tabletManager->ScatterReplicationProgress(table, *options.ReplicationProgress);
+        ScatterReplicationProgress(table, *options.ReplicationProgress);
     }
 
     if (table->IsExternal()) {

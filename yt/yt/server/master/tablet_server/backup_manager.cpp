@@ -1,10 +1,11 @@
 #include "backup_manager.h"
+#include "config.h"
+#include "private.h"
+#include "table_replica.h"
 #include "tablet.h"
 #include "tablet_cell.h"
-#include "private.h"
+#include "tablet_chunk_manager.h"
 #include "tablet_manager.h"
-#include "config.h"
-#include "table_replica.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -516,6 +517,7 @@ private:
         TTableNode* table = nullptr;
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
+        const auto& tabletChunkManager = tabletManager->GetTabletChunkManager();
 
         for (const auto& protoTabletId : request->tablet_ids()) {
             auto tabletId = FromProto<TTabletId>(protoTabletId);
@@ -568,11 +570,11 @@ private:
             switch (table->GetBackupMode()) {
                 case EBackupMode::Sorted:
                 case EBackupMode::SortedSyncReplica:
-                    tabletManager->WrapWithBackupChunkViews(tablet, table->GetBackupCheckpointTimestamp());
+                    tabletChunkManager->WrapWithBackupChunkViews(tablet, table->GetBackupCheckpointTimestamp());
                     break;
 
                 case EBackupMode::SortedAsyncReplica: {
-                    auto error = tabletManager->ApplyBackupCutoff(tablet);
+                    auto error = tabletChunkManager->ApplyBackupCutoff(tablet);
                     YT_VERIFY(error.IsOK());
                     break;
                 }
@@ -582,7 +584,7 @@ private:
                 case EBackupMode::OrderedAtLeast:
                 case EBackupMode::OrderedAtMost:
                 case EBackupMode::ReplicatedSorted: {
-                    auto error = tabletManager->ApplyBackupCutoff(tablet);
+                    auto error = tabletChunkManager->ApplyBackupCutoff(tablet);
 
                     if (!error.IsOK()) {
                         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error,
@@ -660,7 +662,7 @@ private:
                 return;
             }
 
-            auto error = tabletManager->PromoteFlushedDynamicStores(tablet);
+            auto error = tabletManager->GetTabletChunkManager()->PromoteFlushedDynamicStores(tablet);
 
             if (error.IsOK()) {
                 tablet->CheckedSetBackupState(
