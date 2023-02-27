@@ -246,6 +246,11 @@ TString TUser::GetCapitalizedObjectName() const
     return Format("User %Qv", Name_);
 }
 
+TString TUser::GetObjectPath() const
+{
+    return Format("//sys/users/%v", GetName());
+}
+
 void TUser::Save(TSaveContext& context) const
 {
     TSubject::Save(context);

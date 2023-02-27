@@ -27,6 +27,7 @@ public:
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;
+    TString GetObjectPath() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

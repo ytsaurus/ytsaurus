@@ -67,6 +67,7 @@ public:
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;
+    TString GetObjectPath() const override;
 
     //! Save ids of the participating tablets for future retrieval.
     //! Subsequent calls have no effect.

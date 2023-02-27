@@ -18,6 +18,11 @@ TString TGroup::GetCapitalizedObjectName() const
     return Format("Group %Qv", Name_);
 }
 
+TString TGroup::GetObjectPath() const
+{
+    return Format("//sys/groups/%v", Name_);
+}
+
 void TGroup::Save(NCellMaster::TSaveContext& context) const
 {
     TSubject::Save(context);

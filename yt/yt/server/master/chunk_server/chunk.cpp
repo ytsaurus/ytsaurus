@@ -135,6 +135,11 @@ TString TChunk::GetCapitalizedObjectName() const
     }
 }
 
+TString TChunk::GetObjectPath() const
+{
+    return Format("//sys/chunks/%v", GetId());
+}
+
 void TChunk::Save(NCellMaster::TSaveContext& context) const
 {
     TChunkTree::Save(context);

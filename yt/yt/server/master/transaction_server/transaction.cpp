@@ -59,6 +59,11 @@ TString TTransaction::GetCapitalizedObjectName() const
     return Format("Transaction %v", GetId());
 }
 
+TString TTransaction::GetObjectPath() const
+{
+    return Format("//sys/transactions/%v", GetId());
+}
+
 void TTransaction::Save(NCellMaster::TSaveContext& context) const
 {
     TObject::Save(context);

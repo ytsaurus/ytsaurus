@@ -195,6 +195,11 @@ TString TObject::GetCapitalizedObjectName() const
     return Format("Object %v", Id_);
 }
 
+TString TObject::GetObjectPath() const
+{
+    return "";
+}
+
 const TAttributeSet* TObject::GetAttributes() const
 {
     return Attributes_.get();

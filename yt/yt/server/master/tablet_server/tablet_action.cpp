@@ -24,6 +24,11 @@ TString TTabletAction::GetCapitalizedObjectName() const
     return Format("Tablet action %v", GetId());
 }
 
+TString TTabletAction::GetObjectPath() const
+{
+    return Format("//sys/tablet_actions/%v", GetId());
+}
+
 void TTabletAction::SaveTabletIds()
 {
     if (SavedTabletIds_) {

@@ -21,6 +21,11 @@ TString THost::GetCapitalizedObjectName() const
     return Format("Host %Qv", GetName());
 }
 
+TString THost::GetObjectPath() const
+{
+    return Format("//sys/hosts/%v", GetName());
+}
+
 void THost::Save(TSaveContext& context) const
 {
     TObject::Save(context);

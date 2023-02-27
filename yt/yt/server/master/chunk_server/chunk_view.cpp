@@ -169,6 +169,11 @@ TString TChunkView::GetCapitalizedObjectName() const
     return Format("Chunk view %v", GetId());
 }
 
+TString TChunkView::GetObjectPath() const
+{
+    return Format("//sys/chunk_views/%v", GetId());
+}
+
 void TChunkView::Save(NCellMaster::TSaveContext& context) const
 {
     TChunkTree::Save(context);

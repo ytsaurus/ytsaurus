@@ -778,6 +778,7 @@ private:
     }
 
     TString DoGetName(const TCypressNode* node) override;
+    TString DoGetPath(const TCypressNode* node) override;
 
     IObjectProxyPtr DoGetProxy(
         TCypressNode* node,
@@ -4157,8 +4158,13 @@ void TNodeTypeHandler::DoRecreateObjectAsGhost(TCypressNode* node) noexcept
 
 TString TNodeTypeHandler::DoGetName(const TCypressNode* node)
 {
+    return Format("node %v", DoGetPath(node));
+}
+
+TString TNodeTypeHandler::DoGetPath(const TCypressNode* node)
+{
     auto path = Owner_->GetNodePath(node->GetTrunkNode(), node->GetTransaction());
-    return Format("node %v", path);
+    return path;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

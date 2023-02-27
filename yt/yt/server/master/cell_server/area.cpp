@@ -21,6 +21,11 @@ TString TArea::GetCapitalizedObjectName() const
     return Format("Area %Qv of Bundle %Qv", GetName(), CellBundle_->GetName());
 }
 
+TString TArea::GetObjectPath() const
+{
+    return Format("//sys/areas/%v", GetName());
+}
+
 void TArea::Save(NCellMaster::TSaveContext& context) const
 {
     TObject::Save(context);

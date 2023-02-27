@@ -152,6 +152,11 @@ TString TAccount::GetCapitalizedObjectName() const
     return Format("Account %Qv", GetName());
 }
 
+TString TAccount::GetObjectPath() const
+{
+    return Format("//sys/accounts/%v", GetName());
+}
+
 TString TAccount::GetRootName() const
 {
     YT_VERIFY(IsRoot());

@@ -211,6 +211,9 @@ public:
     virtual TString GetLowercaseObjectName() const;
     virtual TString GetCapitalizedObjectName() const;
 
+    //! Builds a human-readable path for diagnostics.
+    virtual TString GetObjectPath() const;
+
     //! Returns an immutable collection of attributes associated with the object or |nullptr| is there are none.
     const TAttributeSet* GetAttributes() const;
 

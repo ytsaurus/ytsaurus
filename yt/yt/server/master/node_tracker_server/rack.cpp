@@ -17,6 +17,11 @@ TString TRack::GetCapitalizedObjectName() const
     return Format("Rack %Qv", GetName());
 }
 
+TString TRack::GetObjectPath() const
+{
+    return Format("//sys/racks/%v", GetName());
+}
+
 void TRack::Save(NCellMaster::TSaveContext& context) const
 {
     TObject::Save(context);

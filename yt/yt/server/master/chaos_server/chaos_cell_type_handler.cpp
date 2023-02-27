@@ -81,6 +81,11 @@ private:
         return Format("chaos cell %v", cell->GetId());
     }
 
+    TString DoGetPath(const TChaosCell* cell) override
+    {
+        return Format("//sys/chaos_cells/%v", cell->GetId());
+    }
+
     IObjectProxyPtr DoGetProxy(TChaosCell* cell, TTransaction* /*transaction*/) override
     {
         return CreateChaosCellProxy(Bootstrap_, &Metadata_, cell);

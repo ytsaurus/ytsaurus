@@ -16,6 +16,11 @@ TString TDataCenter::GetCapitalizedObjectName() const
     return Format("Data center %Qv", GetName());
 }
 
+TString TDataCenter::GetObjectPath() const
+{
+    return Format("//sys/data_centers/%v", GetName());
+}
+
 void TDataCenter::Save(NCellMaster::TSaveContext& context) const
 {
     TObject::Save(context);
