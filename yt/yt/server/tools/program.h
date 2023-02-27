@@ -1,15 +1,11 @@
 #pragma once
 
-#include <yt/yt/server/lib/exec_node/slot_location_builder.h>
+#include "registry.h"
+#include "tools.h"
+#include "proc.h"
+#include "signaler.h"
 
 #include <yt/yt/library/program/program.h>
-#include <yt/yt/ytlib/program/helpers.h>
-
-#include <yt/yt/ytlib/tools/registry.h>
-#include <yt/yt/ytlib/tools/tools.h>
-#include <yt/yt/ytlib/tools/proc.h>
-#include <yt/yt/ytlib/tools/signaler.h>
-
 #include <yt/yt/library/containers/cgroup.h>
 
 #include <util/system/thread.h>
@@ -32,20 +28,11 @@ REGISTER_TOOL(TFSQuotaTool)
 REGISTER_TOOL(TChownChmodTool)
 REGISTER_TOOL(TCopyDirectoryContentTool)
 REGISTER_TOOL(TGetDirectorySizesAsRootTool)
+REGISTER_TOOL(TRootDirectoryBuilderTool)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTools
-
-namespace NYT::NExecNode {
-
-////////////////////////////////////////////////////////////////////////////////
-
-REGISTER_TOOL(TSlotLocationBuilderTool)
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NExecNode
 
 namespace NYT::NTools {
 

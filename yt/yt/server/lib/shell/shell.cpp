@@ -7,9 +7,9 @@
 
 #endif
 
-#include <yt/yt/ytlib/tools/proc.h>
-#include <yt/yt/ytlib/tools/public.h>
-#include <yt/yt/ytlib/tools/tools.h>
+#include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/public.h>
+#include <yt/yt/server/tools/tools.h>
 
 #include <yt/yt/library/process/pty.h>
 

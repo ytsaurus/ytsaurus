@@ -323,4 +323,79 @@ void TCopyDirectoryContentConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDirectoryConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path", &TThis::Path)
+        .Default();
+    registrar.Parameter("user_id", &TThis::UserId)
+        .Default();
+    registrar.Parameter("permissions", &TThis::Permissions)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TRootDirectoryConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("slot_path", &TThis::SlotPath)
+        .Default();
+    registrar.Parameter("user_id", &TThis::UserId)
+        .Default();
+    registrar.Parameter("permissions", &TThis::Permissions)
+        .Default();
+    registrar.Parameter("directories", &TThis::Directories)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDirectoryBuilderConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("need_root", &TThis::NeedRoot)
+        .Default(false);
+    registrar.Parameter("node_uid", &TThis::NodeUid)
+        .Default();
+    registrar.Parameter("slot_configs", &TThis::RootDirectoryConfigs)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TRootDirectoryBuilderTool::operator()(const TDirectoryBuilderConfigPtr& arg) const
+{
+    if (arg->NeedRoot) {
+        TrySetUid(0);
+    }
+
+    for (const auto& rootDirectoryConfig : arg->RootDirectoryConfigs) {
+        // Create slot directory if it does not exist.
+        NFS::MakeDirRecursive(
+            rootDirectoryConfig->SlotPath,
+            rootDirectoryConfig->Permissions);
+
+        ChownChmodDirectory(
+            rootDirectoryConfig->SlotPath,
+            rootDirectoryConfig->UserId,
+            rootDirectoryConfig->Permissions);
+
+        for (const auto& directory : rootDirectoryConfig->Directories) {
+            if (NFS::Exists(directory->Path)) {
+                NFS::RemoveRecursive(directory->Path);
+            }
+            NFs::MakeDirectory(
+                directory->Path,
+                NFs::EFilePermission::FP_SECRET_FILE);
+        }
+
+        for (const auto& directory : rootDirectoryConfig->Directories) {
+            ChownChmodDirectory(
+                directory->Path,
+                directory->UserId,
+                directory->Permissions);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTools

@@ -24,12 +24,12 @@
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
 #include <yt/yt/server/lib/misc/private.h>
 
+#include <yt/yt/server/tools/tools.h>
+#include <yt/yt/server/tools/proc.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
-
-#include <yt/yt/ytlib/tools/tools.h>
-#include <yt/yt/ytlib/tools/proc.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "registry.h"
 
 #include <yt/yt/core/misc/function_traits.h>
 

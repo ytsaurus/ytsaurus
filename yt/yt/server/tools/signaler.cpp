@@ -1,8 +1,8 @@
 #include "signaler.h"
 
-#include <yt/yt/core/misc/proc.h>
+#include "registry.h"
 
-#include <yt/yt/ytlib/tools/registry.h>
+#include <yt/yt/core/misc/proc.h>
 
 namespace NYT::NTools {
 

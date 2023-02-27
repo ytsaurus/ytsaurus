@@ -104,8 +104,8 @@ class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
 
 class TestTabletCellsSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
     ARTIFACT_COMPONENTS = {
-        "22_4": ["master", "node"],
-        "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "job-proxy", "exec", "tools"],
+        "22_4": ["master", "node", "tools"],
+        "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "job-proxy", "exec"],
     }
 
     # COMPAT(gepardo): Remove this after 22.4.
