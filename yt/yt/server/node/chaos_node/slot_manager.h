@@ -15,6 +15,7 @@ struct ISlotManager
     : public TRefCounted
 {
     virtual void Initialize() = 0;
+    virtual void Start() = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(), BeginSlotScan);
     DECLARE_INTERFACE_SIGNAL(void(IChaosSlotPtr), ScanSlot);
@@ -22,6 +23,8 @@ struct ISlotManager
 };
 
 DEFINE_REFCOUNTED_TYPE(ISlotManager)
+
+////////////////////////////////////////////////////////////////////////////////
 
 ISlotManagerPtr CreateSlotManager(
     TChaosNodeConfigPtr config,

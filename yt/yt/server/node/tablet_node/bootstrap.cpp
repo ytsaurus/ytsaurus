@@ -231,6 +231,7 @@ public:
         HintManager_->Start();
         InMemoryManager_->Start();
         TableDynamicConfigManager_->Start();
+        SlotManager_->Start();
     }
 
     NYTree::IYPathServicePtr CreateThreadPoolsOrchidService()
