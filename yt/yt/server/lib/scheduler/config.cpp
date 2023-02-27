@@ -1004,7 +1004,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(45);
+        .Default(47);
 
     registrar.Parameter("send_registered_agents_to_node", &TThis::SendRegisteredAgentsToNode)
         .Default(false);

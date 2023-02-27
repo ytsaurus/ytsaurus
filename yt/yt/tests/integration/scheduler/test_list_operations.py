@@ -1185,3 +1185,13 @@ class TestListOperationsCypressArchiveHeavyRuntimeParameters(TestListOperationsC
             "enable_heavy_runtime_parameters": True,
         }
     }
+
+
+@authors("renadeen")
+class TestArchiveVersion(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    def test_basic(self):
+        assert init_operation_archive.get_latest_version() == get("//sys/scheduler/orchid/scheduler/config/min_required_archive_version")
