@@ -78,7 +78,6 @@ public:
             ChunkServiceProfiler
                 .WithDefaultDisabled()
                 .WithSparse()
-                .WithGlobal()
                 .WithTag("cell_tag", ToString(bootstrap->GetMulticellManager()->GetCellTag())))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks)
@@ -190,7 +189,7 @@ private:
 
         const auto& oldConfig = oldClusterConfig->ChunkService;
 
-        // Checking if OnDynamicConfigChanged was triggered by a change in epoch.
+        // Checking if OnDynamicConfigChanged was triggered by an unrelated dynamic config change or by an epoch change.
         // At least one reconfiguration call is needed to guarantee correct values for throttlers.
         if (oldConfig == Bootstrap_->GetConfigManager()->GetConfig()->ChunkService) {
             ExecuteBatchRequestQueues_.ReconfigureDefaultUserThrottlers({
@@ -199,11 +198,8 @@ private:
         } else {
             // Since ReconfigureDefaultUserThrottlers and EnableThrottling can create extra load on Automaton thread,
             // we want to call them only when it's actually needed.
-            // TODO(h0pless): Use operator instead of comparing all fields individualy here.
-            if (oldConfig->DefaultPerUserRequestWeightThrottlerConfig->Limit != config->DefaultPerUserRequestWeightThrottlerConfig->Limit ||
-                oldConfig->DefaultPerUserRequestBytesThrottlerConfig->Limit != config->DefaultPerUserRequestBytesThrottlerConfig->Limit ||
-                oldConfig->DefaultPerUserRequestWeightThrottlerConfig->Period != config->DefaultPerUserRequestWeightThrottlerConfig->Period ||
-                oldConfig->DefaultPerUserRequestBytesThrottlerConfig->Period != config->DefaultPerUserRequestBytesThrottlerConfig->Period)
+            if (oldConfig->DefaultPerUserRequestWeightThrottlerConfig != config->DefaultPerUserRequestWeightThrottlerConfig ||
+                oldConfig->DefaultPerUserRequestBytesThrottlerConfig != config->DefaultPerUserRequestBytesThrottlerConfig)
             {
                 ExecuteBatchRequestQueues_.ReconfigureDefaultUserThrottlers({
                     config->DefaultPerUserRequestWeightThrottlerConfig,
