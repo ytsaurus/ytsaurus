@@ -1831,6 +1831,14 @@ TFuture<void> TClient::AbortQuery(
     ThrowUnimplemented("AbortQuery");
 }
 
+TFuture<TQueryResult> TClient::GetQueryResult(
+    NQueryTrackerClient::TQueryId /*queryId*/,
+    i64 /*resultIndex*/,
+    const TGetQueryResultOptions& /*options*/)
+{
+    ThrowUnimplemented("GetQueryResult");
+}
+
 TFuture<IUnversionedRowsetPtr> TClient::ReadQueryResult(
     NQueryTrackerClient::TQueryId /*queryId*/,
     i64 /*resultIndex*/,

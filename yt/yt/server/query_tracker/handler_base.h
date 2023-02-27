@@ -37,7 +37,7 @@ protected:
     const i64 Incarnation_;
     const TString User_;
     const EQueryEngine Engine_;
-    const NYTree::INodePtr Settings_;
+    const NYTree::INodePtr SettingsNode_;
 
     const NLogging::TLogger Logger;
 
@@ -46,7 +46,7 @@ protected:
     void OnProgress(const NYson::TYsonString& progress);
     void OnQueryFailed(const TError& error);
     void OnQueryCompleted(const std::vector<TErrorOr<NApi::IUnversionedRowsetPtr>>& rowsetOrErrors);
-    void OnQueryCompleted(const std::vector<TErrorOr<TSharedRef>>& wireRowsetOrErrors);
+    void OnQueryCompletedWire(const std::vector<TErrorOr<TSharedRef>>& wireRowsetOrErrors);
 
     bool TryWriteQueryState(EQueryState state, const TError& error, const std::vector<TErrorOr<TSharedRef>>& wireRowsetOrErrors);
 };

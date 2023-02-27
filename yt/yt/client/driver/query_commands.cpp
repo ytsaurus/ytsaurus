@@ -60,13 +60,36 @@ void TAbortQueryCommand::DoExecute(ICommandContextPtr context)
 
 //////////////////////////////////////////////////////////////////////////////
 
+TGetQueryResultCommand::TGetQueryResultCommand()
+{
+    RegisterParameter("query_id", QueryId);
+    RegisterParameter("result_index", ResultIndex)
+        .Default(0);
+    RegisterParameter("stage", Options.QueryTrackerStage)
+        .Optional();
+}
+
+void TGetQueryResultCommand::DoExecute(ICommandContextPtr context)
+{
+    auto queryResult = WaitFor(context->GetClient()->GetQueryResult(QueryId, ResultIndex, Options))
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(ConvertToYsonString(queryResult));
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
 TReadQueryResultCommand::TReadQueryResultCommand()
 {
     RegisterParameter("query_id", QueryId);
     RegisterParameter("result_index", ResultIndex)
-        .Optional();
+        .Default(0);
     RegisterParameter("stage", Options.QueryTrackerStage)
         .Optional();
+    RegisterParameter("lower_row_index", Options.LowerRowIndex)
+        .Default();
+    RegisterParameter("upper_row_index", Options.UpperRowIndex)
+        .Default();
 }
 
 void TReadQueryResultCommand::DoExecute(ICommandContextPtr context)
@@ -142,8 +165,9 @@ void TListQueriesCommand::DoExecute(ICommandContextPtr context)
 
     context->ProduceOutputValue(BuildYsonStringFluently()
         .BeginMap()
-            .Item("operations").Value(result.Queries)
+            .Item("queries").Value(result.Queries)
             .Item("incomplete").Value(result.Incomplete)
+            .Item("timestamp").Value(result.Timestamp)
         .EndMap());
 }
 

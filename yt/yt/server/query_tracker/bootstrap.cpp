@@ -246,7 +246,7 @@ void TBootstrap::CreateStateTablesIfNeeded()
     createTable(NQueryTrackerClient::NRecords::TActiveQueryDescriptor::Get()->GetSchema(), "active_queries");
     createTable(NQueryTrackerClient::NRecords::TFinishedQueryDescriptor::Get()->GetSchema(), "finished_queries");
     createTable(NQueryTrackerClient::NRecords::TFinishedQueryByStartTimeDescriptor::Get()->GetSchema(), "finished_queries_by_start_time");
-    createTable(NQueryTrackerClient::NRecords::TQueryResultDescriptor::Get()->GetSchema(), "query_results");
+    createTable(NQueryTrackerClient::NRecords::TFinishedQueryResultDescriptor::Get()->GetSchema(), "finished_query_results");
 }
 
 void TBootstrap::UpdateCypressNode()

@@ -407,6 +407,11 @@ public:
         NQueryTrackerClient::TQueryId queryId,
         const TAbortQueryOptions& options) override;
 
+    TFuture<TQueryResult> GetQueryResult(
+        NQueryTrackerClient::TQueryId queryId,
+        i64 resultIndex = 0,
+        const TGetQueryResultOptions& options = {}) override;
+
     TFuture<IUnversionedRowsetPtr> ReadQueryResult(
         NQueryTrackerClient::TQueryId queryId,
         i64 resultIndex = 0,

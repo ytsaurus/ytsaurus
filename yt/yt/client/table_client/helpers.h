@@ -36,7 +36,8 @@ NChunkClient::EChunkFormat DefaultFormatFromOptimizeFor(
 TUnversionedOwningRow YsonToSchemafulRow(
     const TString& yson,
     const TTableSchema& tableSchema,
-    bool treatMissingAsNull);
+    bool treatMissingAsNull,
+    NYson::EYsonType ysonType = NYson::EYsonType::MapFragment);
 TUnversionedOwningRow YsonToSchemalessRow(
     const TString& yson);
 TVersionedRow YsonToVersionedRow(

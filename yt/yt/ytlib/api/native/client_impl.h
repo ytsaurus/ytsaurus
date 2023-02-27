@@ -298,6 +298,11 @@ public:
         NQueryTrackerClient::TQueryId queryId,
         const TAbortQueryOptions& options = {}),
         (queryId, options));
+    IMPLEMENT_METHOD(TQueryResult, GetQueryResult, (
+        NQueryTrackerClient::TQueryId queryId,
+        i64 resultIndex = 0,
+        const TGetQueryResultOptions& options = {}),
+        (queryId, resultIndex, options));
     IMPLEMENT_METHOD(IUnversionedRowsetPtr, ReadQueryResult, (
         NQueryTrackerClient::TQueryId queryId,
         i64 resultIndex = 0,
@@ -1685,6 +1690,10 @@ private:
     void DoAbortQuery(
         NQueryTrackerClient::TQueryId queryId,
         const TAbortQueryOptions& options);
+    TQueryResult DoGetQueryResult(
+        NQueryTrackerClient::TQueryId queryId,
+        i64 resultIndex ,
+        const TGetQueryResultOptions& options);
     IUnversionedRowsetPtr DoReadQueryResult(
         NQueryTrackerClient::TQueryId queryId,
         i64 resultIndex ,

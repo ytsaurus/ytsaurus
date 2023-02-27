@@ -12,6 +12,8 @@
 #include <yt/yt/client/table_client/record_helpers.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
+#include <yt/yt/client/chunk_client/data_statistics.h>
+
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -30,10 +32,39 @@ using namespace NTableClient;
 using namespace NFuncTools;
 using namespace NYson;
 using namespace NYTree;
+using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
 static TLogger Logger("QueryHandler");
+
+///////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+///////////////////////////////////////////////////////////////////////////////
+
+void ProcessRowset(TFinishedQueryResultPartial& newRecord, TSharedRef wireSchemaAndSchemafulRowset)
+{
+    auto reader = CreateWireProtocolReader(wireSchemaAndSchemafulRowset);
+    auto schema = reader->ReadTableSchema();
+    auto rowset = reader->Slice(reader->GetCurrent(), reader->GetEnd());
+    auto schemaNode = ConvertToNode(schema);
+    // Values in tables cannot have top-level attributes, but we do not need them anyway.
+    schemaNode->MutableAttributes()->Clear();
+    newRecord.Schema = ConvertToYsonString(schemaNode);
+    newRecord.Rowset = TString(rowset.ToStringBuf());
+    auto schemaData = IWireProtocolReader::GetSchemaData(schema);
+    auto rows = reader->ReadSchemafulRowset(schemaData, /*captureValues*/ false);
+    TDataStatistics dataStatistics;
+    dataStatistics.set_row_count(rows.size());
+    dataStatistics.set_data_weight(GetDataWeight(rows));
+    newRecord.DataStatistics = ConvertToYsonString(dataStatistics);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +81,7 @@ TQueryHandlerBase::TQueryHandlerBase(
     , Incarnation_(activeQuery.Incarnation)
     , User_(activeQuery.User)
     , Engine_(activeQuery.Engine)
-    , Settings_(ConvertToNode(activeQuery.Settings))
+    , SettingsNode_(ConvertToNode(activeQuery.Settings))
     , Logger(NQueryTracker::Logger.WithTag("QueryId: %v, Engine: %v", activeQuery.Key.QueryId, activeQuery.Engine))
 {
     YT_LOG_INFO("Query handler instantiated");
@@ -61,7 +92,6 @@ ITransactionPtr TQueryHandlerBase::StartIncarnationTransaction() const
     YT_LOG_DEBUG("Starting incarnation transaction");
     auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet))
         .ValueOrThrow();
-    YT_LOG_DEBUG("Incarnation transaction started (TransactionId: %v)", transaction->GetId());
     TLookupRowsOptions options;
     options.Timestamp = transaction->GetStartTimestamp();
     const auto& idMapping = TActiveQueryDescriptor::Get()->GetIdMapping();
@@ -132,10 +162,10 @@ void TQueryHandlerBase::OnQueryCompleted(const std::vector<TErrorOr<IUnversioned
             wireRowsetOrErrors.push_back(static_cast<TError>(rowsetOrError));
         }
     }
-    OnQueryCompleted(wireRowsetOrErrors);
+    OnQueryCompletedWire(wireRowsetOrErrors);
 }
 
-void TQueryHandlerBase::OnQueryCompleted(const std::vector<TErrorOr<TSharedRef>>& wireRowsetOrErrors)
+void TQueryHandlerBase::OnQueryCompletedWire(const std::vector<TErrorOr<TSharedRef>>& wireRowsetOrErrors)
 {
     YT_LOG_INFO("Query completed (ResultCount: %v)", wireRowsetOrErrors.size());
     for (const auto& [index, wireRowsetOrError] : Enumerate(wireRowsetOrErrors)) {
@@ -179,27 +209,29 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, const TError& erro
         {
             std::vector<TUnversionedRow> newRows;
             for (const auto& [index, wireRowsetOrError] : Enumerate(wireRowsetOrErrors)) {
-                TQueryResultPartial newRecord{
+                TFinishedQueryResultPartial newRecord{
                     .Key = {
                         .QueryId = QueryId_,
                         .Index = i64(index),
                     },
                 };
                 if (wireRowsetOrError.IsOK()) {
-                    newRecord.Rowset = TString(wireRowsetOrError.Value().ToStringBuf());
+                    newRecord.Error = TError();
+                    NDetail::ProcessRowset(newRecord, wireRowsetOrError.Value());
                 } else {
                     newRecord.Error = static_cast<TError>(wireRowsetOrError);
+                    newRecord.DataStatistics = ConvertToYsonString(TDataStatistics());
                 }
-                newRows.push_back(newRecord.ToUnversionedRow(rowBuffer, TQueryResultDescriptor::Get()->GetIdMapping()));
+                newRows.push_back(newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryResultDescriptor::Get()->GetIdMapping()));
             }
             transaction->WriteRows(
-                StateRoot_ + "/query_results",
-                TQueryResultDescriptor::Get()->GetNameTable(),
+                StateRoot_ + "/finished_query_results",
+                TFinishedQueryResultDescriptor::Get()->GetNameTable(),
                 MakeSharedRange(std::move(newRows), rowBuffer));
         }
         WaitFor(transaction->Commit())
             .ThrowOnError();
-        YT_LOG_INFO("Query final state written");
+        YT_LOG_INFO("Query final state written (State: %v)", state);
         return true;
     } catch (const std::exception& ex) {
         if (const auto* errorException = dynamic_cast<const TErrorException*>(&ex)) {

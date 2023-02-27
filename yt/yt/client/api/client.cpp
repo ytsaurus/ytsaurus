@@ -368,6 +368,24 @@ void Serialize(const TQuery& query, NYson::IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TQueryResult& queryResult, NYson::IYsonConsumer* consumer)
+{
+    static_assert(pfr::tuple_size<TQueryResult>::value == 5);
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("id").Value(queryResult.Id)
+            .Item("result_index").Value(queryResult.ResultIndex)
+            .DoIf(!queryResult.Error.IsOK(), [&] (TFluentMap fluent) {
+                fluent
+                    .Item("error").Value(queryResult.Error);
+            })
+            .OptionalItem("schema", queryResult.Schema)
+            .Item("data_statistics").Value(queryResult.DataStatistics)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::optional<EJobState> TJob::GetState() const
 {
     if (ArchiveState && ControllerAgentState) {
@@ -412,7 +430,6 @@ static std::optional<NScheduler::EAbortReason> TryGetJobAbortReasonFromError(con
 
 void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey)
 {
-
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
             .OptionalItem(idKey, job.Id)

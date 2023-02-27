@@ -185,7 +185,7 @@ private:
             LookupActiveQuery(
                 queryId,
                 transaction->GetStartTimestamp(),
-                {*idMapping.Incarnation, *idMapping.PingTime, *idMapping.AssignedTracker}))
+                {*idMapping.Incarnation, *idMapping.PingTime, *idMapping.AssignedTracker, *idMapping.State}))
             .ValueOrThrow();
 
         if (!optionalRecord) {
@@ -203,12 +203,20 @@ private:
             return;
         }
         auto newIncarnation = queryRecord.Incarnation + 1;
-        YT_LOG_INFO("Query is still expired, acquiring it (Timestamp: %v, Incarnation: %v)", transaction->GetStartTimestamp(), newIncarnation);
+        YT_LOG_INFO(
+            "Query is still expired, acquiring it (Timestamp: %v, Incarnation: %v, State: %v)",
+            transaction->GetStartTimestamp(),
+            newIncarnation,
+            optionalRecord->State);
+
+        // If current query state is "pending", switch it to "running". Otherwise, keep the existing state of a query;
+        // in particular, it may be "failing" or "completing" if the previous incarnation succeeded in reaching pre-terminating state.
+        auto newState = optionalRecord->State == EQueryState::Pending ? EQueryState::Running : optionalRecord->State;
 
         auto rowBuffer = New<TRowBuffer>();
         TActiveQueryPartial newRecord{
             .Key = queryRecord.Key,
-            .State = EQueryState::Running,
+            .State = newState,
             .Incarnation = newIncarnation,
             .PingTime = TInstant::Now(),
             .AssignedTracker = SelfAddress_,
@@ -227,7 +235,10 @@ private:
         }
         // Do not forget to override incarnation into our new value.
         queryRecord.Incarnation = newIncarnation;
-        YT_LOG_INFO("Query acquired (CommitTimestamp: %v)", commitResultOrError.Value().PrimaryCommitTimestamp);
+        YT_LOG_INFO(
+            "Query acquired (CommitTimestamp: %v, State: %v)",
+            commitResultOrError.Value().PrimaryCommitTimestamp,
+            newState);
 
         IQueryHandlerPtr handler;
         try {
@@ -276,7 +287,7 @@ private:
         }
 
         try {
-            YT_LOG_DEBUG("Staring ping transaction");
+            YT_LOG_DEBUG("Starting ping transaction");
             auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet))
                 .ValueOrThrow();
             YT_LOG_DEBUG("Ping transaction started (TransactionId: %v)", transaction->GetId());
