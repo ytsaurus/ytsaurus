@@ -33,10 +33,10 @@ struct TIOStatistics
 struct TAggregatedNodeStatistics
 {
     TDiskSpaceStatistics TotalSpace;
-    NChunkClient::TMediumMap<TDiskSpaceStatistics> SpacePerMedium = NChunkClient::TMediumMap<TDiskSpaceStatistics>();
+    NChunkClient::TMediumMap<TDiskSpaceStatistics> SpacePerMedium;
 
     TIOStatistics TotalIO;
-    NChunkClient::TMediumMap<TIOStatistics> IOPerMedium = NChunkClient::TMediumMap<TIOStatistics>();
+    NChunkClient::TMediumMap<TIOStatistics> IOPerMedium;
 
     i64 ChunkReplicaCount = 0;
 

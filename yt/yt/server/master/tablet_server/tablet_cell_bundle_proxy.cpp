@@ -55,6 +55,8 @@ using namespace NObjectServer;
 using namespace NNodeTrackerServer;
 using namespace NSecurityServer;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletCellBundleProxy
@@ -297,7 +299,45 @@ private:
         return TBase::RemoveBuiltinAttribute(key);
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NTabletClient::NProto, BalanceTabletCells);
+    DECLARE_YPATH_SERVICE_METHOD(NTabletClient::NProto, BalanceTabletCells)
+    {
+        DeclareMutating();
+
+        auto movableTableIds = FromProto<std::vector<TTableId>>(request->movable_tables());
+        bool keepActions = request->keep_actions();
+
+        context->SetRequestInfo("TableIds: %v, KeepActions: %v",
+            movableTableIds,
+            keepActions);
+
+        ValidateNoTransaction();
+
+        auto* trunkNode = GetThisImpl<TTabletCellBundle>();
+
+        std::vector<TTableNode*> movableTables;
+        movableTables.reserve(movableTableIds.size());
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        for (auto tableId : movableTableIds) {
+            auto* node = objectManager->GetObjectOrThrow(tableId);
+            if (node->GetType() != EObjectType::Table) {
+                THROW_ERROR_EXCEPTION("Unexpected object type: expected %Qlv, got %Qlv",
+                    EObjectType::Table,
+                    node->GetType())
+                    << TErrorAttribute("object_id", tableId);
+            }
+            movableTables.push_back(node->As<TTableNode>());
+        }
+
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        auto tabletActionIds = tabletManager->SyncBalanceCells(
+            trunkNode,
+            movableTables.empty() ? std::nullopt : std::make_optional(movableTables),
+            keepActions);
+        ToProto(response->mutable_tablet_actions(), tabletActionIds);
+
+        context->Reply();
+    }
 
     void DoSerializeAccountViolatedResourceLimits(TAccount* account, TMedium* medium, IYsonConsumer* consumer)
     {
@@ -309,7 +349,7 @@ private:
 
         // NB: Filter out master memory and irrelevant media violations.
         violatedResourceLimits.SetMasterMemory({});
-        auto mediumViolatedDiskSpace = violatedResourceLimits.DiskSpace().lookup(medium->GetIndex());
+        auto mediumViolatedDiskSpace = GetOrDefault(violatedResourceLimits.DiskSpace(), medium->GetIndex());
         violatedResourceLimits.DiskSpace().clear();
         violatedResourceLimits.SetMediumDiskSpace(medium->GetIndex(), mediumViolatedDiskSpace);
 
@@ -320,42 +360,6 @@ private:
             /*serializeDiskSpace*/ false);
     }
 };
-
-DEFINE_YPATH_SERVICE_METHOD(TTabletCellBundleProxy, BalanceTabletCells)
-{
-    DeclareMutating();
-
-    using NYT::FromProto;
-
-    auto movableTableIds = FromProto<std::vector<TTableId>>(request->movable_tables());
-    bool keepActions = request->keep_actions();
-
-    context->SetRequestInfo("TableIds: %v, KeepActions: %v, ", movableTableIds, keepActions);
-
-    ValidateNoTransaction();
-
-    auto* trunkNode = GetThisImpl<TTabletCellBundle>();
-
-    std::vector<TTableNode*> movableTables;
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    for (auto tableId : movableTableIds) {
-        auto* node = objectManager->GetObjectOrThrow(tableId);
-        if (node->GetType() != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Unexpected object type: expected %v, got %v", EObjectType::Table, node->GetType())
-                << TErrorAttribute("object_id", tableId);
-        }
-        movableTables.push_back(node->As<TTableNode>());
-    }
-
-    const auto& tabletManager = Bootstrap_->GetTabletManager();
-    auto tabletActions = tabletManager->SyncBalanceCells(
-        trunkNode,
-        movableTables.empty() ? std::nullopt : std::make_optional(movableTables),
-        keepActions);
-    ToProto(response->mutable_tablet_actions(), tabletActions);
-
-    context->Reply();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

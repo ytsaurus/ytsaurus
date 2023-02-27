@@ -525,7 +525,7 @@ private:
                         if (IsObjectAlive(medium)) {
                             fluent
                                 .Item(medium->GetName())
-                                .Value(statistics.ChunkReplicaCount.lookup(medium->GetIndex()));
+                                .Value(GetOrDefault(statistics.ChunkReplicaCount, medium->GetIndex()));
                         }
                     });
                 return true;

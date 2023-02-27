@@ -456,7 +456,7 @@ private:
     int TotalHintedReplicationSessionCount_;
     int TotalHintedRepairSessionCount_;
 
-    TMediumMap<ui64> VisitMarks_{};
+    TMediumMap<ui64> VisitMarks_;
 
     TMediumMap<std::optional<double>> FillFactors_;
     TMediumMap<std::optional<int>> SessionCount_;

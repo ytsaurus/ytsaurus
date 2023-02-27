@@ -2161,8 +2161,8 @@ public:
             const auto& limits = account->ClusterResourceLimits();
 
             for (auto [index, deltaSpace] : delta.DiskSpace()) {
-                auto usageSpace = usage.DiskSpace().lookup(index);
-                auto limitsSpace = limits.DiskSpace().lookup(index);
+                auto usageSpace = GetOrDefault(usage.DiskSpace(), index);
+                auto limitsSpace = GetOrDefault(limits.DiskSpace(), index);
 
                 if (usageSpace + deltaSpace > limitsSpace) {
                     const auto& chunkManager = Bootstrap_->GetChunkManager();

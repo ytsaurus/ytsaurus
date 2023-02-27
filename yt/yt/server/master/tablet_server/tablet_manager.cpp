@@ -159,7 +159,6 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 
-using NNodeTrackerClient::TNodeDescriptor;
 using NTabletNode::EStoreType;
 using NTabletNode::TBuiltinTableMountConfigPtr;
 using NTabletNode::TCustomTableMountConfigPtr;
@@ -169,7 +168,6 @@ using NTabletNode::DynamicStoreIdPoolSize;
 
 using NTransactionServer::TTransaction;
 
-using NSecurityServer::ConvertToTabletResources;
 using NSecurityServer::ConvertToClusterResources;
 
 using NYT::FromProto;
@@ -1738,24 +1736,24 @@ public:
             tablesSet = THashSet<const TTableNode*>(tables->begin(), tables->end());
         }
 
-        std::vector<TTabletActionId> actions;
-        TTabletBalancerContext context;
         auto descriptors = ReassignInMemoryTablets(
             bundle,
             tablesSet,
             /*ignoreConfig*/ true);
 
+        std::vector<TTabletActionId> actionIds;
+        actionIds.reserve(descriptors.size());
         for (const auto& descriptor : descriptors) {
             if (auto actionId = SpawnTabletAction(descriptor)) {
-                actions.push_back(actionId);
+                actionIds.push_back(actionId);
             }
         }
 
         if (keepActions) {
-            SetSyncTabletActionsKeepalive(actions);
+            SetSyncTabletActionsKeepalive(actionIds);
         }
 
-        return actions;
+        return actionIds;
     }
 
     std::vector<TTabletActionId> SyncBalanceTablets(
@@ -1771,29 +1769,30 @@ public:
             }
         }
 
-        std::vector<TTabletActionId> actions;
-        TTabletBalancerContext context;
-
         std::vector<TTablet*> tablets;
         tablets.reserve(table->Tablets().size());
         for (auto* tablet : table->Tablets()) {
             tablets.push_back(tablet->As<TTablet>());
         }
 
+        TTabletBalancerContext context;
         auto descriptors = MergeSplitTabletsOfTable(
             tablets,
             &context);
 
+        std::vector<TTabletActionId> actionIds;
+        actionIds.reserve(descriptors.size());
         for (const auto& descriptor : descriptors) {
             if (auto actionId = SpawnTabletAction(descriptor)) {
-                actions.push_back(actionId);
+                actionIds.push_back(actionId);
             }
         }
 
         if (keepActions) {
-            SetSyncTabletActionsKeepalive(actions);
+            SetSyncTabletActionsKeepalive(actionIds);
         }
-        return actions;
+
+        return actionIds;
     }
 
     void ValidateSyncBalanceTablets(TTableNode* table)

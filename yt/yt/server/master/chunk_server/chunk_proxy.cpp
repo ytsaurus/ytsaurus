@@ -353,7 +353,7 @@ private:
                 BuildYsonFluently(consumer).DoMapFor(
                     statuses.begin(),
                     statuses.end(),
-                    [&] (TFluentMap fluent, TMediumMap<EChunkStatus>::iterator it) {
+                    [&] (auto fluent, auto it) {
                         auto mediumIndex = it->first;
                         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
                         if (!IsObjectAlive(medium)) {

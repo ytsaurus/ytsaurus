@@ -224,22 +224,19 @@ TAccountStatistics& TAccount::LocalStatistics()
 
 bool TAccount::IsDiskSpaceLimitViolated() const
 {
-    const auto& usage = ClusterStatistics_.ResourceUsage.DiskSpace();
-
-    for (const auto& [mediumIndex, diskSpace] : usage) {
-        if (diskSpace > ClusterResourceLimits_.DiskSpace().lookup(mediumIndex)) {
+    for (auto [mediumIndex, diskSpace] : ClusterStatistics_.ResourceUsage.DiskSpace()) {
+        if (diskSpace > GetOrDefault(ClusterResourceLimits_.DiskSpace(), mediumIndex)) {
             return true;
         }
     }
-
     return false;
 }
 
 bool TAccount::IsDiskSpaceLimitViolated(int mediumIndex) const
 {
-    const auto& usage = ClusterStatistics_.ResourceUsage.DiskSpace();
-    auto limit = ClusterResourceLimits_.DiskSpace().lookup(mediumIndex);
-    return usage.lookup(mediumIndex) > limit;
+    auto usageSpace = GetOrDefault(ClusterStatistics_.ResourceUsage.DiskSpace(), mediumIndex);
+    auto limitsSpace = GetOrDefault(ClusterResourceLimits_.DiskSpace(), mediumIndex);
+    return usageSpace > limitsSpace;
 }
 
 bool TAccount::IsNodeCountLimitViolated() const
@@ -271,8 +268,8 @@ bool TAccount::IsTotalMasterMemoryLimitViolated() const
 bool TAccount::IsCellMasterMemoryLimitViolated(TCellTag cellTag) const
 {
     const auto& perCellLimits = ClusterResourceLimits_.MasterMemory().PerCell;
-    auto limitIt = perCellLimits.find(cellTag);
-    if (limitIt == perCellLimits.end()) {
+    auto limitsIt = perCellLimits.find(cellTag);
+    if (limitsIt == perCellLimits.end()) {
         return false;
     }
 
@@ -281,7 +278,7 @@ bool TAccount::IsCellMasterMemoryLimitViolated(TCellTag cellTag) const
         return false;
     }
 
-    return usageIt->second.ResourceUsage.GetTotalMasterMemory() > limitIt->second;
+    return usageIt->second.ResourceUsage.GetTotalMasterMemory() > limitsIt->second;
 }
 
 bool TAccount::IsChunkHostMasterMemoryLimitViolated() const

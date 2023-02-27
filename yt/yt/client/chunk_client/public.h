@@ -1,11 +1,11 @@
 #pragma once
 
 #include <yt/yt/core/misc/public.h>
-#include <yt/yt/core/misc/dense_map.h>
 
 #include <yt/yt/client/object_client/public.h>
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
+#include <library/cpp/yt/small_containers/compact_flat_map.h>
 
 namespace NYT::NChunkClient {
 
@@ -102,7 +102,9 @@ constexpr int DefaultReplicationFactor = 3;
 constexpr int MaxMediumCount = 120; // leave some room for sentinels
 
 template <typename T>
-using TMediumMap = SmallDenseMap<int, T>;
+using TMediumMap = THashMap<int, T>;
+template <typename T>
+using TCompactMediumMap = TCompactFlatMap<int, T, 4>;
 
 //! Used as an expected upper bound in TCompactVector.
 /*
