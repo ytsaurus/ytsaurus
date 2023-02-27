@@ -110,6 +110,7 @@ public:
     void PopulateSystemDatabase(DB::IDatabase* systemDatabase) const;
     std::shared_ptr<DB::IDatabase> CreateYtDatabase() const;
     void SetContext(DB::ContextMutablePtr context);
+    DB::ContextPtr GetContext() const;
 
     NTableClient::TTableColumnarStatisticsCachePtr GetTableColumnarStatisticsCache() const;
 

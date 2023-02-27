@@ -557,6 +557,9 @@ void TClickHouseServerBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("memory", &TThis::Memory)
         .Default();
 
+    registrar.Parameter("rpc_query_service_thread_count", &TThis::RpcQueryServiceThreadCount)
+        .Default(100);
+
     registrar.Preprocessor([] (TThis* config) {
         config->Jaeger->ServiceName = "clickhouse_server";
         config->Jaeger->CollectorChannelConfig = New<NRpc::NGrpc::TChannelConfig>();

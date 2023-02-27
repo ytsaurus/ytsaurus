@@ -661,6 +661,8 @@ public:
 
     TMemoryConfigPtr Memory;
 
+    int RpcQueryServiceThreadCount;
+
     TPorts GetPorts() const;
 
     REGISTER_YSON_STRUCT(TClickHouseServerBootstrapConfig);

@@ -1,0 +1,15 @@
+#pragma once
+
+#include "private.h"
+
+#include <yt/yt/core/rpc/public.h>
+
+namespace NYT::NClickHouseServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NRpc::IServicePtr CreateQueryService(THost* host, const IInvokerPtr& invoker);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NClickHouseServer

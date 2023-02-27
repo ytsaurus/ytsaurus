@@ -32,6 +32,7 @@ private:
     IClickHouseServerPtr ClickHouseServer_;
 
     NConcurrency::TActionQueuePtr ControlQueue_;
+    NConcurrency::IThreadPoolPtr RpcQueryServiceThreadPool_;
 
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
