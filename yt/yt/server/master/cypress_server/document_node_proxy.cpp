@@ -105,7 +105,7 @@ private:
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
         auto* impl = LockThisImpl();
         if (DelegateInvocation(impl->GetValue(), request, response, context)) {
-            SetModified();
+            SetModified(EModificationType::Content);
         }
     }
 
@@ -130,7 +130,7 @@ private:
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
         auto* impl = LockThisImpl();
         if (DelegateInvocation(impl->GetValue(), request, response, context)) {
-            SetModified();
+            SetModified(EModificationType::Content);
         }
     }
 
@@ -189,7 +189,7 @@ private:
     {
         auto* impl = LockThisImpl();
         impl->SetValue(ConvertToNode(value));
-        SetModified();
+        SetModified(EModificationType::Content);
     }
 };
 

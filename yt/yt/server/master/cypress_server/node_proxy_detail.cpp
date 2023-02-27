@@ -455,20 +455,6 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
             return true;
         }
 
-        case EInternedAttributeKey::InheritAcl:
-        case EInternedAttributeKey::Acl:
-        case EInternedAttributeKey::Owner: {
-            auto attributeUpdated = TObjectProxyBase::SetBuiltinAttribute(key, value);
-            auto* node = GetThisImpl();
-            if (attributeUpdated && !node->IsBeingCreated()) {
-                LogAcdUpdate(key.Unintern(), GetPath(), value);
-            }
-            if (attributeUpdated) {
-                SetModified(EModificationType::Attributes);
-            }
-            return attributeUpdated;
-        }
-
         case EInternedAttributeKey::Annotation: {
             auto annotation = ConvertTo<std::optional<TString>>(value);
             if (annotation) {
@@ -537,6 +523,15 @@ bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttribute
     return TObjectProxyBase::RemoveBuiltinAttribute(key);
 }
 
+void TNontemplateCypressNodeProxyBase::LogAcdUpdate(TInternedAttributeKey key, const TYsonString& value)
+{
+    TObjectProxyBase::LogAcdUpdate(key, value);
+
+    if (!GetThisImpl()->IsBeingCreated()) {
+        NSecurityServer::LogAcdUpdate(key.Unintern(), GetPath(), value);
+    }
+}
+
 TVersionedObjectId TNontemplateCypressNodeProxyBase::GetVersionedId() const
 {
     return VersionedId_;
@@ -582,9 +577,6 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(EInternedAttributeKey::ModificationTime);
     descriptors->push_back(EInternedAttributeKey::AccessTime);
     descriptors->push_back(EInternedAttributeKey::AccessCounter);
-    descriptors->push_back(EInternedAttributeKey::Revision);
-    descriptors->push_back(EInternedAttributeKey::AttributeRevision);
-    descriptors->push_back(EInternedAttributeKey::ContentRevision);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::NativeContentRevision)
         .SetExternal(isExternal));
     descriptors->push_back(EInternedAttributeKey::ResourceUsage);
@@ -830,6 +822,7 @@ void TNontemplateCypressNodeProxyBase::GetBasicAttributes(TGetBasicAttributesCon
 
     auto* node = GetThisImpl();
 
+    // Base class method has already filled these but we need to look at the branch.
     context->Revision = node->GetRevision();
     context->AttributeRevision = node->GetAttributeRevision();
     context->ContentRevision = node->GetContentRevision();
@@ -838,7 +831,6 @@ void TNontemplateCypressNodeProxyBase::GetBasicAttributes(TGetBasicAttributesCon
 void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IServiceContextPtr& context)
 {
     AccessTrackingSuppressed_ = GetSuppressAccessTracking(context->RequestHeader());
-    ModificationTrackingSuppressed_ = GetSuppressModificationTracking(context->RequestHeader());
     ExpirationTimeoutRenewalSuppressed_ = GetSuppressExpirationTimeoutRenewal(context->RequestHeader());
 
     TObjectProxyBase::BeforeInvoke(context);
@@ -1264,11 +1256,8 @@ void TNontemplateCypressNodeProxyBase::SetModified(EModificationType modificatio
     }
 
     cypressManager->SetModified(CachedNode_, modificationType);
-}
 
-void TNontemplateCypressNodeProxyBase::SuppressModificationTracking()
-{
-    ModificationTrackingSuppressed_ = true;
+    // NB: not calling base class method here.
 }
 
 void TNontemplateCypressNodeProxyBase::SetAccessed()
@@ -2534,7 +2523,7 @@ void TMapNodeProxy::Clear()
         DoRemoveChild(impl, key, child);
     }
 
-    SetModified();
+    SetModified(EModificationType::Content);
 }
 
 int TMapNodeProxy::GetChildCount() const
@@ -2621,7 +2610,7 @@ bool TMapNodeProxy::AddChild(const TString& key, const NYTree::INodePtr& child)
 
     AttachChild(TrunkNode_, childImpl);
 
-    SetModified();
+    SetModified(EModificationType::Content);
 
     return true;
 }
@@ -2641,7 +2630,7 @@ bool TMapNodeProxy::RemoveChild(const TString& key)
     auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
     DoRemoveChild(impl, key, childImpl);
 
-    SetModified();
+    SetModified(EModificationType::Content);
 
     return true;
 }
@@ -2660,7 +2649,7 @@ void TMapNodeProxy::RemoveChild(const INodePtr& child)
     auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
     DoRemoveChild(impl, key, childImpl);
 
-    SetModified();
+    SetModified(EModificationType::Content);
 }
 
 void TMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newChild)
@@ -2692,7 +2681,7 @@ void TMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newCh
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     securityManager->UpdateMasterMemoryUsage(impl);
 
-    SetModified();
+    SetModified(EModificationType::Content);
 }
 
 std::optional<TString> TMapNodeProxy::FindChildKey(const IConstNodePtr& child)
@@ -2864,7 +2853,7 @@ void TListNodeProxy::Clear()
     impl->IndexToChild().clear();
     impl->ChildToIndex().clear();
 
-    SetModified();
+    SetModified(EModificationType::Content);
 }
 
 int TListNodeProxy::GetChildCount() const
@@ -2918,7 +2907,7 @@ void TListNodeProxy::AddChild(const INodePtr& child, int beforeIndex /*= -1*/)
     const auto& objectManager = Bootstrap_->GetObjectManager();
     objectManager->RefObject(childImpl->GetTrunkNode());
 
-    SetModified();
+    SetModified(EModificationType::Content);
 }
 
 bool TListNodeProxy::RemoveChild(int index)
@@ -2945,7 +2934,7 @@ bool TListNodeProxy::RemoveChild(int index)
     const auto& objectManager = Bootstrap_->GetObjectManager();
     objectManager->UnrefObject(childImpl->GetTrunkNode());
 
-    SetModified();
+    SetModified(EModificationType::Content);
     return true;
 }
 
@@ -2983,7 +2972,7 @@ void TListNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newC
     AttachChild(TrunkNode_, newChildImpl);
     objectManager->RefObject(newChildImpl->GetTrunkNode());
 
-    SetModified();
+    SetModified(EModificationType::Content);
 }
 
 std::optional<int> TListNodeProxy::FindChildIndex(const IConstNodePtr& child)

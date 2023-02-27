@@ -107,6 +107,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixAccountResourceUsageCharge)                                (2227))  // gritukan
     ((FixTouchTime)                                                 (2228))  // shakurov
     ((AllowSettingChunkMergerMode)                                  (2229))  // aleksandra-zh
+    ((ObjectRevisions)                                              (2230))  // shakurov
     // 23.1
     ((RipEnableUnlockCommand)                                       (2300))  // babenko
     ((RipEnableRevisionChangingForBuiltinAttributes)                (2301))  // babenko

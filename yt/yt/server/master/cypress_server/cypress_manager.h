@@ -188,7 +188,7 @@ public:
         TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction) = 0;
 
-    virtual void SetModified(TCypressNode* node, EModificationType modificationType) = 0;
+    virtual void SetModified(TCypressNode* node, NObjectServer::EModificationType modificationType) = 0;
     virtual void SetAccessed(TCypressNode* trunkNode) = 0;
     virtual void SetTouched(TCypressNode* trunkNode) = 0;
 

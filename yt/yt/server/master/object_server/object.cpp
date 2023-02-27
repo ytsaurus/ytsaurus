@@ -18,6 +18,7 @@ namespace NYT::NObjectServer {
 using namespace NObjectClient;
 using namespace NCellMaster;
 using namespace NCypressServer;
+using namespace NHydra;
 using namespace NSequoiaServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,6 +239,31 @@ void TObject::RememberAevum()
     }
 }
 
+TRevision TObject::GetRevision() const
+{
+    return Max(AttributeRevision_, ContentRevision_);
+}
+
+void TObject::SetModified(EModificationType modificationType)
+{
+    auto* hydraContext = GetCurrentHydraContext();
+    YT_VERIFY(hydraContext);
+    auto currentRevision = hydraContext->GetVersion().ToRevision();
+
+    switch (modificationType) {
+        case EModificationType::Attributes: {
+            AttributeRevision_ = currentRevision;
+            break;
+        }
+        case EModificationType::Content: {
+            ContentRevision_ = currentRevision;
+            break;
+        }
+        default:
+            YT_ABORT();
+    }
+}
+
 int TObject::GetGCWeight() const
 {
     return 10;
@@ -301,6 +327,8 @@ void TObject::Save(NCellMaster::TSaveContext& context) const
     }
     Save(context, IsForeign());
     Save(context, Aevum_);
+    Save(context, AttributeRevision_);
+    Save(context, ContentRevision_);
 }
 
 void TObject::Load(NCellMaster::TLoadContext& context)
@@ -319,6 +347,11 @@ void TObject::Load(NCellMaster::TLoadContext& context)
         SetForeign();
     }
     Load(context, Aevum_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= EMasterReign::ObjectRevisions) {
+        Load(context, AttributeRevision_);
+        Load(context, ContentRevision_);
+    }
 }
 
 void TObject::SaveEctoplasm(TStreamSaveContext& context) const

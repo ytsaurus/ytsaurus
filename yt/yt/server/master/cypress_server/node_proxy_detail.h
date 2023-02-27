@@ -88,7 +88,6 @@ protected:
     mutable TCypressNode* CachedNode_ = nullptr;
 
     bool AccessTrackingSuppressed_ = false;
-    bool ModificationTrackingSuppressed_ = false;
     bool ExpirationTimeoutRenewalSuppressed_ = false;
 
 
@@ -101,6 +100,8 @@ protected:
     TFuture<NYson::TYsonString> GetExternalBuiltinAttributeAsync(NYTree::TInternedAttributeKey key);
     bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
     bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
+
+    void LogAcdUpdate(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
 
     void BeforeInvoke(const NRpc::IServiceContextPtr& context) override;
     void AfterInvoke(const NRpc::IServiceContextPtr& context) override;
@@ -202,8 +203,7 @@ protected:
         std::optional<int> oldPrimaryMediumIndex,
         NChunkServer::TChunkReplication* newReplication);
 
-    void SetModified(EModificationType modificationType = EModificationType::Content);
-    void SuppressModificationTracking();
+    void SetModified(NObjectServer::EModificationType modificationType) override;
 
     void SetAccessed();
     void SuppressAccessTracking();
@@ -360,7 +360,7 @@ public:
     {
         this->ValidateValue(value);
         this->LockThisImpl()->Value() = value;
-        this->SetModified();
+        this->SetModified(NObjectServer::EModificationType::Content);
     }
 
 private:

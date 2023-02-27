@@ -58,7 +58,7 @@ protected:
     NCellMaster::TBootstrap* const Bootstrap_;
     TObjectTypeMetadata* const Metadata_;
     TObject* const Object_;
-
+    bool ModificationTrackingSuppressed_ = false;
     NYTree::IAttributeDictionary* CustomAttributes_ = nullptr;
 
     struct TGetBasicAttributesContext
@@ -75,6 +75,9 @@ protected:
         NHydra::TRevision AttributeRevision = NHydra::NullRevision;
         NHydra::TRevision ContentRevision = NHydra::NullRevision;
     };
+
+    virtual void SetModified(EModificationType modificationType);
+    void SuppressModificationTracking();
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
     virtual void GetBasicAttributes(TGetBasicAttributesContext* context);
@@ -119,6 +122,8 @@ protected:
     TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
     bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
     bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
+
+    virtual void LogAcdUpdate(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value);
 
     //! Called before attribute #key is updated (added, removed or changed).
     virtual void ValidateCustomAttributeUpdate(
