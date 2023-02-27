@@ -226,10 +226,12 @@ void TLeaderCommitter::SerializeMutations()
         return;
     }
 
+    auto config = Config_->Get();
+
     NTracing::TNullTraceContextGuard traceContextGuard;
 
     std::vector<TMutationDraft> mutationDrafts;
-    while (std::ssize(mutationDrafts) < Config_->Get()->MaxCommitBatchRecordCount) {
+    while (std::ssize(mutationDrafts) < config->MaxCommitBatchRecordCount) {
         TMutationDraft mutationDraft;
         if (!MutationDraftQueue_->TryDequeue(&mutationDraft)) {
             break;
@@ -276,9 +278,10 @@ void TLeaderCommitter::SerializeMutations()
 
 void TLeaderCommitter::Reconfigure()
 {
-    FlushMutationsExecutor_->SetPeriod(Config_->Get()->MutationFlushPeriod);
-    SerializeMutationsExecutor_->SetPeriod(Config_->Get()->MutationSerializationPeriod);
-    CheckpointCheckExecutor_->SetPeriod(Config_->Get()->CheckpointCheckPeriod);
+    auto config = Config_->Get();
+    FlushMutationsExecutor_->SetPeriod(config->MutationFlushPeriod);
+    SerializeMutationsExecutor_->SetPeriod(config->MutationSerializationPeriod);
+    CheckpointCheckExecutor_->SetPeriod(config->CheckpointCheckPeriod);
 }
 
 void TLeaderCommitter::Start()
@@ -360,10 +363,11 @@ void TLeaderCommitter::FlushMutations()
             continue;
         }
 
+        auto config = Config_->Get();
         if (followerState.Mode == EAcceptMutationsMode::Fast &&
-            (followerState.InFlightRequestCount > Config_->Get()->MaxInFlightAcceptMutationsRequestCount ||
-            followerState.InFlightMutationCount > Config_->Get()->MaxInFlightMutationCount ||
-            followerState.InFlightMutationDataSize > Config_->Get()->MaxInFlightMutationDataSize))
+            (followerState.InFlightRequestCount > config->MaxInFlightAcceptMutationsRequestCount ||
+            followerState.InFlightMutationCount > config->MaxInFlightMutationCount ||
+            followerState.InFlightMutationDataSize > config->MaxInFlightMutationDataSize))
         {
             YT_LOG_DEBUG("Skipping sending mutations to follower since in-flight limits are violated (FollowerId: %v,"
                 "InFlightRequestCount: %v, InFlightMutationCount: %v, InFlightMutationDataSize: %v)",
@@ -401,18 +405,16 @@ void TLeaderCommitter::FlushMutations()
         }
 
         TInternalHydraServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Config_->Get()->CommitFlushRpcTimeout);
+        proxy.SetDefaultTimeout(config->CommitFlushRpcTimeout);
 
-        auto getMutationCount = [&] () -> i64 {
+        auto mutationCount = [&] () -> i64 {
             if (MutationQueue_.empty() || followerState.NextExpectedSequenceNumber == -1) {
                 return 0;
             }
             return std::min<i64>(
-                Config_->Get()->MaxCommitBatchRecordCount,
+                config->MaxCommitBatchRecordCount,
                 MutationQueue_.back()->SequenceNumber - followerState.NextExpectedSequenceNumber + 1);
-        };
-
-        auto mutationCount = getMutationCount();
+        }();
 
         auto request = proxy.AcceptMutations();
         ToProto(request->mutable_epoch_id(), EpochContext_->EpochId);
@@ -669,7 +671,8 @@ void TLeaderCommitter::DrainQueue()
         MutationQueueSummaryDataSize_.Record(MutationQueueDataSize_);
     };
 
-    while (std::ssize(MutationQueue_) > Config_->Get()->MaxQueuedMutationCount) {
+    auto config = Config_->Get();
+    while (std::ssize(MutationQueue_) > config->MaxQueuedMutationCount) {
         const auto& mutation = MutationQueue_.front();
         if (mutation->SequenceNumber > CommittedState_.SequenceNumber) {
             LoggingFailed_.Fire(TError("Mutation queue mutation count limit exceeded, but the first mutation in queue is still uncommitted")
@@ -680,7 +683,7 @@ void TLeaderCommitter::DrainQueue()
         popMutationQueue();
     }
 
-    while (MutationQueueDataSize_ > Config_->Get()->MaxQueuedMutationDataSize) {
+    while (MutationQueueDataSize_ > config->MaxQueuedMutationDataSize) {
         const auto& mutation = MutationQueue_.front();
         if (mutation->SequenceNumber > CommittedState_.SequenceNumber) {
             LoggingFailed_.Fire(TError("Mutation queue data size limit exceeded, but the first mutation in queue is still uncommitted")
@@ -709,18 +712,19 @@ void TLeaderCommitter::MaybeCheckpoint()
         return;
     }
 
-    if (NextLoggedVersion_.RecordId >= Config_->Get()->MaxChangelogRecordCount) {
+    auto config = Config_->Get();
+    if (NextLoggedVersion_.RecordId >= config->MaxChangelogRecordCount) {
         YT_LOG_INFO("Requesting checkpoint due to record count limit (RecordCountSinceLastCheckpoint: %v, MaxChangelogRecordCount: %v)",
             NextLoggedVersion_.RecordId,
-            Config_->Get()->MaxChangelogRecordCount);
-    } else if (Changelog_->GetDataSize() >= Config_->Get()->MaxChangelogDataSize)  {
+            config->MaxChangelogRecordCount);
+    } else if (Changelog_->GetDataSize() >= config->MaxChangelogDataSize)  {
         YT_LOG_INFO("Requesting checkpoint due to data size limit (DataSizeSinceLastCheckpoint: %v, MaxChangelogDataSize: %v)",
             Changelog_->GetDataSize(),
-            Config_->Get()->MaxChangelogDataSize);
+            config->MaxChangelogDataSize);
     } else if (TInstant::Now() > SnapshotBuildDeadline_) {
         YT_LOG_INFO("Requesting periodic snapshot (SnapshotBuildPeriod: %v, SnapshotBuildSplay: %v)",
-            Config_->Get()->SnapshotBuildPeriod,
-            Config_->Get()->SnapshotBuildSplay);
+            config->SnapshotBuildPeriod,
+            config->SnapshotBuildSplay);
     } else {
         return;
     }
@@ -732,10 +736,11 @@ void TLeaderCommitter::UpdateSnapshotBuildDeadline()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    auto config = Config_->Get();
     SnapshotBuildDeadline_ =
         TInstant::Now() +
-        Config_->Get()->SnapshotBuildPeriod +
-        RandomDuration(Config_->Get()->SnapshotBuildSplay);
+        config->SnapshotBuildPeriod +
+        RandomDuration(config->SnapshotBuildSplay);
 }
 
 void TLeaderCommitter::Checkpoint()
