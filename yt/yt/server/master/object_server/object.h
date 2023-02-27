@@ -392,16 +392,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, class C>
-inline bool IsObjectAlive(const TObjectPtr<T, C>& ptr)
-{
-    return IsObjectAlive(ptr.Get());
-}
+bool IsObjectAlive(const TObjectPtr<T, C>& ptr);
 
 template <class T, class C>
-inline TObjectId GetObjectId(const TObjectPtr<T, C>& ptr)
-{
-    return GetObjectId(ptr.Get());
-}
+TObjectId GetObjectId(const TObjectPtr<T, C>& ptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

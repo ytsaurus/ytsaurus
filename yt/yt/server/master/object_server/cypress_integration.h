@@ -10,4 +10,4 @@ NCypressServer::INodeTypeHandlerPtr CreateEstimatedCreationTimeMapTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NObjectServer

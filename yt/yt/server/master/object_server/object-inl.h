@@ -554,6 +554,20 @@ bool TObjectPtr<T, C>::operator!=(U* other) const noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T, class C>
+inline bool IsObjectAlive(const TObjectPtr<T, C>& ptr)
+{
+    return IsObjectAlive(ptr.Get());
+}
+
+template <class T, class C>
+inline TObjectId GetObjectId(const TObjectPtr<T, C>& ptr)
+{
+    return GetObjectId(ptr.Get());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NObjectServer
 
 //! Hasher for TObjectPtr.
