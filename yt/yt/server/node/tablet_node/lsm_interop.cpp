@@ -118,7 +118,8 @@ private:
     const NProfiling::TCounter ThrottledRowDigestRequestCount_ = Profiler.Counter("/throttled_row_digest_request_count");
     const NProfiling::TTimeCounter RowDigestParseCumulativeTime_ = Profiler.TimeCounter("/row_digest_parse_cumulative_time");
 
-    void OnDynamicConfigChanged(TClusterNodeDynamicConfigPtr /*oldConfig*/,
+    void OnDynamicConfigChanged(
+        TClusterNodeDynamicConfigPtr /*oldConfig*/,
         TClusterNodeDynamicConfigPtr newConfig)
     {
         const auto& config = newConfig->TabletNode->StoreCompactor;

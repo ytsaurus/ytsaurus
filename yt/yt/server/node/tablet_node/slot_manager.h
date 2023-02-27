@@ -18,8 +18,9 @@ namespace NYT::NTabletNode {
 struct ISlotManager
     : public TRefCounted
 {
-    // The following method has ControlThread affinity.
+    // The following methods have ControlThread affinity.
     virtual void Initialize() = 0;
+    virtual void Start() = 0;
 
     virtual bool IsOutOfMemory(const std::optional<TString>& poolTag) const = 0;
 
@@ -37,6 +38,8 @@ struct ISlotManager
 };
 
 DEFINE_REFCOUNTED_TYPE(ISlotManager)
+
+////////////////////////////////////////////////////////////////////////////////
 
 ISlotManagerPtr CreateSlotManager(IBootstrap* bootstrap);
 

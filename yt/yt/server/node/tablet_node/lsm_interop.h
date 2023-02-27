@@ -16,6 +16,8 @@ struct ILsmInterop
 
 DEFINE_REFCOUNTED_TYPE(ILsmInterop)
 
+////////////////////////////////////////////////////////////////////////////////
+
 ILsmInteropPtr CreateLsmInterop(
     IBootstrap* bootstrap,
     const IStoreCompactorPtr& storeCompactor,

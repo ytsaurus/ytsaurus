@@ -63,6 +63,7 @@ public:
             CreateVirtualNode(GetCellarManager()->GetCellar(ECellarType::Chaos)->GetOrchidService()));
 
         ReplicatedTableTrackerConfigFetcher_->Start();
+        SlotManager_->Start();
     }
 
     const IInvokerPtr& GetTransactionTrackerInvoker() const override

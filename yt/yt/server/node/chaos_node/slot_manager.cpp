@@ -44,7 +44,10 @@ public:
     {
         auto cellar = Bootstrap_->GetCellarManager()->GetCellar(ECellarType::Chaos);
         cellar->RegisterOccupierProvider(CreateChaosCellarOccupierProvider(Config_, Bootstrap_));
+    }
 
+    void Start() override
+    {
         SlotScanExecutor_->Start();
     }
 

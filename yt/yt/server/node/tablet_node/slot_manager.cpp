@@ -68,6 +68,11 @@ public:
         cellar->SubscribeCreateOccupant(BIND(&TSlotManager::UpdateMemoryPoolWeights, MakeWeak(this)));
         cellar->SubscribeRemoveOccupant(BIND(&TSlotManager::UpdateMemoryPoolWeights, MakeWeak(this)));
         cellar->SubscribeUpdateOccupant(BIND(&TSlotManager::UpdateMemoryPoolWeights, MakeWeak(this)));
+    }
+
+    void Start() override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         SlotScanExecutor_->Start();
     }
@@ -351,6 +356,8 @@ private:
             });
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 ISlotManagerPtr CreateSlotManager(IBootstrap* bootstrap)
 {
