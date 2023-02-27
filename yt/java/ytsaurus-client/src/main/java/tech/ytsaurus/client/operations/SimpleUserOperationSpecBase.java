@@ -79,7 +79,7 @@ public class SimpleUserOperationSpecBase extends UserOperationSpecBase {
         /**
          * Set how many jobs should be run. It is more prior than dataSizePerJob option.
          * It is advisory option.
-         * There is a guarantee that if jobCount <= total input row count than job count will be exactly `jobCount`
+         * There is a guarantee that if jobCount less or equal than total input row count than job count will be exactly `jobCount`
          * if it does not contradict the restriction on the maximum number of jobs in the operation.
          */
         public T setJobCount(@Nullable Integer jobCount) {

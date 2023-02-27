@@ -149,7 +149,7 @@ public class RichYPath implements YPath {
     }
 
     /**
-     * Get last component of the path (e.g. `//foo/bar` -> `bar`).
+     * Get last component of the path (e.g. `//foo/bar` --- `bar`).
      */
     @Override
     public String name() {

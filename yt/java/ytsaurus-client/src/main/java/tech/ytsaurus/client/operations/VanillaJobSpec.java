@@ -116,7 +116,7 @@ public class VanillaJobSpec extends MapperOrReducerSpec implements Spec {
          * Sets job_count.
          * <p>
          * This setter overriden from our base class performs additional checks.
-         * Vanilla job_count must always be set and its value must be >= 0.
+         * Vanilla job_count must always be set and its value must be greater or equal to 0.
          */
         @Override
         public Builder setJobCount(Integer jobCount) {

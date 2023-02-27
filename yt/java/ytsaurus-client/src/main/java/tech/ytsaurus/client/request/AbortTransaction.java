@@ -14,7 +14,7 @@ import tech.ytsaurus.rpcproxy.TReqAbortTransaction;
  * Immutable abort transaction request.
  * <p>
  *
- * @see tech.ytsaurus.ytclient.proxy.ApiServiceClient#abortTransaction(AbortTransaction)
+ * @see tech.ytsaurus.client.ApiServiceClient#abortTransaction(AbortTransaction)
  * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_tx">
  * abort_tx documentation
  * </a>
