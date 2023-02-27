@@ -19,32 +19,38 @@ types:
         cpp_type: EQueryEngine
         column_name: engine
         column_type: String
+        lock: client
 
       - cpp_name: Query
         cpp_type: TString
         column_name: query
         column_type: String
+        lock: client
 
       # YSON dictionary.
       - cpp_name: Settings
         cpp_type: NYson::TYsonString
         column_name: settings
         column_type: Any
+        lock: client
 
       - cpp_name: User
         cpp_type: TString
         column_name: user
         column_type: String
+        lock: client
 
       - cpp_name: StartTime
         cpp_type: TInstant
         column_name: start_time
         column_type: Timestamp
+        lock: client
 
       - cpp_name: FilterFactors
         cpp_type: TString
         column_name: filter_factors
         column_type: String
+        lock: client
 
       # Query runtime information; written by the acquirer query tracker.
 
@@ -52,6 +58,7 @@ types:
         cpp_type: EQueryState
         column_name: state
         column_type: String
+        lock: common
 
       # Used in CAS checks for ownership acquisition by query tracker and to check
       # that particular agent must still work on the query.
@@ -59,36 +66,43 @@ types:
         cpp_type: i64
         column_name: incarnation
         column_type: Int64
+        lock: query_tracker
 
       - cpp_name: PingTime
         cpp_type: TInstant
         column_name: ping_time
         column_type: Timestamp
+        lock: query_tracker
 
       - cpp_name: AssignedTracker
         cpp_type: std::optional<TString>
         column_name: assigned_tracker
         column_type: String
+        lock: query_tracker
 
       - cpp_name: Progress
         cpp_type: NYson::TYsonString
         column_name: progress
         column_type: Any
+        lock: query_tracker
 
       - cpp_name: Error
         cpp_type: std::optional<TError>
         column_name: error
         column_type: Any
+        lock: query_tracker
 
       - cpp_name: ResultCount
         cpp_type: std::optional<i64>
         column_name: result_count
         column_type: Int64
+        lock: query_tracker
 
       - cpp_name: FinishTime
         cpp_type: std::optional<TInstant>
         column_name: finish_time
         column_type: Timestamp
+        lock: common
 
       # Query control information; written by the client on user request.
 
@@ -97,6 +111,7 @@ types:
         cpp_type: std::optional<NYson::TYsonString>
         column_name: abort_request
         column_type: Any
+        lock: client
 
 
   - type_name: TFinishedQuery

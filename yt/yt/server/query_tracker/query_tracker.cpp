@@ -21,6 +21,8 @@
 
 #include <yt/yt/core/ypath/public.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <yt/yt/core/utilex/random.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -36,6 +38,7 @@ using namespace NLogging;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
+using namespace NTracing;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -103,6 +106,9 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
+        auto traceContext = TTraceContext::NewRoot("QuerySelect");
+        auto guard = TCurrentTraceContextGuard(traceContext);
+
         YT_LOG_INFO("Selecting queries with expired leases (AcquiredQueryCount: %v)", AcquiredQueries_.size());
 
         std::vector<TActiveQuery> queryRecords;
@@ -142,7 +148,7 @@ private:
                     record.AssignedTracker,
                     delay);
                 TDelayedExecutor::Submit(
-                    BIND(&TQueryTracker::TryAcquireQuery, MakeWeak(this), record),
+                    BIND_NO_PROPAGATE(&TQueryTracker::TryAcquireQuery, MakeWeak(this), record),
                     delay,
                     ControlInvoker_);
             }
@@ -152,6 +158,9 @@ private:
     void TryAcquireQuery(TActiveQuery queryRecord)
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+        auto traceContext = TTraceContext::NewRoot("QueryAcquisition");
+        auto guard = TCurrentTraceContextGuard(traceContext);
 
         try {
             GuardedTryAcquireQuery(std::move(queryRecord));
@@ -393,6 +402,12 @@ private:
     void FinishQueryLoop(TQueryId queryId, i64 incarnation, TError error, EQueryState finalState)
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+        if (finalState == EQueryState::Aborted || finalState == EQueryState::Failed) {
+            error = TError("Query %v %lv", queryId, finalState)
+                << error
+                << TErrorAttribute("query_id", queryId);
+        }
 
         while (true) {
             if (!TryFinishQuery(queryId, incarnation, error, finalState)) {

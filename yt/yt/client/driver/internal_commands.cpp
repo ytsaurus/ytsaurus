@@ -130,4 +130,13 @@ void TUnlockHunkStoreCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGetConnectionConfigCommand::DoExecute(ICommandContextPtr context)
+{
+    auto client = context->GetRootClient();
+
+    context->ProduceOutputValue(client->GetConnection()->GetConfigYson());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

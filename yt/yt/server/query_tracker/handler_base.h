@@ -37,6 +37,7 @@ protected:
     const i64 Incarnation_;
     const TString User_;
     const EQueryEngine Engine_;
+    const NYTree::INodePtr Settings_;
 
     const NLogging::TLogger Logger;
 

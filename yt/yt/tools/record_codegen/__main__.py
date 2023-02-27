@@ -16,6 +16,7 @@ class Field:
     column_name: str
     column_type: str
     sort_order: Optional[str]
+    lock: Optional[str]
 
 
 @dataclass

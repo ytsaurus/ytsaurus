@@ -50,6 +50,8 @@ public:
 
     void Terminate() override;
 
+    NYson::TYsonString GetConfigYson() const override;
+
 private:
     friend class TClient;
     friend class TTransaction;

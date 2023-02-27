@@ -116,12 +116,16 @@ public:
     TYqlEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
         : StateClient_(stateClient)
         , StateRoot_(stateRoot)
-        , YqlChannel_(DynamicPointerCast<NNative::IConnection>(stateClient->GetConnection())->GetYqlAgentChannelOrThrow())
     { }
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
-        return New<TYqlQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, YqlChannel_);
+        return New<TYqlQueryHandler>(
+            StateClient_,
+            StateRoot_,
+            Config_,
+            activeQuery,
+            DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetYqlAgentChannelOrThrow());
     }
 
     void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override
@@ -134,7 +138,6 @@ private:
     TYPath StateRoot_;
     TEngineConfigBasePtr Config_;
     TClusterDirectoryPtr ClusterDirectory_;
-    IChannelPtr YqlChannel_;
 };
 
 IQueryEnginePtr CreateYqlEngine(const IClientPtr& stateClient, const TYPath& stateRoot)

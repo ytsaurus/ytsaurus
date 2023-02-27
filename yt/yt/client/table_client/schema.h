@@ -163,6 +163,7 @@ public:
     TColumnSchema& SetStableName(TStableName stableName);
     TColumnSchema& SetName(TString name);
     TColumnSchema& SetLogicalType(TLogicalTypePtr valueType);
+    TColumnSchema& SetSimpleLogicalType(ESimpleLogicalValueType type);
     TColumnSchema& SetSortOrder(std::optional<ESortOrder> value);
     TColumnSchema& SetLock(std::optional<TString> value);
     TColumnSchema& SetExpression(std::optional<TString> value);

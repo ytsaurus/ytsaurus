@@ -127,7 +127,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     SetupClusterConnectionDynamicConfigUpdate(
         Connection_,
         Config_->ClusterConnectionDynamicConfigPolicy,
-        ConfigNode_,
+        ConfigNode_->AsMap()->GetChildOrThrow("cluster_connection"),
         Logger);
 
     Connection_->GetClusterDirectorySynchronizer()->Start();

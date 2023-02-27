@@ -48,15 +48,14 @@ const {{type.type_name}}IdMapping& {{type.type_name}}Descriptor::GetIdMapping() 
     : Schema_(New<TTableSchema>(
         std::vector{
 {%- for field in type.fields %}
-            TColumnSchema{
-                /*name*/ "{{field.column_name}}",
-                /*type*/ ESimpleLogicalValueType::{{field.column_type}},
+            TColumnSchema("{{field.column_name}}", ESimpleLogicalValueType::{{field.column_type}})
 {%- if field.sort_order %}
-                /*sortOrder*/ ESortOrder::{{field.sort_order}}
-{%- else %}
-                /*sortOrder*/ std::nullopt
+                .SetSortOrder(ESortOrder::{{field.sort_order}})
 {%- endif %}
-            },
+{%- if field.lock %}
+                .SetLock("{{field.lock}}")
+{%- endif %}
+            ,
 {%- endfor %}
         }))
     , NameTable_(TNameTable::FromSchema(*Schema_))

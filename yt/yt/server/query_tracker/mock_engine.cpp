@@ -30,6 +30,8 @@ public:
             THROW_ERROR_EXCEPTION("Query fail on start");
         } else if (Query_ == "run_forever") {
             // Just do nothing.
+        } else if (Query_.StartsWith("run_for")) {
+            // XXX
         } else {
             THROW_ERROR_EXCEPTION("Do not know what to do with mock query %Qv", Query_);
         }

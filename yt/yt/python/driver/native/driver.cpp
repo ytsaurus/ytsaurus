@@ -8,6 +8,7 @@
 
 #include <yt/yt/ytlib/api/connection.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/ytlib/driver/config.h>
 
@@ -37,6 +38,8 @@ using namespace NConcurrency;
 using namespace NTabletClient;
 using namespace NJobTrackerClient;
 using namespace NApi;
+
+using NApi::NNative::EClusterConnectionDynamicConfigPolicy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +72,19 @@ public:
                 std::move(tvmService));
             Connection_ = connection;
 
-            if (auto* nativeConnection = dynamic_cast<NNative::IConnection*>(connection.Get())) {
+            if (auto nativeConnection = DynamicPointerCast<NNative::IConnection>(connection)) {
+                auto configNodeMap = configNode->AsMap();
+                auto configPolicy = EClusterConnectionDynamicConfigPolicy::FromStaticConfig;
+                if (auto configPolicyNode = configNodeMap->FindChild("cluster_connection_dynamic_config_policy")) {
+                    configPolicy = ConvertTo<EClusterConnectionDynamicConfigPolicy>(configPolicyNode);
+                }
+
+                NApi::NNative::SetupClusterConnectionDynamicConfigUpdate(
+                    nativeConnection,
+                    configPolicy,
+                    configNode,
+                    Logger);
+
                 nativeConnection->GetClusterDirectorySynchronizer()->Start();
                 nativeConnection->GetQueueConsumerRegistrationManager()->StartSync();
             }
