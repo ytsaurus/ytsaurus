@@ -358,7 +358,7 @@ void TNodeShard::DoCleanup()
 
     CancelableInvoker_.Reset();
 
-    CachedExecNodeDescriptorsRefresher_->Stop();
+    YT_UNUSED_FUTURE(CachedExecNodeDescriptorsRefresher_->Stop());
 
     for (const auto& [nodeId, node] : IdToNode_) {
         TLeaseManager::CloseLease(node->GetRegistrationLease());

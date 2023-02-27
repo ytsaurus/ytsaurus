@@ -86,8 +86,8 @@ void TQueueConsumerRegistrationManager::StopSync() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     YT_LOG_DEBUG("Stopping queue consumer registration manager sync");
-    CacheRefreshExecutor_->Stop();
-    ConfigurationRefreshExecutor_->Stop();
+    YT_UNUSED_FUTURE(CacheRefreshExecutor_->Stop());
+    YT_UNUSED_FUTURE(ConfigurationRefreshExecutor_->Stop());
 }
 
 std::optional<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::GetRegistration(

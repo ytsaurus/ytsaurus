@@ -248,7 +248,7 @@ private:
         HunkTabletScanner_.Reset();
 
         if (ScannerExecutor_) {
-            ScannerExecutor_->Stop();
+            YT_UNUSED_FUTURE(ScannerExecutor_->Stop());
             ScannerExecutor_.Reset();
         }
 
