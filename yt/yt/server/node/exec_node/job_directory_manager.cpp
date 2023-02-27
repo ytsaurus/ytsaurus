@@ -4,12 +4,12 @@
 
 #include <yt/yt/server/node/data_node/config.h>
 
+#include <yt/yt/server/tools/tools.h>
+#include <yt/yt/server/tools/proc.h>
+
 #ifdef _linux_
 #include <yt/yt/library/containers/porto_executor.h>
 #endif
-
-#include <yt/yt/ytlib/tools/tools.h>
-#include <yt/yt/ytlib/tools/proc.h>
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>

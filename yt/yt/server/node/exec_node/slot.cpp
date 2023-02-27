@@ -9,7 +9,7 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
-#include <yt/yt/ytlib/tools/tools.h>
+#include <yt/yt/server/tools/tools.h>
 
 #include <yt/yt/core/bus/tcp/client.h>
 

@@ -19,7 +19,7 @@ namespace NYT::NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static int CompareKernelVersion(const char *version) 
+static int CompareKernelVersion(const char *version)
 {
     struct utsname uts_buf;
     if (uname(&uts_buf) != 0) {
@@ -29,7 +29,7 @@ static int CompareKernelVersion(const char *version)
     return strverscmp(uts_buf.release, version);
 }
 
-static void SeccompInit(int arch, int error) 
+static void SeccompInit(int arch, int error)
 {
     #define BPF_LOG(syscall) \
         BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, __NR_##syscall, 0, 1), \
@@ -60,17 +60,17 @@ static void SeccompInit(int arch, int error)
     };
 
     if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
-        THROW_ERROR_EXCEPTION("Failed to limit child process privileges") 
+        THROW_ERROR_EXCEPTION("Failed to limit child process privileges")
             << TError::FromSystem();
     }
 
     if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
-        THROW_ERROR_EXCEPTION("Failed to install seccomp ebpf filter") 
+        THROW_ERROR_EXCEPTION("Failed to install seccomp ebpf filter")
             << TError::FromSystem();
     }
 }
 
-void SetupSeccomp() 
+void SetupSeccomp()
 {
     if (CompareKernelVersion("4.19") < 0) {
         // Don't setup seccomp for old kernels: https://st.yandex-team.ru/SKYDEV-2137.
@@ -90,7 +90,7 @@ namespace NYT::NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetupSeccomp() 
+void SetupSeccomp()
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

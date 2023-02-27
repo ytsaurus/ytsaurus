@@ -1,6 +1,6 @@
 #include "private.h"
 
-#include <yt/yt/ytlib/tools/public.h>
+#include <yt/yt/server/tools/public.h>
 
 #include <yt/yt/core/misc/fs.h>
 

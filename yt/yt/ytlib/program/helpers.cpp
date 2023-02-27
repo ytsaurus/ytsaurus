@@ -6,8 +6,6 @@
 
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/yt/ytlib/program/helpers.h>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////

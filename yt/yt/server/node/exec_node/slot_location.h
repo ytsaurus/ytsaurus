@@ -7,6 +7,8 @@
 #include <yt/yt/server/node/data_node/disk_location.h>
 #include <yt/yt/server/node/data_node/public.h>
 
+#include <yt/yt/server/tools/public.h>
+
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/yt/core/misc/public.h>
@@ -191,6 +193,11 @@ private:
     void DoRepair(bool force);
 
     std::vector<TString> DoPrepareSandboxDirectories(int slotIndex, TUserSandboxOptions options, bool sandboxInsideTmpfs);
+
+    NTools::TRootDirectoryConfigPtr CreateDefaultRootDirectoryConfig(
+        int slotIndex,
+        std::optional<int> uid,
+        int nodeUid);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotLocation)

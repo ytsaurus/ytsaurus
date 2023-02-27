@@ -224,4 +224,63 @@ struct TReadProcessSmapsTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDirectoryConfig
+    : public NYTree::TYsonStruct
+{
+    TString Path;
+    std::optional<int> UserId;
+    std::optional<int> Permissions;
+
+    REGISTER_YSON_STRUCT(TDirectoryConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDirectoryConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRootDirectoryConfig
+    : public NYTree::TYsonStruct
+{
+    TString SlotPath;
+    std::optional<int> UserId;
+    int Permissions;
+
+    std::vector<TDirectoryConfigPtr> Directories;
+
+    REGISTER_YSON_STRUCT(TRootDirectoryConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TRootDirectoryConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDirectoryBuilderConfig
+    : public NYTree::TYsonStruct
+{
+    int NodeUid;
+
+    bool NeedRoot;
+
+    std::vector<TRootDirectoryConfigPtr> RootDirectoryConfigs;
+
+    REGISTER_YSON_STRUCT(TDirectoryBuilderConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDirectoryBuilderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRootDirectoryBuilderTool
+{
+    void operator()(const TDirectoryBuilderConfigPtr& arg) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTools

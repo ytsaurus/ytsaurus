@@ -14,6 +14,10 @@
 #include <yt/yt/server/node/data_node/config.h>
 
 #include <yt/yt/server/lib/misc/public.h>
+
+#include <yt/yt/server/tools/tools.h>
+#include <yt/yt/server/tools/proc.h>
+
 #include <yt/yt/library/containers/process.h>
 
 #ifdef _linux_
@@ -22,9 +26,6 @@
 #endif
 
 #include <yt/yt/ytlib/job_proxy/private.h>
-
-#include <yt/yt/ytlib/tools/tools.h>
-#include <yt/yt/ytlib/tools/proc.h>
 
 #include <yt/yt/library/program/program.h>
 

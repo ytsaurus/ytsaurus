@@ -99,9 +99,6 @@ DECLARE_REFCOUNTED_CLASS(TSlotManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TVolumeManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TExecNodeDynamicConfig)
 
-DECLARE_REFCOUNTED_STRUCT(TSlotConfig)
-DECLARE_REFCOUNTED_STRUCT(TSlotLocationBuilderConfig)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode

@@ -14,8 +14,8 @@
 
 #include <yt/yt/server/lib/misc/public.h>
 
-#include <yt/yt/ytlib/tools/proc.h>
-#include <yt/yt/ytlib/tools/tools.h>
+#include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/tools.h>
 
 #include <yt/yt/client/api/public.h>
 #include <yt/yt/client/api/client.h>

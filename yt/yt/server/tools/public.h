@@ -30,8 +30,9 @@ DECLARE_REFCOUNTED_CLASS(TCopyDirectoryContentConfig)
 
 DECLARE_REFCOUNTED_CLASS(TSendSignalConfig)
 
-DECLARE_REFCOUNTED_STRUCT(TSlotConfig)
-DECLARE_REFCOUNTED_STRUCT(TSlotLocationBuilderConfig)
+DECLARE_REFCOUNTED_STRUCT(TDirectoryConfig)
+DECLARE_REFCOUNTED_STRUCT(TRootDirectoryConfig)
+DECLARE_REFCOUNTED_STRUCT(TDirectoryBuilderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

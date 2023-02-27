@@ -6,7 +6,6 @@
 #include "job_directory_manager.h"
 
 #include <yt/yt/server/lib/exec_node/config.h>
-#include <yt/yt/server/lib/exec_node/slot_location_builder.h>
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -19,10 +18,10 @@
 
 #include <yt/yt/server/lib/io/io_tracker.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/server/tools/tools.h>
+#include <yt/yt/server/tools/proc.h>
 
-#include <yt/yt/ytlib/tools/tools.h>
-#include <yt/yt/ytlib/tools/proc.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/library/program/program.h>
 
@@ -129,19 +128,30 @@ void TSlotLocation::DoInitialize()
 
     ValidateMinimumSpace();
 
-    auto slotLocationBuilderConfig = New<TSlotLocationBuilderConfig>();
-    slotLocationBuilderConfig->LocationPath = Config_->Path;
-    slotLocationBuilderConfig->NodeUid = getuid();
+    int nodeUid = getuid();
+
+    auto directoryBuilderConfig = New<TDirectoryBuilderConfig>();
+    directoryBuilderConfig->NodeUid = getuid();
+
+    bool needRoot = false;
+
     for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-        auto slotConfig = New<TSlotConfig>();
-        slotConfig->Index = slotIndex;
+        auto rootDirectoryConfig = New<TRootDirectoryConfig>();
+
+        std::optional<int> uid;
+
         if (!Bootstrap_->IsSimpleEnvironment() && !Bootstrap_->GetConfig()->ExecNode->DoNotSetUserId) {
-            slotConfig->Uid = SlotIndexToUserId_(slotIndex);
+            uid = SlotIndexToUserId_(slotIndex);
         }
-        slotLocationBuilderConfig->SlotConfigs.emplace_back(std::move(slotConfig));
+
+        needRoot |= uid.has_value();
+
+        directoryBuilderConfig->RootDirectoryConfigs.push_back(CreateDefaultRootDirectoryConfig(slotIndex, uid, nodeUid));
     }
 
-    RunTool<TSlotLocationBuilderTool>(slotLocationBuilderConfig);
+    directoryBuilderConfig->NeedRoot = needRoot;
+
+    RunTool<TRootDirectoryBuilderTool>(directoryBuilderConfig);
 
     DiskResourcesUpdateExecutor_->Start();
     SlotLocationStatisticsUpdateExecutor_->Start();
@@ -670,17 +680,19 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
 
             // Prepare slot for the next job.
             {
-                auto slotLocationBuilderConfig = New<TSlotLocationBuilderConfig>();
-                slotLocationBuilderConfig->LocationPath = Config_->Path;
-                slotLocationBuilderConfig->NodeUid = getuid();
-                auto slotConfig = New<TSlotConfig>();
-                slotConfig->Index = slotIndex;
-                if (!Bootstrap_->IsSimpleEnvironment() && !Bootstrap_->GetConfig()->ExecNode->DoNotSetUserId) {
-                    slotConfig->Uid = SlotIndexToUserId_(slotIndex);
-                }
-                slotLocationBuilderConfig->SlotConfigs.push_back(std::move(slotConfig));
+                std::optional<int> uid;
+                int nodeUid = getuid();
 
-                RunTool<TSlotLocationBuilderTool>(slotLocationBuilderConfig);
+                if (!Bootstrap_->IsSimpleEnvironment() && !Bootstrap_->GetConfig()->ExecNode->DoNotSetUserId) {
+                    uid = SlotIndexToUserId_(slotIndex);
+                }
+
+                auto directoryBuilderConfig = New<TDirectoryBuilderConfig>();
+                directoryBuilderConfig->NodeUid = nodeUid;
+                directoryBuilderConfig->NeedRoot = uid.has_value();
+                directoryBuilderConfig->RootDirectoryConfigs.push_back(CreateDefaultRootDirectoryConfig(slotIndex, uid, nodeUid));
+
+                RunTool<TRootDirectoryBuilderTool>(directoryBuilderConfig);
             }
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean sandbox directories")
@@ -1116,6 +1128,48 @@ NNodeTrackerClient::NProto::TSlotLocationStatistics TSlotLocation::GetSlotLocati
 {
     auto guard = ReaderGuard(SlotLocationStatisticsLock_);
     return SlotLocationStatistics_;
+}
+
+TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
+    int slotIndex,
+    std::optional<int> uid,
+    int nodeUid)
+{
+    auto config = New<TRootDirectoryConfig>();
+    config->SlotPath = GetSlotPath(slotIndex);
+    config->UserId = nodeUid;
+    config->Permissions = 0755;
+
+    auto addDirectory = [&] (TString path, std::optional<int> userId, int permissions) {
+        auto directory = New<TDirectoryConfig>();
+
+        directory->Path = path;
+        directory->UserId = userId;
+        directory->Permissions = permissions;
+
+        config->Directories.push_back(std::move(directory));
+    };
+
+    // Since we make slot user to be owner, but job proxy creates some files during job shell
+    // initialization we leave write access for everybody. Presumably this will not ruin job isolation.
+    addDirectory(GetSandboxPath(slotIndex, ESandboxKind::Home), uid, 0777);
+
+    // Tmp is accessible for everyone.
+    addDirectory(GetSandboxPath(slotIndex, ESandboxKind::Tmp), uid, 0777);
+
+    // CUDA library should have an access to cores directory to write GPU core dump into it.
+    addDirectory(GetSandboxPath(slotIndex, ESandboxKind::Cores), uid, 0777);
+
+    // Pipes are accessible for everyone.
+    addDirectory(GetSandboxPath(slotIndex, ESandboxKind::Pipes), uid, 0777);
+
+    // Node should have access to user sandbox during job preparation.
+    addDirectory(GetSandboxPath(slotIndex, ESandboxKind::User), nodeUid, 0755);
+
+    // Process executor should have access to write logs before process start.
+    addDirectory(GetSandboxPath(slotIndex, ESandboxKind::Logs), uid, 0755);
+
+    return config;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

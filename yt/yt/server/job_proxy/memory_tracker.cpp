@@ -5,8 +5,8 @@
 #include <yt/yt/library/containers/instance.h>
 #endif
 
-#include <yt/yt/ytlib/tools/proc.h>
-#include <yt/yt/ytlib/tools/tools.h>
+#include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/tools.h>
 
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/statistics.h>
