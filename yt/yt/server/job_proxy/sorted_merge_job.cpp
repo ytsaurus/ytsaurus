@@ -62,14 +62,6 @@ public:
 
         auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(SchedulerJobSpecExt_.extensions());
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
-
-        // COMPAT(max42, onionalex): remove after all CAs are 22.2+.
-        for (auto& dataSource : dataSourceDirectory->DataSources()) {
-            if (!dataSource.Schema() || dataSource.Schema()->Columns().empty()) {
-                dataSource.Schema() = TTableSchema::FromSortColumns(sortColumns);
-            }
-        }
-
         auto readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(SchedulerJobSpecExt_.table_reader_options()));
 
         // We must always enable key widening to prevent out of range access of key prefixes in sorted merging/joining readers.
