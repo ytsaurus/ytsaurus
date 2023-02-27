@@ -158,7 +158,7 @@ TColumnSchema& TColumnSchema::SetStableName(TStableName value)
 
 TColumnSchema& TColumnSchema::SetName(TString value)
 {
-    Name_ = std::move(value);
+    Name_ = value;
     return *this;
 }
 
@@ -212,6 +212,12 @@ TColumnSchema& TColumnSchema::SetLogicalType(TLogicalTypePtr type)
     LogicalType_ = std::move(type);
     IsOfV1Type_ = IsV1Type(LogicalType_);
     std::tie(V1Type_, Required_) = NTableClient::CastToV1Type(LogicalType_);
+    return *this;
+}
+
+TColumnSchema& TColumnSchema::SetSimpleLogicalType(ESimpleLogicalValueType type)
+{
+    SetLogicalType(MakeLogicalType(type, /*required*/ false));
     return *this;
 }
 

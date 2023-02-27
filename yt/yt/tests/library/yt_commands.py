@@ -3146,3 +3146,7 @@ def get_node_alive_object_counts(address, types):
 
 def wait_for_node_alive_object_counts(address, type_to_expected_count):
     wait(lambda: get_node_alive_object_counts(address, type_to_expected_count.keys()) == type_to_expected_count)
+
+
+def get_connection_config(**kwargs):
+    return execute_command("get_connection_config", kwargs, parse_yson=True)

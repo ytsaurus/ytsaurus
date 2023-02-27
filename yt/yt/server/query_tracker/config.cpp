@@ -49,8 +49,7 @@ void TQueryTrackerServerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
-    registrar.Parameter("user", &TThis::User)
-        .Default(QueryTrackerUserName);
+    registrar.Parameter("user", &TThis::User);
     registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
         .Default(NYTree::BuildYsonNodeFluently()
             .BeginMap()
@@ -63,7 +62,7 @@ void TQueryTrackerServerConfig::Register(TRegistrar registrar)
     registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
         .Default();
     registrar.Parameter("root", &TThis::Root)
-        .Default();
+        .Default("//sys/query_tracker");
     registrar.Parameter("create_state_tables_on_startup", &TThis::CreateStateTablesOnStartup)
         .Default(false);
 

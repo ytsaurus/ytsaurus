@@ -227,8 +227,21 @@ void TBootstrap::CreateStateTablesIfNeeded()
             options))
             .ThrowOnError();
 
-        WaitFor(NativeClient_->MountTable(Config_->Root + "/" + tableName))
-            .ThrowOnError();
+        while (true) {
+            try {
+                WaitFor(NativeClient_->MountTable(Config_->Root + "/" + tableName))
+                    .ThrowOnError();
+                break;
+            } catch (const std::exception& ex) {
+                if (TError(ex).FindMatching(NTabletClient::EErrorCode::InvalidTabletState)) {
+                    YT_LOG_DEBUG("Concurrent state table mount call detected, skipping mounting");
+                    return;
+                }
+                YT_LOG_ERROR(ex, "Error creating state tables, backing off");
+                constexpr TDuration backoffDuration = TDuration::MilliSeconds(300);
+                TDelayedExecutor::WaitForDuration(backoffDuration);
+            }
+        }
     };
     createTable(NQueryTrackerClient::NRecords::TActiveQueryDescriptor::Get()->GetSchema(), "active_queries");
     createTable(NQueryTrackerClient::NRecords::TFinishedQueryDescriptor::Get()->GetSchema(), "finished_queries");

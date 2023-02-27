@@ -13,6 +13,7 @@ class TQueryTrackerStageConfig
 {
 public:
     NYPath::TYPath Root;
+    TString User;
 
     REGISTER_YSON_STRUCT(TQueryTrackerStageConfig);
 

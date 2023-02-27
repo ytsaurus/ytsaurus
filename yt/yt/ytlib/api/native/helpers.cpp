@@ -38,7 +38,7 @@ IAuthenticatorPtr CreateNativeAuthenticator(const IConnectionPtr& connection)
 void SetupClusterConnectionDynamicConfigUpdate(
     const IConnectionPtr& connection,
     EClusterConnectionDynamicConfigPolicy policy,
-    const INodePtr& staticConfigNode,
+    const INodePtr& staticClusterConnectionNode,
     const TLogger logger)
 {
     auto Logger = logger;
@@ -65,7 +65,7 @@ void SetupClusterConnectionDynamicConfigUpdate(
             ConvertToYsonString(dynamicConfigNode, EYsonFormat::Text).ToString());
 
         if (policy == EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch) {
-            dynamicConfigNode = PatchNode(dynamicConfigNode, staticConfigNode->AsMap()->GetChildOrThrow("cluster_connection"));
+            dynamicConfigNode = PatchNode(dynamicConfigNode, staticClusterConnectionNode);
             YT_LOG_DEBUG(
                 "Patching cluster connection dynamic config with static config (DynamicConfig: %Qv)",
                 ConvertToYsonString(dynamicConfigNode, EYsonFormat::Text).ToString());

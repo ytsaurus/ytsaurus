@@ -77,4 +77,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TGetConnectionConfigCommandOptions
+{ };
+
+class TGetConnectionConfigCommand
+    : public TTypedCommand<TGetConnectionConfigCommandOptions>
+{
+public:
+    TGetConnectionConfigCommand() = default;
+
+private:
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

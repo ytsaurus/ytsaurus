@@ -472,6 +472,11 @@ void TConnection::OnProxyListUpdate()
     }
 }
 
+NYson::TYsonString TConnection::GetConfigYson() const
+{
+    return ConvertToYsonString(Config_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NRpcProxy

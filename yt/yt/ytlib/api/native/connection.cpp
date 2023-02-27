@@ -739,6 +739,11 @@ public:
         Config_.Store(dynamicConfig);
     }
 
+    TYsonString GetConfigYson() const override
+    {
+        return ConvertToYsonString(GetCompoundConfig());
+    }
+
 private:
     const TConnectionStaticConfigPtr StaticConfig_;
     // TODO(max42): switch to atomic intrusive ptr.
@@ -990,9 +995,10 @@ private:
         }
         const auto& stages = clusterConnection->Config_.Acquire()->QueryTracker->Stages;
         if (auto iter = stages.find(clusterStage); iter != stages.end()) {
-            auto client = DynamicPointerCast<IClient>(clusterConnection->CreateClient(TClientOptions::FromUser(QueryTrackerUserName)));
+            const auto& stage = iter->second;
+            auto client = DynamicPointerCast<IClient>(clusterConnection->CreateClient(TClientOptions::FromUser(stage->User)));
             YT_VERIFY(client);
-            return {client, iter->second->Root};
+            return {client, stage->Root};
         } else {
             THROW_ERROR_EXCEPTION("Query tracker stage %Qv is not found in cluster directory", stage);
         }

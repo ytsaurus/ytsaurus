@@ -314,7 +314,10 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-
+    NYson::TYsonString GetConfigYson() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
 
 private:
     const NDiscoveryClient::TDiscoveryConnectionConfigPtr Config_;

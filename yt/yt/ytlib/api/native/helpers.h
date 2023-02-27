@@ -50,7 +50,7 @@ NRpc::IAuthenticatorPtr CreateNativeAuthenticator(const IConnectionPtr& connecti
 void SetupClusterConnectionDynamicConfigUpdate(
     const IConnectionPtr& connection,
     EClusterConnectionDynamicConfigPolicy policy,
-    const NYTree::INodePtr& staticConfigNode,
+    const NYTree::INodePtr& staticClusterConnectionNode,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

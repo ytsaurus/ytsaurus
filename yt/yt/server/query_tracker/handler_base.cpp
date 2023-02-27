@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/yson/string.h>
 
+#include <yt/yt/core/ytree/convert.h>
+
 #include <library/cpp/iterator/functools.h>
 
 namespace NYT::NQueryTracker {
@@ -27,6 +29,7 @@ using namespace NQueryTrackerClient::NRecords;
 using namespace NTableClient;
 using namespace NFuncTools;
 using namespace NYson;
+using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -47,6 +50,7 @@ TQueryHandlerBase::TQueryHandlerBase(
     , Incarnation_(activeQuery.Incarnation)
     , User_(activeQuery.User)
     , Engine_(activeQuery.Engine)
+    , Settings_(ConvertToNode(activeQuery.Settings))
     , Logger(NQueryTracker::Logger.WithTag("QueryId: %v, Engine: %v", activeQuery.Key.QueryId, activeQuery.Engine))
 {
     YT_LOG_INFO("Query handler instantiated");
