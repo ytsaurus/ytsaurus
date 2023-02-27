@@ -39,6 +39,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////
 
+class TGetQueryResultCommand
+    : public TTypedCommand<NApi::TGetQueryResultOptions>
+{
+public:
+    TGetQueryResultCommand();
+
+private:
+    NQueryTrackerClient::TQueryId QueryId;
+    i64 ResultIndex;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////
+
 class TReadQueryResultCommand
     : public TTypedCommand<NApi::TReadQueryResultOptions>
 {

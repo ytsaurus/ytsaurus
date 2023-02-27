@@ -36,6 +36,7 @@
 #include <yt/yt/client/tablet_client/public.h>
 
 #include <yt/yt/client/chunk_client/config.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
 #include <yt/yt/client/hive/timestamp_map.h>
 
@@ -1427,6 +1428,17 @@ struct TQuery
 
 void Serialize(const TQuery& query, NYson::IYsonConsumer* consumer);
 
+struct TQueryResult
+{
+    NQueryTrackerClient::TQueryId Id;
+    i64 ResultIndex;
+    TError Error;
+    NTableClient::TTableSchemaPtr Schema;
+    NChunkClient::NProto::TDataStatistics DataStatistics;
+};
+
+void Serialize(const TQueryResult& queryResult, NYson::IYsonConsumer* consumer);
+
 struct TGetFileFromCacheResult
 {
     NYPath::TYPath Path;
@@ -1647,10 +1659,18 @@ struct TAbortQueryOptions
     std::optional<TString> AbortMessage;
 };
 
-struct TReadQueryResultOptions
+struct TGetQueryResultOptions
     : public TTimeoutOptions
     , public TQueryTrackerOptions
 { };
+
+struct TReadQueryResultOptions
+    : public TTimeoutOptions
+    , public TQueryTrackerOptions
+{
+    std::optional<i64> LowerRowIndex;
+    std::optional<i64> UpperRowIndex;
+};
 
 struct TGetQueryOptions
     : public TTimeoutOptions
@@ -1681,6 +1701,7 @@ struct TListQueriesResult
 {
     std::vector<TQuery> Queries;
     bool Incomplete = false;
+    NTransactionClient::TTimestamp Timestamp;
 };
 
 struct TSetUserPasswordOptions
@@ -2282,6 +2303,11 @@ struct IClient
     virtual TFuture<void> AbortQuery(
         NQueryTrackerClient::TQueryId queryId,
         const TAbortQueryOptions& options = {}) = 0;
+
+    virtual TFuture<TQueryResult> GetQueryResult(
+        NQueryTrackerClient::TQueryId queryId,
+        i64 resultIndex = 0,
+        const TGetQueryResultOptions& options = {}) = 0;
 
     virtual TFuture<IUnversionedRowsetPtr> ReadQueryResult(
         NQueryTrackerClient::TQueryId queryId,

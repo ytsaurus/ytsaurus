@@ -338,9 +338,10 @@ public:
 
         REGISTER    (TStartQueryCommand,                   "start_query",                     Null,       Structured, false, false, ApiVersion4);
         REGISTER    (TAbortQueryCommand,                   "abort_query",                     Null,       Structured, false, false, ApiVersion4);
-        REGISTER    (TReadQueryResultCommand,              "read_query_result",               Null,       Tabular,    false, true, ApiVersion4);
         REGISTER    (TGetQueryCommand,                     "get_query",                       Null,       Structured, false, false, ApiVersion4);
         REGISTER    (TListQueriesCommand,                  "list_queries",                    Null,       Structured, false, false, ApiVersion4);
+        REGISTER    (TGetQueryResultCommand,               "get_query_result",                Null,       Structured, false, false, ApiVersion4);
+        REGISTER    (TReadQueryResultCommand,              "read_query_result",               Null,       Tabular,    false, true, ApiVersion4);
 
         if (Config_->EnableInternalCommands) {
             REGISTER_ALL(TReadHunksCommand,                "read_hunks",                      Null,       Structured, false,  true );

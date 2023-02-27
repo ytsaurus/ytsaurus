@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/record_helpers.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
@@ -14,8 +16,9 @@
 #include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/api/connection.h>
 
-#include <yt/yt/client/table_client/record_helpers.h>
-#include <yt/yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
+
+#include <yt/yt/core/ytree/convert.h>
 
 #include <contrib/libs/pfr/include/pfr/tuple_size.hpp>
 
@@ -29,6 +32,7 @@ using namespace NYson;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NQueryClient;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,40 +140,103 @@ void TClient::DoAbortQuery(TQueryId queryId, const TAbortQueryOptions& options)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultIndex, const TReadQueryResultOptions& options)
+TQueryResult TClient::DoGetQueryResult(TQueryId queryId, i64 resultIndex, const TGetQueryResultOptions& options)
 {
     const auto& [client, root] = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
 
-    TString wireRowset;
+    TQueryResult queryResult;
     {
         auto rowBuffer = New<TRowBuffer>();
         TLookupRowsOptions options;
         options.EnablePartialResult = true;
-        TQueryResultKey key{.QueryId = queryId, .Index = resultIndex};
+        TFinishedQueryResultKey key{.QueryId = queryId, .Index = resultIndex};
         std::vector keys{
             key.ToKey(rowBuffer),
         };
         auto asyncLookupResult = client->LookupRows(
-            root + "/query_results",
-            TQueryResultDescriptor::Get()->GetNameTable(),
+            root + "/finished_query_results",
+            TFinishedQueryResultDescriptor::Get()->GetNameTable(),
             MakeSharedRange(std::move(keys), rowBuffer),
             options);
         auto rowset = WaitFor(asyncLookupResult)
             .ValueOrThrow();
-        auto optionalRecords = ToOptionalRecords<TQueryResult>(rowset);
+        auto optionalRecords = ToOptionalRecords<TFinishedQueryResult>(rowset);
         YT_VERIFY(optionalRecords.size() == 1);
         if (!optionalRecords[0]) {
             THROW_ERROR_EXCEPTION("Query %Qv result %v not found or is expired", queryId, resultIndex);
         }
         const auto& record = *optionalRecords[0];
-        wireRowset = record.Rowset;
+
+        queryResult.Id = queryId;
+        queryResult.ResultIndex = resultIndex;
+        auto schemaNode = record.Schema ? ConvertToNode(*record.Schema) : nullptr;
+        queryResult.Schema = schemaNode && schemaNode->GetType() == ENodeType::List ? ConvertTo<TTableSchemaPtr>(schemaNode) : nullptr;
+        queryResult.Error = record.Error;
+        queryResult.DataStatistics = ConvertTo<TDataStatistics>(record.DataStatistics);
+    }
+
+    return queryResult;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultIndex, const TReadQueryResultOptions& options)
+{
+    const auto& [client, root] = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
+
+    YT_LOG_DEBUG(
+        "Reading query result (QueryId: %v, ResultIndex: %v, LowerRowIndex: %v, UpperRowIndex: %v)",
+        queryId,
+        resultIndex,
+        options.UpperRowIndex,
+        options.UpperRowIndex);
+
+    TString wireRowset;
+    TTableSchemaPtr schema;
+    {
+        auto rowBuffer = New<TRowBuffer>();
+        TLookupRowsOptions options;
+        options.EnablePartialResult = true;
+        TFinishedQueryResultKey key{.QueryId = queryId, .Index = resultIndex};
+        std::vector keys{
+            key.ToKey(rowBuffer),
+        };
+        auto asyncLookupResult = client->LookupRows(
+            root + "/finished_query_results",
+            TFinishedQueryResultDescriptor::Get()->GetNameTable(),
+            MakeSharedRange(std::move(keys), rowBuffer),
+            options);
+        auto rowset = WaitFor(asyncLookupResult)
+            .ValueOrThrow();
+        auto optionalRecords = ToOptionalRecords<TFinishedQueryResult>(rowset);
+        YT_VERIFY(optionalRecords.size() == 1);
+        if (!optionalRecords[0]) {
+            THROW_ERROR_EXCEPTION("Query %Qv result %v not found or is expired", queryId, resultIndex);
+        }
+        const auto& record = *optionalRecords[0];
+        if (!record.Error.IsOK()) {
+            THROW_ERROR record.Error;
+        }
+        if (!record.Rowset) {
+            // This should not normally happen, but better this than abort.
+            THROW_ERROR_EXCEPTION("Query %Qv result %v rowset is missing", queryId, resultIndex);
+        }
+        wireRowset = *record.Rowset;
+        schema = ConvertTo<TTableSchemaPtr>(record.Schema);
     }
 
     auto wireReader = CreateWireProtocolReader(TSharedRef::FromString(std::move(wireRowset)));
-    auto schema = wireReader->ReadTableSchema();
-    auto schemaData = IWireProtocolReader::GetSchemaData(schema);
+    auto schemaData = IWireProtocolReader::GetSchemaData(*schema);
     auto rows = wireReader->ReadSchemafulRowset(schemaData, /*captureValues*/ true);
-    return CreateRowset(New<TTableSchema>(std::move(schema)), std::move(rows));
+    {
+        auto lowerRowIndex = options.LowerRowIndex.value_or(0);
+        lowerRowIndex = std::clamp<i64>(lowerRowIndex, 0, rows.size());
+        auto upperRowIndex = options.UpperRowIndex.value_or(rows.size());
+        upperRowIndex = std::clamp<i64>(upperRowIndex, lowerRowIndex, rows.size());
+        rows = rows.Slice(lowerRowIndex, upperRowIndex);
+    }
+
+    return CreateRowset(std::move(schema), std::move(rows));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -310,6 +377,21 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
     auto timestamp = WaitFor(client->GetTimestampProvider()->GenerateTimestamps())
         .ValueOrThrow();
 
+    YT_LOG_DEBUG(
+        "Listing queries (Timestamp: %v, State: %Qv, CursorDirection: %v, FromTime: %v, ToTime: %v, CursorTime: %v,"
+        "Substr: %Qv, User: %Qv, Engine: %v, Limit: %v, Attributes: %v)",
+        timestamp,
+        options.StateFilter,
+        options.CursorDirection,
+        options.FromTime,
+        options.ToTime,
+        options.CursorTime,
+        options.SubstrFilter,
+        options.UserFilter,
+        options.EngineFilter,
+        options.Limit,
+        options.Attributes);
+
     auto attributes = options.Attributes;
 
     attributes.ValidateKeysOnly();
@@ -369,7 +451,7 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
             options.Timestamp = timestamp;
             auto query = builder.Build();
             YT_LOG_DEBUG("Selecting active queries (Query: %Qv)", query);
-            auto selectResult = WaitFor(client->SelectRows(query))
+            auto selectResult = WaitFor(client->SelectRows(query, options))
                 .ValueOrThrow();
             auto records = ToRecords<TActiveQueryPartial>(selectResult.Rowset);
             return PartialRecordsToQueries(records);
@@ -390,8 +472,8 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
                 TSelectRowsOptions options;
                 options.Timestamp = timestamp;
                 auto query = builder.Build();
-                YT_LOG_DEBUG("Selecting finished queries by date (Query: %Qv)", query);
-                auto selectResult = WaitFor(client->SelectRows(query))
+                YT_LOG_DEBUG("Selecting finished queries by start time (Query: %Qv)", query);
+                auto selectResult = WaitFor(client->SelectRows(query, options))
                     .ValueOrThrow();
                 bool isFirst = true;
                 for (const auto& record : ToRecords<TFinishedQueryByStartTime>(selectResult.Rowset)) {
@@ -415,7 +497,7 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
                 options.Timestamp = timestamp;
                 auto query = builder.Build();
                 YT_LOG_DEBUG("Selecting admitted finished queries (Query: %Qv)", query);
-                auto selectResult = WaitFor(client->SelectRows(query))
+                auto selectResult = WaitFor(client->SelectRows(query, options))
                     .ValueOrThrow();
                 auto records = ToRecords<TFinishedQueryPartial>(selectResult.Rowset);
                 return PartialRecordsToQueries(records);
@@ -458,23 +540,24 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
                 (options.CursorDirection == EOperationSortDirection::Past && query.StartTime < options.CursorTime) ||
                 (options.CursorDirection == EOperationSortDirection::Future && query.StartTime > options.CursorTime))
             {
+                if (result.size() == options.Limit) {
+                    // We are finishing collecting queries prematurely, set incomplete flag and break.
+                    incomplete = true;
+                    break;
+                }
                 result.push_back(std::move(query));
             }
-            if (result.size() == options.Limit) {
-                break;
-            }
+
         }
     } else {
+        incomplete = options.Limit < queries.size();
         result = std::vector(queries.begin(), queries.end() + std::min(options.Limit, queries.size()));
-    }
-
-    if (result.size() < queries.size()) {
-        incomplete = true;
     }
 
     return TListQueriesResult{
         .Queries = std::move(result),
         .Incomplete = incomplete,
+        .Timestamp = timestamp,
     };
 }
 

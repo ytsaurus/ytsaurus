@@ -161,12 +161,13 @@ void YTreeNodeToUnversionedValue(
 TUnversionedOwningRow YsonToSchemafulRow(
     const TString& yson,
     const TTableSchema& tableSchema,
-    bool treatMissingAsNull)
+    bool treatMissingAsNull,
+    NYson::EYsonType ysonType)
 {
     auto nameTable = TNameTable::FromSchema(tableSchema);
 
     auto rowParts = ConvertTo<THashMap<TString, INodePtr>>(
-        TYsonString(yson, EYsonType::MapFragment));
+        TYsonString(yson, ysonType));
 
     TUnversionedOwningRowBuilder rowBuilder;
     auto addValue = [&] (int id, INodePtr value) {

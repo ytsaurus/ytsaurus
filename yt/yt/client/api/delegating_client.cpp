@@ -918,6 +918,14 @@ TFuture<void> TDelegatingClient::AbortQuery(
     return Underlying_->AbortQuery(queryId, options);
 }
 
+TFuture<TQueryResult> TDelegatingClient::GetQueryResult(
+    NQueryTrackerClient::TQueryId queryId,
+    i64 resultIndex,
+    const TGetQueryResultOptions& options)
+{
+    return Underlying_->GetQueryResult(queryId, resultIndex, options);
+}
+
 TFuture<IUnversionedRowsetPtr> TDelegatingClient::ReadQueryResult(
     NQueryTrackerClient::TQueryId queryId,
     i64 resultIndex,

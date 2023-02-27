@@ -1,8 +1,10 @@
 #include "data_statistics.h"
 
+#include <yt/yt/client/chunk_client/data_statistics.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NChunkClient {
 
@@ -98,6 +100,10 @@ bool operator != (const TDataStatistics& lhs, const TDataStatistics& rhs)
 
 void Serialize(const TDataStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
+    // TODO(max42): replace all Item with OptionalItem in order to expose only meaningful
+    // fields in each particular context. This would require fixing some tests or using
+    // manually constructed data statistics with some fields being explicitly set to zero
+    // as a neutral element.
     BuildYsonFluently(consumer).BeginMap()
         .Item("chunk_count").Value(statistics.chunk_count())
         .Item("row_count").Value(statistics.row_count())

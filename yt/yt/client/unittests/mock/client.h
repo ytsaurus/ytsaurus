@@ -576,6 +576,11 @@ public:
         NQueryTrackerClient::TQueryId queryId,
         const TAbortQueryOptions& options), (override));
 
+    MOCK_METHOD(TFuture<TQueryResult>, GetQueryResult, (
+        NQueryTrackerClient::TQueryId queryId,
+        i64 resultIndex,
+        const TGetQueryResultOptions& options), (override));
+
     MOCK_METHOD(TFuture<IUnversionedRowsetPtr>, ReadQueryResult, (
         NQueryTrackerClient::TQueryId queryId,
         i64 resultIndex,

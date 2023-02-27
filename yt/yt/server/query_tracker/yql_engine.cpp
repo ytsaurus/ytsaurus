@@ -105,7 +105,7 @@ private:
                 wireRowsetOrErrors.push_back(error);
             }
         }
-        OnQueryCompleted(wireRowsetOrErrors);
+        OnQueryCompletedWire(wireRowsetOrErrors);
     }
 };
 
