@@ -183,7 +183,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     }
 
     /**
-     * @deprecated prefer to use {@link #readTable(ReadTable, TableAttachmentReader)}
+     * @deprecated prefer to use {@link #readTable(ReadTable)}
      */
     @Deprecated
     default <T> CompletableFuture<TableReader<T>> readTable(

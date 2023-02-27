@@ -11,9 +11,9 @@ import java.util.function.Supplier;
 /**
  * YTreeNode is representation of yson object.
  *
- * To build such object {@link ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder} can be used.
+ * To build such object {@link tech.ytsaurus.ysontree.YTreeBuilder} can be used.
  *
- * @see ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
+ * @see tech.ytsaurus.ysontree.YTree
  * @see <a href="https://yt.yandex-team.ru/docs/description/common/yson">Yson documentation</a>
  */
 public interface YTreeNode {
@@ -229,7 +229,7 @@ public interface YTreeNode {
     /**
      * Get binary yson representation of value.
      *
-     * @see ru.yandex.yson.YsonBinaryWriter
+     * @see tech.ytsaurus.yson.YsonBinaryWriter
      */
     byte[] toBinary();
 }

@@ -11,10 +11,10 @@ import tech.ytsaurus.lang.NonNullFields;
 
 /**
  * ProxySelector subclasses are used to set priorities for available rpc proxies
- * <br/>
+ * <br>
  * Subclasses should implement {@link ProxySelector#doRank(List)} method,
  * which sorts that list of available proxies in a desired way
- * <br/>
+ * <br>
  * After sorting, top N proxies will be selected for client pool,
  * where N is equal to {@link RpcOptions#getChannelPoolSize()}
  */

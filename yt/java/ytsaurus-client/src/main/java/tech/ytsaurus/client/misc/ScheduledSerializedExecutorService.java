@@ -17,7 +17,7 @@ import javax.annotation.Nonnull;
  * <p>
  * It also can schedule commands to run after a given delay, or to execute them periodically.
  *
- * @see tech.ytsaurus.ytclient.misc.SerializedExecutorService
+ * @see tech.ytsaurus.client.misc.SerializedExecutorService
  * @see java.util.concurrent.ScheduledExecutorService
  */
 public class ScheduledSerializedExecutorService extends SerializedExecutorService implements ScheduledExecutorService {

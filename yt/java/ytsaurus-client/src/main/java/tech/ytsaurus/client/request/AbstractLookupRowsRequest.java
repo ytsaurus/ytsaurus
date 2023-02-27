@@ -241,10 +241,12 @@ public abstract class AbstractLookupRowsRequest<
          * Whether to keep rows that were not found.
          * <b>
          * When this parameter is set to false (default) YT returns only rows that were found in table.
+         * </b>
          * <b>
          * If this parameter is set to true then the size of the returned rowset is equal to
          * the number of keys in request. The order of resulting rows corresponds to the order of requested keys
          * and rows for missing keys are `null`.
+         * </b>
          */
         public TBuilder setKeepMissingRows(boolean keepMissingRows) {
             this.keepMissingRows = keepMissingRows;

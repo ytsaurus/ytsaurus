@@ -96,6 +96,7 @@ public class PingTransaction extends RequestBase<PingTransaction.Builder, PingTr
          * If set to false only specified transaction will be pinged.
          * <b>
          * Default value: true.
+         * </b>
          */
         public Builder setPingAncestors(boolean pingAncestors) {
             this.pingAncestors = pingAncestors;
