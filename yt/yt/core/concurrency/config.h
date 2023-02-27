@@ -20,6 +20,8 @@ public:
 
     static TThroughputThrottlerConfigPtr Create(std::optional<double> limit);
 
+    bool operator==(const TThroughputThrottlerConfig& other);
+
     REGISTER_YSON_STRUCT(TThroughputThrottlerConfig);
 
     static void Register(TRegistrar registrar);
