@@ -96,7 +96,7 @@ public:
 
     void TouchChunk(TChunk* chunk);
 
-    TMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
+    TCompactMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
     ECrossMediumChunkStatus ComputeCrossMediumChunkStatus(TChunk* chunk);
 
     bool IsReplicatorEnabled();
@@ -128,15 +128,13 @@ public:
 private:
     struct TPerMediumChunkStatistics
     {
-        TPerMediumChunkStatistics();
-
-        EChunkStatus Status;
+        EChunkStatus Status = EChunkStatus::None;
 
         //! Number of active replicas, per each replica index.
-        int ReplicaCount[ChunkReplicaIndexBound];
+        std::array<int, ChunkReplicaIndexBound> ReplicaCount{};
 
         //! Number of decommissioned replicas, per each replica index.
-        int DecommissionedReplicaCount[ChunkReplicaIndexBound];
+        std::array<int, ChunkReplicaIndexBound> DecommissionedReplicaCount{};
 
         //! Indexes of replicas whose replication is advised.
         TCompactVector<int, TypicalReplicaCount> ReplicationIndexes;
@@ -145,7 +143,8 @@ private:
         // NB: there's no actual need to have medium index in context of this
         // per-medium class. This is just for convenience.
         TChunkLocationPtrWithReplicaIndexList DecommissionedRemovalReplicas;
-         //! Indexes of replicas whose removal is advised for balancing.
+
+        //! Indexes of replicas whose removal is advised for balancing.
         TCompactVector<int, TypicalReplicaCount> BalancingRemovalIndexes;
 
         //! Any replica that violates failure domain placement.
@@ -157,7 +156,7 @@ private:
 
     struct TChunkStatistics
     {
-        TMediumMap<TPerMediumChunkStatistics> PerMediumStatistics;
+        TCompactMediumMap<TPerMediumChunkStatistics> PerMediumStatistics;
         ECrossMediumChunkStatus Status = ECrossMediumChunkStatus::None;
     };
 
@@ -296,7 +295,7 @@ private:
         NErasure::ICodec* codec,
         bool allMediaTransient,
         bool allMediaDataPartsOnly,
-        const TMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
+        const TCompactMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
         const TMediumSet& activeMedia,
         const NErasure::TPartIndexSet& replicaIndexes,
         bool totallySealed);
@@ -351,7 +350,7 @@ private:
     std::array<TChunkRepairQueue, MaxMediumCount>& ChunkRepairQueues(EChunkRepairQueue queue);
     TDecayingMaxMinBalancer<int, double>& ChunkRepairQueueBalancer(EChunkRepairQueue queue);
 
-    TMediumMap<TNodeList> GetChunkConsistentPlacementNodes(const TChunk* chunk);
+    TCompactMediumMap<TNodeList> GetChunkConsistentPlacementNodes(const TChunk* chunk);
 
     void RemoveFromChunkReplicationQueues(
         TNode* node,

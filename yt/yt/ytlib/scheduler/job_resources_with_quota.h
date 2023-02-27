@@ -15,15 +15,13 @@ namespace NYT::NScheduler {
 
 struct TDiskQuota
 {
-    SmallDenseMap<int, i64> DiskSpacePerMedium = SmallDenseMap<int, i64>{1};
-
+    NChunkClient::TMediumMap<i64> DiskSpacePerMedium;
     std::optional<i64> DiskSpaceWithoutMedium;
 
     explicit operator bool() const;
 
     void Persist(const TStreamPersistenceContext& context);
 };
-
 
 TDiskQuota CreateDiskQuota(i32 mediumIndex, i64 diskSpace);
 TDiskQuota CreateDiskQuotaWithoutMedium(i64 diskSpace);

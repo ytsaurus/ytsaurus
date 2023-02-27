@@ -16,8 +16,6 @@ using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NProfiling;
 
-using std::round;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TDiskQuota::operator bool() const

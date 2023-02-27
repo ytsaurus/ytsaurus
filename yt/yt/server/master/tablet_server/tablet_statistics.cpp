@@ -205,7 +205,7 @@ bool operator == (const TTabletCellStatisticsBase& lhs, const TTabletCellStatist
         std::all_of(
             lhs.DiskSpacePerMedium.begin(),
             lhs.DiskSpacePerMedium.end(),
-            [&] (const TMediumMap<i64>::value_type& value) {
+            [&] (const auto& value) {
                 auto it = rhs.DiskSpacePerMedium.find(value.first);
                 return it != rhs.DiskSpacePerMedium.end() && it->second == value.second;
             });

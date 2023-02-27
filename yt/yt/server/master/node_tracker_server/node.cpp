@@ -563,7 +563,7 @@ void TNode::RemoveRealChunkLocation(NChunkServer::TRealChunkLocation* location)
 void TNode::ClearChunkLocations()
 {
     ChunkLocations_.clear();
-    ImaginaryChunkLocations_.shrink_and_clear();
+    ImaginaryChunkLocations_.clear();
 
     for (auto* location : RealChunkLocations_) {
         location->SetNode(nullptr);
@@ -980,11 +980,11 @@ int TNode::GetHintedSessionCount(int mediumIndex, int chunkHostMasterCellCount) 
 {
     // Individual chunk host cells are unaware of each other's hinted sessions
     // scheduled to the same node. Take that into account to avoid bursts.
-    return SessionCount_.lookup(mediumIndex).value_or(0) +
+    return GetOrDefault(SessionCount_, mediumIndex).value_or(0) +
         chunkHostMasterCellCount * (
-            HintedUserSessionCount_.lookup(mediumIndex) +
-            HintedReplicationSessionCount_.lookup(mediumIndex) +
-            HintedRepairSessionCount_.lookup(mediumIndex));
+            GetOrDefault(HintedUserSessionCount_, mediumIndex) +
+            GetOrDefault(HintedReplicationSessionCount_, mediumIndex) +
+            GetOrDefault(HintedRepairSessionCount_, mediumIndex));
 }
 
 int TNode::GetSessionCount(ESessionType sessionType) const
@@ -1139,22 +1139,22 @@ bool TNode::HasMedium(int mediumIndex) const
 
 std::optional<double> TNode::GetFillFactor(int mediumIndex) const
 {
-    return FillFactors_.lookup(mediumIndex);
+    return GetOrDefault(FillFactors_, mediumIndex);
 }
 
 std::optional<double> TNode::GetLoadFactor(int mediumIndex, int chunkHostMasterCellCount) const
 {
     // NB: Avoid division by zero.
-    return SessionCount_.lookup(mediumIndex)
+    return GetOrDefault(SessionCount_, mediumIndex)
         ? std::make_optional(
             static_cast<double>(GetHintedSessionCount(mediumIndex, chunkHostMasterCellCount)) /
-            std::max(IOWeights_.lookup(mediumIndex), 0.000000001))
+            std::max(GetOrDefault(IOWeights_, mediumIndex), 1e-9))
         : std::nullopt;
 }
 
 TNode::TLoadFactorIterator TNode::GetLoadFactorIterator(int mediumIndex) const
 {
-    return LoadFactorIterators_.lookup(mediumIndex);
+    return GetOrDefault(LoadFactorIterators_, mediumIndex);
 }
 
 void TNode::SetLoadFactorIterator(int mediumIndex, TLoadFactorIterator iter)
@@ -1164,7 +1164,7 @@ void TNode::SetLoadFactorIterator(int mediumIndex, TLoadFactorIterator iter)
 
 bool TNode::IsWriteEnabled(int mediumIndex) const
 {
-    return IOWeights_.lookup(mediumIndex) > 0;
+    return GetOrDefault(IOWeights_, mediumIndex) > 0;
 }
 
 void TNode::SetHost(THost* host)

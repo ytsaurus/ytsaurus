@@ -290,7 +290,7 @@ private:
             case EInternedAttributeKey::AvailableSpacePerMedium:
                 BuildYsonFluently(consumer)
                     .DoMapFor(statistics.SpacePerMedium.begin(), statistics.SpacePerMedium.end(),
-                        [&] (TFluentMap fluent, NChunkClient::TMediumMap<TDiskSpaceStatistics>::const_iterator it) {
+                        [&] (auto fluent, auto it) {
                             auto mediumIndex = it->first;
                             const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
                             if (!medium) {
@@ -304,7 +304,7 @@ private:
             case EInternedAttributeKey::UsedSpacePerMedium:
                 BuildYsonFluently(consumer)
                     .DoMapFor(statistics.SpacePerMedium.begin(), statistics.SpacePerMedium.end(),
-                        [&] (TFluentMap fluent, NChunkClient::TMediumMap<TDiskSpaceStatistics>::const_iterator it) {
+                        [&] (auto fluent, auto it) {
                             auto mediumIndex = it->first;
                             const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
                             if (!medium) {

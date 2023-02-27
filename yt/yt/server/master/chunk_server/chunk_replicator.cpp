@@ -95,14 +95,6 @@ static const auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReplicator::TPerMediumChunkStatistics::TPerMediumChunkStatistics()
-    : Status(EChunkStatus::None)
-    , ReplicaCount{}
-    , DecommissionedReplicaCount{}
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TReplicationJob
     : public TJob
 {
@@ -489,9 +481,9 @@ void TChunkReplicator::TouchChunk(TChunk* chunk)
     TouchChunkInRepairQueues(chunk);
 }
 
-TMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(TChunk* chunk)
+TCompactMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(TChunk* chunk)
 {
-    TMediumMap<EChunkStatus> result;
+    TCompactMediumMap<EChunkStatus> result;
 
     auto statistics = ComputeChunkStatistics(chunk);
 
@@ -526,18 +518,18 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
 
-    TMediumMap<std::array<TChunkLocationList, ChunkReplicaIndexBound>> decommissionedReplicas;
-    TMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
+    TCompactMediumMap<std::array<TChunkLocationList, ChunkReplicaIndexBound>> decommissionedReplicas;
+    TCompactMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
     // TODO(gritukan): YT-16557.
-    TMediumMap<THashMap<const TDataCenter*, ui8>> perDataCenterReplicaCounters;
+    TCompactMediumMap<THashMap<const TDataCenter*, ui8>> perDataCenterReplicaCounters;
 
     // An arbitrary replica collocated with too may others within a single rack - per medium.
-    TMediumMap<TChunkLocationPtrWithReplicaInfo> unsafelyPlacedSealedReplicas;
+    TCompactMediumMap<TChunkLocationPtrWithReplicaInfo> unsafelyPlacedSealedReplicas;
     // An arbitrary replica that violates consistent placement requirements - per medium.
-    TMediumMap<std::array<TChunkLocation*, ChunkReplicaIndexBound>> inconsistentlyPlacedSealedReplicas;
+    TCompactMediumMap<std::array<TChunkLocation*, ChunkReplicaIndexBound>> inconsistentlyPlacedSealedReplicas;
 
-    TMediumMap<int> totalReplicaCounts;
-    TMediumMap<int> totalDecommissionedReplicaCounts;
+    TCompactMediumMap<int> totalReplicaCounts;
+    TCompactMediumMap<int> totalDecommissionedReplicaCounts;
 
     NErasure::TPartIndexSet replicaIndexes;
 
@@ -603,7 +595,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
     bool allMediaTransient = true;
     bool allMediaDataPartsOnly = true;
-    TMediumMap<NErasure::TPartIndexSet> mediumToErasedIndexes;
+    TCompactMediumMap<NErasure::TPartIndexSet> mediumToErasedIndexes;
     TMediumSet activeMedia;
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -657,7 +649,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     return result;
 }
 
-TMediumMap<TNodeList> TChunkReplicator::GetChunkConsistentPlacementNodes(const TChunk* chunk)
+TCompactMediumMap<TNodeList> TChunkReplicator::GetChunkConsistentPlacementNodes(const TChunk* chunk)
 {
     if (!chunk->HasConsistentReplicaPlacementHash()) {
         return {};
@@ -669,7 +661,7 @@ TMediumMap<TNodeList> TChunkReplicator::GetChunkConsistentPlacementNodes(const T
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-    TMediumMap<TNodeList> result;
+    TCompactMediumMap<TNodeList> result;
     const auto chunkReplication = GetChunkAggregatedReplication(chunk);
     for (const auto& entry : chunkReplication) {
         auto mediumPolicy = entry.Policy();
@@ -795,7 +787,7 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
     NErasure::ICodec* codec,
     bool allMediaTransient,
     bool allMediaDataPartsOnly,
-    const TMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
+    const TCompactMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
     const TMediumSet& activeMedia,
     const NErasure::TPartIndexSet& replicaIndexes,
     bool totallySealed)

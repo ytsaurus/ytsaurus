@@ -17,18 +17,7 @@ using namespace NYTree;
 using namespace NCellMaster;
 using namespace NChunkServer;
 
-using NChunkClient::MaxMediumCount;
-using NChunkServer::DefaultStoreMediumIndex;
-
 ////////////////////////////////////////////////////////////////////////////////
-
-TClusterResourceLimits::TClusterResourceLimits()
-    : NodeCount_(0)
-    , ChunkCount_(0)
-    , TabletCount_(0)
-    , TabletStaticMemory_(0)
-    , DiskSpace_{}
-{ }
 
 TClusterResourceLimits&& TClusterResourceLimits::SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &&
 {
@@ -173,14 +162,14 @@ bool TClusterResourceLimits::IsViolatedBy(const TClusterResourceLimits& rhs) con
     }
 
     for (auto [mediumIndex, lhsDiskSpace] : DiskSpace()) {
-        auto rhsDiskSpace = rhs.DiskSpace().lookup(mediumIndex);
+        auto rhsDiskSpace = GetOrDefault(rhs.DiskSpace(), mediumIndex);
         if (lhsDiskSpace < rhsDiskSpace) {
             return true;
         }
     }
 
     for (auto [mediumIndex, rhsDiskSpace] : rhs.DiskSpace()) {
-        auto lhsDiskSpace = DiskSpace().lookup(mediumIndex);
+        auto lhsDiskSpace = GetOrDefault(DiskSpace(), mediumIndex);
         if (lhsDiskSpace < rhsDiskSpace) {
             return true;
         }
@@ -209,14 +198,14 @@ TViolatedClusterResourceLimits TClusterResourceLimits::GetViolatedBy(
     result.SetMasterMemory(MasterMemory_.GetViolatedBy(rhs.MasterMemory_));
 
     for (auto [mediumIndex, diskSpace] : DiskSpace()) {
-        auto usageDiskSpace = rhs.DiskSpace().lookup(mediumIndex);
+        auto usageDiskSpace = GetOrDefault(rhs.DiskSpace(), mediumIndex);
         if (diskSpace < usageDiskSpace) {
             result.SetMediumDiskSpace(mediumIndex, diskSpace < usageDiskSpace);
         }
     }
 
     for (auto [mediumIndex, usageDiskSpace] : rhs.DiskSpace()) {
-        auto diskSpace = DiskSpace().lookup(mediumIndex);
+        auto diskSpace = GetOrDefault(DiskSpace(), mediumIndex);
         if (diskSpace < usageDiskSpace) {
             result.SetMediumDiskSpace(mediumIndex, diskSpace < usageDiskSpace);
         }
@@ -333,13 +322,7 @@ bool TClusterResourceLimits::operator == (const TClusterResourceLimits& other) c
     return true;
 }
 
-TViolatedClusterResourceLimits::TViolatedClusterResourceLimits()
-    : NodeCount_(0)
-    , ChunkCount_(0)
-    , TabletCount_(0)
-    , TabletStaticMemory_(0)
-    , DiskSpace_{}
-{ }
+////////////////////////////////////////////////////////////////////////////////
 
 TMasterMemoryLimits& TViolatedClusterResourceLimits::MasterMemory()
 {

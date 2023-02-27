@@ -47,6 +47,7 @@ using NChunkClient::MaxMediumPriority;
 using NChunkClient::TDataCenterName;
 using NChunkClient::TChunkLocationUuid;
 using NChunkClient::TMediumMap;
+using NChunkClient::TCompactMediumMap;
 using NChunkClient::TConsistentReplicaPlacementHash;
 using NChunkClient::NullConsistentReplicaPlacementHash;
 using NChunkClient::ChunkReplicaIndexBound;

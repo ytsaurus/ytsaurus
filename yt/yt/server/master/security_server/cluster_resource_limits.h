@@ -22,8 +22,6 @@ namespace NYT::NSecurityServer {
 class TClusterResourceLimits
 {
 public:
-    TClusterResourceLimits();
-
     static TClusterResourceLimits Infinite();
     static TClusterResourceLimits Zero(const NCellMaster::IMulticellManagerPtr& multicellManager);
 
@@ -75,11 +73,11 @@ private:
     TMasterMemoryLimits MasterMemory_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TViolatedClusterResourceLimits
 {
 public:
-    TViolatedClusterResourceLimits();
-
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TViolatedClusterResourceLimits, i64, NodeCount);
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TViolatedClusterResourceLimits, i64, ChunkCount);
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TViolatedClusterResourceLimits, int, TabletCount);
