@@ -3238,8 +3238,6 @@ void TChunkReplicator::StopRefresh(int shardIndex)
     clearChunkSetShard(PrecariousChunks_);
     clearChunkSetShard(PrecariousVitalChunks_);
     clearChunkSetShard(UnderreplicatedChunks_);
-    clearChunkSetShard(PrecariousVitalChunks_);
-    clearChunkSetShard(UnderreplicatedChunks_);
     clearChunkSetShard(OverreplicatedChunks_);
     clearChunkSetShard(QuorumMissingChunks_);
     clearChunkSetShard(UnsafelyPlacedChunks_);
