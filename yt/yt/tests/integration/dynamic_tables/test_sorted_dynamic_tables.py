@@ -490,9 +490,13 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             expected)
 
     @authors("savrus", "sandello")
-    def test_lookup_hash_table(self):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_lookup_hash_table(self, optimize_for):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table(
+            "//tmp/t",
+            optimize_for=optimize_for,
+            nable_new_scan_reader_for_lookup=True)
 
         set("//tmp/t/@in_memory_mode", "uncompressed")
         set("//tmp/t/@enable_lookup_hash_table", True)

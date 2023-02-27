@@ -20,7 +20,7 @@ struct TChunkState
         NChunkClient::NProto::TChunkSpec chunkSpec = {},
         TCachedVersionedChunkMetaPtr chunkMeta = nullptr,
         NTransactionClient::TTimestamp overrideTimestamp = NTransactionClient::NullTimestamp,
-        IChunkLookupHashTablePtr lookupHashTable = nullptr,
+        TChunkLookupHashTablePtr lookupHashTable = nullptr,
         TChunkReaderPerformanceCountersPtr performanceCounters = nullptr,
         TKeyComparer keyComparer = {},
         TVirtualValueDirectoryPtr virtualValueDirectory = nullptr,
@@ -33,7 +33,7 @@ struct TChunkState
     // Not used in many other readers.
     TCachedVersionedChunkMetaPtr ChunkMeta;
     NTransactionClient::TTimestamp OverrideTimestamp;
-    IChunkLookupHashTablePtr LookupHashTable;
+    TChunkLookupHashTablePtr LookupHashTable;
     TChunkReaderPerformanceCountersPtr PerformanceCounters;
     TKeyComparer KeyComparer;
     TVirtualValueDirectoryPtr VirtualValueDirectory;

@@ -114,25 +114,33 @@ i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
         + PreparedMetaSize_;
 }
 
-TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> TCachedVersionedChunkMeta::GetPreparedChunkMeta()
+TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> TCachedVersionedChunkMeta::GetPreparedChunkMeta(NNewTableClient::IBlockDataProvider* blockProvider)
 {
-    if (!PreparedMeta_) {
-        YT_VERIFY(GetChunkFormat() == NChunkClient::EChunkFormat::TableVersionedColumnar);
+    auto currentMeta = PreparedMeta_.Acquire();
+    TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> newPreparedMeta = nullptr;
+    while (!currentMeta || (blockProvider && !currentMeta->FullNewMeta)) {
+        if (!newPreparedMeta) {
+            newPreparedMeta = New<NNewTableClient::TPreparedChunkMeta>();
+            newPreparedMeta->FullNewMeta = blockProvider;
+            newPreparedMeta->Prepare(GetChunkSchema(), ColumnMeta(), DataBlockMeta(), blockProvider);
+        }
 
-        auto preparedMeta = New<NNewTableClient::TPreparedChunkMeta>();
-        auto size = preparedMeta->Prepare(GetChunkSchema(), ColumnMeta());
-
-        void* expectedPreparedMeta = nullptr;
-        if (PreparedMeta_.CompareAndSwap(expectedPreparedMeta, preparedMeta)) {
-            PreparedMetaSize_ = size;
-
+        void* rawCurrentMeta = currentMeta.Get();
+        if (PreparedMeta_.CompareAndSwap(rawCurrentMeta, newPreparedMeta)) {
             if (MemoryTrackerGuard_) {
-                MemoryTrackerGuard_.IncrementSize(size);
+                MemoryTrackerGuard_.IncrementSize(newPreparedMeta->Size);
+                if (currentMeta) {
+                    MemoryTrackerGuard_.IncrementSize(-currentMeta->Size);
+                }
             }
+            currentMeta = newPreparedMeta;
+            break;
+        } else {
+            currentMeta = PreparedMeta_.Acquire();
         }
     }
 
-    return PreparedMeta_.Acquire();
+    return currentMeta;
 }
 
 int TCachedVersionedChunkMeta::GetChunkKeyColumnCount() const

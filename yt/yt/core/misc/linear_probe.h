@@ -37,10 +37,10 @@ private:
 
     std::vector<std::atomic<TEntry>> HashTable_;
 
-    bool Insert(ui64 index, TStamp stamp, TValue value);
+    bool DoInsert(ui64 index, TStamp stamp, TValue value);
 
     template <size_t N>
-    void Find(ui64 index, TStamp stamp, TCompactVector<TValue, N>* result) const;
+    void DoFind(ui64 index, TStamp stamp, TCompactVector<TValue, N>* result) const;
 
     static TStamp StampFromEntry(TEntry entry);
     static TValue ValueFromEntry(TEntry entry);

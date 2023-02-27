@@ -12,35 +12,6 @@ constexpr int UnpackSizeFactor = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTmpBuffers::Swap(TTmpBuffers& other)
-{
-    Values.swap(other.Values);
-    Ids.swap(other.Ids);
-    Offsets.swap(other.Offsets);
-    DataSpans.swap(other.DataSpans);
-}
-
-TInitContext::TInitContext(ui32 rowOffset, TMutableRange<TReadSpan> spans, TTmpBuffers* tmpBuffers)
-    : RowOffset(rowOffset)
-    , Spans(spans)
-    , TmpBuffersSource(tmpBuffers)
-{
-    TmpBuffersSource->Swap(*this);
-}
-
-TInitContext::~TInitContext()
-{
-    TmpBuffersSource->Swap(*this);
-
-    // Those containers must be swapped with TTmpBuffers reduce memory reallocations.
-    YT_VERIFY(Values.empty());
-    YT_VERIFY(Ids.empty());
-    YT_VERIFY(Offsets.empty());
-    YT_VERIFY(DataSpans.empty());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void CheckBatchSize(TRange<TReadSpan> spans, ui32 expectedBatchSize)
 {
     Y_UNUSED(spans);
@@ -72,32 +43,43 @@ void TScanTimestampExtractor::InitSegment(const TTimestampMeta* meta, const char
     RowOffset_ = meta->ChunkRowCount - meta->RowCount;
     SegmentRowLimit_ = meta->ChunkRowCount;
 
+    const ui64* ptr = reinterpret_cast<const ui64*>(data);
+
+    TCompressedVectorView timestampsDictView(ptr);
+    ptr += timestampsDictView.GetSizeInWords();
+
+    TCompressedVectorView writeTimestampIdsView(ptr);
+    ptr += writeTimestampIdsView.GetSizeInWords();
+
+    TCompressedVectorView deleteTimestampIdsView(ptr);
+    ptr += deleteTimestampIdsView.GetSizeInWords();
+
+    TCompressedVectorView writeTimestampPerRowDiffsView(ptr);
+    ptr += writeTimestampPerRowDiffsView.GetSizeInWords();
+
+    TCompressedVectorView deleteTimestampPerRowDiffsView(ptr);
+    ptr += deleteTimestampPerRowDiffsView.GetSizeInWords();
+
     auto& timestampsDict = tmpBuffers->Values;
     auto& ids = tmpBuffers->Ids;
 
-    TCompressedVectorView view(reinterpret_cast<const ui64*>(data));
-    UnpackBitVector(view, &timestampsDict);
+    UnpackBitVector(timestampsDictView, &timestampsDict);
 
-    auto writeTimestampIdsView = ++view;
-    auto deleteTimestampIdsView = ++view;
-    auto writeTimestampOffsetsView = ++view;
-    auto deleteTimestampOffsetsView = ++view;
-
-    YT_VERIFY(writeTimestampOffsetsView.GetSize() == meta->RowCount);
-    YT_VERIFY(deleteTimestampOffsetsView.GetSize() == meta->RowCount);
+    YT_VERIFY(writeTimestampPerRowDiffsView.GetSize() == meta->RowCount);
+    YT_VERIFY(deleteTimestampPerRowDiffsView.GetSize() == meta->RowCount);
 
     {
-        auto* writeTimestampOffsets = WriteTimestampOffsets_.Resize(writeTimestampOffsetsView.GetSize() + 1);
+        auto* writeTimestampOffsets = WriteTimestampOffsets_.Resize(writeTimestampPerRowDiffsView.GetSize() + 1);
 
         writeTimestampOffsets[0] = 0;
-        writeTimestampOffsetsView.UnpackTo(writeTimestampOffsets + 1);
+        writeTimestampPerRowDiffsView.UnpackTo(writeTimestampOffsets + 1);
 
         auto expectedCount = meta->ExpectedWritesPerRow;
         DiffsToOffsets(MakeMutableRange(writeTimestampOffsets + 1, meta->RowCount), expectedCount);
 
 #ifndef NDEBUG
-        for (size_t index = 0; index < writeTimestampOffsetsView.GetSize(); ++index) {
-            auto expected = GetOffset(writeTimestampOffsetsView, expectedCount, index);
+        for (size_t index = 0; index < writeTimestampPerRowDiffsView.GetSize(); ++index) {
+            auto expected = GetOffset(writeTimestampPerRowDiffsView, expectedCount, index);
             YT_VERIFY(writeTimestampOffsets[index] == expected);
         }
 #endif
@@ -112,17 +94,17 @@ void TScanTimestampExtractor::InitSegment(const TTimestampMeta* meta, const char
     }
 
     {
-        auto* deleteTimestampOffsets = DeleteTimestampOffsets_.Resize(deleteTimestampOffsetsView.GetSize() + 1);
+        auto* deleteTimestampOffsets = DeleteTimestampOffsets_.Resize(deleteTimestampPerRowDiffsView.GetSize() + 1);
 
         deleteTimestampOffsets[0] = 0;
-        deleteTimestampOffsetsView.UnpackTo(deleteTimestampOffsets + 1);
+        deleteTimestampPerRowDiffsView.UnpackTo(deleteTimestampOffsets + 1);
 
         auto expectedCount = meta->ExpectedDeletesPerRow;
         DiffsToOffsets(MakeMutableRange(deleteTimestampOffsets + 1, meta->RowCount), expectedCount);
 
 #ifndef NDEBUG
-        for (size_t index = 0; index < deleteTimestampOffsetsView.GetSize(); ++index) {
-            auto expected = GetOffset(deleteTimestampOffsetsView, expectedCount, index);
+        for (size_t index = 0; index < deleteTimestampPerRowDiffsView.GetSize(); ++index) {
+            auto expected = GetOffset(deleteTimestampPerRowDiffsView, expectedCount, index);
             YT_VERIFY(deleteTimestampOffsets[index] == expected);
         }
 #endif
@@ -298,33 +280,45 @@ ui32 DoInitTimestampOffsets(
     return offset;
 }
 
-void TScanTimestampExtractor::InitSegment(const TTimestampMeta* meta, const char* data, TInitContext* initContext)
+void TScanTimestampExtractor::InitSegment(
+    const TTimestampMeta* meta,
+    const char* data,
+    ui32 rowOffset,
+    TMutableRange<TReadSpan> spans,
+    TTmpBuffers* tmpBuffers)
 {
-    RowOffset_ = initContext->RowOffset;
+    RowOffset_ = rowOffset;
 
-    auto& timestampsDict = initContext->Values;
+    auto& timestampsDict = tmpBuffers->Values;
     timestampsDict.clear();
 
-    TCompressedVectorView view(reinterpret_cast<const ui64*>(data));
+    const ui64* ptr = reinterpret_cast<const ui64*>(data);
 
-    auto timestampsDictView = view;
+    TCompressedVectorView timestampsDictView(ptr);
+    ptr += timestampsDictView.GetSizeInWords();
 
-    auto writeTimestampIdsView = ++view;
-    auto deleteTimestampIdsView = ++view;
+    TCompressedVectorView writeTimestampIdsView(ptr);
+    ptr += writeTimestampIdsView.GetSizeInWords();
 
-    auto writeTimestampPerRowDiffsView = ++view;
-    auto deleteTimestampPerRowDiffsView = ++view;
+    TCompressedVectorView deleteTimestampIdsView(ptr);
+    ptr += deleteTimestampIdsView.GetSizeInWords();
+
+    TCompressedVectorView writeTimestampPerRowDiffsView(ptr);
+    ptr += writeTimestampPerRowDiffsView.GetSizeInWords();
+
+    TCompressedVectorView deleteTimestampPerRowDiffsView(ptr);
+    ptr += deleteTimestampPerRowDiffsView.GetSizeInWords();
 
     YT_VERIFY(writeTimestampPerRowDiffsView.GetSize() == meta->RowCount);
-    YT_VERIFY(writeTimestampPerRowDiffsView.GetSize() == deleteTimestampPerRowDiffsView.GetSize());
+    YT_VERIFY(deleteTimestampPerRowDiffsView.GetSize() == meta->RowCount);
 
-    auto slice = GetBatchSlice(initContext->Spans, meta->ChunkRowCount);
+    auto slice = GetBatchSlice(spans, meta->ChunkRowCount);
     auto batchSize = slice.GetBatchSize();
     // Segment can be initialized multiple times if block bound (of other columns) crosses segment.
     YT_VERIFY(!slice.GetSpans().empty());
     SegmentRowLimit_ = slice.GetSpans().end()[-1].Upper;
 
-    initContext->DataSpans.resize(slice.GetSize());
+    tmpBuffers->DataSpans.resize(slice.GetSize());
 
     WriteTimestampOffsets_.Resize(batchSize + 1);
 
@@ -335,7 +329,7 @@ void TScanTimestampExtractor::InitSegment(const TTimestampMeta* meta, const char
         meta->ExpectedWritesPerRow,
         writeTimestampPerRowDiffsView,
         WriteTimestampOffsets_.GetData(),
-        initContext->DataSpans.data(),
+        tmpBuffers->DataSpans.data(),
         slice.GetSpans());
 
     WriteTimestamps_.Resize(writeTimestampCount);
@@ -347,7 +341,7 @@ void TScanTimestampExtractor::InitSegment(const TTimestampMeta* meta, const char
         timestampsDictView,
         &timestampsDict,
         writeTimestampIdsView,
-        initContext->DataSpans,
+        tmpBuffers->DataSpans,
         meta->RowCount);
 
     DeleteTimestampOffsets_.Resize(batchSize + 1);
@@ -357,7 +351,7 @@ void TScanTimestampExtractor::InitSegment(const TTimestampMeta* meta, const char
         meta->ExpectedDeletesPerRow,
         deleteTimestampPerRowDiffsView,
         DeleteTimestampOffsets_.GetData(),
-        initContext->DataSpans.data(),
+        tmpBuffers->DataSpans.data(),
         slice.GetSpans());
 
     DeleteTimestamps_.Resize(deleteTimestampCount);
@@ -369,14 +363,14 @@ void TScanTimestampExtractor::InitSegment(const TTimestampMeta* meta, const char
         timestampsDictView,
         &timestampsDict,
         deleteTimestampIdsView,
-        initContext->DataSpans,
+        tmpBuffers->DataSpans,
         meta->RowCount);
 }
 
 template <class T>
-const ui64* TScanIntegerExtractor<T>::GetEndPtr(const TMetaBase* meta, const ui64* ptr)
+const ui64* TScanIntegerExtractor<T>::GetEndPtr(const TIntegerMeta* meta, const ui64* ptr)
 {
-    if (IsDirect(meta->Type)) {
+    if (meta->Direct) {
         TCompressedVectorView valuesView(ptr);
         ptr += valuesView.GetSizeInWords();
         ptr += GetBitmapSize(valuesView.GetSize());
@@ -392,17 +386,15 @@ const ui64* TScanIntegerExtractor<T>::GetEndPtr(const TMetaBase* meta, const ui6
 
 #ifdef FULL_UNPACK
 template <class T>
-const ui64* TScanIntegerExtractor<T>::InitData(const TMetaBase* meta, const ui64* ptr, TTmpBuffers* tmpBuffers)
+const ui64* TScanIntegerExtractor<T>::InitData(const TIntegerMeta* meta, const ui64* ptr, TTmpBuffers* tmpBuffers)
 {
     auto& values = tmpBuffers->Values;
     auto& ids = tmpBuffers->Ids;
 
-    bool direct = IsDirect(meta->Type);
-
     const auto* integerMeta = static_cast<const TIntegerMeta*>(meta);
     auto baseValue = integerMeta->BaseValue;
 
-    if (direct) {
+    if (meta->Direct) {
         TCompressedVectorView valuesView(ptr);
         ptr += valuesView.GetSizeInWords();
 
@@ -571,20 +563,19 @@ void UnpackDict(
 
 template <class T>
 const ui64* TScanIntegerExtractor<T>::InitData(
-    const TMetaBase* meta,
+    const TIntegerMeta* meta,
     const ui64* ptr,
     TRange<TReadSpan> spans,
     ui32 batchSize,
-    TTmpBuffers* /*tmpBuffers*/)
+    TTmpBuffers* /*tmpBuffers*/,
+    ui32 segmentChunkRowCount)
 {
     CheckBatchSize(spans, batchSize);
-
-    bool direct = IsDirect(meta->Type);
 
     const auto* integerMeta = static_cast<const TIntegerMeta*>(meta);
     auto baseValue = integerMeta->BaseValue;
 
-    if (direct) {
+    if (meta->Direct) {
         TCompressedVectorView valuesView(ptr);
         ptr += valuesView.GetSizeInWords();
 
@@ -622,9 +613,9 @@ const ui64* TScanIntegerExtractor<T>::InitData(
         NullBits_ = nullBits;
 
         // Even if segment is read completely it can be initialized multiple times.
-        if (SegmentChunkRowCount_ != meta->ChunkRowCount) {
+        if (SegmentChunkRowCount_ != segmentChunkRowCount) {
             ValuesDict_.clear();
-            SegmentChunkRowCount_ = meta->ChunkRowCount;
+            SegmentChunkRowCount_ = segmentChunkRowCount;
         }
 
         if (ValuesDict_.empty() && batchSize * UnpackSizeFactor > valuesView.GetSize()) {
@@ -669,7 +660,7 @@ class TScanIntegerExtractor<i64>;
 template
 class TScanIntegerExtractor<ui64>;
 
-const ui64* TScanDataExtractor<EValueType::Double>::GetEndPtr(const TMetaBase* /*meta*/, const ui64* ptr)
+const ui64* TScanDataExtractor<EValueType::Double>::GetEndPtr(const TEmptyMeta* /*meta*/, const ui64* ptr)
 {
     ui64 count = *ptr++;
     ptr += count;
@@ -679,7 +670,7 @@ const ui64* TScanDataExtractor<EValueType::Double>::GetEndPtr(const TMetaBase* /
 
 #ifdef FULL_UNPACK
 const ui64* TScanDataExtractor<EValueType::Double>::InitData(
-    const TMetaBase* /*meta*/,
+    const TEmptyMeta* /*meta*/,
     const ui64* ptr,
     TTmpBuffers* /*tmpBuffers*/)
 {
@@ -696,11 +687,12 @@ const ui64* TScanDataExtractor<EValueType::Double>::InitData(
 #endif
 
 const ui64* TScanDataExtractor<EValueType::Double>::InitData(
-    const TMetaBase* /*meta*/,
+    const TEmptyMeta* /*meta*/,
     const ui64* ptr,
     TRange<TReadSpan> spans,
     ui32 batchSize,
-    TTmpBuffers* /*tmpBuffers*/)
+    TTmpBuffers* /*tmpBuffers*/,
+    ui32 /*segmentChunkRowCount*/)
 {
     CheckBatchSize(spans, batchSize);
 
@@ -749,7 +741,7 @@ void TScanDataExtractor<EValueType::Double>::InitNullData()
 
 ui64 TScanDataExtractor<EValueType::Boolean>::NullBooleanSegmentData;
 
-const ui64* TScanDataExtractor<EValueType::Boolean>::GetEndPtr(const TMetaBase* /*meta*/, const ui64* ptr)
+const ui64* TScanDataExtractor<EValueType::Boolean>::GetEndPtr(const TEmptyMeta* /*meta*/, const ui64* ptr)
 {
     ui64 count = *ptr++;
     ptr += GetBitmapSize(count);
@@ -760,7 +752,7 @@ const ui64* TScanDataExtractor<EValueType::Boolean>::GetEndPtr(const TMetaBase* 
 
 #ifdef FULL_UNPACK
 const ui64* TScanDataExtractor<EValueType::Boolean>::InitData(
-    const TMetaBase* /*meta*/,
+    const TEmptyMeta* /*meta*/,
     const ui64* ptr,
     TTmpBuffers* /*tmpBuffers*/)
 {
@@ -776,11 +768,12 @@ const ui64* TScanDataExtractor<EValueType::Boolean>::InitData(
 #endif
 
 const ui64* TScanDataExtractor<EValueType::Boolean>::InitData(
-    const TMetaBase* /*meta*/,
+    const TEmptyMeta* /*meta*/,
     const ui64* ptr,
     TRange<TReadSpan> spans,
     ui32 batchSize,
-    TTmpBuffers* /*tmpBuffers*/)
+    TTmpBuffers* /*tmpBuffers*/,
+    ui32 /*segmentChunkRowCount*/)
 {
     CheckBatchSize(spans, batchSize);
 
@@ -828,14 +821,13 @@ void TScanDataExtractor<EValueType::Boolean>::InitNullData()
 }
 
 #ifdef FULL_UNPACK
-void TScanBlobExtractor::InitData(const TMetaBase* meta, const ui64* ptr, TTmpBuffers* tmpBuffers)
+void TScanBlobExtractor::InitData(const TBlobMeta* meta, const ui64* ptr, TTmpBuffers* tmpBuffers)
 {
-    const bool direct = IsDirect(meta->Type);
-    const auto expectedLength = static_cast<const TBlobMeta*>(meta)->ExpectedLength;
+    const auto expectedLength = meta->ExpectedLength;
 
     auto& offsets = tmpBuffers->Offsets;
 
-    if (direct) {
+    if (meta->Direct) {
         ptr += UnpackBitVector(ptr, &offsets);
         auto valueCount = offsets.size();
 
@@ -879,20 +871,20 @@ void TScanBlobExtractor::InitData(const TMetaBase* meta, const ui64* ptr, TTmpBu
 #endif
 
 void TScanBlobExtractor::InitData(
-    const TMetaBase* meta,
+    const TBlobMeta* meta,
     const ui64* ptr,
     TRange<TReadSpan> spans,
     ui32 batchSize,
-    TTmpBuffers* tmpBuffers)
+    TTmpBuffers* tmpBuffers,
+    ui32 segmentChunkRowCount)
 {
-    const bool direct = IsDirect(meta->Type);
-    const auto expectedLength = static_cast<const TBlobMeta*>(meta)->ExpectedLength;
+    const auto expectedLength = meta->ExpectedLength;
 
     CheckBatchSize(spans, batchSize);
 
     auto [items, nullBits] = AllocateCombined<TItem, TBit>(&Items_, batchSize, batchSize);
 
-    if (direct) {
+    if (meta->Direct) {
         TCompressedVectorView offsetsView(ptr);
         ptr += offsetsView.GetSizeInWords();
         TBitmap nullBitsView(ptr);
@@ -921,9 +913,9 @@ void TScanBlobExtractor::InitData(
         ids.resize(batchSize);
 
         // Even if segment is read completely it can be initialized multiple times.
-        if (SegmentChunkRowCount_ != meta->ChunkRowCount) {
+        if (SegmentChunkRowCount_ != segmentChunkRowCount) {
             OffsetsDict_.clear();
-            SegmentChunkRowCount_ = meta->ChunkRowCount;
+            SegmentChunkRowCount_ = segmentChunkRowCount;
         }
 
         if (OffsetsDict_.empty() && batchSize * UnpackSizeFactor > offsetsView.GetSize()) {
@@ -971,12 +963,12 @@ void TScanBlobExtractor::InitNullData()
 }
 
 #ifdef FULL_UNPACK
-const ui64* TScanKeyIndexExtractor::InitIndex(const TMetaBase* meta, const ui64* ptr, bool dense)
+const ui64* TScanKeyIndexExtractor::InitIndex(const TKeyIndexMeta* meta, const ui64* ptr)
 {
     SegmentRowLimit_ = meta->ChunkRowCount;
     ui32 rowOffset = meta->ChunkRowCount - meta->RowCount;
 
-    if (dense) {
+    if (meta->Dense) {
         Count_ = meta->RowCount;
         auto rowIndexData = RowIndexes_.Resize(Count_ + 1, GetRefCountedTypeCookie<TRowIndexTag>());
         auto rowIndexDataEnd = rowIndexData + Count_;
@@ -1024,25 +1016,24 @@ const ui64* TScanKeyIndexExtractor::InitIndex(const TMetaBase* meta, const ui64*
 #endif
 
 const ui64* TScanKeyIndexExtractor::InitIndex(
-    const TMetaBase* meta,
+    const TKeyIndexMeta* meta,
     const ui64* ptr,
-    bool dense,
-    TInitContext* initContext)
+    ui32 rowOffset,
+    TMutableRange<TReadSpan> spans,
+    TTmpBuffers* tmpBuffers)
 {
     ui32 segmentRowOffset = meta->ChunkRowCount - meta->RowCount;
 
-    auto rowOffset = initContext->RowOffset;
-
-    auto slice = GetBatchSlice(initContext->Spans, meta->ChunkRowCount);
+    auto slice = GetBatchSlice(spans, meta->ChunkRowCount);
     ui32 batchSize = slice.GetBatchSize();
     // Segment can be initialized multiple times if block bound (of other columns) crosses segment.
     YT_VERIFY(!slice.GetSpans().empty());
     SegmentRowLimit_ = slice.GetSpans().end()[-1].Upper;
 
-    initContext->DataSpans.resize(slice.GetSize());
-    auto* offsetsSpans = initContext->DataSpans.data();
+    tmpBuffers->DataSpans.resize(slice.GetSize());
+    auto* offsetsSpans = tmpBuffers->DataSpans.data();
 
-    if (dense) {
+    if (meta->Dense) {
         auto rowIndexes = RowIndexes_.Resize(batchSize + 1, GetRefCountedTypeCookie<TRowIndexTag>());
         auto rowIndexesEnd = rowIndexes + batchSize;
 
@@ -1104,7 +1095,7 @@ const ui64* TScanKeyIndexExtractor::InitIndex(
                 return rowIndexesView[valueOffset] <= segmentLower;
             });
 
-            if (offsetsSpans > initContext->DataSpans.data()) {
+            if (offsetsSpans > tmpBuffers->DataSpans.data()) {
                 YT_ASSERT(offsetsSpans[-1].Upper <= valueOffset - 1);
             }
 
@@ -1137,7 +1128,7 @@ const ui64* TScanKeyIndexExtractor::InitIndex(
             valueOffset = valueOffsetEnd;
         }
 
-        initContext->DataSpans.resize(offsetsSpans - initContext->DataSpans.data());
+        tmpBuffers->DataSpans.resize(offsetsSpans - tmpBuffers->DataSpans.data());
 
         YT_VERIFY(rowIndexes > RowIndexes_.GetData());
         YT_VERIFY(rowIndexes[-1] < rowOffset);
@@ -1147,7 +1138,7 @@ const ui64* TScanKeyIndexExtractor::InitIndex(
 
 #ifndef NDEBUG
         ui32 dataBatchSize = 0;
-        for (auto [lower, upper] : initContext->DataSpans) {
+        for (auto [lower, upper] : tmpBuffers->DataSpans) {
             dataBatchSize += upper - lower;
         }
         YT_VERIFY(dataBatchSize == Count_);
@@ -1247,8 +1238,7 @@ const ui64* TScanVersionExtractor<false>::InitVersion(const ui64* ptr, TRange<TR
 
 #ifdef FULL_UNPACK
 const ui64* TScanMultiValueIndexExtractor::InitIndex(
-    const TMetaBase* meta,
-    const TDenseMeta* denseMeta,
+    const TMultiValueIndexMeta* meta,
     const ui64* ptr,
     TTmpBuffers* tmpBuffers)
 {
@@ -1259,8 +1249,8 @@ const ui64* TScanMultiValueIndexExtractor::InitIndex(
     auto& offsets = tmpBuffers->Offsets;
     ptr += UnpackBitVector(ptr, &offsets);
 
-    if (denseMeta) {
-        ui32 expectedPerRow = denseMeta->ExpectedPerRow;
+    if (meta->IsDense()) {
+        ui32 expectedPerRow = meta->ExpectedPerRow;
 
         auto perRowDiff = offsets.data();
         ui32 rowCount = offsets.size();
@@ -1326,33 +1316,32 @@ const ui64* TScanMultiValueIndexExtractor::InitIndex(
 
 // Init only pro spans of row indexes.
 const ui64* TScanMultiValueIndexExtractor::InitIndex(
-    const TMetaBase* meta,
-    const TDenseMeta* denseMeta,
+    const TMultiValueIndexMeta* meta,
     const ui64* ptr,
-    TInitContext* initContext)
+    ui32 rowOffset,
+    TMutableRange<TReadSpan> spans,
+    TTmpBuffers* tmpBuffers)
 {
     ui32 segmentRowOffset = meta->ChunkRowCount - meta->RowCount;
 
-    auto rowOffset = initContext->RowOffset;
-
-    auto slice = GetBatchSlice(initContext->Spans, meta->ChunkRowCount);
+  auto slice = GetBatchSlice(spans, meta->ChunkRowCount);
     ui32 batchSize = slice.GetBatchSize();
 
     // Segment can be initialized multiple times if block bound (of other columns) crosses segment.
     YT_VERIFY(!slice.GetSpans().empty());
     SegmentRowLimit_ = slice.GetSpans().end()[-1].Upper;
 
-    initContext->DataSpans.resize(slice.GetSize());
-    auto* offsetsSpans = initContext->DataSpans.data();
+    tmpBuffers->DataSpans.resize(slice.GetSize());
+    auto* offsetsSpans = tmpBuffers->DataSpans.data();
 
-    if (denseMeta) {
+    if (meta->IsDense()) {
         // For dense unpack only span ranges.
         TCompressedVectorView perRowDiffsView(ptr);
         ptr += perRowDiffsView.GetSizeInWords();
 
         auto rowToValue = RowToValue_.Resize(batchSize + 1, GetRefCountedTypeCookie<TRowToValueTag>());
 
-        ui32 expectedPerRow = denseMeta->ExpectedPerRow;
+        ui32 expectedPerRow = meta->ExpectedPerRow;
 
         ui32 valueOffset = 0;
 
@@ -1454,8 +1443,8 @@ const ui64* TScanMultiValueIndexExtractor::InitIndex(
             });
 
             // Size of rowIndexesView may be much greater than batchSize if there are few rows but many values in row.
-            // We unpack values to initContext->Offsets buffer.
-            auto& rowIndexes = initContext->Offsets;
+            // We unpack values to tmpBuffers->Offsets buffer.
+            auto& rowIndexes = tmpBuffers->Offsets;
             rowIndexes.resize(valueOffsetEnd - valueOffset);
             rowIndexesView.UnpackTo(rowIndexes.data(), valueOffset, valueOffsetEnd);
 

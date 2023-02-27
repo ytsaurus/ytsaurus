@@ -14,10 +14,10 @@ TLinearProbeHashTable::TLinearProbeHashTable(size_t maxElementCount)
 
 bool TLinearProbeHashTable::Insert(TFingerprint fingerprint, TValue value)
 {
-    return Insert(IndexFromFingerprint(fingerprint), StampFromFingerprint(fingerprint), value);
+    return DoInsert(IndexFromFingerprint(fingerprint), StampFromFingerprint(fingerprint), value);
 }
 
-bool TLinearProbeHashTable::Insert(ui64 index, TStamp stamp, TValue value)
+bool TLinearProbeHashTable::DoInsert(ui64 index, TStamp stamp, TValue value)
 {
     YT_VERIFY(stamp != 0);
     YT_VERIFY((value >> ValueLog) == 0);

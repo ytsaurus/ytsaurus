@@ -6,39 +6,24 @@
 #include "dispatch_by_type.h"
 #include "prepared_meta.h"
 
-#include <yt/yt/ytlib/chunk_client/block.h>
-
-#include <yt/yt/ytlib/chunk_client/block_fetcher.h>
-
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
 
 #include <yt/yt/library/query/base/coordination_helpers.h>
 
-#include <yt/yt/client/table_client/config.h>
-
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/private.h>
 
 #include <yt/yt/core/misc/tls_guard.h>
 
+
+#include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
+
 namespace NYT::NNewTableClient {
 
-using NTableChunkFormat::NProto::TColumnMeta;
+using NProfiling::TCpuDurationIncrementingGuard;
 
-using NProfiling::TValueIncrementingTimingGuard;
-using NProfiling::TWallTimer;
-
-using NChunkClient::IBlockCachePtr;
-using NChunkClient::TBlockFetcherPtr;
-using NChunkClient::IChunkReaderPtr;
-
-using NChunkClient::TChunkReaderMemoryManager;
-using NChunkClient::TChunkReaderMemoryManagerOptions;
-using NChunkClient::TClientChunkReadOptions;
-
-using NTableClient::TChunkReaderConfigPtr;
 using NTableClient::TColumnFilter;
 
 using NTableClient::IVersionedReader;
@@ -59,15 +44,17 @@ using NTableClient::TTableSchemaPtr;
 using NTableClient::TChunkColumnMapping;
 using NTableClient::TChunkColumnMappingPtr;
 
+static const auto& Logger = NTableClient::TableClientLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<EValueType> GetKeyTypes(const TTableSchemaPtr& tableSchema)
 {
-    std::vector<EValueType> keyTypes;
-
     auto keyColumnCount = tableSchema->GetKeyColumnCount();
     const auto& schemaColumns = tableSchema->Columns();
 
+    std::vector<EValueType> keyTypes;
+    keyTypes.reserve(keyColumnCount);
     for (int keyColumnIndex = 0; keyColumnIndex < keyColumnCount; ++keyColumnIndex) {
         auto type = schemaColumns[keyColumnIndex].GetWireType();
         keyTypes.push_back(type);
@@ -81,6 +68,7 @@ std::vector<TValueSchema> GetValuesSchema(
     TRange<TColumnIdMapping> valueIdMapping)
 {
     std::vector<TValueSchema> valueSchema;
+    valueSchema.reserve(std::ssize(valueIdMapping));
 
     const auto& schemaColumns = tableSchema->Columns();
     for (const auto& idMapping : valueIdMapping) {
@@ -95,6 +83,11 @@ std::vector<TValueSchema> GetValuesSchema(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+
+// Rows (and theirs indexes) in chunk are partitioned by block borders.
+// Block borders are block last keys and corresponding block last indexes (block.chunk_row_count).
+// Window is the range of row indexes between block borders.
+// TBlockWindowManager updates blocks in column block holders for each window (range of row indexes between block).
 
 // Need to build all read windows at once to prepare block indexes for block fetcher.
 template <class TItem, class TPredicate>
@@ -225,24 +218,75 @@ std::vector<TSpanMatching> BuildReadWindows(
         TPredicate{chunkMeta->GetChunkKeyColumnCount()});
 }
 
+std::vector<TSpanMatching> BuildReadWindows(
+    TRange<ui32> chunkRowIndexes,
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
+    int /*keyColumnCount*/)
+{
+    const auto& blockMeta = chunkMeta->DataBlockMeta();
+
+    std::vector<TSpanMatching> readWindows;
+
+    size_t blockIndex = 0;
+
+    size_t dataBlocksSize = blockMeta->data_blocks_size();
+
+    auto it = chunkRowIndexes.Begin();
+    auto startIt = it;
+
+    while (it != chunkRowIndexes.End() && *it == SentinelRowIndex) {
+        ++it;
+    }
+
+    while (it != chunkRowIndexes.End()) {
+        auto currentChunkRowIndex = *it;
+
+        blockIndex = ExponentialSearch(blockIndex, dataBlocksSize, [&] (size_t index) {
+            return blockMeta->data_blocks(index).chunk_row_count() <= currentChunkRowIndex;
+        });
+
+        auto upperRowLimit = blockMeta->data_blocks(blockIndex).chunk_row_count();
+
+        auto i = blockIndex;
+        while (i > 0 && blockMeta->data_blocks(i - 1).chunk_row_count() == upperRowLimit) {
+            --i;
+        }
+
+        ui32 startIndex = i > 0 ? blockMeta->data_blocks(i - 1).chunk_row_count() : 0;
+
+
+        while (it != chunkRowIndexes.End() && (*it == SentinelRowIndex || *it < upperRowLimit)) {
+            ++it;
+        }
+
+        TReadSpan controlSpan(startIt - chunkRowIndexes.begin(), it - chunkRowIndexes.begin());
+        readWindows.emplace_back(TReadSpan(startIndex, upperRowLimit), controlSpan);
+
+        startIt = it;
+    }
+
+    if (startIt != it) {
+        auto chunkRowCount = chunkMeta->Misc().row_count();
+        TReadSpan controlSpan(startIt - chunkRowIndexes.begin(), it - chunkRowIndexes.begin());
+        // Add window for ranges after chunk end bound. It will be used go generate sentinel rows for lookup.
+        readWindows.emplace_back(TReadSpan(chunkRowCount, chunkRowCount), controlSpan);
+    }
+
+    return readWindows;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedChunkReader
-    : public TBlockWindowManager
 {
 public:
     TVersionedChunkReader(
-        TRefCountedDataBlockMetaPtr blockMeta,
-        std::vector<std::unique_ptr<TGroupBlockHolder>> columnBlockHolders,
-        TBlockFetcherPtr blockFetcher,
+        std::unique_ptr<IBlockManager> blockManager,
         std::unique_ptr<IRowsetBuilder> rowsetBuilder,
         std::vector<TSpanMatching>&& windowsList,
         TReaderStatisticsPtr readerStatistics)
-        : TBlockWindowManager(
-            std::move(columnBlockHolders),
-            std::move(blockMeta),
-            std::move(blockFetcher),
-            readerStatistics)
+        : BlockManager_(std::move(blockManager))
+        , ReaderStatistics_(std::move(readerStatistics))
         , RowsetBuilder_(std::move(rowsetBuilder))
         , WindowsList_(std::move(windowsList))
     {
@@ -251,9 +295,12 @@ public:
 
     bool ReadRows(std::vector<TMutableVersionedRow>* rows, ui32 readCount, ui64* dataWeigth)
     {
+        TCpuDurationIncrementingGuard timingGuard(&ReaderStatistics_->ReadTime);
+
         YT_VERIFY(rows->empty());
         rows->assign(readCount, TMutableVersionedRow());
 
+        BlockManager_->ClearUsedBlocks();
         RowsetBuilder_->ClearBuffer();
         ui32 offset = 0;
 
@@ -268,6 +315,7 @@ public:
                 // Segment limit reached, readCount reached, or read list exhausted.
             } else if (WindowsList_.empty()) {
                 rows->resize(offset);
+                ReaderStatistics_->RowCount += rows->size();
                 return false;
             } else if (!UpdateWindow()) {
                 break;
@@ -275,6 +323,7 @@ public:
         }
 
         rows->resize(offset);
+        ReaderStatistics_->RowCount += rows->size();
         return true;
     }
 
@@ -282,6 +331,10 @@ public:
     {
         return RowsetBuilder_->GetPool();
     }
+
+protected:
+    const std::unique_ptr<IBlockManager> BlockManager_;
+    const TReaderStatisticsPtr ReaderStatistics_;
 
 private:
     std::unique_ptr<IRowsetBuilder> RowsetBuilder_;
@@ -296,12 +349,12 @@ private:
     {
         YT_VERIFY(!WindowsList_.empty());
 
-        if (!TryUpdateWindow(WindowsList_.back().Chunk.Lower)) {
+        if (!BlockManager_->TryUpdateWindow(WindowsList_.back().Chunk.Lower, ReaderStatistics_.Get())) {
             return false;
         }
 
         {
-            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&ReaderStatistics_->BuildRangesTime);
+            TCpuDurationIncrementingGuard timingGuard(&ReaderStatistics_->BuildRangesTime);
             YT_VERIFY(RowsetBuilder_->IsReadListEmpty());
 
             // Update read list.
@@ -318,24 +371,28 @@ private:
 TString ToString(const TReaderStatistics& statistics)
 {
     return Format(
-        "BuildReadWindows/CreateColumnBlockHolders/BuildBlockInfos/CreateBlockFetcher Times: %v / %v / %v / %v, "
+        "RowCount: %v, "
+        "Summary Init/Read Time: %v / %v, "
+        "BuildReadWindows/CreateColumnBlockHolders/CreateBlockManagerTime Times: %v / %v / %v, "
         "Decode Timestamp/Key/Value Times: %v / %v / %v, "
-        "Fetch/Ranges/DoRead/CollectCounts/AllocateRows/DoReadKeys/DoReadValues Times: %v / %v / %v / %v / %v / %v / %v, "
+        "FetchBlocks/BuildRanges/DoRead/CollectCounts/AllocateRows/DoReadKeys/DoReadValues Times: %v / %v / %v / %v / %v / %v / %v, "
         "TryUpdateWindow/SkipToBlock/FetchBlock/SetBlock/UpdateSegment/DoRead CallCounts: %v / %v / %v / %v / %v / %v",
-        statistics.BuildReadWindowsTime,
-        statistics.CreateColumnBlockHoldersTime,
-        statistics.BuildBlockInfosTime,
-        statistics.CreateBlockFetcherTime,
-        statistics.DecodeTimestampSegmentTime,
-        statistics.DecodeKeySegmentTime,
-        statistics.DecodeValueSegmentTime,
-        statistics.FetchBlockTime,
-        statistics.BuildRangesTime,
-        statistics.DoReadTime,
-        statistics.CollectCountsTime,
-        statistics.AllocateRowsTime,
-        statistics.DoReadKeysTime,
-        statistics.DoReadValuesTime,
+        statistics.RowCount,
+        CpuDurationToDuration(statistics.InitTime),
+        CpuDurationToDuration(statistics.ReadTime),
+        CpuDurationToDuration(statistics.BuildReadWindowsTime),
+        CpuDurationToDuration(statistics.CreateColumnBlockHoldersTime),
+        CpuDurationToDuration(statistics.CreateBlockManagerTime),
+        CpuDurationToDuration(statistics.DecodeTimestampSegmentTime),
+        CpuDurationToDuration(statistics.DecodeKeySegmentTime),
+        CpuDurationToDuration(statistics.DecodeValueSegmentTime),
+        CpuDurationToDuration(statistics.FetchBlockTime),
+        CpuDurationToDuration(statistics.BuildRangesTime),
+        CpuDurationToDuration(statistics.DoReadTime),
+        CpuDurationToDuration(statistics.CollectCountsTime),
+        CpuDurationToDuration(statistics.AllocateRowsTime),
+        CpuDurationToDuration(statistics.DoReadKeysTime),
+        CpuDurationToDuration(statistics.DoReadValuesTime),
         statistics.TryUpdateWindowCallCount,
         statistics.SkipToBlockCallCount,
         statistics.FetchBlockCallCount,
@@ -355,17 +412,14 @@ public:
         TIntrusivePtr<TPreparedChunkMeta> preparedMeta,
         TCachedVersionedChunkMetaPtr chunkMeta,
         std::unique_ptr<bool[]> columnHunkFlags,
-        std::vector<std::unique_ptr<TGroupBlockHolder>> columnBlockHolders,
-        TBlockFetcherPtr blockFetcher,
+        std::unique_ptr<IBlockManager> blockManager,
         std::unique_ptr<IRowsetBuilder> rowsetBuilder,
         std::vector<TSpanMatching>&& windowsList,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         bool lookup,
         TReaderStatisticsPtr readerStatistics)
         : TVersionedChunkReader(
-            chunkMeta->DataBlockMeta(),
-            std::move(columnBlockHolders),
-            std::move(blockFetcher),
+            std::move(blockManager),
             std::move(rowsetBuilder),
             std::move(windowsList),
             std::move(readerStatistics))
@@ -378,7 +432,6 @@ public:
 
     ~TReaderWrapper()
     {
-        const auto& Logger = NTableClient::TableClientLogger;
         YT_LOG_DEBUG("Reader statistics (%v)", *ReaderStatistics_);
     }
 
@@ -414,20 +467,16 @@ public:
 
     TFuture<void> GetReadyEvent() const override
     {
-        return TVersionedChunkReader::GetReadyEvent();
+        return BlockManager_->GetReadyEvent();
     }
 
     // TODO(lukyan): Provide statistics object to BlockFetcher.
     TDataStatistics GetDataStatistics() const override
     {
-        if (!BlockFetcher_) {
-            return TDataStatistics();
-        }
-
         TDataStatistics dataStatistics;
         dataStatistics.set_chunk_count(1);
-        dataStatistics.set_uncompressed_data_size(BlockFetcher_->GetUncompressedDataSize());
-        dataStatistics.set_compressed_data_size(BlockFetcher_->GetCompressedDataSize());
+        dataStatistics.set_uncompressed_data_size(BlockManager_->GetUncompressedDataSize());
+        dataStatistics.set_compressed_data_size(BlockManager_->GetCompressedDataSize());
         dataStatistics.set_row_count(RowCount_);
         dataStatistics.set_data_weight(DataWeight_);
         return dataStatistics;
@@ -435,18 +484,13 @@ public:
 
     TCodecStatistics GetDecompressionStatistics() const override
     {
-        return BlockFetcher_
-            ? TCodecStatistics().Append(BlockFetcher_->GetDecompressionTime())
-            : TCodecStatistics();
+        return TCodecStatistics()
+            .Append(BlockManager_->GetDecompressionTime());
     }
 
     bool IsFetchingCompleted() const override
     {
-        if (!BlockFetcher_) {
-            return true;
-        }
-
-        return BlockFetcher_->IsFetchingCompleted();
+        return BlockManager_->IsFetchingCompleted();
     }
 
     std::vector<TChunkId> GetFailedChunkIds() const override
@@ -526,136 +570,57 @@ bool IsKeys(const TSharedRange<TLegacyKey>&)
     return true;
 }
 
-std::vector<TBlockFetcher::TBlockInfo> BuildBlockInfos(
-    std::vector<TRange<ui32>> groupBlockIndexes,
-    TRange<TSpanMatching> windows,
-    const TRefCountedDataBlockMetaPtr& blockMetas)
+bool IsKeys(const std::vector<ui32>&)
 {
-    auto groupCount = groupBlockIndexes.size();
-    std::vector<ui32> perGroupBlockRowLimits(groupCount, 0);
-
-    std::vector<TBlockFetcher::TBlockInfo> blockInfos;
-    for (auto window : windows) {
-        auto startRowIndex = window.Chunk.Lower;
-
-        for (ui16 groupId = 0; groupId < groupCount; ++groupId) {
-            if (startRowIndex < perGroupBlockRowLimits[groupId]) {
-                continue;
-            }
-
-            auto& blockIndexes = groupBlockIndexes[groupId];
-
-            auto blockIt = ExponentialSearch(blockIndexes.begin(), blockIndexes.end(), [&] (auto blockIt) {
-                const auto& blockMeta = blockMetas->data_blocks(*blockIt);
-                return blockMeta.chunk_row_count() <= startRowIndex;
-            });
-
-            blockIndexes = blockIndexes.Slice(blockIt - blockIndexes.begin(), blockIndexes.size());
-
-            if (blockIt != blockIndexes.end()) {
-                const auto& blockMeta = blockMetas->data_blocks(*blockIt);
-                perGroupBlockRowLimits[groupId] = blockMeta.chunk_row_count();
-
-                blockInfos.push_back({
-                    .ReaderIndex = 0,
-                    .BlockIndex = static_cast<int>(*blockIt),
-                    .Priority = static_cast<int>(blockMeta.chunk_row_count() - blockMeta.row_count()),
-                    .UncompressedDataSize = blockMeta.uncompressed_size()
-                });
-            }
-        }
-    }
-
-    return blockInfos;
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TItem>
+template <class TReadItems>
 IVersionedReaderPtr CreateVersionedChunkReader(
-    TSharedRange<TItem> readItems,
+    TReadItems readItems,
     TTimestamp timestamp,
     TCachedVersionedChunkMetaPtr chunkMeta,
     const TTableSchemaPtr& tableSchema,
     const TColumnFilter& columnFilter,
     const TChunkColumnMappingPtr& chunkColumnMapping,
-    IBlockCachePtr blockCache,
-    const TChunkReaderConfigPtr config,
-    IChunkReaderPtr underlyingReader,
+    TBlockManagerFactory blockManagerFactory,
     TChunkReaderPerformanceCountersPtr performanceCounters,
-    const TClientChunkReadOptions& chunkReadOptions,
     bool produceAll,
-    TReaderStatisticsPtr readerStatistics,
-    IInvokerPtr sessionInvoker)
+    TReaderStatisticsPtr readerStatistics)
 {
     if (!readerStatistics) {
         readerStatistics = New<TReaderStatistics>();
     }
 
-    TWallTimer buildReadWindowsTimer;
+    TCpuDurationIncrementingGuard timingGuard(&readerStatistics->InitTime);
+
+    auto buildReadWindowsStart = GetCpuInstant();
     auto preparedChunkMeta = chunkMeta->GetPreparedChunkMeta();
     auto windowsList = BuildReadWindows(readItems, chunkMeta, tableSchema->GetKeyColumnCount());
-    readerStatistics->BuildReadWindowsTime = buildReadWindowsTimer.GetElapsedTime();
+    readerStatistics->BuildReadWindowsTime = GetCpuInstant() - buildReadWindowsStart;
 
     auto valuesIdMapping = chunkColumnMapping
         ? chunkColumnMapping->BuildVersionedSimpleSchemaIdMapping(columnFilter)
         : TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
             .BuildVersionedSimpleSchemaIdMapping(columnFilter);
 
-    TWallTimer createColumnBlockHoldersTimer;
+    auto createColumnBlockHoldersStart = GetCpuInstant();
     auto groupIds = GetGroupsIds(*preparedChunkMeta, chunkMeta->GetChunkKeyColumnCount(), valuesIdMapping);
     auto groupBlockHolders = CreateGroupBlockHolders(*preparedChunkMeta, groupIds);
-    readerStatistics->CreateColumnBlockHoldersTime = createColumnBlockHoldersTimer.GetElapsedTime();
-
-    std::vector<TRange<ui32>> groupBlockIds;
-    for (const auto& blockHolder : groupBlockHolders) {
-        groupBlockIds.push_back(blockHolder->GetBlockIds());
-    }
-
-    TWallTimer buildBlockInfosTimer;
-    auto blockInfos = BuildBlockInfos(std::move(groupBlockIds), windowsList, chunkMeta->DataBlockMeta());
-    readerStatistics->BuildBlockInfosTime = buildBlockInfosTimer.GetElapsedTime();
-
-    auto blockCount = blockInfos.size();
-    size_t uncompressedBlocksSize = 0;
-
-    for (const auto& blockInfo : blockInfos) {
-        uncompressedBlocksSize += blockInfo.UncompressedDataSize;
-    }
-
-    TBlockFetcherPtr blockFetcher;
-    if (!blockInfos.empty()) {
-        TWallTimer createBlockFetcherTimer;
-        auto memoryManager = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(config->WindowSize));
-
-        blockFetcher = New<TBlockFetcher>(
-            config,
-            std::move(blockInfos),
-            memoryManager,
-            std::vector{underlyingReader},
-            blockCache,
-            CheckedEnumCast<NCompression::ECodec>(chunkMeta->Misc().compression_codec()),
-            static_cast<double>(chunkMeta->Misc().compressed_data_size()) / chunkMeta->Misc().uncompressed_data_size(),
-            chunkReadOptions,
-            // Enable current invoker for range reads.
-            IsKeys(readItems) ? nullptr : sessionInvoker);
-        blockFetcher->Start();
-        readerStatistics->CreateBlockFetcherTime = createBlockFetcherTimer.GetElapsedTime();
-    }
+    readerStatistics->CreateColumnBlockHoldersTime = GetCpuInstant() - createColumnBlockHoldersStart;
 
     auto keyTypes = GetKeyTypes(tableSchema);
     auto valueSchema = GetValuesSchema(tableSchema, valuesIdMapping);
 
-    const auto& Logger = NTableClient::TableClientLogger;
-
-    YT_LOG_DEBUG("Creating rowset builder (ReadItemCount: %v, BlockCount: %v, UncompressedBlocksSize: %v, KeyTypes: %v, ValueTypes: %v)",
+    YT_LOG_DEBUG("Creating rowset builder (ReadItemCount: %v, KeyTypes: %v, ValueTypes: %v, NewMeta: %v)",
         readItems.size(),
-        blockCount,
-        uncompressedBlocksSize,
         keyTypes,
         MakeFormattableView(valueSchema, [] (TStringBuilderBase* builder, TValueSchema valueSchema) {
             builder->AppendFormat("%v", valueSchema.Type);
-        }));
+        }),
+        preparedChunkMeta->FullNewMeta);
 
     if (timestamp == NTableClient::AllCommittedTimestamp) {
         produceAll = true;
@@ -663,15 +628,15 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     YT_VERIFY(produceAll || timestamp != NTableClient::AllCommittedTimestamp);
 
-    std::vector<std::pair<const TBlockRef*, ui16>> blockRefs;
-
     std::vector<TColumnBase> columnInfos;
+    columnInfos.reserve(std::ssize(keyTypes) + std::ssize(valuesIdMapping) + 1);
+
     for (int index = 0; index < std::ssize(keyTypes); ++index) {
         const TBlockRef* blockRef = nullptr;
         if (index < chunkMeta->GetChunkKeyColumnCount()) {
             auto groupId = preparedChunkMeta->ColumnIdToGroupId[index];
             auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
-            blockRef = groupBlockHolders[blockHolderIndex].get();
+            blockRef = &groupBlockHolders[blockHolderIndex];
         }
 
         columnInfos.emplace_back(
@@ -682,7 +647,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     for (auto [chunkSchemaIndex, readerSchemaIndex] : valuesIdMapping) {
         auto groupId = preparedChunkMeta->ColumnIdToGroupId[chunkSchemaIndex];
         auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
-        const auto* blockRef = groupBlockHolders[blockHolderIndex].get();
+        const auto* blockRef = &groupBlockHolders[blockHolderIndex];
         columnInfos.emplace_back(
             blockRef,
             preparedChunkMeta->ColumnIndexInGroup[chunkSchemaIndex]);
@@ -692,13 +657,25 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         // Timestamp column info.
         auto groupId = preparedChunkMeta->ColumnIdToGroupId.back();
         auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
-        const auto* blockRef = groupBlockHolders[blockHolderIndex].get();
+        const auto* blockRef = &groupBlockHolders[blockHolderIndex];
         columnInfos.emplace_back(
             blockRef,
             preparedChunkMeta->ColumnIndexInGroup.back());
     }
 
-    auto rowsetBuilder = CreateRowsetBuilder(readItems, keyTypes, valueSchema, columnInfos, timestamp, produceAll);
+    auto createBlockManagerStart = GetCpuInstant();
+    auto blockManager = blockManagerFactory(std::move(groupBlockHolders), windowsList);
+    readerStatistics->CreateBlockManagerTime = GetCpuInstant() - createBlockManagerStart;
+
+    bool isKeys = IsKeys(readItems);
+    auto rowsetBuilder = CreateRowsetBuilder(
+        std::move(readItems),
+        keyTypes,
+        valueSchema,
+        columnInfos,
+        timestamp,
+        produceAll,
+        preparedChunkMeta->FullNewMeta);
 
     std::unique_ptr<bool[]> columnHunkFlags;
     const auto& chunkSchema = chunkMeta->GetChunkSchema();
@@ -713,48 +690,52 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         std::move(preparedChunkMeta),
         std::move(chunkMeta),
         std::move(columnHunkFlags),
-        std::move(groupBlockHolders),
-        std::move(blockFetcher),
+        std::move(blockManager),
         std::move(rowsetBuilder),
         std::move(windowsList),
         std::move(performanceCounters),
-        IsKeys(readItems),
+        isKeys,
         readerStatistics);
 }
 
 template
-IVersionedReaderPtr CreateVersionedChunkReader<TRowRange>(
+IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TRowRange>>(
     TSharedRange<TRowRange> readItems,
     TTimestamp timestamp,
     TCachedVersionedChunkMetaPtr chunkMeta,
     const TTableSchemaPtr& tableSchema,
     const TColumnFilter& columnFilter,
     const TChunkColumnMappingPtr& chunkColumnMapping,
-    IBlockCachePtr blockCache,
-    const TChunkReaderConfigPtr config,
-    IChunkReaderPtr underlyingReader,
+    TBlockManagerFactory blockManagerFactory,
     TChunkReaderPerformanceCountersPtr performanceCounters,
-    const TClientChunkReadOptions& chunkReadOptions,
     bool produceAll,
-    TReaderStatisticsPtr readerStatistics,
-    IInvokerPtr sessionInvoker);
+    TReaderStatisticsPtr readerStatistics);
 
 template
-IVersionedReaderPtr CreateVersionedChunkReader<TLegacyKey>(
+IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TLegacyKey>>(
     TSharedRange<TLegacyKey> readItems,
     TTimestamp timestamp,
     TCachedVersionedChunkMetaPtr chunkMeta,
     const TTableSchemaPtr& tableSchema,
     const TColumnFilter& columnFilter,
     const TChunkColumnMappingPtr& chunkColumnMapping,
-    IBlockCachePtr blockCache,
-    const TChunkReaderConfigPtr config,
-    IChunkReaderPtr underlyingReader,
+    TBlockManagerFactory blockManagerFactory,
     TChunkReaderPerformanceCountersPtr performanceCounters,
-    const TClientChunkReadOptions& chunkReadOptions,
     bool produceAll,
-    TReaderStatisticsPtr readerStatistics,
-    IInvokerPtr sessionInvoker);
+    TReaderStatisticsPtr readerStatistics);
+
+template
+IVersionedReaderPtr CreateVersionedChunkReader<std::vector<ui32>>(
+    std::vector<ui32> readItems,
+    TTimestamp timestamp,
+    TCachedVersionedChunkMetaPtr chunkMeta,
+    const TTableSchemaPtr& tableSchema,
+    const TColumnFilter& columnFilter,
+    const TChunkColumnMappingPtr& chunkColumnMapping,
+    TBlockManagerFactory blockManagerFactory,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
+    bool produceAll,
+    TReaderStatisticsPtr readerStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -805,6 +786,169 @@ TSharedRange<TRowRange> ConvertLegacyRanges(
     // Workaround for case with invalid read limits (lower is greater than upper: [0#1, 1#<Min>] .. [0#1])
     // Test: test_traverse_table_with_alter_and_ranges_stress
     return MakeSingletonRowRange(lowerLimit, std::max(lowerLimit, upperLimit));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <EValueType Type>
+struct TRefineColumn
+{
+    static void Do(
+        const std::vector<std::pair<ui32, ui32>>& indexList,
+        std::vector<std::pair<ui32, ui32>>* nextIndexList,
+        TRange<TLegacyKey> keys,
+        TChunkId chunkId,
+        int columnId,
+        int chunkKeyColumnCount,
+        const NNewTableClient::TPreparedChunkMeta& preparedChunkMeta,
+        NChunkClient::IBlockCache* blockCache)
+    {
+        auto groupId = preparedChunkMeta.ColumnIdToGroupId[columnId];
+        auto columnIndexInGroup = preparedChunkMeta.ColumnIndexInGroup[columnId];
+
+        ui32 chunkRowIndex = SentinelRowIndex;
+
+        TGroupBlockHolder groupBlockolder(
+            preparedChunkMeta.ColumnGroups[groupId].BlockIds,
+            preparedChunkMeta.ColumnGroups[groupId].BlockChunkRowCounts,
+            preparedChunkMeta.ColumnGroups[groupId].MergedMetas);
+
+        TColumnBase columnBase(&groupBlockolder, columnIndexInGroup);
+
+        ui32 position = 0;
+        // Index of segment is used for exponential search.
+        ui32 segmentIndex = 0;
+
+        TUnversionedValue value;
+        TKeySegmentReader<Type, false> columnReader;
+
+        // By default TKeySegmentReader is initialized to null column.
+        if (columnId < chunkKeyColumnCount) {
+            columnReader.Reset();
+        }
+
+        for (auto [rowIndex, keyIndex] : indexList) {
+            if (rowIndex != chunkRowIndex) {
+                chunkRowIndex = rowIndex;
+
+                if (chunkRowIndex >= columnReader.GetSegmentRowLimit()) {
+                    if (auto blockIndex = groupBlockolder.SkipToBlock(chunkRowIndex)) {
+                        NChunkClient::TBlockId blockId(chunkId, *blockIndex);
+                        auto cachedBlock = blockCache->FindBlock(blockId, NChunkClient::EBlockType::UncompressedData).Block;
+
+                        if (!cachedBlock) {
+                            THROW_ERROR_EXCEPTION("Using lookup hash table with compressed in memory mode is not supported");
+                        }
+
+                        groupBlockolder.SetBlock(std::move(cachedBlock.Data));
+                        segmentIndex = 0;
+                    }
+
+                    auto segmentsMetas = columnBase.GetSegmentMetas<TKeyMeta<Type>>();
+
+                    // Search segment
+                    auto segmentIt = ExponentialSearch(
+                        segmentsMetas.begin() + segmentIndex,
+                        segmentsMetas.end(),
+                        [&] (auto segmentMetaIt) {
+                            return segmentMetaIt->ChunkRowCount <= chunkRowIndex;
+                        });
+
+                    YT_VERIFY(segmentIt != segmentsMetas.end());
+                    segmentIndex = std::distance(segmentsMetas.begin(), segmentIt);
+
+                    const auto* segmentMeta = &segmentsMetas[segmentIndex];
+                    const ui64* data = reinterpret_cast<const ui64*>(columnBase.GetBlock().Begin() + segmentMeta->DataOffset);
+
+                    if (preparedChunkMeta.FullNewMeta) {
+                        DoInitLookupKeySegment</*NewMeta*/ true>(&columnReader, segmentMeta, data);
+                    } else {
+                        DoInitLookupKeySegment</*NewMeta*/ false>(&columnReader, segmentMeta, data);
+                    }
+
+                    position = 0;
+                }
+
+                position = columnReader.SkipTo(chunkRowIndex, position);
+                columnReader.Extract(&value, position);
+            }
+
+            if (keys[keyIndex][columnId] == value) {
+                nextIndexList->emplace_back(rowIndex, keyIndex);
+            }
+        }
+    }
+};
+
+std::vector<ui32> BuildChunkRowIndexesUsingLookupTable(
+    const NTableClient::TChunkLookupHashTable& lookupHashTable,
+    TRange<TLegacyKey> keys,
+    const TTableSchemaPtr& tableSchema,
+    const NTableClient::TCachedVersionedChunkMetaPtr& chunkMeta,
+    TChunkId chunkId,
+    NChunkClient::IBlockCache* blockCache)
+{
+    auto lookupInHashTableStart = GetCpuInstant();
+    auto keyTypes = GetKeyTypes(tableSchema);
+    TCompactVector<TLinearProbeHashTable::TValue, 1> foundChunkRowIndexes;
+
+    // Build list of chunkRowIndexes and corresponding keyIndexesCandidates.
+    std::vector<std::pair<ui32, ui32>> indexList;
+    indexList.reserve(std::ssize(keys));
+    for (int keyIndex = 0; keyIndex < std::ssize(keys); ++keyIndex) {
+        lookupHashTable.Find(GetFarmFingerprint(keys[keyIndex]), &foundChunkRowIndexes);
+
+        for (auto chunkRowIndex : foundChunkRowIndexes) {
+            indexList.emplace_back(chunkRowIndex, keyIndex);
+        }
+
+        foundChunkRowIndexes.clear();
+    }
+
+    TCpuDuration lookupInHashTableTime = GetCpuInstant() - lookupInHashTableStart;
+
+    auto sortStart = GetCpuInstant();
+    std::sort(indexList.begin(), indexList.end());
+    TCpuDuration sortTime = GetCpuInstant() - sortStart;
+
+    std::vector<std::pair<ui32, ui32>> nextIndexList;
+    nextIndexList.reserve(std::ssize(indexList));
+
+    auto refineStart = GetCpuInstant();
+
+    auto preparedChunkMeta = chunkMeta->GetPreparedChunkMeta();
+
+    // Refine indexList.
+    for (ui32 columnId = 0; columnId < keyTypes.size(); ++columnId) {
+        DispatchByDataType<TRefineColumn>(
+            keyTypes[columnId],
+            indexList,
+            &nextIndexList,
+            keys,
+            chunkId,
+            columnId,
+            chunkMeta->GetChunkKeyColumnCount(),
+            *preparedChunkMeta,
+            blockCache);
+
+        indexList.clear();
+        nextIndexList.swap(indexList);
+    }
+
+    std::vector<ui32> chunkRowIndexes(std::ssize(keys), SentinelRowIndex);
+    for (auto [rowIndex, keyIndex] : indexList) {
+        YT_VERIFY(chunkRowIndexes[keyIndex] == SentinelRowIndex);
+        chunkRowIndexes[keyIndex] = rowIndex;
+    }
+
+    TCpuDuration refineTime = GetCpuInstant() - refineStart;
+
+    YT_LOG_DEBUG("BuildChunkRowIndexesUsingLookupTable (Lookup/Sort/Refine Time: %v / %v / %v)",
+        CpuDurationToDuration(lookupInHashTableTime),
+        CpuDurationToDuration(sortTime),
+        CpuDurationToDuration(refineTime));
+
+    return chunkRowIndexes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

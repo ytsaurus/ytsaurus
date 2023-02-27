@@ -2,29 +2,34 @@
 
 #include <yt/yt/core/misc/common.h>
 
+#include <library/cpp/yt/cpu_clock/clock.h>
+
 namespace NYT::NNewTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TReaderStatistics final
 {
-    TDuration BuildReadWindowsTime;
-    TDuration BuildSchemaIdMappingTime;
-    TDuration CreateColumnBlockHoldersTime;
-    TDuration BuildBlockInfosTime;
-    TDuration CreateBlockFetcherTime;
+    TCpuDuration InitTime;
+    TCpuDuration ReadTime;
 
-    TDuration DecodeTimestampSegmentTime;
-    TDuration DecodeKeySegmentTime;
-    TDuration DecodeValueSegmentTime;
-    TDuration FetchBlockTime;
-    TDuration BuildRangesTime;
+    TCpuDuration BuildReadWindowsTime;
+    TCpuDuration CreateColumnBlockHoldersTime;
+    TCpuDuration CreateBlockManagerTime;
 
-    TDuration DoReadTime;
-    TDuration CollectCountsTime;
-    TDuration AllocateRowsTime;
-    TDuration DoReadKeysTime;
-    TDuration DoReadValuesTime;
+    TCpuDuration DecodeTimestampSegmentTime;
+    TCpuDuration DecodeKeySegmentTime;
+    TCpuDuration DecodeValueSegmentTime;
+    TCpuDuration FetchBlockTime;
+    TCpuDuration BuildRangesTime;
+
+    TCpuDuration DoReadTime;
+    TCpuDuration CollectCountsTime;
+    TCpuDuration AllocateRowsTime;
+    TCpuDuration DoReadKeysTime;
+    TCpuDuration DoReadValuesTime;
+
+    size_t RowCount = 0;
 
     size_t TryUpdateWindowCallCount = 0;
     size_t SkipToBlockCallCount = 0;

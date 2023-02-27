@@ -8,6 +8,11 @@
 
 #include <yt/yt/ytlib/table_chunk_format/slim_versioned_block_reader.h>
 
+#include <yt/yt/ytlib/new_table_client/versioned_chunk_reader.h>
+
+#include <yt/yt/ytlib/chunk_client/block_fetcher.h>
+#include <yt/yt/ytlib/chunk_client/preloaded_block_cache.h>
+
 namespace NYT::NTableClient {
 
 using namespace NConcurrency;
@@ -20,49 +25,9 @@ static const auto& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkLookupHashTable
-    : public IChunkLookupHashTable
-{
-public:
-    explicit TChunkLookupHashTable(size_t size);
-    void Insert(TLegacyKey key, std::pair<ui16, ui32> index) override;
-    TCompactVector<std::pair<ui16, ui32>, 1> Find(TLegacyKey key) const override;
-    size_t GetByteSize() const override;
-
-private:
-    TLinearProbeHashTable HashTable_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 // We put 16-bit block index and 32-bit row index into 48-bit value entry in LinearProbeHashTable.
 
 static constexpr i64 MaxBlockIndex = std::numeric_limits<ui16>::max();
-
-TChunkLookupHashTable::TChunkLookupHashTable(size_t size)
-    : HashTable_(size)
-{ }
-
-void TChunkLookupHashTable::Insert(TLegacyKey key, std::pair<ui16, ui32> index)
-{
-    YT_VERIFY(HashTable_.Insert(GetFarmFingerprint(key), (static_cast<ui64>(index.first) << 32) | index.second));
-}
-
-TCompactVector<std::pair<ui16, ui32>, 1> TChunkLookupHashTable::Find(TLegacyKey key) const
-{
-    TCompactVector<std::pair<ui16, ui32>, 1> result;
-    TCompactVector<ui64, 1> items;
-    HashTable_.Find(GetFarmFingerprint(key), &items);
-    for (const auto& value : items) {
-        result.emplace_back(value >> 32, static_cast<ui32>(value));
-    }
-    return result;
-}
-
-size_t TChunkLookupHashTable::GetByteSize() const
-{
-    return HashTable_.GetByteSize();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,16 +82,106 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkLookupHashTablePtr CreateChunkLookupHashTable(
+template <class TReader, class TRow>
+bool ReadRows(const TReader& reader, std::vector<TRow>* rows)
+{
+    TRowBatchReadOptions readOptions{
+        .MaxRowsPerRead = i64(rows->capacity())
+    };
+
+    auto batch = reader->Read(readOptions);
+
+    if (!batch) {
+        return false;
+    }
+
+    // Materialize rows here.
+    // Drop null rows.
+    auto batchRows = batch->MaterializeRows();
+    rows->reserve(batchRows.size());
+    rows->clear();
+    for (auto row : batchRows) {
+        rows->push_back(row);
+    }
+
+    return true;
+}
+
+void FormatValue(TStringBuilderBase* builder, TRange<TUnversionedValue> row, TStringBuf format)
+{
+    if (row) {
+        builder->AppendChar('[');
+        JoinToString(
+            builder,
+            row.Begin(),
+            row.End(),
+            [&] (TStringBuilderBase* builder, const TUnversionedValue& value) {
+                FormatValue(builder, value, format);
+            });
+        builder->AppendChar(']');
+    } else {
+        builder->AppendString("<null>");
+    }
+}
+
+TChunkLookupHashTablePtr CreateChunkLookupHashTableForColumnarFormat(
+    IVersionedReaderPtr reader,
+    size_t chunkRowCount)
+{
+    auto hashTable = New<TChunkLookupHashTable>(chunkRowCount);
+
+    std::vector<TVersionedRow> rows;
+    rows.reserve(1024);
+
+    int rowIndex = 0;
+    while (ReadRows(reader, &rows)) {
+        if (rows.empty()) {
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
+        } else {
+            for (const auto& row : rows) {
+                YT_VERIFY(hashTable->Insert(GetFarmFingerprint(MakeRange(row.BeginKeys(), row.EndKeys())), rowIndex));
+                ++rowIndex;
+            }
+        }
+    }
+
+    return hashTable;
+}
+
+TChunkLookupHashTablePtr CreateChunkLookupHashTable(
     NChunkClient::TChunkId chunkId,
     int startBlockIndex,
-    const std::vector<TBlock>& blocks,
+    int endBlockIndex,
+    IBlockCachePtr blockCache,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TTableSchemaPtr& tableSchema,
     const TKeyComparer& keyComparer)
 {
     auto chunkFormat = chunkMeta->GetChunkFormat();
     const auto& chunkBlockMeta = chunkMeta->DataBlockMeta();
+
+    if (chunkFormat == EChunkFormat::TableVersionedColumnar) {
+        auto chunkRowCount = chunkMeta->Misc().row_count();
+
+        auto blockManagerFactory = NNewTableClient::CreateSyncBlockWindowManagerFactory(
+            blockCache,
+            chunkMeta,
+            chunkId);
+
+        auto keysReader = NNewTableClient::CreateVersionedChunkReader(
+            MakeSingletonRowRange(MinKey(), MaxKey()),
+            NTransactionClient::AllCommittedTimestamp,
+            chunkMeta,
+            tableSchema,
+            TColumnFilter(0),
+            nullptr,
+            blockManagerFactory,
+            New<TChunkReaderPerformanceCounters>(),
+            true);
+
+        return CreateChunkLookupHashTableForColumnarFormat(keysReader, chunkRowCount);
+    }
 
     if (chunkFormat != EChunkFormat::TableVersionedSimple &&
         chunkFormat != EChunkFormat::TableVersionedIndexed &&
@@ -138,15 +193,13 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
         return nullptr;
     }
 
-    int lastBlockIndex = startBlockIndex + static_cast<int>(blocks.size()) - 1;
+    int lastBlockIndex = endBlockIndex - 1;
     if (lastBlockIndex > MaxBlockIndex) {
         YT_LOG_INFO("Cannot create lookup hash table because chunk has too many blocks (ChunkId: %v, LastBlockIndex: %v)",
             chunkId,
             lastBlockIndex);
         return nullptr;
     }
-
-    auto blockCache = New<TSimpleBlockCache>(startBlockIndex, blocks);
 
     auto chunkSize = chunkBlockMeta->data_blocks(lastBlockIndex).chunk_row_count() -
         (startBlockIndex > 0 ? chunkBlockMeta->data_blocks(startBlockIndex - 1).chunk_row_count() : 0);
@@ -174,7 +227,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
             for (int rowIndex = 0; rowIndex < blockMeta.row_count(); ++rowIndex) {
                 auto key = blockReader.GetKey();
-                hashTable->Insert(key, std::make_pair<ui16, ui32>(blockIndex, rowIndex));
+                YT_VERIFY(hashTable->Insert(GetFarmFingerprint(MakeRange(key.Begin(), key.End())), PackBlockAndRowIndexes(blockIndex, rowIndex)));
                 blockReader.NextRow();
             }
         };
@@ -227,6 +280,19 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
     }
 
     return hashTable;
+}
+
+TChunkLookupHashTablePtr CreateChunkLookupHashTable(
+    NChunkClient::TChunkId chunkId,
+    int startBlockIndex,
+    const std::vector<TBlock>& blocks,
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
+    const TTableSchemaPtr& tableSchema,
+    const TKeyComparer& keyComparer)
+{
+    auto blockCache = New<TSimpleBlockCache>(startBlockIndex, blocks);
+
+    return CreateChunkLookupHashTable(chunkId, startBlockIndex, startBlockIndex + blocks.size(), blockCache, chunkMeta, tableSchema, keyComparer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

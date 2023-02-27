@@ -102,6 +102,7 @@ bool TColumnIterator<Type>::IsExhausted() const
 template <EValueType Type>
 TUnversionedValue TColumnIterator<Type>::GetValue(ui32 position) const
 {
+    YT_ASSERT(position < GetCount());
     TUnversionedValue result;
     TBase::Extract(&result, position);
     return result;
@@ -112,11 +113,10 @@ void TColumnIterator<Type>::UpdateSegment()
 {
     const auto& segmentMeta = SegmentsMeta_[SegmentIndex_];
 
-    DoInitKeySegment<Type>(
+    DoInitLookupKeySegment</*NewMeta*/ false>(
         this,
         &segmentMeta,
-        reinterpret_cast<const ui64*>(Block_.Begin() + segmentMeta.DataOffset),
-        &LocalBuffers_);
+        reinterpret_cast<const ui64*>(Block_.Begin() + segmentMeta.DataOffset));
 }
 
 template <EValueType Type>

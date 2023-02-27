@@ -85,6 +85,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCpuDurationIncrementingGuard
+{
+public:
+    explicit TCpuDurationIncrementingGuard(TCpuDuration* value);
+    ~TCpuDurationIncrementingGuard();
+
+private:
+    TCpuDuration* Value_;
+    TCpuInstant StartInstant_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Similar to TWallTimer but excludes the time passed while the fiber was inactive.
 class TFiberWallTimer
     : public TWallTimer

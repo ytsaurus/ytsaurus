@@ -52,21 +52,6 @@ static const auto& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkLookupHashTable
-    : public IChunkLookupHashTable
-{
-public:
-    explicit TChunkLookupHashTable(size_t size);
-    void Insert(TLegacyKey key, std::pair<ui16, ui32> index) override;
-    TCompactVector<std::pair<ui16, ui32>, 1> Find(TLegacyKey key) const override;
-    size_t GetByteSize() const override;
-
-private:
-    TLinearProbeHashTable HashTable_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TCacheBasedVersionedChunkReaderPoolTag
 { };
 
@@ -431,7 +416,11 @@ private:
 
     TVersionedRow LookupWithHashTable(TLegacyKey key)
     {
-        for (auto [blockIndex, rowIndex] : this->ChunkState_->LookupHashTable->Find(key)) {
+        TCompactVector<TLinearProbeHashTable::TValue, 1> foundItems;
+        this->ChunkState_->LookupHashTable->Find(GetFarmFingerprint(key), &foundItems);
+
+        for (auto itemValue : foundItems) {
+            auto [blockIndex, rowIndex] = UnpackBlockAndRowIndexes(itemValue);
             const auto& uncompressedBlock = this->GetUncompressedBlock(blockIndex);
             const auto& blockMeta = this->ChunkMeta_->DataBlockMeta()->data_blocks(blockIndex);
             auto* blockReader = this->CreateBlockReader(uncompressedBlock, blockMeta);

@@ -111,7 +111,34 @@ TInMemoryChunkDataPtr CreateInMemoryChunkData(
         block.Data = MarkUndumpable(block.Data);
     }
 
-    NTableClient::IChunkLookupHashTablePtr lookupHashTable;
+    if (versionedChunkMeta->GetChunkFormat() == NChunkClient::EChunkFormat::TableVersionedColumnar &&
+        mode == EInMemoryMode::Uncompressed)
+    {
+        YT_VERIFY(startBlockIndex == 0);
+
+        class TBlockProvider
+            : public NNewTableClient::IBlockDataProvider
+        {
+        public:
+            TBlockProvider(const std::vector<TBlock>& blocks)
+                : Blocks_(blocks)
+            { }
+
+            const char* GetBlock(ui32 blockIndex) override
+            {
+                YT_VERIFY(blockIndex < Blocks_.size());
+                return Blocks_[blockIndex].Data.Begin();
+            }
+
+        private:
+            const std::vector<TBlock>& Blocks_;
+        } blockProvider{blocks};
+
+        // Prepare new meta.
+        versionedChunkMeta->GetPreparedChunkMeta(&blockProvider);
+    }
+
+    NTableClient::TChunkLookupHashTablePtr lookupHashTable;
 
     auto metaMemoryTrackerGuard = TMemoryUsageTrackerGuard::Acquire(
         memoryTracker,
