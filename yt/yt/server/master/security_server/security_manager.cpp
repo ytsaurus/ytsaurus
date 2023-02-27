@@ -2012,8 +2012,8 @@ public:
                     .Item("object_column").Value(*target.Column);
             }
 
+            const auto& objectManager = Bootstrap_->GetObjectManager();
             if (result.Object && result.Subject) {
-                const auto& objectManager = Bootstrap_->GetObjectManager();
                 auto deniedBy = objectManager->GetHandler(result.Object)->GetName(result.Object);
 
                 error = TError(
@@ -2041,6 +2041,12 @@ public:
 
                 event
                     .Item("reason").Value(EAccessDeniedReason::NoAllowingAce);
+            }
+
+            const auto& handler = objectManager->GetHandler(target.Object);
+            auto objectPath = handler->GetPath(target.Object);
+            if (!objectPath.empty()) {
+                error = error << TErrorAttribute("path", objectPath);
             }
         }
 

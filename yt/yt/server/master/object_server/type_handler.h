@@ -53,6 +53,9 @@ struct IObjectTypeHandler
     //! Returns a human-readable object name.
     virtual TString GetName(const TObject* object) = 0;
 
+    //! Returns a human-readable object path if such path exists, otherwise returns empty string.
+    virtual TString GetPath(const TObject* object) = 0;
+
     //! Finds object by id, returns |nullptr| if nothing is found.
     virtual TObject* FindObject(TObjectId id) = 0;
 

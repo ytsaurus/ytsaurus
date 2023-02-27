@@ -344,6 +344,11 @@ TString TSchedulerPoolTree::GetCapitalizedObjectName() const
     return Format("Scheduler pool tree %Qv", TreeName_);
 }
 
+TString TSchedulerPoolTree::GetObjectPath() const
+{
+    return Format("//sys/pool_trees/%v", TreeName_);
+}
+
 void TSchedulerPoolTree::Save(NCellMaster::TSaveContext& context) const
 {
     TBase::Save(context);

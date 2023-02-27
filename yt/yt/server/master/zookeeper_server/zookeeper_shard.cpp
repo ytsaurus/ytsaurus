@@ -24,6 +24,11 @@ TString TZookeeperShard::GetCapitalizedObjectName() const
     return Format("Zookeeper shard %v", GetId());
 }
 
+TString TZookeeperShard::GetObjectPath() const
+{
+    return Format("//sys/zookeeper_shards/%v", GetId());
+}
+
 void TZookeeperShard::Save(TSaveContext& context) const
 {
     using NYT::Save;

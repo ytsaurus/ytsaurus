@@ -532,6 +532,11 @@ TString TNode::GetCapitalizedObjectName() const
     return Format("Node %v", GetDefaultAddress());
 }
 
+TString TNode::GetObjectPath() const
+{
+    return Format("//sys/cluster_nodes/%v", GetDefaultAddress());
+}
+
 void TNode::AddRealChunkLocation(NChunkServer::TRealChunkLocation* location)
 {
     RealChunkLocations_.push_back(location);

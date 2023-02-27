@@ -74,6 +74,11 @@ TString TChunkList::GetCapitalizedObjectName() const
     return Format("Chunk list %v", GetId());
 }
 
+TString TChunkList::GetObjectPath() const
+{
+    return Format("//sys/chunk_lists/%v", GetId());
+}
+
 void TChunkList::CheckInvariants(TBootstrap* bootstrap) const
 {
     TChunkTree::CheckInvariants(bootstrap);

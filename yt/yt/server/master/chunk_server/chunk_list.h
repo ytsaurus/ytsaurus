@@ -62,6 +62,7 @@ public:
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;
+    TString GetObjectPath() const override;
 
     void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
 

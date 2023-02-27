@@ -34,6 +34,11 @@ TString TAccountResourceUsageLease::GetCapitalizedObjectName() const
     return Format("Account usage lease %v", GetId());
 }
 
+TString TAccountResourceUsageLease::GetObjectPath() const
+{
+    return Format("//sys/account_resource_usage_leases/%v", GetId());
+}
+
 void TAccountResourceUsageLease::Save(TSaveContext& context) const
 {
     TObject::Save(context);

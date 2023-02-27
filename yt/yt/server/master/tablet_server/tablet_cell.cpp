@@ -33,6 +33,11 @@ TString TTabletCell::GetCapitalizedObjectName() const
     return Format("Tablet cell %v", GetId());
 }
 
+TString TTabletCell::GetObjectPath() const
+{
+    return Format("//sys/tablet_cells/%v", GetId());
+}
+
 void TTabletCell::Save(TSaveContext& context) const
 {
     TCellBase::Save(context);

@@ -52,6 +52,11 @@ public:
         return DoGetName(object->As<TImpl>());
     }
 
+    TString GetPath(const TObject* object) override
+    {
+        return DoGetPath(object->As<TImpl>());
+    }
+
     IObjectProxyPtr GetProxy(
         TObject* object,
         NTransactionServer::TTransaction* transaction) override
@@ -145,6 +150,11 @@ protected:
     virtual TString DoGetName(const TImpl* object)
     {
         return object->GetLowercaseObjectName();
+    }
+
+    virtual TString DoGetPath(const TImpl* object)
+    {
+        return object->GetObjectPath();
     }
 
     virtual IObjectProxyPtr DoGetProxy(

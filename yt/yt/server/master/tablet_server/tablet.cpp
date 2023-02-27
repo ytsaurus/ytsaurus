@@ -131,6 +131,11 @@ TString TTablet::GetCapitalizedObjectName() const
     return Format("Tablet %v", GetId());
 }
 
+TString TTablet::GetObjectPath() const
+{
+    return Format("//sys/tablets/%v", GetId());
+}
+
 void TTablet::Save(TSaveContext& context) const
 {
     TTabletBase::Save(context);
