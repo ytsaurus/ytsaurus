@@ -31,6 +31,8 @@ DB::Block ToHeaderBlock(const NTableClient::TTableSchema& schema, const TComposi
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NTableClient::TLogicalTypePtr ToLogicalType(const DB::DataTypePtr& type, const TCompositeSettingsPtr& settings);
+
 NTableClient::TTableSchema ToTableSchema(
     const DB::ColumnsDescription& columns,
     const NTableClient::TKeyColumns& keyColumns,

@@ -209,6 +209,11 @@ public:
             Owner_);
     }
 
+    DB::ContextPtr GetContext() const
+    {
+        return getContext();
+    }
+
     void Start()
     {
         VERIFY_INVOKER_AFFINITY(GetControlInvoker());
@@ -1038,6 +1043,11 @@ std::shared_ptr<DB::IDatabase> THost::CreateYtDatabase() const
 void THost::SetContext(DB::ContextMutablePtr context)
 {
     Impl_->SetContext(context);
+}
+
+DB::ContextPtr THost::GetContext() const
+{
+    return Impl_->GetContext();
 }
 
 NTableClient::TTableColumnarStatisticsCachePtr THost::GetTableColumnarStatisticsCache() const

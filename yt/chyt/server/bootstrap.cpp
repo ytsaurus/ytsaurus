@@ -7,6 +7,7 @@
 #include "clickhouse_service.h"
 #include "query_registry.h"
 #include "config.h"
+#include "query_service.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -18,6 +19,8 @@
 #include <yt/yt/library/program/build_attributes.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
+
+#include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -69,6 +72,7 @@ TBootstrap::TBootstrap(
 void TBootstrap::Run()
 {
     ControlQueue_ = New<TActionQueue>("Control");
+    RpcQueryServiceThreadPool_ = CreateThreadPool(Config_->RpcQueryServiceThreadCount, "RpcQueryService");
 
     try {
         BIND(&TBootstrap::DoRun, this)
@@ -152,6 +156,7 @@ void TBootstrap::DoRun()
     }
 
     RpcServer_->RegisterService(CreateClickHouseService(Host_.Get()));
+    RpcServer_->RegisterService(CreateQueryService(Host_.Get(), RpcQueryServiceThreadPool_->GetInvoker()));
 
     SetNodeByYPath(
         orchidRoot,
