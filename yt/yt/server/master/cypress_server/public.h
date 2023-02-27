@@ -110,11 +110,6 @@ DEFINE_ENUM(ELockKeyKind,
     (Attribute)
 );
 
-DEFINE_ENUM(EModificationType,
-    (Attributes)
-    (Content)
-);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

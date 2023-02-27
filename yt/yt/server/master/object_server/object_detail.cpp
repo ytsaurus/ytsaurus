@@ -123,6 +123,24 @@ IAttributeDictionary* TObjectProxyBase::MutableAttributes()
     return GetCombinedAttributes();
 }
 
+void TObjectProxyBase::SetModified(EModificationType modificationType)
+{
+    if (ModificationTrackingSuppressed_) {
+        return;
+    }
+
+    if (!IsObjectAlive(Object_)) {
+        return;
+    }
+
+    Object_->SetModified(modificationType);
+}
+
+void TObjectProxyBase::SuppressModificationTracking()
+{
+    ModificationTrackingSuppressed_ = true;
+}
+
 DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 {
     DeclareNonMutating();
@@ -170,6 +188,10 @@ void TObjectProxyBase::GetBasicAttributes(TGetBasicAttributesContext* context)
     if (context->Permission) {
         securityManager->ValidatePermission(Object_, *context->Permission);
     }
+
+    context->Revision = Object_->GetRevision();
+    context->AttributeRevision = Object_->GetAttributeRevision();
+    context->ContentRevision = Object_->GetContentRevision();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
@@ -247,6 +269,8 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
 
         context->SetRawRequestInfo(builder.Flush(), true);
     }
+
+    ModificationTrackingSuppressed_ = GetSuppressModificationTracking(requestHeader);
 
     NProfiling::TWallTimer timer;
 
@@ -444,6 +468,9 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
         .SetPresent(isForeign));
     descriptors->push_back(EInternedAttributeKey::Foreign);
     descriptors->push_back(EInternedAttributeKey::NativeCellTag);
+    descriptors->push_back(EInternedAttributeKey::Revision);
+    descriptors->push_back(EInternedAttributeKey::AttributeRevision);
+    descriptors->push_back(EInternedAttributeKey::ContentRevision);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::InheritAcl)
         .SetPresent(hasAcd)
         .SetWritable(true)
@@ -537,6 +564,21 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
         case EInternedAttributeKey::NativeCellTag:
             BuildYsonFluently(consumer)
                 .Value(Object_->GetNativeCellTag());
+            return true;
+
+        case EInternedAttributeKey::Revision:
+            BuildYsonFluently(consumer)
+                .Value(Object_->GetRevision());
+            return true;
+
+        case EInternedAttributeKey::AttributeRevision:
+            BuildYsonFluently(consumer)
+                .Value(Object_->GetAttributeRevision());
+            return true;
+
+        case EInternedAttributeKey::ContentRevision:
+            BuildYsonFluently(consumer)
+                .Value(Object_->GetContentRevision());
             return true;
 
         case EInternedAttributeKey::InheritAcl:
@@ -654,11 +696,14 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             ValidateNoTransaction();
 
             auto inherit = ConvertTo<bool>(value);
-            if (inherit == acd->GetInherit()) {
-                return true;
+            if (inherit != acd->GetInherit()) {
+                acd->SetInherit(inherit);
+
+                SetModified(EModificationType::Attributes);
+
+                LogAcdUpdate(key, value);
             }
 
-            acd->SetInherit(inherit);
             return true;
         }
 
@@ -668,6 +713,10 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             TAccessControlList newAcl;
             Deserialize(newAcl, ConvertToNode(value), securityManager);
             acd->SetEntries(newAcl);
+
+            SetModified(EModificationType::Attributes);
+
+            LogAcdUpdate(key, value);
 
             return true;
         }
@@ -686,6 +735,10 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
 
             acd->SetOwner(owner);
 
+            SetModified(EModificationType::Attributes);
+
+            LogAcdUpdate(key, value);
+
             return true;
         }
 
@@ -700,6 +753,9 @@ bool TObjectProxyBase::RemoveBuiltinAttribute(TInternedAttributeKey /*key*/)
 {
     return false;
 }
+
+void TObjectProxyBase::LogAcdUpdate(TInternedAttributeKey /* key */, const TYsonString& /* value */)
+{ }
 
 void TObjectProxyBase::ValidateCustomAttributeUpdate(
     const TString& key,
@@ -966,6 +1022,8 @@ void TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::SetYso
     auto* attributes = object->GetMutableAttributes();
     const auto& ysonInternRegistry = Proxy_->Bootstrap_->GetYsonInternRegistry();
     attributes->Set(key, ysonInternRegistry->Intern(value));
+
+    Proxy_->SetModified(EModificationType::Attributes);
 }
 
 bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove(const TString& key)
@@ -991,6 +1049,8 @@ bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove
     if (attributes->Attributes().empty()) {
         object->ClearAttributes();
     }
+
+    Proxy_->SetModified(EModificationType::Attributes);
 
     return true;
 }

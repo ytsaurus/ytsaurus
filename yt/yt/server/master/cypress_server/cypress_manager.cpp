@@ -1966,13 +1966,19 @@ public:
         return {DoCreateLock(trunkNode, transaction, request, false), nullptr};
     }
 
-    void SetModified(
-        TCypressNode* node,
-        EModificationType modificationType) override
+    void SetModified(TCypressNode* node, EModificationType modificationType) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        node->SetModified(modificationType);
 
-        AccessTracker_->SetModified(node, modificationType);
+        YT_LOG_ACCESS(
+            node->GetId(),
+            GetNodePath(node->GetTrunkNode(), node->GetTransaction()),
+            node->GetTransaction(),
+            "Revise",
+            {
+                {"revision_type", FormatEnum(modificationType)},
+                {"revision", ToString(node->GetRevision())}
+            });
     }
 
     void SetAccessed(TCypressNode* trunkNode) override
@@ -2680,12 +2686,10 @@ private:
 
         const auto* hydraContext = GetCurrentHydraContext();
         node->SetCreationTime(hydraContext->GetTimestamp());
-        node->SetModificationTime(hydraContext->GetTimestamp());
         node->SetAccessTime(hydraContext->GetTimestamp());
 
-        auto currentRevision = hydraContext->GetVersion().ToRevision();
-        node->SetAttributeRevision(currentRevision);
-        node->SetContentRevision(currentRevision);
+        node->SetModified(EModificationType::Content);
+        node->SetModified(EModificationType::Attributes);
 
         node->RememberAevum();
 

@@ -1552,6 +1552,42 @@ class TestCypressAcls(CheckPermissionBase):
         remove("//sys/access_control_object_namespaces/cats/garfield")
         remove("//sys/access_control_object_namespaces/cats")
 
+    @authors("shakurov")
+    def test_access_control_object_recursive_get(self):
+        create_access_control_object_namespace("cats")
+        create_access_control_object("garfield", "cats")
+
+        assert "principal" in get("//sys/access_control_object_namespaces/cats/garfield")
+
+    @authors("shakurov")
+    def test_access_control_object_revision(self):
+        create_access_control_object_namespace("cats")
+        create_access_control_object("garfield", "cats")
+
+        old_revision = get("//sys/access_control_object_namespaces/cats/garfield/@revision")
+        old_attribute_revision = get("//sys/access_control_object_namespaces/cats/garfield/@attribute_revision")
+        old_content_revision = get("//sys/access_control_object_namespaces/cats/garfield/@content_revision")
+        assert old_revision == max(old_attribute_revision, old_content_revision)
+
+        # Removing a non-existent attribute should not affect revision.
+        with pytest.raises(YtError):
+            remove("//sys/access_control_object_namespaces/cats/garfield/@foo")
+
+        assert get("//sys/access_control_object_namespaces/cats/garfield/@attribute_revision") == old_attribute_revision
+
+        set("//sys/access_control_object_namespaces/cats/garfield/@foo", "bar")
+        new_attribute_revision = get("//sys/access_control_object_namespaces/cats/garfield/@attribute_revision")
+        new_revision = get("//sys/access_control_object_namespaces/cats/garfield/@attribute_revision")
+        assert new_revision == new_attribute_revision
+        assert new_attribute_revision > old_attribute_revision
+        old_attribute_revision = new_attribute_revision
+
+        create_user("u1")
+        set("//sys/access_control_object_namespaces/cats/garfield/@acl/end", make_ace("allow", "u1", "read"))
+        new_attribute_revision = get("//sys/access_control_object_namespaces/cats/garfield/@attribute_revision")
+        assert new_attribute_revision > old_attribute_revision
+
+
 ##################################################################
 
 

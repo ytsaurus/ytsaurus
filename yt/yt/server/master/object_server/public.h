@@ -48,6 +48,11 @@ DEFINE_BIT_ENUM(ETypeFlags,
     ((TwoPhaseRemoval)        (0x0100)) // employ two-phase removal protocol: RemovalStarted -> RemovalPreCommitted -> RemovalComitted
 );
 
+DEFINE_ENUM(EModificationType,
+    (Attributes)
+    (Content)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(IObjectService)

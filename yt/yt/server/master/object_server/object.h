@@ -62,6 +62,9 @@ public:
     //! For non-Sequoia objects equals to |EAevum::None|.
     DEFINE_BYVAL_RW_PROPERTY(NSequoiaServer::EAevum, Aevum, NSequoiaServer::EAevum::None);
 
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, AttributeRevision, NHydra::NullRevision);
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, ContentRevision, NHydra::NullRevision);
+
 public:
     explicit TObject(TObjectId id);
     virtual ~TObject();
@@ -229,6 +232,9 @@ public:
     //! For Sequoia objects sets aevum equal to the current aevum.
     //! For non-Sequoia objects does nothing.
     void RememberAevum();
+
+    NHydra::TRevision GetRevision() const;
+    virtual void SetModified(EModificationType modificationType);
 
     //! Returns the relative complexity of object destruction.
     //! This value must always be positive. The default is 10.

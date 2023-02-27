@@ -104,6 +104,16 @@ void TCypressNode::SetTouchTime(TInstant touchTime, bool force)
     TouchTime_ = touchTime;
 }
 
+void TCypressNode::SetModified(EModificationType modificationType)
+{
+    TObject::SetModified(modificationType);
+
+    auto* hydraContext = GetCurrentHydraContext();
+    YT_VERIFY(hydraContext);
+
+    SetModificationTime(hydraContext->GetTimestamp());
+}
+
 void TCypressNode::InitializeTouchTime()
 {
     auto* context = GetCurrentMutationContext();
@@ -230,11 +240,6 @@ TTabletResources TCypressNode::GetTabletResourceUsage() const
     return {};
 }
 
-NHydra::TRevision TCypressNode::GetRevision() const
-{
-    return Max(AttributeRevision_, ContentRevision_);
-}
-
 NHydra::TRevision TCypressNode::GetNativeContentRevision() const
 {
     YT_VERIFY(IsForeign());
@@ -289,8 +294,6 @@ void TCypressNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, ExpirationTimeout_);
     Save(context, CreationTime_);
     Save(context, ModificationTime_);
-    Save(context, AttributeRevision_);
-    Save(context, ContentRevision_);
     Save(context, NativeContentRevision_);
     Save(context, Account_);
     Save(context, Acd_);
@@ -318,8 +321,12 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ExpirationTimeout_);
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
-    Load(context, AttributeRevision_);
-    Load(context, ContentRevision_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() < EMasterReign::ObjectRevisions) {
+        // These are TObject members.
+        Load(context, AttributeRevision_);
+        Load(context, ContentRevision_);
+    }
     Load(context, NativeContentRevision_);
     Load(context, Account_);
     Load(context, Acd_);

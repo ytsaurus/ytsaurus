@@ -202,9 +202,6 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(i64, AccessCounter);
 
-    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, AttributeRevision);
-    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, ContentRevision);
-
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccountPtr, Account);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
@@ -235,7 +232,8 @@ public:
     TInstant GetTouchTime(bool force = false) const;
     void SetTouchTime(TInstant touchTime, bool force = false);
 
-    NHydra::TRevision GetRevision() const;
+    void SetModified(NObjectServer::EModificationType modificationType) override;
+
     NHydra::TRevision GetNativeContentRevision() const;
     void SetNativeContentRevision(NHydra::TRevision);
 

@@ -89,7 +89,7 @@ public:
 
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
     {
-        TBase::GetSelf(request, response, context);
+        TNodeBase::GetSelf(request, response, context);
     }
 
     TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override
@@ -133,6 +133,9 @@ public:
         }
 
         RemoveChild(child);
+
+        SetModified(EModificationType::Content);
+
         return true;
     }
 
@@ -160,7 +163,9 @@ public:
     INodePtr FindChild(const TString& key) const override;
 
     void Clear() override
-    { }
+    {
+        SetModified(EModificationType::Content);
+    }
 
 private:
     friend class TAccessControlObjectNamespaceProxy;
@@ -237,6 +242,9 @@ private:
                 TAccessControlList newAcl;
                 Deserialize(newAcl, ConvertToNode(value), securityManager);
                 principalAcd.SetEntries(newAcl);
+
+                SetModified(EModificationType::Attributes);
+
                 return true;
             }
 
@@ -250,6 +258,9 @@ private:
                         "Access denied: can only set owner to self");
                 }
                 principalAcd.SetOwner(owner);
+
+                SetModified(EModificationType::Attributes);
+
                 return true;
             }
 
@@ -268,6 +279,9 @@ private:
                 if (principalAcd.GetOwner()) {
                     principalAcd.SetOwner(nullptr);
                 }
+
+                SetModified(EModificationType::Attributes);
+
                 return true;
             }
 

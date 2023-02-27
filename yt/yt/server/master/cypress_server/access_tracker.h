@@ -28,12 +28,7 @@ public:
     void Start();
     void Stop();
 
-    void SetModified(
-        TCypressNode* node,
-        EModificationType modificationType);
-
     void SetAccessed(TCypressNode* trunkNode);
-
     void SetTouched(TCypressNode* trunkNode);
 
 private:

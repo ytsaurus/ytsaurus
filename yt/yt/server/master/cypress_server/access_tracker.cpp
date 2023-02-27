@@ -68,39 +68,6 @@ void TAccessTracker::Stop()
     Reset();
 }
 
-void TAccessTracker::SetModified(
-    TCypressNode* node,
-    EModificationType modificationType)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    const auto* hydraContext = GetCurrentHydraContext();
-    node->SetModificationTime(hydraContext->GetTimestamp());
-
-    auto currentRevision = GetCurrentHydraContext()->GetVersion().ToRevision();
-    switch (modificationType) {
-        case EModificationType::Attributes: {
-            node->SetAttributeRevision(currentRevision);
-            break;
-        }
-        case EModificationType::Content: {
-            node->SetContentRevision(currentRevision);
-            break;
-        }
-        default:
-            YT_ABORT();
-    }
-
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
-    auto transaction = node->GetTransaction();
-    YT_LOG_ACCESS(
-        node->GetId(),
-        cypressManager->GetNodePath(node->GetTrunkNode(), transaction),
-        transaction,
-        "Revise",
-        {{"revision_type", FormatEnum(modificationType)}, {"revision", ToString(currentRevision)}});
-}
-
 void TAccessTracker::SetAccessed(TCypressNode* trunkNode)
 {
     Bootstrap_->VerifyPersistentStateRead();
