@@ -305,8 +305,8 @@ void TLeaderCommitter::Stop()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    SerializeMutationsExecutor_->Stop();
-    FlushMutationsExecutor_->Stop();
+    YT_UNUSED_FUTURE(SerializeMutationsExecutor_->Stop());
+    YT_UNUSED_FUTURE(FlushMutationsExecutor_->Stop());
 
     // YT-16687: We do not want to apply mutation after its promise is set.
     Y_UNUSED(WaitFor(LastOffloadedMutationsFuture_));
@@ -392,7 +392,7 @@ void TLeaderCommitter::FlushMutations()
                 auto req = proxy.ForceRestart();
                 ToProto(req->mutable_reason(), error);
 
-                req->Invoke();
+                YT_UNUSED_FUTURE(req->Invoke());
 
                 followerState.NextExpectedSequenceNumber = -1;
                 followerState.LastLoggedSequenceNumber = -1;
@@ -1089,7 +1089,7 @@ void TLeaderCommitter::OnCommittedSequenceNumberUpdated()
 
     YT_VERIFY(LastOffloadedSequenceNumber_ + std::ssize(mutations) == CommittedState_.SequenceNumber);
     LastOffloadedSequenceNumber_ = CommittedState_.SequenceNumber;
-    ScheduleApplyMutations(std::move(mutations));
+    YT_UNUSED_FUTURE(ScheduleApplyMutations(std::move(mutations)));
 }
 
 TVersion TLeaderCommitter::GetLoggedVersion() const

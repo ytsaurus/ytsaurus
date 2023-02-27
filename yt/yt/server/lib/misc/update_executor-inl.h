@@ -36,7 +36,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::Start()
 template <class TKey, class TUpdateParameters>
 void TUpdateExecutor<TKey, TUpdateParameters>::Stop()
 {
-    UpdateExecutor_->Stop();
+    YT_UNUSED_FUTURE(UpdateExecutor_->Stop());
 }
 
 template <class TKey, class TUpdateParameters>

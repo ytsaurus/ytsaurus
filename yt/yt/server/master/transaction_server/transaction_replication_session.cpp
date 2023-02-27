@@ -608,7 +608,7 @@ TFuture<void> RunTransactionReplicationSession(
         return replicationSession->Run(syncWithUpstream)
             .Apply(BIND([=, mutation=std::move(mutation)] (const TError& error) {
                 if (error.IsOK()) {
-                    mutation->CommitAndReply(context);
+                    YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
                 } else {
                     context->Reply(error);
                 }

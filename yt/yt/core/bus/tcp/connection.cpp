@@ -500,7 +500,7 @@ void TTcpConnection::Abort(const TError& error)
     YT_LOG_DEBUG(detailedError, "Connection aborted");
 
     // OnShutdown() will be called after draining events from thread pools.
-    Poller_->Unregister(this);
+    YT_UNUSED_FUTURE(Poller_->Unregister(this));
 
     ReadyPromise_.TrySet(detailedError);
 }

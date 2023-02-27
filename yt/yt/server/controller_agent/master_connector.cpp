@@ -432,32 +432,32 @@ private:
         }
 
         if (TransactionRefreshExecutor_) {
-            TransactionRefreshExecutor_->Stop();
+            YT_UNUSED_FUTURE(TransactionRefreshExecutor_->Stop());
             TransactionRefreshExecutor_.Reset();
         }
 
         if (SnapshotExecutor_) {
-            SnapshotExecutor_->Stop();
+            YT_UNUSED_FUTURE(SnapshotExecutor_->Stop());
             SnapshotExecutor_.Reset();
         }
 
         if (UnstageExecutor_) {
-            UnstageExecutor_->Stop();
+            YT_UNUSED_FUTURE(UnstageExecutor_->Stop());
             UnstageExecutor_.Reset();
         }
 
         if (UpdateConfigExecutor_) {
-            UpdateConfigExecutor_->Stop();
+            YT_UNUSED_FUTURE(UpdateConfigExecutor_->Stop());
             UpdateConfigExecutor_.Reset();
         }
 
         if (AlertsExecutor_) {
-            AlertsExecutor_->Stop();
+            YT_UNUSED_FUTURE(AlertsExecutor_->Stop());
             AlertsExecutor_.Reset();
         }
 
         if (UpdateIntermediateMediumUsageExecutor_) {
-            UpdateIntermediateMediumUsageExecutor_->Stop();
+            YT_UNUSED_FUTURE(UpdateIntermediateMediumUsageExecutor_->Stop());
             UpdateIntermediateMediumUsageExecutor_.Reset();
         }
     }
@@ -1213,12 +1213,12 @@ private:
                 batchReq->unstage_chunk_tree_subrequests_size(),
                 cellTag);
 
-            batchReq->Invoke().Apply(
+            YT_UNUSED_FUTURE(batchReq->Invoke().Apply(
                 BIND([=, cellTag = cellTag] (const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
                     if (!batchRspOrError.IsOK()) {
                         YT_LOG_DEBUG(batchRspOrError, "Error unstaging chunk trees (CellTag: %v)", cellTag);
                     }
-                }));
+                })));
         }
     }
 

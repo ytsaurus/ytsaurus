@@ -61,7 +61,7 @@ public:
 
     void Stop() override
     {
-        SynchronizeExecutor_->Stop();
+        YT_UNUSED_FUTURE(SynchronizeExecutor_->Stop());
     }
 
 private:
@@ -128,7 +128,7 @@ private:
 
         auto hydraManager = Slot_->GetHydraManager();
         auto mutation = CreateMutation(hydraManager, request);
-        mutation->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
     }
 };
 
