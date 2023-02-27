@@ -860,6 +860,8 @@ void TScanBlobExtractor::InitData(const TBlobMeta* meta, const ui64* ptr, TTmpBu
                 items[index] = {
                     GetOffset(offsets, expectedLength, id - 1),
                     GetOffsetNonZero(offsets, expectedLength, id)};
+            } else {
+                items[index] = {0, 0};
             }
         }
 
@@ -934,6 +936,8 @@ void TScanBlobExtractor::InitData(
                     items[index] = {
                         GetOffset(offsets, expectedLength, id - 1),
                         GetOffsetNonZero(offsets, expectedLength, id)};
+                } else {
+                    items[index] = {0, 0};
                 }
             });
         } else {
@@ -942,6 +946,8 @@ void TScanBlobExtractor::InitData(
                     items[index] = {
                         GetOffset(offsetsView, expectedLength, id - 1),
                         GetOffsetNonZero(offsetsView, expectedLength, id)};
+                } else {
+                    items[index] = {0, 0};
                 }
             });
         }

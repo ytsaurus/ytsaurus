@@ -33,6 +33,7 @@ constexpr ui64 GetFixedDataWeightPart(ui64 count)
 template <EValueType Type>
 Y_FORCE_INLINE ui64 GetVariableDataWeightPart(TUnversionedValue value, ui64 count = 1)
 {
+    YT_ASSERT(!IsStringLikeType(Type) || value.Type != EValueType::Null || value.Length == 0);
     return IsStringLikeType(Type) ? value.Length * count : 0;
 }
 
