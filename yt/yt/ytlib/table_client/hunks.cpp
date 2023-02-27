@@ -1332,9 +1332,9 @@ protected:
     TSharedRange<TImmutableRow> EncodedRows_;
     int CurrentEncodedRowIndex_ = 0;
 
+    bool HunksDecoded_ = false;
     std::vector<TMutableRow> DecodableRows_;
-
-    IRowBatchPtr ReadyRowBatch_;
+    TSharedRange<TUnversionedValue*> DecodedHunkValues_;
 
     struct TRowBufferTag
     { };
@@ -1347,8 +1347,11 @@ protected:
         const TRowVisitor& rowVisitor,
         const THunkValueChecker& valueChecker)
     {
-        if (ReadyRowBatch_) {
-            return std::move(ReadyRowBatch_);
+        if (std::exchange(HunksDecoded_, false)) {
+            return MakeBatch(MakeSharedRange(
+                std::move(DecodableRows_),
+                std::move(DecodedHunkValues_),
+                MakeStrong(this)));
         }
 
         if (CurrentEncodedRowIndex_ >= std::ssize(EncodedRows_)) {
@@ -1425,12 +1428,10 @@ private:
             std::move(mutableRows.ReleaseHolder())));
     }
 
-    void OnHunksRead(TSharedRange<TUnversionedValue*>&& sharedValues)
+    void OnHunksRead(TSharedRange<TUnversionedValue*>&& hunkValues)
     {
-        ReadyRowBatch_ = MakeBatch(MakeSharedRange(
-            std::move(DecodableRows_),
-            MakeStrong(this),
-            std::move(sharedValues)));
+        DecodedHunkValues_ = std::move(hunkValues);
+        YT_VERIFY(!std::exchange(HunksDecoded_, true));
     }
 };
 
