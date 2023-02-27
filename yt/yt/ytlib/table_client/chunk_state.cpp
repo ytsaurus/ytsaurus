@@ -11,7 +11,7 @@ TChunkState::TChunkState(
     NChunkClient::NProto::TChunkSpec chunkSpec,
     TCachedVersionedChunkMetaPtr chunkMeta,
     NTransactionClient::TTimestamp overrideTimestamp,
-    IChunkLookupHashTablePtr lookupHashTable,
+    TChunkLookupHashTablePtr lookupHashTable,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TKeyComparer keyComparer,
     TVirtualValueDirectoryPtr virtualValueDirectory,

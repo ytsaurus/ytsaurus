@@ -22,6 +22,19 @@ TValueIncrementingTimingGuard<TTimer>::~TValueIncrementingTimingGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline TCpuDurationIncrementingGuard::TCpuDurationIncrementingGuard(TCpuDuration* value)
+    : Value_(value)
+    , StartInstant_(GetCpuInstant())
+{ }
+
+inline TCpuDurationIncrementingGuard::~TCpuDurationIncrementingGuard()
+{
+    *Value_ += GetCpuInstant() - StartInstant_;
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TTimer>
 TTimerGuard<TTimer>::TTimerGuard(TTimer* timer)
     : Timer_(timer)

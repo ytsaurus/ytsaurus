@@ -1,6 +1,7 @@
 #pragma once
 
 #include "reader_statistics.h"
+#include "public.h"
 
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -11,24 +12,37 @@
 
 namespace NYT::NNewTableClient {
 
+struct TPreparedChunkMeta;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TItem>
+TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
+    NTableClient::TChunkReaderConfigPtr config,
+    NChunkClient::IChunkReaderPtr underlyingReader,
+    NChunkClient::IBlockCachePtr blockCache,
+    NChunkClient::TClientChunkReadOptions chunkReadOptions,
+    NTableClient::TCachedVersionedChunkMetaPtr chunkMeta,
+    IInvokerPtr sessionInvoker = nullptr);
+
+TBlockManagerFactory CreateSyncBlockWindowManagerFactory(
+    NChunkClient::IBlockCachePtr blockCache,
+    NTableClient::TCachedVersionedChunkMetaPtr chunkMeta,
+    NChunkClient::TChunkId chunkId);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TReadItems>
 NTableClient::IVersionedReaderPtr CreateVersionedChunkReader(
-    TSharedRange<TItem> readItems,
+    TReadItems readItems,
     NTableClient::TTimestamp timestamp,
     NTableClient::TCachedVersionedChunkMetaPtr chunkMeta,
     const NTableClient::TTableSchemaPtr& tableSchema,
     const NTableClient::TColumnFilter& columnFilter,
     const NTableClient::TChunkColumnMappingPtr& chunkColumnMapping,
-    NChunkClient::IBlockCachePtr blockCache,
-    const NTableClient::TChunkReaderConfigPtr config,
-    NChunkClient::IChunkReaderPtr underlyingReader,
+    TBlockManagerFactory blockManagerFactory,
     NTableClient::TChunkReaderPerformanceCountersPtr performanceCounters,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     bool produceAll,
-    TReaderStatisticsPtr readerStatistics = nullptr,
-    IInvokerPtr sessionInvoker = nullptr);
+    TReaderStatisticsPtr readerStatistics = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +54,16 @@ TSharedRange<NTableClient::TRowRange> ClipRanges(
     NTableClient::TUnversionedRow lower,
     NTableClient::TUnversionedRow upper,
     THolderPtr holder);
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<ui32>  BuildChunkRowIndexesUsingLookupTable(
+    const NTableClient::TChunkLookupHashTable& lookupHashTable,
+    TRange<NTableClient::TLegacyKey> keys,
+    const NTableClient::TTableSchemaPtr& tableSchema,
+    const NTableClient::TCachedVersionedChunkMetaPtr& chunkMeta,
+    NChunkClient::TChunkId chunkId,
+    NChunkClient::IBlockCache* blockCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 

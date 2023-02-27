@@ -84,37 +84,25 @@ struct TTmpBuffers
     std::vector<ui32> Ids;
     std::vector<ui32> Offsets;
     std::vector<TReadSpan> DataSpans;
-
-    void Swap(TTmpBuffers& other);
-};
-
-struct TInitContext
-    : public TTmpBuffers
-{
-    const ui32 RowOffset;
-    const TMutableRange<TReadSpan> Spans;
-    TTmpBuffers* const TmpBuffersSource;
-
-    TInitContext(ui32 rowOffset, TMutableRange<TReadSpan> spans, TTmpBuffers* tmpBuffers);
-
-    ~TInitContext();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <EValueType Type, class TExtractor>
-Y_FORCE_INLINE void DoInitKeySegment(
+Y_FORCE_INLINE void DoInitRangesKeySegment(
     TExtractor* extractor,
-    const TMetaBase* meta,
+    const TKeyMeta<Type>* meta,
     const ui64* ptr,
     TTmpBuffers* tmpBuffers);
 
 template <EValueType Type, class TExtractor>
-void DoInitKeySegment(
+Y_FORCE_INLINE void DoInitRangesKeySegment(
     TExtractor* extractor,
-    const TMetaBase* meta,
+    const TKeyMeta<Type>* meta,
     const ui64* ptr,
-    TInitContext* initContext);
+    ui32 rowOffset,
+    TMutableRange<TReadSpan> spans,
+    TTmpBuffers* tmpBuffers);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,7 +114,12 @@ public:
 #ifdef FULL_UNPACK
     void InitSegment(const TTimestampMeta* meta, const char* data, TTmpBuffers* tmpBuffers);
 #endif
-    void InitSegment(const TTimestampMeta* meta, const char* data, TInitContext* initContext);
+    void InitSegment(
+        const TTimestampMeta* meta,
+        const char* data,
+        ui32 rowOffset,
+        TMutableRange<TReadSpan> spans,
+        TTmpBuffers* tmpBuffers);
 
     // Skip is allowed till SegmentRowLimit.
     Y_FORCE_INLINE ui32 GetSegmentRowLimit() const;
@@ -186,17 +179,18 @@ template <class T>
 class TScanIntegerExtractor
 {
 public:
-    static const ui64* GetEndPtr(const TMetaBase* meta, const ui64* ptr);
+    static const ui64* GetEndPtr(const TIntegerMeta* meta, const ui64* ptr);
 
 #ifdef FULL_UNPACK
-    const ui64* InitData(const TMetaBase* meta, const ui64* ptr, TTmpBuffers* tmpBuffers);
+    const ui64* InitData(const TIntegerMeta* meta, const ui64* ptr, TTmpBuffers* tmpBuffers);
 #endif
     const ui64* InitData(
-        const TMetaBase* meta,
+        const TIntegerMeta* meta,
         const ui64* ptr,
         TRange<TReadSpan> spans,
         ui32 batchSize,
-        TTmpBuffers* tmpBuffers);
+        TTmpBuffers* tmpBuffers,
+        ui32 segmentChunkRowCount);
     void InitNullData();
 
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
@@ -205,10 +199,12 @@ private:
     TMemoryHolder<T> Items_;
     TBitmap NullBits_;
 
-    // SegmentChunkRowCount uniquely identifies segment in chunk.
+    // SegmentChunkRowCount uniquely identifies segment in chunk and used to reuse or reset dictionary.
     ui32 SegmentChunkRowCount_ = 0;
     // Even if chunk (or segment) is read completely segment can be initialized
     // multiple times in partial unpack mode. Dict values are cached.
+    // It happens because read ranges are calculated only for current block window
+    // and segments can overlap block windows.
     std::vector<ui64> ValuesDict_;
 };
 
@@ -226,17 +222,18 @@ template <>
 class TScanDataExtractor<EValueType::Double>
 {
 public:
-    static const ui64* GetEndPtr(const TMetaBase* /*meta*/, const ui64* ptr);
+    static const ui64* GetEndPtr(const TEmptyMeta* /*meta*/, const ui64* ptr);
 
 #ifdef FULL_UNPACK
-    const ui64* InitData(const TMetaBase* /*meta*/, const ui64* ptr, TTmpBuffers* tmpBuffers);
+    const ui64* InitData(const TEmptyMeta* /*meta*/, const ui64* ptr, TTmpBuffers* tmpBuffers);
 #endif
     const ui64* InitData(
-        const TMetaBase* /*meta*/,
+        const TEmptyMeta* /*meta*/,
         const ui64* ptr,
         TRange<TReadSpan> spans,
         ui32 batchSize,
-        TTmpBuffers* tmpBuffers);
+        TTmpBuffers* tmpBuffers,
+        ui32 /*segmentChunkRowCount*/);
     void InitNullData();
 
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
@@ -251,17 +248,18 @@ template <>
 class TScanDataExtractor<EValueType::Boolean>
 {
 public:
-    static const ui64* GetEndPtr(const TMetaBase* /*meta*/, const ui64* ptr);
+    static const ui64* GetEndPtr(const TEmptyMeta* /*meta*/, const ui64* ptr);
 
 #ifdef FULL_UNPACK
-    const ui64* InitData(const TMetaBase* /*meta*/, const ui64* ptr, TTmpBuffers* tmpBuffers);
+    const ui64* InitData(const TEmptyMeta* /*meta*/, const ui64* ptr, TTmpBuffers* tmpBuffers);
 #endif
     const ui64* InitData(
-        const TMetaBase* /*meta*/,
+        const TEmptyMeta* /*meta*/,
         const ui64* ptr,
         TRange<TReadSpan> spans,
         ui32 batchSize,
-        TTmpBuffers* tmpBuffers);
+        TTmpBuffers* tmpBuffers,
+        ui32 /*segmentChunkRowCount*/);
     void InitNullData();
 
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
@@ -280,14 +278,15 @@ public:
     Y_FORCE_INLINE explicit TScanBlobExtractor(EValueType type);
 
 #ifdef FULL_UNPACK
-    void InitData(const TMetaBase* meta, const ui64* ptr, TTmpBuffers* tmpBuffers);
+    void InitData(const TBlobMeta* meta, const ui64* ptr, TTmpBuffers* tmpBuffers);
 #endif
     void InitData(
-        const TMetaBase* meta,
+        const TBlobMeta* meta,
         const ui64* ptr,
         TRange<TReadSpan> spans,
         ui32 batchSize,
-        TTmpBuffers* tmpBuffers);
+        TTmpBuffers* tmpBuffers,
+        ui32 segmentChunkRowCount);
     void InitNullData();
 
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
@@ -304,7 +303,12 @@ private:
     const char* Data_ = nullptr;
     EValueType Type_;
 
+    // SegmentChunkRowCount uniquely identifies segment in chunk and used to reuse or reset dictionary.
     ui32 SegmentChunkRowCount_ = 0;
+    // Even if chunk (or segment) is read completely segment can be initialized
+    // multiple times in partial unpack mode. Dict values are cached.
+    // It happens because read ranges are calculated only for current block window
+    // and segments can overlap block windows.
     std::vector<ui32> OffsetsDict_;
 };
 
@@ -338,13 +342,14 @@ class TScanKeyIndexExtractor
 {
 public:
 #ifdef FULL_UNPACK
-    const ui64* InitIndex(const TMetaBase* meta, const ui64* ptr, bool dense);
+    const ui64* InitIndex(const TKeyIndexMeta* meta, const ui64* ptr);
 #endif
     const ui64* InitIndex(
-        const TMetaBase* meta,
+        const TKeyIndexMeta* meta,
         const ui64* ptr,
-        bool dense,
-        TInitContext* initContext);
+        ui32 rowOffset,
+        TMutableRange<TReadSpan> spans,
+        TTmpBuffers* tmpBuffers);
 
     void InitNullIndex();
     Y_FORCE_INLINE void Reset();
@@ -423,17 +428,17 @@ class TScanMultiValueIndexExtractor
 public:
 #ifdef FULL_UNPACK
     const ui64* InitIndex(
-        const TMetaBase* meta,
-        const TDenseMeta* denseMeta,
+        const TMultiValueIndexMeta* meta,
         const ui64* ptr,
         TTmpBuffers* tmpBuffers);
 #endif
 
     const ui64* InitIndex(
-        const TMetaBase* meta,
-        const TDenseMeta* denseMeta,
+        const TMultiValueIndexMeta* meta,
         const ui64* ptr,
-        TInitContext* initContext);
+        ui32 rowOffset,
+        TMutableRange<TReadSpan> spans,
+        TTmpBuffers* tmpBuffers);
 
     Y_FORCE_INLINE ui32 GetSegmentRowLimit() const;
     Y_FORCE_INLINE ui32 SkipTo(ui32 rowIndex, ui32 position) const;
@@ -456,7 +461,8 @@ protected:
 class TLookupTimestampExtractor
 {
 public:
-    Y_FORCE_INLINE void InitSegment(const TTimestampMeta* meta, const char* data, TTmpBuffers* tmpBuffers);
+    template <bool NewMeta>
+    Y_FORCE_INLINE void InitSegment(const TTimestampMeta* meta, const char* data);
 
     // Skip is allowed till SegmentRowLimit.
     Y_FORCE_INLINE ui32 GetSegmentRowLimit() const;
@@ -468,18 +474,19 @@ public:
     Y_FORCE_INLINE TRange<TTimestamp> GetDeleteTimestamps(ui32 rowIndex, TChunkedMemoryPool* memoryPool) const;
 
 protected:
+    ui32 RowOffset_ = 0;
+    ui32 SegmentRowLimit_ = 0;
+
     TTimestamp BaseTimestamp_;
     ui32 ExpectedDeletesPerRow_;
     ui32 ExpectedWritesPerRow_;
     // For each row index value offsets.
+
     TCompressedVectorView TimestampsDict_;
     TCompressedVectorView WriteTimestampIds_;
     TCompressedVectorView DeleteTimestampIds_;
     TCompressedVectorView WriteOffsetDiffs_;
     TCompressedVectorView DeleteOffsetDiffs_;
-
-    ui32 RowOffset_ = 0;
-    ui32 SegmentRowLimit_ = 0;
 };
 
 template <EValueType Type>
@@ -489,7 +496,8 @@ template <class T>
 class TLookupIntegerExtractor
 {
 public:
-    Y_FORCE_INLINE const ui64* InitData(const TMetaBase* meta, const ui64* ptr, TTmpBuffers* tmpBuffers);
+    template <bool NewMeta>
+    Y_FORCE_INLINE const ui64* InitData(const TIntegerMeta* meta, const ui64* ptr);
     Y_FORCE_INLINE void InitNullData();
 
     Y_FORCE_INLINE void ExtractDict(TUnversionedValue* value, ui32 position) const;
@@ -497,7 +505,16 @@ public:
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
 
 private:
-    const ui64* Ptr_ = nullptr;
+    TCompressedVectorView Values_;
+
+    union TUnion {
+        TUnion()
+            : Ids_()
+        { }
+        TCompressedVectorView Ids_;
+        TBitmap NullBits_;
+    } U_;
+
     ui64 BaseValue_ = 0;
     bool Direct_ = true;
 };
@@ -516,7 +533,8 @@ template <>
 class TLookupDataExtractor<EValueType::Double>
 {
 public:
-    Y_FORCE_INLINE const ui64* InitData(const TMetaBase* meta, const ui64* ptr, TTmpBuffers* tmpBuffers);
+    template <bool NewMeta>
+    Y_FORCE_INLINE const ui64* InitData(const TEmptyMeta* /*meta*/, const ui64* ptr);
     Y_FORCE_INLINE void InitNullData();
 
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
@@ -529,7 +547,8 @@ template <>
 class TLookupDataExtractor<EValueType::Boolean>
 {
 public:
-    Y_FORCE_INLINE const ui64* InitData(const TMetaBase* meta, const ui64* ptr, TTmpBuffers* tmpBuffers);
+    template <bool NewMeta>
+    Y_FORCE_INLINE const ui64* InitData(const TEmptyMeta* /*meta*/, const ui64* ptr);
     Y_FORCE_INLINE void InitNullData();
 
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
@@ -543,7 +562,8 @@ class TLookupBlobExtractor
 public:
     Y_FORCE_INLINE explicit TLookupBlobExtractor(EValueType type);
 
-    Y_FORCE_INLINE void InitData(const TMetaBase* meta, const ui64* ptr, TTmpBuffers* tmpBuffers);
+    template <bool NewMeta>
+    Y_FORCE_INLINE void InitData(const TBlobMeta* meta, const ui64* ptr);
     Y_FORCE_INLINE void InitNullData();
 
     Y_FORCE_INLINE void ExtractDict(TUnversionedValue* value, ui32 position) const;
@@ -551,7 +571,18 @@ public:
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
 
 private:
-    const ui64* Ptr_ = nullptr;
+    TCompressedVectorView Offsets_;
+
+    union TUnion {
+        TUnion()
+            : Ids_()
+        { }
+        TCompressedVectorView Ids_;
+        TBitmap NullBits_;
+    } U_;
+
+    const char* Data_= nullptr;
+
     ui32 ExpectedLength_ = 0;
     bool Direct_ = true;
     EValueType Type_;
@@ -588,7 +619,8 @@ public:
 class TLookupKeyIndexExtractor
 {
 public:
-    Y_FORCE_INLINE const ui64* InitIndex(const TMetaBase* meta, const ui64* ptr, bool dense);
+    template <bool NewMeta>
+    Y_FORCE_INLINE const ui64* InitIndex(const TKeyIndexMeta* meta, const ui64* ptr);
     Y_FORCE_INLINE void InitNullIndex();
     Y_FORCE_INLINE void Reset();
 
@@ -601,9 +633,10 @@ public:
     Y_FORCE_INLINE ui32 UpperRowBound(ui32 position) const;
 
 private:
-    const ui64* Ptr_ = nullptr;
+    TCompressedVectorView RowIndexes_;
     ui32 RowOffset_ = 0;
     ui32 RowLimit_ = 0;
+
     bool Dense_ = true;
 };
 
@@ -612,9 +645,9 @@ private:
 class TLookupMultiValueIndexExtractor
 {
 public:
+    template <bool NewMeta>
     Y_FORCE_INLINE const ui64* InitIndex(
-        const TMetaBase* meta,
-        const TDenseMeta* denseMeta,
+        const TMultiValueIndexMeta* meta,
         const ui64* ptr);
 
     Y_FORCE_INLINE ui32 GetSegmentRowLimit() const;
@@ -628,7 +661,8 @@ public:
     Y_FORCE_INLINE ui32 SkipTo(ui32 rowIndex, ui32 position) const;
 
 protected:
-    const ui64* Ptr_ = nullptr;
+    TCompressedVectorView RowIndexesOrPerRowDiffs_;
+
     ui32 RowOffset_ = 0;
     ui32 RowLimit_ = 0;
     ui32 ExpectedPerRow_ = 0;
@@ -639,7 +673,8 @@ template <bool Aggregate>
 class TLookupVersionExtractor
 {
 public:
-    Y_FORCE_INLINE const ui64* InitVersion(const ui64* ptr);
+    template <bool NewMeta>
+    Y_FORCE_INLINE const ui64* InitVersion(const TMultiValueIndexMeta* meta, const ui64* ptr);
 
     Y_FORCE_INLINE void ExtractVersion(TVersionedValue* value, const TTimestamp* timestamps, ui32 position) const;
 
@@ -650,7 +685,8 @@ public:
     Y_FORCE_INLINE ui32 AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 timestampId) const;
 
 protected:
-    const ui64* Ptr_ = nullptr;
+    TCompressedVectorView WriteTimestampIds_;
+    TBitmap AggregateBits_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

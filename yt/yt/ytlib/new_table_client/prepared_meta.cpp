@@ -1,27 +1,48 @@
 #include "prepared_meta.h"
 #include "dispatch_by_type.h"
+#include "memory_helpers.h"
 
 #include <yt/yt/ytlib/table_client/columnar_chunk_meta.h>
 
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
+
+#include <yt/yt/core/misc/bit_packing.h>
+
 namespace NYT::NNewTableClient {
+
+using TSegmentMetas = TRange<const NProto::TSegmentMeta*>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TSegmentMetas = TRange<const NProto::TSegmentMeta*>;
+bool IsDirect(int type)
+{
+    // DirectRle/DirectSparse: 2,  DirectDense: 3
+    return type == 2 || type == 3;
+}
+
+bool IsDense(int type)
+{
+    // DictionaryDense: 1, DirectDense: 3
+    return type == 1 || type == 3;
+}
+
+const ui64* InitCompressedVectorHeader(const ui64* ptr, ui32* size, ui8* width)
+{
+    TCompressedVectorView view(ptr);
+    *size = view.GetSize();
+    *width = view.GetWidth();
+    ptr += view.GetSizeInWords();
+    return ptr;
+}
 
 void TMetaBase::Init(const NProto::TSegmentMeta& meta)
 {
     DataOffset = meta.offset();
     RowCount = meta.row_count();
     ChunkRowCount = meta.chunk_row_count();
-    Type = meta.type();
-
-    if (!IsDense(Type) && meta.HasExtension(NProto::TDenseVersionedSegmentMeta::dense_versioned_segment_meta)) {
-        Type = 3;
-    }
 }
 
-void TTimestampMeta::Init(const NProto::TSegmentMeta& meta)
+void TTimestampMeta::Init(const NProto::TSegmentMeta& meta, const ui64* ptr)
 {
     TMetaBase::Init(meta);
 
@@ -29,31 +50,112 @@ void TTimestampMeta::Init(const NProto::TSegmentMeta& meta)
     BaseTimestamp = timestampMeta.min_timestamp();
     ExpectedDeletesPerRow = timestampMeta.expected_deletes_per_row();
     ExpectedWritesPerRow = timestampMeta.expected_writes_per_row();
+
+    if (ptr) {
+        ptr = InitCompressedVectorHeader(ptr, &TimestampsDictSize, &TimestampsDictWidth);
+        ptr = InitCompressedVectorHeader(ptr, &WriteTimestampSize, &WriteTimestampWidth);
+        ptr = InitCompressedVectorHeader(ptr, &DeleteTimestampSize, &DeleteTimestampWidth);
+        ptr = InitCompressedVectorHeader(ptr, &WriteOffsetDiffsSize, &WriteOffsetDiffsWidth);
+        ptr = InitCompressedVectorHeader(ptr, &DeleteOffsetDiffsSize, &DeleteOffsetDiffsWidth);
+
+        YT_VERIFY(WriteOffsetDiffsSize == RowCount);
+        YT_VERIFY(WriteOffsetDiffsSize == RowCount);
+    }
 }
 
-void TIntegerMeta::Init(const NProto::TSegmentMeta& meta)
+const ui64* TIntegerMeta::Init(const NProto::TSegmentMeta& meta, const ui64* ptr)
 {
-    TMetaBase::Init(meta);
-
     const auto& integerMeta = meta.GetExtension(NProto::TIntegerSegmentMeta::integer_segment_meta);
     BaseValue = integerMeta.min_value();
+
+    Direct = IsDirect(meta.type());
+
+    if (ptr) {
+        ptr = InitCompressedVectorHeader(ptr, &ValuesSize, &ValuesWidth);
+        if (Direct) {
+            ptr += GetBitmapSize(ValuesSize);
+        } else {
+            ptr = InitCompressedVectorHeader(ptr, &IdsSize, &IdsWidth);
+        }
+    }
+    return ptr;
 }
 
-void TBlobMeta::Init(const NProto::TSegmentMeta& meta)
+void TBlobMeta::Init(const NProto::TSegmentMeta& meta, const ui64* ptr)
+{
+    const auto& stringMeta = meta.GetExtension(NProto::TStringSegmentMeta::string_segment_meta);
+    ExpectedLength = stringMeta.expected_length();
+
+    Direct = IsDirect(meta.type());
+
+    if (ptr) {
+        if (Direct) {
+            ptr = InitCompressedVectorHeader(ptr, &OffsetsSize, &OffsetsWidth);
+            ptr += GetBitmapSize(OffsetsSize);
+        } else {
+            ptr = InitCompressedVectorHeader(ptr, &IdsSize, &IdsWidth);
+            ptr = InitCompressedVectorHeader(ptr, &OffsetsSize, &OffsetsWidth);
+        }
+    }
+}
+
+const ui64* TDataMeta<EValueType::Boolean>::Init(const NProto::TSegmentMeta& /*meta*/, const ui64* ptr)
+{
+    if (ptr) {
+        ui64 count = *ptr++;
+        ptr += GetBitmapSize(count);
+        ptr += GetBitmapSize(count);
+    }
+
+    return ptr;
+}
+
+const ui64* TDataMeta<EValueType::Double>::Init(const NProto::TSegmentMeta& /*meta*/, const ui64* ptr)
+{
+    if (ptr) {
+        ui64 count = *ptr++;
+        ptr += count;
+        ptr += GetBitmapSize(count);
+    }
+
+    return ptr;
+}
+
+const ui64* TMultiValueIndexMeta::Init(const NProto::TSegmentMeta& meta, const ui64* ptr, bool aggregate)
 {
     TMetaBase::Init(meta);
 
-    const auto& stringMeta = meta.GetExtension(NProto::TStringSegmentMeta::string_segment_meta);
-    ExpectedLength = stringMeta.expected_length();
-}
-
-void TDenseMeta::Init(const NProto::TSegmentMeta& meta)
-{
     bool dense = meta.HasExtension(NProto::TDenseVersionedSegmentMeta::dense_versioned_segment_meta);
     if (dense) {
         const auto& denseVersionedMeta = meta.GetExtension(NProto::TDenseVersionedSegmentMeta::dense_versioned_segment_meta);
         ExpectedPerRow = denseVersionedMeta.expected_values_per_row();
+    } else {
+        ExpectedPerRow = -1;
     }
+
+    if (ptr) {
+        ptr = InitCompressedVectorHeader(ptr, &OffsetsSize, &OffsetsWidth);
+        ptr = InitCompressedVectorHeader(ptr, &WriteTimestampIdsSize, &WriteTimestampIdsWidth);
+        if (aggregate) {
+            ptr += GetBitmapSize(WriteTimestampIdsSize);
+        }
+    }
+
+    return ptr;
+}
+
+const ui64* TKeyIndexMeta::Init(const NProto::TSegmentMeta& meta, EValueType type, const ui64* ptr)
+{
+    TMetaBase::Init(meta);
+    Dense = type == EValueType::Double || type == EValueType::Boolean || IsDense(meta.type());
+
+    if (ptr) {
+        if (!Dense) {
+            ptr = InitCompressedVectorHeader(ptr, &RowIndexesSize, &RowIndexesWidth);
+        }
+    }
+
+    return ptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +168,7 @@ struct TPrepareResult
 };
 
 template <class TMeta>
-static TPrepareResult DoPrepare(TSegmentMetas metas)
+static TPrepareResult DoPrepare(TSegmentMetas metas, IBlockDataProvider* blockProvider)
 {
     auto preparedMeta = TSharedMutableRef::Allocate(sizeof(TMeta) * metas.size());
     auto* preparedMetas = reinterpret_cast<TMeta*>(preparedMeta.begin());
@@ -85,7 +187,12 @@ static TPrepareResult DoPrepare(TSegmentMetas metas)
             lastBlockIndex = blockIndex;
         }
 
-        preparedMetas[index].Init(*metas[index]);
+        const ui64* ptr = nullptr;
+        if (blockProvider) {
+            ptr = reinterpret_cast<const ui64*>(blockProvider->GetBlock(metas[index]->block_index()) + metas[index]->offset());
+        }
+
+        preparedMetas[index].Init(*metas[index], ptr);
     }
 
     segmentPivots.push_back(metas.size());
@@ -113,28 +220,32 @@ struct TColumnInfo
     template <EValueType Type>
     struct TPrepareMeta
     {
-        static TPrepareResult Do(TSegmentMetas metas, bool valueColumn)
+        static TPrepareResult Do(TSegmentMetas metas, bool valueColumn, bool aggregate, IBlockDataProvider* blockProvider)
         {
             if (valueColumn) {
-                return DoPrepare<TValueMeta<Type>>(metas);
+                if (aggregate) {
+                    return DoPrepare<TAggregateValueMeta<Type>>(metas, blockProvider);
+                } else {
+                    return DoPrepare<TValueMeta<Type>>(metas, blockProvider);
+                }
             } else {
-                return DoPrepare<TKeyMeta<Type>>(metas);
+                return DoPrepare<TKeyMeta<Type>>(metas, blockProvider);
             }
         }
     };
 
-    std::vector<ui32> PrepareTimestampMetas(TSegmentMetas metas)
+    std::vector<ui32> PrepareTimestampMetas(TSegmentMetas metas, IBlockDataProvider* blockProvider)
     {
-        auto [blockIds, segmentPivots, preparedMeta] = DoPrepare<TTimestampMeta>(metas);
+        auto [blockIds, segmentPivots, preparedMeta] = DoPrepare<TTimestampMeta>(metas, blockProvider);
 
         SegmentPivots = std::move(segmentPivots);
         Meta = std::move(preparedMeta);
         return blockIds;
     }
 
-    std::vector<ui32> PrepareMetas(TSegmentMetas metas, EValueType type, bool versioned)
+    std::vector<ui32> PrepareMetas(TSegmentMetas metas, EValueType type, bool value, bool aggregate, IBlockDataProvider* blockProvider)
     {
-        auto [blockIds, segmentPivots, preparedMeta] = DispatchByDataType<TPrepareMeta>(type, metas, versioned);
+        auto [blockIds, segmentPivots, preparedMeta] = DispatchByDataType<TPrepareMeta>(type, metas, value, aggregate, blockProvider);
 
         SegmentPivots = std::move(segmentPivots);
         Meta = std::move(preparedMeta);
@@ -144,7 +255,9 @@ struct TColumnInfo
 
 size_t TPreparedChunkMeta::Prepare(
     const NTableClient::TTableSchemaPtr& chunkSchema,
-    const NTableClient::TRefCountedColumnMetaPtr& columnMetas)
+    const NTableClient::TRefCountedColumnMetaPtr& columnMetas,
+    const NTableClient::TRefCountedDataBlockMetaPtr& blockMeta,
+    IBlockDataProvider* blockProvider)
 {
     const auto& chunkSchemaColumns = chunkSchema->Columns();
 
@@ -180,7 +293,6 @@ size_t TPreparedChunkMeta::Prepare(
         blockGroup.ColumnIds.push_back(columnIndex);
     };
 
-
     for (int index = 0; index < std::ssize(chunkSchemaColumns); ++index) {
         auto type = GetPhysicalType(chunkSchemaColumns[index].CastToV1Type());
         bool valueColumn = index >= chunkSchema->GetKeyColumnCount();
@@ -188,7 +300,9 @@ size_t TPreparedChunkMeta::Prepare(
         auto blockIds = preparedColumns[index].PrepareMetas(
             MakeRange(columnMetas->columns(index).segments()),
             type,
-            valueColumn);
+            valueColumn,
+            static_cast<bool>(chunkSchemaColumns[index].Aggregate()),
+            blockProvider);
 
         determineColumnGroup(std::move(blockIds), index);
     }
@@ -197,9 +311,18 @@ size_t TPreparedChunkMeta::Prepare(
         int timestampReaderIndex = columnMetas->columns().size() - 1;
 
         auto blockIds = preparedColumns[timestampReaderIndex].PrepareTimestampMetas(
-            MakeRange(columnMetas->columns(timestampReaderIndex).segments()));
+            MakeRange(columnMetas->columns(timestampReaderIndex).segments()),
+            blockProvider);
 
         determineColumnGroup(std::move(blockIds), timestampReaderIndex);
+    }
+
+
+    for (auto& columnGroup : ColumnGroups) {
+        columnGroup.BlockChunkRowCounts.resize(std::ssize(columnGroup.BlockIds));
+        for (int index = 0; index < std::ssize(columnGroup.BlockIds); ++index) {
+            columnGroup.BlockChunkRowCounts[index] = blockMeta->data_blocks(columnGroup.BlockIds[index]).chunk_row_count();
+        }
     }
 
     std::vector<TRef> blockSegmentMeta;
@@ -223,6 +346,7 @@ size_t TPreparedChunkMeta::Prepare(
 
             size_t size = 0;
             for (const auto& metas : blockSegmentMeta) {
+                YT_VERIFY(metas.size() % 8 == 0);
                 size += metas.size();
             }
 
@@ -257,6 +381,9 @@ size_t TPreparedChunkMeta::Prepare(
             size += perBlockMeta.Size();
         }
     }
+
+    FullNewMeta = blockProvider;
+    Size = size;
 
     return size;
 }

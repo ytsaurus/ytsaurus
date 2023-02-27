@@ -14,6 +14,18 @@ Y_FORCE_INLINE bool IsDirect(int type);
 
 Y_FORCE_INLINE bool IsDense(int type);
 
+struct IBlockDataProvider
+{
+    virtual const char* GetBlock(ui32 blockIndex) = 0;
+
+    virtual ~IBlockDataProvider() = default;
+};
+
+template <class T>
+TRef MetaToRef(const T& meta)
+{
+    return {reinterpret_cast<const char*>(&meta), sizeof(meta)};
+}
 
 struct TMetaBase
 {
@@ -21,7 +33,6 @@ struct TMetaBase
     // RowCount can be evaluated from ChunkRowCount of adjacent segments.
     ui32 RowCount;
     ui32 ChunkRowCount;
-    ui8 Type;
 
     void Init(const NProto::TSegmentMeta& meta);
 };
@@ -33,83 +44,142 @@ struct TTimestampMeta
     ui32 ExpectedDeletesPerRow;
     ui32 ExpectedWritesPerRow;
 
-    void Init(const NProto::TSegmentMeta& meta);
+    ui32 TimestampsDictSize = 0;
+    ui32 WriteTimestampSize = 0;
+    ui32 DeleteTimestampSize = 0;
+    ui32 WriteOffsetDiffsSize = 0;
+    ui32 DeleteOffsetDiffsSize = 0;
+
+    ui8 TimestampsDictWidth = 0;
+    ui8 WriteTimestampWidth = 0;
+    ui8 DeleteTimestampWidth = 0;
+    ui8 WriteOffsetDiffsWidth = 0;
+    ui8 DeleteOffsetDiffsWidth = 0;
+
+    void Init(const NProto::TSegmentMeta& meta, const ui64* ptr);
 };
 
 struct TIntegerMeta
-    : public TMetaBase
 {
     ui64 BaseValue;
 
-    void Init(const NProto::TSegmentMeta& meta);
+    ui32 ValuesSize = 0;
+    ui32 IdsSize = 0;
+    ui8 ValuesWidth = 0;
+    ui8 IdsWidth = 0;
+
+    bool Direct;
+
+    const ui64* Init(const NProto::TSegmentMeta& meta, const ui64* ptr);
 };
 
 struct TBlobMeta
-    : public TMetaBase
 {
     ui32 ExpectedLength;
 
-    void Init(const NProto::TSegmentMeta& meta);
+    ui32 IdsSize = 0;
+    ui32 OffsetsSize = 0;
+    ui8 IdsWidth = 0;
+    ui8 OffsetsWidth = 0;
+
+    bool Direct;
+
+    void Init(const NProto::TSegmentMeta& meta, const ui64* ptr);
 };
 
+struct TEmptyMeta
+{ };
+
 template <EValueType Type>
-struct TMeta;
+struct TDataMeta;
 
 template <>
-struct TMeta<EValueType::Int64>
+struct TDataMeta<EValueType::Int64>
     : public TIntegerMeta
 { };
 
 template <>
-struct TMeta<EValueType::Uint64>
+struct TDataMeta<EValueType::Uint64>
     : public TIntegerMeta
 { };
 
 template <>
-struct TMeta<EValueType::Boolean>
+struct TDataMeta<EValueType::Boolean>
+    : public TEmptyMeta
+{
+    const ui64* Init(const NProto::TSegmentMeta& /*meta*/, const ui64* ptr);
+};
+
+template <>
+struct TDataMeta<EValueType::Double>
+    : public TEmptyMeta
+{
+    const ui64* Init(const NProto::TSegmentMeta& /*meta*/, const ui64* ptr);
+};
+
+template <>
+struct TDataMeta<EValueType::String>
+    : public TBlobMeta
+{ };
+
+template <>
+struct TDataMeta<EValueType::Any>
+    : public TBlobMeta
+{ };
+
+template <>
+struct TDataMeta<EValueType::Composite>
+    : public TBlobMeta
+{ };
+
+struct TMultiValueIndexMeta
     : public TMetaBase
-{ };
-
-template <>
-struct TMeta<EValueType::Double>
-    : public TMetaBase
-{ };
-
-template <>
-struct TMeta<EValueType::String>
-    : public TBlobMeta
-{ };
-
-template <>
-struct TMeta<EValueType::Any>
-    : public TBlobMeta
-{ };
-
-template <>
-struct TMeta<EValueType::Composite>
-    : public TBlobMeta
-{ };
-
-struct TDenseMeta
 {
     ui32 ExpectedPerRow;
 
-    void Init(const NProto::TSegmentMeta& meta);
+    // Offsets are perRowDiff for dense or rowIndexes for sparse
+    ui32 OffsetsSize = 0;
+    ui32 WriteTimestampIdsSize = 0;
+    ui8 OffsetsWidth = 0;
+    ui8 WriteTimestampIdsWidth = 0;
+
+    const ui64* Init(const NProto::TSegmentMeta& meta, const ui64* ptr, bool aggregate);
+
+    Y_FORCE_INLINE bool IsDense() const;
 };
 
 template <EValueType Type>
 struct TValueMeta
-    : public TMeta<Type>
-    , public TDenseMeta
+    : public TMultiValueIndexMeta
+    , public TDataMeta<Type>
 {
-    void Init(const NProto::TSegmentMeta& meta);
+    void Init(const NProto::TSegmentMeta& meta, const ui64* ptr);
+};
+
+template <EValueType Type>
+struct TAggregateValueMeta
+    : public TValueMeta<Type>
+{
+    void Init(const NProto::TSegmentMeta& meta, const ui64* ptr);
+};
+
+struct TKeyIndexMeta
+    : public TMetaBase
+{
+    ui32 RowIndexesSize = 0;
+    ui8 RowIndexesWidth = 0;
+
+    bool Dense;
+
+    const ui64* Init(const NProto::TSegmentMeta& meta, EValueType type, const ui64* ptr);
 };
 
 template <EValueType Type>
 struct TKeyMeta
-    : public TMeta<Type>
+    : public TKeyIndexMeta
+    , public TDataMeta<Type>
 {
-    void Init(const NProto::TSegmentMeta& meta);
+    void Init(const NProto::TSegmentMeta& meta, const ui64* ptr);
 };
 
 struct TPreparedChunkMeta final
@@ -121,6 +191,7 @@ struct TPreparedChunkMeta final
         TColumnGroup(TColumnGroup&&) = default;
 
         std::vector<ui32> BlockIds;
+        std::vector<ui32> BlockChunkRowCounts;
         std::vector<ui16> ColumnIds;
         // Per block segment metas for each column in group.
         // Contains mapping from column index in group to offsets and serialized segment metas.
@@ -131,9 +202,14 @@ struct TPreparedChunkMeta final
     std::vector<ui16> ColumnIdToGroupId;
     std::vector<ui16> ColumnIndexInGroup;
 
+    bool FullNewMeta = false;
+    size_t Size = 0;
+
     size_t Prepare(
         const NTableClient::TTableSchemaPtr& chunkSchema,
-        const NTableClient::TRefCountedColumnMetaPtr& columnMetas);
+        const NTableClient::TRefCountedColumnMetaPtr& columnMetas,
+        const NTableClient::TRefCountedDataBlockMetaPtr& blockMeta,
+        IBlockDataProvider* blockProvider = nullptr);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

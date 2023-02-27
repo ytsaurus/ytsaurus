@@ -65,7 +65,7 @@ public:
 
     i64 GetMemoryUsage() const override;
 
-    TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> GetPreparedChunkMeta();
+    TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> GetPreparedChunkMeta(NNewTableClient::IBlockDataProvider* blockProvider = nullptr);
 
     int GetChunkKeyColumnCount() const;
 

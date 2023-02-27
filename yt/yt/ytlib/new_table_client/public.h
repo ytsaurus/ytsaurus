@@ -45,8 +45,6 @@ using NTableClient::TVersionedValue;
 using NTableClient::TUnversionedRow;
 using NTableClient::TTimestamp;
 
-struct TColumnSlice;
-
 struct TTmpBuffers;
 
 struct TMetaBase;
@@ -54,6 +52,16 @@ struct TMetaBase;
 struct TPreparedChunkMeta;
 
 struct TReaderStatistics;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IBlockManager;
+struct TSpanMatching;
+class TGroupBlockHolder;
+
+using TBlockManagerFactory = std::function<std::unique_ptr<IBlockManager>(
+    std::vector<TGroupBlockHolder> blockHolders,
+    TRange<TSpanMatching> windowsList)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -169,7 +169,7 @@ void TCompressedVectorView::UnpackTo(TOutput* output)
 {
     auto size = GetSize();
     auto width = GetWidth();
-    auto input = Ptr_ + 1;
+    auto input = Ptr_;
 
     YT_VERIFY(width <= 8 * sizeof(TOutput));
 
@@ -234,7 +234,7 @@ void TCompressedVectorView::UnpackTo(TOutput* output, ui32 start, ui32 end)
 {
     auto size = GetSize();
     auto width = GetWidth();
-    auto input = Ptr_ + 1;
+    auto input = Ptr_;
 
     YT_VERIFY(end <= size);
 

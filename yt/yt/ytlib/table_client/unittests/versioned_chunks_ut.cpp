@@ -8,14 +8,19 @@
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/yt/ytlib/chunk_client/memory_writer.h>
+#include <yt/yt/ytlib/chunk_client/preloaded_block_cache.h>
 
+#include <yt/yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/chunk_index_read_controller.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
+
+#include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
 
 #include <yt/yt/ytlib/new_table_client/versioned_chunk_reader.h>
 
@@ -34,6 +39,8 @@
 
 #include <yt/yt/core/misc/random.h>
 #include <yt/yt/core/misc/algorithm_helpers.h>
+
+#include <yt/yt/core/misc/range_formatters.h>
 
 #include <util/random/shuffle.h>
 
@@ -60,21 +67,26 @@ struct TTestOptions
     std::optional<EChunkFormat> ChunkFormat;
     bool UseNewReader = false;
     bool UseIndexedReaderForLookup = false;
+    // Cache based mode.
+    bool CacheBased = false;
 };
 
 TString ToString(const TTestOptions& options)
 {
-    return Format("%v%v%v%v",
+    return Format("%v%v%v%v%v",
         options.OptimizeFor,
         options.ChunkFormat ? ToString(*options.ChunkFormat) : "",
         options.UseNewReader ? "New" : "",
-        options.UseIndexedReaderForLookup ? "IndexedReader" : "");
+        options.UseIndexedReaderForLookup ? "IndexedReader" : "",
+        options.CacheBased ? "CacheBased" : "");
 }
 
 const auto TestOptionsValues = testing::Values(
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan},
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true, .CacheBased = true},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .CacheBased = true},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .ChunkFormat = EChunkFormat::TableVersionedIndexed},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .ChunkFormat = EChunkFormat::TableVersionedSlim});
 
@@ -112,6 +124,99 @@ public:
 private:
     const IChunkReaderPtr ChunkReader_;
 };
+
+struct TBlockProvider
+    : public NNewTableClient::IBlockDataProvider
+{
+    TChunkId ChunkId;
+    IBlockCachePtr BlockCache;
+
+    TBlockProvider(TChunkId chunkId, IBlockCachePtr blockCache)
+        : ChunkId(chunkId)
+        , BlockCache(blockCache)
+    { }
+
+    const char* GetBlock(ui32 blockIndex) override
+    {
+        NChunkClient::TBlockId blockId(ChunkId, blockIndex);
+        auto cachedBlock = BlockCache->FindBlock(blockId, EBlockType::UncompressedData).Block;
+
+        if (!cachedBlock) {
+            THROW_ERROR_EXCEPTION("Using lookup hash table with compressed in memory mode is not supported");
+        }
+
+        return cachedBlock.Data.Begin();
+    }
+};
+
+struct TSentinelCookie
+{ };
+
+class TDisposingBlockCache
+    : public IBlockCache
+{
+public:
+    explicit TDisposingBlockCache(IBlockCachePtr underlying)
+        : Underlying_(std::move(underlying))
+    { }
+
+    void PutBlock(
+        const NChunkClient::TBlockId& /*id*/,
+        EBlockType /*type*/,
+        const TBlock& /*data*/) override
+    { }
+
+    TCachedBlock FindBlock(
+        const NChunkClient::TBlockId& id,
+        EBlockType type) override
+    {
+        auto cachedBlock = Underlying_->FindBlock(id, type);
+
+        UsedBlocks_.push_back(TSharedMutableRef::MakeCopy<TSentinelCookie>(cachedBlock.Block.Data));
+
+        struct TDamagingMemoryHolder
+            : public TSharedRangeHolder
+        {
+            TDamagingMemoryHolder(const TSharedMutableRef& sharedRef)
+                : Ref(sharedRef, sharedRef.GetHolder())
+            { }
+
+            TSharedMutableRef Ref;
+
+            ~TDamagingMemoryHolder()
+            {
+                for (char& data : Ref) {
+                    data = 0xfe;
+                }
+            }
+        };
+
+        cachedBlock.Block.Data = TSharedRef(UsedBlocks_.back(), New<TDamagingMemoryHolder>(UsedBlocks_.back()));
+
+        return cachedBlock;
+    }
+
+    EBlockType GetSupportedBlockTypes() const override
+    {
+        return EBlockType::UncompressedData;
+    }
+
+    std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
+        const NChunkClient::TBlockId& /*id*/,
+        EBlockType /*type*/) override
+    {
+        return nullptr;
+    }
+
+private:
+    const IBlockCachePtr Underlying_;
+    std::vector<TSharedMutableRef> UsedBlocks_;
+};
+
+IBlockCachePtr CreateDisposingBlockCache(IBlockCachePtr underlying)
+{
+    return New<TDisposingBlockCache>(underlying);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -314,20 +419,29 @@ protected:
 
             YT_VERIFY(!testOptions.UseNewReader || !testOptions.UseIndexedReaderForLookup);
 
-            IVersionedReaderPtr chunkReader;
+            IVersionedReaderPtr versionedReader;
             if (testOptions.UseNewReader) {
-                chunkReader = NNewTableClient::CreateVersionedChunkReader(
+                auto blockManagerFactory = testOptions.CacheBased
+                    ? NNewTableClient::CreateSyncBlockWindowManagerFactory(
+                        CreateDisposingBlockCache(GetPreloadedBlockCache(MemoryReader)),
+                        chunkMeta,
+                        MemoryReader->GetChunkId())
+                    : NNewTableClient::CreateAsyncBlockWindowManagerFactory(
+                        TChunkReaderConfig::GetDefault(),
+                        MemoryReader,
+                        chunkState->BlockCache,
+                        /* chunkReadOptions */ {},
+                        chunkMeta);
+
+                versionedReader = NNewTableClient::CreateVersionedChunkReader(
                     sharedKeys,
                     MaxTimestamp,
                     chunkMeta,
                     Schema,
                     TColumnFilter(),
                     /*chunkColumnMapping*/ nullptr,
-                    chunkState->BlockCache,
-                    TChunkReaderConfig::GetDefault(),
-                    MemoryReader,
+                    blockManagerFactory,
                     chunkState->PerformanceCounters,
-                    /*chunkReadOptions*/ {},
                     /*produceAll*/ false);
             } else if (testOptions.UseIndexedReaderForLookup) {
                 auto controller = CreateChunkIndexReadController(
@@ -341,12 +455,12 @@ protected:
                     /*produceAllVersions*/ false,
                     /*testingOptions*/ std::nullopt);
                 auto chunkFragmentReader = New<TMockChunkFragmentReader>(MemoryReader);
-                chunkReader = CreateIndexedVersionedChunkReader(
+                versionedReader = CreateIndexedVersionedChunkReader(
                     /*chunkReadOptions*/ {},
                     std::move(controller),
                     std::move(chunkFragmentReader));
             } else {
-                chunkReader = CreateVersionedChunkReader(
+                versionedReader = CreateVersionedChunkReader(
                     TChunkReaderConfig::GetDefault(),
                     MemoryReader,
                     std::move(chunkState),
@@ -358,10 +472,10 @@ protected:
                     /*produceAll*/ false);
             }
 
-            EXPECT_TRUE(chunkReader->Open().Get().IsOK());
-            EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
+            EXPECT_TRUE(versionedReader->Open().Get().IsOK());
+            EXPECT_TRUE(versionedReader->GetReadyEvent().Get().IsOK());
 
-            CheckResult(std::move(expectedRows), chunkReader);
+            CheckResult(std::move(expectedRows), versionedReader);
         }
     }
 };
@@ -376,7 +490,9 @@ TEST_P(TVersionedChunkLookupTest, Test)
 const auto LookupTestOptionsValues = testing::Values(
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan},
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true, .CacheBased = true},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .CacheBased = true},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .ChunkFormat = EChunkFormat::TableVersionedIndexed},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .ChunkFormat = EChunkFormat::TableVersionedIndexed, .UseIndexedReaderForLookup = true});
 
@@ -668,35 +784,65 @@ protected:
 
         auto chunkState = New<TChunkState>(GetNullBlockCache());
         chunkState->TableSchema = readSchema;
+        chunkState->ChunkColumnMapping = New<TChunkColumnMapping>(readSchema, chunkMeta->GetChunkSchema());
 
         YT_VERIFY(!GetTestOptions().UseIndexedReaderForLookup);
 
-        auto chunkReader = GetTestOptions().UseNewReader
-            ? NNewTableClient::CreateVersionedChunkReader(
+        IVersionedReaderPtr versionedReader;
+        if (GetTestOptions().UseNewReader) {
+            auto blockCache = GetPreloadedBlockCache(memoryReader);
+            TBlockProvider blockProvider{memoryReader->GetChunkId(), blockCache};
+            chunkMeta->GetPreparedChunkMeta(&blockProvider);
+
+            auto blockManagerFactory = GetTestOptions().CacheBased
+                ? NNewTableClient::CreateSyncBlockWindowManagerFactory(
+                    CreateDisposingBlockCache(blockCache),
+                    chunkMeta,
+                    memoryReader->GetChunkId())
+                : NNewTableClient::CreateAsyncBlockWindowManagerFactory(
+                    TChunkReaderConfig::GetDefault(),
+                    memoryReader,
+                    chunkState->BlockCache,
+                    /* chunkReadOptions */ {},
+                    chunkMeta);
+
+            versionedReader = NNewTableClient::CreateVersionedChunkReader(
                 ranges,
                 timestamp,
                 chunkMeta,
                 readSchema,
                 columnFilter,
-                nullptr,
-                chunkState->BlockCache,
-                TChunkReaderConfig::GetDefault(),
-                memoryReader,
+                chunkState->ChunkColumnMapping,
+                blockManagerFactory,
                 chunkState->PerformanceCounters,
-                /*chunkReadOptions*/ {},
-                produceAllVersions)
-            : CreateVersionedChunkReader(
-                TChunkReaderConfig::GetDefault(),
-                memoryReader,
-                std::move(chunkState),
-                std::move(chunkMeta),
-                /*chunkReadOptions*/ {},
-                ranges,
-                columnFilter,
-                timestamp,
                 produceAllVersions);
+        } else {
+            if (GetTestOptions().CacheBased) {
+                chunkState->BlockCache = GetPreloadedBlockCache(memoryReader);
+                versionedReader = CreateCacheBasedVersionedChunkReader(
+                    memoryReader->GetChunkId(),
+                    std::move(chunkState),
+                    std::move(chunkMeta),
+                    /*chunkReadOptions*/ {},
+                    ranges,
+                    columnFilter,
+                    timestamp,
+                    produceAllVersions);
+            } else {
+                versionedReader = CreateVersionedChunkReader(
+                    TChunkReaderConfig::GetDefault(),
+                    memoryReader,
+                    std::move(chunkState),
+                    std::move(chunkMeta),
+                    /*chunkReadOptions*/ {},
+                    ranges,
+                    columnFilter,
+                    timestamp,
+                    produceAllVersions);
+            }
+        }
 
-        CheckResult(std::move(expectedRows), chunkReader);
+        CheckResult(std::move(expectedRows), versionedReader);
     }
 
     void TestRangeReader(
@@ -723,6 +869,7 @@ protected:
     void TestLookupReader(
         TRange<TVersionedRow> initialRows,
         IChunkReaderPtr memoryReader,
+        TChunkLookupHashTablePtr lookupHashTable,
         TTableSchemaPtr writeSchema,
         TTableSchemaPtr readSchema,
         TSharedRange<TUnversionedRow> lookupKeys,
@@ -742,24 +889,60 @@ protected:
 
         auto chunkState = New<TChunkState>(GetNullBlockCache());
         chunkState->TableSchema = readSchema;
+        chunkState->ChunkColumnMapping = New<TChunkColumnMapping>(readSchema, chunkMeta->GetChunkSchema());
+        chunkState->LookupHashTable = lookupHashTable;
 
         YT_VERIFY(!GetTestOptions().UseNewReader || !GetTestOptions().UseIndexedReaderForLookup);
 
-        IVersionedReaderPtr chunkReader;
+        IVersionedReaderPtr versionedReader;
         if (GetTestOptions().UseNewReader) {
-            chunkReader = NNewTableClient::CreateVersionedChunkReader(
-                lookupKeys,
-                timestamp,
-                chunkMeta,
-                readSchema,
-                columnFilter,
-                nullptr,
-                chunkState->BlockCache,
-                TChunkReaderConfig::GetDefault(),
-                memoryReader,
-                chunkState->PerformanceCounters,
-                /*chunkReadOptions*/ {},
-                produceAllVersions);
+            auto blockCache = GetPreloadedBlockCache(memoryReader);
+            TBlockProvider blockProvider{memoryReader->GetChunkId(), blockCache};
+            chunkMeta->GetPreparedChunkMeta(&blockProvider);
+
+            auto blockManagerFactory = GetTestOptions().CacheBased
+                ? NNewTableClient::CreateSyncBlockWindowManagerFactory(
+                    CreateDisposingBlockCache(blockCache),
+                    chunkMeta,
+                    memoryReader->GetChunkId())
+                : NNewTableClient::CreateAsyncBlockWindowManagerFactory(
+                    TChunkReaderConfig::GetDefault(),
+                    memoryReader,
+                    chunkState->BlockCache,
+                    /* chunkReadOptions */ {},
+                    chunkMeta);
+
+            if (chunkState->LookupHashTable) {
+                auto chunkRowIndexes = NNewTableClient::BuildChunkRowIndexesUsingLookupTable(
+                    *chunkState->LookupHashTable,
+                    lookupKeys,
+                    chunkState->TableSchema,
+                    chunkMeta,
+                    memoryReader->GetChunkId(),
+                    blockCache.Get());
+
+                versionedReader = NNewTableClient::CreateVersionedChunkReader(
+                    chunkRowIndexes,
+                    timestamp,
+                    chunkMeta,
+                    readSchema,
+                    columnFilter,
+                    chunkState->ChunkColumnMapping,
+                    blockManagerFactory,
+                    chunkState->PerformanceCounters,
+                    produceAllVersions);
+            } else {
+                versionedReader = NNewTableClient::CreateVersionedChunkReader(
+                    lookupKeys,
+                    timestamp,
+                    chunkMeta,
+                    readSchema,
+                    columnFilter,
+                    chunkState->ChunkColumnMapping,
+                    blockManagerFactory,
+                    chunkState->PerformanceCounters,
+                    produceAllVersions);
+            }
         } else if (GetTestOptions().UseIndexedReaderForLookup) {
             auto controller = CreateChunkIndexReadController(
                 /*chunkId*/ TGuid::Create(),
@@ -771,28 +954,64 @@ protected:
                 timestamp,
                 produceAllVersions,
                 /*testingOptions*/ std::nullopt);
+
             auto chunkFragmentReader = New<TMockChunkFragmentReader>(memoryReader);
-            chunkReader = CreateIndexedVersionedChunkReader(
+            versionedReader = CreateIndexedVersionedChunkReader(
                 /*chunkReadOptions*/ {},
                 std::move(controller),
                 std::move(chunkFragmentReader));
         } else {
-            chunkReader = CreateVersionedChunkReader(
-                TChunkReaderConfig::GetDefault(),
-                memoryReader,
-                std::move(chunkState),
-                std::move(chunkMeta),
-                /*chunkReadOptions*/ {},
-                lookupKeys,
-                columnFilter,
-                timestamp,
-                produceAllVersions);
+            if (GetTestOptions().CacheBased) {
+                chunkState->BlockCache = GetPreloadedBlockCache(memoryReader);
+                versionedReader = CreateCacheBasedVersionedChunkReader(
+                    memoryReader->GetChunkId(),
+                    std::move(chunkState),
+                    std::move(chunkMeta),
+                    /*chunkReadOptions*/ {},
+                    lookupKeys,
+                    columnFilter,
+                    timestamp,
+                    produceAllVersions);
+            } else {
+                versionedReader = CreateVersionedChunkReader(
+                    TChunkReaderConfig::GetDefault(),
+                    memoryReader,
+                    std::move(chunkState),
+                    std::move(chunkMeta),
+                    /*chunkReadOptions*/ {},
+                    lookupKeys,
+                    columnFilter,
+                    timestamp,
+                    produceAllVersions);
+            }
         }
 
-        EXPECT_TRUE(chunkReader->Open().Get().IsOK());
-        EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
+        EXPECT_TRUE(versionedReader->Open().Get().IsOK());
+        EXPECT_TRUE(versionedReader->GetReadyEvent().Get().IsOK());
 
-        CheckResult(std::move(expectedRows), chunkReader);
+        CheckResult(std::move(expectedRows), versionedReader);
+    }
+
+    TChunkLookupHashTablePtr BuildLookupHashTable(IChunkReaderPtr memoryReader, TTableSchemaPtr tableSchema)
+    {
+        auto blockCache = GetPreloadedBlockCache(memoryReader);
+
+        auto chunkMeta = memoryReader->GetMeta(/*chunkReadOptions*/ {})
+            .Apply(BIND(
+                &TCachedVersionedChunkMeta::Create,
+                /*prepareColumnarMeta*/ false,
+                /*memoryTracker*/ nullptr))
+            .Get()
+            .ValueOrThrow();
+
+        return CreateChunkLookupHashTable(
+            memoryReader->GetChunkId(),
+            0,
+            chunkMeta->DataBlockMeta()->data_blocks_size(),
+            blockCache,
+            chunkMeta,
+            tableSchema,
+            {});
     }
 
     TString NextStringValue(std::vector<char>& value)
@@ -1459,6 +1678,8 @@ protected:
                 WriteSchema_);
 
             for (auto readSchema : {WriteSchema_, ReadSchema_}) {
+                auto lookupHashTable = BuildLookupHashTable(memoryChunkReader, readSchema);
+
                 for (auto generateColumnFilter : {false, true}) {
                     for (auto timestamp : {TTimestamp(50), AllCommittedTimestamp}) {
                         if (generateColumnFilter && timestamp == AllCommittedTimestamp) {
@@ -1467,6 +1688,7 @@ protected:
 
                         StressTestLookup(
                             memoryChunkReader,
+                            lookupHashTable,
                             timestamp,
                             &keyGenerator,
                             readSchema,
@@ -1778,6 +2000,7 @@ private:
 
     void StressTestLookup(
         IChunkReaderPtr memoryReader,
+        TChunkLookupHashTablePtr lookupHashTable,
         TTimestamp timestamp,
         TRadomKeyGenerator* keyGenerator,
         const TTableSchemaPtr& readSchema,
@@ -1808,6 +2031,18 @@ private:
             TestLookupReader(
                 rows,
                 memoryReader,
+                /*lookupHashTable*/ nullptr,
+                WriteSchema_,
+                readSchema,
+                MakeSharedRange(lookupKeys, RowBuffer_),
+                columnFilter,
+                timestamp,
+                timestamp == AllCommittedTimestamp);
+
+            TestLookupReader(
+                rows,
+                memoryReader,
+                lookupHashTable,
                 WriteSchema_,
                 readSchema,
                 MakeSharedRange(lookupKeys, RowBuffer_),
@@ -1931,7 +2166,9 @@ TEST_P(TVersionedChunksStressTest, Test)
 const auto StressTestOptionsValues = testing::Values(
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan},
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true, .CacheBased = true},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .CacheBased = true},
 #if !defined(_asan_enabled_) && !defined(_msan_enabled_)
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .ChunkFormat = EChunkFormat::TableVersionedIndexed},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .ChunkFormat = EChunkFormat::TableVersionedIndexed, .UseIndexedReaderForLookup = true},

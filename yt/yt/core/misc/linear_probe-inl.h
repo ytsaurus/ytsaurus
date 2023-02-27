@@ -11,11 +11,11 @@ namespace NYT {
 template <size_t N>
 void TLinearProbeHashTable::Find(TFingerprint fingerprint, TCompactVector<TValue, N>* result) const
 {
-    Find(IndexFromFingerprint(fingerprint), StampFromFingerprint(fingerprint), result);
+    DoFind(IndexFromFingerprint(fingerprint), StampFromFingerprint(fingerprint), result);
 }
 
 template <size_t N>
-void TLinearProbeHashTable::Find(ui64 index, TStamp stamp, TCompactVector<TValue, N>* result) const
+void TLinearProbeHashTable::DoFind(ui64 index, TStamp stamp, TCompactVector<TValue, N>* result) const
 {
     YT_ASSERT(stamp != 0);
 

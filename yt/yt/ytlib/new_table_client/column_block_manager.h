@@ -6,8 +6,6 @@
 
 #include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/yt/ytlib/chunk_client/block_fetcher.h>
-
 namespace NYT::NNewTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,22 +15,28 @@ class TGroupBlockHolder
 {
 public:
     TGroupBlockHolder(const TGroupBlockHolder&) = delete;
-    TGroupBlockHolder(TGroupBlockHolder&&) = default;
+    TGroupBlockHolder(TGroupBlockHolder&&);
 
-    TGroupBlockHolder(TRange<ui32> blockIds, TRange<TSharedRef> blockSegmentsMetas);
+    TGroupBlockHolder(
+        TRange<ui32> blockIds,
+        TRange<ui32> blockChunkRowCounts,
+        TRange<TSharedRef> blockSegmentsMetas,
+        const ui32* metaOffsetsInBlocks = nullptr);
 
     bool NeedUpdateBlock(ui32 rowIndex) const;
 
-    void SetBlock(TSharedRef data, const TRefCountedDataBlockMetaPtr& blockMeta);
+    TSharedRef SetBlock(TSharedRef data);
 
     // Returns block id.
-    std::optional<ui32> SkipToBlock(ui32 rowIndex, const TRefCountedDataBlockMetaPtr& blockMeta);
+    std::optional<ui32> SkipToBlock(ui32 rowIndex);
 
     TRange<ui32> GetBlockIds() const;
 
 private:
     const TRange<ui32> BlockIds_;
+    const TRange<ui32> BlockChunkRowCounts_;
     const TRange<TSharedRef> BlockSegmentsMetas_;
+    const ui32* MetaOffsetsInBlocks_;
 
     ui32 BlockRowLimit_ = 0;
     ui32 BlockIdIndex_ = 0;
@@ -44,41 +48,26 @@ std::vector<ui16> GetGroupsIds(
     ui16 keyColumnCount,
     TRange<TColumnIdMapping> valuesIdMapping);
 
-std::vector<std::unique_ptr<TGroupBlockHolder>> CreateGroupBlockHolders(
+std::vector<TGroupBlockHolder> CreateGroupBlockHolders(
     const TPreparedChunkMeta& preparedChunkMeta,
     TRange<ui16> groupIds);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Rows (and theirs indexes) in chunk are partitioned by block borders.
-// Block borders are block last keys and corresponding block last indexes (block.chunk_row_count).
-// Window is the range of row indexes between block borders.
-// TBlockWindowManager updates blocks in column block holders for each window (range of row indexes between block).
-class TBlockWindowManager
+struct IBlockManager
 {
-public:
-    TBlockWindowManager(
-        std::vector<std::unique_ptr<TGroupBlockHolder>> groups,
-        TRefCountedDataBlockMetaPtr blockMeta,
-        NChunkClient::TBlockFetcherPtr blockFetcher,
-        TReaderStatisticsPtr readerStatistics);
+    virtual ~IBlockManager() = default;
 
-    // Returns false if need wait for ready event.
-    bool TryUpdateWindow(ui32 rowIndex);
+    virtual void ClearUsedBlocks() = 0;
+    virtual bool TryUpdateWindow(ui32 rowIndex, TReaderStatistics* readerStatistics = nullptr) = 0;
 
-    TFuture<void> GetReadyEvent() const;
+    virtual TFuture<void> GetReadyEvent() const = 0;
 
-    const TBlockRef* GetBlockHolder(ui16 index);
-
-protected:
-    std::vector<std::unique_ptr<TGroupBlockHolder>> BlockHolders_;
-    NChunkClient::TBlockFetcherPtr BlockFetcher_;
-    TReaderStatisticsPtr ReaderStatistics_;
-
-private:
-    const TRefCountedDataBlockMetaPtr BlockMeta_;
-    TFuture<std::vector<NChunkClient::TBlock>> FetchedBlocks_;
-    TFuture<void> ReadyEvent_ = VoidFuture;
+    // TODO(lukyan): Remove this methods from here and from IReaderBase.
+    virtual bool IsFetchingCompleted() const = 0;
+    virtual i64 GetUncompressedDataSize() const = 0;
+    virtual i64 GetCompressedDataSize() const = 0;
+    virtual NChunkClient::TCodecDuration GetDecompressionTime() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

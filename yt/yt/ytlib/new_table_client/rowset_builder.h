@@ -18,6 +18,8 @@ using TIdRange = std::pair<ui32, ui32>;
 
 struct TDataBufferTag { };
 
+constexpr ui32 SentinelRowIndex = -1;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TValueSchema
@@ -52,7 +54,8 @@ std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(
     TRange<TValueSchema> valueSchema,
     TRange<TColumnBase> columnInfos,
     TTimestamp timestamp,
-    bool produceAll);
+    bool produceAll,
+    bool newMeta);
 
 std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(
     TSharedRange<TRowRange> keyRanges,
@@ -60,7 +63,17 @@ std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(
     TRange<TValueSchema> valueSchema,
     TRange<TColumnBase> columnInfos,
     TTimestamp timestamp,
-    bool produceAll);
+    bool produceAll,
+    bool newMeta);
+
+std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(
+    std::vector<ui32> chunkRowIndexes,
+    TRange<EValueType> keyTypes,
+    TRange<TValueSchema> valueSchema,
+    TRange<TColumnBase> columnInfos,
+    TTimestamp timestamp,
+    bool produceAll,
+    bool newMeta);
 
 ////////////////////////////////////////////////////////////////////////////////
 

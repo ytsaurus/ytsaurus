@@ -1,5 +1,7 @@
 #pragma once
 
+// TODO(lukyan): Rename this file to column_base.h
+
 #include <yt/yt/core/misc/algorithm_helpers.h>
 
 #include <library/cpp/yt/memory/ref.h>
@@ -14,6 +16,7 @@ struct TBlockRef
     // Therefore block must not change from the current call of ReadRows till the next one.
 
     TSharedRef Block;
+    // TODO(lukyan): Use raw ptr for BlockSegmentsMeta.
     TRef BlockSegmentsMeta;
 };
 

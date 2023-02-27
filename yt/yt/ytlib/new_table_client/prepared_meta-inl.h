@@ -9,29 +9,35 @@ namespace NYT::NNewTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsDirect(int type)
+bool TMultiValueIndexMeta::IsDense() const
 {
-    // DirectRle/DirectSparse: 2,  DirectDense: 3
-    return type == 2 || type == 3;
-}
-
-bool IsDense(int type)
-{
-    // DictionaryDense: 1, DirectDense: 3
-    return type == 1 || type == 3;
+    return ExpectedPerRow != static_cast<ui32>(-1);
 }
 
 template <EValueType Type>
-void TValueMeta<Type>::Init(const NProto::TSegmentMeta& meta)
+void TValueMeta<Type>::Init(const NProto::TSegmentMeta& meta, const ui64* ptr)
 {
-    TMeta<Type>::Init(meta);
-    TDenseMeta::Init(meta);
+    ptr = TMultiValueIndexMeta::Init(meta, ptr, false);
+    TDataMeta<Type>::Init(meta, ptr);
 }
 
 template <EValueType Type>
-void TKeyMeta<Type>::Init(const NProto::TSegmentMeta& meta)
+void TAggregateValueMeta<Type>::Init(const NProto::TSegmentMeta& meta, const ui64* ptr)
 {
-    TMeta<Type>::Init(meta);
+    ptr = TMultiValueIndexMeta::Init(meta, ptr, true);
+    TDataMeta<Type>::Init(meta, ptr);
+}
+
+template <EValueType Type>
+void TKeyMeta<Type>::Init(const NProto::TSegmentMeta& meta, const ui64* ptr)
+{
+    if constexpr (IsStringLikeType(Type)) {
+        ptr = TKeyIndexMeta::Init(meta, Type, ptr);
+        TDataMeta<Type>::Init(meta, ptr);
+    } else {
+        ptr = TDataMeta<Type>::Init(meta, ptr);
+        TKeyIndexMeta::Init(meta, Type, ptr);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

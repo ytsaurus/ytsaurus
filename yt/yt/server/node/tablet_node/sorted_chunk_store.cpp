@@ -356,6 +356,15 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             ReadRange_.Size() > 0 ? ReadRange_.Front().second : TUnversionedRow(),
             ReadRange_.GetHolder());
 
+        auto blockManagerFactory = NNewTableClient::CreateAsyncBlockWindowManagerFactory(
+            std::move(backendReaders.ReaderConfig),
+            std::move(backendReaders.ChunkReader),
+            chunkState->BlockCache,
+            chunkReadOptions,
+            chunkMeta,
+            // Enable current invoker for range reads.
+            GetCurrentInvoker());
+
         return MaybeWrapWithTimestampResettingAdapter(NNewTableClient::CreateVersionedChunkReader(
             std::move(ranges),
             timestamp,
@@ -363,14 +372,9 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             Schema_,
             columnFilter,
             chunkState->ChunkColumnMapping,
-            chunkState->BlockCache,
-            std::move(backendReaders.ReaderConfig),
-            std::move(backendReaders.ChunkReader),
+            blockManagerFactory,
             chunkState->PerformanceCounters,
-            chunkReadOptions,
-            produceAllVersions,
-            nullptr,
-            GetCurrentInvoker()));
+            produceAllVersions));
     }
 
     // Reader can handle chunk timestamp itself if needed, no need to wrap with
@@ -426,6 +430,11 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
                 chunkReadOptions.MemoryReferenceTracker);
         }
 
+        auto blockManagerFactory = NNewTableClient::CreateSyncBlockWindowManagerFactory(
+            chunkState->BlockCache,
+            chunkMeta,
+            ChunkId_);
+
         return NNewTableClient::CreateVersionedChunkReader(
             std::move(ranges),
             timestamp,
@@ -433,14 +442,9 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
             Schema_,
             columnFilter,
             chunkState->ChunkColumnMapping,
-            chunkState->BlockCache,
-            GetReaderConfig(),
-            chunkReader,
+            blockManagerFactory,
             chunkState->PerformanceCounters,
-            chunkReadOptions,
-            produceAllVersions,
-            nullptr,
-            GetCurrentInvoker());
+            produceAllVersions);
     }
 
     return CreateCacheBasedVersionedChunkReader(
@@ -559,6 +563,13 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
 
     if (enableNewScanReader && chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
+        auto blockManagerFactory = NNewTableClient::CreateAsyncBlockWindowManagerFactory(
+            std::move(backendReaders.ReaderConfig),
+            std::move(backendReaders.ChunkReader),
+            chunkState->BlockCache,
+            chunkReadOptions,
+            chunkMeta);
+
         auto reader = NNewTableClient::CreateVersionedChunkReader(
             filteredKeys,
             timestamp,
@@ -566,11 +577,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             Schema_,
             columnFilter,
             chunkState->ChunkColumnMapping,
-            BlockCache_,
-            std::move(backendReaders.ReaderConfig),
-            std::move(backendReaders.ChunkReader),
+           blockManagerFactory,
             PerformanceCounters_,
-            chunkReadOptions,
             produceAllVersions);
         return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
     }
@@ -631,6 +639,34 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
                 chunkReadOptions.MemoryReferenceTracker);
         }
 
+        auto blockManagerFactory = NNewTableClient::CreateSyncBlockWindowManagerFactory(
+            chunkState->BlockCache,
+            chunkMeta,
+            ChunkId_);
+
+        if (InMemoryMode_ == NTabletClient::EInMemoryMode::Uncompressed) {
+            if (auto* lookupHashTable = chunkState->LookupHashTable.Get()) {
+                auto chunkRowIndexes = NNewTableClient::BuildChunkRowIndexesUsingLookupTable(
+                    *lookupHashTable,
+                    keys,
+                    Schema_,
+                    chunkMeta,
+                    ChunkId_,
+                    chunkState->BlockCache.Get());
+
+                return NNewTableClient::CreateVersionedChunkReader(
+                    chunkRowIndexes,
+                    timestamp,
+                    chunkMeta,
+                    Schema_,
+                    columnFilter,
+                    chunkState->ChunkColumnMapping,
+                    blockManagerFactory,
+                    chunkState->PerformanceCounters,
+                    produceAllVersions);
+            }
+        }
+
         return NNewTableClient::CreateVersionedChunkReader(
             std::move(keys),
             timestamp,
@@ -638,14 +674,9 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
             Schema_,
             columnFilter,
             chunkState->ChunkColumnMapping,
-            chunkState->BlockCache,
-            GetReaderConfig(),
-            chunkReader,
+            blockManagerFactory,
             chunkState->PerformanceCounters,
-            chunkReadOptions,
-            produceAllVersions,
-            nullptr,
-            GetCurrentInvoker());
+            produceAllVersions);
     }
 
     return CreateCacheBasedVersionedChunkReader(

@@ -34,12 +34,15 @@ TRange<TMeta> TColumnBase::GetSegmentMetas() const
     if (!BlockRef_->BlockSegmentsMeta) {
         return {};
     }
+
     auto blockMeta = BlockRef_->BlockSegmentsMeta.Begin();
     auto* offsets = reinterpret_cast<const ui32*>(blockMeta);
 
-    return MakeRange(
+    auto result = MakeRange(
         reinterpret_cast<const TMeta*>(blockMeta + offsets[IndexInGroup_]),
         reinterpret_cast<const TMeta*>(blockMeta + offsets[IndexInGroup_ + 1]));
+
+    return result;
 }
 
 template <class TMeta>

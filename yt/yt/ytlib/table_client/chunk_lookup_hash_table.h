@@ -13,20 +13,33 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IChunkLookupHashTable
-    : public virtual TRefCounted
+struct TChunkLookupHashTable final
+    : public TLinearProbeHashTable
 {
-public:
-    virtual void Insert(TLegacyKey key, std::pair<ui16, ui32> index) = 0;
-    virtual TCompactVector<std::pair<ui16, ui32>, 1> Find(TLegacyKey key) const = 0;
-    virtual size_t GetByteSize() const = 0;
+    using TLinearProbeHashTable::TLinearProbeHashTable;
 };
 
-DEFINE_REFCOUNTED_TYPE(IChunkLookupHashTable)
+Y_FORCE_INLINE ui64 PackBlockAndRowIndexes(ui16 blockIndex, ui32 rowIndex);
+Y_FORCE_INLINE std::pair<ui16, ui32> UnpackBlockAndRowIndexes(ui64 value);
+
+DEFINE_REFCOUNTED_TYPE(TChunkLookupHashTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkLookupHashTablePtr CreateChunkLookupHashTable(
+TChunkLookupHashTablePtr CreateChunkLookupHashTableForColumnarFormat(
+    IVersionedReaderPtr reader,
+    size_t chunkRowCount);
+
+TChunkLookupHashTablePtr CreateChunkLookupHashTable(
+    NChunkClient::TChunkId chunkId,
+    int startBlockIndex,
+    int endBlockIndex,
+    NChunkClient::IBlockCachePtr blockCache,
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
+    const TTableSchemaPtr& tableSchema,
+    const TKeyComparer& keyComparer);
+
+TChunkLookupHashTablePtr CreateChunkLookupHashTable(
     NChunkClient::TChunkId chunkId,
     int startBlockIndex,
     const std::vector<NChunkClient::TBlock>& blocks,
@@ -37,3 +50,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
+
+#define CHUNK_LOOKUP_HASH_TABLE_INL_H_
+#include "chunk_lookup_hash_table-inl.h"
+#undef CHUNK_LOOKUP_HASH_TABLE_INL_H_
