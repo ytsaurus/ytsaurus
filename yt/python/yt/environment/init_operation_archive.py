@@ -1267,6 +1267,8 @@ TRANSFORMS[47] = [
             attributes={"atomicity": "none"})),
 ]
 
+# NB(renadeen): don't forget to update min_required_archive_version at yt/yt/server/lib/scheduler/config.cpp
+
 
 def swap_table(client, target, source, version):
     backup_path = target + ".bak.{0}".format(version)
@@ -1330,7 +1332,7 @@ def transform_archive(client, transform_begin, transform_end, force, archive_pat
             mount_table(client, path)
 
 
-def _get_latest_version():
+def get_latest_version():
     latest_version = max(TRANSFORMS.keys())
     if ACTIONS:
         latest_version = max(latest_version, max(ACTIONS.keys()))
@@ -1379,7 +1381,7 @@ def create_tables_latest_version(client, override_tablet_cell_bundle="default", 
     """ Creates operation archive tables of latest version """
     create_tables(
         client,
-        _get_latest_version(),
+        get_latest_version(),
         override_tablet_cell_bundle,
         shard_count=shard_count,
         archive_path=archive_path)
