@@ -34,7 +34,7 @@ DEFINE_REFCOUNTED_TYPE(IActionManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 IActionManagerPtr CreateActionManager(
-    TDuration actionExpirationTime,
+    TDuration actionExpirationTimeout,
     TDuration pollingPeriod,
     NApi::NNative::IClientPtr client,
     IBootstrap* bootstrap);
