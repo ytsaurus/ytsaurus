@@ -9,12 +9,12 @@ namespace NYT::NYPath {
 class TTokenizer
 {
 public:
-    explicit TTokenizer(const TYPath& path = {});
+    explicit TTokenizer(TYPathBuf path = {});
 
     TTokenizer(const TTokenizer&) = delete;
     TTokenizer& operator=(const TTokenizer&) = delete;
 
-    void Reset(TYPath path);
+    void Reset(TYPathBuf path);
 
     ETokenType Advance();
 
@@ -33,7 +33,7 @@ public:
     [[noreturn]] void ThrowUnexpected();
 
 private:
-    TYPath Path_;
+    TYPathBuf Path_;
 
     ETokenType Type_;
     ETokenType PreviousType_;

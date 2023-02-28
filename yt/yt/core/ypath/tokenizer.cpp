@@ -8,14 +8,14 @@ namespace NYT::NYPath {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTokenizer::TTokenizer(const TYPath& path)
+TTokenizer::TTokenizer(TYPathBuf path)
 {
     Reset(path);
 }
 
-void TTokenizer::Reset(TYPath path)
+void TTokenizer::Reset(TYPathBuf path)
 {
-    Path_ = std::move(path);
+    Path_ = path;
     Type_ = ETokenType::StartOfStream;
     PreviousType_ = ETokenType::StartOfStream;
     Token_ = TStringBuf();

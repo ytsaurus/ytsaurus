@@ -96,6 +96,7 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
         }
     };
 
+    TYPath rewrittenPath;
     for (int resolveDepth = 0; ; ++resolveDepth) {
         ValidateYPathResolutionDepth(path, resolveDepth);
 
@@ -148,11 +149,11 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
                 return std::nullopt;
             }
 
-            auto rewrittenPath =
+            rewrittenPath =
                 linkPayload->TargetPath +
                 (slashSkipped ? SlashYPath : EmptyYPath) +
                 tokenizer.GetInput();
-            tokenizer.Reset(std::move(rewrittenPath));
+            tokenizer.Reset(rewrittenPath);
 
             ++resolveDepth;
 

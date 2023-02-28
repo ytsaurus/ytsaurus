@@ -100,8 +100,8 @@ struct TProtobufAnyElement
 struct TProtobufElementResolveResult
 {
     TProtobufElement Element;
-    TString HeadPath;
-    TString TailPath;
+    TStringBuf HeadPath;
+    TStringBuf TailPath;
 };
 
 struct TResolveProtobufElementByYPathOptions
@@ -115,7 +115,7 @@ struct TResolveProtobufElementByYPathOptions
 //! YPath or a reference to a non-existing field).
 TProtobufElementResolveResult ResolveProtobufElementByYPath(
     const TProtobufMessageType* rootType,
-    const NYPath::TYPath& path,
+    const NYPath::TYPathBuf path,
     const TResolveProtobufElementByYPathOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
