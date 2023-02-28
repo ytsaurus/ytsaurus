@@ -26,7 +26,7 @@ public:
 
     i64 WorkerThreadPoolSize;
 
-    TDuration TabletActionExpirationTime;
+    TDuration TabletActionExpirationTimeout;
     TDuration TabletActionPollingPeriod;
     TDuration ParameterizedTimeoutOnStart;
     TDuration ParameterizedTimeout;

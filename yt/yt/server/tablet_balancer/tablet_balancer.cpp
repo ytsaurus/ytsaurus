@@ -167,7 +167,7 @@ TTabletBalancer::TTabletBalancer(
         Config_->WorkerThreadPoolSize,
         "TabletBalancer"))
     , ActionManager_(CreateActionManager(
-        Config_->TabletActionExpirationTime,
+        Config_->TabletActionExpirationTimeout,
         Config_->TabletActionPollingPeriod,
         Bootstrap_->GetClient(),
         Bootstrap_))

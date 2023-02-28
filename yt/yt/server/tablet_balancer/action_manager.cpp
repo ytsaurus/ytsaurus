@@ -41,7 +41,7 @@ class TActionManager
 {
 public:
     TActionManager(
-        TDuration actionExpirationTime,
+        TDuration actionExpirationTimeout,
         TDuration pollingPeriod,
         NApi::NNative::IClientPtr client,
         IBootstrap* bootstrap);
@@ -61,7 +61,7 @@ private:
         NProfiling::TGauge RunningActions;
     };
 
-    const TDuration ExpirationTime_;
+    const TDuration ExpirationTimeout_;
     const NApi::NNative::IClientPtr Client_;
     const IInvokerPtr Invoker_;
     const NConcurrency::TPeriodicExecutorPtr PollExecutor_;
@@ -85,11 +85,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TActionManager::TActionManager(
-    TDuration actionExpirationTime,
+    TDuration actionExpirationTimeout,
     TDuration pollingPeriod,
     NApi::NNative::IClientPtr client,
     IBootstrap* bootstrap)
-    : ExpirationTime_(actionExpirationTime)
+    : ExpirationTimeout_(actionExpirationTimeout)
     , Client_(std::move(client))
     , Invoker_(bootstrap->GetControlInvoker())
     , PollExecutor_(New<TPeriodicExecutor>(
@@ -351,20 +351,20 @@ IAttributeDictionaryPtr TActionManager::MakeActionAttributes(const TActionDescri
             attributes->Set("tablet_ids", descriptor.Tablets);
             attributes->Set("tablet_count", descriptor.TabletCount);
         });
-    attributes->Set("expiration_time", TInstant::Now() + ExpirationTime_);
+    attributes->Set("expiration_timeout", ExpirationTimeout_);
     return attributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IActionManagerPtr CreateActionManager(
-    TDuration actionExpirationTime,
+    TDuration actionExpirationTimeout,
     TDuration pollingPeriod,
     NApi::NNative::IClientPtr client,
     IBootstrap* bootstrap)
 {
     return New<TActionManager>(
-        actionExpirationTime,
+        actionExpirationTimeout,
         pollingPeriod,
         std::move(client),
         bootstrap);
