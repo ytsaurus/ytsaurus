@@ -21,6 +21,7 @@ using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NLogging;
 using namespace NObjectClient;
+using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
@@ -74,6 +75,7 @@ private:
     TTransactionId PrerequisiteTransactionId_ = NullTransactionId;
 
     void Poll();
+    void TryPoll();
 
     IAttributeDictionaryPtr MakeActionAttributes(const TActionDescriptor& descriptor);
     void MoveFinishedActionsFromRunningToFinished();
@@ -92,7 +94,7 @@ TActionManager::TActionManager(
     , Invoker_(bootstrap->GetControlInvoker())
     , PollExecutor_(New<TPeriodicExecutor>(
         Invoker_,
-        BIND(&TActionManager::Poll, MakeWeak(this)),
+        BIND(&TActionManager::TryPoll, MakeWeak(this)),
         pollingPeriod))
 { }
 
@@ -230,6 +232,16 @@ void TActionManager::Stop()
     YT_UNUSED_FUTURE(PollExecutor_->Stop());
 
     YT_LOG_INFO("Tablet action manager stopped");
+}
+
+void TActionManager::TryPoll()
+{
+    TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ActionManager"));
+    try {
+        Poll();
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to poll actions");
+    }
 }
 
 void TActionManager::Poll()
