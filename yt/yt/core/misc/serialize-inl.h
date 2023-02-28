@@ -1138,12 +1138,6 @@ struct TSorterSelector<THashMap<T...>, C, TSortedTag>
     using TSorter = TCollectionSorter<THashMap<T...>, TKeySorterComparer<C>>;
 };
 
-template <class C, class K, class V, unsigned N, class... Ts>
-struct TSorterSelector<SmallDenseMap<K, V, N, Ts...>, C, TSortedTag>
-{
-    using TSorter = TCollectionSorter<SmallDenseMap<K, V, N, Ts...>, TKeySorterComparer<C>>;
-};
-
 template <class K, class V, size_t N, class C>
 struct TSorterSelector<TCompactFlatMap<K, V, N>, C, TSortedTag>
 {
@@ -1937,12 +1931,6 @@ struct TSerializerTraits<std::unordered_map<K, V, H, P, A>, C, void>
 
 template <class K, class V, class Q, class A, class C>
 struct TSerializerTraits<THashMap<K, V, Q, A>, C, void>
-{
-    using TSerializer = TMapSerializer<>;
-};
-
-template <class K, class V, unsigned N, class E, class B, class C>
-struct TSerializerTraits<SmallDenseMap<K, V, N, E, B>, C, void>
 {
     using TSerializer = TMapSerializer<>;
 };

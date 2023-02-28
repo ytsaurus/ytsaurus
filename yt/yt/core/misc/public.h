@@ -112,25 +112,6 @@ class TCompactVector;
 class TRef;
 class TMutableRef;
 
-namespace NDetail {
-
-template <typename KeyT, typename ValueT>
-struct DenseMapPair;
-
-} // namespace NDetail
-
-template <typename T>
-struct TDenseMapInfo;
-
-template <
-    typename KeyT,
-    typename ValueT,
-    unsigned InlineBuckets = 4,
-    typename KeyInfoT = TDenseMapInfo<KeyT>,
-    typename BucketT = NDetail::DenseMapPair<KeyT, ValueT>
->
-class SmallDenseMap;
-
 template <class TProto>
 class TRefCountedProto;
 
