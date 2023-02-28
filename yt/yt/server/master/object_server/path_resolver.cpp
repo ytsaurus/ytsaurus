@@ -100,6 +100,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
 
     bool canCacheResolve = true;
     int symlinksPassed = 0;
+    TYPath rewrittenPath;
 
     for (int resolveDepth = options.InitialResolveDepth; ; ++resolveDepth) {
         ValidateYPathResolutionDepth(Path_, resolveDepth);
@@ -226,11 +227,11 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
             }
 
             const auto* link = currentNode->As<TLinkNode>();
-            auto rewrittenPath =
+            rewrittenPath =
                 link->ComputeEffectiveTargetPath() +
                 (slashSkipped ? SlashYPath : EmptyYPath) +
                 Tokenizer_.GetInput();
-            Tokenizer_.Reset(std::move(rewrittenPath));
+            Tokenizer_.Reset(rewrittenPath);
 
             ++resolveDepth;
 

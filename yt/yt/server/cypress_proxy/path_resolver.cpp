@@ -39,12 +39,14 @@ public:
     {
         static const auto SlashYPath = TYPath("/");
         Tokenizer_.Reset(Path_);
+        TYPath rewrittenPath;
 
         for (int resolveDepth = 0; ; ++resolveDepth) {
             ValidateYPathResolutionDepth(Path_, resolveDepth);
 
             if (auto rewrite = MaybeRewriteRoot()) {
-                Tokenizer_.Reset(*rewrite);
+                rewrittenPath = std::move(*rewrite);
+                Tokenizer_.Reset(rewrittenPath);
                 continue;
             }
 

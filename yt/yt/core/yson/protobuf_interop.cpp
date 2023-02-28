@@ -2731,9 +2731,8 @@ TProtobufElementResolveResult GetProtobufElementFromField(
     }
     return TProtobufElementResolveResult{
         std::move(element),
-        // TODO(bulatman) Get rid of the string copying, see YT-18567.
-        TString(tokenizer.GetPrefixPlusToken()),
-        TString(tokenizer.GetSuffix())
+        tokenizer.GetPrefixPlusToken(),
+        tokenizer.GetSuffix()
     };
 }
 
@@ -2741,7 +2740,7 @@ TProtobufElementResolveResult GetProtobufElementFromField(
 
 TProtobufElementResolveResult ResolveProtobufElementByYPath(
     const TProtobufMessageType* rootType,
-    const NYPath::TYPath& path,
+    const NYPath::TYPathBuf path,
     const TResolveProtobufElementByYPathOptions& options)
 {
     NYPath::TTokenizer tokenizer(path);
@@ -2749,9 +2748,8 @@ TProtobufElementResolveResult ResolveProtobufElementByYPath(
     auto makeResult = [&] (TProtobufElement element) {
         return TProtobufElementResolveResult{
             std::move(element),
-            // TODO(bulatman) Get rid of the string copying, see YT-18567.
-            TString(tokenizer.GetPrefixPlusToken()),
-            TString(tokenizer.GetSuffix())
+            tokenizer.GetPrefixPlusToken(),
+            tokenizer.GetSuffix()
         };
     };
 
