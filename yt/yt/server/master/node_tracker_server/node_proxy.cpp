@@ -33,7 +33,6 @@
 
 #include <yt/yt/client/chunk_client/public.h>
 
-#include <yt/yt/core/misc/dense_map.h>
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/core/ytree/convert.h>
