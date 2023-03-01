@@ -583,7 +583,7 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
 
     auto groupConfig = GetOrCrash(bundleState->GetBundle()->Config->Groups, groupName);
     if (!groupConfig->Enable) {
-        YT_LOG_DEBUG("Balancing tablets via parameterized move is disabled (BundleName: %v, GroupName: %v)",
+        YT_LOG_DEBUG("Balancing tablets via parameterized move is disabled (BundleName: %v, Group: %v)",
             bundleState->GetBundle()->Name,
             groupName);
         return;
@@ -652,7 +652,7 @@ void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundleState, const T
     } else if (groupName == LegacyInMemoryGroupName) {
         BalanceViaMoveInMemory(bundleState);
     } else {
-        YT_LOG_ERROR("Trying to balance a non-legacy group with legacy algorithm (BundleName: %v, GroupName: %v)",
+        YT_LOG_ERROR("Trying to balance a non-legacy group with legacy algorithm (BundleName: %v, Group: %v)",
             bundleState->GetBundle()->Name,
             groupName);
     }
@@ -660,8 +660,9 @@ void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundleState, const T
 
 void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, const TGroupName& groupName)
 {
-    YT_LOG_DEBUG("Balancing tablets via reshard started (BundleName: %v)",
-        bundleState->GetBundle()->Name);
+    YT_LOG_DEBUG("Balancing tablets via reshard started (BundleName: %v, Group: %v)",
+        bundleState->GetBundle()->Name,
+        groupName);
 
     std::vector<TTabletPtr> tablets;
     for (const auto& [id, tablet] : bundleState->Tablets()) {
@@ -733,8 +734,9 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
         ParameterizedBalancingScheduler_.UpdateBalancingTime({bundleState->GetBundle()->Name, groupName});
     }
 
-    YT_LOG_DEBUG("Balancing tablets via reshard finished (BundleName: %v, ActionCount: %v)",
+    YT_LOG_DEBUG("Balancing tablets via reshard finished (BundleName: %v, Group: %v, ActionCount: %v)",
         bundleState->GetBundle()->Name,
+        groupName,
         actionCount);
 }
 

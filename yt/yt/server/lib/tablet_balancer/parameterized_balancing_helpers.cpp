@@ -136,7 +136,9 @@ TParameterizedReassignSolver::TParameterizedReassignSolver(
     TGroupName groupName,
     const TLogger& logger)
     : Bundle_(std::move(bundle))
-    , Logger(logger.WithTag("BundleName: %v", Bundle_->Name))
+    , Logger(logger
+        .WithTag("BundleName: %v", Bundle_->Name)
+        .WithTag("Group: %v", groupName))
     , MaxMoveActionCount_(groupConfig->MaxActionCount.value_or(maxMoveActionCount))
     , PerformanceCountersKeys_(std::move(performanceCountersKeys))
     , DeviationThreshold_(deviationThreshold)
@@ -183,6 +185,11 @@ void TParameterizedReassignSolver::Initialize()
                     << TErrorAttribute("tablet_id", tabletId)
                     << TErrorAttribute("metric_formula", GroupConfig_->Metric);
             } else if (tabletMetric == 0.0) {
+                YT_LOG_DEBUG_IF(
+                    Bundle_->Config->EnableVerboseLogging,
+                    "Skip tablet since it has a zero metric (TabletId: %v, TableId: %v)",
+                    tabletId,
+                    tablet->Table->Id);
                 continue;
             }
 
