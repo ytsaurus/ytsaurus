@@ -274,6 +274,20 @@ TEST(TNamedPositionalYsonConverter, TestDict)
         "[ [{key=foo; value=#}; [int; 0]] ; [{key=bar; value=qux;}; [string; baz;]] ]");
 }
 
+TEST(TNamedPositionalYsonConverter, TestStringDictAsYsonMap)
+{
+    TYsonConverterConfig config{
+        .StringKeyedDictMode = NFormats::EDictMode::Named,
+    };
+    TWithConfig g(config);
+
+    CHECK_POSITIONAL_TO_NAMED(
+        DictLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+            SimpleLogicalType(ESimpleLogicalValueType::Int64)),
+        "[[key1; 1]; [key2; 2]]", "{key1=1; key2=2}");
+}
+
 TEST(TNamedPositionalYsonConverter, TestTagged)
 {
     CHECK_BIDIRECTIONAL(

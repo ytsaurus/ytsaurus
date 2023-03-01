@@ -37,10 +37,10 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class EConverterType {
-    ToServer,
-    ToClient,
-};
+DEFINE_ENUM(EConverterType,
+    (ToServer)
+    (ToClient)
+);
 
 struct TYsonConverterCreatorConfig
 {
@@ -101,15 +101,15 @@ private:
                 } else {
                     return result = true;
                 }
-            
+
             case ELogicalMetatype::Decimal:
                 return result = (config.Config.DecimalMode == EDecimalMode::Binary);
-            
+
             case ELogicalMetatype::Optional:
             case ELogicalMetatype::List:
             case ELogicalMetatype::Tagged:
                 return result = CheckAndCacheTriviality(logicalType->GetElement(), config);
-            
+
             case ELogicalMetatype::Tuple:
             case ELogicalMetatype::VariantTuple: {
                 result = true;
@@ -121,7 +121,7 @@ private:
                 }
                 return result;
             }
-            
+
             case ELogicalMetatype::Struct:
             case ELogicalMetatype::VariantStruct: {
                 result = (config.Config.ComplexTypeMode == EComplexTypeMode::Positional);
@@ -135,7 +135,7 @@ private:
             }
 
             case ELogicalMetatype::Dict:
-                result = true;
+                result = (config.Config.StringKeyedDictMode == EDictMode::Positional);
                 if (!CheckAndCacheTriviality(logicalType->AsDictTypeRef().GetKey(), config)) {
                     result = false;
                 }
@@ -273,10 +273,10 @@ public:
     TTimeServerToClientConverter(ESimpleLogicalValueType valueType)
         : ConvertedWriter_(Converted_)
         , ValueType_(valueType)
-    { 
+    {
         Converted_.reserve(TimestampLength);
     }
-    
+
     TTimeServerToClientConverter(const TTimeServerToClientConverter& other)
         : ConvertedWriter_(Converted_)
         , ValueType_(other.ValueType_)
@@ -650,35 +650,112 @@ public:
     }
 };
 
+template <EDictMode mode>
 class TDictApplier
 {
 public:
     Y_FORCE_INLINE void OnDictBegin(IYsonConsumer* consumer) const
     {
-        consumer->OnBeginList();
+        if constexpr (mode == EDictMode::Positional) {
+            consumer->OnBeginList();
+        } else if constexpr (mode == EDictMode::Named) {
+            consumer->OnBeginMap();
+        } else {
+            // Not compilable.
+            static_assert(mode == EDictMode::Positional);
+        }
     }
 
     Y_FORCE_INLINE void
     OnKey(const TYsonCursorConverter& keyRecoder, TYsonPullParserCursor* cursor, IYsonConsumer* consumer) const
     {
-        consumer->OnListItem();
-        consumer->OnBeginList();
-        consumer->OnListItem();
-        keyRecoder(cursor, consumer);
+        if constexpr (mode == EDictMode::Positional) {
+            consumer->OnListItem();
+            consumer->OnBeginList();
+            consumer->OnListItem();
+            keyRecoder(cursor, consumer);
+        } else if constexpr (mode == EDictMode::Named) {
+            const auto& item = *cursor;
+
+            // Named representation of dict supported only for string keys.
+            YT_ASSERT(item->GetType() == EYsonItemType::StringValue);
+
+            consumer->OnKeyedItem(item->UncheckedAsString());
+            cursor->Next();
+        } else {
+            // Not compilable.
+            static_assert(mode == EDictMode::Positional);
+        }
     }
 
     Y_FORCE_INLINE void
     OnValue(const TYsonCursorConverter& valueRecoder, TYsonPullParserCursor* cursor, IYsonConsumer* consumer) const
     {
-        consumer->OnListItem();
-        valueRecoder(cursor, consumer);
-        consumer->OnEndList();
+        if constexpr (mode == EDictMode::Positional) {
+            consumer->OnListItem();
+            valueRecoder(cursor, consumer);
+            consumer->OnEndList();
+        } if constexpr (mode == EDictMode::Named) {
+            valueRecoder(cursor, consumer);
+        } else {
+            // Not compilable.
+            static_assert(mode == EDictMode::Positional);
+        }
     }
 
     Y_FORCE_INLINE void OnDictEnd(IYsonConsumer* consumer) const
     {
+        if constexpr (mode == EDictMode::Positional) {
+            consumer->OnEndList();
+        } if constexpr (mode == EDictMode::Named) {
+            consumer->OnEndMap();
+        } else {
+            // Not compilable.
+            static_assert(mode == EDictMode::Positional);
+        }
+    }
+};
+
+class TNamedToPositionalDictConverter
+{
+public:
+    TNamedToPositionalDictConverter(TComplexTypeFieldDescriptor descriptor, TYsonCursorConverter valueConverter)
+        : Descriptor_(std::move(descriptor))
+        , ValueConverter_(std::move(valueConverter))
+    {
+    }
+
+    void operator () (TYsonPullParserCursor* cursor, IYsonConsumer* consumer)
+    {
+        EnsureYsonToken(Descriptor_, *cursor, EYsonItemType::BeginMap);
+        cursor->Next();
+
+        consumer->OnBeginList();
+        while ((*cursor)->GetType() != EYsonItemType::EndMap) {
+            EnsureYsonToken(Descriptor_, *cursor, EYsonItemType::StringValue);
+            auto key = (*cursor)->UncheckedAsString();
+
+            consumer->OnListItem();
+            consumer->OnBeginList();
+            consumer->OnListItem();
+            consumer->OnStringScalar(key);
+
+            cursor->Next();
+
+            consumer->OnListItem();
+            ValueConverter_(cursor, consumer);
+            consumer->OnEndList();
+
+        }
+
+        // Skip map end token.
+        cursor->Next();
         consumer->OnEndList();
     }
+
+private:
+    TComplexTypeFieldDescriptor Descriptor_;
+    TYsonCursorConverter ValueConverter_;
 };
 
 class TNamedToPositionalStructConverter
@@ -895,7 +972,7 @@ TYsonCursorConverter CreateStructFieldsConverter(
         EnsureYsonToken(descriptor, *cursor, EYsonItemType::BeginList);
         cursor->Next();
         ysonConsumer->OnBeginList();
-        
+
         for (const auto& fieldInfo : fieldInfos) {
             if ((*cursor)->GetType() == EYsonItemType::EndList) {
                 break;
@@ -935,7 +1012,7 @@ TYsonCursorConverter CreateVariantStructFieldsConverter(
 
         ysonConsumer->OnListItem();
         ysonConsumer->OnInt64Scalar(tag);
-        
+
         cursor->Next();
         ysonConsumer->OnListItem();
         alternatives[tag].second(cursor, ysonConsumer);
@@ -1074,9 +1151,27 @@ TYsonCursorConverter CreateYsonConverterImpl(
         case ELogicalMetatype::Dict: {
             auto keyConverter = CreateYsonConverterImpl(descriptor.DictKey(), cache, config);
             auto valueConverter = CreateYsonConverterImpl(descriptor.DictValue(), cache, config);
+
+            if (config.Config.StringKeyedDictMode == EDictMode::Named) {
+                auto keyType = descriptor.DictKey().GetType();
+                if (keyType->GetMetatype() == ELogicalMetatype::Simple
+                        && keyType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::String) {
+                    if (config.ConverterType == EConverterType::ToClient) {
+                        return TYsonConsumerScannerFactory::CreateDictScanner(
+                            descriptor,
+                            TDictApplier<EDictMode::Named>(),
+                            keyConverter,
+                            valueConverter);
+                    } else {
+                        YT_VERIFY(config.ConverterType == EConverterType::ToServer);
+                        return TNamedToPositionalDictConverter(descriptor, std::move(valueConverter));
+                    }
+                }
+            }
+
             return TYsonConsumerScannerFactory::CreateDictScanner(
                 descriptor,
-                TDictApplier(),
+                TDictApplier<EDictMode::Positional>(),
                 keyConverter,
                 valueConverter);
         }
@@ -1093,7 +1188,7 @@ std::variant<TYsonServerToClientConverter, TYsonClientToServerConverter> CreateY
 {
     const auto& type = descriptor.GetType();
     const auto metatype = type->GetMetatype();
-    
+
     if (metatype == ELogicalMetatype::Decimal) {
         return CreateDecimalRawConverter(type, config);
     }

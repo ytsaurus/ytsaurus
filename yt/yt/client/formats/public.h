@@ -15,6 +15,11 @@ DEFINE_ENUM(EComplexTypeMode,
     (Named)
 );
 
+DEFINE_ENUM(EDictMode,
+    (Positional)
+    (Named)
+);
+
 DEFINE_ENUM(EDecimalMode,
     (Text)
     (Binary)

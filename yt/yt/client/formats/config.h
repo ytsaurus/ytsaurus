@@ -34,6 +34,7 @@ class TYsonFormatConfig
 public:
     NYson::EYsonFormat Format;
     EComplexTypeMode ComplexTypeMode;
+    EDictMode StringKeyedDictMode;
     EDecimalMode DecimalMode;
     ETimeMode TimeMode;
     EUuidMode UuidMode;

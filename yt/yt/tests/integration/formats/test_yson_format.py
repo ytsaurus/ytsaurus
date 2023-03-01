@@ -7,6 +7,7 @@ from yt_type_helpers import (
     struct_type,
     optional_type,
     variant_struct_type,
+    dict_type,
     list_type,
     decimal_type
 )
@@ -63,6 +64,8 @@ def _test_invalid_write(type, optimize_for, value, format):
 @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
 class TestYsonPositionalFormat(YTEnvSetup):
     POSITIONAL_YSON = yson.loads(b"<complex_type_mode=positional>yson")
+    POSITIONAL_DICT_YSON = yson.loads(b"<string_keyed_dict_mode=positional>yson")
+
     STRUCT = struct_type(
         [
             ("f1", "int64"),
@@ -75,11 +78,12 @@ class TestYsonPositionalFormat(YTEnvSetup):
             ("f2", optional_type("utf8")),
         ]
     )
+    DICT = dict_type(
+        "string", "int64"
+    )
 
     @authors("ermolovd")
     def test_struct(self, optimize_for):
-        self.POSITIONAL_YSON = yson.loads(b"<complex_type_mode=positional>yson")
-
         _test_yson_row(
             self.STRUCT,
             optimize_for,
@@ -109,6 +113,62 @@ class TestYsonPositionalFormat(YTEnvSetup):
         for val in [{"f1": 53, "f2": None}, "lol", None, 42, ["f1", 42]]:
             _test_invalid_write(self.STRUCT, optimize_for, val, self.POSITIONAL_YSON)
             _test_invalid_write(self.VARIANT, optimize_for, val, self.POSITIONAL_YSON)
+
+    @authors("nadya73")
+    def test_dict(self, optimize_for):
+        _test_yson_row(
+            self.DICT, optimize_for, [["f1", 1], ["f2", 2]],
+            self.POSITIONAL_DICT_YSON, [["f1", 1], ["f2", 2]])
+
+
+@authors("nadya73")
+@pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+class TestYsonNamedFormat(YTEnvSetup):
+    NAMED_YSON = yson.loads(b"<complex_type_mode=named>yson")
+    NAMED_DICT_YSON = yson.loads(b"<string_keyed_dict_mode=named>yson")
+
+    STRUCT = struct_type(
+        [
+            ("f1", "int64"),
+            ("f2", optional_type("utf8")),
+        ]
+    )
+
+    DICT = dict_type(
+        "string", "int64"
+    )
+
+    INT_DICT = dict_type(
+        "int64", "string"
+    )
+
+    @authors("nadya73")
+    def test_struct(self, optimize_for):
+        _test_yson_row(
+            self.STRUCT,
+            optimize_for,
+            {"f1": 42, "f2": "forty_two"},
+            self.NAMED_YSON,
+            {"f1": 42, "f2": "forty_two"},
+        )
+        _test_yson_row(
+            self.STRUCT, optimize_for, {"f1": 53, "f2": None},
+            self.NAMED_YSON, {"f1": 53, "f2": None})
+        _test_yson_row(
+            self.STRUCT, optimize_for, {"f1": 83, "f2": None},
+            self.NAMED_YSON, {"f1": 83, "f2": None})
+
+    @authors("nadya73")
+    def test_dict(self, optimize_for):
+        _test_yson_row(
+            self.DICT, optimize_for, [["f1", 1], ["f2", 2]],
+            self.NAMED_DICT_YSON, {"f1": 1, "f2": 2})
+
+    @authors("nadya73")
+    def test_not_string_keyed_dict(self, optimize_for):
+        _test_yson_row(
+            self.INT_DICT, optimize_for, [[1, "v1"], [2, "v2"]],
+            self.NAMED_DICT_YSON, [[1, "v1"], [2, "v2"]])
 
 
 @authors("egor-gutrov")
