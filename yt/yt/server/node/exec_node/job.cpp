@@ -1744,7 +1744,7 @@ void TJob::OnJobPreparationTimeout(TDuration prepareTimeLimit, bool fatal)
 
     if (JobPhase_ < EJobPhase::Running) {
         auto error = TError(
-            fatal ? EErrorCode::JobPreparationTimeout : EErrorCode::FatalJobPreparationTimeout,
+            fatal ? EErrorCode::FatalJobPreparationTimeout : EErrorCode::JobPreparationTimeout,
             "Failed to prepare job within timeout")
             << TErrorAttribute("prepare_time_limit", prepareTimeLimit)
             << TErrorAttribute("job_start_time", StartTime_);
