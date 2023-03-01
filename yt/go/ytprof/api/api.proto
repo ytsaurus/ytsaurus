@@ -30,14 +30,17 @@ message Metaquery {
     Metadata metadata_pattern = 3;
     int32 result_skip = 4;
     int32 result_limit = 5;
+    string system = 6;
 }
 
 message GetRequest {
     string profile_id = 1;
+    string system = 2;
 }
 
 message MergeRequest {
     repeated string profile_ids = 1;
+    string system = 2;
 }
 
 message MergeLinkResponse {
@@ -57,12 +60,21 @@ message ListResponse {
     int32 size = 2;
 }
 
+message SystemsResponse {
+    repeated string system = 1;
+}
+
 message SuggestTagsResponse {
     repeated string tag = 1;
 }
 
+message SuggestTagsRequest {
+    string system = 1;
+}
+
 message SuggestValuesRequest {
     string tag = 1;
+    string system = 2;
 }
 
 message SuggestValuesResponse {
@@ -103,7 +115,13 @@ service YTProfService {
         };
     }
     
-    rpc SuggestTags(google.protobuf.Empty) returns (SuggestTagsResponse) {
+    rpc Systems(google.protobuf.Empty) returns (SystemsResponse) {
+        option (google.api.http) = {
+            get: "/api/systems"
+        };
+    }
+    
+    rpc SuggestTags(SuggestTagsRequest) returns (SuggestTagsResponse) {
         option (google.api.http) = {
             get: "/api/suggest_tags"
         };

@@ -26,33 +26,35 @@ import (
 )
 
 const DefaultQueryLimit = 1000000
+const DefaultSystem = "yt"
+const ManualSystem = "manual"
 const UIRequestPrefix = "/ui"
 const UIManualRequestPrefix = "/manual/ui"
 const UIBaseHost = "https://ytprof.yt.yandex-team.ru"
+
+var NonUISystems = map[string]struct{}{ManualSystem: {}}
 
 type App struct {
 	l          *zap.Logger
 	httpListen net.Listener
 	yt         yt.Client
-	ytm        yt.Client
-	ts         *storage.TableStorage
-	tsm        *storage.TableStorage
+	ts         map[string]*storage.TableStorage
 	config     Config
+	systems    []string
 }
 
 type Config struct {
-	HTTPEndpoint    string `json:"http_endpoint" yaml:"http_endpoint"`
-	Proxy           string `json:"proxy" yaml:"proxy"`
-	ManualProxy     string `json:"manual_proxy" yaml:"manual_proxy"`
-	TablePath       string `json:"table_path" yaml:"table_path"`
-	ManualTablePath string `json:"manual_table_path" yaml:"manual_table_path"`
-	QueryLimit      int    `json:"query_limit" yaml:"query_limit"`
+	HTTPEndpoint string `json:"http_endpoint" yaml:"http_endpoint"`
+	Proxy        string `json:"proxy" yaml:"proxy"`
+	FolderPath   string `json:"folder_path" yaml:"folder_path"`
+	QueryLimit   int    `json:"query_limit" yaml:"query_limit"`
 }
 
 func NewApp(l *zap.Logger, config Config) *App {
 	app := &App{
 		l:      l,
 		config: config,
+		ts:     map[string]*storage.TableStorage{},
 	}
 
 	if app.config.QueryLimit == 0 {
@@ -71,24 +73,18 @@ func NewApp(l *zap.Logger, config Config) *App {
 		l.Fatal("YT client creation failed", log.Error(err))
 	}
 
-	app.ts, err = storage.NewTableStorageMigrate(app.yt, ypath.Path(config.TablePath), l)
+	err = app.yt.ListNode(context.Background(), ypath.Path(config.FolderPath), &app.systems, nil)
 	if err != nil {
-		l.Fatal("storage creation or migration failed", log.Error(err))
+		l.Fatal("listing systems failed", log.Error(err))
 	}
 
-	ytConfigManual := yt.Config{
-		Proxy:             config.Proxy,
-		ReadTokenFromFile: true,
-	}
+	l.Debug("systems listed successfully", log.Array("systems", app.systems))
 
-	app.ytm, err = ythttp.NewClient(&ytConfigManual)
-	if err != nil {
-		l.Fatal("YT client creation failed", log.Error(err))
-	}
-
-	app.tsm, err = storage.NewTableStorageMigrate(app.ytm, ypath.Path(config.ManualTablePath), l)
-	if err != nil {
-		l.Fatal("storage creation or migration failed", log.Error(err))
+	for _, system := range app.systems {
+		app.ts[system], err = storage.NewTableStorageMigrate(app.yt, ypath.Path(config.FolderPath).Child(system), l)
+		if err != nil {
+			l.Fatal("storage creation or migration failed", log.Error(err), log.String("system", system))
+		}
 	}
 
 	app.httpListen, err = net.Listen("tcp", config.HTTPEndpoint)
@@ -98,12 +94,25 @@ func NewApp(l *zap.Logger, config Config) *App {
 	l.Info("HTTP listener started", log.String("addr", app.httpListen.Addr().String()))
 
 	r := chi.NewMux()
-	r.HandleFunc(UIRequestPrefix+"/{profileID}/*", func(w http.ResponseWriter, r *http.Request) {
-		app.UIHandler(w, r, false)
-	})
-	r.HandleFunc(UIManualRequestPrefix+"/{profileID}/*", func(w http.ResponseWriter, r *http.Request) {
-		app.UIHandler(w, r, true)
-	})
+	r.HandleFunc(fmt.Sprintf("%s/{profileID}/*", UIRequestPrefix),
+		func(w http.ResponseWriter, r *http.Request) {
+			app.UIHandler(w, r, "")
+		},
+	)
+
+	for _, system := range app.systems {
+		uiSystemPath := fmt.Sprintf("/%s%s/{profileID}/*", system, UIRequestPrefix)
+		l.Debug("HTTP UI listener started",
+			log.String("addr", uiSystemPath),
+			log.String("system", system),
+		)
+		curSystem := system
+		r.HandleFunc(uiSystemPath,
+			func(w http.ResponseWriter, r *http.Request) {
+				app.UIHandler(w, r, curSystem)
+			},
+		)
+	}
 
 	httpServer := &http.Server{
 		Addr:    config.HTTPEndpoint,
@@ -126,12 +135,21 @@ func (a *App) URL() string {
 	return fmt.Sprintf("http://%s", a.httpListen.Addr().String())
 }
 
-func (a *App) TableStorage() *storage.TableStorage {
-	return a.ts
+func (a *App) TableStorage(system string) (*storage.TableStorage, bool) {
+	if system == "" {
+		tsc, ok := a.ts[DefaultSystem]
+		return tsc, ok
+	}
+	tsc, ok := a.ts[system]
+	return tsc, ok
 }
 
 func (a *App) Logger() *zap.Logger {
 	return a.l
+}
+
+func (a *App) GetSystems() []string {
+	return a.systems
 }
 
 func (a *App) Stop() error {

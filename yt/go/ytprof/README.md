@@ -72,26 +72,28 @@ Here is a [link](https://nanny.yandex-team.ru/ui/#/services/catalog/yt_ytprof) t
 
 ### Pprof UI
 
-* `https://ytprof.yt.yandex-team.ru/ui/{profile_id}/` or `https://ytprof.yt.yandex-team.ru/manual/ui/{profile_id}/`: entry point to pprof UI for given profile
-Example: `curl https://ytprof.yt.yandex-team.ru/ui/5b9e57db-630103fe-7b30799-8760a484/`
+* `https://ytprof.yt.yandex-team.ru/{system}/ui/{profile_id}/`: entry point to pprof UI for given profile
+Example: `curl https://ytprof.yt.yandex-team.ru/yt/ui/5b9e57db-630103fe-7b30799-8760a484/`
 
 ### HTTP Requests
 
+* `https://ytprof.yt.yandex-team.ru/api/systems`: get available systems  (type GET)
+Example: `curl https://ytprof.yt.yandex-team.ru/api/systems`
 * `https://ytprof.yt.yandex-team.ru/api/get`: get profile by ProfileID in the format of guid (type GET)
-Example: `curl https://ytprof.yt.yandex-team.ru/api/get?profile_id=e2c699bb-4d58862c-f741fb63-6c2ed55a`
+Example: `curl https://ytprof.yt.yandex-team.ru/api/get?system=yt&profile_id=e2c699bb-4d58862c-f741fb63-6c2ed55a`
 * `https://ytprof.yt.yandex-team.ru/api/list`: find metadata specified by query (type POST)
-Example: `curl -X POST -d '{"metaquery":{"time_period":{"period_start_time":"2022-04-24T00:00:00.000000Z","period_end_time":"2022-04-29T00:00:00.000000Z"},"metadata_pattern":{"host":"sas6.*node.*freud."}}}' https://ytprof.yt.yandex-team.ru/api/list`
+Example: `curl -X POST -d '{"metaquery":{"system":"yt","time_period":{"period_start_time":"2022-04-24T00:00:00.000000Z","period_end_time":"2022-04-29T00:00:00.000000Z"},"metadata_pattern":{"host":"sas6.*node.*freud."}}}' https://ytprof.yt.yandex-team.ru/api/list`
 Here in `metadata_pattern`, usage of [regexp](https://pkg.go.dev/regexp#MatchString) is supported.
 * `https://ytprof.yt.yandex-team.ru/api/suggest_tags`: get all possible tags (type GET)
-Example: `curl https://ytprof.yt.yandex-team.ru/api/suggest_tags`
+Example: `curl https://ytprof.yt.yandex-team.ru/api/suggest_tags?system=yt`
 * `https://ytprof.yt.yandex-team.ru/api/suggest_values`: get all possible values of a tag (type GET)
-Example: `curl https://ytprof.yt.yandex-team.ru/api/suggest_values?tag=ArcRevision`
+Example: `curl https://ytprof.yt.yandex-team.ru/api/suggest_values?system=yt&tag=ArcRevision`
 * `https://ytprof.yt.yandex-team.ru/api/merge`: find and merge profiles by ProfileIDs in the format of guids (type GET)
-Example: `curl https://ytprof.yt.yandex-team.ru/api/merge?profile_ids=92699db6-200114a4-dd451d4e-9e12204&profile_ids=44a94bf4-a6420e9b-67d0f83f-2a295c48`
+Example: `curl https://ytprof.yt.yandex-team.ru/api/merge?system=yt&profile_ids=92699db6-200114a4-dd451d4e-9e12204&profile_ids=44a94bf4-a6420e9b-67d0f83f-2a295c48`
 * `https://ytprof.yt.yandex-team.ru/api/merge_link`: find, merge profiles by ProfileIDs in the format of guids and store result in manual storage, receive a link to view stored profile (type GET)
-Example: `curl https://ytprof.yt.yandex-team.ru/api/merge_link?profile_ids=92699db6-200114a4-dd451d4e-9e12204&profile_ids=44a94bf4-a6420e9b-67d0f83f-2a295c48`
+Example: `curl https://ytprof.yt.yandex-team.ru/api/merge_link?system=yt&profile_ids=92699db6-200114a4-dd451d4e-9e12204&profile_ids=44a94bf4-a6420e9b-67d0f83f-2a295c48`
 * `https://ytprof.yt.yandex-team.ru/api/merge_all`: find and merge profiles specified by the same query as `list` (type POST)
-Example: `curl -X POST -d '{"metaquery":{"time_period":{"period_start_time":"2022-04-24T00:00:00.000000Z","period_end_time":"2022-04-29T00:00:00.000000Z"},"metadata_pattern":{"host":"sas6.*node.*freud."}}}' https://ytprof.yt.yandex-team.ru/api/merge_all`
+Example: `curl -X POST -d '{"metaquery":{"system":"yt","time_period":{"period_start_time":"2022-04-24T00:00:00.000000Z","period_end_time":"2022-04-29T00:00:00.000000Z"},"metadata_pattern":{"host":"sas6.*node.*freud."}}}' https://ytprof.yt.yandex-team.ru/api/merge_all`
 
 See `requests` and `responses` [here](https://a.yandex-team.ru/arcadia/yt/go/ytprof/api/api.proto).
 
@@ -106,5 +108,5 @@ ya make -r ./yt/go/ytprof/cmd/ytprof-api
 
 Run
 ```
-./yt/go/ytprof/cmd/ytprof-api/ytprof-api --log-to-stderr --config-json '{"http_endpoint": "0.0.0.0:8080", "proxy": "freud", "table_path": "//sys/ytprof/testing"}'
+./yt/go/ytprof/cmd/ytprof-api/ytprof-api --log-to-stderr --config-json '{"http_endpoint": ":10033","proxy":"hahn","folder_path":"//home/ytprof/storage","query_limit":200000}'
 ```
