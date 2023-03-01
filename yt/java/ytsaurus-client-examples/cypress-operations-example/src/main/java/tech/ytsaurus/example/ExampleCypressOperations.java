@@ -18,12 +18,18 @@ public class ExampleCypressOperations {
     public static void main(String[] args) {
         // *** Create the client ***
 
+        // You need to set up cluster address in YT_PROXY environment variable.
+        var clusterAddress = System.getenv("YT_PROXY");
+        if (clusterAddress == null || clusterAddress.isEmpty()) {
+            throw new IllegalArgumentException("Environment variable YT_PROXY is empty");
+        }
+
         // The most convenient way to create a client is through builder
         // The only required parameter to specify is the cluster.
         //
         // The YT token will be picked up from `~/.yt/token`, and the username from the operating system.
         YTsaurusClient client = YTsaurusClient.builder()
-                .setCluster("freud")
+                .setCluster(clusterAddress)
                 .build();
 
         // It is necessary to call close() on the client to shut down properly
