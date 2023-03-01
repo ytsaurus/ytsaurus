@@ -40,8 +40,14 @@ public class ExampleMapYTree {
     }
 
     public static void main(String[] args) {
+        // You need to set up cluster address in YT_PROXY environment variable.
+        var clusterAddress = System.getenv("YT_PROXY");
+        if (clusterAddress == null || clusterAddress.isEmpty()) {
+            throw new IllegalArgumentException("Environment variable YT_PROXY is empty");
+        }
+
         YTsaurusClient client = YTsaurusClient.builder()
-                .setCluster("freud")
+                .setCluster(clusterAddress)
                 .build();
 
         // The output table is located in `//tmp` and contains the name of the current user.
