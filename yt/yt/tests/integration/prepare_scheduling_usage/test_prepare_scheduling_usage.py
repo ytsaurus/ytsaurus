@@ -231,7 +231,7 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
         assert cumulative_used_cpu > 0
         assert cumulative_used_cpu <= accumulated_resource_usage_cpu
 
-    def _run_script_for_link_test(self, target):
+    def _run_script_for_link_test(self, target, expiration_timeout):
         tmp_dir = "//tmp/yt_wrapper/file_storage"
         prepare_scheduling_usage_dir = "//prepare_scheduling_usage"
 
@@ -277,15 +277,21 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
                     "--cluster", self.Env.get_proxy_address(),
                     "--mode", "table",
                     "--input-path", input_filepath,
-                    "--output-path", output_filepath
-                ],
+                    "--output-path", output_filepath,
+                ] + ([] if expiration_timeout is None else [
+                    "--set-expiration-timeout", str(expiration_timeout)
+                ]),
                 stderr=fout)
 
         link_path = yt.ypath_join(output_dir, "tags", "latest")
         assert exists(link_path)
         assert get(link_path + "&/@target_path") == yt.ypath_join(output_dir, "tags", target)
+        if (expiration_timeout or -1) > 0:
+            assert get(output_filepath + "/@expiration_timeout") == expiration_timeout
+        else:
+            assert not exists(output_filepath + "/@expiration_timeout")
 
     @pytest.mark.timeout(300)
     def test_link(self):
-        self._run_script_for_link_test("2020-01-06")
-        self._run_script_for_link_test("2020-01-07")
+        self._run_script_for_link_test("2020-01-06", 604800000)
+        self._run_script_for_link_test("2020-01-07", None)

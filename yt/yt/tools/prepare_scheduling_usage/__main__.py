@@ -497,17 +497,22 @@ def extract_pool_mapping(client, input_table):
     return cluster_and_tree_to_pool_mapping
 
 
-def do_process_scheduler_log_on_yt(client, input_table, output_table):
+def do_process_scheduler_log_on_yt(client, input_table, output_table, expiration_timeout):
     reduce_by = ["cluster", "pool_tree", "pool_path", "operation_id"]
     sort_by = reduce_by + ["timestamp"]
+
+    attributes = {
+        "schema": TableSchema.from_row_type(OperationInfo),
+        "optimize_for": "scan",
+    }
+
+    if expiration_timeout is not None and expiration_timeout > 0:
+        attributes["expiration_timeout"] = expiration_timeout
 
     client.create(
         "table",
         output_table,
-        attributes={
-            "schema": TableSchema.from_row_type(OperationInfo),
-            "optimize_for": "scan",
-        })
+        attributes=attributes)
 
     # TODO: Temporary hack
     cluster_and_tree_to_pool_mapping = extract_pool_mapping(client, input_table)
@@ -578,10 +583,10 @@ def do_process_scheduler_log_on_yt(client, input_table, output_table):
         client.link(tags_output_table, tags_latest_link, force=True)
 
 
-def process_scheduler_log_on_yt(client, input_table, output_table):
+def process_scheduler_log_on_yt(client, input_table, output_table, expiration_timeout):
     client.remove(output_table, force=True)
     with client.Transaction():
-        do_process_scheduler_log_on_yt(client, input_table, output_table)
+        do_process_scheduler_log_on_yt(client, input_table, output_table, expiration_timeout)
 
 
 def main():
@@ -597,6 +602,8 @@ def main():
                         help="Regexp to match tables to process")
     parser.add_argument("--mode", choices=["local", "table", "dir"], default="table",
                         help="Read data from stdin and process locally (for testing purposes)")
+    parser.add_argument("--set-expiration-timeout", type=int,
+                        help="Set expiration timeout for output table in ms")
     args = parser.parse_args()
 
     if args.mode == "local":
@@ -615,14 +622,14 @@ def main():
                 output_path = yt.ypath_join(args.output_path, input_base_name)
             else:
                 output_path = args.output_path
-            process_scheduler_log_on_yt(client, args.input_path, output_path)
+            process_scheduler_log_on_yt(client, args.input_path, output_path, args.set_expiration_timeout)
         else:  # "dir"
             for name in client.list(args.input_path):
                 if args.filter is not None and not re.match(args.filter, name):
                     continue
                 input_table = yt.ypath_join(args.input_path, name)
                 output_table = yt.ypath_join(args.output_path, name)
-                process_scheduler_log_on_yt(client, input_table, output_table)
+                process_scheduler_log_on_yt(client, input_table, output_table, args.set_expiration_timeout)
 
 
 if __name__ == "__main__":
