@@ -153,6 +153,15 @@
             "resolver_max_profiles" = 10;
         };
         {
+            "cluster" = "arnold";
+            "profile_type" = "cpu";
+            "path" = "ytprof/profile";
+            "period" = 600000000000;
+            "probability" = 0.2;
+            "resolver_min_profiles" = 5;
+            "resolver_max_profiles" = 240;
+        };
+        {
             "cluster" = "ofd-xdc";
             "profile_type" = "cpu";
             "path" = "ytprof/profile";
