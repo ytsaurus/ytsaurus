@@ -238,9 +238,9 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         ++changelogId;
     }
 
-    YT_VERIFY(targetChangelog);
-
     if (IsLeader() || Options_.WriteChangelogsAtFollowers) {
+        YT_VERIFY(targetChangelog);
+
         YT_VERIFY(targetChangelog->GetRecordCount() == targetVersion.RecordId);
         DecoratedAutomaton_->SetChangelog(targetChangelog);
     }
