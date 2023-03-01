@@ -737,8 +737,21 @@ class ClusterBackupManifest(object):
         self.tables = []
 
     def add_table(self, source_path, destination_path, ordered_mode=None):
-        self.tables.append(TableBackupManifest(source_path, destination_path, ordered_mode))
+        self._add_table_manifest(
+            TableBackupManifest(source_path, destination_path, ordered_mode),
+        )
         return self
+
+    def merge(self, other):
+        assert isinstance(other, ClusterBackupManifest)
+
+        for table_manifest in other.tables:
+            self._add_table_manifest(deepcopy(table_manifest))
+
+        return self
+
+    def _add_table_manifest(self, table_manifest):
+        self.tables.append(table_manifest)
 
     def _serialize(self):
         return [table._serialize() for table in self.tables]
@@ -749,7 +762,22 @@ class BackupManifest(object):
         self.clusters = {}
 
     def add_cluster(self, cluster_name, cluster_manifest):
+        assert cluster_name not in self.clusters
+
         self.clusters[cluster_name] = cluster_manifest
+        return self
+
+    def update_cluster(self, cluster_name, cluster_manifest):
+        self.clusters.setdefault(
+            cluster_name, ClusterBackupManifest(),
+        ).merge(cluster_manifest)
+        return self
+
+    def merge(self, other):
+        assert isinstance(other, BackupManifest)
+
+        for cluster_name, cluster_manifest in iteritems(other.clusters):
+            self.update_cluster(cluster_name, cluster_manifest)
         return self
 
     def _serialize(self):
