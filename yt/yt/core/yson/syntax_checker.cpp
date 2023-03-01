@@ -63,7 +63,7 @@ TStringBuf TYsonSyntaxChecker::StateExpectationString(EYsonState state)
         case EYsonState::InsideAttributeMapExpectSeparator:
             return ";";
     }
-    YT_VERIFY(false);
+    YT_ABORT();
 }
 
 void TYsonSyntaxChecker::ThrowUnexpectedToken(TStringBuf token, TStringBuf extraMessage)

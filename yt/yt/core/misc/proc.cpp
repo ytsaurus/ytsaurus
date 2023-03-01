@@ -1207,12 +1207,9 @@ TMemoryMappingStatistics operator+(TMemoryMappingStatistics lhs, const TMemoryMa
 std::vector<TMemoryMapping> ParseMemoryMappings(const TString& rawSMaps)
 {
     auto parseMemoryAmount = [] (const TString& strValue, const TString& unit) {
+        YT_VERIFY(unit == "kB");
         auto value = FromString<ui64>(strValue);
-        if (unit == "kB") {
-            return value * 1_KB;
-        } else {
-            YT_VERIFY(false);
-        }
+        return value * 1_KB;
     };
 
     std::vector<TMemoryMapping> memoryMappings;
@@ -1229,7 +1226,7 @@ std::vector<TMemoryMapping> ParseMemoryMappings(const TString& rawSMaps)
                 Cerr << "Failed line: " << line << Endl;
                 YT_LOG_ERROR("Failed to parse smaps (SMaps: %v)", rawSMaps);
                 YT_LOG_ERROR("Failed line (Line: %v)", line);
-                YT_VERIFY(false);
+                YT_ABORT();
             }
         };
 

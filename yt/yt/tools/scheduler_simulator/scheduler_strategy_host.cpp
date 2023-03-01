@@ -117,7 +117,7 @@ TJobResources TSchedulerStrategyHost::GetResourceUsage(const TSchedulingTagFilte
 
 void TSchedulerStrategyHost::Disconnect(const TError& /*error*/)
 {
-    YT_VERIFY(false);
+    YT_ABORT();
 }
 
 TInstant TSchedulerStrategyHost::GetConnectionTime() const

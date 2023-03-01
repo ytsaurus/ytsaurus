@@ -23,6 +23,10 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const static auto& Logger = ControllerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBoundaryKeys BuildBoundaryKeysFromOutputResult(
     const NScheduler::NProto::TOutputResult& boundaryKeys,
     const TOutputStreamDescriptorPtr& streamDescriptor,
@@ -162,7 +166,7 @@ void TControllerFeatures::AddSingular(const TString& name, const INodePtr& node)
             AddSingular(name, node->AsBoolean()->GetValue());
             break;
         default:
-            YT_VERIFY(false && "Unexpected type as controller feature");
+            YT_LOG_FATAL("Unexpected type as controller feature");
             break;
     }
 };

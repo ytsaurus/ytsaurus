@@ -38,11 +38,9 @@ void TSignalRegistry::SetupSignal(int signal, int flags)
 {
 #ifdef _unix_
     DispatchMultiSignal(signal, [&] (int signal) {
-        if (signal == SIGALRM) {
-            // Why would you like to use SIGALRM? It is used in crash handler
-            // to prevent program hunging, do not interfere.
-            YT_VERIFY(false);
-        }
+        // Why would you like to use SIGALRM? It is used in crash handler
+        // to prevent program hunging, do not interfere.
+        YT_VERIFY(signal != SIGALRM);
 
         if (!OverrideNonDefaultSignalHandlers_) {
             struct sigaction oldact;

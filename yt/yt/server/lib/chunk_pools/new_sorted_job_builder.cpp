@@ -181,7 +181,7 @@ public:
                 inputStreamIndex,
                 GetDataSliceDebugString(lastDataSlice),
                 GetDataSliceDebugString(dataSlice));
-            YT_VERIFY(false && "Non-monotonic input data slices");
+            YT_LOG_FATAL("Non-monotonic input data slices");
         }
         lastDataSlice = dataSlice;
     }
@@ -310,7 +310,7 @@ public:
                     GetDataSliceDebugString(rhs));
                 LogStructured();
                 // Actually a safe core dump.
-                YT_VERIFY(false && "Slice order guarantee violation");
+                YT_LOG_FATAL("Slice order guarantee violation");
             };
 
             // Validate slice order between slices in each stripe.

@@ -49,7 +49,7 @@ void FromProto(TSummarySnapshot<TDuration>* summary, const NProto::TSummaryDurat
 void ToProto(NProto::THistogramSnapshot* proto, const THistogramSnapshot& histogram)
 {
     for (auto time : histogram.Bounds) {
-        proto->add_times(TDuration::Seconds(time).GetValue());        
+        proto->add_times(TDuration::Seconds(time).GetValue());
     }
     for (auto value : histogram.Values) {
         proto->add_values(value);
@@ -146,7 +146,7 @@ void TRemoteRegistry::Transfer(const NProto::TSensorDump& dump)
                 transferValue(&sensorSet->HistogramsCube_, ESensorType::GaugeHistogram, NYT::FromProto<THistogramSnapshot>(projection.histogram()));
             } else {
                 // Ignore unknown types.
-            }      
+            }
         }
     }
 
@@ -187,7 +187,7 @@ void TRemoteRegistry::DoDetach(const THashMap<TString, TRemoteSensorSet>& sensor
                 sensorSet.HistogramsCube_.Remove(tags);
                 break;
             default:
-                YT_VERIFY(false);
+                YT_ABORT();
             }
         }
     }

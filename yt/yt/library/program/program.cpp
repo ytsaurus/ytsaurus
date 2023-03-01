@@ -352,7 +352,7 @@ void ConfigureAllocator(const TAllocatorOptions& options)
         std::thread backgroundThread([] {
             TThread::SetCurrentThreadName("TCAllocBack");
             tcmalloc::MallocExtension::ProcessBackgroundActions();
-            YT_VERIFY(false);
+            YT_ABORT();
         });
         backgroundThread.detach();
     }
