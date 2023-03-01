@@ -14,6 +14,8 @@
 #include <yt/yt/ytlib/election/config.h>
 #include <yt/yt/ytlib/election/public.h>
 
+#include <yt/yt/library/profiling/solomon/registry.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -46,6 +48,12 @@ class TElectionTest
 public:
     void Configure(int peerCount, TPeerId selfId)
     {
+        // NB: During func gauge registration callback holding strong
+        // reference to RPC server is put into the queue that is not
+        // drained in tests since metrics are not fetched.
+        // To prevent memory leak we simple disable profiling.
+        NProfiling::TSolomonRegistry::Get()->Disable();
+
         auto selfServer = CreateLocalServer();
 
         PeerMocks.resize(peerCount);
