@@ -223,8 +223,8 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 
         wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
 
-        wait(lambda: all(action["state"] in ("completed", "failed")
-             for action in get("//sys/tablet_cell_bundles/default/@tablet_actions")))
+        wait(lambda: all(get("#{0}/@state".format(action)) in ("completed", "failed")
+             for action in ls("//sys/tablet_actions")))
 
         tablets = get("//tmp/t/@tablets")
         assert tablets[0]["cell_id"] == tablets[1]["cell_id"]
