@@ -135,6 +135,15 @@
             "period" = 300000000000;
         };
         {
+            "cluster" = "seneca-man";
+            "profile_type" = "cpu";
+            "path" = "ytprof/profile";
+            "probability" = 0.5;
+            "resolver_max_profiles" = 70;
+            "resolver_min_profiles" = 2;
+            "period" = 300000000000;
+        };
+        {
             "cluster" = "vanga";
             "profile_type" = "cpu";
             "path" = "ytprof/profile";
