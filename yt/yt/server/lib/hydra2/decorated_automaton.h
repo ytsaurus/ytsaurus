@@ -302,7 +302,7 @@ private:
     TForkCountersPtr ForkCounters_;
 
     void ApplyMutation(const TPendingMutationPtr& mutation);
-    void DoApplyMutation(NHydra::TMutationContext* mutationContext, TVersion mutationVersion, int term);
+    void DoApplyMutation(NHydra::TMutationContext* mutationContext, TVersion mutationVersion);
 
     bool TryAcquireUserLock();
     void ReleaseUserLock();

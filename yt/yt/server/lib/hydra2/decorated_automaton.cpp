@@ -901,9 +901,10 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
         header.random_seed(),
         header.prev_random_seed(),
         header.sequence_number(),
-        StateHash_);
+        StateHash_,
+        header.term());
 
-    DoApplyMutation(&mutationContext, mutationVersion, header.term());
+    DoApplyMutation(&mutationContext, mutationVersion);
 }
 
 TFuture<TMutationResponse> TDecoratedAutomaton::TryBeginKeptRequest(const TMutationRequest& request)
@@ -998,13 +999,14 @@ void TDecoratedAutomaton::ApplyMutation(const TPendingMutationPtr& mutation)
         mutation->RandomSeed,
         mutation->PrevRandomSeed,
         mutation->SequenceNumber,
-        StateHash_);
+        StateHash_,
+        mutation->Term);
 
     {
         NTracing::TTraceContextGuard traceContextGuard(mutation->Request.TraceContext);
         YT_VERIFY(ReliablyAppliedSequenceNumber_.load() < mutation->SequenceNumber);
         ReliablyAppliedSequenceNumber_ = mutation->SequenceNumber;
-        DoApplyMutation(&mutationContext, mutation->Version, mutation->Term);
+        DoApplyMutation(&mutationContext, mutation->Version);
     }
 
     if (const auto& promise = mutation->LocalCommitPromise) {
@@ -1024,7 +1026,7 @@ void TDecoratedAutomaton::ApplyMutation(const TPendingMutationPtr& mutation)
     MaybeStartSnapshotBuilder();
 }
 
-void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVersion mutationVersion, int term)
+void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVersion mutationVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1037,6 +1039,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVe
     const auto& request = mutationContext->Request();
     auto mutationId = request.MutationId;
     auto mutationSize = request.Data.Size();
+    auto term = mutationContext->GetTerm();
 
     {
         TMutationContextGuard mutationContextGuard(mutationContext);

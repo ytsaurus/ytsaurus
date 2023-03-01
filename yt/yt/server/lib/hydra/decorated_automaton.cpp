@@ -896,7 +896,8 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
         header.random_seed(),
         header.prev_random_seed(),
         header.sequence_number(),
-        StateHash_);
+        StateHash_,
+        header.term());
 
     DoApplyMutation(&mutationContext);
 }
@@ -1174,7 +1175,8 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
             pendingMutation.RandomSeed,
             pendingMutation.PrevRandomSeed,
             pendingMutation.SequenceNumber,
-            StateHash_);
+            StateHash_,
+            /*term*/ 0);
 
         {
             NTracing::TTraceContextGuard traceContextGuard(mutationContext.Request().TraceContext);
