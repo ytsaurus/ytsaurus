@@ -194,6 +194,8 @@ private:
 
     std::vector<TString> DoPrepareSandboxDirectories(int slotIndex, TUserSandboxOptions options, bool sandboxInsideTmpfs);
 
+    void BuildSlotRootDirectory(int slotIndex);
+
     NTools::TRootDirectoryConfigPtr CreateDefaultRootDirectoryConfig(
         int slotIndex,
         std::optional<int> uid,

@@ -2,13 +2,29 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/user_job_synchronizer_client/public.h>
-
 #include <yt/yt/library/process/pipe.h>
+
+#include <yt/yt/core/bus/tcp/public.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-namespace NYT::NUserJobExecutor {
+namespace NYT::NUserJob {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUserJobSynchronizerConnectionConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! User job -> Job proxy connection config.
+    NBus::TBusClientConfigPtr BusClientConfig;
+
+    REGISTER_YSON_STRUCT(TUserJobSynchronizerConnectionConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserJobSynchronizerConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +51,7 @@ public:
     bool EnableCoreDump = false;
 
     //! Config of the connection between user job executor and job proxy.
-    NUserJobSynchronizerClient::TUserJobSynchronizerConnectionConfigPtr UserJobSynchronizerConnectionConfig;
+    NUserJob::TUserJobSynchronizerConnectionConfigPtr UserJobSynchronizerConnectionConfig;
 
     REGISTER_YSON_STRUCT(TUserJobExecutorConfig);
 
@@ -44,4 +60,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NUserJobExector
+} // namespace NYT::NUserJob

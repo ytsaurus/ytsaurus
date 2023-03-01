@@ -25,9 +25,9 @@
 
 #include <yt/yt/server/lib/shell/shell_manager.h>
 
-#include <yt/yt/server/lib/user_job_executor/config.h>
+#include <yt/yt/server/lib/user_job/config.h>
 
-#include <yt/yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
+#include <yt/yt/server/exec/user_job_synchronizer.h>
 
 #include <yt/yt/server/tools/proc.h>
 #include <yt/yt/server/tools/tools.h>
@@ -123,8 +123,8 @@ using namespace NExecNode;
 using namespace NYPath;
 using namespace NJobProberClient;
 using namespace NJobTrackerClient;
-using namespace NUserJobExecutor;
-using namespace NUserJobSynchronizerClient;
+using namespace NUserJob;
+using namespace NUserJob;
 
 using NControllerAgent::NProto::TJobResult;
 using NControllerAgent::NProto::TJobSpec;

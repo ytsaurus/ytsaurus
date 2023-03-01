@@ -1,8 +1,8 @@
 #include "job_proxy.h"
 #include "user_job_synchronizer_service.h"
 
-#include <yt/yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
-#include <yt/yt/server/lib/user_job_synchronizer_client/user_job_synchronizer_proxy.h>
+#include <yt/yt/server/exec/user_job_synchronizer.h>
+#include <yt/yt/server/exec/user_job_synchronizer_proxy.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 
@@ -18,7 +18,7 @@ using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
-using namespace NUserJobSynchronizerClient;
+using namespace NUserJob;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +43,7 @@ private:
     const IUserJobSynchronizerClientPtr JobControl_;
     TPromise<TExecutorInfo> ExecutorPreparedPromise_;
 
-    DECLARE_RPC_SERVICE_METHOD(NUserJobSynchronizerClient::NProto, ExecutorPrepared)
+    DECLARE_RPC_SERVICE_METHOD(NUserJob::NProto, ExecutorPrepared)
     {
         Y_UNUSED(response);
 

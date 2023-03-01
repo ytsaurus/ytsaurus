@@ -128,30 +128,9 @@ void TSlotLocation::DoInitialize()
 
     ValidateMinimumSpace();
 
-    int nodeUid = getuid();
-
-    auto directoryBuilderConfig = New<TDirectoryBuilderConfig>();
-    directoryBuilderConfig->NodeUid = getuid();
-
-    bool needRoot = false;
-
     for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-        auto rootDirectoryConfig = New<TRootDirectoryConfig>();
-
-        std::optional<int> uid;
-
-        if (!Bootstrap_->IsSimpleEnvironment() && !Bootstrap_->GetConfig()->ExecNode->DoNotSetUserId) {
-            uid = SlotIndexToUserId_(slotIndex);
-        }
-
-        needRoot |= uid.has_value();
-
-        directoryBuilderConfig->RootDirectoryConfigs.push_back(CreateDefaultRootDirectoryConfig(slotIndex, uid, nodeUid));
+        BuildSlotRootDirectory(slotIndex);
     }
-
-    directoryBuilderConfig->NeedRoot = needRoot;
-
-    RunTool<TRootDirectoryBuilderTool>(directoryBuilderConfig);
 
     DiskResourcesUpdateExecutor_->Start();
     SlotLocationStatisticsUpdateExecutor_->Start();
@@ -679,21 +658,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
             }
 
             // Prepare slot for the next job.
-            {
-                std::optional<int> uid;
-                int nodeUid = getuid();
-
-                if (!Bootstrap_->IsSimpleEnvironment() && !Bootstrap_->GetConfig()->ExecNode->DoNotSetUserId) {
-                    uid = SlotIndexToUserId_(slotIndex);
-                }
-
-                auto directoryBuilderConfig = New<TDirectoryBuilderConfig>();
-                directoryBuilderConfig->NodeUid = nodeUid;
-                directoryBuilderConfig->NeedRoot = uid.has_value();
-                directoryBuilderConfig->RootDirectoryConfigs.push_back(CreateDefaultRootDirectoryConfig(slotIndex, uid, nodeUid));
-
-                RunTool<TRootDirectoryBuilderTool>(directoryBuilderConfig);
-            }
+            BuildSlotRootDirectory(slotIndex);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean sandbox directories")
                 << ex;
@@ -1130,6 +1095,23 @@ NNodeTrackerClient::NProto::TSlotLocationStatistics TSlotLocation::GetSlotLocati
     return SlotLocationStatistics_;
 }
 
+void TSlotLocation::BuildSlotRootDirectory(int slotIndex)
+{
+    std::optional<int> uid;
+    int nodeUid = getuid();
+
+    if (!Bootstrap_->IsSimpleEnvironment() && !Bootstrap_->GetConfig()->ExecNode->DoNotSetUserId) {
+        uid = SlotIndexToUserId_(slotIndex);
+    }
+
+    auto directoryBuilderConfig = New<TDirectoryBuilderConfig>();
+    directoryBuilderConfig->NodeUid = nodeUid;
+    directoryBuilderConfig->NeedRoot = uid.has_value();
+    directoryBuilderConfig->RootDirectoryConfigs.push_back(CreateDefaultRootDirectoryConfig(slotIndex, uid, nodeUid));
+
+    RunTool<TRootDirectoryBuilderTool>(directoryBuilderConfig);
+}
+
 TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
     int slotIndex,
     std::optional<int> uid,
@@ -1140,34 +1122,34 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
     config->UserId = nodeUid;
     config->Permissions = 0755;
 
-    auto addDirectory = [&] (TString path, std::optional<int> userId, int permissions) {
+    auto getDirectory = [] (TString path, std::optional<int> userId, int permissions) {
         auto directory = New<TDirectoryConfig>();
 
         directory->Path = path;
         directory->UserId = userId;
         directory->Permissions = permissions;
 
-        config->Directories.push_back(std::move(directory));
+        return directory;
     };
 
     // Since we make slot user to be owner, but job proxy creates some files during job shell
     // initialization we leave write access for everybody. Presumably this will not ruin job isolation.
-    addDirectory(GetSandboxPath(slotIndex, ESandboxKind::Home), uid, 0777);
+    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::Home), uid, 0777));
 
     // Tmp is accessible for everyone.
-    addDirectory(GetSandboxPath(slotIndex, ESandboxKind::Tmp), uid, 0777);
+    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::Tmp), uid, 0777));
 
     // CUDA library should have an access to cores directory to write GPU core dump into it.
-    addDirectory(GetSandboxPath(slotIndex, ESandboxKind::Cores), uid, 0777);
+    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::Cores), uid, 0777));
 
     // Pipes are accessible for everyone.
-    addDirectory(GetSandboxPath(slotIndex, ESandboxKind::Pipes), uid, 0777);
+    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::Pipes), uid, 0777));
 
     // Node should have access to user sandbox during job preparation.
-    addDirectory(GetSandboxPath(slotIndex, ESandboxKind::User), nodeUid, 0755);
+    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::User), nodeUid, 0755));
 
     // Process executor should have access to write logs before process start.
-    addDirectory(GetSandboxPath(slotIndex, ESandboxKind::Logs), uid, 0755);
+    config->Directories.push_back(getDirectory(GetSandboxPath(slotIndex, ESandboxKind::Logs), uid, 0755));
 
     return config;
 }
