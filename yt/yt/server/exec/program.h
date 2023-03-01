@@ -1,9 +1,12 @@
-#include <yt/yt/server/lib/user_job_executor/config.h>
-#include <yt/yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
+#pragma once
+
+#include "public.h"
+#include "user_job_synchronizer.h"
+
+#include <yt/yt/server/lib/user_job/config.h>
 
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_config_mixin.h>
-#include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/library/process/pipe.h>
 
@@ -24,8 +27,7 @@
 
 namespace NYT::NExec {
 
-using namespace NUserJobSynchronizerClient;
-using namespace NUserJobExecutor;
+using namespace NUserJob;
 
 ////////////////////////////////////////////////////////////////////////////////
 

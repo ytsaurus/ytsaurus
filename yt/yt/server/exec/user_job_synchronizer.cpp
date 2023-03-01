@@ -1,6 +1,8 @@
 #include "user_job_synchronizer.h"
 #include "user_job_synchronizer_proxy.h"
 
+#include <yt/yt/server/lib/user_job/config.h>
+
 #include <yt/yt/core/bus/tcp/client.h>
 #include <yt/yt/core/bus/tcp/config.h>
 
@@ -8,18 +10,10 @@
 
 #include <yt/yt/core/rpc/bus/channel.h>
 
-namespace NYT::NUserJobSynchronizerClient {
+namespace NYT::NUserJob {
 
 using namespace NBus;
 using namespace NConcurrency;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TUserJobSynchronizerConnectionConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("bus_client_config", &TThis::BusClientConfig)
-        .DefaultNew();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,4 +49,4 @@ IUserJobSynchronizerClientPtr CreateUserJobSynchronizerClient(TUserJobSynchroniz
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NUserJobSynchronizerClient
+} // namespace NYT::NUserJob

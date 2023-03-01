@@ -1,8 +1,16 @@
 #include "config.h"
 
-#include <yt/yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
+#include <yt/yt/core/bus/tcp/config.h>
 
-namespace NYT::NUserJobExecutor {
+namespace NYT::NUserJob {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUserJobSynchronizerConnectionConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("bus_client_config", &TThis::BusClientConfig)
+        .DefaultNew();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,4 +49,4 @@ DEFINE_REFCOUNTED_TYPE(TUserJobExecutorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NUserJobExector
+} // namespace NYT::NUserJob

@@ -8,23 +8,9 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-namespace NYT::NUserJobSynchronizerClient {
+#include <yt/yt/server/lib/user_job/public.h>
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TUserJobSynchronizerConnectionConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    //! User job -> Job proxy connection config.
-    NBus::TBusClientConfigPtr BusClientConfig;
-
-    REGISTER_YSON_STRUCT(TUserJobSynchronizerConnectionConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TUserJobSynchronizerConnectionConfig)
+namespace NYT::NUserJob {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,4 +29,4 @@ IUserJobSynchronizerClientPtr CreateUserJobSynchronizerClient(TUserJobSynchroniz
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NUserJobSynchronizerClient
+} // namespace NYT::NUserJob

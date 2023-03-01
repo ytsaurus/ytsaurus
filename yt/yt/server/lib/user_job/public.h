@@ -2,12 +2,14 @@
 
 #include <yt/yt/core/misc/intrusive_ptr.h>
 
-namespace NYT::NUserJobExecutor {
+namespace NYT::NUserJob {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TUserJobExecutorConfig)
 
+DECLARE_REFCOUNTED_CLASS(TUserJobSynchronizerConnectionConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NUserJobExecutor
+} // namespace NYT::NUserJob
