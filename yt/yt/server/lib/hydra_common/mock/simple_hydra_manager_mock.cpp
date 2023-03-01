@@ -102,7 +102,8 @@ void TSimpleHydraManagerMock::DoApplyUpTo(int sequenceNumber)
             /*randomSeed*/ 0,
             /*prevRandomSeed*/ 0,
             /*sequenceNumber*/ AppliedSequenceNumber_,
-            /*stateHash*/ 0);
+            /*stateHash*/ 0,
+            /*term*/ 0);
 
         {
             TMutationContextGuard mutationContextGuard(&mutationContext);

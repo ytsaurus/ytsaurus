@@ -25,6 +25,7 @@ TMutationContext::TMutationContext(
     , PrevRandomSeed_(Parent_->GetPrevRandomSeed())
     , SequenceNumber_(Parent_->GetSequenceNumber())
     , StateHash_(Parent_->GetStateHash())
+    , Term_(Parent_->GetTerm())
 { }
 
 TMutationContext::TMutationContext(
@@ -34,7 +35,8 @@ TMutationContext::TMutationContext(
     ui64 randomSeed,
     ui64 prevRandomSeed,
     i64 sequenceNumber,
-    ui64 stateHash)
+    ui64 stateHash,
+    int term)
     : THydraContext(
         version,
         timestamp,
@@ -44,6 +46,7 @@ TMutationContext::TMutationContext(
     , PrevRandomSeed_(prevRandomSeed)
     , SequenceNumber_(sequenceNumber)
     , StateHash_(stateHash)
+    , Term_(term)
 { }
 
 TMutationContext::TMutationContext(TTestingTag)
@@ -56,6 +59,7 @@ TMutationContext::TMutationContext(TTestingTag)
     , PrevRandomSeed_(0)
     , SequenceNumber_(0)
     , StateHash_(0)
+    , Term_(0)
 { }
 
 const TMutationRequest& TMutationContext::Request() const
@@ -76,6 +80,11 @@ i64 TMutationContext::GetSequenceNumber() const
 ui64 TMutationContext::GetStateHash() const
 {
     return StateHash_;
+}
+
+int TMutationContext::GetTerm() const
+{
+    return Term_;
 }
 
 void TMutationContext::SetStateHash(ui64 newStateHash)

@@ -61,7 +61,8 @@ public:
         ui64 randomSeed,
         ui64 prevRandomSeed,
         i64 sequenceNumber,
-        ui64 stateHash);
+        ui64 stateHash,
+        int term);
 
     explicit TMutationContext(TTestingTag);
 
@@ -69,6 +70,7 @@ public:
     ui64 GetPrevRandomSeed() const;
     i64 GetSequenceNumber() const;
     ui64 GetStateHash() const;
+    int GetTerm() const;
 
     //! Used by ResetStateHash mutation.
     //! Probably you do not want to use it in other contexts.
@@ -92,6 +94,7 @@ private:
     ui64 PrevRandomSeed_;
     i64 SequenceNumber_;
     ui64 StateHash_;
+    int Term_;
     bool ResponseKeeperSuppressed_ = false;
 };
 
