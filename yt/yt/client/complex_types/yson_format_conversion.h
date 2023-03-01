@@ -38,6 +38,7 @@ using TYsonServerToClientConverter = std::function<void(NTableClient::TUnversion
 struct TYsonConverterConfig
 {
     NFormats::EComplexTypeMode ComplexTypeMode = NFormats::EComplexTypeMode::Named;
+    NFormats::EDictMode StringKeyedDictMode = NFormats::EDictMode::Positional;
     NFormats::EDecimalMode DecimalMode = NFormats::EDecimalMode::Binary;
     NFormats::ETimeMode TimeMode = NFormats::ETimeMode::Binary;
     NFormats::EUuidMode UuidMode = NFormats::EUuidMode::Binary;

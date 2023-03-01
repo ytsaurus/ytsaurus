@@ -21,6 +21,8 @@ void TYsonFormatConfig::Register(TRegistrar registrar)
         .Default(NYson::EYsonFormat::Binary);
     registrar.Parameter("complex_type_mode", &TThis::ComplexTypeMode)
         .Default(EComplexTypeMode::Named);
+    registrar.Parameter("string_keyed_dict_mode", &TThis::StringKeyedDictMode)
+        .Default(EDictMode::Positional);
     registrar.Parameter("decimal_mode", &TThis::DecimalMode)
         .Default(EDecimalMode::Binary);
     registrar.Parameter("time_mode", &TThis::TimeMode)

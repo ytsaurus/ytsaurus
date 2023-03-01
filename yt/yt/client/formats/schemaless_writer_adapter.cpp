@@ -336,6 +336,7 @@ void TSchemalessWriterAdapter::Init(const std::vector<NTableClient::TTableSchema
     SkipNullValues_ = format.Attributes().Get("skip_null_values", false);
     TYsonConverterConfig config{
         .ComplexTypeMode = format.Attributes().Get("complex_type_mode", EComplexTypeMode::Named),
+        .StringKeyedDictMode = format.Attributes().Get("string_keyed_dict_mode", EDictMode::Positional),
         .DecimalMode = format.Attributes().Get("decimal_mode", EDecimalMode::Binary),
         .TimeMode = format.Attributes().Get("time_mode", ETimeMode::Binary),
         .UuidMode = format.Attributes().Get("uuid_mode", EUuidMode::Binary),
