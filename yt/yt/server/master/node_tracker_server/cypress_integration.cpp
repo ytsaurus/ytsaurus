@@ -260,7 +260,7 @@ private:
                         state = ENodeState::Mixed;
                         break;
                     default:
-                        YT_VERIFY(false);
+                        YT_ABORT();
                 }
                 BuildYsonFluently(consumer)
                     .DoListFor(nodeTracker->Nodes(), [=] (TFluentList fluent, const std::pair<TObjectId, TNode*>& pair) {

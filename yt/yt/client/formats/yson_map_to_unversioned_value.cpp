@@ -19,7 +19,7 @@ TYsonMapToUnversionedValueConverter::TYsonMapToUnversionedValueConverter(
 
 void TYsonMapToUnversionedValueConverter::Reset()
 {
-    YT_VERIFY(InsideValue_ == false);
+    YT_VERIFY(!InsideValue_);
 }
 
 void TYsonMapToUnversionedValueConverter::OnStringScalar(TStringBuf value)

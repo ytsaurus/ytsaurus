@@ -259,7 +259,7 @@ public:
 private:
     void Finalize()
     {
-        YT_VERIFY(Compiled_ == false);
+        YT_VERIFY(!Compiled_);
         Compile();
         Compiled_ = true;
     }

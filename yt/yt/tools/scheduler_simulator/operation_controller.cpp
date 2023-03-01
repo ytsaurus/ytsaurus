@@ -345,7 +345,7 @@ void TSimulatorOperationController::OnBucketCompleted(TJobBucket* deactivatedBuc
             return;
         }
     }
-    YT_VERIFY(false);
+    YT_ABORT();
 }
 
 TControllerEpoch TSimulatorOperationController::GetEpoch() const

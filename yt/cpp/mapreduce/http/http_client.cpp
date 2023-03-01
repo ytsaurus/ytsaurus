@@ -563,8 +563,7 @@ private:
         } else if (method == "PUT") {
             return Client_->Put(url, body, headers).Get().ValueOrThrow();
         } else {
-            YT_LOG_DEBUG("Unsupported http method (Method: %Qv, Url: %Qv)", method, url);
-            YT_VERIFY(false);
+            YT_LOG_FATAL("Unsupported http method (Method: %Qv, Url: %Qv)", method, url);
         }
     }
 
@@ -575,8 +574,7 @@ private:
         } else if (method == "PUT") {
             return Client_->StartPut(url, headers).Get().ValueOrThrow();
         } else {
-            YT_LOG_DEBUG("Unsupported http method (Method: %Qv, Url: %Qv)", method, url);
-            YT_VERIFY(false);
+            YT_LOG_FATAL("Unsupported http method (Method: %Qv, Url: %Qv)", method, url);
         }
     }
 
