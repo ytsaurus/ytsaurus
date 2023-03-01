@@ -12,6 +12,9 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/go/schema"
+	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yt/ythttp"
 	"a.yandex-team.ru/yt/go/ytprof"
 	"a.yandex-team.ru/yt/go/ytprof/api"
 	"a.yandex-team.ru/yt/go/ytprof/internal/app"
@@ -50,12 +53,26 @@ func initApp(t *testing.T) (*app.App, func()) {
 	l, stop := yttest.NewLogger(t)
 
 	c := app.Config{
-		HTTPEndpoint:    "localhost:0",
-		Proxy:           os.Getenv("YT_PROXY"),
-		TablePath:       "//home/kristevalex/ytprof/testing",
-		ManualProxy:     os.Getenv("YT_PROXY"),
-		ManualTablePath: "//home/kristevalex/ytprof/testing",
+		HTTPEndpoint: "localhost:0",
+		Proxy:        os.Getenv("YT_PROXY"),
+		FolderPath:   "//home/kristevalex/ytprof",
 	}
+
+	ytConfig := yt.Config{
+		Proxy:             c.Proxy,
+		ReadTokenFromFile: true,
+	}
+
+	yc, err := ythttp.NewClient(&ytConfig)
+	require.NoError(t, err)
+
+	_, err = yc.CreateNode(
+		context.Background(),
+		ypath.Path(c.FolderPath).Child("testing"),
+		yt.NodeMap,
+		&yt.CreateNodeOptions{Recursive: true, IgnoreExisting: true},
+	)
+	require.NoError(t, err)
 
 	a := app.NewApp(l, c)
 
@@ -77,7 +94,8 @@ func TestAppList(t *testing.T) {
 
 	request := &api.ListRequest{
 		Metaquery: &api.Metaquery{
-			Query: "true",
+			System: "testing",
+			Query:  "true",
 			TimePeriod: &api.TimePeriod{
 				PeriodStartTime: "2022-04-24T00:00:00.000000Z",
 				PeriodEndTime:   "2022-04-29T00:00:00.000000Z",
@@ -102,7 +120,7 @@ func TestAppList(t *testing.T) {
 		log.String("url", a.URL()+"/api/list"),
 		log.String("response", string(rsp.Body())))
 
-	require.Equal(t, rsp.StatusCode(), 200, rsp.String())
+	require.Equal(t, 200, rsp.StatusCode(), rsp.String())
 
 	require.NoError(t, a.Stop())
 	stop()
@@ -111,7 +129,8 @@ func TestAppList(t *testing.T) {
 func TestAppGet(t *testing.T) {
 	a, stop := initApp(t)
 	l := a.Logger()
-	ts := a.TableStorage()
+	ts, ok := a.TableStorage("testing")
+	require.True(t, ok)
 
 	ctx := context.Background()
 
@@ -131,6 +150,7 @@ func TestAppGet(t *testing.T) {
 
 	rsp, err := client.R().
 		SetQueryParam("profile_id", ytprof.GUIDFormProfID(resultIDs[0]).String()).
+		SetQueryParam("system", "testing").
 		Get(a.URL() + "/api/get")
 
 	require.NoError(t, err)
@@ -140,7 +160,7 @@ func TestAppGet(t *testing.T) {
 		log.String("url", a.URL()+"/api/get"),
 		log.String("response", string(rsp.Body())))
 
-	require.Equal(t, rsp.StatusCode(), 200, rsp.String())
+	require.Equal(t, 200, rsp.StatusCode(), rsp.String())
 
 	require.NoError(t, a.Stop())
 	stop()

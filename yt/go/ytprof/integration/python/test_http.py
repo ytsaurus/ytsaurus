@@ -7,9 +7,17 @@ import os
 import yatest.common
 import yatest.common.network
 
+import yt.wrapper
+
 
 @pytest.fixture(scope="session")
 def running_app():
+    proxy = os.environ['YT_PROXY']
+    folder_path = "//home/kristevalex/ytprof"
+    yt_client = yt.wrapper.YtClient(proxy)
+
+    yt_client.create("map_node", folder_path + "/testing", recursive=True, ignore_existing=True)
+
     with yatest.common.network.PortManager() as pm:
         port = pm.get_port()
 
@@ -18,10 +26,9 @@ def running_app():
             "--config-json",
             json.dumps({
                 "http_endpoint": f"localhost:{port}",
-                "proxy": os.environ['YT_PROXY'],
-                "table_path": "//home/kristevalex/ytprof/testing",
-                "manual_proxy": os.environ['YT_PROXY'],
-                "manual_table_path": "//home/kristevalex/ytprof/testing"}),
+                "proxy": proxy,
+                "folder_path": folder_path,
+            }),
             "--log-to-stderr",
         ]
 
@@ -58,6 +65,7 @@ def fetch_data(running_app, name, body):
 def test_list(running_app):
     fetch_data(running_app, "list", {
         'metaquery': {
+            'system': 'testing',
             'query': 'true',
             'query_limit': 10000,
             'time_period': {

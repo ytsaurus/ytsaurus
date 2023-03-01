@@ -24,6 +24,8 @@ import (
 	"a.yandex-team.ru/yt/go/ytprof/internal/storage"
 )
 
+var errStorageNotFound = fmt.Errorf("storage not found")
+
 func apiTimePeriodToStorage(at *api.TimePeriod) (storage.TimestampPeriod, error) {
 	tmin, err := yson.UnmarshalTime(at.PeriodStartTime)
 	if err != nil {
@@ -84,13 +86,19 @@ func (a *App) storageMetadataToAPI(sm ytprof.ProfileMetadata) (*api.Metadata, er
 }
 
 func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOption) (*api.ListResponse, error) {
+	tsc, ok := a.TableStorage(in.Metaquery.System)
+	if !ok {
+		a.l.Error("table storage not found", log.String("system", in.Metaquery.System))
+		return nil, errStorageNotFound
+	}
+
 	metaquery, err := a.apiMetaqueryToStorage(in.Metaquery)
 	if err != nil {
 		a.l.Error("time conversion failed", log.Error(err))
 		return nil, err
 	}
 
-	resp, err := a.ts.MetadataQueryExpr(ctx, metaquery, false)
+	resp, err := tsc.MetadataQueryExpr(ctx, metaquery, false)
 	if err != nil {
 		a.l.Error("metaquery failed", log.Error(err))
 		return nil, err
@@ -99,7 +107,7 @@ func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOp
 	// TODO: if this is too slow add cash for sizes
 	metaquery.ResultSkip = 0
 	metaquery.ResultLimit = 0
-	respLen, err := a.ts.MetadataIDsQueryExpr(ctx, metaquery, false)
+	respLen, err := tsc.MetadataIDsQueryExpr(ctx, metaquery, false)
 	if err != nil {
 		a.l.Error("metaquery failed", log.Error(err))
 		return nil, err
@@ -121,13 +129,19 @@ func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOp
 }
 
 func (a *App) Get(ctx context.Context, in *api.GetRequest, opts ...grpc.CallOption) (*httpbody.HttpBody, error) {
+	tsc, ok := a.TableStorage(in.System)
+	if !ok {
+		a.l.Error("table storage not found", log.String("system", in.System))
+		return nil, errStorageNotFound
+	}
+
 	profileGUID, err := guid.ParseString(in.ProfileId)
 	if err != nil {
 		a.l.Error("parsing guid failed", log.Error(err), log.String("guid", in.ProfileId))
 		return nil, err
 	}
 
-	resp, err := a.ts.FindData(ctx, ytprof.ProfIDFromGUID(profileGUID))
+	resp, err := tsc.FindData(ctx, ytprof.ProfIDFromGUID(profileGUID))
 	if err != nil {
 		a.l.Error("finding profile failed: profile with such id does not exist", log.Error(err))
 		return nil, err
@@ -142,6 +156,12 @@ func (a *App) Get(ctx context.Context, in *api.GetRequest, opts ...grpc.CallOpti
 }
 
 func (a *App) Merge(ctx context.Context, in *api.MergeRequest, opts ...grpc.CallOption) (*httpbody.HttpBody, error) {
+	tsc, ok := a.TableStorage(in.System)
+	if !ok {
+		a.l.Error("table storage not found", log.String("system", in.System))
+		return nil, errStorageNotFound
+	}
+
 	profileGUIDs := make([]ytprof.ProfID, len(in.ProfileIds))
 
 	for i, profileString := range in.ProfileIds {
@@ -153,7 +173,7 @@ func (a *App) Merge(ctx context.Context, in *api.MergeRequest, opts ...grpc.Call
 		profileGUIDs[i] = ytprof.ProfIDFromGUID(profileGUID)
 	}
 
-	profile, err := a.ts.FindAndMergeProfiles(ctx, profileGUIDs)
+	profile, err := tsc.FindAndMergeProfiles(ctx, profileGUIDs)
 	if err != nil {
 		a.l.Error("find and merge failed", log.Error(err))
 		return nil, err
@@ -175,6 +195,12 @@ func (a *App) Merge(ctx context.Context, in *api.MergeRequest, opts ...grpc.Call
 }
 
 func (a *App) MergeLink(ctx context.Context, in *api.MergeRequest, opts ...grpc.CallOption) (*api.MergeLinkResponse, error) {
+	tsc, ok := a.TableStorage(in.System)
+	if !ok {
+		a.l.Error("table storage not found", log.String("system", in.System))
+		return nil, errStorageNotFound
+	}
+
 	profileGUIDs := make([]ytprof.ProfID, len(in.ProfileIds))
 
 	for i, profileString := range in.ProfileIds {
@@ -186,13 +212,19 @@ func (a *App) MergeLink(ctx context.Context, in *api.MergeRequest, opts ...grpc.
 		profileGUIDs[i] = ytprof.ProfIDFromGUID(profileGUID)
 	}
 
-	profileMerged, err := a.ts.FindAndMergeProfiles(ctx, profileGUIDs)
+	profileMerged, err := tsc.FindAndMergeProfiles(ctx, profileGUIDs)
 	if err != nil {
 		a.l.Error("find and merge failed", log.Error(err))
 		return nil, err
 	}
 
-	guids, err := a.tsm.PushData(
+	tsm, ok := a.TableStorage(ManualSystem)
+	if !ok {
+		a.l.Error("table storage not found", log.String("system", ManualSystem))
+		return nil, errStorageNotFound
+	}
+
+	guids, err := tsm.PushData(
 		ctx,
 		[]*profile.Profile{profileMerged},
 		[]string{"merged"},
@@ -214,6 +246,12 @@ func (a *App) MergeLink(ctx context.Context, in *api.MergeRequest, opts ...grpc.
 }
 
 func (a *App) MergeAll(ctx context.Context, in *api.MergeAllRequest, opts ...grpc.CallOption) (*httpbody.HttpBody, error) {
+	tsc, ok := a.TableStorage(in.Metaquery.System)
+	if !ok {
+		a.l.Error("table storage not found", log.String("system", in.Metaquery.System))
+		return nil, errStorageNotFound
+	}
+
 	metaquery, err := a.apiMetaqueryToStorage(in.Metaquery)
 	if err != nil {
 		a.l.Error("time conversion failed", log.Error(err))
@@ -223,7 +261,7 @@ func (a *App) MergeAll(ctx context.Context, in *api.MergeAllRequest, opts ...grp
 	metaquery.ResultSkip = 0
 	metaquery.ResultLimit = 0
 
-	resp, err := a.ts.MetadataIDsQueryExpr(ctx, metaquery, false)
+	resp, err := tsc.MetadataIDsQueryExpr(ctx, metaquery, false)
 	if err != nil {
 		a.l.Error("metaquery failed", log.Error(err))
 		return nil, err
@@ -231,7 +269,7 @@ func (a *App) MergeAll(ctx context.Context, in *api.MergeAllRequest, opts ...grp
 
 	a.l.Debug("merge all request started", log.Int("profiles_found", len(resp)))
 
-	profile, err := a.ts.FindAndMergeProfiles(ctx, resp)
+	profile, err := tsc.FindAndMergeProfiles(ctx, resp)
 	if err != nil {
 		a.l.Error("find and merge failed", log.Error(err))
 		return nil, err
@@ -253,14 +291,20 @@ func (a *App) MergeAll(ctx context.Context, in *api.MergeAllRequest, opts ...grp
 	}, nil
 }
 
-func (a *App) SuggestTags(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*api.SuggestTagsResponse, error) {
-	resp, err := a.ts.FindTags(ctx)
+func (a *App) SuggestTags(ctx context.Context, in *api.SuggestTagsRequest, opts ...grpc.CallOption) (*api.SuggestTagsResponse, error) {
+	tsc, ok := a.TableStorage(in.System)
+	if !ok {
+		a.l.Error("table storage not found", log.String("system", in.System))
+		return nil, errStorageNotFound
+	}
+
+	resp, err := tsc.FindTags(ctx)
 	if err != nil {
 		a.l.Error("find_tags failed", log.Error(err))
 		return nil, err
 	}
 
-	a.l.Error("find_tags request succeeded")
+	a.l.Debug("find_tags request succeeded")
 
 	sort.Strings(resp)
 
@@ -269,8 +313,30 @@ func (a *App) SuggestTags(ctx context.Context, in *emptypb.Empty, opts ...grpc.C
 	}, nil
 }
 
+func (a *App) Systems(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*api.SystemsResponse, error) {
+	uiSystems := []string{}
+
+	for _, system := range a.systems {
+		if _, ok := NonUISystems[system]; !ok {
+			uiSystems = append(uiSystems, system)
+		}
+	}
+
+	sort.Strings(uiSystems)
+
+	return &api.SystemsResponse{
+		System: uiSystems,
+	}, nil
+}
+
 func (a *App) SuggestValues(ctx context.Context, in *api.SuggestValuesRequest, opts ...grpc.CallOption) (*api.SuggestValuesResponse, error) {
-	resp, err := a.ts.FindTagValues(ctx, in.Tag)
+	tsc, ok := a.TableStorage(in.System)
+	if !ok {
+		a.l.Error("table storage not found", log.String("system", in.System))
+		return nil, errStorageNotFound
+	}
+
+	resp, err := tsc.FindTagValues(ctx, in.Tag)
 	if err != nil {
 		a.l.Error("find_tags failed", log.Error(err))
 		return nil, err
@@ -285,8 +351,11 @@ func (a *App) SuggestValues(ctx context.Context, in *api.SuggestValuesRequest, o
 	}, nil
 }
 
-func (a *App) UIHandler(w http.ResponseWriter, r *http.Request, manual bool) {
-	a.l.Debug("receiving HTTP UI request", log.String("path", r.URL.Path))
+func (a *App) UIHandler(w http.ResponseWriter, r *http.Request, system string) {
+	a.l.Debug("receiving HTTP UI request",
+		log.String("path", r.URL.Path),
+		log.String("system", system),
+	)
 
 	guidString := chi.RouteContext(r.Context()).URLParam("profileID")
 	profileGUID, err := guid.ParseString(guidString)
@@ -296,12 +365,17 @@ func (a *App) UIHandler(w http.ResponseWriter, r *http.Request, manual bool) {
 		return
 	}
 
-	var profile *profile.Profile
-	if manual {
-		profile, err = a.tsm.FindProfile(r.Context(), ytprof.ProfIDFromGUID(profileGUID))
-	} else {
-		profile, err = a.ts.FindProfile(r.Context(), ytprof.ProfIDFromGUID(profileGUID))
+	tsc, ok := a.TableStorage(system)
+	if !ok {
+		a.l.Error("failed HTTP UI request: table storage not found",
+			log.Error(errStorageNotFound),
+			log.String("system", system),
+		)
+		http.Error(w, errStorageNotFound.Error(), http.StatusNotFound)
+		return
 	}
+
+	profile, err := tsc.FindProfile(r.Context(), ytprof.ProfIDFromGUID(profileGUID))
 	if err != nil {
 		a.l.Error("failed HTTP UI request: profile not found", log.Error(err))
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -311,8 +385,8 @@ func (a *App) UIHandler(w http.ResponseWriter, r *http.Request, manual bool) {
 	fetcher := profileFetcher{profile: profile}
 
 	uiPrefix := UIRequestPrefix
-	if manual {
-		uiPrefix = UIManualRequestPrefix
+	if len(system) > 0 {
+		uiPrefix = fmt.Sprintf("/%s%s", system, UIRequestPrefix)
 	}
 
 	fullPrefix := fmt.Sprintf("%s/%s", uiPrefix, profileGUID)
