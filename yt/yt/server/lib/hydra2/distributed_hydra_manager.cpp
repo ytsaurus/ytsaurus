@@ -632,6 +632,7 @@ private:
 
     TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
+    TAtomicIntrusivePtr<TEpochContext> AtomicEpochContext_;
 
     TAtomicObject<TPeerIdSet> AlivePeerIds_;
 
@@ -1308,6 +1309,17 @@ private:
             .Promise = std::move(promise),
             .RandomSeed = randomSeed
         });
+
+        if (Config_->Get()->MinimizeCommitLatency) {
+            if (auto epochContext = AtomicEpochContext_.Acquire()) {
+                epochContext->EpochControlInvoker->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
+                    VERIFY_THREAD_AFFINITY(ControlThread);
+                    if (ControlState_ == EPeerState::Leading) {
+                        epochContext->LeaderCommitter->SerializeMutations();
+                    }
+                }));
+            }
+        }
 
         return future;
     }
@@ -2506,6 +2518,7 @@ private:
 
         YT_VERIFY(!ControlEpochContext_);
         ControlEpochContext_ = epochContext;
+        AtomicEpochContext_.Store(epochContext);
 
         SystemLockGuard_ = TSystemLockGuard::Acquire(DecoratedAutomaton_);
 
@@ -2572,6 +2585,7 @@ private:
         }
 
         ControlEpochContext_.Reset();
+        AtomicEpochContext_.Reset();
     }
 
     static TFuture<void> DoSyncWithLeader(

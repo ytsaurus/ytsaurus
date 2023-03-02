@@ -51,6 +51,7 @@ def get_master_config():
     hydra_manager = {
         snapshot_background_thread_count = 4;
         leader_sync_delay = 0;
+        minimize_commit_latency = %true;
     }
 }
 """)
