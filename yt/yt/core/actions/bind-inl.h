@@ -485,7 +485,7 @@ public:
 
     // Keep minimum frame count.
     template <class... TAs>
-    static auto Run(NDetail::TBindStateBase* base, TAs&&... args)
+    static auto Run(TCallArg<TAs>... args, NDetail::TBindStateBase* base)
     {
         auto* state = static_cast<TBindState*>(base);
 
