@@ -756,7 +756,8 @@ public:
 
     size_t GetSpaceUsed() const
     {
-        return StringData_.capacity() + RowData_.Size();
+        return StringData_.GetHolder()->GetTotalByteSize().value_or(StringData_.Size()) +
+            RowData_.GetHolder()->GetTotalByteSize().value_or(RowData_.Size());
     }
 
 
@@ -800,15 +801,15 @@ public:
 
 private:
     friend TLegacyOwningKey GetKeySuccessorImpl(const TLegacyOwningKey& key, int prefixLength, EValueType sentinelType);
-    friend TUnversionedOwningRow DeserializeFromString(const TString& data, std::optional<int> nullPaddingWidth);
+    friend TUnversionedOwningRow DeserializeFromString(TString&& data, std::optional<int> nullPaddingWidth);
 
     friend class TUnversionedOwningRowBuilder;
 
     TSharedMutableRef RowData_; // TRowHeader plus TValue-s
-    TString StringData_;        // Holds string data
+    TSharedRef StringData_;     // Holds string data
 
 
-    TUnversionedOwningRow(TSharedMutableRef rowData, TString stringData)
+    TUnversionedOwningRow(TSharedMutableRef&& rowData, TSharedRef&& stringData)
         : RowData_(std::move(rowData))
         , StringData_(std::move(stringData))
     { }
@@ -876,7 +877,7 @@ private:
     const int InitialValueCapacity_;
 
     TBlob RowData_{GetRefCountedTypeCookie<TOwningRowTag>()};
-    TString StringData_;
+    TBlob StringData_{GetRefCountedTypeCookie<TOwningRowTag>()};
 
     TUnversionedRowHeader* GetHeader();
     TUnversionedValue* GetValue(ui32 index);

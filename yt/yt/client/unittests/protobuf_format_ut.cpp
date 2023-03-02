@@ -2029,13 +2029,15 @@ TEST_P(TProtobufFormatStructuredMessage, EmbeddedWrite)
             // string1
             .Item().Value("abc")
         .EndList();
-    builder.AddValue(MakeUnversionedCompositeValue(embeddedYson.ToString(), embedded2StructId));
-    auto repeatedYson = BuildYsonStringFluently()
+    auto embeddedYsonStr = embeddedYson.ToString();
+    builder.AddValue(MakeUnversionedCompositeValue(embeddedYsonStr, embedded2StructId));
+    auto repeatedYsonStr = BuildYsonStringFluently()
         .BeginList()
             .Item().Value("a")
             .Item().Value("b")
-        .EndList();
-    builder.AddValue(MakeUnversionedCompositeValue(repeatedYson.ToString(), embedded2RepeatedId));
+        .EndList()
+        .ToString();
+    builder.AddValue(MakeUnversionedCompositeValue(repeatedYsonStr, embedded2RepeatedId));
     builder.AddValue(MakeUnversionedInt64Value(111, extraIntId));
     auto otherComplexFieldYson = BuildYsonStringFluently()
         .BeginList()
@@ -2043,8 +2045,8 @@ TEST_P(TProtobufFormatStructuredMessage, EmbeddedWrite)
             .Item().Value(23)
             .Item().Value(24)
         .EndList();
-    builder.AddValue(MakeUnversionedCompositeValue(otherComplexFieldYson.ToString(), otherComplexFieldId));
-
+    auto otherComplexFieldYsonStr = otherComplexFieldYson.ToString();
+    builder.AddValue(MakeUnversionedCompositeValue(otherComplexFieldYsonStr, otherComplexFieldId));
 
 
     auto rows = std::vector<TUnversionedRow>(rowCount, builder.GetRow());
@@ -2149,7 +2151,7 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
         New<TControlAttributesConfig>(),
         0);
 
-    auto firstYson = BuildYsonStringFluently()
+    auto firstYsonStr = BuildYsonStringFluently()
         .BeginList()
             // field_missing_from_proto1
             .Item().Value(11111)
@@ -2248,16 +2250,18 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
                         .EndList()
                     .EndList()
                 .EndList()
-        .EndList();
+        .EndList()
+        .ToString();
 
-    auto secondYson = BuildYsonStringFluently()
+    auto secondYsonStr = BuildYsonStringFluently()
         .BeginList()
             .Item().Value(101)
             .Item().Value(102)
             .Item().Value(103)
-        .EndList();
+        .EndList()
+        .ToString();
 
-    auto repeatedMessageYson = BuildYsonStringFluently()
+    auto repeatedMessageYsonStr = BuildYsonStringFluently()
         .BeginList()
             .Item()
             .BeginList()
@@ -2269,7 +2273,8 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
                 .Item().Value("key21")
                 .Item().Value("value21")
             .EndList()
-        .EndList();
+        .EndList()
+        .ToString();
 
     auto repeatedInt64Yson = BuildYsonStringFluently()
         .BeginList()
@@ -2277,10 +2282,12 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
             .Item().Value(32)
             .Item().Value(33)
         .EndList();
+    auto repeatedInt64YsonStr = repeatedInt64Yson.ToString();
 
-    auto anotherRepeatedInt64Yson = BuildYsonStringFluently()
+    auto anotherRepeatedInt64YsonStr = BuildYsonStringFluently()
         .BeginList()
-        .EndList();
+        .EndList()
+        .ToString();
 
     auto repeatedOptionalAnyYson = BuildYsonStringFluently()
         .BeginList()
@@ -2289,6 +2296,7 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
             .Item().Entity()
             .Item().Value(true)
         .EndList();
+    auto repeatedOptionalAnyYsonStr = repeatedOptionalAnyYson.ToString();
 
     auto otherComplexFieldYson = BuildYsonStringFluently()
         .BeginList()
@@ -2296,13 +2304,14 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
             .Item().Value(23)
             .Item().Value(24)
         .EndList();
+    auto otherComplexFieldYsonStr = otherComplexFieldYson.ToString();
 
     TUnversionedRowBuilder builder;
-    builder.AddValue(MakeUnversionedCompositeValue(firstYson.ToString(), firstId));
-    builder.AddValue(MakeUnversionedCompositeValue(secondYson.ToString(), secondId));
-    builder.AddValue(MakeUnversionedCompositeValue(repeatedMessageYson.ToString(), repeatedMessageId));
-    builder.AddValue(MakeUnversionedCompositeValue(repeatedInt64Yson.ToString(), repeatedInt64Id));
-    builder.AddValue(MakeUnversionedCompositeValue(anotherRepeatedInt64Yson.ToString(), anotherRepeatedInt64Id));
+    builder.AddValue(MakeUnversionedCompositeValue(firstYsonStr, firstId));
+    builder.AddValue(MakeUnversionedCompositeValue(secondYsonStr, secondId));
+    builder.AddValue(MakeUnversionedCompositeValue(repeatedMessageYsonStr, repeatedMessageId));
+    builder.AddValue(MakeUnversionedCompositeValue(repeatedInt64YsonStr, repeatedInt64Id));
+    builder.AddValue(MakeUnversionedCompositeValue(anotherRepeatedInt64YsonStr, anotherRepeatedInt64Id));
     builder.AddValue(MakeUnversionedInt64Value(4321, anyFieldId));
 
     builder.AddValue(MakeUnversionedInt64Value(-64, int64FieldId));
@@ -2317,9 +2326,9 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     const auto HelloWorldInRussian = "\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82, \xd0\xbc\xd0\xb8\xd1\x80!";
     builder.AddValue(MakeUnversionedStringValue(HelloWorldInRussian, utf8FieldId));
 
-    builder.AddValue(MakeUnversionedCompositeValue(repeatedOptionalAnyYson.ToString(), repeatedOptionalAnyFieldId));
+    builder.AddValue(MakeUnversionedCompositeValue(repeatedOptionalAnyYsonStr, repeatedOptionalAnyFieldId));
 
-    builder.AddValue(MakeUnversionedCompositeValue(otherComplexFieldYson.ToString(), otherComplexFieldId));
+    builder.AddValue(MakeUnversionedCompositeValue(otherComplexFieldYsonStr, otherComplexFieldId));
 
     builder.AddValue(MakeUnversionedCompositeValue("[12;-10;123456789000;]", packedRepeatedInt64FieldId));
 
@@ -3061,14 +3070,15 @@ TEST_P(TProtobufFormatSeveralTables, Write)
         .BeginList()
             .Item().Value("Two")
             .Item().Value(44)
-        .EndList();
+        .EndList()
+        .ToString();
 
-    auto repeatedInt64Yson = ConvertToYsonString(std::vector<i64>{31, 32, 33});
+    auto repeatedInt64Yson = ConvertToYsonString(std::vector<i64>{31, 32, 33}).ToString();
 
     {
         TUnversionedRowBuilder builder;
-        builder.AddValue(MakeUnversionedCompositeValue(embeddedYson.ToString(), embeddedId));
-        builder.AddValue(MakeUnversionedCompositeValue(repeatedInt64Yson.ToString(), repeatedInt64Id));
+        builder.AddValue(MakeUnversionedCompositeValue(embeddedYson, embeddedId));
+        builder.AddValue(MakeUnversionedCompositeValue(repeatedInt64Yson, repeatedInt64Id));
         builder.AddValue(MakeUnversionedInt64Value(4321, anyFieldId));
         writer->Write({builder.GetRow()});
     }
@@ -3760,7 +3770,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
                 .Item().Value("two")
             .EndList()
         .EndMap();
-    auto ysonString = ConvertToYsonString(mapNode);
+    auto ysonString = ConvertToYsonString(mapNode).ToString();
 
     TUnversionedRowBuilder builder;
     for (const auto& value : {
@@ -3797,7 +3807,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
     }
 
     if (!IsLegacyFormat()) {
-        builder.AddValue(MakeUnversionedAnyValue(ysonString.ToString(), anyWithMapId));
+        builder.AddValue(MakeUnversionedAnyValue(ysonString, anyWithMapId));
         builder.AddValue(MakeUnversionedInt64Value(22, anyWithInt64Id));
         builder.AddValue(MakeUnversionedStringValue("some_string", anyWithStringId));
 
@@ -3805,7 +3815,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
         builder.AddValue(MakeUnversionedDoubleValue(-123.456, otherDoubleColumnId));
         builder.AddValue(MakeUnversionedStringValue("some_string", otherStringColumnId));
         builder.AddValue(MakeUnversionedBooleanValue(true, otherBooleanColumnId));
-        builder.AddValue(MakeUnversionedAnyValue(ysonString.ToString(), otherAnyColumnId));
+        builder.AddValue(MakeUnversionedAnyValue(ysonString, otherAnyColumnId));
         builder.AddValue(MakeUnversionedNullValue(otherNullColumnId));
     }
 

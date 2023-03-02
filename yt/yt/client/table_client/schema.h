@@ -220,7 +220,7 @@ public:
     };
 
 public:
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnSchema>, Columns);
+    const std::vector<TColumnSchema>& Columns() const;
     //! Strict schema forbids columns not specified in the schema.
     DEFINE_BYVAL_RO_PROPERTY(bool, Strict, false);
     DEFINE_BYVAL_RO_PROPERTY(bool, UniqueKeys, false);
@@ -290,10 +290,6 @@ public:
 
     //! Same as above, but infers key column sort orders from #sortColumns.
     static TTableSchemaPtr FromSortColumns(const TSortColumns& sortColumns);
-
-    //! Returns schema with first `keyColumnCount' columns sorted in ascending order
-    //! and other columns non-sorted.
-    TTableSchemaPtr SetKeyColumnCount(int keyColumnCount) const;
 
     //! Returns schema with `UniqueKeys' set to given value.
     TTableSchemaPtr SetUniqueKeys(bool uniqueKeys) const;
@@ -373,12 +369,14 @@ public:
     i64 GetMemoryUsage() const;
 
 private:
+    std::shared_ptr<const std::vector<TColumnSchema>> Columns_;
+
     int KeyColumnCount_ = 0;
     bool HasComputedColumns_ = false;
     bool HasAggregateColumns_ = false;
     THunkColumnIds HunkColumnsIds_;
 
-    // NB: Strings are owned by TColumnSchema, they are immutable
+    // NB: Strings are owned by Columns_, addresses are immutable
     // inside TTableSchema.
     THashMap<TStringBuf, int> StableNameToColumnIndex_;
     THashMap<TStringBuf, int> NameToColumnIndex_;

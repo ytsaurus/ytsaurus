@@ -647,18 +647,28 @@ TStableName TTableSchema::TNameMapping::NameToStableName(TStringBuf name) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const std::vector<TColumnSchema>& TTableSchema::Columns() const
+{
+    if (Columns_) [[likely]] {
+        return *Columns_;
+    } else {
+        static const std::vector<TColumnSchema> empty;
+        return empty;
+    }
+}
+
 TTableSchema::TTableSchema(
     std::vector<TColumnSchema> columns,
     bool strict,
     bool uniqueKeys,
     ETableSchemaModification schemaModification)
-    : Columns_(std::move(columns))
-    , Strict_(strict)
+    : Strict_(strict)
     , UniqueKeys_(uniqueKeys)
     , SchemaModification_(schemaModification)
+    , Columns_(std::make_shared<const std::vector<TColumnSchema>>(std::move(columns)))
 {
-    for (int index = 0; index < std::ssize(Columns_); ++index) {
-        const auto& column = Columns_[index];
+    for (int index = 0; index < std::ssize(Columns()); ++index) {
+        const auto& column = Columns()[index];
         if (column.SortOrder()) {
             ++KeyColumnCount_;
         }
@@ -684,7 +694,7 @@ const TColumnSchema* TTableSchema::FindColumnByStableName(const TStableName& sta
     if (it == StableNameToColumnIndex_.end()) {
         return nullptr;
     }
-    return &Columns_[it->second];
+    return &Columns()[it->second];
 }
 
 const TColumnSchema* TTableSchema::FindColumn(TStringBuf name) const
@@ -693,7 +703,7 @@ const TColumnSchema* TTableSchema::FindColumn(TStringBuf name) const
     if (it == NameToColumnIndex_.end()) {
         return nullptr;
     }
-    return &Columns_[it->second];
+    return &Columns()[it->second];
 }
 
 const TColumnSchema& TTableSchema::GetColumn(TStringBuf name) const
@@ -745,7 +755,7 @@ TTableSchemaPtr TTableSchema::Filter(const TColumnFilter& columnFilter, bool dis
         if (!discardSortOrder) {
             return New<TTableSchema>(*this);
         } else {
-            columns = Columns_;
+            columns = Columns();
             for (auto& column : columns) {
                 column.SetSortOrder(std::nullopt);
             }
@@ -753,17 +763,17 @@ TTableSchemaPtr TTableSchema::Filter(const TColumnFilter& columnFilter, bool dis
     } else {
         bool inKeyColumns = !discardSortOrder;
         for (int id : columnFilter.GetIndexes()) {
-            if (id < 0 || id >= std::ssize(Columns_)) {
+            if (id < 0 || id >= std::ssize(Columns())) {
                 THROW_ERROR_EXCEPTION("Invalid column during schema filtering: expected in range [0, %v), got %v",
-                    Columns_.size(),
+                    Columns().size(),
                     id);
             }
 
-            if (id != std::ssize(columns) || !Columns_[id].SortOrder()) {
+            if (id != std::ssize(columns) || !Columns()[id].SortOrder()) {
                 inKeyColumns = false;
             }
 
-            columns.push_back(Columns_[id]);
+            columns.push_back(Columns()[id]);
 
             if (!inKeyColumns) {
                 columns.back().SetSortOrder(std::nullopt);
@@ -867,14 +877,14 @@ TKeyColumns TTableSchema::GetKeyColumns() const
 
 int TTableSchema::GetColumnCount() const
 {
-    return static_cast<int>(Columns_.size());
+    return static_cast<int>(Columns().size());
 }
 
 std::vector<TString> TTableSchema::GetColumnNames() const
 {
     std::vector<TString> result;
-    result.reserve(Columns_.size());
-    for (const auto& column : Columns_) {
+    result.reserve(Columns().size());
+    for (const auto& column : Columns()) {
         result.push_back(column.Name());
     }
     return result;
@@ -883,8 +893,8 @@ std::vector<TString> TTableSchema::GetColumnNames() const
 std::vector<TStableName> TTableSchema::GetColumnStableNames() const
 {
     std::vector<TStableName> result;
-    result.reserve(Columns_.size());
-    for (const auto& column : Columns_) {
+    result.reserve(Columns().size());
+    for (const auto& column : Columns()) {
         result.push_back(column.StableName());
     }
     return result;
@@ -950,24 +960,6 @@ TSortColumns TTableSchema::GetSortColumns(const std::optional<TNameMapping>& nam
     return sortColumns;
 }
 
-TTableSchemaPtr TTableSchema::SetKeyColumnCount(int keyColumnCount) const
-{
-    auto schema = *this;
-
-    for (int columnIndex = 0; columnIndex < schema.GetColumnCount(); ++columnIndex) {
-        auto& column = schema.Columns_[columnIndex];
-        if (columnIndex < keyColumnCount) {
-            column.SetSortOrder(ESortOrder::Ascending);
-        } else {
-            column.SetSortOrder(std::nullopt);
-        }
-    }
-
-    schema.KeyColumnCount_ = keyColumnCount;
-
-    return New<TTableSchema>(std::move(schema));
-}
-
 TTableSchemaPtr TTableSchema::SetUniqueKeys(bool uniqueKeys) const
 {
     auto schema = *this;
@@ -990,11 +982,13 @@ bool TTableSchema::HasNontrivialSchemaModification() const
 TTableSchemaPtr TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
 {
     TTableSchema schema;
+    std::vector<TColumnSchema> columns;
     for (const auto& columnName : keyColumns) {
-        schema.Columns_.push_back(
+        columns.push_back(
             TColumnSchema(columnName, ESimpleLogicalValueType::Any)
                 .SetSortOrder(ESortOrder::Ascending));
     }
+    schema.Columns_ = std::make_shared<const std::vector<TColumnSchema>>(std::move(columns));
     schema.KeyColumnCount_ = keyColumns.size();
     ValidateTableSchema(schema);
     return New<TTableSchema>(std::move(schema));
@@ -1003,11 +997,13 @@ TTableSchemaPtr TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
 TTableSchemaPtr TTableSchema::FromSortColumns(const TSortColumns& sortColumns)
 {
     TTableSchema schema;
+    std::vector<TColumnSchema> columns;
     for (const auto& sortColumn : sortColumns) {
-        schema.Columns_.push_back(
+        columns.push_back(
             TColumnSchema(sortColumn.Name, ESimpleLogicalValueType::Any)
                 .SetSortOrder(sortColumn.SortOrder));
     }
+    schema.Columns_ = std::make_shared<const std::vector<TColumnSchema>>(std::move(columns));
     schema.KeyColumnCount_ = sortColumns.size();
     ValidateTableSchema(schema);
     return New<TTableSchema>(std::move(schema));
@@ -1024,7 +1020,7 @@ TTableSchemaPtr TTableSchema::ToQuery() const
             TColumnSchema(RowIndexColumnName, ESimpleLogicalValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
         };
-        columns.insert(columns.end(), Columns_.begin(), Columns_.end());
+        columns.insert(columns.end(), Columns().begin(), Columns().end());
         return New<TTableSchema>(std::move(columns));
     }
 }
@@ -1033,7 +1029,7 @@ TTableSchemaPtr TTableSchema::ToWrite() const
 {
     std::vector<TColumnSchema> columns;
     if (IsSorted()) {
-        for (const auto& column : Columns_) {
+        for (const auto& column : Columns()) {
             if (!column.Expression()) {
                 columns.push_back(column);
             }
@@ -1041,7 +1037,7 @@ TTableSchemaPtr TTableSchema::ToWrite() const
     } else {
         columns.push_back(TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending));
-        for (const auto& column : Columns_) {
+        for (const auto& column : Columns()) {
             if (column.StableName().Get() != TimestampColumnName &&
                 column.StableName().Get() != CumulativeDataWeightColumnName)
             {
@@ -1057,7 +1053,7 @@ TTableSchemaPtr TTableSchema::WithTabletIndex() const
     if (IsSorted()) {
         return New<TTableSchema>(*this);
     } else {
-        auto columns = Columns_;
+        auto columns = Columns();
         // XXX: Is it ok? $tablet_index is usually a key column.
         columns.push_back(TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64));
         return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_);
@@ -1069,7 +1065,7 @@ TTableSchemaPtr TTableSchema::ToVersionedWrite() const
     if (IsSorted()) {
         return New<TTableSchema>(*this);
     } else {
-        auto columns = Columns_;
+        auto columns = Columns();
         columns.insert(columns.begin(), TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending));
         return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_);
@@ -1079,7 +1075,7 @@ TTableSchemaPtr TTableSchema::ToVersionedWrite() const
 TTableSchemaPtr TTableSchema::ToLookup() const
 {
     std::vector<TColumnSchema> columns;
-    for (const auto& column : Columns_) {
+    for (const auto& column : Columns()) {
         if (column.SortOrder() && !column.Expression()) {
             columns.push_back(column);
         }
@@ -1094,25 +1090,25 @@ TTableSchemaPtr TTableSchema::ToDelete() const
 
 TTableSchemaPtr TTableSchema::ToKeys() const
 {
-    std::vector<TColumnSchema> columns(Columns_.begin(), Columns_.begin() + KeyColumnCount_);
+    std::vector<TColumnSchema> columns(Columns().begin(), Columns().begin() + KeyColumnCount_);
     return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_);
 }
 
 TTableSchemaPtr TTableSchema::ToValues() const
 {
-    std::vector<TColumnSchema> columns(Columns_.begin() + KeyColumnCount_, Columns_.end());
+    std::vector<TColumnSchema> columns(Columns().begin() + KeyColumnCount_, Columns().end());
     return New<TTableSchema>(std::move(columns), Strict_, false);
 }
 
 TTableSchemaPtr TTableSchema::ToUniqueKeys() const
 {
-    return New<TTableSchema>(Columns_, Strict_, /*uniqueKeys*/ true);
+    return New<TTableSchema>(Columns(), Strict_, /*uniqueKeys*/ true);
 }
 
 TTableSchemaPtr TTableSchema::ToStrippedColumnAttributes() const
 {
     std::vector<TColumnSchema> strippedColumns;
-    for (auto& column : Columns_) {
+    for (const auto& column : Columns()) {
         auto& strippedColumn = strippedColumns.emplace_back(column.Name(), column.LogicalType());
         strippedColumn.SetStableName(column.StableName());
     }
@@ -1122,7 +1118,7 @@ TTableSchemaPtr TTableSchema::ToStrippedColumnAttributes() const
 TTableSchemaPtr TTableSchema::ToSortedStrippedColumnAttributes() const
 {
     std::vector<TColumnSchema> strippedColumns;
-    for (auto& column : Columns_) {
+    for (const auto& column : Columns()) {
         auto& strippedColumn = strippedColumns.emplace_back(column.Name(), column.LogicalType(), column.SortOrder());
         strippedColumn.SetStableName(column.StableName());
     }
@@ -1205,7 +1201,7 @@ TTableSchemaPtr TTableSchema::ToReplicationLog() const
     columns.push_back(TColumnSchema(TimestampColumnName, ESimpleLogicalValueType::Uint64));
     if (IsSorted()) {
         columns.push_back(TColumnSchema(TReplicationLogTable::ChangeTypeColumnName, ESimpleLogicalValueType::Int64));
-        for (const auto& column : Columns_) {
+        for (const auto& column : Columns()) {
             if (column.SortOrder()) {
                 columns.push_back(
                     TColumnSchema(
@@ -1221,7 +1217,7 @@ TTableSchemaPtr TTableSchema::ToReplicationLog() const
             }
         }
     } else {
-        for (const auto& column : Columns_) {
+        for (const auto& column : Columns()) {
             columns.push_back(
                 TColumnSchema(
                     TReplicationLogTable::ValueColumnNamePrefix + column.Name(),
@@ -1241,7 +1237,7 @@ TTableSchemaPtr TTableSchema::ToUnversionedUpdate(bool sorted) const
 
     // Keys.
     for (int columnIndex = 0; columnIndex < GetKeyColumnCount(); ++columnIndex) {
-        auto column = Columns_[columnIndex];
+        auto column = Columns()[columnIndex];
         if (!sorted) {
             column.SetSortOrder(std::nullopt);
         }
@@ -1255,7 +1251,7 @@ TTableSchemaPtr TTableSchema::ToUnversionedUpdate(bool sorted) const
 
     // Values.
     for (int columnIndex = GetKeyColumnCount(); columnIndex < GetColumnCount(); ++columnIndex) {
-        const auto& column = Columns_[columnIndex];
+        const auto& column = Columns()[columnIndex];
         YT_VERIFY(!column.SortOrder());
         columns.emplace_back(
             TUnversionedUpdateSchema::ValueColumnNamePrefix + column.Name(),
@@ -1298,8 +1294,8 @@ TComparator TTableSchema::ToComparator() const
 {
     std::vector<ESortOrder> sortOrders(KeyColumnCount_);
     for (int index = 0; index < KeyColumnCount_; ++index) {
-        YT_VERIFY(Columns_[index].SortOrder());
-        sortOrders[index] = *Columns_[index].SortOrder();
+        YT_VERIFY(Columns()[index].SortOrder());
+        sortOrders[index] = *Columns()[index].SortOrder();
     }
     return TComparator(std::move(sortOrders));
 }
@@ -1320,7 +1316,7 @@ void TTableSchema::Load(TStreamLoadContext& context)
 i64 TTableSchema::GetMemoryUsage() const
 {
     i64 usage = sizeof(TTableSchema);
-    for (const auto& column : Columns_) {
+    for (const auto& column : Columns()) {
         usage += column.GetMemoryUsage();
     }
     return usage;
@@ -1330,7 +1326,7 @@ TKeyColumnTypes TTableSchema::GetKeyColumnTypes() const
 {
     TKeyColumnTypes result(KeyColumnCount_);
     for (int index = 0; index < KeyColumnCount_; ++index) {
-        result[index] = Columns_[index].GetWireType();
+        result[index] = Columns()[index].GetWireType();
     }
     return result;
 }

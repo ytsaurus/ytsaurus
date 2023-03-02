@@ -1388,7 +1388,7 @@ private:
     std::deque<TLoggerQueueItem> TimeOrderedBuffer_;
     TExpiringSet<TRequestId> SuppressedRequestIdSet_;
 
-    using TEventProfilingKey = std::pair<TStringBuf, ELogLevel>;
+    using TEventProfilingKey = std::pair<TString, ELogLevel>;
     THashMap<TEventProfilingKey, TCounter> WrittenEventsCounters_;
 
     const TProfiler Profiler{"/logging"};
