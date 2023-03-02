@@ -1452,6 +1452,86 @@ class TestChaos(ChaosTestBase):
         assert get("//tmp/crt/@dynamic")
         _validate_schema(schema)
 
+    @authors("ashishkin")
+    def test_chaos_table_add_column(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+
+        # create chaos tables federation
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle", "schema": schema})
+
+        def _validate_schema(schema, path, driver=None):
+            actual_schema = get(f"{path}/@schema", driver=driver)
+            assert actual_schema.attributes["unique_keys"]
+            for column, actual_column in zip_longest(schema, actual_schema):
+                for name, value in column.items():
+                    assert actual_column[name] == value
+        _validate_schema(schema, "//tmp/crt")
+
+        replicas = [
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q.new"}
+        ]
+        replica_ids = self._create_chaos_table_replicas(replicas[:2], table_path="//tmp/crt")
+        self._create_replica_tables(replicas[:2], replica_ids, schema=schema)
+
+        _, remote_driver0, _ = self._get_drivers()
+        _validate_schema(schema, "//tmp/t", driver=remote_driver0)
+        _validate_schema(schema, "//tmp/q", driver=remote_driver0)
+
+        card_id = get("//tmp/crt/@replication_card_id")
+        self._sync_replication_era(card_id, replicas[:2])
+
+        # check data can be written
+        values0 = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/crt", values0)
+        wait(lambda: lookup_rows("//tmp/crt", [{"key": 0}]) == values0)
+        assert select_rows("* from [//tmp/crt]") == values0
+
+        # create replication_log with new schema
+        new_schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+            {"name": "new_value", "type": "string"},
+        ])
+        new_replica_id = self._create_chaos_table_replica(replicas[2], table_path="//tmp/crt", catchup=False)
+        self._create_replica_tables(replicas[2:], [new_replica_id], schema=new_schema)
+        _validate_schema(new_schema, "//tmp/q.new", remote_driver0)
+
+        # wait until all data replicated
+        timestamp = generate_timestamp()
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replication_lag_timestamp") > timestamp)
+
+        # alter schema of data table
+        sync_unmount_table("//tmp/t", driver=remote_driver0)
+        alter_table("//tmp/t", schema=new_schema, driver=remote_driver0)
+        sync_mount_table("//tmp/t", driver=remote_driver0)
+        _validate_schema(new_schema, "//tmp/t", driver=remote_driver0)
+
+        # remove old replication_log
+        remove("//tmp/q", driver=remote_driver0)
+        replica_id_to_delete = replica_ids[1]
+        alter_table_replica(replica_id_to_delete, enabled=False)
+        wait(lambda: get("#{0}/@state".format(replica_id_to_delete)) == "disabled")
+        remove("#{}".format(replica_id_to_delete))
+
+        # alter chaos_replicated_table schema
+        alter_table("//tmp/crt", schema=new_schema)
+        _validate_schema(new_schema, "//tmp/crt")
+
+        # check data with new schema can be written
+        values1 = [{"key": 1, "value": "1", "new_value": "n1"}]
+        insert_rows("//tmp/crt", values1)
+        wait(lambda: lookup_rows("//tmp/crt", [{"key": 1}]) == values1)
+
+        values0[0]["new_value"] = None
+        assert select_rows("* from [//tmp/crt]") == values0 + values1
+
     @authors("savrus")
     def test_invalid_chaos_table_data_access(self):
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
@@ -3105,6 +3185,14 @@ class TestChaos(ChaosTestBase):
 class TestChaosRpcProxy(TestChaos):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+    DELTA_RPC_DRIVER_CONFIG = {
+        "table_mount_cache": {
+            "expire_after_successful_update_time": 0,
+            "expire_after_failed_update_time": 0,
+            "expire_after_access_time": 0,
+            "refresh_time": 0,
+        },
+    }
 
     @authors("savrus")
     def test_insert_first(self):
