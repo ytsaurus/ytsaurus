@@ -842,7 +842,7 @@ protected:
             }
         }
 
-        CheckResult(std::move(expectedRows), versionedReader);
+        CheckResult(std::move(expectedRows), versionedReader, true);
     }
 
     void TestRangeReader(
@@ -1245,7 +1245,6 @@ protected:
             } else {
                 // Finish row to reset builder.
                 builder.FinishRow();
-                expectedRows.push_back(TVersionedRow());
             }
         }
 

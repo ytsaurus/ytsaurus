@@ -129,17 +129,8 @@ void ExpectSchemafulRowsEqual(TVersionedRow expected, TVersionedRow actual)
     }
 }
 
-void CheckResult(std::vector<TVersionedRow> expected, IVersionedReaderPtr reader)
+void CheckResult(std::vector<TVersionedRow> expected, IVersionedReaderPtr reader, bool filterOutNullRows)
 {
-    expected.erase(
-        std::remove_if(
-            expected.begin(),
-            expected.end(),
-            [] (TVersionedRow row) {
-                return !row;
-            }),
-        expected.end());
-
     auto it = expected.begin();
     std::vector<TVersionedRow> actual;
     actual.reserve(100);
@@ -153,14 +144,16 @@ void CheckResult(std::vector<TVersionedRow> expected, IVersionedReaderPtr reader
         auto range = batch->MaterializeRows();
         std::vector<TVersionedRow> actual(range.begin(), range.end());
 
-        actual.erase(
-            std::remove_if(
-                actual.begin(),
-                actual.end(),
-                [] (TVersionedRow row) {
-                    return !row;
-                }),
-            actual.end());
+        if (filterOutNullRows) {
+            actual.erase(
+                std::remove_if(
+                    actual.begin(),
+                    actual.end(),
+                    [] (TVersionedRow row) {
+                        return !row;
+                    }),
+                actual.end());
+        }
 
         std::vector<TVersionedRow> ex(it, std::min(it + actual.size(), expected.end()));
 

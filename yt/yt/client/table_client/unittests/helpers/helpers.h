@@ -21,7 +21,7 @@ void ExpectSchemalessRowsEqual(TUnversionedRow expected, TUnversionedRow actual,
 
 void ExpectSchemafulRowsEqual(TVersionedRow expected, TVersionedRow actual);
 
-void CheckResult(std::vector<TVersionedRow> expected, IVersionedReaderPtr reader);
+void CheckResult(std::vector<TVersionedRow> expected, IVersionedReaderPtr reader, bool filterOutNullRows = false);
 
 template <class TExpectedRow, class TActualRow>
 void CheckSchemafulResult(const std::vector<TExpectedRow>& expected, const std::vector<TActualRow>& actual)
