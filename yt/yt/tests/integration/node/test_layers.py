@@ -21,6 +21,7 @@ class TestLayers(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_job_workspace_builder": True,
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -241,6 +242,7 @@ class TestTmpfsLayerCache(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_job_workspace_builder": True,
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -406,6 +408,7 @@ class TestSquashfsLayers(TestLayers):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_job_workspace_builder": True,
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -427,6 +430,7 @@ class TestSquashfsTmpfsLayerCache(TestTmpfsLayerCache):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_job_workspace_builder": True,
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -460,6 +464,7 @@ class TestJobAbortDuringVolumePreparation(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_job_workspace_builder": True,
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
