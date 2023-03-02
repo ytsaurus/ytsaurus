@@ -50,7 +50,7 @@ public:
             return nullptr;
         }
         if (nodeTracker->ObjectIdFromNodeId(node->GetId()) != id) {
-            return  nullptr;
+            return nullptr;
         }
         return node;
     }
@@ -74,6 +74,8 @@ private:
         nodeTracker->ZombifyNode(node);
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IObjectTypeHandlerPtr CreateNodeTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
