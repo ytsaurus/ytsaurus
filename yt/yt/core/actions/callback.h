@@ -100,6 +100,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// We pass trivially copyable arguments by value. This helps to avoid
+// putting them on the stack sometimes.
+//
+// Kudos to folly::Function authors.
+template <typename T>
+using TCallArg = std::conditional_t<std::is_trivially_copyable_v<T>, T, T&&>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class S1, class S2>
 struct TCallableBindState;
 
@@ -122,7 +131,7 @@ struct TCallableBindState<S1, R2(TArgs2...)>
         , Callback(std::move(callback))
     { }
 
-    static R2 Run(NYT::NDetail::TBindStateBase* base, TArgs2&&... args)
+    static R2 Run(TCallArg<TArgs2>... args, NYT::NDetail::TBindStateBase* base)
     {
         auto* state = static_cast<TCallableBindState*>(base);
         return state->Callback(std::forward<TArgs2>(args)...);
@@ -148,7 +157,7 @@ struct TCallableBindState<S1, void(TArgs2...)>
         , Callback(std::move(callback))
     { }
 
-    static void Run(NYT::NDetail::TBindStateBase* base, TArgs2&&... args)
+    static void Run(TCallArg<TArgs2>... args, NYT::NDetail::TBindStateBase* base)
     {
         auto* state = static_cast<TCallableBindState*>(base);
         state->Callback(std::forward<TArgs2>(args)...);
@@ -162,7 +171,12 @@ class TCallback<R(TArgs...)>
     : public NYT::NDetail::TCallbackBase
 {
 private:
-    typedef R(*TTypedInvokeFunction)(NYT::NDetail::TBindStateBase*, TArgs&&...);
+    // We pass TBindStateBase as a last argument.
+    // Thus, all the arguments for calling the user's function are already
+    // at the right registers.
+    //
+    // Kudos to folly::Function authors.
+    typedef R(*TTypedInvokeFunction)(TCallArg<TArgs>..., NYT::NDetail::TBindStateBase*);
 
 public:
     typedef R(TSignature)(TArgs...);
@@ -179,7 +193,8 @@ public:
         : TCallbackBase(std::move(other))
     { }
 
-    TCallback(TIntrusivePtr<NYT::NDetail::TBindStateBase>&& bindState, TTypedInvokeFunction invokeFunction)
+    template <typename TInvokeFunction>
+    TCallback(TIntrusivePtr<NYT::NDetail::TBindStateBase>&& bindState, TInvokeFunction invokeFunction)
         : TCallbackBase(std::move(bindState))
     {
         UntypedInvoke = reinterpret_cast<TUntypedInvokeFunction>(invokeFunction);
@@ -217,7 +232,7 @@ public:
     R operator()(TArgs... args) const
     {
         auto invokeFunction = reinterpret_cast<TTypedInvokeFunction>(UntypedInvoke);
-        return invokeFunction(BindState.Get(), std::forward<TArgs>(args)...);
+        return invokeFunction(std::forward<TArgs>(args)..., BindState.Get());
     }
 
     R Run(TArgs... args) const

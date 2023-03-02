@@ -174,7 +174,7 @@ public:
         Cancel(error);
     }
 
-    static void StaticInvoke(NYT::NDetail::TBindStateBase* stateBase, const TError& error)
+    static void StaticInvoke(const TError& error, NYT::NDetail::TBindStateBase* stateBase)
     {
         auto* state = static_cast<TCanceler*>(stateBase);
         return state->Run(error);

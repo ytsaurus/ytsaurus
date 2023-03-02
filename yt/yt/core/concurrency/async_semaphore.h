@@ -12,7 +12,42 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAsyncSemaphoreGuard;
+class TAsyncSemaphoreGuard
+    : private TNonCopyable
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(i64, Slots);
+
+public:
+    TAsyncSemaphoreGuard();
+    TAsyncSemaphoreGuard(TAsyncSemaphoreGuard&& other) noexcept;
+    ~TAsyncSemaphoreGuard();
+
+    TAsyncSemaphoreGuard& operator=(TAsyncSemaphoreGuard&& other);
+
+    static TAsyncSemaphoreGuard Acquire(TAsyncSemaphorePtr semaphore, i64 slots = 1);
+    static TAsyncSemaphoreGuard TryAcquire(TAsyncSemaphorePtr semaphore, i64 slots = 1);
+
+    friend void swap(TAsyncSemaphoreGuard& lhs, TAsyncSemaphoreGuard& rhs);
+
+    TAsyncSemaphoreGuard TransferSlots(i64 slotsToTransfer);
+
+    void Release();
+
+    explicit operator bool() const;
+
+private:
+    friend class TAsyncSemaphore;
+
+    TAsyncSemaphorePtr Semaphore_;
+
+    TAsyncSemaphoreGuard(TAsyncSemaphorePtr semaphore, i64 slots);
+
+    void MoveFrom(TAsyncSemaphoreGuard&& other);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Custom semaphore class with async acquire operation.
 class TAsyncSemaphore
@@ -103,43 +138,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TProfiledAsyncSemaphore)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TAsyncSemaphoreGuard
-    : private TNonCopyable
-{
-public:
-    DEFINE_BYVAL_RO_PROPERTY(i64, Slots);
-
-public:
-    TAsyncSemaphoreGuard();
-    TAsyncSemaphoreGuard(TAsyncSemaphoreGuard&& other) noexcept;
-    ~TAsyncSemaphoreGuard();
-
-    TAsyncSemaphoreGuard& operator=(TAsyncSemaphoreGuard&& other);
-
-    static TAsyncSemaphoreGuard Acquire(TAsyncSemaphorePtr semaphore, i64 slots = 1);
-    static TAsyncSemaphoreGuard TryAcquire(TAsyncSemaphorePtr semaphore, i64 slots = 1);
-
-    friend void swap(TAsyncSemaphoreGuard& lhs, TAsyncSemaphoreGuard& rhs);
-
-    TAsyncSemaphoreGuard TransferSlots(i64 slotsToTransfer);
-
-    void Release();
-
-    explicit operator bool() const;
-
-private:
-    friend class TAsyncSemaphore;
-
-    TAsyncSemaphorePtr Semaphore_;
-
-    TAsyncSemaphoreGuard(TAsyncSemaphorePtr semaphore, i64 slots);
-
-    void MoveFrom(TAsyncSemaphoreGuard&& other);
-
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
