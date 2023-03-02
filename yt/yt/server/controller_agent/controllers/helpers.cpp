@@ -166,7 +166,8 @@ void TControllerFeatures::AddSingular(const TString& name, const INodePtr& node)
             AddSingular(name, node->AsBoolean()->GetValue());
             break;
         default:
-            YT_LOG_FATAL("Unexpected type as controller feature");
+            YT_LOG_FATAL("Unexpected type as controller feature (Type: %v)",
+                node->GetType());
             break;
     }
 };
