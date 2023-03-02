@@ -202,6 +202,7 @@ private:
                                         .Item("state").Value(replica.State)
                                         .Item("mode").Value(replica.Mode)
                                         .Item("content_type").Value(replica.ContentType)
+                                        .Item("replication_lag_timestamp").Value(minTimestamp)
                                         .Item("replication_lag_time").Value(replicaLagTime)
                                         .Item("replicated_table_tracker_enabled").Value(replica.EnableReplicatedTableTracker)
                                     .EndMap();
