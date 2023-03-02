@@ -176,12 +176,11 @@ public:
             (comparator.CompareKeyBounds(lastDataSlice->LowerLimit().KeyBound, dataSlice->LowerLimit().KeyBound) > 0 ||
             comparator.CompareKeyBounds(lastDataSlice->UpperLimit().KeyBound, dataSlice->UpperLimit().KeyBound) > 0))
         {
-            YT_LOG_ERROR(
+            YT_LOG_FATAL(
                 "Input data slices non-monotonic (InputStreamIndex: %v, Lhs: %v, Rhs: %v)",
                 inputStreamIndex,
                 GetDataSliceDebugString(lastDataSlice),
                 GetDataSliceDebugString(dataSlice));
-            YT_LOG_FATAL("Non-monotonic input data slices");
         }
         lastDataSlice = dataSlice;
     }
@@ -303,14 +302,13 @@ public:
                         return;
                     }
                 }
-                YT_LOG_ERROR(
+                LogStructured();
+                // Actually a safe core dump.
+                YT_LOG_FATAL(
                     "Error validating slice order guarantee (InputStreamIndex: %v, Lhs: %v, Rhs: %v)",
                     inputStreamIndex,
                     GetDataSliceDebugString(lhs),
                     GetDataSliceDebugString(rhs));
-                LogStructured();
-                // Actually a safe core dump.
-                YT_LOG_FATAL("Slice order guarantee violation");
             };
 
             // Validate slice order between slices in each stripe.
