@@ -127,6 +127,8 @@ public:
     void Start();
     void Stop();
 
+    void SerializeMutations();
+
     //! Raised each time a checkpoint is needed.
     DEFINE_SIGNAL(void(bool snapshotIsMandatory), CheckpointNeeded);
 
@@ -191,7 +193,6 @@ private:
     NProfiling::TSummary MutationQueueSummarySize_;
     NProfiling::TSummary MutationQueueSummaryDataSize_;
 
-    void SerializeMutations();
     void FlushMutations();
     void OnMutationsAcceptedByFollower(
         int followerId,

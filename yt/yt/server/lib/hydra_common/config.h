@@ -174,113 +174,49 @@ class TDynamicDistributedHydraManagerConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    //! Timeout for various control RPC requests.
     std::optional<TDuration> ControlRpcTimeout;
-
-    //! Leader-to-follower commit timeout.
     std::optional<TDuration> CommitFlushRpcTimeout;
-
-    //! Follower-to-leader commit forwarding timeout.
     std::optional<TDuration> CommitForwardingRpcTimeout;
 
-    //! Maximum time allotted to construct a snapshot.
     std::optional<TDuration> SnapshotBuildTimeout;
-
-    //! Maximum time allotted to fork during snapshot building.
-    //! If process did not fork within this timeout, it crashes.
     std::optional<TDuration> SnapshotForkTimeout;
-
-    //! Maximum time interval between consequent snapshots.
     std::optional<TDuration> SnapshotBuildPeriod;
-
-    //! Random splay for snapshot building.
     std::optional<TDuration> SnapshotBuildSplay;
 
-    //! Maximum number of records to collect before flushing the current batch.
     std::optional<int> MaxCommitBatchRecordCount;
-
-    //! The period between consecutive serializations, i.e. moving
-    //! mutations from from draft queue to mutation queue and thus assigning sequence numbers.
     std::optional<TDuration> MutationSerializationPeriod;
-
-    //! The period between consecutive flushes, i.e. sending mutations
-    //! from a leader to its followers.
     std::optional<TDuration> MutationFlushPeriod;
+    std::optional<bool> MinimizeCommitLatency;
 
-    //! Maximum time to wait before syncing with leader.
     std::optional<TDuration> LeaderSyncDelay;
 
-    //! Changelog record count limit.
-    /*!
-     *  When this limit is reached, the current changelog is rotated and a snapshot
-     *  is built.
-     */
     std::optional<int> MaxChangelogRecordCount;
-
-    //! Changelog data size limit, in bytes.
-    /*!
-     *  See #MaxChangelogRecordCount.
-     */
     std::optional<i64> MaxChangelogDataSize;
 
-    //! Interval between automatic "heartbeat" mutations commit.
-    /*!
-     *  These mutations are no-ops. Committing them regularly helps to ensure
-     *  that the quorum is functioning properly.
-     */
     std::optional<TDuration> HeartbeatMutationPeriod;
-
-    //! If "heartbeat" mutation commit takes longer than this value, Hydra is restarted.
     std::optional<TDuration> HeartbeatMutationTimeout;
 
-    //! Abandon leader lease request timeout.
     std::optional<TDuration> AbandonLeaderLeaseRequestTimeout;
 
-    //! Enables state hash checker.
-    //! It checks that after applying each N-th mutation, automaton state hash is the same on all peers.
     std::optional<bool> EnableStateHashChecker;
-
-    //! Maximum number of entries stored in state hash checker.
     std::optional<int> MaxStateHashCheckerEntryCount;
-
-    //! Followers will report leader every "StateHashCheckerMutationVerificationSamplingRate"-th mutation's state hash.
     std::optional<int> StateHashCheckerMutationVerificationSamplingRate;
 
-    //! In case Hydra leader is not restarted after switch has been initiated within this timeout,
-    //! it will restart automatically.
     std::optional<TDuration> LeaderSwitchTimeout;
 
-    //! Maximum number of mutations stored in leader's mutation queue.
     std::optional<int> MaxQueuedMutationCount;
-
-    //! Leader's mutation queue data size limit, in bytes.
     std::optional<i64> MaxQueuedMutationDataSize;
 
-    //! Maximum number of in-flight accept mutations request in fast mode.
     std::optional<int> MaxInFlightAcceptMutationsRequestCount;
-
-    //! Maximum number of in-flight mutations in fast mode.
     std::optional<int> MaxInFlightMutationCount;
-
-    //! Maximum in-flight mutations data size in fast mode.
     std::optional<i64> MaxInFlightMutationDataSize;
 
-    //! If the number of changelogs after last snapshot exceeds this value, force build snapshot
-    //! after recovery is complete.
     std::optional<int> MaxChangelogsForRecovery;
-
-    //! If the number of mutations in all changelogs after last snapshot exceeds this value, force build snapshot
-    //! after recovery is complete.
     std::optional<i64> MaxChangelogMutationCountForRecovery;
-
-    //! If data size of all changelogs after last snapshot exceeds this value, force build snapshot
-    //! after recovery is complete.
     std::optional<i64> MaxTotalChangelogSizeForRecovery;
 
-    //! Interval between checkpoint checks.
     std::optional<TDuration> CheckpointCheckPeriod;
 
-    //! Alert if no successful snapshots are built.
     std::optional<bool> AlertOnSnapshotFailure;
 
     REGISTER_YSON_STRUCT(TDynamicDistributedHydraManagerConfig);
@@ -385,6 +321,10 @@ public:
     //! The period between consecutive flushes, i.e. sending mutations
     //! from a leader to its followers.
     TDuration MutationFlushPeriod;
+
+    //! If true, disables most mutation batching and coalescing.
+    //! This minimizes mutation commit latency but may increase CPU usage.
+    bool MinimizeCommitLatency;
 
     //! Maximum time to wait before syncing with leader.
     TDuration LeaderSyncDelay;

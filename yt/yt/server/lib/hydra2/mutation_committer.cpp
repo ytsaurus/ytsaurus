@@ -1037,6 +1037,10 @@ void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
             .AsyncVia(EpochContext_->EpochControlInvoker));
 
     MaybeCheckpoint();
+
+    if (Config_->Get()->MinimizeCommitLatency) {
+        FlushMutations();
+    }
 }
 
 void TLeaderCommitter::OnMutationsLogged(

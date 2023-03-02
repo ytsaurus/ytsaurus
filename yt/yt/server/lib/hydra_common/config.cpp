@@ -157,6 +157,8 @@ void TDynamicDistributedHydraManagerConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("mutation_flush_period", &TThis::MutationFlushPeriod)
         .Optional();
+    registrar.Parameter("minimize_commit_latency", &TThis::MinimizeCommitLatency)
+        .Optional();
 
     registrar.Parameter("leader_sync_delay", &TThis::LeaderSyncDelay)
         .Optional();
@@ -238,6 +240,7 @@ void TDistributedHydraManagerConfig::ApplyDynamicInplace(const TDynamicDistribut
 
     UpdateYsonStructField(MutationSerializationPeriod, dynamicConfig.MutationSerializationPeriod);
     UpdateYsonStructField(MutationFlushPeriod, dynamicConfig.MutationFlushPeriod);
+    UpdateYsonStructField(MinimizeCommitLatency, dynamicConfig.MinimizeCommitLatency);
 
     UpdateYsonStructField(LeaderSyncDelay, dynamicConfig.LeaderSyncDelay);
 
@@ -338,6 +341,8 @@ void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::MilliSeconds(5));
     registrar.Parameter("mutation_flush_period", &TThis::MutationFlushPeriod)
         .Default(TDuration::MilliSeconds(5));
+    registrar.Parameter("minimize_commit_latency", &TThis::MinimizeCommitLatency)
+        .Default(false);
 
     registrar.Parameter("leader_sync_delay", &TThis::LeaderSyncDelay)
         .Default(TDuration::MilliSeconds(10));
