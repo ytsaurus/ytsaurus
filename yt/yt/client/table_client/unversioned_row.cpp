@@ -852,13 +852,14 @@ TString SerializeToString(TUnversionedValueRange range)
     return buffer;
 }
 
-TUnversionedOwningRow DeserializeFromString(const TString& data, std::optional<int> nullPaddingWidth = std::nullopt)
+TUnversionedOwningRow DeserializeFromString(TString&& data, std::optional<int> nullPaddingWidth = std::nullopt)
 {
     if (data == SerializedNullRow) {
         return TUnversionedOwningRow();
     }
+    auto dataRef = TSharedRef::FromString(std::move(data));
 
-    const char* current = data.data();
+    const char* current = dataRef.begin();
 
     ui32 version;
     current += ReadVarUint32(current, &version);
@@ -886,7 +887,7 @@ TUnversionedOwningRow DeserializeFromString(const TString& data, std::optional<i
         values[index] = MakeUnversionedNullValue(index);
     }
 
-    return TUnversionedOwningRow(std::move(rowData), data);
+    return TUnversionedOwningRow(std::move(rowData), std::move(dataRef));
 }
 
 TUnversionedRow DeserializeFromString(const TString& data, const TRowBufferPtr& rowBuffer)
@@ -1431,7 +1432,7 @@ void ToProto(TProtoStringType* protoRow, TUnversionedValueRange range)
 
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow, std::optional<int> nullPaddingWidth)
 {
-    *row = DeserializeFromString(protoRow, nullPaddingWidth);
+    *row = DeserializeFromString(TString{protoRow}, nullPaddingWidth);
 }
 
 void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRowBufferPtr& rowBuffer)
@@ -1767,10 +1768,10 @@ int TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
     *newValue = value;
 
     if (IsStringLikeType(value.Type)) {
-        const char* oldStringDataPtr = StringData_.data();
-        auto oldStringDataLength = StringData_.length();
-        StringData_.append(value.Data.String, value.Data.String + value.Length);
-        const char* newStringDataPtr = StringData_.data();
+        const char* oldStringDataPtr = StringData_.Begin();
+        auto oldStringDataLength = StringData_.Size();
+        StringData_.Append(value.Data.String, value.Length);
+        const char* newStringDataPtr = StringData_.Begin();
         newValue->Data.String = newStringDataPtr + oldStringDataLength;
         if (newStringDataPtr != oldStringDataPtr) {
             for (int index = 0; index < static_cast<int>(header->Count); ++index) {
@@ -1799,7 +1800,7 @@ TUnversionedOwningRow TUnversionedOwningRowBuilder::FinishRow()
 {
     auto row = TUnversionedOwningRow(
         TSharedMutableRef::FromBlob(std::move(RowData_)),
-        std::move(StringData_));
+        TSharedRef::FromBlob(std::move(StringData_)));
     Reset();
     return row;
 }
@@ -1845,9 +1846,9 @@ void TUnversionedOwningRow::Init(TUnversionedValueRange range)
     }
 
     if (variableSize > 0) {
-        StringData_.resize(variableSize);
-        char* current = const_cast<char*>(StringData_.data());
-
+        TBlob stringData;
+        stringData.Resize(variableSize);
+        char* current = stringData.Begin();
         for (int index = 0; index < count; ++index) {
             const auto& otherValue = range[index];
             auto& value = reinterpret_cast<TUnversionedValue*>(header + 1)[index];
@@ -1857,6 +1858,7 @@ void TUnversionedOwningRow::Init(TUnversionedValueRange range)
                 current += otherValue.Length;
             }
         }
+        StringData_ = TSharedRef::FromBlob(std::move(stringData));
     }
 }
 

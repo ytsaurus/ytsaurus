@@ -233,7 +233,7 @@ void TNameTableReader::Fill() const
     int thisSize = static_cast<int>(IdToNameCache_.size());
     int underlyingSize = NameTable_->GetSize();
     for (int id = thisSize; id < underlyingSize; ++id) {
-        IdToNameCache_.push_back(TString(NameTable_->GetName(id)));
+        IdToNameCache_.push_back(std::string(NameTable_->GetName(id)));
     }
 }
 

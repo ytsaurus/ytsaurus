@@ -870,7 +870,7 @@ private:
         size_t Size = 0;
         ui16 Generation = 0;
         bool IsNullable = false;
-        TStringBuf FieldName;
+        TString FieldName;
     };
 
     THashMap<TString, TFieldMapEntry> FieldMap_;

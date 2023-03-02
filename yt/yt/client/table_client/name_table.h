@@ -74,7 +74,7 @@ public:
 private:
     const TNameTablePtr NameTable_;
 
-    mutable std::vector<TString> IdToNameCache_;
+    mutable std::deque<std::string> IdToNameCache_; // Addresses of string data are immutable.
 
     void Fill() const;
 

@@ -57,6 +57,7 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 const TString A("a");
+const std::optional<TStringBuf> AOpt = A;
 const TString B("b");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -243,7 +244,7 @@ protected:
 
     void FillKey(
         TMutableVersionedRow row,
-        std::optional<TString> k1,
+        std::optional<TStringBuf> k1,
         std::optional<i64> k2,
         std::optional<double> k3)
     {
@@ -261,7 +262,7 @@ protected:
     TVersionedRow CreateSingleRow(int index)
     {
         auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
-        FillKey(row, std::make_optional(A), std::make_optional(index), std::nullopt);
+        FillKey(row, AOpt, std::make_optional(index), std::nullopt);
 
         // v1
         row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
@@ -366,7 +367,7 @@ protected:
             owningKeys.push_back(builder.FinishRow());
 
             auto row = TMutableVersionedRow::Allocate(&pool, 3, 1, 1, 1);
-            FillKey(row, std::make_optional(A), std::make_optional(0), std::nullopt);
+            FillKey(row, AOpt, std::make_optional(0), std::nullopt);
             row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
             row.BeginWriteTimestamps()[0] = 11;
             row.BeginDeleteTimestamps()[0] = 9;
@@ -379,7 +380,7 @@ protected:
             owningKeys.push_back(builder.FinishRow());
 
             row = TMutableVersionedRow::Allocate(&pool, 3, 1, 1, 1);
-            FillKey(row, std::make_optional(A), std::make_optional(150000), std::nullopt);
+            FillKey(row, AOpt, std::make_optional(150000), std::nullopt);
             row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
             row.BeginWriteTimestamps()[0] = 11;
             row.BeginDeleteTimestamps()[0] = 9;
@@ -718,7 +719,7 @@ protected:
         TColumnSchema("v6", EValueType::Boolean)
     };
 
-    std::vector<TString> StringData_;
+    std::deque<TString> StringData_;
 
     const std::vector<TVersionedRow> InitialRows_ = CreateRows();
 
