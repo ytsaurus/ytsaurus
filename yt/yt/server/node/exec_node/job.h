@@ -46,6 +46,19 @@ DEFINE_ENUM(EGpuCheckType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TArtifact
+{
+    ESandboxKind SandboxKind;
+    TString Name;
+    bool Executable;
+    bool BypassArtifactCache;
+    bool CopyFile;
+    NDataNode::TArtifactKey Key;
+    NDataNode::IChunkPtr Chunk;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJob
     : public NJobAgent::TResourceHolder
     , public TRefCounted
@@ -266,10 +279,11 @@ private:
 
     std::optional<TInstant> PrepareTime_;
     std::optional<TInstant> CopyTime_;
-    std::optional<TInstant> StartPrepareVolumeTime_;
-    std::optional<TInstant> FinishPrepareVolumeTime_;
     std::optional<TInstant> ExecTime_;
     std::optional<TInstant> FinishTime_;
+
+    std::optional<TInstant> StartPrepareVolumeTime_;
+    std::optional<TInstant> FinishPrepareVolumeTime_;
 
     std::optional<TInstant> PreliminaryGpuCheckStartTime_;
     std::optional<TInstant> PreliminaryGpuCheckFinishTime_;
@@ -282,23 +296,12 @@ private:
 
     i64 MaxDiskUsage_ = 0;
 
-    int SetupCommandsCount_ = 0;
+    int SetupCommandCount_ = 0;
 
     std::optional<ui32> NetworkProjectId_;
 
     ISlotPtr Slot_;
     std::vector<TString> TmpfsPaths_;
-
-    struct TArtifact
-    {
-        ESandboxKind SandboxKind;
-        TString Name;
-        bool Executable;
-        bool BypassArtifactCache;
-        bool CopyFile;
-        NDataNode::TArtifactKey Key;
-        NDataNode::IChunkPtr Chunk;
-    };
 
     std::vector<TArtifact> Artifacts_;
     std::vector<NDataNode::TArtifactKey> LayerArtifactKeys_;
@@ -390,6 +393,10 @@ private:
     void OnVolumePrepared(const TErrorOr<IVolumePtr>& volumeOrError);
 
     void OnSetupCommandsFinished(const TError& error);
+
+    std::vector<NContainers::TDevice> GetGpuDevices();
+
+    void RunWithWorkspaceBuilder();
 
     TFuture<void> RunGpuCheckCommand(
         const TString& gpuCheckBinaryPath,

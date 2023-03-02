@@ -4,6 +4,8 @@
 #include "chunk_cache.h"
 #include "controller_agent_connector.h"
 #include "job_controller.h"
+#include "job_gpu_checker.h"
+#include "job_workspace_builder.h"
 #include "gpu_manager.h"
 #include "private.h"
 #include "slot.h"
@@ -1441,6 +1443,137 @@ void TJob::OnNodeDirectoryPrepared(const TError& error)
     });
 }
 
+std::vector<TDevice> TJob::GetGpuDevices()
+{
+    std::vector<TDevice> devices;
+    for (const auto& deviceName : Bootstrap_->GetGpuManager()->GetGpuDevices()) {
+        bool deviceFound = false;
+        for (const auto& slot : GpuSlots_) {
+            if (slot->GetDeviceName() == deviceName) {
+                deviceFound = true;
+                break;
+            }
+        }
+
+        // We should not explicitly exclude test device that does not actually exists.
+        if (!deviceFound && !Config_->JobController->GpuManager->TestResource) {
+            // Exclude device explicitly.
+            devices.emplace_back(TDevice{
+                .DeviceName = deviceName,
+                .Enabled = false});
+        }
+    }
+
+    return devices;
+}
+
+void TJob::RunWithWorkspaceBuilder()
+{
+    std::vector<TDevice> devices = GetGpuDevices();
+
+    std::vector<TBind> binds;
+    binds.reserve(Config_->RootFSBinds.size());
+
+    for (const auto& bind : Config_->RootFSBinds) {
+        binds.push_back({bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
+    }
+
+    auto userJobSpec = UserJobSpec_;
+
+    TUserSandboxOptions options;
+    options.DiskOverdraftCallback = BIND(&TJob::Abort, MakeStrong(this))
+        .Via(Invoker_);
+
+    if (userJobSpec) {
+        for (const auto& tmpfsVolumeProto : userJobSpec->tmpfs_volumes()) {
+            options.TmpfsVolumes.push_back(TTmpfsVolume {
+                .Path = tmpfsVolumeProto.path(),
+                .Size = tmpfsVolumeProto.size()
+            });
+        }
+
+        if (userJobSpec->has_disk_space_limit()) {
+            options.DiskSpaceLimit = userJobSpec->disk_space_limit();
+        }
+
+        if (userJobSpec->has_inode_limit()) {
+            options.InodeLimit = userJobSpec->inode_limit();
+        }
+
+        if (userJobSpec->has_disk_request()) {
+            if (userJobSpec->disk_request().has_disk_space()) {
+                options.DiskSpaceLimit = userJobSpec->disk_request().disk_space();
+            }
+            if (userJobSpec->disk_request().has_inode_count()) {
+                options.InodeLimit = userJobSpec->disk_request().inode_count();
+            }
+        }
+    }
+
+    TJobWorkspaceBuildSettings settings {
+        .UserSandboxOptions = options,
+        .Slot = Slot_,
+        .Job = MakeStrong(this),
+        .CommandUser = Config_->JobController->SetupCommandUser,
+
+        .ArtifactDownloadOptions = MakeArtifactDownloadOptions(),
+
+        .Artifacts = Artifacts_,
+        .Binds = binds,
+        .LayerArtifactKeys = LayerArtifactKeys_,
+        .SetupCommands = GetSetupCommands(),
+
+        .NeedGpuCheck = UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path(),
+        .TestExtraGpuCheckCommandFailure = Config_->JobController->GpuManager->TestExtraGpuCheckCommandFailure,
+        .GpuCheckBinaryPath = UserJobSpec_
+            ? std::make_optional(UserJobSpec_->gpu_check_binary_path())
+            : std::nullopt,
+        .GpuCheckBinaryArgs = UserJobSpec_
+            ? std::make_optional(FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()))
+            : std::optional<std::vector<TString>>(),
+        .GpuCheckType = EGpuCheckType::Preliminary,
+        .GpuDevices = devices
+    };
+
+    auto workspaceBuilder = CreateJobWorkspaceBuilder(Invoker_, settings);
+
+    workspaceBuilder->SubscribeUpdateArtifactStatistics(BIND([=, this, this_ = MakeStrong(this)] (i64 compressedDataSize, bool cacheHit) {
+        UpdateArtifactStatistics(compressedDataSize, cacheHit);
+    }));
+
+    workspaceBuilder->SubscribeUpdateBuilderPhase(BIND([=, this, this_ = MakeStrong(this)] (EJobPhase phase) {
+        SetJobPhase(phase);
+    }));
+
+    workspaceBuilder->SubscribeUpdateTimers(BIND([=, this, this_ = MakeStrong(this)] (const TJobWorkspaceBuilderPtr& workspace) {
+        PreliminaryGpuCheckStartTime_ = workspace->GetGpuCheckStartTime();
+        PreliminaryGpuCheckFinishTime_ = workspace->GetGpuCheckFinishTime();
+
+        StartPrepareVolumeTime_ = workspace->GetVolumePrepareStartTime();
+        FinishPrepareVolumeTime_ = workspace->GetVolumePrepareFinishTime();
+    }));
+
+    BIND(&TJobWorkspaceBuilder::Run, workspaceBuilder)
+        .AsyncVia(Invoker_)
+        .Run()
+        .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TJobWorkspaceBuildResult> resultOrError) {
+            if (resultOrError.IsOK()) {
+                auto result = resultOrError.Value();
+                TmpfsPaths_ = result.TmpfsPaths;
+                RootVolume_ = result.RootVolume;
+                SetupCommandCount_ = result.SetupCommandCount;
+
+                RunJobProxy();
+            } else {
+                YT_LOG_WARNING(resultOrError, "Error preparing scheduler job");
+
+                DoSetResult(resultOrError);
+                Cleanup();
+            }
+        })
+        .Via(Invoker_));
+}
+
 void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr>>& errorOrArtifacts)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -1458,13 +1591,18 @@ void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr
 
         CopyTime_ = TInstant::Now();
         SetJobPhase(EJobPhase::PreparingSandboxDirectories);
-        BIND(&TJob::PrepareSandboxDirectories, MakeStrong(this))
-            .AsyncVia(Invoker_)
-            .Run()
-            .Subscribe(BIND(
-                &TJob::OnSandboxDirectoriesPrepared,
-                MakeWeak(this))
-            .Via(Invoker_));
+
+        if (Config_->UseJobWorkspaceBuilder) {
+            RunWithWorkspaceBuilder();
+        } else {
+            BIND(&TJob::PrepareSandboxDirectories, MakeStrong(this))
+                .AsyncVia(Invoker_)
+                .Run()
+                .Subscribe(BIND(
+                    &TJob::OnSandboxDirectoriesPrepared,
+                    MakeWeak(this))
+                .Via(Invoker_));
+        }
     });
 }
 
@@ -1580,11 +1718,11 @@ TFuture<void> TJob::RunGpuCheckCommand(
     switch (gpuCheckType) {
         case EGpuCheckType::Preliminary:
             PreliminaryGpuCheckStartTime_ = TInstant::Now();
-            checkStartIndex = SetupCommandsCount_;
+            checkStartIndex = SetupCommandCount_;
             break;
         case EGpuCheckType::Extra:
             ExtraGpuCheckStartTime_ = TInstant::Now();
-            checkStartIndex = SetupCommandsCount_ + 2;
+            checkStartIndex = SetupCommandCount_ + 2;
             break;
         default:
             Y_UNREACHABLE();
@@ -1783,12 +1921,31 @@ void TJob::OnJobProxyFinished(const TError& error)
     if (!currentError.IsOK() && UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path()) {
         SetJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
 
-        BIND(&TJob::RunGpuCheckCommand, MakeStrong(this))
+        TJobGpuCheckerSettings settings {
+            .Slot = Slot_,
+            .Job = MakeStrong(this),
+            .RootFs = MakeWritableRootFS(),
+            .CommandUser = Config_->JobController->SetupCommandUser,
+
+            .GpuCheckBinaryPath = UserJobSpec_->gpu_check_binary_path(),
+            .GpuCheckBinaryArgs = FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
+            .GpuCheckType = EGpuCheckType::Extra,
+            .CurrentStartIndex = SetupCommandCount_,
+            .TestExtraGpuCheckCommandFailure = Config_->JobController->GpuManager->TestExtraGpuCheckCommandFailure,
+            .GpuDevices = GetGpuDevices()
+        };
+
+        auto checker = New<TJobGpuChecker>(settings);
+        checker->SubscribeRunCheck(BIND([=, this, this_ = MakeStrong(this)] () {
+            ExtraGpuCheckStartTime_ = TInstant::Now();
+        }));
+        checker->SubscribeFinishCheck(BIND([=, this, this_ = MakeStrong(this)] () {
+            ExtraGpuCheckFinishTime_ = TInstant::Now();
+        }));
+
+        BIND(&TJobGpuChecker::RunGpuCheck, checker)
             .AsyncVia(Invoker_)
-            .Run(
-                UserJobSpec_->gpu_check_binary_path(),
-                FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
-                EGpuCheckType::Extra)
+            .Run()
             .Subscribe(BIND(
                 &TJob::OnExtraGpuCheckCommandFinished,
                 MakeWeak(this))
@@ -2368,7 +2525,7 @@ TFuture<void> TJob::RunSetupCommands()
     VERIFY_THREAD_AFFINITY(JobThread);
 
     auto commands = GetSetupCommands();
-    SetupCommandsCount_ = commands.size();
+    SetupCommandCount_ = commands.size();
     if (commands.empty()) {
         return VoidFuture;
     }

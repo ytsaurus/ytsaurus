@@ -443,6 +443,8 @@ public:
     //! Instead of actually setting root fs, it just provides special environment variable.
     bool TestRootFS;
 
+    bool UseJobWorkspaceBuilder;
+
     std::vector<NJobProxy::TBindConfigPtr> RootFSBinds;
 
     int NodeDirectoryPrepareRetryCount;

@@ -1045,3 +1045,11 @@ class TestPorts(YTEnvSetup):
         finally:
             if server_socket is not None:
                 server_socket.close()
+
+
+@authors("don-dron")
+class TestJobWorkspaceBuilder(TestMemoryReserveFactor):
+
+    @classmethod
+    def modify_node_config(cls, config):
+        config["exec_agent"]["use_job_workspace_builder"] = True

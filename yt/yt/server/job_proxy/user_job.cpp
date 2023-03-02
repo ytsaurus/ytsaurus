@@ -664,8 +664,7 @@ private:
             ShellManager_ = CreateShellManager(
                 config,
                 portoExecutor,
-                UserJobEnvironment_->GetUserJobInstance()
-            );
+                UserJobEnvironment_->GetUserJobInstance());
 #endif
         }
     }
