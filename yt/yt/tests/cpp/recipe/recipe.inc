@@ -5,8 +5,7 @@ DEPENDS(
 
 REQUIREMENTS(
     cpu:4
-    ram:10
-    ram_disk:10
+    ram_disk:4
 )
 
 USE_RECIPE(
