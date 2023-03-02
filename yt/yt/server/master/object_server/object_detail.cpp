@@ -699,9 +699,9 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             if (inherit != acd->GetInherit()) {
                 acd->SetInherit(inherit);
 
-                SetModified(EModificationType::Attributes);
-
                 LogAcdUpdate(key, value);
+
+                SetModified(EModificationType::Attributes);
             }
 
             return true;
@@ -714,9 +714,9 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             Deserialize(newAcl, ConvertToNode(value), securityManager);
             acd->SetEntries(newAcl);
 
-            SetModified(EModificationType::Attributes);
-
             LogAcdUpdate(key, value);
+
+            SetModified(EModificationType::Attributes);
 
             return true;
         }
@@ -735,9 +735,9 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
 
             acd->SetOwner(owner);
 
-            SetModified(EModificationType::Attributes);
-
             LogAcdUpdate(key, value);
+
+            SetModified(EModificationType::Attributes);
 
             return true;
         }
