@@ -17,7 +17,8 @@ from .utils import scala_buffer_to_list
 def launch_gateway(memory="512m",
                    java_home=None,
                    java_opts=None,
-                   additional_jars=None):
+                   additional_jars=None,
+                   additional_environ=None):
     spark_home = _find_spark_home()
     java = os.path.join(java_home, "bin", "java") if java_home else "java"
     additional_jars = additional_jars or []
@@ -33,6 +34,7 @@ def launch_gateway(memory="512m",
         os.unlink(conn_info_file)
 
         env = dict(os.environ)
+        env.update(additional_environ or {})
         env["_SPYT_SUBMIT_CONN_INFO_PATH"] = conn_info_file
         env["SPARK_HOME"] = spark_home
 
