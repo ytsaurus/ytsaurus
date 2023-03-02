@@ -461,7 +461,7 @@ public:
                 if (!prerequisitePayload || CellTagFromId(prerequisitePayload->ObjectId) != ForwardedCellTag_) {
                     TError error(
                         NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
-                        "Request is cross-cell since it involves target path %v and prerequisite reivision path %v",
+                        "Request is cross-cell since it involves target path %v and prerequisite revision path %v",
                         forwardedYPathExt->original_target_path(),
                         prerequisitePath);
 
