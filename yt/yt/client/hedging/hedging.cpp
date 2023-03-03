@@ -3,11 +3,11 @@
 #include "cache.h"
 #include "counter.h"
 #include "logger.h"
+#include "rpc.h"
 
 #include <yt/yt/client/api/client.h>
 
-#include <yt/yt/client/hedging/rpc.h>
-#include <yt/yt_proto/yt/client/hedging/proto/config.pb.h>
+#include <yt/yt/client/misc/method_helpers.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
@@ -18,6 +18,8 @@
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
+
+#include <yt/yt_proto/yt/client/hedging/proto/config.pb.h>
 
 #include <library/cpp/iterator/enumerate.h>
 #include <library/cpp/iterator/zip.h>
@@ -41,45 +43,6 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 using TClientBuilder = std::function<NApi::IClientPtr(const TConfig&)>;
-
-[[noreturn]] void unsupported(TStringBuf n)
-{
-    ythrow yexception() << "Not supported operation: " << n;
-}
-
-#define Y_COMMA() ,
-
-#define Y_FUNCTION_ARG_UNUSED(x) x
-#define Y_FUNCTION_ARG(i, x) x Y_CAT(a, i)
-#define Y_PASS_ARG(i, x) Y_CAT(a, i)
-
-#define Y_FUNCTION_ARG_UNUSED_COMMA(x) x Y_COMMA()
-#define Y_FUNCTION_ARG_COMMA(i, x) x Y_CAT(a, i) Y_COMMA()
-#define Y_PASS_ARG_COMMA(i, x) Y_CAT(a, i) Y_COMMA()
-
-#define Y_VA_ARGS(...) __VA_ARGS__
-
-// Map input arguments types.
-// Example: Y_METHOD_UNUSED_ARGS_DECLARATION((int, TString)) ---> int, TString.
-#define Y_METHOD_UNUSED_ARGS_DECLARATION(Args) Y_MAP_ARGS_WITH_LAST(Y_FUNCTION_ARG_UNUSED_COMMA, Y_FUNCTION_ARG_UNUSED, Y_PASS_VA_ARGS(Y_VA_ARGS Args))
-
-// Map input arguments types with parameter names introduction.
-// Example: Y_METHOD_USED_ARGS_DECLARATION((int, TString)) ---> int a2, TString a1.
-#define Y_METHOD_USED_ARGS_DECLARATION(Args) Y_MAP_ARGS_WITH_LAST_N(Y_FUNCTION_ARG_COMMA, Y_FUNCTION_ARG, Y_PASS_VA_ARGS(Y_VA_ARGS Args))
-
-// Map input arguments types into corresponding parameter names.
-// Example: Y_PASS_METHOD_USED_ARGS((int, TString)) ---> a2, a1.
-#define Y_PASS_METHOD_USED_ARGS(Args) Y_MAP_ARGS_WITH_LAST_N(Y_PASS_ARG_COMMA, Y_PASS_ARG, Y_PASS_VA_ARGS(Y_VA_ARGS Args))
-
-// Use at the end of macros declaration. It allows macros usage only with semicolon at the end.
-// It prevents from warnings for extra semicolons when building with -pedantic mode.
-#define Y_SEMICOLON_GUARD static_assert(true, "missing semicolon")
-
-#define UNSUPPORTED_METHOD(ReturnType, MethodName, Args)                     \
-    ReturnType MethodName(Y_METHOD_UNUSED_ARGS_DECLARATION(Args)) override { \
-        unsupported(Y_STRINGIZE(MethodName));                                \
-        Y_UNREACHABLE();                                                     \
-    } Y_SEMICOLON_GUARD
 
 #define RETRYABLE_METHOD(ReturnType, MethodName, Args)                                      \
     ReturnType MethodName(Y_METHOD_USED_ARGS_DECLARATION(Args)) override {                  \
