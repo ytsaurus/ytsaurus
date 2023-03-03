@@ -90,6 +90,8 @@ TReadQueryResultCommand::TReadQueryResultCommand()
         .Default(0);
     RegisterParameter("stage", Options.QueryTrackerStage)
         .Optional();
+    RegisterParameter("columns", Options.Columns)
+        .Default();
     RegisterParameter("lower_row_index", Options.LowerRowIndex)
         .Default();
     RegisterParameter("upper_row_index", Options.UpperRowIndex)

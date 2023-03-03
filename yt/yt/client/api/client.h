@@ -1671,6 +1671,7 @@ struct TReadQueryResultOptions
     : public TTimeoutOptions
     , public TQueryTrackerOptions
 {
+    std::optional<std::vector<TString>> Columns;
     std::optional<i64> LowerRowIndex;
     std::optional<i64> UpperRowIndex;
 };

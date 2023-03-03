@@ -22,6 +22,8 @@
 
 #include <contrib/libs/pfr/include/pfr/tuple_size.hpp>
 
+#include <library/cpp/iterator/functools.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NQueryTrackerClient;
@@ -232,6 +234,38 @@ TQueryResult TClient::DoGetQueryResult(TQueryId queryId, i64 resultIndex, const 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IUnversionedRowsetPtr FilterRowsetColumns(IUnversionedRowsetPtr rowset, std::vector<TString> columns)
+{
+    const auto& schema = rowset->GetSchema();
+    const auto& rows = rowset->GetRows();
+    auto rowBuffer = New<TRowBuffer>();
+    auto nameTable = TNameTable::FromSchema(*schema);
+    std::vector<int> columnIndexes;
+    THashSet<int> columnIndexSet;
+    for (const auto& column : columns) {
+        if (auto id = nameTable->FindId(column); id && columnIndexSet.insert(*id).second) {
+            columnIndexes.push_back(*id);
+        }
+    }
+    TColumnFilter columnFilter(columnIndexes);
+
+    std::vector<TUnversionedRow> newRows;
+    newRows.reserve(rows.size());
+    for (const auto& row : rows) {
+        auto newRow = rowBuffer->AllocateUnversioned(columnIndexes.size());
+        for (auto [newIndex, index] : Enumerate(columnIndexes)) {
+            auto value = row[index];
+            value.Id = newIndex;
+            newRow[newIndex] = rowBuffer->CaptureValue(value);
+        }
+        newRows.emplace_back(newRow);
+    }
+
+    auto newSchema = schema->Filter(columnFilter);
+
+    return CreateRowset(newSchema, MakeSharedRange(std::move(newRows), std::move(rowBuffer)));
+}
+
 IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultIndex, const TReadQueryResultOptions& options)
 {
     const auto& [client, root] = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
@@ -280,6 +314,7 @@ IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultInd
     auto wireReader = CreateWireProtocolReader(TSharedRef::FromString(std::move(wireRowset)));
     auto schemaData = IWireProtocolReader::GetSchemaData(*schema);
     auto rows = wireReader->ReadSchemafulRowset(schemaData, /*captureValues*/ true);
+
     {
         auto lowerRowIndex = options.LowerRowIndex.value_or(0);
         lowerRowIndex = std::clamp<i64>(lowerRowIndex, 0, rows.size());
@@ -288,7 +323,13 @@ IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultInd
         rows = rows.Slice(lowerRowIndex, upperRowIndex);
     }
 
-    return CreateRowset(std::move(schema), std::move(rows));
+    auto rowset = CreateRowset(std::move(schema), std::move(rows));
+
+    if (options.Columns) {
+        rowset = FilterRowsetColumns(rowset, *options.Columns);
+    }
+
+    return rowset;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -605,7 +646,6 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
                 }
                 result.push_back(std::move(query));
             }
-
         }
     } else {
         incomplete = options.Limit < queries.size();

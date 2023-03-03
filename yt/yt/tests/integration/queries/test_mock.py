@@ -72,10 +72,12 @@ class TestQueriesMock(YTEnvSetup):
         assert result_1_info["data_statistics"]["data_weight"] == 36
         assert result_1_info["schema"] == schema
         assert_items_equal(q.read_result(1), rows)
-
         assert_items_equal(q.read_result(1, lower_row_index=1, upper_row_index=2), rows[1:2])
         assert_items_equal(q.read_result(1, lower_row_index=-1, upper_row_index=5), rows)
         assert_items_equal(q.read_result(1, lower_row_index=2, upper_row_index=1), [])
+        assert_items_equal(q.read_result(1, columns=["foo"]), [{"foo": row["foo"]} for row in rows])
+        assert q.read_result(1, columns=["bar", "foo", "bar"], output_format="dsv") == \
+            b"""bar=abc\tfoo=42\nbar=def\tfoo=-17\nbar=ghi\tfoo=123\n"""
 
     @authors("max42")
     def test_list(self, query_tracker):
