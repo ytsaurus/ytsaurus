@@ -212,7 +212,7 @@ private:
 
         TFuture<IResponsePtr> Finish() override
         {
-            return Client_->WrapError(Url_, BIND([=] {
+            return Client_->WrapError(Url_, BIND([this, this_ = MakeStrong(this)] {
                 WaitFor(Request_->Close())
                     .ThrowOnError();
 

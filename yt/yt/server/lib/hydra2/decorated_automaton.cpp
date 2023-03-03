@@ -191,7 +191,7 @@ public:
 
         auto lockGuard = TSystemLockGuard::Acquire(owner);
 
-        auto doInvoke = [=, this_ = MakeStrong(this), callback = std::move(callback)] (TSystemLockGuard /*lockGuard*/) {
+        auto doInvoke = [this, this_ = MakeStrong(this), callback = std::move(callback)] (TSystemLockGuard /*lockGuard*/) {
             TCurrentInvokerGuard currentInvokerGuard(this);
             callback();
         };
@@ -228,7 +228,7 @@ public:
             return;
         }
 
-        auto doInvoke = [=, this_ = MakeStrong(this), callback = std::move(callback)] () {
+        auto doInvoke = [=, this, this_ = MakeStrong(this), callback = std::move(callback)] () {
             auto state = owner->GetState();
             if (state != EPeerState::Leading && state != EPeerState::Following) {
                 return;

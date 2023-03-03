@@ -76,7 +76,7 @@ public:
         , Profiler_(GrpcServerProfiler.WithTag("name", Config_->ProfilingName))
         , CompletionQueue_(TDispatcher::Get()->PickRandomGuardedCompletionQueue()->UnwrapUnsafe())
     {
-        Profiler_.AddFuncGauge("/call_handler_count", MakeStrong(this), [=] {
+        Profiler_.AddFuncGauge("/call_handler_count", MakeStrong(this), [this] {
             return CallHandlerCount_.load();
         });
     }

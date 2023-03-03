@@ -129,6 +129,7 @@ private:
             } else {
                 return responseFuture.ApplyUnique(BIND([
                     =,
+                    this,
                     this_ = MakeStrong(this)
                 ] (IChunkFragmentReader::TReadFragmentsResponse&& response) {
                     Controller_->HandleFragmentsResponse(std::move(response.Fragments));
