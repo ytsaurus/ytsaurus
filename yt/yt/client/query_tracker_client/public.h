@@ -25,6 +25,7 @@ DEFINE_STRING_SERIALIZABLE_ENUM(EQueryEngine,
 )
 
 DEFINE_STRING_SERIALIZABLE_ENUM(EQueryState,
+    (Draft)
     (Pending)
     (Running)
     (Aborting)

@@ -95,4 +95,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////
 
+class TAlterQueryCommand
+    : public TTypedCommand<NApi::TAlterQueryOptions>
+{
+public:
+    TAlterQueryCommand();
+
+private:
+    NQueryTrackerClient::TQueryId QueryId;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

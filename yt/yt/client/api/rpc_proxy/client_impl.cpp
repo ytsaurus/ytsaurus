@@ -1860,6 +1860,13 @@ TFuture<TListQueriesResult> TClient::ListQueries(
     ThrowUnimplemented("ListQueries");
 }
 
+TFuture<void> TClient::AlterQuery(
+    NQueryTrackerClient::TQueryId /*queryId*/,
+    const TAlterQueryOptions& /*options*/)
+{
+    ThrowUnimplemented("AlterQuery");
+}
+
 TFuture<void> TClient::SetUserPassword(
     const TString& /*user*/,
     const TString& /*currentPasswordSha256*/,

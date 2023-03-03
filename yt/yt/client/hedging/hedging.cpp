@@ -202,6 +202,7 @@ public:
     UNSUPPORTED_METHOD(TFuture<IUnversionedRowsetPtr>, ReadQueryResult, (NQueryTrackerClient::TQueryId, i64, const TReadQueryResultOptions&));
     UNSUPPORTED_METHOD(TFuture<TQuery>, GetQuery, (NQueryTrackerClient::TQueryId, const TGetQueryOptions&));
     UNSUPPORTED_METHOD(TFuture<TListQueriesResult>, ListQueries, (const TListQueriesOptions&));
+    UNSUPPORTED_METHOD(TFuture<void>, AlterQuery, (NQueryTrackerClient::TQueryId, const TAlterQueryOptions&));
 
 private:
     THedgingExecutorPtr Executor_;

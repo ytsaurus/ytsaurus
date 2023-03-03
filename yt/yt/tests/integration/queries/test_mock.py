@@ -16,29 +16,29 @@ class TestQueriesMock(YTEnvSetup):
 
     @authors("max42")
     def test_fail(self, query_tracker):
-        query = start_query("mock", "fail")
+        q = start_query("mock", "fail")
         with raises_yt_error("failed"):
-            query.track()
-        assert query.get_state() == "failed"
+            q.track()
+        assert q.get_state() == "failed"
 
-        query = start_query("mock", "fail_by_exception")
+        q = start_query("mock", "fail_by_exception")
         with raises_yt_error("failed"):
-            query.track()
-        assert query.get_state() == "failed"
+            q.track()
+        assert q.get_state() == "failed"
 
-        query = start_query("mock", "fail_after", settings={"duration": 3000})
+        q = start_query("mock", "fail_after", settings={"duration": 3000})
         with raises_yt_error("failed"):
-            query.track()
-        assert query.get_state() == "failed"
+            q.track()
+        assert q.get_state() == "failed"
 
     @authors("max42")
     def test_abort(self, query_tracker):
-        query = start_query("mock", "run_forever")
-        wait(lambda: query.get_state() == "running")
-        query.abort()
+        q = start_query("mock", "run_forever")
+        wait(lambda: q.get_state() == "running")
+        q.abort()
         with raises_yt_error("aborted"):
-            query.track()
-        assert query.get_state() == "aborted"
+            q.track()
+        assert q.get_state() == "aborted"
 
     @authors("max42")
     def test_complete(self, query_tracker):
@@ -46,7 +46,7 @@ class TestQueriesMock(YTEnvSetup):
         schema = [{"name": "foo", "type": "int64"}, {"name": "bar", "type": "string"}]
         rows = [{"foo": 42, "bar": "abc"}, {"foo": -17, "bar": "def"}, {"foo": 123, "bar": "ghi"}]
 
-        query = start_query("mock", "complete_after", settings={
+        q = start_query("mock", "complete_after", settings={
             "duration": 3000,
             "results": [
                 {"error": error},
@@ -54,16 +54,16 @@ class TestQueriesMock(YTEnvSetup):
             ]
         })
 
-        query.track()
-        query_info = query.get()
+        q.track()
+        query_info = q.get()
         assert query_info["result_count"] == 2
 
-        result_0_info = query.get_result(0)
+        result_0_info = q.get_result(0)
         assert result_0_info["error"] == error
         with raises_yt_error("Mock query execution error"):
-            query.read_result(0)
+            q.read_result(0)
 
-        result_1_info = query.get_result(1)
+        result_1_info = q.get_result(1)
         for column in result_1_info["schema"]:
             del column["type_v3"]
             del column["required"]
@@ -71,11 +71,11 @@ class TestQueriesMock(YTEnvSetup):
         assert result_1_info["data_statistics"]["row_count"] == 3
         assert result_1_info["data_statistics"]["data_weight"] == 36
         assert result_1_info["schema"] == schema
-        assert_items_equal(query.read_result(1), rows)
+        assert_items_equal(q.read_result(1), rows)
 
-        assert_items_equal(query.read_result(1, lower_row_index=1, upper_row_index=2), rows[1:2])
-        assert_items_equal(query.read_result(1, lower_row_index=-1, upper_row_index=5), rows)
-        assert_items_equal(query.read_result(1, lower_row_index=2, upper_row_index=1), [])
+        assert_items_equal(q.read_result(1, lower_row_index=1, upper_row_index=2), rows[1:2])
+        assert_items_equal(q.read_result(1, lower_row_index=-1, upper_row_index=5), rows)
+        assert_items_equal(q.read_result(1, lower_row_index=2, upper_row_index=1), [])
 
     @authors("max42")
     def test_list(self, query_tracker):
@@ -149,3 +149,28 @@ class TestQueriesMock(YTEnvSetup):
         expect_queries([q4, q3, q2, q0], list_queries(state="failed"))
         expect_queries([q5], list_queries(state="running"))
         expect_queries([q1], list_queries(state="completed"))
+
+    @authors("max42")
+    def test_draft(self, query_tracker):
+        q = start_query("mock", "blahblah", draft=True)
+        q_info = q.get()
+        assert q_info["state"] == "draft"
+        assert q_info["query"] == "blahblah"
+        assert list_queries()["queries"] == [q_info]
+
+    @authors("max42")
+    def test_annotations(self, query_tracker):
+        q = start_query("mock", "complete_after", settings={"duration": 5000}, annotations={"foo": "bar"})
+        wait(lambda: q.get_state() == "running")
+        assert len(list_queries(filter="bar")["queries"]) == 1
+
+        q.alter(annotations={"qux": "quux"})
+        q_info = list_queries(filter="qux", attributes=["annotations", "state"])["queries"][0]
+        assert q_info["annotations"] == {"qux": "quux"}
+        assert q_info["state"] == "running"
+        wait(lambda: q.get_state() == "completed")
+
+        assert len(list_queries(filter="qux")["queries"]) > 0
+
+        q.alter(annotations={"qwe": "asd"})
+        assert len(list_queries(filter="asd")["queries"]) > 0

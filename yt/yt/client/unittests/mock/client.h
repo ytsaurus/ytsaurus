@@ -592,6 +592,9 @@ public:
 
     MOCK_METHOD(TFuture<TListQueriesResult>, ListQueries, (
         const TListQueriesOptions& options), (override));
+
+    MOCK_METHOD(TFuture<void>, AlterQuery, (
+        NQueryTrackerClient::TQueryId queryId, const TAlterQueryOptions& options), (override));
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockClient)

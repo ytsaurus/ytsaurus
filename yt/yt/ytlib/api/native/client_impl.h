@@ -315,6 +315,10 @@ public:
     IMPLEMENT_METHOD(TListQueriesResult, ListQueries, (
         const TListQueriesOptions& options = {}),
         (options));
+    IMPLEMENT_METHOD(void, AlterQuery, (
+        NQueryTrackerClient::TQueryId queryId,
+        const TAlterQueryOptions& options = {}),
+        (queryId, options));
 
     IMPLEMENT_METHOD(NYson::TYsonString, GetNode, (
         const NYPath::TYPath& path,
@@ -1703,6 +1707,9 @@ private:
         const TGetQueryOptions& options);
     TListQueriesResult DoListQueries(
         const TListQueriesOptions& options);
+    void DoAlterQuery(
+        NQueryTrackerClient::TQueryId queryId,
+        const TAlterQueryOptions& options);
 
     //
     // Authentication

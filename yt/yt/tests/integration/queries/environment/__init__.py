@@ -126,6 +126,9 @@ class Query:
     def abort(self, **kwargs):
         return abort_query(self.id, **kwargs)
 
+    def alter(self, **kwargs):
+        return alter_query(self.id, **kwargs)
+
     def track(self, ensure_state_order=True, raise_on_unsuccess=True):
         counter = 0
         previous_state = None
@@ -203,3 +206,8 @@ def list_queries(**kwargs):
 def abort_query(id, **kwargs):
     kwargs["query_id"] = id
     return execute_command("abort_query", kwargs)
+
+
+def alter_query(id, **kwargs):
+    kwargs["query_id"] = id
+    execute_command("alter_query", kwargs)
