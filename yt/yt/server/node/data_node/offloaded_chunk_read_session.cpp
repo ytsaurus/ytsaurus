@@ -286,6 +286,7 @@ private:
 
             return future.Apply(BIND([
                 =,
+                this,
                 this_ = MakeStrong(this),
                 keyCount = keys.Size(),
                 controller = std::move(controller),

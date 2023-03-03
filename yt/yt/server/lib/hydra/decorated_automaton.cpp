@@ -213,7 +213,7 @@ public:
     {
         auto lockGuard = TSystemLockGuard::Acquire(Owner_);
 
-        auto doInvoke = [=, this_ = MakeStrong(this), callback = std::move(callback)] (TSystemLockGuard /*lockGuard*/) {
+        auto doInvoke = [this, this_ = MakeStrong(this), callback = std::move(callback)] (TSystemLockGuard /*lockGuard*/) {
             TCurrentInvokerGuard currentInvokerGuard(this);
             callback();
         };
