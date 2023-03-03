@@ -1423,6 +1423,7 @@ struct TQuery
     std::optional<i64> ResultCount;
     NYson::TYsonString Progress;
     std::optional<TError> Error;
+    NYson::TYsonString Annotations;
     NYTree::IAttributeDictionaryPtr OtherAttributes;
 };
 
@@ -1650,6 +1651,8 @@ struct TStartQueryOptions
     , public TQueryTrackerOptions
 {
     NYTree::INodePtr Settings;
+    bool Draft = false;
+    NYTree::IMapNodePtr Annotations;
 };
 
 struct TAbortQueryOptions
@@ -1677,6 +1680,7 @@ struct TGetQueryOptions
     , public TQueryTrackerOptions
 {
     NYTree::TAttributeFilter Attributes;
+    NTransactionClient::TTimestamp Timestamp = NTransactionClient::NullTimestamp;
 };
 
 struct TListQueriesOptions
@@ -1702,6 +1706,13 @@ struct TListQueriesResult
     std::vector<TQuery> Queries;
     bool Incomplete = false;
     NTransactionClient::TTimestamp Timestamp;
+};
+
+struct TAlterQueryOptions
+    : public TTimeoutOptions
+    , public TQueryTrackerOptions
+{
+    NYTree::IMapNodePtr Annotations;
 };
 
 struct TSetUserPasswordOptions
@@ -2318,6 +2329,10 @@ struct IClient
         const TGetQueryOptions& options = {}) = 0;
 
     virtual TFuture<TListQueriesResult> ListQueries(const TListQueriesOptions& options = {}) = 0;
+
+    virtual TFuture<void> AlterQuery(
+        NQueryTrackerClient::TQueryId queryId,
+        const TAlterQueryOptions& options = {}) = 0;
 
     // Authentication
 

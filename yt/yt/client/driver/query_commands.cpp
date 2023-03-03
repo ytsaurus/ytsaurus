@@ -25,6 +25,10 @@ TStartQueryCommand::TStartQueryCommand()
         .Optional();
     RegisterParameter("settings", Options.Settings)
         .Optional();
+    RegisterParameter("draft", Options.Draft)
+        .Optional();
+    RegisterParameter("annotations", Options.Annotations)
+        .Optional();
 }
 
 void TStartQueryCommand::DoExecute(ICommandContextPtr context)
@@ -169,6 +173,22 @@ void TListQueriesCommand::DoExecute(ICommandContextPtr context)
             .Item("incomplete").Value(result.Incomplete)
             .Item("timestamp").Value(result.Timestamp)
         .EndMap());
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
+TAlterQueryCommand::TAlterQueryCommand()
+{
+    RegisterParameter("query_id", QueryId);
+    RegisterParameter("annotations", Options.Annotations)
+        .Optional();
+}
+
+void TAlterQueryCommand::DoExecute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->AlterQuery(QueryId, Options))
+        .ThrowOnError();
+    ProduceEmptyOutput(context);
 }
 
 //////////////////////////////////////////////////////////////////////////////

@@ -12,6 +12,8 @@ namespace NRecords {
 
 struct TActiveQuery;
 struct TActiveQueryPartial;
+struct TFinishedQuery;
+struct TFinishedQueryPartial;
 
 ////////////////////////////////////////////////////////////////////////////////
 

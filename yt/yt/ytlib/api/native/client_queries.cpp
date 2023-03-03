@@ -43,29 +43,81 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
     static const TYsonString EmptyMap = TYsonString(TString("{}"));
 
     auto queryId = TQueryId::Create();
-    TActiveQueryPartial newRecord{
-        .Key = {.QueryId = queryId},
-        .Engine = engine,
-        .Query = query,
-        .Settings = options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap,
-        .User = Options_.User,
-        .StartTime = TInstant::Now(),
-        .State = EQueryState::Pending,
-        .Incarnation = -1,
-        .PingTime = TInstant::Zero(),
-        .Progress = EmptyMap,
-    };
-    newRecord.FilterFactors = GetFilterFactors(newRecord);
+
+    YT_LOG_DEBUG("Starting query (QueryId: %v, Draft: %v)", queryId, options.Draft);
+
     auto rowBuffer = New<TRowBuffer>();
-    std::vector rows{
-        newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetIdMapping()),
-    };
     auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, {}))
         .ValueOrThrow();
-    transaction->WriteRows(
-        root + "/active_queries",
-        TActiveQueryDescriptor::Get()->GetNameTable(),
-        MakeSharedRange(std::move(rows), std::move(rowBuffer)));
+
+    // Draft queries go directly to finished query tables (regular and ordered by start time),
+    // non-draft queries go to the active query table.
+
+    if (options.Draft) {
+        TString filterFactors;
+        auto startTime = TInstant::Now();
+        {
+            static_assert(TFinishedQueryDescriptor::FieldCount == 12);
+            TFinishedQuery newRecord{
+                .Key = {.QueryId = queryId},
+                .Engine = engine,
+                .Query = query,
+                .Settings = options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap,
+                .User = *Options_.User,
+                .StartTime = startTime,
+                .State = EQueryState::Draft,
+                .Progress = EmptyMap,
+                .Annotations = options.Annotations ? ConvertToYsonString(options.Annotations) : EmptyMap,
+            };
+            filterFactors = GetFilterFactors(newRecord);
+            std::vector rows{
+                newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetIdMapping()),
+            };
+            transaction->WriteRows(
+                root + "/finished_queries",
+                TFinishedQueryDescriptor::Get()->GetNameTable(),
+                MakeSharedRange(std::move(rows), rowBuffer));
+        }
+        {
+            TFinishedQueryByStartTime newRecord{
+                .Key = {.StartTime = startTime, .QueryId = queryId},
+                .Engine = engine,
+                .User = *Options_.User,
+                .State = EQueryState::Draft,
+                .FilterFactors = filterFactors,
+            };
+            std::vector rows{
+                newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByStartTimeDescriptor::Get()->GetIdMapping()),
+            };
+            transaction->WriteRows(
+                root + "/finished_queries_by_start_time",
+                TFinishedQueryByStartTimeDescriptor::Get()->GetNameTable(),
+                MakeSharedRange(std::move(rows), rowBuffer));
+        }
+    } else {
+        static_assert(TActiveQueryDescriptor::FieldCount == 17);
+        TActiveQueryPartial newRecord{
+            .Key = {.QueryId = queryId},
+            .Engine = engine,
+            .Query = query,
+            .Settings = options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap,
+            .User = *Options_.User,
+            .StartTime = TInstant::Now(),
+            .State = EQueryState::Pending,
+            .Incarnation = -1,
+            .PingTime = TInstant::Zero(),
+            .Progress = EmptyMap,
+            .Annotations = options.Annotations ? ConvertToYsonString(options.Annotations) : EmptyMap,
+        };
+        newRecord.FilterFactors = GetFilterFactors(newRecord);
+        std::vector rows{
+            newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetIdMapping()),
+        };
+        transaction->WriteRows(
+            root + "/active_queries",
+            TActiveQueryDescriptor::Get()->GetNameTable(),
+            MakeSharedRange(std::move(rows), rowBuffer));
+    }
     WaitFor(transaction->Commit())
         .ThrowOnError();
     return queryId;
@@ -243,9 +295,9 @@ IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultInd
 
 TQuery PartialRecordToQuery(const auto& partialRecord)
 {
-    static_assert(pfr::tuple_size<TQuery>::value == 12);
-    static_assert(TActiveQueryDescriptor::FieldCount == 16);
-    static_assert(TFinishedQueryDescriptor::FieldCount == 11);
+    static_assert(pfr::tuple_size<TQuery>::value == 13);
+    static_assert(TActiveQueryDescriptor::FieldCount == 17);
+    static_assert(TFinishedQueryDescriptor::FieldCount == 12);
 
     TQuery query;
     // Note that some of the fields are twice optional.
@@ -263,6 +315,7 @@ TQuery PartialRecordToQuery(const auto& partialRecord)
     query.ResultCount = partialRecord.ResultCount.value_or(std::nullopt);
     query.Progress = partialRecord.Progress.value_or(TYsonString());
     query.Error = partialRecord.Error.value_or(std::nullopt);
+    query.Annotations = partialRecord.Annotations.value_or(TYsonString());
 
     IAttributeDictionaryPtr otherAttributes;
     auto fillIfPresent = [&] (const TString& key, const auto& value) {
@@ -302,8 +355,12 @@ TQuery TClient::DoGetQuery(TQueryId queryId, const TGetQueryOptions& options)
     TString root;
     std::tie(client, root) = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
 
-    auto timestamp = WaitFor(client->GetTimestampProvider()->GenerateTimestamps())
-        .ValueOrThrow();
+    auto timestamp = options.Timestamp != NTransactionClient::NullTimestamp
+        ? options.Timestamp
+        : WaitFor(client->GetTimestampProvider()->GenerateTimestamps())
+            .ValueOrThrow();
+
+    YT_LOG_DEBUG("Getting query (QueryId: %v, Timestamp: %v, Attributes: %v)", queryId, timestamp, options.Attributes);
 
     options.Attributes.ValidateKeysOnly();
     auto rowBuffer = New<TRowBuffer>();
@@ -511,12 +568,13 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
     std::vector<TQuery> queries;
     {
         std::vector<TFuture<std::vector<TQuery>>> futures;
-        bool stateFilterDefinesFinishedQuery =
-            options.StateFilter == EQueryState::Completed || options.StateFilter == EQueryState::Failed || options.StateFilter == EQueryState::Aborted;
-        if (!options.StateFilter || stateFilterDefinesFinishedQuery) {
+        std::optional<bool> stateFilterDefinesFinishedQuery = options.StateFilter
+            ? std::make_optional(IsFinishedState(*options.StateFilter))
+            : std::nullopt;
+        if (!options.StateFilter || *stateFilterDefinesFinishedQuery) {
             futures.push_back(BIND(selectFinishedQueries).AsyncVia(GetCurrentInvoker()).Run());
         }
-        if (!options.StateFilter || !stateFilterDefinesFinishedQuery) {
+        if (!options.StateFilter || !*stateFilterDefinesFinishedQuery) {
             futures.push_back(BIND(selectActiveQueries).AsyncVia(GetCurrentInvoker()).Run());
         }
         auto queryVectors = WaitFor(AllSucceeded(futures))
@@ -559,6 +617,86 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
         .Incomplete = incomplete,
         .Timestamp = timestamp,
     };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TClient::DoAlterQuery(TQueryId queryId, const TAlterQueryOptions& options)
+{
+    IClientPtr client;
+    TString root;
+    std::tie(client, root) = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
+
+    auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, {}))
+        .ValueOrThrow();
+
+    auto query = WaitFor(GetQuery(
+        queryId,
+        TGetQueryOptions{
+            .Attributes = {{"state", "start_time"}},
+            .Timestamp = transaction->GetStartTimestamp()
+        }))
+        .ValueOrThrow();
+
+
+    YT_LOG_DEBUG(
+        "Altering query (QueryId: %v, State: %v, HasAnnotations: %v)",
+        queryId,
+        *query.State,
+        static_cast<bool>(options.Annotations));
+
+    if (options.Annotations) {
+        if (IsFinishedState(*query.State)) {
+            auto rowBuffer = New<TRowBuffer>();
+            TString filterFactors;
+            {
+                TFinishedQueryPartial record{
+                    .Key = {.QueryId = queryId},
+                    .Annotations = ConvertToYsonString(options.Annotations),
+                };
+                std::vector rows{
+                    record.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetIdMapping()),
+                };
+                transaction->WriteRows(
+                    root + "/finished_queries",
+                    TFinishedQueryDescriptor::Get()->GetNameTable(),
+                    MakeSharedRange(std::move(rows), rowBuffer));
+                filterFactors = GetFilterFactors(record);
+            }
+            {
+                TFinishedQueryByStartTimePartial record{
+                    .Key = {.StartTime = *query.StartTime, .QueryId = queryId},
+                    .FilterFactors = filterFactors,
+                };
+                std::vector rows{
+                    record.ToUnversionedRow(rowBuffer, TFinishedQueryByStartTimeDescriptor::Get()->GetIdMapping()),
+                };
+                transaction->WriteRows(
+                    root + "/finished_queries_by_start_time",
+                    TFinishedQueryByStartTimeDescriptor::Get()->GetNameTable(),
+                    MakeSharedRange(std::move(rows), rowBuffer));
+            }
+        } else {
+            auto rowBuffer = New<TRowBuffer>();
+            {
+                TActiveQueryPartial record{
+                    .Key = {.QueryId = queryId},
+                    .Annotations = ConvertToYsonString(options.Annotations),
+                };
+                record.FilterFactors = GetFilterFactors(record);
+                std::vector rows{
+                    record.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetIdMapping()),
+                };
+                transaction->WriteRows(
+                    root + "/active_queries",
+                    TActiveQueryDescriptor::Get()->GetNameTable(),
+                    MakeSharedRange(std::move(rows), rowBuffer));
+            }
+        }
+    }
+
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

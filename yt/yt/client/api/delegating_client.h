@@ -584,6 +584,10 @@ public:
 
     TFuture<TListQueriesResult> ListQueries(const TListQueriesOptions& options) override;
 
+    TFuture<void> AlterQuery(
+        NQueryTrackerClient::TQueryId queryId,
+        const TAlterQueryOptions& options) override;
+
 protected:
     const IClientPtr Underlying_;
 };

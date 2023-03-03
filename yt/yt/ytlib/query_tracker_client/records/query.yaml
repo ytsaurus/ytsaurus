@@ -113,6 +113,12 @@ types:
         column_type: Any
         lock: client
 
+      - cpp_name: Annotations
+        cpp_type: NYson::TYsonString
+        column_name: annotations
+        column_type: Any
+        lock: client
+
 
   - type_name: TFinishedQuery
     fields:
@@ -177,6 +183,11 @@ types:
         cpp_type: std::optional<TInstant>
         column_name: finish_time
         column_type: Timestamp
+
+      - cpp_name: Annotations
+        cpp_type: NYson::TYsonString
+        column_name: annotations
+        column_type: Any
 
 
   - type_name: TFinishedQueryByStartTime

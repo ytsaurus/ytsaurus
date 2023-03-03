@@ -344,7 +344,7 @@ void Deserialize(TOperation& operation, NYTree::IAttributeDictionaryPtr attribut
 
 void Serialize(const TQuery& query, NYson::IYsonConsumer* consumer)
 {
-    static_assert(pfr::tuple_size<TQuery>::value == 12);
+    static_assert(pfr::tuple_size<TQuery>::value == 13);
     BuildYsonFluently(consumer)
         .BeginMap()
             .OptionalItem("id", query.Id)
@@ -357,6 +357,7 @@ void Serialize(const TQuery& query, NYson::IYsonConsumer* consumer)
             .OptionalItem("state", query.State)
             .OptionalItem("result_count", query.ResultCount)
             .OptionalItem("progress", query.Progress)
+            .OptionalItem("annotations", query.Annotations)
             .OptionalItem("error", query.Error)
             .DoIf(static_cast<bool>(query.OtherAttributes), [&] (TFluentMap fluent) {
                 for (const auto& [key, value] : query.OtherAttributes->ListPairs()) {

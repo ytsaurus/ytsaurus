@@ -946,6 +946,13 @@ TFuture<TListQueriesResult> TDelegatingClient::ListQueries(const TListQueriesOpt
     return Underlying_->ListQueries(options);
 }
 
+TFuture<void> TDelegatingClient::AlterQuery(
+    NQueryTrackerClient::TQueryId queryId,
+    const TAlterQueryOptions& options)
+{
+    return Underlying_->AlterQuery(queryId, options);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Method below ensures that delegating client contains implementations for all

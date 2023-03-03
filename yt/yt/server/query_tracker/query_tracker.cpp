@@ -7,6 +7,7 @@
 #include "mock_engine.h"
 
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
+#include <yt/yt/ytlib/query_tracker_client/helpers.h>
 
 #include <yt/yt/client/table_client/record_helpers.h>
 
@@ -267,11 +268,6 @@ private:
         }
     }
 
-    bool IsPreTerminatingState(EQueryState state)
-    {
-        return state == EQueryState::Aborting || state == EQueryState::Failing || state == EQueryState::Completing;
-    }
-
     //! Ping query assuming it is of given incarnation. Returns true if pinging must continue and false otherwise.
     bool TryPingQuery(TQueryId queryId, i64 incarnation)
     {
@@ -316,7 +312,7 @@ private:
                 return false;
             }
 
-            if (IsPreTerminatingState(activeQueryRecord->State)) {
+            if (IsPreFinishedState(activeQueryRecord->State)) {
                 YT_LOG_INFO("Query is in pre-terminating state, pinging stopped");
                 TError error;
                 EQueryState finalState;
@@ -477,7 +473,7 @@ private:
             {
                 // We must copy all fields of active query except for incarnation, ping time, assigned query and abort request
                 // (which do not matter for finished query) and filter factors field (which goes to finished_queries_by_start_time table).
-                static_assert(TActiveQueryDescriptor::FieldCount == 16 && TFinishedQueryDescriptor::FieldCount == 11);
+                static_assert(TActiveQueryDescriptor::FieldCount == 17 && TFinishedQueryDescriptor::FieldCount == 12);
                 TFinishedQuery newRecord{
                     .Key = TFinishedQueryKey{.QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
@@ -490,6 +486,7 @@ private:
                     .Error = error,
                     .ResultCount = activeQueryRecord->ResultCount,
                     .FinishTime = activeQueryRecord->FinishTime,
+                    .Annotations = activeQueryRecord->Annotations,
                 };
                 std::vector newRows = {
                     newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetIdMapping()),
@@ -501,7 +498,7 @@ private:
             }
 
             {
-                static_assert(TActiveQueryDescriptor::FieldCount == 16 && TFinishedQueryByStartTimeDescriptor::FieldCount == 6);
+                static_assert(TActiveQueryDescriptor::FieldCount == 17 && TFinishedQueryByStartTimeDescriptor::FieldCount == 6);
                 TFinishedQueryByStartTime newRecord{
                     .Key = TFinishedQueryByStartTimeKey{.StartTime = activeQueryRecord->StartTime, .QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
