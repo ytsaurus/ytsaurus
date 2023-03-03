@@ -17,7 +17,7 @@
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
 
-#include <infra/porto/api/libporto.hpp>
+#include <library/cpp/porto/libporto.hpp>
 
 #include <util/stream/file.h>
 

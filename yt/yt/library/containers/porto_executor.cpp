@@ -15,7 +15,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
-#include <infra/porto/proto/rpc.pb.h>
+#include <library/cpp/porto/proto/rpc.pb.h>
 
 #include <string>
 

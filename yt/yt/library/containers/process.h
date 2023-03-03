@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/misc/atomic_object.h>
 
-#include <infra/porto/api/libporto.hpp>
+#include <library/cpp/porto/libporto.hpp>
 
 namespace NYT::NContainers {
 
