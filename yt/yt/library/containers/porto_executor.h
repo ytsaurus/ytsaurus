@@ -9,8 +9,8 @@
 
 #include <yt/yt/core/net/address.h>
 
-#include <infra/porto/api/libporto.hpp>
-#include <infra/porto/proto/rpc.pb.h>
+#include <library/cpp/porto/libporto.hpp>
+#include <library/cpp/porto/proto/rpc.pb.h>
 
 namespace NYT::NContainers {
 
