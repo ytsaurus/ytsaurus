@@ -1758,7 +1758,6 @@ struct IClientBase
         NTransactionClient::ETransactionType type,
         const TTransactionStartOptions& options = {}) = 0;
 
-
     // Tables
     virtual TFuture<IUnversionedRowsetPtr> LookupRows(
         const NYPath::TYPath& path,
