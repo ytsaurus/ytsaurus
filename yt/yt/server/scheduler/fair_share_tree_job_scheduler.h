@@ -587,6 +587,7 @@ struct TJobSchedulerPostUpdateContext
 struct IFairShareTreeJobSchedulerHost
     : public virtual TRefCounted
 {
+    //! Thread affinity: Control.
     virtual TFairShareTreeSnapshotPtr GetTreeSnapshot() const noexcept = 0;
 };
 

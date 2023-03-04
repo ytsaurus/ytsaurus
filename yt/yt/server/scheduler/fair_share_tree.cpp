@@ -281,7 +281,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto treeSnapshot = GetTreeSnapshot();
+        auto treeSnapshot = GetAtomicTreeSnapshot();
 
         YT_VERIFY(treeSnapshot);
 
@@ -1422,18 +1422,21 @@ private:
 
     TFairShareTreeSnapshotPtr GetTreeSnapshot() const noexcept override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        if (VerifyInvokersAffinity(FeasibleInvokers_)) {
-            return TreeSnapshot_;
-        }
+        return TreeSnapshot_;
+    }
+
+    TFairShareTreeSnapshotPtr GetAtomicTreeSnapshot() const noexcept
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
 
         return AtomicTreeSnapshot_.Acquire();
     }
 
     TFairShareTreeSnapshotPtr GetTreeSnapshotForOrchid() const
     {
-        auto treeSnapshot = GetTreeSnapshot();
+        auto treeSnapshot = GetAtomicTreeSnapshot();
         if (!treeSnapshot) {
             ThrowOrchidIsNotReady();
         }
@@ -2157,7 +2160,9 @@ private:
 
     TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleJobs) override
     {
-        auto treeSnapshot = GetTreeSnapshot();
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto treeSnapshot = GetAtomicTreeSnapshot();
 
         YT_VERIFY(treeSnapshot);
 
@@ -2183,7 +2188,9 @@ private:
         THashSet<TJobId>* jobsToPostpone,
         std::vector<TJobId>* jobsToAbort) override
     {
-        auto treeSnapshot = GetTreeSnapshot();
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto treeSnapshot = GetAtomicTreeSnapshot();
 
         YT_VERIFY(treeSnapshot);
 
@@ -2401,12 +2408,12 @@ private:
         TInstant now,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override
     {
-        TreeScheduler_->BuildSchedulingAttributesStringForOngoingJobs(GetTreeSnapshot(), jobs, now, delimitedBuilder);
+        TreeScheduler_->BuildSchedulingAttributesStringForOngoingJobs(GetAtomicTreeSnapshot(), jobs, now, delimitedBuilder);
     }
 
     void ProfileFairShare() const override
     {
-        auto treeSnapshot = GetTreeSnapshot();
+        auto treeSnapshot = GetAtomicTreeSnapshot();
 
         YT_VERIFY(treeSnapshot);
 
@@ -2417,7 +2424,7 @@ private:
 
     void LogFairShareAt(TInstant now) const override
     {
-        auto treeSnapshot = GetTreeSnapshot();
+        auto treeSnapshot = GetAtomicTreeSnapshot();
 
         YT_VERIFY(treeSnapshot);
 
@@ -2477,7 +2484,7 @@ private:
 
     void LogAccumulatedUsage() const override
     {
-        auto treeSnapshot = GetTreeSnapshot();
+        auto treeSnapshot = GetAtomicTreeSnapshot();
 
         YT_VERIFY(treeSnapshot);
 
@@ -2493,7 +2500,7 @@ private:
 
     void EssentialLogFairShareAt(TInstant now) const override
     {
-        auto treeSnapshot = GetTreeSnapshot();
+        auto treeSnapshot = GetAtomicTreeSnapshot();
 
         YT_VERIFY(treeSnapshot);
 
@@ -2514,7 +2521,7 @@ private:
 
     void UpdateResourceUsages() override
     {
-        auto treeSnapshot = GetTreeSnapshot();
+        auto treeSnapshot = GetAtomicTreeSnapshot();
         auto resourceUsageSnapshot = BuildResourceUsageSnapshot(treeSnapshot);
 
         AccumulatedPoolResourceUsageForMetering_.Update(treeSnapshot, resourceUsageSnapshot);
