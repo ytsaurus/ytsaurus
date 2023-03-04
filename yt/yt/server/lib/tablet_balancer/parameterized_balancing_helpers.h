@@ -29,12 +29,20 @@ DEFINE_REFCOUNTED_TYPE(IParameterizedReassignSolver)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TParameterizedReassignSolverConfig
+{
+    int MaxMoveActionCount = 0;
+    double DeviationThreshold = 0;
+    double MinRelativeMetricImprovement = 0;
+    TString Metric;
+
+    TParameterizedReassignSolverConfig MergeWith(const TParameterizedBalancingConfigPtr& groupConfig) const;
+};
+
 IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
     std::vector<TString> performanceCountersKeys,
-    int maxMoveActionCount,
-    double deviationThreshold,
-    TParameterizedBalancingConfigPtr groupConfig,
+    TParameterizedReassignSolverConfig config,
     TString groupName,
     const NLogging::TLogger& logger);
 

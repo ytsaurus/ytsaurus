@@ -13,6 +13,7 @@
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 #include <yt/yt/server/lib/tablet_balancer/balancing_helpers.h>
+#include <yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -111,13 +112,7 @@ private:
     IThreadPoolPtr WorkerPool_;
     IActionManagerPtr ActionManager_;
 
-    std::atomic<bool> Enable_{false};
-    std::atomic<bool> EnableEverywhere_{false};
-    std::atomic<int> MaxParameterizedMoveActionCount_{0};
-    std::atomic<double> ParameterizedDeviationThreshold_{0.0};
-    TAtomicObject<TTimeFormula> ScheduleFormula_;
-    TAtomicObject<std::optional<TDuration>> Period_;
-    TAtomicObject<TString> DefaultParameterizedMetric_;
+    TAtomicIntrusivePtr<TTabletBalancerDynamicConfig> DynamicConfig_;
 
     TParameterizedBalancingTimeoutScheduler ParameterizedBalancingScheduler_;
     TInstant CurrentIterationStartTime_;
@@ -171,6 +166,7 @@ TTabletBalancer::TTabletBalancer(
         Config_->TabletActionPollingPeriod,
         Bootstrap_->GetClient(),
         Bootstrap_))
+    , DynamicConfig_(TAtomicIntrusivePtr(New<TTabletBalancerDynamicConfig>()))
     , ParameterizedBalancingScheduler_(
         Config_->ParameterizedTimeoutOnStart,
         Config_->ParameterizedTimeout)
@@ -185,7 +181,7 @@ void TTabletBalancer::Start()
     VERIFY_THREAD_AFFINITY_ANY();
 
     YT_LOG_INFO("Starting tablet balancer instance (Period: %v)",
-        Period_.Load().value_or(Config_->Period));
+        DynamicConfig_.Acquire()->Period.value_or(Config_->Period));
 
     GroupsToMoveOnNextIteration_.clear();
 
@@ -212,7 +208,7 @@ void TTabletBalancer::BalancerIteration()
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
-    if (!Enable_) {
+    if (!DynamicConfig_.Acquire()->Enable) {
         YT_LOG_DEBUG("Standalone tablet balancer is not enabled");
         return;
     }
@@ -318,9 +314,10 @@ void TTabletBalancer::BalanceBundle(const TBundleStatePtr& bundle)
 
 bool TTabletBalancer::IsBalancingAllowed(const TBundleStatePtr& bundleState) const
 {
-    return Enable_ &&
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    return dynamicConfig->Enable &&
         bundleState->GetHealth() == ETabletCellHealth::Good &&
-        (EnableEverywhere_ ||
+        (dynamicConfig->EnableEverywhere ||
          bundleState->GetBundle()->Config->EnableStandaloneTabletBalancer);
 }
 
@@ -360,15 +357,7 @@ void TTabletBalancer::OnDynamicConfigChanged(
     const TTabletBalancerDynamicConfigPtr& oldConfig,
     const TTabletBalancerDynamicConfigPtr& newConfig)
 {
-    // Order matters. Otherwise, the old Enable can be seen with the new EnableEverywhere
-    // and balance everything, while EnableEverywhere has no effect if Enable is set to false.
-    Enable_.store(newConfig->Enable);
-    EnableEverywhere_.store(newConfig->EnableEverywhere);
-    MaxParameterizedMoveActionCount_.store(newConfig->MaxParameterizedMoveActionCount);
-    ParameterizedDeviationThreshold_.store(newConfig->ParameterizedDeviationThreshold);
-    ScheduleFormula_.Store(newConfig->Schedule);
-    Period_.Store(newConfig->Period);
-    DefaultParameterizedMetric_.Store(newConfig->DefaultParameterizedMetric);
+    DynamicConfig_.Store(newConfig);
 
     auto oldPeriod = oldConfig->Period.value_or(Config_->Period);
     auto newPeriod = newConfig->Period.value_or(Config_->Period);
@@ -396,7 +385,6 @@ std::vector<TString> TTabletBalancer::UpdateBundleList()
     // Gather current bundles.
     THashSet<TString> currentBundles;
     std::vector<TString> newBundles;
-    auto defaultParameterizedMetric = DefaultParameterizedMetric_.Load();
     for (const auto& bundle : bundlesList->GetChildren()) {
         const auto& name = bundle->AsString()->GetValue();
         currentBundles.insert(bundle->AsString()->GetValue());
@@ -407,7 +395,7 @@ std::vector<TString> TTabletBalancer::UpdateBundleList()
                 name,
                 Bootstrap_->GetClient(),
                 WorkerPool_->GetInvoker()));
-        it->second->UpdateBundleAttributes(&bundle->Attributes(), defaultParameterizedMetric);
+        it->second->UpdateBundleAttributes(&bundle->Attributes());
         it->second->SetHasUntrackedUnfinishedActions(HasUntrackedUnfinishedActions(it->second, &bundle->Attributes()));
 
         if (isNew) {
@@ -480,7 +468,7 @@ TTimeFormula TTabletBalancer::GetBundleSchedule(const TTabletCellBundlePtr& bund
             local.GetFormula());
         return local;
     }
-    auto formula = ScheduleFormula_.Load();
+    auto formula = DynamicConfig_.Acquire()->Schedule;
     YT_LOG_DEBUG("Using global balancer schedule for bundle (BundleName: %v, ScheduleFormula: %v)",
         bundle->Name,
         formula.GetFormula());
@@ -589,14 +577,19 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
         return;
     }
 
+    auto dynamicConfig = DynamicConfig_.Acquire();
+
     auto descriptors = WaitFor(
         BIND(
             ReassignTabletsParameterized,
             bundleState->GetBundle(),
             bundleState->DefaultPerformanceCountersKeys_,
-            MaxParameterizedMoveActionCount_.load(),
-            ParameterizedDeviationThreshold_.load(),
-            groupConfig->Parameterized,
+            TParameterizedReassignSolverConfig{
+                .MaxMoveActionCount = dynamicConfig->MaxParameterizedMoveActionCount,
+                .DeviationThreshold = dynamicConfig->ParameterizedDeviationThreshold,
+                .MinRelativeMetricImprovement = dynamicConfig->ParameterizedMinRelativeMetricImprovement,
+                .Metric = dynamicConfig->DefaultParameterizedMetric,
+            }.MergeWith(groupConfig->Parameterized),
             groupName,
             Logger)
         .AsyncVia(WorkerPool_->GetInvoker())

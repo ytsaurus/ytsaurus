@@ -65,8 +65,7 @@ public:
         IInvokerPtr invoker);
 
     void UpdateBundleAttributes(
-        const NYTree::IAttributeDictionary* attributes,
-        const TString& defaultParameterizedMetric);
+        const NYTree::IAttributeDictionary* attributes);
 
     bool IsParameterizedBalancingEnabled() const;
 

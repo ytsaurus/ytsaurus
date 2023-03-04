@@ -50,9 +50,7 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
 std::vector<TMoveDescriptor> ReassignTabletsParameterized(
     const TTabletCellBundlePtr& bundle,
     const std::vector<TString>& performanceCountersKeys,
-    int maxMoveActionCount,
-    double deviationThreshold,
-    const TParameterizedBalancingConfigPtr& groupConfig,
+    const TParameterizedReassignSolverConfig& config,
     const TGroupName& groupName,
     const NLogging::TLogger& logger = {});
 
