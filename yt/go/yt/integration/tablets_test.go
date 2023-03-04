@@ -417,10 +417,10 @@ func TestAbortCommittedTabletTx(t *testing.T) {
 		makeClient func(l log.Structured) (yt.Client, error)
 	}{
 		{name: "http", makeClient: func(l log.Structured) (yt.Client, error) {
-			return ythttp.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: l})
+			return ythttp.NewTestClient(t, &yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: l})
 		}},
 		{name: "rpc", makeClient: func(l log.Structured) (yt.Client, error) {
-			return ytrpc.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: l})
+			return ytrpc.NewTestClient(t, &yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: l})
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

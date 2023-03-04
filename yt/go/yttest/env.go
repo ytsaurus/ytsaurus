@@ -54,7 +54,7 @@ func NewEnv(t testing.TB, opts ...Option) (env *Env, cancel func()) {
 
 	env = &Env{}
 	env.Ctx, cancelCtx = context.WithCancel(context.Background())
-	env.YT, err = ythttp.NewClient(&config)
+	env.YT, err = ythttp.NewTestClient(t, &config)
 	if err != nil {
 		t.Fatalf("failed to create YT client: %+v", err)
 	}

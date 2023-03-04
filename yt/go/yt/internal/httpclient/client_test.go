@@ -36,7 +36,7 @@ func TestHTTPClient_listHeavyProxies(t *testing.T) {
 	makeClient := func(t *testing.T, conf *yt.Config) *httpClient {
 		t.Helper()
 
-		iface, err := NewHTTPClient(conf)
+		iface, err := NewTestHTTPClient(t, conf)
 		require.NoError(t, err)
 
 		c, ok := iface.(*httpClient)
