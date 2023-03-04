@@ -1,6 +1,8 @@
 package ytrpc
 
 import (
+	"testing"
+
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/yt/go/mapreduce"
@@ -23,13 +25,25 @@ func checkNotInsideJob(c *yt.Config) error {
 // NewClient creates new client from config.
 //
 // Note! Table and File clients have stub implementations.
-// If you need on of those use http client instead.
+// If you need one of those use http client instead.
 func NewClient(c *yt.Config) (yt.Client, error) {
 	if err := checkNotInsideJob(c); err != nil {
 		return nil, err
 	}
 
 	return rpcclient.NewClient(c)
+}
+
+// NewTestClient creates new client from config to be used in integration tests.
+//
+// Note! Table and File clients have stub implementations.
+// If you need one of those use http client instead.
+func NewTestClient(t testing.TB, c *yt.Config) (yt.Client, error) {
+	if err := checkNotInsideJob(c); err != nil {
+		return nil, err
+	}
+
+	return rpcclient.NewTestClient(t, c)
 }
 
 // NewCypressClient creates new cypress client from config.

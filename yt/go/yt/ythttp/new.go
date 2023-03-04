@@ -2,6 +2,8 @@
 package ythttp
 
 import (
+	"testing"
+
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/yt/go/mapreduce"
@@ -28,4 +30,13 @@ func NewClient(c *yt.Config) (yt.Client, error) {
 	}
 
 	return httpclient.NewHTTPClient(c)
+}
+
+// NewTestClient creates new client from config to be used in integration tests.
+func NewTestClient(t testing.TB, c *yt.Config) (yt.Client, error) {
+	if err := checkNotInsideJob(c); err != nil {
+		return nil, err
+	}
+
+	return httpclient.NewTestHTTPClient(t, c)
 }
