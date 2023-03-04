@@ -29,9 +29,9 @@ type Contact struct {
 }
 
 func (c *Contact) Init() {
-	c.Name = "Fedor"
-	c.Email = "prime@yandex-team.ru"
-	c.Phone = "+79152147106"
+	c.Name = "Gopher"
+	c.Email = "gopher@ytsaurus.tech"
+	c.Phone = "+70000000000"
 	c.Age = 27
 }
 
