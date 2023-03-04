@@ -297,11 +297,11 @@ private:
                 continue;
             }
 
-            if (!instanceInfo->MaintenanceRequests.empty()) {
+            if (!instanceInfo->CmsMaintenanceRequests.empty()) {
                 YT_LOG_WARNING("Instance is requested for maintenance "
-                    "(InstanceName: %v, MaintenanceRequests: %v)",
+                    "(InstanceName: %v, CmsMaintenanceRequests: %v)",
                     instanceName,
-                    ConvertToYsonString(instanceInfo->MaintenanceRequests, EYsonFormat::Text));
+                    ConvertToYsonString(instanceInfo->CmsMaintenanceRequests, EYsonFormat::Text));
 
                 ++count;
                 continue;
@@ -1717,7 +1717,7 @@ public:
             const auto& instanceResource = nodeInfo->Annotations->Resource;
 
             nodesOrder.push_back(TNodeRemoveOrder{
-                .MaintenanceIsNotRequested = nodeInfo->MaintenanceRequests.empty(),
+                .MaintenanceIsNotRequested = nodeInfo->CmsMaintenanceRequests.empty(),
                 .HasUpdatedResources = (*targetResource == *instanceResource),
                 .UsedSlotCount = GetUsedSlotCount(nodeInfo),
                 .NodeName = nodeName,
@@ -1948,7 +1948,7 @@ public:
             const auto& instanceResource = proxyInfo->Annotations->Resource;
 
             proxyOrder.push_back(TProxyRemoveOrder{
-                .MaintenanceIsNotRequested = proxyInfo->MaintenanceRequests.empty(),
+                .MaintenanceIsNotRequested = proxyInfo->CmsMaintenanceRequests.empty(),
                 .HasUpdatedResources = (*targetResource == *instanceResource),
                 .ProxyName = proxyName,
             });

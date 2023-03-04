@@ -2812,7 +2812,7 @@ TEST(TBundleSchedulerTest, ReallocateNodesUnderMaintenance)
 
     for (auto& [_, nodeInfo] : input.TabletNodes)
     {
-        nodeInfo->MaintenanceRequests["test_service2"] = New<TMaintenanceRequest>();
+        nodeInfo->CmsMaintenanceRequests["test_service2"] = New<TCmsMaintenanceRequest>();
     }
 
     mutations = TSchedulerMutations{};
@@ -2837,7 +2837,7 @@ TEST(TBundleSchedulerTest, ReallocateProxiesUnderMaintenance)
 
     for (auto& [_, proxyInfo] : input.RpcProxies)
     {
-        proxyInfo->MaintenanceRequests["test_service"] = New<TMaintenanceRequest>();
+        proxyInfo->CmsMaintenanceRequests["test_service"] = New<TCmsMaintenanceRequest>();
     }
 
     mutations = TSchedulerMutations{};
@@ -2862,7 +2862,7 @@ TEST(TBundleSchedulerTest, ReallocateNodeUnderMaintenanceAndOutdated)
 
     {
         auto nodeInfo = input.TabletNodes.begin()->second;
-        nodeInfo->MaintenanceRequests["test_service"] = New<TMaintenanceRequest>();
+        nodeInfo->CmsMaintenanceRequests["test_service"] = New<TCmsMaintenanceRequest>();
         nodeInfo->Annotations->Resource->Vcpu /= 2;
     }
 
@@ -2881,7 +2881,7 @@ TEST(TBundleSchedulerTest, DeallocateNodesUnderMaintenance)
     auto nodesToRemove = GetRandomElements(nodeNames, 3);
     for (auto& nodeName : nodesToRemove) {
         auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        nodeInfo->MaintenanceRequests["test_service"] = New<TMaintenanceRequest>();
+        nodeInfo->CmsMaintenanceRequests["test_service"] = New<TCmsMaintenanceRequest>();
     }
 
     TSchedulerMutations mutations;
@@ -2909,7 +2909,7 @@ TEST(TBundleSchedulerTest, DeallocateProxiesUnderMaintenance)
     auto proxiesToRemove = GetRandomElements(proxyNames, 3);
     for (auto& proxyName : proxiesToRemove) {
         auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
-        proxyInfo->MaintenanceRequests["test_service"] = New<TMaintenanceRequest>();
+        proxyInfo->CmsMaintenanceRequests["test_service"] = New<TCmsMaintenanceRequest>();
     }
 
     TSchedulerMutations mutations;
