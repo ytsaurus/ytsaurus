@@ -42,7 +42,7 @@ DECLARE_REFCOUNTED_STRUCT(TTabletCellPeer)
 DECLARE_REFCOUNTED_STRUCT(TTabletSlot)
 DECLARE_REFCOUNTED_STRUCT(TBundleDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TRpcProxyAlive)
-DECLARE_REFCOUNTED_STRUCT(TMaintenanceRequest)
+DECLARE_REFCOUNTED_STRUCT(TCmsMaintenanceRequest)
 DECLARE_REFCOUNTED_STRUCT(TRpcProxyInfo)
 DECLARE_REFCOUNTED_STRUCT(TAccountResources)
 DECLARE_REFCOUNTED_STRUCT(TSystemAccount)
@@ -572,15 +572,15 @@ DEFINE_REFCOUNTED_TYPE(TTabletSlot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMaintenanceRequest
+struct TCmsMaintenanceRequest
     : public NYTree::TYsonStruct
 {
-    REGISTER_YSON_STRUCT(TMaintenanceRequest);
+    REGISTER_YSON_STRUCT(TCmsMaintenanceRequest);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TMaintenanceRequest)
+DEFINE_REFCOUNTED_TYPE(TCmsMaintenanceRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -641,7 +641,7 @@ struct TTabletNodeInfo
     THashSet<TString> UserTags;
     TInstanceAnnotationsPtr Annotations;
     std::vector<TTabletSlotPtr> TabletSlots;
-    THashMap<TString, TMaintenanceRequestPtr> MaintenanceRequests;
+    THashMap<TString, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
     TInstant LastSeenTime;
     TTabletNodeStatisticsPtr Statistics;
 
@@ -672,7 +672,7 @@ struct TRpcProxyInfo
     bool Banned;
     TString Role;
     TInstanceAnnotationsPtr Annotations;
-    THashMap<TString, TMaintenanceRequestPtr> MaintenanceRequests;
+    THashMap<TString, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
 
     TRpcProxyAlivePtr Alive;
 

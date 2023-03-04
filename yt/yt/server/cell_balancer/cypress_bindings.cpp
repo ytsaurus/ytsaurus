@@ -374,7 +374,7 @@ void TTabletSlot::Register(TRegistrar registrar)
         .Default();
 }
 
-void TMaintenanceRequest::Register(TRegistrar /*registrar*/)
+void TCmsMaintenanceRequest::Register(TRegistrar /*registrar*/)
 {
 }
 
@@ -422,7 +422,7 @@ void TTabletNodeInfo::Register(TRegistrar registrar)
         .DefaultNew();
     RegisterAttribute(registrar, "tablet_slots", &TThis::TabletSlots)
         .Default();
-    RegisterAttribute(registrar, "maintenance_requests", &TThis::MaintenanceRequests)
+    RegisterAttribute(registrar, "cms_maintenance_requests", &TThis::CmsMaintenanceRequests)
         .Default();
     RegisterAttribute(registrar, "last_seen_time", &TThis::LastSeenTime)
         .Default();
@@ -451,7 +451,7 @@ void TRpcProxyInfo::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "bundle_controller_annotations", &TThis::Annotations)
         .DefaultNew();
-    RegisterAttribute(registrar, "maintenance_requests", &TThis::MaintenanceRequests)
+    RegisterAttribute(registrar, "maintenance_requests", &TThis::CmsMaintenanceRequests)
         .Default();
 
     registrar.Parameter("alive", &TThis::Alive)
