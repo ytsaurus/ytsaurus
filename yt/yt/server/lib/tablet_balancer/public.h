@@ -41,8 +41,11 @@ DECLARE_REFCOUNTED_STRUCT(TTabletCellBundle)
 struct TReshardDescriptor;
 struct TMoveDescriptor;
 using TActionDescriptor = std::variant<TMoveDescriptor, TReshardDescriptor>;
+
 using TNodeAddress = TString;
 using TGroupName = TString;
+
+struct TParameterizedReassignSolverConfig;
 
 DECLARE_REFCOUNTED_STRUCT(IParameterizedReassignSolver)
 

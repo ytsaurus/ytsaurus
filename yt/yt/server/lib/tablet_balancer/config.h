@@ -20,7 +20,9 @@ class TParameterizedBalancingConfig
 {
 public:
     TString Metric;
-    std::optional<i64> MaxActionCount;
+    std::optional<int> MaxActionCount;
+    std::optional<double> DeviationThreshold;
+    std::optional<double> MinRelativeMetricImprovement;
 
     REGISTER_YSON_STRUCT(TParameterizedBalancingConfig);
 
@@ -158,12 +160,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableTabletBalancerConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-void PatchBundleConfig(
-    const TBundleTabletBalancerConfigPtr& config,
-    const TString& defaultParameterizedMetric);
 
 ////////////////////////////////////////////////////////////////////////////////
 

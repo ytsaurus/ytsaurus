@@ -132,8 +132,7 @@ TBundleState::TBundleState(
 { }
 
 void TBundleState::UpdateBundleAttributes(
-    const IAttributeDictionary* attributes,
-    const TString& defaultParameterizedMetric)
+    const IAttributeDictionary* attributes)
 {
     Health_ = attributes->Get<ETabletCellHealth>("health");
     CellIds_ = attributes->Get<std::vector<TTabletCellId>>("tablet_cell_ids");
@@ -141,7 +140,6 @@ void TBundleState::UpdateBundleAttributes(
 
     try {
         Bundle_->Config = attributes->Get<TBundleTabletBalancerConfigPtr>("tablet_balancer_config");
-        PatchBundleConfig(Bundle_->Config, defaultParameterizedMetric);
     } catch (const std::exception& ex) {
         // TODO(alexelexa): show such errors in orchid
         YT_LOG_ERROR(ex, "Error parsing bundle attribute \"tablet_balancer_config\", skip bundle balancing iteration");

@@ -53,9 +53,8 @@ public:
     std::optional<TDuration> Period;
 
     int MaxParameterizedMoveActionCount;
-
     double ParameterizedDeviationThreshold;
-
+    double ParameterizedMinRelativeMetricImprovement;
     TString DefaultParameterizedMetric;
 
     TTimeFormula Schedule;

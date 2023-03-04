@@ -11,7 +11,14 @@ void TParameterizedBalancingConfig::Register(TRegistrar registrar)
     registrar.Parameter("metric", &TThis::Metric)
         .Default();
     registrar.Parameter("max_action_count", &TThis::MaxActionCount)
-        .Default();
+        .Default()
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("deviation_threshold", &TThis::DeviationThreshold)
+        .Default()
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("min_relative_metric_improvement", &TThis::MinRelativeMetricImprovement)
+        .Default()
+        .GreaterThanOrEqual(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,6 +128,27 @@ void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("groups", &TThis::Groups)
         .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        config->Groups.emplace(DefaultGroupName, New<TTabletBalancingGroupConfig>());
+
+        if (auto it = config->Groups.emplace(LegacyGroupName, New<TTabletBalancingGroupConfig>()); it.second) {
+            it.first->second->Type = EBalancingType::Legacy;
+        }
+
+        if (auto it = config->Groups.emplace(LegacyInMemoryGroupName, New<TTabletBalancingGroupConfig>()); it.second) {
+            it.first->second->Type = EBalancingType::Legacy;
+        }
+
+        for (const auto& [groupName, groupConfig] : config->Groups) {
+            if (groupConfig->Type == EBalancingType::Legacy) {
+                THROW_ERROR_EXCEPTION_IF(
+                    groupName != LegacyGroupName && groupName != LegacyInMemoryGroupName,
+                    "Group %Qv is not builtin but has legacy type",
+                    groupName);
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,40 +235,6 @@ void TTableTabletBalancerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("group", &TThis::Group)
         .Default();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void PatchBundleConfig(
-    const TBundleTabletBalancerConfigPtr& config,
-    const TString& defaultParameterizedMetric)
-{
-    if (auto it = config->Groups.emplace(DefaultGroupName, New<TTabletBalancingGroupConfig>()); it.second) {
-        it.first->second->Parameterized->Metric = defaultParameterizedMetric;
-    }
-
-    if (auto it = config->Groups.emplace(LegacyGroupName, New<TTabletBalancingGroupConfig>()); it.second) {
-        it.first->second->Type = EBalancingType::Legacy;
-    }
-
-    if (auto it = config->Groups.emplace(LegacyInMemoryGroupName, New<TTabletBalancingGroupConfig>()); it.second) {
-        it.first->second->Type = EBalancingType::Legacy;
-    }
-
-    for (const auto& [groupName, groupConfig] : config->Groups) {
-        switch (groupConfig->Type) {
-            case EBalancingType::Legacy:
-                THROW_ERROR_EXCEPTION_IF(
-                    groupName != LegacyGroupName && groupName != LegacyInMemoryGroupName,
-                    "Group %Qv is not builtin but has legacy type",
-                    groupName);
-                break;
-            case EBalancingType::Parameterized:
-                if (groupConfig->Parameterized->Metric.Empty()) {
-                    groupConfig->Parameterized->Metric = defaultParameterizedMetric;
-                }
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

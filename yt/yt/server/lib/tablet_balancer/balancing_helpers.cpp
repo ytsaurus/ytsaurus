@@ -775,18 +775,14 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
 std::vector<TMoveDescriptor> ReassignTabletsParameterized(
     const TTabletCellBundlePtr& bundle,
     const std::vector<TString>& performanceCountersKeys,
-    int maxMoveActionCount,
-    double deviationThreshold,
-    const TParameterizedBalancingConfigPtr& groupConfig,
+    const TParameterizedReassignSolverConfig& config,
     const TGroupName& groupName,
     const TLogger& logger)
 {
     auto solver = CreateParameterizedReassignSolver(
         bundle,
         performanceCountersKeys,
-        maxMoveActionCount,
-        deviationThreshold,
-        groupConfig,
+        config,
         groupName,
         logger);
 

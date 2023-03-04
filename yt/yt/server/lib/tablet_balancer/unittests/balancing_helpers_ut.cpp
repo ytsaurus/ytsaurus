@@ -1,5 +1,6 @@
 #include <yt/yt/server/lib/tablet_balancer/balancing_helpers.h>
 #include <yt/yt/server/lib/tablet_balancer/config.h>
+#include <yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.h>
 #include <yt/yt/server/lib/tablet_balancer/table.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet_cell.h>
@@ -201,7 +202,6 @@ TTestBundle CreateTabletCellBundle(
     testBundle.Bundle = New<TTabletCellBundle>("bundle");
     testBundle.Bundle->Config = ConvertTo<TBundleTabletBalancerConfigPtr>(TYsonStringBuf(bundleParams.BundleConfig));
     testBundle.Bundle->Config->EnableVerboseLogging = true;
-    PatchBundleConfig(testBundle.Bundle->Config, "");
 
     auto nodes = ConvertTo<std::vector<TTestNodePtr>>(TYsonStringBuf(bundleParams.Nodes));
     for (const auto& node : nodes) {
@@ -771,9 +771,9 @@ TEST_P(TTestReassignTabletsParameterized, SimpleViaMemorySize)
     auto descriptors = ReassignTabletsParameterized(
         bundle.Bundle,
         /*performanceCountersKeys*/ {},
-        /*moveActionLimit*/ std::get<2>(params),
-        /*deviationThreshold*/ 0.0,
-        GetOrCrash(bundle.Bundle->Config->Groups, group)->Parameterized,
+        TParameterizedReassignSolverConfig{
+            .MaxMoveActionCount = std::get<2>(params)
+        }.MergeWith(GetOrCrash(bundle.Bundle->Config->Groups, group)->Parameterized),
         group,
         Logger);
 
@@ -959,9 +959,9 @@ TEST_P(TTestReassignTabletsParameterizedErrors, BalancingError)
         ReassignTabletsParameterized(
             bundle.Bundle,
             /*performanceCountersKeys*/ {},
-            /*moveActionLimit*/ 3,
-            /*deviationThreshold*/ 0.0,
-            GetOrCrash(bundle.Bundle->Config->Groups, group)->Parameterized,
+            TParameterizedReassignSolverConfig{
+                .MaxMoveActionCount = 3
+            }.MergeWith(GetOrCrash(bundle.Bundle->Config->Groups, group)->Parameterized),
             group,
             Logger),
         ToString(std::get<1>(params)));
@@ -1019,9 +1019,9 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, SimpleManyNodesWithInMemoryTabl
     auto descriptors = ReassignTabletsParameterized(
         bundle.Bundle,
         /*performanceCountersKeys*/ {},
-        /*moveActionLimit*/ std::get<2>(params),
-        /*deviationThreshold*/ 0.0,
-        GetOrCrash(bundle.Bundle->Config->Groups, group)->Parameterized,
+        TParameterizedReassignSolverConfig{
+            .MaxMoveActionCount = std::get<2>(params)
+        }.MergeWith(GetOrCrash(bundle.Bundle->Config->Groups, group)->Parameterized),
         group,
         Logger);
 

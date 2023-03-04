@@ -37,14 +37,20 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_everywhere", &TThis::EnableEverywhere)
         .Default(false);
+
     registrar.Parameter("max_parameterized_move_action_count", &TThis::MaxParameterizedMoveActionCount)
-        .Default(5);
+        .Default(5)
+        .GreaterThanOrEqual(0);
     registrar.Parameter("parameterized_deviation_threshold", &TThis::ParameterizedDeviationThreshold)
         .Default(0.1)
         .GreaterThanOrEqual(0);
+    registrar.Parameter("parameterized_min_relative_metric_improvement", &TThis::ParameterizedMinRelativeMetricImprovement)
+        .Default(0.001)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("default_parameterized_metric", &TThis::DefaultParameterizedMetric)
+        .Default(DefaultParameterizedMetricFormula)
+        .NonEmpty();
 
-    registrar.Parameter("default_parameterized_formula", &TThis::DefaultParameterizedMetric)
-        .Default(DefaultParameterizedMetricFormula);
     registrar.Parameter("schedule", &TThis::Schedule)
         .Default(DefaultTabletBalancerSchedule);
     registrar.Parameter("period", &TThis::Period)
