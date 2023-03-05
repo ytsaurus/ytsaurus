@@ -192,6 +192,7 @@ TMutableVersionedRow TSlimVersionedBlockReader::ReadRowSingleVersion(TChunkedMem
     auto* value = row.BeginValues();
     const auto* endValue = row.EndValues();
     auto writeTimestamp = NullTimestamp;
+
     while (ptr != endPtr) {
         ui32 timestampIndex;
         ptr += ReadVarUint32(ptr, &timestampIndex);
@@ -245,6 +246,7 @@ TMutableVersionedRow TSlimVersionedBlockReader::ReadRowSingleVersion(TChunkedMem
     SortRowValues(row);
     FilterSingleRowVersion(row, ReaderIdToAggregateFlag_, memoryPool);
     FillKey(row);
+
     return row;
 }
 
@@ -316,7 +318,7 @@ void TSlimVersionedBlockReader::FillKey(TMutableVersionedRow row)
 }
 
 template <class TValueParser>
-void TSlimVersionedBlockReader::ParseValues(
+Y_FORCE_INLINE void TSlimVersionedBlockReader::ParseValues(
     TDictionary dictionary,
     const char*& ptr,
     TValueParser valueParser)
@@ -340,7 +342,7 @@ void TSlimVersionedBlockReader::ParseValues(
 }
 
 template <class TValueCtor>
-void TSlimVersionedBlockReader::ReadValues(
+Y_FORCE_INLINE void TSlimVersionedBlockReader::ReadValues(
     TDictionary dictionary,
     const char*& ptr,
     TValueCtor valueCtor)
@@ -381,7 +383,7 @@ void TSlimVersionedBlockReader::ReadValues(
         });
 }
 
-void TSlimVersionedBlockReader::SkipValues(
+Y_FORCE_INLINE void TSlimVersionedBlockReader::SkipValues(
     TDictionary dictionary,
     const char*& ptr)
 {
@@ -400,7 +402,7 @@ void TSlimVersionedBlockReader::SkipValues(
         });
 }
 
-void TSlimVersionedBlockReader::ReadNonNullValue(
+Y_FORCE_INLINE void TSlimVersionedBlockReader::ReadNonNullValue(
     const char*& ptr,
     int chunkSchemaId,
     TUnversionedValue* value)
@@ -508,7 +510,7 @@ void TSlimVersionedBlockReader::ReadNonNullValue(
     }
 }
 
-void TSlimVersionedBlockReader::SkipNonNullValue(
+Y_FORCE_INLINE void TSlimVersionedBlockReader::SkipNonNullValue(
     const char*& ptr,
     int chunkSchemaId)
 {
