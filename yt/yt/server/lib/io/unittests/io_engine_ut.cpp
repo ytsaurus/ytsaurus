@@ -2,6 +2,10 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
+
+#include <yt/yt/core/utilex/random.h>
+
 #include <yt/yt/server/lib/io/io_engine.h>
 
 #include <util/system/fs.h>
@@ -9,6 +13,25 @@
 
 namespace NYT::NIO {
 namespace {
+
+using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedMutableRef GenerateRandomBlob(i64 size)
+{
+    auto data = TSharedMutableRef::Allocate(size);
+    for (ui32 index = 0; index < data.Size(); ++index) {
+        data[index] = ((index + size) * 1103515245L) >> 24;
+    }
+    return data;
+}
+
+void WriteFile(const TString& fileName, TRef data)
+{
+    TFile file(fileName, WrOnly | CreateAlways);
+    file.Pwrite(data.Begin(), data.Size(), 0);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,21 +44,6 @@ class TIOEngineTest
     >>
 {
 protected:
-    TSharedMutableRef GenerateRandomBlob(i64 size)
-    {
-        auto data = TSharedMutableRef::Allocate(size);
-        for (ui32 index = 0; index < data.Size(); ++index) {
-            data[index] = ((index + size) * 1103515245L) >> 24;
-        }
-        return data;
-    }
-
-    void WriteFile(const TString& fileName, TRef data)
-    {
-        TFile file(fileName, WrOnly | CreateAlways);
-        file.Pwrite(data.Begin(), data.Size(), 0);
-    }
-
     EIOEngineType GetIOEngineType()
     {
         return std::get<0>(GetParam());
@@ -142,7 +150,7 @@ TEST_P(TIOEngineTest, ReadAll)
 
 TEST_P(TIOEngineTest, DirectIO)
 {
-    if (GetIOEngineType() != EIOEngineType::Uring) {
+    if (GetIOEngineType() != EIOEngineType::Uring && GetIOEngineType() != EIOEngineType::FairShareUring) {
         GTEST_SKIP() << "Skipping Test: Unaligned direct IO is only supported by uring engine.";
     }
 
@@ -180,7 +188,7 @@ TEST_P(TIOEngineTest, DirectIO)
 
 TEST_P(TIOEngineTest, DirectIOUnalignedFile)
 {
-    if (GetIOEngineType() != EIOEngineType::Uring) {
+    if (GetIOEngineType() != EIOEngineType::Uring && GetIOEngineType() != EIOEngineType::FairShareUring) {
         GTEST_SKIP() << "Skipping Test: Unaligned direct IO is only supported by uring engine.";
     }
 
@@ -214,7 +222,7 @@ TEST_P(TIOEngineTest, DirectIOUnalignedFile)
 
 TEST_P(TIOEngineTest, ManyConcurrentDirectIOReads)
 {
-    if (GetIOEngineType() != EIOEngineType::Uring) {
+    if (GetIOEngineType() != EIOEngineType::Uring && GetIOEngineType() != EIOEngineType::FairShareUring) {
         GTEST_SKIP() << "Skipping Test: Unaligned direct IO is only supported by uring engine.";
     }
 
@@ -242,6 +250,128 @@ TEST_P(TIOEngineTest, ManyConcurrentDirectIOReads)
     AllSucceeded(std::move(futures))
         .Get()
         .ThrowOnError();
+}
+
+class TTestIORequester
+{
+public:
+    explicit TTestIORequester(IIOEnginePtr engine)
+        : Engine_(std::move(engine))
+        , ActionQueue_(New<TActionQueue>(("TestIO")))
+        , Invoker_(ActionQueue_->GetInvoker())
+    { }
+
+    void Stop()
+    {
+        Stopped_.store(true);
+    }
+
+    TFuture<void> Run()
+    {
+        return BIND(&TTestIORequester::DoRun, this)
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
+private:
+    static constexpr int RequestCount = 100;
+    static constexpr int SubRequestCount = 3;
+
+    void DoRun()
+    {
+        auto fileName = GenerateRandomFileName("IOEngine");
+        TTempFile tempFile(fileName);
+
+        constexpr auto FileSize = 4_MB;
+        auto data = GenerateRandomBlob(FileSize);
+
+        WriteFile(fileName, data);
+
+        auto file = Engine_->Open({fileName, RdOnly})
+            .Get()
+            .ValueOrThrow();
+
+        while (!Stopped_) {
+            std::vector<TFuture<IIOEngine::TReadResponse>> futures;
+
+            for (int requestIndex = 0; requestIndex < RequestCount; ++requestIndex) {
+                std::vector<IIOEngine::TReadRequest> readRequests;
+                readRequests.reserve(SubRequestCount);
+
+                for (int subRequestIndex = 0; subRequestIndex < SubRequestCount; ++subRequestIndex) {
+                    readRequests.push_back({
+                        .Handle = file,
+                        .Offset = 8_KBs * subRequestIndex,
+                        .Size = 10,
+                    });
+                }
+                futures.push_back(Engine_->Read(readRequests, EWorkloadCategory::Idle, {}, {}, true));
+            }
+
+            WaitFor(AllSucceeded(futures, {.CancelInputOnShortcut = false}))
+                .ValueOrThrow();
+        }
+    }
+
+private:
+    const IIOEnginePtr Engine_;
+    const TActionQueuePtr ActionQueue_;
+    const IInvokerPtr Invoker_;
+    std::atomic<int> Stopped_ = false;
+};
+
+TEST_P(TIOEngineTest, ChangeDynamicConfig)
+{
+    if (GetIOEngineType() != EIOEngineType::Uring && GetIOEngineType() != EIOEngineType::FairShareUring) {
+        GTEST_SKIP() << "Skipping Test: Test intended for uring engines only.";
+    }
+
+    static const TString ConfigTemplate = R"(
+        {
+            uring_thread_count = %v;
+            read_thread_count = %v;
+            simulated_max_bytes_per_write = 512;
+        }
+    )";
+
+    const int FullTestIterationCount = 3;
+
+    for (int fullIndex = 0; fullIndex < FullTestIterationCount; ++fullIndex) {
+        auto engine = CreateIOEngine();
+        constexpr int TestIterationCount = 100;
+
+        for (int index = 0; index < TestIterationCount; ++index) {
+            std::vector<std::unique_ptr<TTestIORequester>> requesters;
+            requesters.resize(10);
+            std::vector<TFuture<void>> futures;
+            for (auto& requester : requesters) {
+                requester = std::make_unique<TTestIORequester>(engine);
+                futures.push_back(requester->Run()
+                    .WithTimeout(TDuration::Seconds(30)));
+            }
+
+            Sleep(RandomDuration(TDuration::MilliSeconds(10)));
+
+            auto readThreadCount = RandomNumber<ui32>(7) + 1;
+            auto config = Format(ConfigTemplate,
+                readThreadCount,
+                readThreadCount);
+
+            engine->Reconfigure(NYTree::ConvertTo<NYTree::INodePtr>(
+                NYson::TYsonString(config)));
+
+            for (const auto& requester : requesters) {
+                requester->Stop();
+            }
+
+            for (const auto& future : futures) {
+                auto result = WaitFor(future);
+                EXPECT_NO_THROW(result.ThrowOnError());
+                YT_VERIFY(result.IsOK());
+            }
+        }
+    }
+
 }
 
 TEST_P(TIOEngineTest, DirectIOAligned)

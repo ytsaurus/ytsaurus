@@ -52,7 +52,11 @@ DEFINE_ENUM(EUringRequestType,
     (FlushFile)
     (Read)
     (Write)
-    (Allocate)
+);
+
+DEFINE_ENUM(EQueueSubmitResult,
+    (Ok)
+    (NeedReconfigure)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -368,8 +372,8 @@ DECLARE_REFCOUNTED_STRUCT(TUringConfigProvider);
 
 #define YT_DECLARE_ATOMIC_FIELD(type, name) \
     std::atomic<type> name##_;\
-    type Get##name() { \
-        return name##_.load(std::memory_order::relaxed); \
+    type Get##name(std::memory_order order = std::memory_order::relaxed) { \
+        return name##_.load(order); \
     }
 
 #define YT_STORE_ATOMIC_FIELD(config, name) \
@@ -417,10 +421,11 @@ DEFINE_REFCOUNTED_TYPE(TUringConfigProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IUringThreadPool
-{
-    virtual ~IUringThreadPool() { }
+DECLARE_REFCOUNTED_STRUCT(IUringThreadPool);
 
+struct IUringThreadPool
+    : public TRefCounted
+{
     virtual const TString& Name() const = 0;
 
     virtual void PrepareDequeue(int threadIndex) = 0;
@@ -431,6 +436,8 @@ struct IUringThreadPool
 
     virtual const TNotificationHandle& GetNotificationHandle(int threadIndex) const = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IUringThreadPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -508,6 +515,11 @@ private:
 
     bool IsUringDrained()
     {
+        if (Stopping_) {
+            YT_LOG_DEBUG("Uring thread stopping (PendingSubmissionsCount_: %v, UndersubmittedRequestsSize: %v)",
+                PendingSubmissionsCount_,
+                UndersubmittedRequests_.GetSize());
+        }
         return Stopping_ && PendingSubmissionsCount_ == 0;
     }
 
@@ -542,20 +554,18 @@ private:
 
     TUringRequestPtr TryDequeue()
     {
+        if (Stopping_) {
+            return nullptr;
+        }
+
         auto request = ThreadPool_->TryDequeue(ThreadIndex_);
         if (!request) {
             return nullptr;
         }
 
-        if (Stopping_) {
-            YT_LOG_TRACE("Request dropped (Request: %v)",
-                request.get());
-            return nullptr;
-        } else {
-            YT_LOG_TRACE("Request dequeued (Request: %v)",
-                request.get());
-            return request;
-        }
+        YT_LOG_TRACE("Request dequeued (Request: %v)",
+            request.get());
+        return request;
     }
 
     void HandleStop()
@@ -1080,6 +1090,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TMoodyCamelQueue
     : public TRefCounted
 {
@@ -1087,7 +1099,7 @@ public:
     TMoodyCamelQueue(TString /*locationId*/, TUringConfigProviderPtr /*config*/)
     { }
 
-    void Enqueue(
+    EQueueSubmitResult Enqueue(
         TUringRequestPtr request,
         EWorkloadCategory /*category*/,
         IIOEngine::TSessionId /*sessionId*/)
@@ -1095,11 +1107,14 @@ public:
         Queue_.enqueue(std::move(request));
 
         if (!RequestNotificationHandleRaised_.exchange(true)) {
+            YT_LOG_TRACE("Request notification raise");
             RequestNotificationHandle_.Raise();
         }
+
+        return EQueueSubmitResult::Ok;
     }
 
-    void Enqueue(
+    EQueueSubmitResult Enqueue(
         std::vector<TUringRequestPtr>& requests,
         EWorkloadCategory /*category*/,
         IIOEngine::TSessionId /*sessionId*/)
@@ -1111,6 +1126,8 @@ public:
         if (!RequestNotificationHandleRaised_.exchange(true)) {
             RequestNotificationHandle_.Raise();
         }
+
+        return EQueueSubmitResult::Ok;
     }
 
     void PrepareDequeue(int /*threadIndex*/)
@@ -1134,6 +1151,11 @@ public:
     const TNotificationHandle& GetNotificationHandle(int /*threadIndex*/) const
     {
         return RequestNotificationHandle_;
+    }
+
+    void Reconfigure(int /*threadCount*/)
+    {
+        RequestNotificationHandle_.Raise();
     }
 
     static TString GetThreadPoolName()
@@ -1160,7 +1182,7 @@ public:
         , OffloadScheduled_(false)
     { }
 
-    void Enqueue(
+    EQueueSubmitResult Enqueue(
         TUringRequestPtr request,
         EWorkloadCategory category,
         IIOEngine::TSessionId sessionId)
@@ -1176,9 +1198,10 @@ public:
         });
 
         NotifyIfNeeded(shard);
+        return CheckShardAfterEnqueue(shardIndex);
     }
 
-    void Enqueue(
+    EQueueSubmitResult Enqueue(
         std::vector<TUringRequestPtr>& request,
         EWorkloadCategory category,
         IIOEngine::TSessionId sessionId)
@@ -1200,6 +1223,7 @@ public:
 
         shard.Queue.EnqueueMany(std::move(toEnqueue));
         NotifyIfNeeded(shard);
+        return CheckShardAfterEnqueue(shardIndex);
     }
 
     void PrepareDequeue(int threadIndex)
@@ -1230,6 +1254,19 @@ public:
     const TNotificationHandle& GetNotificationHandle(int threadIndex) const
     {
         return Shards_[threadIndex].RequestNotificationHandle;
+    }
+
+    void Reconfigure(int threadCount)
+    {
+        // Resharding
+        for (int sourceShardIndex = threadCount; sourceShardIndex < std::ssize(Shards_); ++sourceShardIndex) {
+            auto& destinationShard = Shards_[RandomNumber<ui32>(threadCount)];
+            destinationShard.Queue.EnqueueMany(DrainShard(sourceShardIndex));
+        }
+
+        for (int shardIndex = 0; shardIndex < threadCount; ++shardIndex) {
+            Shards_[shardIndex].RequestNotificationHandle.Raise();
+        }
     }
 
     static TString GetThreadPoolName()
@@ -1264,6 +1301,15 @@ private:
         if (!shard.RequestNotificationHandleRaised.exchange(true)) {
             shard.RequestNotificationHandle.Raise();
         }
+    }
+
+    EQueueSubmitResult CheckShardAfterEnqueue(int shardIndex)
+    {
+        if (Y_UNLIKELY(shardIndex >= Config_->GetUringThreadCount(std::memory_order::seq_cst))) {
+            return EQueueSubmitResult::NeedReconfigure;
+        }
+
+        return EQueueSubmitResult::Ok;
     }
 
     double GetPoolWeight(EWorkloadCategory category) const
@@ -1319,6 +1365,31 @@ private:
             }
         });
     }
+
+    std::vector<TRequestQueue::TEnqueuedTask> DrainShard(int shardIndex)
+    {
+        std::vector<TRequestQueue::TEnqueuedTask> shardTasks;
+        auto& queue = Shards_[shardIndex].Queue;
+
+        while(true) {
+            bool dequeued = false;
+            queue.PrepareDequeue();
+
+            while (auto request = queue.TryDequeue()) {
+                dequeued = true;
+                queue.MarkFinished(request, {});
+                shardTasks.push_back({
+                    .Item = std::move(request),
+                });
+            }
+
+            if (!dequeued) {
+                break;
+            }
+        }
+
+        return shardTasks;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1332,13 +1403,15 @@ public:
         TString threadNamePrefix,
         TString locationId,
         TUringIOEngineConfigPtr config,
-        TIOEngineSensorsPtr sensors)
+        TIOEngineSensorsPtr sensors,
+        IInvokerPtr reconfigureInvoker)
         : Config_(New<TUringConfigProvider>(config))
         , ThreadNamePrefix_(std::move(threadNamePrefix))
         , Sensors_(std::move(sensors))
+        , ReconfigureInvoker_(std::move(reconfigureInvoker))
         , RequestQueue_(New<TQueue>(locationId, Config_))
     {
-        ResizeThreads();
+        ReconfigureInvoker_->Invoke(BIND(&TUringThreadPoolBase::ResizeThreads, MakeWeak(this)));
     }
 
     ~TUringThreadPoolBase()
@@ -1374,7 +1447,7 @@ public:
     void Reconfigure(const TUringIOEngineConfigPtr& config)
     {
         Config_->Update(config);
-        ResizeThreads();
+        ReconfigureInvoker_->Invoke(BIND(&TUringThreadPoolBase::ResizeThreads, MakeWeak(this)));
     }
 
     void SubmitRequest(
@@ -1386,7 +1459,8 @@ public:
             request.get(),
             request->Type);
 
-        RequestQueue_->Enqueue(std::move(request), category, sessionId);
+        auto result = RequestQueue_->Enqueue(std::move(request), category, sessionId);
+        ReconfigureQueueIfNeeded(result);
     }
 
     void SubmitRequests(
@@ -1394,24 +1468,37 @@ public:
         EWorkloadCategory category,
         IIOEngine::TSessionId sessionId)
     {
-        YT_LOG_TRACE("Requests enqueued (RequestCount: %v, Type: %v)",
+        if (!requests.empty()) {
+            YT_LOG_TRACE("Requests enqueued (RequestCount: %v, Type: %v)",
             std::ssize(requests),
             requests.front()->Type);
+        }
 
-        RequestQueue_->Enqueue(requests, category, sessionId);
+        auto result = RequestQueue_->Enqueue(requests, category, sessionId);
+        ReconfigureQueueIfNeeded(result);
+    }
+
+    void ReconfigureQueueIfNeeded(EQueueSubmitResult result)
+    {
+        if (Y_LIKELY(result != EQueueSubmitResult::NeedReconfigure)) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Reconfiguring request queue is requested");
+
+        ReconfigureInvoker_->Invoke(BIND(&TUringThreadPoolBase::ReconfigureQueue, MakeWeak(this)));
     }
 
 private:
     const TUringConfigProviderPtr Config_;
     const TString ThreadNamePrefix_;
     const TIOEngineSensorsPtr Sensors_;
+    const IInvokerPtr ReconfigureInvoker_;
 
     using TUringThreadPtr = TIntrusivePtr<TUringThread>;
 
     std::vector<TUringThreadPtr> Threads_;
     TIntrusivePtr<TQueue> RequestQueue_;
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
     void StopThreads()
     {
@@ -1420,31 +1507,34 @@ private:
         }
     }
 
+    void ReconfigureQueue()
+    {
+        VERIFY_INVOKER_AFFINITY(ReconfigureInvoker_);
+
+        RequestQueue_->Reconfigure(std::ssize(Threads_));
+    }
+
     void ResizeThreads()
     {
-        std::vector<TUringThreadPtr> threadsToStop;
+        VERIFY_INVOKER_AFFINITY(ReconfigureInvoker_);
 
-        int newThreadCount = 0;
-        int oldThreadCount = 0;
-        {
-            auto guard = Guard(SpinLock_);
-            oldThreadCount = std::ssize(Threads_);
-            newThreadCount = Config_->GetUringThreadCount();
+        int oldThreadCount = std::ssize(Threads_);
+        int newThreadCount = Config_->GetUringThreadCount();
 
-            if (oldThreadCount == newThreadCount) {
-                return;
-            }
+        if (oldThreadCount == newThreadCount) {
+            return;
+        }
 
-            while (std::ssize(Threads_) < newThreadCount) {
-                auto threadIndex = Threads_.size();
-                auto thread = New<TUringThread>(this, Config_, threadIndex, Sensors_);
-                Threads_.push_back(std::move(thread));
-            }
+        while (std::ssize(Threads_) < newThreadCount) {
+            auto threadIndex = Threads_.size();
+            auto thread = New<TUringThread>(this, Config_, threadIndex, Sensors_);
+            Threads_.push_back(std::move(thread));
+        }
 
-            while (std::ssize(Threads_) > newThreadCount) {
-                threadsToStop.push_back(Threads_.back());
-                Threads_.pop_back();
-            }
+        while (std::ssize(Threads_) > newThreadCount) {
+            auto thread = Threads_.back();
+            Threads_.pop_back();
+            thread->Stop();
         }
 
         YT_LOG_DEBUG("Uring thread pool reconfigured (ThreadNamePrefix: %v, ThreadPoolSize: %v -> %v)",
@@ -1452,9 +1542,7 @@ private:
             oldThreadCount,
             newThreadCount);
 
-        for (const auto& thread : threadsToStop) {
-            thread->Stop();
-        }
+        ReconfigureQueue();
     }
 };
 
@@ -1469,7 +1557,7 @@ public:
     using TConfigPtr = TIntrusivePtr<TConfig>;
 
     using TUringThreadPool = TUringThreadPoolBase<TRequestQueue>;
-    using TUringThreadPoolPtr = std::unique_ptr<TUringThreadPool>;
+    using TUringThreadPoolPtr = TIntrusivePtr<TUringThreadPool>;
 
     TUringIOEngineBase(
         TConfigPtr config,
@@ -1483,17 +1571,19 @@ public:
             std::move(logger))
         , StaticConfig_(std::move(config))
         , Config_(New<TUringConfigProvider>(StaticConfig_))
-        , ThreadPool_(std::make_unique<TUringThreadPool>(
+        , ReconfigureInvoker_(CreateSerializedInvoker(GetAuxPoolInvoker()))
+        , ThreadPool_(New<TUringThreadPool>(
             Format("%v:%v", TRequestQueue::GetThreadPoolName(), LocationId_),
             LocationId_,
             StaticConfig_,
-            Sensors_))
+            Sensors_,
+            ReconfigureInvoker_))
     { }
 
     ~TUringIOEngineBase()
     {
         GetFinalizerInvoker()->Invoke(BIND([threadPool = std::move(ThreadPool_)] () mutable {
-            threadPool.reset();
+            threadPool.Reset();
         }));
     }
 
@@ -1575,8 +1665,8 @@ public:
 private:
     const TConfigPtr StaticConfig_;
     const TUringConfigProviderPtr Config_;
+    const IInvokerPtr ReconfigureInvoker_;
     TUringThreadPoolPtr ThreadPool_;
-
 
     template <typename TUringResponse, typename TUringRequest>
     TFuture<TUringResponse> SubmitRequest(
