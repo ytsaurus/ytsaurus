@@ -6,6 +6,8 @@
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/yt/library/query/engine/column_evaluator.h>
 
+#include <yt/yt/ytlib/chaos_client/banned_replica_tracker.h>
+
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
@@ -341,7 +343,7 @@ TString TClient::PickRandomCluster(
     return clusterNames[RandomNumber<size_t>() % clusterNames.size()];
 }
 
-std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
+std::pair<std::vector<TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>> TClient::PrepareInSyncReplicaCandidates(
     const TTabletReadOptions& options,
     NAst::TQuery* query)
 {
@@ -380,7 +382,7 @@ std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
     }
 
     if (!someReplicated) {
-        return std::nullopt;
+        return {};
     }
 
     auto pickInSyncReplicas = [&] (const TTableMountInfoPtr& tableInfo) {
@@ -397,6 +399,9 @@ std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
             /*keys*/ {},
             /*allKeys*/ true,
             options.Timestamp);
+
+        auto bannedReplicaTracker = Connection_->GetBannedReplicaTrackerCache()->GetTracker(tableInfo->TableId);
+        bannedReplicaTracker->SyncReplicas(replicationCard);
 
         YT_LOG_DEBUG("Picked in-sync replicas for select (ReplicaIds: %v, Timestamp: %v, ReplicationCard: %v)",
             replicaIds,
@@ -424,18 +429,56 @@ std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
     auto candidates = WaitFor(AllSucceeded(asyncCandidates))
         .ValueOrThrow();
 
+    return {tableInfos, candidates};
+}
+
+std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> TClient::PickInSyncClusterAndPatchQuery(
+    const std::vector<TTableMountInfoPtr>& tableInfos,
+    const std::vector<TTableReplicaInfoPtrList>& candidates,
+    NAst::TQuery* query)
+{
+    YT_VERIFY(tableInfos.size() == candidates.size());
+
+    std::vector<TYPath> paths;
+    for (const auto& tableInfo : tableInfos) {
+        paths.push_back(tableInfo->Path);
+    }
+
+    const auto& bannedReplicaTrackerCache = Connection_->GetBannedReplicaTrackerCache();
+    auto emptyBannedReplicaTracker = CreateEmptyBannedReplicaTracker();
+
+    std::vector<IBannedReplicaTrackerPtr> bannedReplicaTrackers;
+    for (const auto& tableInfo : tableInfos) {
+        const auto& bannedReplicaTracker = tableInfo->ReplicationCardId
+            ? bannedReplicaTrackerCache->GetTracker(tableInfo->TableId)
+            : emptyBannedReplicaTracker;
+        bannedReplicaTrackers.push_back(bannedReplicaTracker);
+    }
+
+    std::vector<std::vector<TTableReplicaId>> bannedSyncReplicaIds(candidates.size());
+
     THashMap<TString, int> clusterNameToCount;
-    for (const auto& replicaInfos : candidates) {
-        std::vector<TString> clusterNames;
+    for (int index = 0; index < std::ssize(tableInfos); ++index) {
+        const auto& replicaInfos = candidates[index];
+        const auto& bannedReplicaTracker = bannedReplicaTrackers[index];
+        auto& bannedIds = bannedSyncReplicaIds[index];
+
+        THashSet<TString> clusterNames;
         for (const auto& replicaInfo : replicaInfos) {
-            clusterNames.push_back(replicaInfo->ClusterName);
+            if (bannedReplicaTracker->IsReplicaBanned(replicaInfo->ReplicaId)) {
+                bannedIds.push_back(replicaInfo->ReplicaId);
+            } else {
+                clusterNames.insert(replicaInfo->ClusterName);
+            }
         }
-        std::sort(clusterNames.begin(), clusterNames.end());
-        clusterNames.erase(std::unique(clusterNames.begin(), clusterNames.end()), clusterNames.end());
         for (const auto& clusterName : clusterNames) {
             ++clusterNameToCount[clusterName];
         }
     }
+
+    YT_LOG_DEBUG("Gathered banned replicas while selecting in-sync cluster (Tables: %v, BannedReplicaIds: %v)",
+        paths,
+        bannedSyncReplicaIds);
 
     std::vector<TString> inSyncClusterNames;
     for (const auto& [name, count] : clusterNameToCount) {
@@ -445,30 +488,80 @@ std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
     }
 
     if (inSyncClusterNames.empty()) {
-        THROW_ERROR_EXCEPTION("No single cluster contains in-sync replicas for all involved tables %v",
-            paths);
+        std::vector<TError> replicaErrors;
+        std::vector<TTableReplicaId> flatBannedReplicaIds;
+
+        for (int index = 0; index < std::ssize(bannedSyncReplicaIds); ++index) {
+            const auto& bannedReplicaTracker = bannedReplicaTrackers[index];
+            for (auto bannedReplicaId : bannedSyncReplicaIds[index]) {
+                if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
+                    replicaErrors.push_back(std::move(error));
+                    flatBannedReplicaIds.push_back(bannedReplicaId);
+                }
+            }
+        }
+
+        auto error = TError(
+            NTabletClient::EErrorCode::NoInSyncReplicas,
+            "No single cluster contains in-sync replicas for all involved tables %v",
+            paths)
+            << TErrorAttribute("banned_replicas", flatBannedReplicaIds);
+        *error.MutableInnerErrors() = std::move(replicaErrors);
+        THROW_ERROR error;
     }
 
     auto inSyncClusterName = PickRandomCluster(inSyncClusterNames);
-    YT_LOG_DEBUG("In-sync cluster selected (Paths: %v, ClusterName: %v)",
-        paths,
-        inSyncClusterName);
 
-    auto patchTableDescriptor = [&] (NAst::TTableDescriptor* descriptor, const TTableReplicaInfoPtrList& replicaInfos) {
+    auto chaosTableSchemas = std::vector<TTableSchemaPtr>(tableInfos.size());
+    for (size_t tableIndex = 0; tableIndex < tableInfos.size(); ++tableIndex) {
+        const auto& tableInfo = tableInfos[tableIndex];
+        if (tableInfo->ReplicationCardId) {
+            chaosTableSchemas[tableIndex] = tableInfo->Schemas[ETableSchemaKind::Primary];
+        }
+    }
+
+    TSelectRowsOptions::TExpectedTableSchemas expectedTableSchemas;
+    std::vector<TTableReplicaId> pickedReplicaIds;
+
+    auto patchTableDescriptor = [&] (
+        NAst::TTableDescriptor* descriptor,
+        const TTableReplicaInfoPtrList& replicaInfos,
+        TTableSchemaPtr tableSchema,
+        const IBannedReplicaTrackerPtr& bannedReplicaTracker)
+    {
         for (const auto& replicaInfo : replicaInfos) {
-            if (replicaInfo->ClusterName == inSyncClusterName) {
+            if (replicaInfo->ClusterName == inSyncClusterName && !bannedReplicaTracker->IsReplicaBanned(replicaInfo->ReplicaId)) {
+                pickedReplicaIds.push_back(replicaInfo->ReplicaId);
                 descriptor->Path = replicaInfo->ReplicaPath;
+                if (tableSchema) {
+                    InsertOrCrash(expectedTableSchemas, std::make_pair(replicaInfo->ReplicaPath, std::move(tableSchema)));
+                }
                 return;
             }
         }
         YT_ABORT();
     };
 
-    patchTableDescriptor(&query->Table, candidates[0]);
+    patchTableDescriptor(
+        &query->Table,
+        candidates[0],
+        chaosTableSchemas[0],
+        bannedReplicaTrackers[0]);
+
     for (size_t index = 0; index < query->Joins.size(); ++index) {
-        patchTableDescriptor(&query->Joins[index].Table, candidates[index + 1]);
+        patchTableDescriptor(
+            &query->Joins[index].Table,
+            candidates[index + 1],
+            chaosTableSchemas[index + 1],
+            bannedReplicaTrackers[index + 1]);
     }
-    return inSyncClusterName;
+
+    YT_LOG_DEBUG("In-sync cluster selected (Paths: %v, ClusterName: %v, ReplicaIds: %v)",
+        paths,
+        inSyncClusterName,
+        pickedReplicaIds);
+
+    return {inSyncClusterName, expectedTableSchemas};
 }
 
 NApi::IConnectionPtr TClient::GetReplicaConnectionOrThrow(const TString& clusterName)

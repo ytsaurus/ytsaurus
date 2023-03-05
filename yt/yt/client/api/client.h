@@ -671,6 +671,9 @@ struct TSelectRowsOptions
     TDetailedProfilingInfoPtr DetailedProfilingInfo;
     //! YSON map with placeholder values for parameterized queries.
     NYson::TYsonString PlaceholderValues;
+    //! Expected schemas for tables in a query (used for replica fallback in replicated tables).
+    using TExpectedTableSchemas = THashMap<NYPath::TYPath, NTableClient::TTableSchemaPtr>;
+    TExpectedTableSchemas ExpectedTableSchemas;
 };
 
 struct TExplainQueryOptions

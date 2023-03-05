@@ -19,7 +19,9 @@ class TBannedReplicaTracker
 public:
     explicit TBannedReplicaTracker(NLogging::TLogger logger)
         : Logger(std::move(logger))
-    { }
+    {
+        YT_LOG_DEBUG("Banned replica tracker created");
+    }
 
     bool IsReplicaBanned(TReplicaId replicaId) override
     {
@@ -72,12 +74,15 @@ public:
 
         for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
             if (!BannedReplicas_.contains(replicaId) &&
-                replicaInfo.ContentType == ETableReplicaContentType::Queue &&
+                replicaInfo.ContentType == ETableReplicaContentType::Data &&
                 IsReplicaEnabled(replicaInfo.State))
             {
                 InsertOrCrash(BannedReplicas_, std::make_pair(replicaId, TReplicaState{}));
             }
         }
+
+        YT_LOG_DEBUG("Banned replica tracker synced replicas (Replicas: %v)",
+            BannedReplicas_.size());
 
         DecreaseCounters();
     }
@@ -111,6 +116,37 @@ private:
 IBannedReplicaTrackerPtr CreateBannedReplicaTracker(NLogging::TLogger logger)
 {
     return New<TBannedReplicaTracker>(std::move(logger));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TEmptyBannedReplicaTracker
+    : public IBannedReplicaTracker
+{
+public:
+    TEmptyBannedReplicaTracker()
+    { }
+
+    bool IsReplicaBanned(TReplicaId /*replicaId*/) override
+    {
+        return false;
+    }
+
+    TError GetReplicaError(TReplicaId /*replicaId*/) override
+    {
+        return {};
+    }
+
+    void BanReplica(TReplicaId /*replicaId*/, TError /*error*/) override
+    { }
+
+    void SyncReplicas(const TReplicationCardPtr& /*replicationCard*/) override
+    { }
+};
+
+IBannedReplicaTrackerPtr CreateEmptyBannedReplicaTracker()
+{
+    return New<TEmptyBannedReplicaTracker>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,6 +192,11 @@ public:
         TryInsert(New<TBannedReplicaTrackerCacheValue>(tableId, tracker));
 
         return tracker;
+    }
+
+    void Reconfigure(const TSlruCacheDynamicConfigPtr& config) override
+    {
+        TSyncSlruCacheBase::Reconfigure(config);
     }
 
 private:
