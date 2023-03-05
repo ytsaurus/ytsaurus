@@ -165,7 +165,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const NRpc::IChannelPtr& GetYqlAgentChannelOrThrow() const override
+    NRpc::IChannelPtr GetYqlAgentChannelOrThrow(const TString& /*stage*/) const override
     {
         YT_UNIMPLEMENTED();
     }

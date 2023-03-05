@@ -145,7 +145,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("query_tracker", &TThis::QueryTracker)
         .DefaultNew();
     registrar.Parameter("yql_agent", &TThis::YqlAgent)
-        .Default();
+        .DefaultNew();
     registrar.Parameter("transaction_manager", &TThis::TransactionManager)
         .DefaultNew();
     registrar.Parameter("block_cache", &TThis::BlockCache)

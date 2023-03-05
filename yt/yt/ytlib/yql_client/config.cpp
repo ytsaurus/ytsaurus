@@ -7,9 +7,19 @@ namespace NYT::NYqlClient {
 void TYqlAgentChannelConfig::Register(TRegistrar /*registrar*/)
 { }
 
-void TYqlAgentConnectionConfig::Register(TRegistrar registrar)
+////////////////////////////////////////////////////////////////////////////////
+
+void TYqlAgentStageConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("channel", &TThis::Channel);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TYqlAgentConnectionConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("stages", &TThis::Stages)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1019,21 +1019,27 @@ class YTInstance(object):
 
             return p
 
-    def run_yt_component(self, component, config_paths, name=None, config_option=None):
+    def run_yt_component(self, component, config_paths, name=None, config_option=None, custom_paths=None):
         if config_option is None:
             config_option = "--config"
         if name is None:
             name = component
+        if custom_paths is None:
+            custom_paths = []
+        if self.custom_paths is not None:
+            custom_paths += self.custom_paths
 
         logger.info("Starting %s", name)
 
         pids = []
         for index in xrange(len(config_paths)):
             with push_front_env_path(self.bin_path):
-                binary_path = _get_yt_binary_path("ytserver-" + component, custom_paths=self.custom_paths)
+                binary_path = _get_yt_binary_path("ytserver-" + component, custom_paths=custom_paths)
                 if binary_path is None:
+                    logger.error("Coult not start component {}, path env = {}, custom_paths = {}".format(
+                        component, os.environ.get("PATH"), custom_paths))
                     raise YtError("Could not start component '{}', make sure it is available in PATH".format(component),
-                                  attributes={"path_env": os.environ.get("PATH")})
+                                  attributes={"path_env": os.environ.get("PATH").split(":")})
                 args = [binary_path]
             if self._kill_child_processes:
                 args.extend(["--pdeathsig", str(int(signal.SIGKILL))])
