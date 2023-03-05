@@ -201,8 +201,14 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
         for node in self._nodes[1:]:
             disable_tablet_cells_on_node(node, "separate tablet and data nodes")
 
+    def _enable_hash_chunk_index(self, path):
+        set("{}/@compression_codec".format(path), "none")
+        set("{}/@mount_config/enable_hash_chunk_index_for_lookup".format(path), True)
+        set("{}/@chunk_format".format(path), "table_versioned_indexed")
+
 
 ##################################################################
+
 
 class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     NUM_TEST_PARTITIONS = 6

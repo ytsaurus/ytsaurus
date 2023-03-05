@@ -117,7 +117,8 @@ class TestLookup(TestSortedDynamicTablesBase):
 
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_lookup_versioned_filter(self, optimize_for):
+    @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
+    def test_lookup_versioned_filter(self, optimize_for, enable_hash_chunk_index):
         sync_create_cells(1)
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
@@ -133,6 +134,9 @@ class TestLookup(TestSortedDynamicTablesBase):
                 "schema": schema,
             },
         )
+
+        if enable_hash_chunk_index:
+            self._enable_hash_chunk_index("//tmp/t")
 
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": 0, "value1": "0"}], update=True)
@@ -254,7 +258,8 @@ class TestLookup(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("new_scan_reader", [False, True])
-    def test_stress_versioned_lookup(self, in_memory_mode, optimize_for, new_scan_reader):
+    @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
+    def test_stress_versioned_lookup(self, in_memory_mode, optimize_for, new_scan_reader, enable_hash_chunk_index):
         # This test checks that versioned lookup gives the same result for scan and lookup versioned formats.
         random.seed(12345)
 
@@ -308,6 +313,8 @@ class TestLookup(TestSortedDynamicTablesBase):
         set("//tmp/actual/@optimize_for", optimize_for)
         set("//tmp/actual/@in_memory_mode", in_memory_mode)
         set("//tmp/actual/@enable_new_scan_reader_for_lookup", new_scan_reader)
+        if enable_hash_chunk_index:
+            self._enable_hash_chunk_index("//tmp/actual")
         sync_mount_table("//tmp/expected")
         sync_mount_table("//tmp/actual")
         sync_compact_table("//tmp/actual")
@@ -493,9 +500,15 @@ class TestLookup(TestSortedDynamicTablesBase):
 
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_lookup_from_chunks(self, optimize_for):
+    @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
+    def test_lookup_from_chunks(self, optimize_for, enable_hash_chunk_index):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t", optimize_for=optimize_for)
+        self._create_simple_table(
+            "//tmp/t",
+            optimize_for=optimize_for)
+
+        if enable_hash_chunk_index:
+            self._enable_hash_chunk_index("//tmp/t")
 
         pivots = [[]] + [[x] for x in range(100, 1000, 100)]
         sync_reshard_table("//tmp/t", pivots)
@@ -522,10 +535,11 @@ class TestLookup(TestSortedDynamicTablesBase):
         actual = lookup_rows("//tmp/t", [{"key": i} for i in range(0, 1000)])
         assert_items_equal(actual, rows)
 
-        for tablet in range(10):
-            path = "//tmp/t/@tablets/{0}/performance_counters/static_chunk_row_lookup_count".format(tablet)
-            wait(lambda: get(path) > 0)
-            assert get(path) == 100
+        if not enable_hash_chunk_index:
+            for tablet in range(10):
+                path = "//tmp/t/@tablets/{0}/performance_counters/static_chunk_row_lookup_count".format(tablet)
+                wait(lambda: get(path) > 0)
+                assert get(path) == 100
 
     @authors("ifsmirnov")
     def test_lookup_rich_ypath(self):
@@ -694,9 +708,7 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         set("{}/@enable_data_node_lookup".format(path), True)
         set("{}/@chunk_reader".format(path), {"prefer_local_replicas": False})
         if enable_hash_chunk_index:
-            set("{}/@compression_codec".format(path), "none")
-            set("{}/@mount_config/enable_hash_chunk_index_for_lookup".format(path), True)
-            set("{}/@chunk_writer".format(path), {"chunk_indexes": {"hash_table": {"enable": True}}})
+            self._enable_hash_chunk_index(path)
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
@@ -892,12 +904,15 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", expected_keys) == expected_values
 
     @authors("akozhikhov")
-    def test_data_node_lookup_local_reader(self):
+    @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
+    def test_data_node_lookup_local_reader(self, enable_hash_chunk_index):
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=self.NUM_NODES)
         set("//tmp/t/@enable_data_node_lookup", True)
         set("//tmp/t/@enable_compaction_and_partitioning", False)
+        if enable_hash_chunk_index:
+            self._enable_hash_chunk_index("//tmp/t")
 
         sync_mount_table("//tmp/t")
 
