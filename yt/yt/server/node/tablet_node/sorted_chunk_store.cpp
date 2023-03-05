@@ -25,8 +25,10 @@
 #include <yt/yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
+#include <yt/yt/ytlib/table_client/chunk_index_read_controller.h>
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_offloading_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_reader_adapter.h>
@@ -561,6 +563,27 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     const auto& chunkMeta = chunkState->ChunkMeta;
 
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
+
+    if (mountConfig->EnableHashChunkIndexForLookup && chunkMeta->HashTableChunkIndexMeta()) {
+        auto controller = CreateChunkIndexReadController(
+            ChunkId_,
+            columnFilter,
+            chunkMeta,
+            filteredKeys,
+            chunkState->KeyComparer,
+            tabletSnapshot->TableSchema,
+            timestamp,
+            produceAllVersions,
+            /*testingOptions*/ std::nullopt,
+            TabletNodeLogger);
+
+        return wrapReader(
+            CreateIndexedVersionedChunkReader(
+                chunkReadOptions,
+                std::move(controller),
+                tabletSnapshot->ChunkFragmentReader),
+            /*needSetTimestamp*/ true);
+    }
 
     if (enableNewScanReader && chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
         auto blockManagerFactory = NNewTableClient::CreateAsyncBlockWindowManagerFactory(
