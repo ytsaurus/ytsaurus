@@ -61,9 +61,9 @@ public:
         , Logger(HydraLogger.WithTag("Path: %v", FileName_))
         , Index_(MakeIndex(MakeIndexFileName()))
         , AppendOutput_(
-            GetRefCountedTypeCookie<TUnbufferedFileChangelogPayloadTag>(),
-            /*size*/ ChangelogPageAlignment,
-            /*pageAligned*/ true)
+            /*capacity*/ 0,
+            /*pageAligned*/ true,
+            GetRefCountedTypeCookie<TUnbufferedFileChangelogPayloadTag>())
     { }
 
     const TFileChangelogConfigPtr& GetConfig() const override
