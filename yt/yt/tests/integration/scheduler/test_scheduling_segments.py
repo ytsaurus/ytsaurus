@@ -105,10 +105,10 @@ class TestSchedulingSegments(YTEnvSetup):
 
     @classmethod
     def setup_class(cls):
-        # if is_asan_build():
-        #     pytest.skip("test suite has too high memory consumption for ASAN build")
-        # if is_debug_build():
-        #     pytest.skip("test suite uses 10 nodes that is too much for debug build")
+        if is_asan_build():
+            pytest.skip("test suite has too high memory consumption for ASAN build")
+        if is_debug_build():
+            pytest.skip("test suite uses 10 nodes that is too much for debug build")
         super(TestSchedulingSegments, cls).setup_class()
 
     def setup_method(self, method):
