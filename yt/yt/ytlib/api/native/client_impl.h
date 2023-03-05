@@ -642,6 +642,14 @@ public:
         NObjectClient::TCellId chaosCellId,
         const TMigrateReplicationCardsOptions& options),
         (chaosCellId, options))
+    IMPLEMENT_METHOD(void, SuspendChaosCells, (
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TSuspendChaosCellsOptions& options),
+        (cellIds, options))
+    IMPLEMENT_METHOD(void, ResumeChaosCells, (
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TResumeChaosCellsOptions& options),
+        (cellIds, options))
     IMPLEMENT_METHOD(void, SuspendTabletCells, (
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TSuspendTabletCellsOptions& options),
@@ -1635,6 +1643,12 @@ private:
     void DoMigrateReplicationCards(
         NObjectClient::TCellId chaosCellId,
         const TMigrateReplicationCardsOptions& options);
+    void DoSuspendChaosCells(
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TSuspendChaosCellsOptions& options);
+    void DoResumeChaosCells(
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TResumeChaosCellsOptions& options);
     void DoSuspendTabletCells(
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TSuspendTabletCellsOptions& options);

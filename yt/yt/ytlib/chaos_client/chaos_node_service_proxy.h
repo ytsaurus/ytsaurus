@@ -26,6 +26,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, AlterTableReplica);
     DEFINE_RPC_PROXY_METHOD(NProto, UpdateTableReplicaProgress);
     DEFINE_RPC_PROXY_METHOD(NProto, MigrateReplicationCards);
+    DEFINE_RPC_PROXY_METHOD(NProto, ResumeChaosCell);
     DEFINE_RPC_PROXY_METHOD(NProto, CreateReplicationCardCollocation);
 };
 

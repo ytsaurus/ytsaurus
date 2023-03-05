@@ -1745,6 +1745,30 @@ TFuture<void> TClient::RemoveMaintenance(
     return req->Invoke().AsVoid();
 }
 
+TFuture<void> TClient::SuspendChaosCells(
+    const std::vector<TCellId>& cellIds,
+    const TSuspendChaosCellsOptions& /*options*/)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.SuspendChaosCells();
+    ToProto(req->mutable_cell_ids(), cellIds);
+
+    return req->Invoke().As<void>();
+}
+
+TFuture<void> TClient::ResumeChaosCells(
+    const std::vector<TCellId>& cellIds,
+    const TResumeChaosCellsOptions& /*options*/)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.ResumeChaosCells();
+    ToProto(req->mutable_cell_ids(), cellIds);
+
+    return req->Invoke().As<void>();
+}
+
 TFuture<void> TClient::SuspendTabletCells(
     const std::vector<TCellId>& /*cellIds*/,
     const TSuspendTabletCellsOptions& /*options*/)

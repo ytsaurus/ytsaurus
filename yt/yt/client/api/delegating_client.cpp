@@ -800,6 +800,20 @@ TFuture<void> TDelegatingClient::MigrateReplicationCards(
     return Underlying_->MigrateReplicationCards(chaosCellId, options);
 }
 
+TFuture<void> TDelegatingClient::SuspendChaosCells(
+    const std::vector<NObjectClient::TCellId>& cellIds,
+    const TSuspendChaosCellsOptions& options)
+{
+    return Underlying_->SuspendChaosCells(cellIds, options);
+}
+
+TFuture<void> TDelegatingClient::ResumeChaosCells(
+    const std::vector<NObjectClient::TCellId>& cellIds,
+    const TResumeChaosCellsOptions& options)
+{
+    return Underlying_->ResumeChaosCells(cellIds, options);
+}
+
 TFuture<void> TDelegatingClient::SuspendTabletCells(
     const std::vector<NObjectClient::TCellId>& cellIds,
     const TSuspendTabletCellsOptions& options)

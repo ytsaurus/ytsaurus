@@ -65,6 +65,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTableReplica));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateTableReplicaProgress));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(MigrateReplicationCards));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeChaosCell));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateReplicationCardCollocation));
     }
 
@@ -250,11 +251,24 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, MigrateReplicationCards)
     {
         auto replicationCardIds = FromProto<std::vector<TReplicationCardId>>(request->replication_card_ids());
+        bool migrateAllReplicationCards = request->migrate_all_replication_cards();
+        bool suspendChaosCell = request->suspend_chaos_cell();
 
-        context->SetRequestInfo("ReplicationCardIds: %v", replicationCardIds);
+        context->SetRequestInfo("ReplicationCardIds: %v, MigrateAllReplicationCards: %v, SuspendChaosCell: %v",
+            replicationCardIds,
+            migrateAllReplicationCards,
+            suspendChaosCell);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->MigrateReplicationCards(std::move(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, ResumeChaosCell)
+    {
+        context->SetRequestInfo();
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        chaosManager->ResumeChaosCell(std::move(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, CreateReplicationCardCollocation)

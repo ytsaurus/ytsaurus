@@ -135,6 +135,7 @@ public:
         RegisterMethod(BIND(&TChaosManager::HydraResumeCoordinator, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraRemoveExpiredReplicaHistory, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraMigrateReplicationCards, Unretained(this)));
+        RegisterMethod(BIND(&TChaosManager::HydraResumeChaosCell, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraChaosNodeMigrateReplicationCards, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraCreateReplicationCardCollocation, Unretained(this)));
     }
@@ -240,6 +241,16 @@ public:
             HydraManager_,
             context,
             &TChaosManager::HydraMigrateReplicationCards,
+            this);
+        mutation->CommitAndReply(context);
+    }
+
+    void ResumeChaosCell(const TCtxResumeChaosCellPtr& context) override
+    {
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraResumeChaosCell,
             this);
         mutation->CommitAndReply(context);
     }
@@ -368,6 +379,7 @@ private:
     TEntityMap<TReplicationCardCollocation> CollocationMap_;
     std::vector<TCellId> CoordinatorCellIds_;
     THashMap<TCellId, TInstant> SuspendedCoordinators_;
+    bool Suspended_ = false;
 
     bool NeedRecomputeReplicationCardState_ = false;
 
@@ -402,6 +414,7 @@ private:
         CollocationMap_.SaveValues(context);
         Save(context, CoordinatorCellIds_);
         Save(context, SuspendedCoordinators_);
+        Save(context, Suspended_);
     }
 
     void LoadKeys(TLoadContext& context)
@@ -428,6 +441,10 @@ private:
         }
         Load(context, CoordinatorCellIds_);
         Load(context, SuspendedCoordinators_);
+        // COMPAT(savrus)
+        if (context.GetVersion() >= EChaosReign::ChaosCellSuspension) {
+            Load(context, Suspended_);
+        }
 
         NeedRecomputeReplicationCardState_ = context.GetVersion() < EChaosReign::Migration;
     }
@@ -517,8 +534,14 @@ private:
         }
     }
 
-    TReplicationCardId CreateReplicationCardImpl(NChaosClient::NProto::TReqCreateReplicationCard* request)
+    void ValidateReplicationCardCreation(NChaosClient::NProto::TReqCreateReplicationCard* request)
     {
+        if (Suspended_) {
+            // TODO(savrus): Migrate replication cards that pass validation here and instantiate after cell suspension cell.
+            THROW_ERROR_EXCEPTION(NChaosClient::EErrorCode::ChaosCellSuspended, "Chaos cell %v is suspended",
+                Slot_->GetCellId());
+        }
+
         auto hintId = FromProto<TReplicationCardId>(request->hint_id());
         auto replicationCardId = hintId ? hintId : GenerateNewReplicationCardId();
 
@@ -534,7 +557,13 @@ private:
                 CellTagFromId(Slot_->GetCellId()),
                 CellTagFromId(replicationCardId));
         }
+    }
 
+    TReplicationCardId CreateReplicationCardImpl(NChaosClient::NProto::TReqCreateReplicationCard* request)
+    {
+        auto tableId = FromProto<TTableId>(request->table_id());
+        auto hintId = FromProto<TReplicationCardId>(request->hint_id());
+        auto replicationCardId = hintId ? hintId : GenerateNewReplicationCardId();
         auto options = request->has_replicated_table_options()
             ? SafeDeserializeReplicatedTableOptions(replicationCardId, TYsonString(request->replicated_table_options()))
             : New<TReplicatedTableOptions>();
@@ -563,6 +592,7 @@ private:
         NChaosClient::NProto::TReqCreateReplicationCard* request,
         NChaosClient::NProto::TRspCreateReplicationCard* response)
     {
+        ValidateReplicationCardCreation(request);
         auto replicationCardId = CreateReplicationCardImpl(request);
 
         ToProto(response->mutable_replication_card_id(), replicationCardId);
@@ -582,6 +612,7 @@ private:
             auto options = ConvertTo<TReplicatedTableOptionsPtr>(TYsonString(request->replicated_table_options()));
             Y_UNUSED(options);
         }
+        ValidateReplicationCardCreation(request);
     }
 
     void HydraCommitCreateReplicationCard(
@@ -1193,10 +1224,25 @@ private:
     {
         auto migrateToCellId = FromProto<TCellId>(request->migrate_to_cell_id());
         auto replicationCardIds = FromProto<std::vector<TReplicationCardId>>(request->replication_card_ids());
+        bool migrateAllReplicationCards = request->migrate_all_replication_cards();
+        bool suspendChaosCell = request->suspend_chaos_cell();
 
         if (std::find(CoordinatorCellIds_.begin(), CoordinatorCellIds_.end(), migrateToCellId) == CoordinatorCellIds_.end()) {
             THROW_ERROR_EXCEPTION("Trying to migrate replication card to unknown cell %v",
                 migrateToCellId);
+        }
+
+        if (migrateAllReplicationCards) {
+            if (!replicationCardIds.empty()) {
+                THROW_ERROR_EXCEPTION("Replication card ids and migrate all replication cards cannot be specified simultaneously");
+            } else {
+                for (auto* replicationCard : GetValuesSortedByKey(ReplicationCardMap_)) {
+                    // TODO(savrus) We need to migrate replication cards that were skipped here.
+                    if (replicationCard->GetState() == EReplicationCardState::Normal) {
+                        replicationCardIds.push_back(replicationCard->GetId());
+                    }
+                }
+            }
         }
 
         THashSet<TReplicationCardCollocation*> collocations;
@@ -1223,6 +1269,12 @@ private:
                         replicationCard->GetId());
                 }
             }
+        }
+
+        if (suspendChaosCell) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Suspending chaos cell");
+
+            Suspended_ = true;
         }
 
         for (auto* collocation : collocations) {
@@ -1399,6 +1451,16 @@ private:
     bool IsReplicationCardMigrated(TReplicationCard* replicationCard)
     {
         return replicationCard->IsMigrated();
+    }
+
+    void HydraResumeChaosCell(
+        const TCtxResumeChaosCellPtr& /*context*/,
+        NChaosClient::NProto::TReqResumeChaosCell* /*request*/,
+        NChaosClient::NProto::TRspResumeChaosCell* /*response*/)
+    {
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Resuming chaos cell");
+
+        Suspended_ = false;
     }
 
     void PeriodicCurrentTimestampPropagation(void)
@@ -2011,6 +2073,10 @@ private:
                     BuildYsonFluently(consumer)
                         .Value(true);
                 }))
+            ->AddChild("internal", IYPathService::FromMethod(
+                &TChaosManager::BuildInternalOrchid,
+                MakeWeak(this))
+                ->Via(Slot_->GetAutomatonInvoker()))
             ->AddChild("coordinators", IYPathService::FromMethod(
                 &TChaosManager::BuildCoordinatorsOrchid,
                 MakeWeak(this))
@@ -2024,6 +2090,14 @@ private:
                 MakeWeak(this))
                 ->Via(Slot_->GetAutomatonInvoker()))
             ->AddChild("replication_cards", TReplicationCardOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()));
+    }
+
+    void BuildInternalOrchid(IYsonConsumer* consumer) const
+    {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("suspended").Value(Suspended_)
+            .EndMap();
     }
 
     void BuildCoordinatorsOrchid(IYsonConsumer* consumer) const

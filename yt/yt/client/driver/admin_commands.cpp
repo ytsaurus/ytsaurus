@@ -155,12 +155,43 @@ TMigrateReplicationCardsCommand::TMigrateReplicationCardsCommand()
     RegisterParameter("chaos_cell_id", ChaosCellId_);
     RegisterParameter("destination_cell_id", Options.DestinationCellId)
         .Optional();
-    RegisterParameter("replication_card_ids", Options.ReplicationCardIds);
+    RegisterParameter("replication_card_ids", Options.ReplicationCardIds)
+        .Optional();
 }
 
 void TMigrateReplicationCardsCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->MigrateReplicationCards(ChaosCellId_, Options))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSuspendChaosCellsCommand::TSuspendChaosCellsCommand()
+{
+    RegisterParameter("cell_ids", CellIds_);
+}
+
+void TSuspendChaosCellsCommand::DoExecute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->SuspendChaosCells(CellIds_))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TResumeChaosCellsCommand::TResumeChaosCellsCommand()
+{
+    RegisterParameter("cell_ids", CellIds_);
+}
+
+void TResumeChaosCellsCommand::DoExecute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->ResumeChaosCells(CellIds_))
         .ThrowOnError();
 
     ProduceEmptyOutput(context);
