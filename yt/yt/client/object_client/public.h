@@ -73,7 +73,7 @@ constexpr TCellTag PrimaryMasterCellTagSentinel = 0xf003;
 constexpr TCellTag InvalidCellTag = 0xf004;
 
 //! A static limit for the number of secondary master cells.
-constexpr int MaxSecondaryMasterCells = 32;
+constexpr int MaxSecondaryMasterCells = 48;
 
 using TCellTagList = TCompactVector<TCellTag, MaxSecondaryMasterCells + 1>;
 using TCellIdList = TCompactVector<TCellId, MaxSecondaryMasterCells + 1>;
