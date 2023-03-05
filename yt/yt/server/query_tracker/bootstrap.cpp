@@ -128,6 +128,12 @@ void TBootstrap::DoRun()
 
     NativeConnection_->GetClusterDirectorySynchronizer()->Start();
 
+    SetupClusterConnectionDynamicConfigUpdate(
+        NativeConnection_,
+        NApi::NNative::EClusterConnectionDynamicConfigPolicy::FromClusterDirectory,
+        /*staticClusterConnectionNode*/ nullptr,
+        Logger);
+
     NativeAuthenticator_ = NNative::CreateNativeAuthenticator(NativeConnection_);
 
     auto clientOptions = TClientOptions::FromUser(Config_->User);

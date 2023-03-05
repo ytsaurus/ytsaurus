@@ -169,7 +169,10 @@ void TClient::DoAbortQuery(TQueryId queryId, const TAbortQueryOptions& options)
         auto optionalRecords = ToOptionalRecords<TActiveQuery>(rowset);
         YT_VERIFY(optionalRecords.size() == 1);
         if (!optionalRecords[0]) {
-            THROW_ERROR_EXCEPTION("Query %Qv not found or is not running", queryId);
+            THROW_ERROR_EXCEPTION(
+                NQueryTrackerClient::EErrorCode::QueryNotFound,
+                "Query %Qv not found or is not running",
+                queryId);
         }
         const auto& record = *optionalRecords[0];
         if (record.State != EQueryState::Pending && record.State != EQueryState::Running) {
@@ -217,7 +220,11 @@ TQueryResult TClient::DoGetQueryResult(TQueryId queryId, i64 resultIndex, const 
         auto optionalRecords = ToOptionalRecords<TFinishedQueryResult>(rowset);
         YT_VERIFY(optionalRecords.size() == 1);
         if (!optionalRecords[0]) {
-            THROW_ERROR_EXCEPTION("Query %Qv result %v not found or is expired", queryId, resultIndex);
+            THROW_ERROR_EXCEPTION(
+                NQueryTrackerClient::EErrorCode::QueryResultNotFound,
+                "Query %Qv result %v not found or is expired",
+                queryId,
+                resultIndex);
         }
         const auto& record = *optionalRecords[0];
 
@@ -297,7 +304,11 @@ IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultInd
         auto optionalRecords = ToOptionalRecords<TFinishedQueryResult>(rowset);
         YT_VERIFY(optionalRecords.size() == 1);
         if (!optionalRecords[0]) {
-            THROW_ERROR_EXCEPTION("Query %Qv result %v not found or is expired", queryId, resultIndex);
+            THROW_ERROR_EXCEPTION(
+                NQueryTrackerClient::EErrorCode::QueryResultNotFound,
+                "Query %Qv result %v not found or is expired",
+                queryId,
+                resultIndex);
         }
         const auto& record = *optionalRecords[0];
         if (!record.Error.IsOK()) {
@@ -305,7 +316,11 @@ IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultInd
         }
         if (!record.Rowset) {
             // This should not normally happen, but better this than abort.
-            THROW_ERROR_EXCEPTION("Query %Qv result %v rowset is missing", queryId, resultIndex);
+            THROW_ERROR_EXCEPTION(
+                NQueryTrackerClient::EErrorCode::QueryResultNotFound,
+                "Query %Qv result %v rowset is missing",
+                queryId,
+                resultIndex);
         }
         wireRowset = *record.Rowset;
         schema = ConvertTo<TTableSchemaPtr>(record.Schema);
@@ -445,7 +460,10 @@ TQuery TClient::DoGetQuery(TQueryId queryId, const TGetQueryOptions& options)
 
     auto error = WaitFor(AnySucceeded(std::vector{asyncActiveRecord.As<void>(), asyncFinishedRecord.As<void>()}));
     if (!error.IsOK()) {
-        THROW_ERROR_EXCEPTION("Query %Qv is not found neither in active nor in finished query tables", queryId)
+        THROW_ERROR_EXCEPTION(
+            NQueryTrackerClient::EErrorCode::QueryNotFound,
+            "Query %Qv is not found neither in active nor in finished query tables",
+            queryId)
             << error;
     }
     bool isActive = asyncActiveRecord.IsSet() && asyncActiveRecord.Get().IsOK();

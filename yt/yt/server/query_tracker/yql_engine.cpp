@@ -120,12 +120,14 @@ public:
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
+        const TString DefaultStage = "production";
+
         return New<TYqlQueryHandler>(
             StateClient_,
             StateRoot_,
             Config_,
             activeQuery,
-            DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetYqlAgentChannelOrThrow());
+            DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetYqlAgentChannelOrThrow(DefaultStage));
     }
 
     void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override

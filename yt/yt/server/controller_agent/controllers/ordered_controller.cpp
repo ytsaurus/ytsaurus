@@ -1343,7 +1343,12 @@ private:
         }
 
         auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
-        remoteCopyJobSpecExt->set_connection_config(ConvertToYsonString(connectionConfig).ToString());
+        auto connectionNode = ConvertToNode(connectionConfig)->AsMap();
+        // COMPAT(max42): remove this after 23.1 is everywhere.
+        if (connectionNode->FindChild("yql_agent")) {
+            connectionNode->RemoveChild("yql_agent");
+        }
+        remoteCopyJobSpecExt->set_connection_config(ConvertToYsonString(connectionNode).ToString());
         remoteCopyJobSpecExt->set_concurrency(Spec_->Concurrency);
         remoteCopyJobSpecExt->set_block_buffer_size(Spec_->BlockBufferSize);
         remoteCopyJobSpecExt->set_delay_in_copy_chunk(ToProto<i64>(Spec_->DelayInCopyChunk));

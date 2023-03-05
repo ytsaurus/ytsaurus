@@ -119,6 +119,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NDiscoveryClient;
 using namespace NRpc;
+using namespace NYqlClient;
 
 using std::placeholders::_1;
 
@@ -208,8 +209,6 @@ public:
             this,
             GetInvoker(),
             Logger);
-
-        InitializeYqlAgentChannel();
 
         PermissionCache_ = New<TPermissionCache>(
             config->PermissionCache,
@@ -503,12 +502,22 @@ public:
         return QueueConsumerRegistrationManager_;
     }
 
-    const IChannelPtr& GetYqlAgentChannelOrThrow() const override
+    IChannelPtr GetYqlAgentChannelOrThrow(const TString& stage) const override
     {
-        if (!YqlAgentChannel_) {
-            THROW_ERROR_EXCEPTION("YQL agent channel is not configured");
+        auto clusterConnection = MakeStrong(this);
+        auto clusterStage = stage;
+        if (auto semicolonPosition = stage.find(":"); semicolonPosition != TString::npos) {
+            auto cluster = stage.substr(0, semicolonPosition);
+            clusterStage = stage.substr(semicolonPosition + 1);
+            clusterConnection = DynamicPointerCast<TConnection>(ClusterDirectory_->GetConnectionOrThrow(cluster));
+            YT_VERIFY(clusterConnection);
         }
-        return YqlAgentChannel_;
+        const auto& stages = clusterConnection->Config_.Acquire()->YqlAgent->Stages;
+        if (auto iter = stages.find(clusterStage); iter != stages.end()) {
+            return CreateYqlAgentChannel(iter->second->Channel);
+        } else {
+            THROW_ERROR_EXCEPTION("YQL agent stage %Qv is not found in cluster directory", stage);
+        }
     }
 
     const IChannelFactoryPtr& GetChannelFactory() override
@@ -774,7 +783,6 @@ private:
     IChannelPtr SchedulerChannel_;
     THashMap<TString, IChannelPtr> QueueAgentChannels_;
     TQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
-    IChannelPtr YqlAgentChannel_;
     IBlockCachePtr BlockCache_;
     IClientChunkMetaCachePtr ChunkMetaCache_;
     ITableMountCachePtr TableMountCache_;
@@ -927,13 +935,8 @@ private:
         }
     }
 
-    void InitializeYqlAgentChannel()
+    IChannelPtr CreateYqlAgentChannel(TYqlAgentChannelConfigPtr config) const
     {
-        auto config = Config_.Acquire();
-        if (!config->YqlAgent) {
-            return;
-        }
-
         auto endpointDescription = "YqlAgent";
         auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
@@ -941,7 +944,7 @@ private:
             .EndMap());
 
         auto channel = CreateBalancingChannel(
-            config->YqlAgent->Channel,
+            config,
             ChannelFactory_,
             std::move(endpointDescription),
             std::move(endpointAttributes));
@@ -950,7 +953,7 @@ private:
         constexpr auto timeout = TDuration::Days(1);
         channel = CreateDefaultTimeoutChannel(std::move(channel), timeout);
 
-        YqlAgentChannel_ = std::move(channel);
+        return channel;
     }
 
     void SetupTvmIdSynchronization()
