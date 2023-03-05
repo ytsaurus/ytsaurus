@@ -264,6 +264,8 @@ public:
             ChaosCellDirectorySynchronizer_,
             config->ChaosCellChannel);
 
+        BannedReplicaTrackerCache_->Reconfigure(config->BannedReplicaTrackerCache);
+
         if (Options_.BlockCache) {
             BlockCache_ = Options_.BlockCache;
         } else {

@@ -346,6 +346,10 @@ class ChaosTestBase(DynamicTablesBase):
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "string"},
             ],
+            "sorted_value1": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value1", "type": "string"},
+            ],
             "sorted_value2": [
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "string"},
@@ -365,6 +369,11 @@ class ChaosTestBase(DynamicTablesBase):
                 {"name": "hash", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(key)"},
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "string"},
+            ],
+            "sorted_hash_value1": [
+                {"name": "hash", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(key)"},
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value1", "type": "string"},
             ],
             "ordered_simple": [
                 {"name": "$timestamp", "type": "uint64"},
@@ -3035,6 +3044,8 @@ class TestChaos(ChaosTestBase):
         if not are_keys_compatible():
             with raises_yt_error("Table schemas are incompatible"):
                 lookup_rows("//tmp/t", keys, replica_consistency="sync")
+            with raises_yt_error("Table schemas are incompatible"):
+                select_rows("* from [//tmp/t] where key = 0", replica_consistency="sync")
 
     @authors("savrus")
     @pytest.mark.parametrize("schemas", [
@@ -3164,7 +3175,7 @@ class TestChaos(ChaosTestBase):
                         return lookup_call()
                     except YtError as err:
                         print_debug("Lookup failed: ", err)
-                        if err.contains_text("No in-sync replicas found for table"):
+                        if err.contains_text("No in-sync replicas found for table") or err.contains_text("No single cluster contains in-sync replicas for all involved tables"):
                             return False
                         else:
                             raise err
@@ -3173,10 +3184,42 @@ class TestChaos(ChaosTestBase):
         values, keys = _create_expected_data(schemas[0])
         wait(lambda: lookup_rows("//tmp/rd", keys, driver=remote_driver0) == values)
         _check(lambda: _filter(lookup_rows("//tmp/rd", keys, timestamp=ts, replica_consistency="sync", driver=remote_driver0), schema1) == values)
+        _check(lambda: _filter(select_rows("* from [//tmp/rd]", timestamp=ts, replica_consistency="sync", driver=remote_driver0), schema1) == values)
 
         values, keys = _create_expected_data(schemas[1])
         wait(lambda: lookup_rows("//tmp/pd", keys) == values)
         _check(lambda: _filter(lookup_rows("//tmp/pd", keys, timestamp=ts, replica_consistency="sync"), schema2) == values)
+        _check(lambda: _filter(select_rows("* from [//tmp/pd]", timestamp=ts, replica_consistency="sync"), schema2) == values)
+
+    @authors("savrus")
+    def test_schema_coexistence_in_join(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        def _create(prefix, schemas):
+            data_schema, hash_schema = self._get_schemas_by_name(schemas)
+            create("chaos_replicated_table", f"{prefix}.crt", attributes={"chaos_cell_bundle": "c", "schema": data_schema})
+            card_id = get(f"{prefix}.crt/@replication_card_id")
+
+            replicas = [
+                {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": f"{prefix}.queue"},
+                {"cluster_name": "remote_0", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": f"{prefix}.data"},
+                {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": f"{prefix}.queue_incompatible", "catchup": False},
+                {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": f"{prefix}.data_incompatible", "catchup": False},
+            ]
+            replica_ids = self._create_chaos_table_replicas(replicas, table_path=f"{prefix}.crt")
+
+            self._create_replica_tables(replicas[:2], replica_ids[:2], schema=data_schema)
+            self._create_replica_tables(replicas[2:], replica_ids[2:], schema=hash_schema)
+            self._sync_replication_era(card_id, replicas)
+
+        _create("//tmp/t1", ["sorted_simple", "sorted_hash"])
+        _create("//tmp/t2", ["sorted_value1", "sorted_hash_value1"])
+
+        insert_rows("//tmp/t1.crt", [{"key": 0, "value": str(0)}])
+        insert_rows("//tmp/t2.crt", [{"key": 0, "value1": str(1)}])
+
+        assert select_rows("* from [//tmp/t1.crt] join [//tmp/t2.crt] using key") == [{"key": 0, "value": str(0), "value1": str(1)}]
 
 
 ##################################################################

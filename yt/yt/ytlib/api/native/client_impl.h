@@ -897,8 +897,13 @@ private:
         THashMap<NTabletClient::TTableReplicaId, int> replicaIdToCount,
         const std::vector<NQueryClient::TQueryServiceProxy::TRspGetTabletInfoPtr>& responses);
 
-    std::optional<TString> PickInSyncClusterAndPatchQuery(
+    std::pair<std::vector<NTabletClient::TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>> PrepareInSyncReplicaCandidates(
         const TTabletReadOptions& options,
+        NQueryClient::NAst::TQuery* query);
+
+    std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> PickInSyncClusterAndPatchQuery(
+        const std::vector<NTabletClient::TTableMountInfoPtr>& tableInfos,
+        const std::vector<TTableReplicaInfoPtrList>& candidates,
         NQueryClient::NAst::TQuery* query);
 
     NApi::IConnectionPtr GetReplicaConnectionOrThrow(const TString& clusterName);

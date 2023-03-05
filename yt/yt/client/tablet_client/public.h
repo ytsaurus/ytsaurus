@@ -83,6 +83,7 @@ YT_DEFINE_ERROR_ENUM(
     ((ChunkIsNotPreloaded)                    (1735))
     ((NoInSyncReplicas)                       (1736))
     ((CellHasNoAssignedPeers)                 (1737))
+    ((TableSchemaIncompatible)                (1738))
 );
 
 DEFINE_ENUM(EInMemoryMode,

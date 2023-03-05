@@ -26,12 +26,15 @@ DEFINE_REFCOUNTED_TYPE(IBannedReplicaTracker)
 
 IBannedReplicaTrackerPtr CreateBannedReplicaTracker(NLogging::TLogger logger);
 
+IBannedReplicaTrackerPtr CreateEmptyBannedReplicaTracker();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IBannedReplicaTrackerCache
     : public virtual TRefCounted
 {
     virtual IBannedReplicaTrackerPtr GetTracker(NTableClient::TTableId tableId) = 0;
+    virtual void Reconfigure(const TSlruCacheDynamicConfigPtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBannedReplicaTrackerCache)

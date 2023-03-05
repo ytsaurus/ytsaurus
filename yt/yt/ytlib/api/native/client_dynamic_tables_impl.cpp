@@ -121,6 +121,7 @@ using namespace NYTree;
 
 constexpr double SlicingAccuracyDefault = 0.05;
 constexpr i64 ExpectedAverageOverlapping = 10;
+const TString UpstreamReplicaIdAttributeName = "upstream_replica_id";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -290,10 +291,12 @@ public:
     TQueryPreparer(
         NTabletClient::ITableMountCachePtr tableMountCache,
         IInvokerPtr invoker,
-        TDetailedProfilingInfoPtr detailedProfilingInfo = nullptr)
+        TDetailedProfilingInfoPtr detailedProfilingInfo = nullptr,
+        TSelectRowsOptions::TExpectedTableSchemas expectedTableSchemas = {})
         : TableMountCache_(std::move(tableMountCache))
         , Invoker_(std::move(invoker))
         , DetailedProfilingInfo_(std::move(detailedProfilingInfo))
+        , ExpectedTableSchemas_(std::move(expectedTableSchemas))
     { }
 
     // IPrepareCallbacks implementation.
@@ -308,6 +311,7 @@ private:
     const NTabletClient::ITableMountCachePtr TableMountCache_;
     const IInvokerPtr Invoker_;
     const TDetailedProfilingInfoPtr DetailedProfilingInfo_;
+    const TSelectRowsOptions::TExpectedTableSchemas ExpectedTableSchemas_;
 
     static TTableSchemaPtr GetTableSchema(
         const TRichYPath& path,
@@ -337,7 +341,23 @@ private:
 
         tableInfo->ValidateNotPhysicallyLog();
 
-        return TDataSplit {
+        if (auto it = ExpectedTableSchemas_.find(path.GetPath())) {
+            try {
+                ValidateTableSchemaUpdate(
+                    *it->second,
+                    *tableInfo->Schemas[ETableSchemaKind::Primary],
+                    true,
+                    false);
+            } catch (const std::exception& ex) {
+                auto error = TError(NTabletClient::EErrorCode::TableSchemaIncompatible, "Schema validation failed during replica fallback")
+                    << TErrorAttribute(UpstreamReplicaIdAttributeName, tableInfo->UpstreamReplicaId)
+                    << ex;
+
+                THROW_ERROR error;
+            }
+        }
+
+        return TDataSplit{
             .ObjectId = tableInfo->TableId,
             .TableSchema = GetTableSchema(path, tableInfo),
         };
@@ -1248,16 +1268,67 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     auto parsedQuery = ParseSource(queryString, EParseMode::Query, options.PlaceholderValues);
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
-    // XXX retry fallback
-    auto optionalClusterName = PickInSyncClusterAndPatchQuery(options, astQuery);
-    if (optionalClusterName) {
+
+    auto [tableInfos, replicaCandidates] = PrepareInSyncReplicaCandidates(options, astQuery);
+    if (!tableInfos.empty()) {
+        std::vector<TYPath> paths;
+        for (const auto& tableInfo : tableInfos) {
+            paths.push_back(tableInfo->Path);
+        }
+
         auto unresolveOptions = options;
         unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;
-        auto replicaClient = GetOrCreateReplicaClient(*optionalClusterName);
-        auto updatedQueryString = NAst::FormatQuery(*astQuery);
-        auto asyncResult = replicaClient->SelectRows(updatedQueryString, unresolveOptions);
-        return WaitFor(asyncResult)
-            .ValueOrThrow();
+
+        int retryCountLimit = 0;
+        for (const auto& tableInfo : tableInfos) {
+            if (tableInfo->ReplicationCardId) {
+                retryCountLimit = Connection_->GetConfig()->ReplicaFallbackRetryCount;
+                break;
+            }
+        }
+
+        THashMap<TTableReplicaId, TTableId> replicaIdToTableId;
+        for (int index = 0; index < std::ssize(tableInfos); ++index) {
+            const auto& tableInfo = tableInfos[index];
+            if (tableInfo->ReplicationCardId) {
+                for (const auto& replicaInfo : replicaCandidates[index]) {
+                    replicaIdToTableId[replicaInfo->ReplicaId] = tableInfo->TableId;
+                }
+            }
+        }
+
+        TErrorOr<TSelectRowsResult> resultOrError;
+        for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
+            YT_LOG_DEBUG("Picking cluster for replica fallback (Tables: %v, Attempt: %v)",
+                paths,
+                retryCount);
+
+            auto [clusterName, expectedTableSchemas] = PickInSyncClusterAndPatchQuery(
+                tableInfos,
+                replicaCandidates,
+                astQuery);
+            unresolveOptions.ExpectedTableSchemas = std::move(expectedTableSchemas);
+
+            auto replicaClient = GetOrCreateReplicaClient(clusterName);
+            auto updatedQueryString = NAst::FormatQuery(*astQuery);
+            auto asyncResult = replicaClient->SelectRows(updatedQueryString, unresolveOptions);
+            resultOrError = WaitFor(asyncResult);
+            if (resultOrError.IsOK()) {
+                return resultOrError.Value();
+            }
+
+            if (auto schemaError = resultOrError.FindMatching(NTabletClient::EErrorCode::TableSchemaIncompatible)) {
+                if (auto replicaId = schemaError->Attributes().Find<TTableReplicaId>(UpstreamReplicaIdAttributeName)) {
+                    if (auto it = replicaIdToTableId.find(*replicaId)) {
+                        auto bannedReplicaTracker = Connection_->GetBannedReplicaTrackerCache()->GetTracker(it->second);
+                        bannedReplicaTracker->BanReplica(*replicaId, resultOrError.Truncate());
+                    }
+                }
+            }
+        }
+
+        YT_VERIFY(!resultOrError.IsOK());
+        resultOrError.ThrowOnError();
     }
 
     auto inputRowLimit = options.InputRowLimit.value_or(Connection_->GetConfig()->DefaultInputRowLimit);
@@ -1289,7 +1360,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto queryPreparer = New<TQueryPreparer>(
         tableMountCache,
         Connection_->GetInvoker(),
-        options.DetailedProfilingInfo);
+        options.DetailedProfilingInfo,
+        options.ExpectedTableSchemas);
 
     auto queryExecutor = CreateQueryExecutor(
         Connection_,
