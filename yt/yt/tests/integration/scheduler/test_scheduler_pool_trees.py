@@ -1759,6 +1759,31 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
 
         set("//sys/pool_trees/default/@config/nodes_filter", "")
 
+    @authors("eshcherbin")
+    def test_erase_trees_with_pool_limit_violations(self):
+        create_pool("pool")
+
+        create_pool_tree("other", config={"nodes_filter": "other"})
+        create_pool("pool", pool_tree="other", attributes={"max_running_operation_count": 0, "max_operation_count": 0})
+
+        with pytest.raises(YtError):
+            run_sleeping_vanilla(spec={"pool": "pool", "pool_trees": ["default", "other"]})
+
+        op = run_sleeping_vanilla(spec={
+            "pool": "pool",
+            "pool_trees": ["default", "other"],
+            "erase_trees_with_pool_limit_violations": True,
+        })
+        wait(lambda: get(op.get_path() + "/@runtime_parameters/erased_trees", default=None) == ["other"])
+        wait(lambda: ls(op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree") == ["default"])
+
+        with pytest.raises(YtError):
+            run_sleeping_vanilla(spec={
+                "pool": "pool",
+                "pool_trees": ["other"],
+                "erase_trees_with_pool_limit_violations": True,
+            })
+
 
 ##################################################################
 

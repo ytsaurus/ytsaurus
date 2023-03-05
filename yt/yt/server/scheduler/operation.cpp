@@ -518,11 +518,17 @@ bool TOperation::IsTreeErased(const TString& treeId) const
     return std::find(erasedTrees.begin(), erasedTrees.end(), treeId) != erasedTrees.end();
 }
 
+bool TOperation::AreAllTreesErased() const
+{
+    return RuntimeParameters_->SchedulingOptionsPerPoolTree.empty();
+}
+
 void TOperation::EraseTrees(const std::vector<TString>& treeIds)
 {
     if (!treeIds.empty()) {
         ShouldFlush_ = true;
     }
+
     for (const auto& treeId : treeIds) {
         RuntimeParameters_->ErasedTrees.push_back(treeId);
         EraseOrCrash(RuntimeParameters_->SchedulingOptionsPerPoolTree, treeId);
@@ -554,7 +560,7 @@ std::vector<TString> TOperation::GetJobShellOwners(const TString& jobShellName)
             "Job shell %Qv not found",
             jobShellName);
     }
-            
+
     auto owners = jobShell->Owners;
     const auto& optionsPerJobShell = RuntimeParameters_->OptionsPerJobShell;
     if (auto it = optionsPerJobShell.find(jobShellName); it != optionsPerJobShell.end()) {

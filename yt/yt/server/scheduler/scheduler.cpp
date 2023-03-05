@@ -2579,7 +2579,6 @@ private:
 
             bool aliasRegistered = false;
             try {
-
                 if (operation->Alias()) {
                     RegisterOperationAlias(operation);
                     aliasRegistered = true;
@@ -2593,19 +2592,38 @@ private:
 
                 std::vector<TString> erasedTreeIds;
                 for (const auto& [treeId, error] : poolLimitViolations) {
+                    bool shouldEraseTree = false;
                     if (GetSchedulingOptionsPerPoolTree(operation.Get(), treeId)->Tentative) {
                         YT_LOG_INFO(
                             error,
-                            "Tree is erased for operation since pool limits are violated (OperationId: %v)",
-                            operation->GetId());
-                        erasedTreeIds.push_back(treeId);
-                        // No need to throw now.
-                        continue;
+                            "Tentative tree is erased for operation because pool limits are violated (OperationId: %v, TreeId: %v)",
+                            operation->GetId(),
+                            treeId);
+
+                        shouldEraseTree = true;
+                    } else if (operation->Spec()->EraseTreesWithPoolLimitViolations) {
+                        YT_LOG_INFO(
+                            error,
+                            "Tree is erased for operation because pool limits are violated (OperationId: %v, TreeId: %v)",
+                            operation->GetId(),
+                            treeId);
+
+                        shouldEraseTree = true;
                     }
 
-                    THROW_ERROR error;
+                    if (shouldEraseTree) {
+                        erasedTreeIds.push_back(treeId);
+                    } else {
+                        THROW_ERROR error;
+                    }
                 }
+
                 operation->EraseTrees(erasedTreeIds);
+
+                if (operation->AreAllTreesErased()) {
+                    THROW_ERROR_EXCEPTION("All trees have been erased for operation")
+                        << TErrorAttribute("operation_id", operation->GetId());
+                }
             } catch (const std::exception& ex) {
                 if (aliasRegistered) {
                     auto it = OperationAliases_.find(*operation->Alias());
@@ -2619,6 +2637,7 @@ private:
                 auto wrappedError = TError("Operation has failed to start")
                     << ex;
                 operation->SetStarted(wrappedError);
+
                 return;
             }
 

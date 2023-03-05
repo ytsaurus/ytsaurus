@@ -386,7 +386,7 @@ public:
     TControllerAgentPtr GetAgentOrThrow();
 
     bool IsTreeErased(const TString& treeId) const override;
-
+    bool AreAllTreesErased() const;
     void EraseTrees(const std::vector<TString>& treeIds) override;
 
     //! Returns vector of experiment assignment names with each

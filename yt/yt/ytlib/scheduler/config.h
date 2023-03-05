@@ -459,6 +459,8 @@ public:
 
     TTestingOperationOptionsPtr TestingOperationOptions;
 
+    bool EraseTreesWithPoolLimitViolations;
+
     REGISTER_YSON_STRUCT(TStrategyOperationSpec);
 
     static void Register(TRegistrar registrar);
