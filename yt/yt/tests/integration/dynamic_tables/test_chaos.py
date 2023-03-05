@@ -18,7 +18,8 @@ from yt_commands import (
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
     align_chaos_cell_tag, migrate_replication_cards, alter_replication_card,
     get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error,
-    create_table_replica, sync_enable_table_replica, get_tablet_infos, ban_node)
+    create_table_replica, sync_enable_table_replica, get_tablet_infos, ban_node,
+    suspend_chaos_cells, resume_chaos_cells)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -3377,7 +3378,8 @@ class TestChaosMetaCluster(ChaosTestBase):
         wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=drivers[2]) == values)
 
     @authors("savrus")
-    def test_replication_card_migration(self):
+    @pytest.mark.parametrize("method", ["migrate", "suspend"])
+    def test_replication_card_migration(self, method):
         cells = self._create_dedicated_areas_and_cells()
         drivers = self._get_drivers()
 
@@ -3388,11 +3390,21 @@ class TestChaosMetaCluster(ChaosTestBase):
         ]
         card_id, replica_ids = self._create_chaos_tables(cells[0], replicas)
 
-        migrate_replication_cards(cells[0], [card_id])
-
         def _get_orchid_path(cell_id, driver=None):
             address = get("#{0}/@peers/0/address".format(cell_id), driver=driver)
             return "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}".format(address, cell_id)
+
+        def _migrate(cell_id, card_ids, driver):
+            if method == "migrate":
+                migrate_replication_cards(cell_id, card_ids)
+            else:
+                suspend_chaos_cells([cell_id])
+                suspended_path = "{0}/chaos_manager/internal/suspended".format(_get_orchid_path(cell_id, driver=driver))
+                assert get(suspended_path, driver=driver)
+                resume_chaos_cells([cell_id])
+                assert not get(suspended_path, driver=driver)
+
+        _migrate(cells[0], [card_id], drivers[-2])
 
         migration_path = "{0}/chaos_manager/replication_cards/{1}/state".format(_get_orchid_path(cells[0], driver=drivers[-2]), card_id)
         wait(lambda: get(migration_path, driver=drivers[-2]) == "migrated")
@@ -3407,7 +3419,7 @@ class TestChaosMetaCluster(ChaosTestBase):
         assert lookup_rows("//tmp/t", [{"key": 0}]) == values
         wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=drivers[2]) == values)
 
-        migrate_replication_cards(cells[1], [card_id])
+        _migrate(cells[1], [card_id], drivers[-1])
         wait(lambda: get(migration_path, driver=drivers[-2]) == "normal")
         wait(lambda: get("{0}/state".format(migrated_card_path), driver=drivers[-1]) == "migrated")
 

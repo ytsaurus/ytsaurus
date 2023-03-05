@@ -115,6 +115,34 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSuspendChaosCellsCommand
+    : public TTypedCommand<NApi::TSuspendChaosCellsOptions>
+{
+public:
+    TSuspendChaosCellsCommand();
+
+private:
+    std::vector<NObjectClient::TCellId> CellIds_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TResumeChaosCellsCommand
+    : public TTypedCommand<NApi::TResumeChaosCellsOptions>
+{
+public:
+    TResumeChaosCellsCommand();
+
+private:
+    std::vector<NObjectClient::TCellId> CellIds_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSuspendTabletCellsCommand
     : public TTypedCommand<NApi::TSuspendTabletCellsOptions>
 {

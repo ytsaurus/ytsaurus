@@ -1552,6 +1552,16 @@ struct TMigrateReplicationCardsOptions
     std::vector<NChaosClient::TReplicationCardId> ReplicationCardIds;
 };
 
+struct TSuspendChaosCellsOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+{ };
+
+struct TResumeChaosCellsOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+{ };
+
 struct TSuspendTabletCellsOptions
     : public TTimeoutOptions
     , public TMutatingOptions
@@ -2272,6 +2282,14 @@ struct IClient
     virtual TFuture<void> MigrateReplicationCards(
         NObjectClient::TCellId chaosCellId,
         const TMigrateReplicationCardsOptions& options = {}) = 0;
+
+    virtual TFuture<void> SuspendChaosCells(
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TSuspendChaosCellsOptions& options = {}) = 0;
+
+    virtual TFuture<void> ResumeChaosCells(
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TResumeChaosCellsOptions& options = {}) = 0;
 
     virtual TFuture<void> SuspendTabletCells(
         const std::vector<NObjectClient::TCellId>& cellIds,

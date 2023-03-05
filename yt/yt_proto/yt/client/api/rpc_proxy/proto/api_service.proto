@@ -891,6 +891,28 @@ message TRspMigrateReplicationCards
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqSuspendChaosCells
+{
+    repeated NYT.NProto.TGuid cell_ids = 1;
+}
+
+message TRspSuspendChaosCells
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqResumeChaosCells
+{
+    repeated NYT.NProto.TGuid cell_ids = 1;
+}
+
+message TRspResumeChaosCells
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqAddMaintenance
 {
     required string node_address = 1;

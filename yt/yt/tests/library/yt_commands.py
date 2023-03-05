@@ -1715,7 +1715,7 @@ def list_user_tokens(user, password=None, **kwargs):
     return execute_command("list_user_tokens", kwargs, parse_yson=True)
 
 
-def migrate_replication_cards(chaos_cell_id, replication_card_ids, **kwargs):
+def migrate_replication_cards(chaos_cell_id, replication_card_ids=None, **kwargs):
     parameters = {
         "chaos_cell_id": chaos_cell_id,
         "replication_card_ids": replication_card_ids
@@ -2092,6 +2092,16 @@ def create_chaos_table_replica(cluster_name, replica_path, **kwargs):
     kwargs["attributes"]["cluster_name"] = cluster_name
     kwargs["attributes"]["replica_path"] = replica_path
     return execute_command("create", kwargs, parse_yson=True)
+
+
+def suspend_chaos_cells(cell_ids, **kwargs):
+    kwargs["cell_ids"] = cell_ids
+    return execute_command("suspend_chaos_cells", kwargs)
+
+
+def resume_chaos_cells(cell_ids, **kwargs):
+    kwargs["cell_ids"] = cell_ids
+    return execute_command("resume_chaos_cells", kwargs)
 
 
 def suspend_tablet_cells(cell_ids, **kwargs):

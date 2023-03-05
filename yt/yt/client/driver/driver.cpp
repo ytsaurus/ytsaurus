@@ -318,6 +318,8 @@ public:
         REGISTER_ALL(TSuspendCoordinatorCommand,           "suspend_coordinator",             Null,       Structured, false,  false);
         REGISTER_ALL(TResumeCoordinatorCommand,            "resume_coordinator",              Null,       Structured, false,  false);
         REGISTER_ALL(TMigrateReplicationCardsCommand,      "migrate_replication_cards",       Null,       Structured, false,  false);
+        REGISTER_ALL(TSuspendChaosCellsCommand,            "suspend_chaos_cells",             Null,       Structured, false,  false);
+        REGISTER_ALL(TResumeChaosCellsCommand,             "resume_chaos_cells",              Null,       Structured, false,  false);
 
         REGISTER_ALL(TSuspendTabletCellsCommand,           "suspend_tablet_cells",            Null,       Structured, false,  false);
         REGISTER_ALL(TResumeTabletCellsCommand,            "resume_tablet_cells",             Null,       Structured, false,  false);

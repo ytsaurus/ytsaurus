@@ -699,6 +699,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeCoordinator));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(MigrateReplicationCards));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendChaosCells));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeChaosCells));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AddMaintenance));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMaintenance));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DisableChunkLocations));
@@ -4155,6 +4157,42 @@ private:
             context,
             [=] {
                 return client->MigrateReplicationCards(chaosCellId, options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SuspendChaosCells)
+    {
+        TSuspendChaosCellsOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto cellIds = FromProto<std::vector<TCellId>>(request->cell_ids());
+
+        context->SetRequestInfo("ChaosCellIds: %v",
+            cellIds);
+
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+        ExecuteCall(
+            context,
+            [=] {
+                return client->SuspendChaosCells(cellIds, options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResumeChaosCells)
+    {
+        TResumeChaosCellsOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto cellIds = FromProto<std::vector<TCellId>>(request->cell_ids());
+
+        context->SetRequestInfo("ChaosCellIds: %v",
+            cellIds);
+
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+        ExecuteCall(
+            context,
+            [=] {
+                return client->ResumeChaosCells(cellIds, options);
             });
     }
 

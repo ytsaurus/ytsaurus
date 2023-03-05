@@ -34,6 +34,7 @@ struct TReplicationCardFecthOptions;
 YT_DEFINE_ERROR_ENUM(
     ((ReplicationCardNotKnown)         (3200))
     ((ReplicationCardMigrated)         (3201))
+    ((ChaosCellSuspended)              (3202))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

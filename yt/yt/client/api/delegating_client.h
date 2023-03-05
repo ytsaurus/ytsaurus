@@ -501,6 +501,14 @@ public:
         NObjectClient::TCellId chaosCellId,
         const TMigrateReplicationCardsOptions& options = {}) override;
 
+    TFuture<void> SuspendChaosCells(
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TSuspendChaosCellsOptions& options = {}) override;
+
+    TFuture<void> ResumeChaosCells(
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TResumeChaosCellsOptions& options = {}) override;
+
     TFuture<void> SuspendTabletCells(
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TSuspendTabletCellsOptions& options = {}) override;

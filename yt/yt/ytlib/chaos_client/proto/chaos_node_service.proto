@@ -139,9 +139,19 @@ message TReqMigrateReplicationCards
 {
     required NYT.NProto.TGuid migrate_to_cell_id = 1;
     repeated NYT.NProto.TGuid replication_card_ids = 2;
+    optional bool migrate_all_replication_cards = 3;
+    optional bool suspend_chaos_cell = 4; 
 }
 
 message TRspMigrateReplicationCards
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqResumeChaosCell
+{ }
+
+message TRspResumeChaosCell
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -23,6 +23,7 @@ DEFINE_ENUM(EChaosReign,
     ((SupportQueueReplicasInRTT)    (300006)) // akozhikhov
     ((ReplicationCardCollocation)   (300007)) // savrus
     ((AllowAlterInCataclysm)        (300008)) // savrus
+    ((ChaosCellSuspension)          (300009)) // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////

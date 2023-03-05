@@ -387,6 +387,91 @@ void TClient::DoMigrateReplicationCards(
         .ThrowOnError();
 }
 
+void TClient::DoSuspendChaosCells(
+    const std::vector<TCellId>& cellIds,
+    const TSuspendChaosCellsOptions& options)
+{
+    SyncCellsIfNeeded(cellIds);
+
+    std::vector<TFuture<void>> futures;
+    futures.reserve(cellIds.size());
+
+    for (auto chaosCellId : cellIds) {
+        {
+            // Migrate replication cards.
+            auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
+            auto proxy = TChaosNodeServiceProxy(std::move(channel));
+
+            auto siblingCellTag = GetSiblingChaosCellTag(CellTagFromId(chaosCellId));
+            const auto& cellDirectory = Connection_->GetCellDirectory();
+            auto descriptor = cellDirectory->FindDescriptorByCellTag(siblingCellTag);
+            if (!descriptor) {
+                THROW_ERROR_EXCEPTION("Unable to identify sibling cell to migrate replication cards into")
+                    << TErrorAttribute("chaos_cell_id", chaosCellId)
+                    << TErrorAttribute("sibling_cell_tag", siblingCellTag);
+            }
+
+            auto req = proxy.MigrateReplicationCards();
+            SetMutationId(req, options);
+            ToProto(req->mutable_migrate_to_cell_id(), descriptor->CellId);
+            req->set_migrate_all_replication_cards(true);
+            req->set_suspend_chaos_cell(true);
+
+            futures.push_back(req->Invoke().AsVoid());
+        }
+
+        {
+            // Suspend coordination.
+            auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
+            auto proxy = TCoordinatorServiceProxy(std::move(channel));
+
+            auto req = proxy.SuspendCoordinator();
+            SetMutationId(req, options);
+
+            futures.push_back(req->Invoke().AsVoid());
+        }
+    }
+
+    return WaitFor(AllSucceeded(std::move(futures)))
+        .ThrowOnError();
+}
+
+void TClient::DoResumeChaosCells(
+    const std::vector<TCellId>& cellIds,
+    const TResumeChaosCellsOptions& options)
+{
+    SyncCellsIfNeeded(cellIds);
+
+    std::vector<TFuture<void>> futures;
+    futures.reserve(cellIds.size());
+
+    for (auto chaosCellId : cellIds) {
+        {
+            // Resume replication card creation.
+            auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
+            auto proxy = TChaosNodeServiceProxy(std::move(channel));
+
+            auto req = proxy.ResumeChaosCell();
+            req->SetTimeout(options.Timeout);
+            futures.push_back(req->Invoke().AsVoid());
+        }
+
+        {
+            // Resume coordination.
+            auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosCellId), EPeerKind::Leader);
+            auto proxy = TCoordinatorServiceProxy(std::move(channel));
+
+            auto req = proxy.ResumeCoordinator();
+            SetMutationId(req, options);
+
+            futures.push_back(req->Invoke().AsVoid());
+        }
+    }
+
+    return WaitFor(AllSucceeded(std::move(futures)))
+        .ThrowOnError();
+}
+
 void TClient::DoSuspendTabletCells(
     const std::vector<TCellId>& cellIds,
     const TSuspendTabletCellsOptions& options)
