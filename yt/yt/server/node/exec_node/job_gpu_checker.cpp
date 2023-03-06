@@ -58,11 +58,11 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
                 /*devices*/ std::nullopt,
                 /*startIndex*/ checkStartIndex));
 
-        if (!testFileError.IsOK()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::GpuCheckCommandIncorrect, "Path to GPU check binary is not a file")
-                << TErrorAttribute("path", Settings_.GpuCheckBinaryPath)
-                << testFileError;
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            testFileError,
+            EErrorCode::GpuCheckCommandIncorrect,
+            "Path to GPU check binary is not a file %v",
+            Settings_.GpuCheckBinaryPath);
     }
 
     auto checkCommand = New<TShellCommandConfig>();

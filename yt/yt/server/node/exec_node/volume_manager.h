@@ -57,7 +57,8 @@ struct IVolumeManager
 {
     virtual TFuture<IVolumePtr> PrepareVolume(
         const std::vector<NDataNode::TArtifactKey>& layers,
-        const TArtifactDownloadOptions& downloadOptions) = 0;
+        const TArtifactDownloadOptions& downloadOptions,
+        const TUserSandboxOptions& options) = 0;
 
     virtual bool IsLayerCached(const NDataNode::TArtifactKey& artifactKey) const = 0;
 

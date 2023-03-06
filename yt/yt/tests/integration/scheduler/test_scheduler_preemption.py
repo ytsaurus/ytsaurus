@@ -1563,8 +1563,6 @@ class TestSsdPriorityPreemption(YTEnvSetup):
         },
         "data_node": {
             "volume_manager": {
-                # COMPAT(psushin): pre 22.1
-                "test_disk_quota": True,
                 "enable_disk_quota": False,
             }
         }

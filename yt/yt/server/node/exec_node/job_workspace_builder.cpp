@@ -36,14 +36,12 @@ TJobWorkspaceBuilder::TJobWorkspaceBuilder(
     }
 }
 
-TFuture<void> TJobWorkspaceBuilder::GuardedAction(std::function<TFuture<void>()> action)
+TFuture<void> TJobWorkspaceBuilder::GuardedAction(const std::function<TFuture<void>()>& action)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     switch (Settings_.Job->GetPhase()) {
         case EJobPhase::WaitingAbort:
-            THROW_ERROR_EXCEPTION("Job preparation aborted");
-
         case EJobPhase::Cleanup:
         case EJobPhase::Finished:
             return VoidFuture;
@@ -240,7 +238,10 @@ private:
                 UpdateArtifactStatistics(layerSize, slot->IsLayerCached(layer));
             }
 
-            return slot->PrepareRootVolume(layerArtifactKeys, Settings_.ArtifactDownloadOptions)
+            return slot->PrepareRootVolume(
+                layerArtifactKeys,
+                Settings_.ArtifactDownloadOptions,
+                Settings_.UserSandboxOptions)
                 .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
                     if (!volumeOrError.IsOK()) {
                         THROW_ERROR_EXCEPTION(TError(EErrorCode::RootVolumePreparationFailed, "Failed to prepare artifacts")
@@ -260,6 +261,10 @@ private:
 
         ValidateJobPhase(EJobPhase::PreparingRootVolume);
         SetJobPhase(EJobPhase::RunningSetupCommands);
+
+        if (Settings_.LayerArtifactKeys.empty()) {
+            return VoidFuture;
+        }
 
         auto slot = Settings_.Slot;
 
@@ -288,7 +293,7 @@ private:
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
         SetJobPhase(EJobPhase::RunningGpuCheckCommand);
 
-        if (Settings_.NeedGpuCheck) {
+        if (Settings_.LayerArtifactKeys.empty() && Settings_.NeedGpuCheck) {
             TJobGpuCheckerSettings settings {
                 .Slot = Settings_.Slot,
                 .Job = Settings_.Job,
@@ -303,14 +308,14 @@ private:
                 .GpuDevices = Settings_.GpuDevices
             };
 
-            auto checker = New<TJobGpuChecker>(settings);
+            auto checker = New<TJobGpuChecker>(std::move(settings));
 
-            checker->SubscribeRunCheck(BIND([=, this, this_ = MakeStrong(this)] () {
+            checker->SubscribeRunCheck(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this)] () {
                 GpuCheckStartTime_ = TInstant::Now();
                 UpdateTimers_.Fire(MakeStrong(this));
             }));
 
-            checker->SubscribeRunCheck(BIND([=, this, this_ = MakeStrong(this)] () {
+            checker->SubscribeRunCheck(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this)] () {
                 GpuCheckFinishTime_ = TInstant::Now();
                 UpdateTimers_.Fire(MakeStrong(this));
             }));

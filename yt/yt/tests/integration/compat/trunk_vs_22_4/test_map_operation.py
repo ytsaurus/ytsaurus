@@ -23,8 +23,8 @@ class TestMapCommandsCompatNewNodes(BaseTestMapCommands):
     UPLOAD_DEBUG_ARTIFACT_CHUNKS = True
 
     ARTIFACT_COMPONENTS = {
-        "22_4": ["master", "scheduler", "controller-agent"],
-        "trunk": ["node", "job-proxy", "exec", "tools", "proxy", "http-proxy"],
+        "22_4": ["master", "scheduler", "controller-agent", "exec", "tools", "node"],
+        "trunk": ["job-proxy", "proxy", "http-proxy"],
     }
 
     # COMPAT(gepardo): Remove this after 22.4.

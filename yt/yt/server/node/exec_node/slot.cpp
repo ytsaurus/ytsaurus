@@ -177,13 +177,14 @@ public:
 
     TFuture<IVolumePtr> PrepareRootVolume(
         const std::vector<TArtifactKey>& layers,
-        const TArtifactDownloadOptions& downloadOptions) override
+        const TArtifactDownloadOptions& downloadOptions,
+        const TUserSandboxOptions& options) override
     {
         if (!VolumeManager_) {
             return MakeFuture<IVolumePtr>(TError("Porto layers and custom root FS are not supported"));
         }
         return RunPrepareAction<IVolumePtr>([&] {
-                return VolumeManager_->PrepareVolume(layers, downloadOptions);
+                return VolumeManager_->PrepareVolume(layers, downloadOptions, options);
             });
     }
 
@@ -217,7 +218,8 @@ public:
         return TBusClientConfig::CreateUds(JobProxyUnixDomainSocketPath_);
     }
 
-    TFuture<std::vector<TString>> PrepareSandboxDirectories(const TUserSandboxOptions& options) override
+    TFuture<std::vector<TString>> PrepareSandboxDirectories(
+        const TUserSandboxOptions& options) override
     {
         return RunPrepareAction<std::vector<TString>>([&] {
                 return Location_->PrepareSandboxDirectories(

@@ -34,24 +34,24 @@ namespace NYT::NExecNode
 
 struct TJobWorkspaceBuildSettings
 {
-    const TUserSandboxOptions UserSandboxOptions;
-    const ISlotPtr Slot;
-    const TJobPtr Job;
-    const TString CommandUser;
+    TUserSandboxOptions UserSandboxOptions;
+    ISlotPtr Slot;
+    TJobPtr Job;
+    TString CommandUser;
 
-    const TArtifactDownloadOptions ArtifactDownloadOptions;
+    TArtifactDownloadOptions ArtifactDownloadOptions;
 
-    const std::vector<TArtifact> Artifacts;
-    const std::vector<NContainers::TBind> Binds;
-    const std::vector<NDataNode::TArtifactKey> LayerArtifactKeys;
-    const std::vector<NJobAgent::TShellCommandConfigPtr> SetupCommands;
+    std::vector<TArtifact> Artifacts;
+    std::vector<NContainers::TBind> Binds;
+    std::vector<NDataNode::TArtifactKey> LayerArtifactKeys;
+    std::vector<NJobAgent::TShellCommandConfigPtr> SetupCommands;
 
-    const bool NeedGpuCheck;
-    const bool TestExtraGpuCheckCommandFailure;
-    const std::optional<TString> GpuCheckBinaryPath;
-    const std::optional<std::vector<TString>> GpuCheckBinaryArgs;
-    const EGpuCheckType GpuCheckType;
-    const std::vector<NContainers::TDevice> GpuDevices;
+    bool NeedGpuCheck;
+    bool TestExtraGpuCheckCommandFailure;
+    std::optional<TString> GpuCheckBinaryPath;
+    std::optional<std::vector<TString>> GpuCheckBinaryArgs;
+    EGpuCheckType GpuCheckType;
+    std::vector<NContainers::TDevice> GpuDevices;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,7 +111,7 @@ protected:
     NContainers::TRootFS MakeWritableRootFS();
 
 private:
-    TFuture<void> GuardedAction(std::function<TFuture<void>()> action);
+    TFuture<void> GuardedAction(const std::function<TFuture<void>()>& action);
 
     TFuture<void> PrepareSandboxDirectories();
 

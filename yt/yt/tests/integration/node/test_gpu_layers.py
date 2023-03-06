@@ -1221,4 +1221,4 @@ class TestExtraGpuCheckFailure(YTEnvSetup, GpuCheckBase):
 class TestGpuJobWorkspaceSetup(TestGpuCheck):
     @classmethod
     def modify_node_config(cls, config):
-        config["exec_agent"]["use_job_workspace_builder"] = True
+        config["exec_agent"]["use_common_root_fs_quota"] = True

@@ -51,7 +51,8 @@ struct ISlot
 
     //! Sets up quotas and tmpfs.
     //! Returns tmpfs paths if any.
-    virtual TFuture<std::vector<TString>> PrepareSandboxDirectories(const TUserSandboxOptions& options) = 0;
+    virtual TFuture<std::vector<TString>> PrepareSandboxDirectories(
+        const TUserSandboxOptions& options) = 0;
 
     virtual TFuture<void> MakeLink(
         TJobId jobId,
@@ -80,7 +81,8 @@ struct ISlot
 
     virtual TFuture<IVolumePtr> PrepareRootVolume(
         const std::vector<NDataNode::TArtifactKey>& layers,
-        const TArtifactDownloadOptions& downloadOptions) = 0;
+        const TArtifactDownloadOptions& downloadOptions,
+        const TUserSandboxOptions& options) = 0;
 
     virtual NBus::TBusServerConfigPtr GetBusServerConfig() const = 0;
     virtual NBus::TBusClientConfigPtr GetBusClientConfig() const = 0;

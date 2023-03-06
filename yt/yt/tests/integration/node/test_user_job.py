@@ -721,9 +721,7 @@ class TestTmpfsWithDiskLimit(YTEnvSetup):
         },
         "data_node": {
             "volume_manager": {
-                "enable_disk_quota": False,
-                # (COMPAT): psushin
-                "test_disk_quota": True,
+                "enable_disk_quota": False
             },
         },
     }

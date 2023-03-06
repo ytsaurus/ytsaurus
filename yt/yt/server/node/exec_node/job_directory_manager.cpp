@@ -114,6 +114,11 @@ public:
         return AllSucceeded(asyncUnlinkResults);
     }
 
+    bool UseVolumeQuota() override
+    {
+        return true;
+    }
+
 private:
     const TString Path_;
     const IPortoExecutorPtr Executor_;
@@ -270,6 +275,11 @@ public:
         })
         .AsyncVia(Invoker_)
         .Run();
+    }
+
+    bool UseVolumeQuota() override
+    {
+        return false;
     }
 
 private:
