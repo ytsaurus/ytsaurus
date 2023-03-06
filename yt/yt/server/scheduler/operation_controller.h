@@ -70,6 +70,7 @@ struct TOperationControllerInitializeResult
 {
     TOperationControllerInitializeAttributes Attributes;
     TOperationTransactions Transactions;
+    bool EraseOffloadingTrees;
 };
 
 void FromProto(

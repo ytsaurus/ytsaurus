@@ -192,6 +192,14 @@ TCompositePendingJobCount TTask::GetPendingJobCount() const
 
     ProbingJobManager_.UpdatePendingJobCount(&result);
 
+    if (auto userJobSpec = GetUserJobSpec()) {
+        if (userJobSpec->NetworkProject) {
+            for (const auto& tree : TaskHost_->GetOffloadingPoolTrees()) {
+                result.CountByPoolTree[tree] = 0;
+            }
+        }
+    }
+
     return result;
 }
 

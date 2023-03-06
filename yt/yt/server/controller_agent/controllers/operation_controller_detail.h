@@ -466,6 +466,8 @@ public:
     std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction() override;
     void UpdateIntermediateMediumUsage(i64 usage) override;
 
+    const std::vector<TString>& GetOffloadingPoolTrees() override;
+
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;
@@ -1034,6 +1036,7 @@ private:
     const NYTAlloc::TMemoryTag MemoryTag_;
 
     NScheduler::TPoolTreeControllerSettingsMap PoolTreeControllerSettingsMap_;
+    std::optional<std::vector<TString>> OffloadingPoolTrees_;
 
     THashSet<TString> BannedTreeIds_;
 
@@ -1464,6 +1467,7 @@ private:
     void RegisterUnavailableInputChunks();
     void RegisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
     void UnregisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
+    bool NeedEraseOffloadingTrees() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

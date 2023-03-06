@@ -75,6 +75,7 @@ message TPoolTreeControllerSettings
     required bool tentative = 3;
     optional int32 main_resource = 4;
     optional bool probing = 5;
+    optional bool offloading = 6;
 }
 
 message TPoolTreeControllerSettingsMap
@@ -127,6 +128,7 @@ message TInitializeOperationResult
     required bytes unrecognized_spec = 3; // YSON
     required bytes full_spec = 4; // YSON
     required TControllerTransactionIds transaction_ids = 5;
+    optional bool erase_offloading_trees = 6;
 }
 
 message TReqInitializeOperation

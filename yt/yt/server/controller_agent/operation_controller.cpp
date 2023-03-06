@@ -70,6 +70,7 @@ void ToProto(NProto::TInitializeOperationResult* resultProto, const TOperationCo
     resultProto->set_full_spec(result.Attributes.FullSpec.ToString());
     resultProto->set_unrecognized_spec(result.Attributes.UnrecognizedSpec.ToString());
     ToProto(resultProto->mutable_transaction_ids(), result.TransactionIds);
+    resultProto->set_erase_offloading_trees(result.EraseOffloadingTrees);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

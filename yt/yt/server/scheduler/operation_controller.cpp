@@ -73,6 +73,8 @@ void FromProto(
         TYsonString(resultProto.full_spec(), EYsonType::Node),
         TYsonString(resultProto.unrecognized_spec(), EYsonType::Node)
     };
+
+    result->EraseOffloadingTrees = resultProto.erase_offloading_trees();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

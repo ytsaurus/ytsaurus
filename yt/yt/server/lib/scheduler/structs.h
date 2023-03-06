@@ -65,6 +65,7 @@ struct TPoolTreeControllerSettings
     TSchedulingTagFilter SchedulingTagFilter;
     bool Tentative;
     bool Probing;
+    bool Offloading;
     EJobResourceType MainResource;
 };
 

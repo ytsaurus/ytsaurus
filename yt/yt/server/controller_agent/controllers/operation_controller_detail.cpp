@@ -818,6 +818,19 @@ void TOperationControllerBase::FillInitializeResult(TOperationControllerInitiali
     result->Attributes.FullSpec = ConvertToYsonString(Spec_);
     result->Attributes.UnrecognizedSpec = ConvertToYsonString(UnrecognizedSpec_);
     result->TransactionIds = GetTransactionIds();
+    result->EraseOffloadingTrees = NeedEraseOffloadingTrees();
+}
+
+bool TOperationControllerBase::NeedEraseOffloadingTrees() const
+{
+    bool hasJobsWithoutNetworkProject = false;
+    auto userJobSpecs = GetUserJobSpecs();
+    for (const auto& userJobSpec : userJobSpecs) {
+        if (!userJobSpec->NetworkProject) {
+            hasJobsWithoutNetworkProject = true;
+        }
+    }
+    return !userJobSpecs.empty() && !hasJobsWithoutNetworkProject;
 }
 
 void TOperationControllerBase::ValidateIntermediateDataAccess(const TString& user, EPermission permission) const
@@ -5158,6 +5171,19 @@ std::pair<ITransactionPtr, TString> TOperationControllerBase::GetIntermediateMed
 void TOperationControllerBase::UpdateIntermediateMediumUsage(i64 /*usage*/)
 {
     YT_UNIMPLEMENTED();
+}
+
+const std::vector<TString>& TOperationControllerBase::GetOffloadingPoolTrees()
+{
+    if (!OffloadingPoolTrees_) {
+        OffloadingPoolTrees_.emplace();
+        for (const auto& [poolTree, settings]: PoolTreeControllerSettingsMap_) {
+            if (settings.Offloading) {
+                OffloadingPoolTrees_.value().push_back(poolTree);
+            }
+        }
+    }
+    return *OffloadingPoolTrees_;
 }
 
 void TOperationControllerBase::SuppressLivePreviewIfNeeded()

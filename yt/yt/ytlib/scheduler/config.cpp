@@ -2199,6 +2199,8 @@ void TOperationFairShareTreeRuntimeParameters::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("probing", &TThis::Probing)
         .Default(false);
+    registrar.Parameter("offloading", &TThis::Offloading)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -57,6 +57,7 @@ void ToProto(
         ToProto(protoTreeSettings->mutable_scheduling_tag_filter(), settings.SchedulingTagFilter);
         protoTreeSettings->set_tentative(settings.Tentative);
         protoTreeSettings->set_probing(settings.Probing);
+        protoTreeSettings->set_offloading(settings.Offloading);
         protoTreeSettings->set_main_resource(static_cast<int>(settings.MainResource));
     }
 }
@@ -74,6 +75,7 @@ void FromProto(
                 .SchedulingTagFilter = filter,
                 .Tentative = protoTreeSettings.tentative(),
                 .Probing = protoTreeSettings.probing(),
+                .Offloading = protoTreeSettings.offloading(),
                 .MainResource = protoTreeSettings.has_main_resource()
                     ? static_cast<EJobResourceType>(protoTreeSettings.main_resource())
                     : EJobResourceType::Cpu,
