@@ -7,8 +7,8 @@ import org.apache.spark.sql.execution.datasources.v2.FileDataSourceV2
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.sql.vectorized.YtFileFormat
-import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.GlobalTransaction
-import ru.yandex.spark.yt.fs.path.YPathEnriched.{YtLatestVersionPath, YtRootPath, YtTimestampPath, YtTransactionPath}
+import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.GlobalTransaction
+import tech.ytsaurus.spyt.fs.path.YPathEnriched.{YtLatestVersionPath, YtRootPath, YtTimestampPath, YtTransactionPath}
 
 class YtDataSourceV2 extends FileDataSourceV2 with SessionConfigSupport {
   private val defaultOptions: Map[String, String] = Map()
@@ -18,8 +18,8 @@ class YtDataSourceV2 extends FileDataSourceV2 with SessionConfigSupport {
   override def shortName(): String = "yt"
 
   override protected def getPaths(options: CaseInsensitiveStringMap): Seq[String] = {
-    import ru.yandex.spark.yt.format.conf.YtTableSparkSettings._
-    import ru.yandex.spark.yt.fs.conf._
+    import tech.ytsaurus.spyt.format.conf.YtTableSparkSettings._
+    import tech.ytsaurus.spyt.fs.conf._
 
     val paths = super.getPaths(options)
     val transaction = options.getYtConf(Transaction).orElse(sparkSession.getYtConf(GlobalTransaction.Id))

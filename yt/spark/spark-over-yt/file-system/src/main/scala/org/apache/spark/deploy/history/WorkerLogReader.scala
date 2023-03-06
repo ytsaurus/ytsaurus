@@ -1,8 +1,8 @@
 package org.apache.spark.deploy.history
 
-import ru.yandex.spark.yt.wrapper.model.{WorkerLogBlock, WorkerLogMeta}
-import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.Key.{APP_DRIVER, EXEC_ID, ROW_ID, STREAM}
-import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
+import tech.ytsaurus.spyt.wrapper.model.{WorkerLogBlock, WorkerLogMeta}
+import tech.ytsaurus.spyt.wrapper.model.WorkerLogSchema.Key.{APP_DRIVER, EXEC_ID, ROW_ID, STREAM}
+import tech.ytsaurus.spyt.wrapper.{LogLazy, YtWrapper}
 import tech.ytsaurus.client.CompoundClient
 
 object WorkerLogReader extends LogLazy {

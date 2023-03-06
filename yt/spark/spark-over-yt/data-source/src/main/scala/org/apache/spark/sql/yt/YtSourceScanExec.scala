@@ -17,8 +17,8 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.v2.YtFilePartition
 import org.apache.spark.sql.vectorized.{ColumnarBatch, YtFileFormat}
 import org.apache.spark.util.collection.BitSet
-import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
-import ru.yandex.spark.yt.fs.{YtDynamicPath, YtPath, YtStaticPath}
+import tech.ytsaurus.spyt.format.conf.YtTableSparkSettings
+import tech.ytsaurus.spyt.fs.{YtDynamicPath, YtPath, YtStaticPath}
 
 import java.util.concurrent.TimeUnit.NANOSECONDS
 import scala.collection.mutable.HashMap

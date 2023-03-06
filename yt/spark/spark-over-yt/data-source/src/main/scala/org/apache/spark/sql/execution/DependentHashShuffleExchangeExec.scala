@@ -10,7 +10,8 @@ import org.apache.spark.sql.execution.exchange.{REPARTITION_BY_NUM, ShuffleExcha
 import org.apache.spark.sql.execution.metric.{SQLMetric, SQLShuffleWriteMetricsReporter}
 import org.apache.spark.util.MutablePair
 import org.apache.spark.{Partitioner, ShuffleDependency}
-import ru.yandex.spark.yt.common.utils.{ExpressionTransformer, TuplePoint}
+import tech.ytsaurus.spyt.common.utils.TuplePoint
+import tech.ytsaurus.spyt.common.utils.ExpressionTransformer
 
 // child data is divided by rules from dependent hash partitioning, sorting is not provided
 class DependentHashShuffleExchangeExec(dependentPartitioning: Partitioning,

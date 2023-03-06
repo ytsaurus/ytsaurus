@@ -8,13 +8,14 @@ import org.apache.spark.sql.sources.{Filter, IsNotNull}
 import org.apache.spark.sql.types.{ArrayType, DataType, MapType, StructType}
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.sql.v2.YtScanBuilder.pushStructMetadata
-import ru.yandex.spark.yt.common.utils.ExpressionTransformer.filtersToSegmentSet
-import ru.yandex.spark.yt.common.utils.SegmentSet
-import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.KeyColumnsFilterPushdown
-import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
-import ru.yandex.spark.yt.fs.{YtDynamicPath, YtPath, YtStaticPath}
-import ru.yandex.spark.yt.logger.{YtDynTableLogger, YtLogger}
-import ru.yandex.spark.yt.serializers.SchemaConverter
+import tech.ytsaurus.spyt.common.utils.ExpressionTransformer.filtersToSegmentSet
+import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read.KeyColumnsFilterPushdown
+import tech.ytsaurus.spyt.format.conf.YtTableSparkSettings
+import tech.ytsaurus.spyt.fs.{YtDynamicPath, YtPath, YtStaticPath}
+import tech.ytsaurus.spyt.logger.YtLogger
+import tech.ytsaurus.spyt.common.utils.SegmentSet
+import tech.ytsaurus.spyt.logger.YtDynTableLogger
+import tech.ytsaurus.spyt.serializers.SchemaConverter
 
 import scala.collection.JavaConverters._
 
@@ -58,7 +59,7 @@ case class YtScanBuilder(sparkSession: SparkSession,
   }
 
   private def logPushdownDetails()(implicit ytLog: YtLogger): Unit = {
-    import ru.yandex.spark.yt.fs.conf._
+    import tech.ytsaurus.spyt.fs.conf._
 
     val pushdownEnabled = sparkSession.ytConf(KeyColumnsFilterPushdown.Enabled)
     val keyColumns = SchemaConverter.keys(schema)

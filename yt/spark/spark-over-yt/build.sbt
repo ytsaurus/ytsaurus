@@ -18,7 +18,7 @@ lazy val `yt-wrapper` = (project in file("yt-wrapper"))
     libraryDependencies ++= logging.map(_ % Provided),
     libraryDependencies ++= testDeps,
     buildInfoKeys := Seq[BuildInfoKey](version, BuildInfoKey.constant(("ytClientVersion", ytsaurusClientVersion))),
-    buildInfoPackage := "ru.yandex.spark.yt"
+    buildInfoPackage := "tech.ytsaurus.spyt"
   )
 
 lazy val `spark-fork` = (project in file("spark-fork"))
@@ -227,7 +227,7 @@ lazy val maintenance = (project in file("maintenance"))
 //    libraryDependencies ++= logging.map(_ % Provided),
 //    libraryDependencies ++= scaldingArgs,
 //    excludeDependencies += ExclusionRule(organization = "org.slf4j"),
-//    assembly / mainClass := Some("ru.yandex.spark.test.Test"),
+//    assembly / mainClass := Some("tech.ytsaurus.spark.test.Test"),
 //    publishYtArtifacts += YtPublishFile(assembly.value, "//home/sashbel", None),
 //    publishYtArtifacts += YtPublishFile(sourceDirectory.value / "main" / "python" / "test_conf.py", "//home/sashbel", None)
 //  )

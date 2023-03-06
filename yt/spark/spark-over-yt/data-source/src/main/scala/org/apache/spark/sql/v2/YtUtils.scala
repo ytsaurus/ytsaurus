@@ -5,15 +5,16 @@ import org.apache.spark.SparkException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.{MetadataBuilder, StructField, StructType}
 import org.slf4j.LoggerFactory
-import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.YtPath
-import ru.yandex.spark.yt.fs.path.YPathEnriched
-import ru.yandex.spark.yt.fs.path.YPathEnriched.ypath
-import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
-import ru.yandex.spark.yt.serializers.{SchemaConverter, SchemaConverterConfig}
-import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.client.YtClientProvider
+import tech.ytsaurus.spyt.fs.YtClientConfigurationConverter.ytClientConfiguration
+import tech.ytsaurus.spyt.fs.YtPath
+import tech.ytsaurus.spyt.fs.path.YPathEnriched
+import tech.ytsaurus.spyt.fs.path.YPathEnriched.ypath
+import tech.ytsaurus.spyt.serializers.SchemaConverter.MetadataFields
+import tech.ytsaurus.spyt.serializers.SchemaConverterConfig
+import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.spyt.serializers.{SchemaConverter, SchemaConverterConfig}
+import tech.ytsaurus.spyt.wrapper.client.YtClientProvider
 
 object YtUtils {
   object Options {

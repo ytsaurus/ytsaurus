@@ -3,11 +3,12 @@ package org.apache.spark.sql.vectorized
 import org.apache.hadoop.mapreduce.{InputSplit, RecordReader, TaskAttemptContext}
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
 import org.slf4j.LoggerFactory
-import ru.yandex.spark.yt.format.YtInputSplit
-import ru.yandex.spark.yt.format.batch.{ArrowBatchReader, BatchReader, WireRowBatchReader}
-import ru.yandex.spark.yt.serializers.ArrayAnyDeserializer
-import ru.yandex.spark.yt.wrapper.YtWrapper
+import tech.ytsaurus.spyt.format.YtInputSplit
+import tech.ytsaurus.spyt.format.batch.WireRowBatchReader
+import tech.ytsaurus.spyt.serializers.ArrayAnyDeserializer
+import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.spyt.format.batch.{ArrowBatchReader, BatchReader}
 
 import scala.concurrent.duration.Duration
 

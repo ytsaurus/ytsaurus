@@ -3,7 +3,7 @@ package org.apache.spark.deploy.master
 import org.apache.spark.serializer.{DeserializationStream, SerializationStream, Serializer}
 import org.apache.spark.util.Utils
 import org.slf4j.LoggerFactory
-import ru.yandex.spark.yt.wrapper.YtWrapper
+import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.client.CompoundClient
 
 import scala.concurrent.duration._

@@ -3,12 +3,13 @@ package org.apache.spark.deploy.history
 import org.apache.spark.SparkConf
 import org.apache.spark.deploy.history.WorkerLogReader.getLogMeta
 import org.apache.spark.ui.UIUtils
-import ru.yandex.spark.yt.fs.YtClientConfigurationConverter
-import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider}
-import ru.yandex.spark.yt.wrapper.model.WorkerLogBlock
-import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.getMetaPath
+import tech.ytsaurus.spyt.fs.YtClientConfigurationConverter
+import tech.ytsaurus.spyt.wrapper.YtWrapper
+import tech.ytsaurus.spyt.wrapper.client.YtClientConfiguration
+import tech.ytsaurus.spyt.wrapper.model.WorkerLogBlock
+import tech.ytsaurus.spyt.wrapper.model.WorkerLogSchema.getMetaPath
 import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.spyt.wrapper.client.YtClientProvider
 
 import java.util.UUID
 import javax.servlet.http.HttpServletRequest

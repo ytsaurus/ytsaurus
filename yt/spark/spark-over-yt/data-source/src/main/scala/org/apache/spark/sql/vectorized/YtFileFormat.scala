@@ -13,16 +13,19 @@ import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
 import org.apache.spark.sql.types.{AtomicType, StructType}
 import org.apache.spark.sql.v2.YtUtils
 import org.slf4j.LoggerFactory
-import ru.yandex.spark.yt.format._
-import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read._
-import ru.yandex.spark.yt.format.conf.{FilterPushdownConfig, SparkYtWriteConfiguration, YtTableSparkSettings}
-import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.{YtDynamicPath, YtFileSystemBase}
-import ru.yandex.spark.yt.logger.YtDynTableLoggerConfig
-import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
-import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.client.YtClientProvider
+import tech.ytsaurus.spyt.format._
+import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read._
+import tech.ytsaurus.spyt.format.conf.YtTableSparkSettings
+import tech.ytsaurus.spyt.fs.YtClientConfigurationConverter.ytClientConfiguration
+import tech.ytsaurus.spyt.fs.{YtDynamicPath, YtFileSystemBase}
+import tech.ytsaurus.spyt.serializers.InternalRowDeserializer
+import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.spyt.format.YtPartitionedFile
+import tech.ytsaurus.spyt.format.conf.{FilterPushdownConfig, SparkYtWriteConfiguration}
+import tech.ytsaurus.spyt.logger.YtDynTableLoggerConfig
+import tech.ytsaurus.spyt.serializers.SchemaConverter
+import tech.ytsaurus.spyt.wrapper.client.YtClientProvider
 
 class YtFileFormat extends FileFormat with DataSourceRegister with Serializable {
   override def inferSchema(sparkSession: SparkSession,
@@ -45,7 +48,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
                                               filters: Seq[Filter],
                                               options: Map[String, String],
                                               hadoopConf: Configuration): PartitionedFile => Iterator[InternalRow] = {
-    import ru.yandex.spark.yt.fs.conf._
+    import tech.ytsaurus.spyt.fs.conf._
     val ytClientConf = ytClientConfiguration(hadoopConf)
 
     val arrowEnabledValue = arrowEnabled(options, hadoopConf)
@@ -151,7 +154,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
   }
 
   def canReadBatch(dataSchema: StructType, options: Map[String, String], hadoopConf: Configuration): Boolean = {
-    import ru.yandex.spark.yt.format.conf.{YtTableSparkSettings => TableSettings}
+    import tech.ytsaurus.spyt.format.conf.{YtTableSparkSettings => TableSettings}
     val optimizedForScan = options.get(TableSettings.OptimizedForScan.name).exists(_.toBoolean)
     (optimizedForScan && arrowEnabled(options, hadoopConf) && arrowSchemaSupported(dataSchema)) || dataSchema.isEmpty
   }
@@ -161,8 +164,8 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
   }
 
   def arrowEnabled(options: Map[String, String], hadoopConf: Configuration): Boolean = {
-    import ru.yandex.spark.yt.format.conf.{SparkYtConfiguration => SparkSettings, YtTableSparkSettings => TableSettings}
-    import ru.yandex.spark.yt.fs.conf._
+    import tech.ytsaurus.spyt.format.conf.{SparkYtConfiguration => SparkSettings, YtTableSparkSettings => TableSettings}
+    import tech.ytsaurus.spyt.fs.conf._
     options.ytConf(TableSettings.ArrowEnabled) && hadoopConf.ytConf(SparkSettings.Read.ArrowEnabled)
   }
 

@@ -315,7 +315,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
             xmx)
         spark_conf = get_spark_conf(config=config, enablers=enablers)
 
-        return "{5} && {0} && {1} && {2} {3} ru.yandex.spark.launcher.{4}Launcher ".format(
+        return "{5} && {0} && {1} && {2} {3} tech.ytsaurus.spark.launcher.{4}Launcher ".format(
             unpack_tar, move_java, run_launcher, spark_conf, component, create_dir)
 
     master_command = _launcher_command("Master")

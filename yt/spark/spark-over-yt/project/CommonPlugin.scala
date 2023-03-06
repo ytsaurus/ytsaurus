@@ -31,13 +31,13 @@ object CommonPlugin extends AutoPlugin {
     }
 
     val clusterShadeRules: Seq[ShadeRule] = commonShadeRules ++ Seq(ShadeRule.rename(
-      "ru.yandex.spark.log4j.AsyncLoggerHelper" -> "ru.yandex.spark.log4j.AsyncLoggerHelper",
-      "ru.yandex.spark.yt.submit.*" -> "ru.yandex.spark.yt.submit.@1",
-      "ru.yandex.spark.yt.fs.YtCachedFileSystem" -> "ru.yandex.spark.yt.fs.YtCachedFileSystem",
-      "ru.yandex.spark.yt.fs.YtFileSystem" -> "ru.yandex.spark.yt.fs.YtFileSystem",
-      "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem" -> "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem",
-      "ru.yandex.misc.log.**" -> "ru.yandex.misc.log.@1",
-      "ru.yandex.**" -> "shadedyandex.ru.yandex.@1",
+      "tech.ytsaurus.spark.log4j.AsyncLoggerHelper" -> "tech.ytsaurus.spark.log4j.AsyncLoggerHelper",
+      "tech.ytsaurus.spyt.submit.*" -> "tech.ytsaurus.spyt.submit.@1",
+      "tech.ytsaurus.spyt.fs.YtCachedFileSystem" -> "tech.ytsaurus.spyt.fs.YtCachedFileSystem",
+      "tech.ytsaurus.spyt.fs.YtFileSystem" -> "tech.ytsaurus.spyt.fs.YtFileSystem",
+      "tech.ytsaurus.spyt.fs.eventlog.YtEventLogFileSystem" -> "tech.ytsaurus.spyt.fs.eventlog.YtEventLogFileSystem",
+      "tech.ytsaurus.misc.log.**" -> "tech.ytsaurus.misc.log.@1",
+      "tech.ytsaurus.**" -> "shadedyandex.tech.ytsaurus.@1",
       "tech.ytsaurus.**" -> "shadedyandex.tech.ytsaurus.@1",
       "org.asynchttpclient.**" -> "shadedyandex.org.asynchttpclient.@1",
       "org.objenesis.**" -> "shadedyandex.org.objenesis.@1",
@@ -46,8 +46,8 @@ object CommonPlugin extends AutoPlugin {
     ).inAll)
 
     val clientShadeRules: Seq[ShadeRule] = commonShadeRules ++ Seq(ShadeRule.rename(
-      "ru.yandex.spark.yt.format.GlobalTransactionSparkListener" -> "ru.yandex.spark.yt.format.GlobalTransactionSparkListener",
-      "ru.yandex.spark.yt.format.ExtraOptimizationsSparkListener" -> "ru.yandex.spark.yt.format.ExtraOptimizationsSparkListener",
+      "tech.ytsaurus.spyt.format.GlobalTransactionSparkListener" -> "tech.ytsaurus.spyt.format.GlobalTransactionSparkListener",
+      "tech.ytsaurus.spyt.format.ExtraOptimizationsSparkListener" -> "tech.ytsaurus.spyt.format.ExtraOptimizationsSparkListener",
       "org.objenesis.**" -> "shadeddatasource.org.objenesis.@1",
       "com.google.protobuf.**" -> "shadeddatasource.com.google.protobuf.@1",
       "NYT.**" -> "shadeddatasource.NYT.@1"

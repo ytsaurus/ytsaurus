@@ -6,10 +6,10 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.v2.YtUtils.{FileWithSchema, _}
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.spark.yt.SchemaTestUtils
-import ru.yandex.spark.yt.fs.path.YPathEnriched.YtRootPath
-import ru.yandex.spark.yt.fs.{YtFileStatus, YtStaticPath, YtStaticPathAttributes}
-import ru.yandex.spark.yt.wrapper.table.OptimizeMode
+import tech.ytsaurus.spyt.fs.path.YPathEnriched.YtRootPath
+import tech.ytsaurus.spyt.fs.{YtFileStatus, YtStaticPath, YtStaticPathAttributes}
+import tech.ytsaurus.spyt.wrapper.table.OptimizeMode
+import tech.ytsaurus.spyt.SchemaTestUtils
 
 import scala.util.Try
 

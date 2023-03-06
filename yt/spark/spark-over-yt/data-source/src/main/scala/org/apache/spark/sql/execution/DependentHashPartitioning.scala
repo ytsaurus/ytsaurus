@@ -3,7 +3,7 @@ package org.apache.spark.sql.execution
 import org.apache.spark.sql.catalyst.expressions.{Expression, Unevaluable}
 import org.apache.spark.sql.catalyst.plans.physical.{Distribution, HashClusteredDistribution, Partitioning}
 import org.apache.spark.sql.types.{DataType, IntegerType}
-import ru.yandex.spark.yt.common.utils.TuplePoint
+import tech.ytsaurus.spyt.common.utils.TuplePoint
 
 // copied from hash partitioning
 // contains partitioning that conformed with another join side

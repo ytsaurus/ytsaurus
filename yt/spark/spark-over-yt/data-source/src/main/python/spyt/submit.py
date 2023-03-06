@@ -25,7 +25,7 @@ def launch_gateway(memory="512m",
 
     command = [java, "-Xmx{}".format(memory)]
     command += java_opts or []
-    command += ["-cp", ":".join(additional_jars + _submit_classpath()), "ru.yandex.spark.yt.submit.PythonGatewayServer"]
+    command += ["-cp", ":".join(additional_jars + _submit_classpath()), "tech.ytsaurus.spyt.submit.PythonGatewayServer"]
 
     conn_info_dir = tempfile.mkdtemp()
     try:
@@ -112,9 +112,9 @@ class RetryConfig(object):
         self.retry_interval = retry_interval
 
     def _to_java(self, gateway):
-        jduration = gateway.jvm.ru.yandex.spark.yt.submit.RetryConfig.durationFromSeconds(
+        jduration = gateway.jvm.tech.ytsaurus.spyt.submit.RetryConfig.durationFromSeconds(
             int(self.retry_interval.total_seconds()))
-        return gateway.jvm.ru.yandex.spark.yt.submit.RetryConfig(self.enable_retry,
+        return gateway.jvm.tech.ytsaurus.spyt.submit.RetryConfig(self.enable_retry,
                                                                  self.retry_limit,
                                                                  jduration)
 
@@ -125,7 +125,7 @@ class SparkSubmissionClient(object):
         return instance
 
     def __init__(self, gateway, proxy, discovery_path, spyt_version, user, token):
-        self._jclient = gateway.jvm.ru.yandex.spark.yt.submit.SubmissionClient(proxy, discovery_path,
+        self._jclient = gateway.jvm.tech.ytsaurus.spyt.submit.SubmissionClient(proxy, discovery_path,
                                                                                spyt_version, user, token)
         self.gateway = gateway
 
@@ -253,7 +253,7 @@ class SparkLauncher(object):
 
     def __init__(self, jlauncher, gateway):
         self._jlauncher = jlauncher
-        self._jutils = gateway.jvm.ru.yandex.spark.yt.submit.InProcessLauncherPythonUtils
+        self._jutils = gateway.jvm.tech.ytsaurus.spyt.submit.InProcessLauncherPythonUtils
 
     def set_app_resource(self, resource):
         self._jlauncher.setAppResource(resource)

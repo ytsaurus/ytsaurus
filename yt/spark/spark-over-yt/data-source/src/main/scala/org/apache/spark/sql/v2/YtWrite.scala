@@ -7,10 +7,11 @@ import org.apache.spark.sql.execution.datasources.v2.FileWrite
 import org.apache.spark.sql.execution.datasources.{OutputWriter, OutputWriterFactory}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.{DataType, StructType}
-import ru.yandex.spark.yt.format.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
-import ru.yandex.spark.yt.format.{YtOutputCommitter, YtOutputWriter}
-import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.serializers.SchemaConverter
+import tech.ytsaurus.spyt.format.conf.YtTableSparkSettings
+import tech.ytsaurus.spyt.format.{YtOutputCommitter, YtOutputWriter}
+import tech.ytsaurus.spyt.fs.YtClientConfigurationConverter.ytClientConfiguration
+import tech.ytsaurus.spyt.format.conf.SparkYtWriteConfiguration
+import tech.ytsaurus.spyt.serializers.SchemaConverter
 
 case class YtWrite(paths: Seq[String],
                    formatName: String,
