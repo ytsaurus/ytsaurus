@@ -72,10 +72,10 @@ TStringBuf TGrpcMetadataArray::Find(const char* key) const
 
 void TGrpcMetadataArrayBuilder::Add(const char* key, TString value)
 {
-    Strings_.emplace_back(std::move(value));
+    Strings_.push_back(TSharedRef::FromString(std::move(value)));
     grpc_metadata metadata;
     metadata.key = grpc_slice_from_static_string(key);
-    metadata.value = grpc_slice_from_static_buffer(Strings_.back().data(), Strings_.back().size());
+    metadata.value = grpc_slice_from_static_buffer(Strings_.back().Begin(), Strings_.back().Size());
     NativeMetadata_.push_back(metadata);
 }
 

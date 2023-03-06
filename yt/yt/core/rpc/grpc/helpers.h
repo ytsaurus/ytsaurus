@@ -184,7 +184,7 @@ public:
 private:
     static constexpr size_t TypicalSize = 8;
     TCompactVector<grpc_metadata, TypicalSize> NativeMetadata_;
-    TCompactVector<TString, TypicalSize> Strings_;
+    TCompactVector<TSharedRef, TypicalSize> Strings_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
