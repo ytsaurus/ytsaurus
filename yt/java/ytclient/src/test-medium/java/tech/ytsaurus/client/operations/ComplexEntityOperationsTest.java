@@ -1,11 +1,13 @@
 package tech.ytsaurus.client.operations;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.persistence.Entity;
 
@@ -28,21 +30,36 @@ import tech.ytsaurus.core.operations.Yield;
 import tech.ytsaurus.ysontree.YTree;
 
 public class ComplexEntityOperationsTest extends YtClientTestBase {
+    private static final List<Stats> LIST_WITH_STATS = new ArrayList<>();
+
+    static {
+        LIST_WITH_STATS.add(new Stats(1, 2, new Info("data 1")));
+        LIST_WITH_STATS.add(new Stats(3, 4, new Info("data 2")));
+        LIST_WITH_STATS.add(null);
+    }
+
     public static class MapperOfComplexEntity implements Mapper<Product, NewProduct> {
         @Override
         public void map(Product entry, Yield<NewProduct> yield,
                         Statistics statistics,
                         OperationContext context) {
-            String name = entry.name;
-            Stats stats = entry.statistics;
+            var name = entry.name;
+            var stats = entry.statistics;
 
             var outputType = new NewProduct();
             outputType.name = name;
-            outputType.newStatistics = new Stats();
-            outputType.newStatistics.count = stats.count * 2;
-            outputType.newStatistics.size = stats.size * 3;
-            outputType.newStatistics.info = new Info();
-            outputType.newStatistics.info.data = stats.info.data.toUpperCase();
+            outputType.newStatistics = stats.stream()
+                    .map(stat -> {
+                                if (stat == null) {
+                                    return null;
+                                }
+                                return new Stats(stat.count * 2,
+                                        stat.size * 3,
+                                        new Info(stat.info.data.toUpperCase())
+                                );
+                            }
+                    )
+                    .collect(Collectors.toList());
 
             yield.yield(outputType);
         }
@@ -60,11 +77,17 @@ public class ComplexEntityOperationsTest extends YtClientTestBase {
             long sumSize = 0;
             while (input.hasNext()) {
                 NewProduct product = input.next();
-                sumCount += product.newStatistics.count;
-                sumSize += product.newStatistics.size;
+                sumCount += product.newStatistics.stream()
+                        .filter(Objects::nonNull)
+                        .mapToInt(Stats::getCount)
+                        .sum();
+                sumSize += product.newStatistics.stream()
+                        .filter(Objects::nonNull)
+                        .mapToLong(Stats::getSize)
+                        .sum();
             }
 
-            yield.yield(new NewProduct(key, new Stats(sumCount, sumSize, new Info(key))));
+            yield.yield(new NewProduct(key, List.of(new Stats(sumCount, sumSize, new Info(key)))));
         }
     }
 
@@ -80,8 +103,14 @@ public class ComplexEntityOperationsTest extends YtClientTestBase {
             long sumSize = 0;
             while (input.hasNext()) {
                 NewProduct product = input.next();
-                sumCount += product.newStatistics.count;
-                sumSize += product.newStatistics.size;
+                sumCount += product.newStatistics.stream()
+                        .filter(Objects::nonNull)
+                        .mapToInt(Stats::getCount)
+                        .sum();
+                sumSize += product.newStatistics.stream()
+                        .filter(Objects::nonNull)
+                        .mapToLong(Stats::getSize)
+                        .sum();
             }
 
             yield.yield(new Stats(sumCount, sumSize, new Info(key)));
@@ -97,8 +126,8 @@ public class ComplexEntityOperationsTest extends YtClientTestBase {
         var outputTable = ytFixture.getTestDirectory().child("map-output-table");
 
         write(yt, inputTable, List.of(
-                        new Product("a", new Stats(1, 2, new Info("data 1"))),
-                        new Product("b", new Stats(3, 4, new Info("data 2")))),
+                        new Product("a", LIST_WITH_STATS),
+                        new Product("b", List.of(new Stats(3, 4, new Info("data 3"))))),
                 Product.class
         );
 
@@ -115,8 +144,19 @@ public class ComplexEntityOperationsTest extends YtClientTestBase {
         Set<NewProduct> result = read(yt, outputTable, NewProduct.class);
 
         var expected = Set.of(
-                new NewProduct("a", new Stats(2, 6, new Info("DATA 1"))),
-                new NewProduct("b", new Stats(6, 12, new Info("DATA 2")))
+                new NewProduct("a", LIST_WITH_STATS.stream()
+                        .map(stat -> {
+                                    if (stat == null) {
+                                        return null;
+                                    }
+                                    return new Stats(stat.count * 2,
+                                            stat.size * 3,
+                                            new Info(stat.info.data.toUpperCase())
+                                    );
+                                }
+                        )
+                        .collect(Collectors.toList())),
+                new NewProduct("b", List.of(new Stats(6, 12, new Info("DATA 3"))))
         );
 
         Assert.assertEquals(expected, result);
@@ -127,12 +167,15 @@ public class ComplexEntityOperationsTest extends YtClientTestBase {
         var ytFixture = createYtFixture();
         var yt = ytFixture.getYt();
         var inputTable = ytFixture.getTestDirectory().child("reduce-input-table");
-        var outputTable = ytFixture.getTestDirectory().child("reduce-output-table");
+        var outputTable =
+                ytFixture.getTestDirectory().child("reduce-output-table");
 
-        write(yt, inputTable, List.of(
-                        new NewProduct("a", new Stats(1, 2, new Info("data 1"))),
-                        new NewProduct("b", new Stats(3, 4, new Info("data 2"))),
-                        new NewProduct("b", new Stats(5, 6, new Info("data 3")))),
+        write(yt, inputTable,
+                List.of(
+                        new NewProduct("a", LIST_WITH_STATS),
+                        new NewProduct("b", List.of(new Stats(5, 6, new Info("data 3")))),
+                        new NewProduct("b", List.of(new Stats(7, 8, new Info("data 4"))))
+                ),
                 NewProduct.class
         );
 
@@ -161,8 +204,8 @@ public class ComplexEntityOperationsTest extends YtClientTestBase {
         Set<Stats> result = read(yt, outputTable, Stats.class);
 
         Set<Stats> expected = Set.of(
-                new Stats(1, 2, new Info("a")),
-                new Stats(8, 10, new Info("b"))
+                new Stats(4, 6, new Info("a")),
+                new Stats(12, 14, new Info("b"))
         );
 
         Assert.assertEquals(expected, result);
@@ -175,10 +218,12 @@ public class ComplexEntityOperationsTest extends YtClientTestBase {
         var inputTable = ytFixture.getTestDirectory().child("mapreduce-input-table");
         var outputTable = ytFixture.getTestDirectory().child("mapreduce-output-table");
 
-        write(yt, inputTable, List.of(
-                        new Product("a", new Stats(1, 2, new Info("data 1"))),
-                        new Product("b", new Stats(3, 4, new Info("data 2"))),
-                        new Product("b", new Stats(5, 6, new Info("data 3")))),
+        write(yt, inputTable,
+                List.of(
+                        new Product("a", LIST_WITH_STATS),
+                        new Product("b", List.of(new Stats(5, 6, new Info("data 3")))),
+                        new Product("b", List.of(new Stats(7, 8, new Info("data 4"))))
+                ),
                 Product.class
         );
 
@@ -202,8 +247,8 @@ public class ComplexEntityOperationsTest extends YtClientTestBase {
         Set<Stats> result = read(yt, outputTable, Stats.class);
 
         Set<Stats> expected = Set.of(
-                new Stats(2, 6, new Info("a")),
-                new Stats(16, 30, new Info("b"))
+                new Stats(8, 18, new Info("a")),
+                new Stats(24, 42, new Info("b"))
         );
 
         Assert.assertEquals(expected, result);
@@ -259,12 +304,12 @@ public class ComplexEntityOperationsTest extends YtClientTestBase {
     @Entity
     private static class Product {
         String name;
-        Stats statistics;
+        List<Stats> statistics;
 
         Product() {
         }
 
-        Product(String name, Stats statistics) {
+        Product(String name, List<Stats> statistics) {
             this.name = name;
             this.statistics = statistics;
         }
@@ -283,6 +328,14 @@ public class ComplexEntityOperationsTest extends YtClientTestBase {
             this.count = count;
             this.size = size;
             this.info = info;
+        }
+
+        public int getCount() {
+            return count;
+        }
+
+        public long getSize() {
+            return size;
         }
 
         @Override
@@ -335,12 +388,12 @@ public class ComplexEntityOperationsTest extends YtClientTestBase {
     @Entity
     private static class NewProduct {
         String name;
-        Stats newStatistics;
+        List<Stats> newStatistics;
 
         NewProduct() {
         }
 
-        NewProduct(String name, Stats newStatistics) {
+        NewProduct(String name, List<Stats> newStatistics) {
             this.name = name;
             this.newStatistics = newStatistics;
         }

@@ -1,7 +1,6 @@
 package tech.ytsaurus.skiff.serialization;
 
 import java.lang.reflect.Field;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -24,8 +23,8 @@ class EntityFieldDescr {
         return isTransient;
     }
 
-    static List<EntityFieldDescr> of(Field[] fields) {
-        return Arrays.stream(fields)
+    static List<EntityFieldDescr> of(List<Field> fields) {
+        return fields.stream()
                 .map(EntityFieldDescr::new)
                 .collect(Collectors.toUnmodifiableList());
     }

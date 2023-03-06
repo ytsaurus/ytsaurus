@@ -2,6 +2,8 @@ package tech.ytsaurus.skiff.serialization;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -18,7 +20,8 @@ import static tech.ytsaurus.core.utils.ClassUtils.anyMatchWithAnnotation;
 import static tech.ytsaurus.core.utils.ClassUtils.anyOfAnnotationsPresent;
 import static tech.ytsaurus.core.utils.ClassUtils.getAllDeclaredFields;
 import static tech.ytsaurus.core.utils.ClassUtils.getAnnotationIfPresent;
-import static tech.ytsaurus.core.utils.ClassUtils.getTypeParameterOfGeneric;
+import static tech.ytsaurus.core.utils.ClassUtils.getTypeParametersOfGeneric;
+import static tech.ytsaurus.core.utils.ClassUtils.getTypeParametersOfGenericField;
 import static tech.ytsaurus.core.utils.ClassUtils.isFieldTransient;
 import static tech.ytsaurus.skiff.serialization.TiTypeUtil.getTiTypeIfSimple;
 
@@ -44,28 +47,39 @@ public class EntityTableSchemaCreator {
     }
 
     private static ColumnSchema getFieldColumnSchema(Field field) {
+        List<Type> genericTypeParameters = new ArrayList<>();
         if (Collection.class.isAssignableFrom(field.getType())) {
-            return getCollectionColumnSchema(field);
+            genericTypeParameters.addAll(getTypeParametersOfGenericField(field));
         }
         return getClassColumnSchema(
                 field.getType(),
                 field.getName(),
-                !field.getType().isPrimitive(),
-                getAnnotationIfPresent(field, JavaPersistenceApi.columnAnnotations()).orElse(null)
+                getAnnotationIfPresent(field, JavaPersistenceApi.columnAnnotations()).orElse(null),
+                genericTypeParameters
         );
     }
 
-    private static <T> ColumnSchema getClassColumnSchema(Class<T> clazz, String name,
-                                                         boolean isNullable,
-                                                         @Nullable Annotation annotation) {
+    private static <T> ColumnSchema getClassColumnSchema(Class<T> clazz,
+                                                         String name,
+                                                         @Nullable Annotation annotation,
+                                                         List<Type> genericTypeParameters) {
         Optional<TiType> tiTypeIfSimple = getTiTypeIfSimple(clazz);
+        boolean isNullable = true;
         if (annotation != null &&
                 anyMatchWithAnnotation(annotation, JavaPersistenceApi.columnAnnotations())) {
             name = JavaPersistenceApi.getColumnName(annotation);
             isNullable = JavaPersistenceApi.isColumnNullable(annotation);
         }
 
-        TiType tiType = tiTypeIfSimple.orElseGet(() -> getComplexTiType(clazz));
+        TiType tiType;
+        if (Collection.class.isAssignableFrom(clazz)) {
+            tiType = getCollectionTiType(clazz, genericTypeParameters);
+        } else if (clazz.isArray()) {
+            tiType = getArrayTiType(clazz);
+        } else {
+            tiType = tiTypeIfSimple.orElseGet(() -> getComplexTiType(clazz));
+        }
+
         if (isNullable && !clazz.isPrimitive()) {
             tiType = TiType.optional(tiType);
         }
@@ -90,34 +104,50 @@ public class EntityTableSchemaCreator {
         return new StructType.Member(columnSchema.getName(), columnSchema.getTypeV3());
     }
 
-    private static ColumnSchema getCollectionColumnSchema(Field fieldWithCollection) {
-        Class<?> elementType = getTypeParameterOfGeneric(fieldWithCollection);
+    private static TiType getCollectionTiType(Class<?> collectionClass, List<Type> typeParameters) {
         TiType tiType;
-        if (List.class.isAssignableFrom(fieldWithCollection.getType())) {
-            tiType = getListFieldTiType(elementType);
+        if (List.class.isAssignableFrom(collectionClass)) {
+            tiType = getListTiType(typeParameters.get(0));
         } else {
-            throw new IllegalArgumentException("This collection (\"" + fieldWithCollection.getType().getName() +
+            throw new IllegalArgumentException("This collection (\"" + collectionClass.getName() +
                     "\") is not supported");
         }
-
-        String name = fieldWithCollection.getName();
-        boolean isNullable = true;
-        if (anyOfAnnotationsPresent(fieldWithCollection, JavaPersistenceApi.columnAnnotations())) {
-            Annotation columnAnnotation =
-                    getAnnotationIfPresent(fieldWithCollection, JavaPersistenceApi.columnAnnotations())
-                            .orElseThrow(IllegalStateException::new);
-            name = JavaPersistenceApi.getColumnName(columnAnnotation);
-            isNullable = JavaPersistenceApi.isColumnNullable(columnAnnotation);
-        }
-
-        if (isNullable) {
-            tiType = TiType.optional(tiType);
-        }
-
-        return new ColumnSchema(name, tiType);
+        return tiType;
     }
 
-    private static TiType getListFieldTiType(Class<?> elementType) {
-        return getClassColumnSchema(elementType, "", false, null).getTypeV3();
+    private static TiType getListTiType(Type elementType) {
+        Class<?> elementClass;
+        List<Type> elementTypeParameters;
+        if (elementType instanceof Class) {
+            elementClass = (Class<?>) elementType;
+            elementTypeParameters = List.of();
+        } else if (elementType instanceof ParameterizedType) {
+            elementClass = (Class<?>) ((ParameterizedType) elementType).getRawType();
+            elementTypeParameters = getTypeParametersOfGeneric(elementType);
+        } else {
+            throw new IllegalArgumentException("Illegal list type parameter");
+        }
+        return TiType.list(
+                getClassColumnSchema(
+                        elementClass,
+                        "",
+                        null,
+                        elementTypeParameters)
+                        .getTypeV3()
+        );
+    }
+
+    private static TiType getArrayTiType(Class<?> arrayClass) {
+        if (!arrayClass.isArray()) {
+            throw new IllegalArgumentException("Argument must be array");
+        }
+        return TiType.list(
+                getClassColumnSchema(
+                        arrayClass.getComponentType(),
+                        "",
+                        null,
+                        List.of())
+                        .getTypeV3()
+        );
     }
 }

@@ -114,7 +114,10 @@ public class ClassUtils {
             return new ArrayList<>();
         }
 
-        List<Field> fields = getAllDeclaredFields(superClazz);
+        List<Field> fields = getAllDeclaredFields(superClazz).stream()
+                .filter(field -> Modifier.isPublic(field.getModifiers())
+                        || Modifier.isProtected(field.getModifiers()))
+                .collect(Collectors.toList());
         fields.addAll(Arrays.asList(clazz.getDeclaredFields()));
         return fields;
     }
@@ -124,13 +127,118 @@ public class ClassUtils {
         return (Type) object;
     }
 
-    @SuppressWarnings("unchecked")
-    public static <E, T> List<E> castToList(T object) {
-        return (List<E>) object;
+    public static <E, T> E[] boxArray(T array, Class<?> elementClass) {
+        if (elementClass.equals(int.class)) {
+            return castToType(Arrays.stream((int[]) array).boxed().toArray(Integer[]::new));
+        }
+        if (elementClass.equals(long.class)) {
+            return castToType(Arrays.stream((long[]) array).boxed().toArray(Long[]::new));
+        }
+        if (elementClass.equals(double.class)) {
+            return castToType(Arrays.stream((double[]) array).boxed().toArray(Double[]::new));
+        }
+        if (elementClass.equals(byte.class)) {
+            var unboxedArray = (byte[]) array;
+            var boxedArray = new Byte[unboxedArray.length];
+            for (int i = 0; i < boxedArray.length; i++) {
+                boxedArray[i] = unboxedArray[i];
+            }
+            return castToType(boxedArray);
+        }
+        if (elementClass.equals(short.class)) {
+            var unboxedArray = (short[]) array;
+            var boxedArray = new Short[unboxedArray.length];
+            for (int i = 0; i < boxedArray.length; i++) {
+                boxedArray[i] = unboxedArray[i];
+            }
+            return castToType(boxedArray);
+        }
+        if (elementClass.equals(float.class)) {
+            var unboxedArray = (float[]) array;
+            var boxedArray = new Float[unboxedArray.length];
+            for (int i = 0; i < boxedArray.length; i++) {
+                boxedArray[i] = unboxedArray[i];
+            }
+            return castToType(boxedArray);
+        }
+        if (elementClass.equals(boolean.class)) {
+            var unboxedArray = (boolean[]) array;
+            var boxedArray = new Boolean[unboxedArray.length];
+            for (int i = 0; i < boxedArray.length; i++) {
+                boxedArray[i] = unboxedArray[i];
+            }
+            return castToType(boxedArray);
+        }
+        if (elementClass.equals(char.class)) {
+            var unboxedArray = (char[]) array;
+            var boxedArray = new Character[unboxedArray.length];
+            for (int i = 0; i < boxedArray.length; i++) {
+                boxedArray[i] = unboxedArray[i];
+            }
+            return castToType(boxedArray);
+        }
+        throw new IllegalArgumentException("Elements of array are not primitive");
     }
 
-    public static Class<?> getTypeParameterOfGeneric(Field field) {
-        return (Class<?>) ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
+    public static <T, O> O unboxArray(T array, Class<?> elementClass) {
+        if (elementClass.equals(Integer.class)) {
+            return castToType(Arrays.stream((Integer[]) array).mapToInt(Integer::intValue).toArray());
+        }
+        if (elementClass.equals(Long.class)) {
+            return castToType(Arrays.stream((Long[]) array).mapToLong(Long::longValue).toArray());
+        }
+        if (elementClass.equals(Double.class)) {
+            return castToType(Arrays.stream((Double[]) array).mapToDouble(Double::doubleValue).toArray());
+        }
+        if (elementClass.equals(Byte.class)) {
+            var boxedArray = (Byte[]) array;
+            var unboxedArray = new byte[boxedArray.length];
+            for (int i = 0; i < boxedArray.length; i++) {
+                unboxedArray[i] = boxedArray[i];
+            }
+            return castToType(unboxedArray);
+        }
+        if (elementClass.equals(Short.class)) {
+            var boxedArray = (Short[]) array;
+            var unboxedArray = new short[boxedArray.length];
+            for (int i = 0; i < boxedArray.length; i++) {
+                unboxedArray[i] = boxedArray[i];
+            }
+            return castToType(unboxedArray);
+        }
+        if (elementClass.equals(Float.class)) {
+            var boxedArray = (Float[]) array;
+            var unboxedArray = new float[boxedArray.length];
+            for (int i = 0; i < boxedArray.length; i++) {
+                unboxedArray[i] = boxedArray[i];
+            }
+            return castToType(unboxedArray);
+        }
+        if (elementClass.equals(Boolean.class)) {
+            var boxedArray = (Boolean[]) array;
+            var unboxedArray = new boolean[boxedArray.length];
+            for (int i = 0; i < boxedArray.length; i++) {
+                unboxedArray[i] = boxedArray[i];
+            }
+            return castToType(unboxedArray);
+        }
+        if (elementClass.equals(Character.class)) {
+            var boxedArray = (Character[]) array;
+            var unboxedArray = new char[boxedArray.length];
+            for (int i = 0; i < boxedArray.length; i++) {
+                unboxedArray[i] = boxedArray[i];
+            }
+            return castToType(unboxedArray);
+        }
+        throw new IllegalArgumentException("Elements of array are not primitive");
+    }
+
+    public static List<Type> getTypeParametersOfGenericField(Field field) {
+        return getTypeParametersOfGeneric(field.getGenericType());
+    }
+
+    public static List<Type> getTypeParametersOfGeneric(Type type) {
+        return List.of(((ParameterizedType) type).getActualTypeArguments());
     }
 
     public static boolean isFieldTransient(Field field, Set<String> transientAnnotations) {
@@ -166,9 +274,7 @@ public class ClassUtils {
         }
     }
 
-    public static void setFieldsAccessibleToTrue(Field[] fields) {
-        for (var field : fields) {
-            field.setAccessible(true);
-        }
+    public static void setFieldsAccessibleToTrue(List<Field> fields) {
+        fields.forEach(field -> field.setAccessible(true));
     }
 }

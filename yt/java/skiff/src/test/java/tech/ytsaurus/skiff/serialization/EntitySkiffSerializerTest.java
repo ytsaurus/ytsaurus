@@ -125,8 +125,8 @@ public class EntitySkiffSerializerTest {
 
         byte[] expectedBytes = ByteBuffer
                 .allocate(3 + lengthOfNameBytes.length + nameBytes.length +
-                        ageBytes.length + phoneNumberBytes.length + 1 + lengthOfFirstOrganizationBytes.length +
-                        firstOrganizationBytes.length + 2 + lengthOfThirdOrganizationBytes.length +
+                        ageBytes.length + phoneNumberBytes.length + 2 + lengthOfFirstOrganizationBytes.length +
+                        firstOrganizationBytes.length + 4 + lengthOfThirdOrganizationBytes.length +
                         thirdOrganizationBytes.length + 1)
                 .put(lengthOfNameBytes)
                 .put(nameBytes)
@@ -134,9 +134,12 @@ public class EntitySkiffSerializerTest {
                 .put((byte) 0x01)
                 .put(phoneNumberBytes)
                 .put((byte) 0x01)
+                .put((byte) 0x00)
                 .put((byte) 0x01)
                 .put(lengthOfFirstOrganizationBytes)
                 .put(firstOrganizationBytes)
+                .put((byte) 0x00)
+                .put((byte) 0x00)
                 .put((byte) 0x00)
                 .put((byte) 0x01)
                 .put(lengthOfThirdOrganizationBytes)
