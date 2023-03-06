@@ -523,6 +523,66 @@ void TJob::OnJobPrepared()
     });
 }
 
+void TJob::Finalize()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    if (std::exchange(Finalized_, true)) {
+        YT_LOG_DEBUG("Job is already finalized");
+
+        return;
+    }
+
+    TForbidContextSwitchGuard guard;
+
+    YT_LOG_DEBUG("Finalize job");
+
+    FinishTime_ = TInstant::Now();
+
+    YT_VERIFY(Error_);
+
+    // Copy info from traffic meter to statistics.
+    auto statistics = ConvertTo<TStatistics>(StatisticsYson_);
+    FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, statistics, TrafficMeter_);
+    StatisticsYson_ = ConvertToYsonString(statistics);
+
+    auto& error = *Error_;
+
+    if (error.IsOK()) {
+        SetJobState(EJobState::Completed);
+    } else if (IsFatalError(error)) {
+        error.MutableAttributes()->Set("fatal", true);
+        SetJobState(EJobState::Failed);
+    } else {
+        auto abortReason = GetAbortReason();
+        if (abortReason) {
+            error.MutableAttributes()->Set("abort_reason", abortReason);
+            SetJobState(EJobState::Aborted);
+        } else {
+            SetJobState(EJobState::Failed);
+        }
+    }
+
+    if (!error.IsOK()) {
+        // NB: it is required to report error that occurred in some place different
+        // from OnJobFinished method.
+        HandleJobReport(MakeDefaultJobReport().Error(error));
+    }
+
+    // NB: we should disable slot here to give scheduler information about job failure.
+    if (error.FindMatching(EErrorCode::GpuCheckCommandFailed) && !error.FindMatching(EErrorCode::GpuCheckCommandIncorrect)) {
+        Bootstrap_->GetSlotManager()->OnGpuCheckCommandFailed(error);
+    }
+
+    YT_LOG_INFO(
+        error,
+        "Setting final job state (JobState: %v, ResourceUsage: %v)",
+        GetState(),
+        GetResourceUsage());
+
+    JobFinished_.Fire();
+}
+
 void TJob::OnResultReceived(TJobResult jobResult)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -1268,14 +1328,7 @@ const std::optional<NScheduler::TPreemptedFor>& TJob::GetPreemptedFor() const no
 
 bool TJob::IsFinished() const noexcept
 {
-    switch (JobState_) {
-        case EJobState::Aborted:
-        case EJobState::Completed:
-        case EJobState::Failed:
-            return true;
-        default:
-            return false;
-    }
+    return JobPhase_ == EJobPhase::Finished;
 }
 
 // Helpers.
@@ -1757,6 +1810,8 @@ void TJob::Cleanup()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    Finalize();
+
     if (JobPhase_ == EJobPhase::Cleanup || JobPhase_ == EJobPhase::Finished) {
         return;
     }
@@ -1792,42 +1847,6 @@ void TJob::Cleanup()
         }));
     }
 
-    YT_VERIFY(Error_);
-
-    // Copy info from traffic meter to statistics.
-    auto statistics = ConvertTo<TStatistics>(StatisticsYson_);
-    FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, statistics, TrafficMeter_);
-    StatisticsYson_ = ConvertToYsonString(statistics);
-
-    auto& error = *Error_;
-
-    if (error.IsOK()) {
-        SetJobState(EJobState::Completed);
-    } else if (IsFatalError(error)) {
-        error.MutableAttributes()->Set("fatal", true);
-        SetJobState(EJobState::Failed);
-    } else {
-        auto abortReason = GetAbortReason();
-        if (abortReason) {
-            error.MutableAttributes()->Set("abort_reason", abortReason);
-            SetJobState(EJobState::Aborted);
-        } else {
-            SetJobState(EJobState::Failed);
-        }
-    }
-
-    if (!error.IsOK()) {
-        // NB: it is required to report error that occurred in some place different
-        // from OnJobFinished method.
-        HandleJobReport(MakeDefaultJobReport().Error(error));
-    }
-
-    YT_LOG_INFO(
-        error,
-        "Setting final job state (JobState: %v, ResourceUsage: %v)",
-        GetState(),
-        GetResourceUsage());
-
     // Release resources.
     GpuSlots_.clear();
     GpuStatistics_.clear();
@@ -1838,8 +1857,6 @@ void TJob::Cleanup()
 
         TResourceHolder::SetResourceUsage(oneUserSlotResources);
     }
-
-    JobFinished_.Fire();
 
     if (Slot_) {
         if (ShouldCleanSandboxes()) {
@@ -1856,11 +1873,6 @@ void TJob::Cleanup()
         }
         YT_LOG_DEBUG("Release slot (SlotIndex: %v)", Slot_->GetSlotIndex());
         Slot_.Reset();
-    }
-
-    // NB: we should disable slot here to give scheduler information about job failure.
-    if (error.FindMatching(EErrorCode::GpuCheckCommandFailed) && !error.FindMatching(EErrorCode::GpuCheckCommandIncorrect)) {
-        Bootstrap_->GetSlotManager()->OnGpuCheckCommandFailed(error);
     }
 
     ReleaseResources();
