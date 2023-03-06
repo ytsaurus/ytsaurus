@@ -431,7 +431,7 @@ private:
             CompareKeys(
                 TRange(row.BeginKeys(), row.GetKeyCount()),
                 ToKeyRef(Keys_[requestIndex]),
-                KeyComparer_.Get()) == 0)
+                KeyComparer_) == 0)
         {
             request->State = EKeyRequestState::Finished;
             Result_[requestIndex] = row;

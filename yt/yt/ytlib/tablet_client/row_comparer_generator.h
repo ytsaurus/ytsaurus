@@ -7,8 +7,6 @@
 
 #include <yt/yt/ytlib/tablet_client/dynamic_value.h>
 
-#include <yt/yt/library/codegen/function.h>
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT::NTabletClient {
@@ -25,9 +23,9 @@ typedef int(TUUComparerSignature)(const TUnversionedValue*, const TUnversionedVa
 
 struct TCGKeyComparers
 {
-    NCodegen::TCGFunction<TDDComparerSignature> DDComparer;
-    NCodegen::TCGFunction<TDUComparerSignature> DUComparer;
-    NCodegen::TCGFunction<TUUComparerSignature> UUComparer;
+    TCallback<TDDComparerSignature> DDComparer;
+    TCallback<TDUComparerSignature> DUComparer;
+    TCallback<TUUComparerSignature> UUComparer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

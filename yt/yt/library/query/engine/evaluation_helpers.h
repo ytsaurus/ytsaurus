@@ -11,8 +11,6 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/library/codegen/function.h>
-
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 #include <deque>
@@ -311,12 +309,12 @@ typedef void (TCGAggregateUpdateSignature)(TExpressionContext*, TValue*, const T
 typedef void (TCGAggregateMergeSignature)(TExpressionContext*, TValue*, const TValue*);
 typedef void (TCGAggregateFinalizeSignature)(TExpressionContext*, TValue*, const TValue*);
 
-using TCGQueryCallback = NCodegen::TCGFunction<TCGQuerySignature>;
-using TCGExpressionCallback = NCodegen::TCGFunction<TCGExpressionSignature>;
-using TCGAggregateInitCallback = NCodegen::TCGFunction<TCGAggregateInitSignature>;
-using TCGAggregateUpdateCallback = NCodegen::TCGFunction<TCGAggregateUpdateSignature>;
-using TCGAggregateMergeCallback = NCodegen::TCGFunction<TCGAggregateMergeSignature>;
-using TCGAggregateFinalizeCallback = NCodegen::TCGFunction<TCGAggregateFinalizeSignature>;
+using TCGQueryCallback = TCallback<TCGQuerySignature>;
+using TCGExpressionCallback = TCallback<TCGExpressionSignature>;
+using TCGAggregateInitCallback = TCallback<TCGAggregateInitSignature>;
+using TCGAggregateUpdateCallback = TCallback<TCGAggregateUpdateSignature>;
+using TCGAggregateMergeCallback = TCallback<TCGAggregateMergeSignature>;
+using TCGAggregateFinalizeCallback = TCallback<TCGAggregateFinalizeSignature>;
 
 struct TCGAggregateCallbacks
 {

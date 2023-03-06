@@ -4,7 +4,9 @@
 
 #include "key.h"
 
-#include <yt/yt/library/codegen/function.h>
+#include <yt/yt/core/actions/callback.h>
+
+#include <yt/yt/library/codegen/caller.h>
 
 namespace NYT::NTableClient {
 
@@ -102,16 +104,20 @@ int GetCompareSign(int value);
 
 //! Obeys the usual rule: the result's sign incidates the comparion outcome.
 //! Also |abs(result) - 1| is equal to index of first non-equal component.
+template <typename TComparer>
+int CompareKeys(TUnversionedValueRange lhs, TUnversionedValueRange rhs, const TComparer& prefixComparer);
 int ComparePrefix(const TUnversionedValue* lhs, const TUnversionedValue* rhs, int length);
-int CompareKeys(TUnversionedValueRange lhs, TUnversionedValueRange rhs, TPrefixComparer prefixComparer);
 int CompareKeys(TLegacyKey lhs, TLegacyKey rhs, TPrefixComparer prefixComparer);
+int CompareKeys(TLegacyKey lhs, TLegacyKey rhs, const TKeyComparer& prefixComparer);
 
 class TKeyComparer
-    : public NCodegen::TCGFunction<TPrefixComparer>
+    : public TCallback<TPrefixComparer>
 {
 public:
-    using TBase = NCodegen::TCGFunction<TPrefixComparer>;
+    using TBase = TCallback<TPrefixComparer>;
     using TBase::TBase;
+
+    using TCaller = NCodegen::TCGCaller<TPrefixComparer>;
 
     TKeyComparer(const TBase& base);
     TKeyComparer();
@@ -144,10 +150,11 @@ TKeyBoundRef ToKeyBoundRef(TUnversionedRow row, bool upper, int keyLength);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TComparer>
 int CompareWithWidening(
     TUnversionedValueRange keyPrefix,
     TUnversionedValueRange boundKey,
-    TPrefixComparer prefixComparer);
+    const TComparer& prefixComparer);
 int CompareWithWidening(
     TUnversionedValueRange keyPrefix,
     TUnversionedValueRange boundKey);
@@ -155,6 +162,7 @@ int CompareWithWidening(
 int TestKey(TUnversionedValueRange key, const TKeyBoundRef& bound, TRange<ESortOrder> sortOrders);
 int TestKeyWithWidening(TUnversionedValueRange key, const TKeyBoundRef& bound);
 int TestKeyWithWidening(TUnversionedValueRange key, const TKeyBoundRef& bound, TPrefixComparer prefixComparer);
+int TestKeyWithWidening(TUnversionedValueRange key, const TKeyBoundRef& bound, const TKeyComparer& prefixComparer);
 int TestKeyWithWidening(TUnversionedValueRange key, const TKeyBoundRef& bound, TRange<ESortOrder> sortOrders);
 
 int TestComparisonResult(int result, TRange<ESortOrder> sortOrders, bool inclusive, bool upper);
@@ -166,3 +174,7 @@ void FormatValue(TStringBuilderBase* builder, ESortOrder sortOrder, TStringBuf /
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
+
+#define COMPARATOR_INL_H_
+#include "comparator-inl.h"
+#undef COMPARATOR_INL_H_
