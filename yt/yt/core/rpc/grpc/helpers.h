@@ -182,7 +182,7 @@ public:
     grpc_metadata* Unwrap();
 
 private:
-    static constexpr size_t TypicalSize = 4;
+    static constexpr size_t TypicalSize = 8;
     TCompactVector<grpc_metadata, TypicalSize> NativeMetadata_;
     TCompactVector<TString, TypicalSize> Strings_;
 };

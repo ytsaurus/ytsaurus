@@ -320,8 +320,12 @@ private:
             if (const auto traceContext = NTracing::GetCurrentTraceContext()) {
                 InitialMetadataBuilder_.Add(TracingTraceIdMetadataKey, ToString(traceContext->GetTraceId()));
                 InitialMetadataBuilder_.Add(TracingSpanIdMetadataKey, ToString(traceContext->GetSpanId()));
-                InitialMetadataBuilder_.Add(TracingSampledMetadataKey, ToString(traceContext->IsSampled()));
-                InitialMetadataBuilder_.Add(TracingDebugMetadataKey, ToString(traceContext->IsDebug()));
+                if (traceContext->IsSampled()) {
+                    InitialMetadataBuilder_.Add(TracingSampledMetadataKey, "1");
+                }
+                if (traceContext->IsDebug()) {
+                    InitialMetadataBuilder_.Add(TracingDebugMetadataKey, "1");
+                }
             }
 
             try {
