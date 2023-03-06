@@ -268,7 +268,7 @@ bool TSlimVersionedBlockReader::SkipToKey(TLegacyKey key)
 
     auto inBound = [&] (TUnversionedRow pivot) {
         // Key is already widened here.
-        return CompareKeys(pivot, key, KeyComparer_.Get()) >= 0;
+        return CompareKeys(pivot, key, KeyComparer_) >= 0;
     };
 
     if (inBound(GetKey())) {

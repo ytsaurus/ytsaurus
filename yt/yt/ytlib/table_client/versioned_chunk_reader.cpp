@@ -266,7 +266,7 @@ public:
 
         while (rows.size() < rows.capacity()) {
             if (CheckKeyLimit_ &&
-                CompareKeys(BlockReader_->GetKey(), GetCurrentRangeUpperKey(), KeyComparer_.Get()) >= 0)
+                CompareKeys(BlockReader_->GetKey(), GetCurrentRangeUpperKey(), KeyComparer_) >= 0)
             {
                 if (++RangeIndex_ < Ranges_.Size()) {
                     if (!BlockReader_->SkipToKey(GetCurrentRangeLowerKey())) {

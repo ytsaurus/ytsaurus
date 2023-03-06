@@ -32,12 +32,12 @@ int TSortedDynamicRowKeyComparer::operator()(TUnversionedValueRange lhs, TSorted
 
 int TSortedDynamicRowKeyComparer::operator()(TUnversionedValueRange lhs, TUnversionedValueRange rhs) const
 {
-    return CompareKeys(lhs, rhs, UUComparer.Get());
+    return CompareKeys(lhs, rhs, UUComparer);
 }
 
 int TSortedDynamicRowKeyComparer::operator()(TUnversionedRow lhs, TUnversionedRow rhs) const
 {
-    return CompareKeys(ToKeyRef(lhs), ToKeyRef(rhs), UUComparer.Get());
+    return CompareKeys(ToKeyRef(lhs), ToKeyRef(rhs), UUComparer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

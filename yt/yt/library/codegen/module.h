@@ -1,9 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "function.h"
 #include "routine_registry.h"
 #include "type_builder.h"
+
+#include <yt/yt/core/actions/callback.h>
 
 #include <library/cpp/yt/memory/ref.h>
 
@@ -47,7 +48,7 @@ public:
     void ExportSymbol(const TString& name);
 
     template <class TSignature>
-    TCGFunction<TSignature> GetCompiledFunction(const TString& name);
+    TCallback<TSignature> GetCompiledFunction(const TString& name);
 
     void AddObjectFile(std::unique_ptr<llvm::object::ObjectFile> sharedObject);
 

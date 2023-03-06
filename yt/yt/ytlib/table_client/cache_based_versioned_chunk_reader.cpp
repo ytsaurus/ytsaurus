@@ -163,7 +163,7 @@ protected:
                 return !TestKeyWithWidening(
                     ToKeyRef(*blockLastKey, CommonKeyPrefix_),
                     lowerBound,
-                    KeyComparer_.Get());
+                    KeyComparer_);
             }) - blockLastKeys.begin();
 
     }
@@ -428,7 +428,7 @@ private:
             YT_VERIFY(blockReader->SkipToRowIndex(rowIndex));
 
             // Key is widened here.
-            if (CompareKeys(blockReader->GetKey(), key, this->KeyComparer_.Get()) == 0) {
+            if (CompareKeys(blockReader->GetKey(), key, this->KeyComparer_) == 0) {
                 return this->CaptureRow(blockReader);
             }
         }
@@ -451,7 +451,7 @@ private:
 
         // Key is widened here.
         if (!blockReader->SkipToKey(key) ||
-            CompareKeys(blockReader->GetKey(), key, this->KeyComparer_.Get()) != 0)
+            CompareKeys(blockReader->GetKey(), key, this->KeyComparer_) != 0)
         {
             ++this->ChunkState_->PerformanceCounters->StaticChunkRowLookupFalsePositiveCount;
             return {};

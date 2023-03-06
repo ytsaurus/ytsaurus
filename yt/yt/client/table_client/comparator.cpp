@@ -356,22 +356,12 @@ int ComparePrefix(const TUnversionedValue* lhs, const TUnversionedValue* rhs, in
     return 0;
 }
 
-int CompareKeys(TUnversionedValueRange lhs, TUnversionedValueRange rhs, TPrefixComparer prefixComparer)
+int CompareKeys(TLegacyKey lhs, TLegacyKey rhs, TPrefixComparer prefixComparer)
 {
-    auto minCount = std::min(lhs.Size(), rhs.Size());
-    auto result = prefixComparer(lhs.Begin(), rhs.Begin(), minCount);
-    if (result == 0) {
-        if (lhs.Size() < rhs.Size()) {
-            result = -(minCount + 1);
-        } else if (lhs.Size() > rhs.Size()) {
-            result = minCount + 1;
-        }
-    }
-
-    return GetCompareSign(result);
+    return CompareKeys(ToKeyRef(lhs), ToKeyRef(rhs), prefixComparer);
 }
 
-int CompareKeys(TLegacyKey lhs, TLegacyKey rhs, TPrefixComparer prefixComparer)
+int CompareKeys(TLegacyKey lhs, TLegacyKey rhs, const TKeyComparer& prefixComparer)
 {
     return CompareKeys(ToKeyRef(lhs), ToKeyRef(rhs), prefixComparer);
 }
@@ -381,7 +371,14 @@ TKeyComparer::TKeyComparer(const TBase& base)
 { }
 
 TKeyComparer::TKeyComparer()
-    : TBase(reinterpret_cast<uintptr_t>(&ComparePrefix), nullptr)
+    : TBase(
+        New<TCaller>(
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+            FROM_HERE,
+#endif
+            nullptr,
+            &ComparePrefix),
+        &TCaller::StaticInvoke)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -457,34 +454,6 @@ int TestComparisonResult(int result, bool inclusive, bool upper)
 
 int CompareWithWidening(
     TUnversionedValueRange keyPrefix,
-    TUnversionedValueRange boundKey,
-    TPrefixComparer prefixComparer)
-{
-    int result;
-    if (keyPrefix.size() < boundKey.size()) {
-        result = prefixComparer(keyPrefix.begin(), boundKey.begin(), keyPrefix.size());
-
-        if (result == 0) {
-            // Key is widened with nulls. Compare them with bound.
-            int index = keyPrefix.size();
-            while (index < std::ssize(boundKey)) {
-                if (boundKey[index].Type != EValueType::Null) {
-                    // Negative value because null is less than non-null value type.
-                    result = -(index + 1);
-                    break;
-                }
-                ++index;
-            }
-        }
-    } else {
-        result = prefixComparer(keyPrefix.begin(), boundKey.begin(), boundKey.size());
-    }
-
-    return result;
-}
-
-int CompareWithWidening(
-    TUnversionedValueRange keyPrefix,
     TUnversionedValueRange boundKey)
 {
     return CompareWithWidening(keyPrefix, boundKey, ComparePrefix);
@@ -511,6 +480,12 @@ int TestKeyWithWidening(TUnversionedValueRange key, const TKeyBoundRef& bound)
 }
 
 int TestKeyWithWidening(TUnversionedValueRange key, const TKeyBoundRef& bound, TPrefixComparer prefixComparer)
+{
+    int result = CompareWithWidening(key, bound, prefixComparer);
+    return TestComparisonResult(result, bound.Inclusive, bound.Upper);
+}
+
+int TestKeyWithWidening(TUnversionedValueRange key, const TKeyBoundRef& bound, const TKeyComparer& prefixComparer)
 {
     int result = CompareWithWidening(key, bound, prefixComparer);
     return TestComparisonResult(result, bound.Inclusive, bound.Upper);

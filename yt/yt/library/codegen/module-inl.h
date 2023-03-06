@@ -5,18 +5,31 @@
 #endif
 #undef CODEGEN_MODULE_INL_H_
 
-#include <yt/yt/core/actions/bind.h>
+#include "caller.h"
+
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TSignature>
-TCGFunction<TSignature> TCGModule::GetCompiledFunction(const TString& name)
+TCallback<TSignature> TCGModule::GetCompiledFunction(const TString& name)
 {
     auto type = TTypeBuilder<TSignature>::Get(GetContext());
     YT_VERIFY(type == GetModule()->getFunction(name.c_str())->getFunctionType());
-    return TCGFunction<TSignature>(GetFunctionAddress(name), MakeStrong(this));
+    auto function = reinterpret_cast<TSignature*>(GetFunctionAddress(name));
+
+    using TCaller = TCGCaller<TSignature>;
+
+    return TCallback<TSignature>(
+        New<TCaller>(
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+            FROM_HERE,
+#endif
+            MakeStrong(this),
+            function),
+        &TCaller::StaticInvoke);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
