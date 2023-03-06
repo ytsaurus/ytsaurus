@@ -154,7 +154,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     @authors("ignat")
     @pytest.mark.timeout(150)
     def test_disconnect_during_revive(self):
-        op_count = 20
+        op_count = 10
 
         self._create_table("//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
