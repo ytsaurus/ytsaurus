@@ -10,7 +10,7 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr auto ChangelogPageAlignment = 4_KB;
+constexpr auto ChangelogPageAlignment = 4_KBs;
 constexpr auto ChangelogQWordAlignment = 8;
 
 #pragma pack(push, 1)

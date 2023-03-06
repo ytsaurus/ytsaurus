@@ -37,7 +37,7 @@ static constexpr auto WipeBufferSize = 16_MB;
 struct TUnbufferedFileChangelogHeaderTag
 { };
 
-struct TUnbufferedFileChangelogPayloadTag
+struct TUnbufferedFileChangelogRecordHeadersTag
 { };
 
 struct TUnbufferedFileChangelogWipeTag
@@ -60,10 +60,6 @@ public:
         , Config_(std::move(config))
         , Logger(HydraLogger.WithTag("Path: %v", FileName_))
         , Index_(MakeIndex(MakeIndexFileName()))
-        , AppendOutput_(
-            /*capacity*/ 0,
-            /*pageAligned*/ true,
-            GetRefCountedTypeCookie<TUnbufferedFileChangelogPayloadTag>())
     { }
 
     const TFileChangelogConfigPtr& GetConfig() const override
@@ -497,9 +493,6 @@ private:
     TIOEngineHandlePtr DataFileHandle_;
     TFileChangelogIndexPtr Index_;
 
-    // Reused by Append.
-    TBlobOutput AppendOutput_;
-
 
     [[noreturn]]
     void RecordErrorAndThrow(const TError& error)
@@ -667,11 +660,16 @@ private:
                 firstRecordIndex,
                 records.size());
 
-            AppendOutput_.Clear();
-
-            // Combine records into a single memory blob.
-            i64 currentFileOffset = CurrentFileOffset_.load();
+            i64 prevFileOffset = CurrentFileOffset_.load();
+            i64 currentFileOffset = prevFileOffset;
             i64 currentRecordIndex = RecordCount_.load();
+
+            // Header, payload, padding per each record.
+            std::vector<TSharedRef> buffers;
+            buffers.reserve(records.size() * 3);
+
+            auto headersBuffer = TSharedMutableRef::Allocate<TUnbufferedFileChangelogRecordHeadersTag>(records.size() * sizeof(TRecordHeader));
+            auto* currentHeader = reinterpret_cast<TRecordHeader*>(headersBuffer.Begin());
 
             for (int index = 0; index < std::ssize(records); ++index) {
                 const auto& record = records[index];
@@ -684,22 +682,30 @@ private:
                     : 0;
                 YT_VERIFY(pagePaddingSize <= std::numeric_limits<i16>::max());
 
+                i64 totalPaddingSize = qwordPaddingSize + pagePaddingSize;
+                YT_VERIFY(totalPaddingSize <= ChangelogPageAlignment);
+
                 auto totalSize =
                     static_cast<i64>(sizeof(TRecordHeader)) +
                     std::ssize(record) +
-                    qwordPaddingSize +
-                    pagePaddingSize;
+                    totalPaddingSize;
 
-                TRecordHeader header{};
-                header.RecordIndex = firstRecordIndex + index;
-                header.PayloadSize = record.Size();
-                header.Checksum = GetChecksum(record);
-                header.PagePaddingSize = pagePaddingSize;
-                header.ChangelogUuid = Uuid_;
+                // Header
+                new(currentHeader) TRecordHeader();
+                currentHeader->RecordIndex = firstRecordIndex + index;
+                currentHeader->PayloadSize = record.Size();
+                currentHeader->Checksum = GetChecksum(record);
+                currentHeader->PagePaddingSize = pagePaddingSize;
+                currentHeader->ChangelogUuid = Uuid_;
+                buffers.push_back(headersBuffer.Slice(currentHeader, currentHeader + 1));
+                ++currentHeader;
 
-                WritePod(AppendOutput_, header);
-                WriteRef(AppendOutput_, record);
-                WriteZeroes(AppendOutput_, qwordPaddingSize + pagePaddingSize);
+                // Payload
+                buffers.push_back(record);
+
+                // Padding
+                static const std::array<char, ChangelogPageAlignment> Padding{};
+                buffers.push_back(TSharedRef(Padding.data(), totalPaddingSize, /*nullptr*/ nullptr));
 
                 Index_->AppendRecord(currentRecordIndex, std::make_pair(currentFileOffset, currentFileOffset + totalSize));
 
@@ -718,23 +724,24 @@ private:
             }
 
             // Write blob to file.
-            TSharedRef buffer(AppendOutput_.Begin(), AppendOutput_.Size(), MakeSharedRangeHolder(MakeStrong(this)));
             WaitFor(IOEngine_->Write({
                     .Handle = DataFileHandle_,
                     .Offset = CurrentFileOffset_.load(),
-                    .Buffers = {std::move(buffer)}
+                    .Buffers = std::move(buffers)
                 },
                 EWorkloadCategory::UserBatch))
                 .ThrowOnError();
 
             RecordCount_ += std::ssize(records);
             CurrentFileOffset_.store(currentFileOffset);
-            AppendedDataSizeSinceLastIndexFlush_ += AppendOutput_.size();
+
+            i64 bytesWritten = currentFileOffset - prevFileOffset;
+            AppendedDataSizeSinceLastIndexFlush_ += bytesWritten;
 
             YT_LOG_DEBUG("Finished appending to changelog (FirstRecordIndex: %v, RecordCount: %v, Bytes: %v)",
                 firstRecordIndex,
                 records.size(),
-                AppendOutput_.size());
+                bytesWritten);
         } catch (const std::exception& ex) {
             RecordErrorAndThrow(TError(
                 NHydra::EErrorCode::ChangelogIOError,
