@@ -22,7 +22,7 @@ public:
             data[i] = RandomNumber<unsigned char>();
         }
 
-        return TBlob(0, TRef(data.data(), data.size()));
+        return TBlob(GetRefCountedTypeCookie<TDefaultBlobTag>(), TRef(data.data(), data.size()));
     }
 };
 

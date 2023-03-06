@@ -74,7 +74,7 @@ const TSourceLocation& TRefCountedTracker::TNamedSlot::GetLocation() const
 
 TString TRefCountedTracker::TNamedSlot::GetTypeName() const
 {
-    return TypeName(*static_cast<const std::type_info*>(GetTypeKey()));
+    return TypeName(*GetTypeKey().Underlying());
 }
 
 TString TRefCountedTracker::TNamedSlot::GetFullName() const
@@ -156,7 +156,7 @@ thread_local int TRefCountedTracker::LocalSlotsSize_;
 int TRefCountedTracker::GetTrackedThreadCount() const
 {
     auto guard = Guard(SpinLock_);
-    return static_cast<int>(AllLocalSlots_.size());
+    return std::ssize(AllLocalSlots_);
 }
 
 TRefCountedTypeCookie TRefCountedTracker::GetCookie(
@@ -174,8 +174,8 @@ TRefCountedTypeCookie TRefCountedTracker::GetCookie(
         return it->second;
     }
 
-    auto cookie = CookieToKey_.size();
-    KeyToCookie_.emplace(key, TRefCountedTypeCookie(cookie));
+    auto cookie = TRefCountedTypeCookie(std::ssize(CookieToKey_));
+    KeyToCookie_.emplace(key, cookie);
     CookieToKey_.push_back(key);
 
     return cookie;
@@ -341,18 +341,18 @@ TRefCountedTracker::TNamedSlot TRefCountedTracker::GetSlot(TRefCountedTypeKey ty
     TKey key{typeKey, TSourceLocation()};
 
     TNamedSlot result(key, GetObjectSize(typeKey));
-    auto accumulateResult = [&] (const auto& slots, TRefCountedTypeCookie cookie) {
-        if (cookie < std::ssize(slots)) {
-            result += slots[cookie];
-        }
-    };
-
     auto it = KeyToCookie_.lower_bound(key);
     while (it != KeyToCookie_.end() && it->first.TypeKey == typeKey) {
         auto cookie = it->second;
-        accumulateResult(GlobalSlots_, cookie);
+        auto index = cookie.Underlying();
+        auto accumulateResult = [&] (const auto& slots) {
+            if (index < std::ssize(slots)) {
+                result += slots[index];
+            }
+        };
+        accumulateResult(GlobalSlots_);
         for (auto* slots : AllLocalSlots_) {
-            accumulateResult(*slots, cookie);
+            accumulateResult(*slots);
         }
         ++it;
     }
@@ -440,14 +440,15 @@ TRefCountedTracker::TLocalSlot* TRefCountedTracker::GetLocalSlot(TRefCountedType
         YT_VERIFY(AllLocalSlots_.insert(LocalSlots_).second);
     }
 
-    if (cookie >= std::ssize(*LocalSlots_)) {
-        LocalSlots_->resize(static_cast<size_t>(cookie) + 1);
+    auto index = cookie.Underlying();
+    if (index >= std::ssize(*LocalSlots_)) {
+        LocalSlots_->resize(static_cast<size_t>(index) + 1);
     }
 
     LocalSlotsBegin_ = LocalSlots_->data();
-    LocalSlotsSize_ = static_cast<int>(LocalSlots_->size());
+    LocalSlotsSize_ = std::ssize(*LocalSlots_);
 
-    return LocalSlotsBegin_ + cookie;
+    return LocalSlotsBegin_ + index;
 }
 
 TRefCountedTracker::TGlobalSlot* TRefCountedTracker::GetGlobalSlot(TRefCountedTypeCookie cookie)
@@ -455,10 +456,11 @@ TRefCountedTracker::TGlobalSlot* TRefCountedTracker::GetGlobalSlot(TRefCountedTy
     TMemoryTagGuard memoryTagGuard(NullMemoryTag);
 
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-    if (cookie >= static_cast<int>(GlobalSlots_.size())) {
-        GlobalSlots_.resize(static_cast<size_t>(cookie) + 1);
+    auto index = cookie.Underlying();
+    if (index >= std::ssize(GlobalSlots_)) {
+        GlobalSlots_.resize(static_cast<size_t>(index) + 1);
     }
-    return &GlobalSlots_[cookie];
+    return &GlobalSlots_[index];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
