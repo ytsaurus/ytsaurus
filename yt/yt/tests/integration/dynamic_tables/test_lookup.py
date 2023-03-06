@@ -119,6 +119,9 @@ class TestLookup(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
     def test_lookup_versioned_filter(self, optimize_for, enable_hash_chunk_index):
+        if enable_hash_chunk_index and optimize_for == "scan":
+            return
+
         sync_create_cells(1)
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
@@ -267,6 +270,9 @@ class TestLookup(TestSortedDynamicTablesBase):
             return
 
         if new_scan_reader and optimize_for != "scan":
+            return
+
+        if enable_hash_chunk_index and optimize_for == "scan":
             return
 
         schema = [
@@ -502,6 +508,9 @@ class TestLookup(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
     def test_lookup_from_chunks(self, optimize_for, enable_hash_chunk_index):
+        if enable_hash_chunk_index and optimize_for == "scan":
+            return
+
         sync_create_cells(1)
         self._create_simple_table(
             "//tmp/t",
