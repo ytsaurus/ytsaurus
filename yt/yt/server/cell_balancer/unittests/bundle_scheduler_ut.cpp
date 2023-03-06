@@ -1347,16 +1347,31 @@ TEST(TNodeTagsFilterManager, TestSeveralBundlesNodesLookingForSpare)
     bundleInfo2->EnableNodeTagFilterManagement = true;
     GenerateTabletCellsForBundle(input, "bigc", 17);
 
+    SetBundleInfo(input, "bige", 2, 10);
+    GenerateNodesForBundle(input, "bige", 1, true, 10);
+    auto& bundleInfo3 = input.Bundles["bige"];
+    bundleInfo3->EnableNodeTagFilterManagement = true;
+    bundleInfo3->EnableBundleController = false;
+    GenerateTabletCellsForBundle(input, "bige", 17);
+
+
     bundleInfo->TargetConfig->MemoryLimits->TabletStatic = 212212;
 
     // Generate Spare nodes
     auto zoneInfo = input.Zones["default-zone"];
-    zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
-    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, false, 0);
+    zoneInfo->SpareTargetConfig->TabletNodeCount = 4;
+    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 4, false, 0);
 
     for (const auto& nodeName : spareNodes) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
         nodeInfo->TabletSlots.clear();
+    }
+
+    // Alien bundle uses spare node
+    for (const auto& nodeName : spareNodes) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->UserTags = {bundleInfo3->NodeTagFilter};
+        break;
     }
 
     TSchedulerMutations mutations;
