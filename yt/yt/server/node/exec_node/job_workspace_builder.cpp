@@ -293,7 +293,7 @@ private:
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
         SetJobPhase(EJobPhase::RunningGpuCheckCommand);
 
-        if (Settings_.LayerArtifactKeys.empty() && Settings_.NeedGpuCheck) {
+        if (!Settings_.LayerArtifactKeys.empty() && Settings_.NeedGpuCheck) {
             TJobGpuCheckerSettings settings {
                 .Slot = Settings_.Slot,
                 .Job = Settings_.Job,
