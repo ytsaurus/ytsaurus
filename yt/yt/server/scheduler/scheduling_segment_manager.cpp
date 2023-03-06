@@ -435,10 +435,11 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
         TSchedulingSegmentModule bestModule;
         auto bestRemainingCapacity = initialBestRemainingCapacity;
         const auto& specifiedModules = operation->SpecifiedSchedulingSegmentModules;
-        for (const auto& [schedulingSegmentModule, remainingCapacity] : context->RemainingCapacityPerModule) {
-            YT_VERIFY(schedulingSegmentModule);
+        for (const auto& schedulingSegmentModule : Config_->GetModules()) {
+            auto it = context->RemainingCapacityPerModule.find(schedulingSegmentModule);
+            auto remainingCapacity = it != context->RemainingCapacityPerModule.end() ? it->second : 0.0;
 
-            if (specifiedModules && !specifiedModules->contains(*schedulingSegmentModule)) {
+            if (specifiedModules && !specifiedModules->contains(schedulingSegmentModule)) {
                 continue;
             }
 
