@@ -29,6 +29,26 @@ using namespace NYson;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TYqlSettings
+    : public TYsonStruct
+{
+public:
+    TString Stage;
+
+    REGISTER_YSON_STRUCT(TYqlSettings);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("stage", &TThis::Stage)
+            .Default("production");
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TYqlSettings);
+DECLARE_REFCOUNTED_CLASS(TYqlSettings);
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TYqlQueryHandler
     : public TQueryHandlerBase
 {
@@ -38,17 +58,18 @@ public:
         const NYPath::TYPath& stateRoot,
         const TEngineConfigBasePtr& config,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
-        const IChannelPtr& yqlChannel)
+        const NApi::NNative::IConnectionPtr& connection)
         : TQueryHandlerBase(stateClient, stateRoot, config, activeQuery)
         , Query_(activeQuery.Query)
-        , YqlChannel_(yqlChannel)
+        , Connection_(connection)
+        , Settings_(ConvertTo<TYqlSettingsPtr>(SettingsNode_))
     { }
 
     void Start() override
     {
-        YT_LOG_DEBUG("Starting YQL query");
+        YT_LOG_DEBUG("Starting YQL query (Stage: %v)", Settings_->Stage);
 
-        TYqlServiceProxy proxy(YqlChannel_);
+        TYqlServiceProxy proxy(Connection_->GetYqlAgentChannelOrThrow(Settings_->Stage));
         auto req = proxy.StartQuery();
         auto* yqlRequest = req->mutable_yql_request();
         req->set_row_count_limit(Config_->RowCountLimit);
@@ -72,7 +93,8 @@ public:
 
 private:
     TString Query_;
-    IChannelPtr YqlChannel_;
+    NApi::NNative::IConnectionPtr Connection_;
+    TYqlSettingsPtr Settings_;
 
     TFuture<TTypedClientResponse<TRspStartQuery>::TResult> AsyncQueryResult_;
 
@@ -120,14 +142,12 @@ public:
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
-        const TString DefaultStage = "production";
-
         return New<TYqlQueryHandler>(
             StateClient_,
             StateRoot_,
             Config_,
             activeQuery,
-            DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetYqlAgentChannelOrThrow(DefaultStage));
+            DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection()));
     }
 
     void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override
