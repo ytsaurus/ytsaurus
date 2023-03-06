@@ -27,9 +27,10 @@ class TInvokerQueueAdapter
 public:
     TInvokerQueueAdapter(
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
-        const TTagSet& counterTagSet)
+        const TTagSet& counterTagSet,
+        const TDuration pollingPeriod)
         : TMpmcInvokerQueue(callbackEventCount, counterTagSet)
-        , TNotifyManager(callbackEventCount, counterTagSet)
+        , TNotifyManager(callbackEventCount, counterTagSet, pollingPeriod)
     { }
 
     TClosure OnExecute(TEnqueuedAction* action, bool fetchNext, std::function<bool()> isStopping)
@@ -140,11 +141,13 @@ public:
     TThreadPool(
         int threadCount,
         const TString& threadNamePrefix,
-        EThreadPriority threadPriority)
+        EThreadPriority threadPriority,
+        const TDuration pollingPeriod)
         : TThreadPoolBase(threadNamePrefix, threadPriority)
         , Queue_(New<TInvokerQueueAdapter>(
             CallbackEventCount_,
-            GetThreadTags(ThreadNamePrefix_)))
+            GetThreadTags(ThreadNamePrefix_),
+            pollingPeriod))
         , Invoker_(Queue_)
     {
         Configure(threadCount);
@@ -211,9 +214,10 @@ private:
 IThreadPoolPtr CreateThreadPool(
     int threadCount,
     const TString& threadNamePrefix,
-    EThreadPriority threadPriority)
+    EThreadPriority threadPriority,
+    const TDuration pollingPeriod)
 {
-    return New<TThreadPool>(threadCount, threadNamePrefix, threadPriority);
+    return New<TThreadPool>(threadCount, threadNamePrefix, threadPriority, pollingPeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

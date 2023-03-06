@@ -134,7 +134,7 @@ class TThreadPoolPoller
     , public TThread
 {
 public:
-    TThreadPoolPoller(int threadCount, const TString& threadNamePrefix)
+    TThreadPoolPoller(int threadCount, const TString& threadNamePrefix, const TDuration pollingPeriod)
         : TThread(Format("%v:%v", threadNamePrefix, "Poll"))
         , Logger(ConcurrencyLogger.WithTag("ThreadNamePrefix: %v", threadNamePrefix))
     {
@@ -144,7 +144,8 @@ public:
             HandlerThreadPool_[priority] = CreateThreadPool(
                 threadCount,
                 threadNamePrefix + PollablePriorityToPollerThreadNameSuffix(priority),
-                PollablePriorityToThreadPriority(priority));
+                PollablePriorityToThreadPriority(priority),
+                pollingPeriod);
             HandlerInvoker_[priority] = HandlerThreadPool_[priority]->GetInvoker();
         }
     }
@@ -421,9 +422,10 @@ private:
 
 IThreadPoolPollerPtr CreateThreadPoolPoller(
     int threadCount,
-    const TString& threadNamePrefix)
+    const TString& threadNamePrefix,
+    const TDuration pollingPeriod)
 {
-    auto poller = New<TThreadPoolPoller>(threadCount, threadNamePrefix);
+    auto poller = New<TThreadPoolPoller>(threadCount, threadNamePrefix, pollingPeriod);
     poller->Start();
     return poller;
 }
