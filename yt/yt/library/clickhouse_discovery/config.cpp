@@ -41,8 +41,13 @@ void TDiscoveryV1Config::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDiscoveryV2Config::Register(TRegistrar /*registrar*/)
-{ }
+void TDiscoveryV2Config::Register(TRegistrar registrar)
+{
+    registrar.Preprocessor([] (TThis* config) {
+        config->ReadQuorum = 1;
+        config->WriteQuorum = 1;
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +55,7 @@ void TDiscoveryConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("version", &TThis::Version)
         .InRange(1, 2)
-        .Default(1);
+        .Default(2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
