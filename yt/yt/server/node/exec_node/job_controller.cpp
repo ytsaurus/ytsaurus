@@ -1564,13 +1564,7 @@ private:
         const TReleaseJobFlags& releaseFlags)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        YT_VERIFY(job->GetPhase() >= EJobPhase::Cleanup);
-
-        {
-            auto oneUserSlotResources = ZeroNodeResources();
-            oneUserSlotResources.set_user_slots(1);
-            YT_VERIFY(Dominates(oneUserSlotResources, job->GetResourceUsage()));
-        }
+        YT_VERIFY(job->GetPhase() >= EJobPhase::FinalizingJobProxy);
 
         auto jobId = job->GetId();
 

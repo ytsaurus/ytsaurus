@@ -318,6 +318,8 @@ private:
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;
 
+    bool Finalized_ = false;
+
     NJobAgent::TJobEvents JobEvents_;
 
     NScheduler::EInterruptReason InterruptionReason_ = NScheduler::EInterruptReason::None;
@@ -485,6 +487,8 @@ private:
     TFuture<TSharedRef> DumpSensors();
 
     void OnResourcesAcquired() override;
+
+    void Finalize();
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)
