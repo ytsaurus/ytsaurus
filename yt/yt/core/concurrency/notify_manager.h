@@ -19,7 +19,8 @@ class TNotifyManager
 public:
     TNotifyManager(
         TIntrusivePtr<NThreading::TEventCount> eventCount,
-        const NProfiling::TTagSet& counterTagSet);
+        const NProfiling::TTagSet& counterTagSet,
+        const TDuration pollingPeriod);
 
     TCpuInstant ResetMinEnqueuedAt();
 
@@ -41,6 +42,7 @@ private:
 
     const TIntrusivePtr<NThreading::TEventCount> EventCount_;
     const NProfiling::TCounter WakeupCounter_;
+    const TDuration PollingPeriod_;
 
     std::atomic<bool> NotifyLock_ = false;
     // LockedInstant is used for debug and check purpose.

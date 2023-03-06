@@ -10,18 +10,19 @@ static const auto& Logger = ConcurrencyLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr auto WaitLimit = TDuration::MicroSeconds(64);
-constexpr auto PollingPeriod = TDuration::MilliSeconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TNotifyManager::TNotifyManager(
     TIntrusivePtr<NThreading::TEventCount> eventCount,
-    const NProfiling::TTagSet& tagSet)
+    const NProfiling::TTagSet& tagSet,
+    const TDuration pollingPeriod)
     : EventCount_(std::move(eventCount))
     , WakeupCounter_(NProfiling::TProfiler("/action_queue")
         .WithTags(tagSet)
         .WithHot()
         .Counter("/wakeup"))
+    , PollingPeriod_(pollingPeriod)
 { }
 
 TCpuInstant TNotifyManager::GetMinEnqueuedAt() const
@@ -105,7 +106,7 @@ void TNotifyManager::Wait(NThreading::TEventCount::TCookie cookie, std::function
     bool firstWaiter = !PollingWaiterLock_.exchange(true);
     if (firstWaiter) {
         while (true) {
-            bool notified = EventCount_->Wait(cookie, PollingPeriod);
+            bool notified = EventCount_->Wait(cookie, PollingPeriod_);
             if (notified) {
                 break;
             }

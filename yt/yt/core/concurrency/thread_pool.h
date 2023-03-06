@@ -26,7 +26,8 @@ DEFINE_REFCOUNTED_TYPE(IThreadPool)
 IThreadPoolPtr CreateThreadPool(
     int threadCount,
     const TString& threadNamePrefix,
-    EThreadPriority threadPriority = EThreadPriority::Normal);
+    EThreadPriority threadPriority = EThreadPriority::Normal,
+    const TDuration pollingPeriod = TDuration::MilliSeconds(10));
 
 ////////////////////////////////////////////////////////////////////////////////
 

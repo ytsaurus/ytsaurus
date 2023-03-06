@@ -19,7 +19,8 @@ DEFINE_REFCOUNTED_TYPE(IThreadPoolPoller)
 
 IThreadPoolPollerPtr CreateThreadPoolPoller(
     int threadCount,
-    const TString& threadNamePrefix);
+    const TString& threadNamePrefix,
+    const TDuration pollingPeriod = TDuration::MilliSeconds(10));
 
 ////////////////////////////////////////////////////////////////////////////////
 
