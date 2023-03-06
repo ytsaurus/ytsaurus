@@ -3,8 +3,9 @@ package tech.ytsaurus.skiff.serialization;
 import java.util.Map;
 import java.util.Optional;
 
-
 import tech.ytsaurus.typeinfo.TiType;
+import tech.ytsaurus.ysontree.YTreeNode;
+
 public class TiTypeUtil {
     private static final Map<Class<?>, TiType> SIMPLE_TYPES_MAP = Map.ofEntries(
             Map.entry(byte.class, TiType.int8()),
@@ -26,6 +27,9 @@ public class TiTypeUtil {
     }
 
     public static Optional<TiType> getTiTypeIfSimple(Class<?> clazz) {
+        if (YTreeNode.class.isAssignableFrom(clazz)) {
+            return Optional.of(TiType.yson());
+        }
         return Optional.ofNullable(SIMPLE_TYPES_MAP.get(clazz));
     }
 }

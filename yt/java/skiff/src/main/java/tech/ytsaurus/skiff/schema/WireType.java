@@ -105,8 +105,6 @@ public enum WireType {
         switch (this) {
             case VARIANT_8:
             case VARIANT_16:
-            case REPEATED_VARIANT_8:
-            case REPEATED_VARIANT_16:
                 return true;
 
             default:

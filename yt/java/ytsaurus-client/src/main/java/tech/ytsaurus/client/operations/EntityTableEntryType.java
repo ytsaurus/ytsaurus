@@ -16,12 +16,11 @@ import tech.ytsaurus.core.operations.Yield;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.skiff.schema.SkiffSchema;
 import tech.ytsaurus.skiff.schema.WireType;
+import tech.ytsaurus.skiff.serialization.EntitySkiffSchemaCreator;
 import tech.ytsaurus.skiff.serialization.EntitySkiffSerializer;
 import tech.ytsaurus.skiff.serialization.EntityTableSchemaCreator;
 import tech.ytsaurus.skiff.serialization.SkiffParser;
 import tech.ytsaurus.ysontree.YTreeStringNode;
-
-import static tech.ytsaurus.skiff.serialization.EntitySkiffSchemaCreator.getEntitySchema;
 
 public class EntityTableEntryType<T> implements YTableEntryType<T> {
     private static final byte[] FIRST_TABLE_INDEX = new byte[]{0, 0};
@@ -33,7 +32,7 @@ public class EntityTableEntryType<T> implements YTableEntryType<T> {
 
     public EntityTableEntryType(Class<T> entityClass, boolean trackIndices, boolean isInputType) {
         this.entityClass = entityClass;
-        this.entitySchema = getEntitySchema(entityClass);
+        this.entitySchema = EntitySkiffSchemaCreator.create(entityClass);
         if (trackIndices) {
             this.entitySchema.getChildren().add(
                     SkiffSchema.variant8(List.of(

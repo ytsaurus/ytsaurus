@@ -2,6 +2,8 @@ package tech.ytsaurus.skiff.schema;
 
 import java.util.Map;
 
+import tech.ytsaurus.ysontree.YTreeNode;
+
 public class WireTypeUtil {
     private static final Map<Class<?>, WireType> SIMPLE_TYPES_MAP = Map.ofEntries(
             Map.entry(byte.class, WireType.INT_8),
@@ -23,6 +25,9 @@ public class WireTypeUtil {
     }
 
     public static WireType getClassWireType(Class<?> clazz) {
+        if (YTreeNode.class.isAssignableFrom(clazz)) {
+            return WireType.YSON_32;
+        }
         return SIMPLE_TYPES_MAP.getOrDefault(clazz, WireType.TUPLE);
     }
 }

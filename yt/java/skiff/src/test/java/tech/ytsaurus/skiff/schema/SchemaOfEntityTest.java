@@ -86,7 +86,7 @@ public class SchemaOfEntityTest {
 
     @Test
     public void testCreateSchema() {
-        var entitySchema = EntitySkiffSchemaCreator.getEntitySchema(Person.class);
+        var entitySchema = EntitySkiffSchemaCreator.create(Person.class);
 
         SkiffSchema expectedSchema = SkiffSchema.tuple(
                 List.of(SkiffSchema.simpleType(WireType.STRING_32).setName("person-name"),
@@ -95,15 +95,22 @@ public class SchemaOfEntityTest {
                                         SkiffSchema.nothing(),
                                         SkiffSchema.tuple(
                                                 List.of(
-                                                        SkiffSchema.simpleType(WireType.INT_32).setName("number"))
-                                        )))
+                                                        SkiffSchema.simpleType(WireType.INT_32).setName("number")
+                                                )
+                                        )
+                                ))
                                 .setName("mobile-phone"),
                         SkiffSchema.variant8(List.of(
                                         SkiffSchema.nothing(),
                                         SkiffSchema.repeatedVariant8(List.of(
-                                                SkiffSchema.nothing(),
-                                                SkiffSchema.simpleType(WireType.STRING_32)
-                                        ))))
+                                                        SkiffSchema.variant8(List.of(
+                                                                        SkiffSchema.nothing(),
+                                                                        SkiffSchema.simpleType(WireType.STRING_32)
+                                                                )
+                                                        )
+                                                )
+                                        )
+                                ))
                                 .setName("organizations")
                 ));
 

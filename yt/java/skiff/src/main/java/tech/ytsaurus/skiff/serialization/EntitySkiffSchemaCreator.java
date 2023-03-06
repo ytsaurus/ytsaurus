@@ -2,6 +2,8 @@ package tech.ytsaurus.skiff.serialization;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -17,7 +19,8 @@ import static tech.ytsaurus.core.utils.ClassUtils.anyMatchWithAnnotation;
 import static tech.ytsaurus.core.utils.ClassUtils.anyOfAnnotationsPresent;
 import static tech.ytsaurus.core.utils.ClassUtils.getAllDeclaredFields;
 import static tech.ytsaurus.core.utils.ClassUtils.getAnnotationIfPresent;
-import static tech.ytsaurus.core.utils.ClassUtils.getTypeParameterOfGeneric;
+import static tech.ytsaurus.core.utils.ClassUtils.getTypeParametersOfGeneric;
+import static tech.ytsaurus.core.utils.ClassUtils.getTypeParametersOfGenericField;
 import static tech.ytsaurus.core.utils.ClassUtils.isFieldTransient;
 import static tech.ytsaurus.skiff.schema.WireTypeUtil.getClassWireType;
 
@@ -26,30 +29,36 @@ public class EntitySkiffSchemaCreator {
     private EntitySkiffSchemaCreator() {
     }
 
-    public static <T> SkiffSchema getEntitySchema(Class<T> annotatedClass) {
+    public static <T> SkiffSchema create(Class<T> annotatedClass) {
         if (!anyOfAnnotationsPresent(annotatedClass, JavaPersistenceApi.entityAnnotations())) {
             throw new IllegalArgumentException("Class must be annotated with @Entity");
         }
 
-        Annotation entityAnnotation = getAnnotationIfPresent(annotatedClass, JavaPersistenceApi.entityAnnotations())
-                .orElseThrow(IllegalStateException::new);
-        return getClassSchema(annotatedClass, JavaPersistenceApi.getEntityName(entityAnnotation),
-                false, entityAnnotation);
+        return getComplexTypeSchema(annotatedClass);
     }
 
-    private static <T> SkiffSchema getClassSchema(Class<T> clazz, String name,
-                                                  boolean isNullable,
-                                                  @Nullable Annotation annotation) {
+    private static <T> SkiffSchema getClassSchema(Class<T> clazz,
+                                                  String name,
+                                                  @Nullable Annotation annotation,
+                                                  List<Type> genericTypeParameters) {
         WireType wireType = getClassWireType(clazz);
+        boolean isNullable = true;
         if (annotation != null &&
                 anyMatchWithAnnotation(annotation, JavaPersistenceApi.columnAnnotations())) {
             name = JavaPersistenceApi.getColumnName(annotation);
             isNullable = JavaPersistenceApi.isColumnNullable(annotation);
         }
 
-        SkiffSchema schema = wireType.isSimpleType() ?
-                SkiffSchema.simpleType(wireType) :
-                getComplexTypeSchema(clazz);
+        SkiffSchema schema;
+        if (Collection.class.isAssignableFrom(clazz)) {
+            schema = getCollectionTypeSchema(clazz, genericTypeParameters);
+        } else if (clazz.isArray()) {
+            schema = getArraySchema(clazz);
+        } else {
+            schema = wireType.isSimpleType() ?
+                    SkiffSchema.simpleType(wireType) :
+                    getComplexTypeSchema(clazz);
+        }
 
         if (isNullable && !clazz.isPrimitive()) {
             schema = SkiffSchema.variant8(
@@ -75,50 +84,59 @@ public class EntitySkiffSchemaCreator {
     }
 
     private static SkiffSchema getFieldSchema(Field field) {
+        List<Type> genericTypeParameters = new ArrayList<>();
         if (Collection.class.isAssignableFrom(field.getType())) {
-            return getCollectionFieldSchema(field);
+            genericTypeParameters.addAll(getTypeParametersOfGenericField(field));
         }
         return getClassSchema(
                 field.getType(),
                 field.getName(),
-                !field.getType().isPrimitive(),
-                getAnnotationIfPresent(field, JavaPersistenceApi.columnAnnotations()).orElse(null)
+                getAnnotationIfPresent(field, JavaPersistenceApi.columnAnnotations()).orElse(null),
+                genericTypeParameters
         );
     }
 
-    private static ComplexSchema getCollectionFieldSchema(Field fieldWithCollection) {
-        Class<?> elementType = getTypeParameterOfGeneric(fieldWithCollection);
+    private static ComplexSchema getCollectionTypeSchema(Class<?> collectionClass, List<Type> typeParameters) {
         ComplexSchema schema;
-        if (List.class.isAssignableFrom(fieldWithCollection.getType())) {
-            schema = getListFieldSchema(elementType);
+        if (List.class.isAssignableFrom(collectionClass)) {
+            schema = getListTypeSchema(typeParameters.get(0));
         } else {
-            throw new IllegalArgumentException("This collection (\"" + fieldWithCollection.getType().getName() +
+            throw new IllegalArgumentException("This collection (\"" + collectionClass.getName() +
                     "\") is not supported");
         }
-
-        String name = fieldWithCollection.getName();
-        boolean isNullable = true;
-        if (anyOfAnnotationsPresent(fieldWithCollection, JavaPersistenceApi.columnAnnotations())) {
-            Annotation columnAnnotation =
-                    getAnnotationIfPresent(fieldWithCollection, JavaPersistenceApi.columnAnnotations())
-                            .orElseThrow(IllegalStateException::new);
-            name = JavaPersistenceApi.getColumnName(columnAnnotation);
-            isNullable = JavaPersistenceApi.isColumnNullable(columnAnnotation);
-        }
-
-        if (isNullable) {
-            schema = SkiffSchema.variant8(
-                    Arrays.asList(SkiffSchema.nothing(), schema));
-        }
-        schema.setName(name);
-
         return schema;
     }
 
-    private static ComplexSchema getListFieldSchema(Class<?> elementType) {
+    private static ComplexSchema getListTypeSchema(Type elementType) {
+        Class<?> elementClass;
+        List<Type> elementTypeParameters;
+        if (elementType instanceof Class) {
+            elementClass = (Class<?>) elementType;
+            elementTypeParameters = List.of();
+        } else if (elementType instanceof ParameterizedType) {
+            elementClass = (Class<?>) ((ParameterizedType) elementType).getRawType();
+            elementTypeParameters = getTypeParametersOfGeneric(elementType);
+        } else {
+            throw new IllegalArgumentException("Illegal list type parameter");
+        }
         return SkiffSchema.repeatedVariant8(List.of(
-                SkiffSchema.nothing(),
-                getClassSchema(elementType, "", false, null))
+                getClassSchema(
+                        elementClass,
+                        "",
+                        null,
+                        elementTypeParameters))
+        );
+    }
+
+    private static ComplexSchema getArraySchema(Class<?> arrayClass) {
+        if (!arrayClass.isArray()) {
+            throw new IllegalArgumentException("Argument must be array");
+        }
+        return SkiffSchema.repeatedVariant8(List.of(
+                getClassSchema(arrayClass.getComponentType(),
+                        "",
+                        null,
+                        List.of()))
         );
     }
 }
