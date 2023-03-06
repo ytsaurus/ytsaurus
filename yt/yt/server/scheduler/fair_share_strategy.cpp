@@ -253,6 +253,7 @@ public:
                     .SchedulingTagFilter = tree->GetNodesFilter(),
                     .Tentative = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeName)->Tentative,
                     .Probing = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeName)->Probing,
+                    .Offloading = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeName)->Offloading,
                     .MainResource = tree->GetConfig()->MainResource,
                 });
         }
@@ -660,6 +661,7 @@ public:
                         treeParams->Pool = tree->CreatePoolName(offloadingPoolSettings->Pool, user);
                         treeParams->Tentative = offloadingPoolSettings->Tentative;
                         treeParams->ResourceLimits = offloadingPoolSettings->ResourceLimits;
+                        treeParams->Offloading = true;
                         EmplaceOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, offloadingPoolTreeName, std::move(treeParams));
                     }
                 }

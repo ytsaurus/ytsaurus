@@ -63,6 +63,7 @@ struct TOperationControllerInitializeResult
 {
     TControllerTransactionIds TransactionIds;
     NScheduler::TOperationControllerInitializeAttributes Attributes;
+    bool EraseOffloadingTrees;
 };
 
 void ToProto(NProto::TInitializeOperationResult* resultProto, const TOperationControllerInitializeResult& result);

@@ -8,7 +8,7 @@ from yt_env_setup import (
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     create, ls,
-    get, set, move, remove, exists, create_pool, create_pool_tree, remove_pool_tree, write_table, write_file,
+    get, set, move, remove, exists, create_pool, create_pool_tree, remove_pool_tree, create_network_project, write_table, write_file,
     map, map_reduce, run_test_vanilla, run_sleeping_vanilla, abort_job, list_jobs, start_transaction, lock,
     sync_create_cells, update_controller_agent_config, update_op_parameters, create_test_tables,
     extract_statistic_v2, update_pool_tree_config_option, raises_yt_error)
@@ -1935,3 +1935,32 @@ class TestMultiTreeOperations(YTEnvSetup):
             set("//sys/pools/my_pool/@offloading_settings", {
                 "offload_tree": {"pool": "offload_pool"}
             })
+
+    @authors("renadeen")
+    def test_offloading_disabled_for_network_demanding_jobs(self):
+        create_network_project("n")
+
+        create_pool("primary_pool", pool_tree="default")
+        set("//sys/pools/primary_pool/@offloading_settings", {
+            "offload_tree": {"pool": "offload_pool"}
+        })
+
+        offload_node = create_custom_pool_tree_with_one_node("offload_tree")
+        create_pool("offload_pool", pool_tree="offload_tree")
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            spec={"pool": "primary_pool"},
+            task_patch={"network_project": "n"},
+            job_count=2)
+
+        wait_breakpoint(job_count=2)
+
+        wait(lambda: exists(scheduler_orchid_operation_path(op.id, "default")))
+        wait(lambda: not exists(scheduler_orchid_operation_path(op.id, "offload_tree")))
+
+        for job in op.get_running_jobs().values():
+            assert job["address"] != offload_node
+
+        release_breakpoint()
+        op.track()

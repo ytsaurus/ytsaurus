@@ -1311,6 +1311,7 @@ public:
             for (const auto& [treeId, treeRuntimeParameters] : operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {
                 YT_VERIFY(!treeRuntimeParameters->Tentative);
                 YT_VERIFY(!treeRuntimeParameters->Probing);
+                YT_VERIFY(!treeRuntimeParameters->Offloading);
                 if (treeId != chosenTree) {
                     treeIdsToUnregister.emplace_back(treeId);
                 }
@@ -2701,7 +2702,7 @@ private:
 
             const auto& controller = operation->GetController();
 
-            auto initializeResult = WaitFor(controller->Initialize(/* transactions */ std::nullopt))
+            auto initializeResult = WaitFor(controller->Initialize(/*transactions*/ std::nullopt))
                 .ValueOrThrow();
 
             ValidateOperationState(operation, EOperationState::Initializing);
@@ -2709,6 +2710,10 @@ private:
             operation->Transactions() = initializeResult.Transactions;
             operation->ControllerAttributes().InitializeAttributes = std::move(initializeResult.Attributes);
             operation->BriefSpecString() = BuildBriefSpec(operation);
+
+            if (initializeResult.EraseOffloadingTrees) {
+                EraseOffloadingTrees(operation);
+            }
 
             WaitFor(MasterConnector_->UpdateInitializedOperationNode(operation))
                 .ThrowOnError();
@@ -4099,6 +4104,19 @@ private:
 
         EventLoggingActionQueue_->GetInvoker()
             ->Invoke(BIND(&TImpl::DoLogOperationFinishedEvent, MakeStrong(this), std::move(request)));
+    }
+
+    void EraseOffloadingTrees(const TOperationPtr& operation)
+    {
+        std::vector<TString> offloadingTrees;
+        for (const auto& [treeName, options] : operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {
+            if (options->Offloading) {
+                offloadingTrees.push_back(treeName);
+            }
+        }
+        for (const auto& tree : offloadingTrees) {
+            UnregisterOperationFromTree(operation, tree);
+        }
     }
 
     struct TOperationFinishedLogEvent

@@ -2833,6 +2833,7 @@ private:
             .Item("aggregated_min_needed_job_resources").Value(element->AggregatedMinNeededJobResources())
             .Item("tentative").Value(element->GetRuntimeParameters()->Tentative)
             .Item("probing").Value(element->GetRuntimeParameters()->Probing)
+            .Item("offloading").Value(element->GetRuntimeParameters()->Offloading)
             .Item("starving_since").Value(element->GetStarvationStatus() != EStarvationStatus::NonStarving
                 ? std::make_optional(element->GetLastNonStarvingTime())
                 : std::nullopt)

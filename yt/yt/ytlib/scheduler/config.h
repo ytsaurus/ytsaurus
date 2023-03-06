@@ -1787,6 +1787,7 @@ public:
     // Cannot be specified by user.
     bool Tentative;
     bool Probing;
+    bool Offloading;
 
     REGISTER_YSON_STRUCT(TOperationFairShareTreeRuntimeParameters);
 
