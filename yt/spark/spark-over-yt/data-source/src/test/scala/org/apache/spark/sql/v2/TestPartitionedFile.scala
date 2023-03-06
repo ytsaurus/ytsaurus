@@ -1,7 +1,7 @@
 package org.apache.spark.sql.v2
 
 import org.apache.spark.sql.execution.datasources.PartitionedFile
-import ru.yandex.spark.yt.format.YtPartitionedFile
+import tech.ytsaurus.spyt.format.YtPartitionedFile
 
 sealed trait TestPartitionedFile {
   def toPartitionedFile: PartitionedFile

@@ -7,17 +7,20 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.datasources.{FilePartition, PartitionDirectory, PartitionedFile}
 import org.apache.spark.sql.types.StructType
 import org.slf4j.LoggerFactory
-import ru.yandex.spark.yt.common.utils.{ExpressionTransformer, MInfinity, PInfinity, TuplePoint}
-import ru.yandex.spark.yt.format.conf.KeyPartitioningConfig
-import ru.yandex.spark.yt.format.{YtInputSplit, YtPartitionedFile}
-import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.conf.YT_MIN_PARTITION_BYTES
-import ru.yandex.spark.yt.fs.path.YPathEnriched.ypath
-import ru.yandex.spark.yt.fs.{YtDynamicPath, YtPath, YtStaticPath}
-import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, PivotKeysConverter, SchemaConverter}
-import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.client.YtClientProvider
+import tech.ytsaurus.spyt.common.utils.TuplePoint
+import tech.ytsaurus.spyt.format.YtInputSplit
+import tech.ytsaurus.spyt.fs.YtClientConfigurationConverter.ytClientConfiguration
+import tech.ytsaurus.spyt.fs.conf.YT_MIN_PARTITION_BYTES
+import tech.ytsaurus.spyt.fs.path.YPathEnriched.ypath
+import tech.ytsaurus.spyt.fs.{YtDynamicPath, YtPath, YtStaticPath}
+import tech.ytsaurus.spyt.serializers.{InternalRowDeserializer, PivotKeysConverter}
+import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.spyt.common.utils.{ExpressionTransformer, MInfinity, PInfinity}
+import tech.ytsaurus.spyt.format.YtPartitionedFile
+import tech.ytsaurus.spyt.format.conf.KeyPartitioningConfig
+import tech.ytsaurus.spyt.serializers.SchemaConverter
+import tech.ytsaurus.spyt.wrapper.client.YtClientProvider
 import tech.ytsaurus.ysontree.YTreeNode
 
 import scala.collection.mutable.ArrayBuffer

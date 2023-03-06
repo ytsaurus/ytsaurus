@@ -39,7 +39,7 @@ class SparkInfo(object):
         return """
             <div>
                 <p><b>SPYT</b></p>
-                
+
                 <p><a href="{master_web_ui}">Master Web UI</a></p>
                 <p><a href="http://{shs_url}/history/{app_id}/jobs/">Spark history server</a></p>
                 <dl>
@@ -50,7 +50,7 @@ class SparkInfo(object):
                   <dt>SPYT Library version</dt>
                     <dd><code>{spyt_version}</code></dd>
                 </dl>
-                
+
                 {sc_HTML}
             </div>
         """.format(
@@ -387,7 +387,7 @@ def jvm_process_pid():
 
 
 def _close_yt_client(spark):
-    spark._jvm.ru.yandex.spark.yt.fs.YtClientProvider.close()
+    spark._jvm.tech.ytsaurus.spyt.fs.YtClientProvider.close()
 
 
 def _try_with_safe_finally(try_func, finally_func):

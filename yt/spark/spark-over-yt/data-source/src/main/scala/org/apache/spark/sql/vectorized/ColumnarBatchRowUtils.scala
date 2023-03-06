@@ -5,8 +5,8 @@ import org.apache.spark.sql.catalyst.expressions.{UnsafeProjection, UnsafeRow}
 import org.apache.spark.sql.catalyst.util.{ArrayData, GenericArrayData, MapData}
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonDecoder
-import ru.yandex.spark.yt.serializers.SchemaConverter
+import tech.ytsaurus.spyt.serialization.YsonDecoder
+import tech.ytsaurus.spyt.serializers.SchemaConverter
 
 object ColumnarBatchRowUtils {
   def unsafeProjection(schema: StructType): InternalRow => UnsafeRow = {

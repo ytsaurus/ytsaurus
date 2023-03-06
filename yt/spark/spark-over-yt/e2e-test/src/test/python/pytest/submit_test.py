@@ -177,7 +177,7 @@ def run_check(submission_client, yt_client, test_case):
     launcher = submission_client.new_launcher()
     launcher.set_app_name(test_case.name + "_check")
     launcher.set_app_resource("yt:/" + user_dir_path + "/check.jar")
-    launcher.set_main_class("ru.yandex.spark.e2e.check.CheckApp")
+    launcher.set_main_class("tech.ytsaurus.spark.e2e.check.CheckApp")
     launcher.add_app_args(
         "--actual",
         test_case.output_path(),

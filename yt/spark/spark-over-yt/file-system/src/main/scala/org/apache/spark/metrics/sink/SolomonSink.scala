@@ -3,7 +3,8 @@ package org.apache.spark.metrics.sink
 import com.codahale.metrics.MetricRegistry
 import org.apache.spark.SecurityManager
 import org.slf4j.LoggerFactory
-import ru.yandex.spark.metrics.{ReporterConfig, SolomonConfig, SolomonReporter}
+import tech.ytsaurus.spark.metrics.ReporterConfig
+import tech.ytsaurus.spark.metrics.{ReporterConfig, SolomonConfig, SolomonReporter}
 
 import java.util.Properties
 import scala.util.{Failure, Success, Try}

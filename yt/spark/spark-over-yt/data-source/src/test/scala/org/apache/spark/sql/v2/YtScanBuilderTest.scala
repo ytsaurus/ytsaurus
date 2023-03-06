@@ -3,7 +3,7 @@ package org.apache.spark.sql.v2
 import org.apache.spark.sql.types.{ArrayType, BooleanType, DoubleType, IntegerType, MapType, Metadata, MetadataBuilder, NullType, StringType, StructField, StructType}
 import org.scalatest.{FlatSpec, Matchers}
 import org.scalatest.prop.TableDrivenPropertyChecks
-import ru.yandex.spark.yt.SchemaTestUtils
+import tech.ytsaurus.spyt.SchemaTestUtils
 
 class YtScanBuilderTest extends FlatSpec with Matchers with SchemaTestUtils with TableDrivenPropertyChecks {
   behavior of "YtScanBuilder"

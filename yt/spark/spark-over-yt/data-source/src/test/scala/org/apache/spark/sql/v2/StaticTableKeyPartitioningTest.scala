@@ -8,12 +8,14 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.spark.yt.common.utils.{MInfinity, PInfinity, RealValue, TuplePoint, TupleSegment}
-import ru.yandex.spark.yt.format.{YtInputSplit, YtPartitionedFile}
-import ru.yandex.spark.yt.format.conf.SparkYtConfiguration
-import ru.yandex.spark.yt.serializers.{PivotKeysConverter, YtLogicalType}
-import ru.yandex.spark.yt.test.{LocalSpark, TmpDir}
-import ru.yandex.spark.yt.{YtReader, YtWriter}
+import tech.ytsaurus.spyt.common.utils.{TuplePoint, TupleSegment}
+import tech.ytsaurus.spyt.format.YtInputSplit
+import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration
+import tech.ytsaurus.spyt.serializers.PivotKeysConverter
+import tech.ytsaurus.spyt.test.{LocalSpark, TmpDir}
+import tech.ytsaurus.spyt.{YtReader, YtWriter}
+import tech.ytsaurus.spyt.common.utils.{MInfinity, PInfinity, RealValue}
+import tech.ytsaurus.spyt.format.YtPartitionedFile
 
 import java.sql.{Date, Timestamp}
 import java.time.LocalDate

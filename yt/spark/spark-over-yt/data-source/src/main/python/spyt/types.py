@@ -100,13 +100,13 @@ def xx_hash64_zero_seed_udf(*s_cols):
     cols = sc._gateway.new_array(sc._jvm.Column, sz)
     for i in range(sz):
         cols[i] = _to_java_column(s_cols[i])
-    jc = sc._jvm.ru.yandex.spark.yt.common.utils.XxHash64ZeroSeed.xxHash64ZeroSeedUdf(cols)
+    jc = sc._jvm.tech.ytsaurus.spyt.common.utils.XxHash64ZeroSeed.xxHash64ZeroSeedUdf(cols)
     return Column(jc)
 
 
 def register_xxHash64ZeroSeed(spark):
     sc = SparkContext._active_spark_context
-    sc._jvm.ru.yandex.spark.yt.common.utils.XxHash64ZeroSeed.registerFunction(spark._jsparkSession)
+    sc._jvm.tech.ytsaurus.spyt.common.utils.XxHash64ZeroSeed.registerFunction(spark._jsparkSession)
 
 
 def cityhash_udf(*s_cols):
@@ -115,13 +115,13 @@ def cityhash_udf(*s_cols):
     cols = sc._gateway.new_array(sc._jvm.Column, sz)
     for i in range(sz):
         cols[i] = _to_java_column(s_cols[i])
-    jc = sc._jvm.ru.yandex.spark.yt.common.utils.CityHash.cityHashUdf(cols)
+    jc = sc._jvm.tech.ytsaurus.spyt.common.utils.CityHash.cityHashUdf(cols)
     return Column(jc)
 
 
 def register_cityHash(spark):
     sc = SparkContext._active_spark_context
-    sc._jvm.ru.yandex.spark.yt.common.utils.CityHash.registerFunction(spark._jsparkSession)
+    sc._jvm.tech.ytsaurus.spyt.common.utils.CityHash.registerFunction(spark._jsparkSession)
 
 
 def tuple_type(element_types):

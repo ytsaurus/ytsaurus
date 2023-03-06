@@ -16,10 +16,12 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.sql.v2.YtFilePartition.{getFilePartitions, tryGetKeyPartitions}
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.util.SerializableConfiguration
-import ru.yandex.spark.yt.common.utils._
-import ru.yandex.spark.yt.format.conf.{FilterPushdownConfig, KeyPartitioningConfig, YtTableSparkSettings}
-import ru.yandex.spark.yt.fs.YtDynamicPath
-import ru.yandex.spark.yt.logger.YtDynTableLoggerConfig
+import tech.ytsaurus.spyt.common.utils._
+import tech.ytsaurus.spyt.format.conf.YtTableSparkSettings
+import tech.ytsaurus.spyt.fs.YtDynamicPath
+import tech.ytsaurus.spyt.common.utils.SegmentSet
+import tech.ytsaurus.spyt.format.conf.{FilterPushdownConfig, KeyPartitioningConfig}
+import tech.ytsaurus.spyt.logger.YtDynTableLoggerConfig
 
 import java.util.Locale
 import scala.collection.JavaConverters._

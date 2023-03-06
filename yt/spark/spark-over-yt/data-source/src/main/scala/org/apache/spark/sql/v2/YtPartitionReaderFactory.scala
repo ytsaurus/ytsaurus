@@ -15,18 +15,21 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarBatch, SingleValueColumnVector, YtVectorizedReader}
 import org.apache.spark.util.SerializableConfiguration
 import org.slf4j.LoggerFactory
-import ru.yandex.spark.yt.common.utils.SegmentSet
-import ru.yandex.spark.yt.format.conf.FilterPushdownConfig
-import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.VectorizedCapacity
-import ru.yandex.spark.yt.format.{YtInputSplit, YtPartitionedFile}
-import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.{YtFileSystem, YtFileSystemBase, YtTableFileSystem}
-import ru.yandex.spark.yt.fs.conf._
-import ru.yandex.spark.yt.logger.{TaskInfo, YtDynTableLoggerConfig}
-import ru.yandex.spark.yt.serializers.InternalRowDeserializer
-import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.client.YtClientProvider
+import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read.VectorizedCapacity
+import tech.ytsaurus.spyt.format.YtInputSplit
+import tech.ytsaurus.spyt.fs.YtClientConfigurationConverter.ytClientConfiguration
+import tech.ytsaurus.spyt.fs.{YtFileSystem, YtFileSystemBase}
+import tech.ytsaurus.spyt.fs.conf._
+import tech.ytsaurus.spyt.logger.TaskInfo
+import tech.ytsaurus.spyt.serializers.InternalRowDeserializer
+import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.client.{ApiServiceTransaction, CompoundClient}
+import tech.ytsaurus.spyt.common.utils.SegmentSet
+import tech.ytsaurus.spyt.format.YtPartitionedFile
+import tech.ytsaurus.spyt.format.conf.FilterPushdownConfig
+import tech.ytsaurus.spyt.fs.YtTableFileSystem
+import tech.ytsaurus.spyt.logger.{TaskInfo, YtDynTableLoggerConfig}
+import tech.ytsaurus.spyt.wrapper.client.YtClientProvider
 
 case class YtPartitionReaderFactory(sqlConf: SQLConf,
                                     broadcastedConf: Broadcast[SerializableConfiguration],
@@ -44,13 +47,13 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
   private val resultSchema = StructType(readDataSchema.fields)
   private val ytClientConf = ytClientConfiguration(sqlConf)
   private val arrowEnabled: Boolean = {
-    import ru.yandex.spark.yt.format.conf.{SparkYtConfiguration => SparkSettings, YtTableSparkSettings => TableSettings}
-    import ru.yandex.spark.yt.fs.conf._
+    import tech.ytsaurus.spyt.format.conf.{SparkYtConfiguration => SparkSettings, YtTableSparkSettings => TableSettings}
+    import tech.ytsaurus.spyt.fs.conf._
     val keyPartitioned = options.get(TableSettings.KeyPartitioned.name).exists(_.toBoolean)
     options.ytConf(TableSettings.ArrowEnabled) && sqlConf.ytConf(SparkSettings.Read.ArrowEnabled) && !keyPartitioned
   }
   private val readBatch: Boolean = {
-    import ru.yandex.spark.yt.format.conf.{YtTableSparkSettings => TableSettings}
+    import tech.ytsaurus.spyt.format.conf.{YtTableSparkSettings => TableSettings}
     val optimizedForScan = options.get(TableSettings.OptimizedForScan.name).exists(_.toBoolean)
     (optimizedForScan && arrowEnabled && arrowSchemaSupported(readDataSchema)) || readDataSchema.isEmpty
   }
