@@ -8,17 +8,13 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 GetBytesCount(const IIOEngine::TWriteRequest& request)
+i64 GetByteCount(const IIOEngine::TWriteRequest& request)
 {
-    i64 bytes = 0;
-    for (const auto& buffer : request.Buffers) {
-        bytes += buffer.size();
-    }
-    return bytes;
+    return GetByteSize(request.Buffers);
 }
 
 template <typename TRequest>
-i64 GetBytesCount(const TRequest& request)
+i64 GetByteCount(const TRequest& request)
 {
     return request.Size;
 }
@@ -100,11 +96,11 @@ template <typename TSlicedRequest, typename TInputRequest, typename TSliceHandle
 std::vector<TSlicedRequest> TIORequestSlicer::SliceRequest(const TInputRequest& request, TSliceHandler handleSlice) const
 {
     i64 offset = request.Offset;
-    i64 remainingSize = NDetail::GetBytesCount(request);
+    i64 remainingSize = NDetail::GetByteCount(request);
     const i64 indivisibleBlockSize = DesiredRequestSize_ + MinRequestSize_;
 
     std::vector<TSlicedRequest> results;
-    while (remainingSize) {
+    while (remainingSize > 0) {
         auto sliceSize = (remainingSize > indivisibleBlockSize) ?  DesiredRequestSize_ : remainingSize;
         auto& slice = results.emplace_back();
         handleSlice(slice, offset, sliceSize);
@@ -114,6 +110,11 @@ std::vector<TSlicedRequest> TIORequestSlicer::SliceRequest(const TInputRequest& 
 
     return results;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDummyRequestSlicer::TDummyRequestSlicer(i64 /*desiredSize*/, i64 /*minSize*/)
+{ }
 
 std::array<TSlicedReadRequest, 1> TDummyRequestSlicer::Slice(IIOEngine::TReadRequest request, TMutableRef buffer) const
 {

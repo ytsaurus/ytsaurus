@@ -39,8 +39,7 @@ private:
 class TDummyRequestSlicer
 {
 public:
-    TDummyRequestSlicer(i64 /*desiredBlockSize*/, i64 /*minBlockSize*/)
-    { }
+    TDummyRequestSlicer(i64 desiredSize, i64 minSize);
 
     std::array<TSlicedReadRequest, 1> Slice(IIOEngine::TReadRequest request, TMutableRef buffer) const;
     std::array<IIOEngine::TWriteRequest, 1> Slice(IIOEngine::TWriteRequest request) const;
@@ -49,4 +48,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NIO
