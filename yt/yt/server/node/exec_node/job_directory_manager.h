@@ -29,6 +29,8 @@ struct IJobDirectoryManager
         const TString& path,
         const TJobDirectoryProperties& properties) = 0;
 
+    virtual bool UseVolumeQuota() = 0;
+
     //! Releases all managed directories with given path prefix.
     virtual TFuture<void> CleanDirectories(const TString& pathPrefix) = 0;
 };

@@ -288,9 +288,11 @@ public:
             .Run();
     }
 
-    TFuture<TVolumeMeta> CreateVolume(const std::vector<TLayerMeta>& layers)
+    TFuture<TVolumeMeta> CreateVolume(
+        const std::vector<TLayerMeta>& layers,
+        const TUserSandboxOptions& options)
     {
-        return BIND(&TLayerLocation::DoCreateVolume, MakeStrong(this), layers)
+        return BIND(&TLayerLocation::DoCreateVolume, MakeStrong(this), layers, options)
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
     }
@@ -849,7 +851,9 @@ private:
         AvailableSpace_ += layerSize;
     }
 
-    TVolumeMeta DoCreateVolume(const std::vector<TLayerMeta>& layers)
+    TVolumeMeta DoCreateVolume(
+        const std::vector<TLayerMeta>& layers,
+        const TUserSandboxOptions& options)
     {
         ValidateEnabled();
 
@@ -867,6 +871,16 @@ private:
             THashMap<TString, TString> properties;
             properties["backend"] = "overlay";
             properties["place"] = PlacePath_;
+
+            if (options.EnableDiskQuota) {
+                if (options.DiskSpaceLimit) {
+                    properties["space_limit"] = ToString(*options.DiskSpaceLimit);
+                }
+
+                if (options.InodeLimit) {
+                    properties["inode_limit"] = ToString(*options.InodeLimit);
+                }
+            }
 
             TStringBuilder builder;
             for (const auto& layer : layers) {
@@ -2026,7 +2040,8 @@ public:
 
     TFuture<IVolumePtr> PrepareVolume(
         const std::vector<TArtifactKey>& layers,
-        const TArtifactDownloadOptions& downloadOptions) override
+        const TArtifactDownloadOptions& downloadOptions,
+        const TUserSandboxOptions& options) override
     {
         YT_VERIFY(!layers.empty());
 
@@ -2045,7 +2060,8 @@ public:
             .Apply(BIND(
                 &TPortoVolumeManager::CreateVolume,
                 MakeStrong(this),
-                tag)
+                tag,
+                options)
             .AsyncVia(GetCurrentInvoker()))
             .As<IVolumePtr>();
     }
@@ -2089,6 +2105,7 @@ private:
 
     TLayeredVolumePtr CreateVolume(
         TGuid tag,
+        const TUserSandboxOptions& options,
         const TErrorOr<std::vector<TLayerPtr>>& errorOrLayers)
     {
         YT_LOG_DEBUG(errorOrLayers, "All layers prepared (Tag: %v)",
@@ -2108,7 +2125,7 @@ private:
         }
 
         auto location = PickLocation();
-        auto volumeMeta = WaitFor(location->CreateVolume(layerMetas))
+        auto volumeMeta = WaitFor(location->CreateVolume(layerMetas, options))
             .ValueOrThrow();
 
         auto volume = New<TLayeredVolume>(

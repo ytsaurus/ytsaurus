@@ -177,7 +177,10 @@ void TSlotLocation::DoRepair(bool force)
     YT_LOG_DEBUG("Location repaired (Location: %v)", Id_);
 }
 
-std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(int slotIndex, TUserSandboxOptions options, bool sandboxInsideTmpfs)
+std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
+    int slotIndex,
+    TUserSandboxOptions options,
+    bool sandboxInsideTmpfs)
 {
     ValidateEnabled();
 
@@ -185,13 +188,20 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(int slotIndex, T
         slotIndex,
         sandboxInsideTmpfs);
 
+    auto useVolumeQuota = JobDirectoryManager_->UseVolumeQuota();
     auto userId = SlotIndexToUserId_(slotIndex);
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
-    bool shouldApplyQuota = ((options.InodeLimit || options.DiskSpaceLimit) && !sandboxInsideTmpfs);
+    bool shouldApplyQuota = (options.InodeLimit || options.DiskSpaceLimit) &&
+        !sandboxInsideTmpfs &&
+        !(useVolumeQuota && options.HasRootFsQuota);
     if (shouldApplyQuota) {
         try {
-            auto properties = TJobDirectoryProperties {options.DiskSpaceLimit, options.InodeLimit, userId};
+            auto properties = TJobDirectoryProperties {
+                .DiskSpaceLimit = options.DiskSpaceLimit,
+                .InodeLimit = options.InodeLimit,
+                .UserId = userId
+            };
             WaitFor(JobDirectoryManager_->ApplyQuota(sandboxPath, properties))
                 .ThrowOnError();
             {
@@ -208,7 +218,8 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(int slotIndex, T
     }
 
     // This tmp sandbox is a temporary workaround for nirvana. We apply the same quota as we do for usual sandbox.
-    if (options.DiskSpaceLimit || options.InodeLimit) {
+    if ((options.DiskSpaceLimit || options.InodeLimit) &&
+        !(useVolumeQuota && options.HasRootFsQuota)) {
         auto tmpPath = GetSandboxPath(slotIndex, ESandboxKind::Tmp);
         try {
             auto properties = TJobDirectoryProperties{options.DiskSpaceLimit, options.InodeLimit, userId};
@@ -291,7 +302,9 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(int slotIndex, T
     return result;
 }
 
-TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotIndex, TUserSandboxOptions options)
+TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(
+    int slotIndex,
+    TUserSandboxOptions options)
 {
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
@@ -316,7 +329,10 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotI
         ? LightInvoker_
         : HeavyInvoker_;
 
-    return BIND(&TSlotLocation::DoPrepareSandboxDirectories, MakeStrong(this), slotIndex, options, sandboxInsideTmpfs)
+    return BIND(&TSlotLocation::DoPrepareSandboxDirectories, MakeStrong(this),
+        slotIndex,
+        options,
+        sandboxInsideTmpfs)
         .AsyncVia(invoker)
         .Run();
 }

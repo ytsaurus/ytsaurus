@@ -35,6 +35,9 @@ struct TUserSandboxOptions
     std::vector<TTmpfsVolume> TmpfsVolumes;
     std::optional<i64> InodeLimit;
     std::optional<i64> DiskSpaceLimit;
+    bool HasRootFsQuota;
+    bool EnableDiskQuota;
+
     TCallback<void(const TError&)> DiskOverdraftCallback;
 };
 

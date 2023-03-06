@@ -511,7 +511,7 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("test_root_fs", &TThis::TestRootFS)
         .Default(false);
 
-    registrar.Parameter("use_job_workspace_builder", &TThis::UseJobWorkspaceBuilder)
+    registrar.Parameter("use_common_root_fs_quota", &TThis::UseCommonRootFsQuota)
         .Default(false);
 
     registrar.Parameter("root_fs_binds", &TThis::RootFSBinds)

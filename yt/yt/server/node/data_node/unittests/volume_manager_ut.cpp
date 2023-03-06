@@ -188,7 +188,7 @@ TEST_P(TVolumeManagerTest, CreateSimpleVolume)
 
     TArtifactDownloadOptions options;
 
-    auto volume = WaitFor(VolumeManager->PrepareVolume(layers, options))
+    auto volume = WaitFor(VolumeManager->PrepareVolume(layers, options, {}))
         .ValueOrThrow();
 
     EXPECT_TRUE(TFileStat(volume->GetPath() + "/bar").IsFile());
@@ -218,7 +218,43 @@ TEST_P(TVolumeManagerTest, TwoLayers)
     std::vector<TArtifactKey> layers{upperKey, baseKey};
     TArtifactDownloadOptions options;
 
-    auto volume = WaitFor(VolumeManager->PrepareVolume(layers, options))
+    auto volume = WaitFor(VolumeManager->PrepareVolume(layers, options, {}))
+        .ValueOrThrow();
+
+    EXPECT_FALSE(NFs::Exists(volume->GetPath() + "/bar"));
+    EXPECT_TRUE(TFileStat(volume->GetPath() + "/foo").IsDir());
+    EXPECT_TRUE(TFileStat(volume->GetPath() + "/foo/zog").IsFile());
+    EXPECT_FALSE(NFs::Exists(volume->GetPath() + "/foo/zig"));
+
+    WaitFor(volume->Remove())
+        .ThrowOnError();
+}
+
+TEST_P(TVolumeManagerTest, CreateRootFsVolumeWithQuota)
+{
+    TArtifactKey baseKey;
+    ToProto(baseKey.add_chunk_specs()->mutable_chunk_id(), TGuid::Create());
+    baseKey = FixupKey(baseKey);
+
+    TArtifactKey upperKey;
+    ToProto(upperKey.add_chunk_specs()->mutable_chunk_id(), TGuid::Create());
+    upperKey = FixupKey(upperKey);
+
+    EXPECT_CALL(*MockChunkCache, DownloadArtifact(baseKey, _))
+        .WillOnce(ReturnFakeArtifact("base.tgz"));
+
+    EXPECT_CALL(*MockChunkCache, DownloadArtifact(upperKey, _))
+        .WillOnce(ReturnFakeArtifact("upper.tgz"));
+
+    std::vector<TArtifactKey> layers{upperKey, baseKey};
+    TArtifactDownloadOptions options;
+
+    auto volume = WaitFor(VolumeManager->PrepareVolume(layers, options, TUserSandboxOptions{
+        .InodeLimit = 200L,
+        .DiskSpaceLimit = 2 << 20,
+        .HasRootFsQuota = true,
+        .EnableDiskQuota = false
+    }))
         .ValueOrThrow();
 
     EXPECT_FALSE(NFs::Exists(volume->GetPath() + "/bar"));

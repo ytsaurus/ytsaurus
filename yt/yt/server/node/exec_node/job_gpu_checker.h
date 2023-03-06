@@ -27,17 +27,17 @@ namespace NYT::NExecNode
 
 struct TJobGpuCheckerSettings
 {
-    const ISlotPtr Slot;
-    const TJobPtr Job;
-    const NContainers::TRootFS RootFs;
-    const TString CommandUser;
+    ISlotPtr Slot;
+    TJobPtr Job;
+    NContainers::TRootFS RootFs;
+    TString CommandUser;
 
-    const TString GpuCheckBinaryPath;
-    const std::vector<TString> GpuCheckBinaryArgs;
-    const EGpuCheckType GpuCheckType;
-    const int CurrentStartIndex;
-    const bool TestExtraGpuCheckCommandFailure;
-    const std::vector<NContainers::TDevice> GpuDevices;
+    TString GpuCheckBinaryPath;
+    std::vector<TString> GpuCheckBinaryArgs;
+    EGpuCheckType GpuCheckType;
+    int CurrentStartIndex;
+    bool TestExtraGpuCheckCommandFailure;
+    std::vector<NContainers::TDevice> GpuDevices;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

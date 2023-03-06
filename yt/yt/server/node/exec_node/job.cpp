@@ -1467,8 +1467,31 @@ std::vector<TDevice> TJob::GetGpuDevices()
     return devices;
 }
 
+void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr>>& errorOrArtifacts)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    GuardedAction([&] {
+        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
+        THROW_ERROR_EXCEPTION_IF_FAILED(errorOrArtifacts, "Failed to download artifacts");
+
+        YT_LOG_INFO("Artifacts downloaded");
+
+        const auto& chunks = errorOrArtifacts.Value();
+        for (size_t index = 0; index < Artifacts_.size(); ++index) {
+            Artifacts_[index].Chunk = chunks[index];
+        }
+
+        CopyTime_ = TInstant::Now();
+        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
+
+        RunWithWorkspaceBuilder();
+    });
+}
+
 void TJob::RunWithWorkspaceBuilder()
 {
+    VERIFY_THREAD_AFFINITY(JobThread);
     std::vector<TDevice> devices = GetGpuDevices();
 
     std::vector<TBind> binds;
@@ -1478,37 +1501,7 @@ void TJob::RunWithWorkspaceBuilder()
         binds.push_back({bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
     }
 
-    auto userJobSpec = UserJobSpec_;
-
-    TUserSandboxOptions options;
-    options.DiskOverdraftCallback = BIND(&TJob::Abort, MakeStrong(this))
-        .Via(Invoker_);
-
-    if (userJobSpec) {
-        for (const auto& tmpfsVolumeProto : userJobSpec->tmpfs_volumes()) {
-            options.TmpfsVolumes.push_back(TTmpfsVolume {
-                .Path = tmpfsVolumeProto.path(),
-                .Size = tmpfsVolumeProto.size()
-            });
-        }
-
-        if (userJobSpec->has_disk_space_limit()) {
-            options.DiskSpaceLimit = userJobSpec->disk_space_limit();
-        }
-
-        if (userJobSpec->has_inode_limit()) {
-            options.InodeLimit = userJobSpec->inode_limit();
-        }
-
-        if (userJobSpec->has_disk_request()) {
-            if (userJobSpec->disk_request().has_disk_space()) {
-                options.DiskSpaceLimit = userJobSpec->disk_request().disk_space();
-            }
-            if (userJobSpec->disk_request().has_inode_count()) {
-                options.InodeLimit = userJobSpec->disk_request().inode_count();
-            }
-        }
-    }
+    TUserSandboxOptions options = BuildUserSandboxOptions();
 
     TJobWorkspaceBuildSettings settings {
         .UserSandboxOptions = options,
@@ -1535,9 +1528,9 @@ void TJob::RunWithWorkspaceBuilder()
         .GpuDevices = devices
     };
 
-    auto workspaceBuilder = CreateJobWorkspaceBuilder(Invoker_, settings);
+    auto workspaceBuilder = CreateJobWorkspaceBuilder(Invoker_, std::move(settings));
 
-    workspaceBuilder->SubscribeUpdateArtifactStatistics(BIND([=, this, this_ = MakeStrong(this)] (i64 compressedDataSize, bool cacheHit) {
+    workspaceBuilder->SubscribeUpdateArtifactStatistics(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this)] (i64 compressedDataSize, bool cacheHit) {
         UpdateArtifactStatistics(compressedDataSize, cacheHit);
     }));
 
@@ -1545,7 +1538,7 @@ void TJob::RunWithWorkspaceBuilder()
         SetJobPhase(phase);
     }));
 
-    workspaceBuilder->SubscribeUpdateTimers(BIND([=, this, this_ = MakeStrong(this)] (const TJobWorkspaceBuilderPtr& workspace) {
+    workspaceBuilder->SubscribeUpdateTimers(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this)] (const TJobWorkspaceBuilderPtr& workspace) {
         PreliminaryGpuCheckStartTime_ = workspace->GetGpuCheckStartTime();
         PreliminaryGpuCheckFinishTime_ = workspace->GetGpuCheckFinishTime();
 
@@ -1553,252 +1546,26 @@ void TJob::RunWithWorkspaceBuilder()
         FinishPrepareVolumeTime_ = workspace->GetVolumePrepareFinishTime();
     }));
 
-    BIND(&TJobWorkspaceBuilder::Run, workspaceBuilder)
-        .AsyncVia(Invoker_)
-        .Run()
-        .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TJobWorkspaceBuildResult> resultOrError) {
-            if (resultOrError.IsOK()) {
-                auto result = resultOrError.Value();
-                TmpfsPaths_ = result.TmpfsPaths;
-                RootVolume_ = result.RootVolume;
-                SetupCommandCount_ = result.SetupCommandCount;
-
-                RunJobProxy();
-            } else {
-                YT_LOG_WARNING(resultOrError, "Error preparing scheduler job");
-
-                DoSetResult(resultOrError);
-                Cleanup();
-            }
-        })
-        .Via(Invoker_));
+    workspaceBuilder->Run()
+        .Subscribe(BIND(&TJob::FinishPrepare, MakeStrong(this))
+            .Via(Invoker_));
 }
 
-void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr>>& errorOrArtifacts)
+void TJob::FinishPrepare(const TErrorOr<TJobWorkspaceBuildResult>& resultOrError)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     GuardedAction([&] {
-        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
-        THROW_ERROR_EXCEPTION_IF_FAILED(errorOrArtifacts, "Failed to download artifacts");
+        if (resultOrError.IsOK()) {
+            auto result = resultOrError.Value();
+            TmpfsPaths_ = result.TmpfsPaths;
+            RootVolume_ = result.RootVolume;
+            SetupCommandCount_ = result.SetupCommandCount;
 
-        YT_LOG_INFO("Artifacts downloaded");
-
-        const auto& chunks = errorOrArtifacts.Value();
-        for (size_t index = 0; index < Artifacts_.size(); ++index) {
-            Artifacts_[index].Chunk = chunks[index];
-        }
-
-        CopyTime_ = TInstant::Now();
-        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
-
-        if (Config_->UseJobWorkspaceBuilder) {
-            RunWithWorkspaceBuilder();
-        } else {
-            BIND(&TJob::PrepareSandboxDirectories, MakeStrong(this))
-                .AsyncVia(Invoker_)
-                .Run()
-                .Subscribe(BIND(
-                    &TJob::OnSandboxDirectoriesPrepared,
-                    MakeWeak(this))
-                .Via(Invoker_));
-        }
-    });
-}
-
-void TJob::OnSandboxDirectoriesPrepared(const TError& error)
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    GuardedAction([&] {
-        ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare sandbox directories");
-
-        if (LayerArtifactKeys_.empty()) {
             RunJobProxy();
         } else {
-            StartPrepareVolumeTime_ = TInstant::Now();
-            SetJobPhase(EJobPhase::PreparingRootVolume);
-            YT_LOG_INFO("Preparing root volume (LayerCount: %v)", LayerArtifactKeys_.size());
-
-            for (const auto& layer : LayerArtifactKeys_) {
-                i64 layerSize = layer.GetCompressedDataSize();
-                // NB(gritukan): This check is racy. Layer can be removed
-                // from cache after this check and before actual preparation.
-                UpdateArtifactStatistics(layerSize, Slot_->IsLayerCached(layer));
-            }
-
-            Slot_->PrepareRootVolume(LayerArtifactKeys_, MakeArtifactDownloadOptions())
-                .Subscribe(BIND(
-                    &TJob::OnVolumePrepared,
-                    MakeWeak(this))
-                .Via(Invoker_));
+            THROW_ERROR_EXCEPTION(resultOrError);
         }
-    });
-}
-
-void TJob::OnVolumePrepared(const TErrorOr<IVolumePtr>& volumeOrError)
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    FinishPrepareVolumeTime_ = TInstant::Now();
-
-    GuardedAction([&] {
-        ValidateJobPhase(EJobPhase::PreparingRootVolume);
-        if (!volumeOrError.IsOK()) {
-            auto error = TError(EErrorCode::RootVolumePreparationFailed, "Failed to prepare artifacts")
-                << volumeOrError;
-
-            // Corrupted user layers should not disable scheduler jobs.
-            // if (!error.FindMatching(NDataNode::EErrorCode::LayerUnpackingFailed)) {
-            //     Bootstrap_->GetSlotManager()->Disable(error);
-            // }
-
-            THROW_ERROR error;
-        }
-
-        RootVolume_ = volumeOrError.Value();
-
-        SetJobPhase(EJobPhase::RunningSetupCommands);
-
-        // Even though #RunSetupCommands returns future, we still need to pass it through invoker
-        // since Porto API is used and can cause context switch.
-        BIND(&TJob::RunSetupCommands, MakeStrong(this))
-            .AsyncVia(Invoker_)
-            .Run()
-            .Subscribe(BIND(
-                &TJob::OnSetupCommandsFinished,
-                MakeWeak(this))
-                .Via(Invoker_));
-
-    });
-}
-
-void TJob::OnSetupCommandsFinished(const TError& error)
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    GuardedAction([&] {
-        ValidateJobPhase(EJobPhase::RunningSetupCommands);
-        if (!error.IsOK()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::SetupCommandFailed, "Failed to run setup commands")
-                << error;
-        }
-
-        if (UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path()) {
-            SetJobPhase(EJobPhase::RunningGpuCheckCommand);
-
-            // since Porto API is used and can cause context switch.
-            BIND(&TJob::RunGpuCheckCommand, MakeStrong(this))
-                .AsyncVia(Invoker_)
-                .Run(
-                    UserJobSpec_->gpu_check_binary_path(),
-                    FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
-                    EGpuCheckType::Preliminary)
-                .Subscribe(BIND(
-                    &TJob::OnGpuCheckCommandFinished,
-                    MakeWeak(this))
-                    .Via(Invoker_));
-        } else {
-            RunJobProxy();
-        }
-    });
-}
-
-TFuture<void> TJob::RunGpuCheckCommand(
-    const TString& gpuCheckBinaryPath,
-    std::vector<TString> gpuCheckBinaryArgs,
-    EGpuCheckType gpuCheckType)
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    YT_LOG_INFO("Running %lv GPU check commands", gpuCheckType);
-
-    int checkStartIndex = 0;
-    switch (gpuCheckType) {
-        case EGpuCheckType::Preliminary:
-            PreliminaryGpuCheckStartTime_ = TInstant::Now();
-            checkStartIndex = SetupCommandCount_;
-            break;
-        case EGpuCheckType::Extra:
-            ExtraGpuCheckStartTime_ = TInstant::Now();
-            checkStartIndex = SetupCommandCount_ + 2;
-            break;
-        default:
-            Y_UNREACHABLE();
-    }
-
-    {
-        auto testFileCommand = New<TShellCommandConfig>();
-        testFileCommand->Path = "/usr/bin/test";
-        testFileCommand->Args = {"-f", gpuCheckBinaryPath};
-
-        auto testFileError = WaitFor(Slot_->RunSetupCommands(
-            Id_,
-            {testFileCommand},
-            MakeWritableRootFS(),
-            Config_->JobController->SetupCommandUser,
-            /*devices*/ std::nullopt,
-            /*startIndex*/ checkStartIndex));
-
-        if (!testFileError.IsOK()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::GpuCheckCommandIncorrect, "Path to GPU check binary is not a file")
-                << TErrorAttribute("path", gpuCheckBinaryPath)
-                << testFileError;
-        }
-    }
-
-    auto checkCommand = New<TShellCommandConfig>();
-    checkCommand->Path = gpuCheckBinaryPath;
-    checkCommand->Args = std::move(gpuCheckBinaryArgs);
-
-    std::vector<TDevice> devices;
-    for (const auto& deviceName : Bootstrap_->GetGpuManager()->GetGpuDevices()) {
-        bool deviceFound = false;
-        for (const auto& slot : GpuSlots_) {
-            if (slot->GetDeviceName() == deviceName) {
-                deviceFound = true;
-                break;
-            }
-        }
-
-        // We should not explicitly exclude test device that does not actually exists.
-        if (!deviceFound && !Config_->JobController->GpuManager->TestResource) {
-            // Exclude device explicitly.
-            devices.emplace_back(TDevice{
-                .DeviceName = deviceName,
-                .Enabled = false});
-        }
-    }
-
-    if (Config_->JobController->GpuManager->TestExtraGpuCheckCommandFailure) {
-        return MakeFuture(TError("Testing extra GPU check command failed"));
-    }
-
-    return Slot_->RunSetupCommands(
-        Id_,
-        {checkCommand},
-        MakeWritableRootFS(),
-        Config_->JobController->SetupCommandUser,
-        devices,
-        /*startIndex*/ checkStartIndex + 1);
-}
-
-void TJob::OnGpuCheckCommandFinished(const TError& error)
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    PreliminaryGpuCheckFinishTime_ = TInstant::Now();
-
-    GuardedAction([&] {
-        ValidateJobPhase(EJobPhase::RunningGpuCheckCommand);
-        if (!error.IsOK()) {
-            auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "Preliminary GPU check command failed")
-                << error;
-            THROW_ERROR checkError;
-        }
-
-        RunJobProxy();
     });
 }
 
@@ -1838,7 +1605,13 @@ void TJob::RunJobProxy()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    if (JobPhase_ != EJobPhase::RunningSetupCommands &&
+        JobPhase_ != EJobPhase::RunningGpuCheckCommand) {
+        YT_LOG_ALERT("Unexpected phase before run job proxy (ActualPhase: %v)", JobPhase_);
+    }
+
     ExecTime_ = TInstant::Now();
+
     SetJobPhase(EJobPhase::SpawningJobProxy);
     InitializeJobProbe();
 
@@ -1935,7 +1708,7 @@ void TJob::OnJobProxyFinished(const TError& error)
             .GpuDevices = GetGpuDevices()
         };
 
-        auto checker = New<TJobGpuChecker>(settings);
+        auto checker = New<TJobGpuChecker>(std::move(settings));
         checker->SubscribeRunCheck(BIND([=, this, this_ = MakeStrong(this)] () {
             ExtraGpuCheckStartTime_ = TInstant::Now();
         }));
@@ -1974,7 +1747,6 @@ void TJob::GuardedAction(std::function<void()> action)
     } catch (const std::exception& ex) {
         // TODO(pogorelov): This method is called not only in preparation states, do something with log message.
         YT_LOG_WARNING(ex, "Error preparing scheduler job");
-
         DoSetResult(ex);
         Cleanup();
     }
@@ -2321,16 +2093,14 @@ TJobProxyConfigPtr TJob::CreateConfig()
     return proxyConfig;
 }
 
-void TJob::PrepareSandboxDirectories()
+TUserSandboxOptions TJob::BuildUserSandboxOptions()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    YT_LOG_INFO("Started preparing sandbox directories");
-
     TUserSandboxOptions options;
     // NB: this eventually results in job failure.
     options.DiskOverdraftCallback = BIND(&TJob::Abort, MakeWeak(this))
         .Via(Invoker_);
+    options.HasRootFsQuota = Config_->UseCommonRootFsQuota;
+    options.EnableDiskQuota = Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota;
 
     if (UserJobSpec_) {
         for (const auto& tmpfsVolumeProto : UserJobSpec_->tmpfs_volumes()) {
@@ -2360,37 +2130,7 @@ void TJob::PrepareSandboxDirectories()
         }
     }
 
-    TmpfsPaths_ = WaitFor(Slot_->PrepareSandboxDirectories(options))
-        .ValueOrThrow();
-
-    for (const auto& artifact : Artifacts_) {
-        // Artifact is passed into the job via symlink.
-        if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
-            YT_VERIFY(artifact.Chunk);
-
-            YT_LOG_INFO("Making symlink for artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
-                artifact.Name,
-                artifact.Executable,
-                artifact.SandboxKind,
-                artifact.Key.GetCompressedDataSize());
-
-            auto sandboxPath = Slot_->GetSandboxPath(artifact.SandboxKind);
-            auto symlinkPath = NFS::CombinePaths(sandboxPath, artifact.Name);
-
-            WaitFor(Slot_->MakeLink(
-                Id_,
-                artifact.Name,
-                artifact.SandboxKind,
-                artifact.Chunk->GetFileName(),
-                symlinkPath,
-                artifact.Executable))
-                .ThrowOnError();
-        } else {
-            YT_VERIFY(artifact.SandboxKind == ESandboxKind::User);
-        }
-    }
-
-    YT_LOG_INFO("Finished preparing sandbox directories");
+    return options;
 }
 
 // Build artifacts.
@@ -2455,7 +2195,7 @@ void TJob::InitializeArtifacts()
 
 TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_THREAD_AFFINITY(JobThread);
 
     std::vector<TString> workloadDescriptorAnnotations = {
         Format("OperationId: %v", OperationId_),
@@ -2467,7 +2207,7 @@ TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions() const
         .TrafficMeter = TrafficMeter_,
     };
 
-    if (UserJobSpec_->has_enable_squashfs()) {
+    if (UserJobSpec_ && UserJobSpec_->has_enable_squashfs()) {
         options.ConvertLayerToSquashFS = UserJobSpec_->enable_squashfs();
     }
 
@@ -2520,30 +2260,9 @@ TFuture<std::vector<NDataNode::IChunkPtr>> TJob::DownloadArtifacts()
     return AllSucceeded(asyncChunks);
 }
 
-TFuture<void> TJob::RunSetupCommands()
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    auto commands = GetSetupCommands();
-    SetupCommandCount_ = commands.size();
-    if (commands.empty()) {
-        return VoidFuture;
-    }
-
-    YT_LOG_INFO("Running setup commands");
-
-    return Slot_->RunSetupCommands(
-        Id_,
-        commands,
-        MakeWritableRootFS(),
-        Config_->JobController->SetupCommandUser,
-        /*devices*/ std::nullopt,
-        /*startIndex*/ 0);
-}
-
-// Analyse results.
 TError TJob::BuildJobProxyError(const TError& spawnError)
 {
+    // Analyse results.
     if (spawnError.IsOK()) {
         return TError();
     }

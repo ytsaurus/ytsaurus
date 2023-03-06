@@ -419,6 +419,8 @@ private:
 
     void GuardedAction(std::function<void()> action);
 
+    void FinishPrepare(const TErrorOr<TJobWorkspaceBuildResult>& resultOrError);
+
     // Finalization.
     void Cleanup();
 
@@ -441,6 +443,8 @@ private:
 
     // Analyse results.
     static TError BuildJobProxyError(const TError& spawnError);
+
+    TUserSandboxOptions BuildUserSandboxOptions();
 
     std::optional<NScheduler::EAbortReason> GetAbortReason();
 

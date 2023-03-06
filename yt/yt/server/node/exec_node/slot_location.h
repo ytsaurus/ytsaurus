@@ -192,7 +192,10 @@ private:
 
     void DoRepair(bool force);
 
-    std::vector<TString> DoPrepareSandboxDirectories(int slotIndex, TUserSandboxOptions options, bool sandboxInsideTmpfs);
+    std::vector<TString> DoPrepareSandboxDirectories(
+        int slotIndex,
+        TUserSandboxOptions options,
+        bool sandboxInsideTmpfs);
 
     void BuildSlotRootDirectory(int slotIndex);
 
