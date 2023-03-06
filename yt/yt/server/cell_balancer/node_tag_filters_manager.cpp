@@ -87,6 +87,17 @@ TSpareNodesInfo GetSpareNodesInfo(
         }
 
         const auto bundleName = !assignedBundlesNames.empty() ? assignedBundlesNames.back() : GetOrCrash(operationsToBundle, spareNodeName);
+
+        const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
+        if (!bundleInfo->EnableBundleController) {
+            YT_LOG_WARNING("Spare node is occupied by unmanaged bundle (Node: %v, Bundles: %v)",
+                spareNodeName,
+                bundleName);
+
+            result.UsedByBundle[bundleName].push_back(spareNodeName);
+            continue;
+        }
+
         const auto& bundleState = GetOrCrash(mutations->ChangedStates, bundleName);
 
         if (bundleState->SpareNodeReleasements.count(spareNodeName)) {
