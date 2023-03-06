@@ -105,11 +105,7 @@ private:
 
     void ValidateLeader()
     {
-        if (!Slot_->GetHydraManager()->IsActiveLeader()) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::Unavailable,
-                "Not an active leader");
-        }
+        ValidatePeer(EPeerKind::Leader);
     }
 };
 
