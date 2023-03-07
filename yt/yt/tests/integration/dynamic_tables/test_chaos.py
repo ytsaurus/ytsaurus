@@ -2165,7 +2165,8 @@ class TestChaos(ChaosTestBase):
         remove("//sys/chaos_cells/{}/2/snapshots/*".format(cell_id), driver=remote_driver1)
 
         set("//sys/chaos_cell_bundles/chaos_bundle/@node_tag_filter", "", driver=remote_driver1)
-        wait(lambda: get("//sys/chaos_cells/{}/@health".format(cell_id), driver=remote_driver1) == "good")
+        wait(lambda: get("//sys/chaos_cells/{}/@local_health".format(cell_id), driver=remote_driver1) == "good")
+        wait(lambda: get("//sys/chaos_cells/{}/@health".format(cell_id)) == "good")
         assert len(ls("//sys/chaos_cells/{}/2/snapshots".format(cell_id), driver=remote_driver1)) != 0
 
     @authors("savrus")
