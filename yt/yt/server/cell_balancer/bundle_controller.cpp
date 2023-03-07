@@ -77,6 +77,15 @@ struct TBundleSensors final
     TGauge ReleasingSpareNodes;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBundleAlertCounters
+{
+    THashMap<TString, TCounter> IdToCounter;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 using TBundleSensorsPtr = TIntrusivePtr<TBundleSensors>;
 
 struct TZoneSensors final
@@ -107,7 +116,6 @@ public:
         , Profiler("/bundle_controller")
         , SuccessfulScanBundleCounter_(Profiler.Counter("/successful_scan_bundles_count"))
         , FailedScanBundleCounter_(Profiler.Counter("/failed_scan_bundles_count"))
-        , AlarmCounter_(Profiler.Counter("/scan_bundles_alarms_count"))
         , DynamicConfigUpdateCounter_(Profiler.Counter("/dynamic_config_update_counter"))
         , InstanceAllocationCounter_(Profiler.Counter("/instance_allocation_counter"))
         , InstanceDeallocationCounter_(Profiler.Counter("/instance_deallocation_counter"))
@@ -163,7 +171,6 @@ private:
     const TProfiler Profiler;
     TCounter SuccessfulScanBundleCounter_;
     TCounter FailedScanBundleCounter_;
-    TCounter AlarmCounter_;
 
     TCounter DynamicConfigUpdateCounter_;
     TCounter InstanceAllocationCounter_;
@@ -202,6 +209,7 @@ private:
     mutable THashMap<TString, TBundleSensorsPtr> BundleSensors_;
     mutable THashMap<TString, TZoneSensorsPtr> ZoneSensors_;
     mutable Orchid::TBundlesInfo OrchidBundlesInfo_;
+    mutable THashMap<TString, TBundleAlertCounters> BundleAlerts_;
 
 
     void ScanBundles() const
@@ -366,7 +374,10 @@ private:
         SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeNodeTagFilter, mutations.InitializedNodeTagFilters);
         SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeTargetConfig, mutations.InitializedBundleTargetConfig);
 
-        AlarmCounter_.Increment(mutations.AlertsToFire.size());
+        for (const auto& alert : mutations.AlertsToFire) {
+            RegisterAlert(alert);
+        }
+
         InstanceAllocationCounter_.Increment(mutations.NewAllocations.size());
         InstanceDeallocationCounter_.Increment(mutations.NewDeallocations.size());
         CellCreationCounter_.Increment(mutations.CellsToCreate.size());
@@ -622,6 +633,26 @@ private:
             auto sensor = GetZoneSensors(zoneName);
             sensor->FreeSpareProxyCount.Update(std::ssize(spareInfo.FreeProxies));
         }
+    }
+
+    void RegisterAlert(const TAlert& alert) const
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        auto bundleName = alert.BundleName.value_or(TString());
+
+        auto& bundle = BundleAlerts_[bundleName];
+        auto it = bundle.IdToCounter.find(alert.Id);
+
+        if (it == bundle.IdToCounter.end()) {
+            auto counter = Profiler
+                .WithTag("bundle", bundleName)
+                .WithTag("alarm_id", alert.Id)
+                .Counter("/scan_bundles_alarms_count");
+            it = bundle.IdToCounter.insert({bundleName, std::move(counter)}).first;
+        }
+
+        it->second.Increment(1);
     }
 
     TBundleSensorsPtr GetBundleSensors(const TString& bundleName) const
