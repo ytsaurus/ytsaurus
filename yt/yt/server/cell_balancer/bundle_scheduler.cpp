@@ -1977,6 +1977,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsOnline(const TTabletNodeInfoPtr& node)
+{
+    return node->State == InstanceStateOnline;
+}
+
+bool IsOnline(const TRpcProxyInfoPtr& proxy)
+{
+    return !!proxy->Alive;
+}
+
 template <typename TInstanceMap>
 THashSet<TString> ScanForObsoleteCypressNodes(const TSchedulerInputState& input, const TInstanceMap& instanceMap)
 {
@@ -1992,7 +2002,14 @@ THashSet<TString> ScanForObsoleteCypressNodes(const TSchedulerInputState& input,
         if (annotations->DeallocationStrategy != DeallocationStrategyHulkRequest) {
             continue;
         }
+
+        if (IsOnline(instanceInfo)) {
+            YT_LOG_WARNING("Skipping obsolete cypress node  in online state (InstanceName: %v)", instanceName);
+            continue;
+        }
+
         if (now - *annotations->DeallocatedAt > obsoleteThreshold) {
+            YT_LOG_INFO("Found obsolete cypress node (InstanceName: %v)", instanceName);
             result.insert(instanceName);
         }
     }

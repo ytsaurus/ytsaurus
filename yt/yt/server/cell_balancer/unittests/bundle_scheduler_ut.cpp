@@ -2962,6 +2962,18 @@ TEST(TBundleSchedulerTest, RemoveProxyCypressNodes)
     ScheduleBundles(input, &mutations);
 
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.ProxiesToCleanup));
+    EXPECT_EQ(0, std::ssize(mutations.NodesToCleanup));
+
+    for (auto& proxyName : proxiesToRemove) {
+        auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+        proxyInfo->Alive.Reset();
+    }
+
+    mutations = {};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(3, std::ssize(mutations.ProxiesToCleanup));
     EXPECT_EQ(0, std::ssize(mutations.NodesToCleanup));
 
@@ -2986,6 +2998,18 @@ TEST(TBundleSchedulerTest, RemoveTabletNodeCypressNodes)
     }
 
     TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.ProxiesToCleanup));
+    EXPECT_EQ(0, std::ssize(mutations.NodesToCleanup));
+
+    for (auto& nodeName : nodesToRemove) {
+        auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->State = InstanceStateOffline;
+    }
+
+    mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
