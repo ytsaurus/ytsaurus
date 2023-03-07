@@ -20,7 +20,7 @@ import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 
 public class ReadWriteTestBase {
-    YtClient yt;
+    protected final YtClient yt;
 
     public ReadWriteTestBase(YtClient yt) {
         this.yt = yt;
