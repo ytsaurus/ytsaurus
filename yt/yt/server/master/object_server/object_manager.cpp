@@ -1761,7 +1761,7 @@ void TObjectManager::HydraExecuteLeader(
         const auto& responseKeeper = hydraFacade->GetResponseKeeper();
         responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(errorResponse));
 
-        YT_LOG_WARNING("Duplicate mutation application skipped (MutationId: %v)",
+        YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), "Duplicate mutation application skipped (MutationId: %v)",
             mutationId);
 
         return;
