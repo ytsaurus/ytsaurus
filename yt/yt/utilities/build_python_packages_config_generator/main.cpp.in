@@ -1,0 +1,11 @@
+#include <util/stream/output.h>
+#include <yt/build/build.h>
+
+int main() {
+    Cout << "{" << Endl;
+    Cout << "    \"yt_version\": \"" << NYT::GetVersion() << "\"," << Endl;
+    Cout << "    \"yt_rpc_proxy_protocol_version\": \"@YT_RPC_PROXY_PROTOCOL_VERSION@\"," << Endl;
+    Cout << "    \"yt_rpc_python_bindings_version\": \"@YT_RPC_PYTHON_BINDINGS_VERSION@\"" << Endl;
+    Cout << "}" << Endl;
+    return 0;
+}
