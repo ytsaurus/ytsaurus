@@ -73,7 +73,8 @@ void TChannelCredentialsConfig::Register(TRegistrar registrar)
 
 void TChannelConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("address", &TThis::Address);
+    registrar.Parameter("address", &TThis::Address)
+        .Optional();
     registrar.Parameter("credentials", &TThis::Credentials)
         .Optional();
     registrar.Parameter("grpc_arguments", &TThis::GrpcArguments)
