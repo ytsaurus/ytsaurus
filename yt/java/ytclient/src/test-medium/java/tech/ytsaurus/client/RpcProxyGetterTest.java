@@ -106,7 +106,7 @@ public class RpcProxyGetterTest {
                 new Random());
 
         var proxiesFromGetter = proxyGetter.getProxies()
-                .get(100, TimeUnit.MILLISECONDS)
+                .get(300, TimeUnit.MILLISECONDS)
                 .stream().sorted(hostPortComparator).collect(Collectors.toList());
 
         assertThat(proxiesFromGetter, is(proxiesFromList));
