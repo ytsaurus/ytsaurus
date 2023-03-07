@@ -15,6 +15,7 @@ TFairShareTreeSnapshot::TFairShareTreeSnapshot(
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     const TJobResources& resourceUsage,
     const TJobResources& resourceLimits,
+    int nodeCount,
     TFairShareTreeSchedulingSnapshotPtr schedulingSnapshot)
     : Id_(id)
     , RootElement_(std::move(rootElement))
@@ -25,6 +26,7 @@ TFairShareTreeSnapshot::TFairShareTreeSnapshot(
     , ControllerConfig_(std::move(controllerConfig))
     , ResourceUsage_(resourceUsage)
     , ResourceLimits_(resourceLimits)
+    , NodeCount_(nodeCount)
     , SchedulingSnapshot_(std::move(schedulingSnapshot))
 { }
 

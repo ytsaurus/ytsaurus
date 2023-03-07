@@ -37,6 +37,7 @@ TFairShareTreeProfileManager::TFairShareTreeProfileManager(
             .WithRequiredTag("tree", treeId))
     , SparsifyMetrics_(sparsifyMetrics)
     , ProfilingInvoker_(profilingInvoker)
+    , NodeCountGauge_(Profiler_.Gauge("/node_count_per_tree"))
     , PoolCountGauge_(Profiler_.Gauge("/pools/pool_count"))
     , TotalElementCountGauge_(Profiler_.Gauge("/pools/total_element_count"))
     , DistributedResourcesBufferedProducer_(New<TBufferedProducer>())
@@ -85,12 +86,13 @@ void TFairShareTreeProfileManager::UnregisterPool(const TSchedulerCompositeEleme
     GetOrCrash(PoolNameToProfilingEntry_, element->GetId()).RemoveTime = TInstant::Now();
 }
 
-void TFairShareTreeProfileManager::ProfileElements(
+void TFairShareTreeProfileManager::ProfileTree(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     const THashMap<TOperationId, TResourceVolume>& operationIdToAccumulatedResourceUsage)
 {
     VERIFY_INVOKER_AFFINITY(ProfilingInvoker_);
 
+    NodeCountGauge_.Update(treeSnapshot->NodeCount());
     PoolCountGauge_.Update(treeSnapshot->PoolMap().size());
     TotalElementCountGauge_.Update(treeSnapshot->RootElement()->GetTreeSize());
 

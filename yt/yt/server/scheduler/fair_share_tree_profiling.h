@@ -29,7 +29,7 @@ public:
     void UnregisterPool(const TSchedulerCompositeElementPtr& element);
 
     // Thread affinity: Profiler thread.
-    void ProfileElements(
+    void ProfileTree(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         const THashMap<TOperationId, TResourceVolume>& operationIdToAccumulatedResourceUsage);
 
@@ -89,6 +89,7 @@ private:
         NProfiling::TBufferedProducerPtr BufferedProducer;
     };
 
+    NProfiling::TGauge NodeCountGauge_;
     NProfiling::TGauge PoolCountGauge_;
     NProfiling::TGauge TotalElementCountGauge_;
 

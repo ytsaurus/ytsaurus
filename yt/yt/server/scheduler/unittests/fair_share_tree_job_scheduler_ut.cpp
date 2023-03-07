@@ -777,7 +777,7 @@ protected:
 
         rootElement->UpdateStarvationStatuses(now, /*enablePoolStarvation*/ true);
 
-        // Resource usage and limits are only used for diagnostics, so we don't provide them here.
+        // Resource usage and limits and node count are only used for diagnostics, so we don't provide them here.
         auto treeSchedulingSnapshot = treeScheduler->CreateSchedulingSnapshot(&jobSchedulerPostUpdateContext);
         return New<TFairShareTreeSnapshot>(
             TTreeSnapshotId::Create(),
@@ -789,6 +789,7 @@ protected:
             SchedulerConfig_,
             /*resourceUsage*/ TJobResources{},
             /*resourceLimits*/ TJobResources{},
+            /*nodeCount*/ 0,
             std::move(treeSchedulingSnapshot));
     }
 
