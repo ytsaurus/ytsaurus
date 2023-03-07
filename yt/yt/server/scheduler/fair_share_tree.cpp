@@ -538,12 +538,16 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
+        ++NodeCount_;
+
         TreeScheduler_->RegisterNode(nodeId);
     }
 
     void UnregisterNode(TNodeId nodeId) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        --NodeCount_;
 
         TreeScheduler_->UnregisterNode(nodeId);
     }
@@ -1069,11 +1073,16 @@ public:
             BuildYsonFluently(consumer).Value(treeSnapshot->ResourceLimits());
         })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
 
+        dynamicOrchidService->AddChild("node_count", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
+            auto treeSnapshot = GetTreeSnapshotForOrchid();
+
+            BuildYsonFluently(consumer).Value(treeSnapshot->NodeCount());
+        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+
         dynamicOrchidService->AddChild("pool_count", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-            BuildYsonFluently(consumer)
-                .Value(GetPoolCount());
+            BuildYsonFluently(consumer).Value(GetPoolCount());
         })));
 
         dynamicOrchidService->AddChild("resource_distribution_info", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
@@ -1157,6 +1166,10 @@ private:
     std::vector<TOperationId> ActivatableOperationIds_;
 
     TSchedulerRootElementPtr RootElement_;
+
+    // NB(eshcherbin): We have the set of nodes both in strategy and in tree job scheduler.
+    // Here we only keep current node count to have it ready for snapshot.
+    int NodeCount_ = 0;
 
     class TPoolsOrchidService
         : public TYPathServiceBase
@@ -1452,6 +1465,7 @@ private:
 
         const auto resourceUsage = StrategyHost_->GetResourceUsage(GetNodesFilter());
         const auto resourceLimits = StrategyHost_->GetResourceLimits(GetNodesFilter());
+        int nodeCount = NodeCount_;
         TFairShareUpdateContext updateContext(
             resourceLimits,
             Config_->MainResource,
@@ -1535,6 +1549,7 @@ private:
             ControllerConfig_,
             resourceUsage,
             resourceLimits,
+            nodeCount,
             std::move(treeSchedulingSnapshot));
 
         if (Config_->EnableResourceUsageSnapshot) {
@@ -2417,7 +2432,7 @@ private:
 
         YT_VERIFY(treeSnapshot);
 
-        TreeProfiler_->ProfileElements(
+        TreeProfiler_->ProfileTree(
             treeSnapshot,
             AccumulatedOperationsResourceUsageForProfiling_.ExtractOperationResourceUsages());
     }

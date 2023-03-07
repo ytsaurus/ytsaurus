@@ -742,27 +742,6 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        THashMap<TString, std::vector<TExecNodeDescriptor>> descriptorsPerPoolTree;
-        for (const auto& [treeId, poolTree] : IdToTree_) {
-            descriptorsPerPoolTree.emplace(treeId, std::vector<TExecNodeDescriptor>{});
-        }
-
-        auto descriptors = Host_->CalculateExecNodeDescriptors(TSchedulingTagFilter());
-        for (const auto& idDescriptorPair : *descriptors) {
-            const auto& descriptor = idDescriptorPair.second;
-            if (!descriptor.Online) {
-                continue;
-            }
-            for (const auto& idTreePair : IdToTree_) {
-                const auto& treeId = idTreePair.first;
-                const auto& tree = idTreePair.second;
-                if (tree->GetNodesFilter().CanSchedule(descriptor.Tags)) {
-                    descriptorsPerPoolTree[treeId].push_back(descriptor);
-                    break;
-                }
-            }
-        }
-
         // Snapshot list of treeIds.
         std::vector<TString> treeIds;
         treeIds.reserve(std::size(IdToTree_));
@@ -771,7 +750,7 @@ public:
         }
 
         fluent
-            // COMAPT(ignat)
+            // COMPAT(ignat)
             .OptionalItem("default_fair_share_tree", DefaultTreeId_)
             .OptionalItem("default_pool_tree", DefaultTreeId_)
             .Item("last_metering_statistics_update_time").Value(LastMeteringStatisticsUpdateTime_)
@@ -780,11 +759,10 @@ public:
                 if (!tree) {
                     return;
                 }
-                // descriptorsPerPoolTree and treeIds are consistent.
-                const auto& treeNodeDescriptors = GetOrCrash(descriptorsPerPoolTree, treeId);
+
                 fluent
                     .Item(treeId).BeginMap()
-                        .Do(BIND(&TFairShareStrategy::BuildTreeOrchid, MakeStrong(this), tree, treeNodeDescriptors))
+                        .Do(BIND(&TFairShareStrategy::BuildTreeOrchid, MakeStrong(this), tree))
                     .EndMap();
             });
     }
@@ -2078,24 +2056,19 @@ private:
 
     void BuildTreeOrchid(
         const IFairShareTreePtr& tree,
-        const std::vector<TExecNodeDescriptor>& descriptors,
         TFluentMap fluent)
     {
-        TJobResources resourceLimits;
-        for (const auto& descriptor : descriptors) {
-            resourceLimits += descriptor.ResourceLimits;
-        }
-
+        const auto& nodeIds = NodeIdsPerTree_[tree->GetId()];
         fluent
             .Item("user_to_ephemeral_pools").Do(BIND(&IFairShareTree::BuildUserToEphemeralPoolsInDefaultPool, tree))
             .Item("config").Value(tree->GetConfig())
-            .Item("resource_limits").Value(resourceLimits)
+            .Item("resource_limits").Value(Host_->GetResourceLimits(tree->GetNodesFilter()))
             .Item("resource_usage").Value(Host_->GetResourceUsage(tree->GetNodesFilter()))
-            .Item("node_count").Value(descriptors.size())
+            .Item("node_count").Value(std::ssize(nodeIds))
             .Item("node_addresses").BeginList()
-                .DoFor(descriptors, [&] (TFluentList fluent, const auto& descriptor) {
+                .DoFor(nodeIds, [&] (TFluentList fluent, TNodeId nodeId) {
                     fluent
-                        .Item().Value(descriptor.Address);
+                        .Item().Value(GetOrCrash(NodeIdToDescriptor_, nodeId).Address);
                 })
             .EndList()
             // This part is asynchronous.

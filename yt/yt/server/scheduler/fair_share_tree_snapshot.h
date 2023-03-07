@@ -26,6 +26,7 @@ class TFairShareTreeSnapshot
     DEFINE_BYREF_RO_PROPERTY(TFairShareStrategyOperationControllerConfigPtr, ControllerConfig)
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
+    DEFINE_BYREF_RO_PROPERTY(int, NodeCount);
     DEFINE_BYREF_RO_PROPERTY(TFairShareTreeSchedulingSnapshotPtr, SchedulingSnapshot);
 
 public:
@@ -39,6 +40,7 @@ public:
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         const TJobResources& resourceUsage,
         const TJobResources& resourceLimits,
+        int nodeCount,
         TFairShareTreeSchedulingSnapshotPtr schedulingSnapshot);
 
     TSchedulerPoolElement* FindPool(const TString& poolName) const;

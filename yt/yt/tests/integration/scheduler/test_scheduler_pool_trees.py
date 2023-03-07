@@ -17,7 +17,7 @@ from yt_scheduler_helpers import (
     scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path, scheduler_orchid_path,
     scheduler_orchid_pool_tree_path)
 
-from yt_helpers import create_custom_pool_tree_with_one_node
+from yt_helpers import create_custom_pool_tree_with_one_node, profiler_factory
 
 from yt.test_helpers import are_almost_equal
 from yt.common import YtError
@@ -1198,7 +1198,6 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
-    NUM_TEST_PARTITIONS = 2
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -1858,6 +1857,9 @@ class TestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
         op.track()
 
 
+##################################################################
+
+
 @authors("renadeen")
 class TestMultiTreeOperations(YTEnvSetup):
     NUM_MASTERS = 1
@@ -1964,3 +1966,35 @@ class TestMultiTreeOperations(YTEnvSetup):
 
         release_breakpoint()
         op.track()
+
+
+##################################################################
+
+
+class TestNodeCountProfiling(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 1000,
+            "fair_share_profiling_period": 100,
+        }
+    }
+
+    @authors("eshcherbin")
+    def test_node_count_profiling(self):
+        update_pool_tree_config_option("default", "nodes_filter", "!other")
+        create_pool_tree("other", config={"nodes_filter": "other"})
+
+        profiler = profiler_factory().at_scheduler()
+        node_count_gauge = profiler.gauge("scheduler/node_count_per_tree")
+
+        nodes = ls("//sys/cluster_nodes")
+        for i in range(len(nodes) + 1):
+            wait(lambda: node_count_gauge.get(tags={"tree": "other"}) == i)
+            wait(lambda: node_count_gauge.get(tags={"tree": "default"}) == len(nodes) - i)
+
+            if i < len(nodes):
+                set("//sys/cluster_nodes/{}/@user_tags/end".format(nodes[i]), "other")
