@@ -119,7 +119,9 @@ public class ClassUtils {
                         || Modifier.isProtected(field.getModifiers()))
                 .collect(Collectors.toList());
         fields.addAll(Arrays.asList(clazz.getDeclaredFields()));
-        return fields;
+        return fields.stream()
+                .filter(field -> !Modifier.isStatic(field.getModifiers()))
+                .collect(Collectors.toList());
     }
 
     @SuppressWarnings("unchecked")

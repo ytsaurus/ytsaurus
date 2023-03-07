@@ -34,7 +34,7 @@ public class ReadWriteEntityTest extends ReadWriteTestBase {
     private void testSkiffReadWrite(boolean needRetries) throws Exception {
         ObjectsRowsGenerator generator = new ReadWriteTest.ObjectsRowsGenerator();
 
-        YPath path = YPath.simple("//tmp/write-table-example-2");
+        YPath path = YPath.simple("//tmp/read-write-entity-test");
 
         yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
 
