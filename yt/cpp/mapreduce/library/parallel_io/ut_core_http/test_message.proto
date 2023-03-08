@@ -1,4 +1,4 @@
-import "mapreduce/yt/interface/protos/extension.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
 
 message TTestMessage {
     optional string Key = 1              [(NYT.column_name) = "key"];
