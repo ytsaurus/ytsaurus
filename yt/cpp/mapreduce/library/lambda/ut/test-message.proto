@@ -1,4 +1,4 @@
-import "mapreduce/yt/interface/protos/extension.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
 
 enum ETestEnum {
     CONST1 = 1;

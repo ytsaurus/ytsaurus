@@ -1,4 +1,4 @@
-import "mapreduce/yt/interface/protos/extension.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
 
 message TUserRecord {
     optional int64 Uid = 1    [(NYT.column_name) = "uid"];

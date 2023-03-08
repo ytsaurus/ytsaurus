@@ -1,6 +1,6 @@
 package NYtBlob;
 
-import "mapreduce/yt/interface/protos/extension.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
 import "yt/cpp/mapreduce/library/blob/protos/info.proto";
 
 message TBlobChunk {
