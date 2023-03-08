@@ -2,6 +2,8 @@
 
 #include "program.h"
 
+#include <library/cpp/yt/string/enum.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/yson_serializable.h>
 
@@ -40,6 +42,13 @@ protected:
                 Format("%v-actual", argumentName),
                 Format("print actual %v and exit", argumentName))
             .SetFlag(&ConfigActual_);
+        opts
+            .AddLongOption(
+                Format("%v-unrecognized-strategy", argumentName),
+                Format("configure strategy for unrecognized attributes in %v", argumentName))
+            .Handler1T<TStringBuf>([this](TStringBuf value) {
+                UnrecognizedStrategy_ = TEnumTraits<NYTree::EUnrecognizedStrategy>::FromString(DecodeEnumValue(value));
+            });
 
         if constexpr (std::is_same_v<TDynamicConfig, void>) {
             return;
@@ -130,7 +139,7 @@ private:
 
         try {
             Config_ = New<TConfig>();
-            Config_->SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+            Config_->SetUnrecognizedStrategy(UnrecognizedStrategy_);
             Config_->Load(ConfigNode_);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error loading %v file %v",
@@ -146,6 +155,7 @@ private:
     bool ConfigTemplate_;
     bool ConfigActual_;
     bool DynamicConfigTemplate_ = false;
+    NYTree::EUnrecognizedStrategy UnrecognizedStrategy_ = NYTree::EUnrecognizedStrategy::KeepRecursive;
 
     TIntrusivePtr<TConfig> Config_;
     NYTree::INodePtr ConfigNode_;
