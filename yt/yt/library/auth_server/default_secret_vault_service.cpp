@@ -374,8 +374,7 @@ private:
             return builder->EndTree()->AsMap();
         } catch (const std::exception& ex) {
             THROW_ERROR TError(ESecretVaultErrorCode::MalformedResponse,
-                "Error parsing Vault response")
-                << ex;
+                "Error parsing Vault response");
         }
     }
 
