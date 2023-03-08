@@ -1465,7 +1465,7 @@ private:
 
         const auto resourceUsage = StrategyHost_->GetResourceUsage(GetNodesFilter());
         const auto resourceLimits = StrategyHost_->GetResourceLimits(GetNodesFilter());
-        int nodeCount = NodeCount_;
+        const int nodeCount = NodeCount_;
         TFairShareUpdateContext updateContext(
             resourceLimits,
             Config_->MainResource,
