@@ -214,11 +214,6 @@ DEFINE_ENUM(EHunkStoreState,
     ((Passive)                (3)) // rotated and cannot recieve data
 );
 
-DEFINE_ENUM(EHunkStoreLockMode,
-    ((Exclusive)              (1))
-    ((Shared)                 (2))
-);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTabletHydraManagerConfig)

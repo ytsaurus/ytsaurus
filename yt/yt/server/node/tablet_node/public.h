@@ -188,6 +188,13 @@ struct TWriteContext;
 
 using TSyncReplicaIdList = TCompactVector<TTableReplicaId, 2>;
 
+using TObjectId = TGuid;
+
+DEFINE_ENUM(EObjectLockMode,
+    ((Exclusive)              (1))
+    ((Shared)                 (2))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENTITY_TYPE(THunkTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
