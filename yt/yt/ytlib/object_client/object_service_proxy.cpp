@@ -581,7 +581,7 @@ void TObjectServiceProxy::TReqExecuteBatchWithRetries::InvokeNextBatch()
         GetRequestId(),
         batchRequest->GetRequestId(),
         batchRequest->GetSize());
-    CurrentReqFuture_.Apply(BIND(&TObjectServiceProxy::TReqExecuteBatchWithRetries::OnBatchResponse, MakeStrong(this)));
+    YT_UNUSED_FUTURE(CurrentReqFuture_.Apply(BIND(&TObjectServiceProxy::TReqExecuteBatchWithRetries::OnBatchResponse, MakeStrong(this))));
 }
 
 void TObjectServiceProxy::TReqExecuteBatchWithRetries::OnBatchResponse(const TErrorOr<TRspExecuteBatchPtr>& batchRspOrErr)

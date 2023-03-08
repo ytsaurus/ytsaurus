@@ -696,7 +696,7 @@ public:
         MediumDirectory_->Clear();
         MediumDirectorySynchronizer_->Stop();
 
-        NodeDirectorySynchronizer_->Stop();
+        YT_UNUSED_FUTURE(NodeDirectorySynchronizer_->Stop());
 
         if (ReplicationCardCache_) {
             ReplicationCardCache_->Clear();

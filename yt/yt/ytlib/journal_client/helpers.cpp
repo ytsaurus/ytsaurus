@@ -400,9 +400,9 @@ public:
 
     TFuture<std::vector<TChunkReplicaDescriptor>> Run()
     {
-        BIND(&TAbortSessionsQuorumSession::DoRun, MakeStrong(this))
+        YT_UNUSED_FUTURE(BIND(&TAbortSessionsQuorumSession::DoRun, MakeStrong(this))
             .AsyncVia(Invoker_)
-            .Run();
+            .Run());
         return Promise_;
     }
 
@@ -564,9 +564,9 @@ public:
 
     TFuture<TChunkQuorumInfo> Run()
     {
-        BIND(&TComputeQuorumInfoSession::DoRun, MakeStrong(this))
+        YT_UNUSED_FUTURE(BIND(&TComputeQuorumInfoSession::DoRun, MakeStrong(this))
             .AsyncVia(Invoker_)
-            .Run();
+            .Run());
         return Promise_;
     }
 

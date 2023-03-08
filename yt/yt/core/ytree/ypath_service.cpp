@@ -782,7 +782,7 @@ void TCachedYPathService::SetCachePeriod(TDuration period)
     if (period == TDuration::Zero()) {
         if (IsCacheEnabled_) {
             IsCacheEnabled_.store(false);
-            PeriodicExecutor_->Stop();
+            YT_UNUSED_FUTURE(PeriodicExecutor_->Stop());
         }
     } else {
         PeriodicExecutor_->SetPeriod(period);

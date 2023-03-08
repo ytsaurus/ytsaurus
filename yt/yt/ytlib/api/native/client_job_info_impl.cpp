@@ -148,7 +148,7 @@ public:
 
         TransferResultFuture_.Subscribe(BIND([pipe = AsyncStreamPipe_] (const TError& error) {
             if (!error.IsOK()) {
-                pipe->Abort(TError("Failed to get job input") << error);
+                YT_UNUSED_FUTURE(pipe->Abort(TError("Failed to get job input") << error));
             }
         }));
     }

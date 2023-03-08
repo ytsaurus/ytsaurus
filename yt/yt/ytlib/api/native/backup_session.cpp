@@ -48,7 +48,7 @@ TClusterBackupSession::~TClusterBackupSession()
 {
     if (Transaction_) {
         YT_LOG_DEBUG("Aborting backup transaction due to session failure");
-        Transaction_->Abort();
+        YT_UNUSED_FUTURE(Transaction_->Abort());
     }
 }
 

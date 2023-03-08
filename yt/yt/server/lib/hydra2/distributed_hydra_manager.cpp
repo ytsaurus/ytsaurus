@@ -780,7 +780,7 @@ private:
             auto owner = GetOwnerOrThrow();
 
             auto mutation = CreateMutation(owner, *request);
-            mutation->CommitAndReply(context);
+            YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
         }
     };
     const TIntrusivePtr<THydraService> HydraService_;
@@ -2049,9 +2049,9 @@ private:
                     mutationSize);
                 // If committer cannot build snapshot, then snapshot is already being built and it is ok.
                 if (leaderCommitter->CanBuildSnapshot()) {
-                    leaderCommitter->BuildSnapshot(
+                    YT_UNUSED_FUTURE(leaderCommitter->BuildSnapshot(
                         /*waitForSnapshotCompletion*/ false,
-                        /*setReadOnly*/ false);
+                        /*setReadOnly*/ false));
                 }
             } else {
                 YT_LOG_INFO("Tail changelogs limits are OK "

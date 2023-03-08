@@ -117,7 +117,7 @@ private:
     void OnCanceled(const TError& error)
     {
         YT_LOG_DEBUG(error, "Fetcher chunk scraper canceled");
-        Scraper_->Stop();
+        YT_UNUSED_FUTURE(Scraper_->Stop());
     }
 
     void OnChunkLocated(TChunkId chunkId, const TChunkReplicaList& replicas, bool missing)

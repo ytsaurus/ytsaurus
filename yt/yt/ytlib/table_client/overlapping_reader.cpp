@@ -695,7 +695,7 @@ public:
             std::move(keyComparer),
             minConcurrency);
 
-        this_->DoOpen();
+        YT_UNUSED_FUTURE(this_->DoOpen());
 
         return this_;
     }

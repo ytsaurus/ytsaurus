@@ -2121,7 +2121,7 @@ TVersionedRowsetReader::TVersionedRowsetReader(
     , Codec_(NCompression::GetCodec(codecId))
     , Invoker_(std::move(invoker))
 {
-    UnderlyingReader_->Open();
+    YT_UNUSED_FUTURE(UnderlyingReader_->Open());
 }
 
 TFuture<TSharedRef> TVersionedRowsetReader::ReadRowset()

@@ -129,7 +129,7 @@ void TBoomerangTracker::Stop()
     configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
 
     if (CheckExecutor_) {
-        CheckExecutor_->Stop();
+        YT_UNUSED_FUTURE(CheckExecutor_->Stop());
         CheckExecutor_.Reset();
     }
 }
@@ -150,8 +150,8 @@ void TBoomerangTracker::OnCheck()
     YT_LOG_DEBUG("Starting removal commit for stuck boomerang waves");
 
     NProto::TReqRemoveStuckBoomerangWaves request;
-    CreateMutation(hydraManager, request)
-        ->CommitAndLog(Logger);
+    YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+        ->CommitAndLog(Logger));
 }
 
 void TBoomerangTracker::RemoveStuckBoomerangWaves(NProto::TReqRemoveStuckBoomerangWaves* /*request*/)

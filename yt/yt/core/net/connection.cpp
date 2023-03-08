@@ -986,7 +986,7 @@ private:
         }
 
         if (needUnregister) {
-            Poller_->Unregister(this);
+            YT_UNUSED_FUTURE(Poller_->Unregister(this));
         }
     }
 
@@ -1004,19 +1004,19 @@ private:
         if (needUnarmAndUnregister) {
             Poller_->Unarm(FD_, this);
             guard.Release();
-            Poller_->Unregister(this);
+            YT_UNUSED_FUTURE(Poller_->Unregister(this));
         }
         return ShutdownPromise_.ToFuture();
     }
 
     void AbortFromReadTimeout()
     {
-        Abort(TError("Read timeout"));
+        YT_UNUSED_FUTURE(Abort(TError("Read timeout")));
     }
 
     void AbortFromWriteTimeout()
     {
-        Abort(TError("Write timeout"));
+        YT_UNUSED_FUTURE(Abort(TError("Write timeout")));
     }
 };
 
@@ -1048,7 +1048,7 @@ public:
 
     ~TFDConnection()
     {
-        Impl_->Abort(TError("Connection is abandoned"));
+        YT_UNUSED_FUTURE(Impl_->Abort(TError("Connection is abandoned")));
     }
 
     const TNetworkAddress& LocalAddress() const override
@@ -1276,7 +1276,7 @@ public:
 
     ~TPacketConnection()
     {
-        Abort();
+        YT_UNUSED_FUTURE(Abort());
     }
 
     TFuture<std::pair<size_t, TNetworkAddress>> ReceiveFrom(

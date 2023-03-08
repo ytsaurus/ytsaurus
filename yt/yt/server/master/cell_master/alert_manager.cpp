@@ -126,7 +126,7 @@ private:
 
         TMasterAutomatonPart::OnStopLeading();
 
-        UpdateAlertsExecutor_->Stop();
+        YT_UNUSED_FUTURE(UpdateAlertsExecutor_->Stop());
     }
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
@@ -181,8 +181,8 @@ private:
 
         if (multicellManager->IsPrimaryMaster()) {
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            CreateMutation(hydraManager, request)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+                ->CommitAndLog(Logger));
         } else {
             multicellManager->PostToPrimaryMaster(request, /* reliable */ false);
         }

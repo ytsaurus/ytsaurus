@@ -169,9 +169,9 @@ private:
             }
 
             // Spawn the actor.
-            BIND(&TImpl::ActorMain, MakeStrong(this))
+            YT_UNUSED_FUTURE(BIND(&TImpl::ActorMain, MakeStrong(this))
                 .AsyncVia(Invoker_)
-                .Run();
+                .Run());
 
             if (Transaction_) {
                 StartListenTransaction(Transaction_);
@@ -1122,7 +1122,7 @@ private:
                     BIND(&TImpl::OnChunkFinished, MakeStrong(this), node)
                         .Via(Invoker_));
                 if (node->PingExecutor) {
-                    node->PingExecutor->Stop();
+                    YT_UNUSED_FUTURE(node->PingExecutor->Stop());
                     node->PingExecutor.Reset();
                 }
             }

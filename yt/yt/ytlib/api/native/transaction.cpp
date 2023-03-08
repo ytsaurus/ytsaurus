@@ -365,7 +365,7 @@ public:
                     std::move(modifications),
                     options));
         } catch (const std::exception& ex) {
-            DoAbort(&guard);
+            YT_UNUSED_FUTURE(DoAbort(&guard));
             throw;
         }
     }
@@ -1373,7 +1373,7 @@ private:
         guard->Release();
 
         for (const auto& transaction : GetAlienTransactions()) {
-            transaction->Abort();
+            YT_UNUSED_FUTURE(transaction->Abort());
         }
 
         AbortPromise_.SetFrom(Transaction_->Abort(options));
@@ -1578,7 +1578,7 @@ private:
                         if (resultOrError.IsOK() && State_ == ETransactionState::Committing) {
                             State_ = ETransactionState::Committed;
                         } else if (!resultOrError.IsOK()) {
-                            DoAbort(&guard);
+                            YT_UNUSED_FUTURE(DoAbort(&guard));
                             THROW_ERROR_EXCEPTION("Error committing transaction %v",
                                 GetId())
                                 << MakeClusterIdErrorAttribute()
@@ -1609,7 +1609,7 @@ private:
                             State_ = ETransactionState::Flushed;
                         } else if (!error.IsOK()) {
                             YT_LOG_DEBUG(error, "Error flushing transaction");
-                            DoAbort(&guard);
+                            YT_UNUSED_FUTURE(DoAbort(&guard));
                             THROW_ERROR_EXCEPTION("Error flushing transaction %v",
                                 GetId())
                                 << MakeClusterIdErrorAttribute()

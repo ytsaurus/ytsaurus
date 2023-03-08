@@ -500,9 +500,9 @@ public:
         if (State_ == EMasterConnectorState::Connected &&
             Config_->LockTransactionTimeout != config->LockTransactionTimeout)
         {
-            BIND(&TImpl::UpdateLockTransactionTimeout, MakeStrong(this), config->LockTransactionTimeout)
+            YT_UNUSED_FUTURE(BIND(&TImpl::UpdateLockTransactionTimeout, MakeStrong(this), config->LockTransactionTimeout)
                 .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
-                .Run();
+                .Run());
         }
 
         Config_ = config;
@@ -1655,18 +1655,18 @@ private:
         }
 
         if (CommonWatchersExecutor_) {
-            CommonWatchersExecutor_->Stop();
+            YT_UNUSED_FUTURE(CommonWatchersExecutor_->Stop());
             CommonWatchersExecutor_.Reset();
         }
 
         if (AlertsExecutor_) {
-            AlertsExecutor_->Stop();
+            YT_UNUSED_FUTURE(AlertsExecutor_->Stop());
             AlertsExecutor_.Reset();
         }
 
         for (auto& executor : CustomWatcherExecutors_) {
             if (executor) {
-                executor->Stop();
+                YT_UNUSED_FUTURE(executor->Stop());
             }
             executor.Reset();
         }
@@ -1909,7 +1909,7 @@ private:
             return;
         }
         if (watcherLockTransaction) {
-            watcherLockTransaction->Abort();
+            YT_UNUSED_FUTURE(watcherLockTransaction->Abort());
         }
 
         RunWatcherHandler(watcher, batchRspOrError.Value(), strictMode);

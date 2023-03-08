@@ -215,7 +215,7 @@ public:
 
         StateError_.TrySet(TError("Writer destroyed"));
 
-        CancelWriter();
+        YT_UNUSED_FUTURE(CancelWriter());
     }
 
     TFuture<void> Open() override
@@ -439,7 +439,7 @@ private:
 
             State_.store(EReplicationWriterState::Open);
         } catch (const std::exception& ex) {
-            CancelWriter();
+            YT_UNUSED_FUTURE(CancelWriter());
             THROW_ERROR_EXCEPTION("Not enough target nodes to write blob chunk %v",
                 SessionId_)
                 << TErrorAttribute("upload_replication_factor", UploadReplicationFactor_)
@@ -590,7 +590,7 @@ private:
             BannedNodeAddresses_.push_back(node->Descriptor.GetDefaultAddress());
         }
 
-        node->PingExecutor->Stop();
+        YT_UNUSED_FUTURE(node->PingExecutor->Stop());
         node->Error = wrappedError;
         --AliveNodeCount_;
 
@@ -604,7 +604,7 @@ private:
                 }
             }
             YT_LOG_WARNING(cumulativeError, "Chunk writer failed");
-            CancelWriter();
+            YT_UNUSED_FUTURE(CancelWriter());
             StateError_.TrySet(cumulativeError);
         } else {
             CheckFinished();
@@ -659,7 +659,7 @@ private:
 
         if (!error.IsOK()) {
             YT_LOG_WARNING(error, "Chunk writer failed");
-            CancelWriter();
+            YT_UNUSED_FUTURE(CancelWriter());
             StateError_.TrySet(error);
             return;
         }
@@ -899,7 +899,7 @@ private:
             chunkInfo.disk_space());
 
         node->Finished = true;
-        node->PingExecutor->Stop();
+        YT_UNUSED_FUTURE(node->PingExecutor->Stop());
         UnregisterCandidateNode(node->Channel);
 
         ChunkInfo_ = chunkInfo;
@@ -926,7 +926,7 @@ private:
         {
             State_ = EReplicationWriterState::Closed;
             ClosePromise_.TrySet();
-            CancelWriter();
+            YT_UNUSED_FUTURE(CancelWriter());
             YT_LOG_DEBUG("Writer closed");
         }
     }
@@ -1153,7 +1153,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
         } else {
             if (rspOrError.FindMatching(NChunkClient::EErrorCode::ReaderThrottlingFailed) && !writer->StateError_.IsSet()) {
                 YT_LOG_WARNING(rspOrError, "Chunk writer failed");
-                writer->CancelWriter();
+                YT_UNUSED_FUTURE(writer->CancelWriter());
                 writer->StateError_.TrySet(rspOrError);
             } else {
                 writer->OnNodeFailed(node, rspOrError);

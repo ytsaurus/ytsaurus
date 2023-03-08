@@ -104,7 +104,7 @@ void TNodeDiscoveryManager::OnLeaderActive()
 void TNodeDiscoveryManager::OnStopLeading()
 {
     if (PeriodicExecutor_) {
-        PeriodicExecutor_->Stop();
+        YT_UNUSED_FUTURE(PeriodicExecutor_->Stop());
         PeriodicExecutor_.Reset();
     }
 }
@@ -201,8 +201,8 @@ void TNodeDiscoveryManager::CommitNewNodes(const THashSet<TNode*>& nodes)
         request.add_node_ids(node->GetId());
     }
 
-    CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-        ->CommitAndLog(Logger);
+    YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+        ->CommitAndLog(Logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

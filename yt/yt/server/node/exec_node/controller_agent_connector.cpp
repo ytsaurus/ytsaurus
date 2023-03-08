@@ -97,7 +97,7 @@ TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConne
         ControllerAgentDescriptor_.Address,
         ControllerAgentDescriptor_.IncarnationId);
 
-    HeartbeatExecutor_->Stop();
+    YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
 }
 
 template <class TJobTrackerServiceProxy>
@@ -201,7 +201,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnAgentIncarnatio
 
     EnqueuedFinishedJobs_.clear();
 
-    HeartbeatExecutor_->Stop();
+    YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
