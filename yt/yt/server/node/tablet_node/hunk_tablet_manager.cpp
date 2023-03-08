@@ -541,7 +541,7 @@ private:
         auto storeId = FromProto<TStoreId>(request->store_id());
         auto store = tablet->GetStoreOrThrow(storeId);
 
-        store->Lock(transaction->GetId(), EHunkStoreLockMode::Shared);
+        store->Lock(transaction->GetId(), EObjectLockMode::Shared);
 
         auto lock = request->lock();
         if (!lock && !store->IsLockedByTablet(lockerTabletId)) {
@@ -595,7 +595,7 @@ private:
             return;
         }
 
-        store->Unlock(transaction->GetId(), EHunkStoreLockMode::Shared);
+        store->Unlock(transaction->GetId(), EObjectLockMode::Shared);
 
         auto lock = request->lock();
         if (lock) {
@@ -657,7 +657,7 @@ private:
             return;
         }
 
-        store->Unlock(transaction->GetId(), EHunkStoreLockMode::Shared);
+        store->Unlock(transaction->GetId(), EObjectLockMode::Shared);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Hunk tablet store lock toggle aborted "

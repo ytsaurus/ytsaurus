@@ -29,6 +29,8 @@ DEFINE_ENUM(ETabletReign,
     ((AdvanceReplicationRound)            (100602)) // savrus
     ((ReworkTabletLocks)                  (100603)) // gritukan
     ((MountConfigExperiments)             (100604)) // ifsmirnov
+    // 23.1 starts here.
+    ((LockingState)                       (100700)) // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

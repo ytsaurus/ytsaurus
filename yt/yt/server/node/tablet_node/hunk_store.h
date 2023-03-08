@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include "locking_state.h"
 #include "object_detail.h"
 
 #include <yt/yt/ytlib/journal_client/journal_hunk_chunk_writer.h>
@@ -36,8 +37,8 @@ public:
     void Unlock(TTabletId tabetId);
     bool IsLockedByTablet(TTabletId tabletId) const;
 
-    void Lock(TTransactionId transactionId, EHunkStoreLockMode lockMode);
-    void Unlock(TTransactionId transactionId, EHunkStoreLockMode lockMode);
+    void Lock(TTransactionId transactionId, EObjectLockMode lockMode);
+    void Unlock(TTransactionId transactionId, EObjectLockMode lockMode);
     bool IsLocked() const;
 
     void SetWriter(NJournalClient::IJournalHunkChunkWriterPtr writer);
@@ -53,8 +54,7 @@ private:
 
     THashMap<TTabletId, int> TabletIdToLockCount_;
 
-    TTransactionId ExclusiveLockTransactionId_;
-    THashSet<TTransactionId> SharedLockTransactionIds_;
+    TLockingState LockingState_;
 
     NJournalClient::IJournalHunkChunkWriterPtr Writer_;
     TFuture<void> WriterOpenedFuture_;

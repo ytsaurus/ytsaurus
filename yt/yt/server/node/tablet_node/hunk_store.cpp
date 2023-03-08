@@ -20,6 +20,7 @@ THunkStore::THunkStore(TStoreId storeId, THunkTablet* tablet)
     : TObjectBase(storeId)
     , Tablet_(tablet)
     , Logger(Tablet_->GetLogger().WithTag("StoreId: %v", storeId))
+    , LockingState_(/*objectId*/ storeId)
 { }
 
 TFuture<std::vector<TJournalHunkDescriptor>> THunkStore::WriteHunks(std::vector<TSharedRef> payloads)
@@ -46,8 +47,7 @@ void THunkStore::Save(TSaveContext& context) const
 
     Save(context, MarkedSealable_);
     Save(context, TabletIdToLockCount_);
-    Save(context, ExclusiveLockTransactionId_);
-    Save(context, SharedLockTransactionIds_);
+    Save(context, LockingState_);
 }
 
 void THunkStore::Load(TLoadContext& context)
@@ -56,8 +56,14 @@ void THunkStore::Load(TLoadContext& context)
 
     Load(context, MarkedSealable_);
     Load(context, TabletIdToLockCount_);
-    Load(context, ExclusiveLockTransactionId_);
-    Load(context, SharedLockTransactionIds_);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() < ETabletReign::LockingState) {
+        Load(context, LockingState_.ExclusiveLockTransactionId_);
+        Load(context, LockingState_.SharedLockTransactionIds_);
+    } else {
+        Load(context, LockingState_);
+    }
 }
 
 void THunkStore::Lock(TTabletId tabletId)
@@ -93,75 +99,21 @@ bool THunkStore::IsLockedByTablet(TTabletId tabletId) const
     return TabletIdToLockCount_.contains(tabletId);
 }
 
-void THunkStore::Lock(TTransactionId transactionId, EHunkStoreLockMode lockMode)
+void THunkStore::Lock(TTransactionId transactionId, EObjectLockMode lockMode)
 {
-    YT_VERIFY(HasHydraContext());
-
-    auto throwConflictError = [&] (TTransactionId concurrentTransactionId) {
-        THROW_ERROR_EXCEPTION("Hunk store %v is already locked by concurrent transaction %v",
-            Id_,
-            concurrentTransactionId);
-    };
-
-    switch (lockMode) {
-        case EHunkStoreLockMode::Exclusive:
-            if (ExclusiveLockTransactionId_) {
-                throwConflictError(ExclusiveLockTransactionId_);
-            }
-            if (!SharedLockTransactionIds_.empty()) {
-                throwConflictError(*SharedLockTransactionIds_.begin());
-            }
-            ExclusiveLockTransactionId_ = transactionId;
-            break;
-        case EHunkStoreLockMode::Shared:
-            if (ExclusiveLockTransactionId_) {
-                throwConflictError(ExclusiveLockTransactionId_);
-            }
-            InsertOrCrash(SharedLockTransactionIds_, transactionId);
-            break;
-        default:
-            YT_ABORT();
-    };
-
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-        "Store is locked by transaction (StoreId: %v, TransactionId: %v, LockMode: %v)",
-        Id_,
-        transactionId,
-        lockMode);
+    LockingState_.Lock(transactionId, lockMode);
 }
 
-void THunkStore::Unlock(TTransactionId transactionId, EHunkStoreLockMode lockMode)
+void THunkStore::Unlock(TTransactionId transactionId, EObjectLockMode lockMode)
 {
-    YT_VERIFY(HasHydraContext());
-
-    bool unlocked = false;
-    switch (lockMode) {
-        case EHunkStoreLockMode::Exclusive:
-            unlocked = ExclusiveLockTransactionId_ == transactionId;
-            ExclusiveLockTransactionId_ = NullTransactionId;
-            break;
-        case EHunkStoreLockMode::Shared:
-            unlocked = SharedLockTransactionIds_.erase(transactionId) != 0;
-            break;
-        default:
-            YT_ABORT();
-    }
-
-    if (unlocked) {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Store is unlocked by transaction (StoreId: %v, TransactionId: %v, LockMode: %v)",
-            Id_,
-            transactionId,
-            lockMode);
-    }
+    LockingState_.Unlock(transactionId, lockMode);
 }
 
 bool THunkStore::IsLocked() const
 {
     return
         !TabletIdToLockCount_.empty() ||
-        static_cast<bool>(ExclusiveLockTransactionId_) ||
-        !SharedLockTransactionIds_.empty();
+        LockingState_.IsLocked();
 }
 
 void THunkStore::SetWriter(IJournalHunkChunkWriterPtr writer)
@@ -192,10 +144,9 @@ void THunkStore::BuildOrchidYson(IYsonConsumer* consumer) const
         .Item("tablet_locks").DoMapFor(TabletIdToLockCount_, [&] (auto fluent, auto lock) {
             fluent.Item(ToString(lock.first)).Value(lock.second);
         })
-        .DoIf(static_cast<bool>(ExclusiveLockTransactionId_), [&] (auto fluent) {
-            fluent.Item("exclusive_lock_transaction_id").Value(ExclusiveLockTransactionId_);
+        .Item("locking_state").Do([&] (auto fluent) {
+            LockingState_.BuildOrchidYson(fluent.GetConsumer());
         })
-        .Item("shared_lock_transaction_ids").Value(SharedLockTransactionIds_)
     .EndMap();
 }
 
