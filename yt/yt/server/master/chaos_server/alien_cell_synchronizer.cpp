@@ -65,7 +65,7 @@ public:
 
     void Stop() override
     {
-        SynchronizationExecutor_->Stop();
+        YT_UNUSED_FUTURE(SynchronizationExecutor_->Stop());
     }
 
     void Reconfigure(TAlienCellSynchronizerConfigPtr config) override
@@ -177,8 +177,8 @@ private:
         request.set_full_sync(fullSync);
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger));
     }
 
     TAlienDescriptorsMap ScanCells()

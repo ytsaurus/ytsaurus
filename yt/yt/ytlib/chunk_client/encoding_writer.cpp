@@ -167,11 +167,11 @@ void TEncodingWriter::DoCompressBlock(
         Codec_->GetId());
 
     if (Any(BlockCache_->GetSupportedBlockTypes() & EBlockType::UncompressedData)) {
-        OpenFuture_.Apply(BIND(
+        YT_UNUSED_FUTURE(OpenFuture_.Apply(BIND(
             &TEncodingWriter::CacheUncompressedBlock,
             MakeWeak(this),
             uncompressedBlock,
-            blockIndex));
+            blockIndex)));
     }
 
     auto sizeToRelease = -static_cast<i64>(compressedBlock.Size()) + uncompressedBlock.Size();
@@ -226,11 +226,11 @@ void TEncodingWriter::DoCompressVector(
         auto uncompressedBlock = Options_->CompressionCodec == NCompression::ECodec::None
             ? compressedBlock.Data
             : MergeRefsToRef<TMergedTag>(uncompressedVectorizedBlock);
-        OpenFuture_.Apply(BIND(
+        YT_UNUSED_FUTURE(OpenFuture_.Apply(BIND(
             &TEncodingWriter::CacheUncompressedBlock,
             MakeWeak(this),
             uncompressedBlock,
-            blockIndex));
+            blockIndex)));
     }
 
     auto sizeToRelease = -static_cast<i64>(compressedBlock.Size()) + GetByteSize(uncompressedVectorizedBlock);

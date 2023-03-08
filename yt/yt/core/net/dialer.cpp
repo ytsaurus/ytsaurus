@@ -238,7 +238,7 @@ private:
         Poller_->Unarm(Socket_, Pollable_);
 
         YT_VERIFY(Pollable_);
-        Poller_->Unregister(Pollable_);
+        YT_UNUSED_FUTURE(Poller_->Unregister(Pollable_));
         Pollable_.Reset();
     }
 

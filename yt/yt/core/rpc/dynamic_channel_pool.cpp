@@ -159,7 +159,7 @@ public:
     {
         // Holds a weak reference to this class and the callback has no meaningful side-effects,
         // so not waiting on this future is OK.
-        RandomPeerRotationExecutor_->Stop();
+        YT_UNUSED_FUTURE(RandomPeerRotationExecutor_->Stop());
 
         std::vector<IChannelPtr> activeChannels;
 

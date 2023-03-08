@@ -137,14 +137,14 @@ public:
 
         Connected_ = false;
 
-        FairShareProfilingExecutor_->Stop();
-        FairShareUpdateExecutor_->Stop();
-        FairShareLoggingExecutor_->Stop();
-        AccumulatedUsageLoggingExecutor_->Stop();
-        MinNeededJobResourcesUpdateExecutor_->Stop();
-        ResourceMeteringExecutor_->Stop();
-        ResourceUsageUpdateExecutor_->Stop();
-        SchedulerTreeAlertsUpdateExecutor_->Stop();
+        YT_UNUSED_FUTURE(FairShareProfilingExecutor_->Stop());
+        YT_UNUSED_FUTURE(FairShareUpdateExecutor_->Stop());
+        YT_UNUSED_FUTURE(YT_UNUSED_FUTURE(FairShareLoggingExecutor_->Stop()));
+        YT_UNUSED_FUTURE(AccumulatedUsageLoggingExecutor_->Stop());
+        YT_UNUSED_FUTURE(MinNeededJobResourcesUpdateExecutor_->Stop());
+        YT_UNUSED_FUTURE(ResourceMeteringExecutor_->Stop());
+        YT_UNUSED_FUTURE(ResourceUsageUpdateExecutor_->Stop());
+        YT_UNUSED_FUTURE(SchedulerTreeAlertsUpdateExecutor_->Stop());
 
         OperationIdToOperationState_.clear();
         SnapshottedIdToTree_.Exchange(THashMap<TString, IFairShareTreePtr>());

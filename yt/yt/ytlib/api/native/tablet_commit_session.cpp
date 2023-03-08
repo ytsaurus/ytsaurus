@@ -347,8 +347,8 @@ private:
             retryIndex,
             BackoffStrategy_.GetRetryCount());
 
-        DoCommitSessions(retryIndex)
-            .Apply(BIND(&TTabletSessionsCommitter::OnSessionsCommitted, MakeStrong(this)));
+        YT_UNUSED_FUTURE(DoCommitSessions(retryIndex)
+            .Apply(BIND(&TTabletSessionsCommitter::OnSessionsCommitted, MakeStrong(this))));
     }
 
     void OnSessionsCommitted(const TError& error)
@@ -381,7 +381,7 @@ private:
                 backoff);
 
             auto backoffFuture = TDelayedExecutor::MakeDelayed(backoff);
-            backoffFuture.Apply(BIND(&TTabletSessionsCommitter::CommitSessions, MakeStrong(this)));
+            YT_UNUSED_FUTURE(backoffFuture.Apply(BIND(&TTabletSessionsCommitter::CommitSessions, MakeStrong(this))));
         } else {
             auto error = TError("Failed to commit tablet sessions")
                 << Errors_;

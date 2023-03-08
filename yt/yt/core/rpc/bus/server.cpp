@@ -114,7 +114,7 @@ private:
         auto replyWithError = [&] (const TError& error) {
             YT_LOG_DEBUG(error);
             auto response = CreateErrorResponseMessage(requestId, error);
-            replyBus->Send(std::move(response), NBus::TSendOptions(EDeliveryTrackingLevel::None));
+            YT_UNUSED_FUTURE(replyBus->Send(std::move(response), NBus::TSendOptions(EDeliveryTrackingLevel::None)));
         };
 
         if (!Started_) {

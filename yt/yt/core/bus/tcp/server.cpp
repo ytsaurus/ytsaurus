@@ -396,7 +396,7 @@ public:
 
     ~TTcpBusServerProxy()
     {
-        Stop();
+        YT_UNUSED_FUTURE(Stop());
     }
 
     void Start(IMessageHandlerPtr handler) override

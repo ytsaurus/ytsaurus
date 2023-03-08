@@ -274,7 +274,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                 subrequestMessage.Begin(),
                 subrequestMessage.End());
 
-            req->Invoke().Apply(
+            YT_UNUSED_FUTURE(req->Invoke().Apply(
                 BIND([this, this_ = MakeStrong(this), cookie = std::move(cookie), requestId] (
                     const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError) mutable
                 {
@@ -306,7 +306,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                     }
 
                     Cache_->EndLookup(requestId, std::move(cookie), responseMessage, revision, responseError.IsOK());
-                }));
+                })));
         }
     }
 

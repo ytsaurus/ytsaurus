@@ -66,7 +66,7 @@ public:
             }
         } else {
             if (KeysUpdatePeriod_) {
-                UpdateKeysExecutor_->Stop();
+                YT_UNUSED_FUTURE(UpdateKeysExecutor_->Stop());
             }
         }
         KeysUpdatePeriod_ = period;

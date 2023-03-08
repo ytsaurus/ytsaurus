@@ -396,7 +396,7 @@ public:
 
             if (State_ == ETransactionState::Aborted) {
                 guard.Release();
-                SendAbort(cellId);
+                YT_UNUSED_FUTURE(SendAbort(cellId));
                 return;
             }
 
@@ -647,7 +647,7 @@ private:
             }
 
             if (State_ == ETransactionState::Active) {
-                SendAbort();
+                YT_UNUSED_FUTURE(SendAbort());
             }
         }
     }
@@ -984,7 +984,7 @@ private:
     void UpdateDownedParticipants()
     {
         auto participantIds = GetRegisteredParticipantIds();
-        CheckDownedParticipants(participantIds);
+        YT_UNUSED_FUTURE(CheckDownedParticipants(participantIds));
     }
 
 
@@ -1255,7 +1255,7 @@ private:
     {
         SetAborted(error);
         // Best-effort, fire-and-forget.
-        SendAbort();
+        YT_UNUSED_FUTURE(SendAbort());
     }
 
     std::vector<TCellId> GetRegisteredParticipantIds()
@@ -1371,7 +1371,7 @@ void TTransactionManager::TImpl::AbortAll()
     }
 
     for (const auto& transaction : transactions) {
-        transaction->Abort();
+        YT_UNUSED_FUTURE(transaction->Abort());
     }
 }
 

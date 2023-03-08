@@ -434,7 +434,7 @@ private:
             }
 
             auto message = CreateRequestCancelationMessage(header);
-            Bus_->Send(std::move(message), NBus::TSendOptions(EDeliveryTrackingLevel::None));
+            YT_UNUSED_FUTURE(Bus_->Send(std::move(message), NBus::TSendOptions(EDeliveryTrackingLevel::None)));
         }
 
         TFuture<void> SendStreamingPayload(

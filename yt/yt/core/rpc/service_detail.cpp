@@ -1587,7 +1587,7 @@ void TServiceBase::ReplyError(
     YT_LOG_EVENT(Logger, logLevel, richError);
 
     auto errorMessage = CreateErrorResponseMessage(requestId, richError);
-    replyBus->Send(errorMessage, NBus::TSendOptions(EDeliveryTrackingLevel::None));
+    YT_UNUSED_FUTURE(replyBus->Send(errorMessage, NBus::TSendOptions(EDeliveryTrackingLevel::None)));
 }
 
 void TServiceBase::OnRequestAuthenticated(
@@ -2369,7 +2369,7 @@ TFuture<void> TServiceBase::Stop()
         }
     }
 
-    ServiceLivenessChecker_->Stop();
+    YT_UNUSED_FUTURE(ServiceLivenessChecker_->Stop());
 
     return StopResult_.ToFuture();
 }

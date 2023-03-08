@@ -62,7 +62,7 @@ public:
                 TGuid::Create(),
                 replicationCardId))
     {
-        synchronizer->Sync();
+        YT_UNUSED_FUTURE(synchronizer->Sync());
     }
 
     const TString& GetEndpointDescription() const override
@@ -155,7 +155,7 @@ private:
         if (auto channel = CellDirectory_->FindChannelByCellTag(cellTag, PeerKind_)) {
             auto detectingChannel = CreateFailureDetectingChannel(
                 std::move(channel),
-                Config_->RpcAcknowledgementTimeout, 
+                Config_->RpcAcknowledgementTimeout,
                 BIND(&TReplicationCardChannelProvider::OnChannelFailed, MakeWeak(this)),
                 BIND(&TReplicationCardChannelProvider::IsUnavailableError));
 
@@ -180,8 +180,8 @@ private:
         auto code = error.GetCode();
 
         // COMPAT(savrus)
-        if (IsChannelFailureError(error) || code == NYT::EErrorCode::Timeout) {		
-            return true;		
+        if (IsChannelFailureError(error) || code == NYT::EErrorCode::Timeout) {
+            return true;
         }
 
         return code == NChaosClient::EErrorCode::ReplicationCardMigrated ||

@@ -162,7 +162,7 @@ public:
             context,
             &TChaosManager::HydraGenerateReplicationCardId,
             this);
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     void CreateReplicationCard(const TCtxCreateReplicationCardPtr& context) override
@@ -172,7 +172,7 @@ public:
             context,
             &TChaosManager::HydraCreateReplicationCard,
             this);
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     void RemoveReplicationCard(const TCtxRemoveReplicationCardPtr& context) override
@@ -182,7 +182,7 @@ public:
             context,
             &TChaosManager::HydraRemoveReplicationCard,
             this);
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     void AlterReplicationCard(const TCtxAlterReplicationCardPtr& context) override
@@ -192,7 +192,7 @@ public:
             context,
             &TChaosManager::HydraAlterReplicationCard,
             this);
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     void CreateTableReplica(const TCtxCreateTableReplicaPtr& context) override
@@ -202,7 +202,7 @@ public:
             context,
             &TChaosManager::HydraCreateTableReplica,
             this);
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     void RemoveTableReplica(const TCtxRemoveTableReplicaPtr& context) override
@@ -212,7 +212,7 @@ public:
             context,
             &TChaosManager::HydraRemoveTableReplica,
             this);
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     void AlterTableReplica(const TCtxAlterTableReplicaPtr& context) override
@@ -222,7 +222,7 @@ public:
             context,
             &TChaosManager::HydraAlterTableReplica,
             this);
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     void UpdateTableReplicaProgress(const TCtxUpdateTableReplicaProgressPtr& context) override
@@ -232,7 +232,7 @@ public:
             context,
             &TChaosManager::HydraUpdateTableReplicaProgress,
             this);
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     void MigrateReplicationCards(const TCtxMigrateReplicationCardsPtr& context) override
@@ -242,7 +242,7 @@ public:
             context,
             &TChaosManager::HydraMigrateReplicationCards,
             this);
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     void ResumeChaosCell(const TCtxResumeChaosCellPtr& context) override
@@ -274,7 +274,7 @@ public:
             context,
             &TChaosManager::HydraCreateReplicationCardCollocation,
             this);
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     const std::vector<TCellId>& CoordinatorCellIds() override
@@ -505,7 +505,7 @@ private:
         TChaosAutomatonPart::OnStopLeading();
 
         ChaosCellSynchronizer_->Stop();
-        CommencerExecutor_->Stop();
+        YT_UNUSED_FUTURE(CommencerExecutor_->Stop());
         ReplicationCardObserver_->Stop();
         Slot_->GetReplicatedTableTracker()->DisableTracking();
     }
@@ -1493,8 +1493,8 @@ private:
 
         NChaosNode::NProto::TReqPropagateCurrentTimestamp request;
         request.set_timestamp(timestamp);
-        CreateMutation(HydraManager_, request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(HydraManager_, request)
+            ->CommitAndLog(Logger));
     }
 
     void HydraPropagateCurrentTimestamps(NChaosNode::NProto::TReqPropagateCurrentTimestamp* request)
@@ -1612,8 +1612,8 @@ private:
         ToProto(request.mutable_replication_card_id(), replicationCardId);
         request.set_timestamp(timestamp);
         request.set_replication_era(era);
-        CreateMutation(HydraManager_, request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(HydraManager_, request)
+            ->CommitAndLog(Logger));
     }
 
     void HydraCommenceNewReplicationEra(NChaosNode::NProto::TReqCommenceNewReplicationEra* request)

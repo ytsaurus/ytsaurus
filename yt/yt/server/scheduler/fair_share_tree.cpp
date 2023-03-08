@@ -1793,14 +1793,14 @@ private:
         }
         operationElement->MarkPendingBy(violatedPool);
 
-        StrategyHost_->SetOperationAlert(
+        YT_UNUSED_FUTURE(StrategyHost_->SetOperationAlert(
             state->GetHost()->GetId(),
             EOperationAlertType::OperationPending,
             TError("Max running operation count violated")
                 << TErrorAttribute("pool", violatedPool->GetId())
                 << TErrorAttribute("limit", violatedPool->GetMaxRunningOperationCount())
                 << TErrorAttribute("pool_tree", TreeId_)
-        );
+        ));
 
         return false;
     }

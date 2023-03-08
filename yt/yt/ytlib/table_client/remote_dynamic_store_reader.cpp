@@ -514,7 +514,7 @@ public:
 
         InitializeSystemColumnIds();
 
-        DoOpen();
+        YT_UNUSED_FUTURE(DoOpen());
     }
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -1223,7 +1223,7 @@ public:
         }
 
         DoCreateRemoteDynamicStoreReader();
-        DoOpen();
+        YT_UNUSED_FUTURE(DoOpen());
     }
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override

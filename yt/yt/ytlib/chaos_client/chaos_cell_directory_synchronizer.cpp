@@ -115,7 +115,7 @@ private:
             return;
         }
         Stopped_ = true;
-        SyncExecutor_->Stop();
+        YT_UNUSED_FUTURE(SyncExecutor_->Stop());
     }
 
     void AddCell(TCellTag cellTag, TCellId cellId = {})

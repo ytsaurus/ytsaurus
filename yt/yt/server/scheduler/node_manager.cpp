@@ -210,9 +210,9 @@ void TNodeManager::UnregisterOperation(TOperationId operationId)
 void TNodeManager::AbortJobsAtNode(TNodeId nodeId, EAbortReason reason)
 {
     auto nodeShard = GetNodeShard(nodeId);
-    BIND(&TNodeShard::AbortJobsAtNode, nodeShard, nodeId, reason)
+    YT_UNUSED_FUTURE(BIND(&TNodeShard::AbortJobsAtNode, nodeShard, nodeId, reason)
         .AsyncVia(nodeShard->GetInvoker())
-        .Run();
+        .Run());
 }
 
 TRefCountedExecNodeDescriptorMapPtr TNodeManager::GetExecNodeDescriptors()

@@ -2145,16 +2145,16 @@ private:
         OperationServiceResponseKeeper_->Stop();
 
         if (OrphanedOperationQueueScanPeriodExecutor_) {
-            OrphanedOperationQueueScanPeriodExecutor_->Stop();
+            YT_UNUSED_FUTURE(OrphanedOperationQueueScanPeriodExecutor_->Stop());
             OrphanedOperationQueueScanPeriodExecutor_.Reset();
         }
         if (TransientOperationQueueScanPeriodExecutor_) {
-            TransientOperationQueueScanPeriodExecutor_->Stop();
+            YT_UNUSED_FUTURE(TransientOperationQueueScanPeriodExecutor_->Stop());
             TransientOperationQueueScanPeriodExecutor_.Reset();
         }
 
         if (PendingByPoolOperationScanPeriodExecutor_) {
-            PendingByPoolOperationScanPeriodExecutor_->Stop();
+            YT_UNUSED_FUTURE(PendingByPoolOperationScanPeriodExecutor_->Stop());
             PendingByPoolOperationScanPeriodExecutor_.Reset();
         }
 
@@ -3562,7 +3562,7 @@ private:
             if (transaction) {
                 YT_LOG_DEBUG("Aborting transaction %v (Type: %v, OperationId: %v)", transaction->GetId(), type, operation->GetId());
                 // Fire-and-forget.
-                transaction->Abort();
+                YT_UNUSED_FUTURE(transaction->Abort());
                 YT_VERIFY(abortedTransactions.emplace(transaction).second);
             } else {
                 YT_LOG_DEBUG("Transaction is missing, skipping abort (Type: %v, OperationId: %v)", type, operation->GetId());
