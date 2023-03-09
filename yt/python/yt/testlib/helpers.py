@@ -1,5 +1,7 @@
 from __future__ import print_function
 
+import warnings
+
 import yt.wrapper as yt
 
 try:
@@ -19,6 +21,8 @@ from contextlib import contextmanager
 
 
 def authors(*the_authors):
+    # pytest perform test collection before processing all pytest_configure calls.
+    warnings.filterwarnings("ignore", category=pytest.PytestUnknownMarkWarning)
     return pytest.mark.authors(the_authors)
 
 
