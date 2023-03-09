@@ -244,6 +244,12 @@ void TParameterizedReassignSolver::CalculateMemory()
 
     THashMap<TNodeAddress, i64> cellMemoryLimit;
     for (const auto& [address, statistics] : Bundle_->NodeMemoryStatistics) {
+        if (!cellCount.contains(address)) {
+            YT_LOG_DEBUG("There are no alive cells on the node (Node: %v)",
+                address);
+            continue;
+        }
+
         i64 actualUsage = GetOrCrash(actualMemoryUsage, address);
         i64 free = statistics.Limit - statistics.Used;
         i64 unaccountedUsage = 0;
