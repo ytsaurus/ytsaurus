@@ -57,7 +57,8 @@ protected:
     std::atomic<bool> Finished_ = {false};
     int MaxSpawnActionFD_ = - 1;
     NPipes::TPipe Pipe_;
-    std::vector<TString> StringHolders_;
+    // Container for owning string data. Use std::deque because it never moves contained objects.
+    std::deque<std::string> StringHolders_;
     std::vector<const char*> Args_;
     std::vector<const char*> Env_;
     TString ResolvedPath_;

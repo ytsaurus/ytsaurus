@@ -250,7 +250,8 @@ private:
     // Most errors are local; for these Host_ refers to a static buffer and HostHolder_ is not used.
     // This saves one allocation on TError construction.
     TStringBuf Host_;
-    TString HostHolder_;
+    // HostHolder_ optionally stores data of Host_, and this pointer connection survives move of containing object.
+    TSharedRef HostHolder_;
     TInstant Datetime_;
     TProcessId Pid_ = 0;
     NConcurrency::TThreadId Tid_ = NConcurrency::InvalidThreadId;
@@ -286,8 +287,8 @@ private:
         }
 
         static const TString HostKey("host");
-        HostHolder_ = Attributes_->GetAndRemove<TString>(HostKey, TString());
-        Host_ = HostHolder_.empty() ? TStringBuf() : HostHolder_;
+        HostHolder_ = TSharedRef::FromString(Attributes_->GetAndRemove<TString>(HostKey, TString()));
+        Host_ = HostHolder_.empty() ? TStringBuf() : TStringBuf(HostHolder_.Begin(), HostHolder_.End());
 
         static const TString DatetimeKey("datetime");
         Datetime_ = Attributes_->GetAndRemove<TInstant>(DatetimeKey, TInstant());
