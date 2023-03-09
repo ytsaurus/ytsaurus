@@ -1695,12 +1695,15 @@ private:
 
     bool ExecuteLocalSubrequest(TSubrequest* subrequest)
     {
-        if (subrequest->Type == EExecutionSessionSubrequestType::LocalWrite) {
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
-        } else if (subrequest->Type == EExecutionSessionSubrequestType::LocalRead) {
-            VERIFY_THREAD_AFFINITY_ANY();
-        } else {
-            YT_ABORT();
+        switch (subrequest->Type) {
+            case EExecutionSessionSubrequestType::LocalWrite:
+                VERIFY_THREAD_AFFINITY(AutomatonThread);
+                break;
+            case EExecutionSessionSubrequestType::LocalRead:
+                VERIFY_THREAD_AFFINITY_ANY();
+                break;
+            default:
+                YT_ABORT();
         }
 
         YT_VERIFY(!subrequest->RemoteTransactionReplicationFuture || !subrequest->MutationResponseFuture);
@@ -1729,10 +1732,15 @@ private:
             }
 
             try {
-                if (subrequest->Type == EExecutionSessionSubrequestType::LocalRead) {
-                    ExecuteReadSubrequest(subrequest);
-                } else {
-                    ExecuteWriteSubrequest(subrequest);
+                switch (subrequest->Type) {
+                    case EExecutionSessionSubrequestType::LocalRead:
+                        ExecuteReadSubrequest(subrequest);
+                        break;
+                    case EExecutionSessionSubrequestType::LocalWrite:
+                        ExecuteWriteSubrequest(subrequest);
+                        break;
+                    default:
+                        YT_ABORT();
                 }
             } catch (const std::exception& ex) {
                 Reply(ex);
@@ -2200,7 +2208,7 @@ TObjectService::TLocalReadCallbackProvider::TLocalReadCallbackProvider(TSessionS
 
 TCallback<void()> TObjectService::TLocalReadCallbackProvider::ExtractCallback()
 {
-    if (SessionScheduler_->Empty()) {
+    if (SessionScheduler_->IsEmpty()) {
         return {};
     }
 
@@ -2276,7 +2284,7 @@ void TObjectService::ProcessSessions()
         }
     });
 
-    while (!AutomatonSessionScheduler_->Empty() && GetCpuInstant() < deadlineTime) {
+    while (!AutomatonSessionScheduler_->IsEmpty() && GetCpuInstant() < deadlineTime) {
         auto session = AutomatonSessionScheduler_->Dequeue();
         TCurrentTraceContextGuard guard(session->GetTraceContext());
 

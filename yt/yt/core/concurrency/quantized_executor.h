@@ -11,12 +11,9 @@ namespace NYT::NConcurrency {
 struct ICallbackProvider
     : public TRefCounted
 {
-    virtual ~ICallbackProvider() = default;
-
     virtual TCallback<void()> ExtractCallback() = 0;
 };
 
-DECLARE_REFCOUNTED_STRUCT(ICallbackProvider)
 DEFINE_REFCOUNTED_TYPE(ICallbackProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,17 +24,18 @@ DEFINE_REFCOUNTED_TYPE(ICallbackProvider)
 struct IQuantizedExecutor
     : public TRefCounted
 {
-public:
     virtual void Initialize(TCallback<void()> workerInitializer = {}) = 0;
 
     //! Starts new quantum of time, returns a future that becomes set
     //! when quantum ends.
-    //! Quantum ends when either #timeout is reached or there are no more
-    //! enqueued callbacks in underlying threads.
-    //! Quantum completion is implemented via suspention of underlying
-    //! suspendable action queue. Timeout corresponds to immediate suspension
-    //! and extracted null callback from callback provider corresponds to
-    //! non-immediate suspension. Cf. ISuspendableActionQueue::Suspend.
+    /*!
+     *  Quantum ends when either #timeout is reached or there are no more
+     *  enqueued callbacks in underlying threads.
+     *  Quantum completion is implemented via suspention of underlying
+     *  suspendable action queue. Timeout corresponds to immediate suspension
+     *  and extracted null callback from callback provider corresponds to
+     *  non-immediate suspension. Cf. ISuspendableActionQueue::Suspend.
+     */
     virtual TFuture<void> Run(TDuration timeout) = 0;
 
     //! Updates number of workers.

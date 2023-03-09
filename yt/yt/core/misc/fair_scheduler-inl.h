@@ -77,7 +77,7 @@ public:
         YT_ABORT();
     }
 
-    bool Empty() const override
+    bool IsEmpty() const override
     {
         auto guard = Guard(Lock_);
 
