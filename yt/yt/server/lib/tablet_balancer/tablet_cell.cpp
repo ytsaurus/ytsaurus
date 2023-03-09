@@ -30,16 +30,18 @@ TTabletCell::TTabletCell(
     TTabletCellId cellId,
     const TTabletCellStatistics& statistics,
     const TTabletCellStatus& status,
-    std::optional<TString> address)
+    std::optional<TString> address,
+    ETabletCellLifeStage lifeStage)
     : Id(cellId)
     , Statistics(statistics)
     , Status(status)
+    , LifeStage(lifeStage)
     , NodeAddress(std::move(address))
 { }
 
 bool TTabletCell::IsAlive() const
 {
-    return Status.Health == ETabletCellHealth::Good && !Status.Decommissioned;
+    return Status.Health == ETabletCellHealth::Good && LifeStage == ETabletCellLifeStage::Running;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

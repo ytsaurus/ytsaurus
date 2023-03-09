@@ -231,7 +231,8 @@ TTestBundle CreateTabletCellBundle(
             cellIds[index],
             TTabletCellStatistics{.MemorySize = cells[index]->MemorySize},
             TTabletCellStatus{.Health = NTabletClient::ETabletCellHealth::Good, .Decommissioned = false},
-            cells[index]->NodeAddress);
+            cells[index]->NodeAddress,
+            ETabletCellLifeStage::Running);
         testBundle.Bundle->TabletCells.emplace(cellIds[index], cell);
         testBundle.Cells.push_back(cell);
     }

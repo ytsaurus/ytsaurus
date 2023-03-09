@@ -14,6 +14,7 @@ namespace NYT::NTabletBalancer {
 
 using NTableClient::TTableId;
 using NTabletClient::EInMemoryMode;
+using NTabletClient::ETabletCellLifeStage;
 using NTabletClient::ETabletState;
 using NTabletClient::TTabletCellId;
 using NTabletClient::TTabletId;
