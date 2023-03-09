@@ -393,7 +393,7 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
 {
     auto proxy = CreateObjectServiceReadProxy(Client_, EMasterChannelKind::Follower);
     auto batchReq = proxy.ExecuteBatch();
-    static const std::vector<TString> attributeKeys{"tablets", "status", "total_statistics", "peers"};
+    static const std::vector<TString> attributeKeys{"tablets", "status", "total_statistics", "peers", "tablet_cell_life_stage"};
 
     for (auto cellId : CellIds_) {
         auto req = TTableYPathProxy::Get(FromObjectId(cellId) + "/@");
@@ -414,6 +414,7 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
         auto status = attributes->Get<TTabletCellStatus>("status");
         auto statistics = attributes->Get<TTabletCellStatistics>("total_statistics");
         auto peers = attributes->Get<std::vector<TTabletCellPeer>>("peers");
+        auto lifeStage = attributes->Get<ETabletCellLifeStage>("tablet_cell_life_stage");
 
         std::optional<TNodeAddress> address;
         for (const auto& peer : peers) {
@@ -431,7 +432,7 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
             }
         }
 
-        auto tabletCell = New<TTabletCell>(cellId, statistics, status, std::move(address));
+        auto tabletCell = New<TTabletCell>(cellId, statistics, status, std::move(address), lifeStage);
 
         tabletCells.emplace(cellId, TTabletCellInfo{
             .TabletCell = std::move(tabletCell),

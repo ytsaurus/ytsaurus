@@ -33,6 +33,7 @@ struct TTabletCell final
 
     TTabletCellStatistics Statistics;
     TTabletCellStatus Status;
+    ETabletCellLifeStage LifeStage;
     std::optional<TString> NodeAddress;
     THashMap<TTabletId, TTabletPtr> Tablets;
 
@@ -40,7 +41,8 @@ struct TTabletCell final
         TTabletCellId cellId,
         const TTabletCellStatistics& statistics,
         const TTabletCellStatus& status,
-        std::optional<TString> address);
+        std::optional<TString> address,
+        ETabletCellLifeStage lifeStage);
 
     bool IsAlive() const;
 };
