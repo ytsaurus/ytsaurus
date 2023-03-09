@@ -107,6 +107,8 @@ DECLARE_REFCOUNTED_STRUCT(IIPCBucket)
 DECLARE_REFCOUNTED_CLASS(TFairThrottler)
 DECLARE_REFCOUNTED_CLASS(TBucketThrottler)
 
+DECLARE_REFCOUNTED_STRUCT(ICallbackProvider)
+
 class TPropagatingStorage;
 
 ////////////////////////////////////////////////////////////////////////////////

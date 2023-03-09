@@ -14,7 +14,7 @@ struct IFairScheduler
 
     virtual TTask Dequeue() = 0;
 
-    virtual bool Empty() const = 0;
+    virtual bool IsEmpty() const = 0;
 
     virtual void ChargeUser(const TString& user, TDuration time) = 0;
 };

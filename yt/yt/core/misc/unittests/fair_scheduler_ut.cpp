@@ -21,11 +21,11 @@ TEST_F(TFairSchedulerTest, Simple)
     Scheduler_->Enqueue("T1", "John");
     Scheduler_->Enqueue("T2", "John");
 
-    EXPECT_FALSE(Scheduler_->Empty());
+    EXPECT_FALSE(Scheduler_->IsEmpty());
     EXPECT_EQ(Scheduler_->Dequeue(), "T1");
-    EXPECT_FALSE(Scheduler_->Empty());
+    EXPECT_FALSE(Scheduler_->IsEmpty());
     EXPECT_EQ(Scheduler_->Dequeue(), "T2");
-    EXPECT_TRUE(Scheduler_->Empty());
+    EXPECT_TRUE(Scheduler_->IsEmpty());
 }
 
 TEST_F(TFairSchedulerTest, Fairness1)
@@ -36,19 +36,19 @@ TEST_F(TFairSchedulerTest, Fairness1)
     Scheduler_->Enqueue("B1", "Bob");
     Scheduler_->Enqueue("B2", "Bob");
 
-    EXPECT_FALSE(Scheduler_->Empty());
+    EXPECT_FALSE(Scheduler_->IsEmpty());
     EXPECT_EQ(Scheduler_->Dequeue(), "A1");
     Scheduler_->ChargeUser("Alice", TDuration::Seconds(2));
-    EXPECT_FALSE(Scheduler_->Empty());
+    EXPECT_FALSE(Scheduler_->IsEmpty());
     EXPECT_EQ(Scheduler_->Dequeue(), "B1");
     Scheduler_->ChargeUser("Bob", TDuration::Seconds(2));
-    EXPECT_FALSE(Scheduler_->Empty());
+    EXPECT_FALSE(Scheduler_->IsEmpty());
     EXPECT_EQ(Scheduler_->Dequeue(), "A2");
     Scheduler_->ChargeUser("Alice", TDuration::Seconds(2));
-    EXPECT_FALSE(Scheduler_->Empty());
+    EXPECT_FALSE(Scheduler_->IsEmpty());
     EXPECT_EQ(Scheduler_->Dequeue(), "B2");
     Scheduler_->ChargeUser("Bob", TDuration::Seconds(2));
-    EXPECT_TRUE(Scheduler_->Empty());
+    EXPECT_TRUE(Scheduler_->IsEmpty());
 }
 
 TEST_F(TFairSchedulerTest, Fairness2)
