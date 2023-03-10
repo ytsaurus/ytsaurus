@@ -24,7 +24,9 @@ void TQueueAgentDynamicStateConfig::Register(TRegistrar registrar)
 
 void TQueueConsumerRegistrationManagerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("state_path", &TThis::TablePath)
+    registrar.Parameter("state_write_path", &TThis::StateWritePath)
+        .Default("//sys/queue_agents/consumer_registrations");
+    registrar.Parameter("state_read_path", &TThis::StateReadPath)
         .Default("//sys/queue_agents/consumer_registrations");
     registrar.Parameter("bypass_caching", &TThis::BypassCaching)
         .Default(false);
@@ -36,7 +38,8 @@ void TQueueConsumerRegistrationManagerConfig::Register(TRegistrar registrar)
         .Default(RootUserName);
 
     registrar.Postprocessor([] (TThis* config) {
-        config->TablePath = config->TablePath.Normalize();
+        config->StateWritePath = config->StateWritePath.Normalize();
+        config->StateReadPath = config->StateReadPath.Normalize();
     });
 }
 

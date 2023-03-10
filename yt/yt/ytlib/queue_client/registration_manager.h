@@ -74,14 +74,14 @@ private:
     void GuardedRefreshConfiguration();
 
     //! Attempts to establish a connection to the registration table's (potentially remote) cluster
-    //! and returns a client to be used for reading and modifying the table.
-    TConsumerRegistrationTablePtr CreateRegistrationTableClientOrThrow() const;
+    //! and returns a client to be used for modifying the table.
+    TConsumerRegistrationTablePtr CreateRegistrationTableWriteClientOrThrow() const;
+    //! Collects registrations from the clusters specified in state read path.
+    //! The first successful response is returned.
+    std::vector<TConsumerRegistrationTableRow> FetchRegistrationsOrThrow() const;
 
     //! Returns the stored dynamic config.
     TQueueConsumerRegistrationManagerConfigPtr GetDynamicConfig() const;
-
-    //! Produces information about cached registrations.
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueConsumerRegistrationManager)
