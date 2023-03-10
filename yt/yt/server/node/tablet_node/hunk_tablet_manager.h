@@ -11,8 +11,6 @@ namespace NYT::NTabletNode {
 struct IHunkTabletHost
     : public virtual TRefCounted
 {
-    virtual bool IsMutationLoggingEnabled() const = 0;
-
     virtual void ScheduleScanTablet(TTabletId tabletId) = 0;
 };
 

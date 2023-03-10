@@ -27,6 +27,7 @@ using namespace NCellMaster;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NHydra;
 using namespace NObjectServer;
 using namespace NJournalClient;
 using namespace NObjectClient;

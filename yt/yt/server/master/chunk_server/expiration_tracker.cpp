@@ -157,11 +157,6 @@ bool TExpirationTracker::IsRecovery() const
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
 }
 
-bool TExpirationTracker::IsMutationLoggingEnabled() const
-{
-    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsMutationLoggingEnabled();
-}
-
 const TDynamicChunkManagerConfigPtr& TExpirationTracker::GetDynamicConfig()
 {
     const auto& configManager = Bootstrap_->GetConfigManager();

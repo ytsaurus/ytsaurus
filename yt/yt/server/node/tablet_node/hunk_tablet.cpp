@@ -368,11 +368,6 @@ const NLogging::TLogger& THunkTablet::GetLogger() const
     return Logger;
 }
 
-bool THunkTablet::IsMutationLoggingEnabled() const
-{
-    return Host_->IsMutationLoggingEnabled();
-}
-
 void THunkTablet::MakeAllStoresPassive()
 {
     if (ActiveStore_) {

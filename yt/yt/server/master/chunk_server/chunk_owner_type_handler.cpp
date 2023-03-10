@@ -44,6 +44,7 @@ namespace NYT::NChunkServer {
 
 using namespace NYTree;
 using namespace NFileServer;
+using namespace NHydra;
 using namespace NTableServer;
 using namespace NJournalServer;
 using namespace NCypressServer;
@@ -224,7 +225,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogBranch(
     const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
     const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
     YT_LOG_DEBUG_IF(
-        TBase::IsMutationLoggingEnabled(),
+        IsMutationLoggingEnabled(),
         "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, HunkChunkListId: %v, "
         "PrimaryMedium: %v, Replication: %v, Mode: %v, LockTimestamp: %v)",
         originatingNode->GetVersionedId(),
@@ -506,7 +507,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogMerge(
     const auto* originatingPrimaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
     const auto* branchedPrimaryMedium = chunkManager->GetMediumByIndex(branchedNode->GetPrimaryMediumIndex());
     YT_LOG_DEBUG_IF(
-        TBase::IsMutationLoggingEnabled(),
+        IsMutationLoggingEnabled(),
         "Node merged (OriginatingNodeId: %v, OriginatingPrimaryMedium: %v, "
         "OriginatingReplication: %v, BranchedNodeId: %v, BranchedChunkListId: %v, "
         "BranchedHunkChunkListId: %v, BranchedUpdateMode: %v, BranchedPrimaryMedium: %v, "

@@ -25,6 +25,7 @@ namespace NYT::NChaosServer {
 
 using namespace NCellMaster;
 using namespace NCypressServer;
+using namespace NHydra;
 using namespace NObjectClient;
 using namespace NSecurityServer;
 using namespace NTableServer;

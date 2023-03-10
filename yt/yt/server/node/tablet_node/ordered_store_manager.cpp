@@ -25,10 +25,11 @@
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/table_client/wire_protocol.h>
-#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/name_table.h>
+
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -44,6 +45,7 @@ using namespace NConcurrency;
 using namespace NApi;
 using namespace NTableClient;
 using namespace NChunkClient;
+using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;

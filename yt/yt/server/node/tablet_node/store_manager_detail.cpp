@@ -745,12 +745,6 @@ bool TStoreManagerBase::IsRecovery() const
     return HydraManager_ ? HydraManager_->IsRecovery() : false;
 }
 
-bool TStoreManagerBase::IsMutationLoggingEnabled() const
-{
-    // NB: HydraManager is null in tests.
-    return HydraManager_ ? HydraManager_->IsMutationLoggingEnabled() : false;
-}
-
 TTimestamp TStoreManagerBase::GenerateMonotonicCommitTimestamp(TTimestamp timestampHint)
 {
     auto lastCommitTimestamp = Tablet_->GetLastCommitTimestamp();

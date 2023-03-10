@@ -554,7 +554,7 @@ public:
             BIND(&TChunkReincarnator::UpdateTransactions, MakeWeak(this)),
             config->TransactionUpdatePeriod);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk reincarnation scanning started");
+        YT_LOG_DEBUG("Chunk reincarnation scanning started");
 
         CancelScheduledReincarnationsAndRestartTransaction();
 

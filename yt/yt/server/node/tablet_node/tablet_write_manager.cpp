@@ -1474,16 +1474,6 @@ private:
             .LockedRows = &transientWriteState->LockedRows,
         };
     }
-
-    bool IsMutationLoggingEnabled() const
-    {
-        if (const auto& hydraManager = Host_->GetHydraManager()) {
-            return hydraManager->IsMutationLoggingEnabled();
-        } else {
-            // NB: Missing in unittests.
-            return true;
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

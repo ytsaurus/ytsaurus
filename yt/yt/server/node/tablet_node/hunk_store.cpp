@@ -150,11 +150,6 @@ void THunkStore::BuildOrchidYson(IYsonConsumer* consumer) const
     .EndMap();
 }
 
-bool THunkStore::IsMutationLoggingEnabled() const
-{
-    return Tablet_->IsMutationLoggingEnabled();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

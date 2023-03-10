@@ -37,6 +37,7 @@ namespace NYT::NTabletServer {
 using namespace NCellMaster;
 using namespace NChunkServer;
 using namespace NChunkClient;
+using namespace NHydra;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NProfiling;

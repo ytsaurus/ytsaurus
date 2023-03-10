@@ -66,7 +66,6 @@ protected:
 
     bool IsLeader() const;
     bool IsRecovery() const;
-    bool IsMutationLoggingEnabled() const;
     const TDynamicCypressManagerConfigPtr& GetDynamicCypressManagerConfig() const;
 
     void DestroyCorePrologue(TCypressNode* node);
@@ -391,7 +390,7 @@ protected:
     {
         const auto& Logger = CypressServerLogger;
         YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled(),
+            NHydra::IsMutationLoggingEnabled(),
             "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, Mode: %v, LockTimestamp: %v)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
@@ -412,7 +411,7 @@ protected:
     {
         const auto& Logger = CypressServerLogger;
         YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled(),
+            NHydra::IsMutationLoggingEnabled(),
             "Node merged (OriginatingNodeId: %v, BranchedNodeId: %v)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId());

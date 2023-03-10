@@ -85,7 +85,6 @@ protected:
     bool IsLeader() const;
     bool IsFollower() const;
     bool IsRecovery() const;
-    bool IsMutationLoggingEnabled() const;
 
     virtual bool ValidateSnapshotVersion(int version);
     virtual int GetCurrentSnapshotVersion();
@@ -270,7 +269,6 @@ private:
         TMethodDescriptor* methodDescriptor);
 
     bool IsRecovery() const;
-    bool IsMutationLoggingEnabled() const;
 
     void HydraResetStateHash(NProto::TReqResetStateHash* request);
 };

@@ -35,12 +35,6 @@ struct ISimpleHydraManager
      */
     virtual TFuture<TMutationResponse> CommitMutation(TMutationRequest&& request) = 0;
 
-    //! Returns |true| if mutation logging is enabled.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual bool IsMutationLoggingEnabled() const = 0;
-
     virtual TReign GetCurrentReign() = 0;
 
     //! Returns the state as seen in the automaton thread.

@@ -154,16 +154,6 @@ bool TCompositeAutomatonPart::IsRecovery() const
     return HydraManager_->IsRecovery();
 }
 
-bool TCompositeAutomatonPart::IsMutationLoggingEnabled() const
-{
-    if (HydraManager_) {
-        return HydraManager_->IsMutationLoggingEnabled();
-    } else {
-        // NB: May be missing in unittests.
-        return true;
-    }
-}
-
 void TCompositeAutomatonPart::OnStartLeading()
 {
     StartEpoch();
@@ -609,11 +599,6 @@ void TCompositeAutomaton::DeserializeRequestAndProfile(
 bool TCompositeAutomaton::IsRecovery() const
 {
     return HydraManager_->IsRecovery();
-}
-
-bool TCompositeAutomaton::IsMutationLoggingEnabled() const
-{
-    return HydraManager_->IsMutationLoggingEnabled();
 }
 
 EFinalRecoveryAction TCompositeAutomaton::GetFinalRecoveryAction()

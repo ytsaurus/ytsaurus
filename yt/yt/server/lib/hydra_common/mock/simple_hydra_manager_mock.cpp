@@ -103,7 +103,8 @@ void TSimpleHydraManagerMock::DoApplyUpTo(int sequenceNumber)
             /*prevRandomSeed*/ 0,
             /*sequenceNumber*/ AppliedSequenceNumber_,
             /*stateHash*/ 0,
-            /*term*/ 0);
+            /*term*/ 0,
+            /*isMutationLoggingEnabled*/ true);
 
         {
             TMutationContextGuard mutationContextGuard(&mutationContext);
@@ -170,7 +171,8 @@ void TSimpleHydraManagerMock::DoLoadSnapshot(const TSnapshot& snapshot)
     THydraContext context(
         TVersion(),
         /*timestamp*/ TInstant::Zero(),
-        /*randomSeed*/ 0);
+        /*randomSeed*/ 0,
+        /*isMutationLoggingEnabled*/ true);
     THydraContextGuard guard(&context);
 
     Automaton_->PrepareState();
@@ -186,11 +188,6 @@ TFuture<TMutationResponse> TSimpleHydraManagerMock::CommitMutation(TMutationRequ
     MutationRequests_.emplace_back(std::move(request));
     auto promise = MutationResponsePromises_.emplace_back(NewPromise<TMutationResponse>());
     return promise;
-}
-
-bool TSimpleHydraManagerMock::IsMutationLoggingEnabled() const
-{
-    return true;
 }
 
 TReign TSimpleHydraManagerMock::GetCurrentReign()

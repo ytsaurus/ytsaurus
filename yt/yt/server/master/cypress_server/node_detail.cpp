@@ -89,11 +89,6 @@ bool TNontemplateCypressNodeTypeHandlerBase::IsRecovery() const
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
 }
 
-bool TNontemplateCypressNodeTypeHandlerBase::IsMutationLoggingEnabled() const
-{
-    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsMutationLoggingEnabled();
-}
-
 const TDynamicCypressManagerConfigPtr& TNontemplateCypressNodeTypeHandlerBase::GetDynamicCypressManagerConfig() const
 {
     return Bootstrap_->GetConfigManager()->GetConfig()->CypressManager;

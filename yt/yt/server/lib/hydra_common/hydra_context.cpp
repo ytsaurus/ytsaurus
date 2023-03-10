@@ -11,11 +11,13 @@ namespace NYT::NHydra {
 THydraContext::THydraContext(
     TVersion version,
     TInstant timestamp,
-    ui64 randomSeed)
+    ui64 randomSeed,
+    bool isMutationLoggingEnabled)
     : Version_(version)
     , Timestamp_(timestamp)
     , RandomSeed_(randomSeed)
     , RandomGenerator_(New<TRandomGenerator>(randomSeed))
+    , IsMutationLoggingEnabled_(isMutationLoggingEnabled)
     , ErrorSanitizerGuard_(/*datetimeOverride*/ timestamp)
 { }
 
@@ -23,11 +25,13 @@ THydraContext::THydraContext(
     TVersion version,
     TInstant timestamp,
     ui64 randomSeed,
+    bool isMutationLoggingEnabled,
     TIntrusivePtr<TRandomGenerator> randomGenerator)
     : Version_(version)
     , Timestamp_(timestamp)
     , RandomSeed_(randomSeed)
     , RandomGenerator_(std::move(randomGenerator))
+    , IsMutationLoggingEnabled_(isMutationLoggingEnabled)
     , ErrorSanitizerGuard_(/*datetimeOverride*/ timestamp)
 { }
 
@@ -49,6 +53,11 @@ ui64 THydraContext::GetRandomSeed() const
 const TIntrusivePtr<TRandomGenerator>& THydraContext::RandomGenerator()
 {
     return RandomGenerator_;
+}
+
+bool THydraContext::IsMutationLoggingEnabled() const
+{
+    return IsMutationLoggingEnabled_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,6 +99,19 @@ void SetCurrentHydraContext(THydraContext* context)
 bool HasHydraContext()
 {
     return TryGetCurrentHydraContext() != nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsMutationLoggingEnabled()
+{
+    if (auto* hydraContext = TryGetCurrentHydraContext()) {
+        return hydraContext->IsMutationLoggingEnabled();
+    } else {
+        // This branch is used by code that is executed both in
+        // transient and persistent contexts.
+        return true;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
