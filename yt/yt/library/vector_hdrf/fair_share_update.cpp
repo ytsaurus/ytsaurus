@@ -1352,11 +1352,15 @@ void TFairShareUpdateExecutor::UpdateRelaxedPoolIntegralShares()
         availableShare -= usedShare;
     }
 
-    const auto& relaxedPools = Context_->RelaxedPools;
+    std::vector<TPool*> relaxedPools;
     std::vector<double> weights;
     std::vector<TResourceVector> originalLimits;
-    for (auto& relaxedPool : relaxedPools) {
+    for (auto& relaxedPool : Context_->RelaxedPools) {
         double integralShareRatio = GetIntegralShareRatioByVolume(relaxedPool);
+        if (integralShareRatio == 0) {
+            continue;
+        }
+        relaxedPools.push_back(relaxedPool);
         weights.push_back(integralShareRatio);
         originalLimits.push_back(relaxedPool->Attributes().LimitsShare);
 
@@ -1373,7 +1377,12 @@ void TFairShareUpdateExecutor::UpdateRelaxedPoolIntegralShares()
         relaxedPool->PrepareFairShareFunctions(Context_);
     }
 
+    if (relaxedPools.empty()) {
+        return;
+    }
+
     double minWeight = *std::min_element(weights.begin(), weights.end());
+    YT_VERIFY(minWeight > 0);
     for (auto& weight : weights) {
         weight = weight / minWeight;
     }
