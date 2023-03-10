@@ -5,7 +5,9 @@
 #include "proto_helpers.h"
 
 #include <yt/cpp/mapreduce/common/node_builder.h>
-#include <mapreduce/yt/interface/protos/extension.pb.h>
+
+#include <yt/yt_proto/yt/formats/extension.pb.h>
+
 #include <google/protobuf/unknown_field_set.h>
 
 namespace NYT {

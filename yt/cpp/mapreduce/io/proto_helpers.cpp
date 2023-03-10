@@ -2,7 +2,8 @@
 
 #include <yt/cpp/mapreduce/interface/io.h>
 #include <yt/cpp/mapreduce/interface/fluent.h>
-#include <mapreduce/yt/interface/protos/extension.pb.h>
+
+#include <yt/yt_proto/yt/formats/extension.pb.h>
 
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/descriptor.pb.h>

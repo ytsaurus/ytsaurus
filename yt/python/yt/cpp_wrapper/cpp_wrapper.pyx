@@ -15,25 +15,25 @@ from yt.wrapper.ypath import TablePath
 from yt import yson
 
 
-cdef extern from "mapreduce/yt/interface/client_method_options.h" namespace "NYT":
+cdef extern from "yt/cpp/mapreduce/interface/client_method_options.h" namespace "NYT":
     cdef cppclass TCreateClientOptions:
         TCreateClientOptions& Token(const TString&)
         TCreateClientOptions& TokenPath(const TString&)
 
 
-cdef extern from "mapreduce/yt/interface/operation.h" namespace "NYT":
+cdef extern from "yt/cpp/mapreduce/interface/operation.h" namespace "NYT":
     cdef cppclass IStructuredJob:
         IStructuredJob() except +
     ctypedef TIntrusiveConstPtr[IStructuredJob] IStructuredJobPtr
 
 
-cdef extern from "mapreduce/yt/interface/init.h" namespace "NYT":
+cdef extern from "yt/cpp/mapreduce/interface/init.h" namespace "NYT":
     cdef cppclass TInitializeOptions:
         TInitializeOptions() except +
     void Initialize(const TInitializeOptions&) except +
 
 
-cdef extern from "mapreduce/yt/client/py_helpers.h" namespace "NYT":
+cdef extern from "yt/cpp/mapreduce/client/py_helpers.h" namespace "NYT":
     IStructuredJobPtr ConstructJob(const TString& jobName, const TString& state) except +
     TString GetJobStateString(const IStructuredJob&) except +
     TString GetIOInfo(

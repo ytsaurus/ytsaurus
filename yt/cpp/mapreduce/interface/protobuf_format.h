@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include <mapreduce/yt/interface/protos/extension.pb.h>
+#include <yt/yt_proto/yt/formats/extension.pb.h>
 
 #include <util/generic/maybe.h>
 

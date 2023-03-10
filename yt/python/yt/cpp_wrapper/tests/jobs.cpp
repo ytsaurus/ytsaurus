@@ -1,6 +1,6 @@
 #include <yt/python/yt/cpp_wrapper/tests/data.pb.h>
 
-#include <mapreduce/yt/interface/client.h>
+#include <yt/cpp/mapreduce/interface/client.h>
 
 #include <util/charset/utf8.h>
 

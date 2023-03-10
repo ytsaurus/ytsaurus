@@ -17,8 +17,8 @@ PROJECT_NAME      = "C++ YT Wrapper"
 PROJECT_BRIEF     = "C++ library for working with YT clusters"
 OUTPUT_DIRECTORY  = {output_directory}
 RECURSIVE         = NO
-INPUT             = mapreduce/yt/interface
-EXCLUDE           = mapreduce/yt/interface/logging
+INPUT             = yt/cpp/mapreduce/interface
+EXCLUDE           = yt/cpp/mapreduce/interface/logging
 FILE_PATTERNS     = *.h
 EXCLUDE_PATTERNS  = *-inl.h
 
