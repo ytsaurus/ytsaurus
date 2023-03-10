@@ -497,22 +497,24 @@ def extract_pool_mapping(client, input_table):
     return cluster_and_tree_to_pool_mapping
 
 
+def add_expiration_timeout_to_attributes(attributes, expiration_timeout):
+    if expiration_timeout is not None and expiration_timeout > 0:
+        attributes["expiration_timeout"] = expiration_timeout
+    return attributes
+
+
 def do_process_scheduler_log_on_yt(client, input_table, output_table, expiration_timeout):
     reduce_by = ["cluster", "pool_tree", "pool_path", "operation_id"]
     sort_by = reduce_by + ["timestamp"]
 
-    attributes = {
-        "schema": TableSchema.from_row_type(OperationInfo),
-        "optimize_for": "scan",
-    }
-
-    if expiration_timeout is not None and expiration_timeout > 0:
-        attributes["expiration_timeout"] = expiration_timeout
-
     client.create(
         "table",
         output_table,
-        attributes=attributes)
+        attributes=add_expiration_timeout_to_attributes({
+            "schema": TableSchema.from_row_type(OperationInfo),
+            "optimize_for": "scan",
+        }, expiration_timeout)
+    )
 
     # TODO: Temporary hack
     cluster_and_tree_to_pool_mapping = extract_pool_mapping(client, input_table)
@@ -546,7 +548,8 @@ def do_process_scheduler_log_on_yt(client, input_table, output_table, expiration
         "table",
         pools_output_table,
         recursive=True,
-        attributes={"schema": [{"name": "pools", "type": "string"}]})
+        attributes=add_expiration_timeout_to_attributes(
+            {"schema": [{"name": "pools", "type": "string"}]}, expiration_timeout))
 
     pool_paths_info = convert_pool_mapping_to_pool_paths_info(cluster_and_tree_to_pool_mapping)
     client.write_table(
@@ -562,10 +565,10 @@ def do_process_scheduler_log_on_yt(client, input_table, output_table, expiration
         "table",
         tags_output_table,
         recursive=True,
-        attributes={
+        attributes=add_expiration_timeout_to_attributes({
             "schema": TableSchema.from_row_type(TagsRow),
             "optimize_for": "scan",
-        }
+        }, expiration_timeout)
     )
 
     with client.TempTable() as temp_table:
