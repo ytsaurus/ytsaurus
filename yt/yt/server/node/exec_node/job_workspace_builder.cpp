@@ -1,6 +1,7 @@
 #include "job_workspace_builder.h"
 
 #include "job_gpu_checker.h"
+#include "job_directory_manager.h"
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
@@ -22,13 +23,16 @@ static const TString MountSuffix = "mount";
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobWorkspaceBuilder::TJobWorkspaceBuilder(
-    const IInvokerPtr& invoker,
-    const TJobWorkspaceBuildSettings& settings)
+    IInvokerPtr invoker,
+    TJobWorkspaceBuildSettings settings,
+    IJobDirectoryManagerPtr directoryManager)
     : Invoker_(std::move(invoker))
     , Settings_(std::move(settings))
+    , DirectoryManager_(std::move(directoryManager))
 {
     YT_VERIFY(Settings_.Slot);
     YT_VERIFY(Settings_.Job);
+    YT_VERIFY(DirectoryManager_);
 
     if (Settings_.NeedGpuCheck) {
         YT_VERIFY(Settings_.GpuCheckBinaryPath);
@@ -74,24 +78,28 @@ void TJobWorkspaceBuilder::ValidateJobPhase(EJobPhase expectedPhase) const
 void TJobWorkspaceBuilder::SetJobPhase(EJobPhase phase)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
     UpdateBuilderPhase_.Fire(phase);
 }
 
 void TJobWorkspaceBuilder::UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
     UpdateArtifactStatistics_.Fire(compressedDataSize, cacheHit);
 }
 
 TFuture<void> TJobWorkspaceBuilder::PrepareSandboxDirectories()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
     return DoPrepareSandboxDirectories();
 }
 
 TFuture<void> TJobWorkspaceBuilder::PrepareRootVolume()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
     return GuardedAction([=, this, this_ = MakeStrong(this)] () {
         return DoPrepareRootVolume();
     });
@@ -100,6 +108,7 @@ TFuture<void> TJobWorkspaceBuilder::PrepareRootVolume()
 TFuture<void> TJobWorkspaceBuilder::RunSetupCommand()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
     return GuardedAction([=, this, this_ = MakeStrong(this)] () {
         return DoRunSetupCommand();
     });
@@ -108,6 +117,7 @@ TFuture<void> TJobWorkspaceBuilder::RunSetupCommand()
 TFuture<void> TJobWorkspaceBuilder::RunGpuCheckCommand()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
     return GuardedAction([=, this, this_ = MakeStrong(this)] () {
         return DoRunGpuCheckCommand();
     });
@@ -134,7 +144,9 @@ TFuture<TJobWorkspaceBuildResult> TJobWorkspaceBuilder::Run()
 TRootFS TJobWorkspaceBuilder::MakeWritableRootFS()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
     YT_VERIFY(ResultHolder_.RootVolume);
+
     std::vector<TBind> binds = Settings_.Binds;
 
     for (const auto& bind : ResultHolder_.RootBinds) {
@@ -156,10 +168,12 @@ class TSimpleJobWorkspaceBuilder
 public:
     TSimpleJobWorkspaceBuilder(
         IInvokerPtr invoker,
-        TJobWorkspaceBuildSettings settings)
+        TJobWorkspaceBuildSettings settings,
+        IJobDirectoryManagerPtr directoryManager)
         : TJobWorkspaceBuilder(
             std::move(invoker),
-            std::move(settings))
+            std::move(settings),
+            std::move(directoryManager))
     { }
 
 private:
@@ -202,6 +216,7 @@ private:
     TFuture<void> DoPrepareSandboxDirectories()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
+
         YT_LOG_INFO("Started preparing sandbox directories");
 
         auto slot = Settings_.Slot;
@@ -219,15 +234,155 @@ private:
     TFuture<void> DoPrepareRootVolume()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
+        SetJobPhase(EJobPhase::PreparingRootVolume);
+
+        VolumePrepareStartTime_ = TInstant::Now();
+        UpdateTimers_.Fire(MakeStrong(this));
+
+        if (Settings_.UserSandboxOptions.EnableDiskQuota &&
+            Settings_.UserSandboxOptions.HasRootFsQuota &&
+            (Settings_.UserSandboxOptions.DiskSpaceLimit || Settings_.UserSandboxOptions.InodeLimit)) {
+            return DirectoryManager_->ApplyQuota(
+                Settings_.Slot->GetSlotPath(),
+                TJobDirectoryProperties{
+                    .DiskSpaceLimit = Settings_.UserSandboxOptions.DiskSpaceLimit,
+                    .InodeLimit = Settings_.UserSandboxOptions.InodeLimit,
+                    .UserId = Settings_.UserSandboxOptions.UserId
+                })
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<void>& volumeOrError) {
+                    if (!volumeOrError.IsOK()) {
+                        THROW_ERROR_EXCEPTION(TError(EErrorCode::RootVolumePreparationFailed, "Failed to set quotas")
+                            << volumeOrError);
+                    }
+
+                    VolumePrepareFinishTime_ = TInstant::Now();
+                    UpdateTimers_.Fire(MakeStrong(this));
+                }));
+        } else {
+            return VoidFuture;
+        }
+    }
+
+    TFuture<void> DoRunSetupCommand()
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        SetJobPhase(EJobPhase::RunningSetupCommands);
+
+        return VoidFuture;
+    }
+
+    TFuture<void> DoRunGpuCheckCommand()
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::RunningSetupCommands);
+        SetJobPhase(EJobPhase::RunningGpuCheckCommand);
+
+        return VoidFuture;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobWorkspaceBuilderPtr CreateSimpleJobWorkspaceBuilder(
+    IInvokerPtr invoker,
+    TJobWorkspaceBuildSettings settings,
+    IJobDirectoryManagerPtr directoryManager)
+{
+    return New<TSimpleJobWorkspaceBuilder>(
+        std::move(invoker),
+        std::move(settings),
+        std::move(directoryManager));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+#ifdef _linux_
+
+class TPortoJobWorkspaceBuilder
+    : public TJobWorkspaceBuilder
+{
+public:
+    TPortoJobWorkspaceBuilder(
+        IInvokerPtr invoker,
+        TJobWorkspaceBuildSettings settings,
+        IJobDirectoryManagerPtr directoryManager)
+        : TJobWorkspaceBuilder(
+            std::move(invoker),
+            std::move(settings),
+            std::move(directoryManager))
+    { }
+
+private:
+
+    void MakeArtifactSymlinks()
+    {
+        auto slot = Settings_.Slot;
+
+        for (const auto& artifact : Settings_.Artifacts) {
+            // Artifact is passed into the job via symlink.
+            if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
+                YT_VERIFY(artifact.Chunk);
+
+                YT_LOG_INFO(
+                    "Making symlink for artifact (FileName: %v, Executable: "
+                    "%v, SandboxKind: %v, CompressedDataSize: %v)",
+                    artifact.Name,
+                    artifact.Executable,
+                    artifact.SandboxKind,
+                    artifact.Key.GetCompressedDataSize());
+
+                auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
+                auto symlinkPath =
+                    NFS::CombinePaths(sandboxPath, artifact.Name);
+
+                WaitFor(slot->MakeLink(
+                    Settings_.Job->GetId(),
+                    artifact.Name,
+                    artifact.SandboxKind,
+                    artifact.Chunk->GetFileName(),
+                    symlinkPath,
+                    artifact.Executable))
+                    .ThrowOnError();
+            } else {
+                YT_VERIFY(artifact.SandboxKind == ESandboxKind::User);
+            }
+        }
+    }
+
+    TFuture<void> DoPrepareSandboxDirectories()
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        YT_LOG_INFO("Started preparing sandbox directories");
+
+        auto slot = Settings_.Slot;
+
+        ResultHolder_.TmpfsPaths = WaitFor(slot->PrepareSandboxDirectories(Settings_.UserSandboxOptions))
+            .ValueOrThrow();
+
+        MakeArtifactSymlinks();
+
+        YT_LOG_INFO("Finished preparing sandbox directories");
+
+        return VoidFuture;
+    }
+
+    TFuture<void> DoPrepareRootVolume()
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
         auto slot = Settings_.Slot;
         auto layerArtifactKeys = Settings_.LayerArtifactKeys;
 
-        if (layerArtifactKeys.empty()) {
-            return VoidFuture;
-        } else {
+        if (!layerArtifactKeys.empty()) {
             VolumePrepareStartTime_ = TInstant::Now();
             UpdateTimers_.Fire(MakeStrong(this));
 
@@ -252,6 +407,31 @@ private:
                     UpdateTimers_.Fire(MakeStrong(this));
                     ResultHolder_.RootVolume = volumeOrError.Value();
                 }));
+        } else if (Settings_.UserSandboxOptions.EnableDiskQuota &&
+            Settings_.UserSandboxOptions.HasRootFsQuota &&
+            (Settings_.UserSandboxOptions.DiskSpaceLimit || Settings_.UserSandboxOptions.InodeLimit)) {
+
+            VolumePrepareStartTime_ = TInstant::Now();
+            UpdateTimers_.Fire(MakeStrong(this));
+
+            return DirectoryManager_->ApplyQuota(
+                Settings_.Slot->GetSlotPath(),
+                TJobDirectoryProperties{
+                    .DiskSpaceLimit = Settings_.UserSandboxOptions.DiskSpaceLimit,
+                    .InodeLimit = Settings_.UserSandboxOptions.InodeLimit,
+                    .UserId = Settings_.UserSandboxOptions.UserId
+                })
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<void>& volumeOrError) {
+                    if (!volumeOrError.IsOK()) {
+                        THROW_ERROR_EXCEPTION(TError(EErrorCode::RootVolumePreparationFailed, "Failed to set quotas")
+                            << volumeOrError);
+                    }
+
+                    VolumePrepareFinishTime_ = TInstant::Now();
+                    UpdateTimers_.Fire(MakeStrong(this));
+                }));
+        } else {
+            return VoidFuture;
         }
     }
 
@@ -293,7 +473,7 @@ private:
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
         SetJobPhase(EJobPhase::RunningGpuCheckCommand);
 
-        if (!Settings_.LayerArtifactKeys.empty() && Settings_.NeedGpuCheck) {
+        if (Settings_.NeedGpuCheck) {
             TJobGpuCheckerSettings settings {
                 .Slot = Settings_.Slot,
                 .Job = Settings_.Job,
@@ -337,14 +517,18 @@ private:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
+TJobWorkspaceBuilderPtr CreatePortoJobWorkspaceBuilder(
     IInvokerPtr invoker,
-    TJobWorkspaceBuildSettings settings)
+    TJobWorkspaceBuildSettings settings,
+    IJobDirectoryManagerPtr directoryManager)
 {
-    return New<TSimpleJobWorkspaceBuilder>(invoker, settings);
+    return New<TPortoJobWorkspaceBuilder>(
+        std::move(invoker),
+        std::move(settings),
+        std::move(directoryManager));
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "job_workspace_builder.h"
 
 #include <yt/yt/server/node/data_node/artifact.h>
 #include <yt/yt/server/node/data_node/public.h>
@@ -59,6 +60,11 @@ struct IJobEnvironment
         const TString& user,
         const std::optional<std::vector<NContainers::TDevice>>& devices,
         int startIndex) = 0;
+
+    virtual TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
+        IInvokerPtr invoker,
+        TJobWorkspaceBuildSettings settings,
+        IJobDirectoryManagerPtr directoryManager) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobEnvironment)

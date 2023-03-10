@@ -111,6 +111,8 @@ public:
     //! If force argument is specified then unconditionally performs initialization.
     TFuture<void> Repair(bool force);
 
+    IJobDirectoryManagerPtr GetJobDirectoryManager();
+
 private:
     const TSlotLocationConfigPtr Config_;
     IBootstrap* const Bootstrap_;

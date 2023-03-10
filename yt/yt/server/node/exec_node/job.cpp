@@ -1581,7 +1581,7 @@ void TJob::RunWithWorkspaceBuilder()
         .GpuDevices = devices
     };
 
-    auto workspaceBuilder = CreateJobWorkspaceBuilder(Invoker_, std::move(settings));
+    auto workspaceBuilder = Slot_->CreateJobWorkspaceBuilder(Invoker_, std::move(settings));
 
     workspaceBuilder->SubscribeUpdateArtifactStatistics(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this)] (i64 compressedDataSize, bool cacheHit) {
         UpdateArtifactStatistics(compressedDataSize, cacheHit);
@@ -2113,6 +2113,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
         .Via(Invoker_);
     options.HasRootFsQuota = Config_->UseCommonRootFsQuota;
     options.EnableDiskQuota = Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota;
+    options.UserId = Slot_->GetUserId();
 
     if (UserJobSpec_) {
         for (const auto& tmpfsVolumeProto : UserJobSpec_->tmpfs_volumes()) {

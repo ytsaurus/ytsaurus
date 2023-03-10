@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chunk_cache.h"
+#include "job_workspace_builder.h"
 
 #include <yt/yt/server/node/data_node/artifact.h>
 
@@ -89,7 +90,11 @@ struct ISlot
 
     virtual int GetSlotIndex() const = 0;
 
+    virtual int GetUserId() const = 0;
+
     virtual TDiskStatistics GetDiskStatistics() const = 0;
+
+    virtual TString GetSlotPath() const = 0;
 
     virtual TString GetSandboxPath(ESandboxKind sandbox) const = 0;
 
@@ -109,6 +114,10 @@ struct ISlot
         ESandboxKind sandboxKind,
         const TString& artifactPath,
         const TError& error) = 0;
+
+    virtual TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
+        IInvokerPtr invoker,
+        TJobWorkspaceBuildSettings settings) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISlot)

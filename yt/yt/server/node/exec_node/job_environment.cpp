@@ -328,6 +328,17 @@ public:
             Bootstrap_->GetConfig()->ExecNode->SlotManager->DetachedTmpfsUmount);
     }
 
+    TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
+        IInvokerPtr invoker,
+        TJobWorkspaceBuildSettings settings,
+        IJobDirectoryManagerPtr directoryManager) override
+    {
+        return CreateSimpleJobWorkspaceBuilder(
+            invoker,
+            settings,
+            directoryManager);
+    }
+
 private:
     const TSimpleJobEnvironmentConfigPtr Config_;
 
@@ -785,6 +796,17 @@ private:
         launcher->SetRoot(rootFS);
         launcher->SetUser(user);
         return launcher;
+    }
+
+    TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
+        IInvokerPtr invoker,
+        TJobWorkspaceBuildSettings settings,
+        IJobDirectoryManagerPtr directoryManager) override
+    {
+        return CreatePortoJobWorkspaceBuilder(
+            invoker,
+            settings,
+            directoryManager);
     }
 };
 
