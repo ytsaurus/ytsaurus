@@ -650,6 +650,16 @@ void TRichYPath::SetCluster(const TString& value)
     Attributes().Set("cluster", value);
 }
 
+std::optional<std::vector<TString>> TRichYPath::GetClusters() const
+{
+    return FindAttribute<std::vector<TString>>(*this, "clusters");
+}
+
+void TRichYPath::SetClusters(const std::vector<TString>& value)
+{
+    Attributes().Set("clusters", value);
+}
+
 bool TRichYPath::GetCreate() const
 {
     return GetAttribute<bool>(*this, "create", false);

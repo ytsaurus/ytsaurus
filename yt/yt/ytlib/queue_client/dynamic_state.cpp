@@ -102,7 +102,7 @@ TFuture<TTransactionCommitResult> TTableBase<TRow>::Insert(std::vector<TRow> row
     return Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet)
         .Apply(BIND([rows = std::move(rows), path = Path_] (const ITransactionPtr& transaction) {
             auto rowset = TRow::InsertRowRange(rows);
-            transaction->WriteRows(path, rowset->GetNameTable(), rowset->GetRows());
+            transaction->WriteRows(path, rowset->GetNameTable(), rowset->GetRows(), {.RequireSyncReplica = false});
             return transaction->Commit();
         }));
 }
@@ -113,7 +113,7 @@ TFuture<TTransactionCommitResult> TTableBase<TRow>::Delete(std::vector<TRow> key
     return Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet)
         .Apply(BIND([keys = std::move(keys), path = Path_] (const ITransactionPtr& transaction) {
             auto rowset = TRow::DeleteRowRange(keys);
-            transaction->DeleteRows(path, rowset->GetNameTable(), rowset->GetRows());
+            transaction->DeleteRows(path, rowset->GetNameTable(), rowset->GetRows(), {.RequireSyncReplica = false});
             return transaction->Commit();
         }));
 }

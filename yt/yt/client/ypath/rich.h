@@ -156,6 +156,10 @@ public:
     std::optional<TString> GetCluster() const;
     void SetCluster(const TString& value);
 
+    // "clusters"
+    std::optional<std::vector<TString>> GetClusters() const;
+    void SetClusters(const std::vector<TString>& value);
+
     // "create"
     bool GetCreate() const;
 

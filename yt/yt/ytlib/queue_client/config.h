@@ -53,9 +53,15 @@ class TQueueConsumerRegistrationManagerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    //! Cluster-parametrized path to the dynamic table containing queue agents' queue consumer registration state.
+    //! Cluster-parametrized path to the dynamic table containing queue consumer registration state.
     //! If no cluster is specified, the connection's local cluster is assumed.
-    NYPath::TRichYPath TablePath;
+    //! This path is used for writing/removing registrations.
+    NYPath::TRichYPath StateWritePath;
+    //! Same as above, but parametrized with a non-empty list of clusters and used for reading registrations.
+    //! If no clusters are specified, the connection's local cluster is used.
+    //! If a list of clusters is specified, the registration manager will send read-requests to all of them
+    //! and use any successful result.
+    NYPath::TRichYPath StateReadPath;
 
     //! If true, the table will be polled for each registration check and orchid call.
     //! Off by default.

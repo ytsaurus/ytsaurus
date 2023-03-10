@@ -10,7 +10,7 @@ from yt_commands import (
 
 import yt_error_codes
 
-from .test_dynamic_tables import DynamicTablesBase
+from yt_tests_common.dynamic_tables_base import DynamicTablesBase
 from .test_replicated_dynamic_tables import TestReplicatedDynamicTablesBase
 
 from yt.environment.helpers import assert_items_equal

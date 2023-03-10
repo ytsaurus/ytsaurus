@@ -1225,10 +1225,9 @@ def _build_cluster_connection_config(yt_config,
                 "production": {"addresses": ["{}:{}".format(yt_config.fqdn, port) for port in queue_agent_rpc_ports]},
             },
             "queue_consumer_registration_manager": {
-                "root": "{}//sys/queue_agents".format("{}:".format(yt_config.cluster_name) if yt_config.cluster_name is not None else ""),
                 "bypass_caching": True,
                 "cache_refresh_period": 3000,
-                "configuration_refresh_period": 18000,
+                "configuration_refresh_period": 500,
             },
         },
         "permission_cache": {

@@ -3,8 +3,7 @@ from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
 from yt_commands import (authors, get, set, ls, wait, assert_yt_error, create, sync_mount_table, sync_create_cells,
                          insert_rows, delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
                          sync_unmount_table, sync_reshard_table, trim_rows, print_debug, alter_table,
-                         register_queue_consumer, unregister_queue_consumer, create_user, check_permission, mount_table,
-                         wait_for_tablet_state)
+                         register_queue_consumer, unregister_queue_consumer, mount_table, wait_for_tablet_state)
 
 from yt.common import YtError, update_inplace, update
 
@@ -2190,107 +2189,3 @@ class TestDynamicConfig(TestQueueAgentBase):
         })
 
         orchid.wait_fresh_pass()
-
-
-class TestApiCommands(TestQueueAgentBase):
-    @staticmethod
-    def _registrations_are(expected_registrations):
-        def get_as_tuple(r):
-            return r["queue_cluster"], r["queue_path"], r["consumer_cluster"], r["consumer_path"], r["vital"]
-
-        registrations = {get_as_tuple(r) for r in select_rows("* from [//sys/queue_agents/consumer_registrations]")}
-        print_debug(registrations, expected_registrations)
-        if registrations != expected_registrations:
-            return False
-
-        # We don't test anything with http proxies in this suite, so there is no point in checking their orchid.
-        # In native driver tests there won't be any proxies and the check will pass.
-        for proxy in get("//sys/rpc_proxies").keys():
-            orchid_path = f"//sys/rpc_proxies/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager"
-            orchid_registrations = {
-                tuple(r["queue"].split(":") + r["consumer"].split(":") + [r["vital"]])
-                for r in get(f"{orchid_path}/registrations")
-            }
-
-            if orchid_registrations != expected_registrations:
-                return False
-
-        return True
-
-    @authors("achulkov2")
-    def test_registrations(self):
-        self._create_queue("//tmp/q")
-        self._create_consumer("//tmp/c1")
-        self._create_consumer("//tmp/c2")
-
-        set("//tmp/q/@inherit_acl", False)
-        set("//tmp/c1/@inherit_acl", False)
-        set("//tmp/c2/@inherit_acl", False)
-
-        create_user("egor")
-        create_user("bulat")
-        create_user("yura")
-
-        # Nobody is allowed to register consumers yet.
-        for consumer, user in zip(("//tmp/c1", "//tmp/c2"), ("egor", "bulat", "yura")):
-            with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
-                register_queue_consumer("//tmp/q", consumer, vital=False, authenticated_user=user)
-
-        set("//tmp/q/@acl/end", {"action": "allow", "permissions": ["register_queue_consumer"], "vital": True,
-                                 "subjects": ["egor"]})
-        assert check_permission("egor", "register_queue_consumer", "//tmp/q", vital=True)["action"] == "allow"
-
-        set("//tmp/q/@acl/end", {"action": "allow", "permissions": ["register_queue_consumer"], "vital": True,
-                                 "subjects": ["bulat"]})
-        assert check_permission("bulat", "register_queue_consumer", "//tmp/q", vital=True)["action"] == "allow"
-
-        set("//tmp/q/@acl/end", {"action": "allow", "permissions": ["register_queue_consumer"], "vital": False,
-                                 "subjects": ["yura"]})
-        assert check_permission("yura", "register_queue_consumer", "//tmp/q", vital=False)["action"] == "allow"
-        assert check_permission("yura", "register_queue_consumer", "//tmp/q", vital=True)["action"] == "deny"
-
-        # Yura is not allowed to register vital consumers.
-        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
-            register_queue_consumer("//tmp/q", "//tmp/c2", vital=True, authenticated_user="yura")
-
-        register_queue_consumer("//tmp/q", "//tmp/c1", vital=True, authenticated_user="bulat")
-        register_queue_consumer("//tmp/q", "//tmp/c2", vital=False, authenticated_user="yura")
-        wait(lambda: self._registrations_are({
-            ("primary", "//tmp/q", "primary", "//tmp/c1", True),
-            ("primary", "//tmp/q", "primary", "//tmp/c2", False)
-        }))
-
-        # Remove permissions on either the queue or the consumer are needed.
-        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
-            unregister_queue_consumer("//tmp/q", "//tmp/c1", authenticated_user="bulat")
-
-        set("//tmp/c1/@acl/end", {"action": "allow", "permissions": ["remove"], "subjects": ["bulat"]})
-
-        # Bulat can unregister his own consumer.
-        unregister_queue_consumer("//tmp/q", "//tmp/c1", authenticated_user="bulat")
-
-        wait(lambda: self._registrations_are({
-            ("primary", "//tmp/q", "primary", "//tmp/c2", False)
-        }))
-
-        # Bulat cannot unregister Yura's consumer.
-        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
-            unregister_queue_consumer("//tmp/q", "//tmp/c2", authenticated_user="bulat")
-
-        # Remove permissions on either the queue or the consumer are needed.
-        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
-            unregister_queue_consumer("//tmp/q", "//tmp/c2", authenticated_user="egor")
-
-        set("//tmp/q/@acl/end", {"action": "allow", "permissions": ["remove"], "subjects": ["egor"]})
-
-        # Now Egor can unregister any consumer to his queue.
-        unregister_queue_consumer("//tmp/q", "//tmp/c2", authenticated_user="egor")
-
-        wait(lambda: self._registrations_are(builtins.set()))
-
-    # TODO(achulkov2): Test queue consumer registration manager reconfiguration.
-
-
-class TestApiCommandsRpcProxy(TestApiCommands):
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True

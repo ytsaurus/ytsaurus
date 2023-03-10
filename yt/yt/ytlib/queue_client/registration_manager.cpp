@@ -131,7 +131,7 @@ void TQueueConsumerRegistrationManager::RegisterQueueConsumer(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto registrationTableClient = CreateRegistrationTableClientOrThrow();
+    auto registrationTableClient = CreateRegistrationTableWriteClientOrThrow();
 
     WaitFor(registrationTableClient->Insert(std::vector{TConsumerRegistrationTableRow{
         .Queue = FillCrossClusterReferencesFromRichYPath(queue, ClusterName_),
@@ -147,7 +147,7 @@ void TQueueConsumerRegistrationManager::UnregisterQueueConsumer(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto registrationTableClient = CreateRegistrationTableClientOrThrow();
+    auto registrationTableClient = CreateRegistrationTableWriteClientOrThrow();
 
     WaitFor(registrationTableClient->Delete(std::vector{TConsumerRegistrationTableRow{
         .Queue = FillCrossClusterReferencesFromRichYPath(queue, ClusterName_),
@@ -181,9 +181,7 @@ void TQueueConsumerRegistrationManager::GuardedRefreshCache()
 
     YT_LOG_DEBUG("Refreshing queue consumer registration cache");
 
-    auto registrationTableClient = CreateRegistrationTableClientOrThrow();
-    auto registrations = WaitFor(registrationTableClient->Select())
-        .ValueOrThrow();
+    auto registrations = FetchRegistrationsOrThrow();
 
     auto guard = WriterGuard(CacheSpinLock_);
 
@@ -257,27 +255,72 @@ void TQueueConsumerRegistrationManager::GuardedRefreshConfiguration()
     YT_LOG_DEBUG("Refreshed queue consumer registration manager configuration");
 }
 
-TConsumerRegistrationTablePtr TQueueConsumerRegistrationManager::CreateRegistrationTableClientOrThrow() const
+TConsumerRegistrationTablePtr CreateRegistrationTableClientOrThrow(
+    const TWeakPtr<NApi::NNative::IConnection>& connection,
+    const std::optional<TString>& cluster,
+    const TYPath& path,
+    const TString& user)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto localConnection = Connection_.Lock();
+    auto localConnection = connection.Lock();
     if (!localConnection) {
         THROW_ERROR_EXCEPTION("Queue consumer registration cache owning connection expired");
     }
 
-    auto config = GetDynamicConfig();
-
     IClientPtr client;
-    auto clientOptions = TClientOptions::FromUser(config->User);
-    if (auto cluster = config->TablePath.GetCluster()) {
+    auto clientOptions = TClientOptions::FromUser(user);
+    if (cluster) {
         auto remoteConnection = localConnection->GetClusterDirectory()->GetConnectionOrThrow(*cluster);
         client = remoteConnection->CreateClient(clientOptions);
     } else {
         client = localConnection->CreateClient(clientOptions);
     }
 
-    return New<TConsumerRegistrationTable>(config->TablePath.GetPath(), client);
+    return New<TConsumerRegistrationTable>(path, client);
+}
+
+TConsumerRegistrationTablePtr TQueueConsumerRegistrationManager::CreateRegistrationTableWriteClientOrThrow() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto config = GetDynamicConfig();
+
+    return CreateRegistrationTableClientOrThrow(
+        Connection_,
+        config->StateWritePath.GetCluster(),
+        config->StateWritePath.GetPath(),
+        config->User);
+}
+
+std::vector<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::FetchRegistrationsOrThrow() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto config = GetDynamicConfig();
+
+    std::vector<TConsumerRegistrationTablePtr> readClients;
+
+    auto readClusters = config->StateReadPath.GetClusters();
+    if (readClusters && !readClusters->empty()) {
+        for (const auto& cluster : *readClusters) {
+            auto remoteReadClient = CreateRegistrationTableClientOrThrow(
+                Connection_, cluster, config->StateReadPath.GetPath(), config->User);
+            readClients.push_back(remoteReadClient);
+        }
+    } else {
+        auto localReadClient = CreateRegistrationTableClientOrThrow(
+            Connection_, /*cluster*/ {}, config->StateReadPath.GetPath(), config->User);
+        readClients.push_back(localReadClient);
+    }
+
+    std::vector<TFuture<std::vector<TConsumerRegistrationTableRow>>> asyncRegistrations;
+    asyncRegistrations.reserve(readClients.size());
+    for (const auto& client : readClients) {
+        asyncRegistrations.push_back(client->Select());
+    }
+
+    // NB: It's hard to return a future here, since you would need to keep all the clients alive as well.
+    return WaitFor(AnySucceeded(std::move(asyncRegistrations)))
+        .ValueOrThrow();
 }
 
 TQueueConsumerRegistrationManagerConfigPtr TQueueConsumerRegistrationManager::GetDynamicConfig() const
