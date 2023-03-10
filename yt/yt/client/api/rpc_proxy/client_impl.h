@@ -156,6 +156,11 @@ public:
         const NYPath::TRichYPath& consumerPath,
         const TUnregisterQueueConsumerOptions& options = {}) override;
 
+    TFuture<std::vector<TListQueueConsumerRegistrationsResult>> ListQueueConsumerRegistrations(
+        const std::optional<NYPath::TRichYPath>& queuePath,
+        const std::optional<NYPath::TRichYPath>& consumerPath,
+        const TListQueueConsumerRegistrationsOptions& options = {}) override;
+
     // Files.
     TFuture<NApi::TGetFileFromCacheResult> GetFileFromCache(
         const TString& md5,

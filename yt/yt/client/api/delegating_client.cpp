@@ -123,6 +123,14 @@ TFuture<void> TDelegatingClient::UnregisterQueueConsumer(
     return Underlying_->UnregisterQueueConsumer(queuePath, consumerPath, options);
 }
 
+TFuture<std::vector<TListQueueConsumerRegistrationsResult>> TDelegatingClient::ListQueueConsumerRegistrations(
+    const std::optional<NYPath::TRichYPath>& queuePath,
+    const std::optional<NYPath::TRichYPath>& consumerPath,
+    const TListQueueConsumerRegistrationsOptions& options)
+{
+    return Underlying_->ListQueueConsumerRegistrations(queuePath, consumerPath, options);
+}
+
 TFuture<NYson::TYsonString> TDelegatingClient::GetNode(
     const NYPath::TYPath& path,
     const TGetNodeOptions& options)

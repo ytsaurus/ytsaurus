@@ -690,6 +690,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullConsumer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterQueueConsumer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnregisterQueueConsumer));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListQueueConsumerRegistrations));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BatchModifyRows));
@@ -3912,6 +3913,46 @@ private:
                     queuePath,
                     consumerPath,
                     options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ListQueueConsumerRegistrations)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        std::optional<TRichYPath> queuePath;
+        if (request->has_queue_path()) {
+            queuePath = FromProto<TRichYPath>(request->queue_path());
+        }
+        std::optional<TRichYPath> consumerPath;
+        if (request->has_consumer_path()) {
+            consumerPath = FromProto<TRichYPath>(request->consumer_path());
+        }
+
+        TListQueueConsumerRegistrationsOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("QueuePath: %Qv", queuePath);
+        context->SetRequestInfo("ConsumerPath: %Qv", consumerPath);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->ListQueueConsumerRegistrations(
+                    queuePath,
+                    consumerPath,
+                    options);
+            },
+            [=] (const auto& context, const std::vector<TListQueueConsumerRegistrationsResult>& registrations) {
+                auto* response = &context->Response();
+                for (const auto& registration : registrations) {
+                    auto* protoRegistration = response->add_registrations();
+                    ToProto(protoRegistration->mutable_queue_path(), registration.QueuePath);
+                    ToProto(protoRegistration->mutable_consumer_path(), registration.ConsumerPath);
+                    protoRegistration->set_vital(registration.Vital);
+                }
+
+                context->SetResponseInfo("Registrations: %v", registrations.size());
             });
     }
 

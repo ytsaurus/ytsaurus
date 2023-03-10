@@ -32,13 +32,19 @@ public:
         const NYPath::TRichYPath& queue,
         const NYPath::TRichYPath& consumer);
 
-    // NB: Calling GetRegistration immediately after this call may return stale results.
+    // NB: May return stale results in regard to the other methods in this class.
+    // NB: If cache bypass is enabled, this call will always refresh the cache itself.
+    std::vector<TConsumerRegistrationTableRow> ListRegistrations(
+        std::optional<NYPath::TRichYPath> queue,
+        std::optional<NYPath::TRichYPath> consumer);
+
+    // NB: Using the registration cache immediately after this call may return stale results.
     void RegisterQueueConsumer(
         const NYPath::TRichYPath& queue,
         const NYPath::TRichYPath& consumer,
         bool vital);
 
-    // NB: Calling GetRegistration immediately after this call may return stale results.
+    // NB: Using the registration cache immediately after this call may return stale results.
     void UnregisterQueueConsumer(
         const NYPath::TRichYPath& queue,
         const NYPath::TRichYPath& consumer);

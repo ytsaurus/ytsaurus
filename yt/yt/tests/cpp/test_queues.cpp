@@ -20,6 +20,26 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NYT::NYPath {
+
+void PrintTo(TRichYPath value, ::std::ostream* os)
+{
+    *os << ToString(value);
+}
+
+} // namespace NYT::NYPath
+
+namespace NYT::NApi {
+
+void PrintTo(TListQueueConsumerRegistrationsResult value, ::std::ostream* os)
+{
+    *os << Format("QueuePath: %v, ConsumerPath: %v, Vital: %v", value.QueuePath, value.ConsumerPath, value.Vital);
+}
+
+} // namespace NYT::NApi
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NYT::NCppTests {
 namespace {
 
@@ -107,8 +127,16 @@ public:
             return Path_;
         }
 
-        const TRichYPath& GetRichPath() const {
+        const TRichYPath& GetRichPath() const
+        {
             return RichPath_;
+        }
+
+        const TRichYPath GetRichPathWithCluster() const
+        {
+            auto copy = RichPath_;
+            copy.SetCluster(ClusterName_);
+            return copy;
         }
 
     private:
@@ -361,6 +389,126 @@ TEST_W(TQueueApiPermissionsTest, PullConsumer)
     rowsetOrError = WaitFor(userClient->PullConsumer(consumer->GetPath(), queue->GetPath(), 0, 0, {}));
     EXPECT_FALSE(rowsetOrError.IsOK());
     EXPECT_TRUE(rowsetOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TListRegistrationsTest = TQueueTestBase;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_W(TListRegistrationsTest, ListQueueConsumerRegistrations)
+{
+    auto [firstQueue, firstConsumer, firstQueueNameTable] =
+        CreateQueueAndConsumer("first");
+    auto [secondQueue, secondConsumer, secondQueueNameTable] =
+        CreateQueueAndConsumer("second");
+
+    WaitFor(Client_->RegisterQueueConsumer(firstQueue->GetPath(), firstConsumer->GetRichPath(), /*vital*/ false))
+        .ThrowOnError();
+    WaitFor(Client_->RegisterQueueConsumer(firstQueue->GetPath(), secondConsumer->GetRichPath(), /*vital*/ true))
+        .ThrowOnError();
+    WaitFor(Client_->RegisterQueueConsumer(secondQueue->GetPath(), secondConsumer->GetRichPath(), /*vital*/ false))
+        .ThrowOnError();
+
+    auto registrations = WaitFor(Client_->ListQueueConsumerRegistrations(firstQueue->GetRichPath(), /*consumerPath*/ {}))
+        .ValueOrThrow();
+    EXPECT_THAT(registrations, testing::UnorderedElementsAre(
+        testing::FieldsAre(firstQueue->GetRichPathWithCluster(), firstConsumer->GetRichPathWithCluster(), false),
+        testing::FieldsAre(firstQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), true)
+    ));
+
+    registrations = WaitFor(Client_->ListQueueConsumerRegistrations(/*queuePath*/ {}, /*consumerPath*/ {}))
+        .ValueOrThrow();
+    EXPECT_THAT(registrations, testing::UnorderedElementsAre(
+        testing::FieldsAre(firstQueue->GetRichPathWithCluster(), firstConsumer->GetRichPathWithCluster(), false),
+        testing::FieldsAre(firstQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), true),
+        testing::FieldsAre(secondQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), false)
+    ));
+
+    registrations = WaitFor(Client_->ListQueueConsumerRegistrations(/*queuePath*/ {}, secondConsumer->GetRichPath()))
+        .ValueOrThrow();
+    EXPECT_THAT(registrations, testing::UnorderedElementsAre(
+        testing::FieldsAre(firstQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), true),
+        testing::FieldsAre(secondQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), false)
+    ));
+
+    registrations = WaitFor(Client_->ListQueueConsumerRegistrations(firstQueue->GetRichPath(), secondConsumer->GetRichPath()))
+        .ValueOrThrow();
+    EXPECT_THAT(registrations, testing::UnorderedElementsAre(
+        testing::FieldsAre(firstQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), true)
+    ));
+
+    WaitFor(Client_->UnregisterQueueConsumer(firstQueue->GetRichPath(), secondConsumer->GetPath()))
+        .ThrowOnError();
+    WaitFor(Client_->UnregisterQueueConsumer(secondQueue->GetRichPath(), secondConsumer->GetPath()))
+        .ThrowOnError();
+    WaitFor(Client_->UnregisterQueueConsumer(firstQueue->GetRichPath(), firstConsumer->GetPath()))
+        .ThrowOnError();
+    WaitFor(Client_->RegisterQueueConsumer(secondQueue->GetRichPath(), firstConsumer->GetPath(), /*vital*/ true))
+        .ThrowOnError();
+    WaitFor(Client_->RegisterQueueConsumer(firstQueue->GetRichPath(), secondConsumer->GetPath(), /*vital*/ false))
+        .ThrowOnError();
+
+    registrations = WaitFor(Client_->ListQueueConsumerRegistrations(firstQueue->GetRichPath(), /*consumerPath*/ {}))
+        .ValueOrThrow();
+    EXPECT_THAT(registrations, testing::UnorderedElementsAre(
+        testing::FieldsAre(firstQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), false)
+    ));
+
+    registrations = WaitFor(Client_->ListQueueConsumerRegistrations(secondQueue->GetRichPath(), /*consumerPath*/ {}))
+        .ValueOrThrow();
+    EXPECT_THAT(registrations, testing::UnorderedElementsAre(
+        testing::FieldsAre(secondQueue->GetRichPathWithCluster(), firstConsumer->GetRichPathWithCluster(), true)
+    ));
+
+    registrations = WaitFor(Client_->ListQueueConsumerRegistrations(/*queuePath*/ {}, firstConsumer->GetRichPath()))
+        .ValueOrThrow();
+    EXPECT_THAT(registrations, testing::UnorderedElementsAre(
+        testing::FieldsAre(secondQueue->GetRichPathWithCluster(), firstConsumer->GetRichPathWithCluster(), true)
+    ));
+
+    registrations = WaitFor(Client_->ListQueueConsumerRegistrations(/*queuePath*/ {}, secondConsumer->GetRichPath()))
+        .ValueOrThrow();
+    EXPECT_THAT(registrations, testing::UnorderedElementsAre(
+        testing::FieldsAre(firstQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), false)
+    ));
+
+    WaitFor(Client_->UnregisterQueueConsumer(firstQueue->GetRichPath(), secondConsumer->GetPath()))
+        .ThrowOnError();
+
+    registrations = WaitFor(Client_->ListQueueConsumerRegistrations(firstQueue->GetRichPath(), /*consumerPath*/ {}))
+        .ValueOrThrow();
+    EXPECT_THAT(registrations, testing::UnorderedElementsAre());
+
+    registrations = WaitFor(Client_->ListQueueConsumerRegistrations(secondQueue->GetRichPath(), /*consumerPath*/ {}))
+        .ValueOrThrow();
+    EXPECT_THAT(registrations, testing::UnorderedElementsAre(
+        testing::FieldsAre(secondQueue->GetRichPathWithCluster(), firstConsumer->GetRichPathWithCluster(), true)
+    ));
+
+    registrations = WaitFor(Client_->ListQueueConsumerRegistrations(/*queuePath*/ {}, secondConsumer->GetRichPath()))
+        .ValueOrThrow();
+    EXPECT_THAT(registrations, testing::UnorderedElementsAre());
+
+    WaitFor(Client_->UnregisterQueueConsumer(secondQueue->GetRichPath(), firstConsumer->GetPath()))
+        .ThrowOnError();
+
+    registrations = WaitFor(Client_->ListQueueConsumerRegistrations(firstQueue->GetRichPath(), /*consumerPath*/ {}))
+        .ValueOrThrow();
+    EXPECT_THAT(registrations, testing::UnorderedElementsAre());
+
+    registrations = WaitFor(Client_->ListQueueConsumerRegistrations(secondQueue->GetRichPath(), /*consumerPath*/ {}))
+        .ValueOrThrow();
+    EXPECT_THAT(registrations, testing::UnorderedElementsAre());
+
+    registrations = WaitFor(Client_->ListQueueConsumerRegistrations(/*queuePath*/ {}, firstConsumer->GetRichPath()))
+        .ValueOrThrow();
+    EXPECT_THAT(registrations, testing::UnorderedElementsAre());
+
+    registrations = WaitFor(Client_->ListQueueConsumerRegistrations(/*queuePath*/ {}, secondConsumer->GetRichPath()))
+        .ValueOrThrow();
+    EXPECT_THAT(registrations, testing::UnorderedElementsAre());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

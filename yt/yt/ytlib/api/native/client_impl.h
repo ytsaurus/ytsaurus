@@ -289,6 +289,12 @@ public:
         const TUnregisterQueueConsumerOptions& options = {}),
         (queuePath, consumerPath, options))
 
+    IMPLEMENT_METHOD(std::vector<TListQueueConsumerRegistrationsResult>, ListQueueConsumerRegistrations, (
+        const std::optional<NYPath::TRichYPath>& queuePath,
+        const std::optional<NYPath::TRichYPath>& consumerPath,
+        const TListQueueConsumerRegistrationsOptions& options = {}),
+        (queuePath, consumerPath, options))
+
     IMPLEMENT_METHOD(NQueryTrackerClient::TQueryId, StartQuery, (
         NQueryTrackerClient::EQueryEngine engine,
         const TString& query,
@@ -1166,6 +1172,11 @@ private:
         const NYPath::TRichYPath& queuePath,
         const NYPath::TRichYPath& consumerPath,
         const TUnregisterQueueConsumerOptions& options);
+
+    std::vector<TListQueueConsumerRegistrationsResult> DoListQueueConsumerRegistrations(
+        const std::optional<NYPath::TRichYPath>& queuePath,
+        const std::optional<NYPath::TRichYPath>& consumerPath,
+        const TListQueueConsumerRegistrationsOptions& options);
 
     //
     // Chaos
