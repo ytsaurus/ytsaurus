@@ -23,6 +23,7 @@ using TQueryId = TGuid;
 DEFINE_STRING_SERIALIZABLE_ENUM(EQueryEngine,
     (Ql)
     (Yql)
+    (Chyt)
     (Mock)
 )
 

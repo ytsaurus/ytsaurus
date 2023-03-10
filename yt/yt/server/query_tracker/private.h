@@ -34,6 +34,7 @@ DECLARE_REFCOUNTED_STRUCT(IQueryEngine)
 DECLARE_REFCOUNTED_STRUCT(IQueryTracker)
 
 DECLARE_REFCOUNTED_CLASS(TYqlEngineConfig)
+DECLARE_REFCOUNTED_CLASS(TChytEngineConfig)
 DECLARE_REFCOUNTED_CLASS(TEngineConfigBase)
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,11 +1,11 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/http_proxy/clickhouse/helpers.h>
+#include <yt/yt/library/clickhouse_discovery/helpers.h>
 
 #include <yt/yt/core/ytree/attributes.h>
 #include <yt/yt/core/ytree/convert.h>
 
-namespace NYT::NHttpProxy::NClickHouse {
+namespace NYT::NClickHouseServer {
 namespace {
 
 using namespace NYTree;
@@ -37,4 +37,4 @@ TEST(TTestClickHouseHelpers, FindMaxIncarnation)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NHttpProxy::NClickHouse
+} // namespace NYT::NClickHouseServer

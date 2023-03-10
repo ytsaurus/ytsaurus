@@ -25,6 +25,14 @@ void TYqlEngineConfig::Register(TRegistrar /*registrar*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChytEngineConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("default_clique", &TThis::DefaultClique)
+        .Default("ch_public");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("active_query_acquisition_period", &TThis::ActiveQueryAcquisitionPeriod)
@@ -38,6 +46,8 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("ql_engine", &TThis::QlEngine)
         .DefaultNew();
     registrar.Parameter("yql_engine", &TThis::YqlEngine)
+        .DefaultNew();
+    registrar.Parameter("chyt_engine", &TThis::ChytEngine)
         .DefaultNew();
     registrar.Parameter("mock_engine", &TThis::MockEngine)
         .DefaultNew();

@@ -47,6 +47,21 @@ DEFINE_REFCOUNTED_TYPE(TYqlEngineConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChytEngineConfig
+    : public TEngineConfigBase
+{
+public:
+    TString DefaultClique;
+
+    REGISTER_YSON_STRUCT(TChytEngineConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChytEngineConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryTrackerDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -59,6 +74,7 @@ public:
     TEngineConfigBasePtr MockEngine;
     TEngineConfigBasePtr QlEngine;
     TYqlEngineConfigPtr YqlEngine;
+    TChytEngineConfigPtr ChytEngine;
 
     REGISTER_YSON_STRUCT(TQueryTrackerDynamicConfig)
 
