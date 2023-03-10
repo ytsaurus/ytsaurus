@@ -42,9 +42,9 @@ source_suffix = ".rst"
 master_doc = "index"
 
 # General information about the project.
-project = u"YTsaurus"
-copyright = u"2023, YTsaurus Team"
-author = u"YTsaurus Team"
+project = u"YT"
+copyright = u"2017, YT Team"
+author = u"YT Team"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -96,10 +96,9 @@ html_sidebars = {
 html_theme_options = {
     "description": "Python and CLI interfaces for the system",
     "extra_nav_links": {
-        "YTsaurus site": "https://ytsaurus.tech",
-        "YTsaurus docs": "https://ytsaurus.tech/docs/en/",
-        "Python docs": "https://ytsaurus.tech/docs/en/api/python/start",
-        "YSON docs": "https://ytsaurus.tech/docs/en/user-guide/storage/yson"
+        "YT Wiki Page": "https://wiki.yandex-team.ru/yt",
+        "YT Python Wiki Page": "https://wiki.yandex-team.ru/yt/userdoc/pythonwrapper/",
+        "YSON Wiki Page": "https://wiki.yandex-team.ru/yt/userdoc/yson/"
     }
 }
 
