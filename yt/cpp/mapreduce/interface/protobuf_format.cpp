@@ -46,7 +46,8 @@ using TFieldOption = std::variant<
     EProtobufType,
     EProtobufSerializationMode,
     EProtobufListMode,
-    EProtobufMapMode>;
+    EProtobufMapMode,
+    EProtobufEnumWritingMode>;
 
 using TMessageOption = std::variant<
     EProtobufFieldSortOrder>;
@@ -91,6 +92,11 @@ TFieldOption FieldFlagToOption(EWrapperFieldFlag::Enum flag)
             return EProtobufMapMode::OptionalDict;
         case EFlag::EMBEDDED:
             return EProtobufSerializationMode::Embedded;
+
+        case EFlag::ENUM_SKIP_UNKNOWN_VALUES:
+            return EProtobufEnumWritingMode::SkipUnknownValues;
+        case EFlag::ENUM_CHECK_VALUES:
+            return EProtobufEnumWritingMode::CheckValues;
     }
     Y_FAIL();
 }
@@ -171,6 +177,16 @@ EWrapperFieldFlag::Enum OptionToFieldFlag(TFieldOption option)
                     return EFlag::MAP_AS_DICT;
                 case EProtobufMapMode::OptionalDict:
                     return EFlag::MAP_AS_OPTIONAL_DICT;
+            }
+            Y_FAIL();
+        }
+        EFlag::Enum operator() (EProtobufEnumWritingMode enumWritingMode)
+        {
+            switch (enumWritingMode) {
+                case EProtobufEnumWritingMode::SkipUnknownValues:
+                    return EFlag::ENUM_SKIP_UNKNOWN_VALUES;
+                case EProtobufEnumWritingMode::CheckValues:
+                    return EFlag::ENUM_CHECK_VALUES;
             }
             Y_FAIL();
         }
@@ -257,6 +273,11 @@ public:
         SetOption(MapMode, mapMode);
     }
 
+    void operator() (EProtobufEnumWritingMode enumWritingMode)
+    {
+        SetOption(EnumWritingMode, enumWritingMode);
+    }
+
     template <typename T>
     void SetOption(TMaybe<T>& option, T newOption)
     {
@@ -268,6 +289,7 @@ public:
     TMaybe<EProtobufSerializationMode> SerializationMode;
     TMaybe<EProtobufListMode> ListMode;
     TMaybe<EProtobufMapMode> MapMode;
+    TMaybe<EProtobufEnumWritingMode> EnumWritingMode;
 };
 
 class TParseProtobufMessageOptionsVisitor

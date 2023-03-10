@@ -259,6 +259,11 @@ DEFINE_ENUM(EProtobufType,
     (OtherColumns)
 );
 
+DEFINE_ENUM(EProtobufEnumWritingMode,
+    (CheckValues)
+    (SkipUnknownValues)
+);
+
 class TProtobufTypeConfig
     : public NYTree::TYsonStruct
 {
@@ -288,6 +293,7 @@ public:
     std::optional<EProtobufType> ProtoType;
     std::vector<TProtobufColumnConfigPtr> Fields;
     std::optional<TString> EnumerationName;
+    EProtobufEnumWritingMode EnumWritingMode;
 
     REGISTER_YSON_STRUCT(TProtobufColumnConfig);
 

@@ -16,8 +16,13 @@ public:
     explicit TEnumerationDescription(const TString& name);
 
     const TString& GetEnumerationName() const;
+
     const TString& GetValueName(i32 value) const;
+    const TString* TryGetValueName(i32 value) const;
+
     i32 GetValue(TStringBuf name) const;
+    std::optional<i32> TryGetValue(TStringBuf name) const;
+
     void Add(TString name, i32 value);
 
 private:
@@ -84,6 +89,9 @@ class TProtobufWriterFieldDescription
 public:
     // Index of wrapping proto message
     int ParentEmbeddingIndex = TProtobufWriterEmbeddingDescription::InvalidIndex;
+
+    // Whether to fail on writing unkown value to the enumeration.
+    EProtobufEnumWritingMode EnumWritingMode = EProtobufEnumWritingMode::CheckValues;
 
     TProtobufWriterTypePtr Type;
 };

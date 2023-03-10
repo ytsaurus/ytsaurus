@@ -226,3 +226,30 @@ message TOtherColumnsMessage
 {
     optional bytes other_columns_field = 1 [(NYT.flags) = OTHER_COLUMNS];
 }
+
+message TEnumCompat {
+    option (NYT.default_field_flags) = SERIALIZATION_YT;
+    option (NYT.default_field_flags) = ENUM_SKIP_UNKNOWN_VALUES;
+
+    enum ECompatEnum {
+        One = 1;
+        Two = 2;
+        Three = 3;
+    }
+
+
+    message TStruct
+    {
+        optional ECompatEnum optional_enum = 1;
+        required ECompatEnum required_enum = 2;
+        repeated ECompatEnum repeated_enum = 3;
+        repeated ECompatEnum packed_repeated_enum = 4 [packed=true, (NYT.flags) = ENUM_STRING];
+    }
+
+    optional ECompatEnum optional_enum = 1;
+    required ECompatEnum required_enum = 2;
+    repeated ECompatEnum repeated_enum = 3;
+    repeated ECompatEnum packed_repeated_enum = 4 [packed=true, (NYT.flags) = ENUM_STRING];
+
+    optional TStruct inner = 100;
+}

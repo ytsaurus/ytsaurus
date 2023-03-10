@@ -46,6 +46,14 @@ message EWrapperFieldFlag
 
         // ignore this field but unfold subfields instead while (de)serializing
         EMBEDDED = 12;
+
+        // Optional enum fields marked by this flag would not be filled if they hold
+        // a constant, that is missing in protobuf schema. (good for forward compatibility)
+        ENUM_SKIP_UNKNOWN_VALUES = 13;
+
+        // Enum fields marked by this flag could only be filled with constants
+        // that are present in the protobuf schema. (default behaviour)
+        ENUM_CHECK_VALUES = 14;
     }
 }
 

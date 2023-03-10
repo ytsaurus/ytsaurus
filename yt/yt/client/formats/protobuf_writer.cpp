@@ -268,13 +268,59 @@ public:
         if (Y_UNLIKELY(!type->EnumerationDescription)) {
             THROW_ERROR_EXCEPTION("Enumeration description not found");
         }
-        EnumValue = type->EnumerationDescription->GetValue(value);
+        if (SuppressUnkownValueError) {
+            if (auto enumValue = type->EnumerationDescription->TryGetValue(value)) {
+                EnumValue = *enumValue;
+            } else {
+                InRange = false;
+            }
+        } else {
+            EnumValue = type->EnumerationDescription->GetValue(value);
+        }
     }
 
 public:
+    bool SuppressUnkownValueError = false;
     bool InRange = true;
     i32 EnumValue;
 };
+
+template <typename TValueExtractor>
+Y_FORCE_INLINE void WriteProtobufEnum(
+    TZeroCopyOutputStreamWriter* writer,
+    const TProtobufWriterFieldDescription& fieldDescription,
+    const TValueExtractor& extractor)
+{
+    const auto& type = fieldDescription.Type;
+
+    TEnumVisitor visitor;
+
+    if ((fieldDescription.Repeated || type->Optional) &&
+        fieldDescription.EnumWritingMode == EProtobufEnumWritingMode::SkipUnknownValues) {
+        visitor.SuppressUnkownValueError = true;
+    }
+
+    extractor.ExtractEnum(&visitor, type);
+
+    auto getEnumerationName = [&] () {
+        return type->EnumerationDescription
+            ? type->EnumerationDescription->GetEnumerationName()
+            : "<unknown>";
+    };
+
+    if (Y_UNLIKELY(!visitor.InRange)) {
+        if (visitor.SuppressUnkownValueError) {
+            return;
+        } else {
+            THROW_ERROR_EXCEPTION("Value out of range for protobuf enumeration %Qv",
+                getEnumerationName());
+        }
+    }
+    if (!fieldDescription.Packed) {
+        WriteVarUint32(writer, fieldDescription.WireTag);
+    }
+    WriteVarUint64(writer, static_cast<ui64>(visitor.EnumValue)); // No zigzag int32.
+}
 
 template <typename TValueExtractor>
 Y_FORCE_INLINE void WriteProtobufField(
@@ -331,22 +377,9 @@ Y_FORCE_INLINE void WriteProtobufField(
             WritePod(*writer, static_cast<ui8>(extractor.ExtractBoolean()));
             return;
         case EProtobufType::EnumInt:
-        case EProtobufType::EnumString: {
-            auto getEnumerationName = [&] () {
-                return type->EnumerationDescription
-                    ? type->EnumerationDescription->GetEnumerationName()
-                    : "<unknown>";
-            };
-            TEnumVisitor visitor;
-            extractor.ExtractEnum(&visitor, type);
-            if (Y_UNLIKELY(!visitor.InRange)) {
-                THROW_ERROR_EXCEPTION("Value out of range for protobuf enumeration %Qv",
-                    getEnumerationName());
-            }
-            WriteVarUint64(writer, static_cast<ui64>(visitor.EnumValue)); // No zigzag int32.
-            return;
-        }
-
+        case EProtobufType::EnumString:
+            // WriteProtobufEnum must be used for writing enums
+            YT_ABORT();
         case EProtobufType::Any:
         case EProtobufType::OtherColumns:
         case EProtobufType::StructuredMessage:
@@ -527,6 +560,12 @@ static bool MatchesCompositeType(const TProtobufWriterFieldDescription& field)
         field.Type->ProtoType == EProtobufType::Oneof;
 }
 
+static bool MatchesEnumerateType(const TProtobufWriterFieldDescription& field)
+{
+    return field.Type->ProtoType == EProtobufType::EnumInt ||
+        field.Type->ProtoType == EProtobufType::EnumString;
+}
+
 class TWriterImpl
 {
 private:
@@ -609,6 +648,10 @@ public:
             TYsonPullParser parser(&input, EYsonType::Node);
             auto maxVarIntSize = GetMaxVarIntSizeOfProtobufSizeOfComplexType();
             Traverse(writer, fieldDescription, &parser, maxVarIntSize);
+        } else if (Y_UNLIKELY(MatchesEnumerateType(fieldDescription))) {
+            WriteProtobufEnum(writer,
+                fieldDescription,
+                TUnversionedValueExtractor(value));
         } else {
             WriteVarUint32(writer, fieldDescription.WireTag);
             if (fieldDescription.Type->ProtoType == EProtobufType::Any) {
@@ -748,7 +791,13 @@ private:
             WriteVarUint32(writer, fieldDescription.WireTag);
             WriteWithSizePrefix(writer, maxVarIntSize, [&] {
                 while (!parser->IsEndList()) {
-                    WriteProtobufField(writer, fieldDescription.Type, TYsonValueExtractor(parser));
+                    if (Y_UNLIKELY(MatchesEnumerateType(fieldDescription))) {
+                        WriteProtobufEnum(writer,
+                            fieldDescription,
+                            TYsonValueExtractor(parser));
+                    } else {
+                        WriteProtobufField(writer, fieldDescription.Type, TYsonValueExtractor(parser));
+                    }
                 }
             });
         }
@@ -774,6 +823,12 @@ private:
                     ysonWriter.WriteEntity();
                 });
             }
+            return;
+        }
+        if (MatchesEnumerateType(fieldDescription)) {
+            WriteProtobufEnum(writer,
+                fieldDescription,
+                TYsonValueExtractor(parser));
             return;
         }
 

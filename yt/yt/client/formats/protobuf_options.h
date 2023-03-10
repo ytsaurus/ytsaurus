@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <mapreduce/yt/interface/protos/extension.pb.h>
 
 #include <google/protobuf/message.h>
@@ -63,6 +65,7 @@ struct TProtobufFieldOptions
     EProtobufSerializationMode SerializationMode = EProtobufSerializationMode::Protobuf;
     EProtobufListMode ListMode = EProtobufListMode::Required;
     EProtobufMapMode MapMode = EProtobufMapMode::ListOfStructsLegacy;
+    EProtobufEnumWritingMode EnumWritingMode = EProtobufEnumWritingMode::CheckValues;
 };
 
 struct TProtobufMessageOptions

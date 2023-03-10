@@ -47,22 +47,38 @@ const TString& TEnumerationDescription::GetEnumerationName() const
 
 const TString& TEnumerationDescription::GetValueName(i32 value) const
 {
+    if (auto valueName = TryGetValueName(value)) {
+        return *valueName;
+    }
+    THROW_ERROR_EXCEPTION("Invalid value for enum")
+        << TErrorAttribute("enum_name", GetEnumerationName())
+        << TErrorAttribute("value", value);
+}
+
+const TString* TEnumerationDescription::TryGetValueName(i32 value) const
+{
     auto it = ValueToName_.find(value);
     if (it == ValueToName_.end()) {
-        THROW_ERROR_EXCEPTION("Invalid value for enum")
-            << TErrorAttribute("enum_name", GetEnumerationName())
-            << TErrorAttribute("value", value);
+        return nullptr;
     }
-    return it->second;
+    return &it->second;
 }
 
 i32 TEnumerationDescription::GetValue(TStringBuf valueName) const
 {
+    if (auto value = TryGetValue(valueName)) {
+        return *value;
+    }
+    THROW_ERROR_EXCEPTION("Invalid value for enum")
+        << TErrorAttribute("enum_name", GetEnumerationName())
+        << TErrorAttribute("value", valueName);
+}
+
+std::optional<i32> TEnumerationDescription::TryGetValue(TStringBuf valueName) const
+{
     auto it = NameToValue_.find(valueName);
     if (it == NameToValue_.end()) {
-        THROW_ERROR_EXCEPTION("Invalid value for enum")
-            << TErrorAttribute("enum_name", GetEnumerationName())
-            << TErrorAttribute("value", valueName);
+        return std::nullopt;
     }
     return it->second;
 }
@@ -695,6 +711,7 @@ private:
         fieldConfig->Repeated = fieldDescriptor->is_repeated();
         fieldConfig->Packed = fieldDescriptor->is_packed();
         fieldConfig->Type = std::move(typeConfig);
+        fieldConfig->EnumWritingMode = fieldOptions.EnumWritingMode;
         fieldConfig->Postprocess();
         return fieldConfig;
     }
@@ -1094,6 +1111,10 @@ typename TProtobufTypeBuilder<TType>::TFieldPtr TProtobufTypeBuilder<TType>::Cre
         maybeDescriptor,
         optional,
         columnConfig->Repeated);
+
+    if constexpr (IsWriter) {
+        field->EnumWritingMode = columnConfig->EnumWritingMode;
+    }
 
     if (auto wireFieldType = ConvertFromInternalProtobufType(field->Type->ProtoType)) {
         InitTag(*field, *wireFieldType, columnConfig);
