@@ -6,7 +6,7 @@ import tech.ytsaurus.core.StringValueEnumResolver;
 /**
  * ENodeType analog
  *
- * @see <a href="https://a.yandex-team.ru/arc/trunk/arcadia/mapreduce/yt/interface/client_method_options.h?rev=3275008#L9">ENodeType</a>
+ * @see <a href="https://a.yandex-team.ru/arc/trunk/arcadia/yt/cpp/mapreduce/interface/client_method_options.h?rev=3275008#L9">ENodeType</a>
  */
 public enum CypressNodeType implements StringValueEnum {
     // Static nodes

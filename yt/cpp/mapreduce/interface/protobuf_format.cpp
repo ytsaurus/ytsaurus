@@ -2,7 +2,7 @@
 
 #include "errors.h"
 
-#include <mapreduce/yt/interface/protos/extension.pb.h>
+#include <yt/yt_proto/yt/formats/extension.pb.h>
 
 #include <google/protobuf/text_format.h>
 

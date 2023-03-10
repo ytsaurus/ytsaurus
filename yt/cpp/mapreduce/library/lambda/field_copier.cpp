@@ -1,6 +1,6 @@
 #include "field_copier.h"
 
-#include <mapreduce/yt/interface/protos/extension.pb.h>
+#include <yt/yt_proto/yt/formats/extension.pb.h>
 
 using namespace NProtoBuf;
 

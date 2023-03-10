@@ -5,7 +5,7 @@
 #include "serialize.h"
 #include "fluent.h"
 
-#include <mapreduce/yt/interface/protos/extension.pb.h>
+#include <yt/yt_proto/yt/formats/extension.pb.h>
 
 #include <library/cpp/yson/node/node_builder.h>
 #include <library/cpp/yson/node/node_io.h>
