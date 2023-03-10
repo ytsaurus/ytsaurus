@@ -203,6 +203,7 @@
     XX(FullNodeCount, full_node_count) \
     XX(HashedPassword, hashed_password) \
     XX(Health, health) \
+    XX(HistoricallyNonVital, historically_non_vital) \
     XX(HistoricUsageConfig, historic_usage_config) \
     XX(Host, host) \
     XX(Hosts, hosts) \

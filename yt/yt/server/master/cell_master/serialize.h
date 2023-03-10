@@ -121,6 +121,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixAttachValidation)                                          (2309))  // gritukan
     ((RemoveNewHydraFlag)                                           (2310))  // aleksandra-zh
     ((HashTableChunkIndex)                                          (2311))  // akozhikhov
+    ((HistoricallyNonVital)                                         (2312))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

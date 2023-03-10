@@ -210,6 +210,8 @@ public:
     bool GetVital() const;
     void SetVital(bool vital);
 
+    bool IsDurabilityRequired(const IChunkManagerPtr& chunkManager) const;
+
     //! Returns |true| iff this replication settings would not result in a data
     //! loss (i.e. on at least on medium, replication factor is non-zero and
     //! 'data parts only' flag is set to |false|).

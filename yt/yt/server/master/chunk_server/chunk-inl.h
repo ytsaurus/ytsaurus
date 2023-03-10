@@ -256,6 +256,12 @@ inline const TChunkRequisition& TChunk::GetAggregatedRequisition(const TChunkReq
     return registry->GetRequisition(AggregatedRequisitionIndex_);
 }
 
+inline TChunkRequisitionIndex TChunk::GetAggregatedRequisitionIndex() const
+{
+    YT_VERIFY(AggregatedRequisitionIndex_ != EmptyChunkRequisitionIndex);
+    return AggregatedRequisitionIndex_;
+}
+
 inline const TChunkReplication& TChunk::GetAggregatedReplication(const TChunkRequisitionRegistry* registry) const
 {
     YT_VERIFY(AggregatedRequisitionIndex_ != EmptyChunkRequisitionIndex);

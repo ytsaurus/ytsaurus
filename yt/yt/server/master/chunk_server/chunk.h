@@ -240,6 +240,8 @@ public:
     //! For semantics of aggregation, see #TChunkRequisition::operator|=().
     const TChunkRequisition& GetAggregatedRequisition(const TChunkRequisitionRegistry* registry) const;
 
+    TChunkRequisitionIndex GetAggregatedRequisitionIndex() const;
+
     //! Returns chunk's replication aggregated from local and external values.
     //! For semantics of aggregation, see #TChunkReplication::operator|=().
     /*!
@@ -297,6 +299,12 @@ public:
 
     bool GetSealable() const;
     void SetSealable(bool value);
+
+    //! Flag indicating that chunk had small replication factor at least once.
+    //! Such chunks are never considered vital in chunk replicator even if
+    //! current placement is safe.
+    bool GetHistoricallyNonVital() const;
+    void SetHistoricallyNonVital(bool value);
 
     i64 GetPhysicalSealedRowCount() const;
 
@@ -386,6 +394,7 @@ private:
         bool Sealed : 1;
         bool StripedErasure : 1;
         bool Sealable : 1;
+        bool HistoricallyNonVital : 1;
     } Flags_ = {};
 
     struct TReplicasDataBase

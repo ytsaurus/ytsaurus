@@ -2392,25 +2392,17 @@ TJobEpoch TChunkReplicator::GetJobEpoch(TChunk* chunk) const
 
 bool TChunkReplicator::IsDurabilityRequired(TChunk* chunk) const
 {
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
-
-    auto durabilityRequired = false;
-
-    auto replication = GetChunkAggregatedReplication(chunk);
-    for (auto entry : replication) {
-        auto mediumIndex = entry.GetMediumIndex();
-        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        YT_VERIFY(IsObjectAlive(medium));
-
-        auto replicationFactor = entry.Policy().GetReplicationFactor();
-        auto durabilityRequiredOnMedium =
-            replication.GetVital(   ) &&
-            (chunk->IsErasure() || replicationFactor > 1) &&
-            !medium->GetTransient();
-        durabilityRequired |= durabilityRequiredOnMedium;
+    if (chunk->GetHistoricallyNonVital()) {
+        return false;
     }
 
-    return durabilityRequired;
+    if (chunk->IsErasure()) {
+        return true;
+    }
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    auto replication = GetChunkAggregatedReplication(chunk);
+    return replication.IsDurabilityRequired(chunkManager);
 }
 
 void TChunkReplicator::OnCheckEnabled()
