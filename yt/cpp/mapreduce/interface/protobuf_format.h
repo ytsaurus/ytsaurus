@@ -54,6 +54,12 @@ enum class EProtobufOneofMode
     Variant,
 };
 
+enum class EProtobufEnumWritingMode
+{
+    SkipUnknownValues,
+    CheckValues,
+};
+
 struct TProtobufOneofOptions
 {
     EProtobufOneofMode Mode = EProtobufOneofMode::Variant;

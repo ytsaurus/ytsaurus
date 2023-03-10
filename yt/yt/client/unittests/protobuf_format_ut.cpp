@@ -4342,6 +4342,170 @@ TEST_F(TProtobufFormatCompat, ParseWrong)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TProtobufFormatEnumCompat
+    : public ::testing::Test
+{
+public:
+    static TTableSchemaPtr CreateTableSchema()
+    {
+        static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
+            {"optional_enum", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            {"required_enum", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"repeated_enum", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            {"packed_repeated_enum", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            {"inner", OptionalLogicalType(StructLogicalType({
+                {"optional_enum", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"required_enum", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"repeated_enum", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"packed_repeated_enum", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            }))},
+        });
+        return schema;
+    }
+    static TProtobufFormatConfigPtr CreateProtobufFormatConfig()
+    {
+        static const auto config = ConvertTo<TProtobufFormatConfigPtr>(BuildYsonNodeFluently()
+            .BeginMap()
+            .Item("enumerations").BeginMap()
+                .Item("ECompatEnum")
+                .BeginMap()
+                    .Item("One").Value(1)
+                    .Item("Two").Value(2)
+                    .Item("Three").Value(3)
+                .EndMap()
+            .EndMap()
+            .Item("tables").BeginList().Item().BeginMap().Item("columns").BeginList()
+                .Item().BeginMap()
+                    .Item("name").Value("optional_enum")
+                    .Item("field_number").Value(1)
+                    .Item("proto_type").Value("enum_string")
+                    .Item("enum_writing_mode").Value("skip_unknown_values")
+                    .Item("enumeration_name").Value("ECompatEnum")
+                .EndMap()
+                .Item().BeginMap()
+                    .Item("name").Value("required_enum")
+                    .Item("field_number").Value(2)
+                    .Item("proto_type").Value("enum_string")
+                    .Item("enum_writing_mode").Value("skip_unknown_values")
+                    .Item("enumeration_name").Value("ECompatEnum")
+                .EndMap()
+                .Item().BeginMap()
+                    .Item("name").Value("repeated_enum")
+                    .Item("field_number").Value(3)
+                    .Item("proto_type").Value("enum_string")
+                    .Item("repeated").Value(true)
+                    .Item("enum_writing_mode").Value("skip_unknown_values")
+                    .Item("enumeration_name").Value("ECompatEnum")
+                .EndMap()
+                .Item().BeginMap()
+                    .Item("name").Value("packed_repeated_enum")
+                    .Item("field_number").Value(4)
+                    .Item("proto_type").Value("enum_string")
+                    .Item("repeated").Value(true)
+                    .Item("packed").Value(true)
+                    .Item("enum_writing_mode").Value("skip_unknown_values")
+                    .Item("enumeration_name").Value("ECompatEnum")
+                .EndMap()
+                .Item().BeginMap()
+                    .Item("name").Value("inner")
+                    .Item("field_number").Value(100)
+                    .Item("proto_type").Value("structured_message")
+                    .Item("fields").BeginList()
+                        .Item().BeginMap()
+                            .Item("name").Value("optional_enum")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("enum_string")
+                            .Item("enum_writing_mode").Value("skip_unknown_values")
+                            .Item("enumeration_name").Value("ECompatEnum")
+                        .EndMap()
+                        .Item().BeginMap()
+                            .Item("name").Value("required_enum")
+                            .Item("field_number").Value(2)
+                            .Item("proto_type").Value("enum_string")
+                            .Item("enum_writing_mode").Value("skip_unknown_values")
+                            .Item("enumeration_name").Value("ECompatEnum")
+                        .EndMap()
+                        .Item().BeginMap()
+                            .Item("name").Value("repeated_enum")
+                            .Item("field_number").Value(3)
+                            .Item("proto_type").Value("enum_string")
+                            .Item("repeated").Value(true)
+                            .Item("enum_writing_mode").Value("skip_unknown_values")
+                            .Item("enumeration_name").Value("ECompatEnum")
+                        .EndMap()
+                        .Item().BeginMap()
+                            .Item("name").Value("packed_repeated_enum")
+                            .Item("field_number").Value(4)
+                            .Item("proto_type").Value("enum_string")
+                            .Item("repeated").Value(true)
+                            .Item("packed").Value(true)
+                            .Item("enum_writing_mode").Value("skip_unknown_values")
+                            .Item("enumeration_name").Value("ECompatEnum")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList().EndMap().EndList().EndMap());
+        return config;
+    }
+
+};
+
+TEST_F(TProtobufFormatEnumCompat, WriteCanSkipUnknownEnumValues)
+{
+    auto schema = CreateTableSchema();
+    auto config = CreateProtobufFormatConfig();
+
+    auto nameTable = TNameTable::FromSchema(*schema);
+
+    auto row = MakeRow(nameTable, {
+        {"optional_enum", "MinusFortyTwo"},
+        {"required_enum", "One"},
+        {"repeated_enum", EValueType::Composite, "[MinusFortyTwo;One;MinusFortyTwo]"},
+        {"packed_repeated_enum", EValueType::Composite, "[MinusFortyTwo;Two;MinusFortyTwo]"},
+        {"inner", EValueType::Composite, "[MinusFortyTwo;Two;[MinusFortyTwo;Two];[One;MinusFortyTwo]]"},
+    });
+
+    auto collectRepeated = [](const auto& repeated) {
+        std::vector<TEnumCompat::ECompatEnum> values;
+        for (auto value : repeated) {
+            values.push_back(static_cast<TEnumCompat::ECompatEnum>(value));
+        }
+        return values;
+    };
+
+    auto message = WriteRow<TEnumCompat>(row, config, schema, nameTable);
+
+    EXPECT_FALSE(message.has_optional_enum());
+    EXPECT_EQ(message.required_enum(), TEnumCompat::One);
+    EXPECT_EQ(collectRepeated(message.repeated_enum()), std::vector{TEnumCompat::One});
+    EXPECT_EQ(collectRepeated(message.packed_repeated_enum()), std::vector{TEnumCompat::Two});
+
+    ASSERT_TRUE(message.has_inner());
+    EXPECT_FALSE(message.inner().has_optional_enum());
+    EXPECT_EQ(message.inner().required_enum(), TEnumCompat::Two);
+    EXPECT_EQ(collectRepeated(message.inner().repeated_enum()), std::vector{TEnumCompat::Two});
+    EXPECT_EQ(collectRepeated(message.inner().packed_repeated_enum()), std::vector{TEnumCompat::One});
+}
+
+TEST_F(TProtobufFormatEnumCompat, WriteDoesntSkipRequiredFields)
+{
+    auto schema = CreateTableSchema();
+    auto config = CreateProtobufFormatConfig();
+
+    auto nameTable = TNameTable::FromSchema(*schema);
+
+    {
+        auto row = MakeRow(nameTable, {{"required_enum", "MinusFortyTwo"}});
+        EXPECT_THROW_WITH_SUBSTRING(WriteRow<TEnumCompat>(row, config, schema, nameTable), "Invalid value for enum");
+    }
+    {
+        auto row = MakeRow(nameTable, {{"inner", EValueType::Composite, "[#;MinusFortyTwo;#;#]"},});
+        EXPECT_THROW_WITH_SUBSTRING(WriteRow<TEnumCompat>(row, config, schema, nameTable), "Invalid value for enum");
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TProtobufFormatRuntimeErrors
     : public ::testing::Test
 {

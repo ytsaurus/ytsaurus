@@ -233,6 +233,9 @@ void TProtobufColumnConfig::Register(TRegistrar registrar)
     registrar.Parameter("enumeration_name", &TThis::EnumerationName)
         .Default();
 
+    registrar.Parameter("enum_writing_mode", &TThis::EnumWritingMode)
+        .Default(EProtobufEnumWritingMode::CheckValues);
+
     registrar.Postprocessor([] (TThis* config) {
         config->CustomPostprocess();
     });
