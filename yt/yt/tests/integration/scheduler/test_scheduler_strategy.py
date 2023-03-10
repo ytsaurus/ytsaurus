@@ -3170,6 +3170,21 @@ class TestIntegralGuarantees(YTEnvSetup):
         volume_path = scheduler_orchid_pool_path("not_acceptable_pool") + "/accumulated_resource_volume/cpu"
         assert get(volume_path) < 30.
 
+    def test_zero_relaxed_guarantees_and_scheduler_doesnt_crash(self):
+        create_pool(
+            "relaxed_pool",
+            attributes={
+                "integral_guarantees": {
+                    "guarantee_type": "relaxed",
+                    "resource_flow": {"cpu": 0},
+                },
+            },
+        )
+
+        run_test_vanilla(command=with_breakpoint("BREAKPOINT"), job_count=3, spec={"pool": "relaxed_pool"})
+        self.wait_pool_fair_share("relaxed_pool", strong=0, integral=0, weight_proportional=0.3)
+        release_breakpoint()
+
 
 ##################################################################
 
