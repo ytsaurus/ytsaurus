@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/ytree/public.h>
 
-namespace NYT::NHttpProxy::NClickHouse {
+namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,4 +12,4 @@ THashMap<TString, NYTree::IAttributeDictionaryPtr> FilterInstancesByIncarnation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHttpProxy::NClickHouse
+} // namespace NYT::NClickHouseServer

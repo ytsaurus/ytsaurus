@@ -2,7 +2,6 @@
 
 #include "config.h"
 #include "discovery_cache.h"
-#include "helpers.h"
 
 #include <yt/yt/server/http_proxy/bootstrap.h>
 #include <yt/yt/server/http_proxy/coordinator.h>
@@ -21,6 +20,7 @@
 
 #include <yt/yt/library/clickhouse_discovery/discovery_v1.h>
 #include <yt/yt/library/clickhouse_discovery/discovery_v2.h>
+#include <yt/yt/library/clickhouse_discovery/helpers.h>
 
 #include <yt/yt/client/api/client.h>
 

@@ -4,6 +4,7 @@
 #include "engine.h"
 #include "ql_engine.h"
 #include "yql_engine.h"
+#include "chyt_engine.h"
 #include "mock_engine.h"
 
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
@@ -66,6 +67,7 @@ public:
         Engines_[EQueryEngine::Mock] = CreateMockEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Ql] = CreateQlEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Yql] = CreateYqlEngine(StateClient_, StateRoot_);
+        Engines_[EQueryEngine::Chyt] = CreateChytEngine(StateClient_, StateRoot_);
         // This is a correct call, despite being virtual call in constructor.
         TQueryTracker::OnDynamicConfigChanged(config);
     }
@@ -82,6 +84,7 @@ public:
         Engines_[EQueryEngine::Mock]->OnDynamicConfigChanged(config->MockEngine);
         Engines_[EQueryEngine::Ql]->OnDynamicConfigChanged(config->QlEngine);
         Engines_[EQueryEngine::Yql]->OnDynamicConfigChanged(config->YqlEngine);
+        Engines_[EQueryEngine::Chyt]->OnDynamicConfigChanged(config->ChytEngine);
     }
 
 private:

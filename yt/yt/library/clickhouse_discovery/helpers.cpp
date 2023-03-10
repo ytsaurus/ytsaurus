@@ -1,8 +1,10 @@
 #include "helpers.h"
 
 #include <yt/yt/core/ytree/attributes.h>
+// TODO(gudqeit): remove after refactoring yt/yt/core/ytree/helpers-inl.h
+#include <yt/yt/core/ytree/helpers.h>
 
-namespace NYT::NHttpProxy::NClickHouse {
+namespace NYT::NClickHouseServer {
 
 using namespace NYTree;
 
@@ -45,4 +47,4 @@ THashMap<TString, IAttributeDictionaryPtr> FilterInstancesByIncarnation(const TH
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHttpProxy::NClickHouse
+} // namespace NYT::NClickHouseServer
