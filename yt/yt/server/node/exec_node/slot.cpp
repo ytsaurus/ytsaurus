@@ -198,6 +198,11 @@ public:
         return Location_->GetDiskStatistics(SlotIndex_);
     }
 
+    TString GetSlotPath() const override
+    {
+        return Location_->GetSlotPath(SlotIndex_);
+    }
+
     TString GetSandboxPath(ESandboxKind sandbox) const override
     {
         return Location_->GetSandboxPath(SlotIndex_, sandbox);
@@ -267,6 +272,21 @@ public:
             sandboxKind,
             artifactPath,
             error);
+    }
+
+    TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
+        IInvokerPtr invoker,
+        TJobWorkspaceBuildSettings settings) override
+    {
+        return JobEnvironment_->CreateJobWorkspaceBuilder(
+            invoker,
+            settings,
+            Location_->GetJobDirectoryManager());
+    }
+
+    int GetUserId() const override
+    {
+        return JobEnvironment_->GetUserId(SlotIndex_);
     }
 
 private:

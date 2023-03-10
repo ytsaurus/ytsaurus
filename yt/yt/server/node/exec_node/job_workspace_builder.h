@@ -82,8 +82,9 @@ public:
 
 public:
     TJobWorkspaceBuilder(
-        const IInvokerPtr& invoker,
-        const TJobWorkspaceBuildSettings& settings);
+        IInvokerPtr invoker,
+        TJobWorkspaceBuildSettings settings,
+        IJobDirectoryManagerPtr directoryManager);
 
     TFuture<TJobWorkspaceBuildResult> Run();
 
@@ -92,6 +93,8 @@ protected:
 
     const IInvokerPtr Invoker_;
     const TJobWorkspaceBuildSettings Settings_;
+    const IJobDirectoryManagerPtr DirectoryManager_;
+
     TJobWorkspaceBuildResult ResultHolder_;
 
     virtual TFuture<void> DoPrepareSandboxDirectories() = 0;
@@ -127,9 +130,19 @@ DEFINE_REFCOUNTED_TYPE(TJobWorkspaceBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
+TJobWorkspaceBuilderPtr CreateSimpleJobWorkspaceBuilder(
     IInvokerPtr invoker,
-    TJobWorkspaceBuildSettings settings);
+    TJobWorkspaceBuildSettings settings,
+    IJobDirectoryManagerPtr directoryManager);
+
+#ifdef _linux_
+
+TJobWorkspaceBuilderPtr CreatePortoJobWorkspaceBuilder(
+    IInvokerPtr invoker,
+    TJobWorkspaceBuildSettings settings,
+    IJobDirectoryManagerPtr directoryManager);
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

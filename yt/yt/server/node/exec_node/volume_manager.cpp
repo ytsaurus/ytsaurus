@@ -870,9 +870,11 @@ private:
 
             THashMap<TString, TString> properties;
             properties["backend"] = "overlay";
-            properties["place"] = PlacePath_;
 
-            if (options.EnableDiskQuota) {
+            if (options.EnableDiskQuota && options.HasRootFsQuota) {
+                properties["user"] = ToString(options.UserId);
+                properties["permissions"] = "0777";
+
                 if (options.DiskSpaceLimit) {
                     properties["space_limit"] = ToString(*options.DiskSpaceLimit);
                 }
@@ -881,6 +883,8 @@ private:
                     properties["inode_limit"] = ToString(*options.InodeLimit);
                 }
             }
+
+            properties["place"] = PlacePath_;
 
             TStringBuilder builder;
             for (const auto& layer : layers) {
@@ -901,10 +905,12 @@ private:
                 mountPath);
 
             TVolumeMeta volumeMeta;
+
             for (const auto& layer : layers) {
                 volumeMeta.add_layer_artifact_keys()->MergeFrom(layer.artifact_key());
                 volumeMeta.add_layer_paths(layer.Path);
             }
+
             ToProto(volumeMeta.mutable_id(), id);
             volumeMeta.MountPath = mountPath;
             volumeMeta.Id = id;
