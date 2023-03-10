@@ -19,6 +19,7 @@ TMutationContext::TMutationContext(
         parent->GetVersion(),
         parent->GetTimestamp(),
         parent->GetRandomSeed(),
+        parent->IsMutationLoggingEnabled(),
         parent->RandomGenerator())
     , Parent_(parent)
     , Request_(request)
@@ -36,11 +37,13 @@ TMutationContext::TMutationContext(
     ui64 prevRandomSeed,
     i64 sequenceNumber,
     ui64 stateHash,
-    int term)
+    int term,
+    bool isMutationLoggingEnabled)
     : THydraContext(
         version,
         timestamp,
-        randomSeed)
+        randomSeed,
+        isMutationLoggingEnabled)
     , Parent_(nullptr)
     , Request_(request)
     , PrevRandomSeed_(prevRandomSeed)
@@ -53,7 +56,8 @@ TMutationContext::TMutationContext(TTestingTag)
     : THydraContext(
         TVersion(),
         /*timestamp*/ TInstant::Zero(),
-        /*randomSeed*/ 0)
+        /*randomSeed*/ 0,
+        /*isMutationLoggingEnabled*/ true)
     , Parent_(nullptr)
     , Request_(nullptr)
     , PrevRandomSeed_(0)

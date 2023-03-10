@@ -231,13 +231,6 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    bool IsMutationLoggingEnabled() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return !IsRecovery() || Config_->Get()->ForceMutationLogging;
-    }
-
     NHydra::TReign GetCurrentReign() override
     {
         YT_UNIMPLEMENTED();

@@ -40,7 +40,8 @@ void ValidateSnapshot(
         THydraContext hydraContext(
             hydraContextVersion,
             /*timestamp*/ {},
-            hydraContextRandomSeed);
+            hydraContextRandomSeed,
+            /*isMutationLoggingEnabled*/ true);
         THydraContextGuard hydraContextGuard(&hydraContext);
 
         automaton->PrepareState();

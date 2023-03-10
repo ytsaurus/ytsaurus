@@ -131,7 +131,6 @@ protected:
 
     bool IsLeader() const;
     bool IsRecovery() const;
-    bool IsMutationLoggingEnabled() const;
 
     TTimestamp GenerateMonotonicCommitTimestamp(TTimestamp timestampHint);
 

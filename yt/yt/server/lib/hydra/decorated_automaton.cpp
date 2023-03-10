@@ -706,11 +706,12 @@ TDecoratedAutomaton::TDecoratedAutomaton(
 
 void TDecoratedAutomaton::Initialize()
 {
-    AutomatonInvoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] () {
+    AutomatonInvoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
         THydraContext hydraContext(
             TVersion(),
             TInstant::Zero(),
-            /*randomSeed*/ 0);
+            /*randomSeed*/ 0,
+            /*isMutationLoggingEnabled*/ true);
         THydraContextGuard hydraContextGuard(&hydraContext);
 
         Automaton_->Clear();
@@ -833,7 +834,8 @@ void TDecoratedAutomaton::LoadSnapshot(
             THydraContext hydraContext(
                 hydraContextVersion,
                 timestamp,
-                hydraContextRandomSeed);
+                hydraContextRandomSeed,
+                /*isMutationLoggingEnabled*/ true);
             THydraContextGuard hydraContextGuard(&hydraContext);
 
             Automaton_->PrepareState();
@@ -897,7 +899,8 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
         header.prev_random_seed(),
         header.sequence_number(),
         StateHash_,
-        header.term());
+        header.term(),
+        IsMutationLoggingEnabled());
 
     DoApplyMutation(&mutationContext);
 }
@@ -1176,7 +1179,8 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
             pendingMutation.PrevRandomSeed,
             pendingMutation.SequenceNumber,
             StateHash_,
-            /*term*/ 0);
+            /*term*/ 0,
+            IsMutationLoggingEnabled());
 
         {
             NTracing::TTraceContextGuard traceContextGuard(mutationContext.Request().TraceContext);

@@ -85,8 +85,6 @@ public:
 
     const NLogging::TLogger& GetLogger() const;
 
-    bool IsMutationLoggingEnabled() const;
-
 private:
     const IHunkTabletHostPtr Host_;
 

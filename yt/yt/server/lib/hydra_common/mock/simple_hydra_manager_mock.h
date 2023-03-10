@@ -37,7 +37,6 @@ public:
     // ISimpleHydraManager overrides.
 
     TFuture<TMutationResponse> CommitMutation(TMutationRequest&& request) override;
-    bool IsMutationLoggingEnabled() const override;
     TReign GetCurrentReign() override;
     EPeerState GetAutomatonState() const override;
     bool IsActiveLeader() const override;

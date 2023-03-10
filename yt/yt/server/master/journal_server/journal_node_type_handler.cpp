@@ -20,6 +20,7 @@ namespace NYT::NJournalServer {
 
 using namespace NCellMaster;
 using namespace NCypressServer;
+using namespace NHydra;
 using namespace NTransactionServer;
 using namespace NObjectServer;
 using namespace NChunkServer;

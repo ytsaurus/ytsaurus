@@ -77,6 +77,7 @@ using namespace NChunkClient;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NCypressServer;
+using namespace NHydra;
 using namespace NNodeTrackerServer;
 using namespace NNodeTrackerClient;
 using namespace NObjectServer;

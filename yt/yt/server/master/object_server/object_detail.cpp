@@ -881,11 +881,6 @@ bool TObjectProxyBase::IsRecovery() const
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
 }
 
-bool TObjectProxyBase::IsMutationLoggingEnabled() const
-{
-    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsMutationLoggingEnabled();
-}
-
 bool TObjectProxyBase::IsLeader() const
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader();

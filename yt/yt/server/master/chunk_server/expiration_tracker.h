@@ -43,7 +43,6 @@ private:
     void OnCheck();
 
     bool IsRecovery() const;
-    bool IsMutationLoggingEnabled() const;
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig);

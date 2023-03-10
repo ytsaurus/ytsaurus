@@ -780,11 +780,6 @@ private:
             return New<THunkStoreWriterOptions>();
         }
     }
-
-    bool IsMutationLoggingEnabled() const override
-    {
-        return TTabletAutomatonPart::IsMutationLoggingEnabled();
-    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(THunkTabletManager, Tablet, THunkTablet, TabletMap_)

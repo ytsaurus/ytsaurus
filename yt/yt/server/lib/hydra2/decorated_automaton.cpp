@@ -703,7 +703,8 @@ void TDecoratedAutomaton::ResetState()
         THydraContext hydraContext(
             TVersion(),
             TInstant::Zero(),
-            /*randomSeed*/ 0);
+            /*randomSeed*/ 0,
+            /*isMutationLoggingEnabled*/ true);
         THydraContextGuard hydraContextGuard(&hydraContext);
 
         ClearState();
@@ -833,7 +834,8 @@ void TDecoratedAutomaton::LoadSnapshot(
         THydraContext hydraContext(
             hydraContextVersion,
             timestamp,
-            hydraContextRandomSeed);
+            hydraContextRandomSeed,
+            /*isMutationLoggingEnabled*/ true);
         THydraContextGuard hydraContextGuard(&hydraContext);
 
         Automaton_->PrepareState();
@@ -902,7 +904,8 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
         header.prev_random_seed(),
         header.sequence_number(),
         StateHash_,
-        header.term());
+        header.term(),
+        IsMutationLoggingEnabled());
 
     DoApplyMutation(&mutationContext, mutationVersion);
 }
@@ -1000,7 +1003,8 @@ void TDecoratedAutomaton::ApplyMutation(const TPendingMutationPtr& mutation)
         mutation->PrevRandomSeed,
         mutation->SequenceNumber,
         StateHash_,
-        mutation->Term);
+        mutation->Term,
+        IsMutationLoggingEnabled());
 
     {
         NTracing::TTraceContextGuard traceContextGuard(mutation->Request.TraceContext);

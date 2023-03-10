@@ -16,6 +16,7 @@ namespace NYT::NCellServer {
 using namespace NNodeTrackerServer;
 using namespace NNodeTrackerServer::NProto;
 using namespace NCellMaster;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -184,11 +185,6 @@ private:
                 AreaNodesChanged_.Fire(area);
             }
         }
-    }
-
-    bool IsMutationLoggingEnabled()
-    {
-        return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsMutationLoggingEnabled();
     }
 };
 

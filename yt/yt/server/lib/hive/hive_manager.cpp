@@ -743,7 +743,7 @@ private:
         }
 
         logMessageBuilder.AppendString(TStringBuf("])"));
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), logMessageBuilder.Flush());
+        YT_LOG_DEBUG(logMessageBuilder.Flush());
     }
 
 

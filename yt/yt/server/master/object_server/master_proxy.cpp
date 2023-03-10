@@ -35,6 +35,7 @@ namespace NYT::NObjectServer {
 
 using namespace NSecurityServer;
 using namespace NNodeTrackerServer;
+using namespace NHydra;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NYTree;

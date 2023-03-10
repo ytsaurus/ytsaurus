@@ -58,8 +58,6 @@ private:
 
     NJournalClient::IJournalHunkChunkWriterPtr Writer_;
     TFuture<void> WriterOpenedFuture_;
-
-    bool IsMutationLoggingEnabled() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(THunkStore)

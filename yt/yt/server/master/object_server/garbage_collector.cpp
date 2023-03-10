@@ -557,11 +557,6 @@ bool TGarbageCollector::IsRecovery()
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
 }
 
-bool TGarbageCollector::IsMutationLoggingEnabled()
-{
-    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsMutationLoggingEnabled();
-}
-
 const TDynamicObjectManagerConfigPtr& TGarbageCollector::GetDynamicConfig()
 {
     return Bootstrap_->GetConfigManager()->GetConfig()->ObjectManager;
