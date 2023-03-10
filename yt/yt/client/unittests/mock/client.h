@@ -87,6 +87,11 @@ public:
         const NYPath::TRichYPath& consumerPath,
         const TUnregisterQueueConsumerOptions& options), (override));
 
+    MOCK_METHOD(TFuture<std::vector<TListQueueConsumerRegistrationsResult>>, ListQueueConsumerRegistrations, (
+        const std::optional<NYPath::TRichYPath>& queuePath,
+        const std::optional<NYPath::TRichYPath>& consumerPath,
+        const TListQueueConsumerRegistrationsOptions& options), (override));
+
     MOCK_METHOD(TFuture<NYson::TYsonString>, ExplainQuery, (
         const TString& query,
         const TExplainQueryOptions& options), (override));

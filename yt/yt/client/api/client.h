@@ -45,6 +45,7 @@
 #include <yt/yt/client/driver/private.h>
 
 #include <yt/yt/client/ypath/public.h>
+#include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -1006,6 +1007,10 @@ struct TUnregisterQueueConsumerOptions
     : public TTimeoutOptions
 { };
 
+struct TListQueueConsumerRegistrationsOptions
+    : public TTimeoutOptions
+{ };
+
 struct TGetColumnarStatisticsOptions
     : public TTransactionalOptions
     , public TTimeoutOptions
@@ -1442,6 +1447,13 @@ struct TQueryResult
 };
 
 void Serialize(const TQueryResult& queryResult, NYson::IYsonConsumer* consumer);
+
+struct TListQueueConsumerRegistrationsResult
+{
+    NYPath::TRichYPath QueuePath;
+    NYPath::TRichYPath ConsumerPath;
+    bool Vital;
+};
 
 struct TGetFileFromCacheResult
 {
@@ -2088,6 +2100,11 @@ struct IClient
         const NYPath::TRichYPath& queuePath,
         const NYPath::TRichYPath& consumerPath,
         const TUnregisterQueueConsumerOptions& options = {}) = 0;
+
+    virtual TFuture<std::vector<TListQueueConsumerRegistrationsResult>> ListQueueConsumerRegistrations(
+        const std::optional<NYPath::TRichYPath>& queuePath,
+        const std::optional<NYPath::TRichYPath>& consumerPath,
+        const TListQueueConsumerRegistrationsOptions& options = {}) = 0;
 
     // Journals
     virtual TFuture<void> TruncateJournal(

@@ -86,6 +86,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PullConsumer);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, RegisterQueueConsumer);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, UnregisterQueueConsumer);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ListQueueConsumerRegistrations);
 
     // Scheduler pools
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, TransferPoolResources);

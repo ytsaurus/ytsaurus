@@ -2652,6 +2652,27 @@ void TClient::DoUnregisterQueueConsumer(
     YT_LOG_DEBUG("Unregistered queue consumer (Queue: %v, Consumer: %v)", queuePath, consumerPath);
 }
 
+std::vector<TListQueueConsumerRegistrationsResult> TClient::DoListQueueConsumerRegistrations(
+    const std::optional<TRichYPath>& queuePath,
+    const std::optional<TRichYPath>& consumerPath,
+    const TListQueueConsumerRegistrationsOptions& /*options*/)
+{
+    auto registrationCache = Connection_->GetQueueConsumerRegistrationManager();
+    auto registrations = registrationCache->ListRegistrations(queuePath, consumerPath);
+
+    std::vector<TListQueueConsumerRegistrationsResult> result;
+    result.reserve(registrations.size());
+    for (const auto& registration : registrations) {
+        result.push_back({
+            .QueuePath = registration.Queue,
+            .ConsumerPath = registration.Consumer,
+            .Vital = registration.Vital,
+        });
+    }
+
+    return result;
+}
+
 std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(
     const std::vector<TAlienCellDescriptorLite>& alienCellDescriptors,
     const TSyncAlienCellOptions& options)

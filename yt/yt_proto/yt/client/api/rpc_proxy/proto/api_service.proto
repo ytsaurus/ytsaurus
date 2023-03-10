@@ -647,6 +647,26 @@ message TRspUnregisterQueueConsumer
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqListQueueConsumerRegistrations
+{
+    optional string queue_path = 1;
+    optional string consumer_path = 2;
+}
+
+message TRspListQueueConsumerRegistrations
+{
+    message TQueueConsumerRegistration
+    {
+        optional string queue_path = 1;
+        optional string consumer_path = 2;
+        optional bool vital = 3;
+    }
+
+    repeated TQueueConsumerRegistration registrations = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqExplainQuery
 {
     required string query = 1;

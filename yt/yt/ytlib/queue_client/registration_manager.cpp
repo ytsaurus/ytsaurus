@@ -124,6 +124,48 @@ std::optional<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::
     return {};
 }
 
+std::vector<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::ListRegistrations(
+    std::optional<TRichYPath> queue,
+    std::optional<TRichYPath> consumer)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!ClusterName_) {
+        THROW_ERROR_EXCEPTION("Cannot serve request, queue consumer registration manager was not properly configured with a cluster name");
+    }
+
+    if (queue && !queue->GetCluster()) {
+        queue->SetCluster(*ClusterName_);
+    }
+    if (consumer && !consumer->GetCluster()) {
+        consumer->SetCluster(*ClusterName_);
+    }
+
+    auto config = GetDynamicConfig();
+    YT_VERIFY(config);
+
+    if (config->BypassCaching) {
+        RefreshCache();
+    }
+
+    auto guard = ReaderGuard(CacheSpinLock_);
+
+    std::vector<TConsumerRegistrationTableRow> result;
+    for (const auto& [key, registration] : Registrations_) {
+        const auto& [keyQueue, keyConsumer] = key;
+        if (queue && *queue != keyQueue) {
+            continue;
+        }
+        if (consumer && *consumer != keyConsumer) {
+            continue;
+        }
+
+        result.push_back(registration);
+    }
+
+    return result;
+}
+
 void TQueueConsumerRegistrationManager::RegisterQueueConsumer(
     const TRichYPath& queue,
     const TRichYPath& consumer,

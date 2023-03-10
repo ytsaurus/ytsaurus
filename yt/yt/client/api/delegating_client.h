@@ -88,6 +88,11 @@ public:
         const NYPath::TRichYPath& consumerPath,
         const TUnregisterQueueConsumerOptions& options = {}) override;
 
+    TFuture<std::vector<TListQueueConsumerRegistrationsResult>> ListQueueConsumerRegistrations(
+        const std::optional<NYPath::TRichYPath>& queuePath,
+        const std::optional<NYPath::TRichYPath>& consumerPath,
+        const TListQueueConsumerRegistrationsOptions& options = {}) override;
+
     // Cypress
     TFuture<NYson::TYsonString> GetNode(
         const NYPath::TYPath& path,

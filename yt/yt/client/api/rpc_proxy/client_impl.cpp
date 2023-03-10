@@ -821,6 +821,36 @@ TFuture<void> TClient::UnregisterQueueConsumer(
     return req->Invoke().AsVoid();
 }
 
+TFuture<std::vector<TListQueueConsumerRegistrationsResult>> TClient::ListQueueConsumerRegistrations(
+    const std::optional<NYPath::TRichYPath>& queuePath,
+    const std::optional<NYPath::TRichYPath>& consumerPath,
+    const TListQueueConsumerRegistrationsOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.ListQueueConsumerRegistrations();
+    SetTimeoutOptions(*req, options);
+
+    if (queuePath) {
+        ToProto(req->mutable_queue_path(), *queuePath);
+    }
+    if (consumerPath) {
+        ToProto(req->mutable_consumer_path(), *consumerPath);
+    }
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspListQueueConsumerRegistrationsPtr& rsp) {
+        std::vector<TListQueueConsumerRegistrationsResult> result;
+        for (const auto& registration : rsp->registrations()) {
+            result.push_back({
+                .QueuePath = FromProto<TRichYPath>(registration.queue_path()),
+                .ConsumerPath = FromProto<TRichYPath>(registration.consumer_path()),
+                .Vital = registration.vital(),
+            });
+        }
+        return result;
+    }));
+}
+
 TFuture<void> TClient::AddMember(
     const TString& group,
     const TString& member,
