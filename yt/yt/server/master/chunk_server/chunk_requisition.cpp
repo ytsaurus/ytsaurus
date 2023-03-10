@@ -155,6 +155,22 @@ int TChunkReplication::GetSize() const
     return std::ssize(Entries_);
 }
 
+bool TChunkReplication::IsDurabilityRequired(const IChunkManagerPtr& chunkManager) const
+{
+    if (!GetVital()) {
+        return false;
+    }
+
+    for (auto entry : Entries_) {
+        auto* medium = chunkManager->GetMediumByIndex(entry.GetMediumIndex());
+        if (!medium->GetTransient() && entry.Policy().GetReplicationFactor() > 1) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void FormatValue(TStringBuilderBase* builder, const TChunkReplication& replication, TStringBuf /*spec*/)
 {
     return builder->AppendFormat(

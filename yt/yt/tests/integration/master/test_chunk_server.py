@@ -366,6 +366,24 @@ class TestChunkServer(YTEnvSetup):
         finally:
             set(path, False)
 
+    @authors("gritukan")
+    def test_historically_non_vital(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        assert not get(f"#{chunk_id}/@historically_non_vital")
+
+        set("//tmp/t/@replication_factor", 1)
+        wait(lambda: get(f"#{chunk_id}/@historically_non_vital"))
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 1)
+
+        node = get(f"#{chunk_id}/@stored_replicas")[0]
+        ban_node(node, "test_historically_non_vital")
+
+        wait(lambda: chunk_id in get("//sys/lost_chunks"))
+        assert chunk_id not in get("//sys/lost_vital_chunks")
+
 
 ##################################################################
 

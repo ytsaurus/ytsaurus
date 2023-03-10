@@ -157,6 +157,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, GetOverlayed());
     Save(context, GetStripedErasure());
     Save(context, GetSealable());
+    Save(context, GetHistoricallyNonVital());
     {
         // COMPAT(shakurov)
         TCompactVector<TChunkTree*, TypicalChunkParentCount> parents;
@@ -216,6 +217,13 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         SetSealable(Load<bool>(context));
     } else {
         SetSealable(false);
+    }
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::HistoricallyNonVital) {
+        SetHistoricallyNonVital(Load<bool>(context));
+    } else {
+        SetHistoricallyNonVital(false);
     }
 
     auto parents = Load<TCompactVector<TChunkTree*, TypicalChunkParentCount>>(context);
@@ -502,6 +510,18 @@ bool TChunk::GetSealable() const
 void TChunk::SetSealable(bool value)
 {
     Flags_.Sealable = value;
+}
+
+bool TChunk::GetHistoricallyNonVital() const
+{
+    return Flags_.HistoricallyNonVital;
+}
+
+void TChunk::SetHistoricallyNonVital(bool value)
+{
+    YT_ASSERT(!value || !IsErasure());
+
+    Flags_.HistoricallyNonVital = value;
 }
 
 i64 TChunk::GetPhysicalSealedRowCount() const

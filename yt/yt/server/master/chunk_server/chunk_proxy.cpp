@@ -125,6 +125,8 @@ private:
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Available)
             .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HistoricallyNonVital)
+            .SetPresent(!isForeign));
         descriptors->push_back(EInternedAttributeKey::Confirmed);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ErasureCodec)
             .SetPresent(chunk->IsErasure()));
@@ -410,6 +412,16 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(chunk->IsAvailable());
                 return true;
+
+            case EInternedAttributeKey::HistoricallyNonVital: {
+                if (isForeign) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetHistoricallyNonVital());
+                return true;
+            }
 
             case EInternedAttributeKey::Vital:
             case EInternedAttributeKey::Media: {

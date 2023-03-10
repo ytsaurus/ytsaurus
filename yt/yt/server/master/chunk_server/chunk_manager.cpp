@@ -3502,11 +3502,43 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* requisitionRegistry = GetChunkRequisitionRegistry();
 
+        THashMap<TChunkRequisitionIndex, bool> durabilityRequiredCache;
+        std::pair<TChunkRequisitionIndex, bool> lastDurabilityRequiredCacheEntry{EmptyChunkRequisitionIndex, false};
+        auto isDurabilityRequired = [&] (TChunkRequisitionIndex requisitionIndex) {
+            // Very fast path.
+            if (requisitionIndex == lastDurabilityRequiredCacheEntry.first) {
+                return lastDurabilityRequiredCacheEntry.second;
+            }
+
+            auto durabilityRequired = false;
+            auto it = durabilityRequiredCache.find(requisitionIndex);
+            // Fast path.
+            if (it != durabilityRequiredCache.end()) {
+                durabilityRequired = it->second;
+            } else {
+                auto replication = requisitionRegistry->GetReplication(requisitionIndex);
+                durabilityRequired = replication.IsDurabilityRequired(this);
+                EmplaceOrCrash(durabilityRequiredCache, requisitionIndex, durabilityRequired);
+            }
+
+            lastDurabilityRequiredCacheEntry = {requisitionIndex, durabilityRequired};
+            return durabilityRequired;
+        };
+
         auto setChunkRequisitionIndex = [&] (TChunk* chunk, TChunkRequisitionIndex requisitionIndex) {
             if (local) {
                 chunk->SetLocalRequisitionIndex(requisitionIndex, requisitionRegistry, objectManager);
             } else {
-                chunk->SetExternalRequisitionIndex(cellIndex, requisitionIndex, requisitionRegistry, objectManager);
+                chunk->SetExternalRequisitionIndex(
+                    cellIndex,
+                    requisitionIndex,
+                    requisitionRegistry,
+                    objectManager);
+            }
+
+            auto aggregatedRequisitionIndex = chunk->GetAggregatedRequisitionIndex();
+            if (!chunk->IsErasure() && !isDurabilityRequired(aggregatedRequisitionIndex)) {
+                chunk->SetHistoricallyNonVital(true);
             }
         };
 
