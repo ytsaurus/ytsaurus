@@ -22,7 +22,12 @@ from contextlib import contextmanager
 
 def authors(*the_authors):
     # pytest perform test collection before processing all pytest_configure calls.
-    warnings.filterwarnings("ignore", category=pytest.PytestUnknownMarkWarning)
+    if hasattr(pytest, "PytestUnknownMarkWarning"):
+        warnings.filterwarnings("ignore", category=pytest.PytestUnknownMarkWarning)
+    elif hasattr(pytest, "UnknownMarkWarning"):
+        warnings.filterwarnings("ignore", category=pytest.UnknownMarkWarning)
+    else:
+        pass  # Very old version of py.test
     return pytest.mark.authors(the_authors)
 
 
