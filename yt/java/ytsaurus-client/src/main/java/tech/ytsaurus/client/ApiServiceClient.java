@@ -313,7 +313,7 @@ public interface ApiServiceClient extends TransactionalClient {
      * <p>
      *
      * @see AbortOperation
-     * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_job">
+     * @see <a href="https://ytsaurus.tech/docs/en/api/commands#abort_job">
      * abort_job documentation
      * </a>
      */
@@ -347,7 +347,7 @@ public interface ApiServiceClient extends TransactionalClient {
      * Job will be aborted. In the future scheduler will restart this job.
      * <p>
      *
-     * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_job">
+     * @see <a href="https://ytsaurus.tech/docs/en/api/commands#abort_job">
      * abort_job documentation
      * </a>
      */

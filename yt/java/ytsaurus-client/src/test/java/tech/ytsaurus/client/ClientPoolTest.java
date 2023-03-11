@@ -1,6 +1,5 @@
 package tech.ytsaurus.client;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -10,13 +9,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import tech.ytsaurus.client.rpc.RpcClient;
 
 import static tech.ytsaurus.FutureUtils.getError;
 import static tech.ytsaurus.FutureUtils.waitFuture;
@@ -336,28 +333,6 @@ public class ClientPoolTest extends ClientPoolTestBase {
         tryWaitFuture(client1);
         Assert.assertTrue(client1.isDone());
         Assert.assertEquals(client1.join().getAddressString(), "localhost:2");
-    }
-
-    @Test
-    public void testProxySelector() {
-        ClientPool clientPool = newClientPool(ProxySelector.pessimizing(DC.MAN));
-
-        waitOkResult(
-                clientPool.updateClients(
-                        List.of(
-                                HostPort.parse("man-host:2"),
-                                HostPort.parse("sas-host:3"),
-                                HostPort.parse("vla-host:4"),
-                                HostPort.parse("iva-host:5")
-                        )),
-                100
-        );
-
-        List<String> selectedClients = Arrays.stream(clientPool.getAliveClients())
-                .map(RpcClient::getAddressString)
-                .collect(Collectors.toList());
-
-        Assert.assertFalse(selectedClients.contains("man-host:2"));
     }
 }
 

@@ -7,7 +7,7 @@ import tech.ytsaurus.rpcproxy.TReqUnmountTable;
 /**
  * Unmount table request.
  *
- * @see <a href="https://yt.yandex-team.ru/docs/api/commands#unmount_table">documentation</a>
+ * @see <a href="https://ytsaurus.tech/docs/en/api/commands#unmount_table">documentation</a>
  * @see tech.ytsaurus.client.ApiServiceClient#unmountTable(UnmountTable)
  */
 public class UnmountTable

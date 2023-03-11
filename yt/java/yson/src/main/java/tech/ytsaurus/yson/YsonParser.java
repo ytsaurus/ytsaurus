@@ -12,12 +12,12 @@ import javax.annotation.Nullable;
  * <p>
  * Class throws {@link YsonError} if yson is malformed.
  * All IO errors are translated to {@link UncheckedIOException}.
+ *
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/storage/yson">
+ * YSON documentation
+ * </a>
  */
 public class YsonParser {
-    // NB. Yson specs:
-    //     https://docs.yandex-team.ru/yt/description/common/yson
-    //     https://wiki.yandex-team.ru/yt/internal/yson/
-
     private final StreamReader tokenizer;
     private final BufferReference bufferReference = new BufferReference();
     private boolean expectFragmentSeparator = false;
@@ -550,12 +550,12 @@ public class YsonParser {
                         break;
                 }
                 if (current == 'x') {
-                    // шестнадцатиричная последовательность (максимум два числа)
+                    // hexadecimal sequence (maximum two numbers).
                     current = tokenizer.readByte();
                     int first = decodeDigit(current);
                     if (first > 15) {
                         tokenizer.unreadByte();
-                        // декодируем "\x" как просто "x" если нет ни одного числа
+                        // decode "\x" as just "x" if there is no number
                         out.write('x');
                         continue;
                     }

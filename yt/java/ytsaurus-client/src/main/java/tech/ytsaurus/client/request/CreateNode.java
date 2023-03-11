@@ -24,7 +24,7 @@ import tech.ytsaurus.ytree.TAttributeDictionary;
 /**
  * Request for creating cypress node.
  *
- * @see <a href="https://docs.yandex-team.ru/yt/api/commands#create">
+ * @see <a href="https://ytsaurus.tech/docs/en/api/commands#create">
  * create documentation
  * </a>
  */

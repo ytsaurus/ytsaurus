@@ -13,7 +13,7 @@ import tech.ytsaurus.client.ProxySelector;
 import tech.ytsaurus.client.RetryPolicy;
 
 /**
- * Опции для создания rpc клиентов
+ * Options for creating RPC clients.
  */
 public class RpcOptions {
     private boolean defaultRequestAck = true;

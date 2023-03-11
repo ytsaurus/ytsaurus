@@ -15,7 +15,7 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 /**
  * Spec of the map operation.
  *
- * @see <a href="https://yt.yandex-team.ru/docs/description/mr/map">
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/map">
  * map documentation
  * </a>
  */

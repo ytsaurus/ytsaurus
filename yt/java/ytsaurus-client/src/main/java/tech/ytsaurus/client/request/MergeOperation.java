@@ -6,7 +6,7 @@ import tech.ytsaurus.client.operations.MergeSpec;
  * Immutable merge operation request.
  *
  * @see tech.ytsaurus.client.ApiServiceClient#startMerge(MergeOperation)
- * @see <a href="https://yt.yandex-team.ru/docs/description/mr/merge">
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/merge">
  * merge documentation
  * </a>
  */

@@ -9,7 +9,7 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 /**
  * Request for suspending operation
  *
- * @see <a href="https://docs.yandex-team.ru/yt/api/commands#suspend_operation">
+ * @see <a href="https://ytsaurus.tech/docs/en/api/commands#suspend_operation">
  * suspend_operation documentation
  * </a>
  * @see ResumeOperation

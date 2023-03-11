@@ -24,10 +24,10 @@ import tech.ytsaurus.ytree.TAttributeDictionary;
 /**
  * Request for starting transaction.
  *
- * @see <a href="https://docs.yandex-team.ru/yt/api/commands#start_tx">
+ * @see <a href="https://ytsaurus.tech/docs/en/api/commands#start_tx">
  * start_tx documentation
  * </a>
- * @see <a href="https://docs.yandex-team.ru/yt/description/dynamic_tables/sorted_dynamic_tables">
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/sorted-dynamic-tables">
  * dynamic tables documentation
  * </a>
  */
@@ -431,7 +431,7 @@ public class StartTransaction
          * <p>
          * If not specified atomicity FULL will be used.
          *
-         * @see <a href="https://docs.yandex-team.ru/yt/description/dynamic_tables/sorted_dynamic_tables#atomarnost">
+         * @see <a href="https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/transactions#atomicity">
          * documentation
          * </a>
          */
@@ -445,7 +445,7 @@ public class StartTransaction
          * <p>
          * By default, durability SYNC is used.
          *
-         * @see <a href="https://docs.yandex-team.ru/yt/description/dynamic_tables/sorted_dynamic_tables#sohrannost">
+         * @see <a href="https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/transactions#atomicity">
          * documentation
          * </a>
          */

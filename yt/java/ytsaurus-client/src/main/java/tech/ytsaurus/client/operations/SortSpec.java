@@ -24,7 +24,7 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 /**
  * Immutable sort spec.
  *
- * @see <a href="https://yt.yandex-team.ru/docs/description/mr/sort">
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/sort">
  * sort documentation
  * </a>
  */

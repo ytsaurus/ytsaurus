@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import javax.annotation.Nullable;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Transient;
@@ -30,12 +31,13 @@ public class SkiffEntitySerializationTest {
         @Transient
         private String password;
         private List<String> organizations = new ArrayList<>();
+        @Nullable
         private String car;
 
         Person() {
         }
 
-        Person(String name, int age, Phone phone, String password, List<String> organizations, String car) {
+        Person(String name, int age, Phone phone, String password, List<String> organizations, @Nullable String car) {
             this.name = name;
             this.age = age;
             this.phone = phone;
@@ -161,7 +163,7 @@ public class SkiffEntitySerializationTest {
     public void testSerializeEntity() {
         Person person = new Person("Ivan", 20,
                 new Phone(12345),
-                "secret", Arrays.asList("yandex", null, "spbu"), null);
+                "secret", Arrays.asList("ytsaurus", null, "spbu"), null);
 
         ByteBuffer buffer = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
         buffer.putInt(person.getName().length());
@@ -220,7 +222,7 @@ public class SkiffEntitySerializationTest {
     public void testDeserializeEntity() {
         Person person = new Person("Ivan", 20,
                 new Phone(12345),
-                "secret", Arrays.asList("yandex", null, "spbu"), null);
+                "secret", Arrays.asList("ytsaurus", null, "spbu"), null);
 
         byte[] bytes = new EntitySkiffSerializer<>(Person.class).serialize(person);
 

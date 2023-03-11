@@ -13,7 +13,7 @@ import tech.ytsaurus.rpcproxy.TReqCommitTransaction;
 /**
  * Request for committing transaction.
  *
- * @see <a href="https://docs.yandex-team.ru/yt/api/commands#commit_tx">
+ * @see <a href="https://ytsaurus.tech/docs/en/api/commands#commit_tx">
  * commit_tx documentation
  * </a>
  */

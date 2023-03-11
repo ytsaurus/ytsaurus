@@ -4,8 +4,7 @@ import tech.ytsaurus.rpcproxy.EDurability;
 
 /**
  * Durability of transactions.
- *
- * @see <a href="https://docs.yandex-team.ru/yt/description/dynamic_tables/sorted_dynamic_tables#sohrannost">
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/sorted-dynamic-tables">
  * dynamic table documentation
  * </a>
  */

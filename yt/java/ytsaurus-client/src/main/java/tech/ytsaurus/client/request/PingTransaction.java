@@ -13,7 +13,7 @@ import tech.ytsaurus.rpcproxy.TReqPingTransaction;
 /**
  * Request for pinging transaction.
  *
- * @see <a href="https://docs.yandex-team.ru/yt/api/commands#ping_tx">
+ * @see <a href="https://ytsaurus.tech/docs/en/api/commands#ping_tx">
  * ping_tx documentation
  * </a>
  */

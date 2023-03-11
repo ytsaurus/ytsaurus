@@ -18,7 +18,7 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 /**
  * Spec of the reduce operation.
  *
- * @see <a href="https://yt.yandex-team.ru/docs/description/mr/reduce">
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/reduce">
  * reduce documentation
  * </a>
  */
@@ -271,8 +271,7 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
          * When this option is set to false and joinBy is specified,
          * Reduce operation behaves like JoinReduce.
          * <p>
-         * <a href="https://docs.yandex-team.ru/yt/description/mr/reduce#foreign_tables">Documentation.</a>
-         * <a href="https://clubs.at.yandex-team.ru/yt/3587">Blog post.</a>
+         * <a href="https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/reduce#foreign_tables">Documentation.</a>
          */
         public T setEnableKeyGuarantee(boolean enableKeyGuarantee) {
             this.enableKeyGuarantee = enableKeyGuarantee;

@@ -16,7 +16,7 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 /**
  * Immutable spec for remote copy operation.
  *
- * @see <a href="https://yt.yandex-team.ru/docs/description/mr/remote_copy">
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/remote_copy">
  * remote_copy documentation
  * </a>
  */
