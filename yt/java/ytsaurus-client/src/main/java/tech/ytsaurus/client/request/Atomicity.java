@@ -5,7 +5,7 @@ import tech.ytsaurus.rpcproxy.EAtomicity;
 /**
  * Atomicity of transaction or table.
  *
- * @see <a href="https://docs.yandex-team.ru/yt/description/dynamic_tables/sorted_dynamic_tables#atomarnost">
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/sorted-dynamic-tables">
  * dynamic table documentation
  * </a>
  */

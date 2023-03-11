@@ -10,7 +10,7 @@ public class ProxySelectorTest {
 
     @Test
     public void testPessimizingProxySelector() {
-        var selector = ProxySelector.pessimizing(DC.IVA);
+        var selector = YandexProxySelector.pessimizing(DC.IVA);
 
         var proxyList = new ArrayList<>(
                 List.of(
@@ -32,7 +32,7 @@ public class ProxySelectorTest {
 
     @Test
     public void testPreferringProxySelector() {
-        var selector = ProxySelector.preferring(DC.IVA);
+        var selector = YandexProxySelector.preferring(DC.IVA);
 
         var proxyList = new ArrayList<>(
                 List.of(

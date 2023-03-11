@@ -585,7 +585,6 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
          *
          * @param cluster address of YT cluster http balancer, examples:
          *                "hahn"
-         *                "arnold.yt.yandex.net"
          *                "localhost:8054"
          */
         public TBuilder setCluster(String cluster) {

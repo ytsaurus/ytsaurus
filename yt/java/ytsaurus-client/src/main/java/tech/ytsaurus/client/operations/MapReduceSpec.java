@@ -21,7 +21,7 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 /**
  * Immutable map-reduce spec.
  *
- * @see <a href="https://yt.yandex-team.ru/docs/description/mr/mapreduce">
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/mapreduce">
  * map_reduce documentation
  * </a>
  */

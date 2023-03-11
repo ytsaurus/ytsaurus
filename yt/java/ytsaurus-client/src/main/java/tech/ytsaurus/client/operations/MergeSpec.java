@@ -22,7 +22,7 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 /**
  * Immutable spec for merge operation.
  *
- * @see <a href="https://yt.yandex-team.ru/docs/description/mr/merge">
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/merge">
  * merge documentation
  * </a>
  */

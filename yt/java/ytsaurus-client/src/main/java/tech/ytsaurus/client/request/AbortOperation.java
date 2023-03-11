@@ -11,7 +11,7 @@ import tech.ytsaurus.rpcproxy.TReqAbortOperation;
  * <p>
  *
  * @see tech.ytsaurus.client.ApiServiceClient#abortOperation(AbortOperation)
- * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_operation">
+ * @see <a href="https://ytsaurus.tech/docs/en/api/commands#abort_operation">
  * abort_op documentation
  * </a>
  */

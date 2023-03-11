@@ -7,7 +7,7 @@ import tech.ytsaurus.client.operations.VanillaSpec;
  * Immutable vanilla operation request.
  *
  * @see tech.ytsaurus.client.ApiServiceClient#startVanilla(VanillaOperation)
- * @see <a href="https://yt.yandex-team.ru/docs/description/mr/vanilla">
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/vanilla">
  * vanilla documentation
  * </a>
  */

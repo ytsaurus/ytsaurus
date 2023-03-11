@@ -18,7 +18,7 @@ import tech.ytsaurus.ysontree.YTreeNode;
 
 /**
  * Allows creating {@link RichYPath} from its binary representation.
- * @see <a href="https://yt.yandex-team.ru/docs/description/common/ypath">YPath</a>
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/storage/ypath">YPath documentation</a>
  */
 public class RichYPathParser {
     private RichYPathParser() {

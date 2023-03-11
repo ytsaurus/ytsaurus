@@ -6,7 +6,7 @@ import tech.ytsaurus.client.operations.SortSpec;
  * Immutable sort operation request.
  *
  * @see tech.ytsaurus.client.ApiServiceClient#startSort(SortOperation)
- * @see <a href="https://yt.yandex-team.ru/docs/description/mr/sort">
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/sort">
  * sort documentation
  * </a>
  */

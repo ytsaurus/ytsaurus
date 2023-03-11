@@ -6,7 +6,7 @@ import tech.ytsaurus.client.operations.ReduceSpec;
  * Immutable reduce operation request.
  *
  * @see tech.ytsaurus.client.ApiServiceClient#startReduce(ReduceOperation)
- * @see <a href="https://yt.yandex-team.ru/docs/description/mr/reduce">
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/reduce">
  * reduce documentation
  * </a>
  */

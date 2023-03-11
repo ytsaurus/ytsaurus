@@ -8,7 +8,7 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 /**
  * Request for resuming suspended operation
  *
- * @see <a href="https://docs.yandex-team.ru/yt/api/commands#suspend_operation">
+ * @see <a href="https://ytsaurus.tech/docs/en/api/commands#suspend_operation">
  * resume_operation documentation
  * </a>
  * @see SuspendOperation

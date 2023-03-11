@@ -408,7 +408,7 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
 
         /**
          * Set memory reserve factor (fraction of memoryLimit that job gets at start).
-         * <a href="https://yt.yandex-team.ru/docs/description/mr/operations_options#memory_reserve_factor">
+         * <a href="https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/operations-options#memory_reserve_factor">
          * documentation
          * </a>
          *

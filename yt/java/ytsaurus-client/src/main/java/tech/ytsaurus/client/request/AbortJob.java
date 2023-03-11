@@ -15,7 +15,7 @@ import tech.ytsaurus.rpcproxy.TReqAbortJob;
  * <p>
  *
  * @see tech.ytsaurus.client.ApiServiceClient#abortJob(AbortJob)
- * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_job">
+ * @see <a href="https://ytsaurus.tech/docs/en/api/commands#abort_job">
  * abort_job documentation
  * </a>
  */

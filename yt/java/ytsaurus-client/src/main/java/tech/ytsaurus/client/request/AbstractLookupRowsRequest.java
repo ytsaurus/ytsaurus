@@ -24,7 +24,7 @@ import tech.ytsaurus.rpcproxy.TReqVersionedLookupRows;
  * Users use one of the inheritors of this class.
  * <p>
  *
- * @see <a href="https://docs.yandex-team.ru/yt/api/commands#lookup_rows">
+ * @see <a href="https://ytsaurus.tech/docs/en/api/commands#lookup_rows">
  * lookup_rows documentation
  * </a>
  */

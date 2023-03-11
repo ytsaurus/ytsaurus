@@ -6,7 +6,7 @@ import tech.ytsaurus.client.operations.RemoteCopySpec;
  * Immutable remote_copy operation request.
  *
  * @see tech.ytsaurus.client.ApiServiceClient#startRemoteCopy(RemoteCopyOperation)
- * @see <a href="https://yt.yandex-team.ru/docs/description/mr/remote_copy">
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/remote-copy">
  * remote_copy documentation
  * </a>
  */

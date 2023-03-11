@@ -829,7 +829,6 @@ class HttpProxyGetter implements ProxyGetter {
                 .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
                 .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT));
         if (token != null) {
-            // NB. token should be set https://st.yandex-team.ru/YTADMINREQ-25316#60c516ddf76e1021d1143001
             requestBuilder.setHeader("Authorization", String.format("OAuth %s", token));
         }
         CompletableFuture<HttpResponse<InputStream>> responseFuture =
