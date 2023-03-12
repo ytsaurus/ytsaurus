@@ -29,6 +29,16 @@ void TChytEngineConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("default_clique", &TThis::DefaultClique)
         .Default("ch_public");
+    registrar.Parameter("default_cluster", &TThis::DefaultCluster)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TQLEngineConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("default_cluster", &TThis::DefaultCluster)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

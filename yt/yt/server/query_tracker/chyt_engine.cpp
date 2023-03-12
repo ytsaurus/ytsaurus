@@ -47,6 +47,8 @@ class TChytSettings
     : public TYsonStruct
 {
 public:
+    std::optional<TString> Cluster;
+
     std::optional<TString> Clique;
 
     THashMap<TString, TString> QuerySettings;
@@ -55,6 +57,8 @@ public:
 
     static void Register(TRegistrar registrar)
     {
+        registrar.Parameter("cluster", &TThis::Cluster)
+            .Default();
         registrar.Parameter("clique", &TThis::Clique)
             .Default();
         registrar.Parameter("query_settings", &TThis::QuerySettings)
@@ -77,12 +81,15 @@ public:
         const TYPath& stateRoot,
         const TChytEngineConfigPtr& config,
         const IChannelFactoryPtr& channelFactory,
-        const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery)
+        const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
+        const TClusterDirectoryPtr& clusterDirectory)
         : TQueryHandlerBase(stateClient, stateRoot, config, activeQuery)
         , Settings_(ConvertTo<TChytSettingsPtr>(SettingsNode_))
         , Clique_(Settings_->Clique.value_or(config->DefaultClique))
+        , Cluster_(Settings_->Cluster.value_or(config->DefaultCluster))
+        , NativeConnection_(clusterDirectory->GetConnectionOrThrow(Cluster_))
+        , QueryClient_(NativeConnection_->CreateClient(TClientOptions{.User = activeQuery.User}))
         , ChannelFactory_(channelFactory)
-        , NativeConnection_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection()))
     { }
 
     void Start() override
@@ -112,9 +119,11 @@ public:
 private:
     TChytSettingsPtr Settings_;
     TString Clique_;
+    TString Cluster_;
+    NApi::NNative::IConnectionPtr NativeConnection_;
+    NApi::IClientPtr QueryClient_;
 
     IChannelFactoryPtr ChannelFactory_;
-    NApi::NNative::IConnectionPtr NativeConnection_;
 
     IDiscoveryPtr Discovery_;
     THashMap<TString, NYTree::IAttributeDictionaryPtr> Instances_;
@@ -147,7 +156,7 @@ private:
         auto principalAclPath = Format("//sys/access_control_object_namespaces/chyt/%v/principal", Clique_);
         TCheckPermissionOptions options;
         options.ReadFrom = EMasterChannelKind::Cache;
-        auto result = WaitFor(StateClient_->CheckPermission(User_, principalAclPath, EPermission::Use, options))
+        auto result = WaitFor(QueryClient_->CheckPermission(User_, principalAclPath, EPermission::Use, options))
             .ValueOrThrow();
         if (result.Action != NSecurityClient::ESecurityAction::Allow) {
             THROW_ERROR_EXCEPTION("User %Qv has no access to clique %v", User_, Clique_);
@@ -293,12 +302,13 @@ public:
     TChytEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
         : StateClient_(stateClient)
         , StateRoot_(stateRoot)
+        , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
         , ChannelFactory_(CreateCachingChannelFactory(CreateTcpBusChannelFactory(New<NYT::NBus::TBusConfig>())))
     { }
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
-        return New<TChytQueryHandler>(StateClient_, StateRoot_, ChytConfig_, ChannelFactory_, activeQuery);
+        return New<TChytQueryHandler>(StateClient_, StateRoot_, ChytConfig_, ChannelFactory_, activeQuery, ClusterDirectory_);
     }
 
     void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override

@@ -1,5 +1,6 @@
 #include "ql_engine.h"
 
+#include "config.h"
 #include "handler_base.h"
 
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
@@ -87,23 +88,20 @@ public:
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
         auto settings = ConvertToAttributes(activeQuery.Settings);
-        auto cluster = settings->Find<TString>("cluster");
-        if (!cluster) {
-            THROW_ERROR_EXCEPTION("Missing required setting \"cluster\"");
-        }
-        auto queryClient = ClusterDirectory_->GetConnectionOrThrow(*cluster)->CreateClient(TClientOptions{.User = activeQuery.User});
+        auto cluster = settings->Find<TString>("cluster").value_or(Config_->DefaultCluster);
+        auto queryClient = ClusterDirectory_->GetConnectionOrThrow(cluster)->CreateClient(TClientOptions{.User = activeQuery.User});
         return New<TQlQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, queryClient);
     }
 
     void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override
     {
-        Config_ = config;
+        Config_ = DynamicPointerCast<TQLEngineConfig>(config);
     }
 
 private:
     IClientPtr StateClient_;
     TYPath StateRoot_;
-    TEngineConfigBasePtr Config_;
+    TQLEngineConfigPtr Config_;
     TClusterDirectoryPtr ClusterDirectory_;
 };
 

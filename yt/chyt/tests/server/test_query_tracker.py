@@ -36,7 +36,7 @@ class TestQueriesChyt(ClickHouseTestBase):
     @authors("gudqeit")
     def test_simple_query(self, query_tracker):
         with Clique(1, config_patch=TestQueriesChyt.CONFIG_PATCH, alias="*ch_alias"):
-            settings = {"clique": "ch_alias"}
+            settings = {"clique": "ch_alias", "cluster": "primary"}
             query = start_query("chyt", "select 1", settings=settings)
             query.track()
 
@@ -51,7 +51,7 @@ class TestQueriesChyt(ClickHouseTestBase):
         write_table("//tmp/test_table", [{"value": 1}])
 
         with Clique(1, config_patch=TestQueriesChyt.CONFIG_PATCH, alias="*ch_alias"):
-            settings = {"clique": "ch_alias"}
+            settings = {"clique": "ch_alias", "cluster": "primary"}
             query = start_query("chyt", "select * from `//tmp/test_table`", settings=settings)
             query.track()
 
@@ -73,7 +73,7 @@ class TestQueriesChyt(ClickHouseTestBase):
         write_table("//tmp/t1", [{"value": 1}])
 
         with Clique(1, config_patch=TestQueriesChyt.CONFIG_PATCH, alias="*ch_alias"):
-            settings = {"clique": "ch_alias"}
+            settings = {"clique": "ch_alias", "cluster": "primary"}
             query = "create table `//tmp/t2` engine=YtTable() as select * from `//tmp/t1`"
             query = start_query("chyt", query, settings=settings)
             query.track()
@@ -95,6 +95,7 @@ class TestQueriesChyt(ClickHouseTestBase):
             query_text = "select * from numbers(5)"
             expected = [{"number": 0}]
             settings = {
+                "cluster": "primary",
                 "clique": "ch_alias",
                 "query_settings": {
                     "limit": "1",
@@ -108,6 +109,7 @@ class TestQueriesChyt(ClickHouseTestBase):
 
             # Unrecognized settings are flattened and passed as query settings.
             settings = {
+                "cluster": "primary",
                 "clique": "ch_alias",
                 "limit": 1,
             }
@@ -118,7 +120,7 @@ class TestQueriesChyt(ClickHouseTestBase):
     @authors("gudqeit")
     def test_query_error(self, query_tracker):
         with Clique(1, config_patch=TestQueriesChyt.CONFIG_PATCH, alias="*ch_alias"):
-            settings = {"clique": "ch_alias"}
+            settings = {"clique": "ch_alias", "cluster": "primary"}
             query = start_query("chyt", "select * from `//tmp/t`", settings=settings)
             with raises_yt_error("failed"):
                 query.track()
@@ -159,7 +161,7 @@ class TestQueriesChyt(ClickHouseTestBase):
         ])
 
         with Clique(1, config_patch=TestQueriesChyt.CONFIG_PATCH, alias="*ch_alias"):
-            settings = {"clique": "ch_alias"}
+            settings = {"clique": "ch_alias", "cluster": "primary"}
             query = start_query("chyt", "select * from `//tmp/t`", settings=settings)
             query.track()
 

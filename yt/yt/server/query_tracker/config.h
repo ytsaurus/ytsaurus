@@ -52,6 +52,7 @@ class TChytEngineConfig
 {
 public:
     TString DefaultClique;
+    TString DefaultCluster;
 
     REGISTER_YSON_STRUCT(TChytEngineConfig)
 
@@ -59,6 +60,21 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TChytEngineConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQLEngineConfig
+    : public TEngineConfigBase
+{
+public:
+    TString DefaultCluster;
+
+    REGISTER_YSON_STRUCT(TQLEngineConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQLEngineConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,7 +88,7 @@ public:
     TDuration QueryFinishBackoff;
 
     TEngineConfigBasePtr MockEngine;
-    TEngineConfigBasePtr QlEngine;
+    TQLEngineConfigPtr QlEngine;
     TYqlEngineConfigPtr YqlEngine;
     TChytEngineConfigPtr ChytEngine;
 
