@@ -129,7 +129,7 @@ def execute(query, alias=None, raw=None, format=None, settings=None, traceparent
         logger.debug("Response received (%s)", format_logging_params(logging_params))
 
         if response.status_code == 401:
-            raise_for_token(response.headers.get("X-YT-Request-ID"))
+            raise_for_token(response, request_info)
         elif response.status_code != 200:
             if "X-Yt-Error" in response.headers:
                 # This case corresponds to situation when error is initiated by out proxy code.
