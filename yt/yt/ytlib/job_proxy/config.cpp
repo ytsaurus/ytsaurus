@@ -8,7 +8,7 @@ void TJobTestingOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("delay_after_node_directory_prepared", &TThis::DelayAfterNodeDirectoryPrepared)
         .Default();
-    registrar.Parameter("delay_in_cleanup", &TThis::DelayInCleanup)
+    registrar.Parameter("delay_in_finalize", &TThis::DelayInFinalize)
         .Default();
     registrar.Parameter("fail_before_job_start", &TThis::FailBeforeJobStart)
         .Default(false);
