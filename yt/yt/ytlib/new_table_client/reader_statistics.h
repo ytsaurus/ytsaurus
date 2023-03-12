@@ -14,7 +14,11 @@ struct TReaderStatistics final
     TCpuDuration ReadTime;
 
     TCpuDuration BuildReadWindowsTime;
+    TCpuDuration GetValuesIdMappingTime;
     TCpuDuration CreateColumnBlockHoldersTime;
+    TCpuDuration GetTypesFromSchemaTime;
+    TCpuDuration LoggingTime;
+    TCpuDuration CreateRowsetBuilderTime;
     TCpuDuration CreateBlockManagerTime;
 
     TCpuDuration DecodeTimestampSegmentTime;

@@ -370,29 +370,40 @@ private:
 
 TString ToString(const TReaderStatistics& statistics)
 {
+    auto ticksInSecond = DurationToCpuDuration(TDuration::Seconds(1));
+    auto ticksToNanoseconds = 1000000000 / static_cast<double>(ticksInSecond);
+
+    auto cpuDurationToNs = [&] (TCpuDuration cpuDuration) {
+        return static_cast<ui64>(cpuDuration * ticksToNanoseconds);
+    };
+
     return Format(
         "RowCount: %v, "
-        "Summary Init/Read Time: %v / %v, "
-        "BuildReadWindows/CreateColumnBlockHolders/CreateBlockManagerTime Times: %v / %v / %v, "
-        "Decode Timestamp/Key/Value Times: %v / %v / %v, "
-        "FetchBlocks/BuildRanges/DoRead/CollectCounts/AllocateRows/DoReadKeys/DoReadValues Times: %v / %v / %v / %v / %v / %v / %v, "
+        "Summary Init/Read Time: %vns / %vns, "
+        "BuildReadWindows/GetValuesIdMapping/CreateColumnBlockHolders/GetTypesFromSchema/Logging/CreateRowsetBuilder/CreateBlockManager Times: %vns / %vns / %vns / %vns / %vns / %vns / %vns, "
+        "Decode Timestamp/Key/Value Times: %vns / %vns / %vns, "
+        "FetchBlocks/BuildRanges/DoRead/CollectCounts/AllocateRows/DoReadKeys/DoReadValues Times: %vns / %vns / %vns / %vns / %vns / %vns / %vns, "
         "TryUpdateWindow/SkipToBlock/FetchBlock/SetBlock/UpdateSegment/DoRead CallCounts: %v / %v / %v / %v / %v / %v",
         statistics.RowCount,
-        CpuDurationToDuration(statistics.InitTime),
-        CpuDurationToDuration(statistics.ReadTime),
-        CpuDurationToDuration(statistics.BuildReadWindowsTime),
-        CpuDurationToDuration(statistics.CreateColumnBlockHoldersTime),
-        CpuDurationToDuration(statistics.CreateBlockManagerTime),
-        CpuDurationToDuration(statistics.DecodeTimestampSegmentTime),
-        CpuDurationToDuration(statistics.DecodeKeySegmentTime),
-        CpuDurationToDuration(statistics.DecodeValueSegmentTime),
-        CpuDurationToDuration(statistics.FetchBlockTime),
-        CpuDurationToDuration(statistics.BuildRangesTime),
-        CpuDurationToDuration(statistics.DoReadTime),
-        CpuDurationToDuration(statistics.CollectCountsTime),
-        CpuDurationToDuration(statistics.AllocateRowsTime),
-        CpuDurationToDuration(statistics.DoReadKeysTime),
-        CpuDurationToDuration(statistics.DoReadValuesTime),
+        cpuDurationToNs(statistics.InitTime),
+        cpuDurationToNs(statistics.ReadTime),
+        cpuDurationToNs(statistics.BuildReadWindowsTime),
+        cpuDurationToNs(statistics.GetValuesIdMappingTime),
+        cpuDurationToNs(statistics.CreateColumnBlockHoldersTime),
+        cpuDurationToNs(statistics.GetTypesFromSchemaTime),
+        cpuDurationToNs(statistics.LoggingTime),
+        cpuDurationToNs(statistics.CreateRowsetBuilderTime),
+        cpuDurationToNs(statistics.CreateBlockManagerTime),
+        cpuDurationToNs(statistics.DecodeTimestampSegmentTime),
+        cpuDurationToNs(statistics.DecodeKeySegmentTime),
+        cpuDurationToNs(statistics.DecodeValueSegmentTime),
+        cpuDurationToNs(statistics.FetchBlockTime),
+        cpuDurationToNs(statistics.BuildRangesTime),
+        cpuDurationToNs(statistics.DoReadTime),
+        cpuDurationToNs(statistics.CollectCountsTime),
+        cpuDurationToNs(statistics.AllocateRowsTime),
+        cpuDurationToNs(statistics.DoReadKeysTime),
+        cpuDurationToNs(statistics.DoReadValuesTime),
         statistics.TryUpdateWindowCallCount,
         statistics.SkipToBlockCallCount,
         statistics.FetchBlockCallCount,
@@ -596,23 +607,30 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     TCpuDurationIncrementingGuard timingGuard(&readerStatistics->InitTime);
 
-    auto buildReadWindowsStart = GetCpuInstant();
+    TCpuDuration lastCpuInstant = GetCpuInstant();
+    auto getDurationAndReset = [&] {
+        auto startCpuInstant = lastCpuInstant;
+        lastCpuInstant = GetCpuInstant();
+        return lastCpuInstant - startCpuInstant;
+    };
+
     auto preparedChunkMeta = chunkMeta->GetPreparedChunkMeta();
     auto windowsList = BuildReadWindows(readItems, chunkMeta, tableSchema->GetKeyColumnCount());
-    readerStatistics->BuildReadWindowsTime = GetCpuInstant() - buildReadWindowsStart;
+    readerStatistics->BuildReadWindowsTime = getDurationAndReset();
 
     auto valuesIdMapping = chunkColumnMapping
         ? chunkColumnMapping->BuildVersionedSimpleSchemaIdMapping(columnFilter)
         : TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
             .BuildVersionedSimpleSchemaIdMapping(columnFilter);
+    readerStatistics->GetValuesIdMappingTime = getDurationAndReset();
 
-    auto createColumnBlockHoldersStart = GetCpuInstant();
     auto groupIds = GetGroupsIds(*preparedChunkMeta, chunkMeta->GetChunkKeyColumnCount(), valuesIdMapping);
     auto groupBlockHolders = CreateGroupBlockHolders(*preparedChunkMeta, groupIds);
-    readerStatistics->CreateColumnBlockHoldersTime = GetCpuInstant() - createColumnBlockHoldersStart;
+    readerStatistics->CreateColumnBlockHoldersTime = getDurationAndReset();
 
     auto keyTypes = GetKeyTypes(tableSchema);
     auto valueSchema = GetValuesSchema(tableSchema, valuesIdMapping);
+    readerStatistics->GetTypesFromSchemaTime = getDurationAndReset();
 
     YT_LOG_DEBUG("Creating rowset builder (ReadItemCount: %v, KeyTypes: %v, ValueTypes: %v, NewMeta: %v)",
         readItems.size(),
@@ -625,6 +643,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     if (timestamp == NTableClient::AllCommittedTimestamp) {
         produceAll = true;
     }
+
+    readerStatistics->LoggingTime = getDurationAndReset();
 
     YT_VERIFY(produceAll || timestamp != NTableClient::AllCommittedTimestamp);
 
@@ -663,11 +683,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             preparedChunkMeta->ColumnIndexInGroup.back());
     }
 
-    auto createBlockManagerStart = GetCpuInstant();
-    auto blockManager = blockManagerFactory(std::move(groupBlockHolders), windowsList);
-    readerStatistics->CreateBlockManagerTime = GetCpuInstant() - createBlockManagerStart;
-
-    bool isKeys = IsKeys(readItems);
     auto rowsetBuilder = CreateRowsetBuilder(
         std::move(readItems),
         keyTypes,
@@ -676,6 +691,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         timestamp,
         produceAll,
         preparedChunkMeta->FullNewMeta);
+
+    readerStatistics->CreateRowsetBuilderTime = getDurationAndReset();
+
+    auto blockManager = blockManagerFactory(std::move(groupBlockHolders), windowsList);
+    readerStatistics->CreateBlockManagerTime = getDurationAndReset();
 
     std::unique_ptr<bool[]> columnHunkFlags;
     const auto& chunkSchema = chunkMeta->GetChunkSchema();
@@ -694,7 +714,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         std::move(rowsetBuilder),
         std::move(windowsList),
         std::move(performanceCounters),
-        isKeys,
+        IsKeys(readItems),
         readerStatistics);
 }
 
