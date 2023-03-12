@@ -903,6 +903,7 @@ private:
         }
         Sensors_->RegisterWrittenBytes(writtenSize);
         request->WriteRequest.Offset += writtenSize;
+        request->WrittenBytes += writtenSize;
 
         while (writtenSize > 0) {
             auto& buffer = request->WriteRequest.Buffers[request->CurrentWriteSubrequestIndex];
