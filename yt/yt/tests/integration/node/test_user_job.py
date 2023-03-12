@@ -2229,7 +2229,7 @@ class TestHealExecNode(YTEnvSetup):
 
         op = run_test_vanilla(
             "sleep 10",
-            spec={"job_testing_options": {"delay_in_cleanup": 1000}, "sanity_check_delay": 60 * 1000},
+            spec={"job_testing_options": {"delay_in_finalize": 1000}, "sanity_check_delay": 60 * 1000},
         )
 
         wait(lambda: op.list_jobs())

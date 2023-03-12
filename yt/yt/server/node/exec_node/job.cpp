@@ -533,6 +533,10 @@ void TJob::Finalize()
         return;
     }
 
+    if (auto delay = JobTestingOptions_->DelayInFinalize) {
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
+
     TForbidContextSwitchGuard guard;
 
     YT_LOG_DEBUG("Finalize job");
@@ -1822,10 +1826,6 @@ void TJob::Cleanup()
     SetJobPhase(EJobPhase::Cleanup);
 
     TDelayedExecutor::Cancel(InterruptionTimeoutCookie_);
-
-    if (auto delay = JobTestingOptions_->DelayInCleanup) {
-        TDelayedExecutor::WaitForDuration(*delay);
-    }
 
     if (Slot_) {
         try {
