@@ -1587,15 +1587,15 @@ void TJob::RunWithWorkspaceBuilder()
 
     auto workspaceBuilder = Slot_->CreateJobWorkspaceBuilder(Invoker_, std::move(settings));
 
-    workspaceBuilder->SubscribeUpdateArtifactStatistics(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this)] (i64 compressedDataSize, bool cacheHit) {
+    workspaceBuilder->SubscribeUpdateArtifactStatistics(BIND_NO_PROPAGATE([=, this, this_ = MakeWeak(this)] (i64 compressedDataSize, bool cacheHit) {
         UpdateArtifactStatistics(compressedDataSize, cacheHit);
     }));
 
-    workspaceBuilder->SubscribeUpdateBuilderPhase(BIND([=, this, this_ = MakeStrong(this)] (EJobPhase phase) {
+    workspaceBuilder->SubscribeUpdateBuilderPhase(BIND([=, this, this_ = MakeWeak(this)] (EJobPhase phase) {
         SetJobPhase(phase);
     }));
 
-    workspaceBuilder->SubscribeUpdateTimers(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this)] (const TJobWorkspaceBuilderPtr& workspace) {
+    workspaceBuilder->SubscribeUpdateTimers(BIND_NO_PROPAGATE([=, this, this_ = MakeWeak(this)] (const TJobWorkspaceBuilderPtr& workspace) {
         PreliminaryGpuCheckStartTime_ = workspace->GetGpuCheckStartTime();
         PreliminaryGpuCheckFinishTime_ = workspace->GetGpuCheckFinishTime();
 
