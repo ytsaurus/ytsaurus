@@ -37,7 +37,9 @@ class TTabletBalancingGroupConfig
     : public NYTree::TYsonStruct
 {
 public:
-    bool Enable;
+    bool EnableMove;
+    bool EnableReshard;
+
     EBalancingType Type;
     TParameterizedBalancingConfigPtr Parameterized;
     TTimeFormula Schedule;

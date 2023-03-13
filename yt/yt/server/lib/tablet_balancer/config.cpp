@@ -25,7 +25,9 @@ void TParameterizedBalancingConfig::Register(TRegistrar registrar)
 
 void TTabletBalancingGroupConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enable", &TThis::Enable)
+    registrar.Parameter("enable_move", &TThis::EnableMove)
+        .Default(true);
+    registrar.Parameter("enable_reshard", &TThis::EnableReshard)
         .Default(true);
     registrar.Parameter("type", &TThis::Type)
         .Default(EBalancingType::Parameterized);

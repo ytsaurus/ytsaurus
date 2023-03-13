@@ -254,7 +254,7 @@ bool TBundleState::IsParameterizedBalancingEnabled() const
         }
 
         const auto& groupConfig = GetOrCrash(Bundle_->Config->Groups, *groupName);
-        if (groupConfig->Type == EBalancingType::Parameterized && groupConfig->Enable) {
+        if (groupConfig->Type == EBalancingType::Parameterized && groupConfig->EnableMove) {
             return true;
         }
     }
