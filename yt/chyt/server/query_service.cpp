@@ -35,7 +35,7 @@ using namespace NTableClient;
 
 struct TRowset
 {
-    std::vector<TSharedRef> Rowset;
+    TSharedRef Rowset;
     i64 TotalRowCount;
 };
 
@@ -72,14 +72,18 @@ private:
     DB::BlockIO BlockIO_;
     TCompositeSettingsPtr CompositeSettings_;
 
-    std::vector<TSharedRef> WireRowset_;
-    i64 TotalRowCount_;
+    TSharedRef WireRowset_;
+    i64 TotalRowCount_ = 0;
 
     void Run()
     {
         PrepareContext();
         BuildPipeline();
-        ProcessPipeline();
+        if (BlockIO_.pipeline.initialized()) {
+            ProcessPipeline();
+        } else if (BlockIO_.in) {
+            ProcessInputStream();
+        }
     }
 
     void PrepareContext()
@@ -116,10 +120,6 @@ private:
 
     void ProcessPipeline()
     {
-        if (!BlockIO_.pipeline.initialized()) {
-            return;
-        }
-
         DB::PullingAsyncPipelineExecutor executor(BlockIO_.pipeline);
 
         const auto& header = executor.getHeader();
@@ -151,10 +151,50 @@ private:
 
         TotalRowCount_ = std::ssize(rowset);
 
+        ConvertToWireRowset(schema, rowset);
+    }
+
+    // TODO(gudqeit): Super copy-paste, should be removed with new CH version.
+    void ProcessInputStream()
+    {
+        auto stream = BlockIO_.getInputStream();
+        const auto& header = stream->getHeader();
+        auto schema = GetTableSchema(header);
+        auto dataTypes = header.getDataTypes();
+        auto columnIndexToId = GetColumnIndexToId(header);
+
+        DB::Block block;
+        auto rowBuffer = New<TRowBuffer>();
+        std::vector<TUnversionedRow> rowset;
+        auto rowCountLimitExceeded = [&] {
+            if (!Request_->has_row_count_limit()) {
+                return false;
+            }
+            return std::ssize(rowset) >= Request_->row_count_limit();
+        };
+        while (!rowCountLimitExceeded() && (block = stream->read())) {
+            auto rowRange = ToRowRange(block, dataTypes, columnIndexToId, CompositeSettings_);
+            auto capturedRows = rowBuffer->CaptureRows(rowRange);
+            rowset.insert(rowset.end(), capturedRows.begin(), capturedRows.end());
+        }
+
+        if (rowCountLimitExceeded()) {
+            rowset.resize(Request_->row_count_limit());
+        }
+
+        TotalRowCount_ = std::ssize(rowset);
+
+        ConvertToWireRowset(schema, rowset);
+    }
+
+    void ConvertToWireRowset(const TTableSchema& schema, const std::vector<TUnversionedRow>& rowset)
+    {
         auto writer = CreateWireProtocolWriter();
         writer->WriteTableSchema(schema);
         writer->WriteSchemafulRowset(rowset);
-        WireRowset_ = writer->Finish();
+
+        struct TChytRefMergeTag {};
+        WireRowset_ = MergeRefsToRef<TChytRefMergeTag>(writer->Finish());
     }
 
     std::vector<int> GetColumnIndexToId(const DB::Block& block)
@@ -217,7 +257,7 @@ private:
             context->SetRequestInfo("Query execution finished successfully (QueryId: %v, RowCount: %v)",
                 queryId,
                 rowsetOrError.Value().TotalRowCount);
-            response->Attachments() = std::move(rowsetOrError.Value().Rowset);
+            response->Attachments() = {std::move(rowsetOrError.Value().Rowset)};
         } else {
             context->SetRequestInfo("Query execution finished with error (QueryId: %v, Error: %v)",
                 queryId,
