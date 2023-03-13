@@ -59,7 +59,7 @@ bool TTable::IsParameterizedBalancingEnabled() const
 
     const auto& bundleConfig = Bundle->Config;
     const auto& groupConfig = GetOrCrash(bundleConfig->Groups, *groupName);
-    if (groupConfig->Type != EBalancingType::Parameterized || !groupConfig->Enable) {
+    if (groupConfig->Type != EBalancingType::Parameterized || !groupConfig->EnableMove) {
         return false;
     }
 
@@ -82,7 +82,7 @@ bool TTable::IsLegacyMoveBalancingEnabled() const
     }
 
     const auto& groupConfig = GetOrCrash(Bundle->Config->Groups, *groupName);
-    return groupConfig->Type == EBalancingType::Legacy && groupConfig->Enable;
+    return groupConfig->Type == EBalancingType::Legacy && groupConfig->EnableMove;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

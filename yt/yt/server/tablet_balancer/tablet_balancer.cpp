@@ -481,7 +481,7 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
         bundleState->GetBundle()->Name);
 
     auto groupConfig = GetOrCrash(bundleState->GetBundle()->Config->Groups, LegacyInMemoryGroupName);
-    if (!bundleState->GetBundle()->Config->EnableInMemoryCellBalancer || !groupConfig->Enable) {
+    if (!bundleState->GetBundle()->Config->EnableInMemoryCellBalancer || !groupConfig->EnableMove) {
         YT_LOG_DEBUG("Balancing in memory tablets via move is disabled (BundleName: %v)",
             bundleState->GetBundle()->Name);
         return;
@@ -526,7 +526,7 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
         bundleState->GetBundle()->Name);
 
     auto groupConfig = GetOrCrash(bundleState->GetBundle()->Config->Groups, LegacyGroupName);
-    if (!bundleState->GetBundle()->Config->EnableCellBalancer || !groupConfig->Enable) {
+    if (!bundleState->GetBundle()->Config->EnableCellBalancer || !groupConfig->EnableMove) {
         YT_LOG_DEBUG("Balancing ordinary tablets via move is disabled (BundleName: %v)",
             bundleState->GetBundle()->Name);
         return;
@@ -570,7 +570,7 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
         groupName);
 
     auto groupConfig = GetOrCrash(bundleState->GetBundle()->Config->Groups, groupName);
-    if (!groupConfig->Enable) {
+    if (!groupConfig->EnableMove) {
         YT_LOG_DEBUG("Balancing tablets via parameterized move is disabled (BundleName: %v, Group: %v)",
             bundleState->GetBundle()->Name,
             groupName);
@@ -656,6 +656,14 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
     YT_LOG_DEBUG("Balancing tablets via reshard started (BundleName: %v, Group: %v)",
         bundleState->GetBundle()->Name,
         groupName);
+
+    auto groupConfig = GetOrCrash(bundleState->GetBundle()->Config->Groups, groupName);
+    if (!groupConfig->EnableReshard) {
+        YT_LOG_DEBUG("Balancing tablets via reshard is disabled (BundleName: %v, Group: %v)",
+            bundleState->GetBundle()->Name,
+            groupName);
+        return;
+    }
 
     std::vector<TTabletPtr> tablets;
     for (const auto& [id, tablet] : bundleState->Tablets()) {
