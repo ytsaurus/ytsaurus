@@ -94,14 +94,14 @@ def patch_ytserver_clickhouse_config(prepare_geodata, inside_mtn):
     content = substitute_env(content)
     if not prepare_geodata:
         content = "\n".join(filter(lambda line: "./geodata" not in line, content.split("\n")))
-    config = yt.yson.loads(content)
+    config = yt.yson.loads(str.encode(content))
     if inside_mtn:
         logger.info("Disabling FQDN resolution in ytserver-clickhouse config")
         disable_fqdn_resolution(config)
     inject_tvm_secret(config)
     content = yt.yson.dumps(config, yson_format="pretty")
     with open("./config_patched.yson", "w") as f:
-        f.write(content)
+        f.write(content.decode("utf-8"))
     logger.info("Config patched")
 
 
@@ -111,14 +111,14 @@ def patch_log_tailer_config(inside_mtn):
     with open("./log_tailer_config.yson", "r") as f:
         content = f.read()
     content = substitute_env(content)
-    config = yt.yson.loads(content)
+    config = yt.yson.loads(str.encode(content))
     if inside_mtn:
         logger.info("Disabling fqdn resolution in ytserver-log-tailer config")
         disable_fqdn_resolution(config)
     inject_tvm_secret(config)
     content = yt.yson.dumps(config, yson_format="pretty")
     with open("./log_tailer_config_patched.yson", "w") as f:
-        f.write(content)
+        f.write(content.decode("utf-8"))
     logger.info("Config patched")
 
 
@@ -222,7 +222,7 @@ def wait_for_readiness(timeout, ytserver_clickhouse_process):
             if requests.get(http_address, timeout=REQUEST_TIMEOUT).content == 'Ok.\n':
                 logger.info("HTTP server ready")
                 return
-        except:
+        except Exception:
             logger.exception("Exception while making HTTP request")
         time.sleep(BACKOFF)
     logger.error("HTTP server is not ready for %s seconds, sending SIGABRT to ytserver-clickhouse", timeout)
