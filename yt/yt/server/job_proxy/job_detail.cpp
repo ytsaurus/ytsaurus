@@ -179,7 +179,7 @@ TJobResult TSimpleJobBase::Run()
             jobSpec.input_query_spec(),
             BIND(&TSimpleJobBase::DoInitializeReader, MakeStrong(this)),
             BIND(&TSimpleJobBase::DoInitializeWriter, MakeStrong(this)),
-            SandboxDirectoryNames[ESandboxKind::Udf]);
+            GetSandboxRelPath(ESandboxKind::Udf));
     } else {
         InitializeReader();
         InitializeWriter();

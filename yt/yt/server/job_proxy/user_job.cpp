@@ -124,7 +124,6 @@ using namespace NYPath;
 using namespace NJobProberClient;
 using namespace NJobTrackerClient;
 using namespace NUserJob;
-using namespace NUserJob;
 
 using NControllerAgent::NProto::TJobResult;
 using NControllerAgent::NProto::TJobSpec;
@@ -149,7 +148,7 @@ static TNullOutput NullOutput;
 static TString CreateNamedPipePath()
 {
     const TString& name = CreateGuidAsString();
-    return NFS::GetRealPath(NFS::CombinePaths("./pipes", name));
+    return GetRealPath(CombinePaths("./pipes", name));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -198,7 +197,7 @@ public:
             Host_->GetChunkReaderHost(),
             PipeIOPool_->GetInvoker(),
             BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
-            SandboxDirectoryNames[ESandboxKind::Udf],
+            GetSandboxRelPath(ESandboxKind::Udf),
             ChunkReadOptions_,
             Host_->GetLocalHostName());
 
@@ -243,7 +242,7 @@ public:
 
             CoreWatcher_ = New<TCoreWatcher>(
                 Config_->CoreWatcher,
-                NFS::GetRealPath("./cores"),
+                GetRealPath("./cores"),
                 Host_,
                 AuxQueue_->GetInvoker(),
                 blobTableWriterConfig,
@@ -413,9 +412,9 @@ public:
         // job proxy requires read access e.g. for getting tmpfs size.
         // Write access is for job user only, who becomes an owner.
         if (UserId_) {
-            auto sandboxPath = NFS::CombinePaths(
+            auto sandboxPath = CombinePaths(
                 Host_->GetPreparationPath(),
-                SandboxDirectoryNames[ESandboxKind::User]);
+                GetSandboxRelPath(ESandboxKind::User));
 
             auto config = New<TChownChmodConfig>();
             config->Permissions = 0755;
@@ -436,10 +435,10 @@ public:
 
         YT_LOG_INFO("Preparing artifact");
 
-        auto sandboxPath = NFS::CombinePaths(
+        auto sandboxPath = CombinePaths(
             Host_->GetPreparationPath(),
-            SandboxDirectoryNames[ESandboxKind::User]);
-        auto artifactPath = NFS::CombinePaths(sandboxPath, artifactName);
+            GetSandboxRelPath(ESandboxKind::User));
+        auto artifactPath = CombinePaths(sandboxPath, artifactName);
 
         auto onError = [&] (const TError& error) {
             Host_->OnArtifactPreparationFailed(artifactName, artifactPath, error);
@@ -452,7 +451,7 @@ public:
             auto pipeFd = HandleEintr(::open, pipePath.c_str(), O_RDONLY | O_NONBLOCK);
             TFile pipeFile(pipeFd);
 
-            NFS::MakeDirRecursive(NFS::GetDirectoryName(artifactPath));
+            MakeDirRecursive(GetDirectoryName(artifactPath));
 
             TFile artifactFile(artifactPath, CreateAlways | WrOnly | Seq | CloseOnExec);
             artifactFile.Flock(LOCK_EX);
@@ -471,7 +470,7 @@ public:
             constexpr ssize_t SpliceCopyBlockSize = 16_MB;
             Splice(pipeFile, artifactFile, SpliceCopyBlockSize);
 
-            NFS::SetPermissions(artifactPath, permissions);
+            SetPermissions(artifactPath, permissions);
 
             YT_LOG_INFO("Artifact materialized");
         } catch (const TSystemError& ex) {
@@ -613,7 +612,7 @@ private:
         return UserJobEnvironment_->SpawnUserProcess(
             ExecProgramName,
             {"--config", Host_->AdjustPath(GetExecutorConfigPath())},
-            NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
+            CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)));
     }
 
     void InitShellManager()
@@ -1162,7 +1161,7 @@ private:
         TPatternFormatter formatter;
         formatter.AddProperty(
             "SandboxPath",
-            NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
+            CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)));
 
         if (UserJobSpec_.has_network_project_id()) {
             Environment_.push_back(Format("YT_NETWORK_PROJECT_ID=%v", UserJobSpec_.network_project_id()));
@@ -1411,7 +1410,7 @@ private:
 
         {
             auto connectionConfig = New<TUserJobSynchronizerConnectionConfig>();
-            auto processWorkingDirectory = NFS::CombinePaths(Host_->GetPreparationPath(), SandboxDirectoryNames[ESandboxKind::User]);
+            auto processWorkingDirectory = CombinePaths(Host_->GetPreparationPath(), GetSandboxRelPath(ESandboxKind::User));
             connectionConfig->BusClientConfig->UnixDomainSocketPath = GetRelativePath(processWorkingDirectory, *Config_->BusServer->UnixDomainSocketPath);
             executorConfig->UserJobSynchronizerConnectionConfig = connectionConfig;
         }
