@@ -138,7 +138,7 @@ TFuture<TJobWorkspaceBuildResult> TJobWorkspaceBuilder::Run()
         .Apply(BIND(&TJobWorkspaceBuilder::RunGpuCheckCommand, MakeStrong(this))
             .AsyncVia(Invoker_))
         .Apply(BIND([=, this, this_ = MakeStrong(this)] () {
-            return ResultHolder_;
+            return std::move(ResultHolder_);
         }).AsyncVia(Invoker_));
 }
 
