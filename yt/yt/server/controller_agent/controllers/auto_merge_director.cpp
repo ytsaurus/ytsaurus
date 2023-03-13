@@ -56,23 +56,7 @@ bool TAutoMergeDirector::CanScheduleTaskJob(int intermediateChunkCount) const
 
 bool TAutoMergeDirector::ShouldScheduleMergeJob(int intermediateChunkCount) const
 {
-    if (intermediateChunkCount >= ChunkCountPerMergeJob_ || ForceScheduleMergeJob_ || TaskCompleted_) {
-        YT_LOG_DEBUG("Allowing scheduling of a merge job "
-            "(IntermediateChunkCount: %v, ChunkCountPerMergeJob: %v, ForceFlush: %v, TaskCompleted: %v)",
-            intermediateChunkCount,
-            ChunkCountPerMergeJob_,
-            ForceScheduleMergeJob_,
-            TaskCompleted_);
-        return true;
-    } else {
-        YT_LOG_DEBUG("Disallowing scheduling of a merge job "
-            "(IntermediateChunkCount: %v, ChunkCountPerMergeJob: %v, ForceFlush: %v, TaskCompleted: %v)",
-            intermediateChunkCount,
-            ChunkCountPerMergeJob_,
-            ForceScheduleMergeJob_,
-            TaskCompleted_);
-        return false;
-    }
+    return intermediateChunkCount >= ChunkCountPerMergeJob_ || ForceScheduleMergeJob_ || TaskCompleted_;
 }
 
 void TAutoMergeDirector::OnTaskJobStarted(int intermediateChunkCountEstimate)
