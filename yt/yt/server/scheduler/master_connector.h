@@ -86,6 +86,8 @@ public:
     TFuture<void> FetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations);
     TFuture<NYson::TYsonString> GetOperationNodeProgressAttributes(const TOperationPtr& operation);
 
+    TFuture<void> CheckTransactionAlive(NTransactionClient::TTransactionId transactionId);
+
     void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState);
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant time);

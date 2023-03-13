@@ -355,6 +355,39 @@ public:
         }));
     }
 
+    TFuture<void> CheckTransactionAlive(TTransactionId transactionId)
+    {
+        auto cellTag = CellTagFromId(transactionId);
+        auto connection = FindRemoteConnection(
+            Bootstrap_->GetClient()->GetNativeConnection(),
+            cellTag);
+        if (!connection) {
+            return MakeFuture(TError("Unknown cell tag %v of user transaction", cellTag)
+                << TErrorAttribute("transaction_id", transactionId));
+        }
+
+        auto proxy = CreateObjectServiceReadProxy(Bootstrap_->GetClient(), EMasterChannelKind::Follower);
+        auto batchReq = proxy.ExecuteBatch();
+        auto req = TObjectYPathProxy::GetBasicAttributes(FromObjectId(transactionId));
+        batchReq->AddRequest(req);
+
+        return batchReq->Invoke().Apply(BIND([transactionId] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+            auto error = TError("Error checking user transaction")
+                << TErrorAttribute("transaction_id", transactionId);
+            if (!batchRspOrError.IsOK()) {
+                THROW_ERROR error
+                    << batchRspOrError;
+            }
+
+            const auto& batchRsp = batchRspOrError.Value();
+            auto rspOrError = batchRsp->GetResponse<TObjectYPathProxy::TRspGetBasicAttributes>(0);
+            if (!rspOrError.IsOK()) {
+                THROW_ERROR error
+                    << rspOrError;
+            }
+        }));
+    }
+
     void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2108,6 +2141,11 @@ TFuture<void> TMasterConnector::FetchOperationRevivalDescriptors(const std::vect
 TFuture<TYsonString> TMasterConnector::GetOperationNodeProgressAttributes(const TOperationPtr& operation)
 {
     return Impl_->GetOperationNodeProgressAttributes(operation);
+}
+
+TFuture<void> TMasterConnector::CheckTransactionAlive(TTransactionId transactionId)
+{
+    return Impl_->CheckTransactionAlive(transactionId);
 }
 
 void TMasterConnector::InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState)

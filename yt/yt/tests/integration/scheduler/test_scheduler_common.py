@@ -5,19 +5,21 @@ from yt_env_setup import (
     CONTROLLER_AGENTS_SERVICE,
 )
 from yt_commands import (
-    authors, create_test_tables, extract_statistic_v2, extract_deprecated_statistic, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint,
-    create,
-    ls, get,
-    set, copy, move, remove, exists, create_user,
+    authors, create_test_tables, extract_statistic_v2, extract_deprecated_statistic,
+    print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint,
+    create, ls, get, set, copy, move, remove, exists,
+    create_user, create_pool,
     start_transaction, abort_transaction,
     read_table, write_table, read_file,
     map, merge, sort, get_job,
-    run_test_vanilla, get_job_fail_context, dump_job_context,
+    run_test_vanilla, run_sleeping_vanilla, get_job_fail_context, dump_job_context,
     get_singular_chunk_id, PrepareTables,
     raises_yt_error, update_scheduler_config, update_controller_agent_config,
     assert_statistics, sorted_dicts,
     set_banned_flag, disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node,
     update_nodes_dynamic_config)
+
+import yt_error_codes
 
 from yt_type_helpers import make_schema
 
@@ -880,6 +882,29 @@ class TestSchedulerCommon(YTEnvSetup):
             recursive=True,
         )
         wait(lambda: get("#{}/@timeout".format(lock_tx)) == new_timeout)
+
+    @authors("ignat")
+    def test_user_transaction_abort_for_pending_operation(self):
+        create_pool(
+            "test_pool",
+            pool_tree="default",
+            attributes={
+                "max_running_operation_count": 1,
+                "max_operation_count": 1,
+            })
+
+        op_first = run_sleeping_vanilla(pool="test_pool")
+        wait(lambda: op_first.get_state() == "running")
+
+        user_tx = start_transaction(timeout=5000)
+
+        with raises_yt_error(yt_error_codes.TooManyOperations):
+            run_sleeping_vanilla(pool="test_pool", tx=user_tx)
+
+        abort_transaction(user_tx)
+
+        with raises_yt_error("Error checking user transaction"):
+            run_sleeping_vanilla(pool="test_pool", tx=user_tx)
 
     @authors("max42")
     def test_controller_throttling(self):
