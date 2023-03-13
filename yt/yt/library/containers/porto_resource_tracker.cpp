@@ -71,7 +71,20 @@ TPortoResourceTracker::TPortoResourceTracker(
     , UpdatePeriod_(updatePeriod)
     , IsDeltaTracker_(isDeltaTracker)
     , IsForceUpdate_(isForceUpdate)
-{ }
+{
+    ResourceUsage_ = {
+        {EStatField::IOReadByte, 0},
+        {EStatField::IOWriteByte, 0},
+        {EStatField::IOBytesLimit, 0},
+        {EStatField::IOReadOps, 0},
+        {EStatField::IOWriteOps, 0},
+        {EStatField::IOOps, 0},
+        {EStatField::IOOpsLimit, 0},
+        {EStatField::IOTotalTime, 0},
+        {EStatField::IOWaitTime, 0}
+    };
+    ResourceUsageDelta_ = ResourceUsage_;
+}
 
 static TErrorOr<TDuration> ExtractDuration(TErrorOr<ui64> timeNs)
 {

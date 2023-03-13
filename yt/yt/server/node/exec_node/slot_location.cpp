@@ -52,6 +52,7 @@ using namespace NYTree;
 using namespace NIO;
 using namespace NDataNode;
 using namespace NRpc;
+using namespace NFS;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,7 +89,7 @@ TSlotLocation::TSlotLocation(
         HeavyLocationQueue_->GetInvoker(),
         BIND(&TSlotLocation::UpdateSlotLocationStatistics, MakeWeak(this)),
         Bootstrap_->GetConfig()->ExecNode->SlotManager->SlotLocationStatisticsUpdatePeriod))
-    , LocationPath_(NFS::GetRealPath(Config_->Path))
+    , LocationPath_(GetRealPath(Config_->Path))
 { }
 
 TFuture<void> TSlotLocation::Initialize()
@@ -121,7 +122,7 @@ void TSlotLocation::DoInitialize()
 
     YT_LOG_INFO("Location initialization started");
 
-    NFS::MakeDirRecursive(Config_->Path, 0755);
+    MakeDirRecursive(Config_->Path, 0755);
 
     WaitFor(HealthChecker_->RunCheck())
         .ThrowOnError();
@@ -247,13 +248,13 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
 
     for (const auto& tmpfsVolume : options.TmpfsVolumes) {
         // TODO(gritukan): GetRealPath here can be replaced with some light analogue that does not access filesystem.
-        auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, tmpfsVolume.Path));
+        auto tmpfsPath = GetRealPath(CombinePaths(sandboxPath, tmpfsVolume.Path));
         try {
             if (tmpfsPath != sandboxPath) {
                 // If we mount directory inside sandbox, it should not exist.
                 ValidateNotExists(tmpfsPath);
             }
-            NFS::MakeDirRecursive(tmpfsPath);
+            MakeDirRecursive(tmpfsPath);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to create directory %v for tmpfs in sandbox %v",
                 tmpfsPath,
@@ -317,7 +318,7 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(
             for (const auto& tmpfsVolume : options.TmpfsVolumes) {
                 // TODO(gritukan): Implement a function that joins absolute path with a relative path and returns
                 // real path without filesystem access.
-                auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, tmpfsVolume.Path));
+                auto tmpfsPath = GetRealPath(CombinePaths(sandboxPath, tmpfsVolume.Path));
                 if (tmpfsPath == sandboxPath) {
                     return true;
                 }
@@ -444,13 +445,13 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                 destinationFile.GetName());
 
             TFile sourceFile(sourcePath, OpenExisting | RdOnly | Seq | CloseOnExec);
-            NFS::ChunkedCopy(
+            ChunkedCopy(
                 sourceFile,
                 destinationFile,
                 Bootstrap_->GetConfig()->ExecNode->SlotManager->FileCopyChunkSize);
 
             if (Bootstrap_->GetIOTracker()->IsEnabled()) {
-                TString fullArtifactPath = NFS::CombinePaths(GetSandboxPath(slotIndex, sandboxKind), artifactName);
+                TString fullArtifactPath = CombinePaths(GetSandboxPath(slotIndex, sandboxKind), artifactName);
 
                 Bootstrap_->GetIOTracker()->Enqueue(
                     TIOCounters{
@@ -525,9 +526,9 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
             }
 
             // NB: Set permissions for the link _source_ and prevent writes to it.
-            NFS::SetPermissions(targetPath, 0644 + (executable ? 0111 : 0));
+            SetPermissions(targetPath, 0644 + (executable ? 0111 : 0));
 
-            NFS::MakeSymbolicLink(targetPath, linkPath);
+            MakeSymbolicLink(targetPath, linkPath);
 
             EnsureNotInUse(targetPath);
 
@@ -568,7 +569,7 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
             producer(&countingStream);
 
             if (Bootstrap_->GetIOTracker()->IsEnabled()) {
-                TString fullArtifactPath = NFS::CombinePaths(GetSandboxPath(slotIndex, sandboxKind), artifactName);
+                TString fullArtifactPath = CombinePaths(GetSandboxPath(slotIndex, sandboxKind), artifactName);
 
                 if (!IsInsideTmpfs(fullArtifactPath)) {
                     Bootstrap_->GetIOTracker()->Enqueue(
@@ -648,7 +649,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
         try {
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                 const auto& sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
-                if (!NFS::Exists(sandboxPath)) {
+                if (!Exists(sandboxPath)) {
                     continue;
                 }
 
@@ -660,7 +661,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                 YT_LOG_DEBUG("Cleaning sandbox directory (Path: %v)", sandboxPath);
 
                 if (Bootstrap_->IsSimpleEnvironment()) {
-                    NFS::RemoveRecursive(sandboxPath);
+                    RemoveRecursive(sandboxPath);
                 } else {
                     RunTool<TRemoveDirAsRootTool>(sandboxPath);
                 }
@@ -674,6 +675,32 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                     }
 
                     SlotsWithQuota_.erase(slotIndex);
+                }
+            }
+
+            if (Bootstrap_->GetConfig()->ExecNode->UseCommonRootFsQuota) {
+                // TODO(don-dron): Remove sandbox and tmp after updating to next release
+                std::vector<TString> oldDirectories = {
+                    NFS::CombinePaths(GetSlotPath(slotIndex), "sandbox"),
+                    NFS::CombinePaths(GetSlotPath(slotIndex), "tmp"),
+                    NFS::CombinePaths(GetSlotPath(slotIndex), GetRootFsUserDirectory())
+                };
+
+                for (const auto& path : oldDirectories) {
+                    if (Exists(path)) {
+                        YT_LOG_DEBUG("Removing job directories (Path: %v)", path);
+
+                        WaitFor(JobDirectoryManager_->CleanDirectories(path))
+                            .ThrowOnError();
+
+                        YT_LOG_DEBUG("Cleaning sandbox directory (Path: %v)", path);
+
+                        if (Bootstrap_->IsSimpleEnvironment()) {
+                            RemoveRecursive(path);
+                        } else {
+                            RunTool<TRemoveDirAsRootTool>(path);
+                        }
+                    }
                 }
             }
 
@@ -705,7 +732,7 @@ void TSlotLocation::DecreaseSessionCount()
 
 void TSlotLocation::ValidateNotExists(const TString& path)
 {
-    if (NFS::Exists(path)) {
+    if (Exists(path)) {
         THROW_ERROR_EXCEPTION("Path %v already exists", path);
     }
 }
@@ -720,12 +747,12 @@ void TSlotLocation::EnsureNotInUse(const TString& path) const
 
 TString TSlotLocation::GetConfigPath(int slotIndex) const
 {
-    return NFS::CombinePaths(GetSlotPath(slotIndex), ProxyConfigFileName);
+    return CombinePaths(GetSlotPath(slotIndex), ProxyConfigFileName);
 }
 
 TString TSlotLocation::GetSlotPath(int slotIndex) const
 {
-    return NFS::CombinePaths(LocationPath_, Format("%v", slotIndex));
+    return CombinePaths(LocationPath_, Format("%v", slotIndex));
 }
 
 TDiskStatistics TSlotLocation::GetDiskStatistics(int slotIndex) const
@@ -752,9 +779,7 @@ void TSlotLocation::SetMediumDescriptor(const NChunkClient::TMediumDescriptor& d
 
 TString TSlotLocation::GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const
 {
-    const auto& sandboxName = SandboxDirectoryNames[sandboxKind];
-    YT_ASSERT(sandboxName);
-    return NFS::CombinePaths(GetSlotPath(slotIndex), sandboxName);
+    return CombinePaths(GetSlotPath(slotIndex), GetSandboxRelPath(sandboxKind));
 }
 
 void TSlotLocation::OnArtifactPreparationFailed(
@@ -854,13 +879,13 @@ bool TSlotLocation::IsInsideTmpfs(const TString& path) const
 
 void TSlotLocation::ForceSubdirectories(const TString& filePath, const TString& sandboxPath) const
 {
-    auto dirPath = NFS::GetDirectoryName(filePath);
+    auto dirPath = GetDirectoryName(filePath);
     if (!dirPath.StartsWith(sandboxPath)) {
         THROW_ERROR_EXCEPTION("Path of the file must be inside the sandbox directory")
             << TErrorAttribute("sandbox_path", sandboxPath)
             << TErrorAttribute("file_path", filePath);
     }
-    NFS::MakeDirRecursive(dirPath);
+    MakeDirRecursive(dirPath);
 }
 
 void TSlotLocation::ValidateEnabled() const
@@ -920,7 +945,7 @@ void TSlotLocation::UpdateDiskResources()
     YT_LOG_DEBUG("Updating disk resources");
 
     try {
-        auto locationStatistics = NFS::GetDiskSpaceStatistics(Config_->Path);
+        auto locationStatistics = GetDiskSpaceStatistics(Config_->Path);
         i64 diskLimit = locationStatistics.TotalSpace;
         if (Config_->DiskQuota) {
             diskLimit = Min(diskLimit, *Config_->DiskQuota);
@@ -947,7 +972,7 @@ void TSlotLocation::UpdateDiskResources()
             config->CheckDeviceId = true;
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                 auto path = GetSandboxPath(slotIndex, sandboxKind);
-                if (NFS::Exists(path)) {
+                if (Exists(path)) {
                     if (IsInsideTmpfs(path)) {
                         pathsInsideTmpfs.push_back(path);
                     } else {
@@ -959,7 +984,7 @@ void TSlotLocation::UpdateDiskResources()
             i64 slotDiskUsage = 0;
             if (Bootstrap_->IsSimpleEnvironment()) {
                 for (const auto& path : config->Paths) {
-                    slotDiskUsage += NFS::GetDirectorySize(path, /*ignoreUnavailableFiles*/ true, /*deduplicateByINodes*/ true);
+                    slotDiskUsage += GetDirectorySize(path, /*ignoreUnavailableFiles*/ true, /*deduplicateByINodes*/ true);
                 }
             } else {
                 // We have to calculate user directory sizes as root,
@@ -1058,7 +1083,7 @@ void TSlotLocation::UpdateSlotLocationStatistics()
 
     if (IsEnabled()) {
         try {
-            auto locationStatistics = NFS::GetDiskSpaceStatistics(Config_->Path);
+            auto locationStatistics = GetDiskSpaceStatistics(Config_->Path);
             slotLocationStatistics.set_available_space(locationStatistics.AvailableSpace);
             slotLocationStatistics.set_used_space(locationStatistics.TotalSpace - locationStatistics.AvailableSpace);
         } catch (const std::exception& ex) {
@@ -1151,6 +1176,8 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
 
         return directory;
     };
+
+    config->Directories.push_back(getDirectory(CombinePaths(GetSlotPath(slotIndex), GetRootFsUserDirectory()), uid, 0777));
 
     // Since we make slot user to be owner, but job proxy creates some files during job shell
     // initialization we leave write access for everybody. Presumably this will not ruin job isolation.

@@ -46,6 +46,7 @@ using namespace NJobProberClient;
 using namespace NTools;
 using namespace NYTree;
 using namespace NYson;
+using namespace NFS;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,8 +86,8 @@ public:
         IInstancePtr rootInstance)
         : PortoExecutor_(std::move(portoExecutor))
         , RootInstance_(std::move(rootInstance))
-        , PreparationDir_(NFS::CombinePaths(config.PreparationDir, SandboxDirectoryNames[ESandboxKind::Home]))
-        , WorkingDir_(NFS::CombinePaths(config.WorkingDir, SandboxDirectoryNames[ESandboxKind::Home]))
+        , PreparationDir_(CombinePaths(config.PreparationDir, GetSandboxRelPath(ESandboxKind::Home)))
+        , WorkingDir_(CombinePaths(config.WorkingDir, GetSandboxRelPath(ESandboxKind::Home)))
         , EnableJobShellSeccopm(config.EnableJobShellSeccopm)
         , UserId_(config.UserId)
         , GroupId_(config.GroupId)
@@ -349,19 +350,19 @@ private:
             container,
             containerRoot);
 
-        auto toolDirectory = NFS::JoinPaths(containerRoot, ShellToolDirectory);
-        if (!NFS::Exists(toolDirectory)) {
+        auto toolDirectory = JoinPaths(containerRoot, ShellToolDirectory);
+        if (!Exists(toolDirectory)) {
             RunTool<TCreateDirectoryAsRootTool>(toolDirectory);
             auto toolPathOrError = ResolveBinaryPath(TString(NTools::ToolsProgramName));
         }
 
-        if (NFS::IsDirEmpty(toolDirectory)) {
+        if (IsDirEmpty(toolDirectory)) {
             auto toolPathOrError = ResolveBinaryPath(TString(NTools::ToolsProgramName));
             THROW_ERROR_EXCEPTION_IF_FAILED(toolPathOrError, "Failed to resolve tool binary path");
 
             THashMap<TString, TString> volumeProperties;
             volumeProperties["backend"] = "bind";
-            volumeProperties["storage"] = NFS::GetDirectoryName(toolPathOrError.Value());
+            volumeProperties["storage"] = GetDirectoryName(toolPathOrError.Value());
 
             auto pathOrError = WaitFor(PortoExecutor_->CreateVolume(toolDirectory, volumeProperties));
             THROW_ERROR_EXCEPTION_IF_FAILED(pathOrError, "Failed to bind tools inside job shell")

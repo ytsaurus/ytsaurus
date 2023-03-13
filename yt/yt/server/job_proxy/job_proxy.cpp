@@ -980,7 +980,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         }
 
         // Temporary workaround for nirvana - make tmp directories writable.
-        auto tmpPath = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Tmp]);
+        auto tmpPath = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), GetSandboxRelPath(ESandboxKind::Tmp));
         rootFS.Binds.emplace_back(TBind{tmpPath, "/tmp", /*readOnly*/ false});
         rootFS.Binds.emplace_back(TBind{tmpPath, "/var/tmp", /*readOnly*/ false});
 

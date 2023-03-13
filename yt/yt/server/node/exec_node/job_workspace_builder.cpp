@@ -14,6 +14,7 @@ namespace NYT::NExecNode
 using namespace NConcurrency;
 using namespace NContainers;
 using namespace NJobAgent;
+using namespace NFS;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -197,7 +198,7 @@ private:
 
                 auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
                 auto symlinkPath =
-                    NFS::CombinePaths(sandboxPath, artifact.Name);
+                    CombinePaths(sandboxPath, artifact.Name);
 
                 WaitFor(slot->MakeLink(
                     Settings_.Job->GetId(),
@@ -245,7 +246,7 @@ private:
             Settings_.UserSandboxOptions.HasRootFsQuota &&
             (Settings_.UserSandboxOptions.DiskSpaceLimit || Settings_.UserSandboxOptions.InodeLimit)) {
             return DirectoryManager_->ApplyQuota(
-                Settings_.Slot->GetSlotPath(),
+                CombinePaths(Settings_.Slot->GetSlotPath(), GetRootFsUserDirectory()),
                 TJobDirectoryProperties{
                     .DiskSpaceLimit = Settings_.UserSandboxOptions.DiskSpaceLimit,
                     .InodeLimit = Settings_.UserSandboxOptions.InodeLimit,
@@ -338,7 +339,7 @@ private:
 
                 auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
                 auto symlinkPath =
-                    NFS::CombinePaths(sandboxPath, artifact.Name);
+                    CombinePaths(sandboxPath, artifact.Name);
 
                 WaitFor(slot->MakeLink(
                     Settings_.Job->GetId(),
@@ -415,7 +416,7 @@ private:
             UpdateTimers_.Fire(MakeStrong(this));
 
             return DirectoryManager_->ApplyQuota(
-                Settings_.Slot->GetSlotPath(),
+                CombinePaths(Settings_.Slot->GetSlotPath(), GetRootFsUserDirectory()),
                 TJobDirectoryProperties{
                     .DiskSpaceLimit = Settings_.UserSandboxOptions.DiskSpaceLimit,
                     .InodeLimit = Settings_.UserSandboxOptions.InodeLimit,
