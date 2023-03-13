@@ -118,6 +118,7 @@ private:
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* cellBundle = GetThisImpl<TTabletCellBundle>();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         switch (key) {
             case EInternedAttributeKey::TabletBalancerConfig:
@@ -132,30 +133,14 @@ private:
                 }
                 break;
 
-            case EInternedAttributeKey::TabletActions: {
-                BuildYsonFluently(consumer)
-                    .DoListFor(cellBundle->TabletActions(), [] (TFluentList fluent, TTabletAction* action) {
-                        fluent.Item().BeginMap()
-                            .Item("tablet_action_id").Value(action->GetId())
-                            .Item("kind").Value(action->GetKind())
-                            .Item("state").Value(action->GetState())
-                            .DoIf(!action->IsFinished(), [action] (TFluentMap fluent) {
-                                fluent.Item("tablet_ids").DoListFor(
-                                    action->Tablets(), [] (TFluentList fluent, TTabletBase* tablet) {
-                                        fluent.Item().Value(tablet->GetId());
-                                    });
-                            })
-                            .DoIf(!action->Error().IsOK(), [action] (TFluentMap fluent) {
-                                fluent.Item("error").Value(action->Error());
-                            })
-                            .Item("expiration_time").Value(action->GetExpirationTime())
-                            .DoIf(action->GetExpirationTimeout().has_value(), [action] (TFluentMap fluent) {
-                                fluent.Item("expiration_timeout").Value(*action->GetExpirationTimeout());
-                            })
-                        .EndMap();
-                    });
-                return true;
-            }
+            case EInternedAttributeKey::TabletActions:
+                if (multicellManager->IsSecondaryMaster()) {
+                    consumer->OnBeginList();
+                    BuildActionsListFragment(consumer);
+                    consumer->OnEndList();
+                    return true;
+                }
+                break;
 
             case EInternedAttributeKey::ResourceLimits:
                 Serialize(cellBundle->ResourceLimits(), consumer);
@@ -233,6 +218,78 @@ private:
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override
+    {
+        switch (key) {
+            case EInternedAttributeKey::TabletActions: {
+                YT_VERIFY(IsPrimaryMaster());
+
+                auto* factory = GetEphemeralNodeFactory();
+                auto builder = CreateBuilderFromFactory(factory);
+
+                builder->OnBeginList();
+                BuildActionsListFragment(builder.get());
+                builder->OnEndList();
+                auto node = builder->EndTree()->AsList();
+
+                return FetchFromSwarm<IListNodePtr>(key)
+                    .Apply(BIND([listNode = std::move(node)] (
+                        const std::vector<IListNodePtr>& remoteActions)
+                    {
+                        TStringStream output;
+                        TYsonWriter writer(&output, EYsonFormat::Binary, EYsonType::Node);
+
+                        writer.OnBeginList();
+
+                        BuildYsonListFragmentFluently(&writer)
+                            .Items(listNode);
+
+                        for (const auto& actionsNode : remoteActions) {
+                            BuildYsonListFragmentFluently(&writer)
+                                .Items(actionsNode);
+                        }
+
+                        writer.OnEndList();
+                        writer.Flush();
+
+                        return TYsonString(output.Str());
+                    })
+                    .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::GetBuiltinAttributeAsync(key);
+    }
+
+    void BuildActionsListFragment(IYsonConsumer* consumer)
+    {
+        const auto* cellBundle = GetThisImpl<TTabletCellBundle>();
+        BuildYsonListFragmentFluently(consumer)
+            .DoFor(cellBundle->TabletActions(), [] (TFluentList fluent, const TTabletAction* action) {
+                fluent.Item().BeginMap()
+                    .Item("tablet_action_id").Value(action->GetId())
+                    .Item("kind").Value(action->GetKind())
+                    .Item("state").Value(action->GetState())
+                    .DoIf(!action->IsFinished(), [action] (TFluentMap fluent) {
+                        fluent.Item("tablet_ids").DoListFor(
+                            action->Tablets(), [] (TFluentList fluent, TTabletBase* tablet) {
+                                fluent.Item().Value(tablet->GetId());
+                            });
+                    })
+                    .DoIf(!action->Error().IsOK(), [action] (TFluentMap fluent) {
+                        fluent.Item("error").Value(action->Error());
+                    })
+                    .Item("expiration_time").Value(action->GetExpirationTime())
+                    .DoIf(action->GetExpirationTimeout().has_value(), [action] (TFluentMap fluent) {
+                        fluent.Item("expiration_timeout").Value(*action->GetExpirationTimeout());
+                    })
+                .EndMap();
+        });
     }
 
     bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
