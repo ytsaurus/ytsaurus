@@ -15,7 +15,6 @@ struct IChunkIndexBuilder
 {
     struct TChunkIndexEntry
     {
-        TVersionedRow Row;
         int BlockIndex;
         i64 RowOffset;
         i64 RowLength;
@@ -24,14 +23,17 @@ struct IChunkIndexBuilder
     };
 
     //! Processes new entry.
-    virtual void ProcessRow(TChunkIndexEntry entry) = 0;
+    virtual void ProcessRow(TVersionedRow row, TChunkIndexEntry entry) = 0;
 
     //! Builds an index and populates meta based on processed entries.
     //! Each vector item corresponds to a single system block that is to be appended to the chunk.
-    virtual std::vector<TSharedRef> BuildIndex(NProto::TSystemBlockMetaExt* systemBlockMetaExt) = 0;
+    virtual std::vector<TSharedRef> BuildIndex(
+        TUnversionedValueRange lastKey,
+        NProto::TSystemBlockMetaExt* systemBlockMetaExt) = 0;
 
     //! Same as above but with predefined start slot indexes for each entry. Intended for testing purposes
     virtual std::vector<TSharedRef> BuildIndex(
+        TUnversionedValueRange lastKey,
         NProto::TSystemBlockMetaExt* systemBlockMetaExt,
         const std::vector<int>& rowToSlotIndex) = 0;
 };

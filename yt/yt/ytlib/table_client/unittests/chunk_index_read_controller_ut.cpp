@@ -130,7 +130,7 @@ public:
 
         NProto::TSystemBlockMetaExt systemBlockMetaExt;
 
-        for (auto block : chunkIndexBuilder->BuildIndex(&systemBlockMetaExt, rowSlots)) {
+        for (auto block : chunkIndexBuilder->BuildIndex(rows.back().Keys(), &systemBlockMetaExt, rowSlots)) {
             Blocks_.push_back(std::move(block));
         }
 

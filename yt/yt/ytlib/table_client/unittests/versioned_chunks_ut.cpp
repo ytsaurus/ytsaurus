@@ -239,8 +239,8 @@ protected:
     });
 
     IChunkReaderPtr MemoryReader;
-    TChunkedMemoryPool MemoryPool;
     TKeyComparer KeyComparer;
+
 
     void FillKey(
         TMutableVersionedRow row,
@@ -259,9 +259,9 @@ protected:
             : MakeUnversionedSentinelValue(EValueType::Null, 2);
     }
 
-    TVersionedRow CreateSingleRow(int index)
+    TVersionedRow CreateSingleRow(TChunkedMemoryPool* memoryPool, int index)
     {
-        auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
+        auto row = TMutableVersionedRow::Allocate(memoryPool, 3, 3, 3, 1);
         FillKey(row, AOpt, std::make_optional(index), std::nullopt);
 
         // v1
@@ -278,12 +278,14 @@ protected:
         return row;
     }
 
-    int CreateManyRows(std::vector<TVersionedRow>* rows, int startIndex)
+    int CreateManyRows(
+        TChunkedMemoryPool* memoryPool,
+        std::vector<TVersionedRow>* rows,
+        int startIndex)
     {
         const int N = 100000;
         for (int i = 0; i < N; ++i) {
-            TVersionedRow row = CreateSingleRow(startIndex + i);
-            rows->push_back(row);
+            rows->push_back(CreateSingleRow(memoryPool, startIndex + i));
         }
         return startIndex + N;
     }
@@ -310,10 +312,13 @@ protected:
             memoryWriter);
 
         int startIndex = 0;
+        TChunkedMemoryPool memoryPool;
         for (int i = 0; i < 3; ++i) {
             std::vector<TVersionedRow> rows;
-            startIndex = CreateManyRows(&rows, startIndex);
-            chunkWriter->Write(rows);
+            startIndex = CreateManyRows(&memoryPool, &rows, startIndex);
+            EXPECT_TRUE(chunkWriter->Write(rows));
+            // NB: Check that chunk writers does not refer to rows after Write.
+            memoryPool.Clear();
         }
 
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
@@ -326,14 +331,6 @@ protected:
 
     void DoTest(const TTestOptions& testOptions)
     {
-        std::vector<TVersionedRow> expectedRows;
-        int startIndex = 0;
-        for (int i = 0; i < 3; ++i) {
-            std::vector<TVersionedRow> rows;
-            startIndex = CreateManyRows(&rows, startIndex);
-            expectedRows.insert(expectedRows.end(), rows.begin(), rows.end());
-        }
-
         WriteManyRows(testOptions);
 
         auto chunkMeta = MemoryReader->GetMeta(/*chunkReadOptions*/ {})
@@ -348,9 +345,8 @@ protected:
             TChunkedMemoryPool pool;
             TUnversionedOwningRowBuilder builder;
 
+            std::vector<TVersionedRow> expectedRows;
             std::vector<TLegacyOwningKey> owningKeys;
-
-            expectedRows.clear();
 
             // Before the first key.
 

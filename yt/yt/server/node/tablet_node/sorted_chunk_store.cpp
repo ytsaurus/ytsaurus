@@ -600,7 +600,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             Schema_,
             columnFilter,
             chunkState->ChunkColumnMapping,
-           blockManagerFactory,
+            blockManagerFactory,
             PerformanceCounters_,
             produceAllVersions);
         return wrapReader(std::move(reader), /*needSetTimestamp*/ true);

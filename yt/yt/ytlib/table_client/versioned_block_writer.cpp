@@ -323,14 +323,15 @@ void TIndexedVersionedBlockWriter::WriteRow(TVersionedRow row)
     }
 
     rowByteSize += sizeof(TChecksum);
-    ChunkIndexBuilder_->ProcessRow({
-        .Row = RowData_.Row,
-        .BlockIndex = BlockIndex_,
-        .RowOffset = RowOffsets_.back(),
-        .RowLength = rowByteSize,
-        .GroupOffsets = std::move(groupOffsets),
-        .GroupIndexes = std::move(groupIndexes)
-    });
+    ChunkIndexBuilder_->ProcessRow(
+        RowData_.Row,
+        IChunkIndexBuilder::TChunkIndexEntry{
+            .BlockIndex = BlockIndex_,
+            .RowOffset = RowOffsets_.back(),
+            .RowLength = rowByteSize,
+            .GroupOffsets = std::move(groupOffsets),
+            .GroupIndexes = std::move(groupIndexes)
+        });
 
     if (MemoryGuard_) {
         MemoryGuard_.SetSize(GetBlockSize());

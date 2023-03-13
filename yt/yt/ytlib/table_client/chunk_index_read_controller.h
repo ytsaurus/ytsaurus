@@ -52,7 +52,7 @@ IChunkIndexReadControllerPtr CreateChunkIndexReadController(
     TTimestamp timestamp,
     bool produceAllVersions,
     std::optional<TChunkIndexReadControllerTestingOptions> testingOptions,
-    NLogging::TLogger logger = {});
+    const NLogging::TLogger& logger = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
