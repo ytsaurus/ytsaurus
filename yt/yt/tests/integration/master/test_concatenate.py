@@ -892,13 +892,6 @@ class TestConcatenateShardedTx(TestConcatenatePortal):
     }
 
 
-class TestConcatenateShardedTxNoBoomerangs(TestConcatenateShardedTx):
-    def setup_method(self, method):
-        super(TestConcatenateShardedTxNoBoomerangs, self).setup_method(method)
-        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
-        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
-
-
 class TestConcatenateRpcProxy(TestConcatenate):
     DRIVER_BACKEND = "rpc"
     ENABLE_HTTP_PROXY = True

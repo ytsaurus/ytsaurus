@@ -3171,13 +3171,6 @@ class TestDynamicTablesShardedTx(TestDynamicTablesPortal):
     }
 
 
-class TestDynamicTablesShardedTxNoBoomerangs(TestDynamicTablesShardedTx):
-    def setup_method(self, method):
-        super(TestDynamicTablesShardedTxNoBoomerangs, self).setup_method(method)
-        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
-        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
-
-
 class TestDynamicTablesCypressProxy(TestDynamicTablesShardedTx):
     NUM_CYPRESS_PROXIES = 1
 

@@ -802,13 +802,6 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         create("map_node", "//portals/p/d", tx=tx)
 
 
-class TestMasterTransactionsShardedTxNoBoomerangs(TestMasterTransactionsShardedTx):
-    def setup_method(self, method):
-        super(TestMasterTransactionsShardedTxNoBoomerangs, self).setup_method(method)
-        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
-        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
-
-
 class TestMasterTransactionsRpcProxy(TestMasterTransactions):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

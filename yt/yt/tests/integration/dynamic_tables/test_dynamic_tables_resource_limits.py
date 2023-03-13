@@ -578,12 +578,6 @@ class TestDynamicTablesResourceLimitsShardedTx(TestDynamicTablesResourceLimitsPo
     }
 
 
-class TestDynamicTablesResourceLimitsShardedTxNoBoomerangs(TestDynamicTablesResourceLimitsShardedTx):
-    def setup_method(self, method):
-        super(TestDynamicTablesResourceLimitsShardedTxNoBoomerangs, self).setup_method(method)
-        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
-        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
-
 ##################################################################
 
 
@@ -931,10 +925,3 @@ class TestPerBundleAccountingShardedTx(TestPerBundleAccountingPortal):
         "10": {"roles": ["cypress_node_host"]},
         "13": {"roles": ["transaction_coordinator"]},
     }
-
-
-class TestPerBundleAccountingShardedTxNoBoomerangs(TestPerBundleAccountingShardedTx):
-    def setup_method(self, method):
-        super(TestPerBundleAccountingShardedTxNoBoomerangs, self).setup_method(method)
-        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
-        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)

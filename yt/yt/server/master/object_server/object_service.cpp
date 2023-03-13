@@ -264,7 +264,6 @@ private:
 
     TStickyUserErrorCache StickyUserErrorCache_;
     std::atomic<bool> EnableTwoLevelCache_ = false;
-    std::atomic<bool> EnableMutationBoomerangs_ = true;
     std::atomic<bool> EnableLocalReadExecutor_ = true;
     std::atomic<TDuration> ScheduleReplyRetryBackoff_ = TDuration::MilliSeconds(100);
 
@@ -341,7 +340,6 @@ public:
             Bootstrap_,
             RequestId_))
           // Copy so it doesn't change mid-execution of this particular session.
-        , EnableMutationBoomerangs_(Owner_->EnableMutationBoomerangs_)
         , EnableLocalReadExecutor_(Owner_->EnableLocalReadExecutor_)
     { }
 
@@ -439,7 +437,6 @@ private:
     const TString CodicilData_;
     const EPeerState TentativePeerState_;
     const TMultiPhaseCellSyncSessionPtr CellSyncSession_;
-    const bool EnableMutationBoomerangs_;
     const bool EnableLocalReadExecutor_;
 
     TDelayedExecutorCookie BackoffAlarmCookie_;
@@ -469,11 +466,11 @@ private:
         std::atomic<bool> LocallyStarted = false;
         std::atomic<bool> Completed = false;
         TRequestProfilingCountersPtr ProfilingCounters;
-        // Only for (local) write requests when boomerangs are enabled.
-        // (Local read requests are handled by a session-wide replication session).
+        // Only for (local) write requests. (Local read requests are handled by
+        // a session-wide replication session).
         TTransactionReplicationSessionWithBoomerangsPtr RemoteTransactionReplicationSession;
-        // For local reads (and also local writes if boomerangs are disabled), this is a future
-        // that will be set when all remote transactions have actually been replicated here.
+        // For local reads, this is a future that will be set when all remote
+        // transactions have actually been replicated here.
         // Mutually exclusive with MutationResponseFuture.
         TFuture<void> RemoteTransactionReplicationFuture;
         // For local writes, this is a future that is set when the mutation is applied. That mutation
@@ -482,8 +479,7 @@ private:
         TFuture<TMutationResponse> MutationResponseFuture;
     };
 
-    // For (local) read requests and, if boomerangs are disabled, for (local) write requests.
-    // (Otherwise write requests are handled by per-subrequest replication sessions.)
+    // For (local) read requests. (Write requests are handled by per-subrequest replication sessions.)
     TTransactionReplicationSessionWithoutBoomerangsPtr RemoteTransactionReplicationSession_;
 
     THashMap<TTransactionId, TCompactVector<TSubrequest*, 1>> RemoteTransactionIdToSubrequests_;
@@ -1085,7 +1081,7 @@ private:
             if (subrequest.Type == EExecutionSessionSubrequestType::Remote ||
                 subrequest.Type == EExecutionSessionSubrequestType::Cache)
             {
-                // Some non-tentatively remote subrequests may have become remote.
+                // Some non-tentatively-remote subrequests may have become remote.
                 if (subrequest.RemoteTransactionReplicationSession) {
                     // Remove the session as it won't be used.
                     subrequest.RemoteTransactionReplicationSession.Reset();
@@ -1099,7 +1095,7 @@ private:
                 subrequest.Type == EExecutionSessionSubrequestType::LocalRead ||
                 subrequest.Type == EExecutionSessionSubrequestType::LocalWrite);
 
-            if (EnableMutationBoomerangs_ && subrequest.YPathExt->mutating()) {
+            if (subrequest.YPathExt->mutating()) {
                 if (!subrequest.RemoteTransactionReplicationSession) {
                     // Pre-phase-one or prevously-tentatively-remote-but-no-longer-remote subrequest.
                     std::vector<TTransactionId> writeSubrequestTransactions;
@@ -1171,12 +1167,12 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        // Read subrequests may request their remote transaction replication right away,
-        // as they will subscribe and wait for any such transaction later.
-        // Write subrequests may do the same if boomerang mutations are disabled.
-        // Otherwise boomerangs must be launched after syncing with the rest of the cells
-        // (because there's no other way to guarantee that boomerangs will come back *after*
-        // the syncing is done).
+        // Read subrequests may request their remote transaction replication
+        // right away, as they will subscribe and wait for any such transaction
+        // later.
+        // For write subrequests, boomerangs must be launched after syncing with
+        // the rest of the cells (because there's no other way to guarantee that
+        // boomerangs will come back *after* the syncing is done).
         auto replicationFuture = InvokeRemoteTransactionReplicationWithoutBoomerangs();
 
         auto future = StartSync(ESyncPhase::Two, std::move(replicationFuture));
@@ -1645,14 +1641,6 @@ private:
         }
     }
 
-    // NB: this method is only used when boomerangs are disabled.
-    void ExecuteWriteSubrequest(TSubrequest* subrequest)
-    {
-        subrequest->MutationResponseFuture = subrequest->Mutation->Commit();
-        subrequest->MutationResponseFuture.Subscribe(
-            BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));
-    }
-
     void OnMutationCommitted(TSubrequest* subrequest, const TErrorOr<TMutationResponse>& responseOrError)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1717,7 +1705,6 @@ private:
         if (subrequest->RemoteTransactionReplicationSession &&
             !subrequest->MutationResponseFuture)
         {
-            YT_VERIFY(EnableMutationBoomerangs_);
             YT_VERIFY(subrequest->Type == EExecutionSessionSubrequestType::LocalWrite);
 
             subrequest->MutationResponseFuture =
@@ -1725,36 +1712,22 @@ private:
                 .WithTimeout(timeLeft);
         }
 
-        auto doExecuteSubrequest = [=, this, this_ = MakeStrong(this)] (const TError& error) {
-            if (!error.IsOK()) {
-                subrequest->RpcContext->Reply(error);
-                return;
-            }
-
-            try {
-                switch (subrequest->Type) {
-                    case EExecutionSessionSubrequestType::LocalRead:
-                        ExecuteReadSubrequest(subrequest);
-                        break;
-                    case EExecutionSessionSubrequestType::LocalWrite:
-                        ExecuteWriteSubrequest(subrequest);
-                        break;
-                    default:
-                        YT_ABORT();
-                }
-            } catch (const std::exception& ex) {
-                Reply(ex);
-            }
-        };
-
         if (!subrequest->RemoteTransactionReplicationFuture && !subrequest->MutationResponseFuture) {
-            doExecuteSubrequest(TError());
+            // A local read subrequest with no remote transactions whatsoever.
+            YT_VERIFY(subrequest->Type == EExecutionSessionSubrequestType::LocalRead);
+
+            ExecuteReadSubrequest(subrequest);
             return true;
         }
 
         if (subrequest->RemoteTransactionReplicationFuture) {
             if (subrequest->RemoteTransactionReplicationFuture.IsSet()) {
-                doExecuteSubrequest(subrequest->RemoteTransactionReplicationFuture.Get());
+                const auto& error = subrequest->RemoteTransactionReplicationFuture.Get();
+                if (!error.IsOK()) {
+                    subrequest->RpcContext->Reply(error);
+                } else {
+                    ExecuteReadSubrequest(subrequest);
+                }
                 return true;
             } else {
                 auto doReschedule = [=, this, this_ = MakeStrong(this)] (const TError& error) {
@@ -1960,9 +1933,8 @@ private:
 
             if (!subrequest.Completed) {
                 if (subrequest.LocallyStarted) {
-                    // Possible for mutating subrequests when boomerangs are
-                    // enabled as those boomerangs are launched ASAP but reply
-                    // locks are taken later.
+                    // Possible for mutating subrequests because boomerangs are
+                    // launched ASAP but reply locks are taken later.
                     uncertainIndexes.push_back(index);
                 }
 
@@ -2233,7 +2205,6 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
 
     const auto& config = GetDynamicConfig();
     EnableTwoLevelCache_ = config->EnableTwoLevelCache;
-    EnableMutationBoomerangs_ = config->EnableMutationBoomerangs;
     EnableLocalReadExecutor_ = config->EnableLocalReadExecutor && Config_->EnableLocalReadExecutor;
     ScheduleReplyRetryBackoff_ = config->ScheduleReplyRetryBackoff;
 

@@ -1891,13 +1891,6 @@ class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
     }
 
 
-class TestSchedulerMapCommandsShardedTxNoBoomerangs(TestSchedulerMapCommandsShardedTx):
-    def setup_method(self, method):
-        super(TestSchedulerMapCommandsShardedTxNoBoomerangs, self).setup_method(method)
-        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
-        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
-
-
 class TestSchedulerMapCommandsSequoia(TestSchedulerMapCommandsShardedTx):
     USE_SEQUOIA = True
     NUM_CYPRESS_PROXIES = 1

@@ -127,7 +127,6 @@ class TDynamicObjectServiceConfig
 {
 public:
     bool EnableTwoLevelCache;
-    bool EnableMutationBoomerangs;
     bool EnableLocalReadExecutor;
     int LocalReadWorkerCount;
     TDuration ScheduleReplyRetryBackoff;

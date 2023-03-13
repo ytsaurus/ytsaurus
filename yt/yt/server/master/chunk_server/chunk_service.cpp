@@ -625,9 +625,6 @@ private:
         SortUnique(transactionIds);
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        // TODO(shakurov): use mutation idempotizer when handling these
-        // mutations and comply with config->EnableMutationBoomerangs.
-        const auto enableMutationBoomerangs = false;
 
         // COMPAT(kvk1920)
         if (!configManager->GetConfig()->ChunkManager->EnableChunkConfirmationWithoutLocationUuid) {
@@ -637,6 +634,10 @@ private:
         }
 
         if (!configManager->GetConfig()->SequoiaManager->Enable) {
+            // TODO(shakurov): use mutation idempotizer for all mutations (not
+            // just the Object Service ones), then enable boomerangs here.
+            const auto enableMutationBoomerangs = false;
+
             auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
                 !suppressUpstreamSync,
                 Bootstrap_,
