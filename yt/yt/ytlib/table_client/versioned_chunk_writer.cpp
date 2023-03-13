@@ -335,6 +335,7 @@ protected:
     }
 
     void OnDataBlocksWritten(
+        TUnversionedValueRange /*lastKey*/,
         TSystemBlockMetaExt* /*systemBlockMetaExt*/,
         const TEncodingChunkWriterPtr& /*encodingChunkWriter*/)
     { }
@@ -372,6 +373,7 @@ protected:
     }
 
     void OnDataBlocksWritten(
+        TUnversionedValueRange /*lastKey*/,
         TSystemBlockMetaExt* /*systemBlockMetaExt*/,
         const TEncodingChunkWriterPtr& encodingChunkWriter)
     {
@@ -422,12 +424,13 @@ protected:
     }
 
     void OnDataBlocksWritten(
+        TUnversionedValueRange lastKey,
         TSystemBlockMetaExt* systemBlockMetaExt,
         const TEncodingChunkWriterPtr& encodingChunkWriter)
     {
         const auto& meta = encodingChunkWriter->GetMeta();
 
-        auto blocks = ChunkIndexBuilder_->BuildIndex(systemBlockMetaExt);
+        auto blocks = ChunkIndexBuilder_->BuildIndex(lastKey, systemBlockMetaExt);
         for (auto& block : blocks) {
             encodingChunkWriter->WriteBlock(std::move(block));
         }
@@ -593,7 +596,7 @@ private:
             FinishBlock(LastKey_.Elements());
         }
 
-        OnDataBlocksWritten(&SystemBlockMetaExt_, EncodingChunkWriter_);
+        OnDataBlocksWritten(LastKey_.Elements(), &SystemBlockMetaExt_, EncodingChunkWriter_);
 
         PrepareChunkMeta();
 

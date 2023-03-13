@@ -33,25 +33,45 @@ public:
         : Config_(std::move(config))
         , BlockFormatDetail_(blockFormatDetail)
         , Logger(logger)
-    { }
-
-    void ProcessRow(TChunkIndexEntry entry) override
     {
-        Entries_.emplace_back(std::move(entry));
+        if (Config_->MaxBlockSize) {
+            auto maxSlotCountInBlock = THashTableChunkIndexFormatDetail::GetMaxSlotCountInBlock(
+                BlockFormatDetail_.GetGroupCount(),
+                Config_->EnableGroupReordering,
+                *Config_->MaxBlockSize);
+            MaxEntryCountInBlock_ = maxSlotCountInBlock * Config_->LoadFactor;
+
+            if (MaxEntryCountInBlock_ == 0) {
+                THROW_ERROR_EXCEPTION("Cannot build hash table chunk index for specified parameters")
+                    << TErrorAttribute("max_block_size", *Config_->MaxBlockSize)
+                    << TErrorAttribute("load_factor", Config_->LoadFactor);
+            }
+        }
     }
 
-    std::vector<TSharedRef> BuildIndex(TSystemBlockMetaExt* systemBlockMetaExt) override
+    void ProcessRow(TVersionedRow row, TChunkIndexEntry entry) override
     {
-        return DoBuildIndex(systemBlockMetaExt, /*startSlotIndexes*/ {});
+        Entries_.emplace_back(row, std::move(entry));
+        if (std::ssize(Entries_) % MaxEntryCountInBlock_ == 0) {
+            BlockLastKeys_.emplace_back(row.Keys());
+        }
     }
 
     std::vector<TSharedRef> BuildIndex(
+        TUnversionedValueRange lastKey,
+        TSystemBlockMetaExt* systemBlockMetaExt) override
+    {
+        return DoBuildIndex(lastKey, systemBlockMetaExt, /*startSlotIndexes*/ {});
+    }
+
+    std::vector<TSharedRef> BuildIndex(
+        TUnversionedValueRange lastKey,
         NProto::TSystemBlockMetaExt* systemBlockMetaExt,
         const std::vector<int>& rowToSlotIndex) override
     {
         YT_VERIFY(Entries_.size() == rowToSlotIndex.size());
 
-        return DoBuildIndex(systemBlockMetaExt, rowToSlotIndex);
+        return DoBuildIndex(lastKey, systemBlockMetaExt, rowToSlotIndex);
     }
 
 private:
@@ -64,9 +84,9 @@ private:
     struct THashTableChunkIndexEntry
         : public TChunkIndexEntry
     {
-        explicit THashTableChunkIndexEntry(TChunkIndexEntry entry)
+        THashTableChunkIndexEntry(TVersionedRow row, TChunkIndexEntry entry)
             : TChunkIndexEntry(std::move(entry))
-            , Fingerprint(GetFarmFingerprint(MakeRange(Row.Keys())))
+            , Fingerprint(GetFarmFingerprint(row.Keys()))
         { }
 
         const TFingerprint Fingerprint;
@@ -77,10 +97,14 @@ private:
     const TIndexedVersionedBlockFormatDetail& BlockFormatDetail_;
     const NLogging::TLogger Logger;
 
+    int MaxEntryCountInBlock_ = std::numeric_limits<int>::max();
+
     std::vector<THashTableChunkIndexEntry> Entries_;
+    std::vector<TLegacyOwningKey> BlockLastKeys_;
 
 
     std::vector<TSharedRef> DoBuildIndex(
+        TUnversionedValueRange lastKey,
         TSystemBlockMetaExt* systemBlockMetaExt,
         TRange<int> startSlotIndexes)
     {
@@ -88,43 +112,37 @@ private:
 
         NProfiling::TWallTimer timer;
 
-        int maxEntryCountInBlock;
-        if (Config_->MaxBlockSize) {
-            auto maxSlotCountInBlock = THashTableChunkIndexFormatDetail::GetMaxSlotCountInBlock(
-                BlockFormatDetail_.GetGroupCount(),
-                Config_->EnableGroupReordering,
-                *Config_->MaxBlockSize);
-            maxEntryCountInBlock = maxSlotCountInBlock * Config_->LoadFactor;
-
-            if (maxEntryCountInBlock == 0) {
-                THROW_ERROR_EXCEPTION("Cannot build hash table chunk index for specified parameters")
-                    << TErrorAttribute("max_block_size", *Config_->MaxBlockSize)
-                    << TErrorAttribute("load_factor", Config_->LoadFactor);
-            }
-        } else {
-            maxEntryCountInBlock = std::ssize(Entries_);
+        if (std::ssize(Entries_) % MaxEntryCountInBlock_ != 0) {
+            BlockLastKeys_.emplace_back(lastKey);
         }
 
-        int entryIndex = 0;
         std::vector<TSharedRef> blocks;
-        while (entryIndex != std::ssize(Entries_)) {
-            auto nextEntryIndex = std::min(entryIndex + maxEntryCountInBlock, static_cast<int>(Entries_.size()));
+        blocks.reserve(BlockLastKeys_.size());
+
+        int entryIndex = 0;
+        for (auto blockLastKey : BlockLastKeys_) {
+            auto nextEntryIndex = std::min(entryIndex + MaxEntryCountInBlock_, static_cast<int>(Entries_.size()));
+            YT_VERIFY(entryIndex != nextEntryIndex);
 
             // May be non-empty for testing purposes.
             auto startSlotIndexesSlice = startSlotIndexes
                 ? startSlotIndexes.Slice(entryIndex, nextEntryIndex)
                 : startSlotIndexes;
+
             auto chunkIndexBlock = BuildChunkIndexBlock(
                 MakeRange(
                     Entries_.begin() + entryIndex,
                     Entries_.begin() + nextEntryIndex),
-                startSlotIndexesSlice);
+                startSlotIndexesSlice,
+                blockLastKey);
 
             blocks.push_back(std::move(chunkIndexBlock.Data));
             systemBlockMetaExt->add_system_blocks()->Swap(&chunkIndexBlock.Meta);
 
             entryIndex = nextEntryIndex;
         }
+
+        YT_VERIFY(entryIndex == std::ssize(Entries_));
 
         YT_LOG_DEBUG("Hash table chunk index is built "
             "(BlockCount: %v, EntryCount: %v, Size: %v, WallTime: %v)",
@@ -138,7 +156,8 @@ private:
 
     TChunkIndexBlock BuildChunkIndexBlock(
         TRange<THashTableChunkIndexEntry> entries,
-        TRange<int> startSlotIndexes)
+        TRange<int> startSlotIndexes,
+        const TLegacyOwningKey& blockLastKey)
     {
         auto slotCount = std::ssize(entries) / Config_->LoadFactor;
 
@@ -260,7 +279,7 @@ private:
         chunkIndexMetaExt->set_slot_count(slotCount);
         ToProto(
             chunkIndexMetaExt->mutable_last_key(),
-            entries.Back().Row.Keys());
+            blockLastKey);
 
         return {
             .Data = std::move(blob),

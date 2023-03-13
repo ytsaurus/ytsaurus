@@ -232,7 +232,7 @@ public:
 
         const auto& chunkIndexBuilder = this->GetChunkIndexBuilder();
         NProto::TSystemBlockMetaExt systemBlockMeta;
-        auto chunkIndex = chunkIndexBuilder->BuildIndex(&systemBlockMeta)[0];
+        auto chunkIndex = chunkIndexBuilder->BuildIndex(rows.back().Keys(), &systemBlockMeta)[0];
 
         TIndexedVersionedBlockFormatDetail blockFormatDetail(this->Schema);
         auto hashTableChunkIndexBlockMeta = systemBlockMeta
@@ -496,7 +496,7 @@ TYPED_TEST(TIndexedVersionedBlocksTestOneRow, HashTableChunkIndexMeta)
 {
     const auto& chunkIndexBuilder = this->GetChunkIndexBuilder();
     NProto::TSystemBlockMetaExt systemBlockMeta;
-    auto chunkIndex = chunkIndexBuilder->BuildIndex(&systemBlockMeta);
+    auto chunkIndex = chunkIndexBuilder->BuildIndex(this->Row.Keys(), &systemBlockMeta);
 
     EXPECT_EQ(1, systemBlockMeta.system_blocks_size());
 

@@ -41,7 +41,7 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         std::optional<TChunkIndexReadControllerTestingOptions> testingOptions,
-        TLogger logger)
+        const TLogger& logger)
         : ChunkId_(chunkId)
         , ChunkMeta_(std::move(chunkMeta))
         , Keys_(std::move(keys))
@@ -54,7 +54,8 @@ public:
         , GroupIndexesToRead_(
             ChunkMeta_->HashTableChunkIndexMeta()->IndexedBlockFormatDetail.GetGroupIndexesToRead(SchemaIdMapping_))
         , TestingOptions_(std::move(testingOptions))
-        , Logger(std::move(logger))
+        , Logger(logger.WithTag("ChunkId: %v",
+            ChunkId_))
         , MemoryPool_(THashTableChunkIndexReadControllerTag{})
     {
         RowReader_.emplace(
@@ -540,7 +541,7 @@ IChunkIndexReadControllerPtr CreateChunkIndexReadController(
     TTimestamp timestamp,
     bool produceAllVersions,
     std::optional<TChunkIndexReadControllerTestingOptions> testingOptions,
-    TLogger logger)
+    const TLogger& logger)
 {
     YT_VERIFY(chunkMeta->HashTableChunkIndexMeta());
 
@@ -554,7 +555,7 @@ IChunkIndexReadControllerPtr CreateChunkIndexReadController(
         timestamp,
         produceAllVersions,
         std::move(testingOptions),
-        std::move(logger));
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
