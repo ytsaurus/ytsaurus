@@ -560,8 +560,6 @@ class TDynamicChunkServiceConfig
     : public NYTree::TYsonStruct
 {
 public:
-    bool EnableMutationBoomerangs;
-
     bool EnablePerUserRequestWeightThrottling;
     bool EnablePerUserRequestBytesThrottling;
 

@@ -3799,13 +3799,6 @@ class TestCypressShardedTx(TestCypressPortal):
     }
 
 
-class TestCypressShardedTxNoBoomerangs(TestCypressShardedTx):
-    def setup_method(self, method):
-        super(TestCypressShardedTxNoBoomerangs, self).setup_method(method)
-        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
-        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
-
-
 class TestCypressNoLocalReadExecutor(TestCypress):
     def setup_method(self, method):
         super(TestCypressNoLocalReadExecutor, self).setup_method(method)

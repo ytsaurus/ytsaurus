@@ -72,8 +72,6 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_two_level_cache", &TThis::EnableTwoLevelCache)
         .Default(true);
-    registrar.Parameter("enable_mutation_boomerangs", &TThis::EnableMutationBoomerangs)
-        .Default(true);
     registrar.Parameter("enable_local_read_executor", &TThis::EnableLocalReadExecutor)
         .Default(false);
     registrar.Parameter("local_read_worker_count", &TThis::LocalReadWorkerCount)

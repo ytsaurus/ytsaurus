@@ -591,9 +591,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 
 void TDynamicChunkServiceConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enable_mutation_boomerangs", &TThis::EnableMutationBoomerangs)
-        .Default(true);
-
     registrar.Parameter("enable_per_user_request_weight_throttling", &TThis::EnablePerUserRequestWeightThrottling)
         .Default(false);
     registrar.Parameter("enable_per_user_request_bytes_throttling", &TThis::EnablePerUserRequestBytesThrottling)

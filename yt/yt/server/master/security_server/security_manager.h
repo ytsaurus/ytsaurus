@@ -322,8 +322,8 @@ public:
 
     //! Checks if #object ACL allows access with #permission.
     /*!
-     *  NB: All permission checked are suppressed (== always succeed)
-     *  when invoked from a Hive mutation (unless this is a boomerang one).
+     *  NB: All permission checks are suppressed (== always succeed)
+     *  when invoked from a non-boomerang Hive mutation.
      */
     virtual TPermissionCheckResponse CheckPermission(
         NObjectServer::TObject* object,

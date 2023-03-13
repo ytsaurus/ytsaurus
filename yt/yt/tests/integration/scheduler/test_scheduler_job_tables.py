@@ -9,7 +9,7 @@ from yt_env_setup import (
 from yt_commands import (
     authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs, create,
     ls, get,
-    set, create_account, read_table, write_table, map, reduce, map_reduce, vanilla,
+    create_account, read_table, write_table, map, reduce, map_reduce, vanilla,
     select_rows, list_jobs, clean_operations, sync_create_cells,
     set_account_disk_space_limit, raises_yt_error)
 
@@ -481,13 +481,6 @@ class TestStderrTableShardedTx(TestStderrTable):
         "14": {"roles": ["transaction_coordinator"]},
         "15": {"roles": ["transaction_coordinator"]},
     }
-
-
-class TestStderrTableShardedTxNoBoomerangs(TestStderrTableShardedTx):
-    def setup_method(self, method):
-        super(TestStderrTableShardedTxNoBoomerangs, self).setup_method(method)
-        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
-        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
 
 
 ##################################################################

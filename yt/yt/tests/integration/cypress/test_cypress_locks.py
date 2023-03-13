@@ -1523,12 +1523,3 @@ class TestCypressLocksShardedTx(TestCypressLocksMulticell):
         "13": {"roles": ["transaction_coordinator"]},
         "14": {"roles": ["transaction_coordinator"]},
     }
-
-
-class TestCypressLocksShardedTxNoBoomerangs(TestCypressLocksShardedTx):
-    NUM_TEST_PARTITIONS = 2
-
-    def setup_method(self, method):
-        super(TestCypressLocksShardedTxNoBoomerangs, self).setup_method(method)
-        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
-        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
