@@ -1,3 +1,4 @@
+TooManyOperations = 202
 MaxFailedJobsLimitExceeded = 215
 OperationFailedToPrepare = 216
 WatcherHandlerFailed = 217

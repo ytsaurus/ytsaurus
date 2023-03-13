@@ -2573,7 +2573,8 @@ private:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        {
+        bool failedToStartDueToPoolLimitViolation = false;
+        auto startError = [&] {
             TForbidContextSwitchGuard contextSwitchGuard;
 
             ValidateOperationState(operation, EOperationState::Starting);
@@ -2615,6 +2616,7 @@ private:
                     if (shouldEraseTree) {
                         erasedTreeIds.push_back(treeId);
                     } else {
+                        failedToStartDueToPoolLimitViolation = true;
                         THROW_ERROR error;
                     }
                 }
@@ -2635,11 +2637,7 @@ private:
 
                 EraseOrCrash(IdToStartingOperation_, operation->GetId());
 
-                auto wrappedError = TError("Operation has failed to start")
-                    << ex;
-                operation->SetStarted(wrappedError);
-
-                return;
+                return TError(ex);
             }
 
             EraseOrCrash(IdToStartingOperation_, operation->GetId());
@@ -2649,10 +2647,25 @@ private:
             RegisterOperation(operation, /* jobsReady */ true);
 
             if (operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree.empty()) {
-                operation->SetStarted(TError("No pool trees found for operation"));
                 UnregisterOperation(operation);
-                return;
+                return TError("No pool trees found for operation");
             }
+
+            return TError();
+        }();
+
+        if (!startError.IsOK()) {
+            if (failedToStartDueToPoolLimitViolation && operation->GetUserTransactionId()) {
+                auto transactionAliveError = WaitFor(MasterConnector_->CheckTransactionAlive(operation->GetUserTransactionId()));
+                if (!transactionAliveError.IsOK()) {
+                    startError = transactionAliveError;
+                }
+            }
+
+            auto wrappedError = TError("Operation has failed to start")
+                << startError;
+            operation->SetStarted(wrappedError);
+            return;
         }
 
         try {
