@@ -274,7 +274,7 @@ private:
 
                         BuildYsonMapFragmentFluently(&writer)
                             .DoFor(mapNode->GetChildren(), [] (auto fluent, const auto& pair) {
-                                    fluent.Item(pair.first).Value(pair.second);
+                                fluent.Item(pair.first).Value(pair.second);
                         });
 
                         for (const auto& tabletsNode : remoteTablets) {

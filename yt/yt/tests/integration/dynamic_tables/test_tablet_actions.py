@@ -621,6 +621,34 @@ class TestTabletActions(TabletActionsBase):
         assert [get("//tmp/t/@tablets/0/tablet_id")] == \
             get("#{0}/@tablet_ids".format(action))
 
+    @authors("alexelexa")
+    def test_bundle_tablet_actions_attribute(self):
+        cells = sync_create_cells(2)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "move",
+                "keep_finished": True,
+                "tablet_ids": [get("//tmp/t/@tablets/0/tablet_id")],
+                "cell_ids": [cells[1]],
+            },
+        )
+
+        actions = get("//sys/tablet_cell_bundles/default/@tablet_actions")
+        assert len(actions) == 1
+        assert actions[0]["tablet_action_id"] == action
+
+        wait(lambda: get("#{0}/@state".format(action)) == "completed")
+
+        actions = get("//sys/tablet_cell_bundles/default/@tablet_actions")
+        assert len(actions) == 1
+        assert actions[0]["tablet_action_id"] == action
+        assert actions[0]["state"] == "completed"
+
 
 ##################################################################
 
