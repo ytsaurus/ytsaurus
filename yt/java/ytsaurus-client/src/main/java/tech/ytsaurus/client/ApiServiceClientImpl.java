@@ -151,7 +151,9 @@ import tech.ytsaurus.ysontree.YTreeNodeUtils;
 
 
 /**
- * Клиент для высокоуровневой работы с ApiService
+ * Implementation of ApiServiceClient
+ *
+ * @see ApiServiceClient
  */
 @NonNullFields
 public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
