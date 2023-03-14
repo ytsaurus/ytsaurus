@@ -54,10 +54,12 @@ case class SparkGlobalConfig(spark_conf: Map[String, String],
                              latest_spark_cluster_version: String,
                              layer_paths: Seq[String] = SparkLaunchConfig.defaultLayers,
                              python_cluster_paths: Map[String, String] = Map(
+                               "3.11" -> "/opt/python3.11/bin/python3.11",
+                               "3.8" -> "/opt/python3.8/bin/python3.8",
                                "3.7" -> "/opt/python3.7/bin/python3.7",
                                "3.5" -> "python3.5",
                                "3.4" -> "/opt/python3.4/bin/python3.4",
-                               "2.7" -> "python2.7"
+                               "2.7" -> "python2.7",
                              ),
                              environment: Map[String, String] = Map(
                                "JAVA_HOME" -> "/opt/jdk11",
@@ -98,9 +100,9 @@ object SparkLaunchConfig {
   val defaultLayers = Seq(
     s"$sparkYtDeltaLayerPath/layer_with_solomon_agent.tar.gz",
     s"$ytPortoDeltaLayersPath/jdk/layer_with_jdk_lastest.tar.gz",
-    s"$sparkYtDeltaLayerPath/python/layer_with_python37_libs_3.tar.gz",
-    s"$sparkYtDeltaLayerPath/python/layer_with_python34.tar.gz",
-    s"$ytPortoBaseLayersPath/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz"
+    s"$sparkYtDeltaLayerPath/python/layer_with_python311_libs.tar.gz",
+    s"$sparkYtDeltaLayerPath/python/layer_with_python38_libs.tar.gz",
+    s"$ytPortoBaseLayersPath/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz"
   )
 
   def resolveSymlink(symlink: String)(implicit yt: YTsaurusClient): String = {
