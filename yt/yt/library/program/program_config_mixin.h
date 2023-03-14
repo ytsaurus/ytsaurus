@@ -47,7 +47,7 @@ protected:
                 Format("%v-unrecognized-strategy", argumentName),
                 Format("configure strategy for unrecognized attributes in %v", argumentName))
             .Handler1T<TStringBuf>([this](TStringBuf value) {
-                UnrecognizedStrategy_ = TEnumTraits<NYTree::EUnrecognizedStrategy>::FromString(DecodeEnumValue(value));
+                UnrecognizedStrategy_ = ParseEnum<NYTree::EUnrecognizedStrategy>(value);
             });
 
         if constexpr (std::is_same_v<TDynamicConfig, void>) {

@@ -231,7 +231,7 @@ private:
     int AbortedJobCount_ = 0;
     int RunningJobCount_ = 0;
     TJobResources NeededResources_;
-    TCompactVector<TJobBucket*, TEnumTraits<EJobType>::DomainSize> ActiveBuckets_;
+    TCompactVector<TJobBucket*, TEnumTraits<EJobType>::GetDomainSize()> ActiveBuckets_;
     TJobResourcesWithQuotaList CachedMinNeededJobResources;
     ///////////////////////
 

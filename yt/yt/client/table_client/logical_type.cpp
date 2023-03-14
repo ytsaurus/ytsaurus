@@ -1492,7 +1492,7 @@ static const std::pair<ESimpleLogicalValueType, TString> V3SimpleLogicalValueTyp
 
     {ESimpleLogicalValueType::Uuid,      "uuid"},
 };
-static_assert(std::size(V3SimpleLogicalValueTypeEncoding) == TEnumTraits<ESimpleLogicalValueType>::DomainSize);
+static_assert(std::size(V3SimpleLogicalValueTypeEncoding) == TEnumTraits<ESimpleLogicalValueType>::GetDomainSize());
 
 std::pair<ELogicalMetatype, TString> V3LogicalMetatypeEncoding[] =
 {
@@ -1510,7 +1510,7 @@ std::pair<ELogicalMetatype, TString> V3LogicalMetatypeEncoding[] =
 };
 
 // NB ELogicalMetatype::{Simple,VariantStruct,VariantTuple} are not encoded therefore we have `-3` in static_assert below.
-static_assert(std::size(V3LogicalMetatypeEncoding) == TEnumTraits<ELogicalMetatype>::DomainSize - 3);
+static_assert(std::size(V3LogicalMetatypeEncoding) == TEnumTraits<ELogicalMetatype>::GetDomainSize() - 3);
 
 TV3TypeName FromTypeV3(TStringBuf stringBuf)
 {

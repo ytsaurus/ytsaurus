@@ -30,7 +30,7 @@ inline constexpr int GetResourceCount() noexcept
 }
 
 static constexpr int ResourceCount = GetResourceCount();
-static_assert(TEnumTraits<EJobResourceType>::DomainSize == ResourceCount);
+static_assert(TEnumTraits<EJobResourceType>::GetDomainSize() == ResourceCount);
 
 class TResourceVector
     : public TDoubleArrayBase<ResourceCount, TResourceVector>
@@ -44,13 +44,13 @@ public:
 
     Y_FORCE_INLINE double& operator[](EJobResourceType resourceType)
     {
-        static_assert(TEnumTraits<EJobResourceType>::DomainSize == ResourceCount);
+        static_assert(TEnumTraits<EJobResourceType>::GetDomainSize() == ResourceCount);
         return (*this)[GetIdByResourceType(resourceType)];
     }
 
     Y_FORCE_INLINE const double& operator[](EJobResourceType resourceType) const
     {
-        static_assert(TEnumTraits<EJobResourceType>::DomainSize == ResourceCount);
+        static_assert(TEnumTraits<EJobResourceType>::GetDomainSize() == ResourceCount);
         return (*this)[GetIdByResourceType(resourceType)];
     }
 

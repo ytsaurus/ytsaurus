@@ -255,7 +255,7 @@ TOperationControllerBase::TOperationControllerBase(
                 "OperationId: %v\nAuthenticatedUser: %v",
                 OperationId,
                 AuthenticatedUser)),
-        TEnumTraits<EOperationControllerQueue>::DomainSize))
+        TEnumTraits<EOperationControllerQueue>::GetDomainSize()))
     , InvokerPool(DiagnosableInvokerPool_)
     , SuspendableInvokerPool(TransformInvokerPool(InvokerPool, CreateSuspendableInvoker))
     , CancelableInvokerPool(TransformInvokerPool(

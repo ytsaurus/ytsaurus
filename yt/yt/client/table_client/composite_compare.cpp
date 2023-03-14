@@ -45,8 +45,7 @@ static constexpr ui32 SetMask(EYsonItemType type, ECompareClass compareClass)
 
 static constexpr ECompareClass GetCompareClass(EYsonItemType type)
 {
-    // We have single integer wich bit value encodes map EYsonItemType -> ECompareClass
-    // 2 bits per value
+    // We have single integer where each pair of bits encodes map EYsonItemType -> ECompareClass.
     constexpr ui32 compareClassMask =
         SetMask(EYsonItemType::EndList, ECompareClass::EndList) |
         SetMask(EYsonItemType::EntityValue, ECompareClass::Entity) |
@@ -56,7 +55,7 @@ static constexpr ECompareClass GetCompareClass(EYsonItemType type)
         SetMask(EYsonItemType::DoubleValue, ECompareClass::BeginValue) |
         SetMask(EYsonItemType::BooleanValue, ECompareClass::BeginValue) |
         SetMask(EYsonItemType::StringValue, ECompareClass::BeginValue);
-    static_assert(TEnumTraits<EYsonItemType>::DomainSize * 2 <= 32);
+    static_assert(TEnumTraits<EYsonItemType>::GetDomainSize() * 2 <= 32);
     return static_cast<ECompareClass>(0x3u & (compareClassMask >> (static_cast<ui32>(type) * 2)));
 }
 
