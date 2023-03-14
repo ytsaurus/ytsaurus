@@ -524,7 +524,7 @@ else:
 
 
 def escape_c(string):
-    """Escapes string literal to be used in query language."""
+    """Escapes string/bytes literal to be used in query language."""
     def is_printable(symbol):
         num = ord(symbol)
         return 32 <= num and num <= 126
@@ -565,7 +565,10 @@ def escape_c(string):
             num = ord(symbol)
             return "\\" + oct_digit(num // 64) + oct_digit((num // 8) % 8) + oct_digit(num % 8)
 
-    return "".join(starmap(escape_symbol, izip(string, string[1:] + chr(0))))
+    if isinstance(string, bytes) and not hasattr(string, 'encode') or isinstance(string, bytearray):
+        return "".join("\\x" + hex_digit(bt // 16) + hex_digit(bt % 16) for bt in string)
+    else:
+        return "".join(starmap(escape_symbol, izip(string, string[1:] + chr(0))))
 
 
 def simplify_structure(obj):
