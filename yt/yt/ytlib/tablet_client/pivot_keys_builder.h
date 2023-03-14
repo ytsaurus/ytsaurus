@@ -8,7 +8,7 @@
 
 #include <yt/yt/client/table_client/comparator.h>
 
-namespace NYT::NTableClient {
+namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,12 +19,12 @@ public:
 
 public:
     TReshardPivotKeysBuilder(
-        TComparator comparator,
+        NTableClient::TComparator comparator,
         int keyColumnCount,
         int tabletCount,
         double accuracy,
         i64 expectedTabletSize,
-        TLegacyOwningKey nextPivot,
+        NTableClient::TLegacyOwningKey nextPivot,
         bool enableVerboseLogging = false);
 
     void AddChunk(const NYT::NChunkClient::NProto::TChunkSpec& chunkSpec);
@@ -34,15 +34,15 @@ public:
     void ComputeChunksForSlicing();
     void ComputeSlicedChunksPivotKeys();
 
-    void SetFirstPivotKey(const TLegacyOwningKey& key);
+    void SetFirstPivotKey(const NTableClient::TLegacyOwningKey& key);
 
     bool AreAllPivotsFound() const;
-    std::vector<TLegacyOwningKey> GetPivotKeys() const;
+    std::vector<NTableClient::TLegacyOwningKey> GetPivotKeys() const;
 
     const THashMap<NChunkClient::TInputChunkPtr, i64>& GetChunksForSlicing() const;
 
 private:
-    using TBoundaryKeyIterator = std::vector<TSliceBoundaryKey>::iterator;
+    using TBoundaryKeyIterator = std::vector<NTableClient::TSliceBoundaryKey>::iterator;
 
     struct TComputeState
     {
@@ -54,7 +54,7 @@ private:
 
     struct TPivot
     {
-        TLegacyOwningKey Key;
+        NTableClient::TLegacyOwningKey Key;
         std::optional<i64> TabletSize;
         std::optional<i64> BruteTabletSize;
     };
@@ -62,15 +62,15 @@ private:
     const int KeyColumnCount_;
     const int TabletCount_;
     const double Accuracy_;
-    const TLegacyOwningKey NextPivot_;
+    const NTableClient::TLegacyOwningKey NextPivot_;
     const bool EnableVerboseLogging_;
 
     std::vector<TPivot> Pivots_;
-    std::function<bool(const TSliceBoundaryKey&, const TSliceBoundaryKey&)> SliceBoundaryKeyCompare_;
+    std::function<bool(const NTableClient::TSliceBoundaryKey&, const NTableClient::TSliceBoundaryKey&)> SliceBoundaryKeyCompare_;
 
     i64 TotalSizeAfterSlicing_ = 0;
-    std::vector<TSliceBoundaryKey> SliceBoundaryKeys_;
-    std::vector<TSliceBoundaryKey> ChunkBoundaryKeys_;
+    std::vector<NTableClient::TSliceBoundaryKey> SliceBoundaryKeys_;
+    std::vector<NTableClient::TSliceBoundaryKey> ChunkBoundaryKeys_;
     TComputeState State_;
 
     void UpdateCurrentChunksAndSizes(
@@ -98,4 +98,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableClient
+} // namespace NYT::NTabletClient

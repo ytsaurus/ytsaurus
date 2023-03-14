@@ -5,6 +5,8 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/yt/ytlib/table_client/helpers.h>
+
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
@@ -77,10 +79,11 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
     tableInfo.SourcePath = manifest->SourcePath;
     tableInfo.DestinationPath = manifest->DestinationPath;
 
-    tableInfo.Attributes = Client_->ResolveExternalTable(
+    tableInfo.Attributes = ResolveExternalTable(
         tableInfo.SourcePath,
         &tableInfo.SourceTableId,
         &tableInfo.ExternalCellTag,
+        Client_,
         {
             "sorted",
             "upstream_replica_id",

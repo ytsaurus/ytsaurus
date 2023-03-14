@@ -6,9 +6,10 @@
 
 #include "yt/yt/core/misc/numeric_helpers.h"
 
-namespace NYT::NTableClient {
+namespace NYT::NTabletClient {
 
 using namespace NChunkClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -489,4 +490,4 @@ void TReshardPivotKeysBuilder::RecalculateExpectedTabletSize()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableClient
+} // namespace NYT::NTabletClient

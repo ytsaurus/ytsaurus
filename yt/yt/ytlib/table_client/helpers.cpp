@@ -1,8 +1,9 @@
 #include "helpers.h"
 #include "config.h"
-#include "schemaless_multi_chunk_reader.h"
-#include "schemaless_chunk_writer.h"
 #include "private.h"
+#include "schemaless_chunk_writer.h"
+#include "schemaless_multi_chunk_reader.h"
+#include "table_ypath_proxy.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -10,42 +11,43 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
-#include <yt/yt/ytlib/table_chunk_format/column_reader_detail.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/helpers.h>
 
-#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
-
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+
+#include <yt/yt/ytlib/table_chunk_format/column_reader_detail.h>
 
 #include <yt/yt/client/api/table_reader.h>
 #include <yt/yt/client/api/table_writer.h>
-
-#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/formats/parser.h>
 
 #include <yt/yt/client/misc/io_tags.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/client/ypath/rich.h>
 
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
-#include <yt/yt/client/table_client/schema.h>
-#include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/random.h>
+
+#include <yt/yt/core/ytree/attributes.h>
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/node.h>
 #include <yt/yt/core/ytree/permission.h>
-#include <yt/yt/core/ytree/attributes.h>
 
 namespace NYT::NTableClient {
 
@@ -58,10 +60,10 @@ using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NScheduler::NProto;
-using namespace NYTree;
-using namespace NYson;
 using namespace NTabletClient;
 using namespace NTableChunkFormat;
+using namespace NYTree;
+using namespace NYson;
 
 using NChunkClient::NProto::TChunkSpec;
 
@@ -776,6 +778,48 @@ void PackBaggageForChunkWriter(
     AddTagsFromDataSink(baggage, dataSink);
     AddExtraChunkTags(baggage, extraTags);
     context->PackBaggage(baggage);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IAttributeDictionaryPtr ResolveExternalTable(
+    const TYPath& path,
+    TTableId* tableId,
+    TCellTag* externalCellTag,
+    const NNative::IClientPtr& client,
+    const std::vector<TString>& extraAttributeKeys)
+{
+    TMasterReadOptions options;
+    auto proxy = std::make_unique<TObjectServiceProxy>(CreateObjectServiceReadProxy(
+        client,
+        options.ReadFrom,
+        PrimaryMasterCellTagSentinel,
+        client->GetNativeConnection()->GetStickyGroupSizeCache()));
+
+    {
+        auto req = TObjectYPathProxy::GetBasicAttributes(path);
+        auto rspOrError = WaitFor(proxy->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of table %v", path);
+        const auto& rsp = rspOrError.Value();
+        *tableId = FromProto<TTableId>(rsp->object_id());
+        *externalCellTag = rsp->external_cell_tag();
+    }
+
+    if (!IsTabletOwnerType(TypeFromId(*tableId))) {
+        THROW_ERROR_EXCEPTION("%v is not a tablet owner", path);
+    }
+
+    IAttributeDictionaryPtr extraAttributes;
+    {
+        auto req = TTableYPathProxy::Get(FromObjectId(*tableId) + "/@");
+        ToProto(req->mutable_attributes()->mutable_keys(), extraAttributeKeys);
+        auto rspOrError = WaitFor(proxy->Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting extended attributes of table %v", path);
+        const auto& rsp = rspOrError.Value();
+        extraAttributes = ConvertToAttributes(TYsonString(rsp->value()));
+    }
+
+    return extraAttributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

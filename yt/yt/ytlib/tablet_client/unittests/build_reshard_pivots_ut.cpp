@@ -1,4 +1,4 @@
-#include <yt/yt/ytlib/table_client/pivot_keys_builder.h>
+#include <yt/yt/ytlib/tablet_client/pivot_keys_builder.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -18,6 +18,7 @@ namespace {
 
 using namespace NProto;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTableClient::NProto;
