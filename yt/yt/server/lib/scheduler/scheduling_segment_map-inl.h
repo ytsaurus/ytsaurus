@@ -196,7 +196,7 @@ void Deserialize(TSchedulingSegmentMap<TValue>& map, const NYTree::INodePtr& nod
 
     auto mapNode = node->AsMap();
     for (const auto& [stringSegment, child] : mapNode->GetChildren()) {
-        auto segment = TEnumTraits<ESchedulingSegment>::FromString(DecodeEnumValue(stringSegment));
+        auto segment = ParseEnum<ESchedulingSegment>(stringSegment);
         if (IsModuleAwareSchedulingSegment(segment)) {
             DeserializeMultiModuleValue<TValue>(map.Map_[segment], child);
         } else {

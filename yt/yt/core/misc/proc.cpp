@@ -1306,9 +1306,8 @@ std::vector<TMemoryMapping> ParseMemoryMappings(const TString& rawSMaps)
                 mapping.ProtectionKey = FromString<ui64>(words[1]);
             } else if (property == "VmFlags") {
                 for (const auto& flag : words) {
-                    EVMFlag enumFlag;
-                    if (TEnumTraits<EVMFlag>::FindValueByLiteral(to_upper(flag), &enumFlag)) {
-                        mapping.VMFlags |= enumFlag;
+                    if (auto optionalEnumFlag = TEnumTraits<EVMFlag>::FindValueByLiteral(to_upper(flag))) {
+                        mapping.VMFlags |= *optionalEnumFlag;
                     } else {
                         // Unknown flag, do not crash.
                     }

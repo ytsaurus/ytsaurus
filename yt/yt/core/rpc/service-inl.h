@@ -60,7 +60,7 @@ void IServiceContext::ValidateClientFeature(E featureId) const
 {
     auto intFeatureId = FeatureIdToInt(featureId);
     if (!NDetail::IsClientFeatureSupported(this, intFeatureId)) {
-        NDetail::ThrowUnsupportedClientFeature(intFeatureId, *TEnumTraits<E>::FindLiteralByValue(featureId));
+        NDetail::ThrowUnsupportedClientFeature(intFeatureId, TEnumTraits<E>::ToString(featureId));
     }
 }
 

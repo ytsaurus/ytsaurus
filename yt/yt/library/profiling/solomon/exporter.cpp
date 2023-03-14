@@ -550,7 +550,7 @@ void TSolomonExporter::DoHandleShard(
     TPromise<TSharedRef> responsePromise = NewPromise<TSharedRef>();
 
     try {
-        NMonitoring::EFormat format = NMonitoring::EFormat::JSON;
+        auto format = NMonitoring::EFormat::JSON;
         if (auto accept = req->GetHeaders()->Find("Accept")) {
             format = NMonitoring::FormatFromAcceptHeader(*accept);
         }

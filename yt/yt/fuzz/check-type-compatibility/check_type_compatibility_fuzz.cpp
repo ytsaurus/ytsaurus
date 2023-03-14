@@ -13,7 +13,7 @@ using namespace NYT::NComplexTypes;
 class TFuzzLogicalTypeGenerator
 {
 public:
-    static TLogicalTypePtr Generate(IInputStream* entropySource, int complexityLimit=16)
+    static TLogicalTypePtr Generate(IInputStream* entropySource, int complexityLimit = 16)
     {
         YT_VERIFY(complexityLimit >= 0);
         int complexityLimitCopy = complexityLimit;
@@ -24,7 +24,7 @@ public:
 private:
     explicit TFuzzLogicalTypeGenerator(IInputStream* entropySource)
         : EntropySource_(entropySource)
-    {}
+    { }
 
     TLogicalTypePtr GenerateType(int* complexityLimit)
     {
@@ -83,7 +83,8 @@ private:
         }
     }
 
-    TString GenerateName(int maxLength = 16) {
+    TString GenerateName(int maxLength = 16)
+    {
         int length = GenerateByte() % maxLength;
         char res[length];
         for (int i = 0; i < length; ++i) {
@@ -93,12 +94,14 @@ private:
     }
 
     template <typename T>
-    T GenerateEnum() {
-        auto index = GenerateByte() % TEnumTraits<T>::DomainSize;
+    T GenerateEnum()
+    {
+        auto index = GenerateByte() % TEnumTraits<T>::GetDomainSize();
         return TEnumTraits<T>::GetDomainValues()[index];
     }
 
-    int GenerateByte() {
+    int GenerateByte()
+    {
         char result;
         if (EntropySource_->ReadChar(result)) {
             return static_cast<ui8>(result);
@@ -108,7 +111,7 @@ private:
     }
 
 private:
-    IInputStream* EntropySource_;
+    IInputStream* const EntropySource_;
 };
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)

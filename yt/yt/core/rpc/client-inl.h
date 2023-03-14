@@ -16,7 +16,7 @@ namespace NYT::NRpc {
 template <class E>
 TServiceDescriptor& TServiceDescriptor::SetFeaturesType()
 {
-    static const std::function<const TStringBuf*(int featureId)> Formatter = [] (int featureId) {
+    static const std::function<std::optional<TStringBuf>(int featureId)> Formatter = [] (int featureId) {
         return TEnumTraits<E>::FindLiteralByValue(static_cast<E>(featureId));
     };
     FeatureIdFormatter = &Formatter;

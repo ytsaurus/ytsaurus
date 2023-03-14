@@ -94,7 +94,8 @@ private:
     }
 
     template <class T>
-    static TString FormatKey(T value, typename TEnumTraits<T>::TType* = 0)
+        requires TEnumTraits<T>::IsEnum
+    static TString FormatKey(T value)
     {
         return FormatEnum(value);
     }

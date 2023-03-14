@@ -125,7 +125,7 @@ extern const TString RootUserName;
 
 constexpr int TypicalMessagePartCount = 8;
 
-using TFeatureIdFormatter = const std::function<const TStringBuf*(int featureId)>*;
+using TFeatureIdFormatter = const std::function<std::optional<TStringBuf>(int featureId)>*;
 
 using TDiscoverRequestHook = TCallback<void(NProto::TReqDiscover*)>;
 

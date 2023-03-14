@@ -590,7 +590,7 @@ void Deserialize(TEnumIndexedVector<E, T, Min, Max>& vector, INodePtr node)
     vector = {};
     auto mapNode = node->AsMap();
     for (const auto& [stringKey, child] : mapNode->GetChildren()) {
-        auto key = TEnumTraits<E>::FromString(DecodeEnumValue(stringKey));
+        auto key = ParseEnum<E>(stringKey);
         if (!vector.IsDomainValue(key)) {
             THROW_ERROR_EXCEPTION("Enum value %Qlv is out of supported range",
                 key);

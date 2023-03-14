@@ -129,7 +129,7 @@ void ThrowError(const TString& formula, int position, const TString& message, EE
 #define EXTRACT_PRECEDENCE(x, y) x,
 
 DEFINE_ENUM(EFormulaTokenType,
-        FOR_EACH_TOKEN(EXTRACT_FIELD_NAME)
+    FOR_EACH_TOKEN(EXTRACT_FIELD_NAME)
 );
 
 static int Precedence(EFormulaTokenType type) {

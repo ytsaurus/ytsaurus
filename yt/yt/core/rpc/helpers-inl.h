@@ -42,7 +42,7 @@ int FeatureIdToInt(E featureId)
     static_assert(
         std::is_same_v<int, std::underlying_type_t<E>>,
         "Feature set enum must have `int` as its underlying type.");
-    return static_cast<int>(featureId);
+    return ToUnderlying(featureId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
