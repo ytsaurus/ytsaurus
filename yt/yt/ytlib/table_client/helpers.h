@@ -215,6 +215,15 @@ void PackBaggageForChunkWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NYTree::IAttributeDictionaryPtr ResolveExternalTable(
+    const NYPath::TYPath& path,
+    TTableId* tableId,
+    NObjectClient::TCellTag* externalCellTag,
+    const NApi::NNative::IClientPtr& client,
+    const std::vector<TString>& extraAttributeKeys = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
 
 #define HELPERS_INL_H_

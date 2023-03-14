@@ -1012,12 +1012,6 @@ private:
         const NYPath::TYPath& path,
         const TGetTabletErrorsOptions& options);
 
-    NYTree::IAttributeDictionaryPtr ResolveExternalTable(
-        const NYPath::TYPath& path,
-        NTableClient::TTableId* tableId,
-        NObjectClient::TCellTag* externalCellTag,
-        const std::vector<TString>& extraAttributeKeys = {});
-
     template <class TReq>
     void ExecuteTabletServiceRequest(
         const NYPath::TYPath& path,
@@ -1049,10 +1043,6 @@ private:
     std::vector<NTableClient::TLegacyOwningKey> PickUniformPivotKeys(
         const NYPath::TYPath& path,
         int tabletCount);
-    std::vector<NTableClient::TLegacyOwningKey> PickPivotKeysWithSlicing(
-        const NYPath::TYPath& path,
-        int tabletCount,
-        const TReshardTableOptions& options);
 
     void DoReshardTableWithPivotKeys(
         const NYPath::TYPath& path,

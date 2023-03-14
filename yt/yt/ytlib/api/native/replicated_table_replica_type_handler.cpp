@@ -4,6 +4,8 @@
 #include "client_impl.h"
 #include "ypath_helpers.h"
 
+#include <yt/yt/ytlib/table_client/helpers.h>
+
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -46,7 +48,7 @@ public:
             TTableId tableId;
             auto tablePath = attributes->Get<TString>("table_path");
             Client_->ValidatePermissionImpl(tablePath, EPermission::Write);
-            Client_->ResolveExternalTable(tablePath, &tableId, &cellTag);
+            ResolveExternalTable(tablePath, &tableId, &cellTag, Client_);
             attributes->Set("table_path", FromObjectId(tableId));
         }
 

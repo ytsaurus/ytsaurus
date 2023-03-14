@@ -113,6 +113,7 @@ struct TTransactionalOptions;
 struct TPrerequisiteOptions;
 struct TMasterReadOptions;
 struct TMutatingOptions;
+struct TReshardTableOptions;
 struct TSuppressableAccessTrackingOptions;
 struct TTabletRangeOptions;
 
