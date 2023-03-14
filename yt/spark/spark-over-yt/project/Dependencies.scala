@@ -6,7 +6,7 @@ object Dependencies {
   lazy val circeYamlVersion = "0.12.0"
   lazy val scalatestVersion = "3.1.0"
   lazy val sparkVersion = "3.2.2"
-  lazy val ytsaurusClientVersion = "10882715"
+  lazy val ytsaurusClientVersion = "1.0.0"
   lazy val slf4jVersion = "1.7.28"
   lazy val scalatraVersion = "2.7.0"
   lazy val mockitoVersion = "1.14.4"
@@ -62,7 +62,7 @@ object Dependencies {
   ).excludeLogging
 
   lazy val ytsaurusClient = Seq(
-    "ru.yandex" % "java-ytsaurus-client" % ytsaurusClientVersion excludeAll ExclusionRule(organization = "io.netty"),
+    "tech.ytsaurus" % "ytsaurus-client" % ytsaurusClientVersion excludeAll ExclusionRule(organization = "io.netty"),
     "io.netty" % "netty-all" % "4.1.68.Final"
   ).map(_ excludeAll(
     ExclusionRule(organization = "com.fasterxml.jackson.core"),

@@ -10,7 +10,7 @@ import SchemaConverter.Unordered
 import tech.ytsaurus.spyt.serializers.YsonRowConverter.{isNull, serializeValue}
 import tech.ytsaurus.client.TableWriter
 import tech.ytsaurus.core.rows.YTreeSerializer
-import tech.ytsaurus.type_info.TiType
+import tech.ytsaurus.typeinfo.TiType
 import tech.ytsaurus.yson.{YsonConsumer, YsonTags}
 import tech.ytsaurus.ysontree.{YTree, YTreeBinarySerializer, YTreeBooleanNode, YTreeEntityNodeImpl, YTreeNode, YTreeTextSerializer}
 

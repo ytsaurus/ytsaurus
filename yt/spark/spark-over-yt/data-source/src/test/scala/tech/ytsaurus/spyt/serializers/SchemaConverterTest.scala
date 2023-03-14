@@ -12,8 +12,8 @@ import tech.ytsaurus.spyt.test.{LocalSpark, TestUtils, TmpDir}
 import tech.ytsaurus.spyt.YtReader
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.spyt.SchemaTestUtils
-import tech.ytsaurus.type_info.StructType.Member
-import tech.ytsaurus.type_info.TiType
+import tech.ytsaurus.typeinfo.StructType.Member
+import tech.ytsaurus.typeinfo.TiType
 import tech.ytsaurus.ysontree.{YTree, YTreeMapNode}
 
 class SchemaConverterTest extends FlatSpec with Matchers

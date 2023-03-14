@@ -7,7 +7,7 @@ import tech.ytsaurus.spyt.wrapper.YtJavaConverters._
 import tech.ytsaurus.spyt.wrapper.system.SystemUtils
 import tech.ytsaurus.client.{CompoundClient, DiscoveryMethod, YTsaurusClient, YtCluster}
 import tech.ytsaurus.client.bus.DefaultBusConnector
-import tech.ytsaurus.client.rpc.{RpcCredentials, RpcOptions}
+import tech.ytsaurus.client.rpc.{RpcOptions, YTsaurusClientAuth}
 
 import java.util.concurrent.ThreadFactory
 import java.util.{ArrayList => JArrayList}
@@ -117,18 +117,18 @@ trait YtClientUtils {
                                          byopEndpoint: HostAndPort): SingleProxyYtClient = {
     new SingleProxyYtClient(
       connector,
-      config.rpcCredentials,
+      config.clientAuth,
       rpcOptions,
       HostAndPort.fromString(byopEndpoint.toString)
     )
   }
 
   private def buildYTsaurusClient(connector: DefaultBusConnector, cluster: YtCluster,
-                                  rpcCredentials: RpcCredentials, rpcOptions: RpcOptions): YTsaurusClient = {
+                                  clientAuth: YTsaurusClientAuth, rpcOptions: RpcOptions): YTsaurusClient = {
     YTsaurusClient.builder()
       .setSharedBusConnector(connector)
       .setClusters(java.util.List.of[YtCluster](cluster))
-      .setRpcCredentials(rpcCredentials)
+      .setAuth(clientAuth)
       .setRpcOptions(rpcOptions)
       .build()
   }
@@ -143,7 +143,7 @@ trait YtClientUtils {
       new JArrayList(),
       config.proxyRole.orNull)
 
-    val client = buildYTsaurusClient(connector, cluster, config.rpcCredentials, rpcOptions)
+    val client = buildYTsaurusClient(connector, cluster, config.clientAuth, rpcOptions)
 
     initYtClient(client)
   }
@@ -171,7 +171,7 @@ trait YtClientUtils {
 
     rpcOptions.setPreferableDiscoveryMethod(DiscoveryMethod.HTTP)
 
-    val client = buildYTsaurusClient(connector, cluster, config.rpcCredentials, rpcOptions)
+    val client = buildYTsaurusClient(connector, cluster, config.clientAuth, rpcOptions)
 
     initYtClient(client)
   }

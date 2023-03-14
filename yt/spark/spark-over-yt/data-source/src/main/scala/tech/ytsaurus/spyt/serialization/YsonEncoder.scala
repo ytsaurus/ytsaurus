@@ -3,7 +3,7 @@ package tech.ytsaurus.spyt.serialization
 import com.google.protobuf.CodedOutputStream
 import org.apache.spark.sql.types.DataType
 import tech.ytsaurus.spyt.serializers.{YsonEncoderConfig, YsonRowConverter, YtTypeHolder}
-import tech.ytsaurus.type_info.TiType
+import tech.ytsaurus.typeinfo.TiType
 import tech.ytsaurus.yson.{YsonConsumer, YsonTags}
 
 import java.io.ByteArrayOutputStream

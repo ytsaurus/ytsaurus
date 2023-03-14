@@ -4,8 +4,8 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import SchemaConverter.MetadataFields
 import tech.ytsaurus.core.tables.ColumnValueType
-import tech.ytsaurus.type_info.StructType.Member
-import tech.ytsaurus.type_info.{TiType, TypeName}
+import tech.ytsaurus.typeinfo.StructType.Member
+import tech.ytsaurus.typeinfo.{TiType, TypeName}
 
 import scala.annotation.tailrec
 

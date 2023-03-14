@@ -4,7 +4,7 @@ import io.netty.channel.nio.NioEventLoopGroup
 import tech.ytsaurus.core.cypress.{CypressNodeType, YPath}
 import tech.ytsaurus.ysontree.YTree
 import tech.ytsaurus.client.bus.{BusConnector, DefaultBusConnector}
-import tech.ytsaurus.client.rpc.{RpcCredentials, RpcOptions}
+import tech.ytsaurus.client.rpc.{RpcOptions, YTsaurusClientAuth}
 import tech.ytsaurus.client.YTsaurusClient
 import tech.ytsaurus.client.request._
 import sbt.Keys._
@@ -191,7 +191,7 @@ object YtPublishPlugin extends AutoPlugin {
 
     val publishYt = taskKey[Unit]("Publish to yt directory")
     val publishYtArtifacts = taskKey[Seq[YtPublishArtifact]]("Yt publish artifacts")
-    val publishYtCredentials = settingKey[RpcCredentials]("Yt publish credentials")
+    val publishYtCredentials = settingKey[YTsaurusClientAuth]("Yt publish credentials")
   }
 
   import autoImport._
@@ -221,7 +221,7 @@ object YtPublishPlugin extends AutoPlugin {
     }
   }
 
-  private def createYtClient(proxy: String, credentials: RpcCredentials): (YTsaurusClient, BusConnector) = {
+  private def createYtClient(proxy: String, credentials: YTsaurusClientAuth): (YTsaurusClient, BusConnector) = {
     val connector = new DefaultBusConnector(new NioEventLoopGroup(1), true)
       .setReadTimeout(Duration.ofMinutes(5))
       .setWriteTimeout(Duration.ofMinutes(5))
@@ -236,11 +236,11 @@ object YtPublishPlugin extends AutoPlugin {
       .setRpcOptions(options)
     if (proxy == "local") {
       val proxyHost = sys.env.getOrElse("YT_LOCAL_HOST", "localhost")
-      val credentials = new RpcCredentials("root", "")
-      clientBuilder.setCluster(s"$proxyHost:8000").setRpcCredentials(credentials)
+      val credentials = YTsaurusClientAuth.builder().setUser("root").setToken("").build()
+      clientBuilder.setCluster(s"$proxyHost:8000").setAuth(credentials)
       clientBuilder.build() -> connector
     } else {
-      clientBuilder.setCluster(proxy).setRpcCredentials(credentials)
+      clientBuilder.setCluster(proxy).setAuth(credentials)
       clientBuilder.build() -> connector
     }
   }
@@ -267,10 +267,10 @@ object YtPublishPlugin extends AutoPlugin {
   }
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
-    publishYtCredentials := new RpcCredentials(
-      sys.env.getOrElse("YT_USER", sys.env("USER")),
-      sys.env.getOrElse("YT_TOKEN", readDefaultToken)
-    ),
+    publishYtCredentials := YTsaurusClientAuth.builder()
+      .setUser(sys.env.getOrElse("YT_USER", sys.env("USER")))
+      .setToken(sys.env.getOrElse("YT_TOKEN", readDefaultToken))
+      .build(),
     publishYtArtifacts := Nil,
     publishYt := {
       val log = streams.value.log

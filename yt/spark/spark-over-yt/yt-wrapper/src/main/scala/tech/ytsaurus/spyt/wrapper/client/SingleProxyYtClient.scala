@@ -14,12 +14,12 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 class SingleProxyYtClient(connector: BusConnector,
-                          rpcCredentials: RpcCredentials,
+                          clientAuth: YTsaurusClientAuth,
                           rpcOptions: RpcOptions,
                           address: HostAndPort)
   extends CompoundClientImpl(connector.executorService(), rpcOptions, ForkJoinPool.commonPool, DefaultSerializationResolver.getInstance()) {
 
-  private val client = SingleProxyYtClient.createClient(address, connector, rpcCredentials)
+  private val client = SingleProxyYtClient.createClient(address, connector, clientAuth)
   private val rpcClientPool = new RpcClientPool {
     override def peekClient(completableFuture: CompletableFuture[_]): CompletableFuture[RpcClient] = {
       CompletableFuture.completedFuture(client)
@@ -48,7 +48,7 @@ class SingleProxyYtClient(connector: BusConnector,
 }
 
 object SingleProxyYtClient {
-  def apply(address: String, rpcCredentials: RpcCredentials): SingleProxyYtClient = {
+  def apply(address: String, clientAuth: YTsaurusClientAuth): SingleProxyYtClient = {
     import tech.ytsaurus.spyt.wrapper.YtWrapper._
     val connector = new DefaultBusConnector(new NioEventLoopGroup(1), true)
       .setReadTimeout(toJavaDuration(300 seconds))
@@ -57,13 +57,13 @@ object SingleProxyYtClient {
     val rpcOptions = new RpcOptions()
     rpcOptions.setTimeouts(300 seconds)
 
-    new SingleProxyYtClient(connector, rpcCredentials, rpcOptions, HostAndPort.fromString(address))
+    new SingleProxyYtClient(connector, clientAuth, rpcOptions, HostAndPort.fromString(address))
   }
 
   def createClient(address: HostAndPort,
                    connector: BusConnector,
-                   rpcCredentials: RpcCredentials): RpcClient = {
+                   clientAuth: YTsaurusClientAuth): RpcClient = {
     new DefaultRpcBusClient(connector, new InetSocketAddress(address.host, address.port), "single_proxy")
-      .withTokenAuthentication(rpcCredentials)
+      .withAuthentication(clientAuth)
   }
 }
