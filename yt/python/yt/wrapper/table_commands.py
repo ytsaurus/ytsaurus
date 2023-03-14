@@ -160,6 +160,9 @@ def write_table(table, input_stream, format=None, table_writer=None, max_row_buf
     Set ``yt.wrapper.config["write_retries"]["enable"]`` to False for writing \
     without splitting and retries.
 
+    In case of parallel writing (see ``config["write_parallel"]``) take care about temporary files - specify
+    your own place for it ``config["remote_temp_files_directory"]``
+
     Writing is executed under self-pinged transaction.
     """
     if raw is None:
