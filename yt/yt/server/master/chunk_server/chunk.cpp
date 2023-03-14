@@ -48,7 +48,7 @@ static const auto& Logger = ChunkServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 // COMPAT(shakurov)
-using TLegacyChunkExportDataList = std::array<TChunkExportData, NObjectClient::MaxSecondaryMasterCells>;
+using TLegacyChunkExportDataList = std::array<TChunkExportData, 32>;
 
 } // namespace NYT::NChunkServer
 
@@ -246,7 +246,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         YT_VERIFY(std::any_of(
             legacyExportDataList.begin(), legacyExportDataList.end(),
             [] (auto data) { return data.RefCounter != 0; }));
-        for (auto cellIndex = 0; cellIndex < MaxSecondaryMasterCells; ++cellIndex) {
+        for (auto cellIndex = 0; cellIndex < 32; ++cellIndex) {
             auto data = legacyExportDataList[cellIndex];
             if (data.RefCounter != 0) {
                 CellIndexToExportData_->emplace(cellIndex, data);

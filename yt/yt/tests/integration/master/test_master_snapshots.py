@@ -7,9 +7,9 @@ import yt_commands
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove,
-    exists,
+    exists, concatenate,
     remove_account, create_proxy_role, create_account_resource_usage_lease, start_transaction, abort_transaction, commit_transaction, lock, insert_rows,
-    lookup_rows, alter_table, write_table, wait_for_cells,
+    lookup_rows, alter_table, write_table, read_table, wait_for_cells,
     sync_create_cells, sync_mount_table, sync_freeze_table, sync_reshard_table, get_singular_chunk_id,
     get_account_disk_space, create_dynamic_table, build_snapshot,
     build_master_snapshots, clear_metadata_caches, create_pool_tree, create_pool, move, create_medium,
@@ -427,6 +427,20 @@ def check_account_resource_usage_lease():
     assert get_account_disk_space("a42") == 0
 
 
+def check_exported_chunks():
+    create("table", "//tmp/t1", attributes={"external_cell_tag": 12})
+    write_table("//tmp/t1", {"a": "b"})
+    create("table", "//tmp/t2", attributes={"external_cell_tag": 13})
+    write_table("//tmp/t2", {"c": "d"})
+
+    create("table", "//tmp/t")
+    concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/t")
+
+    yield
+
+    assert read_table("//tmp/t") == [{"a": "b"}, {"c": "d"}]
+
+
 def check_chunk_locations():
     node_to_location_uuids = {}
 
@@ -496,6 +510,7 @@ MASTER_SNAPSHOT_CHECKER_LIST = [
     check_error_attribute,
     check_account_subtree_size_recalculation,
     check_scheduler_pool_subtree_size_recalculation,
+    check_exported_chunks,
     check_chunk_locations,
     check_account_resource_usage_lease,
     check_removed_account,  # keep this item last as it's sensitive to timings
@@ -587,11 +602,12 @@ class TestAllMastersSnapshots(YTEnvSetup):
 
 
 class TestMastersSnapshotsShardedTx(YTEnvSetup):
-    NUM_SECONDARY_MASTER_CELLS = 3
+    NUM_SECONDARY_MASTER_CELLS = 4
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
         "11": {"roles": ["transaction_coordinator"]},
         "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
     }
 
     @authors("aleksandra-zh")
