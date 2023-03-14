@@ -1,10 +1,9 @@
 package tech.ytsaurus.spyt.wrapper.client
 
 import java.time.{Duration => JDuration}
-
 import tech.ytsaurus.spyt.wrapper.Utils
 import tech.ytsaurus.spyt.wrapper.YtJavaConverters.toScalaDuration
-import tech.ytsaurus.client.rpc.RpcCredentials
+import tech.ytsaurus.client.rpc.YTsaurusClientAuth
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -26,7 +25,7 @@ case class YtClientConfiguration(proxy: String,
 
   def port: Int = proxy.split(":").lift(1).map(_.toInt).getOrElse(80)
 
-  def rpcCredentials: RpcCredentials = new RpcCredentials(user, token)
+  def clientAuth: YTsaurusClientAuth = YTsaurusClientAuth.builder().setUser(user).setToken(token).build()
 }
 
 object YtClientConfiguration {

@@ -7,7 +7,7 @@ import org.slf4j.{Logger, LoggerFactory}
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.core.tables.TableSchema
 import tech.ytsaurus.spyt.serialization.YsonEncoder
-import tech.ytsaurus.type_info.TiType
+import tech.ytsaurus.typeinfo.TiType
 
 import java.time.LocalDateTime
 import java.util.UUID

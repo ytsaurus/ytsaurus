@@ -20,7 +20,7 @@ import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.spyt.wrapper.table.OptimizeMode
 import tech.ytsaurus.client.rows.{UnversionedRow, UnversionedValue}
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
-import tech.ytsaurus.type_info.TiType
+import tech.ytsaurus.typeinfo.TiType
 import tech.ytsaurus.ysontree.YTree
 
 import java.sql.{Date, Timestamp}

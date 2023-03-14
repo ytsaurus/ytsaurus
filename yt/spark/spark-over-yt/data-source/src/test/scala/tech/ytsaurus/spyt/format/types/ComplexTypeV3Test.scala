@@ -14,8 +14,8 @@ import tech.ytsaurus.client.rows.{UnversionedRow, UnversionedValue}
 import tech.ytsaurus.core.common.Decimal.textToBinary
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.spyt.serializers.YtLogicalType
-import tech.ytsaurus.type_info.StructType.Member
-import tech.ytsaurus.type_info.TiType
+import tech.ytsaurus.typeinfo.StructType.Member
+import tech.ytsaurus.typeinfo.TiType
 import tech.ytsaurus.ysontree.YTreeBuilder
 
 class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with TmpDir with TestUtils {

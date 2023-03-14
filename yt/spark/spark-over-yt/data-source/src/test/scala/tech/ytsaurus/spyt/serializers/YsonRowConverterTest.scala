@@ -5,7 +5,7 @@ import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, ArrayData, MapData
 import org.apache.spark.sql.types.{BooleanType, DoubleType, IntegerType, StringType, StructField, StructType}
 import org.apache.spark.unsafe.types.UTF8String
 import org.scalatest.{FlatSpec, Matchers}
-import tech.ytsaurus.type_info.TiType
+import tech.ytsaurus.typeinfo.TiType
 import tech.ytsaurus.ysontree.{YTree, YTreeNode}
 
 import scala.util.Random

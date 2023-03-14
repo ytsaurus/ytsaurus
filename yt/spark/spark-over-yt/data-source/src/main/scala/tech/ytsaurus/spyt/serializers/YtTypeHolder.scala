@@ -1,7 +1,7 @@
 package tech.ytsaurus.spyt.serializers
 
 import tech.ytsaurus.spyt.serializers.YtTypeHolder.{empty, getElementByIndex, getMemberByIndex, getMemberByName}
-import tech.ytsaurus.type_info.TiType
+import tech.ytsaurus.typeinfo.TiType
 
 import scala.annotation.tailrec
 
@@ -114,7 +114,7 @@ object YtTypeHolder {
     }
   }
 
-  private def getMemberByName(struct: tech.ytsaurus.type_info.StructType,
+  private def getMemberByName(struct: tech.ytsaurus.typeinfo.StructType,
                               name: String): YtTypeHolder = {
     val opt = struct.getMembers.stream().filter(m => m.getName == name).findFirst()
     if (opt.isPresent) {
@@ -124,7 +124,7 @@ object YtTypeHolder {
     }
   }
 
-  private def getMemberByIndex(struct: tech.ytsaurus.type_info.StructType,
+  private def getMemberByIndex(struct: tech.ytsaurus.typeinfo.StructType,
                                index: Int): YtTypeHolder = {
     if (struct.getMembers.size() > index) {
       YtTypeHolder(struct.getMembers.get(index).getType)
@@ -133,7 +133,7 @@ object YtTypeHolder {
     }
   }
 
-  private def getElementByIndex(tuple: tech.ytsaurus.type_info.TupleType,
+  private def getElementByIndex(tuple: tech.ytsaurus.typeinfo.TupleType,
                                 index: Int): YtTypeHolder = {
     if (tuple.getElements.size() > index) {
       YtTypeHolder(tuple.getElements.get(index))

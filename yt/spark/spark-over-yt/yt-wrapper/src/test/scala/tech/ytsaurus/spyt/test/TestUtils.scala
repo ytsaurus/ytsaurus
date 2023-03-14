@@ -8,7 +8,7 @@ import tech.ytsaurus.client.rows.{UnversionedRow, UnversionedRowSerializer, Wire
 import tech.ytsaurus.core.cypress.{CypressNodeType, YPath}
 import tech.ytsaurus.core.rows.YTreeRowSerializer
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
-import tech.ytsaurus.type_info.TiType
+import tech.ytsaurus.typeinfo.TiType
 import tech.ytsaurus.yson.YsonConsumer
 import tech.ytsaurus.ysontree.{YTreeBuilder, YTreeNode, YTreeNodeUtils, YTreeTextSerializer}
 

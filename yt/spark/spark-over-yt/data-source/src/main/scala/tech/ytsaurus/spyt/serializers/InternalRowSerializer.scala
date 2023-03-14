@@ -14,7 +14,7 @@ import tech.ytsaurus.client.rows.{WireProtocolWriteable, WireRowSerializer}
 import tech.ytsaurus.core.common.Decimal.textToBinary
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.spyt.serialization.YsonEncoder
-import tech.ytsaurus.type_info.TiType
+import tech.ytsaurus.typeinfo.TiType
 
 import java.util.concurrent.{Executors, TimeUnit}
 import scala.annotation.tailrec
