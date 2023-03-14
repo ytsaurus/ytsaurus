@@ -91,7 +91,7 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
             pids = Environment_->GetJobPids();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get list of user job processes");
-            return {};
+            return New<TJobMemoryStatistics>();
         }
 
         if (Config_->UseSMapsMemoryTracker && TmpfsManager_->HasTmpfsVolumes()) {
@@ -196,7 +196,7 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
     return memoryStatistics;
 
 #else
-    return {};
+    return New<TJobMemoryStatistics>();
 #endif
 }
 

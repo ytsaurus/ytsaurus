@@ -18,8 +18,8 @@ struct TProcessMemoryStatistics
 {
     int Pid;
     std::vector<TString> Cmdline;
-    ui64 Rss;
-    ui64 Shared;
+    i64 Rss;
+    i64 Shared;
 
     REGISTER_YSON_STRUCT(TProcessMemoryStatistics);
 
