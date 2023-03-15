@@ -1,0 +1,16 @@
+#pragma once
+
+#include "fwd.h"
+#include "../fwd.h"
+
+#include <vector>
+
+namespace NRoren::NPrivate {
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRawCoGroupByKeyPtr MakeRawCoGroupByKey(std::vector<TDynamicTypeTag> inputTags);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NRoren::NPrivate

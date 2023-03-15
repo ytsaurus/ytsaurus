@@ -1,0 +1,21 @@
+package NRoren;
+
+message TYtPipelineConfig
+{
+    // YT cluster to run pipeline. hahn, arnod, freud, etc
+    required string Cluster = 1;
+
+    // WorkingDir to create temporary intermediate tables.
+    // While you can set it to "//tmp", it is not recommended for production processes.
+    // https://yt.yandex-team.ru/docs/best_practices/howtorunproduction#zakazhite-neobhodimye-resursy
+    required string WorkingDir = 2;
+
+    // Set pool to run calculations under dedicated resources.
+    optional string Pool = 3;
+
+    // Set external transaction id. If value set, transaction must exists.
+    // All Roren operations run under this transaction.
+    // Roren program doesn't ping this transaction and doesn't commit or abort it
+    optional string TransactionId = 4;
+}
+
