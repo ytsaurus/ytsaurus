@@ -405,6 +405,22 @@ static void WriteGaugeIfOk(
     }
 }
 
+static void WriteCumulativeGaugeIfOk(
+    ISensorWriter* writer,
+    const TString& path,
+    TErrorOr<ui64> valueOrError,
+    i64 timeDeltaUsec)
+{
+    if (valueOrError.IsOK()) {
+        i64 value = static_cast<i64>(valueOrError.Value());
+
+        if (value >= 0) {
+            writer->AddGauge(path,
+                1.0 * value * ResourceUsageUpdatePeriod.MicroSeconds() / timeDeltaUsec);
+        }
+    }
+}
+
 void TPortoResourceProfiler::WriteCpuMetrics(
     ISensorWriter* writer,
     TTotalStatistics& totalStatistics,
@@ -458,10 +474,18 @@ void TPortoResourceProfiler::WriteCpuMetrics(
 
 void TPortoResourceProfiler::WriteMemoryMetrics(
     ISensorWriter* writer,
-    TTotalStatistics& totalStatistics)
+    TTotalStatistics& totalStatistics,
+    i64 timeDeltaUsec)
 {
-    WriteGaugeIfOk(writer, "/memory/minor_page_faults", totalStatistics.MemoryStatistics.MinorPageFaults);
-    WriteGaugeIfOk(writer, "/memory/major_page_faults", totalStatistics.MemoryStatistics.MajorPageFaults);
+    WriteCumulativeGaugeIfOk(writer,
+        "/memory/minor_page_faults",
+        totalStatistics.MemoryStatistics.MinorPageFaults,
+        timeDeltaUsec);
+    WriteCumulativeGaugeIfOk(writer,
+        "/memory/major_page_faults",
+        totalStatistics.MemoryStatistics.MajorPageFaults,
+        timeDeltaUsec);
+
     WriteGaugeIfOk(writer, "/memory/file_cache_usage", totalStatistics.MemoryStatistics.FileCacheUsage);
     WriteGaugeIfOk(writer, "/memory/anon_usage", totalStatistics.MemoryStatistics.AnonUsage);
     WriteGaugeIfOk(writer, "/memory/anon_limit", totalStatistics.MemoryStatistics.AnonLimit);
@@ -475,14 +499,33 @@ void TPortoResourceProfiler::WriteBlockingIOMetrics(
     TTotalStatistics& totalStatistics,
     i64 timeDeltaUsec)
 {
-    WriteGaugeIfOk(writer, "/io/read_bytes", totalStatistics.BlockIOStatistics.IOReadByte);
-    WriteGaugeIfOk(writer, "/io/write_bytes", totalStatistics.BlockIOStatistics.IOWriteByte);
-    WriteGaugeIfOk(writer, "/io/bytes_limit", totalStatistics.BlockIOStatistics.IOBytesLimit);
+    WriteCumulativeGaugeIfOk(writer,
+        "/io/read_bytes",
+        totalStatistics.BlockIOStatistics.IOReadByte,
+        timeDeltaUsec);
+    WriteCumulativeGaugeIfOk(writer,
+        "/io/write_bytes",
+        totalStatistics.BlockIOStatistics.IOWriteByte,
+        timeDeltaUsec);
+    WriteCumulativeGaugeIfOk(writer,
+        "/io/read_ops",
+        totalStatistics.BlockIOStatistics.IOReadOps,
+        timeDeltaUsec);
+    WriteCumulativeGaugeIfOk(writer,
+        "/io/write_ops",
+        totalStatistics.BlockIOStatistics.IOWriteOps,
+        timeDeltaUsec);
+    WriteCumulativeGaugeIfOk(writer,
+        "/io/ops",
+        totalStatistics.BlockIOStatistics.IOOps,
+        timeDeltaUsec);
 
-    WriteGaugeIfOk(writer, "/io/read_ops", totalStatistics.BlockIOStatistics.IOReadOps);
-    WriteGaugeIfOk(writer, "/io/write_ops", totalStatistics.BlockIOStatistics.IOWriteOps);
-    WriteGaugeIfOk(writer, "/io/ops", totalStatistics.BlockIOStatistics.IOOps);
-    WriteGaugeIfOk(writer, "/io/ops_limit", totalStatistics.BlockIOStatistics.IOOpsLimit);
+    WriteGaugeIfOk(writer,
+        "/io/bytes_limit",
+        totalStatistics.BlockIOStatistics.IOBytesLimit);
+    WriteGaugeIfOk(writer,
+        "/io/ops_limit",
+        totalStatistics.BlockIOStatistics.IOOpsLimit);
 
     if (totalStatistics.BlockIOStatistics.IOTotalTime.IsOK()) {
         i64 totalTimeUs = totalStatistics.BlockIOStatistics.IOTotalTime.Value().MicroSeconds();
@@ -499,37 +542,44 @@ void TPortoResourceProfiler::WriteBlockingIOMetrics(
 
 void TPortoResourceProfiler::WriteNetworkMetrics(
     ISensorWriter* writer,
-    TTotalStatistics& totalStatistics)
+    TTotalStatistics& totalStatistics,
+    i64 timeDeltaUsec)
 {
-    WriteGaugeIfOk(
+    WriteCumulativeGaugeIfOk(
         writer,
         "/network/rx_bytes",
-        totalStatistics.NetworkStatistics.RxBytes);
-    WriteGaugeIfOk(
+        totalStatistics.NetworkStatistics.RxBytes,
+        timeDeltaUsec);
+    WriteCumulativeGaugeIfOk(
         writer,
         "/network/rx_drops",
-        totalStatistics.NetworkStatistics.RxDrops);
-    WriteGaugeIfOk(
+        totalStatistics.NetworkStatistics.RxDrops,
+        timeDeltaUsec);
+    WriteCumulativeGaugeIfOk(
         writer,
         "/network/rx_packets",
-        totalStatistics.NetworkStatistics.RxPackets);
+        totalStatistics.NetworkStatistics.RxPackets,
+        timeDeltaUsec);
     WriteGaugeIfOk(
         writer,
         "/network/rx_limit",
         totalStatistics.NetworkStatistics.RxLimit);
 
-    WriteGaugeIfOk(
+    WriteCumulativeGaugeIfOk(
         writer,
         "/network/tx_bytes",
-        totalStatistics.NetworkStatistics.TxBytes);
-    WriteGaugeIfOk(
+        totalStatistics.NetworkStatistics.TxBytes,
+        timeDeltaUsec);
+    WriteCumulativeGaugeIfOk(
         writer,
         "/network/tx_drops",
-        totalStatistics.NetworkStatistics.TxDrops);
-    WriteGaugeIfOk(
+        totalStatistics.NetworkStatistics.TxDrops,
+        timeDeltaUsec);
+    WriteCumulativeGaugeIfOk(
         writer,
         "/network/tx_packets",
-        totalStatistics.NetworkStatistics.TxPackets);
+        totalStatistics.NetworkStatistics.TxPackets,
+        timeDeltaUsec);
     WriteGaugeIfOk(
         writer,
         "/network/tx_limit",
@@ -544,9 +594,9 @@ void TPortoResourceProfiler::CollectSensors(ISensorWriter* writer)
     i64 timeDeltaUsec = TInstant::Now().MicroSeconds() - lastUpdate;
 
     WriteCpuMetrics(writer, totalStatistics, timeDeltaUsec);
-    WriteMemoryMetrics(writer, totalStatistics);
+    WriteMemoryMetrics(writer, totalStatistics, timeDeltaUsec);
     WriteBlockingIOMetrics(writer, totalStatistics, timeDeltaUsec);
-    WriteNetworkMetrics(writer, totalStatistics);
+    WriteNetworkMetrics(writer, totalStatistics, timeDeltaUsec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

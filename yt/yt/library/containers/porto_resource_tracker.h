@@ -130,7 +130,8 @@ private:
 
     void WriteMemoryMetrics(
         ISensorWriter* writer,
-        TTotalStatistics& totalStatistics);
+        TTotalStatistics& totalStatistics,
+        i64 timeDeltaUsec);
 
     void WriteBlockingIOMetrics(
         ISensorWriter* writer,
@@ -139,7 +140,8 @@ private:
 
     void WriteNetworkMetrics(
         ISensorWriter* writer,
-        TTotalStatistics& totalStatistics);
+        TTotalStatistics& totalStatistics,
+        i64 timeDeltaUsec);
 };
 
 DECLARE_REFCOUNTED_TYPE(TPortoResourceProfiler)
