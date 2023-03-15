@@ -69,7 +69,7 @@ public:
 
     bool IsParameterizedBalancingEnabled() const;
 
-    TFuture<void> UpdateState();
+    TFuture<void> UpdateState(bool fetchTabletCellsFromSecondaryMasters);
     TFuture<void> FetchStatistics();
 
 private:
@@ -107,13 +107,19 @@ private:
     std::vector<TTabletCellId> CellIds_;
     TBundleProfilingCountersPtr Counters_;
 
-    void DoUpdateState();
+    void DoUpdateState(bool fetchTabletCellsFromSecondaryMasters);
 
-    THashMap<TTabletCellId, TTabletCellInfo> FetchTabletCells() const;
+    THashMap<TTabletCellId, TTabletCellInfo> FetchTabletCells(
+        const NObjectClient::TCellTagList& cellTags) const;
+
     THashMap<TTableId, TTablePtr> FetchBasicTableAttributes(
         const THashSet<TTableId>& tableIds) const;
     THashMap<TString, TTabletCellBundle::TNodeMemoryStatistics> FetchNodeStatistics(
         const THashSet<TString>& addresses) const;
+
+    TTabletCellInfo TabletCellInfoFromAttributes(
+        TTabletCellId cellId,
+        const NYTree::IAttributeDictionaryPtr& attributes) const;
 
     void DoFetchStatistics();
 

@@ -59,6 +59,8 @@ public:
 
     TTimeFormula Schedule;
 
+    bool FetchTabletCellsFromSecondaryMasters;
+
     REGISTER_YSON_STRUCT(TTabletBalancerDynamicConfig);
 
     static void Register(TRegistrar registrar);

@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/ytlib/tablet_client/master_tablet_service_proxy.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -18,6 +20,12 @@ struct TCellTagRequest
 {
     NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr Request;
     TFuture<NTabletClient::TMasterTabletServiceProxy::TRspGetTableBalancingAttributesPtr> Response;
+};
+
+struct TCellTagBatch
+{
+    NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr Request;
+    TFuture<NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> Response;
 };
 
 template <typename TRequest>
