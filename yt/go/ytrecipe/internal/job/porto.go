@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	porto "a.yandex-team.ru/infra/porto/api_go"
 	"a.yandex-team.ru/library/go/core/log"
+	porto "a.yandex-team.ru/library/go/porto"
 	"a.yandex-team.ru/yt/go/guid"
 )
 
