@@ -29,12 +29,6 @@ using namespace NYTree;
 
 namespace {
 
-struct TCellTagBatch
-{
-    TObjectServiceProxy::TReqExecuteBatchPtr Request;
-    TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> Response;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributesByCellTags(

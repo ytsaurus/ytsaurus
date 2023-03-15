@@ -147,9 +147,9 @@ void TBundleState::UpdateBundleAttributes(
     }
 }
 
-TFuture<void> TBundleState::UpdateState()
+TFuture<void> TBundleState::UpdateState(bool fetchTabletCellsFromSecondaryMasters)
 {
-    return BIND(&TBundleState::DoUpdateState, MakeStrong(this))
+    return BIND(&TBundleState::DoUpdateState, MakeStrong(this), fetchTabletCellsFromSecondaryMasters)
         .AsyncVia(Invoker_)
         .Run();
 }
@@ -161,11 +161,19 @@ TFuture<void> TBundleState::FetchStatistics()
         .Run();
 }
 
-void TBundleState::DoUpdateState()
+void TBundleState::DoUpdateState(bool fetchTabletCellsFromSecondaryMasters)
 {
+    THashMap<TTabletCellId, TTabletCellInfo> tabletCells;
+
     YT_LOG_DEBUG("Started fetching tablet cells (CellCount: %v)", CellIds_.size());
     Counters_->TabletCellTabletsRequestCount.Increment(CellIds_.size());
-    auto tabletCells = FetchTabletCells();
+
+    auto secondaryCellTags = Client_->GetNativeConnection()->GetSecondaryMasterCellTags();
+    if (fetchTabletCellsFromSecondaryMasters && !secondaryCellTags.empty()) {
+        tabletCells = FetchTabletCells(secondaryCellTags);
+    } else {
+        tabletCells = FetchTabletCells({Client_->GetNativeConnection()->GetPrimaryMasterCellTag()});
+    }
     YT_LOG_DEBUG("Finished fetching tablet cells");
 
     THashSet<TTabletId> tabletIds;
@@ -389,55 +397,78 @@ void TBundleState::DoFetchStatistics()
     }
 }
 
-THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTabletCells() const
+TBundleState::TTabletCellInfo TBundleState::TabletCellInfoFromAttributes(
+    TTabletCellId cellId,
+    const IAttributeDictionaryPtr& attributes) const
 {
-    auto proxy = CreateObjectServiceReadProxy(Client_, EMasterChannelKind::Follower);
-    auto batchReq = proxy.ExecuteBatch();
-    static const std::vector<TString> attributeKeys{"tablets", "status", "total_statistics", "peers", "tablet_cell_life_stage"};
+    auto tablets = attributes->Get<IMapNodePtr>("tablets");
+    auto status = attributes->Get<TTabletCellStatus>("status");
+    auto statistics = attributes->Get<TTabletCellStatistics>("total_statistics");
+    auto peers = attributes->Get<std::vector<TTabletCellPeer>>("peers");
+    auto lifeStage = attributes->Get<ETabletCellLifeStage>("tablet_cell_life_stage");
 
-    for (auto cellId : CellIds_) {
-        auto req = TTableYPathProxy::Get(FromObjectId(cellId) + "/@");
-        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-        batchReq->AddRequest(req, ToString(cellId));
+    std::optional<TNodeAddress> address;
+    for (const auto& peer : peers) {
+        if (peer.State == EPeerState::Leading) {
+            if (address.has_value()) {
+                YT_LOG_WARNING("Cell has two leading peers (Cell: %v, Peers: [%v, %v])",
+                    cellId,
+                    address,
+                    peer.NodeAddress);
+
+                address.reset();
+                break;
+            }
+            address = peer.NodeAddress;
+        }
     }
 
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-    const auto& batchRsp = batchRspOrError.Value();
+    auto tabletCell = New<TTabletCell>(cellId, statistics, status, std::move(address), lifeStage);
+
+    return TTabletCellInfo{
+        .TabletCell = std::move(tabletCell),
+        .TabletToTableId = ParseTabletToTableMapping(tablets),
+    };
+}
+
+THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTabletCells(
+    const NObjectClient::TCellTagList& cellTags) const
+{
+    THashMap<TCellTag, TCellTagBatch> batchRequests;
+
+    static const std::vector<TString> attributeKeys{"tablets", "status", "total_statistics", "peers", "tablet_cell_life_stage"};
+    for (auto cellTag : cellTags) {
+        auto proxy = CreateObjectServiceReadProxy(
+            Client_,
+            EMasterChannelKind::Follower,
+            cellTag);
+        auto it = EmplaceOrCrash(batchRequests, cellTag, TCellTagBatch{proxy.ExecuteBatch(), {}});
+
+        for (auto cellId : CellIds_) {
+            auto req = TTableYPathProxy::Get(FromObjectId(cellId) + "/@");
+            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+            it->second.Request->AddRequest(req, ToString(cellId));
+        }
+    }
+
+    ExecuteRequestsToCellTags(&batchRequests);
 
     THashMap<TTabletCellId, TTabletCellInfo> tabletCells;
-    for (auto cellId : CellIds_) {
-        auto rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspGet>(ToString(cellId));
-        auto attributes = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
+    for (auto cellTag : cellTags) {
+        for (auto cellId : CellIds_) {
+            const auto& batchReq = batchRequests[cellTag].Response.Get().Value();
+            auto rspOrError = batchReq->GetResponse<TTableYPathProxy::TRspGet>(ToString(cellId));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
 
-        auto tablets = attributes->Get<IMapNodePtr>("tablets");
-        auto status = attributes->Get<TTabletCellStatus>("status");
-        auto statistics = attributes->Get<TTabletCellStatistics>("total_statistics");
-        auto peers = attributes->Get<std::vector<TTabletCellPeer>>("peers");
-        auto lifeStage = attributes->Get<ETabletCellLifeStage>("tablet_cell_life_stage");
+            auto attributes = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
+            auto cellInfo = TabletCellInfoFromAttributes(cellId, attributes);
 
-        std::optional<TNodeAddress> address;
-        for (const auto& peer : peers) {
-            if (peer.State == EPeerState::Leading) {
-                if (address.has_value()) {
-                    YT_LOG_WARNING("Cell has two leading peers (Cell: %v, Peers: [%v, %v])",
-                        cellId,
-                        address,
-                        peer.NodeAddress);
-
-                    address.reset();
-                    break;
-                }
-                address = peer.NodeAddress;
+            if (auto it = tabletCells.find(cellId); it != tabletCells.end()) {
+                it->second.TabletToTableId.insert(cellInfo.TabletToTableId.begin(), cellInfo.TabletToTableId.end());
+            } else {
+                EmplaceOrCrash(tabletCells, cellId, std::move(cellInfo));
             }
         }
-
-        auto tabletCell = New<TTabletCell>(cellId, statistics, status, std::move(address), lifeStage);
-
-        tabletCells.emplace(cellId, TTabletCellInfo{
-            .TabletCell = std::move(tabletCell),
-            .TabletToTableId = ParseTabletToTableMapping(tablets),
-        });
     }
 
     return tabletCells;

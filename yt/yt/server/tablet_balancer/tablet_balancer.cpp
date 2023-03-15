@@ -236,7 +236,7 @@ void TTabletBalancer::BalancerIteration()
 
         YT_LOG_DEBUG("Started fetching (BundleName: %v)", bundleName);
 
-        if (auto result = WaitFor(bundle->UpdateState()); !result.IsOK()) {
+        if (auto result = WaitFor(bundle->UpdateState(DynamicConfig_.Acquire()->FetchTabletCellsFromSecondaryMasters)); !result.IsOK()) {
             YT_LOG_ERROR(result, "Failed to update meta registry (BundleName: %v)", bundleName);
             continue;
         }

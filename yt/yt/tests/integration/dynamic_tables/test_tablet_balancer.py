@@ -98,6 +98,19 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         sleep(1)
         assert get("//tmp/t/@tablet_balancer_config/group") == "non-existent"
 
+    @authors("alexelexa")
+    def test_fetch_cell_only_from_secondary_in_multicell(self):
+        self._apply_dynamic_config_patch({
+            "fetch_tablet_cells_from_secondary_masters": True
+        })
+
+        self._configure_bundle("default")
+        sync_create_cells(2)
+        self._create_sorted_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [1]])
+        sync_mount_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@tablet_count") == 1)
+
 
 class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
     @classmethod
