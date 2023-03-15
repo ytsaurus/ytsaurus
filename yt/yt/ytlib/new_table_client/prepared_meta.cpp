@@ -266,8 +266,7 @@ size_t TPreparedChunkMeta::Prepare(
     std::vector<TColumnInfo> preparedColumns;
     // Plus one timestamp column.
     preparedColumns.resize(chunkSchemaColumns.size() + 1);
-    ColumnIdToGroupId.resize(chunkSchemaColumns.size() + 1);
-    ColumnIndexInGroup.resize(chunkSchemaColumns.size() + 1);
+    ColumnGroupInfos.resize(chunkSchemaColumns.size() + 1);
 
     auto determineColumnGroup = [&] (std::vector<ui32> blockIds, int columnIndex) {
         YT_VERIFY(!blockIds.empty());
@@ -278,7 +277,7 @@ size_t TPreparedChunkMeta::Prepare(
         }
 
         auto groupId = it->second;
-        ColumnIdToGroupId[columnIndex] = groupId;
+        ColumnGroupInfos[columnIndex].GroupId = groupId;
 
         auto& blockGroup = ColumnGroups[groupId];
 
@@ -289,7 +288,7 @@ size_t TPreparedChunkMeta::Prepare(
             YT_VERIFY(blockIds == blockGroup.BlockIds);
         }
 
-        ColumnIndexInGroup[columnIndex] = blockGroup.ColumnIds.size();
+        ColumnGroupInfos[columnIndex].IndexInGroup = blockGroup.ColumnIds.size();
         blockGroup.ColumnIds.push_back(columnIndex);
     };
 
@@ -308,6 +307,7 @@ size_t TPreparedChunkMeta::Prepare(
     }
 
     {
+        // TODO(lukyan): Or use first group for timestamp?
         int timestampReaderIndex = columnMetas->columns().size() - 1;
 
         auto blockIds = preparedColumns[timestampReaderIndex].PrepareTimestampMetas(

@@ -182,6 +182,12 @@ struct TKeyMeta
     void Init(const NProto::TSegmentMeta& meta, const ui64* ptr);
 };
 
+struct TColumnGroupInfo
+{
+    ui16 GroupId;
+    ui16 IndexInGroup;
+};
+
 struct TPreparedChunkMeta final
 {
     struct TColumnGroup
@@ -199,8 +205,8 @@ struct TPreparedChunkMeta final
     };
 
     std::vector<TColumnGroup> ColumnGroups;
-    std::vector<ui16> ColumnIdToGroupId;
-    std::vector<ui16> ColumnIndexInGroup;
+
+    std::vector<TColumnGroupInfo> ColumnGroupInfos;
 
     bool FullNewMeta = false;
     size_t Size = 0;

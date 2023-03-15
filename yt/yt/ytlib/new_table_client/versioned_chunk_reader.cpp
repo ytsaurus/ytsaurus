@@ -46,37 +46,41 @@ using NTableClient::TChunkColumnMappingPtr;
 
 static const auto& Logger = NTableClient::TableClientLogger;
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
-std::vector<EValueType> GetKeyTypes(const TTableSchemaPtr& tableSchema)
+TCompactVector<EValueType, 16> GetKeyTypes(const TTableSchemaPtr& tableSchema)
 {
     auto keyColumnCount = tableSchema->GetKeyColumnCount();
     const auto& schemaColumns = tableSchema->Columns();
 
-    std::vector<EValueType> keyTypes;
-    keyTypes.reserve(keyColumnCount);
+    TCompactVector<EValueType, 16> keyTypes;
+    keyTypes.resize(keyColumnCount);
+    // Use raw data pointer because TCompactVector has branch in index operator.
+    auto* keyTypesData = keyTypes.data();
     for (int keyColumnIndex = 0; keyColumnIndex < keyColumnCount; ++keyColumnIndex) {
         auto type = schemaColumns[keyColumnIndex].GetWireType();
-        keyTypes.push_back(type);
+        keyTypesData[keyColumnIndex] = type;
     }
 
     return keyTypes;
 }
 
-std::vector<TValueSchema> GetValuesSchema(
+TCompactVector<TValueSchema, 32> GetValuesSchema(
     const TTableSchemaPtr& tableSchema,
     TRange<TColumnIdMapping> valueIdMapping)
 {
-    std::vector<TValueSchema> valueSchema;
-    valueSchema.reserve(std::ssize(valueIdMapping));
+    TCompactVector<TValueSchema, 32> valueSchema;
+    valueSchema.resize(std::ssize(valueIdMapping));
+    // Use raw data pointer because TCompactVector has branch in index operator.
+    auto* valueSchemaData = valueSchema.data();
 
     const auto& schemaColumns = tableSchema->Columns();
     for (const auto& idMapping : valueIdMapping) {
         auto type = schemaColumns[idMapping.ReaderSchemaIndex].GetWireType();
-        valueSchema.push_back(TValueSchema{
-            type,
+        *valueSchemaData++ = TValueSchema{
             ui16(idMapping.ReaderSchemaIndex),
-            schemaColumns[idMapping.ReaderSchemaIndex].Aggregate().has_value()});
+            type,
+            schemaColumns[idMapping.ReaderSchemaIndex].Aggregate().has_value()};
     }
 
     return valueSchema;
@@ -380,7 +384,7 @@ TString ToString(const TReaderStatistics& statistics)
     return Format(
         "RowCount: %v, "
         "Summary Init/Read Time: %vns / %vns, "
-        "BuildReadWindows/GetValuesIdMapping/CreateColumnBlockHolders/GetTypesFromSchema/Logging/CreateRowsetBuilder/CreateBlockManager Times: %vns / %vns / %vns / %vns / %vns / %vns / %vns, "
+        "BuildReadWindows/GetValuesIdMapping/CreateColumnBlockHolders/GetTypesFromSchema/BuildColumnInfos/CreateRowsetBuilder/CreateBlockManager Times: %vns / %vns / %vns / %vns / %vns / %vns / %vns, "
         "Decode Timestamp/Key/Value Times: %vns / %vns / %vns, "
         "FetchBlocks/BuildRanges/DoRead/CollectCounts/AllocateRows/DoReadKeys/DoReadValues Times: %vns / %vns / %vns / %vns / %vns / %vns / %vns, "
         "TryUpdateWindow/SkipToBlock/FetchBlock/SetBlock/UpdateSegment/DoRead CallCounts: %v / %v / %v / %v / %v / %v",
@@ -391,7 +395,7 @@ TString ToString(const TReaderStatistics& statistics)
         cpuDurationToNs(statistics.GetValuesIdMappingTime),
         cpuDurationToNs(statistics.CreateColumnBlockHoldersTime),
         cpuDurationToNs(statistics.GetTypesFromSchemaTime),
-        cpuDurationToNs(statistics.LoggingTime),
+        cpuDurationToNs(statistics.BuildColumnInfosTime),
         cpuDurationToNs(statistics.CreateRowsetBuilderTime),
         cpuDurationToNs(statistics.CreateBlockManagerTime),
         cpuDurationToNs(statistics.DecodeTimestampSegmentTime),
@@ -428,7 +432,8 @@ public:
         std::vector<TSpanMatching>&& windowsList,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         bool lookup,
-        TReaderStatisticsPtr readerStatistics)
+        TReaderStatisticsPtr readerStatistics,
+        int lookupKeyCount)
         : TVersionedChunkReader(
             std::move(blockManager),
             std::move(rowsetBuilder),
@@ -439,6 +444,7 @@ public:
         , ChunkMeta_(std::move(chunkMeta))
         , ColumnHunkFlags_(std::move(columnHunkFlags))
         , Lookup_(lookup)
+        , LookupKeyCount_(lookupKeyCount)
     { }
 
     ~TReaderWrapper()
@@ -456,7 +462,10 @@ public:
         YT_VERIFY(options.MaxRowsPerRead > 0);
 
         std::vector<TMutableVersionedRow> rows;
-        rows.reserve(options.MaxRowsPerRead);
+        // Do not reserve too much if there are few lookup keys.
+        auto lookupKeyCount = Lookup_ ? LookupKeyCount_ : std::numeric_limits<int>::max();
+        rows.reserve(std::min(options.MaxRowsPerRead, i64(lookupKeyCount)));
+        YT_VERIFY(rows.capacity() > 0);
 
         bool hasMore = Read(&rows);
         if (!hasMore) {
@@ -519,6 +528,7 @@ private:
 
     // TODO(lukyan): Use performance counters adapter and increment counters uniformly and remove this flag.
     const bool Lookup_;
+    const int LookupKeyCount_;
 
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
@@ -605,7 +615,18 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         readerStatistics = New<TReaderStatistics>();
     }
 
+    if (timestamp == NTableClient::AllCommittedTimestamp) {
+        produceAll = true;
+    }
+
+    YT_VERIFY(produceAll || timestamp != NTableClient::AllCommittedTimestamp);
+
+    auto readItemCount = readItems.size();
+
     TCpuDurationIncrementingGuard timingGuard(&readerStatistics->InitTime);
+
+    auto chunkKeyColumnCount = chunkMeta->GetChunkKeyColumnCount();
+    const auto& chunkSchema = chunkMeta->GetChunkSchema();
 
     TCpuDuration lastCpuInstant = GetCpuInstant();
     auto getDurationAndReset = [&] {
@@ -620,11 +641,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     auto valuesIdMapping = chunkColumnMapping
         ? chunkColumnMapping->BuildVersionedSimpleSchemaIdMapping(columnFilter)
-        : TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
+        : TChunkColumnMapping(tableSchema, chunkSchema)
             .BuildVersionedSimpleSchemaIdMapping(columnFilter);
     readerStatistics->GetValuesIdMappingTime = getDurationAndReset();
 
-    auto groupIds = GetGroupsIds(*preparedChunkMeta, chunkMeta->GetChunkKeyColumnCount(), valuesIdMapping);
+    auto groupIds = GetGroupsIds(*preparedChunkMeta, chunkKeyColumnCount, valuesIdMapping);
     auto groupBlockHolders = CreateGroupBlockHolders(*preparedChunkMeta, groupIds);
     readerStatistics->CreateColumnBlockHoldersTime = getDurationAndReset();
 
@@ -632,65 +653,49 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     auto valueSchema = GetValuesSchema(tableSchema, valuesIdMapping);
     readerStatistics->GetTypesFromSchemaTime = getDurationAndReset();
 
-    YT_LOG_DEBUG("Creating rowset builder (ReadItemCount: %v, KeyTypes: %v, ValueTypes: %v, NewMeta: %v)",
-        readItems.size(),
-        keyTypes,
-        MakeFormattableView(valueSchema, [] (TStringBuilderBase* builder, TValueSchema valueSchema) {
-            builder->AppendFormat("%v", valueSchema.Type);
-        }),
-        preparedChunkMeta->FullNewMeta);
+    TCompactVector<TColumnBase, 32> columnInfos;
+    columnInfos.resize(std::ssize(keyTypes) + std::ssize(valuesIdMapping) + 1);
+    // Use raw data pointer because TCompactVector has branch in index operator.
+    auto* columnInfosData = columnInfos.data();
 
-    if (timestamp == NTableClient::AllCommittedTimestamp) {
-        produceAll = true;
-    }
-
-    readerStatistics->LoggingTime = getDurationAndReset();
-
-    YT_VERIFY(produceAll || timestamp != NTableClient::AllCommittedTimestamp);
-
-    std::vector<TColumnBase> columnInfos;
-    columnInfos.reserve(std::ssize(keyTypes) + std::ssize(valuesIdMapping) + 1);
-
-    for (int index = 0; index < std::ssize(keyTypes); ++index) {
+    for (int keyColumnIndex = 0; keyColumnIndex < std::ssize(keyTypes); ++keyColumnIndex) {
         const TBlockRef* blockRef = nullptr;
-        if (index < chunkMeta->GetChunkKeyColumnCount()) {
-            auto groupId = preparedChunkMeta->ColumnIdToGroupId[index];
+        if (keyColumnIndex < chunkMeta->GetChunkKeyColumnCount()) {
+            auto groupId = preparedChunkMeta->ColumnGroupInfos[keyColumnIndex].GroupId;
             auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
             blockRef = &groupBlockHolders[blockHolderIndex];
         }
 
-        columnInfos.emplace_back(
-            blockRef,
-            preparedChunkMeta->ColumnIndexInGroup[index]);
+        *columnInfosData++ = {blockRef, preparedChunkMeta->ColumnGroupInfos[keyColumnIndex].IndexInGroup};
     }
 
     for (auto [chunkSchemaIndex, readerSchemaIndex] : valuesIdMapping) {
-        auto groupId = preparedChunkMeta->ColumnIdToGroupId[chunkSchemaIndex];
+        auto groupId = preparedChunkMeta->ColumnGroupInfos[chunkSchemaIndex].GroupId;
         auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
         const auto* blockRef = &groupBlockHolders[blockHolderIndex];
-        columnInfos.emplace_back(
-            blockRef,
-            preparedChunkMeta->ColumnIndexInGroup[chunkSchemaIndex]);
+
+        *columnInfosData++ = {blockRef, preparedChunkMeta->ColumnGroupInfos[chunkSchemaIndex].IndexInGroup};
     }
 
     {
         // Timestamp column info.
-        auto groupId = preparedChunkMeta->ColumnIdToGroupId.back();
+        auto groupId = preparedChunkMeta->ColumnGroupInfos.back().GroupId;
         auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
         const auto* blockRef = &groupBlockHolders[blockHolderIndex];
-        columnInfos.emplace_back(
-            blockRef,
-            preparedChunkMeta->ColumnIndexInGroup.back());
+
+        *columnInfosData++ = {blockRef, preparedChunkMeta->ColumnGroupInfos.back().IndexInGroup};
     }
 
-    auto rowsetBuilder = CreateRowsetBuilder(
-        std::move(readItems),
+    readerStatistics->BuildColumnInfosTime = getDurationAndReset();
+
+    auto rowsetBuilder = CreateRowsetBuilder(std::move(readItems), {
         keyTypes,
         valueSchema,
         columnInfos,
         timestamp,
         produceAll,
-        preparedChunkMeta->FullNewMeta);
+        preparedChunkMeta->FullNewMeta
+    });
 
     readerStatistics->CreateRowsetBuilderTime = getDurationAndReset();
 
@@ -698,7 +703,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     readerStatistics->CreateBlockManagerTime = getDurationAndReset();
 
     std::unique_ptr<bool[]> columnHunkFlags;
-    const auto& chunkSchema = chunkMeta->GetChunkSchema();
     if (chunkSchema->HasHunkColumns()) {
         columnHunkFlags.reset(new bool[tableSchema->GetColumnCount()]());
         for (auto [chunkColumnId, tableColumnId] : valuesIdMapping) {
@@ -715,7 +719,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         std::move(windowsList),
         std::move(performanceCounters),
         IsKeys(readItems),
-        readerStatistics);
+        readerStatistics,
+        readItemCount);
 }
 
 template
@@ -823,8 +828,7 @@ struct TRefineColumn
         const NNewTableClient::TPreparedChunkMeta& preparedChunkMeta,
         NChunkClient::IBlockCache* blockCache)
     {
-        auto groupId = preparedChunkMeta.ColumnIdToGroupId[columnId];
-        auto columnIndexInGroup = preparedChunkMeta.ColumnIndexInGroup[columnId];
+        auto [groupId, columnIndexInGroup] = preparedChunkMeta.ColumnGroupInfos[columnId];
 
         ui32 chunkRowIndex = SentinelRowIndex;
 

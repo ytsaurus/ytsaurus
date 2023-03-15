@@ -102,6 +102,8 @@ std::vector<TColumnIdMapping> TChunkColumnMapping::BuildVersionedSimpleSchemaIdM
     std::vector<TColumnIdMapping> valueIdMapping;
 
     if (columnFilter.IsUniversal()) {
+        valueIdMapping.reserve(std::ssize(ValueIdMapping_));
+
         for (int schemaValueIndex = 0; schemaValueIndex < std::ssize(ValueIdMapping_); ++schemaValueIndex) {
             auto chunkIndex = ValueIdMapping_[schemaValueIndex];
             if (chunkIndex == -1) {
@@ -114,7 +116,10 @@ std::vector<TColumnIdMapping> TChunkColumnMapping::BuildVersionedSimpleSchemaIdM
             valueIdMapping.push_back(mapping);
         }
     } else {
-        for (auto index : columnFilter.GetIndexes()) {
+        auto indexes = MakeRange(columnFilter.GetIndexes());
+        valueIdMapping.reserve(std::ssize(indexes));
+
+        for (auto index : indexes) {
             if (index < TableKeyColumnCount_) {
                 continue;
             }

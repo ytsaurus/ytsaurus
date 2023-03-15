@@ -109,24 +109,27 @@ TRange<ui32> TGroupBlockHolder::GetBlockIds() const
     return BlockIds_;
 }
 
-std::vector<ui16> GetGroupsIds(
+TCompactVector<ui16, 32> GetGroupsIds(
     const TPreparedChunkMeta& preparedChunkMeta,
     ui16 keyColumnCount,
     TRange<TColumnIdMapping> valuesIdMapping)
 {
-    std::vector<ui16> groupIds;
-    groupIds.reserve(keyColumnCount + std::ssize(valuesIdMapping) + 1);
+    TCompactVector<ui16, 32> groupIds;
+    groupIds.resize(keyColumnCount + std::ssize(valuesIdMapping) + 1);
+    // Use raw data pointer because TCompactVector has branch in index operator.
+    auto* groupIdsData = groupIds.data();
+
     for (int index = 0; index < keyColumnCount; ++index) {
-        groupIds.push_back(preparedChunkMeta.ColumnIdToGroupId[index]);
+        *groupIdsData++ = preparedChunkMeta.ColumnGroupInfos[index].GroupId;
     }
 
     for (auto [chunkSchemaIndex, readerSchemaIndex] : valuesIdMapping) {
-        groupIds.push_back(preparedChunkMeta.ColumnIdToGroupId[chunkSchemaIndex]);
+        *groupIdsData++ = preparedChunkMeta.ColumnGroupInfos[chunkSchemaIndex].GroupId;
     }
 
     // TODO(lukyan): Or use first group for timestamp?
     auto timestampGroupIndex = preparedChunkMeta.ColumnGroups.size() - 1;
-    groupIds.push_back(timestampGroupIndex);
+    *groupIdsData++ = timestampGroupIndex;
 
     std::sort(groupIds.begin(), groupIds.end());
     groupIds.erase(std::unique(groupIds.begin(), groupIds.end()), groupIds.end());
@@ -445,9 +448,9 @@ private:
     {
         NChunkClient::TBlockId blockId(ChunkId_, blockIndex);
 
-        auto cachedBlock = BlockCache_->FindBlock(blockId, EBlockType::UncompressedData).Block;
-        if (cachedBlock) {
-            return cachedBlock.Data;
+        auto cachedBlock = BlockCache_->FindBlock(blockId, EBlockType::UncompressedData);
+        if (cachedBlock.Block) {
+            return std::move(cachedBlock.Block.Data);
         }
 
         auto compressedBlock = BlockCache_->FindBlock(blockId, EBlockType::CompressedData).Block;
@@ -473,7 +476,10 @@ TBlockManagerFactory CreateSyncBlockWindowManagerFactory(
     TCachedVersionedChunkMetaPtr chunkMeta,
     NChunkClient::TChunkId chunkId)
 {
-    return [=] (std::vector<TGroupBlockHolder> blockHolders, TRange<TSpanMatching> /*windowsList*/) -> std::unique_ptr<IBlockManager> {
+    return [blockCache = std::move(blockCache), chunkMeta = std::move(chunkMeta), chunkId] (
+        std::vector<TGroupBlockHolder> blockHolders,
+        TRange<TSpanMatching> /*windowsList*/
+    ) mutable -> std::unique_ptr<IBlockManager> {
         return std::make_unique<TSyncBlockWindowManager>(
             std::move(blockHolders),
             std::move(blockCache),

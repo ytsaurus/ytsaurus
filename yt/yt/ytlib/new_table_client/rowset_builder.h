@@ -24,8 +24,8 @@ constexpr ui32 SentinelRowIndex = -1;
 
 struct TValueSchema
 {
-    EValueType Type;
     ui16 Id;
+    EValueType Type;
     bool Aggregate = false;
 };
 
@@ -43,37 +43,33 @@ struct IRowsetBuilder
         ui64* dataWeight,
         TReaderStatistics* readerStatistics) = 0;
 
-    virtual TChunkedMemoryPool* GetPool() const = 0;
+    virtual TChunkedMemoryPool* GetPool() = 0;
 
     virtual void ClearBuffer() = 0;
 };
 
+struct TRowsetBuilderParams
+{
+    // Const qualifier is used to force all fields initialization.
+    const TRange<EValueType> KeyTypes;
+    const TRange<TValueSchema> ValueSchema;
+    const TRange<TColumnBase> ColumnInfos;
+    const TTimestamp Timestamp;
+    const bool ProduceAll;
+    const bool NewMeta;
+};
+
 std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(
     TSharedRange<TLegacyKey> keys,
-    TRange<EValueType> keyTypes,
-    TRange<TValueSchema> valueSchema,
-    TRange<TColumnBase> columnInfos,
-    TTimestamp timestamp,
-    bool produceAll,
-    bool newMeta);
+    const TRowsetBuilderParams& params);
 
 std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(
     TSharedRange<TRowRange> keyRanges,
-    TRange<EValueType> keyTypes,
-    TRange<TValueSchema> valueSchema,
-    TRange<TColumnBase> columnInfos,
-    TTimestamp timestamp,
-    bool produceAll,
-    bool newMeta);
+    const TRowsetBuilderParams& params);
 
 std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(
     std::vector<ui32> chunkRowIndexes,
-    TRange<EValueType> keyTypes,
-    TRange<TValueSchema> valueSchema,
-    TRange<TColumnBase> columnInfos,
-    TTimestamp timestamp,
-    bool produceAll,
-    bool newMeta);
+    const TRowsetBuilderParams& params);
 
 ////////////////////////////////////////////////////////////////////////////////
 

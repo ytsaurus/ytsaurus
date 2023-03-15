@@ -49,6 +49,8 @@ struct TTmpBuffers;
 
 struct TMetaBase;
 
+struct TColumnGroupInfo;
+
 struct TPreparedChunkMeta;
 
 struct TReaderStatistics;
