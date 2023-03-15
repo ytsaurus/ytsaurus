@@ -2,9 +2,16 @@ package tech.ytsaurus.client;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -96,6 +103,10 @@ public class ReadWriteSkiffTypesTest extends ReadWriteTestBase {
         private @Nullable NestedEntity nullValue;
         private List<List<NestedEntity>> listValue;
         private int[][] arrayValue;
+        private Map<String, LinkedList<NestedEntity>> stringLinkedListMap;
+        private TreeMap<String, Integer> stringIntegerTreeMap;
+        private Set<NestedEntity> nestedEntitySet;
+        private Deque<HashSet<String>> hashSetArrayDeque;
 
         public static TableRow newInstance() {
             var tableRow = new TableRow();
@@ -128,6 +139,26 @@ public class ReadWriteSkiffTypesTest extends ReadWriteTestBase {
                     null,
                     new int[]{Integer.MAX_VALUE}
             };
+            tableRow.stringLinkedListMap = new HashMap<>();
+            tableRow.stringLinkedListMap.put("first_key",
+                    new LinkedList<>(List.of(new NestedEntity(Integer.MIN_VALUE))));
+            tableRow.stringLinkedListMap.put(null, null);
+            tableRow.stringIntegerTreeMap = new TreeMap<>(
+                    Map.of("first_key", 0, "second_key", Integer.MAX_VALUE));
+            tableRow.nestedEntitySet = new LinkedHashSet<>(List.of(
+                    new NestedEntity(Integer.MIN_VALUE),
+                    new NestedEntity(Integer.MAX_VALUE),
+                    new NestedEntity(Integer.MIN_VALUE)
+            ));
+            tableRow.hashSetArrayDeque = Stream.of(
+                    new HashSet<String>(),
+                    new HashSet<String>(),
+                    null,
+                    new HashSet<String>()
+            ).collect(Collectors.toCollection(LinkedList::new));
+            tableRow.hashSetArrayDeque.getFirst().add("first string");
+            tableRow.hashSetArrayDeque.getFirst().add(null);
+            tableRow.hashSetArrayDeque.getLast().add("second string");
             return tableRow;
         }
 
@@ -146,18 +177,23 @@ public class ReadWriteSkiffTypesTest extends ReadWriteTestBase {
                     longValue == tableRow.longValue &&
                     Double.compare(tableRow.doubleValue, doubleValue) == 0 &&
                     booleanValue == tableRow.booleanValue &&
-                    stringValue.equals(tableRow.stringValue) &&
-                    ysonValue.equals(tableRow.ysonValue) &&
-                    nestedEntityValue.equals(tableRow.nestedEntityValue) &&
+                    Objects.equals(stringValue, tableRow.stringValue) &&
+                    Objects.equals(ysonValue, tableRow.ysonValue) &&
+                    Objects.equals(nestedEntityValue, tableRow.nestedEntityValue) &&
                     Objects.equals(nullValue, tableRow.nullValue) &&
-                    listValue.equals(tableRow.listValue) &&
-                    Arrays.deepEquals(arrayValue, tableRow.arrayValue);
+                    Objects.equals(listValue, tableRow.listValue) &&
+                    Arrays.deepEquals(arrayValue, tableRow.arrayValue) &&
+                    Objects.equals(stringLinkedListMap, tableRow.stringLinkedListMap) &&
+                    Objects.equals(stringIntegerTreeMap, tableRow.stringIntegerTreeMap) &&
+                    Objects.equals(nestedEntitySet, tableRow.nestedEntitySet) &&
+                    Objects.equals(hashSetArrayDeque, tableRow.hashSetArrayDeque);
         }
 
         @Override
         public int hashCode() {
             int result = Objects.hash(byteValue, shortValue, intValue, longValue, doubleValue, booleanValue,
-                    stringValue, ysonValue, nestedEntityValue, nullValue, listValue);
+                    stringValue, ysonValue, nestedEntityValue, nullValue, listValue, stringLinkedListMap,
+                    stringIntegerTreeMap, nestedEntitySet, hashSetArrayDeque);
             result = 31 * result + Arrays.deepHashCode(arrayValue);
             return result;
         }

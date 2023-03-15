@@ -3,6 +3,7 @@ package tech.ytsaurus.core.utils;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.InvocationTargetException;
@@ -17,6 +18,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class ClassUtils {
@@ -235,12 +237,25 @@ public class ClassUtils {
         throw new IllegalArgumentException("Elements of array are not primitive");
     }
 
-    public static List<Type> getTypeParametersOfGenericField(Field field) {
-        return getTypeParametersOfGeneric(field.getGenericType());
+    public static List<Type> getTypeParametersOfField(Field field) {
+        Type genericType = field.getGenericType();
+        if (genericType instanceof ParameterizedType) {
+            return getTypeParametersOfGeneric(genericType);
+        }
+        return List.of();
     }
 
-    public static List<Type> getTypeParametersOfGeneric(Type type) {
-        return List.of(((ParameterizedType) type).getActualTypeArguments());
+    public static TypeDescr getTypeDescription(Type type) {
+        if (type instanceof Class) {
+            return new TypeDescr((Class<?>) type, List.of());
+        }
+        if (type instanceof ParameterizedType) {
+            return new TypeDescr(
+                    (Class<?>) ((ParameterizedType) type).getRawType(),
+                    getTypeParametersOfGeneric(type)
+            );
+        }
+        throw new IllegalArgumentException("Type must be Class or ParameterizedType");
     }
 
     public static boolean isFieldTransient(Field field, Set<String> transientAnnotations) {
@@ -278,5 +293,53 @@ public class ClassUtils {
 
     public static void setFieldsAccessibleToTrue(List<Field> fields) {
         fields.forEach(field -> field.setAccessible(true));
+    }
+
+    public static Function<Class<?>, Constructor<?>> getConstructorOrDefaultFor(Class<?> clazz) {
+        return objectClass -> {
+            try {
+                var constructor = objectClass.getDeclaredConstructor();
+                constructor.setAccessible(true);
+                return constructor;
+            } catch (NoSuchMethodException e) {
+                try {
+                    return clazz.getConstructor();
+                } catch (NoSuchMethodException ex) {
+                    throw new IllegalArgumentException("Clazz must have default constructor", ex);
+                }
+            }
+        };
+    }
+
+    public static <ObjectType> ObjectType getInstanceWithoutArguments(Constructor<?> defaultConstructor) {
+        try {
+            return castToType(defaultConstructor.newInstance());
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+            throw new IllegalArgumentException("Constructor must have no arguments", e);
+        }
+    }
+
+    private static List<Type> getTypeParametersOfGeneric(Type type) {
+        return List.of(((ParameterizedType) type).getActualTypeArguments());
+    }
+
+    public static class TypeDescr {
+
+        Class<?> typeClass;
+
+        List<Type> typeParameters;
+
+        public TypeDescr(Class<?> clazz, List<Type> typeParameters) {
+            this.typeClass = clazz;
+            this.typeParameters = typeParameters;
+        }
+
+        public Class<?> getTypeClass() {
+            return typeClass;
+        }
+
+        public List<Type> getTypeParameters() {
+            return typeParameters;
+        }
     }
 }

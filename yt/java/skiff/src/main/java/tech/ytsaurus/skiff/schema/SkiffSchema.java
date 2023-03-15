@@ -13,7 +13,7 @@ import static tech.ytsaurus.ysontree.YTree.listBuilder;
 import static tech.ytsaurus.ysontree.YTree.mapBuilder;
 
 public abstract class SkiffSchema {
-    private final WireType type;
+    protected final WireType type;
     @Nullable
     private String name;
 
@@ -35,6 +35,10 @@ public abstract class SkiffSchema {
     }
 
     public abstract List<SkiffSchema> getChildren();
+
+    public abstract boolean isListSchema();
+
+    public abstract boolean isMapSchema();
 
     @Override
     public boolean equals(Object o) {
@@ -69,12 +73,6 @@ public abstract class SkiffSchema {
             ytreeBuilder.key("children").value(listBuilder.endList().build());
         }
         return ytreeBuilder.endMap().build();
-    }
-
-    public boolean isListSchema() {
-        return type == WireType.REPEATED_VARIANT_8 &&
-                getChildren().size() == 1 &&
-                getChildren().get(0).type != WireType.NOTHING;
     }
 
     public static SimpleTypeSchema simpleType(WireType type) {
