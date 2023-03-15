@@ -13,7 +13,7 @@ try:
 except ImportError:
     import yt.packages.typing as typing
 
-import yandex.type_info as ti
+import yt.type_info as ti
 
 try:
     import dataclasses

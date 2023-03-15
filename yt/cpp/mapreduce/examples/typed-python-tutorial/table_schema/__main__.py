@@ -6,7 +6,7 @@ import typing
 import yt.wrapper
 from yt.wrapper.schema import TableSchema, Uint64
 
-import yandex.type_info.typing as ti
+import yt.type_info.typing as ti
 
 
 @yt.wrapper.yt_dataclass

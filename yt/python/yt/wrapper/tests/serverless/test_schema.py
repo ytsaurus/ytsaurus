@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from yandex.type_info import typing
+from yt.type_info import typing
 
 from yt.testlib import authors
 

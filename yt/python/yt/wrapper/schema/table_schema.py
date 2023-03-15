@@ -14,7 +14,7 @@ except ImportError:
 import copy
 import collections
 
-import yandex.type_info as ti
+import yt.type_info as ti
 
 
 class SortColumn(object):

@@ -10,7 +10,7 @@ try:
 except ImportError:
     from six.moves import xrange
 
-import yandex.type_info as type_info
+import yt.type_info as type_info
 import yt.wrapper as yt
 
 import pytest

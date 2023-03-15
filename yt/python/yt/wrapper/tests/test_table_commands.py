@@ -24,7 +24,7 @@ from yt.local import start, stop
 
 import yt.wrapper as yt
 
-import yandex.type_info as typing
+import yt.type_info as typing
 
 import os
 import pytest
