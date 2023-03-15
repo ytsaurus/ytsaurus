@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	porto "a.yandex-team.ru/infra/porto/api_go"
+	porto "a.yandex-team.ru/library/go/porto"
 	"a.yandex-team.ru/library/go/test/yatest"
 )
 
