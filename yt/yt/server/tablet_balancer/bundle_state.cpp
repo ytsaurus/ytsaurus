@@ -340,9 +340,9 @@ void TBundleState::DoFetchStatistics()
                 if (cellIt == Bundle_->TabletCells.end()) {
                     THROW_ERROR_EXCEPTION(
                         "Tablet %v of table %v belongs to an unknown cell %v",
-                        tabletResponse.CellId,
+                        tabletResponse.TabletId,
                         table->Id,
-                        tabletResponse.TabletId);
+                        tabletResponse.CellId);
                 }
                 EmplaceOrCrash(cellIt->second->Tablets, tablet->Id, tablet);
                 tablet->Cell = cellIt->second.Get();
