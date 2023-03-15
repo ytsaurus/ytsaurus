@@ -572,9 +572,9 @@ public:
         }
     }
 
-    TResourceAcquiringProxy GetResourceAcquiringProxy() override
+    TResourceAcquiringContext GetResourceAcquiringContext() override
     {
-        return TResourceAcquiringProxy{this};
+        return TResourceAcquiringContext{this};
     }
 
     int GetWaitingResourceHolderCount() final
@@ -753,19 +753,19 @@ IJobResourceManagerPtr IJobResourceManager::CreateJobResourceManager(NClusterNod
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobResourceManager::TResourceAcquiringProxy::TResourceAcquiringProxy(
+IJobResourceManager::TResourceAcquiringContext::TResourceAcquiringContext(
     IJobResourceManager* resourceManager)
     : ResourceManagerImpl_(static_cast<IJobResourceManager::TImpl*>(resourceManager))
 {
     ResourceManagerImpl_->OnResourceAcquiringStarted();
 }
 
-IJobResourceManager::TResourceAcquiringProxy::~TResourceAcquiringProxy()
+IJobResourceManager::TResourceAcquiringContext::~TResourceAcquiringContext()
 {
     ResourceManagerImpl_->OnResourceAcquiringFinished();
 }
 
-bool IJobResourceManager::TResourceAcquiringProxy::TryAcquireResourcesFor(TResourceHolder* resourceHolder) &
+bool IJobResourceManager::TResourceAcquiringContext::TryAcquireResourcesFor(TResourceHolder* resourceHolder) &
 {
     if (!ResourceManagerImpl_->AcquireResourcesFor(resourceHolder)) {
         return false;

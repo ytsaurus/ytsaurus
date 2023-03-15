@@ -1423,7 +1423,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto resourceAcquiringContext = JobResourceManager_->GetResourceAcquiringProxy();
+        auto resourceAcquiringContext = JobResourceManager_->GetResourceAcquiringContext();
 
         for (const auto& job : GetJobs()) {
             if (job->GetState() != EJobState::Waiting) {

@@ -254,7 +254,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto resourceAcquiringContext = JobResourceManager_->GetResourceAcquiringProxy();
+        auto resourceAcquiringContext = JobResourceManager_->GetResourceAcquiringContext();
 
         for (const auto& job : GetJobs()) {
             YT_VERIFY(TypeFromId(job->GetId()) == EObjectType::MasterJob);
