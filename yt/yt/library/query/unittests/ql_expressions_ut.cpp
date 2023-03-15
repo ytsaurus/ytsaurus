@@ -11,7 +11,7 @@
 #include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/engine/functions_cg.h>
 #include <yt/yt/library/query/engine/coordinator.h>
-#include <yt/yt/library/query/engine/functions_builder.h>
+#include <yt/yt/library/query/engine/functions_builtin_profilers.h>
 
 #include <library/cpp/resource/resource.h>
 
@@ -1353,18 +1353,17 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
 {
     auto aggregateProfilers = New<TAggregateProfilerMap>();
 
-    TFunctionRegistryBuilder builder(
-        nullptr,
+    auto builder = CreateProfilerFunctionRegistryBuilder(
         nullptr,
         aggregateProfilers.Get());
 
-    builder.RegisterAggregate(
+    builder->RegisterAggregate(
         "xor_aggregate",
         std::unordered_map<TTypeArgument, TUnionType>(),
         EValueType::Int64,
         EValueType::Int64,
         EValueType::Int64,
-        UDF_BC(xor_aggregate),
+        "xor_aggregate",
         ECallingConvention::UnversionedValue);
 
     auto callbacks = CodegenAggregate(

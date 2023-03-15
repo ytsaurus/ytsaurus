@@ -1,15 +1,20 @@
+#include "functions_builtin_profilers.h"
 
 #include "functions_cg.h"
 #include "cg_fragment_compiler.h"
 
-#include "functions_builder.h"
-
 #include <yt/yt/library/query/base/functions.h>
+#include <yt/yt/library/query/base/functions_builder.h>
+#include <yt/yt/library/query/base/functions_builtin_registry.h>
 #include <yt/yt/library/query/base/query.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 #include <library/cpp/resource/resource.h>
 
 #include <llvm/ADT/FoldingSet.h>
+
+#define UDF_BC(name) TSharedRef::FromString(::NResource::Find(TString("/llvm_bc/") + (name)))
 
 namespace NYT::NQueryClient {
 namespace NBuiltins {
@@ -636,505 +641,112 @@ public:
 
 } // namespace NBuiltins
 
-bool IsUserCastFunction(const TString& name)
+////////////////////////////////////////////////////////////////////////////////
+
+class TProfilerFunctionRegistryBuilder
+    : public IFunctionRegistryBuilder
 {
-    return name == "int64" || name == "uint64" || name == "double";
-}
+public:
+    TProfilerFunctionRegistryBuilder(
+        const TFunctionProfilerMapPtr& functionProfilers,
+        const TAggregateProfilerMapPtr& aggregateProfilers)
+        : FunctionProfilers_(functionProfilers)
+        , AggregateProfilers_(aggregateProfilers)
+    { }
 
-namespace {
+    void RegisterFunction(
+        const TString& functionName,
+        const TString& symbolName,
+        std::unordered_map<TTypeArgument, TUnionType> /*typeArgumentConstraints*/,
+        std::vector<TType> /*argumentTypes*/,
+        TType /*repeatedArgType*/,
+        TType /*resultType*/,
+        TStringBuf implementationFile,
+        ECallingConvention callingConvention,
+        bool useFunctionContext) override
+    {
+        if (FunctionProfilers_) {
+            FunctionProfilers_->emplace(functionName, New<TExternalFunctionCodegen>(
+                functionName,
+                symbolName,
+                UDF_BC(implementationFile),
+                GetCallingConvention(callingConvention),
+                TSharedRef(),
+                useFunctionContext));
+        }
+    }
 
-void RegisterBuiltinFunctions(
-    const TTypeInferrerMapPtr& typeInferrers,
+    void RegisterFunction(
+        const TString& functionName,
+        std::vector<TType> /*argumentTypes*/,
+        TType /*resultType*/,
+        TStringBuf implementationFile,
+        ECallingConvention callingConvention) override
+    {
+        if (FunctionProfilers_) {
+            FunctionProfilers_->emplace(functionName, New<TExternalFunctionCodegen>(
+                functionName,
+                functionName,
+                UDF_BC(implementationFile),
+                GetCallingConvention(callingConvention),
+                TSharedRef(),
+                false));
+        }
+    }
+
+    void RegisterFunction(
+        const TString& functionName,
+        std::unordered_map<TTypeArgument, TUnionType> /*typeArgumentConstraints*/,
+        std::vector<TType> argumentTypes,
+        TType repeatedArgType,
+        TType /*resultType*/,
+        TStringBuf implementationFile) override
+    {
+        if (FunctionProfilers_) {
+            FunctionProfilers_->emplace(functionName, New<TExternalFunctionCodegen>(
+                functionName,
+                functionName,
+                UDF_BC(implementationFile),
+                GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType),
+                TSharedRef(),
+                false));
+        }
+    }
+
+    void RegisterAggregate(
+        const TString& aggregateName,
+        std::unordered_map<TTypeArgument, TUnionType> /*typeArgumentConstraints*/,
+        TType /*argumentType*/,
+        TType /*resultType*/,
+        TType /*stateType*/,
+        TStringBuf implementationFile,
+        ECallingConvention callingConvention,
+        bool isFirst) override
+    {
+        if (AggregateProfilers_) {
+            AggregateProfilers_->emplace(aggregateName, New<TExternalAggregateCodegen>(
+                aggregateName, UDF_BC(implementationFile), callingConvention, isFirst, TSharedRef()));
+        }
+    }
+
+private:
+    TFunctionProfilerMapPtr FunctionProfilers_;
+    TAggregateProfilerMapPtr AggregateProfilers_;
+};
+
+std::unique_ptr<IFunctionRegistryBuilder> CreateProfilerFunctionRegistryBuilder(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers)
 {
-    TFunctionRegistryBuilder builder(typeInferrers, functionProfilers, aggregateProfilers);
-
-    builder.RegisterFunction(
-        "is_substr",
-        std::vector<TType>{EValueType::String, EValueType::String},
-        EValueType::Boolean,
-        UDF_BC(is_substr),
-        ECallingConvention::Simple);
-
-    builder.RegisterFunction(
-        "lower",
-        std::vector<TType>{EValueType::String},
-        EValueType::String,
-        UDF_BC(lower),
-        ECallingConvention::Simple);
-
-    builder.RegisterFunction(
-        "concat",
-        std::vector<TType>{EValueType::String, EValueType::String},
-        EValueType::String,
-        UDF_BC(concat),
-        ECallingConvention::Simple);
-
-    builder.RegisterFunction(
-        "sleep",
-        std::vector<TType>{EValueType::Int64},
-        EValueType::Int64,
-        UDF_BC(sleep),
-        ECallingConvention::Simple);
-
-    builder.RegisterFunction(
-        "farm_hash",
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{},
-        TUnionType{
-            EValueType::Int64,
-            EValueType::Uint64,
-            EValueType::Boolean,
-            EValueType::String
-        },
-        EValueType::Uint64,
-        UDF_BC(farm_hash));
-
-    builder.RegisterFunction(
-        "bigb_hash",
-        std::vector<TType>{EValueType::String},
-        EValueType::Uint64,
-        UDF_BC(bigb_hash),
-        ECallingConvention::Simple);
-
-    builder.RegisterFunction(
-        "make_map",
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{},
-        TUnionType{
-            EValueType::Int64,
-            EValueType::Uint64,
-            EValueType::Boolean,
-            EValueType::Double,
-            EValueType::String,
-            EValueType::Any
-        },
-        EValueType::Any,
-        UDF_BC(make_map));
-
-    builder.RegisterFunction(
-        "numeric_to_string",
-        std::vector<TType>{
-            TUnionType{
-                EValueType::Int64,
-                EValueType::Uint64,
-                EValueType::Double,
-            }},
-        EValueType::String,
-        UDF_BC(str_conv),
-        ECallingConvention::UnversionedValue);
-
-    builder.RegisterFunction(
-        "parse_int64",
-        std::vector<TType>{EValueType::String},
-        EValueType::Int64,
-        UDF_BC(str_conv),
-        ECallingConvention::UnversionedValue);
-
-    builder.RegisterFunction(
-        "parse_uint64",
-        std::vector<TType>{EValueType::String},
-        EValueType::Uint64,
-        UDF_BC(str_conv),
-        ECallingConvention::UnversionedValue);
-
-    builder.RegisterFunction(
-        "parse_double",
-        std::vector<TType>{EValueType::String},
-        EValueType::Double,
-        UDF_BC(str_conv),
-        ECallingConvention::UnversionedValue);
-
-    if (typeInferrers) {
-        typeInferrers->emplace("is_null", New<TFunctionTypeInferrer>(
-            std::unordered_map<TTypeArgument, TUnionType>(),
-            std::vector<TType>{0},
-            EValueType::Null,
-            EValueType::Boolean));
-    }
-
-    if (functionProfilers) {
-        functionProfilers->emplace("is_null", New<NBuiltins::TIsNullCodegen>());
-    }
-
-    if (typeInferrers) {
-        typeInferrers->emplace("is_nan", New<TFunctionTypeInferrer>(
-            std::vector<TType>{EValueType::Double},
-            EValueType::Boolean));
-    }
-
-    if (functionProfilers) {
-        functionProfilers->emplace("is_nan", New<NBuiltins::TIsNaNCodegen>());
-    }
-
-    auto typeArg = 0;
-    auto castConstraints = std::unordered_map<TTypeArgument, TUnionType>();
-    castConstraints[typeArg] = std::vector<EValueType>{
-        EValueType::Int64,
-        EValueType::Uint64,
-        EValueType::Double,
-        EValueType::Any};
-
-    if (typeInferrers) {
-        typeInferrers->emplace("int64", New<TFunctionTypeInferrer>(
-            castConstraints,
-            std::vector<TType>{typeArg},
-            EValueType::Null,
-            EValueType::Int64));
-    }
-
-    if (functionProfilers) {
-        functionProfilers->emplace("int64", New<NBuiltins::TUserCastCodegen>());
-    }
-
-    if (typeInferrers) {
-        typeInferrers->emplace("uint64", New<TFunctionTypeInferrer>(
-            castConstraints,
-            std::vector<TType>{typeArg},
-            EValueType::Null,
-            EValueType::Uint64));
-    }
-
-    if (functionProfilers) {
-        functionProfilers->emplace("uint64", New<NBuiltins::TUserCastCodegen>());
-    }
-
-    if (typeInferrers) {
-        typeInferrers->emplace("double", New<TFunctionTypeInferrer>(
-            castConstraints,
-            std::vector<TType>{typeArg},
-            EValueType::Null,
-            EValueType::Double));
-    }
-
-    if (functionProfilers) {
-        functionProfilers->emplace("double", New<NBuiltins::TUserCastCodegen>());
-    }
-
-    if (typeInferrers) {
-        typeInferrers->emplace("boolean", New<TFunctionTypeInferrer>(
-            std::vector<TType>{EValueType::Any},
-            EValueType::Boolean));
-    }
-
-    if (functionProfilers) {
-        functionProfilers->emplace("boolean", New<NBuiltins::TUserCastCodegen>());
-    }
-
-    if (typeInferrers) {
-        typeInferrers->emplace("string", New<TFunctionTypeInferrer>(
-            std::vector<TType>{EValueType::Any},
-            EValueType::String));
-    }
-
-    if (functionProfilers) {
-        functionProfilers->emplace("string", New<NBuiltins::TUserCastCodegen>());
-    }
-
-    if (typeInferrers) {
-        typeInferrers->emplace("if_null", New<TFunctionTypeInferrer>(
-            std::unordered_map<TTypeArgument, TUnionType>(),
-            std::vector<TType>{0, 0},
-            0));
-    }
-
-    if (functionProfilers) {
-        functionProfilers->emplace("if_null", New<NBuiltins::TIfNullCodegen>());
-    }
-
-
-    builder.RegisterFunction(
-        "regex_full_match",
-        "regex_full_match",
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{EValueType::String, EValueType::String},
-        EValueType::Null,
-        EValueType::Boolean,
-        UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1),
-        true);
-
-    builder.RegisterFunction(
-        "regex_partial_match",
-        "regex_partial_match",
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{EValueType::String, EValueType::String},
-        EValueType::Null,
-        EValueType::Boolean,
-        UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1),
-        true);
-
-    builder.RegisterFunction(
-        "regex_replace_first",
-        "regex_replace_first",
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{EValueType::String, EValueType::String, EValueType::String},
-        EValueType::Null,
-        EValueType::String,
-        UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1),
-        true);
-
-    builder.RegisterFunction(
-        "regex_replace_all",
-        "regex_replace_all",
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{EValueType::String, EValueType::String, EValueType::String},
-        EValueType::Null,
-        EValueType::String,
-        UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1),
-        true);
-
-    builder.RegisterFunction(
-        "regex_extract",
-        "regex_extract",
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{EValueType::String, EValueType::String, EValueType::String},
-        EValueType::Null,
-        EValueType::String,
-        UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1),
-        true);
-
-    builder.RegisterFunction(
-        "regex_escape",
-        "regex_escape",
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{EValueType::String},
-        EValueType::Null,
-        EValueType::String,
-        UDF_BC(regex),
-        New<TUnversionedValueCallingConvention>(-1),
-        true);
-
-    auto constraints = std::unordered_map<TTypeArgument, TUnionType>();
-    constraints[typeArg] = std::vector<EValueType>{
-        EValueType::Int64,
-        EValueType::Uint64,
-        EValueType::Boolean,
-        EValueType::Double,
-        EValueType::String};
-    auto sumConstraints = std::unordered_map<TTypeArgument, TUnionType>();
-    sumConstraints[typeArg] = std::vector<EValueType>{
-        EValueType::Int64,
-        EValueType::Uint64,
-        EValueType::Double};
-    auto anyConstraints = std::unordered_map<TTypeArgument, TUnionType>();
-    anyConstraints[typeArg] = std::vector<EValueType>{
-        EValueType::Int64,
-        EValueType::Uint64,
-        EValueType::Boolean,
-        EValueType::Double,
-        EValueType::String,
-        EValueType::Any};
-
-    builder.RegisterAggregate(
-        "first",
-        anyConstraints,
-        typeArg,
-        typeArg,
-        typeArg,
-        UDF_BC(first),
-        ECallingConvention::UnversionedValue,
-        true);
-
-    auto xdeltaConstraints = std::unordered_map<TTypeArgument, TUnionType>();
-    xdeltaConstraints[typeArg] = std::vector<EValueType>{
-        EValueType::Null,
-        EValueType::String};
-    builder.RegisterAggregate(
-        "xdelta",
-        xdeltaConstraints,
-        typeArg,
-        typeArg,
-        typeArg,
-        UDF_BC(xdelta),
-        ECallingConvention::UnversionedValue);
-
-    if (typeInferrers) {
-        typeInferrers->emplace("sum", New<TAggregateTypeInferrer>(
-            sumConstraints,
-            typeArg,
-            typeArg,
-            typeArg));
-    }
-
-    if (aggregateProfilers) {
-        aggregateProfilers->emplace("sum", New<NBuiltins::TSimpleAggregateCodegen>("sum"));
-    }
-
-    for (const auto& name : {"min", "max"}) {
-        if (typeInferrers) {
-            typeInferrers->emplace(name, New<TAggregateTypeInferrer>(
-                constraints,
-                typeArg,
-                typeArg,
-                typeArg));
-        }
-
-        if (aggregateProfilers) {
-            aggregateProfilers->emplace(name, New<NBuiltins::TSimpleAggregateCodegen>(name));
-        }
-    }
-
-    builder.RegisterAggregate(
-        "avg",
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        EValueType::Int64,
-        EValueType::Double,
-        EValueType::String,
-        UDF_BC(avg),
-        ECallingConvention::UnversionedValue);
-    builder.RegisterAggregate(
-        "cardinality",
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<EValueType>{
-            EValueType::String,
-            EValueType::Uint64,
-            EValueType::Int64,
-            EValueType::Double,
-            EValueType::Boolean},
-        EValueType::Uint64,
-        EValueType::String,
-        UDF_BC(hyperloglog),
-        ECallingConvention::UnversionedValue);
-
-    builder.RegisterFunction(
-        "format_timestamp",
-        std::vector<TType>{EValueType::Int64, EValueType::String},
-        EValueType::String,
-        UDF_BC(dates),
-        ECallingConvention::Simple);
-
-    std::vector<TString> timestampFloorFunctions = {
-        "timestamp_floor_hour",
-        "timestamp_floor_day",
-        "timestamp_floor_week",
-        "timestamp_floor_month",
-        "timestamp_floor_year"};
-
-    for (const auto& name : timestampFloorFunctions) {
-        builder.RegisterFunction(
-            name,
-            std::vector<TType>{EValueType::Int64},
-            EValueType::Int64,
-            UDF_BC(dates),
-            ECallingConvention::Simple);
-    }
-
-    builder.RegisterFunction(
-        "format_guid",
-        std::vector<TType>{EValueType::Uint64, EValueType::Uint64},
-        EValueType::String,
-        UDF_BC(format_guid),
-        ECallingConvention::Simple);
-
-    std::vector<std::pair<TString, EValueType>> ypathGetFunctions = {
-        {"try_get_int64", EValueType::Int64},
-        {"get_int64", EValueType::Int64},
-        {"try_get_uint64", EValueType::Uint64},
-        {"get_uint64", EValueType::Uint64},
-        {"try_get_double", EValueType::Double},
-        {"get_double", EValueType::Double},
-        {"try_get_boolean", EValueType::Boolean},
-        {"get_boolean", EValueType::Boolean},
-        {"try_get_string", EValueType::String},
-        {"get_string", EValueType::String},
-        {"try_get_any", EValueType::Any},
-        {"get_any", EValueType::Any}};
-
-    for (const auto& fns : ypathGetFunctions) {
-        auto&& name = fns.first;
-        auto&& type = fns.second;
-        builder.RegisterFunction(
-            name,
-            std::vector<TType>{EValueType::Any, EValueType::String},
-            type,
-            UDF_BC(ypath_get),
-            ECallingConvention::UnversionedValue);
-    }
-
-    builder.RegisterFunction(
-        "to_any",
-        std::vector<TType>{
-            TUnionType{
-                EValueType::String,
-                EValueType::Uint64,
-                EValueType::Int64,
-                EValueType::Double,
-                EValueType::Boolean,
-                EValueType::Any,
-                EValueType::Composite}},
-        EValueType::Any,
-        UDF_BC(to_any),
-        ECallingConvention::UnversionedValue);
-
-    builder.RegisterFunction(
-        "list_contains",
-        std::vector<TType>{
-            EValueType::Any,
-            TUnionType{
-                EValueType::Int64,
-                EValueType::Uint64,
-                EValueType::Double,
-                EValueType::Boolean,
-                EValueType::String,
-            }},
-        EValueType::Boolean,
-        UDF_BC(list_contains),
-        ECallingConvention::UnversionedValue);
-
-    builder.RegisterFunction(
-        "any_to_yson_string",
-        std::vector<TType>{EValueType::Any},
-        EValueType::String,
-        UDF_BC(any_to_yson_string),
-        ECallingConvention::Simple);
-
-    builder.RegisterFunction(
-        "_yt_has_permissions",
-        "has_permissions",
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{EValueType::Any, EValueType::String, EValueType::String},
-        EValueType::Null,
-        EValueType::Boolean,
-        UDF_BC(has_permissions),
-        GetCallingConvention(ECallingConvention::UnversionedValue));
+    return std::make_unique<TProfilerFunctionRegistryBuilder>(functionProfilers, aggregateProfilers);
 }
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
-{
-    auto result = New<TTypeInferrerMap>();
-
-    result->emplace("if", New<TFunctionTypeInferrer>(
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{ EValueType::Boolean, 0, 0 },
-        0));
-
-    result->emplace("is_prefix", New<TFunctionTypeInferrer>(
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{ EValueType::String, EValueType::String },
-        EValueType::Boolean));
-
-    RegisterBuiltinFunctions(result.Get(), nullptr, nullptr);
-
-    return result;
-}
-
-const TConstTypeInferrerMapPtr BuiltinTypeInferrersMap = CreateBuiltinTypeInferrers();
 
 TConstRangeExtractorMapPtr CreateBuiltinRangeExtractorMap()
 {
     auto result = New<TRangeExtractorMap>();
     result->emplace("is_prefix", NBuiltins::IsPrefixRangeExtractor);
-
     return result;
 }
 
@@ -1149,11 +761,21 @@ TConstFunctionProfilerMapPtr CreateBuiltinFunctionProfilers()
     result->emplace("is_prefix", New<TExternalFunctionCodegen>(
         "is_prefix",
         "is_prefix",
-        UDF_BC(is_prefix),
+        UDF_BC("is_prefix"),
         GetCallingConvention(ECallingConvention::Simple),
         TSharedRef()));
 
-    RegisterBuiltinFunctions(nullptr, result.Get(), nullptr);
+    result->emplace("is_null", New<NBuiltins::TIsNullCodegen>());
+    result->emplace("is_nan", New<NBuiltins::TIsNaNCodegen>());
+    result->emplace("int64", New<NBuiltins::TUserCastCodegen>());
+    result->emplace("uint64", New<NBuiltins::TUserCastCodegen>());
+    result->emplace("double", New<NBuiltins::TUserCastCodegen>());
+    result->emplace("boolean", New<NBuiltins::TUserCastCodegen>());
+    result->emplace("string", New<NBuiltins::TUserCastCodegen>());
+    result->emplace("if_null", New<NBuiltins::TIfNullCodegen>());
+
+    TProfilerFunctionRegistryBuilder builder{result.Get(), nullptr};
+    RegisterBuiltinFunctions(&builder);
 
     return result;
 }
@@ -1164,7 +786,14 @@ TConstAggregateProfilerMapPtr CreateBuiltinAggregateProfilers()
 {
     auto result = New<TAggregateProfilerMap>();
 
-    RegisterBuiltinFunctions(nullptr, nullptr, result.Get());
+    result->emplace("sum", New<NBuiltins::TSimpleAggregateCodegen>("sum"));
+
+    for (const auto& name : {"min", "max"}) {
+        result->emplace(name, New<NBuiltins::TSimpleAggregateCodegen>(name));
+    }
+
+    TProfilerFunctionRegistryBuilder builder{nullptr, result.Get()};
+    RegisterBuiltinFunctions(&builder);
 
     return result;
 }

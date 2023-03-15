@@ -15,7 +15,6 @@
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/engine/functions_cg.h>
-#include <yt/yt/library/query/engine/functions_builder.h>
 
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -834,28 +833,46 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
     MergeFrom(FunctionProfilers_.Get(), *BuiltinFunctionProfilers);
     MergeFrom(AggregateProfilers_.Get(), *BuiltinAggregateProfilers);
 
-    TFunctionRegistryBuilder builder(
+    auto builder = CreateFunctionRegistryBuilder(
         TypeInferrers_.Get(),
         FunctionProfilers_.Get(),
         AggregateProfilers_.Get());
 
-    builder.RegisterFunction(
-        "short_invalid_ir",
-        std::vector<TType>{EValueType::Int64},
-        EValueType::Int64,
-        TSharedRef(short_invalid_ir_bc, short_invalid_ir_bc_len, nullptr),
-        ECallingConvention::Simple);
+    {
+        TypeInferrers_->emplace("short_invalid_ir", New<TFunctionTypeInferrer>(
+            std::unordered_map<TTypeArgument, TUnionType>{},
+            std::vector<TType>{EValueType::Int64},
+            EValueType::Null,
+            EValueType::Int64));
 
-    builder.RegisterFunction(
-        "long_invalid_ir",
-        std::vector<TType>{EValueType::Int64},
-        EValueType::Int64,
-        TSharedRef(long_invalid_ir_bc, long_invalid_ir_bc_len, nullptr),
-        ECallingConvention::Simple);
+        FunctionProfilers_->emplace("short_invalid_ir", New<TExternalFunctionCodegen>(
+            "short_invalid_ir",
+            "short_invalid_ir",
+            TSharedRef(short_invalid_ir_bc, short_invalid_ir_bc_len, nullptr),
+            GetCallingConvention(ECallingConvention::Simple),
+            TSharedRef(),
+            false));
+    }
 
-    auto bcImplementations = UDF_BC(test_udfs);
+    {
+        TypeInferrers_->emplace("long_invalid_ir", New<TFunctionTypeInferrer>(
+            std::unordered_map<TTypeArgument, TUnionType>{},
+            std::vector<TType>{EValueType::Int64},
+            EValueType::Null,
+            EValueType::Int64));
 
-    builder.RegisterFunction(
+        FunctionProfilers_->emplace("long_invalid_ir", New<TExternalFunctionCodegen>(
+            "long_invalid_ir",
+            "long_invalid_ir",
+            TSharedRef(long_invalid_ir_bc, long_invalid_ir_bc_len, nullptr),
+            GetCallingConvention(ECallingConvention::Simple),
+            TSharedRef(),
+            false));
+    }
+
+    auto bcImplementations = "test_udfs";
+
+    builder->RegisterFunction(
         "abs_udf_arity",
         "abs_udf",
         std::unordered_map<TTypeArgument, TUnionType>(),
@@ -863,9 +880,9 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
         EValueType::Null,
         EValueType::Int64,
         bcImplementations,
-        GetCallingConvention(ECallingConvention::Simple));
+        ECallingConvention::Simple);
 
-    builder.RegisterFunction(
+    builder->RegisterFunction(
         "abs_udf_double",
         "abs_udf",
         std::unordered_map<TTypeArgument, TUnionType>(),
@@ -873,7 +890,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
         EValueType::Null,
         EValueType::Int64,
         bcImplementations,
-        GetCallingConvention(ECallingConvention::Simple));
+        ECallingConvention::Simple);
 
     auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
         {"a", EValueType::Int64},
@@ -1285,61 +1302,61 @@ protected:
     {
         ActionQueue_ = New<TActionQueue>("Test");
 
-        auto bcImplementations = UDF_BC(test_udfs);
+        auto bcImplementations = "test_udfs";
 
         MergeFrom(TypeInferrers_.Get(), *BuiltinTypeInferrersMap);
         MergeFrom(FunctionProfilers_.Get(), *BuiltinFunctionProfilers);
         MergeFrom(AggregateProfilers_.Get(), *BuiltinAggregateProfilers);
 
-        TFunctionRegistryBuilder builder(
+        auto builder = CreateFunctionRegistryBuilder(
             TypeInferrers_.Get(),
             FunctionProfilers_.Get(),
             AggregateProfilers_.Get());
 
-        builder.RegisterFunction(
+        builder->RegisterFunction(
             "abs_udf",
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,
             bcImplementations,
             ECallingConvention::Simple);
-        builder.RegisterFunction(
+        builder->RegisterFunction(
             "exp_udf",
             std::vector<TType>{EValueType::Int64, EValueType::Int64},
             EValueType::Int64,
             bcImplementations,
             ECallingConvention::Simple);
-        builder.RegisterFunction(
+        builder->RegisterFunction(
             "strtol_udf",
             std::vector<TType>{EValueType::String},
             EValueType::Uint64,
             bcImplementations,
             ECallingConvention::Simple);
-        builder.RegisterFunction(
+        builder->RegisterFunction(
             "tolower_udf",
             std::vector<TType>{EValueType::String},
             EValueType::String,
             bcImplementations,
             ECallingConvention::Simple);
-        builder.RegisterFunction(
+        builder->RegisterFunction(
             "is_null_udf",
             std::vector<TType>{EValueType::String},
             EValueType::Boolean,
             bcImplementations,
             ECallingConvention::UnversionedValue);
-        builder.RegisterFunction(
+        builder->RegisterFunction(
             "sum_udf",
             std::unordered_map<TTypeArgument, TUnionType>(),
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,
             EValueType::Int64,
             bcImplementations);
-        builder.RegisterFunction(
+        builder->RegisterFunction(
             "seventyfive",
             std::vector<TType>{},
             EValueType::Uint64,
             bcImplementations,
             ECallingConvention::Simple);
-        builder.RegisterFunction(
+        builder->RegisterFunction(
             "throw_if_negative_udf",
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,

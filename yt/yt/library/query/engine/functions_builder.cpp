@@ -1,102 +1,115 @@
 #include "functions_builder.h"
-#include "functions_cg.h"
-
-#include <yt/yt/library/query/base/functions.h>
 
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFunctionRegistryBuilder::RegisterFunction(
-    const TString& functionName,
-    const TString& symbolName,
-    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-    std::vector<TType> argumentTypes,
-    TType repeatedArgType,
-    TType resultType,
-    TSharedRef implementationFile,
-    ICallingConventionPtr callingConvention,
-    bool useFunctionContext)
+class TFunctionRegistryBuilder
+    : public IFunctionRegistryBuilder
 {
-    if (TypeInferrers_) {
-        TypeInferrers_->emplace(functionName, New<TFunctionTypeInferrer>(
-            std::move(typeArgumentConstraints),
-            std::move(argumentTypes),
-            repeatedArgType,
-            resultType));
-    }
-    if (FunctionProfilers_) {
-        FunctionProfilers_->emplace(functionName, New<TExternalFunctionCodegen>(
-            functionName,
-            symbolName,
-            std::move(implementationFile),
-            std::move(callingConvention),
-            TSharedRef(),
-            useFunctionContext));
-    }
-}
+public:
+    TFunctionRegistryBuilder(
+        const TTypeInferrerMapPtr& typeInferrers,
+        const TFunctionProfilerMapPtr& functionProfilers,
+        const TAggregateProfilerMapPtr& aggregateProfilers)
+        : TypeInferrersBuilder_(CreateTypeInferrerFunctionRegistryBuilder(typeInferrers))
+        , FunctionProfilersBuilder_(
+            CreateProfilerFunctionRegistryBuilder(
+                functionProfilers,
+                aggregateProfilers))
+    { }
 
-void TFunctionRegistryBuilder::RegisterFunction(
-    const TString& functionName,
-    std::vector<TType> argumentTypes,
-    TType resultType,
-    TSharedRef implementationFile,
-    ECallingConvention callingConvention)
-{
-    RegisterFunction(
-        functionName,
-        functionName,
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::move(argumentTypes),
-        EValueType::Null,
-        resultType,
-        std::move(implementationFile),
-        GetCallingConvention(callingConvention));
-}
+    void RegisterFunction(
+        const TString& functionName,
+        const TString& symbolName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        std::vector<TType> argumentTypes,
+        TType repeatedArgType,
+        TType resultType,
+        TStringBuf implementationFile,
+        ECallingConvention callingConvention,
+        bool useFunctionContext) override
+    {
+        TypeInferrersBuilder_->RegisterFunction(
+            functionName, symbolName, typeArgumentConstraints,
+            argumentTypes, repeatedArgType, resultType,
+            implementationFile, callingConvention, useFunctionContext);
 
-void TFunctionRegistryBuilder::RegisterFunction(
-    const TString& functionName,
-    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-    std::vector<TType> argumentTypes,
-    TType repeatedArgType,
-    TType resultType,
-    TSharedRef implementationFile)
-{
-    RegisterFunction(
-        functionName,
-        functionName,
-        typeArgumentConstraints,
-        argumentTypes,
-        repeatedArgType,
-        resultType,
-        implementationFile,
-        GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType));
-}
-
-void TFunctionRegistryBuilder::RegisterAggregate(
-    const TString& aggregateName,
-    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-    TType argumentType,
-    TType resultType,
-    TType stateType,
-    TSharedRef implementationFile,
-    ECallingConvention callingConvention,
-    bool isFirst)
-{
-    if (TypeInferrers_) {
-        TypeInferrers_->emplace(aggregateName, New<TAggregateTypeInferrer>(
-            typeArgumentConstraints,
-            argumentType,
-            resultType,
-            stateType));
+        FunctionProfilersBuilder_->RegisterFunction(
+            functionName, symbolName, typeArgumentConstraints,
+            argumentTypes, repeatedArgType, resultType,
+            implementationFile, callingConvention, useFunctionContext);
     }
 
-    if (AggregateProfilers_) {
-        AggregateProfilers_->emplace(aggregateName, New<TExternalAggregateCodegen>(
-            aggregateName, implementationFile, callingConvention, isFirst, TSharedRef()));
-    }
-}
+    void RegisterFunction(
+        const TString& functionName,
+        std::vector<TType> argumentTypes,
+        TType resultType,
+        TStringBuf implementationFile,
+        ECallingConvention callingConvention) override
+    {
+        TypeInferrersBuilder_->RegisterFunction(
+            functionName, argumentTypes, resultType,
+            implementationFile, callingConvention);
 
+        FunctionProfilersBuilder_->RegisterFunction(
+            functionName, argumentTypes, resultType,
+            implementationFile, callingConvention);
+    }
+
+    void RegisterFunction(
+        const TString& functionName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        std::vector<TType> argumentTypes,
+        TType repeatedArgType,
+        TType resultType,
+        TStringBuf implementationFile) override
+    {
+        TypeInferrersBuilder_->RegisterFunction(
+            functionName, typeArgumentConstraints,
+            argumentTypes, repeatedArgType, resultType,
+            implementationFile);
+
+        FunctionProfilersBuilder_->RegisterFunction(
+            functionName, typeArgumentConstraints,
+            argumentTypes, repeatedArgType, resultType,
+            implementationFile);
+    }
+
+    void RegisterAggregate(
+        const TString& aggregateName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        TType argumentType,
+        TType resultType,
+        TType stateType,
+        TStringBuf implementationFile,
+        ECallingConvention callingConvention,
+        bool isFirst) override
+    {
+        TypeInferrersBuilder_->RegisterAggregate(
+            aggregateName, typeArgumentConstraints,
+            argumentType, resultType, stateType,
+            implementationFile, callingConvention, isFirst);
+
+        FunctionProfilersBuilder_->RegisterAggregate(
+            aggregateName, typeArgumentConstraints,
+            argumentType, resultType, stateType,
+            implementationFile, callingConvention, isFirst);
+    }
+
+private:
+    std::unique_ptr<IFunctionRegistryBuilder> TypeInferrersBuilder_;
+    std::unique_ptr<IFunctionRegistryBuilder> FunctionProfilersBuilder_;
+};
+
+std::unique_ptr<IFunctionRegistryBuilder> CreateFunctionRegistryBuilder(
+    const TTypeInferrerMapPtr& typeInferrers,
+    const TFunctionProfilerMapPtr& functionProfilers,
+    const TAggregateProfilerMapPtr& aggregateProfilers)
+{
+    return std::make_unique<TFunctionRegistryBuilder>(
+        typeInferrers, functionProfilers, aggregateProfilers);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
