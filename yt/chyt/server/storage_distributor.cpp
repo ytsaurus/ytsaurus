@@ -791,6 +791,7 @@ public:
         std::vector<TTablePtr> tables,
         TTableSchemaPtr schema)
         : TYtStorageBase({"YT", BuildStorageName(tables)})
+        , WeakContext_(context)
         , QueryContext_(GetQueryContext(context))
         , Tables_(std::move(tables))
         , Schema_(std::move(schema))
@@ -1204,6 +1205,16 @@ public:
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
+        auto context = WeakContext_.lock();
+        if (!context) {
+            THROW_ERROR_EXCEPTION("Context has expired (getColumnSizes)");
+        }
+
+        if (!context->getSettingsRef().optimize_move_to_prewhere) {
+            YT_LOG_DEBUG("optimize_move_to_prewhere is disabled, returning empty columnar statistics");
+            return {};
+        }
+
         for (const auto& table : Tables_) {
             if (table->Dynamic) {
                 YT_LOG_DEBUG(
@@ -1282,6 +1293,7 @@ public:
     }
 
 private:
+    DB::ContextWeakPtr WeakContext_;
     TQueryContext* QueryContext_;
     std::vector<TTablePtr> Tables_;
     TTableSchemaPtr Schema_;
