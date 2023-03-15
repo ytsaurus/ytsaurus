@@ -51,12 +51,16 @@ TGrpcLibraryLock::~TGrpcLibraryLock()
 class TDispatcher::TImpl
 {
 public:
+    [[nodiscard]] bool IsConfigured() const noexcept
+    {
+        return Configured_.load();
+    }
 
     void Configure(const TDispatcherConfigPtr& config)
     {
         auto guard = Guard(ConfigureLock_);
 
-        if (Configured_.load()) {
+        if (IsConfigured()) {
             THROW_ERROR_EXCEPTION("GPRC dispatcher is already configured");
         }
 
@@ -153,13 +157,13 @@ private:
 
     void EnsureConfigured()
     {
-        if (Configured_.load()) {
+        if (IsConfigured()) {
             return;
         }
 
         auto guard = Guard(ConfigureLock_);
 
-        if (Configured_.load()) {
+        if (IsConfigured()) {
             return;
         }
 
@@ -169,7 +173,7 @@ private:
     void DoConfigure(const TDispatcherConfigPtr& config)
     {
         VERIFY_SPINLOCK_AFFINITY(ConfigureLock_);
-        YT_VERIFY(!Configured_.load());
+        YT_VERIFY(!IsConfigured());
 
         grpc_core::Executor::SetThreadsLimit(config->GrpcThreadCount);
 
@@ -205,6 +209,11 @@ TDispatcher* TDispatcher::Get()
 void TDispatcher::Configure(const TDispatcherConfigPtr& config)
 {
     Impl_->Configure(config);
+}
+
+bool TDispatcher::IsConfigured() const noexcept
+{
+    return Impl_->IsConfigured();
 }
 
 TGrpcLibraryLockPtr TDispatcher::GetLibraryLock()
