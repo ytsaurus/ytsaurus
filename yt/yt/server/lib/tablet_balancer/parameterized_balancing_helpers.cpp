@@ -687,8 +687,7 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
 
             BestAction_.Callback(&availiableActionCount);
 
-            YT_LOG_DEBUG_IF(
-                Bundle_->Config->EnableVerboseLogging,
+            YT_LOG_DEBUG(
                 "Total parameterized metric changed (Old: %v, New: %v)",
                 CurrentMetric_,
                 BestAction_.Metric);
