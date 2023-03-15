@@ -27,6 +27,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.jar.Attributes;
@@ -137,6 +138,10 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
 
     protected void withJar(File jarFile, Consumer<File> consumer) {
         consumer.accept(jarFile);
+    }
+
+    protected void withClassPathDir(File classPathItem, byte[] jarBytes, BiConsumer<File, byte[]> consumer) {
+        consumer.accept(classPathItem, jarBytes);
     }
 
     private boolean isUsingFileCache() {
@@ -431,7 +436,13 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
                 }
             } else if (classPathItem.isDirectory()) {
                 byte[] jarBytes = getClassPathDirJarBytes(classPathItem);
-                collectFile(() -> new ByteArrayInputStream(jarBytes), classPathItem.getName() + ".jar", existsJars);
+                withClassPathDir(
+                        classPathItem,
+                        jarBytes,
+                        (dir, bytes) -> collectFile(() ->
+                                new ByteArrayInputStream(bytes), dir.getName() + ".jar", existsJars
+                        )
+                );
             }
         }
     }
