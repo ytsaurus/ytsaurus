@@ -25,7 +25,7 @@ class IJobResourceManager
     : public TRefCounted
 {
 protected:
-    class TResourceAcquiringProxy;
+    class TResourceAcquiringContext;
     class TImpl;
 
 public:
@@ -49,7 +49,7 @@ public:
     //! Compares new usage with resource limits. Detects resource overdraft.
     virtual bool CheckMemoryOverdraft(const NNodeTrackerClient::NProto::TNodeResources& delta) = 0;
 
-    virtual TResourceAcquiringProxy GetResourceAcquiringProxy() = 0;
+    virtual TResourceAcquiringContext GetResourceAcquiringContext() = 0;
 
     virtual int GetWaitingResourceHolderCount() = 0;
 
@@ -67,12 +67,12 @@ public:
 protected:
     friend TResourceHolder;
 
-    class TResourceAcquiringProxy
+    class TResourceAcquiringContext
     {
     public:
-        TResourceAcquiringProxy(IJobResourceManager* resourceManagerImpl);
-        TResourceAcquiringProxy(const TResourceAcquiringProxy&) = delete;
-        ~TResourceAcquiringProxy();
+        TResourceAcquiringContext(IJobResourceManager* resourceManagerImpl);
+        TResourceAcquiringContext(const TResourceAcquiringContext&) = delete;
+        ~TResourceAcquiringContext();
 
         bool TryAcquireResourcesFor(TResourceHolder* resourceHolder) &;
 
@@ -122,7 +122,7 @@ protected:
     NLogging::TLogger Logger;
 
 private:
-    friend IJobResourceManager::TResourceAcquiringProxy;
+    friend IJobResourceManager::TResourceAcquiringContext;
     friend IJobResourceManager::TImpl;
 
     IJobResourceManager::TImpl* const ResourceManagerImpl_;
