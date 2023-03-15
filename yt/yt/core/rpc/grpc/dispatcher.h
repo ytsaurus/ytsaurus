@@ -32,6 +32,7 @@ public:
     *   The call must be done prior to any GRPC client or server is created.
      */
     void Configure(const TDispatcherConfigPtr& config);
+    [[nodiscard]] bool IsConfigured() const noexcept;
 
     TGrpcLibraryLockPtr GetLibraryLock();
     TGuardedGrpcCompletitionQueuePtr* PickRandomGuardedCompletionQueue();
