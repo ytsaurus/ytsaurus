@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import yt.yson as yson
 from yt.wrapper import YtClient, TablePath, config, ypath_join

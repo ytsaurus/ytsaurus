@@ -10,7 +10,6 @@ import subprocess
 import signal
 import time
 import requests
-import library.python.svn_version
 import yt.yson
 
 logger = logging.getLogger("clickhouse-trampoline")
@@ -180,7 +179,11 @@ def move_core_dumps(destination):
 
 
 def print_version():
-    print("0.0.{}~{}".format(library.python.svn_version.svn_revision(), library.python.svn_version.hash()))
+    try:
+        import library.python.svn_version
+        print("0.0.{}~{}".format(library.python.svn_version.svn_revision(), library.python.svn_version.hash()))
+    except (ImportError, AttributeError):
+        print("0.0.{}~{}".format(0, 0))
 
 
 def setup_logging(log_file):
