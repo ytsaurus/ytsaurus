@@ -1,0 +1,23 @@
+import "yt/cpp/roren/bigrt/proto/config.proto";
+import "yt/cpp/roren/library/kv_state_manager/proto/kv_state_manager_config.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
+import "bigrt/lib/writer/yt_queue/proto/config.proto";
+import "quality/user_sessions/rt/lib/writers/logbroker/proto/config.proto";
+
+message TSimplePipelineConfig {
+    required NRoren.TBigRtProgramConfig RorenConfig = 1;
+    optional string DictTable = 2;
+    optional int64 DictRefreshPeriodMs = 3;
+    optional NRoren.TKvStateManagerConfig KvStateManagerConfig = 4;
+
+    oneof OutputConfig {
+        NBigRT.TYtQueueWriterConfig YtQueueOutput = 1000;
+        NUserSessions.NRT.TLogbrokerWriterConfig LogbrokerOutput = 1001;
+        string YtDynTableOutputPath = 1002;
+    }
+}
+
+message TDictMessage {
+    optional string Key = 1 [(NYT.key_column_name) = "key"];
+    optional string Value = 2 [(NYT.column_name) = "value"];
+}

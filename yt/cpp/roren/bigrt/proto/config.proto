@@ -1,0 +1,69 @@
+package NRoren;
+
+import "ads/bsyeti/libs/tvm_manager/proto/config.proto";
+import "ads/bsyeti/libs/profiling/solomon/proto/config.proto";
+import "ads/bsyeti/libs/ytex/http/proto/config.proto";
+import "ads/bsyeti/libs/ytex/logging/proto/config.proto";
+import "bigrt/lib/consuming_system/config/config.proto";
+import "bigrt/lib/processing/shard_processor/stateless/config/stateless_shard_processor_config.proto";
+import "bigrt/lib/supplier/config/supplier_config.proto";
+import "quality/user_sessions/rt/lib/common/protos/yt_client_config.proto";
+
+message TConsumerConfig
+{
+    // Might be left empty, defaults are sensible
+    optional NBigRT.TStatelessShardProcessorConfig StatelessShardProcessorConfig = 1;
+    optional NBigRT.TConsumingSystemConfig ConsumingSystemConfig = 2;
+    optional string InputTag = 3 [default = "input"];
+}
+
+message TRorenInputConfig
+{
+    optional string InputTag = 1;
+    repeated NBigRT.TSupplierConfig Suppliers = 2;
+}
+
+message TBigRtStateConfig
+{
+    optional int64 RequestStateBatchSize = 1 [default = 100];
+}
+
+message TBigRtProgramConfig
+{
+    repeated TConsumerConfig Consumers = 1;
+
+    optional NBSYeti.NProfiling.TExporterConfig SolomonExporterConfig = 3;
+
+    optional NYTEx.NHttp.TServerConfig HttpServerConfig = 4;
+
+    optional NBSYeti.TTvmGlobalConfig TvmConfig = 5;
+
+    optional NUserSessions.NRT.TYtClientConfig YtClientConfig = 6;
+
+    // Maximum size of data batch that can be processed.
+    optional uint64 MaxInFlightBytes = 7 [default = 67108864];
+
+    // If present it is put into 'location' tag that is added to all solomon metrics.
+    optional string LocationSolomonTag = 8;
+
+    // Number of threads that run user code.
+    // If not specified, this number will be derived from maximum numbers of available CPUs.
+    optional uint64 UserThreadCount = 9;
+
+    // EasyInputs and Inputs are alternatives
+    repeated NBigRT.TSupplierConfig EasyInputs = 10; // for one supplier in every input, input tag is taken from supplier.GetAlias()
+    repeated TRorenInputConfig Inputs = 11;
+
+    // This is temporary option.
+    // It enables V2 version of graph parsing.
+    // That version supports switching concurrency and stateful processing.
+    // In future all parsing will be switched to V2, and this option will be removed.
+    optional bool EnableV2GraphParsing = 1000;
+}
+
+message TBigRtUserConfigTemplate
+{
+    required TBigRtProgramConfig RorenConfig = 1;
+    optional NYTEx.NLogging.TConfig Logs = 2;
+
+}
