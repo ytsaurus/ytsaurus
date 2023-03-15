@@ -100,7 +100,7 @@ class Transaction(object):
     :param bool acquire: commit/abort transaction in exit from with. By default False if new transaction is not started else True and false values are not allowed.
     :param bool ping: ping transaction in separate thread. By default True if acquire is also True else False.
 
-    .. seealso:: `transactions in the docs <https://yt.yandex-team.ru/docs/description/storage/transactions.html>`_
+    .. seealso:: `transactions in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/transactions>`_
     """
 
     def __init__(self, timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True,
@@ -403,7 +403,7 @@ class PingTransaction(Thread):
             except YtError as err:
                 if not self.ignore_no_such_transaction_error or not err.is_no_such_transaction():
                     self._process_failed_ping()
-            except:
+            except:  # noqa
                 self._process_failed_ping()
 
             start_time = datetime.now()
@@ -448,6 +448,7 @@ class _TransactionAborter(Thread):
                 transaction.abort()
             else:
                 time.sleep(10)
+
 
 _transaction_aborter = None
 

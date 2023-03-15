@@ -26,7 +26,7 @@ def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribu
     :return: map with lock information (as dict) or throws \
     :class:`YtResponseError <yt.wrapper.errors.YtResponseError>` with 40* code if lock conflict detected.
 
-    .. seealso:: `lock in the docs <https://yt.yandex-team.ru/docs/description/storage/transactions#locks>`_
+    .. seealso:: `lock in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/transactions#locks>`_
     """
     if wait_for is not None:
         wait_for = timedelta(milliseconds=wait_for)
@@ -74,7 +74,7 @@ def unlock(path, client=None):
     If the node is not locked, succeeds silently. If the locked version of the node
     contains changes compared to its original version, :class:`YtError <yt.common.YtError>` is raised.
 
-    .. seealso:: `unlock in the docs <https://yt.yandex-team.ru/docs/description/storage/transactions#lock_operations>`_
+    .. seealso:: `unlock in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/transactions#locks>`_
     """
     params = {"path": YPath(path, client=client)}
     make_request("unlock", params, client=client)

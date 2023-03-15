@@ -1,14 +1,17 @@
 """
 Python wrapper for HTTP-interface of YT system.
 
-Package supports `YT API <https://yt.yandex-team.ru/docs/api/python/start.html>`_.
+Package supports `YT API <https://ytsaurus.tech/docs/ru/api/python/start>`_.
 
 Be ready to catch :class:`YtError <yt.common.YtError>` after all commands!
 """
 
 from . import version_check  # noqa
 
-from .idm_client import YtIdmClient  # noqa
+try:
+    from .idm_client import YtIdmClient  # noqa
+except ImportError:
+    pass
 
 from .client_api import *  # noqa
 from .client import YtClient, create_client_with_command_params  # noqa

@@ -29,6 +29,7 @@ def try_enable_parallel_write_gzip(config_enable):
         logger.warning("Parallel write may be ineffective because zlib is not parallel")
     return enable
 
+
 _CODECS = {}
 
 
@@ -71,7 +72,9 @@ def _create_zlib_compressor():
     zlib_obj = zlib.compressobj()
     return _Compressor(zlib_obj.compress, zlib_obj.flush)
 
+
 _CODECS["gzip"] = _create_zlib_compressor
+
 
 try:
     import brotli

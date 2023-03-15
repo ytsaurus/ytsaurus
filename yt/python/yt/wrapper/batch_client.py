@@ -20,5 +20,6 @@ class BatchClient(ClientState):
     def commit_batch(self):
         self._batch_executor.commit_batch()
 
+
 for name in batch_api._batch_commands:
     setattr(BatchClient, name, create_class_method(getattr(batch_api, name)))

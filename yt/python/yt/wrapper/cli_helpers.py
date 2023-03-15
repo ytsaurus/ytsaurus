@@ -33,7 +33,7 @@ def write_silently(strings, force_use_text_stdout=False):
         raise
     except Exception:
         raise
-    except:
+    except:  # noqa
         # Case of keyboard abort
         try:
             sys.stdout.flush()

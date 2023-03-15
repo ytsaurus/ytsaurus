@@ -46,7 +46,7 @@ def check_permission(user, permission, path,
     :param str permission: one of ["read", "write", "administer", "create", "use"].
     :return: permission in specified format (YSON by default).
 
-    .. seealso:: `permissions in the docs <https://yt.yandex-team.ru/docs/description/common/access_control>`_
+    .. seealso:: `permissions in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/access-control>`_
     """
     params = {
         "user": user,
@@ -68,7 +68,7 @@ def add_member(member, group, client=None):
     :param str member: member to add.
     :param str group: group to add member to.
 
-    .. seealso:: `permissions in the docs <https://yt.yandex-team.ru/docs/description/common/access_control>`_
+    .. seealso:: `permissions in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/access-control>`_
     """
     return make_request(
         "add_member",
@@ -85,7 +85,7 @@ def remove_member(member, group, client=None):
     :param str member: member to remove.
     :param str group: group to remove member from.
 
-    .. seealso:: `permissions in the docs <https://yt.yandex-team.ru/docs/description/common/access_control>`_
+    .. seealso:: `permissions in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/access-control>`_
     """
     return make_request(
         "remove_member",

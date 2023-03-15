@@ -1,5 +1,6 @@
 from .config import get_config, get_option, set_option, get_backend_type
 from .common import require, get_value, total_seconds, generate_uuid, generate_traceparent, forbidden_inside_job, hide_auth_headers
+from .constants import OAUTH_URL, FEEDBACK_URL
 from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
                      YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
@@ -265,10 +266,10 @@ def raise_for_token(response, request_info):
     raise YtTokenError(
         "Your request {0} has failed to authenticate at {1}. "
         "Make sure that you have provided an OAuth token with the request. "
-        "In case you do not have a valid token, please refer to oauth.yt.yandex.net for obtaining one. "
+        "In case you do not have a valid token, please refer to {2} for obtaining one. "
         "If the error persists and system keeps rejecting your token, "
-        "please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"
-        .format(request_id, proxy),
+        "please kindly submit a request to {3}"
+        .format(request_id, proxy, OAUTH_URL, FEEDBACK_URL),
         inner_errors=[error_exc])
 
 
@@ -382,7 +383,7 @@ class RequestRetrier(Retrier):
                     # We should perform it under try..except due to response may be incomplete.
                     # See YT-4053.
                     rsp = create_response(error.response, request_info, self.request_id, self.error_format, self.client)
-                except:
+                except:  # noqa
                     reraise(*exc_info)
                 check_response_is_decodable(rsp, "json")
                 _raise_for_status(rsp, request_info)
@@ -415,7 +416,7 @@ class RequestRetrier(Retrier):
         if isinstance(error, YtError):
             try:
                 logging_params["full_error"] = _pretty_format_for_logging(error)
-            except:
+            except:  # noqa
                 logger.exception("Failed to format error")
 
         logger.warning("HTTP %s request %s failed with error %s (%s)",

@@ -33,8 +33,8 @@ def mount_cypress(
 if __name__ == "__main__":
     parser = ArgumentParser(description="Mount a Cypress, an YT cluster metainformation tree")
 
-    parser.add_argument("proxy", help='Proxy alias like "aristotle.yt.yandex.net" or just "aristotle".')
-    parser.add_argument("mount_point", help='Mountpoint directory like "/mnt/aristotle".')
+    parser.add_argument("proxy", help='Proxy address or cluster name')
+    parser.add_argument("mount_point", help='Mountpoint directory like "/mnt/<cluster_name>".')
     parser.add_argument(
         "--caching-period",
         action="store",

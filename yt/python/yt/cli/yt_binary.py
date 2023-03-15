@@ -9,6 +9,7 @@ from yt.wrapper.common import (
     chunk_iter_rows, format_disk_space)
 from yt.wrapper.cli_helpers import (
     write_silently, print_to_output, run_main, ParseStructuredArgument, populate_argument_help)
+from yt.wrapper.constants import GETTINGSTARTED_DOC_URL, TUTORIAL_DOC_URL
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.admin_commands import add_switch_leader_parser
 from yt.wrapper.spec_builders import (
@@ -20,7 +21,11 @@ import yt.wrapper.clickhouse_ctl as chyt_ctl
 import yt.wrapper.job_tool as yt_job_tool
 import yt.wrapper.run_compression_benchmarks as yt_run_compression_benchmarks
 import yt.wrapper.completers as completers
-import yt.wrapper.idm_cli_helpers as idm
+try:
+    import yt.wrapper.idm_cli_helpers as idm
+    HAS_IDM_CLI_HELPERS = True
+except ImportError:
+    HAS_IDM_CLI_HELPERS = False
 import yt.json_wrapper as json
 
 try:
@@ -43,6 +48,9 @@ import signal
 import time
 from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter, SUPPRESS
 from datetime import datetime
+
+
+HAS_SKY_SHARE = hasattr(yt, "sky_share")
 
 DESCRIPTION = '''Shell utility to work with YT system.\n
 Cypress (metainformation tree) commands:
@@ -84,36 +92,33 @@ Subtools:
 EPILOG = '''Examples:
 
 List content of root directory of Hume cluster and check access to system.
-$  yt list / --proxy hume.yt.yandex.net
+$  yt list / --proxy <cluster_host>
 >> home
-   kiwi
-   userdata
    sys
-   statbox
    tmp
 
-Set YT_PROXY = hume.yt.yandex.net to avoid usage --proxy option.
-$ export YT_PROXY=hume.yt.yandex.net
+Set YT_PROXY = <cluster_host> to avoid usage --proxy option.
+$ export YT_PROXY=<cluster_host>
 (Add this string to ~/.bashrc)
 
 $  yt create table //tmp/sepulki
 >> [...] Access denied: "write" permission for node //tmp is not allowed by any matching ACE [...]
 
-Oops! Forgotten token. Follow https://yt.yandex-team.ru/docs/gettingstarted.html
+Oops! Forgotten token. Follow {gettingstarted_doc_url}
 
 $  yt create table //tmp/sepulki
 >> 1-2-3-4
 
 See all attributes created table.
 $ yt get "//tmp/sepulki/@"
->> {
+>> {{
         "chunk_list_id" = "5c6a-1c2459-65-1f9943e3";
         "inherit_acl" = "true";
         [...]
-    }
+    }}
 
 You can use GUID of object #1-2-3-4 instead path.
-See also https://yt.yandex-team.ru/docs/description/common/ypath.html
+See also https://ytsaurus.tech/docs/ru/user-guide/storage/ypath
 
 Note! Create parent directory of table before writing to it. Recursive path creating is not available during operation.
 
@@ -138,30 +143,33 @@ Sort the table.
 $ yt sort --src //project/some_existing_table --dst //tmp/sepulki --sort-by "column-one"
 
 Sort the table in descending order.
-$ yt sort --src //project/some_existing_table --dst //tmp/sepulki --sort-by "{name=column-one; sort_order=descending;}"
+$ yt sort --src //project/some_existing_table --dst //tmp/sepulki --sort-by "{{name=column-one; sort_order=descending;}}"
 
 Note! Without modification `append=true` destination table is overwritten.
 Note! Specify paths to user scripts!
 
 Lookup rows from dynamic table.
-$ echo '{host=abc.com}' | yt lookup-rows //my/dynamic/table
->> {"host"="abc.com";"last_seen_time": "2017-04-10T12:35:10"}
+$ echo '{{host=abc.com}}' | yt lookup-rows //my/dynamic/table
+>> {{"host"="abc.com";"last_seen_time": "2017-04-10T12:35:10"}}
 
 See also:
-    YT CLI client           https://doc.yt.yandex.net/api/cli/cli.html
+    YT CLI client           https://ytsaurus.tech/docs/ru/api/cli/cli
 
-    YT system               https://wiki.yandex-team.ru/yt
-    access to the system    https://yt.yandex-team.ru/docs/gettingstarted.html
-    tutorial                https://wiki.yandex-team.ru/yt/userdoc/forbeginners
-    user documentations     https://yt.yandex-team.ru/docs
-    command specification   https://doc.yt.yandex.net/api/commands.html
-    ACL                     https://yt.yandex-team.ru/docs/description/common/access_control
-    transactions            https://yt.yandex-team.ru/docs/description/storage/transactions.html
-'''
+    user documentation      https://ytsaurus.tech/docs/ru/
+    access to the system    {gettingstarted_doc_url}
+    tutorial                {tutorial_doc_url}
+    command specification   https://ytsaurus.tech/docs/ru/api/commands
+    ACL                     https://ytsaurus.tech/docs/ru/user-guide/storage/access-control
+    transactions            https://ytsaurus.tech/docs/ru/user-guide/storage/transactions
+'''.format(
+    gettingstarted_doc_url=GETTINGSTARTED_DOC_URL,
+    tutorial_doc_url=TUTORIAL_DOC_URL,
+)
 
 
 def yson_dumps(data):
     return yson._dumps_to_native_str(data, yson_format="pretty", indent=2)
+
 
 YT_ARGUMENTS_FORMAT = os.environ.get("YT_ARGUMENTS_FORMAT", "yson")
 YT_STRUCTURED_DATA_FORMAT = os.environ.get("YT_STRUCTURED_DATA_FORMAT", "yson")
@@ -274,7 +282,7 @@ def add_hybrid_argument(parser, name, help=None, description=None, group_require
 
 
 def add_ypath_argument(parser, name, help="address in Cypress", hybrid=False, **kwargs):
-    description = "See also: https://yt.yandex-team.ru/docs/description/common/ypath.html"
+    description = "See also: https://ytsaurus.tech/docs/ru/user-guide/storage/ypath"
 
     if hybrid:
         positional, optional = add_hybrid_argument(parser, name, help=help, description=description, **kwargs)
@@ -287,13 +295,13 @@ def add_ypath_argument(parser, name, help="address in Cypress", hybrid=False, **
 
 def add_structured_format_argument(parser, name="--format", help="", **kwargs):
     description = 'response or input format: yson or json, for example: "<format=binary>yson". '\
-                  'See also: https://yt.yandex-team.ru/docs/description/storage/formats.html'
+                  'See also: https://ytsaurus.tech/docs/ru/user-guide/storage/formats'
     add_argument(parser, name, help, description=description, action=ParseFormat, **kwargs)
 
 
 def add_format_argument(parser, name="--format", help="", **kwargs):
     description = '(yson string), one of "yson", "json", "yamr", "dsv", "yamred_dsv", "schemaful_dsv" '\
-                  'with modifications. See also: https://yt.yandex-team.ru/docs/description/storage/formats.html'
+                  'with modifications. See also: https://ytsaurus.tech/docs/ru/user-guide/storage/formats'
     add_argument(parser, name, help, description=description, action=ParseFormat, **kwargs)
 
 
@@ -340,6 +348,7 @@ def add_exists_parser(add_parser):
     parser.add_argument("--suppress-transaction-coordinator-sync", action="store_true",
                         help="suppress transaction coordinator sync")
     add_read_from_arguments(parser)
+
 
 LONG_FORMAT_ATTRIBUTES = ("type", "target_path", "account", "resource_usage", "modification_time")
 
@@ -1012,7 +1021,7 @@ def add_select_rows_parser(add_parser):
     parser = add_parser(
         "select-rows", select_rows,
         epilog="Supported features: "
-               "https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language.html")
+               "https://ytsaurus.tech/docs/ru/user-guide/dynamic-tables/dyn-query-language")
     add_hybrid_argument(parser, "query")
     parser.add_argument("--timestamp", type=int)
     parser.add_argument("--input-row-limit", type=int)
@@ -1251,7 +1260,7 @@ def show_spec(operation):
     spec_description = get_spec_description(SPEC_BUILDERS[operation])
     print("Spec options for {0} operation\n".format(operation))
     print(spec_description)
-    print("\nSee more in the documentation: https://yt.yandex-team.ru/docs/description/mr/operations")
+    print("\nSee more in the documentation: https://ytsaurus.tech/docs/ru/user-guide/data-processing/operations/overview")
 
 
 def add_show_spec_parser(add_parser):
@@ -1927,17 +1936,17 @@ def add_compression_benchmark_parser(add_parser):
     parser.add_argument("--time-limit-sec", type=int, default=200, help="time limit for one operation in seconds")
 
 
-@copy_docstring_from(yt.sky_share)
-def sky_share(**kwargs):
-    print_to_output(yt.sky_share(**kwargs))
+if HAS_SKY_SHARE:
+    @copy_docstring_from(yt.sky_share)
+    def sky_share(**kwargs):
+        print_to_output(yt.sky_share(**kwargs))
 
-
-def add_sky_share_parser(add_parser):
-    parser = add_parser("sky-share", sky_share)
-    parser.add_argument("path", help="table path")
-    parser.add_argument("--cluster", help="cluster name, by default it is derived from proxy url")
-    parser.add_argument("--key-column", help="create a separate torrent for each unique key and print rbtorrent list in JSON format", action="append", dest="key_columns")
-    parser.add_argument("--enable-fastbone", help="download over fastbone if all necessary firewall rules are present", action="store_true")
+    def add_sky_share_parser(add_parser):
+        parser = add_parser("sky-share", sky_share)
+        parser.add_argument("path", help="table path")
+        parser.add_argument("--cluster", help="cluster name, by default it is derived from proxy url")
+        parser.add_argument("--key-column", help="create a separate torrent for each unique key and print rbtorrent list in JSON format", action="append", dest="key_columns")
+        parser.add_argument("--enable-fastbone", help="download over fastbone if all necessary firewall rules are present", action="store_true")
 
 
 @copy_docstring_from(get_default_config)
@@ -1972,119 +1981,117 @@ def add_download_core_dump_parser(add_parser):
                         help="A directory to save the core dumps. Defaults to the current working directory")
 
 
-def add_idm_parser(root_subparsers):
-    parser = populate_argument_help(root_subparsers.add_parser("idm", description="IDM-related commands"))
+if HAS_IDM_CLI_HELPERS:
+    def add_idm_parser(root_subparsers):
+        parser = populate_argument_help(root_subparsers.add_parser("idm", description="IDM-related commands"))
 
-    object_group = parser.add_mutually_exclusive_group(required=True)
-    object_group.add_argument("--path", help="Cypress node path")
-    object_group.add_argument("--account", help="Account name")
-    object_group.add_argument("--bundle", dest="tablet_cell_bundle", help="Tablet cell bundle name")
-    object_group.add_argument("--group", help="YT group name")
-    object_group.add_argument("--pool", help="Pool name")
+        object_group = parser.add_mutually_exclusive_group(required=True)
+        object_group.add_argument("--path", help="Cypress node path")
+        object_group.add_argument("--account", help="Account name")
+        object_group.add_argument("--bundle", dest="tablet_cell_bundle", help="Tablet cell bundle name")
+        object_group.add_argument("--group", help="YT group name")
+        object_group.add_argument("--pool", help="Pool name")
 
-    parser.add_argument("--pool-tree", help="Pool tree name")
+        parser.add_argument("--pool-tree", help="Pool tree name")
 
-    parser.add_argument("--address", help="IDM integration service address")
+        parser.add_argument("--address", help="IDM integration service address")
 
-    idm_subparsers = parser.add_subparsers(metavar="idm_command", **SUBPARSER_KWARGS)
+        idm_subparsers = parser.add_subparsers(metavar="idm_command", **SUBPARSER_KWARGS)
 
-    # idm show
-    add_idm_show_parser(idm_subparsers)
+        # idm show
+        add_idm_show_parser(idm_subparsers)
 
-    # idm request
-    request_parser = populate_argument_help(idm_subparsers.add_parser("request", help="Request IDM role"))
-    add_idm_request_or_revoke_parser(request_parser)
-    request_parser.add_argument(
-        "--permissions", "-p", action="store", dest="permissions",
-        type=idm.decode_permissions, default=[],
-        help="Permissions like: R - read; RW - read, write, remove; M - mount, U - use")
-    request_parser.set_defaults(func=idm.request)
+        # idm request
+        request_parser = populate_argument_help(idm_subparsers.add_parser("request", help="Request IDM role"))
+        add_idm_request_or_revoke_parser(request_parser)
+        request_parser.add_argument(
+            "--permissions", "-p", action="store", dest="permissions",
+            type=idm.decode_permissions, default=[],
+            help="Permissions like: R - read; RW - read, write, remove; M - mount, U - use")
+        request_parser.set_defaults(func=idm.request)
 
-    # idm revoke
-    revoke_parser = populate_argument_help(idm_subparsers.add_parser("revoke", help="Revoke IDM role"))
-    add_idm_request_or_revoke_parser(revoke_parser)
-    revoke_parser.add_argument(
-        "--permissions", "-p", action="store", dest="permissions",
-        type=idm.decode_permissions, default=[],
-        help="Permissions like: R - read; RW - read, write, remove; M - mount, U - use")
-    revoke_parser.add_argument("--revoke-all-roles", help="Revoke all IDM roles", action="store_true")
-    revoke_parser.set_defaults(func=idm.revoke)
+        # idm revoke
+        revoke_parser = populate_argument_help(idm_subparsers.add_parser("revoke", help="Revoke IDM role"))
+        add_idm_request_or_revoke_parser(revoke_parser)
+        revoke_parser.add_argument(
+            "--permissions", "-p", action="store", dest="permissions",
+            type=idm.decode_permissions, default=[],
+            help="Permissions like: R - read; RW - read, write, remove; M - mount, U - use")
+        revoke_parser.add_argument("--revoke-all-roles", help="Revoke all IDM roles", action="store_true")
+        revoke_parser.set_defaults(func=idm.revoke)
 
-    # idm copy
-    add_idm_copy_parser(idm_subparsers)
+        # idm copy
+        add_idm_copy_parser(idm_subparsers)
 
+    def add_idm_show_parser(idm_subparsers):
+        parser = populate_argument_help(idm_subparsers.add_parser("show", help="Show IDM information"))
+        parser.add_argument(
+            "--immediate", "-i", help="Show only immediate IDM information (not inherited)",
+            action="store_true", default=False)
+        parser.set_defaults(func=idm.show)
 
-def add_idm_show_parser(idm_subparsers):
-    parser = populate_argument_help(idm_subparsers.add_parser("show", help="Show IDM information"))
-    parser.add_argument(
-        "--immediate", "-i", help="Show only immediate IDM information (not inherited)",
-        action="store_true", default=False)
-    parser.set_defaults(func=idm.show)
+    def add_idm_request_or_revoke_parser(parser):
+        # Approvers definition
+        parser.add_argument(
+            "--responsibles", "-r", action="store", dest="responsibles",
+            nargs="*", default=[], help="User logins space separated")
+        parser.add_argument(
+            "--read-approvers", "-a", action="store", dest="read_approvers",
+            nargs="*", default=[], help="User logins space separated")
+        parser.add_argument(
+            "--auditors", "-u", action="store", dest="auditors",
+            nargs="*", default=[], help="User logins space separated")
 
+        # Flags definition
+        inherit_acl_group = parser.add_mutually_exclusive_group(required=False)
+        inherit_acl_group.add_argument(
+            "--set-inherit-acl", action="store_true", dest="inherit_acl", default=None,
+            help="Enable ACL inheritance")
+        inherit_acl_group.add_argument(
+            "--unset-inherit-acl", action="store_false", dest="inherit_acl",
+            help="Disable ACL inheritance")
 
-def add_idm_request_or_revoke_parser(parser):
-    # Approvers definition
-    parser.add_argument(
-        "--responsibles", "-r", action="store", dest="responsibles",
-        nargs="*", default=[], help="User logins space separated")
-    parser.add_argument(
-        "--read-approvers", "-a", action="store", dest="read_approvers",
-        nargs="*", default=[], help="User logins space separated")
-    parser.add_argument(
-        "--auditors", "-u", action="store", dest="auditors",
-        nargs="*", default=[], help="User logins space separated")
+        inherit_resps_group = parser.add_mutually_exclusive_group(required=False)
+        inherit_resps_group.add_argument(
+            "--set-inherit-responsibles", action="store_true", dest="inherit_responsibles", default=None,
+            help="Enable inheritance of responsibles, read approvers, auditors, boss_approval")
+        inherit_resps_group.add_argument(
+            "--unset-inherit-responsibles", action="store_false", dest="inherit_responsibles",
+            help="Disable inheritance of responsibles, read approvers, auditors, boss_approval")
 
-    # Flags definition
-    inherit_acl_group = parser.add_mutually_exclusive_group(required=False)
-    inherit_acl_group.add_argument(
-        "--set-inherit-acl", action="store_true", dest="inherit_acl", default=None,
-        help="Enable ACL inheritance")
-    inherit_acl_group.add_argument(
-        "--unset-inherit-acl", action="store_false", dest="inherit_acl",
-        help="Disable ACL inheritance")
+        boss_approval_group = parser.add_mutually_exclusive_group(required=False)
+        boss_approval_group.add_argument(
+            "--set-boss-approval", action="store_true", dest="boss_approval", default=None,
+            help="Enable boss approval requirement for personal roles")
+        boss_approval_group.add_argument(
+            "--unset-boss-approval", action="store_false", dest="boss_approval",
+            help="Disable boss approval requirement for personal roles")
 
-    inherit_resps_group = parser.add_mutually_exclusive_group(required=False)
-    inherit_resps_group.add_argument(
-        "--set-inherit-responsibles", action="store_true", dest="inherit_responsibles", default=None,
-        help="Enable inheritance of responsibles, read approvers, auditors, boss_approval")
-    inherit_resps_group.add_argument(
-        "--unset-inherit-responsibles", action="store_false", dest="inherit_responsibles",
-        help="Disable inheritance of responsibles, read approvers, auditors, boss_approval")
+        parser.add_argument(
+            "--members", "-m", action="store", dest="members",
+            nargs="*", default=[], help="Members list to remove or add. Only for groups")
 
-    boss_approval_group = parser.add_mutually_exclusive_group(required=False)
-    boss_approval_group.add_argument(
-        "--set-boss-approval", action="store_true", dest="boss_approval", default=None,
-        help="Enable boss approval requirement for personal roles")
-    boss_approval_group.add_argument(
-        "--unset-boss-approval", action="store_false", dest="boss_approval",
-        help="Disable boss approval requirement for personal roles")
+        parser.add_argument(
+            "--subjects", "-s", dest="subjects", nargs="*", default=[],
+            help="Space separated user logins or staff/ABC groups like idm-group:ID or tvm apps like tvm-app:ID")
 
-    parser.add_argument(
-        "--members", "-m", action="store", dest="members",
-        nargs="*", default=[], help="Members list to remove or add. Only for groups")
+        parser.add_argument("--comment", dest="comment", help="Comment for the role")
+        parser.add_argument(
+            "--dry-run", action="store_true", dest="dry_run",
+            help="Do not make real changes", default=False)
 
-    parser.add_argument(
-        "--subjects", "-s", dest="subjects", nargs="*", default=[],
-        help="Space separated user logins or staff/ABC groups like idm-group:ID or tvm apps like tvm-app:ID")
-
-    parser.add_argument("--comment", dest="comment", help="Comment for the role")
-    parser.add_argument(
-        "--dry-run", action="store_true", dest="dry_run",
-        help="Do not make real changes", default=False)
-
-
-def add_idm_copy_parser(idm_subparsers):
-    parser = populate_argument_help(idm_subparsers.add_parser("copy", help="Copy IDM permissions"))
-    parser.add_argument("destination", help="Destination object")
-    parser.add_argument(
-        "--immediate", "-i", help="Only copy immediate IDM permissions",
-        action="store_true", default=False)
-    parser.add_argument("--erase", "-e", action="store_true",
-                        help="Erase all existing permissions from destination object")
-    parser.add_argument(
-        "--dry-run", action="store_true", dest="dry_run",
-        help="Do not make real changes", default=False)
-    parser.set_defaults(func=idm.copy)
+    def add_idm_copy_parser(idm_subparsers):
+        parser = populate_argument_help(idm_subparsers.add_parser("copy", help="Copy IDM permissions"))
+        parser.add_argument("destination", help="Destination object")
+        parser.add_argument(
+            "--immediate", "-i", help="Only copy immediate IDM permissions",
+            action="store_true", default=False)
+        parser.add_argument("--erase", "-e", action="store_true",
+                            help="Erase all existing permissions from destination object")
+        parser.add_argument(
+            "--dry-run", action="store_true", dest="dry_run",
+            help="Do not make real changes", default=False)
+        parser.set_defaults(func=idm.copy)
 
 
 def add_admin_parser(root_subparsers):
@@ -2579,7 +2586,8 @@ def main_func():
 
     add_compression_benchmark_parser(add_parser)
 
-    add_sky_share_parser(add_parser)
+    if HAS_SKY_SHARE:
+        add_sky_share_parser(add_parser)
 
     add_show_default_config_parser(add_parser)
     add_show_spec_parser(add_parser)
@@ -2593,7 +2601,8 @@ def main_func():
     add_clickhouse_parser(subparsers)
     add_spark_parser(subparsers)
 
-    add_idm_parser(subparsers)
+    if HAS_IDM_CLI_HELPERS:
+        add_idm_parser(subparsers)
 
     add_admin_parser(subparsers)
 

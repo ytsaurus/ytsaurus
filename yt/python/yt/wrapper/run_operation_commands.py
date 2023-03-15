@@ -1,7 +1,7 @@
 """
 Commands for table working and Map-Reduce operations.
 
-.. seealso:: `operations in the docs <https://yt.yandex-team.ru/docs/description/mr/operations>`_
+.. seealso:: `operations in the docs <https://ytsaurus.tech/docs/ru/user-guide/data-processing/operations/overview>`_
 
 Python wrapper has some improvements over bare YT operations:
 
@@ -17,13 +17,13 @@ Common operations parameters
 * **spec** : (dict) universal method to set operation parameters.
 
 * **job_io** : (dict) spec for job io of all stages of operation, see  \
-`IO settings doc <https://yt.yandex-team.ru/docs/description/storage/io_configuration>`_.
+`IO settings doc <https://ytsaurus.tech/docs/ru/user-guide/storage/io-configuration>`_.
 
 * **table_writer** : (dict) spec of `"write_table" command \
-<http://doc.yt.yandex.net/api/commands.html#writetable>`_.
+<https://ytsaurus.tech/docs/ru/api/commands#write_table>`_.
 
 * **table_reader** : (dict) spec of `"read_table" command \
-<http://doc.yt.yandex.net/api/commands.html#readtable>`_.
+<https://ytsaurus.tech/docs/ru/api/commands#read_table>`_.
 
 * **format** : (str or descendant of :class:`Format <yt.wrapper.format.Format>`) format of input and output \
 data of operation.
@@ -215,7 +215,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         .sort_job_io(job_io) \
         .sort_by(sort_by) \
         .reduce_by(reduce_by) \
-        .spec(spec)
+        .spec(spec)  # noqa
 
     if mapper is not None:
         spec_builder = spec_builder \
@@ -226,7 +226,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                 .output_format(map_output_format) \
                 .file_paths(map_file_paths) \
                 .memory_limit(mapper_memory_limit) \
-            .end_mapper()
+            .end_mapper()  # noqa
     if reducer is not None:
         spec_builder = spec_builder \
             .begin_reducer() \
@@ -236,7 +236,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                 .output_format(reduce_output_format) \
                 .file_paths(reduce_file_paths) \
                 .memory_limit(reducer_memory_limit) \
-            .end_reducer()
+            .end_reducer()  # noqa
     if reduce_combiner is not None:
         spec_builder = spec_builder \
             .begin_reduce_combiner() \
@@ -246,7 +246,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                 .output_format(reduce_combiner_output_format) \
                 .file_paths(reduce_combiner_file_paths) \
                 .memory_limit(reduce_combiner_memory_limit) \
-            .end_reduce_combiner()
+            .end_reduce_combiner()  # noqa
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
 
@@ -287,7 +287,7 @@ def run_map(binary, source_table, destination_table=None,
         .ordered(ordered) \
         .job_count(job_count) \
         .job_io(job_io) \
-        .spec(spec)
+        .spec(spec)  # noqa
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
 
@@ -332,7 +332,7 @@ def run_reduce(binary, source_table, destination_table=None,
         .job_count(job_count) \
         .job_io(job_io) \
         .enable_key_guarantee(enable_key_guarantee) \
-        .spec(spec)
+        .spec(spec)  # noqa
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
 
@@ -376,7 +376,7 @@ def run_join_reduce(binary, source_table, destination_table,
         .join_by(join_by) \
         .job_count(job_count) \
         .job_io(job_io) \
-        .spec(spec)
+        .spec(spec)  # noqa
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
 
