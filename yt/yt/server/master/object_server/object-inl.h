@@ -495,7 +495,6 @@ void TObjectPtr<T, C>::Reset() noexcept
 template <class T, class C>
 T* TObjectPtr<T, C>::operator->() const noexcept
 {
-    YT_ASSERT(IsObjectAlive(*this));
     return Get();
 }
 
