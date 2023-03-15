@@ -33,7 +33,7 @@ from yt.wrapper.testlib.helpers import sync_create_cell, TEST_DIR
 
 import yt.yson as yson
 import yt.wrapper as yt
-import yandex.type_info as ti
+import yt.type_info as ti
 
 from dataclasses import dataclass
 

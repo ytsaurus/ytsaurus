@@ -38,7 +38,7 @@ except ImportError:
 
 import yt.wrapper as yt
 
-import yandex.type_info as typing
+import yt.type_info as typing
 
 import pytest
 

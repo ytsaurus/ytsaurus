@@ -9,7 +9,7 @@ from ..errors import YtError
 import copy
 import datetime
 
-import yandex.type_info as ti
+import yt.type_info as ti
 
 try:
     import dataclasses

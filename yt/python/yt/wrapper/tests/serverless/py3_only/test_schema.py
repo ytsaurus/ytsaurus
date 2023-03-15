@@ -8,7 +8,7 @@ from yt.wrapper.format import StructuredSkiffFormat
 
 from typing import Optional, List
 
-import yandex.type_info as ti
+import yt.type_info as ti
 
 from copy import deepcopy
 
