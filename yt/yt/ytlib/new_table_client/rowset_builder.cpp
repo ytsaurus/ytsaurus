@@ -2,6 +2,7 @@
 #include "read_span_refiner.h"
 #include "dispatch_by_type.h"
 #include "reader_statistics.h"
+#include "column_block_manager.h"
 
 namespace NYT::NNewTableClient {
 
@@ -76,10 +77,10 @@ class TKeyColumn<TReadSpan, Type>
 public:
     using TScanDataExtractor<Type>::Extract;
 
-    explicit TKeyColumn(const TColumnBase* columnInfo)
-        : TKeyColumnBase<TReadSpan>(columnInfo)
+    explicit TKeyColumn(const TColumnBase* columnBase)
+        : TKeyColumnBase<TReadSpan>(columnBase)
     {
-        if (columnInfo->IsNull()) {
+        if (TKeyColumnBase<TReadSpan>::IsNull()) {
             // Key column not present in chunk.
             TKeyColumnBase<TReadSpan>::InitNullIndex();
             TScanDataExtractor<Type>::InitNullData();
@@ -197,10 +198,10 @@ class TKeyColumn<ui32, Type>
 public:
     using TLookupDataExtractor<Type>::Extract;
 
-    explicit TKeyColumn(const TColumnBase* columnInfo)
-        : TKeyColumnBase<ui32>(columnInfo)
+    explicit TKeyColumn(const TColumnBase* columnBase)
+        : TKeyColumnBase<ui32>(columnBase)
     {
-        if (columnInfo->IsNull()) {
+        if (TKeyColumnBase<ui32>::IsNull()) {
             // Key column not present in chunk.
             TKeyColumnBase<ui32>::InitNullIndex();
             TLookupDataExtractor<Type>::InitNullData();
@@ -458,8 +459,8 @@ class TValueColumnBase<ui32>
     , public TLookupMultiValueIndexExtractor
 {
 public:
-    TValueColumnBase(const TColumnBase* columnInfo, bool aggregate)
-        : TColumnBase(columnInfo)
+    TValueColumnBase(const TColumnBase* columnBase, bool aggregate)
+        : TColumnBase(columnBase)
         , Aggregate_(aggregate)
     { }
 
@@ -514,10 +515,9 @@ class TVersionedValueColumn<ui32, Type, Aggregate, ProduceAll>
 {
 public:
     using TVersionedValueBase = TVersionedValueLookuper<Type, Aggregate>;
-    using TSelf = TVersionedValueColumn<ui32, Type, Aggregate, ProduceAll>;
 
-    TVersionedValueColumn(const TColumnBase* columnInfo, ui16 columnId)
-        : TValueColumnBase<ui32>(columnInfo, Aggregate)
+    TVersionedValueColumn(const TColumnBase* columnBase, ui16 columnId)
+        : TValueColumnBase<ui32>(columnBase, Aggregate)
         , TVersionedValueBase(columnId)
     { }
 
@@ -632,8 +632,8 @@ class TValueColumnBase<TReadSpan>
     , public TScanMultiValueIndexExtractor
 {
 public:
-    TValueColumnBase(const TColumnBase* columnInfo, bool aggregate)
-        : TColumnBase(columnInfo)
+    TValueColumnBase(const TColumnBase* columnBase, bool aggregate)
+        : TColumnBase(columnBase)
         , Aggregate_(aggregate)
     { }
 
@@ -717,8 +717,8 @@ public:
 
     using TValueColumnBase<TReadSpan>::SkipTo;
 
-    TVersionedValueColumn(const TColumnBase* columnInfo, ui16 columnId)
-        : TValueColumnBase<TReadSpan>(columnInfo, Aggregate)
+    TVersionedValueColumn(const TColumnBase* columnBase, ui16 columnId)
+        : TValueColumnBase<TReadSpan>(columnBase, Aggregate)
         , TVersionedValueBase(columnId)
     { }
 
@@ -882,23 +882,23 @@ public:
     using TTimestampExtractorBase::GetDeleteTimestamps;
 
     TRowAllocatorBase(
-        const TColumnBase* timestampColumnInfo,
+        const TColumnBase& timestampColumnInfo,
         TTimestamp timestamp,
         bool produceAll)
-        : TTimestampExtractorBase(timestampColumnInfo)
+        : TTimestampExtractorBase(&timestampColumnInfo)
         , Timestamp_(timestamp)
         , ProduceAll_(produceAll)
     { }
 
     TMutableVersionedRow DoAllocateRow(
-        NTableClient::TRowBuffer* rowBuffer,
+        TChunkedMemoryPool* memoryPool,
         TValueOutput* valueOutput,
         ui32 keySize,
         ui32 valueCount,
         ui32 rowIndex) const
     {
-        auto writeTimestamps = GetWriteTimestamps(rowIndex, rowBuffer->GetPool());
-        auto deleteTimestamps = GetDeleteTimestamps(rowIndex, rowBuffer->GetPool());
+        auto writeTimestamps = GetWriteTimestamps(rowIndex, memoryPool);
+        auto deleteTimestamps = GetDeleteTimestamps(rowIndex, memoryPool);
 
 #ifndef NDEBUG
             for (int index = 1; index < std::ssize(writeTimestamps); ++index) {
@@ -924,7 +924,8 @@ public:
                 lowerWriteIt - writeTimestamps.Begin(),
                 writeTimestamps.Size());
 
-            auto row = rowBuffer->AllocateVersioned(
+            auto row = TMutableVersionedRow::Allocate(
+                memoryPool,
                 keySize,
                 valueCount,
                 writeTimestamps.End() - lowerWriteIt,
@@ -946,7 +947,8 @@ public:
                 lowerWriteIt - writeTimestamps.Begin(),
                 upperWriteIt - writeTimestamps.Begin());
 
-            auto row = rowBuffer->AllocateVersioned(
+            auto row = TMutableVersionedRow::Allocate(
+                memoryPool,
                 keySize,
                 valueCount,
                 upperWriteIt != lowerWriteIt ? 1 : 0,
@@ -1059,6 +1061,25 @@ T* Allocate(TChunkedMemoryPool* pool, size_t size)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T, class... TArgs>
+T* ConstructObjectInplace(char** memory, TArgs&&... args)
+{
+    auto result = new (*memory) T(std::forward<TArgs>(args)...);
+    *memory += sizeof(T);
+    return result;
+};
+
+struct TDestructorCaller
+{
+    template <class T>
+    void operator() (T* ptr)
+    {
+        ptr->~T();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TReadItem>
 class TRowsetBuilder
     : public IRowsetBuilder
@@ -1069,12 +1090,19 @@ public:
     using TBase::ProduceAll_;
     using TBase::Timestamp_;
 
+    using TKeyColumnHolder = std::unique_ptr<TKeyColumnBase<TReadItem>, TDestructorCaller>;
+    using TValueColumnHolder = std::unique_ptr<TValueColumnBase<TReadItem>, TDestructorCaller>;
+
     template <EValueType Type>
     struct TCreateKeyColumn
     {
-        static std::unique_ptr<TKeyColumnBase<TReadItem>> Do(const TColumnBase* columnInfo)
+        static TKeyColumnHolder Do(
+            char** memoryArea,
+            const TColumnBase* columnBase)
         {
-            return std::make_unique<TKeyColumn<TReadItem, Type>>(columnInfo);
+            return TKeyColumnHolder{ConstructObjectInplace<TKeyColumn<TReadItem, Type>>(
+                memoryArea,
+                columnBase)};
         }
     };
 
@@ -1082,54 +1110,123 @@ public:
     struct TCreateVersionedValueColumn
     {
         template <bool Aggregate>
-        static std::unique_ptr<TValueColumnBase<TReadItem>> DoInner(
-            const TColumnBase* columnInfo,
+        static TValueColumnHolder DoInner(
+            char** memoryArea,
+            const TColumnBase* columnBase,
             ui16 columnId,
             bool produceAll)
         {
             if (produceAll) {
-                return std::make_unique<TVersionedValueColumn<TReadItem, Type, Aggregate, true>>(columnInfo, columnId);
+                return TValueColumnHolder{ConstructObjectInplace<TVersionedValueColumn<TReadItem, Type, Aggregate, true>>(
+                    memoryArea,
+                    columnBase,
+                    columnId)};
             } else {
-                return std::make_unique<TVersionedValueColumn<TReadItem, Type, Aggregate, false>>(columnInfo, columnId);
+                return TValueColumnHolder{ConstructObjectInplace<TVersionedValueColumn<TReadItem, Type, Aggregate, false>>(
+                    memoryArea,
+                    columnBase,
+                    columnId)};
             }
         }
 
-        static std::unique_ptr<TValueColumnBase<TReadItem>> Do(
-            const TColumnBase* columnInfo,
+        static TValueColumnHolder Do(
+            char** memoryArea,
+            const TColumnBase* columnBase,
             ui16 columnId,
             bool aggregate,
             bool produceAll)
         {
             if (aggregate) {
-                return DoInner<true>(columnInfo, columnId, produceAll);
+                return DoInner<true>(memoryArea, columnBase, columnId, produceAll);
             } else {
-                return DoInner<false>(columnInfo, columnId, produceAll);
+                return DoInner<false>(memoryArea, columnBase, columnId, produceAll);
             }
         }
     };
 
-    TRowsetBuilder(
-        TRange<EValueType> keyTypes,
-        TRange<TValueSchema> valueSchema,
-        TRange<TColumnBase> columnInfos,
-        TTimestamp timestamp,
-        bool produceAll,
-        bool newMeta)
-        : TBase(&columnInfos.Back(), timestamp, produceAll)
-        , NewMeta_(newMeta)
+    template <EValueType Type>
+    static constexpr size_t GetValueColumnMaxSize()
     {
-        auto columnInfoIt = columnInfos.begin();
-        for (auto type : keyTypes) {
-            KeyColumns_.push_back(DispatchByDataType<TCreateKeyColumn>(type, columnInfoIt++));
+        return std::max({
+            sizeof(TVersionedValueColumn<TReadItem, Type, false, false>),
+            sizeof(TVersionedValueColumn<TReadItem, Type, false, true>),
+            sizeof(TVersionedValueColumn<TReadItem, Type, true, false>),
+            sizeof(TVersionedValueColumn<TReadItem, Type, true, true>),
+        });
+    }
+
+    template <EValueType... Types>
+    static constexpr size_t GetKeyColumnsMaxSize()
+    {
+        return std::max({sizeof(TKeyColumn<TReadItem, Types>)...});
+    }
+
+    template <EValueType... Types>
+    static constexpr size_t GetValueColumnsMaxSize()
+    {
+        return std::max({GetValueColumnMaxSize<Types>()...});
+    }
+
+    static constexpr size_t KeyColumnMaxSize = GetKeyColumnsMaxSize<
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double,
+        EValueType::Boolean,
+        EValueType::String,
+        EValueType::Any,
+        EValueType::Composite
+    >();
+
+    static constexpr size_t ValueColumnMaxSize = GetValueColumnsMaxSize<
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double,
+        EValueType::Boolean,
+        EValueType::String,
+        EValueType::Any,
+        EValueType::Composite
+    >();
+
+    explicit TRowsetBuilder(TRowsetBuilderParams params)
+        : TBase(
+            // Init timestamp column.
+            params.ColumnInfos.Back(),
+            params.Timestamp,
+            params.ProduceAll)
+        , NewMeta_(params.NewMeta)
+    {
+        auto columnReadersMemorySize =
+            std::ssize(params.KeyTypes) * KeyColumnMaxSize +
+            std::ssize(params.ValueSchema) * ValueColumnMaxSize;
+        auto positionsMemorySize = sizeof(ui32) * (params.KeyTypes.size() + params.ValueSchema.size());
+
+        ColumnReadersMemoryHolder_ = std::make_unique<char[]>(
+            columnReadersMemorySize +
+            positionsMemorySize);
+
+        auto* memoryArea = ColumnReadersMemoryHolder_.get();
+        const auto* columnInfoIt = params.ColumnInfos.begin();
+
+        KeyColumns_.reserve(std::ssize(params.KeyTypes));
+        for (auto type : params.KeyTypes) {
+            KeyColumns_.push_back(DispatchByDataType<TCreateKeyColumn>(type, &memoryArea, columnInfoIt++));
         }
 
-        for (auto [type, columnId, aggregate] : valueSchema) {
-            ValueColumns_.push_back(
-                DispatchByDataType<TCreateVersionedValueColumn>(type, columnInfoIt++, columnId, aggregate, produceAll));
+        ValueColumns_.reserve(std::ssize(params.ValueSchema));
+        for (auto [columnId, type, aggregate] : params.ValueSchema) {
+            ValueColumns_.push_back(DispatchByDataType<TCreateVersionedValueColumn>(
+                type,
+                &memoryArea,
+                columnInfoIt++,
+                columnId,
+                aggregate,
+                params.ProduceAll));
         }
 
-        Positions_.Resize(keyTypes.size() + valueSchema.size());
-        memset(Positions_.GetData(), 0, sizeof(ui32) * (keyTypes.size() + valueSchema.size()));
+        YT_VERIFY(memoryArea <= ColumnReadersMemoryHolder_.get() + columnReadersMemorySize);
+
+        Positions_ = reinterpret_cast<ui32*>(memoryArea);
+        memset(Positions_, 0, positionsMemorySize);
     }
 
     // TODO(lukyan): Move UpdateSegments routines to derived classes?
@@ -1323,26 +1420,27 @@ public:
         }
     }
 
-    TChunkedMemoryPool* GetPool() const override
+    TChunkedMemoryPool* GetPool() override
     {
-        return Buffer_->GetPool();
+        return &MemoryPool_;
     }
 
     void ClearBuffer() override
     {
-        Buffer_->Clear();
+        MemoryPool_.Clear();
     }
 
 private:
-    std::vector<std::unique_ptr<TKeyColumnBase<TReadItem>>> KeyColumns_;
-    std::vector<std::unique_ptr<TValueColumnBase<TReadItem>>> ValueColumns_;
+    std::unique_ptr<char[]> ColumnReadersMemoryHolder_;
+    std::vector<TKeyColumnHolder> KeyColumns_;
+    std::vector<TValueColumnHolder> ValueColumns_;
     const bool NewMeta_;
 
-    const NTableClient::TRowBufferPtr Buffer_ = New<NTableClient::TRowBuffer>(TDataBufferTag());
+    TChunkedMemoryPool MemoryPool_;
 
     // Positions in segments are kept separately to minimize write memory footprint.
     // Column readers are immutable during read.
-    TMemoryHolder<ui32> Positions_;
+    ui32* Positions_;
 
     TTmpBuffers TmpBuffers_;
 
@@ -1360,7 +1458,7 @@ private:
 
         ForEachRowIndex(readList, [&] (ui32 rowIndex) {
             rows[index] = TBase::DoAllocateRow(
-                Buffer_.Get(),
+                &MemoryPool_,
                 valueOutput + index,
                 keySize,
                 valueCounts[index],
@@ -1444,9 +1542,7 @@ struct TColumnRefiner
 {
     using TBase = TColumnIterator<Type>;
 
-    explicit TColumnRefiner(const TColumnBase* columnInfo)
-        : TColumnBase(columnInfo)
-    { }
+    using TColumnBase::TColumnBase;
 
     void Refine(
         TBoundsIterator<T>* keys,
@@ -1504,17 +1600,12 @@ public:
 
     TRangeReader(
         TSharedRange<TRowRange> keyRanges,
-        TRange<EValueType> keyTypes,
-        TRange<TValueSchema> valueSchema,
-        TRange<TColumnBase> columnInfos,
-        TTimestamp timestamp,
-        bool produceAll,
-        bool newMeta)
-        : TRowsetBuilder<TReadSpan>(keyTypes, valueSchema, columnInfos, timestamp, produceAll, newMeta)
-        , KeyRanges_(keyRanges)
+        const TRowsetBuilderParams& params)
+        : TRowsetBuilder<TReadSpan>(params)
+        , KeyRanges_(std::move(keyRanges))
     {
-        for (int index = 0; index < std::ssize(keyTypes); ++index) {
-            ColumnRefiners_.push_back(DispatchByDataType<TCreateRefiner>(keyTypes[index], &columnInfos[index]));
+        for (int index = 0; index < std::ssize(params.KeyTypes); ++index) {
+            ColumnRefiners_.push_back(DispatchByDataType<TCreateRefiner>(params.KeyTypes[index], &params.ColumnInfos[index]));
         }
     }
 
@@ -1753,21 +1844,9 @@ private:
 
 std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(
     TSharedRange<TRowRange> keyRanges,
-    TRange<EValueType> keyTypes,
-    TRange<TValueSchema> valueSchema,
-    TRange<TColumnBase> columnInfos,
-    TTimestamp timestamp,
-    bool produceAll,
-    bool newMeta)
+    const TRowsetBuilderParams& params)
 {
-    return std::make_unique<TRangeReader>(
-        std::move(keyRanges),
-        keyTypes,
-        valueSchema,
-        columnInfos,
-        timestamp,
-        produceAll,
-        newMeta);
+    return std::make_unique<TRangeReader>(std::move(keyRanges), params);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1787,17 +1866,12 @@ public:
 
     TLookupReader(
         TSharedRange<TLegacyKey> keys,
-        TRange<EValueType> keyTypes,
-        TRange<TValueSchema> valueSchema,
-        TRange<TColumnBase> columnInfos,
-        TTimestamp timestamp,
-        bool produceAll,
-        bool newMeta)
-        : TRowsetBuilder<ui32>(keyTypes, valueSchema, columnInfos, timestamp, produceAll, newMeta)
+        const TRowsetBuilderParams& params)
+        : TRowsetBuilder<ui32>(params)
         , Keys_(std::move(keys))
     {
-        for (int index = 0; index < std::ssize(keyTypes); ++index) {
-            ColumnRefiners_.push_back(DispatchByDataType<TCreateRefiner>(keyTypes[index], &columnInfos[index]));
+        for (int index = 0; index < std::ssize(params.KeyTypes); ++index) {
+            ColumnRefiners_.push_back(DispatchByDataType<TCreateRefiner>(params.KeyTypes[index], &params.ColumnInfos[index]));
         }
     }
 
@@ -1956,21 +2030,9 @@ private:
 
 std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(
     TSharedRange<TLegacyKey> keys,
-    TRange<EValueType> keyTypes,
-    TRange<TValueSchema> valueSchema,
-    TRange<TColumnBase> columnInfos,
-    TTimestamp timestamp,
-    bool produceAll,
-    bool newMeta)
+    const TRowsetBuilderParams& params)
 {
-    return std::make_unique<TLookupReader>(
-        std::move(keys),
-        keyTypes,
-        valueSchema,
-        columnInfos,
-        timestamp,
-        produceAll,
-        newMeta);
+    return std::make_unique<TLookupReader>(std::move(keys), params);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1979,15 +2041,8 @@ class TRowIndexesReader
     : public TRowsetBuilder<ui32>
 {
 public:
-    TRowIndexesReader(
-        std::vector<ui32> chunkRowIndexes,
-        TRange<EValueType> keyTypes,
-        TRange<TValueSchema> valueSchema,
-        TRange<TColumnBase> columnInfos,
-        TTimestamp timestamp,
-        bool produceAll,
-        bool newMeta)
-        : TRowsetBuilder<ui32>(keyTypes, valueSchema, columnInfos, timestamp, produceAll, newMeta)
+    TRowIndexesReader(std::vector<ui32> chunkRowIndexes, const TRowsetBuilderParams& params)
+        : TRowsetBuilder<ui32>(params)
         , ChunkRowIndexes_(std::move(chunkRowIndexes))
     { }
 
@@ -2094,21 +2149,9 @@ private:
 
 std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(
     std::vector<ui32> chunkRowIndexes,
-    TRange<EValueType> keyTypes,
-    TRange<TValueSchema> valueSchema,
-    TRange<TColumnBase> columnInfos,
-    TTimestamp timestamp,
-    bool produceAll,
-    bool newMeta)
+    const TRowsetBuilderParams& params)
 {
-    return std::make_unique<TRowIndexesReader>(
-        std::move(chunkRowIndexes),
-        keyTypes,
-        valueSchema,
-        columnInfos,
-        timestamp,
-        produceAll,
-        newMeta);
+    return std::make_unique<TRowIndexesReader>(std::move(chunkRowIndexes), params);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

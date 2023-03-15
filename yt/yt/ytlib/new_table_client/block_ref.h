@@ -16,13 +16,15 @@ struct TBlockRef
     // Therefore block must not change from the current call of ReadRows till the next one.
 
     TSharedRef Block;
-    // TODO(lukyan): Use raw ptr for BlockSegmentsMeta.
     TRef BlockSegmentsMeta;
 };
 
 struct TColumnBase
 {
 public:
+    TColumnBase() = default;
+
+    // Copy constructor cannot be inherited. Pass object by pointer.
     explicit TColumnBase(const TColumnBase* columnInfo);
 
     TColumnBase(const TBlockRef* blockRef, ui16 indexInGroup);
@@ -38,8 +40,8 @@ public:
     const TMeta* SkipToSegment(ui32 rowIndex) const;
 
 private:
-    const TBlockRef* const BlockRef_;
-    const ui16 IndexInGroup_;
+    const TBlockRef* BlockRef_;
+    ui16 IndexInGroup_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

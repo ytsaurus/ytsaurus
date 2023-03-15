@@ -422,16 +422,6 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
             singletonClippingRange.Size() > 0 ? singletonClippingRange.Front().second : TUnversionedRow(),
             singletonClippingRange.GetHolder());
 
-        auto chunkReader = CreateCacheReader(
-            ChunkId_,
-            chunkState->BlockCache);
-
-        if (chunkReadOptions.MemoryReferenceTracker) {
-            chunkReader = CreateBlockTrackingChunkReader(
-                chunkReader,
-                chunkReadOptions.MemoryReferenceTracker);
-        }
-
         auto blockManagerFactory = NNewTableClient::CreateSyncBlockWindowManagerFactory(
             chunkState->BlockCache,
             chunkMeta,
@@ -652,16 +642,6 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
     const auto& chunkMeta = chunkState->ChunkMeta;
 
     if (enableNewScanReader && chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
-        auto chunkReader = CreateCacheReader(
-            ChunkId_,
-            chunkState->BlockCache);
-
-        if (chunkReadOptions.MemoryReferenceTracker) {
-            chunkReader = CreateBlockTrackingChunkReader(
-                chunkReader,
-                chunkReadOptions.MemoryReferenceTracker);
-        }
-
         auto blockManagerFactory = NNewTableClient::CreateSyncBlockWindowManagerFactory(
             chunkState->BlockCache,
             chunkMeta,
@@ -671,20 +651,20 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
             if (auto* lookupHashTable = chunkState->LookupHashTable.Get()) {
                 auto chunkRowIndexes = NNewTableClient::BuildChunkRowIndexesUsingLookupTable(
                     *lookupHashTable,
-                    keys,
+                    std::move(keys),
                     Schema_,
                     chunkMeta,
                     ChunkId_,
                     chunkState->BlockCache.Get());
 
                 return NNewTableClient::CreateVersionedChunkReader(
-                    chunkRowIndexes,
+                    std::move(chunkRowIndexes),
                     timestamp,
                     chunkMeta,
                     Schema_,
                     columnFilter,
                     chunkState->ChunkColumnMapping,
-                    blockManagerFactory,
+                    std::move(blockManagerFactory),
                     chunkState->PerformanceCounters,
                     produceAllVersions);
             }
@@ -697,7 +677,7 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
             Schema_,
             columnFilter,
             chunkState->ChunkColumnMapping,
-            blockManagerFactory,
+            std::move(blockManagerFactory),
             chunkState->PerformanceCounters,
             produceAllVersions);
     }
