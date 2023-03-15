@@ -106,7 +106,6 @@ public enum WireType {
             case VARIANT_8:
             case VARIANT_16:
                 return true;
-
             default:
                 return false;
         }

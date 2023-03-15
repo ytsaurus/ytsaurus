@@ -15,4 +15,14 @@ public class SimpleTypeSchema extends SkiffSchema {
     public List<SkiffSchema> getChildren() {
         return Collections.emptyList();
     }
+
+    @Override
+    public boolean isListSchema() {
+        return false;
+    }
+
+    @Override
+    public boolean isMapSchema() {
+        return false;
+    }
 }

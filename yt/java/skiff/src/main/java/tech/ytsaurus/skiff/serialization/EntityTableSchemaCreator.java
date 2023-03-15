@@ -2,11 +2,11 @@ package tech.ytsaurus.skiff.serialization;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
-import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nullable;
@@ -20,8 +20,8 @@ import static tech.ytsaurus.core.utils.ClassUtils.anyMatchWithAnnotation;
 import static tech.ytsaurus.core.utils.ClassUtils.anyOfAnnotationsPresent;
 import static tech.ytsaurus.core.utils.ClassUtils.getAllDeclaredFields;
 import static tech.ytsaurus.core.utils.ClassUtils.getAnnotationIfPresent;
-import static tech.ytsaurus.core.utils.ClassUtils.getTypeParametersOfGeneric;
-import static tech.ytsaurus.core.utils.ClassUtils.getTypeParametersOfGenericField;
+import static tech.ytsaurus.core.utils.ClassUtils.getTypeDescription;
+import static tech.ytsaurus.core.utils.ClassUtils.getTypeParametersOfField;
 import static tech.ytsaurus.core.utils.ClassUtils.isFieldTransient;
 import static tech.ytsaurus.skiff.serialization.TiTypeUtil.getTiTypeIfSimple;
 
@@ -47,15 +47,11 @@ public class EntityTableSchemaCreator {
     }
 
     private static ColumnSchema getFieldColumnSchema(Field field) {
-        List<Type> genericTypeParameters = new ArrayList<>();
-        if (Collection.class.isAssignableFrom(field.getType())) {
-            genericTypeParameters.addAll(getTypeParametersOfGenericField(field));
-        }
         return getClassColumnSchema(
                 field.getType(),
                 field.getName(),
                 getAnnotationIfPresent(field, JavaPersistenceApi.columnAnnotations()).orElse(null),
-                genericTypeParameters
+                getTypeParametersOfField(field)
         );
     }
 
@@ -63,7 +59,6 @@ public class EntityTableSchemaCreator {
                                                          String name,
                                                          @Nullable Annotation annotation,
                                                          List<Type> genericTypeParameters) {
-        Optional<TiType> tiTypeIfSimple = getTiTypeIfSimple(clazz);
         boolean isNullable = true;
         if (annotation != null &&
                 anyMatchWithAnnotation(annotation, JavaPersistenceApi.columnAnnotations())) {
@@ -71,14 +66,7 @@ public class EntityTableSchemaCreator {
             isNullable = JavaPersistenceApi.isColumnNullable(annotation);
         }
 
-        TiType tiType;
-        if (Collection.class.isAssignableFrom(clazz)) {
-            tiType = getCollectionTiType(clazz, genericTypeParameters);
-        } else if (clazz.isArray()) {
-            tiType = getArrayTiType(clazz);
-        } else {
-            tiType = tiTypeIfSimple.orElseGet(() -> getComplexTiType(clazz));
-        }
+        TiType tiType = getClassTiType(clazz, genericTypeParameters);
 
         if (isNullable && !clazz.isPrimitive()) {
             tiType = TiType.optional(tiType);
@@ -87,7 +75,21 @@ public class EntityTableSchemaCreator {
         return new ColumnSchema(name, tiType);
     }
 
-    private static <T> TiType getComplexTiType(Class<T> clazz) {
+    private static <T> TiType getClassTiType(Class<T> clazz, List<Type> genericTypeParameters) {
+        Optional<TiType> tiTypeIfSimple = getTiTypeIfSimple(clazz);
+        if (Collection.class.isAssignableFrom(clazz)) {
+            return getCollectionTiType(genericTypeParameters.get(0));
+        }
+        if (Map.class.isAssignableFrom(clazz)) {
+            return getMapTiType(genericTypeParameters.get(0), genericTypeParameters.get(1));
+        }
+        if (clazz.isArray()) {
+            return getArrayTiType(clazz);
+        }
+        return tiTypeIfSimple.orElseGet(() -> getEntityTiType(clazz));
+    }
+
+    private static <T> TiType getEntityTiType(Class<T> clazz) {
         ArrayList<StructType.Member> members = new ArrayList<>();
         for (Field field : getAllDeclaredFields(clazz)) {
             if (isFieldTransient(field, JavaPersistenceApi.transientAnnotations())) {
@@ -104,35 +106,33 @@ public class EntityTableSchemaCreator {
         return new StructType.Member(columnSchema.getName(), columnSchema.getTypeV3());
     }
 
-    private static TiType getCollectionTiType(Class<?> collectionClass, List<Type> typeParameters) {
-        TiType tiType;
-        if (List.class.isAssignableFrom(collectionClass)) {
-            tiType = getListTiType(typeParameters.get(0));
-        } else {
-            throw new IllegalArgumentException("This collection (\"" + collectionClass.getName() +
-                    "\") is not supported");
-        }
-        return tiType;
-    }
-
-    private static TiType getListTiType(Type elementType) {
-        Class<?> elementClass;
-        List<Type> elementTypeParameters;
-        if (elementType instanceof Class) {
-            elementClass = (Class<?>) elementType;
-            elementTypeParameters = List.of();
-        } else if (elementType instanceof ParameterizedType) {
-            elementClass = (Class<?>) ((ParameterizedType) elementType).getRawType();
-            elementTypeParameters = getTypeParametersOfGeneric(elementType);
-        } else {
-            throw new IllegalArgumentException("Illegal list type parameter");
-        }
+    private static TiType getCollectionTiType(Type elementType) {
+        var elementTypeDescr = getTypeDescription(elementType);
         return TiType.list(
                 getClassColumnSchema(
-                        elementClass,
+                        elementTypeDescr.getTypeClass(),
                         "",
                         null,
-                        elementTypeParameters)
+                        elementTypeDescr.getTypeParameters())
+                        .getTypeV3()
+        );
+    }
+
+    private static TiType getMapTiType(Type keyType, Type valueType) {
+        var keyTypeDescr = getTypeDescription(keyType);
+        var valueTypeDescr = getTypeDescription(valueType);
+        return TiType.dict(
+                getClassColumnSchema(
+                        keyTypeDescr.getTypeClass(),
+                        "",
+                        null,
+                        keyTypeDescr.getTypeParameters())
+                        .getTypeV3(),
+                getClassColumnSchema(
+                        valueTypeDescr.getTypeClass(),
+                        "",
+                        null,
+                        valueTypeDescr.getTypeParameters())
                         .getTypeV3()
         );
     }
