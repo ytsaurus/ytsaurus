@@ -142,4 +142,11 @@ const IAggregateCodegenPtr& TAggregateProfilerMap::GetAggregate(const TString& f
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsUserCastFunction(const TString& name)
+{
+    return name == "int64" || name == "uint64" || name == "double";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient
