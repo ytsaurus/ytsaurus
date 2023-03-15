@@ -398,6 +398,6 @@ def make_read_request(command_name, path, params, process_response_action, retri
                 process_error=lambda response: iterator.last_response._process_error(
                     iterator.last_response._get_response()),
                 get_response_parameters=lambda: iterator.start_response.response_parameters)
-    except:
+    except:  # noqa
         tx.abort()
         raise

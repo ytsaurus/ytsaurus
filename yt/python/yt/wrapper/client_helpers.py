@@ -94,7 +94,7 @@ def {name}({method_signature}):
     try:
         code = compile(src, filename, "single")
         exec(code, evaldict)
-    except:
+    except:  # noqa
         print("Error compiling code", file=sys.stderr)
         print(src, file=sys.stderr)
         raise

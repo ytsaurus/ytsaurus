@@ -33,6 +33,7 @@ class YtOperationFailedError(YtError):
 
         super(YtOperationFailedError, self).__init__(message, attributes=attributes, inner_errors=inner_errors)
 
+
 # COMPAT
 YtHttpResponseError = yt.common.YtResponseError
 
@@ -173,6 +174,7 @@ class YtCypressTransactionLockConflict(YtResponseError):
 class YtTabletTransactionLockConflict(YtResponseError):
     """Tablet transaction lock conflict error."""
     pass
+
 
 # Deprecated.
 YtConcurrentTransactionLockConflict = YtCypressTransactionLockConflict

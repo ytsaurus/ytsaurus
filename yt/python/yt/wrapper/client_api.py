@@ -1,4 +1,7 @@
-from .idm_client import make_idm_client  # noqa
+try:
+    from .idm_client import make_idm_client  # noqa
+except ImportError:
+    pass
 from .cypress_commands import search, concatenate, find_free_subpath, create_revision_parameter, get_table_schema  # noqa
 from .table_commands import (  # noqa
     create_temp_table, write_table, read_table, read_blob_table,
@@ -27,7 +30,10 @@ from .etc_commands import execute_batch, get_supported_features  # noqa
 from .ypath import TablePath  # noqa
 from .http_helpers import get_user_name  # noqa
 from .batch_api import *  # noqa
-from .sky_share import sky_share  # noqa
+try:
+    from .sky_share import sky_share  # noqa
+except ImportError:
+    pass
 from .spark import start_spark_cluster, find_spark_cluster  # noqa
 from .run_command_with_lock import run_command_with_lock  # noqa
 from .admin_commands import (  # noqa

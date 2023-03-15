@@ -1,6 +1,7 @@
 from .common import ThreadPoolHelper, set_param, datetime_to_string, date_string_to_datetime, deprecated
 from .config import get_config
 from .errors import YtOperationFailedError, YtResponseError, YtRetriableArchiveError
+from .constants import LOCAL_MODE_URL_PATTERN
 from .driver import make_request, make_formatted_request, get_api_version
 from .http_helpers import get_proxy_url, get_retriable_errors
 from .exceptions_catcher import ExceptionCatcher
@@ -595,7 +596,7 @@ def get_operation_url(operation, client=None):
     else:
         if local_mode_proxy_address is not None and local_mode_proxy_address.split(":")[0] != "localhost":
             cluster_path = ""
-            proxy = "yt.yandex.net/" + local_mode_proxy_address
+            proxy = LOCAL_MODE_URL_PATTERN.format(local_mode_address=local_mode_proxy_address)
         else:
             cluster_path = "ui/"
             proxy = get_proxy_url(client=client)

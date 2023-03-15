@@ -7,8 +7,8 @@ Usage:
   mount-cypress (-h | --help)
 
 Arguments:
-  <proxy>       Proxy alias like "aristotle.yt.yandex.net" or just "aristotle".
-  <mount_point>  Mountpoint directory like "/mnt/aristotle".
+  <proxy>        Proxy alias like <cluster_host> or just <cluster_name>.
+  <mount_point>  Mountpoint directory like "/mnt/<cluster_name>".
 
 Options:
   -h, --help    Show this help.

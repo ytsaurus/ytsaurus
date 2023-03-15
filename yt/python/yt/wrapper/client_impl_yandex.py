@@ -1284,6 +1284,17 @@ class YtClient(ClientState):
             enable_partial_result=enable_partial_result, use_lookup_cache=use_lookup_cache, format=format,
             raw=raw, versioned=versioned, retention_timestamp=retention_timestamp)
 
+    def make_idm_client(
+            self,
+            address=None):
+        """
+        Creates IdmClient from YtClient.
+
+        """
+        return client_api.make_idm_client(
+            client=self,
+            address=address)
+
     def mkdir(
             self,
             path,
@@ -2130,6 +2141,25 @@ class YtClient(ClientState):
             client=self,
             sync=sync, temp_column_name=temp_column_name, spec=spec)
 
+    def sky_share(
+            self,
+            path,
+            cluster=None, key_columns=[], enable_fastbone=False):
+        """
+        Shares table on cluster via skynet
+        :param path: path to table
+        :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+        :param cluster: cluster name [by default it is derived from proxy url]
+        :type path: str
+
+        .. seealso:: `blob tables in the docs <https://docs.yandex-team.ru/docs/yt/description/storage/blobtables#skynet>`_
+
+        """
+        return client_api.sky_share(
+            path,
+            client=self,
+            cluster=cluster, key_columns=key_columns, enable_fastbone=enable_fastbone)
+
     def smart_upload_file(
             self,
             filename,
@@ -2456,9 +2486,6 @@ class YtClient(ClientState):
         The function tries to split input stream to portions of fixed size and write its with retries.
         If splitting fails, stream is written as is through HTTP.
         Set ``yt.wrapper.config["write_retries"]["enable"]`` to False for writing     without splitting and retries.
-
-        In case of parallel writing (see ``config["write_parallel"]``) take care about temporary files - specify
-        your own place for it ``config["remote_temp_files_directory"]``
 
         Writing is executed under self-pinged transaction.
 

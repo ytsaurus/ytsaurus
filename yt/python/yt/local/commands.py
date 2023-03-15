@@ -1,6 +1,7 @@
 from yt.environment import YTInstance
 from yt.environment.api import LocalYtConfig
 from yt.environment.helpers import wait_for_removing_file_lock, is_file_locked, is_dead, yatest_common
+from yt.wrapper.constants import LOCAL_MODE_URL_PATTERN
 from yt.wrapper.common import generate_uuid, GB, MB
 from yt.common import YtError, require, is_process_alive, get_fqdn
 
@@ -81,7 +82,7 @@ def log_started_instance_info(environment, start_proxy, start_rpc_proxy, prepare
     if start_proxy:
         logger.info("HTTP proxy addresses: %s", environment.get_http_proxy_addresses())
         if "localhost" not in environment.get_proxy_address():
-            logger.info("UI address: http://yt.yandex.net/%s", environment.get_proxy_address())
+            logger.info("UI address: %s", LOCAL_MODE_URL_PATTERN.format(local_mode_address=environment.get_proxy_address()))
     if start_rpc_proxy:
         logger.info("GRPC proxy address: %s", environment.get_grpc_proxy_address())
 

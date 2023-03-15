@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 from . import common
+from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL
 from .mappings import VerifiedDict
 
 import yt.yson as yson
@@ -16,6 +17,7 @@ import os
 import sys
 from copy import deepcopy
 from datetime import timedelta
+
 
 # pydoc :: default_config :: begin
 
@@ -74,6 +76,7 @@ def get_dynamic_table_retries():
         }
     })
 
+
 default_config = {
     # "http" | "native" | "rpc" | None
     # If backend equals "http", then all requests will be done through http proxy and http_config will be used.
@@ -87,7 +90,7 @@ default_config = {
     "proxy": {
         "url": None,
         # Suffix appended to url if it is short.
-        "default_suffix": ".yt.yandex.net",
+        "default_suffix": DEFAULT_HOST_SUFFIX,
 
         # Use TVM-only API endpoints.
         "tvm_only": False,
@@ -190,7 +193,7 @@ default_config = {
     "token": None,
     # $HOME/.yt/token by default
     "token_path": None,
-    # This option enables receiving token from oauth.yandex-team.ru
+    # This option enables receiving token automatically
     # using current session ssh secret.
     "allow_receive_token_by_current_ssh_session": True,
     # Tokens for receiving token by current ssh session.
@@ -507,30 +510,30 @@ default_config = {
     "enable_batch_mode_for_search": False,
 
     # Retries for read request. This type of retries parse data stream, if it is enabled, reading may be much slower.
-    "read_retries": retries_config(count=30, enable=True, total_timeout=None, backoff={
+    "read_retries": (retries_config(count=30, enable=True, total_timeout=None, backoff={
         "policy": "exponential",
         "exponential_policy": {
             "start_timeout": 2000,
             "base": 2,
             "max_timeout": 60000,
             "decay_factor_bound": 0.3
-        }}) \
+        }})
         .update_template_dict({
             "allow_multiple_ranges": True,
             "create_transaction_and_take_snapshot_lock": True,
             "change_proxy_period": None,
             "use_locked_node_id": True,
-        }),
+        })),
 
     # Retries for write commands. It split data stream into chunks and writes it separately under transactions.
-    "write_retries": retries_config(count=6, enable=True, total_timeout=None, backoff={
+    "write_retries": (retries_config(count=6, enable=True, total_timeout=None, backoff={
         "policy": "exponential",
         "exponential_policy": {
             "start_timeout": 30000,
             "base": 2,
             "max_timeout": 120000,
             "decay_factor_bound": 0.3
-        }}) \
+        }})
         .update_template_dict({
             "chunk_size": None,  # automatically chosen
             # Parent transaction wrapping whole write process.
@@ -538,7 +541,7 @@ default_config = {
             "transaction_id": None,
             # Number of rows to build blobs that will be written to socket.
             "rows_chunk_size": 100,
-        }),
+        })),
 
     # Retries for start operation requests.
     # It may fail due to violation of cluster operation limit.
@@ -606,7 +609,7 @@ default_config = {
     "batch_requests_retries": retries_config(enable=True, total_timeout=timedelta(minutes=10),
                                              backoff={"policy": "rounded_up_to_request_timeout"}),
 
-    "skynet_manager_url": "http://skynet.{cluster_name}.yt.yandex.net/api/v1",
+    "skynet_manager_url": SKYNET_MANAGER_URL,
 
     "enable_logging_for_params_changes": False,
 
@@ -728,7 +731,7 @@ def update_config_from_env(config):
         if var_type == bool:
             try:
                 value = int(value)
-            except:
+            except:  # noqa
                 pass
         # None type is treated as str
         if isinstance(None, var_type):
@@ -768,7 +771,7 @@ def update_config_from_env(config):
         try:
             for patch in reversed(list(patches)):
                 common.update_inplace(config, patch)
-        except:
+        except:  # noqa
             print("Failed to apply config from 'YT_CONFIG_PATCHES' environment variable", file=sys.stderr)
             raise
 

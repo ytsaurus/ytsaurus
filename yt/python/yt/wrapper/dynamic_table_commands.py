@@ -184,7 +184,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
                 client=None):
     """Executes a SQL-like query on dynamic table.
 
-    .. seealso:: `supported features <https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language>`_
+    .. seealso:: `supported features <https://ytsaurus.tech/docs/ru/user-guide/dynamic-tables/dyn-query-language>`_
 
     :param str query: for example \"<columns> [as <alias>], ... from \\[<table>\\] \
                   [where <predicate> [group by <columns> [as <alias>], ...]]\".
@@ -295,7 +295,7 @@ def explain_query(
         format=None, raw=None, execution_pool=None, retention_timestamp=None, client=None):
     """Explains a SQL-like query on dynamic table.
 
-    .. seealso:: `supported features <https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language>`_
+    .. seealso:: `supported features <https://ytsaurus.tech/docs/ru/user-guide/dynamic-tables/dyn-query-language>`_
 
     :param str query: for example \"<columns> [as <alias>], ... from \\[<table>\\] \
                   [where <predicate> [group by <columns> [as <alias>], ...]]\".
@@ -442,7 +442,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
                 format=None, raw=None, versioned=None, retention_timestamp=None, client=None):
     """Lookups rows in dynamic table.
 
-    .. seealso:: `supported features <https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language>`_
+    .. seealso:: `supported features <https://ytsaurus.tech/docs/ru/user-guide/dynamic-tables/dyn-query-language>`_
 
     :param format: output format.
     :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`

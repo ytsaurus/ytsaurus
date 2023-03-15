@@ -2,6 +2,8 @@
 
 from .init_queue_agent_state import create_tables as create_queue_agent_state_tables
 
+from yt.wrapper.constants import UI_ADDRESS_PATTERN
+
 from yt.common import get_fqdn
 
 import yt.wrapper as yt
@@ -445,7 +447,7 @@ def main():
             proxy_short_address = proxy_short_address[:-len(suffix)]
         if all(ch in string.ascii_letters + string.digits for ch in proxy_short_address):
             proxy_address = proxy_short_address + suffix
-            ui_address = "https://yt.yandex-team.ru/{0}/".format(proxy_short_address)
+            ui_address = UI_ADDRESS_PATTERN.format(cluster_name=proxy_short_address)
 
     initialize_world(idm=args.idm, proxy_address=proxy_address, ui_address=ui_address)
 

@@ -185,7 +185,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, dynamic_config,
             .tmpfs_path("tmpfs") \
         .end_task() \
         .secure_vault(secure_vault) \
-        .spec(operation_spec)
+        .spec(operation_spec)  # noqa
 
 
 def _parse_memory(memory):
@@ -215,7 +215,7 @@ def start_spark_cluster(spark_worker_core_count,
                         dynamic_config_path=SparkDefaultArguments.DYNAMIC_CONFIG_PATH,
                         operation_spec=None,
                         client=None):
-    """Start Spark Standalone cluster in YT Vanilla Operation. See https://wiki.yandex-team.ru/spyt/
+    """Start Spark Standalone cluster in YT Vanilla Operation. See https://ytsaurus.tech/docs/ru/user-guide/data-processing/spyt/overview
     :param spark_worker_core_count: Number of cores that will be available on Spark worker
     :param spark_worker_memory_limit: Amount of memory that will be available on Spark worker
     :param spark_worker_count: Number of Spark workers
