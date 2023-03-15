@@ -8,10 +8,12 @@ import (
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/go/migrate"
 	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/ythttp"
 	"a.yandex-team.ru/yt/go/ytlog"
 	"a.yandex-team.ru/yt/go/ytprof"
+	"a.yandex-team.ru/yt/go/ytprof/internal/fetcher"
 )
 
 var (
@@ -21,10 +23,13 @@ var (
 )
 
 func main() {
-	pflag.StringVar(&flagPath, "path", "//home/ytprof/storage", "path to storage")
+	pflag.StringVar(&flagPath, "path", "//home/ytprof", "path to ytprof")
 	pflag.StringVar(&flagProxy, "proxy", "hahn", "storage proxy")
 	pflag.StringVar(&flagSystem, "system", "", "storage proxy")
 	pflag.Parse()
+
+	storagePath := ypath.Path(flagPath).Child(ytprof.DirStorage)
+	configPath := ypath.Path(flagPath).Child(ytprof.DirConfigs)
 
 	l := ytlog.Must()
 
@@ -45,47 +50,61 @@ func main() {
 
 	ctx := context.Background()
 
-	fullPath := ypath.Path(flagPath).Child(flagSystem)
+	fullStoragePath := storagePath.Child(flagSystem)
 	_, err = YT.CreateNode(
 		ctx,
-		fullPath,
+		fullStoragePath,
 		yt.NodeMap,
 		&yt.CreateNodeOptions{},
 	)
 	if err != nil {
 		l.Fatal("map node not created", log.Error(err))
 	}
-	l.Debug("map node created")
 
-	err = migrate.Create(ctx, YT, fullPath.Child(ytprof.TableData), ytprof.SchemaData)
+	fullConfigPath := configPath.Child(flagSystem)
+	_, err = YT.CreateNode(
+		ctx,
+		fullConfigPath,
+		yt.NodeMap,
+		&yt.CreateNodeOptions{},
+	)
 	if err != nil {
-		l.Fatal("table creation failed", log.Error(err), log.String("table", ytprof.TableData))
+		l.Fatal("map node not created", log.Error(err))
 	}
+	l.Debug("map nodes created")
 
-	err = migrate.Create(ctx, YT, fullPath.Child(ytprof.TableMetadata), ytprof.SchemaMetadata)
-	if err != nil {
-		l.Fatal("table creation failed", log.Error(err), log.String("table", ytprof.TableMetadata))
-	}
+	for table, description := range ytprof.Tables {
+		err = migrate.Create(ctx, YT, fullStoragePath.Child(table), description.Schema)
+		if err != nil {
+			l.Fatal("table creation failed", log.Error(err), log.String("table", table))
+		}
 
-	err = migrate.Create(ctx, YT, fullPath.Child(ytprof.TableMetadataTags), ytprof.SchemaMetadataTags)
-	if err != nil {
-		l.Fatal("table creation failed", log.Error(err), log.String("table", ytprof.TableData))
-	}
-
-	err = migrate.Create(ctx, YT, fullPath.Child(ytprof.TableMetadataTagsValues), ytprof.SchemaMetadataTagsValues)
-	if err != nil {
-		l.Fatal("table creation failed", log.Error(err), log.String("table", ytprof.TableMetadataTagsValues))
+		if _, ok := description.Attributes["atomicity"]; ok {
+			err = YT.SetNode(
+				ctx,
+				fullStoragePath.Child(table).Attr("atomicity"),
+				description.Attributes["atomicity"],
+				&yt.SetNodeOptions{},
+			)
+			if err != nil {
+				l.Fatal("setting atomicity failed", log.Error(err), log.String("table", table))
+			}
+		}
 	}
 	l.Debug("all tables created")
 
-	err = YT.SetNode(ctx, fullPath.Child(ytprof.TableMetadataTags).Attr("atomicity"), "none", &yt.SetNodeOptions{})
+	ys, err := yson.MarshalFormat(fetcher.Configs{}, yson.FormatPretty)
 	if err != nil {
-		l.Fatal("setting atomicity failed", log.Error(err), log.String("table", ytprof.TableMetadataTags))
+		l.Fatal("marshalling empty config failed")
 	}
 
-	err = YT.SetNode(ctx, fullPath.Child(ytprof.TableMetadataTagsValues).Attr("atomicity"), "none", &yt.SetNodeOptions{})
+	_, err = YT.CreateNode(ctx, fullConfigPath.Child(ytprof.ObjectConfig), yt.NodeDocument, &yt.CreateNodeOptions{
+		Attributes: map[string]interface{}{
+			"value": yson.RawValue(ys),
+		},
+	})
 	if err != nil {
-		l.Fatal("setting atomicity failed", log.Error(err), log.String("table", ytprof.TableMetadataTagsValues))
+		l.Fatal("creation of config document failed")
 	}
 
 	l.Info("success")

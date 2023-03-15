@@ -22,6 +22,9 @@ const (
 	TableData               = "data"
 	TableMetadataTags       = "metadata_tags"
 	TableMetadataTagsValues = "metadata_tags_values"
+	ObjectConfig            = "config"
+	DirStorage              = "storage"
+	DirConfigs              = "configs"
 	TimeFormat              = "2006-01-02T15:04:05"
 )
 

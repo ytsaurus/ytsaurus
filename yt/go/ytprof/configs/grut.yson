@@ -1,21 +1,5 @@
 {
     "ports" = {
-        "node" = 10012;
-        "dat-node" = 10012;
-        "exe-node" = 10012;
-        "exe-tab-node" = 10012;
-        "tab-node" = 10022;
-        "chaos-node" = 10023;
-        "master" = 10010;
-        "master-caches" = 10018;
-        "scheduler" = 10011;
-        "rpc-proxy" = 10017;
-        "http-proxy" = 10013;
-        "controller-agent" = 10014;
-        "clock" = 10016;
-        "discovery" = 10020;
-        "timestamp-provider" = 10021;
-        "queue-agent" = 10017;
         "grut" = 80;
     };
     "yp_clusters" = [
