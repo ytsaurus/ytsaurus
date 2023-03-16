@@ -752,9 +752,7 @@ void TNodeShard::DoProcessHeartbeat(const TCtxNodeHeartbeatPtr& context)
         SetMinSpareResources(response);
     }
 
-    if (Config_->SendRegisteredAgentsToNode) {
-        AddRegisteredControllerAgentsToResponse(response);
-    }
+    AddRegisteredControllerAgentsToResponse(response);
 
     context->SetResponseInfo(
         "NodeId: %v, NodeAddress: %v, IsThrottling: %v",

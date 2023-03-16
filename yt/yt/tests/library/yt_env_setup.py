@@ -652,6 +652,8 @@ class YTEnvSetup(object):
                 cls.modify_master_config(configs["master"][tag][index], tag, index)
         for index, config in enumerate(configs["scheduler"]):
             config = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
+            if "scheduler" in cls.ARTIFACT_COMPONENTS.get("22_4", []):
+                config["scheduler"]["send_registered_agents_to_node"] = True
             configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_scheduler_config(configs["scheduler"][index])
         for index, config in enumerate(configs["queue_agent"]):
@@ -684,9 +686,6 @@ class YTEnvSetup(object):
                 config = update_inplace(config, get_porto_delta_node_config())
             if cls.USE_CUSTOM_ROOTFS:
                 config = update_inplace(config, get_custom_rootfs_delta_node_config())
-
-            if "scheduler" in cls.ARTIFACT_COMPONENTS.get("22_3", []):
-                config["exec_agent"]["scheduler_connector"]["use_allocation_tracker_service"] = False
 
             config["exec_agent"]["job_proxy_upload_debug_artifact_chunks"] = cls.UPLOAD_DEBUG_ARTIFACT_CHUNKS
 
