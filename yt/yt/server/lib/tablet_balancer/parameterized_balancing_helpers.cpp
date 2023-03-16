@@ -612,7 +612,7 @@ void TParameterizedReassignSolver::TrySwapTablets(
             }
 
             YT_LOG_DEBUG("Applying best action: swapping tablets "
-                "(LhsTabletId: %v, RhsTabletId: %v, LhsCellId: %v, RhsCellId: %v "
+                "(LhsTabletId: %v, RhsTabletId: %v, LhsCellId: %v, RhsCellId: %v, "
                 "LhsNode: %v, RhsNode: %v)",
                 lhsTablet->Id,
                 rhsTablet->Id,
