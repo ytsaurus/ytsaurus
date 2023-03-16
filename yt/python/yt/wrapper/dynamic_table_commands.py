@@ -798,7 +798,7 @@ def create_table_backup(
     :type manifest: dict or :class:`BackupManifest`
     :param bool force: overwrite destination tables.
     """
-    if type(manifest) is BackupManifest:
+    if isinstance(manifest, BackupManifest):
         manifest = manifest._serialize()
 
     params = {"manifest": manifest}
@@ -819,7 +819,7 @@ def restore_table_backup(
     :param bool mount: mount restored tables which were mounted before backup.
     :param bool enable_replicas: enable restored table replicas which were enabled before backup.
     """
-    if type(manifest) is BackupManifest:
+    if isinstance(manifest, BackupManifest):
         manifest = manifest._serialize()
 
     params = {"manifest": manifest}
