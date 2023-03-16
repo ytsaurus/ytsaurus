@@ -28,7 +28,7 @@ public class ExampleMapYTree {
         public void map(YTreeMapNode entry, Yield<YTreeMapNode> yield, Statistics statistics,
                         OperationContext context) {
             String name = entry.getString("name");
-            String email = entry.getString("login").concat("@yandex-team.ru");
+            String email = entry.getString("login").concat("@ytsaurus.tech");
 
             YTreeMapNode outputRow = YTree.builder().beginMap()
                     .key("name").value(name)
