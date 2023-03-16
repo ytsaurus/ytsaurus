@@ -378,7 +378,7 @@ void TTransaction::ModifyRows(
             modification.Type == ERowModificationType::WriteAndLock);
     }
 
-    auto reqSequenceNumber = ModifyRowsRequestSequenceCounter_++;
+    auto reqSequenceNumber = ModifyRowsRequestSequenceCounter_.fetch_add(1);
 
     auto req = Proxy_.ModifyRows();
     req->set_sequence_number(reqSequenceNumber);
@@ -1073,4 +1073,3 @@ void TTransaction::UnsubscribeModificationsFlushed(const TModificationsFlushedHa
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NRpcProxy
-
