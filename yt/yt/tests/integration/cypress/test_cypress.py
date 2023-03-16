@@ -207,6 +207,28 @@ class TestCypress(YTEnvSetup):
             get("//tmp/list/42")
             get("//tmp/list/-42")
 
+    @authors("kvk1920")
+    def test_list_node_deprecation(self):
+        set("//tmp/old_list", [1, 2, "string"])
+        set("//tmp/another_old_list", [1, 2, "string"])
+        with _set_sys_config("/cypress_manager/forbid_list_node_creation", True):
+            with raises_yt_error("List nodes are deprecated"):
+                set("//tmp/list", [1, 2, "some string"])
+
+            with raises_yt_error("List nodes are deprecated"):
+                create("list_node", "//tmp/list")
+
+            assert get("//tmp/old_list") == [1, 2, "string"]
+
+            with raises_yt_error("List nodes are deprecated"):
+                copy("//tmp/old_list", "//tmp/list")
+
+            set("//tmp/old_list/end", 123)
+            assert get("//tmp/old_list", [1, 2, "string", 123])
+
+            remove("//tmp/another_old_list")
+            assert not exists("//tmp/another_old_list")
+
     @authors("babenko", "ignat")
     def test_list_command(self):
         set("//tmp/map", {"a": 1, "b": 2, "c": 3}, force=True)

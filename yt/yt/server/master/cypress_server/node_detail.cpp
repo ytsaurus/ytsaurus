@@ -1218,6 +1218,28 @@ ENodeType TListNodeTypeHandler::GetNodeType() const
     return ENodeType::List;
 }
 
+std::unique_ptr<TCypressNode> TListNodeTypeHandler::Create(
+    TNodeId hintId,
+    const TCreateNodeContext& context)
+{
+    THROW_ERROR_EXCEPTION_IF(
+        GetDynamicCypressManagerConfig()->ForbidListNodeCreation,
+        "List nodes are deprecated and will be removed in the near future");
+
+    return TBase::Create(hintId, context);
+}
+
+std::unique_ptr<TCypressNode> TListNodeTypeHandler::Instantiate(
+    TVersionedNodeId id,
+    NObjectClient::TCellTag externalCellTag)
+{
+    THROW_ERROR_EXCEPTION_IF(
+        GetDynamicCypressManagerConfig()->ForbidListNodeCreation,
+        "List nodes are deprecated and will be removed in the near future");
+
+    return TBase::Instantiate(id, externalCellTag);
+}
+
 ICypressNodeProxyPtr TListNodeTypeHandler::DoGetProxy(
     TListNode* trunkNode,
     TTransaction* transaction)
