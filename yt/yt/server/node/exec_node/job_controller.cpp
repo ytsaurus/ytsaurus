@@ -1032,8 +1032,8 @@ private:
 
             FillJobStatus(jobStatus, job);
 
-            if (now - job->GetStatisticsLastSendTime() < context->RunningJobInfoSendingBackoff) {
-                break;
+            if (now - job->GetStatisticsLastSendTime() < context->RunningJobStatisticsSendingBackoff) {
+                continue;
             }
 
             ++consideredRunnigJobCount;

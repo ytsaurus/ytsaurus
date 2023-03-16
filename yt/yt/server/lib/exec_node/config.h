@@ -265,7 +265,7 @@ class TControllerAgentConnectorDynamicConfig
 public:
     TDuration TestHeartbeatDelay;
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
-    std::optional<TDuration> RunningJobInfoSendingBackoff;
+    std::optional<TDuration> RunningJobStatisticsSendingBackoff;
 
     bool UseNewJobTrackerService;
 
@@ -330,7 +330,7 @@ class TControllerAgentConnectorConfig
 {
 public:
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
-    TDuration RunningJobInfoSendingBackoff;
+    TDuration RunningJobStatisticsSendingBackoff;
 
     TControllerAgentConnectorConfigPtr ApplyDynamic(const TControllerAgentConnectorDynamicConfigPtr& dynamicConfig);
     void ApplyDynamicInplace(const TControllerAgentConnectorDynamicConfig& dynamicConfig);

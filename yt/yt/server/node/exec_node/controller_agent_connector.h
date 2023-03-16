@@ -19,7 +19,7 @@ struct TAgentHeartbeatContext
 {
     TControllerAgentDescriptor AgentDescriptor;
     NConcurrency::IThroughputThrottlerPtr StatisticsThrottler;
-    TDuration RunningJobInfoSendingBackoff;
+    TDuration RunningJobStatisticsSendingBackoff;
     TInstant LastTotalConfirmationTime;
 
     THashSet<TJobPtr> SentEnqueuedJobs;
@@ -69,7 +69,7 @@ public:
 
         NConcurrency::IReconfigurableThroughputThrottlerPtr StatisticsThrottler_;
 
-        TDuration RunningJobInfoSendingBackoff_;
+        TDuration RunningJobStatisticsSendingBackoff_;
 
         TInstant LastTotalConfirmationTime_;
 
