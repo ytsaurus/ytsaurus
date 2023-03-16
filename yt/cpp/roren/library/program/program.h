@@ -22,7 +22,7 @@ public:
     NYT::TCancelableContextPtr GetCancelableContext() const;
 
     template <class TConfig>
-    static TConfig LoadConfig(const TString& fileName);
+    static TConfig LoadConfig(const TString& fileName, const bool allowUnknownFields = false);
 
     template <class TConfig>
     static TConfig LoadConfig(int argc, const char* argv[]);
@@ -45,12 +45,12 @@ public:
 }; // class TExecutorStub
 
 template <class TConfig>
-TConfig TProgram::LoadConfig(const TString& fileName)
+TConfig TProgram::LoadConfig(const TString& fileName, const bool allowUnknownFields)
 {
     auto configText = TFileInput{fileName}.ReadAll();
     NProtobufJson::TJson2ProtoConfig parserConfig;
     parserConfig.AllowComments = true;
-    parserConfig.AllowUnknownFields = false;
+    parserConfig.AllowUnknownFields = allowUnknownFields;
     return NProtobufJson::Json2Proto<TConfig>(std::move(configText), parserConfig);
 }
 
@@ -58,14 +58,18 @@ template <class TConfig>
 TConfig TProgram::LoadConfig(int argc, const char* argv[])
 {
     TString configFileName;
+    bool allowUnknownFields = false;
     NLastGetopt::TOpts opts;
-    opts.AddLongOption("config-json", "path to json format configuration file")
+    opts.AddLongOption("config-json", "Path to json format configuration file.")
         .RequiredArgument("config-file")
         .StoreResult(&configFileName)
         .Required();
-
+    opts.AddLongOption("allow-unknown-fields", "Allow unknown fields in configuration file")
+        .NoArgument()
+        .SetFlag(&allowUnknownFields)
+        .Optional();
     auto parsed = NLastGetopt::TOptsParseResult{&opts, argc, argv};
-    return NRoren::TProgram::LoadConfig<TConfig>(configFileName);
+    return NRoren::TProgram::LoadConfig<TConfig>(configFileName, allowUnknownFields);
 }
 
 void ConfigureLogs(const google::protobuf::Message& config);
