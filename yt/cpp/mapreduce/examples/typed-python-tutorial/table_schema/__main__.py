@@ -6,7 +6,9 @@ import typing
 import yt.wrapper
 from yt.wrapper.schema import TableSchema, Uint64
 
-import yt.type_info.typing as ti
+import yandex.type_info.typing as ti
+# для Аркадийной сборки предпочтительно использовать
+# yt.type_info.typing (см https://yt.yandex-team.ru/docs/api/python/start#faq)
 
 
 @yt.wrapper.yt_dataclass
