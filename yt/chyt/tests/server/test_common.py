@@ -326,10 +326,11 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 clique.make_query('select CAST(a as datetime) from "//tmp/t"')
 
     @authors("evgenstf")
-    def test_discovery_nodes_self_cleaning(self):
+    def test_discovery_v1_nodes_self_cleaning(self):
         patch = {
             "yt": {
                 "discovery": {
+                    "version": 1,
                     # Allow node cleaning 1s after creation (default is 5m).
                     "lock_node_timeout": 1000,
                 }
@@ -348,8 +349,15 @@ class TestClickHouseCommon(ClickHouseTestBase):
             wait(lambda: len(ls(clique_path, verbose=False)) == 1, iter=10)
 
     @authors("evgenstf")
-    def test_discovery_transaction_restore(self):
-        with Clique(1) as clique:
+    def test_discovery_v1_transaction_restore(self):
+        patch = {
+            "yt": {
+                "discovery": {
+                    "version": 1
+                }
+            }
+        }
+        with Clique(1, config_patch=patch) as clique:
             instances_before_transaction_abort = clique.get_active_instances()
             assert len(instances_before_transaction_abort) == 1
 
@@ -751,8 +759,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
         patch = {
             "yt": {
                 "discovery": {
-                    # Set big value to prevent unlocking node.
-                    "transaction_timeout": 1000000,
+                    # Set big value to prevent node disappearing from discovery group.
+                    "lease_timeout": 50000,
                 }
             }
         }
@@ -773,7 +781,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             time.sleep(1)
 
             instances = clique.get_active_instances()
-            # One instance is dead, but the lock should be alive.
+            # One instance is dead, but still should be in discovery group.
             assert len(instances) == 3
 
             for instance in instances:
@@ -816,6 +824,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
     def test_gossip_timeout(self):
         patch = {
             "yt": {
+                "discovery": {
+                    "lease_timeout": 10000,
+                },
                 "control_invoker_checker": {
                     # Disable control invoker checker to prevent instance from core dump.
                     "enabled": False,
