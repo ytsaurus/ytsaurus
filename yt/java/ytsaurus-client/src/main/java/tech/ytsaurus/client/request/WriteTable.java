@@ -7,12 +7,12 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
+import tech.ytsaurus.client.rows.EntityTableSchemaCreator;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.rpcproxy.TReqWriteTable;
 import tech.ytsaurus.rpcproxy.TTransactionalOptions;
-import tech.ytsaurus.skiff.serialization.EntityTableSchemaCreator;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
 

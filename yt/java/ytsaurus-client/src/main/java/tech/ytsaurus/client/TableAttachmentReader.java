@@ -7,9 +7,9 @@ import java.util.List;
 import javax.annotation.Nullable;
 
 import NYT.NChunkClient.NProto.DataStatistics.TDataStatistics;
+import tech.ytsaurus.client.rows.EntitySkiffSerializer;
 import tech.ytsaurus.client.rows.WireRowDeserializer;
 import tech.ytsaurus.core.tables.TableSchema;
-import tech.ytsaurus.skiff.serialization.EntitySkiffSerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 public interface TableAttachmentReader<T> {

@@ -5,13 +5,13 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.TableAttachmentReader;
+import tech.ytsaurus.client.rows.EntitySkiffSerializer;
 import tech.ytsaurus.client.rows.WireRowSerializer;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
 import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.rpcproxy.ERowsetFormat;
-import tech.ytsaurus.skiff.serialization.EntitySkiffSerializer;
 
-import static tech.ytsaurus.skiff.serialization.EntityUtil.isEntityAnnotationPresent;
+import static tech.ytsaurus.client.rows.EntityUtil.isEntityAnnotationPresent;
 
 public class SerializationContext<T> {
     @Nullable

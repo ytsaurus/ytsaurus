@@ -1,4 +1,4 @@
-package tech.ytsaurus.skiff.serialization;
+package tech.ytsaurus.client.rows;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
@@ -11,9 +11,9 @@ import java.util.Map;
 
 import javax.annotation.Nullable;
 
-import tech.ytsaurus.skiff.schema.ComplexSchema;
-import tech.ytsaurus.skiff.schema.SkiffSchema;
-import tech.ytsaurus.skiff.schema.WireType;
+import tech.ytsaurus.skiff.ComplexSchema;
+import tech.ytsaurus.skiff.SkiffSchema;
+import tech.ytsaurus.skiff.WireType;
 
 import static tech.ytsaurus.core.utils.ClassUtils.anyMatchWithAnnotation;
 import static tech.ytsaurus.core.utils.ClassUtils.anyOfAnnotationsPresent;
@@ -22,7 +22,7 @@ import static tech.ytsaurus.core.utils.ClassUtils.getAnnotationIfPresent;
 import static tech.ytsaurus.core.utils.ClassUtils.getTypeDescription;
 import static tech.ytsaurus.core.utils.ClassUtils.getTypeParametersOfField;
 import static tech.ytsaurus.core.utils.ClassUtils.isFieldTransient;
-import static tech.ytsaurus.skiff.schema.WireTypeUtil.getClassWireType;
+import static tech.ytsaurus.skiff.WireTypeUtil.getClassWireType;
 
 public class EntitySkiffSchemaCreator {
 

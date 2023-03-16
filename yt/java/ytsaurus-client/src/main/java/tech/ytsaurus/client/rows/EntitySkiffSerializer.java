@@ -1,4 +1,4 @@
-package tech.ytsaurus.skiff.serialization;
+package tech.ytsaurus.client.rows;
 
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
@@ -24,8 +24,9 @@ import java.util.Set;
 
 import javax.annotation.Nullable;
 
-import tech.ytsaurus.skiff.schema.SkiffSchema;
-import tech.ytsaurus.skiff.schema.WireType;
+import tech.ytsaurus.skiff.SkiffParser;
+import tech.ytsaurus.skiff.SkiffSchema;
+import tech.ytsaurus.skiff.WireType;
 import tech.ytsaurus.yson.BufferReference;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -39,7 +40,7 @@ import static tech.ytsaurus.core.utils.ClassUtils.getInstanceWithoutArguments;
 import static tech.ytsaurus.core.utils.ClassUtils.getTypeDescription;
 import static tech.ytsaurus.core.utils.ClassUtils.setFieldsAccessibleToTrue;
 import static tech.ytsaurus.core.utils.ClassUtils.unboxArray;
-import static tech.ytsaurus.skiff.schema.WireTypeUtil.getClassWireType;
+import static tech.ytsaurus.skiff.WireTypeUtil.getClassWireType;
 
 public class EntitySkiffSerializer<T> {
     private static final byte ZERO_TAG = 0x00;

@@ -1,4 +1,4 @@
-package tech.ytsaurus.skiff.serialization;
+package tech.ytsaurus.skiff;
 
 import java.io.InputStream;
 import java.math.BigInteger;
