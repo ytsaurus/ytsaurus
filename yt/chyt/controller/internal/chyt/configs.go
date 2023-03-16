@@ -124,6 +124,11 @@ func getPatchedYtConfig(ctx context.Context, ytc yt.Client, oplet *strawberry.Op
 		err = fmt.Errorf("invalid discovery config: %v", err)
 		return
 	}
+	if _, ok := discovery["version"]; !ok {
+		discovery["version"] = 2
+		discovery["read_quorum"] = 1
+		discovery["write_quorum"] = 1
+	}
 	if _, ok := discovery["transaction_timeout"]; !ok {
 		discovery["transaction_timeout"] = 30 * 1000
 	}
