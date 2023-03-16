@@ -322,6 +322,9 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 	if nativeAuthenticatorConfig != nil {
 		ytServerClickHouseConfig["native_authentication_manager"] = nativeAuthenticatorConfig
 	}
+	if c.config.AddressResolver != nil {
+		ytServerClickHouseConfig["address_resolver"] = c.config.AddressResolver
+	}
 	ytServerClickHouseConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "config.yson", ytServerClickHouseConfig)
 	if err != nil {
 		return
