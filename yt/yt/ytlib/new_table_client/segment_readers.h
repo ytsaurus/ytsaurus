@@ -483,10 +483,10 @@ protected:
     // For each row index value offsets.
 
     TCompressedVectorView TimestampsDict_;
-    TCompressedVectorView WriteTimestampIds_;
-    TCompressedVectorView DeleteTimestampIds_;
-    TCompressedVectorView WriteOffsetDiffs_;
-    TCompressedVectorView DeleteOffsetDiffs_;
+    TCompressedVectorView32 WriteTimestampIds_;
+    TCompressedVectorView32 DeleteTimestampIds_;
+    TCompressedVectorView32 WriteOffsetDiffs_;
+    TCompressedVectorView32 DeleteOffsetDiffs_;
 };
 
 template <EValueType Type>
@@ -503,6 +503,8 @@ public:
     Y_FORCE_INLINE void ExtractDict(TUnversionedValue* value, ui32 position) const;
     Y_FORCE_INLINE void ExtractDirect(TUnversionedValue* value, ui32 position) const;
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
+
+    Y_FORCE_INLINE void Prefetch(ui32 position) const;
 
 private:
     TCompressedVectorView Values_;
@@ -539,6 +541,8 @@ public:
 
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
 
+    Y_FORCE_INLINE void Prefetch(ui32 /*position*/) const;
+
 private:
     const ui64* Ptr_ = nullptr;
 };
@@ -552,6 +556,8 @@ public:
     Y_FORCE_INLINE void InitNullData();
 
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
+
+    Y_FORCE_INLINE void Prefetch(ui32 /*position*/) const;
 
 private:
     const ui64* Ptr_ = nullptr;
@@ -570,14 +576,16 @@ public:
     Y_FORCE_INLINE void ExtractDirect(TUnversionedValue* value, ui32 position) const;
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
 
+    Y_FORCE_INLINE void Prefetch(ui32 position) const;
+
 private:
-    TCompressedVectorView Offsets_;
+    TCompressedVectorView32 Offsets_;
 
     union TUnion {
         TUnion()
             : Ids_()
         { }
-        TCompressedVectorView Ids_;
+        TCompressedVectorView32 Ids_;
         TBitmap NullBits_;
     } U_;
 
@@ -587,7 +595,7 @@ private:
     bool Direct_ = true;
     EValueType Type_;
 
-    Y_FORCE_INLINE TStringBuf GetBlob(TCompressedVectorView offsets, const char* data, ui32 position) const;
+    Y_FORCE_INLINE TStringBuf GetBlob(TCompressedVectorView32 offsets, const char* data, ui32 position) const;
 };
 
 template <>
@@ -660,8 +668,10 @@ public:
     Y_FORCE_INLINE ui32 SkipToSparse(ui32 rowIndex, ui32 position) const;
     Y_FORCE_INLINE ui32 SkipTo(ui32 rowIndex, ui32 position) const;
 
+    Y_FORCE_INLINE void Prefetch(ui32 rowIndex) const;
+
 protected:
-    TCompressedVectorView RowIndexesOrPerRowDiffs_;
+    TCompressedVectorView32 RowIndexesOrPerRowDiffs_;
 
     ui32 RowOffset_ = 0;
     ui32 RowLimit_ = 0;
@@ -684,8 +694,10 @@ public:
     // No check valueIdx != valueIdxEnd for initial value of index.
     Y_FORCE_INLINE ui32 AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 timestampId) const;
 
+    Y_FORCE_INLINE void Prefetch(ui32 valueIdx) const;
+
 protected:
-    TCompressedVectorView WriteTimestampIds_;
+    TCompressedVectorView32 WriteTimestampIds_;
     TBitmap AggregateBits_;
 };
 

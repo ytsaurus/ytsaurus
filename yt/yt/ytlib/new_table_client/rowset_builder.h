@@ -68,7 +68,7 @@ std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(
     const TRowsetBuilderParams& params);
 
 std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(
-    std::vector<ui32> chunkRowIndexes,
+    TKeysWithHints keysWithHints,
     const TRowsetBuilderParams& params);
 
 ////////////////////////////////////////////////////////////////////////////////

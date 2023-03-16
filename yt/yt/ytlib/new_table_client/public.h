@@ -65,6 +65,12 @@ using TBlockManagerFactory = std::function<std::unique_ptr<IBlockManager>(
     std::vector<TGroupBlockHolder> blockHolders,
     TRange<TSpanMatching> windowsList)>;
 
+struct TKeysWithHints
+{
+    std::vector<std::pair<ui32, ui32>> RowIndexesToKeysIndexes;
+    TSharedRange<NTableClient::TLegacyKey> Keys;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNewTableClient

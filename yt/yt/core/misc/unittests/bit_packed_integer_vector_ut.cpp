@@ -76,6 +76,11 @@ void DoTest(T value, size_t count)
 
     TCompressedVectorView view(buffer.data());
     Validate(data, view);
+
+    if constexpr (sizeof(T) <= sizeof(ui32)) {
+        TCompressedVectorView32 view(buffer.data());
+        Validate(data, view);
+    }
 }
 
 template <class T>

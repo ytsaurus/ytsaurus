@@ -40,6 +40,50 @@ Y_FORCE_INLINE ui64 GetVariableDataWeightPart(TUnversionedValue value, ui64 coun
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TValue>
+bool AreTypedValuesEqual(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
+{
+    TValue lhsValue;
+    NTableClient::GetValue(&lhsValue, lhs);
+    TValue rhsValue;
+    NTableClient::GetValue(&rhsValue, rhs);
+    return lhsValue == rhsValue;
+}
+
+template <EValueType Type>
+bool AreValuesEqual(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
+{
+    if (Y_UNLIKELY(lhs.Type != rhs.Type)) {
+        return false;
+    }
+
+    if (rhs.Type == NTableClient::EValueType::Null) {
+        return true;
+    }
+
+    if constexpr (Type == EValueType::Int64) {
+        return AreTypedValuesEqual<i64>(lhs, rhs);
+    } else if constexpr (Type == EValueType::Uint64) {
+        return AreTypedValuesEqual<ui64>(lhs, rhs);
+    } else if constexpr (Type == EValueType::Double) {
+        return AreTypedValuesEqual<double>(lhs, rhs);
+    } else if constexpr (Type == EValueType::String) {
+        return AreTypedValuesEqual<TStringBuf>(lhs, rhs);
+    } else if constexpr (Type == EValueType::Boolean) {
+        return AreTypedValuesEqual<bool>(lhs, rhs);
+    } else if constexpr (Type == EValueType::Any || Type == EValueType::Composite) {
+        return CompareRowValues(lhs, rhs) == 0;
+    } else if constexpr (Type == EValueType::Null) {
+        // Nulls are always equal
+        return true;
+    } else {
+        // Poor man static_assert(false, ...).
+        static_assert(Type == EValueType::Int64, "Unexpected value type");
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TReadItem>
 class TKeyColumnBase;
 
@@ -188,6 +232,17 @@ public:
         ui32 position,
         ui16 columnId,
         ui64* dataWeight) const = 0;
+
+    // Returns data weight
+    virtual ui64 ReadKey(
+        TUnversionedValue* key,
+        ui32 rowIndex,
+        ui16 columnId) = 0;
+
+    virtual bool HasKeyAtIndex(
+        const TUnversionedValue& expected,
+        ui32 rowIndex,
+        ui16 columnId) = 0;
 };
 
 template <EValueType Type>
@@ -250,6 +305,52 @@ public:
 
         return position;
     }
+
+    ui64 ReadKey(
+        TUnversionedValue* key,
+        ui32 rowIndex,
+        ui16 columnId) override
+    {
+        if (rowIndex >= GetSegmentRowLimit()) {
+            auto meta = SkipToSegment<TKeyMeta<Type>>(rowIndex);
+            if (meta) {
+                auto data = GetBlock().begin() + meta->DataOffset;
+                DoInitLookupKeySegment</*NewMeta*/ true>(this, meta, reinterpret_cast<const ui64*>(data));
+            }
+        }
+
+        ui32 position = SkipTo(rowIndex, 0);
+        YT_ASSERT(position < GetCount());
+
+        *key = {};
+        key->Id = columnId;
+        Extract(key, position);
+
+        return GetFixedDataWeightPart<Type>(1) + GetVariableDataWeightPart<Type>(*key);
+    }
+
+    bool HasKeyAtIndex(
+        const TUnversionedValue& expected,
+        ui32 rowIndex,
+        ui16 columnId) override
+    {
+        if (rowIndex >= GetSegmentRowLimit()) {
+            auto meta = SkipToSegment<TKeyMeta<Type>>(rowIndex);
+            if (meta) {
+                auto data = GetBlock().begin() + meta->DataOffset;
+                DoInitLookupKeySegment</*NewMeta*/ true>(this, meta, reinterpret_cast<const ui64*>(data));
+            }
+        }
+
+        ui32 position = SkipTo(rowIndex, 0);
+        YT_ASSERT(position < GetCount());
+
+        TUnversionedValue value = {};
+        value.Id = columnId;
+        Extract(&value, position);
+
+        return AreValuesEqual<Type>(expected, value);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -310,10 +411,16 @@ public:
     { }
 
     template <bool NewMeta>
-    void Init(const TValueMeta<Type>* meta, const ui64* ptr)
+    Y_FORCE_INLINE void Init(const TValueMeta<Type>* meta, const ui64* ptr)
     {
         ptr = TLookupVersionExtractor<Aggregate>::template InitVersion<NewMeta>(meta, ptr);
         TLookupDataExtractor<Type>::template InitData<NewMeta>(meta, ptr);
+    }
+
+    Y_FORCE_INLINE void Prefetch(ui32 valueIdx) const
+    {
+        TLookupVersionExtractor<Aggregate>::Prefetch(valueIdx);
+        TLookupDataExtractor<Type>::Prefetch(valueIdx);
     }
 
 protected:
@@ -482,6 +589,11 @@ public:
         return DoReadValues_(this, valueOutput, readIndexes, position, dataWeight);
     }
 
+    virtual void InitAndPrefetch(ui32 rowIndex) = 0;
+    virtual TReadSpan SkipToValueAndPrefetch(ui32 rowIndex) = 0;
+    // Returns data weight
+    virtual ui64 ReadValue(TValueOutput* valueOutput, TReadSpan valueSpan) = 0;
+
     bool IsAggregate() const
     {
         return Aggregate_;
@@ -531,6 +643,37 @@ public:
         DoInitialize(meta, newMeta);
 
         return meta->ChunkRowCount;
+    }
+
+    void InitAndPrefetch(ui32 rowIndex) override
+    {
+        if (rowIndex >= GetSegmentRowLimit()) {
+            auto meta = SkipToSegment<TValueMeta<Type>>(rowIndex);
+            auto* ptr = reinterpret_cast<const ui64*>(GetBlock().begin() + meta->DataOffset);
+
+            ptr = TValueColumnBase<ui32>::template InitIndex</*NewMeta*/ true>(meta, ptr);
+            TVersionedValueBase::template Init</*NewMeta*/ true>(meta, ptr);
+        }
+
+        TValueColumnBase<ui32>::Prefetch(rowIndex);
+    }
+
+    TReadSpan SkipToValueAndPrefetch(ui32 rowIndex) override
+    {
+        ui32 valueIdx = TValueColumnBase<ui32>::SkipTo(rowIndex, 0);
+        ui32 valueIdxEnd = TValueColumnBase<ui32>::SkipTo(rowIndex + 1, valueIdx);
+        if (valueIdx != valueIdxEnd) {
+            TVersionedValueBase::Prefetch(valueIdx);
+        }
+        return {valueIdx, valueIdxEnd};
+    }
+
+    ui64 ReadValue(TValueOutput* valueOutput, TReadSpan valueSpan) override
+    {
+        return CallCastedMixin<
+            const TVersionedValueExtractor<TVersionedValueBase, ProduceAll>,
+            const TVersionedValueBase>
+            (static_cast<const TVersionedValueColumn*>(this), valueSpan.Lower, valueSpan.Upper, valueOutput);
     }
 
     template <class TIndexExtractorBase, class TVersionedValueExtractorBase>
@@ -1366,6 +1509,103 @@ public:
         return KeyColumns_.size();
     }
 
+    bool KeyAtIndexExists(ui32 rowIndexHint, NTableClient::TKeyRef keyRef)
+    {
+        YT_VERIFY(NewMeta_);
+
+        ui16 columnId = 0;
+        for (const auto& column : KeyColumns_) {
+            if (!column->HasKeyAtIndex(keyRef[columnId], rowIndexHint, columnId)) {
+                return false;
+            }
+
+            ++columnId;
+        }
+        return true;
+    }
+
+    TMutableVersionedRow ReadRowWithoutKeys(ui32 rowIndex, ui64* dataWeight, TReaderStatistics* readerStatistics)
+    {
+        ++readerStatistics->DoReadCallCount;
+
+        YT_VERIFY(NewMeta_);
+
+        TValueOutput valueOutput;
+        TMutableVersionedRow row;
+
+        ValueIndexes_.resize(ValueColumns_.size());
+
+        ui32 valueCount = 0;
+        {
+            TCpuDurationIncrementingGuard timingGuard(&readerStatistics->DecodeValueSegmentTime);
+            readerStatistics->UpdateSegmentCallCount += std::ssize(ValueColumns_);
+
+            for (int index = 0; index < std::ssize(ValueColumns_); ++index) {
+                ValueColumns_[index]->InitAndPrefetch(rowIndex);
+            }
+        }
+
+        {
+            TCpuDurationIncrementingGuard timingGuard(&readerStatistics->CollectCountsTime);
+
+            for (int index = 0; index < std::ssize(ValueColumns_); ++index) {
+                auto valueSpan = ValueColumns_[index]->SkipToValueAndPrefetch(rowIndex);
+                ValueIndexes_[index] = valueSpan;
+                valueCount += valueSpan.Upper - valueSpan.Lower;
+            }
+        }
+
+        {
+            TCpuDurationIncrementingGuard timingGuard(&readerStatistics->AllocateRowsTime);
+
+            TBase::UpdateSegment(rowIndex, NewMeta_);
+            row = TRowsetBuilder<ui32>::DoAllocateRow(
+                &MemoryPool_,
+                &valueOutput,
+                GetKeyColumnCount(),
+                valueCount,
+                rowIndex);
+        }
+
+        if (row.GetDeleteTimestampCount() == 0 && row.GetWriteTimestampCount() == 0) {
+            // Key is present in chunk but no values corresponding to requested timestamp.
+            return TMutableVersionedRow();
+        }
+
+        {
+            TCpuDurationIncrementingGuard timingGuard(&readerStatistics->DoReadValuesTime);
+            for (int index = 0; index < std::ssize(ValueColumns_); ++index) {
+                *dataWeight += ValueColumns_[index]->ReadValue(&valueOutput, ValueIndexes_[index]);
+            }
+        }
+
+        auto valuesIt = row.BeginValues();
+        auto valuesEnd = valueOutput.Ptr;
+        row.SetValueCount(valuesEnd - valuesIt);
+
+        *dataWeight += row.GetWriteTimestampCount() * sizeof(TTimestamp);
+        *dataWeight += row.GetDeleteTimestampCount() * sizeof(TTimestamp);
+
+        return row;
+    }
+
+    TMutableVersionedRow ReadRow(ui32 rowIndex, ui64* dataWeight, TReaderStatistics* readerStatistics)
+    {
+        auto row = ReadRowWithoutKeys(rowIndex, dataWeight, readerStatistics);
+
+        if (row) {
+            TCpuDurationIncrementingGuard timingGuard(&readerStatistics->DoReadKeysTime);
+            ui16 columnId = 0;
+            TUnversionedValue* rowKey = row.BeginKeys();
+            for (const auto& column : KeyColumns_) {
+                *dataWeight += column->ReadKey(rowKey + columnId, rowIndex, columnId);
+                ++columnId;
+            }
+        }
+
+        return row;
+    }
+
     void ReadRows(
         TMutableVersionedRow* rows,
         TRange<TReadItem> readList,
@@ -1446,6 +1686,8 @@ private:
 
     TMemoryHolder<ui32> ValueCounts_;
     TMemoryHolder<TValueOutput> ValueOutput_;
+
+    std::vector<TReadSpan> ValueIndexes_;
 
     void AllocateRows(
         TMutableVersionedRow* rows,
@@ -2037,13 +2279,15 @@ std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRowIndexesReader
+class TKeysWithHintsReader
     : public TRowsetBuilder<ui32>
 {
 public:
-    TRowIndexesReader(std::vector<ui32> chunkRowIndexes, const TRowsetBuilderParams& params)
+    TKeysWithHintsReader(
+        TKeysWithHints keysWithHints,
+        const TRowsetBuilderParams& params)
         : TRowsetBuilder<ui32>(params)
-        , ChunkRowIndexes_(std::move(chunkRowIndexes))
+        , KeysWithHints_(std::move(keysWithHints))
     { }
 
     bool IsReadListEmpty() const override
@@ -2058,100 +2302,86 @@ public:
         ui64* dataWeight,
         TReaderStatistics* readerStatistics) override
     {
-        ui32 segmentRowLimit = this->UpdateSegmentsNoUnpack(GetStartRowIndex(), readerStatistics);
-
         TCpuDurationIncrementingGuard timingGuard(&readerStatistics->DoReadTime);
 
-        auto readRowsIt = ReadList_.begin();
+        const auto* rowsEnd = rows + readCount;
+        const auto* readListIt = ReadList_.begin();
 
-        readRowsIt = LinearSearch(
-            readRowsIt,
-            readRowsIt + std::min<size_t>(readCount, ReadList_.size()),
-            [=] (auto it) {
-                ui32 rowIndex = *it;
-                if (rowIndex == SentinelRowIndex) {
-                    return true;
+        for (; readListIt != ReadList_.end(); ++readListIt) {
+            auto [rowIndexHint, keyIndex] = *readListIt;
+
+            if (keyIndex < NextKeyIndex_) {
+                continue;
+            }
+
+            if (Y_UNLIKELY(rowIndexHint == SentinelRowIndex)) {
+                while (NextKeyIndex_ < keyIndex && rows != rowsEnd) {
+                    *rows++ = TMutableVersionedRow();
+                    ++NextKeyIndex_;
                 }
-                return rowIndex < segmentRowLimit;
-            });
 
-        auto readRowCount = readRowsIt - ReadList_.begin();
+                if (rows == rowsEnd) {
+                    break;
+                }
 
-        auto readListSlice = ReadList_.Slice(ReadList_.begin(), readRowsIt);
-        ReadList_ = ReadList_.Slice(readRowsIt, ReadList_.end());
+                YT_ASSERT(NextKeyIndex_ == keyIndex);
 
-        auto sentinelRowIndexes = Allocate<ui32>(GetPool(), readRowCount);
-        auto spanEnd = BuildSentinelRowIndexes(readListSlice.begin(), readListSlice.end(), sentinelRowIndexes);
-        auto sentinelRowIndexesCount = readListSlice.end() - spanEnd;
+                *rows++ = TMutableVersionedRow();
+                ++NextKeyIndex_;
+                continue;
+            }
 
-        // Now all spans are not empty.
-        this->ReadRows(rows + sentinelRowIndexesCount, MakeRange(readListSlice.begin(), spanEnd), dataWeight, readerStatistics);
+            auto keyRef = ToKeyRef(KeysWithHints_.Keys[keyIndex]);
+            if (KeyAtIndexExists(rowIndexHint, keyRef)) {
+                while (NextKeyIndex_ < keyIndex && rows != rowsEnd) {
+                    *rows++ = TMutableVersionedRow();
+                    ++NextKeyIndex_;
+                }
 
-        InsertSentinelRows(MakeRange(sentinelRowIndexes, sentinelRowIndexesCount), rows);
+                if (rows == rowsEnd) {
+                    break;
+                }
 
-        return readRowCount;
+                YT_ASSERT(NextKeyIndex_ == keyIndex);
+
+                auto row = ReadRowWithoutKeys(rowIndexHint, dataWeight, readerStatistics);
+
+                if (row) {
+                    TCpuDurationIncrementingGuard timingGuard(&readerStatistics->DoReadKeysTime);
+                    TUnversionedValue* rowKey = row.BeginKeys();
+                    for (int columnId = 0; columnId < std::ssize(keyRef); ++columnId) {
+                        rowKey[columnId] = keyRef[columnId];
+                    }
+                }
+
+                *rows++ = row;
+                ++NextKeyIndex_;
+            }
+        }
+
+        ReadList_ = MakeRange(readListIt, ReadList_.end());
+
+        return readCount - (rowsEnd - rows);
     }
 
 private:
-    std::vector<ui32> ChunkRowIndexes_;
-    TMutableRange<ui32> ReadList_;
-
-    ui32 GetStartRowIndex() const
-    {
-        YT_VERIFY(!ReadList_.empty());
-
-        for (auto rowIndex : ReadList_) {
-            if (rowIndex != SentinelRowIndex) {
-                return rowIndex;
-            }
-        }
-        return 0;
-    }
+    TKeysWithHints KeysWithHints_;
+    TRange<std::pair<ui32, ui32>> ReadList_;
+    ui32 NextKeyIndex_ = 0;
 
     void BuildReadListForWindow(TSpanMatching initialWindow) override
     {
         auto initialControlSpan = initialWindow.Control;
-        ReadList_ = MakeMutableRange(ChunkRowIndexes_).Slice(initialControlSpan.Lower, initialControlSpan.Upper);
-    }
-
-    ui32* BuildSentinelRowIndexes(ui32* it, ui32* end, ui32* sentinelRowIndexes)
-    {
-        ui32 offset = 0;
-        auto* spanDest = it;
-
-        for (; it != end; ++it) {
-            if (*it == SentinelRowIndex) {
-                *sentinelRowIndexes++ = offset;
-            } else {
-                *spanDest++ = *it;
-                ++offset;
-            }
-        }
-
-        return spanDest;
-    }
-
-    void InsertSentinelRows(TRange<ui32> sentinelRowIndexes, TMutableVersionedRow* rows)
-    {
-        auto destRows = rows;
-        rows += sentinelRowIndexes.size();
-        ui32 sourceOffset = 0;
-
-        for (auto rowIndex : sentinelRowIndexes) {
-            if (sourceOffset < rowIndex) {
-                destRows = std::move(rows + sourceOffset, rows + rowIndex, destRows);
-                sourceOffset = rowIndex;
-            }
-            *destRows++ = TMutableVersionedRow();
-        }
+        ReadList_ = MakeMutableRange(KeysWithHints_.RowIndexesToKeysIndexes)
+            .Slice(initialControlSpan.Lower, initialControlSpan.Upper);
     }
 };
 
 std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(
-    std::vector<ui32> chunkRowIndexes,
+    TKeysWithHints keysWithHints,
     const TRowsetBuilderParams& params)
 {
-    return std::make_unique<TRowIndexesReader>(std::move(chunkRowIndexes), params);
+    return std::make_unique<TKeysWithHintsReader>(std::move(keysWithHints), params);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

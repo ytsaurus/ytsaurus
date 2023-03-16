@@ -305,12 +305,22 @@ ui32 TScanMultiValueIndexExtractor::GetValueCount() const
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool NewMeta>
-TCompressedVectorView InitCompressedView(const ui64* ptr, ui32 size, ui8 width)
+void InitCompressedView(TCompressedVectorView* view, const ui64* ptr, ui32 size, ui8 width)
 {
     if constexpr (NewMeta) {
-        return TCompressedVectorView(ptr, size, width);
+        *view = TCompressedVectorView(ptr, size, width);
     } else {
-        return TCompressedVectorView(ptr);
+        *view = TCompressedVectorView(ptr);
+    }
+}
+
+template <bool NewMeta>
+void InitCompressedView(TCompressedVectorView32* view, const ui64* ptr, ui32 size, ui8 width)
+{
+    if constexpr (NewMeta) {
+        *view = TCompressedVectorView32(ptr, size, width);
+    } else {
+        *view = TCompressedVectorView32(ptr);
     }
 }
 
@@ -328,19 +338,19 @@ void TLookupTimestampExtractor::InitSegment(const TTimestampMeta* meta, const ch
 
     const ui64* ptr = reinterpret_cast<const ui64*>(data);
 
-    TimestampsDict_ = InitCompressedView<NewMeta>(ptr, meta->TimestampsDictSize, meta->TimestampsDictWidth);
+    InitCompressedView<NewMeta>(&TimestampsDict_, ptr, meta->TimestampsDictSize, meta->TimestampsDictWidth);
     ptr += TimestampsDict_.GetSizeInWords();
 
-    WriteTimestampIds_ = InitCompressedView<NewMeta>(ptr, meta->WriteTimestampSize, meta->WriteTimestampWidth);
+    InitCompressedView<NewMeta>(&WriteTimestampIds_, ptr, meta->WriteTimestampSize, meta->WriteTimestampWidth);
     ptr += WriteTimestampIds_.GetSizeInWords();
 
-    DeleteTimestampIds_ = InitCompressedView<NewMeta>(ptr, meta->DeleteTimestampSize, meta->DeleteTimestampWidth);
+    InitCompressedView<NewMeta>(&DeleteTimestampIds_, ptr, meta->DeleteTimestampSize, meta->DeleteTimestampWidth);
     ptr += DeleteTimestampIds_.GetSizeInWords();
 
-    WriteOffsetDiffs_ = InitCompressedView<NewMeta>(ptr, meta->WriteOffsetDiffsSize, meta->WriteOffsetDiffsWidth);
+    InitCompressedView<NewMeta>(&WriteOffsetDiffs_, ptr, meta->WriteOffsetDiffsSize, meta->WriteOffsetDiffsWidth);
     ptr += WriteOffsetDiffs_.GetSizeInWords();
 
-    DeleteOffsetDiffs_ = InitCompressedView<NewMeta>(ptr, meta->DeleteOffsetDiffsSize, meta->DeleteOffsetDiffsWidth);
+    InitCompressedView<NewMeta>(&DeleteOffsetDiffs_, ptr, meta->DeleteOffsetDiffsSize, meta->DeleteOffsetDiffsWidth);
     ptr += DeleteOffsetDiffs_.GetSizeInWords();
 }
 
@@ -406,14 +416,14 @@ const ui64* TLookupIntegerExtractor<T>::InitData(const TIntegerMeta* meta, const
     BaseValue_ = meta->BaseValue;
     Direct_ = meta->Direct;
 
-    Values_ = InitCompressedView<NewMeta>(ptr, meta->ValuesSize, meta->ValuesWidth);
+    InitCompressedView<NewMeta>(&Values_, ptr, meta->ValuesSize, meta->ValuesWidth);
     ptr += Values_.GetSizeInWords();
 
     if (Direct_) {
         U_.NullBits_ = TBitmap(ptr);
         ptr += GetBitmapSize(Values_.GetSize());
     } else {
-        U_.Ids_ = InitCompressedView<NewMeta>(ptr, meta->IdsSize, meta->IdsWidth);
+        InitCompressedView<NewMeta>(&U_.Ids_, ptr, meta->IdsSize, meta->IdsWidth);
         ptr += U_.Ids_.GetSizeInWords();
     }
 
@@ -462,6 +472,17 @@ void TLookupIntegerExtractor<T>::Extract(TUnversionedValue* value, ui32 position
     }
 }
 
+template <class T>
+void TLookupIntegerExtractor<T>::Prefetch(ui32 position) const
+{
+    if (Direct_) {
+        U_.NullBits_.Prefetch(position);
+        Values_.Prefetch(position);
+    } else {
+        U_.Ids_.Prefetch(position);
+    }
+}
+
 template <bool NewMeta>
 const ui64* TLookupDataExtractor<EValueType::Double>::InitData(const TEmptyMeta* /*meta*/, const ui64* ptr)
 {
@@ -494,6 +515,9 @@ void TLookupDataExtractor<EValueType::Double>::Extract(TUnversionedValue* value,
     value->Type = nullBit ? EValueType::Null : EValueType::Double;
     ReadUnversionedValueData(value, items[position]);
 }
+
+void TLookupDataExtractor<EValueType::Double>::Prefetch(ui32 /*position*/) const
+{ }
 
 template <bool NewMeta>
 const ui64* TLookupDataExtractor<EValueType::Boolean>::InitData(const TEmptyMeta* /*meta*/, const ui64* ptr)
@@ -528,6 +552,9 @@ void TLookupDataExtractor<EValueType::Boolean>::Extract(TUnversionedValue* value
     ReadUnversionedValueData(value, items[position]);
 }
 
+void TLookupDataExtractor<EValueType::Boolean>::Prefetch(ui32 /*position*/) const
+{ }
+
 TLookupBlobExtractor::TLookupBlobExtractor(EValueType type)
     : Type_(type)
 { }
@@ -539,17 +566,16 @@ void TLookupBlobExtractor::InitData(const TBlobMeta* meta, const ui64* ptr)
     Direct_ = meta->Direct;
 
     if (meta->Direct) {
-        Offsets_ = InitCompressedView<NewMeta>(ptr, meta->OffsetsSize, meta->OffsetsWidth);
+        InitCompressedView<NewMeta>(&Offsets_, ptr, meta->OffsetsSize, meta->OffsetsWidth);
         ptr += Offsets_.GetSizeInWords();
 
         U_.NullBits_ = TBitmap(ptr);
         ptr += GetBitmapSize(Offsets_.GetSize());
     } else {
-
-        U_.Ids_ = InitCompressedView<NewMeta>(ptr, meta->IdsSize, meta->IdsWidth);
+        InitCompressedView<NewMeta>(&U_.Ids_, ptr, meta->IdsSize, meta->IdsWidth);
         ptr += U_.Ids_.GetSizeInWords();
 
-        Offsets_ = InitCompressedView<NewMeta>(ptr, meta->OffsetsSize, meta->OffsetsWidth);
+        InitCompressedView<NewMeta>(&Offsets_, ptr, meta->OffsetsSize, meta->OffsetsWidth);
         ptr += Offsets_.GetSizeInWords();
     }
 
@@ -561,7 +587,7 @@ void TLookupBlobExtractor::InitNullData()
     ExpectedLength_ = 0;
     Direct_ = true;
     static ui64 Data[2] {1, 1};
-    Offsets_ = TCompressedVectorView(&Data[0]);
+    Offsets_ = TCompressedVectorView32(&Data[0]);
     U_.NullBits_ = TBitmap(&Data[1]);
 }
 
@@ -596,8 +622,20 @@ void TLookupBlobExtractor::Extract(TUnversionedValue* value, ui32 position) cons
     }
 }
 
+void TLookupBlobExtractor::Prefetch(ui32 position) const
+{
+    if (Direct_) {
+        U_.NullBits_.Prefetch(position);
+        if (position > 0) {
+            Offsets_.Prefetch(position);
+        }
+    } else {
+        U_.Ids_.Prefetch(position);
+    }
+}
+
 TStringBuf TLookupBlobExtractor::GetBlob(
-    TCompressedVectorView offsets,
+    TCompressedVectorView32 offsets,
     const char* data,
     ui32 position) const
 {
@@ -630,7 +668,7 @@ const ui64* TLookupKeyIndexExtractor::InitIndex(const TKeyIndexMeta* meta, const
     Dense_ = meta->Dense;
 
     if (!Dense_) {
-        RowIndexes_ = InitCompressedView<NewMeta>(ptr, meta->RowIndexesSize, meta->RowIndexesWidth);
+        InitCompressedView<NewMeta>(&RowIndexes_, ptr, meta->RowIndexesSize, meta->RowIndexesWidth);
         ptr += RowIndexes_.GetSizeInWords();
     }
 
@@ -722,7 +760,7 @@ const ui64* TLookupMultiValueIndexExtractor::InitIndex(
         ExpectedPerRow_ = 0;
     }
 
-    RowIndexesOrPerRowDiffs_ = InitCompressedView<NewMeta>(ptr, meta->OffsetsSize, meta->OffsetsWidth);
+    InitCompressedView<NewMeta>(&RowIndexesOrPerRowDiffs_, ptr, meta->OffsetsSize, meta->OffsetsWidth);
     ptr += RowIndexesOrPerRowDiffs_.GetSizeInWords();
 
     return ptr;
@@ -764,11 +802,19 @@ ui32 TLookupMultiValueIndexExtractor::SkipTo(ui32 rowIndex, ui32 position) const
     }
 }
 
+void TLookupMultiValueIndexExtractor::Prefetch(ui32 rowIndex) const
+{
+    if (Dense_) {
+        auto indexPosition = rowIndex - RowOffset_;
+        RowIndexesOrPerRowDiffs_.Prefetch(indexPosition > 0 ? indexPosition - 1 : 0);
+    }
+}
+
 template <bool Aggregate>
 template <bool NewMeta>
 const ui64* TLookupVersionExtractor<Aggregate>::InitVersion(const TMultiValueIndexMeta* meta, const ui64* ptr)
 {
-    WriteTimestampIds_ = InitCompressedView<NewMeta>(ptr, meta->WriteTimestampIdsSize, meta->WriteTimestampIdsWidth);
+    InitCompressedView<NewMeta>(&WriteTimestampIds_, ptr, meta->WriteTimestampIdsSize, meta->WriteTimestampIdsWidth);
     ptr += WriteTimestampIds_.GetSizeInWords();
 
     if constexpr (Aggregate) {
@@ -808,6 +854,12 @@ template <bool Aggregate>
 ui32 TLookupVersionExtractor<Aggregate>::AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 timestampId) const
 {
     return AdjustIndex(valueIdx, valueIdxEnd, timestampId);
+}
+
+template <bool Aggregate>
+void TLookupVersionExtractor<Aggregate>::Prefetch(ui32 valueIdx) const
+{
+    WriteTimestampIds_.Prefetch(valueIdx);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
