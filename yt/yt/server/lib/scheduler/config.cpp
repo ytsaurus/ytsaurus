@@ -1006,9 +1006,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
         .Default(47);
 
-    registrar.Parameter("send_registered_agents_to_node", &TThis::SendRegisteredAgentsToNode)
-        .Default(false);
-
     registrar.Preprocessor([&] (TSchedulerConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;
         if (!config->EventLog->Path) {
