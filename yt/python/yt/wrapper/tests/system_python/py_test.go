@@ -195,16 +195,21 @@ func PreparePython(preparedPythonPath string, t *testing.T) error {
 		}
 	}
 
-	err = CopyTree(yatest.SourcePath("yt/python"), preparedPythonPath, nil)
+	err = os.Mkdir(preparedPythonPath, os.ModePerm)
 	if err != nil {
-		return fmt.Errorf("Failed to copy yt/python source files: %s", err)
+		return fmt.Errorf("Failed to create python directory: %s", err)
 	}
 
 	cmdPrepareSourceTree := exec.Command(
-		path.Join(preparedPythonPath, "prepare_source_tree/prepare_source_tree.py"),
-		"--python-root", preparedPythonPath,
-		"--yt-root", yatest.SourcePath("yt"),
-		"--arcadia-root", yatest.SourcePath(""),
+		"python3", "-m", "yt_setup.prepare_source_tree",
+		"--source-root", yatest.SourcePath(""),
+		"--output-path", preparedPythonPath,
+		"--fix-type-info-package",
+	)
+
+	cmdPrepareSourceTree.Env = append(
+		os.Environ(),
+		"PYTHONPATH="+yatest.SourcePath("yt/python/packages/"),
 	)
 
 	cmdPrepareSourceTree.Stdout = &stdout

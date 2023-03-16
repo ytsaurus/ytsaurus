@@ -1,7 +1,7 @@
 PACKAGE_NAME = "yandex-yt-local"
 
 def main():
-    from helpers import prepare_files, get_version
+    from yt_setup.helpers import prepare_files, get_version
 
     from setuptools import setup
     from setuptools.command.test import test as TestCommand

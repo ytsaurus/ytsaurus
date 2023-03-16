@@ -39,12 +39,16 @@ def rm_rf(path):
         os.unlink(path)
 
 
+def cp(source_path, destination_path):
+    shutil.copy(source_path, destination_path)
+
+
 def cp_r(path, dest_dir):
     """copy recursive"""
     logger.info("Copy %s to %s", path, dest_dir)
     assert os.path.isdir(dest_dir)
     if os.path.isdir(path):
-        shutil.copytree(path, os.path.join(dest_dir, os.path.basename(path)))
+        shutil.copytree(path, os.path.join(dest_dir, os.path.basename(path)), symlinks=True)
         # We explicitely chmod subtree to overcome readonly files problem in distbuild.
         chmod_r(os.path.join(dest_dir, os.path.basename(path)), 0o755)
     else:
@@ -72,3 +76,8 @@ def apply_multiple(times, func, argument):
     for _ in range(times):
         argument = func(argument)
     return argument
+
+
+def touch(path):
+    with open(path, "a"):
+        pass

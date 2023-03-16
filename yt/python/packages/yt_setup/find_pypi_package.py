@@ -2,14 +2,11 @@
 
 import sys
 
-from helpers import get_version, get_version_branch, import_file
+from .helpers import get_version, get_version_branch
 
 
 def find_pypi_package(package_name):
-    try:
-        import pypi_helpers
-    except ImportError:
-        pypi_helpers = import_file("pypi_helpers", "./pypi_helpers.py")
+    from . import pypi_helpers
 
     version = get_version()
     if "-" in version:
