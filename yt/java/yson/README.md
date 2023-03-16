@@ -1,1 +1,1 @@
-Java библиотека для работы с [yson](https://docs.yandex-team.ru/yt/description/common/yson).
+Java библиотека для работы с [yson](https://ytsaurus.tech/docs/en/user-guide/storage/yson).

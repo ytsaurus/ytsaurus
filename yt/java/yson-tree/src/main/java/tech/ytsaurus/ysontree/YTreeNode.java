@@ -14,7 +14,7 @@ import java.util.function.Supplier;
  * To build such object {@link tech.ytsaurus.ysontree.YTreeBuilder} can be used.
  *
  * @see tech.ytsaurus.ysontree.YTree
- * @see <a href="https://yt.yandex-team.ru/docs/description/common/yson">Yson documentation</a>
+ * @see <a href="https://ytsaurus.tech/docs/en/user-guide/storage/yson">Yson documentation</a>
  */
 public interface YTreeNode {
     /**
