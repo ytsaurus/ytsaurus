@@ -81,9 +81,10 @@ class Clique(object):
         discovery_patch = {
             "yt": {
                 "discovery": {
-                    "version": 1,
-                    "read_quorum": 1,
-                    "write_quorum": 1,
+                    "version": 2,
+                    "heartbeat_period": 400,
+                    "attribute_update_period": 2000,
+                    "lease_timeout": 1000,
                 }
             }
         }

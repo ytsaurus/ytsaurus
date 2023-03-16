@@ -40,7 +40,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
     @authors("evgenstf")
     def test_instance_choice(self):
-        with Clique(5, spec={"alias": "*test_alias"}) as clique:
+        with Clique(5, alias="*test_alias") as clique:
             for job_cookie in range(5):
                 proxy_response = clique.make_query_via_proxy(
                     "select * from system.clique", database="*test_alias@" + str(job_cookie)
@@ -73,9 +73,6 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             "yt": {
                 "discovery": {
                     "version": discovery_version,
-                    "update_period": 2000,
-                    "heartbeat_period": 400,
-                    "lease_timeout": 1000,
                 }
             }
         }
@@ -104,8 +101,8 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         patch = {
             "yt": {
                 "discovery": {
-                    # Set big value to prevent unlocking node.
-                    "transaction_timeout": 1000000,
+                    # Set big value to prevent node disappearing from discovery group.
+                    "lease_timeout": 50000,
                 }
             }
         }
@@ -254,7 +251,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
-        with Clique(1, spec={"alias": "*alias"}) as clique:
+        with Clique(1, alias="*alias") as clique:
             assert clique.make_query_via_proxy("select 1 as a", database="*alias")[0] == {"a": 1}
             assert clique.make_query_via_proxy("select 1 as a", database=clique.op.id)[0] == {"a": 1}
 
