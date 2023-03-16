@@ -83,6 +83,9 @@ public:
 
     TDuration ScionRemovalPeriod;
 
+    // COMPAT(kvk1920)
+    bool ForbidListNodeCreation;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);

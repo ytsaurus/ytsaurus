@@ -950,6 +950,14 @@ public:
     NObjectClient::EObjectType GetObjectType() const override;
     NYTree::ENodeType GetNodeType() const override;
 
+    std::unique_ptr<TCypressNode> Create(
+        TNodeId hintId,
+        const TCreateNodeContext& context) override;
+
+    std::unique_ptr<TCypressNode> Instantiate(
+        TVersionedNodeId id,
+        NObjectClient::TCellTag externalCellTag) override;
+
 private:
     ICypressNodeProxyPtr DoGetProxy(
         TListNode* trunkNode,

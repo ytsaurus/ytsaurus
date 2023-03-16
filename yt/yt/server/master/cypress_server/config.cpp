@@ -105,6 +105,9 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("scion_removal_period", &TThis::ScionRemovalPeriod)
         .Default(TDuration::Seconds(30));
+
+    registrar.Parameter("forbid_list_node_creation", &TThis::ForbidListNodeCreation)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

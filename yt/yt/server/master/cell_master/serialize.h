@@ -123,6 +123,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveNewHydraFlag)                                           (2310))  // aleksandra-zh
     ((HashTableChunkIndex)                                          (2311))  // akozhikhov
     ((HistoricallyNonVital)                                         (2312))  // gritukan
+    ((DeprecateCypressListNodes)                                    (2313))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
