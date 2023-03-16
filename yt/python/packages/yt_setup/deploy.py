@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import argparse
@@ -8,9 +8,9 @@ import shutil
 import sys
 from copy import deepcopy
 
-from helpers import get_version, get_version_branch, copy_tree, import_file, execute_command
-from find_debian_package import find_debian_package, fetch_package_versions
-from find_pypi_package import find_pypi_package
+from .helpers import get_version, get_version_branch, copy_tree, import_file, execute_command
+from .find_debian_package import find_debian_package, fetch_package_versions
+from .find_pypi_package import find_pypi_package
 
 
 def parse_arguments():

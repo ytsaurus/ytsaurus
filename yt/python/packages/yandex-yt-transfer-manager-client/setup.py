@@ -1,7 +1,7 @@
 PACKAGE_NAME = "yandex-yt-transfer-manager-client"
 
 def main():
-    from helpers import get_version, prepare_files
+    from yt_setup.helpers import get_version, prepare_files
 
     import sys
     from setuptools import setup
