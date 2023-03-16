@@ -15,7 +15,9 @@ struct THedgingUnit
     std::optional<TString> UserTag;
     bool HunkChunk;
 
-    operator size_t() const;
+    bool operator == (const THedgingUnit& other) const;
+
+    explicit operator size_t() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

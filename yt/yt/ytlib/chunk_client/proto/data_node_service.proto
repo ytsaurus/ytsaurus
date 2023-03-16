@@ -339,7 +339,6 @@ message TReqLookupRows
     optional bool enable_hash_chunk_index = 13;
     optional bool use_direct_io = 14;
 
-    // COMPAT(akozhikhov): Make these fields required.
     optional bool populate_cache = 11 [default = true];
 
     // Lookup keys are passed via attachments.

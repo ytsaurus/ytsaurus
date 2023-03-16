@@ -82,7 +82,11 @@ void TReplicationReaderConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(120));
     registrar.Parameter("block_rpc_hedging_delay", &TThis::BlockRpcHedgingDelay)
         .Default();
+    registrar.Parameter("lookup_rpc_hedging_delay", &TThis::LookupRpcHedgingDelay)
+        .Default();
     registrar.Parameter("cancel_primary_block_rpc_request_on_hedging", &TThis::CancelPrimaryBlockRpcRequestOnHedging)
+        .Default(false);
+    registrar.Parameter("cancel_primary_lookup_rpc_request_on_hedging", &TThis::CancelPrimaryLookupRpcRequestOnHedging)
         .Default(false);
     registrar.Parameter("lookup_rpc_timeout", &TThis::LookupRpcTimeout)
         .Default(TDuration::Seconds(30));
@@ -132,13 +136,6 @@ void TReplicationReaderConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(3));
     registrar.Parameter("session_timeout", &TThis::SessionTimeout)
         .Default(TDuration::Minutes(20));
-    registrar.Parameter("lookup_sleep_duration", &TThis::LookupSleepDuration)
-        .Default(TDuration::MilliSeconds(25));
-    registrar.Parameter("single_pass_iteration_limit_for_lookup", &TThis::SinglePassIterationLimitForLookup)
-        .Default(2);
-    registrar.Parameter("lookup_request_peer_count", &TThis::LookupRequestPeerCount)
-        .GreaterThan(0)
-        .Default(5);
     registrar.Parameter("lookup_request_pass_count", &TThis::LookupRequestPassCount)
         .GreaterThan(0)
         .Default(10);

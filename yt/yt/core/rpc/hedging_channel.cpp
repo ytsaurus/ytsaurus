@@ -416,8 +416,8 @@ IChannelPtr CreateHedgingChannel(
 
 bool IsBackup(const TClientResponsePtr& response)
 {
-     const auto& ext = response->Header().GetExtension(NRpc::NProto::THedgingExt::hedging_ext);
-     return ext.backup_responded();
+    const auto& ext = response->Header().GetExtension(NRpc::NProto::THedgingExt::hedging_ext);
+    return ext.backup_responded();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
