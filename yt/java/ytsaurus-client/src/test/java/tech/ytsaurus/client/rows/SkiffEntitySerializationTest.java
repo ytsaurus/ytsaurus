@@ -1,4 +1,4 @@
-package tech.ytsaurus.skiff.serialization;
+package tech.ytsaurus.client.rows;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;

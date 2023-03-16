@@ -1,4 +1,4 @@
-package tech.ytsaurus.skiff.serialization;
+package tech.ytsaurus.client.rows;
 
 import static tech.ytsaurus.core.utils.ClassUtils.anyOfAnnotationsPresent;
 

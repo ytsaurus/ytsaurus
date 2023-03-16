@@ -1,4 +1,4 @@
-package tech.ytsaurus.skiff.schema;
+package tech.ytsaurus.client.rows;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,7 +8,8 @@ import javax.persistence.Entity;
 import javax.persistence.Transient;
 
 import org.junit.Test;
-import tech.ytsaurus.skiff.serialization.EntitySkiffSchemaCreator;
+import tech.ytsaurus.skiff.SkiffSchema;
+import tech.ytsaurus.skiff.WireType;
 
 import static org.junit.Assert.assertEquals;
 

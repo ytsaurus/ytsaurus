@@ -3,7 +3,7 @@ package tech.ytsaurus.client.request;
 import java.util.HashMap;
 import java.util.Map;
 
-import tech.ytsaurus.skiff.schema.SkiffSchema;
+import tech.ytsaurus.skiff.SkiffSchema;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;

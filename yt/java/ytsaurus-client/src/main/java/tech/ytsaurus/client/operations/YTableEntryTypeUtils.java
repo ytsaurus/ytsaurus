@@ -10,7 +10,7 @@ import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import static tech.ytsaurus.skiff.serialization.EntityUtil.isEntityAnnotationPresent;
+import static tech.ytsaurus.client.rows.EntityUtil.isEntityAnnotationPresent;
 
 
 @NonNullApi

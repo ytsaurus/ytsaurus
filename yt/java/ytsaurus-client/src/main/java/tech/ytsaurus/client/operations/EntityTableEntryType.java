@@ -10,16 +10,16 @@ import java.util.NoSuchElementException;
 
 
 import tech.ytsaurus.client.request.Format;
+import tech.ytsaurus.client.rows.EntitySkiffSchemaCreator;
+import tech.ytsaurus.client.rows.EntitySkiffSerializer;
+import tech.ytsaurus.client.rows.EntityTableSchemaCreator;
 import tech.ytsaurus.core.operations.CloseableIterator;
 import tech.ytsaurus.core.operations.OperationContext;
 import tech.ytsaurus.core.operations.Yield;
 import tech.ytsaurus.core.tables.TableSchema;
-import tech.ytsaurus.skiff.schema.SkiffSchema;
-import tech.ytsaurus.skiff.schema.WireType;
-import tech.ytsaurus.skiff.serialization.EntitySkiffSchemaCreator;
-import tech.ytsaurus.skiff.serialization.EntitySkiffSerializer;
-import tech.ytsaurus.skiff.serialization.EntityTableSchemaCreator;
-import tech.ytsaurus.skiff.serialization.SkiffParser;
+import tech.ytsaurus.skiff.SkiffParser;
+import tech.ytsaurus.skiff.SkiffSchema;
+import tech.ytsaurus.skiff.WireType;
 import tech.ytsaurus.ysontree.YTreeStringNode;
 
 public class EntityTableEntryType<T> implements YTableEntryType<T> {

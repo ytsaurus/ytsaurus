@@ -1,4 +1,4 @@
-package tech.ytsaurus.skiff.schema;
+package tech.ytsaurus.skiff;
 
 import java.util.List;
 

@@ -5,8 +5,8 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import tech.ytsaurus.skiff.serialization.EntitySkiffSerializer;
-import tech.ytsaurus.skiff.serialization.SkiffParser;
+import tech.ytsaurus.client.rows.EntitySkiffSerializer;
+import tech.ytsaurus.skiff.SkiffParser;
 
 public class TableAttachmentSkiffReader<T> extends TableAttachmentRowsetReader<T> {
     private final EntitySkiffSerializer<T> serializer;

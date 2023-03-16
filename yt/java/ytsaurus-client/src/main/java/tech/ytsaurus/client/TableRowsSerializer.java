@@ -15,6 +15,7 @@ import com.google.protobuf.CodedOutputStream;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import tech.ytsaurus.client.request.SerializationContext;
+import tech.ytsaurus.client.rows.EntitySkiffSerializer;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedValue;
 import tech.ytsaurus.client.rows.WireProtocolWriter;
@@ -27,7 +28,6 @@ import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.rpcproxy.ERowsetFormat;
 import tech.ytsaurus.rpcproxy.TRowsetDescriptor;
-import tech.ytsaurus.skiff.serialization.EntitySkiffSerializer;
 
 
 

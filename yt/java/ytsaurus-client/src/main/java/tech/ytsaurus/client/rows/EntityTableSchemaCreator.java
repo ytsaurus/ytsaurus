@@ -1,4 +1,4 @@
-package tech.ytsaurus.skiff.serialization;
+package tech.ytsaurus.client.rows;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
@@ -16,6 +16,7 @@ import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.typeinfo.StructType;
 import tech.ytsaurus.typeinfo.TiType;
 
+import static tech.ytsaurus.client.rows.TiTypeUtil.getTiTypeIfSimple;
 import static tech.ytsaurus.core.utils.ClassUtils.anyMatchWithAnnotation;
 import static tech.ytsaurus.core.utils.ClassUtils.anyOfAnnotationsPresent;
 import static tech.ytsaurus.core.utils.ClassUtils.getAllDeclaredFields;
@@ -23,7 +24,6 @@ import static tech.ytsaurus.core.utils.ClassUtils.getAnnotationIfPresent;
 import static tech.ytsaurus.core.utils.ClassUtils.getTypeDescription;
 import static tech.ytsaurus.core.utils.ClassUtils.getTypeParametersOfField;
 import static tech.ytsaurus.core.utils.ClassUtils.isFieldTransient;
-import static tech.ytsaurus.skiff.serialization.TiTypeUtil.getTiTypeIfSimple;
 
 public class EntityTableSchemaCreator {
 
