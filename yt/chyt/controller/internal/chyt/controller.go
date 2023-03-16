@@ -18,8 +18,9 @@ import (
 type Config struct {
 	// LocalBinariesDir is set if we want to execute local binaries on the clique.
 	// This directory should contain trampoline, chyt and log-tailer binaries.
-	LocalBinariesDir *string `yson:"local_binaries_dir"`
-	EnableLogTailer  *bool   `yson:"enable_log_tailer"`
+	LocalBinariesDir *string        `yson:"local_binaries_dir"`
+	EnableLogTailer  *bool          `yson:"enable_log_tailer"`
+	AddressResolver  map[string]any `yson:"address_resolver"`
 }
 
 const (
