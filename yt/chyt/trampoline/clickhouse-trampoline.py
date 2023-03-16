@@ -222,7 +222,7 @@ def wait_for_readiness(timeout, ytserver_clickhouse_process):
             logger.info("ytserver-clickhouse is already dead, stopping checking readiness")
             return
         try:
-            if requests.get(http_address, timeout=REQUEST_TIMEOUT).content == 'Ok.\n':
+            if requests.get(http_address, timeout=REQUEST_TIMEOUT).content == b'Ok.\n':
                 logger.info("HTTP server ready")
                 return
         except Exception:
