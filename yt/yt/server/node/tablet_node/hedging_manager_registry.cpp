@@ -23,6 +23,13 @@ static constexpr auto ExpiredRegistryEvictionPeriod = TDuration::Minutes(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool THedgingUnit::operator == (const THedgingUnit& other) const
+{
+    return
+        UserTag == other.UserTag &&
+        HunkChunk == other.HunkChunk;
+}
+
 THedgingUnit::operator size_t() const
 {
     return MultiHash(

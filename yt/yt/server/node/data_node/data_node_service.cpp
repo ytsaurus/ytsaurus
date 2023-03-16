@@ -1302,14 +1302,16 @@ private:
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto populateCache = request->populate_cache();
         auto enableHashChunkIndex = request->enable_hash_chunk_index();
+        const auto& schemaData = request->schema_data();
 
         context->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, "
-            "PopulateCache: %v, EnableHashChunkIndex: %v",
+            "PopulateCache: %v, EnableHashChunkIndex: %v, ContainsSchema: %v",
             chunkId,
             readSessionId,
             workloadDescriptor,
             populateCache,
-            enableHashChunkIndex);
+            enableHashChunkIndex,
+            schemaData.has_schema());
 
         ValidateOnline();
 
@@ -1317,7 +1319,7 @@ private:
         auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
 
         // NB: Heating table schema caches up is of higher priority than advisory throttling.
-        const auto& schemaData = request->schema_data();
+        // COMPAT(akozhikhov): Get rid of schemaRequested field and related logic.
         auto [tableSchema, schemaRequested] = FindTableSchemaForOffloadedReadSession(
             chunkId,
             readSessionId,
@@ -1325,7 +1327,7 @@ private:
             Bootstrap_->GetTableSchemaCache());
         if (!tableSchema) {
             response->set_fetched_rows(false);
-            response->set_request_schema(schemaRequested);
+            response->set_request_schema(true);
             context->SetResponseInfo(
                 "ChunkId: %v, ReadSessionId: %v, Workload: %v, SchemaRequested: %v",
                 chunkId,
@@ -1340,7 +1342,7 @@ private:
         auto [diskThrottling, diskQueueSize] = chunk
             ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
             : std::make_tuple<bool, i64>(false, 0);
-        // FIXME(akozhikhov): For YT-18378. Drop this after all tablet nodes are updated.
+        // COMPAT(akozhikhov): For YT-18378. Drop this after all tablet nodes are updated.
         if (diskThrottling) {
             ++diskQueueSize;
         }

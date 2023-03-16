@@ -71,7 +71,6 @@ YT_DEFINE_ERROR_ENUM(
     ((ChunkIsLost)                           (743))
     ((ChunkReadSessionSlow)                  (744))
     ((NodeProbeFailed)                       (745))
-    ((WaitedForSchemaForTooLong)             (746))
     ((UnrecoverableRepairError)              (747))
     ((MissingJournalChunkRecord)             (748))
     ((LocationDiskFailed)                    (749))

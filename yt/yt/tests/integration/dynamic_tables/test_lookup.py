@@ -3,7 +3,7 @@ from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    authors, print_debug, wait, create, ls, get, set, copy, insert_rows,
+    authors, print_debug, wait, create, ls, get, set, remove, copy, insert_rows,
     lookup_rows, delete_rows, create_dynamic_table,
     alter_table, read_table, write_table, remount_table, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_reshard_table,
@@ -998,6 +998,32 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", [{"key": 1}]) == row
         with raises_yt_error(yt_error_codes.RequestThrottled):
             lookup_rows("//tmp/t", [{"key": 1}])
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
+    def test_hedging_options(self, enable_hash_chunk_index):
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t")
+        self._enable_data_node_lookup("//tmp/t", enable_hash_chunk_index)
+        set("//tmp/t/@chunk_reader/lookup_rpc_hedging_delay", 0)
+        sync_mount_table("//tmp/t")
+
+        keys = [{"key": i} for i in range(1)]
+        rows = [{"key": i, "value": str(i) * 2} for i in range(1)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        for _ in range(5):
+            assert lookup_rows("//tmp/t", keys) == rows
+
+        remove("//tmp/t/@chunk_reader/lookup_rpc_hedging_delay")
+        set("//tmp/t/@chunk_reader/hedging_manager", {"max_backup_request_ratio": 1.0, "max_hedging_delay": 0})
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        for _ in range(5):
+            assert lookup_rows("//tmp/t", keys) == rows
 
 
 class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):

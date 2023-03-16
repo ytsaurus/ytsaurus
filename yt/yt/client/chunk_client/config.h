@@ -117,8 +117,14 @@ public:
     //! NB: Hedging policy may be overriden via hedging manager.
     std::optional<TDuration> BlockRpcHedgingDelay;
 
+    //! Same as above but for a LookupRows rpc.
+    std::optional<TDuration> LookupRpcHedgingDelay;
+
     //! Whether to cancel the primary block request when backup one is sent.
     bool CancelPrimaryBlockRpcRequestOnHedging;
+
+    //! Same as above but for a LookupRows rpc.
+    bool CancelPrimaryLookupRpcRequestOnHedging;
 
     //! Timeout for a lookup request.
     TDuration LookupRpcTimeout;
@@ -186,15 +192,6 @@ public:
 
     //! Total session timeout (for ReadBlocks and GetMeta calls).
     TDuration SessionTimeout;
-
-    //! Duration between lookup requests to different peers in one pass.
-    TDuration LookupSleepDuration;
-
-    //! Number of lookup requests to single peer in one pass.
-    int SinglePassIterationLimitForLookup;
-
-    //! Number of peers processed in one pass.
-    int LookupRequestPeerCount;
 
     //! Maximum number of passes within single retry for lookup request.
     int LookupRequestPassCount;

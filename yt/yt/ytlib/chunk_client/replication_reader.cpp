@@ -1787,7 +1787,7 @@ private:
             auto moreCandidates = PickPeerCandidates(
                 reader,
                 ReaderConfig_->ProbePeerCount,
-                /* enableEarlyExit */ !ReaderConfig_->BlockRpcHedgingDelay,
+                /*enableEarlyExit*/ !SessionOptions_.HedgingManager && !ReaderConfig_->BlockRpcHedgingDelay,
                 hasUnfetchedBlocks);
 
             if (moreCandidates.empty()) {
@@ -1947,7 +1947,7 @@ private:
         int invalidBlockCount = 0;
         std::vector<int> receivedBlockIndexes;
 
-        auto response = GetRpcAttachedBlocks(rsp, /* validateChecksums */ false);
+        auto response = GetRpcAttachedBlocks(rsp, /*validateChecksums*/ false);
 
         for (auto& block: response) {
             block.Data = TrackMemory(Options_.MemoryReferenceTracker, std::move(block.Data));
@@ -2246,8 +2246,8 @@ private:
 
         auto candidates = PickPeerCandidates(
             reader,
-            /* count */ 1,
-            /* enableEarlyExit */ true);
+            /*count*/ 1,
+            /*enableEarlyExit*/ true);
         if (candidates.empty()) {
             OnPassCompleted();
             return;
@@ -2318,7 +2318,7 @@ private:
             UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
         }
 
-        auto blocks = GetRpcAttachedBlocks(rsp, /* validateChecksums */ false);
+        auto blocks = GetRpcAttachedBlocks(rsp, /*validateChecksums*/ false);
 
         int blocksReceived = 0;
         i64 bytesReceived = 0;
@@ -2513,7 +2513,7 @@ private:
         auto peers = PickPeerCandidates(
             reader,
             ReaderConfig_->MetaRpcHedgingDelay ? 2 : 1,
-            /* enableEarlyExit */ false);
+            /*enableEarlyExit*/ false);
         if (peers.empty()) {
             OnPassCompleted();
             return;
@@ -2686,7 +2686,6 @@ public:
             std::move(sessionInvoker))
         , Options_(std::move(options))
         , LookupKeys_(std::move(lookupKeys))
-        , ReadSessionId_(Options_->ChunkReadOptions.ReadSessionId)
         , CodecId_(codecId)
     {
         Logger.AddTag("TableId: %v, Revision: %x",
@@ -2729,29 +2728,14 @@ private:
 
     std::vector<TSharedRef> Keyset_;
 
-    TSharedRef FetchedRowset_;
-
     i64 BytesToThrottle_ = 0;
     i64 BytesThrottled_ = 0;
-
-    bool WaitedForSchemaForTooLong_ = false;
-
-    int SinglePassIterationCount_;
-    int CandidateIndex_;
-    TPeerList SinglePassCandidates_;
-    THashMap<TString, double> PeerAddressToThrottlingRate_;
 
 
     void NextPass() override
     {
         // Specific bounds for lookup.
         if (PassIndex_ >= ReaderConfig_->LookupRequestPassCount) {
-            if (WaitedForSchemaForTooLong_) {
-                RegisterError(TError(
-                    NChunkClient::EErrorCode::WaitedForSchemaForTooLong,
-                    "Some data node was healthy but was waiting for schema for too long; "
-                    "probably other tablet node has failed"));
-            }
             if (RetryIndex_ >= ReaderConfig_->LookupRequestRetryCount) {
                 OnSessionFailed(true);
             } else {
@@ -2763,11 +2747,6 @@ private:
         if (!PrepareNextPass()) {
             return;
         }
-
-        CandidateIndex_ = 0;
-        SinglePassCandidates_.clear();
-        SinglePassIterationCount_ = 0;
-        PeerAddressToThrottlingRate_.clear();
 
         RequestRows();
     }
@@ -2790,15 +2769,11 @@ private:
         Promise_.TrySet(error);
     }
 
-    TClosure CreateRequestCallback()
-    {
-        return BIND(&TLookupRowsSession::DoRequestRows, MakeStrong(this))
-            .Via(SessionInvoker_);
-    }
-
     void RequestRows()
     {
-        CreateRequestCallback()();
+        SessionInvoker_->Invoke(BIND(
+            &TLookupRowsSession::DoRequestRows,
+            MakeStrong(this)));
     }
 
     void DoRequestRows()
@@ -2808,96 +2783,66 @@ private:
             return;
         }
 
-        if (SinglePassCandidates_.empty()) {
-            NProfiling::TWallTimer pickPeerTimer;
-            SinglePassCandidates_ = PickPeerCandidates(
-                reader,
-                ReaderConfig_->LookupRequestPeerCount,
-                /* enableEarlyExit */ false);
-            if (SinglePassCandidates_.empty()) {
-                OnPassCompleted();
-                return;
-            }
+        NProfiling::TWallTimer pickPeerTimer;
 
-            AsyncProbeAndSelectBestPeers(SinglePassCandidates_, SinglePassCandidates_.size(), {})
-                .Subscribe(BIND(
-                    [
-                        =,
-                        this,
-                        this_ = MakeStrong(this),
-                        pickPeerTimer = std::move(pickPeerTimer)
-                    ] (const TErrorOr<TPeerList>& result) {
-                        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
-
-                        SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime.fetch_add(
-                            pickPeerTimer.GetElapsedValue(),
-                            std::memory_order::relaxed);
-
-                        SinglePassCandidates_ = result.ValueOrThrow();
-                        if (SinglePassCandidates_.empty()) {
-                            OnPassCompleted();
-                        } else {
-                            DoRequestRows();
-                        }
-                    }).Via(SessionInvoker_));
+        auto candidates = PickPeerCandidates(
+            reader,
+            ReaderConfig_->ProbePeerCount,
+            /*enableEarlyExit*/ !SessionOptions_.HedgingManager && !ReaderConfig_->LookupRpcHedgingDelay);
+        if (candidates.empty()) {
+            OnPassCompleted();
             return;
         }
 
-        if (SinglePassIterationCount_ == ReaderConfig_->SinglePassIterationLimitForLookup) {
-            // Additional post-throttling at the end of each pass.
-            auto delta = BytesToThrottle_;
-            BytesToThrottle_ = 0;
-            BytesThrottled_ += delta;
-            AsyncThrottle(BandwidthThrottler_, delta, BIND(&TLookupRowsSession::OnPassCompleted, MakeStrong(this)));
-            return;
-        }
+        AsyncProbeAndSelectBestPeers(candidates, GetDesiredPeerCount(), /*blockIndexes*/ {})
+            .Subscribe(BIND(
+                &TLookupRowsSession::OnBestPeersSelected,
+                MakeStrong(this),
+                Passed(std::move(reader)),
+                pickPeerTimer)
+            .Via(SessionInvoker_));
+        return;
+    }
 
-        std::optional<TPeer> chosenPeer;
-        while (CandidateIndex_ < std::ssize(SinglePassCandidates_)) {
-            chosenPeer = SinglePassCandidates_[CandidateIndex_];
-            if (!IsPeerBanned(chosenPeer->Address)) {
-                break;
-            }
-
-            SinglePassCandidates_.erase(SinglePassCandidates_.begin() + CandidateIndex_);
-        }
-
-        if (CandidateIndex_ == std::ssize(SinglePassCandidates_)) {
-            YT_LOG_DEBUG("Lookup replication reader is out of peers for lookup, will sleep for a while "
-                "(CandidateCount: %v, SinglePassIterationCount: %v)",
-                SinglePassCandidates_.size(),
-                SinglePassIterationCount_);
-
-            CandidateIndex_ = 0;
-            ++SinglePassIterationCount_;
-            SortCandidates();
-
-            // All candidates (in current pass) are either
-            // waiting for schema from other tablet nodes or are throttling.
-            // So it's better to sleep for a while.
-            TDelayedExecutor::Submit(
-                CreateRequestCallback(),
-                ReaderConfig_->LookupSleepDuration);
-            return;
-        }
-
-        YT_VERIFY(chosenPeer);
-        const auto& peerAddress = chosenPeer->Address;
+    void OnBestPeersSelected(
+        TReplicationReaderPtr reader,
+        const NProfiling::TWallTimer& pickPeerTimer,
+        const TErrorOr<TPeerList>& peersOrError)
+    {
+        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
         if (IsCanceled()) {
             return;
         }
 
-        WaitedForSchemaForTooLong_ = false;
+        SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime.fetch_add(
+            pickPeerTimer.GetElapsedValue(),
+            std::memory_order::relaxed);
 
-        YT_LOG_DEBUG("Sending lookup request to peer "
-            "(Address: %v, CandidateIndex: %v, CandidateCount: %v, IterationCount: %v)",
-            peerAddress,
-            CandidateIndex_,
-            SinglePassCandidates_.size(),
-            SinglePassIterationCount_);
+        auto peers = peersOrError.ValueOrThrow();
 
-        if (ShouldThrottle(peerAddress, BytesThrottled_ == 0 && BytesToThrottle_)) {
+        IHedgingManagerPtr hedgingManager;
+        if (SessionOptions_.HedgingManager) {
+            hedgingManager = SessionOptions_.HedgingManager;
+        } else if (ReaderConfig_->LookupRpcHedgingDelay) {
+            hedgingManager = CreateSimpleHedgingManager(*ReaderConfig_->LookupRpcHedgingDelay);
+        }
+
+        std::optional<THedgingChannelOptions> hedgingOptions;
+        if (hedgingManager) {
+            hedgingOptions = THedgingChannelOptions{
+                .HedgingManager = std::move(hedgingManager),
+                .CancelPrimaryOnHedging = ReaderConfig_->CancelPrimaryLookupRpcRequestOnHedging,
+            };
+        }
+
+        auto channel = MakePeersChannel(peers, hedgingOptions);
+        if (!channel) {
+            RequestRows();
+            return;
+        }
+
+        if (ShouldThrottle(peers[0].Address, BytesThrottled_ == 0 && BytesToThrottle_ > 0)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we use BandwidthThrottled_ flag.
             // Still it protects us from bursty incoming traffic on the host.
@@ -2906,27 +2851,39 @@ private:
             if (!BandwidthThrottler_->IsOverdraft()) {
                 BandwidthThrottler_->Acquire(BytesThrottled_);
             } else {
-                AsyncThrottle(BandwidthThrottler_, BytesThrottled_, BIND(&TLookupRowsSession::RequestRows, MakeStrong(this)));
+                AsyncThrottle(
+                    BandwidthThrottler_,
+                    BytesThrottled_,
+                    BIND(
+                        &TLookupRowsSession::SendLookupRowsRequest,
+                        MakeStrong(this),
+                        std::move(channel),
+                        Passed(std::move(peers)),
+                        Passed(std::move(reader)),
+                        /*schemaRequested*/ false));
                 return;
             }
         }
 
-        ++CandidateIndex_;
+        SendLookupRowsRequest(
+            channel,
+            std::move(peers),
+            std::move(reader),
+            /*schemaRequested*/ false);
 
-        auto channel = GetChannel(peerAddress);
-        if (!channel) {
-            RequestRows();
-            return;
-        }
-        RequestRowsFromPeer(channel, reader, *chosenPeer, false);
+        return;
     }
 
-    void RequestRowsFromPeer(
+    void SendLookupRowsRequest(
         const IChannelPtr& channel,
-        const TReplicationReaderPtr& reader,
-        const TPeer& chosenPeer,
-        bool sendSchema)
+        TPeerList peers,
+        TReplicationReaderPtr reader,
+        bool schemaRequested)
     {
+        if (IsCanceled()) {
+            return;
+        }
+
         TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(ReaderConfig_->LookupRpcTimeout);
 
@@ -2936,7 +2893,7 @@ private:
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
         ToProto(req->mutable_chunk_id(), ChunkId_);
-        ToProto(req->mutable_read_session_id(), ReadSessionId_);
+        ToProto(req->mutable_read_session_id(), SessionOptions_.ReadSessionId);
         req->set_timestamp(Options_->Timestamp);
         req->set_compression_codec(ToProto<int>(CodecId_));
         ToProto(req->mutable_column_filter(), Options_->ColumnFilter);
@@ -2946,70 +2903,48 @@ private:
         req->set_enable_hash_chunk_index(Options_->EnableHashChunkIndex);
         req->set_use_direct_io(ReaderConfig_->UseDirectIO);
 
-        if (PeerAddressToThrottlingRate_.contains(chosenPeer.Address)) {
-            YT_LOG_DEBUG("Replication reader sends LookupRows request to throttling peer "
-                "(Address: %v, CandidateIndex: %v, IterationCount: %v, ThrottlingRate: %v)",
-                chosenPeer.Address,
-                CandidateIndex_ - 1,
-                SinglePassIterationCount_,
-                PeerAddressToThrottlingRate_[chosenPeer.Address]);
-        }
-
         auto schemaData = req->mutable_schema_data();
         ToProto(schemaData->mutable_table_id(), Options_->TableId);
         schemaData->set_revision(Options_->MountRevision);
         schemaData->set_schema_size(Options_->TableSchema->GetMemoryUsage());
-        if (sendSchema) {
+        if (schemaRequested) {
+            req->SetRequestHeavy(true);
             ToProto(schemaData->mutable_schema(), *Options_->TableSchema);
         }
 
         req->Attachments() = Keyset_;
 
-        // NB: Throttling on table schema (if any) will be performed on response.
         BytesToThrottle_ += GetByteSize(req->Attachments());
 
         NProfiling::TWallTimer dataWaitTimer;
-        req->Invoke()
-            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TDataNodeServiceProxy::TErrorOrRspLookupRowsPtr& rspOrError) {
-                OnResponse(
-                    std::move(rspOrError),
-                    std::move(channel),
-                    std::move(dataWaitTimer),
-                    std::move(reader),
-                    std::move(chosenPeer),
-                    sendSchema);
-            }).Via(SessionInvoker_));
+        auto future = req->Invoke();
+        SetSessionFuture(future.As<void>());
+        future.Subscribe(BIND(
+            &TLookupRowsSession::OnLookupRowsResponse,
+            MakeStrong(this),
+            std::move(channel),
+            std::move(peers),
+            std::move(dataWaitTimer),
+            std::move(reader))
+            .Via(SessionInvoker_));
     }
 
-    void OnResponse(
-        const TDataNodeServiceProxy::TErrorOrRspLookupRowsPtr& rspOrError,
+    void OnLookupRowsResponse(
         const IChannelPtr& channel,
-        NProfiling::TWallTimer dataWaitTimer,
+        const TPeerList& peers,
+        const NProfiling::TWallTimer& dataWaitTimer,
         const TReplicationReaderPtr& reader,
-        const TPeer& chosenPeer,
-        bool sentSchema)
+        const TDataNodeServiceProxy::TErrorOrRspLookupRowsPtr& rspOrError)
     {
-        SessionOptions_.ChunkReaderStatistics->DataWaitTime.fetch_add(
-            dataWaitTimer.GetElapsedValue(),
-            std::memory_order::relaxed);
-
-        const auto& peerAddress = chosenPeer.Address;
+        bool backup = IsBackup(rspOrError);
+        const auto& respondedPeer = backup ? peers[1] : peers[0];
 
         if (!rspOrError.IsOK()) {
             ProcessError(
                 rspOrError,
-                chosenPeer,
-                TError(
-                    "Error fetching rows from node %v",
-                    peerAddress));
-
-            YT_LOG_WARNING("Data node lookup request failed "
-                "(Address: %v, PeerType: %v, CandidateIndex: %v, IterationCount: %v, BytesToThrottle: %v)",
-                peerAddress,
-                chosenPeer.Type,
-                CandidateIndex_ - 1,
-                SinglePassIterationCount_,
-                BytesToThrottle_);
+                respondedPeer,
+                TError("Error fetching rows from node %v",
+                    respondedPeer.Address));
 
             RequestRows();
             return;
@@ -3021,101 +2956,73 @@ private:
             response->GetTotalSize(),
             std::memory_order::relaxed);
 
-        reader->AccountTraffic(response->GetTotalSize(), *chosenPeer.NodeDescriptor);
+        SessionOptions_.ChunkReaderStatistics->DataWaitTime.fetch_add(
+            dataWaitTimer.GetElapsedValue(),
+            std::memory_order::relaxed);
 
-        if (response->has_request_schema() && response->request_schema()) {
-            YT_VERIFY(!response->fetched_rows());
-            YT_VERIFY(!sentSchema);
+        reader->AccountTraffic(response->GetTotalSize(), *respondedPeer.NodeDescriptor);
+
+        // COMPAT(akozhikhov): Get rid of fetched_rows field.
+        if (response->request_schema() || !response->fetched_rows()) {
             YT_LOG_DEBUG("Sending schema upon data node request "
-                "(Address: %v, PeerType: %v, CandidateIndex: %v, IterationCount: %v)",
-                peerAddress,
-                chosenPeer.Type,
-                CandidateIndex_ - 1,
-                SinglePassIterationCount_);
+                "(Backup: %v, SchemaRequested: %v, RowsFetched: %v)",
+                backup,
+                response->request_schema(),
+                response->fetched_rows());
 
-            RequestRowsFromPeer(channel, reader, chosenPeer, true);
+            if (backup) {
+                SendLookupRowsRequest(
+                    GetChannel(respondedPeer.Address),
+                    {respondedPeer},
+                    reader,
+                    /*schemaRequested*/ true);
+            } else {
+                SendLookupRowsRequest(
+                    channel,
+                    peers,
+                    reader,
+                    /*schemaRequested*/ true);
+            }
+
             return;
         }
 
         if (response->net_throttling() || response->disk_throttling()) {
-            double throttlingRate =
-                ReaderConfig_->NetQueueSizeFactor * response->net_queue_size() +
-                ReaderConfig_->DiskQueueSizeFactor * response->disk_queue_size();
-            YT_LOG_DEBUG("Peer is throttling on lookup (Address: %v, "
-                "NetThrottling: %v, NetQueueSize: %v, DiskThrottling: %v, DiskQueueSize: %v, "
-                "CandidateIndex: %v, IterationCount: %v, ThrottlingRate: %v)",
-                peerAddress,
+            YT_LOG_DEBUG("Peer is throttling on lookup "
+                "(Address: %v, Backup: %v, "
+                "NetThrottling: %v, NetQueueSize: %v, DiskThrottling: %v, DiskQueueSize: %v)",
+                respondedPeer.Address,
+                backup,
                 response->net_throttling(),
                 response->net_queue_size(),
                 response->disk_throttling(),
-                response->disk_queue_size(),
-                CandidateIndex_ - 1,
-                SinglePassIterationCount_,
-                throttlingRate);
-
-            PeerAddressToThrottlingRate_[peerAddress] = throttlingRate;
-        } else if (PeerAddressToThrottlingRate_.contains(peerAddress)) {
-            PeerAddressToThrottlingRate_.erase(peerAddress);
-        }
-
-        if (!response->fetched_rows()) {
-            // NB(akozhikhov): If data node waits for schema from other tablet node,
-            // then we switch to next data node in order to warm up as many schema caches as possible.
-            YT_LOG_DEBUG("Data node is waiting for schema from other tablet "
-                "(Address: %v, PeerType: %v, CandidateIndex: %v, IterationCount: %v)",
-                peerAddress,
-                chosenPeer.Type,
-                CandidateIndex_ - 1,
-                SinglePassIterationCount_);
-
-            WaitedForSchemaForTooLong_ = true;
-
-            RequestRows();
-            return;
+                response->disk_queue_size());
         }
 
         if (response->has_chunk_reader_statistics()) {
             UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, response->chunk_reader_statistics());
         }
 
-        ProcessAttachedVersionedRowset(response);
+        auto result = response->Attachments()[0];
+        TotalBytesReceived_ += result.Size();
+        BytesToThrottle_ += result.Size();
 
-        if (ShouldThrottle(peerAddress, BytesToThrottle_ > 0)) {
+        if (ShouldThrottle(respondedPeer.Address, BytesToThrottle_ > 0)) {
             BytesThrottled_ += BytesToThrottle_;
             BandwidthThrottler_->Acquire(BytesToThrottle_);
             BytesToThrottle_ = 0;
         }
 
-        OnSessionSucceeded();
+        OnSessionSucceeded(backup, std::move(result));
     }
 
-    void OnSessionSucceeded()
+    void OnSessionSucceeded(bool backup, TSharedRef result)
     {
         YT_LOG_DEBUG("Finished processing rows response "
-            "(BytesThrottled: %v, CandidateIndex: %v, IterationCount: %v)",
+            "(BytesThrottled: %v, Backup: %v)",
             BytesThrottled_,
-            CandidateIndex_ - 1,
-            SinglePassIterationCount_);
-        Promise_.TrySet(FetchedRowset_);
-    }
-
-    template <class TRspPtr>
-    void ProcessAttachedVersionedRowset(const TRspPtr& response)
-    {
-        YT_VERIFY(!FetchedRowset_);
-        FetchedRowset_ = response->Attachments()[0];
-        TotalBytesReceived_ += FetchedRowset_.Size();
-        BytesToThrottle_ += FetchedRowset_.Size();
-    }
-
-    // Sort is called after iterating over all candidates.
-    void SortCandidates()
-    {
-        SortBy(SinglePassCandidates_, [&] (const TPeer& candidate) {
-            auto throttlingRate = PeerAddressToThrottlingRate_.find(candidate.Address);
-            //! NB: We use -1 because even in case of throttling |throttlingRate| may be zero.
-            return throttlingRate != PeerAddressToThrottlingRate_.end() ? throttlingRate->second : -1.;
-        });
+            backup);
+        Promise_.TrySet(std::move(result));
     }
 
     bool UpdatePeerBlockMap(const TPeerProbeResult& probeResult) override
@@ -3125,6 +3032,11 @@ private:
         }
 
         return false;
+    }
+
+    int GetDesiredPeerCount() const
+    {
+        return (SessionOptions_.HedgingManager || ReaderConfig_->LookupRpcHedgingDelay) ? 2 : 1;
     }
 
     void OnCanceled(const TError& error) override
