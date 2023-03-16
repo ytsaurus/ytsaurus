@@ -193,8 +193,7 @@ public:
         : TCallbackBase(std::move(other))
     { }
 
-    template <typename TInvokeFunction>
-    TCallback(TIntrusivePtr<NYT::NDetail::TBindStateBase>&& bindState, TInvokeFunction invokeFunction)
+    TCallback(TIntrusivePtr<NYT::NDetail::TBindStateBase>&& bindState, TTypedInvokeFunction invokeFunction)
         : TCallbackBase(std::move(bindState))
     {
         UntypedInvoke = reinterpret_cast<TUntypedInvokeFunction>(invokeFunction);
