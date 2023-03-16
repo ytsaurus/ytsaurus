@@ -1,3 +1,5 @@
+# PYTHON_ARGCOMPLETE_OK
+
 from __future__ import print_function
 
 from yt.common import copy_docstring_from
