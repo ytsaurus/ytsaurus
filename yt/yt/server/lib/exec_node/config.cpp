@@ -195,7 +195,7 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("statistics_throttler", &TThis::StatisticsThrottler)
         .Default();
-    registrar.Parameter("running_job_sending_backoff", &TThis::RunningJobInfoSendingBackoff)
+    registrar.Parameter("running_job_statistics_sending_backoff", &TThis::RunningJobStatisticsSendingBackoff)
         .Default();
     registrar.Parameter("use_new_job_tracker_service", &TThis::UseNewJobTrackerService)
         .Default();
@@ -265,7 +265,7 @@ void TControllerAgentConnectorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("statistics_throttler", &TThis::StatisticsThrottler)
         .DefaultCtor([] () { return NConcurrency::TThroughputThrottlerConfig::Create(1_MB); });
-    registrar.Parameter("running_job_sending_backoff", &TThis::RunningJobInfoSendingBackoff)
+    registrar.Parameter("running_job_statistics_sending_backoff", &TThis::RunningJobStatisticsSendingBackoff)
         .Default(TDuration::Seconds(30));
 }
 
@@ -286,7 +286,9 @@ void TControllerAgentConnectorConfig::ApplyDynamicInplace(const TControllerAgent
         StatisticsThrottler->Limit = dynamicConfig.StatisticsThrottler->Limit;
         StatisticsThrottler->Period = dynamicConfig.StatisticsThrottler->Period;
     }
-    RunningJobInfoSendingBackoff = dynamicConfig.RunningJobInfoSendingBackoff.value_or(RunningJobInfoSendingBackoff);
+    RunningJobStatisticsSendingBackoff = dynamicConfig.RunningJobStatisticsSendingBackoff.value_or(
+        RunningJobStatisticsSendingBackoff);
+
     Postprocess();
 }
 

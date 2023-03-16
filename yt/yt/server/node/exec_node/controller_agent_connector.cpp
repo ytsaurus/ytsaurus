@@ -46,8 +46,8 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
         }))
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(
         ControllerAgentConnectorPool_->CurrentConfig_->StatisticsThrottler))
-    , RunningJobInfoSendingBackoff_(
-        ControllerAgentConnectorPool_->CurrentConfig_->RunningJobInfoSendingBackoff)
+    , RunningJobStatisticsSendingBackoff_(
+        ControllerAgentConnectorPool_->CurrentConfig_->RunningJobStatisticsSendingBackoff)
 {
     YT_LOG_DEBUG("Controller agent connector created (AgentAddress: %v, IncarnationId: %v)",
         ControllerAgentDescriptor_.Address,
@@ -85,7 +85,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated()
     const auto& currentConfig = *ControllerAgentConnectorPool_->CurrentConfig_;
 
     HeartbeatExecutor_->SetPeriod(currentConfig.HeartbeatPeriod);
-    RunningJobInfoSendingBackoff_ = currentConfig.RunningJobInfoSendingBackoff;
+    RunningJobStatisticsSendingBackoff_ = currentConfig.RunningJobStatisticsSendingBackoff;
     StatisticsThrottler_->Reconfigure(currentConfig.StatisticsThrottler);
 }
 
@@ -124,7 +124,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
 
     context->AgentDescriptor = ControllerAgentDescriptor_;
     context->StatisticsThrottler = StatisticsThrottler_;
-    context->RunningJobInfoSendingBackoff = RunningJobInfoSendingBackoff_;
+    context->RunningJobStatisticsSendingBackoff = RunningJobStatisticsSendingBackoff_;
     context->LastTotalConfirmationTime = LastTotalConfirmationTime_;
     context->SentEnqueuedJobs = std::move(EnqueuedFinishedJobs_);
 
