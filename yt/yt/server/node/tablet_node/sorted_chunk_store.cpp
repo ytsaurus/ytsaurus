@@ -649,16 +649,13 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
 
         if (InMemoryMode_ == NTabletClient::EInMemoryMode::Uncompressed) {
             if (auto* lookupHashTable = chunkState->LookupHashTable.Get()) {
-                auto chunkRowIndexes = NNewTableClient::BuildChunkRowIndexesUsingLookupTable(
+
+                auto keysWithHints = NNewTableClient::BuildKeyHintsUsingLookupTable(
                     *lookupHashTable,
-                    std::move(keys),
-                    Schema_,
-                    chunkMeta,
-                    ChunkId_,
-                    chunkState->BlockCache.Get());
+                    std::move(keys));
 
                 return NNewTableClient::CreateVersionedChunkReader(
-                    std::move(chunkRowIndexes),
+                    std::move(keysWithHints),
                     timestamp,
                     chunkMeta,
                     Schema_,

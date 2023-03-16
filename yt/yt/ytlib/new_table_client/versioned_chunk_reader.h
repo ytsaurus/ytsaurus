@@ -57,13 +57,9 @@ TSharedRange<NTableClient::TRowRange> ClipRanges(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<ui32>  BuildChunkRowIndexesUsingLookupTable(
+TKeysWithHints BuildKeyHintsUsingLookupTable(
     const NTableClient::TChunkLookupHashTable& lookupHashTable,
-    TRange<NTableClient::TLegacyKey> keys,
-    const NTableClient::TTableSchemaPtr& tableSchema,
-    const NTableClient::TCachedVersionedChunkMetaPtr& chunkMeta,
-    NChunkClient::TChunkId chunkId,
-    NChunkClient::IBlockCache* blockCache);
+    TSharedRange<NTableClient::TLegacyKey> keys);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -910,16 +910,13 @@ protected:
                     chunkMeta);
 
             if (chunkState->LookupHashTable) {
-                auto chunkRowIndexes = NNewTableClient::BuildChunkRowIndexesUsingLookupTable(
+
+                auto keysWithHints = NNewTableClient::BuildKeyHintsUsingLookupTable(
                     *chunkState->LookupHashTable,
-                    lookupKeys,
-                    chunkState->TableSchema,
-                    chunkMeta,
-                    memoryReader->GetChunkId(),
-                    blockCache.Get());
+                    lookupKeys);
 
                 versionedReader = NNewTableClient::CreateVersionedChunkReader(
-                    chunkRowIndexes,
+                    std::move(keysWithHints),
                     timestamp,
                     chunkMeta,
                     readSchema,

@@ -104,6 +104,12 @@ public:
         return Ptr_[NBitmapDetail::GetWordIndex(index)] & NBitmapDetail::GetBitMask(index);
     }
 
+    void Prefetch(size_t index) const
+    {
+        // Prefetch data into all levels of the cache hierarchy.
+        Y_PREFETCH_READ(Ptr_ + NBitmapDetail::GetWordIndex(index), 3);
+    }
+
     const TByte* GetData() const
     {
         return Ptr_;

@@ -8,27 +8,39 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCompressedVectorView
+class TCompressedViewBase
 {
 public:
     using TWord = ui64;
     static constexpr ui8 WordSize = sizeof(TWord) * 8;
 
-    TCompressedVectorView() = default;
+    TCompressedViewBase() = default;
 
-    explicit TCompressedVectorView(const ui64* ptr);
+    TCompressedViewBase(ui32 size, ui8 width);
+
+    size_t GetSize() const;
+    size_t GetWidth() const;
+    size_t GetSizeInWords() const;
+    size_t GetSizeInBytes() const;
+
+private:
+    ui32 Size_ = 0;
+    ui8 Width_ = 0;
+};
+
+class TCompressedVectorView
+    : public TCompressedViewBase
+{
+public:
+    TCompressedVectorView() = default;
 
     TCompressedVectorView(const ui64* ptr, ui32 size, ui8 width);
 
-    size_t GetSize() const;
+    explicit TCompressedVectorView(const ui64* ptr);
 
-    size_t GetWidth() const;
+    Y_FORCE_INLINE void Prefetch(size_t index) const;
 
-    size_t GetSizeInWords() const;
-
-    size_t GetSizeInBytes() const;
-
-    TWord operator[] (size_t index) const;
+    Y_FORCE_INLINE TWord operator[] (size_t index) const;
 
     template <class T>
     void UnpackTo(T* output);
@@ -36,91 +48,42 @@ public:
     template <class T>
     void UnpackTo(T* output, ui32 start, ui32 end);
 
-private:
+protected:
     static constexpr int WidthBitsOffset = 56;
 
     const ui64* Ptr_ = nullptr;
-    ui32 Size_ = 0;
-    ui8 Width_ = 0;
 };
 
-template <class T>
-size_t UnpackBitVector(TCompressedVectorView view, std::vector<T>* container)
+class TCompressedVectorView32
+    : public TCompressedViewBase
 {
-    container->resize(view.GetSize());
-    view.UnpackTo(container->data());
-    return view.GetSizeInWords();
-}
+public:
+    TCompressedVectorView32() = default;
 
-template <class T>
-size_t UnpackBitVector(const ui64* input, std::vector<T>* container)
-{
-    TCompressedVectorView view(input);
-    return UnpackBitVector(view, container);
-}
+    TCompressedVectorView32(const ui64* ptr, ui32 size, ui8 width);
+
+    explicit TCompressedVectorView32(const ui64* ptr);
+
+    Y_FORCE_INLINE void Prefetch(size_t index) const;
+
+    Y_FORCE_INLINE ui32 operator[] (size_t index) const;
+
+private:
+    const ui64* Ptr_ = nullptr;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TCompressedVectorView::TCompressedVectorView(const ui64* ptr)
-    : Ptr_(ptr)
-    , Size_(*ptr & MaskLowerBits(WidthBitsOffset))
-    , Width_(*ptr >> WidthBitsOffset)
-{
-    if (Width_ != 0) {
-        ++Ptr_;
-    }
-}
+template <class T>
+size_t UnpackBitVector(TCompressedVectorView view, std::vector<T>* container);
 
-inline TCompressedVectorView::TCompressedVectorView(const ui64* ptr, ui32 size, ui8 width)
-    // Considering width here helps to avoid extra branch when extracting element.
-    : Ptr_(ptr + (width != 0))
-    , Size_(size)
-    , Width_(width)
-{
-    YT_ASSERT((*ptr & MaskLowerBits(WidthBitsOffset)) == size);
-    YT_ASSERT((*ptr >> WidthBitsOffset) == width);
-}
-
-inline size_t TCompressedVectorView::GetSize() const
-{
-    return Size_;
-}
-
-inline size_t TCompressedVectorView::GetWidth() const
-{
-    return Width_;
-}
-
-inline size_t TCompressedVectorView::GetSizeInWords() const
-{
-    return 1 + (GetWidth() * GetSize() + WordSize - 1) / WordSize;
-}
-
-inline size_t TCompressedVectorView::GetSizeInBytes() const
-{
-    return GetSizeInWords() * sizeof(ui64);
-}
-
-inline TCompressedVectorView::TWord TCompressedVectorView::operator[] (size_t index) const
-{
-    YT_ASSERT(index < GetSize());
-
-    auto width = GetWidth();
-
-    ui64 bitIndex = index * width;
-
-    auto* data = Ptr_ + bitIndex / WordSize;
-    ui8 offset = bitIndex % WordSize;
-
-    TWord w = data[0] >> offset;
-    if (offset + width > WordSize) {
-        w |= data[1] << (WordSize - offset);
-    }
-
-    return w & MaskLowerBits(width);
-}
+template <class T>
+size_t UnpackBitVector(const ui64* input, std::vector<T>* container);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
+#define BIT_PACKING_INL_H_
+#include "bit_packing-inl.h"
+#undef BIT_PACKING_INL_H_

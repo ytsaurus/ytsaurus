@@ -223,7 +223,7 @@ std::vector<TSpanMatching> BuildReadWindows(
 }
 
 std::vector<TSpanMatching> BuildReadWindows(
-    TRange<ui32> chunkRowIndexes,
+    const TKeysWithHints& keysWithHints,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     int /*keyColumnCount*/)
 {
@@ -235,15 +235,15 @@ std::vector<TSpanMatching> BuildReadWindows(
 
     size_t dataBlocksSize = blockMeta->data_blocks_size();
 
-    auto it = chunkRowIndexes.Begin();
+    auto it = keysWithHints.RowIndexesToKeysIndexes.begin();
     auto startIt = it;
 
-    while (it != chunkRowIndexes.End() && *it == SentinelRowIndex) {
+    while (it != keysWithHints.RowIndexesToKeysIndexes.end() && it->first == SentinelRowIndex) {
         ++it;
     }
 
-    while (it != chunkRowIndexes.End()) {
-        auto currentChunkRowIndex = *it;
+    while (it != keysWithHints.RowIndexesToKeysIndexes.end()) {
+        auto currentChunkRowIndex = it->first;
 
         blockIndex = ExponentialSearch(blockIndex, dataBlocksSize, [&] (size_t index) {
             return blockMeta->data_blocks(index).chunk_row_count() <= currentChunkRowIndex;
@@ -259,11 +259,11 @@ std::vector<TSpanMatching> BuildReadWindows(
         ui32 startIndex = i > 0 ? blockMeta->data_blocks(i - 1).chunk_row_count() : 0;
 
 
-        while (it != chunkRowIndexes.End() && (*it == SentinelRowIndex || *it < upperRowLimit)) {
+        while (it != keysWithHints.RowIndexesToKeysIndexes.end() && (it->first == SentinelRowIndex || it->first < upperRowLimit)) {
             ++it;
         }
 
-        TReadSpan controlSpan(startIt - chunkRowIndexes.begin(), it - chunkRowIndexes.begin());
+        TReadSpan controlSpan(startIt - keysWithHints.RowIndexesToKeysIndexes.begin(), it - keysWithHints.RowIndexesToKeysIndexes.begin());
         readWindows.emplace_back(TReadSpan(startIndex, upperRowLimit), controlSpan);
 
         startIt = it;
@@ -271,7 +271,7 @@ std::vector<TSpanMatching> BuildReadWindows(
 
     if (startIt != it) {
         auto chunkRowCount = chunkMeta->Misc().row_count();
-        TReadSpan controlSpan(startIt - chunkRowIndexes.begin(), it - chunkRowIndexes.begin());
+        TReadSpan controlSpan(startIt - keysWithHints.RowIndexesToKeysIndexes.begin(), it - keysWithHints.RowIndexesToKeysIndexes.begin());
         // Add window for ranges after chunk end bound. It will be used go generate sentinel rows for lookup.
         readWindows.emplace_back(TReadSpan(chunkRowCount, chunkRowCount), controlSpan);
     }
@@ -591,9 +591,29 @@ bool IsKeys(const TSharedRange<TLegacyKey>&)
     return true;
 }
 
-bool IsKeys(const std::vector<ui32>&)
+bool IsKeys(const TKeysWithHints&)
 {
     return true;
+}
+
+size_t GetReadItemCount(const TSharedRange<TRowRange>& readItems)
+{
+    return readItems.size();
+}
+
+size_t GetReadItemCount(const TSharedRange<TLegacyKey>& readItems)
+{
+    return readItems.size();
+}
+
+size_t GetReadItemCount(const std::vector<ui32>& readItems)
+{
+    return readItems.size();
+}
+
+size_t GetReadItemCount(const TKeysWithHints& readItems)
+{
+    return readItems.Keys.size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -621,7 +641,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     YT_VERIFY(produceAll || timestamp != NTableClient::AllCommittedTimestamp);
 
-    auto readItemCount = readItems.size();
+    auto readItemCount = GetReadItemCount(readItems);
 
     TCpuDurationIncrementingGuard timingGuard(&readerStatistics->InitTime);
 
@@ -750,8 +770,8 @@ IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TLegacyKey>>(
     TReaderStatisticsPtr readerStatistics);
 
 template
-IVersionedReaderPtr CreateVersionedChunkReader<std::vector<ui32>>(
-    std::vector<ui32> readItems,
+IVersionedReaderPtr CreateVersionedChunkReader<TKeysWithHints>(
+    TKeysWithHints readItems,
     TTimestamp timestamp,
     TCachedVersionedChunkMetaPtr chunkMeta,
     const TTableSchemaPtr& tableSchema,
@@ -815,105 +835,11 @@ TSharedRange<TRowRange> ConvertLegacyRanges(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <EValueType Type>
-struct TRefineColumn
-{
-    static void Do(
-        const std::vector<std::pair<ui32, ui32>>& indexList,
-        std::vector<std::pair<ui32, ui32>>* nextIndexList,
-        TRange<TLegacyKey> keys,
-        TChunkId chunkId,
-        int columnId,
-        int chunkKeyColumnCount,
-        const NNewTableClient::TPreparedChunkMeta& preparedChunkMeta,
-        NChunkClient::IBlockCache* blockCache)
-    {
-        auto [groupId, columnIndexInGroup] = preparedChunkMeta.ColumnGroupInfos[columnId];
-
-        ui32 chunkRowIndex = SentinelRowIndex;
-
-        TGroupBlockHolder groupBlockolder(
-            preparedChunkMeta.ColumnGroups[groupId].BlockIds,
-            preparedChunkMeta.ColumnGroups[groupId].BlockChunkRowCounts,
-            preparedChunkMeta.ColumnGroups[groupId].MergedMetas);
-
-        TColumnBase columnBase(&groupBlockolder, columnIndexInGroup);
-
-        ui32 position = 0;
-        // Index of segment is used for exponential search.
-        ui32 segmentIndex = 0;
-
-        TUnversionedValue value;
-        TKeySegmentReader<Type, false> columnReader;
-
-        // By default TKeySegmentReader is initialized to null column.
-        if (columnId < chunkKeyColumnCount) {
-            columnReader.Reset();
-        }
-
-        for (auto [rowIndex, keyIndex] : indexList) {
-            if (rowIndex != chunkRowIndex) {
-                chunkRowIndex = rowIndex;
-
-                if (chunkRowIndex >= columnReader.GetSegmentRowLimit()) {
-                    if (auto blockIndex = groupBlockolder.SkipToBlock(chunkRowIndex)) {
-                        NChunkClient::TBlockId blockId(chunkId, *blockIndex);
-                        auto cachedBlock = blockCache->FindBlock(blockId, NChunkClient::EBlockType::UncompressedData).Block;
-
-                        if (!cachedBlock) {
-                            THROW_ERROR_EXCEPTION("Using lookup hash table with compressed in memory mode is not supported");
-                        }
-
-                        groupBlockolder.SetBlock(std::move(cachedBlock.Data));
-                        segmentIndex = 0;
-                    }
-
-                    auto segmentsMetas = columnBase.GetSegmentMetas<TKeyMeta<Type>>();
-
-                    // Search segment
-                    auto segmentIt = ExponentialSearch(
-                        segmentsMetas.begin() + segmentIndex,
-                        segmentsMetas.end(),
-                        [&] (auto segmentMetaIt) {
-                            return segmentMetaIt->ChunkRowCount <= chunkRowIndex;
-                        });
-
-                    YT_VERIFY(segmentIt != segmentsMetas.end());
-                    segmentIndex = std::distance(segmentsMetas.begin(), segmentIt);
-
-                    const auto* segmentMeta = &segmentsMetas[segmentIndex];
-                    const ui64* data = reinterpret_cast<const ui64*>(columnBase.GetBlock().Begin() + segmentMeta->DataOffset);
-
-                    if (preparedChunkMeta.FullNewMeta) {
-                        DoInitLookupKeySegment</*NewMeta*/ true>(&columnReader, segmentMeta, data);
-                    } else {
-                        DoInitLookupKeySegment</*NewMeta*/ false>(&columnReader, segmentMeta, data);
-                    }
-
-                    position = 0;
-                }
-
-                position = columnReader.SkipTo(chunkRowIndex, position);
-                columnReader.Extract(&value, position);
-            }
-
-            if (keys[keyIndex][columnId] == value) {
-                nextIndexList->emplace_back(rowIndex, keyIndex);
-            }
-        }
-    }
-};
-
-std::vector<ui32> BuildChunkRowIndexesUsingLookupTable(
+TKeysWithHints BuildKeyHintsUsingLookupTable(
     const NTableClient::TChunkLookupHashTable& lookupHashTable,
-    TRange<TLegacyKey> keys,
-    const TTableSchemaPtr& tableSchema,
-    const NTableClient::TCachedVersionedChunkMetaPtr& chunkMeta,
-    TChunkId chunkId,
-    NChunkClient::IBlockCache* blockCache)
+    TSharedRange<TLegacyKey> keys)
 {
     auto lookupInHashTableStart = GetCpuInstant();
-    auto keyTypes = GetKeyTypes(tableSchema);
     TCompactVector<TLinearProbeHashTable::TValue, 1> foundChunkRowIndexes;
 
     // Build list of chunkRowIndexes and corresponding keyIndexesCandidates.
@@ -935,44 +861,15 @@ std::vector<ui32> BuildChunkRowIndexesUsingLookupTable(
     std::sort(indexList.begin(), indexList.end());
     TCpuDuration sortTime = GetCpuInstant() - sortStart;
 
-    std::vector<std::pair<ui32, ui32>> nextIndexList;
-    nextIndexList.reserve(std::ssize(indexList));
-
-    auto refineStart = GetCpuInstant();
-
-    auto preparedChunkMeta = chunkMeta->GetPreparedChunkMeta();
-
-    // Refine indexList.
-    for (ui32 columnId = 0; columnId < keyTypes.size(); ++columnId) {
-        DispatchByDataType<TRefineColumn>(
-            keyTypes[columnId],
-            indexList,
-            &nextIndexList,
-            keys,
-            chunkId,
-            columnId,
-            chunkMeta->GetChunkKeyColumnCount(),
-            *preparedChunkMeta,
-            blockCache);
-
-        indexList.clear();
-        nextIndexList.swap(indexList);
-    }
-
-    std::vector<ui32> chunkRowIndexes(std::ssize(keys), SentinelRowIndex);
-    for (auto [rowIndex, keyIndex] : indexList) {
-        YT_VERIFY(chunkRowIndexes[keyIndex] == SentinelRowIndex);
-        chunkRowIndexes[keyIndex] = rowIndex;
-    }
-
-    TCpuDuration refineTime = GetCpuInstant() - refineStart;
-
-    YT_LOG_DEBUG("BuildChunkRowIndexesUsingLookupTable (Lookup/Sort/Refine Time: %v / %v / %v)",
+    YT_LOG_DEBUG("BuildKeyHintsUsingLookupTable (Lookup/Sort Time: %v / %v )",
         CpuDurationToDuration(lookupInHashTableTime),
-        CpuDurationToDuration(sortTime),
-        CpuDurationToDuration(refineTime));
+        CpuDurationToDuration(sortTime));
 
-    return chunkRowIndexes;
+    if (!keys.empty()) {
+        indexList.emplace_back(SentinelRowIndex, keys.size() - 1);
+    }
+
+    return {indexList, keys};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
