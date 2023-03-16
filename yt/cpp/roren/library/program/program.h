@@ -48,9 +48,10 @@ template <class TConfig>
 TConfig TProgram::LoadConfig(const TString& fileName)
 {
     auto configText = TFileInput{fileName}.ReadAll();
-    TConfig config;
-    NProtobufJson::Json2Proto(std::move(configText), config);
-    return config;
+    NProtobufJson::TJson2ProtoConfig parserConfig;
+    parserConfig.AllowComments = true;
+    parserConfig.AllowUnknownFields = false;
+    return NProtobufJson::Json2Proto<TConfig>(std::move(configText), parserConfig);
 }
 
 template <class TConfig>
