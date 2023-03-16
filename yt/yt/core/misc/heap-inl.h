@@ -90,50 +90,62 @@ void SiftUp(TIterator begin, TIterator end, TIterator current)
     SiftUp(std::move(begin), std::move(end), std::move(current), std::less<>(), [] (size_t) {});
 }
 
-template <class TIterator, class TComparer>
-void MakeHeap(TIterator begin, TIterator end, TComparer comparer)
+template <class TIterator, class TComparer, class TOnAssign>
+void MakeHeap(TIterator begin, TIterator end, TComparer comparer, TOnAssign onAssign)
 {
     size_t size = std::distance(begin, end);
     if (size > 1) {
         for (size_t current = size / 2; current > 0; ) {
             --current;
-            SiftDown(begin, end, begin + current, comparer);
+            SiftDown(begin, end, begin + current, comparer, onAssign);
         }
     }
+}
+
+template <class TIterator, class TComparer>
+void MakeHeap(TIterator begin, TIterator end, TComparer comparer)
+{
+    MakeHeap(std::move(begin), std::move(end), std::move(comparer), [] (size_t) {});
 }
 
 template <class TIterator>
 void MakeHeap(TIterator begin, TIterator end)
 {
-    MakeHeap(std::move(begin), std::move(end), std::less<>());
+    MakeHeap(std::move(begin), std::move(end), std::less<>(), [] (size_t) {});
+}
+
+template <class TIterator, class TComparer, class TOnAssign>
+void AdjustHeapFront(TIterator begin, TIterator end, TComparer comparer, TOnAssign onAssign)
+{
+    if (std::distance(begin, end) > 1) {
+        SiftDown(begin, end, begin, std::move(comparer), std::move(onAssign));
+    }
 }
 
 template <class TIterator, class TComparer>
 void AdjustHeapFront(TIterator begin, TIterator end, TComparer comparer)
 {
-    if (end - begin > 1) {
-        SiftDown(begin, end, begin, comparer);
-    }
+    AdjustHeapFront(std::move(begin), std::move(end), std::move(comparer), [] (size_t) {});
 }
 
 template <class TIterator>
 void AdjustHeapFront(TIterator begin, TIterator end)
 {
-    AdjustHeapFront(std::move(begin), std::move(end), std::less<>());
+    AdjustHeapFront(std::move(begin), std::move(end), std::less<>(), [] (size_t) {});
 }
 
 template <class TIterator, class TComparer, class TOnAssign>
 void AdjustHeapBack(TIterator begin, TIterator end, TComparer comparer, TOnAssign onAssign)
 {
-    if (end - begin > 1) {
-        SiftUp(begin, end, end - 1, comparer, onAssign);
+    if (std::distance(begin, end) > 1) {
+        SiftUp(begin, end, end - 1, std::move(comparer), std::move(onAssign));
     }
 }
 
 template <class TIterator, class TComparer>
 void AdjustHeapBack(TIterator begin, TIterator end, TComparer comparer)
 {
-    AdjustHeapBack(std::move(begin), std::move(end), comparer, [] (size_t) {});
+    AdjustHeapBack(std::move(begin), std::move(end), std::move(comparer), [] (size_t) {});
 }
 
 template <class TIterator>
@@ -168,7 +180,7 @@ void ExtractHeap(TIterator begin, TIterator end)
 template <class TIterator, class TComparer, class TOnAssign>
 void AdjustHeapItem(TIterator begin, TIterator end, TIterator current, TComparer comparer, TOnAssign onAssign)
 {
-    // It intentionally duplicates SiftUp and SiftDown code by optimization reasons.
+    // It intentionally duplicates SiftUp and SiftDown code for optimization reasons.
     bool hasSiftedUp = false;
     {
         auto value = std::move(*current);
