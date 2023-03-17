@@ -48,15 +48,15 @@ object Dependencies {
   )
 
   lazy val spark = Seq(
-    "org.apache.spark" %% "spark-core",
-    "org.apache.spark" %% "spark-sql"
+    "tech.ytsaurus.spark" %% "spark-core",
+    "tech.ytsaurus.spark" %% "spark-sql"
   ).map(_ % sparkForkVersion).map(_ excludeAll
     ExclusionRule(organization = "org.apache.httpcomponents")
   ).map(_ % Provided)
 
   lazy val sparkRuntime = Seq(
-    "org.apache.spark" %% "spark-core",
-    "org.apache.spark" %% "spark-sql"
+    "tech.ytsaurus.spark" %% "spark-core",
+    "tech.ytsaurus.spark" %% "spark-sql"
   ).map(_ % sparkForkVersion).map(_ excludeAll
     ExclusionRule(organization = "org.apache.httpcomponents")
   ).excludeLogging

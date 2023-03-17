@@ -1,5 +1,4 @@
 resolvers += MavenCache("local-maven", Path.userHome / ".m2" / "repository")
-resolvers += ("YandexMediaReleases" at "https://bucket.yandex-team.ru/v1/maven/yandex_media_releases")
 
 addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.14.10")
 libraryDependencies ++= Seq(

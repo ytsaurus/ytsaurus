@@ -311,7 +311,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         unpack_tar = "tar --warning=no-unknown-keyword -xf spark.tgz -C {}".format(
             spark_home)
         move_java = "cp -r /opt/jdk11 ./tmpfs/jdk11"
-        run_launcher = "./tmpfs/jdk11/bin/java -Xmx{0} -cp spark-yt-launcher.jar".format(
+        run_launcher = "./tmpfs/jdk11/bin/java -Xmx{0} -cp spark-yt-launcher.jar -Djava.net.preferIPv6Addresses=true".format(
             xmx)
         spark_conf = get_spark_conf(config=config, enablers=enablers)
 
