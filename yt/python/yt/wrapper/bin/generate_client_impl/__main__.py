@@ -1,5 +1,6 @@
 import argparse
 import inspect
+import os
 from copy import deepcopy
 
 
@@ -34,6 +35,8 @@ def join_args(args_tokens, indentation, line_limit=100):
 
 
 def main():
+    os.environ["GENERATE_CLIENT"] = "YES"
+
     from yt.wrapper.cypress_commands import _KwargSentinelClass, _MapOrderSorted
     from yt.wrapper import client_api
 

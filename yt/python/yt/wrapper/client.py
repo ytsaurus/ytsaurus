@@ -1,26 +1,30 @@
 from .config import get_config, set_option
+from .constants import FEEDBACK_URL
 from .client_helpers import create_class_method, are_signatures_equal
 from . import client_api
 
+import os
 import sys
 from copy import deepcopy
 
 
-def report_and_exit(diag):
+def report_and_exit(error):
     sys.stderr.write(
-        """Found difference in signatures beteween YtClient and client_api.py
+        """Found difference in signatures between YtClient and client_api.py
 Error: {}
 
 Most likely, you need to run:
-$ ya make yt/python/yt/wrapper/bin
-$ yt/python/yt/wrapper/bin/generate_client_impl/generate_client_impl
-        yt/python/yt/wrapper/client_impl.py
+$ cd yt/python/yt/wrapper/bin/generate_client_impl
+$ ./generate_client_impls.sh
 
-If the problem persists, consider reporting it to YTADMINREQ.
+If the problem persists, consider reporting it to {}.
 
 Exiting.
-""".format(diag))
-    sys.exit(1)
+""".format(error, FEEDBACK_URL))
+
+    # Generate client program should ignore mismatch error.
+    if os.environ["GENERATE_CLIENT"] != "YES":
+        sys.exit(1)
 
 
 try:

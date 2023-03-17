@@ -94,6 +94,23 @@ def test_docs_exist():
 
 
 @authors("ignat")
+def test_client_impl():
+    if yatest_common is None:
+        pytest.skip()
+
+    generate_client_impl = arcadia_interop.search_binary_path("generate_client_impl")
+
+    _, client_impl_yandex_generated_path = tempfile.mkstemp()
+
+    client_impl_yandex_data = arcadia_interop.resource.find("/modules/client_impl_yandex.py")
+
+    subprocess.check_call([generate_client_impl, client_impl_yandex_generated_path], stderr=sys.stderr)
+
+    with open(client_impl_yandex_generated_path, "rb") as fin:
+        assert client_impl_yandex_data == fin.read()
+
+
+@authors("ignat")
 def test_ypath_join():
     assert ypath_join("a", "b") == "a/b"
     assert ypath_join("a/", "b") == "a/b"

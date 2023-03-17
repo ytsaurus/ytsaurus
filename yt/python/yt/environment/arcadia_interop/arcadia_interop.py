@@ -15,6 +15,11 @@ try:
 except ImportError:
     yatest_common = None
 
+try:
+    import library.python.resource as resource
+except ImportError:
+    resource = None
+
 
 PROGRAMS = [("master", "master/bin"),
             ("clock", "clock_server/bin"),
