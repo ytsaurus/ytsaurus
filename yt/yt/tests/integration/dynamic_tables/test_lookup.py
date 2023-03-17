@@ -1511,3 +1511,33 @@ class TestLookupRpcProxy(TestLookup):
             export_summary_as_max=True,
             verbose=False,
             default=0) > 0
+
+    @authors("akozhikhov")
+    def test_lookup_request_timeout_slack(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        keys = [{"key": i} for i in range(100)]
+        rows = [{"key": i, "value": str(i)} for i in range(100)]
+        empty_result = [yson.YsonEntity() for i in range(100)]
+
+        insert_rows("//tmp/t", rows)
+        assert lookup_rows("//tmp/t", keys, timeout=1000) == rows
+
+        def _set_timeout_slack_options(value):
+            set("//sys/rpc_proxies/@config", {"cluster_connection": {"lookup_rows_request_timeout_slack": value}})
+            proxy_name = ls("//sys/rpc_proxies")[0]
+
+            def _config_updated():
+                config = get("//sys/rpc_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+                return config["cluster_connection"]["lookup_rows_request_timeout_slack"] == value
+            wait(_config_updated)
+
+        assert lookup_rows("//tmp/t", keys, timeout=1000, enable_partial_result=True) == rows
+
+        _set_timeout_slack_options(1)
+        assert lookup_rows("//tmp/t", keys, timeout=1000, enable_partial_result=True) == rows
+
+        _set_timeout_slack_options(1000)
+        assert lookup_rows("//tmp/t", keys, timeout=1000, enable_partial_result=True) == empty_result

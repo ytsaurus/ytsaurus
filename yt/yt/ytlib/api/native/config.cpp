@@ -217,6 +217,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Alias("max_rows_per_read_request")
         .GreaterThan(0)
         .Default(1000);
+    registrar.Parameter("lookup_rows_request_timeout_slack", &TThis::LookupRowsRequestTimeoutSlack)
+        .Default(TDuration::Zero());
 
     registrar.Parameter("default_get_tablet_errors_limit", &TThis::DefaultGetTabletErrorsLimit)
         .Default(5)
