@@ -63,10 +63,10 @@ object CommonPlugin extends AutoPlugin {
     externalResolvers := Resolver.combineDefaultResolvers(resolvers.value.toVector, mavenCentral = false),
     resolvers += Resolver.mavenLocal,
     resolvers += Resolver.mavenCentral,
-    resolvers += ("YandexSparkReleases" at "https://bucket.yandex-team.ru/v1/maven/yandex_spark_releases"),
-    resolvers += ("YandexSparkSnapshots" at "https://bucket.yandex-team.ru/v1/maven/yandex_spark_snapshots"),
+    resolvers += ("YTsaurusSparkReleases" at "https://repo1.maven.org/maven2"),
+    resolvers += ("YTsaurusSparkSnapshots" at "https://s01.oss.sonatype.org/content/repositories/snapshots/"),
     ThisBuild / version := (ThisBuild / spytClusterVersion).value,
-    organization := "ru.yandex",
+    organization := "tech.ytsaurus",
     name := s"spark-yt-${name.value}",
     scalaVersion := "2.12.8",
     javacOptions ++= Seq("-source", "11", "-target", "11"),
@@ -84,13 +84,13 @@ object CommonPlugin extends AutoPlugin {
     assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = false),
     assembly / test := {},
     publishTo := {
-      val nexus = "https://bucket.yandex-team.ru/v1/maven/"
       if (isSnapshot.value)
-        Some("snapshots" at nexus + "yandex_spark_snapshots")
+        Some("snapshots" at "https://s01.oss.sonatype.org/content/repositories/snapshots/")
       else
-        Some("releases" at nexus + "yandex_spark_releases")
+        Some("releases" at "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/")
     },
     credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
+    credentials += Credentials(Path.userHome / ".sbt" / ".ossrh_credentials "),
     libraryDependencies ++= testDeps,
     Test / fork := true,
     printTestClasspath := {
@@ -98,8 +98,8 @@ object CommonPlugin extends AutoPlugin {
     },
     ThisBuild / spytSparkForkDependency := {
       Seq(
-        "org.apache.spark" %% "spark-core",
-        "org.apache.spark" %% "spark-sql"
+        "tech.ytsaurus.spark" %% "spark-core",
+        "tech.ytsaurus.spark" %% "spark-sql"
       ).map(_ % sparkForkVersion).map(_ excludeAll
         ExclusionRule(organization = "org.apache.httpcomponents")
       ).map(_ % Provided)

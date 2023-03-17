@@ -38,7 +38,7 @@ lazy val `spark-fork` = (project in file("spark-fork"))
     tarArchivePath := Some(target.value / s"spark.tgz")
   )
   .settings(
-    pythonSetupName := "setup-yandex.py",
+    pythonSetupName := "setup-ytsaurus.py",
     pythonBuildDir := sparkHome.value / "python"
   )
   .settings(

@@ -26,6 +26,7 @@ trait SparkLauncher {
   private val masterClass = "org.apache.spark.deploy.master.Master"
   private val workerClass = "org.apache.spark.deploy.worker.Worker"
   private val historyServerClass = "org.apache.spark.deploy.history.HistoryServer"
+  private val commonJavaOpts = Seq("-Djava.net.preferIPv6Addresses=true")
 
   case class SparkDaemonConfig(memory: String,
                                startTimeout: Duration)
@@ -59,7 +60,12 @@ trait SparkLauncher {
     log.info("Start Spark master")
     val config = SparkDaemonConfig.fromProperties("master", "512M")
     prepareSparkConf()
-    val thread = runSparkThread(masterClass, config.memory, namedArgs = Map("host" -> ytHostnameOrIpAddress))
+    val thread = runSparkThread(
+      masterClass,
+      config.memory,
+      namedArgs = Map("host" -> ytHostnameOrIpAddress),
+      systemProperties = commonJavaOpts
+    )
     val address = readAddressOrDie("master", config.startTimeout, thread)
     MasterService("Master", address, thread)
   }
@@ -75,7 +81,8 @@ trait SparkLauncher {
         "memory" -> memory,
         "host" -> ytHostnameOrIpAddress
       ),
-      positionalArgs = Seq(s"spark://${master.hostAndPort}")
+      positionalArgs = Seq(s"spark://${master.hostAndPort}"),
+      systemProperties = commonJavaOpts
     )
     val address = readAddressOrDie("worker", config.startTimeout, thread)
 
@@ -94,7 +101,7 @@ trait SparkLauncher {
     val thread = runSparkThread(
       historyServerClass,
       config.memory,
-      systemProperties = javaOpts.flatten
+      systemProperties = javaOpts.flatten ++ commonJavaOpts
     )
     val address = readAddressOrDie("history", config.startTimeout, thread)
     BasicService("Spark History Server", address.hostAndPort, thread)

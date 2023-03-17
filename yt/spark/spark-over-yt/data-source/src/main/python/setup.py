@@ -11,23 +11,24 @@ scripts = [os.path.join(SCRIPTS_PATH, x) for x in os.listdir(SCRIPTS_PATH)
            if os.path.isfile(os.path.join(SCRIPTS_PATH, x))]
 
 setuptools.setup(
-    name='yandex-spyt',
+    name='ytsaurus-spyt',
     version=__version__,
-    author='Alexandra Belousova',
-    author_email='sashbel@yandex-team.ru',
-    description='Spark over YT high-level client',
-    url='https://github.yandex-team.ru/taxi-dwh/spark-over-yt',
+    author='YTsaurus',
+    author_email='dev@ytsaurus.tech',
+    description='SPYT high-level client',
+    url='https://github.com/ytsaurus/ytsaurus/tree/main/yt/spark/spark-over-yt',
     packages=[
         'spyt',
         'spyt.jars'
     ],
     install_requires=[
-        'yandex-pyspark=={}'.format(__spark_version__),
-        'yandex-yt>=0.9.29',
+        'ytsaurus-pyspark=={}'.format(__spark_version__),
+        'yandex-yt>=0.9.29', # TODO(alex-shishkin): Use opensource version
         'pyarrow',
         'pyyaml'
     ],
     scripts=scripts,
+    license='http://www.apache.org/licenses/LICENSE-2.0',
     package_dir={
         'spyt.jars': 'deps/jars'
     },
