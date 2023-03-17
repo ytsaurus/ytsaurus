@@ -2517,7 +2517,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("akozhikhov")
     def test_lookup_throttler(self):
-
         sync_create_cells(1)
 
         self._create_sorted_table("//tmp/t")
@@ -2568,7 +2567,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("akozhikhov")
     def test_write_throttler(self):
-
         sync_create_cells(1)
 
         self._create_sorted_table("//tmp/t")
@@ -2578,22 +2576,27 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         throttled_write_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="tablet/throttled_write_count")
 
-        def _insert():
-            start_time = time.time()
-            for i in range(5):
-                self._retry_while_throttling(
-                    lambda: insert_rows("//tmp/t", [{"key": i, "value": str(i)}]),
-                    check_result=False)
-            return time.time() - start_time
+        def _insert(overdraft_expected, max_attempts=5):
+            overdrafted = False
+            for i in range(max_attempts):
+                try:
+                    insert_rows("//tmp/t", [{"key": i, "value": str(i)}])
+                except YtError as e:
+                    if not e.contains_code(yt_error_codes.RequestThrottled):
+                        raise e
+                    overdrafted = True
+                    break
 
-        assert _insert() > 2
-        assert throttled_write_count.get_delta() > 0
+            return overdraft_expected == overdrafted
+
+        assert _insert(True)
+        wait(lambda: throttled_write_count.get_delta() > 0)
 
         remove("//tmp/t/@throttlers")
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        assert _insert() < 3
+        assert _insert(False)
 
     @authors("savrus")
     def test_mounted_table_attributes_update_validation(self):
