@@ -888,6 +888,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
         TVersionedLookupRowsOptions versionedOptions;
         versionedOptions.ColumnFilter = Options.ColumnFilter;
         versionedOptions.KeepMissingRows = Options.KeepMissingRows;
+        versionedOptions.EnablePartialResult = Options.EnablePartialResult;
         versionedOptions.UseLookupCache = Options.UseLookupCache;
         versionedOptions.Timestamp = Options.Timestamp;
         versionedOptions.CachedSyncReplicasTimeout = Options.CachedSyncReplicasTimeout;

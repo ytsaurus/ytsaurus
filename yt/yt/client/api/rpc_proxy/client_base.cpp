@@ -806,6 +806,7 @@ TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
     }
     req->set_timestamp(options.Timestamp);
     req->set_keep_missing_rows(options.KeepMissingRows);
+    req->set_enable_partial_result(options.EnablePartialResult);
     req->set_replica_consistency(static_cast<NProto::EReplicaConsistency>(options.ReplicaConsistency));
     if (options.UseLookupCache) {
         req->set_use_lookup_cache(*options.UseLookupCache);
