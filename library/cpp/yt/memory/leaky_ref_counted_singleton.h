@@ -6,6 +6,10 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define DECLARE_LEAKY_REF_COUNTED_SINGLETON_FRIEND()    \
+    template <class T>                                  \
+    friend struct ::NYT::TRefCountedWrapper;
+
 template <class T, class... TArgs>
 TIntrusivePtr<T> LeakyRefCountedSingleton(TArgs&&... args);
 
