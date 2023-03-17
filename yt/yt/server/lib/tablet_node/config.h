@@ -860,7 +860,11 @@ class TReplicatorHintConfig
     : public NYTree::TYsonStruct
 {
 public:
+    //! Set of replica clusters that are banned to replicate to.
     THashSet<TString> BannedReplicaClusters;
+
+    //! If |false| replication to the cluster shall be banned by replicating clusters.
+    bool EnableIncomingReplication;
 
     REGISTER_YSON_STRUCT(TReplicatorHintConfig);
 

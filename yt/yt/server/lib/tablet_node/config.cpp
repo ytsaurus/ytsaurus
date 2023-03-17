@@ -895,6 +895,9 @@ void TReplicatorHintConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("banned_replica_clusters", &TThis::BannedReplicaClusters)
         .Default();
+
+    registrar.Parameter("enable_incoming_replication", &TThis::EnableIncomingReplication)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2878,6 +2878,35 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         with raises_yt_error():
             alter_table("//tmp/t", schema_modification="unversioned_update")
 
+    @authors("akozhikhov")
+    def test_cluster_incoming_replication(self):
+        self._create_cells()
+
+        self._create_replicated_table(
+            "//tmp/t",
+            schema=self.SIMPLE_SCHEMA_SORTED,
+            replicated_table_options={"enable_replicated_table_tracker": True},
+            external_cell_tag=11)
+
+        replica1 = create_table_replica("//tmp/t", "primary", "//tmp/r1", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r1", replica1, schema=self.SIMPLE_SCHEMA_SORTED, replica_driver=self.primary_driver)
+
+        replica2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r2", replica2, schema=self.SIMPLE_SCHEMA_SORTED)
+
+        sync_enable_table_replica(replica1)
+        sync_enable_table_replica(replica2)
+
+        wait(lambda: get("#{0}/@mode".format(replica1)) == "sync")
+        wait(lambda: get("#{0}/@mode".format(replica2)) == "async")
+
+        set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication",
+            False,
+            driver=self.primary_driver)
+
+        wait(lambda: get("#{0}/@mode".format(replica1)) == "async")
+        wait(lambda: get("#{0}/@mode".format(replica2)) == "sync")
+
 
 ##################################################################
 

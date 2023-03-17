@@ -474,6 +474,8 @@ public:
             .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(false))));
         EXPECT_CALL(*client, GetNode("//sys/@hydra_read_only", _))
             .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(false))));
+        EXPECT_CALL(*client, GetNode("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication", _))
+            .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(true))));
     }
 
     void MockGoodBundle(const TStrictMockClientPtr& client, const TString& tablePath = TablePath1)
@@ -1203,6 +1205,68 @@ TEST_F(TReplicatedTableTrackerTest, ReplicaContentTypes)
     Sleep(WarmUpPeriod);
     Host_->ValidateReplicaModeChanged(dataReplica, ETableReplicaMode::Async);
     Host_->ValidateReplicaModeRemained(queueReplica);
+}
+
+TEST_F(TReplicatedTableTrackerTest, ClusterStateChecks)
+{
+    Config_->ClusterStateCache->RefreshTime = CheckPeriod / 2;
+    Config_->ClusterStateCache->ExpireAfterFailedUpdateTime = CheckPeriod / 2;
+    Host_->ChangeConfig(Config_);
+
+    auto client = Host_->GetMockClient(Cluster1);
+    MockGoodReplicaCluster(client);
+    MockGoodBundle(client);
+    MockGoodTable(client);
+
+    auto tableId = Host_->CreateReplicatedTable();
+    auto replicaId = Host_->CreateTableReplica(tableId);
+
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
+
+    EXPECT_CALL(*client, GetNode("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication", _))
+        .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(false))));
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
+
+    EXPECT_CALL(*client, GetNode("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication", _))
+        .WillRepeatedly(Return(MakeFuture<TYsonString>(TError(NYTree::EErrorCode::ResolveError, "Failure"))));
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
+
+    EXPECT_CALL(*client, GetNode("//sys/@hydra_read_only", _))
+        .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(true))));
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
+
+    EXPECT_CALL(*client, GetNode("//sys/@hydra_read_only", _))
+        .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(false))));
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
+
+    EXPECT_CALL(*client, GetNode("//sys/@config/enable_safe_mode", _))
+        .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(true))));
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
+
+    EXPECT_CALL(*client, GetNode("//sys/@config/enable_safe_mode", _))
+        .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(false))));
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
+
+    NApi::TCheckClusterLivenessOptions options{
+        .CheckCypressRoot = true,
+        .CheckSecondaryMasterCells = true,
+    };
+    EXPECT_CALL(*client, CheckClusterLiveness(options))
+        .WillRepeatedly(Return(MakeFuture(TError("Failure"))));
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
+
+    EXPECT_CALL(*client, CheckClusterLiveness(options))
+        .WillRepeatedly(Return(VoidFuture));
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 }
 
 #endif

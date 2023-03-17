@@ -105,6 +105,57 @@ DEFINE_REFCOUNTED_TYPE(TClusterLivenessCheckCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TClusterIncomingReplicationCheckCache)
+
+class TClusterIncomingReplicationCheckCache
+    : public TAsyncExpiringCache<TClusterKey, void>
+{
+public:
+    TClusterIncomingReplicationCheckCache(
+        TAsyncExpiringCacheConfigPtr config,
+        TClusterClientCachePtr clusterClientCache)
+        : TAsyncExpiringCache(
+            std::move(config),
+            Logger.WithTag("Cache: ClusterIncomingReplicationCheck"))
+        , ClusterClientCache_(std::move(clusterClientCache))
+    { }
+
+protected:
+    TFuture<void> DoGet(
+        const TClusterKey& key,
+        bool /*isPeriodicUpdate*/) noexcept override
+    {
+        auto clientOrError = ClusterClientCache_->Get(key);
+        if (!clientOrError.IsOK()) {
+            return MakeFuture(TError(clientOrError));
+        }
+
+        return clientOrError.Value()->GetNode("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication")
+            .Apply(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+                if (!resultOrError.IsOK()) {
+                    // COMPAT(akozhikhov).
+                    if (resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                        return;
+                    }
+                    THROW_ERROR_EXCEPTION("Failed to check whether incoming replication to cluster %Qv is enabled",
+                        key)
+                        << TError(resultOrError);
+                }
+                if (!ConvertTo<bool>(resultOrError.Value())) {
+                    THROW_ERROR_EXCEPTION("Replica cluster %Qv incoming replication is disabled",
+                        key);
+                }
+            }));
+    }
+
+private:
+    const TClusterClientCachePtr ClusterClientCache_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TClusterIncomingReplicationCheckCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TClusterSafeModeCheckCache)
 
 class TClusterSafeModeCheckCache
@@ -323,6 +374,7 @@ public:
         , ClusterLivenessChecker_(Config_->ClusterStateCache, ClusterClientCache_)
         , ClusterSafeModeChecker_(Config_->ClusterStateCache, ClusterClientCache_)
         , HydraReadOnlyChecker_(Config_->ClusterStateCache, ClusterClientCache_)
+        , ClusterIncomingReplicationChecker_(Config_->ClusterStateCache, ClusterClientCache_)
         , BundleHealthChecker_(Config_->BundleHealthCache, ClusterClientCache_)
     {
         MaxActionQueueSize_.store(Config_->MaxActionQueueSize);
@@ -378,6 +430,9 @@ public:
             return error;
         }
         if (auto error = HydraReadOnlyChecker_.Get(key); !error.IsOK()) {
+            return error;
+        }
+        if (auto error = ClusterIncomingReplicationChecker_.Get(key); !error.IsOK()) {
             return error;
         }
 
@@ -922,6 +977,7 @@ private:
     TCacheSynchronousAdapter<TClusterLivenessCheckCache> ClusterLivenessChecker_;
     TCacheSynchronousAdapter<TClusterSafeModeCheckCache> ClusterSafeModeChecker_;
     TCacheSynchronousAdapter<THydraReadOnlyCheckCache> HydraReadOnlyChecker_;
+    TCacheSynchronousAdapter<TClusterIncomingReplicationCheckCache> ClusterIncomingReplicationChecker_;
 
     TCacheSynchronousAdapter<TNewBundleHealthCache> BundleHealthChecker_;
 
@@ -1493,6 +1549,7 @@ private:
             ClusterLivenessChecker_.Reconfigure(Config_->ClusterStateCache);
             ClusterSafeModeChecker_.Reconfigure(Config_->ClusterStateCache);
             HydraReadOnlyChecker_.Reconfigure(Config_->ClusterStateCache);
+            ClusterIncomingReplicationChecker_.Reconfigure(Config_->ClusterStateCache);
             BundleHealthChecker_.Reconfigure(Config_->BundleHealthCache);
 
             MaxActionQueueSize_.store(Config_->MaxActionQueueSize);
