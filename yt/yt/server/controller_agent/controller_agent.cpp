@@ -1066,7 +1066,7 @@ public:
     }
 
     DEFINE_SIGNAL(void(), SchedulerConnecting);
-    DEFINE_SIGNAL(void(), SchedulerConnected);
+    DEFINE_SIGNAL(void(TIncarnationId), SchedulerConnected);
     DEFINE_SIGNAL(void(), SchedulerDisconnected);
 
 private:
@@ -1330,7 +1330,7 @@ private:
         ZombieOperationOrchids_->Clean();
         ZombieOperationOrchids_->StartPeriodicCleaning(CancelableControlInvoker_);
 
-        SchedulerConnected_.Fire();
+        SchedulerConnected_.Fire(IncarnationId_);
     }
 
     void DoDisconnect(const TError& error) noexcept
@@ -2367,7 +2367,7 @@ bool TControllerAgent::UnregisterJobForMonitoring(TOperationId operationId, TJob
 }
 
 DELEGATE_SIGNAL(TControllerAgent, void(), SchedulerConnecting, *Impl_);
-DELEGATE_SIGNAL(TControllerAgent, void(), SchedulerConnected, *Impl_);
+DELEGATE_SIGNAL(TControllerAgent, void(TIncarnationId), SchedulerConnected, *Impl_);
 DELEGATE_SIGNAL(TControllerAgent, void(), SchedulerDisconnected, *Impl_);
 
 ////////////////////////////////////////////////////////////////////
