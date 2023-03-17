@@ -147,7 +147,7 @@ def copy_binary(destination, binary_name, binary_root, *source_paths):
 
 def copy_misc_binaries(destination, binary_root=None):
     copy_binary(destination, "yt_env_watcher", binary_root, "yt/python/yt/environment", "yt/packages/latest/yt/python/yt/environment")
-    copy_binary(destination, "logrotate", binary_root, "infra/nanny/logrotate", "yt/packages/latest/infra/nanny/logrotate")
+    copy_binary(destination, "logrotate", binary_root, "contrib/tools/logrotate", "yt/packages/latest/contrib/tools/logrotate")
 
 
 # Supposed to be used in core YT components only.
