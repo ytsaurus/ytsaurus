@@ -40,7 +40,9 @@ TEST(ParseGraph, Simple)
         "  Outputs:\n"
         "    TConcurrentExecutionBlock\n"
         "      ParDo: TParDoTree{second, third}\n";
-    EXPECT_EQ(result.ExecutionBlock->GetDebugDescription(), expected);
+
+    EXPECT_EQ(std::ssize(result), 1);
+    EXPECT_EQ(result[0].ExecutionBlock->GetDebugDescription(), expected);
 }
 
 class TMyStatefulParDo
@@ -75,5 +77,6 @@ TEST(ParseGraph, WithStateful)
         "TSerializedExecutionBlock\n"
         "  ParDo: TParDoTree{first-stateless, second-stateful (wrapped), third-stateless}\n";
 
-    EXPECT_EQ(result.ExecutionBlock->GetDebugDescription(), expected);
+    EXPECT_EQ(std::ssize(result), 1);
+    EXPECT_EQ(result[0].ExecutionBlock->GetDebugDescription(), expected);
 }

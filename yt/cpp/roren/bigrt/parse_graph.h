@@ -22,7 +22,7 @@ struct TParseResult
     TString InputTag;
 };
 
-TParseResult ParseBigRtPipeline(const TPipeline& pipeline);
+std::vector<TParseResult> ParseBigRtPipeline(const TPipeline& pipeline);
 
 ////////////////////////////////////////////////////////////////////////////////
 

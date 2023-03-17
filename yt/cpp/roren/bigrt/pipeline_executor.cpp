@@ -348,13 +348,15 @@ void TBigRtPipelineExecutor::Run(const TPipeline& pipeline)
 
     // TODO: once V2GraphParsing is stable we should remove old parsing.
     if (Config_.GetEnableV2GraphParsing()) {
-        auto parseResult = NPrivate::ParseBigRtPipeline(pipeline);
+        auto parseResultList = NPrivate::ParseBigRtPipeline(pipeline);
 
-        auto& args = processorArgsList.emplace_back();
-        args.RegisterWriterFunctionList = parseResult.RegisterWriterFunctionList;
-        args.InputTag = parseResult.InputTag;
-        args.UserCodeExecutor = parseResult.ExecutionBlock;
-        args.StateManagerFactoryFunctionList = parseResult.CreateStateManagerFunctionList;
+        for (const auto& parseResult : parseResultList) {
+            auto& args = processorArgsList.emplace_back();
+            args.RegisterWriterFunctionList = parseResult.RegisterWriterFunctionList;
+            args.InputTag = parseResult.InputTag;
+            args.UserCodeExecutor = parseResult.ExecutionBlock;
+            args.StateManagerFactoryFunctionList = parseResult.CreateStateManagerFunctionList;
+        }
     } else {
         auto parsedPipeline = NRoren::NPrivate::ParseBigRtResharder(pipeline);
         Y_VERIFY(parsedPipeline.size() > 0);

@@ -326,10 +326,13 @@ def yt_cluster(yt_stuff):
     yield yt_stuff.get_server()
 
 
-@pytest.mark.parametrize("enable_v2_graph_parsing", [
+parametrize_enable_v2_graph_parsing = pytest.mark.parametrize("enable_v2_graph_parsing", [
     pytest.param("false", id="v1_graph_parsing"),
     pytest.param("true", id="v2_graph_parsing"),
 ])
+
+
+@parametrize_enable_v2_graph_parsing
 def test_smoke(yt_cluster, yt_client, test_home_ypath, enable_v2_graph_parsing: str):
     os.environ["SET_DEFAULT_LOCAL_YT_PARAMETERS"] = "1"
 
@@ -852,34 +855,33 @@ def test_in_memory_dict_resolver(yt_stuff):
     ]
 
 
-def test_multiple_consuming_systems(yt_stuff):
+@parametrize_enable_v2_graph_parsing
+def test_multiple_consuming_systems(yt_stuff, test_home_ypath, enable_v2_graph_parsing: str):
     os.environ["SET_DEFAULT_LOCAL_YT_PARAMETERS"] = "1"
     yt_cluster = yt_stuff.get_server()
     yt_client = yt_stuff.get_yt_client()
 
-    home_dir = "//home/test_multiple_consuming_systems"
-    yt_client.create("map_node", home_dir)
-
-    input_queue1 = f"{home_dir}/input1"
+    input_queue1 = f"{test_home_ypath}/input1"
     yt_queue_create(yt_client, input_queue1)
     yt_queue_create_consumer(yt_client, input_queue1, "cons1")
 
-    input_queue2 = f"{home_dir}/input2"
+    input_queue2 = f"{test_home_ypath}/input2"
     yt_queue_create(yt_client, input_queue2)
     yt_queue_create_consumer(yt_client, input_queue2, "cons2")
 
-    output_queue = f"{home_dir}/output"
+    output_queue = f"{test_home_ypath}/output"
     yt_queue_create(yt_client, output_queue)
 
     with open("pipeline_config", "w") as outf:
         outf.write(f"""\
 {{
     "RorenConfig": {{
+        "EnableV2GraphParsing": {enable_v2_graph_parsing},
         "Consumers": [
             {{
                 "ConsumingSystemConfig": {{
                     "Cluster": "{yt_cluster}",
-                    "MainPath": "{home_dir}/consuming_system1",
+                    "MainPath": "{test_home_ypath}/consuming_system1",
                     "MaxShards": 2
                 }},
                 "InputTag": "in1"
@@ -887,7 +889,7 @@ def test_multiple_consuming_systems(yt_stuff):
             {{
                 "ConsumingSystemConfig": {{
                     "Cluster": "{yt_cluster}",
-                    "MainPath": "{home_dir}/consuming_system2",
+                    "MainPath": "{test_home_ypath}/consuming_system2",
                     "MaxShards": 2
                 }},
                 "InputTag": "in2"
