@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/guid.h>
 
 #include <yt/yt/core/profiling/public.h>
@@ -169,13 +168,13 @@ public:
 
     using TAsyncChildrenList = TCompactVector<TTraceId, 4>;
     TAsyncChildrenList GetAsyncChildren() const;
-    bool AddAsyncChild(const TTraceId& traceId);
+    bool AddAsyncChild(TTraceId traceId);
 
     void IncrementElapsedCpuTime(NProfiling::TCpuDuration delta);
     NProfiling::TCpuDuration GetElapsedCpuTime() const;
     TDuration GetElapsedTime() const;
 
-    static TTraceContextPtr NewRoot(TString spanName, TTraceId traceIt = TTraceId());
+    static TTraceContextPtr NewRoot(TString spanName, TTraceId traceId = {});
 
     static TTraceContextPtr NewChildFromRpc(
         const NProto::TTracingExt& ext,

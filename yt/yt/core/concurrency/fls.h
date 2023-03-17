@@ -10,8 +10,8 @@ namespace NYT::NConcurrency {
 
 namespace NDetail {
 
-typedef uintptr_t (*TFlsSlotCtor)();
-typedef void (*TFlsSlotDtor)(uintptr_t);
+using TFlsSlotCtor = uintptr_t(*)();
+using TFlsSlotDtor = void(*)(uintptr_t);
 
 int FlsAllocateSlot(TFlsSlotDtor dtor);
 

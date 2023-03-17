@@ -47,7 +47,7 @@ TEST(TPropagatingStorageTest, Simple)
                     ASSERT_EQ(storage.GetOrCrash<TFirst>().Value, "inner");
                     storage.Remove<TFirst>();
                     ASSERT_FALSE(storage.Has<TFirst>());
-                    ASSERT_EQ(storage.TryGet<TFirst>(), nullptr);
+                    ASSERT_EQ(storage.Find<TFirst>(), nullptr);
                 })
                     .AsyncVia(actionQueue->GetInvoker())
                     .Run())

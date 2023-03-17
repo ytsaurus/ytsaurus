@@ -1,6 +1,6 @@
-#include "debug_helper.h"
+#include "debug_helpers.h"
 
-#include "yt/yt/core/concurrency/propagating_storage.h"
+#include <yt/yt/core/concurrency/propagating_storage.h>
 
 namespace NYT::NTracing {
 
@@ -8,10 +8,8 @@ namespace NYT::NTracing {
 
 TTraceContext* RetrieveTraceContextFromPropStorage(NConcurrency::TPropagatingStorage* storage)
 {
-    if (auto result = storage->TryGet<NTracing::TTraceContextPtr>()) {
-        return result->Get();
-    }
-    return nullptr;
+    auto result = storage->Find<TTraceContextPtr>();
+    return result ? result->Get() : nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

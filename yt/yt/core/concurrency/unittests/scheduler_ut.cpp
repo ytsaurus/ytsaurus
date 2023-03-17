@@ -90,9 +90,9 @@ int RecursiveFunction(size_t maxDepth, size_t currentDepth)
 
 // It seems that aarch64 requires more stack to throw an exception.
 #if defined(__aarch64__) || defined(__arm64__)
-    constexpr size_t requiredStackSpace = 60 * 1024;
+    constexpr size_t requiredStackSpace = 60_KB;
 #else
-    constexpr size_t requiredStackSpace = 40 * 1024;
+    constexpr size_t requiredStackSpace = 40_KB;
 #endif
 
     if (!CheckFreeStackSpace(requiredStackSpace)) {
@@ -1349,9 +1349,6 @@ class TFairShareSchedulerTest
     : public TSchedulerTest
     , public ::testing::WithParamInterface<std::tuple<int, int, int, TDuration>>
 { };
-
-using NProfiling::GetCpuInstant;
-using NProfiling::CpuDurationToDuration;
 
 const auto FSSleepQuantum = SleepQuantum * 3;
 const auto FSWorkTime = FSSleepQuantum * 5;

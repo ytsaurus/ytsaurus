@@ -58,7 +58,7 @@ public:
     const T& GetOrCrash() const;
 
     template <class T>
-    const T* TryGet() const;
+    const T* Find() const;
 
     template <class T>
     std::optional<T> Exchange(T value);
@@ -77,7 +77,7 @@ private:
 
     explicit TPropagatingStorage(TIntrusivePtr<TImpl> impl);
 
-    const std::any* GetRaw(const std::type_info& typeInfo) const;
+    const std::any* FindRaw(const std::type_info& typeInfo) const;
     std::optional<std::any> ExchangeRaw(std::any value);
     std::optional<std::any> RemoveRaw(const std::type_info& typeInfo);
 
@@ -106,11 +106,16 @@ private:
     TPropagatingStorage OldStorage_;
 };
 
-class TNullPropagatingStorageGuard : public TPropagatingStorageGuard
+////////////////////////////////////////////////////////////////////////////////
+
+class TNullPropagatingStorageGuard
+    : public TPropagatingStorageGuard
 {
 public:
     TNullPropagatingStorageGuard();
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 class TPropagatingValueGuard
