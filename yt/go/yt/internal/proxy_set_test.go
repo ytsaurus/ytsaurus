@@ -64,8 +64,10 @@ func TestProxySet(t *testing.T) {
 	updateErr = nil
 	updateResult = []string{"a", "b", "c", "d"}
 
+	// Wait current active proxies expire.
 	time.Sleep(time.Second)
 
+	// Trigger active set update.
 	_, _ = set.PickRandom(context.Background())
 	time.Sleep(time.Millisecond * 100)
 
@@ -73,7 +75,13 @@ func TestProxySet(t *testing.T) {
 
 	updateErr = nil
 	updateResult = []string{"a", "b", "c", "d", "e", "f", "g"}
+
+	// Wait current active proxies expire.
 	time.Sleep(time.Second)
+
+	// Trigger active set update.
+	_, _ = set.PickRandom(context.Background())
+	time.Sleep(time.Millisecond * 100)
 
 	active := pickRepeatedly()
 	require.Len(t, active, 5)
