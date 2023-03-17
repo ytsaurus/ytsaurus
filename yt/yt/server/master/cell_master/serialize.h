@@ -109,6 +109,7 @@ DEFINE_ENUM(EMasterReign,
     ((AllowSettingChunkMergerMode)                                  (2229))  // aleksandra-zh
     ((ObjectRevisions)                                              (2230))  // shakurov
     ((IncreaseCollocationSizeLimit)                                 (2231))  // akozhikhov
+    ((FlagToDisableIncomingReplication)                             (2232))  // akozhikhov
     // 23.1
     ((RipEnableUnlockCommand)                                       (2300))  // babenko
     ((RipEnableRevisionChangingForBuiltinAttributes)                (2301))  // babenko

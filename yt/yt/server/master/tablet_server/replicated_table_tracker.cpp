@@ -197,7 +197,9 @@ protected:
         return AllSucceeded(std::vector<TFuture<void>>{
             CheckClusterLiveness(key),
             CheckClusterSafeMode(key),
-            CheckHydraIsReadOnly(key)});
+            CheckHydraIsReadOnly(key),
+            CheckClusterIncomingReplication(key),
+        });
     }
 
 private:
@@ -223,7 +225,8 @@ private:
                     "Error getting enable_safe_mode attribute for cluster %Qv",
                     clusterName);
                 if (ConvertTo<bool>(error.Value())) {
-                    THROW_ERROR_EXCEPTION("Safe mode is enabled for cluster %Qv", clusterName);
+                    THROW_ERROR_EXCEPTION("Safe mode is enabled for cluster %Qv",
+                        clusterName);
                 }
             }));
     }
@@ -232,6 +235,7 @@ private:
     {
         return key.Client->GetNode("//sys/@hydra_read_only")
             .Apply(BIND([clusterName = key.ClusterName] (const TErrorOr<TYsonString>& error) {
+                // COMPAT(akozhikhov).
                 if (error.FindMatching(NYTree::EErrorCode::ResolveError)) {
                     return;
                 }
@@ -240,7 +244,27 @@ private:
                     "Error getting hydra_read_only attribute for cluster %Qv",
                     clusterName);
                 if (ConvertTo<bool>(error.Value())) {
-                    THROW_ERROR_EXCEPTION("Hydra read only mode is activated for cluster %Qv", clusterName);
+                    THROW_ERROR_EXCEPTION("Hydra read only mode is activated for cluster %Qv",
+                        clusterName);
+                }
+            }));
+    }
+
+    TFuture<void> CheckClusterIncomingReplication(const TClusterStateCacheKey& key) const
+    {
+        return key.Client->GetNode("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication")
+            .Apply(BIND([clusterName = key.ClusterName] (const TErrorOr<TYsonString>& resultOrError) {
+                // COMPAT(akozhikhov).
+                if (resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    return;
+                }
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    resultOrError,
+                    "Failed to check whether incoming replication to cluster %Qv is enabled",
+                    clusterName);
+                if (!ConvertTo<bool>(resultOrError.Value())) {
+                    THROW_ERROR_EXCEPTION("Replica cluster %Qv incoming replication is disabled",
+                        clusterName);
                 }
             }));
     }
