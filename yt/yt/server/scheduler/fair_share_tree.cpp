@@ -2350,9 +2350,8 @@ private:
             const TJobResources& preemptedResourcesDelta = job->ResourceLimits();
             EJobPreemptionReason preemptionReason = preemptedJob.PreemptionReason;
             preemptedJobResources[preemptionReason][operationId] += preemptedResourcesDelta;
-            // TODO(eshcherbin): Maybe use some other time statistic.
-            // Exec duration does not capture the job preparation time (e.g. downloading artifacts).
-            preemptedJobResourceTimes[preemptionReason][operationId] += preemptedResourcesDelta * static_cast<i64>(job->GetExecDuration().Seconds());
+            preemptedJobResourceTimes[preemptionReason][operationId] += preemptedResourcesDelta * static_cast<i64>(
+                job->GetPreemptibleProgressTime().Seconds());
 
             if (job->GetPreemptedFor() && !job->GetPreemptedForProperlyStarvingOperation()) {
                 improperlyPreemptedJobResources[preemptionReason][operationId] += preemptedResourcesDelta;

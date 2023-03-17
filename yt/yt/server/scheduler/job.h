@@ -105,8 +105,8 @@ public:
     //! True for revived job that was not confirmed by a heartbeat from the corresponding node yet.
     DEFINE_BYVAL_RW_PROPERTY(bool, WaitingForConfirmation, false);
 
-    //! Job execution duration as reported by the node.
-    DEFINE_BYVAL_RW_PROPERTY(TDuration, ExecDuration);
+    //! Time that will be wasted if allocation is preempted.
+    DEFINE_BYVAL_RW_PROPERTY(TDuration, PreemptibleProgressTime);
 
     //! Logger for this job.
     DEFINE_BYREF_RO_PROPERTY(NLogging::TLogger, Logger);
