@@ -111,7 +111,8 @@ IExecutionBlockPtr ParseSingleExecutionBlock(
     const TExecutionBlockConfig& blockConfig,
     const TTransformNodePtr& rootTransform,
     TPipelineReader* reader,
-    std::vector<std::pair<TString, TCreateBaseStateManagerFunction>>* createStateManagerFunctionList
+    std::vector<std::pair<TString, TCreateBaseStateManagerFunction>>* createStateManagerFunctionList,
+    std::vector<TRegisterWriterFunction>* registerWriterFunctionList
 ) {
     std::vector<IExecutionBlockPtr> outputBlockList;
     std::vector<int> outputIdList;
@@ -139,6 +140,10 @@ IExecutionBlockPtr ParseSingleExecutionBlock(
         };
 
         for (const auto& transform : transformList) {
+            if (const auto* registrator = NPrivate::GetAttribute(*transform->GetRawTransform(), WriterRegistratorTag)) {
+                registerWriterFunctionList->push_back(*registrator);
+            }
+
             auto type = transform->GetRawTransform()->GetType();
             if (type == ERawTransformType::ParDo) {
                 auto rawParDo =  transform->GetRawTransform()->AsRawParDo();
@@ -164,7 +169,7 @@ IExecutionBlockPtr ParseSingleExecutionBlock(
                 // Double check, there should not be such transforms.
                 Y_VERIFY(transform->GetSourceCount() == 1, "Transform is not supported");
 
-                auto block = ParseSingleExecutionBlock(*blockConfig, transform, reader, createStateManagerFunctionList);
+                auto block = ParseSingleExecutionBlock(*blockConfig, transform, reader, createStateManagerFunctionList, registerWriterFunctionList);
                 Y_VERIFY(block);
 
                 outputIdList.push_back(treeBuilderNodeId);
@@ -204,31 +209,31 @@ IExecutionBlockPtr ParseSingleExecutionBlock(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TParseResult ParseBigRtPipeline(const TPipeline& pipeline)
+std::vector<TParseResult> ParseBigRtPipeline(const TPipeline& pipeline)
 {
-    TParseResult result;
-    {
-        const auto& transformList = GetRawPipeline(pipeline)->GetTransformList();
-        for (const auto& transform : transformList) {
-            if (const auto* registrator = NPrivate::GetAttribute(*transform->GetRawTransform(), WriterRegistratorTag)) {
-                result.RegisterWriterFunctionList.push_back(*registrator);
-            }
-        }
-    }
+    std::vector<TParseResult> parseResultList;
     TPipelineReader reader{pipeline};
 
-    auto rootTransform = reader.PopReadTransform();
-    Y_VERIFY(rootTransform, "Pipeline is empty");
+    while (!reader.IsExhausted()) {
+        auto& parseResult = parseResultList.emplace_back();
 
-    auto executionBlock = ParseSingleExecutionBlock(DefaultBlockConfig, rootTransform, &reader, &result.CreateStateManagerFunctionList);
-    result.ExecutionBlock = executionBlock;
-    if (const auto* inputTag = GetAttribute(*rootTransform->GetRawTransform(), InputTag)) {
-        result.InputTag = *inputTag;
+        auto rootTransform = reader.PopReadTransform();
+        Y_VERIFY(rootTransform, "Pipeline is empty");
+
+        auto executionBlock = ParseSingleExecutionBlock(
+            DefaultBlockConfig,
+            rootTransform,
+            &reader,
+            &parseResult.CreateStateManagerFunctionList,
+            &parseResult.RegisterWriterFunctionList
+        );
+        parseResult.ExecutionBlock = executionBlock;
+        if (const auto* inputTag = GetAttribute(*rootTransform->GetRawTransform(), InputTag)) {
+            parseResult.InputTag = *inputTag;
+        }
     }
 
-    Y_VERIFY(reader.IsExhausted(), "Pipeline with multiple inputs are not supported yet.");
-
-    return result;
+    return parseResultList;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
