@@ -2367,9 +2367,9 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     YT_VERIFY(status);
 
     auto timeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
-    if (auto execDuration = timeStatistics.ExecDuration) {
-        job->SetExecDuration(*execDuration);
-    }
+    job->SetPreemptibleProgressTime(
+        timeStatistics.ExecDuration.value_or(TDuration{}) +
+        timeStatistics.PrepareDuration.value_or(TDuration{}));
 
     auto now = GetCpuInstant();
     if (now < job->GetRunningJobUpdateDeadline()) {
