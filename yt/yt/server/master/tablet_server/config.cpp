@@ -207,7 +207,10 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
-   registrar.Preprocessor([] (TThis* config) {
+    registrar.Parameter("max_table_collocation_size", &TThis::MaxTableCollocationSize)
+        .Default(200);
+
+    registrar.Preprocessor([] (TThis* config) {
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
         config->StoreChunkReader->BanPeersPermanently = false;
 

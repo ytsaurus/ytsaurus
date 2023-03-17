@@ -37,8 +37,6 @@ DECLARE_REFCOUNTED_CLASS(TMountConfigAttributeDictionary)
 
 using NTableClient::ETableCollocationType;
 
-static constexpr int MaxTableCollocationSize = 200;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableServer
