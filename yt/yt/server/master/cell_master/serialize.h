@@ -110,6 +110,7 @@ DEFINE_ENUM(EMasterReign,
     ((ObjectRevisions)                                              (2230))  // shakurov
     ((IncreaseCollocationSizeLimit)                                 (2231))  // akozhikhov
     ((FlagToDisableIncomingReplication)                             (2232))  // akozhikhov
+    ((FixTouchTime2)                                                (2233))  // shakurov
     // 23.1
     ((RipEnableUnlockCommand)                                       (2300))  // babenko
     ((RipEnableRevisionChangingForBuiltinAttributes)                (2301))  // babenko

@@ -2046,8 +2046,22 @@ public:
 
         if (timeout) {
             node->SetExpirationTimeout(*timeout);
+
+            if (node->IsTrunk() && !node->GetTouchTime()) {
+                auto* context = GetCurrentMutationContext();
+                YT_VERIFY(context);
+                node->SetTouchTime(context->GetTimestamp());
+            }
+
+            // NB: Touch time should not be updated here. This might've been
+            // suppressed. Otherwise the node will be touched as usual (as part
+            // of Invoke).
         } else {
             node->RemoveExpirationTimeout();
+
+            if (node->IsTrunk()) {
+                node->SetTouchTime(TInstant::Zero());
+            }
         }
 
         if (node->IsTrunk() &&
@@ -2064,6 +2078,19 @@ public:
         auto oldExpirationTimeout = originatingNode->TryGetExpirationTimeout();
 
         originatingNode->MergeExpirationTimeout(branchedNode);
+
+        if (originatingNode->IsTrunk()) {
+            // Touching a node upon merging is not suppressible by design.
+            // NB: Changing this requires tracking touch time for branched nodes.
+            if (originatingNode->TryGetExpirationTimeout()) {
+                auto* context = GetCurrentMutationContext();
+                YT_VERIFY(context);
+                originatingNode->SetTouchTime(context->GetTimestamp());
+            } else {
+                YT_VERIFY(HasMutationContext());
+                originatingNode->SetTouchTime(TInstant::Zero());
+            }
+        }
 
         if (originatingNode->IsTrunk() &&
             originatingNode->TryGetExpirationTimeout() != oldExpirationTimeout)
@@ -2553,11 +2580,11 @@ private:
                 if (node->IsTrunk() && !node->GetTouchTime()) {
                     const auto* hydraContext = GetCurrentHydraContext();
                     node->SetTouchTime(hydraContext->GetTimestamp());
-                } else if (!node->IsTrunk() && node->GetTouchTime(/* force */ true)) {
-                    node->SetTouchTime(TInstant::Zero(), /* force */ true);
+                } else if (!node->IsTrunk() && node->GetTouchTime(/* branchIsOk */ true)) {
+                    node->SetTouchTime(TInstant::Zero(), /* branchIsOk */ true);
                 }
             } else {
-                node->SetTouchTime(TInstant::Zero(), /* force */ true);
+                node->SetTouchTime(TInstant::Zero(), /* branchIsOk */ true);
             }
 
             if (node->IsTrunk() && node->TryGetExpirationTimeout()) {
@@ -3809,12 +3836,13 @@ private:
                 continue;
             }
 
-            auto touchTime = FromProto<TInstant>(update.touch_time());
-            if (touchTime > trunkNode->GetTouchTime()) {
-                trunkNode->SetTouchTime(touchTime);
+            if (trunkNode->TryGetExpirationTimeout()) {
+                auto touchTime = FromProto<TInstant>(update.touch_time());
+                if (touchTime > trunkNode->GetTouchTime()) {
+                    trunkNode->SetTouchTime(touchTime);
+                }
+                ExpirationTracker_->OnNodeTouched(trunkNode);
             }
-
-            ExpirationTracker_->OnNodeTouched(trunkNode);
         }
     }
 

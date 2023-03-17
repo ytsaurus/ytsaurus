@@ -216,21 +216,15 @@ public:
     //! Always null for non-trunk nodes.
     DEFINE_BYVAL_RW_PROPERTY(TResolveCacheNodePtr, ResolveCacheNode);
 
+    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TDuration, ExpirationTimeout);
+
     using TObject::TObject;
     explicit TCypressNode(TVersionedNodeId id);
     virtual ~TCypressNode();
 
-    // NB: Modifying #ExpirationTimeout_ also changes #TouchTime_ on #TrunkNode_.
-    // Other than that, these methods are similar to those provided by the
-    // DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE macro.
-    TDuration GetExpirationTimeout() const;
-    std::optional<TDuration> TryGetExpirationTimeout() const;
-    void SetExpirationTimeout(TDuration timeout);
-    void RemoveExpirationTimeout();
-    void MergeExpirationTimeout(const TCypressNode* branchedNode);
-    // COMPAT(shakurov): delete the #force parameters.
-    TInstant GetTouchTime(bool force = false) const;
-    void SetTouchTime(TInstant touchTime, bool force = false);
+    // COMPAT(shakurov): delete the #branchIsOk parameters.
+    TInstant GetTouchTime(bool branchIsOk = false) const;
+    void SetTouchTime(TInstant touchTime, bool branchIsOk = false);
 
     void SetModified(NObjectServer::EModificationType modificationType) override;
 
@@ -320,12 +314,8 @@ private:
     NTransactionServer::TTransactionId TransactionId_;
     NHydra::TRevision NativeContentRevision_ = NHydra::NullRevision;
 
-    TVersionedBuiltinAttribute<TDuration> ExpirationTimeout_;
-    // Only tracked for nodes with non-null expiration timeout.
+    // Only tracked for trunk nodes with non-null expiration timeout.
     TInstant TouchTime_;
-
-    void InitializeTouchTime();
-    void ResetTouchTime();
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TCypressNode)
