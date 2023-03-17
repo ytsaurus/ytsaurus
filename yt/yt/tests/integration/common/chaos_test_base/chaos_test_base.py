@@ -138,7 +138,7 @@ class ChaosTestBase(DynamicTablesBase):
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
             alter_table(path, upstream_replica_id=replica_id, driver=driver)
-            if create_tablet_cells:
+            if create_tablet_cells and len(ls("//sys/tablet_cells", driver=driver)) == 0:
                 sync_create_cells(1, driver=driver)
             if mount_tables:
                 sync_mount_table(path, driver=driver)
