@@ -65,4 +65,46 @@ void TUnregisterQueueConsumerCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TListQueueConsumerRegistrationsCommand::TListQueueConsumerRegistrationsCommand()
+{
+    RegisterParameter("queue_path", QueuePath)
+        .Default();
+    RegisterParameter("consumer_path", ConsumerPath)
+        .Default();
+
+    RegisterPostprocessor([&] {
+        if (QueuePath) {
+            QueuePath = QueuePath->Normalize();
+        }
+        if (ConsumerPath) {
+            ConsumerPath = ConsumerPath->Normalize();
+        }
+    });
+}
+
+void TListQueueConsumerRegistrationsCommand::DoExecute(ICommandContextPtr context)
+{
+    auto client = context->GetClient();
+    auto asyncResult = client->ListQueueConsumerRegistrations(
+        QueuePath,
+        ConsumerPath,
+        Options);
+    auto registrations = WaitFor(asyncResult)
+        .ValueOrThrow();
+
+    ProduceOutput(context, [&](NYson::IYsonConsumer* consumer) {
+        BuildYsonFluently(consumer)
+            .DoListFor(registrations, [=] (TFluentList fluent, const TListQueueConsumerRegistrationsResult& registration) {
+                fluent
+                    .Item().BeginMap()
+                        .Item("queue_path").Value(registration.QueuePath)
+                        .Item("consumer_path").Value(registration.ConsumerPath)
+                        .Item("vital").Value(registration.Vital)
+                    .EndMap();
+            });
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

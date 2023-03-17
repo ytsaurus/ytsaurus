@@ -862,13 +862,21 @@ def register_queue_consumer(queue_path, consumer_path, vital, **kwargs):
     kwargs["queue_path"] = queue_path
     kwargs["consumer_path"] = consumer_path
     kwargs["vital"] = vital
-    return execute_command_with_output_format("register_queue_consumer", kwargs)
+    return execute_command("register_queue_consumer", kwargs)
 
 
 def unregister_queue_consumer(queue_path, consumer_path,  **kwargs):
     kwargs["queue_path"] = queue_path
     kwargs["consumer_path"] = consumer_path
-    return execute_command_with_output_format("unregister_queue_consumer", kwargs)
+    return execute_command("unregister_queue_consumer", kwargs)
+
+
+def list_queue_consumer_registrations(queue_path=None, consumer_path=None,  **kwargs):
+    if queue_path is not None:
+        kwargs["queue_path"] = queue_path
+    if consumer_path is not None:
+        kwargs["consumer_path"] = consumer_path
+    return execute_command("list_queue_consumer_registrations", kwargs, parse_yson=True)
 
 
 def start_transaction(**kwargs):

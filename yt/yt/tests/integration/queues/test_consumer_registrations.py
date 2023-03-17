@@ -2,7 +2,8 @@ from yt_tests_common.chaos_test_base import ChaosTestBase
 
 from yt_commands import (authors, wait, get, set, create, sync_mount_table, create_table_replica, get_driver,
                          sync_enable_table_replica, select_rows, print_debug, check_permission, register_queue_consumer,
-                         unregister_queue_consumer, raises_yt_error, create_user, sync_create_cells)
+                         unregister_queue_consumer, list_queue_consumer_registrations, raises_yt_error, create_user,
+                         sync_create_cells)
 
 from yt_env_setup import (
     Restarter,
@@ -22,6 +23,8 @@ import pytest
 
 
 class TestConsumerRegistrations(ChaosTestBase):
+    NUM_TEST_PARTITIONS = 3
+
     NUM_REMOTE_CLUSTERS = 2
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -189,7 +192,28 @@ class TestConsumerRegistrations(ChaosTestBase):
         return registrations == expected_registrations
 
     @staticmethod
+    def listed_registrations_are_equal(listed_registrations, expected_registrations):
+        expected_rich_registrations = sorted([
+            (parse_ypath(f"<cluster={r[0]}>{r[1]}"), parse_ypath(f"<cluster={r[2]}>{r[3]}"), r[4])
+            for r in expected_registrations
+        ])
+
+        rich_registrations = sorted([
+            (r["queue_path"], r["consumer_path"], r["vital"])
+            for r in listed_registrations
+        ])
+
+        if rich_registrations != expected_rich_registrations:
+            print_debug(f"Listed registrations differ: {rich_registrations} and {expected_rich_registrations}")
+            return False
+
+        return True
+
+    @staticmethod
     def _cached_registrations_are(expected_registrations, driver):
+        TestConsumerRegistrations.listed_registrations_are_equal(
+            list_queue_consumer_registrations(driver=driver), expected_registrations)
+
         for proxy in get("//sys/rpc_proxies", driver=driver).keys():
             orchid_path = f"//sys/rpc_proxies/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager"
             orchid_registrations = {
@@ -313,6 +337,74 @@ class TestConsumerRegistrations(ChaosTestBase):
         unregister_queue_consumer("//tmp/q", "//tmp/c2", authenticated_user="egor")
 
         wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
+
+    @authors("achulkov2")
+    @pytest.mark.parametrize("create_registration_table", [
+        _create_simple_registration_table,
+    ])
+    def test_list_registrations(self, create_registration_table):
+        config = create_registration_table(self)
+        self._apply_registration_table_config(config)
+
+        attrs = {"dynamic": True, "schema": [{"name": "a", "type": "string"}]}
+        create("table", "//tmp/q1", attributes=attrs)
+        create("table", "//tmp/q2", attributes=attrs)
+        create("table", "//tmp/c1", attributes=attrs)
+        create("table", "//tmp/c2", attributes=attrs)
+
+        register_queue_consumer("//tmp/q1", "//tmp/c1", vital=True)
+        register_queue_consumer("//tmp/q1", "//tmp/c2", vital=False)
+        register_queue_consumer("//tmp/q2", "//tmp/c1", vital=True)
+
+        self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(queue_path="//tmp/q1", consumer_path="//tmp/c1"),
+            [
+                ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
+            ]
+        )
+
+        self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(queue_path="//tmp/q1"),
+            [
+                ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
+                ("primary", "//tmp/q1", "primary", "//tmp/c2", False),
+            ]
+        )
+
+        self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(consumer_path="//tmp/c1"),
+            [
+                ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
+                ("primary", "//tmp/q2", "primary", "//tmp/c1", True),
+            ]
+        )
+
+        self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(consumer_path="<cluster=primary>//tmp/c2"),
+            [
+                ("primary", "//tmp/q1", "primary", "//tmp/c2", False),
+            ]
+        )
+
+        self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(),
+            [
+                ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
+                ("primary", "//tmp/q1", "primary", "//tmp/c2", False),
+                ("primary", "//tmp/q2", "primary", "//tmp/c1", True),
+            ]
+        )
+
+        self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(queue_path="<cluster=remote_0>//tmp/q1"),
+            []
+        )
+
+        unregister_queue_consumer("//tmp/q1", "//tmp/c1")
+        unregister_queue_consumer("//tmp/q1", "//tmp/c2")
+        unregister_queue_consumer("//tmp/q2", "//tmp/c1")
+
+        self.listed_registrations_are_equal(list_queue_consumer_registrations(), [])
 
     def _restart_service(self, service):
         for env in [self.Env] + self.remote_envs:

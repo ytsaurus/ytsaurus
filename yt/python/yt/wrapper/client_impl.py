@@ -1207,6 +1207,22 @@ class YtClient(ClientState):
             cursor_time=cursor_time, cursor_direction=cursor_direction, limit=limit, attributes=attributes,
             stage=stage, format=format)
 
+    def list_queue_consumer_registrations(
+            self,
+            queue_path=None, consumer_path=None, format=None):
+        """
+        List queue consumer registrations.
+
+        :param queue_path: path to queue table.
+        :type queue_path: None or str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param consumer_path: path to consumer table.
+        :type consumer_path: None or str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+
+        """
+        return client_api.list_queue_consumer_registrations(
+            client=self,
+            queue_path=queue_path, consumer_path=consumer_path, format=format)
+
     def list_user_tokens(
             self,
             user,

@@ -8,6 +8,8 @@ import yt.wrapper as yt
 
 from .helpers import TEST_DIR, wait
 
+from yt.ypath import parse_ypath
+
 import pytest
 
 CONSUMER_REGISTRATIONS = "//sys/queue_agents/consumer_registrations"
@@ -58,6 +60,26 @@ class TestQueueCommands(object):
             }
         ]
 
+        expected_registration = {
+            "queue_path": parse_ypath("<cluster=primary>" + queue),
+            "consumer_path": parse_ypath("<cluster=primary>" + consumer),
+            "vital": True,
+        }
+
+        by_queue_and_consumer = yt.list_queue_consumer_registrations(queue_path=queue, consumer_path=consumer)
+        by_queue = yt.list_queue_consumer_registrations(queue_path=queue)
+        by_consumer = yt.list_queue_consumer_registrations(consumer_path=consumer)
+        all_registrations = yt.list_queue_consumer_registrations()
+
+        assert all_registrations == by_consumer == by_queue == by_queue_and_consumer == [expected_registration]
+
         yt.unregister_queue_consumer(queue, consumer)
 
         assert list(yt.select_rows("* from [//sys/queue_agents/consumer_registrations]")) == []
+
+        by_queue_and_consumer = yt.list_queue_consumer_registrations(queue_path=queue, consumer_path=consumer)
+        by_queue = yt.list_queue_consumer_registrations(queue_path=queue)
+        by_consumer = yt.list_queue_consumer_registrations(consumer_path=consumer)
+        all_registrations = yt.list_queue_consumer_registrations()
+
+        assert all_registrations == by_consumer == by_queue == by_queue_and_consumer == []

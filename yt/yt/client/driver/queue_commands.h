@@ -39,4 +39,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TListQueueConsumerRegistrationsCommand
+    : public TTypedCommand<NApi::TListQueueConsumerRegistrationsOptions>
+{
+public:
+    TListQueueConsumerRegistrationsCommand();
+
+private:
+    std::optional<NYPath::TRichYPath> QueuePath;
+    std::optional<NYPath::TRichYPath> ConsumerPath;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver
