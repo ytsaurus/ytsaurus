@@ -528,7 +528,7 @@ public:
         if (result.Action == ESecurityAction::Deny) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthorizationError,
-                "User %Qv has been denied access to pool %v",
+                "User %Qv has been denied access to pool %Qv",
                 user,
                 poolName)
                 << result.ToError(user, permission)
