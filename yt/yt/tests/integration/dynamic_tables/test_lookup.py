@@ -588,7 +588,8 @@ class TestLookup(TestSortedDynamicTablesBase):
             if local_cache:
                 return bytes_transmitted.get_delta() == 0
             else:
-                return bytes_transmitted.get_delta() > 0
+                wait(lambda: bytes_transmitted.get_delta() > 0)
+                return True
 
         assert _check(False)
         assert _check(True)

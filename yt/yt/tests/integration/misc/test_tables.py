@@ -7,10 +7,10 @@ from yt_commands import (
     write_table, read_blob_table, map, map_reduce, merge,
     sort, remote_copy, get_first_chunk_id,
     get_singular_chunk_id, get_chunk_replication_factor, set_banned_flag,
-    get_recursive_disk_space, get_chunk_owner_disk_space, raises_yt_error, update_nodes_dynamic_config, sorted_dicts,
+    get_recursive_disk_space, get_chunk_owner_disk_space, raises_yt_error, sorted_dicts,
 )
 
-from yt_helpers import skip_if_no_descending, profiler_factory
+from yt_helpers import skip_if_no_descending
 from yt_type_helpers import make_schema, normalize_schema, list_type
 import yt_error_codes
 
@@ -2671,43 +2671,6 @@ class TestTables(YTEnvSetup):
             assert len(sample_rows("//tmp/t2", 0.5, 25, 75)) in [0, 50]
             assert len(sample_rows("//tmp/t2", 1)) == 100
             assert len(sample_rows("//tmp/t2", 1, 25, 75)) == 50
-
-    # TODO(akozhikhov): fix
-    @authors("akozhikhov")
-    @pytest.mark.skipif(True, reason="Too flaky and slow")
-    def test_put_blocks_timeout(self):
-        nodes = ls("//sys/cluster_nodes")
-        node_count = len(nodes)
-
-        create("table", "//tmp/t", attributes={
-            "chunk_writer": {
-                "node_rpc_timeout": 1000,
-                "direct_upload_node_count": node_count,
-                "upload_replication_factor": node_count,
-                "min_upload_replication_factor": node_count,
-            },
-            "replication_factor": node_count,
-        })
-
-        update_nodes_dynamic_config({
-            "in_throttlers": {
-                "default": {
-                    "limit": 10,
-                }
-            }
-        })
-
-        rows = list([{"key": i} for i in range(100)])
-
-        profiler = profiler_factory().at_node(nodes[0])
-        queue_size = profiler.gauge("cluster_node/in_throttler/queue_size")
-
-        with raises_yt_error("Request timed out"):
-            # Should fail by timeout
-            write_table("//tmp/t", rows)
-
-        # Timed out rpc call will trigger cancellation that will free throttler queue.
-        wait(lambda: queue_size.get() == 0)
 
 ##################################################################
 
