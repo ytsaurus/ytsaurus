@@ -124,6 +124,7 @@ DEFINE_ENUM(EMasterReign,
     ((HashTableChunkIndex)                                          (2311))  // akozhikhov
     ((HistoricallyNonVital)                                         (2312))  // gritukan
     ((DeprecateCypressListNodes)                                    (2313))  // kvk1920
+    ((ConfigurableCollocationSizeLimit)                             (2314))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

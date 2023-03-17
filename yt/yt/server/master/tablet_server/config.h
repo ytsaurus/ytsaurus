@@ -289,6 +289,8 @@ public:
 
     bool ForbidArbitraryDataVersionsInRetentionConfig;
 
+    int MaxTableCollocationSize;
+
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);
 
     static void Register(TRegistrar registrar);

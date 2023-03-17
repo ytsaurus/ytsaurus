@@ -431,10 +431,13 @@ public:
         if (collocatedTables.empty()) {
             THROW_ERROR_EXCEPTION("Collocated table set must be non-empty");
         }
-        if (std::ssize(collocatedTables) > MaxTableCollocationSize) {
+
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+        auto maxTableCollocationSize = config->TabletManager->MaxTableCollocationSize;
+        if (std::ssize(collocatedTables) > maxTableCollocationSize) {
             THROW_ERROR_EXCEPTION("Too many tables in collocation: %v > %v",
                 std::ssize(collocatedTables),
-                MaxTableCollocationSize);
+                maxTableCollocationSize);
         }
 
         TCellTag externalCellTag = InvalidCellTag;
@@ -547,10 +550,12 @@ public:
         YT_VERIFY(IsObjectAlive(collocation));
         YT_VERIFY(IsObjectAlive(table));
 
-        if (std::ssize(collocation->Tables()) + 1 > MaxTableCollocationSize) {
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+        auto maxTableCollocationSize = config->TabletManager->MaxTableCollocationSize;
+        if (std::ssize(collocation->Tables()) + 1 > maxTableCollocationSize) {
             THROW_ERROR_EXCEPTION("Too many tables in collocation: %v > %v",
                 std::ssize(collocation->Tables()) + 1,
-                MaxTableCollocationSize);
+                maxTableCollocationSize);
         }
 
         if (collocation->GetExternalCellTag() != table->GetExternalCellTag()) {

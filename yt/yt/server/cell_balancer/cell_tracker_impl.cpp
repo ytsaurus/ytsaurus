@@ -99,7 +99,7 @@ void TCellTrackerImpl::UpdateDynamicConfig()
     YT_LOG_DEBUG("Updating dynamic config");
     auto result = WaitFor(Bootstrap_->GetClient()->GetNode("//sys/@config/tablet_manager"));
     if (!result.IsOK()) {
-        YT_LOG_ERROR(result, "Failed update dynamic config");
+        YT_LOG_ERROR(result, "Failed to update dynamic config");
         return;
     }
     Config_ = ConvertTo<TDynamicTabletManagerConfigPtr>(result.Value());
