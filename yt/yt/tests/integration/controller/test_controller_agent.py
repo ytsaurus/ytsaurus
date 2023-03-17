@@ -10,7 +10,7 @@ from yt_commands import (
     set, exists, update_op_parameters,
     write_table, map, reduce, map_reduce, merge, erase, run_sleeping_vanilla, run_test_vanilla, get_operation, raises_yt_error)
 
-from yt.common import YtError
+from yt.common import YtError, YtResponseError
 
 import yt_error_codes
 
@@ -75,6 +75,23 @@ class TestControllerAgentOrchid(YTEnvSetup):
         op.wait_for_fresh_snapshot()
 
         assert list(get(orchid_path)) == [str(op.id)]
+
+
+class TestControllerAgentRegistration(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    @authors("pogorelov")
+    def test_node_lock(self):
+        controller_agents = ls("//sys/controller_agents/instances")
+        assert len(controller_agents) == 1
+
+        node_path = "//sys/controller_agents/instances/{}".format(
+            controller_agents[0]
+        )
+
+        with pytest.raises(YtResponseError):
+            remove(node_path)
 
 
 class TestControllerMemoryUsage(YTEnvSetup):

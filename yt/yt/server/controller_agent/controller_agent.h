@@ -220,7 +220,7 @@ public:
 
     //! Raised when connection is complete.
     //! Subscribers may throw but cannot yield.
-    DECLARE_SIGNAL(void(), SchedulerConnected);
+    DECLARE_SIGNAL(void(TIncarnationId), SchedulerConnected);
 
     //! Raised when disconnect happens.
     //! Subscribers cannot neither throw nor yield

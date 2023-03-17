@@ -351,7 +351,7 @@ private:
         CancelableControlInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker());
     }
 
-    void OnSchedulerConnected()
+    void OnSchedulerConnected(TIncarnationId incarnationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -407,7 +407,7 @@ private:
             Config_->IntermediateMediumUsageUpdatePeriod);
         UpdateIntermediateMediumUsageExecutor_->Start();
 
-        RegisterInstance();
+        RegisterInstance(incarnationId);
     }
 
     void OnSchedulerDisconnected()
@@ -468,13 +468,13 @@ private:
         return "//sys/controller_agents/instances/" + ToYPathLiteral(GetDefaultAddress(addresses));
     }
 
-    void RegisterInstance()
+    void RegisterInstance(TIncarnationId incarnationId)
     {
         auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
         auto batchReq = proxy.ExecuteBatch();
         auto path = GetInstancePath();
         {
-            auto req = TCypressYPathProxy::Create(path);
+            auto req = TCypressYPathProxy::Create(path + "/lock");
             req->set_ignore_existing(true);
             req->set_recursive(true);
             req->set_type(static_cast<int>(EObjectType::MapNode));
@@ -513,6 +513,12 @@ private:
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+
+        auto incarnationTransaction = Bootstrap_->GetClient()->AttachTransaction(
+            NTransactionClient::TTransactionId{incarnationId});
+
+        WaitFor(incarnationTransaction->LockNode(path + "/lock", NCypressClient::ELockMode::Exclusive))
+            .ThrowOnError();
     }
 
     TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(
