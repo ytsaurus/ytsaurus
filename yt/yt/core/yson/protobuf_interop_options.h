@@ -23,7 +23,7 @@ struct TProtobufWriterOptions
     //!
     //! Forward: current key/index is kept, the children are considered by resolver recursively.
     //! Forward in a scalar leaf is interpreted as a Fail.
-    using TUnknownYsonFieldModeResolver = std::function<EUnknownYsonFieldsMode(const NYPath::TYPath& /* path */)>;
+    using TUnknownYsonFieldModeResolver = std::function<EUnknownYsonFieldsMode(const NYPath::TYPath& /*path*/)>;
 
     static TUnknownYsonFieldModeResolver CreateConstantUnknownYsonFieldModeResolver(EUnknownYsonFieldsMode mode);
 

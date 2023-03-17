@@ -6,7 +6,7 @@ namespace NYT::NYson {
 
 TProtobufWriterOptions::TUnknownYsonFieldModeResolver TProtobufWriterOptions::CreateConstantUnknownYsonFieldModeResolver(EUnknownYsonFieldsMode mode)
 {
-    return [mode] (const NYPath::TYPath& /* path */) {
+    return [mode] (const NYPath::TYPath& /*path*/) {
         return mode;
     };
 }
