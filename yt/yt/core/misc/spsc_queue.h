@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <library/cpp/yt/threading/public.h>
+#include <library/cpp/yt/memory/public.h>
 
 #include <atomic>
 
@@ -39,7 +39,7 @@ private:
     mutable size_t CachedCount_ = 0;
 
     // Avoid false sharing.
-    char Padding[NThreading::CacheLineSize - 4 * sizeof(void*)];
+    char Padding[CacheLineSize - 4 * sizeof(void*)];
 
     std::atomic<size_t> Count_ = 0;
 };
