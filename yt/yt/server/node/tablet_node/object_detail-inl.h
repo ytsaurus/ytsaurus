@@ -54,6 +54,21 @@ std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities)
     return values;
 }
 
+template <class TKey, class TValue>
+std::vector<std::pair<TKey, TValue*>> GetValuesSortedByKey(THashMap<TKey, TValue>& entities)
+{
+    std::vector<std::pair<TKey, TValue*>> values;
+    values.reserve(entities.size());
+
+    for (auto& object : entities) {
+        values.push_back({object.first, &object.second});
+    }
+    std::sort(values.begin(), values.end(), [] (const auto& lhs, const auto& rhs) {
+        return lhs.first < rhs.first;
+    });
+    return values;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

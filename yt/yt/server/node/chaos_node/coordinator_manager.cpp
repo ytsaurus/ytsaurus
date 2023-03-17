@@ -2,6 +2,7 @@
 
 #include "automaton.h"
 #include "chaos_slot.h"
+#include "chaos_manager.h"
 #include "private.h"
 #include "shortcut_snapshot_store.h"
 #include "transaction.h"
@@ -238,16 +239,21 @@ private:
             return;
         }
 
-        for (auto cellId : GetMetadataCellIds()) {
+        auto cellIds = GetMetadataCellIds();
+        for (auto cellId : cellIds) {
             NChaosNode::NProto::TReqSuspendCoordinator req;
             ToProto(req.mutable_coordinator_cell_id(), Slot_->GetCellId());
 
             const auto& hiveManager = Slot_->GetHiveManager();
-            auto* mailbox = hiveManager->GetMailbox(cellId);
-            hiveManager->PostMessage(mailbox, req);
+            if (auto* mailbox = hiveManager->FindMailbox(cellId)) {
+                hiveManager->PostMessage(mailbox, req);
+            }
         }
 
         Suspended_ = true;
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Coordinator suspended (SuspendedAtCells: %v)",
+            cellIds);
     }
 
     void HydraReqResume(NChaosClient::NProto::TReqResumeCoordinator* /*request*/)
@@ -256,16 +262,21 @@ private:
             return;
         }
 
-        for (auto cellId : GetMetadataCellIds()) {
+        auto cellIds = GetMetadataCellIds();
+        for (auto cellId : cellIds) {
             NChaosNode::NProto::TReqResumeCoordinator req;
             ToProto(req.mutable_coordinator_cell_id(), Slot_->GetCellId());
 
             const auto& hiveManager = Slot_->GetHiveManager();
-            auto* mailbox = hiveManager->GetMailbox(cellId);
-            hiveManager->PostMessage(mailbox, req);
+            if (auto* mailbox = hiveManager->FindMailbox(cellId)) {
+                hiveManager->PostMessage(mailbox, req);
+            }
         }
 
         Suspended_ = false;
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Coordinator resumed (ResumedAtCells: %v)",
+            cellIds);
     }
 
 
@@ -526,8 +537,15 @@ private:
     std::vector<TCellId> GetMetadataCellIds()
     {
         std::vector<TCellId> cells;
-        for (const auto& shortcut : Shortcuts_) {
-            cells.push_back(shortcut.second.CellId);
+
+        // COMPAT(savrus)
+        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(EChaosReign::RevokeFromSuspended)) {
+            for (const auto& shortcut : Shortcuts_) {
+                cells.push_back(shortcut.second.CellId);
+            }
+        } else {
+            const auto& chaosManager = Slot_->GetChaosManager();
+            cells = chaosManager->CoordinatorCellIds();
         }
 
         SortUnique(cells);

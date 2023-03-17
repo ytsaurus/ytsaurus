@@ -127,9 +127,7 @@ private:
         std::vector<TCellId> coordinators;
         if (fetchOptions.IncludeCoordinators) {
             for (const auto& [cellId, info] : replicationCard->Coordinators()) {
-                if (!chaosManager->IsCoordinatorSuspended(cellId)) {
-                    coordinators.push_back(cellId);
-                }
+                coordinators.push_back(cellId);
             }
             ToProto(protoReplicationCard->mutable_coordinator_cell_ids(), coordinators);
         }

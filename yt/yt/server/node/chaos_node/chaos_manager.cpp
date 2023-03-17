@@ -1157,8 +1157,8 @@ private:
         ToProto(shortcut->mutable_replication_card_id(), replicationCard->GetId());
         shortcut->set_era(replicationCard->GetEra());
 
-        for (auto& [cellId, coordinator] : replicationCard->Coordinators()) {
-            if (coordinator.State == EShortcutState::Revoking) {
+        for (auto [cellId, coordinator] : GetValuesSortedByKey(replicationCard->Coordinators())) {
+            if (coordinator->State == EShortcutState::Revoking) {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Will not revoke shortcut since it already is revoking "
                     "(ReplicationCardId: %v, Era: %v CoordinatorCellId: %v)",
                     replicationCard->GetId(),
@@ -1168,7 +1168,7 @@ private:
                 continue;
             }
 
-            coordinator.State = EShortcutState::Revoking;
+            coordinator->State = EShortcutState::Revoking;
             auto* mailbox = hiveManager->GetMailbox(cellId);
             hiveManager->PostMessage(mailbox, req);
 
@@ -1177,6 +1177,10 @@ private:
                 replicationCard->GetEra(),
                 cellId);
         }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Finished revoking shortcuts (ReplicationCardId: %v, Era; %v)",
+            replicationCard->GetId(),
+            replicationCard->GetEra());
     }
 
     void GrantShortcuts(TReplicationCard* replicationCard, const std::vector<TCellId> coordinatorCellIds, bool strict = true)
@@ -1190,7 +1194,17 @@ private:
         ToProto(shortcut->mutable_replication_card_id(), replicationCard->GetId());
         shortcut->set_era(replicationCard->GetEra());
 
+        std::vector<TCellId> suspendedCoordinators;
+
         for (auto cellId : coordinatorCellIds) {
+            // COMPAT(savrus)
+            if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(EChaosReign::RevokeFromSuspended)) {
+                if (IsCoordinatorSuspended(cellId)) {
+                    suspendedCoordinators.push_back(cellId);
+                    continue;
+                }
+            }
+
             // TODO(savrus) This could happen in case if coordinator cell id has been removed from CoordinatorCellIds_ and then added.
             // Need to make a better protocol (YT-16072).
             if (replicationCard->Coordinators().contains(cellId)) {
@@ -1215,6 +1229,11 @@ private:
                 replicationCard->GetEra(),
                 cellId);
         }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Finished granting shortcuts (ReplicationCardId: %v, Era; %v, SuspendedCoordinators: %v)",
+            replicationCard->GetId(),
+            replicationCard->GetEra(),
+            suspendedCoordinators);
     }
 
     void HydraMigrateReplicationCards(
@@ -1565,6 +1584,9 @@ private:
                     GenerateTimestampForNewEra(replicationCard);
                     return;
 
+                case EReplicationCardState::Normal:
+                    return;
+
                 default:
                     YT_ABORT();
             }
@@ -1739,12 +1761,74 @@ private:
 
     void HydraSuspendCoordinator(NChaosNode::NProto::TReqSuspendCoordinator* request)
     {
-        SuspendCoordinator(FromProto<TCellId>(request->coordinator_cell_id()));
+        auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
+        SuspendCoordinator(coordinatorCellId);
+
+        // COMPAT(savrus)
+        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(EChaosReign::RevokeFromSuspended)) {
+            return;
+        }
+
+        NChaosNode::NProto::TReqRevokeShortcuts req;
+        ToProto(req.mutable_chaos_cell_id(), Slot_->GetCellId());
+
+        for (auto* replicationCard : GetValuesSortedByKey(ReplicationCardMap_)) {
+            if (replicationCard->GetState() != EReplicationCardState::Normal) {
+                continue;
+            }
+
+            if (auto it = replicationCard->Coordinators().find(coordinatorCellId);
+                it && (it->second.State == EShortcutState::Granted || it->second.State == EShortcutState::Granting))
+            {
+                auto* shortcut = req.add_shortcuts();
+                ToProto(shortcut->mutable_replication_card_id(), replicationCard->GetId());
+                shortcut->set_era(replicationCard->GetEra());
+
+                it->second.State = EShortcutState::Revoking;
+            }
+        }
+
+        const auto& hiveManager = Slot_->GetHiveManager();
+        auto* mailbox = hiveManager->GetMailbox(coordinatorCellId);
+        hiveManager->PostMessage(mailbox, req);
     }
 
     void HydraResumeCoordinator(NChaosNode::NProto::TReqResumeCoordinator* request)
     {
-        ResumeCoordinator(FromProto<TCellId>(request->coordinator_cell_id()));
+        auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
+        ResumeCoordinator(coordinatorCellId);
+
+        // COMPAT(savrus)
+        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(EChaosReign::RevokeFromSuspended)) {
+            return;
+        }
+
+        NChaosNode::NProto::TReqGrantShortcuts req;
+        ToProto(req.mutable_chaos_cell_id(), Slot_->GetCellId());
+
+        for (auto* replicationCard : GetValuesSortedByKey(ReplicationCardMap_)) {
+            if (replicationCard->GetState() != EReplicationCardState::Normal) {
+                continue;
+            }
+
+            if (auto it = replicationCard->Coordinators().find(coordinatorCellId);
+                !it || (it->second.State == EShortcutState::Revoked || it->second.State == EShortcutState::Revoking))
+            {
+                auto* shortcut = req.add_shortcuts();
+                ToProto(shortcut->mutable_replication_card_id(), replicationCard->GetId());
+                shortcut->set_era(replicationCard->GetEra());
+
+                if (it) {
+                    it->second.State = EShortcutState::Granting;
+                } else {
+                    replicationCard->Coordinators().insert(std::make_pair(coordinatorCellId, TCoordinatorInfo{EShortcutState::Granting}));
+                }
+            }
+        }
+
+        const auto& hiveManager = Slot_->GetHiveManager();
+        auto* mailbox = hiveManager->GetMailbox(coordinatorCellId);
+        hiveManager->PostMessage(mailbox, req);
     }
 
     void SuspendCoordinator(TCellId coordinatorCellId)

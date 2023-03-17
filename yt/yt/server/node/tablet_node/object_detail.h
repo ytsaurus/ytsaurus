@@ -39,6 +39,9 @@ std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValu
 template <class TValue>
 std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities);
 
+template <class TKey, class TValue>
+std::vector<std::pair<TKey, TValue*>> GetValuesSortedByKey(THashMap<TKey, TValue>& entities);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
