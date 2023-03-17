@@ -114,8 +114,9 @@ class ChaosTestBase(DynamicTablesBase):
 
     def _sync_replication_card(self, card_id):
         def _check():
-            card_replicas = get("#{0}/@replicas".format(card_id))
-            return all(replica["state"] in ["enabled", "disabled"] and replica["mode"] in ["sync", "async"] for replica in card_replicas.values())
+            card = get("#{0}/@".format(card_id))
+            replicas = card["replicas"]
+            return all(replica["state"] in ["enabled", "disabled"] and replica["mode"] in ["sync", "async"] for replica in replicas.values()) and len(card["coordinator_cell_ids"]) > 0
         wait(_check)
         return get("#{0}/@".format(card_id))
 
