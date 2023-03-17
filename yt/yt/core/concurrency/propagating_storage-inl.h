@@ -12,21 +12,21 @@ namespace NYT::NConcurrency {
 template <class T>
 bool TPropagatingStorage::Has() const
 {
-    return GetRaw(typeid(T)) != nullptr;
+    return FindRaw(typeid(T)) != nullptr;
 }
 
 template <class T>
 const T& TPropagatingStorage::GetOrCrash() const
 {
-    const auto* result = TryGet<T>();
+    const auto* result = Find<T>();
     YT_VERIFY(result);
     return *result;
 }
 
 template <class T>
-const T* TPropagatingStorage::TryGet() const
+const T* TPropagatingStorage::Find() const
 {
-    const auto* result = GetRaw(typeid(T));
+    const auto* result = FindRaw(typeid(T));
     return result ? std::any_cast<T>(result) : nullptr;
 }
 

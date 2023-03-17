@@ -53,6 +53,7 @@ private:
     friend TPropagatingStorage SwapCurrentPropagatingStorage(TPropagatingStorage storage);
 };
 
+////////////////////////////////////////////////////////////////////////////////
 
 class TPropagatingStorage::TImpl
     : public TRefCounted
@@ -102,7 +103,7 @@ bool TPropagatingStorage::IsEmpty() const
     return !Impl_ || Impl_->IsEmpty();
 }
 
-const std::any* TPropagatingStorage::GetRaw(const std::type_info& typeInfo) const
+const std::any* TPropagatingStorage::FindRaw(const std::type_info& typeInfo) const
 {
     if (!Impl_) {
         return nullptr;
@@ -198,6 +199,8 @@ TPropagatingStorage SwapCurrentPropagatingStorage(TPropagatingStorage storage)
     return result;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TPropagatingStorageGuard::TPropagatingStorageGuard(TPropagatingStorage storage)
     : OldStorage_(SwapCurrentPropagatingStorage(std::move(storage)))
 { }
@@ -206,6 +209,8 @@ TPropagatingStorageGuard::~TPropagatingStorageGuard()
 {
     SwapCurrentPropagatingStorage(std::move(OldStorage_));
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TNullPropagatingStorageGuard::TNullPropagatingStorageGuard()
     : TPropagatingStorageGuard(TPropagatingStorage())

@@ -315,7 +315,7 @@ std::vector<std::pair<TString, std::variant<TString, i64>>> TTraceContext::GetPr
     return ProfilingTags_;
 }
 
-bool TTraceContext::AddAsyncChild(const TTraceId& traceId)
+bool TTraceContext::AddAsyncChild(TTraceId traceId)
 {
     if (!IsRecorded()) {
         return false;
@@ -542,19 +542,17 @@ namespace NDetail {
 thread_local TTraceContext* CurrentTraceContext;
 thread_local TCpuInstant TraceContextTimingCheckpoint;
 
-} // namespace NDetail
-
 TTraceContext* DoGetCurrentTraceContext()
 {
     auto& propagatingStorage = GetCurrentPropagatingStorage();
     if (propagatingStorage.IsNull()) {
         return nullptr;
     }
-    auto context = propagatingStorage.TryGet<TTraceContextPtr>();
+    auto context = propagatingStorage.Find<TTraceContextPtr>();
     return context ? context->Get() : nullptr;
 }
 
-static void DoSwitchTraceContext(TTraceContext* oldContext, TTraceContext* newContext)
+void DoSwitchTraceContext(TTraceContext* oldContext, TTraceContext* newContext)
 {
     auto now = GetCpuInstant();
 
@@ -585,7 +583,7 @@ static void DoSwitchTraceContext(TTraceContext* oldContext, TTraceContext* newCo
     NDetail::TraceContextTimingCheckpoint = now;
 }
 
-static TTraceContextPtr DoExchangeTraceContext(TTraceContextPtr traceContext)
+TTraceContextPtr DoExchangeTraceContext(TTraceContextPtr traceContext)
 {
     auto& propagatingStorage = GetCurrentPropagatingStorage();
     auto result = propagatingStorage.Exchange<TTraceContextPtr>(std::move(traceContext));
@@ -601,11 +599,13 @@ static TTraceContextPtr DoExchangeTraceContext(TTraceContextPtr traceContext)
     return std::move(*result);
 }
 
+} // namespace NDetail
+
 TTraceContextPtr SwitchTraceContext(TTraceContextPtr newContext)
 {
     auto newContextPtr = newContext.Get();
-    auto oldContext = DoExchangeTraceContext(std::move(newContext));
-    DoSwitchTraceContext(oldContext.Get(), newContextPtr);
+    auto oldContext = NDetail::DoExchangeTraceContext(std::move(newContext));
+    NDetail::DoSwitchTraceContext(oldContext.Get(), newContextPtr);
     return oldContext;
 }
 
@@ -655,8 +655,7 @@ void* AcquireFiberTagStorage()
 
 std::vector<std::pair<TString, std::variant<TString, i64>>> ReadFiberTags(void* storage)
 {
-    auto traceContext = reinterpret_cast<NTracing::TTraceContext*>(storage);
-    if (traceContext) {
+    if (auto* traceContext = reinterpret_cast<NTracing::TTraceContext*>(storage)) {
         return traceContext->GetProfilingTags();
     } else {
         return {};
