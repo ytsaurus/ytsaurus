@@ -50,57 +50,15 @@ TCypressNode::TCypressNode(TVersionedNodeId id)
 
 TCypressNode::~TCypressNode() = default;
 
-TDuration TCypressNode::GetExpirationTimeout() const
+TInstant TCypressNode::GetTouchTime(bool branchIsOk) const
 {
-    return decltype(ExpirationTimeout_)::Get(&TCypressNode::ExpirationTimeout_, this);
-}
-
-std::optional<TDuration> TCypressNode::TryGetExpirationTimeout() const
-{
-    return decltype(ExpirationTimeout_)::TryGet(&TCypressNode::ExpirationTimeout_, this);
-}
-
-void TCypressNode::SetExpirationTimeout(TDuration timeout)
-{
-    ExpirationTimeout_.Set(timeout);
-
-    InitializeTouchTime();
-}
-
-void TCypressNode::RemoveExpirationTimeout()
-{
-    YT_VERIFY(HasMutationContext());
-
-    if (IsTrunk()) {
-        ExpirationTimeout_.Reset();
-        ResetTouchTime();
-    } else {
-        ExpirationTimeout_.Remove();
-    }
-}
-
-void TCypressNode::MergeExpirationTimeout(const TCypressNode* branchedNode)
-{
-    YT_VERIFY(HasMutationContext());
-
-    ExpirationTimeout_.Merge(branchedNode->ExpirationTimeout_, IsTrunk());
-
-    if (TryGetExpirationTimeout()) {
-        InitializeTouchTime();
-    } else {
-        ResetTouchTime();
-    }
-}
-
-TInstant TCypressNode::GetTouchTime(bool force) const
-{
-    YT_VERIFY(force || IsTrunk());
+    YT_VERIFY(branchIsOk || IsTrunk());
     return TouchTime_;
 }
 
-void TCypressNode::SetTouchTime(TInstant touchTime, bool force)
+void TCypressNode::SetTouchTime(TInstant touchTime, bool branchIsOk)
 {
-    YT_VERIFY(force || IsTrunk());
+    YT_VERIFY(branchIsOk || IsTrunk());
     TouchTime_ = touchTime;
 }
 
@@ -112,26 +70,6 @@ void TCypressNode::SetModified(EModificationType modificationType)
     YT_VERIFY(hydraContext);
 
     SetModificationTime(hydraContext->GetTimestamp());
-}
-
-void TCypressNode::InitializeTouchTime()
-{
-    auto* context = GetCurrentMutationContext();
-    YT_VERIFY(context);
-
-    if (!TrunkNode_->TouchTime_) {
-        // Touch time is not tracked for nodes without expiration timeout.
-        TrunkNode_->TouchTime_ = context->GetTimestamp();
-    }
-}
-
-void TCypressNode::ResetTouchTime()
-{
-    YT_VERIFY(HasMutationContext());
-
-    if (TrunkNode_->TouchTime_) {
-        TrunkNode_->TouchTime_ = TInstant::Zero();
-    }
 }
 
 TCypressNode* TCypressNode::GetParent() const
