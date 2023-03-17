@@ -320,14 +320,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
     }
 
     if (schema) {
-        if (table->GetSchema()) {
-            ValidateTableSchemaUpdate(
-                *table->GetSchema()->AsTableSchema(),
-                *schema,
-                /*isTableDynamic*/ true,
-                /*isTableEmpty*/ false);
-        }
-
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
 
         if (!config->EnableDescendingSortOrder || !config->EnableDescendingSortOrderDynamic) {
