@@ -337,6 +337,7 @@ public:
 
         REGISTER    (TRegisterQueueConsumerCommand,        "register_queue_consumer",         Null,       Structured, false,  false, ApiVersion4);
         REGISTER    (TUnregisterQueueConsumerCommand,      "unregister_queue_consumer",       Null,       Structured, false,  false, ApiVersion4);
+        REGISTER    (TListQueueConsumerRegistrationsCommand,    "list_queue_consumer_registrations",       Null,       Structured, false,  false, ApiVersion4);
 
         REGISTER    (TStartQueryCommand,                   "start_query",                     Null,       Structured, false, false, ApiVersion4);
         REGISTER    (TAbortQueryCommand,                   "abort_query",                     Null,       Structured, false, false, ApiVersion4);

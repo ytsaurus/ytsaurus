@@ -1152,6 +1152,21 @@ def add_unregister_queue_consumer_parser(add_parser):
     add_ypath_argument(parser, "consumer_path", hybrid=True)
 
 
+@copy_docstring_from(yt.list_queue_consumer_registrations)
+def list_queue_consumer_registrations(**kwargs):
+    result = yt.list_queue_consumer_registrations(**kwargs)
+    if kwargs["format"] is None:
+        result = dump_data(result)
+    print_to_output(result, eoln=False)
+
+
+def add_list_queue_consumer_registrations_parser(add_parser):
+    parser = add_parser("list-queue-consumer-registrations", list_queue_consumer_registrations)
+    add_ypath_argument(parser, "--queue-path", help="Path to queue in Cypress; cluster may be specified")
+    add_ypath_argument(parser, "--consumer-path", help="Path to consumer in Cypress; cluster may be specified")
+    add_structured_format_argument(parser)
+
+
 @copy_docstring_from(yt.start_query)
 def start_query(*args, **kwargs):
     query_id = yt.start_query(*args, **kwargs)
@@ -2522,6 +2537,7 @@ def main_func():
 
     add_register_queue_consumer_parser(add_parser)
     add_unregister_queue_consumer_parser(add_parser)
+    add_list_queue_consumer_registrations_parser(add_parser)
 
     add_start_query_parser(add_parser)
     add_abort_query_parser(add_parser)
