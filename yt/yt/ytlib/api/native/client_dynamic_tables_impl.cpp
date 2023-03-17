@@ -779,6 +779,8 @@ TRowset TClient::DoLookupRowsOnce(
             << TErrorAttribute("timestamp", options.Timestamp);
     }
 
+    const auto& connectionConfig = Connection_->GetConfig();
+
     const auto& tableMountCache = Connection_->GetTableMountCache();
     NProfiling::TWallTimer timer;
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
@@ -911,7 +913,7 @@ TRowset TClient::DoLookupRowsOnce(
         TErrorOr<TRowset> resultOrError;
 
         auto retryCountLimit = tableInfo->ReplicationCardId
-            ? Connection_->GetConfig()->ReplicaFallbackRetryCount
+            ? connectionConfig->ReplicaFallbackRetryCount
             : 0;
 
         for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
@@ -1080,7 +1082,7 @@ TRowset TClient::DoLookupRowsOnce(
     TEncoder boundEncoder = std::bind(encoderWithMapping, remappedColumnFilter, std::placeholders::_1);
     TDecoder boundDecoder = std::bind(decoderWithMapping, resultSchemaData, std::placeholders::_1);
 
-    auto* codec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsRequestCodec);
+    auto* codec = NCompression::GetCodec(connectionConfig->LookupRowsRequestCodec);
 
     const auto& cellDirectory = Connection_->GetCellDirectory();
     const auto& networks = Connection_->GetNetworks();
@@ -1128,14 +1130,24 @@ TRowset TClient::DoLookupRowsOnce(
             options,
             networks);
 
+        auto timeout = options.Timeout.value_or(connectionConfig->DefaultLookupRowsTimeout);
+        if (options.EnablePartialResult) {
+            timeout -= connectionConfig->LookupRowsRequestTimeoutSlack;
+        }
+        if (timeout == TDuration::Zero()) {
+            TError error(NYT::EErrorCode::Timeout, "Multiread request timed out before being run");
+            asyncResults.push_back(MakeFuture<TQueryServiceProxy::TRspMultireadPtr>(error));
+            continue;
+        }
+
         TQueryServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultLookupRowsTimeout));
+        proxy.SetDefaultTimeout(timeout);
         proxy.SetDefaultAcknowledgementTimeout(std::nullopt);
 
         auto req = proxy.Multiread();
         req->SetMultiplexingBand(options.MultiplexingBand);
-        req->set_request_codec(ToProto<int>(Connection_->GetConfig()->LookupRowsRequestCodec));
-        req->set_response_codec(ToProto<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
+        req->set_request_codec(ToProto<int>(connectionConfig->LookupRowsRequestCodec));
+        req->set_response_codec(ToProto<int>(connectionConfig->LookupRowsResponseCodec));
         req->set_timestamp(options.Timestamp);
         req->set_retention_timestamp(options.RetentionTimestamp);
         req->set_enable_partial_result(options.EnablePartialResult);
@@ -1184,7 +1196,7 @@ TRowset TClient::DoLookupRowsOnce(
 
     uniqueResultRows.resize(currentResultIndex, TTypeErasedRow{nullptr});
 
-    auto* responseCodec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsResponseCodec);
+    auto* responseCodec = NCompression::GetCodec(connectionConfig->LookupRowsResponseCodec);
 
     for (int channelIndex = 0; channelIndex < ssize(results); ++channelIndex) {
         if (options.EnablePartialResult && !results[channelIndex].IsOK()) {
