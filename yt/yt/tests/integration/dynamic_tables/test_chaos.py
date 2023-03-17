@@ -3293,6 +3293,44 @@ class TestChaosMetaCluster(ChaosTestBase):
                 return False
         wait(_check)
 
+    @authors("savrus")
+    @pytest.mark.parametrize("alter", ["alter", "noalter"])
+    def test_alter_replica_during_coordinator_suspension(self, alter):
+        cells = self._create_dedicated_areas_and_cells()
+        drivers = self._get_drivers()
+        cluster_names = self.get_cluster_names()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cells[1], replicas)
+        assert_items_equal(get("#{0}/@coordinator_cell_ids".format(card_id)), cells)
+
+        def _check(value):
+            values = [{"key": 0, "value": str(value)}]
+            insert_rows("//tmp/t", values)
+            wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
+
+        def _alter(mode):
+            if alter == "alter":
+                self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="async")
+
+        _check(0)
+
+        suspend_coordinator(cells[0])
+        wait(lambda: get("#{0}/@coordinator_cell_ids".format(card_id)) == [cells[1]])
+
+        area_id = get("#{0}/@area_id".format(cells[0]), driver=drivers[-2])
+        with self.CellsDisabled(clusters=cluster_names[-2:-1], area_ids=[area_id]):
+            _alter("async")
+            _check(1)
+
+        resume_coordinator(cells[0])
+        wait(lambda: cells[0] in get("#{0}/@coordinator_cell_ids".format(card_id)))
+        _alter("sync")
+        _check(2)
+
 
 ##################################################################
 

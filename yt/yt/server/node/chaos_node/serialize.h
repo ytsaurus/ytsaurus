@@ -24,6 +24,7 @@ DEFINE_ENUM(EChaosReign,
     ((ReplicationCardCollocation)   (300007)) // savrus
     ((AllowAlterInCataclysm)        (300008)) // savrus
     ((ChaosCellSuspension)          (300009)) // savrus
+    ((RevokeFromSuspended)          (300010)) // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////
