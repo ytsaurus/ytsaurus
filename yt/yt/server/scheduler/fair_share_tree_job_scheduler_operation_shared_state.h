@@ -131,7 +131,7 @@ private:
     TEnumIndexedVector<EJobResourceType, int> MinNeededResourcesUnsatisfiedCount_;
     TInstant LastDiagnosticCountersUpdateTime_;
 
-    struct alignas(NThreading::CacheLineSize) TStateShard
+    struct alignas(CacheLineSize) TStateShard
     {
         TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasons;
         TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasonsFromLastNonStarvingTime;

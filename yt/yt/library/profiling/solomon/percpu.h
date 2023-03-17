@@ -20,7 +20,7 @@ public:
     i64 GetValue() override;
 
 private:
-    struct alignas(NThreading::CacheLineSize) TShard
+    struct alignas(CacheLineSize) TShard
     {
         std::atomic<i64> Value = 0;
     };
@@ -41,7 +41,7 @@ public:
     TDuration GetValue() override;
 
 private:
-    struct alignas(NThreading::CacheLineSize) TShard
+    struct alignas(CacheLineSize) TShard
     {
         std::atomic<TDuration::TValue> Value = 0;
     };
@@ -71,7 +71,7 @@ private:
         static TWrite Unpack(__int128 i);
     };
 
-    struct alignas(NThreading::CacheLineSize) TShard
+    struct alignas(CacheLineSize) TShard
     {
 #ifdef __clang__
         std::atomic<__int128> Value = {};
@@ -103,7 +103,7 @@ public:
     TSummarySnapshot<T> GetSummaryAndReset() override;
 
 private:
-    struct alignas(NThreading::CacheLineSize) TShard
+    struct alignas(CacheLineSize) TShard
     {
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
         TSummarySnapshot<T> Value;

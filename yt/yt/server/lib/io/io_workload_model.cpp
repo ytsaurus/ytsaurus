@@ -265,7 +265,7 @@ public:
     }
 
 private:
-    struct alignas(2 * NThreading::CacheLineSize) TShard
+    struct alignas(2 * CacheLineSize) TShard
     {
         TThreadSafeWorkloadModel Holder;
     };
