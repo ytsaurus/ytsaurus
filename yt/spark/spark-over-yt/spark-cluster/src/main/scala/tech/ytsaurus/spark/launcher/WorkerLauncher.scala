@@ -54,7 +54,9 @@ object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with B
               isMasterAlive && isWorkerAlive && isWorkerLogAlive && isRpcProxyAlive && isSolomonAgentAlive
             }
 
-            AdditionalMetricsSender(sparkSystemProperties, "worker", additionalMetrics).start()
+            if (solomonAgent.nonEmpty) {
+              AdditionalMetricsSender(sparkSystemProperties, "worker", additionalMetrics).start()
+            }
             checkPeriodically(isAlive)
           }
         }

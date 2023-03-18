@@ -47,7 +47,9 @@ object MasterLauncher extends App
             autoscalerConf foreach { conf =>
               AutoScaler.start(AutoScaler.build(conf, discoveryService, yt), conf, additionalMetrics)
             }
-            AdditionalMetricsSender(sparkSystemProperties, "master", additionalMetrics).start()
+            if (solomonAgent.nonEmpty) {
+              AdditionalMetricsSender(sparkSystemProperties, "master", additionalMetrics).start()
+            }
 
             checkPeriodically(master.isAlive(3) && solomonAgent.forall(_.isAlive(3)))
             log.error("Master is not alive")

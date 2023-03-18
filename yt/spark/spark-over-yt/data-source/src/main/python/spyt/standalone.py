@@ -404,6 +404,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["SPARK_YT_CLUSTER_CONF_PATH"] = str(spark_discovery.conf())
     environment["SPARK_YT_BYOP_PORT"] = "27002"
     environment["SPARK_LOCAL_DIRS"] = "./tmpfs"
+    environment["SPARK_YT_SOLOMON_ENABLED"] = str(enablers.enable_solomon_agent)
     environment["SOLOMON_PUSH_PORT"] = "27099"
 
     ytserver_proxy_path = config.get("ytserver_proxy_path")
