@@ -58,6 +58,13 @@ def main():
     parser.set_defaults(enable_byop=default_enablers.enable_byop)
 
     group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('--enable-solomon-agent', dest='enable_solomon_agent',
+                       action='store_true')
+    group.add_argument('--disable-solomon-agent', dest='enable_solomon_agent',
+                       action='store_false')
+    parser.set_defaults(enable_solomon_agent=default_enablers.enable_solomon_agent)
+
+    group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('--enable-profiling',
                        dest='enable_profiling', action='store_true')
     group.add_argument('--disable-profiling',
@@ -165,7 +172,8 @@ def main():
                         enablers=SpytEnablers(
                             enable_byop=args.enable_byop,
                             enable_profiling=args.enable_profiling,
-                            enable_mtn=args.enable_mtn
+                            enable_mtn=args.enable_mtn,
+                            enable_solomon_agent=args.enable_solomon_agent
                         ),
                         client=yt_client,
                         preemption_mode=args.preemption_mode,
