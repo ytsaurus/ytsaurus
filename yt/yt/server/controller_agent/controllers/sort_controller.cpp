@@ -3016,7 +3016,7 @@ protected:
         }
     }
 
-        void AccountRows(const TCompletedJobSummary& jobSummary)
+    void AccountRows(const TCompletedJobSummary& jobSummary)
     {
         YT_VERIFY(jobSummary.TotalOutputDataStatistics);
         TotalOutputRowCount += jobSummary.TotalOutputDataStatistics->row_count();
