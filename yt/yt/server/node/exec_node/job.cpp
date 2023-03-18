@@ -1996,6 +1996,35 @@ TJobProxyConfigPtr TJob::CreateConfig()
     if (RootVolume_) {
         proxyConfig->RootPath = RootVolume_->GetPath();
         proxyConfig->Binds = Config_->RootFSBinds;
+
+        if (Config_->UseArtifactBinds) {
+            auto slot = Slot_;
+
+            for (const auto& artifact : Artifacts_) {
+                // Artifact is passed into the job via bind.
+                if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
+                    YT_VERIFY(artifact.Chunk);
+
+                    YT_LOG_INFO(
+                        "Making bind for artifact (FileName: %v, Executable: "
+                        "%v, SandboxKind: %v, CompressedDataSize: %v)",
+                        artifact.Name,
+                        artifact.Executable,
+                        artifact.SandboxKind,
+                        artifact.Key.GetCompressedDataSize());
+
+                    auto sandboxPath = NFS::CombinePaths("/slot", GetSandboxRelPath(artifact.SandboxKind));
+                    auto targetPath = NFS::CombinePaths(sandboxPath, artifact.Name);
+
+                    auto bind = New<TBindConfig>();
+                    bind->ExternalPath = artifact.Chunk->GetFileName();
+                    bind->InternalPath = targetPath;
+                    bind->ReadOnly = false;
+
+                    proxyConfig->Binds.push_back(std::move(bind));
+                }
+            }
+        }
     }
 
     auto tryReplaceSlotIndex = [&] (TString& str) {
@@ -2112,6 +2141,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     options.DiskOverdraftCallback = BIND(&TJob::Abort, MakeWeak(this))
         .Via(Invoker_);
     options.HasRootFsQuota = Config_->UseCommonRootFsQuota;
+    options.EnableArtifactBinds = Config_->UseArtifactBinds;
     options.EnableDiskQuota = Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota;
     options.UserId = Slot_->GetUserId();
 

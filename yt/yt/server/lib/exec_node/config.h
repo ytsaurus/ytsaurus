@@ -444,6 +444,7 @@ public:
     bool TestRootFS;
 
     bool UseCommonRootFsQuota;
+    bool UseArtifactBinds;
 
     std::vector<NJobProxy::TBindConfigPtr> RootFSBinds;
 
