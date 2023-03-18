@@ -407,16 +407,21 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["SOLOMON_PUSH_PORT"] = "27099"
 
     ytserver_proxy_path = config.get("ytserver_proxy_path")
-    ytserver_binary_name = ytserver_proxy_path.split(
-        "/")[-1] if ytserver_proxy_path else "ytserver-proxy"
+
     worker_environment = {
-        "SPARK_YT_BYOP_ENABLED": str(enablers.enable_byop),
-        "SPARK_YT_BYOP_BINARY_PATH": "$HOME/{}".format(ytserver_binary_name),
-        "SPARK_YT_BYOP_CONFIG_PATH": "$HOME/ytserver-proxy.template.yson",
-        "SPARK_YT_BYOP_HOST": "localhost",
-        "SPARK_YT_BYOP_TVM_ENABLED": str(enablers.enable_mtn)
+        "SPARK_YT_BYOP_ENABLED": str(enablers.enable_byop)
     }
     worker_environment = update(environment, worker_environment)
+    if enablers.enable_byop:
+        ytserver_binary_name = ytserver_proxy_path.split(
+            "/")[-1] if ytserver_proxy_path else "ytserver-proxy"
+        byop_worker_environment = {
+            "SPARK_YT_BYOP_BINARY_PATH": "$HOME/{}".format(ytserver_binary_name),
+            "SPARK_YT_BYOP_CONFIG_PATH": "$HOME/ytserver-proxy.template.yson",
+            "SPARK_YT_BYOP_HOST": "localhost",
+            "SPARK_YT_BYOP_TVM_ENABLED": str(enablers.enable_mtn)
+        }
+        worker_environment = update(worker_environment, byop_worker_environment)
 
     if enablers.enable_byop:
         worker_cores_overhead = worker.cores_overhead or SparkDefaultArguments.SPARK_WORKER_CORES_BYOP_OVERHEAD

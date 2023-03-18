@@ -415,7 +415,7 @@ def _shutdown_jvm(spark):
     from subprocess import Popen
     proc = SparkContext._gateway.proc
     if not isinstance(proc, Popen):
-        logger.warning("SparkSession cannot be closed properly, please update yandex-spyt and Spark cluster")
+        logger.warning("SparkSession cannot be closed properly, please update ytsaurus-spyt and Spark cluster")
         return
     proc.stdin.close()
     SparkContext._gateway.shutdown()

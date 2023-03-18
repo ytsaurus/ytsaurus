@@ -90,7 +90,7 @@ object CommonPlugin extends AutoPlugin {
         Some("releases" at "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/")
     },
     credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
-    credentials += Credentials(Path.userHome / ".sbt" / ".ossrh_credentials "),
+    credentials += Credentials(Path.userHome / ".sbt" / ".ossrh_credentials"),
     libraryDependencies ++= testDeps,
     Test / fork := true,
     printTestClasspath := {
