@@ -181,7 +181,7 @@ object SpytSnapshot {
   }
 
   private lazy val clientSnapshotVersions: ReleaseStep = { st: State =>
-    snapshotVersions(clientVersions, st, spytClientVersion, "yandex-spyt")
+    snapshotVersions(clientVersions, st, spytClientVersion, "ytsaurus-spyt")
   }
   private lazy val setSnapshotClientVersion: ReleaseStep = {
     setVersion(clientVersions, Seq(
@@ -191,7 +191,7 @@ object SpytSnapshot {
   }
 
   private lazy val sparkForkSnapshotVersions: ReleaseStep = { st: State =>
-    snapshotVersions(sparkVersions, st, spytSparkVersion, "yandex-pyspark")
+    snapshotVersions(sparkVersions, st, spytSparkVersion, "ytsaurus-pyspark")
   }
   private lazy val setSparkForkSnapshotVersion: ReleaseStep = {
     setVersion(sparkVersions, Seq(

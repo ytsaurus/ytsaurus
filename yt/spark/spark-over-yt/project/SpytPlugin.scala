@@ -20,10 +20,10 @@ object SpytPlugin extends AutoPlugin {
     val spytClusterVersion = settingKey[String]("Spyt cluster version")
 
     val spytClientVersion = settingKey[String]("Spyt client version")
-    val spytClientPythonVersion = settingKey[String]("yandex-spyt version")
+    val spytClientPythonVersion = settingKey[String]("ytsaurus-spyt version")
 
-    val spytSparkVersion = settingKey[String]("yandex-spark version")
-    val spytSparkPythonVersion = settingKey[String]("yandex-spark version")
+    val spytSparkVersion = settingKey[String]("ytsaurus-spark version")
+    val spytSparkPythonVersion = settingKey[String]("ytsaurus-spark version")
 
     val clientVersions = settingKey[Versions]("")
     val clusterVersions = settingKey[Versions]("")
@@ -53,10 +53,10 @@ object SpytPlugin extends AutoPlugin {
     val spytClusterVersionFile = settingKey[File]("Spyt cluster version")
     val spytClientVersionFile = settingKey[File]("Spyt client version")
     val spytClientVersionPyFile = settingKey[File]("Spyt client version")
-    val spytSparkVersionFile = settingKey[File]("yandex-spark version")
-    val spytSparkVersionPyFile = settingKey[File]("yandex-spark version")
-    val spytSparkPomFile = settingKey[File]("yandex-spark version")
-    val spytSparkDependencyFile = settingKey[File]("yandex-spark version")
+    val spytSparkVersionFile = settingKey[File]("ytsaurus-spark version")
+    val spytSparkVersionPyFile = settingKey[File]("ytsaurus-spark version")
+    val spytSparkPomFile = settingKey[File]("ytsaurus-spark version")
+    val spytSparkDependencyFile = settingKey[File]("ytsaurus-spark version")
 
     val spytSparkForkDependency = settingKey[Seq[ModuleID]]("")
 
@@ -88,7 +88,7 @@ object SpytPlugin extends AutoPlugin {
     spytSparkPomFile := baseDirectory.value.getParentFile / "spark" / "pom.xml",
     spytSparkDependencyFile := baseDirectory.value / "project" / "SparkForkVersion.scala",
 
-    pypiRegistry := "https://pypi.yandex-team.ru/simple",
+    pypiRegistry := "https://test.pypi.org/simple/",
 
     spytClientVersionPyFile := baseDirectory.value / "data-source" / "src" / "main" / "python" / "spyt" / "version.py",
     spytSparkVersionPyFile := (ThisBuild / sparkVersionPyFile).value,

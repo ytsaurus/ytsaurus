@@ -30,7 +30,7 @@ def validate_cluster_version(spark_cluster_version, client=None):
     spark_cluster_minor_version = _get_spark_cluster_minor_version(spark_cluster_version)
     if spyt_minor_version < spark_cluster_minor_version:
         logger.warning("You required Spark Cluster version {} which is older than spark-launch-yt version {}."
-                       "Please update your local yandex-spyt".format(spark_cluster_version, SELF_VERSION))
+                       "Please update your local ytsaurus-spyt".format(spark_cluster_version, SELF_VERSION))
 
 
 def is_supported_cluster_minor_version(spark_cluster_version, required_version):
@@ -50,7 +50,7 @@ def validate_spyt_version(spyt_version, client=None):
     if spyt_version > SELF_VERSION:
         logger.warning("You required SPYT library version {} which is older than your local version {}. "
                        "Some new features may not work as expected. "
-                       "Please update your local yandex-spyt".format(spyt_version, SELF_VERSION))
+                       "Please update your local ytsaurus-spyt".format(spyt_version, SELF_VERSION))
 
 
 def validate_versions_compatibility(spyt_version, spark_cluster_version):
@@ -158,7 +158,9 @@ def latest_ytserver_proxy_path(cluster_version, client=None):
     if cluster_version:
         return None
     global_conf = read_global_conf(client=client)
-    symlink_path = global_conf["ytserver_proxy_path"]
+    symlink_path = global_conf.get("ytserver_proxy_path")
+    if symlink_path is None:
+        return None
     return get("{}&/@target_path".format(symlink_path), client=client)
 
 

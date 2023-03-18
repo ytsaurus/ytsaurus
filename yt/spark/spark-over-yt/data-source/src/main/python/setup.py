@@ -23,7 +23,7 @@ setuptools.setup(
     ],
     install_requires=[
         'ytsaurus-pyspark=={}'.format(__spark_version__),
-        'yandex-yt>=0.9.29', # TODO(alex-shishkin): Use opensource version
+        'ytsaurus-client',
         'pyarrow',
         'pyyaml'
     ],
