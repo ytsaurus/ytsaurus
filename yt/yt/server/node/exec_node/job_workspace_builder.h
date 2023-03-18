@@ -111,18 +111,12 @@ protected:
 
     void UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit);
 
-    NContainers::TRootFS MakeWritableRootFS();
-
 private:
-    TFuture<void> GuardedAction(const std::function<TFuture<void>()>& action);
+    template<TFuture<void> (TJobWorkspaceBuilder::*Method)()>
+    TCallback<TFuture<void>()> MakeStep();
 
-    TFuture<void> PrepareSandboxDirectories();
-
-    TFuture<void> PrepareRootVolume();
-
-    TFuture<void> RunSetupCommand();
-
-    TFuture<void> RunGpuCheckCommand();
+    template<TFuture<void> (TJobWorkspaceBuilder::*Method)()>
+    TFuture<void> GuardedAction();
 
 };
 

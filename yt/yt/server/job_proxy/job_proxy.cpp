@@ -970,10 +970,8 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
             .IsRootReadOnly = !Config_->MakeRootFSWritable,
         };
 
-        for (const auto& bind : Config_->Binds) {
-            rootFS.Binds.emplace_back(TBind{bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
-        }
-
+        // Please observe the hierarchy of binds for correct mounting!
+        // TODO(don-dron): Make topological sorting.
         rootFS.Binds.emplace_back(TBind{GetPreparationPath(), GetSlotPath(), /*readOnly*/ false});
         for (const auto& tmpfsPath : Config_->TmpfsManager->TmpfsPaths) {
             rootFS.Binds.emplace_back(TBind{tmpfsPath, AdjustPath(tmpfsPath), /*readOnly*/ false});
@@ -983,6 +981,10 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         auto tmpPath = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), GetSandboxRelPath(ESandboxKind::Tmp));
         rootFS.Binds.emplace_back(TBind{tmpPath, "/tmp", /*readOnly*/ false});
         rootFS.Binds.emplace_back(TBind{tmpPath, "/var/tmp", /*readOnly*/ false});
+
+        for (const auto& bind : Config_->Binds) {
+            rootFS.Binds.emplace_back(TBind{bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
+        }
 
         return rootFS;
     };

@@ -37,6 +37,7 @@ struct TUserSandboxOptions
     std::optional<i64> DiskSpaceLimit;
     bool HasRootFsQuota = false;
     bool EnableDiskQuota = false;
+    bool EnableArtifactBinds = false;
     int UserId = 0;
 
     TCallback<void(const TError&)> DiskOverdraftCallback;

@@ -41,7 +41,8 @@ TJobWorkspaceBuilder::TJobWorkspaceBuilder(
     }
 }
 
-TFuture<void> TJobWorkspaceBuilder::GuardedAction(const std::function<TFuture<void>()>& action)
+template<TFuture<void> (TJobWorkspaceBuilder::*Method)()>
+TFuture<void> TJobWorkspaceBuilder::GuardedAction()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -61,7 +62,17 @@ TFuture<void> TJobWorkspaceBuilder::GuardedAction(const std::function<TFuture<vo
     }
 
     TForbidContextSwitchGuard contextSwitchGuard;
-    return action();
+    return (*this.*Method)();
+}
+
+template<TFuture<void> (TJobWorkspaceBuilder::*Method)()>
+TCallback<TFuture<void>()> TJobWorkspaceBuilder::MakeStep()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return BIND([=, this, this_ = MakeStrong(this)] () {
+        return GuardedAction<Method>();
+    }).AsyncVia(Invoker_);
 }
 
 void TJobWorkspaceBuilder::ValidateJobPhase(EJobPhase expectedPhase) const
@@ -90,75 +101,19 @@ void TJobWorkspaceBuilder::UpdateArtifactStatistics(i64 compressedDataSize, bool
     UpdateArtifactStatistics_.Fire(compressedDataSize, cacheHit);
 }
 
-TFuture<void> TJobWorkspaceBuilder::PrepareSandboxDirectories()
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    return DoPrepareSandboxDirectories();
-}
-
-TFuture<void> TJobWorkspaceBuilder::PrepareRootVolume()
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    return GuardedAction([=, this, this_ = MakeStrong(this)] () {
-        return DoPrepareRootVolume();
-    });
-}
-
-TFuture<void> TJobWorkspaceBuilder::RunSetupCommand()
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    return GuardedAction([=, this, this_ = MakeStrong(this)] () {
-        return DoRunSetupCommand();
-    });
-}
-
-TFuture<void> TJobWorkspaceBuilder::RunGpuCheckCommand()
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    return GuardedAction([=, this, this_ = MakeStrong(this)] () {
-        return DoRunGpuCheckCommand();
-    });
-}
-
 TFuture<TJobWorkspaceBuildResult> TJobWorkspaceBuilder::Run()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return BIND(&TJobWorkspaceBuilder::PrepareSandboxDirectories, MakeStrong(this))
+    return BIND(&TJobWorkspaceBuilder::DoPrepareSandboxDirectories, MakeStrong(this))
         .AsyncVia(Invoker_)
         .Run()
-        .Apply(BIND(&TJobWorkspaceBuilder::PrepareRootVolume, MakeStrong(this))
-            .AsyncVia(Invoker_))
-        .Apply(BIND(&TJobWorkspaceBuilder::RunSetupCommand, MakeStrong(this))
-            .AsyncVia(Invoker_))
-        .Apply(BIND(&TJobWorkspaceBuilder::RunGpuCheckCommand, MakeStrong(this))
-            .AsyncVia(Invoker_))
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareRootVolume>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunGpuCheckCommand>())
         .Apply(BIND([=, this, this_ = MakeStrong(this)] () {
             return std::move(ResultHolder_);
         }).AsyncVia(Invoker_));
-}
-
-TRootFS TJobWorkspaceBuilder::MakeWritableRootFS()
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    YT_VERIFY(ResultHolder_.RootVolume);
-
-    std::vector<TBind> binds = Settings_.Binds;
-
-    for (const auto& bind : ResultHolder_.RootBinds) {
-        binds.push_back(bind);
-    }
-
-    return TRootFS {
-        .RootPath = ResultHolder_.RootVolume->GetPath(),
-        .IsRootReadOnly = false,
-        .Binds = binds
-    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -214,6 +169,25 @@ private:
         }
     }
 
+    TRootFS MakeWritableRootFS()
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        YT_VERIFY(ResultHolder_.RootVolume);
+
+        std::vector<TBind> binds = Settings_.Binds;
+
+        for (const auto& bind : ResultHolder_.RootBinds) {
+            binds.push_back(bind);
+        }
+
+        return TRootFS {
+            .RootPath = ResultHolder_.RootVolume->GetPath(),
+            .IsRootReadOnly = false,
+            .Binds = binds
+        };
+    }
+
     TFuture<void> DoPrepareSandboxDirectories()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -239,12 +213,10 @@ private:
         ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
-        VolumePrepareStartTime_ = TInstant::Now();
-        UpdateTimers_.Fire(MakeStrong(this));
-
         if (Settings_.UserSandboxOptions.EnableDiskQuota &&
             Settings_.UserSandboxOptions.HasRootFsQuota &&
-            (Settings_.UserSandboxOptions.DiskSpaceLimit || Settings_.UserSandboxOptions.InodeLimit)) {
+            (Settings_.UserSandboxOptions.DiskSpaceLimit || Settings_.UserSandboxOptions.InodeLimit))
+        {
             return DirectoryManager_->ApplyQuota(
                 CombinePaths(Settings_.Slot->GetSlotPath(), GetRootFsUserDirectory()),
                 TJobDirectoryProperties{
@@ -252,14 +224,11 @@ private:
                     .InodeLimit = Settings_.UserSandboxOptions.InodeLimit,
                     .UserId = Settings_.UserSandboxOptions.UserId
                 })
-                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<void>& volumeOrError) {
+                .Apply(BIND([=] (const TErrorOr<void>& volumeOrError) {
                     if (!volumeOrError.IsOK()) {
                         THROW_ERROR_EXCEPTION(TError(EErrorCode::RootVolumePreparationFailed, "Failed to set quotas")
                             << volumeOrError);
                     }
-
-                    VolumePrepareFinishTime_ = TInstant::Now();
-                    UpdateTimers_.Fire(MakeStrong(this));
                 }));
         } else {
             return VoidFuture;
@@ -362,15 +331,35 @@ private:
         YT_LOG_INFO("Started preparing sandbox directories");
 
         auto slot = Settings_.Slot;
-
         ResultHolder_.TmpfsPaths = WaitFor(slot->PrepareSandboxDirectories(Settings_.UserSandboxOptions))
             .ValueOrThrow();
 
-        MakeArtifactSymlinks();
+        if (Settings_.LayerArtifactKeys.empty() || !Settings_.UserSandboxOptions.EnableArtifactBinds) {
+            MakeArtifactSymlinks();
+        }
 
         YT_LOG_INFO("Finished preparing sandbox directories");
 
         return VoidFuture;
+    }
+
+    TRootFS MakeWritableRootFS()
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        YT_VERIFY(ResultHolder_.RootVolume);
+
+        std::vector<TBind> binds = Settings_.Binds;
+
+        for (const auto& bind : ResultHolder_.RootBinds) {
+            binds.push_back(bind);
+        }
+
+        return TRootFS {
+            .RootPath = ResultHolder_.RootVolume->GetPath(),
+            .IsRootReadOnly = false,
+            .Binds = binds
+        };
     }
 
     TFuture<void> DoPrepareRootVolume()
@@ -410,8 +399,8 @@ private:
                 }));
         } else if (Settings_.UserSandboxOptions.EnableDiskQuota &&
             Settings_.UserSandboxOptions.HasRootFsQuota &&
-            (Settings_.UserSandboxOptions.DiskSpaceLimit || Settings_.UserSandboxOptions.InodeLimit)) {
-
+            (Settings_.UserSandboxOptions.DiskSpaceLimit || Settings_.UserSandboxOptions.InodeLimit))
+        {
             VolumePrepareStartTime_ = TInstant::Now();
             UpdateTimers_.Fire(MakeStrong(this));
 
