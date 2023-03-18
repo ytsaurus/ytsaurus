@@ -334,9 +334,9 @@ private:
 
         ServerPool_ = std::make_unique<Poco::ThreadPool>(3, Config_->MaxConnections);
 
-        auto setupSocket = [&] (const std::string& host, UInt16 port) {
+        auto setupSocket = [&] (UInt16 port) {
             Poco::Net::SocketAddress socketAddress;
-            socketAddress = Poco::Net::SocketAddress(host, port);
+            socketAddress = Poco::Net::SocketAddress(Poco::Net::SocketAddress::Family::IPv6, port);
             Poco::Net::ServerSocket socket(socketAddress);
             socket.setReceiveTimeout(settings.receive_timeout);
             socket.setSendTimeout(settings.send_timeout);
@@ -347,7 +347,7 @@ private:
 
         {
             YT_LOG_INFO("Setting up HTTP server");
-            auto socket = setupSocket("::", Config_->HttpPort);
+            auto socket = setupSocket(Config_->HttpPort);
 
             Poco::Timespan keepAliveTimeout(Config_->KeepAliveTimeout, 0);
 
@@ -365,7 +365,7 @@ private:
 
         {
             YT_LOG_INFO("Setting up TCP server");
-            auto socket = setupSocket("::", Config_->TcpPort);
+            auto socket = setupSocket(Config_->TcpPort);
 
             Servers_.emplace_back(std::make_unique<Poco::Net::TCPServer>(
                 CreateTcpHandlerFactory(Host_, *this),
