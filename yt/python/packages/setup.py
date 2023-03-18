@@ -9,6 +9,7 @@ setup(
     entry_points={
         "console_scripts": [
             "prepare_source_tree = yt_setup.prepare_source_tree:main",
+            "generate_python_proto = yt_setup.generate_python_proto:main",
         ],
     },
 )
