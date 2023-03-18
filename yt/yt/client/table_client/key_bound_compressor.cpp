@@ -161,4 +161,4 @@ void TKeyBoundCompressor::Dump(const TLogger& logger)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChunkPools
+} // namespace NYT::NTableClient
