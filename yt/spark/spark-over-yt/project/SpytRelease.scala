@@ -162,11 +162,11 @@ object SpytRelease {
 
   private def getReleaseVersion(vs: Versions): String = vs._1
 
-  private def getReleasePythonVersion(vs: Versions): String = vs._1.split("-fork-").mkString("+")
+  private def getReleasePythonVersion(vs: Versions): String = vs._1
 
   private def getNextVersion(vs: Versions): String = vs._2
 
-  private def getNextPythonVersion(vs: Versions): String = vs._2.replace("-SNAPSHOT", "b1")
+  private def getNextPythonVersion(vs: Versions): String = vs._2.replace("-SNAPSHOT", "b0")
 
   private lazy val maybePushChanges: ReleaseStep = if (isTeamCity) identity[State](_) else pushChanges
 
@@ -227,9 +227,8 @@ object SpytRelease {
     val extracted = Project.extract(st)
 
     val currentClusterVersion = extracted.get(spytClusterVersion)
-    val currentSparkMainVersion = extracted.get(spytSparkVersion).split("-").head
 
-    val releaseV = s"$currentSparkMainVersion-fork-$currentClusterVersion"
+    val releaseV = s"$currentClusterVersion"
     st.log.info(s"Release version: $releaseV")
 
     st.put(sparkVersions.key, (releaseV, ""))
