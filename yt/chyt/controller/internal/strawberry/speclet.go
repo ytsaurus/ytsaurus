@@ -1,6 +1,6 @@
 package strawberry
 
-import "a.yandex-team.ru/yt/go/yt"
+import "go.ytsaurus.tech/yt/go/yt"
 
 // Change of these parameters leads to operation restart.
 type RestartRequiredOptions struct {

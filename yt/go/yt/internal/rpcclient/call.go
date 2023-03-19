@@ -5,12 +5,11 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/golang/protobuf/proto"
-
-	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/yt/go/bus"
-	"a.yandex-team.ru/yt/go/guid"
-	"a.yandex-team.ru/yt/go/proto/client/api/rpc_proxy"
-	"a.yandex-team.ru/yt/go/yt"
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/yt/go/bus"
+	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
+	"go.ytsaurus.tech/yt/go/yt"
 )
 
 type Call struct {

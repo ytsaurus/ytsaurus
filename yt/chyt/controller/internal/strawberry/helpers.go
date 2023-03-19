@@ -5,12 +5,11 @@ import (
 	"reflect"
 	"regexp"
 
+	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yterrors"
 	"golang.org/x/xerrors"
-
-	"a.yandex-team.ru/yt/go/guid"
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 var (

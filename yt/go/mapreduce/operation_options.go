@@ -7,10 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"a.yandex-team.ru/yt/go/guid"
-	"a.yandex-team.ru/yt/go/mapreduce/spec"
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/mapreduce/spec"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yt"
 )
 
 type OperationOption interface {

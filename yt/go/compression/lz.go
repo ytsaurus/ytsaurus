@@ -6,8 +6,7 @@ import (
 	"math"
 
 	"github.com/pierrec/lz4"
-
-	"a.yandex-team.ru/library/go/core/xerrors"
+	"go.ytsaurus.tech/library/go/core/xerrors"
 )
 
 type CodecLz4 struct{}

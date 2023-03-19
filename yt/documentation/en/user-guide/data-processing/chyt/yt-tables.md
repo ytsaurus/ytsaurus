@@ -1,0 +1,1 @@
+{% include [Working with {{product-name}} tables](../../../_includes/user-guide/data-processing/chyt/yt-tables.md) %}

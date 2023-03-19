@@ -3,7 +3,7 @@ package yt
 import (
 	"context"
 
-	"a.yandex-team.ru/library/go/ptr"
+	"go.ytsaurus.tech/library/go/ptr"
 )
 
 const rangeJobsDefaultLimit = 1000

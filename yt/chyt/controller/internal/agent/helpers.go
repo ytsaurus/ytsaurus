@@ -3,7 +3,7 @@ package agent
 import (
 	"strings"
 
-	"a.yandex-team.ru/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/ypath"
 )
 
 func tokenize(path ypath.Path) []string {

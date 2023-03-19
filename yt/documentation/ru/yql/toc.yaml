@@ -1,0 +1,294 @@
+title: YQL over {{product-name}}
+items:
+  - name: Введение
+    href: index.md
+  - name: Типы данных
+    items:
+      - name: Обзор
+        href: types/index.md
+      - name: Простые
+        href: types/primitive.md
+      - name: Опциональные
+        href: types/optional.md
+      - name: Контейнеры
+        href: types/containers.md
+      - name: Специальные
+        href: types/special.md
+      - name: Преобразования типов
+        href: types/cast.md
+      - name: Текстовое представление типов данных
+        href: types/type_string.md
+      - name: JSON
+        href: types/json.md
+  - name: Синтаксис
+    items:
+      - name: Обзор
+        href: syntax/index.md
+      - name: Лексическая структура
+        href: syntax/lexer.md
+      - name: Выражения
+        href: syntax/expressions.md
+      - name: ACTION
+        href: syntax/action.md
+      - name: CREATE TABLE
+        href: syntax/create_table.md
+      - name: DECLARE
+        href: syntax/declare.md
+      - name: DISCARD
+        href: syntax/discard.md
+      - name: DROP TABLE
+        href: syntax/drop_table.md
+      - name: GROUP BY
+        href: syntax/group_by.md
+      - name: EXPORT и IMPORT
+        href: syntax/export_import.md
+      - name: FLATTEN
+        href: syntax/flatten.md
+      - name: INSERT
+        href: syntax/insert_into.md
+      - name: INTO RESULT
+        href: syntax/into_result.md
+      - name: JOIN
+        href: syntax/join.md
+      - name: PRAGMA
+        href: syntax/pragma.md
+      - name: PROCESS
+        href: syntax/process.md
+      - name: REDUCE
+        href: syntax/reduce.md
+      - name: SELECT
+        href: syntax/select.md
+      - name: SUBQUERY
+        href: syntax/subquery.md
+      - name: UPSERT
+        href: syntax/upsert_into.md
+      - name: USE
+        href: syntax/use.md
+      - name: VALUES
+        href: syntax/values.md
+      - name: WINDOW
+        href: syntax/window.md
+      - name: Неподдерживаемые конструкции
+        href: syntax/not_yet_supported.md
+  - name: Встроенные функции
+    items:
+       - name: Обзор
+         href: builtins/index.md
+       - name: Базовые
+         href: builtins/basic.md
+       - name: Агрегатные
+         href: builtins/aggregation.md
+       - name: Оконные
+         href: builtins/window.md
+       - name: Для работы со списками
+         href: builtins/list.md
+       - name: Для работы со словарями
+         href: builtins/dict.md
+       - name: Для работы со структурами
+         href: builtins/struct.md
+       - name: Для работы с типами
+         href: builtins/types.md
+       - name: Для работы с генерацией кода
+         href: builtins/codegen.md
+       - name: Для работы с JSON
+         href: builtins/json.md
+       - name: Библиотеки C++
+         items:
+          - name: Обзор
+            href: udf/list/index.md
+          - name: Hyperscan
+            href: udf/list/hyperscan.md
+          - name: Pcre
+            href: udf/list/pcre.md
+          - name: Pire
+            href: udf/list/pire.md
+          - name: Re2
+            href: udf/list/re2.md
+          - name: String
+            href: udf/list/string.md
+          - name: Unicode
+            href: udf/list/unicode.md
+          - name: DateTime
+            href: udf/list/datetime.md
+          - name: Url
+            href: udf/list/url.md
+          - name: Ip
+            href: udf/list/ip.md
+          - name: Yson
+            href: udf/list/yson.md
+          - name: Digest
+            href: udf/list/digest.md
+          - name: Math
+            href: udf/list/math.md
+          - name: Histogram
+            href: udf/list/histogram.md
+#          - name: UserAgent
+#            href: udf/list/useragent.md
+#          - name: SearchEngine
+#            href: udf/list/searchengine.md
+#          - name: Geo
+#            href: udf/list/geo.md
+#          - name: GeoHash
+#            href: udf/list/geohash.md
+#          - name: H3
+#            href: udf/list/h3.md
+#          - name: Mime
+#            href: udf/list/mime.md
+#          - name: Streaming
+#            href: udf/list/streaming.md
+#          - name: Compress и Decompress
+#            href: udf/list/compress_decompress.md
+#          - name: CatBoost
+#            href: udf/list/catboost.md
+#          - name: ConfigurableRearrange
+#            href: udf/list/configurable_rearrange.md
+#          - name: TensorFlow
+#            href: udf/list/tensorflow.md
+#          - name: DSSM
+#            href: udf/list/dssm.md
+#          - name: Matrixnet
+#            href: udf/list/matrixnet.md
+#          - name: BertModels
+#            href: udf/list/bert_models.md
+#          - name: TextProcessing
+#            href: udf/list/text_processing.md
+#          - name: Dsv
+#            href: udf/list/dsv.md
+#          - name: Xml
+#            href: udf/list/xml.md
+#          - name: Html
+#            href: udf/list/html.md
+#          - name: ProtoPool
+#            href: udf/list/protopool.md
+#          - name: Protobuf
+#            href: udf/list/protobuf.md
+#          - name: ClickHouse
+#            href: udf/list/clickhouse.md
+#          - name: PostgreSQL
+#            href: udf/list/postgres.md
+#          - name: SearchRequest
+#            href: udf/list/searchrequest.md
+#          - name: RequestBundle
+#            href: udf/list/requestbundle.md
+          #  - name: ClickMachine
+          #    href: udf/list/click_machine.md
+#          - name: ParseClickPool
+#            href: udf/list/parse_click_pool.md
+          #  - name: Gemini
+          #    href: udf/list/gemini.md
+#          - name: AugurTokenizer
+#            href: udf/list/augurtokenizer.md
+#          - name: Metrika
+#            href: udf/list/metrika.md
+#          - name: Facts
+#            href: udf/list/facts.md
+#          - name: Watson
+#            href: udf/list/watson.md
+#          - name: WebAlice
+#            href: udf/list/web_alice.md
+#          - name: FactorsInfo
+#            href: udf/list/factorsinfo.md
+#          - name: BlenderFactorStorage
+#            href: udf/list/blender_factor_storage.md
+          #  - name: Yabs
+          #    href: udf/list/yabs.md
+#          - name: CrmAdvisor
+#            href: udf/list/crm_advisor.md
+  # - name: Пользовательские функции (UDF)
+  #   items:
+  #     - name: Предустановленные
+  #       href: udf/preinstalled.md
+  #     - name: Разработка на Python
+  #       href: udf/python.md
+  #     - name: Разработка на JavaScript
+  #       href: udf/javascript.md
+  #     - name: Разработка на C++
+  #       href: udf/cpp.md
+  #       items:
+  #         - name: Коротко о С++ UDF
+  #           href: udf/cpp_about_udf.md
+  #         - name: Обработка данных в C++ UDF
+  #           href: udf/cpp_data_processing.md
+  #         - name: Type-Aware UDF
+  #           href: udf/cpp_type_aware_udf.md
+  #         - name: YQL-Stream в C++ UDF
+  #           href: udf/cpp_stream.md
+  - name: Отличия от других систем
+    items:
+      - name: SQL ANSI
+        href: differences_from/ansi.md
+      # - name: ClickHouse
+      #   href: differences_from/clickhouse.md
+      # - name: Hive
+      #   href: differences_from/hive.md
+      # - name: MySQL
+      #   href: differences_from/mysql.md
+      # - name: PostgreSQL
+      #   href: differences_from/postgresql.md
+      # - name: Oracle
+      #   href: differences_from/oracle.md
+      # - name: Microsoft SQL Server
+      #   href: differences_from/mssql.md
+  # - name: F.A.Q.
+  #   items:
+  #     - name: Типовые ошибки
+  #       href: faq/errors.md
+  #     - name: Производительность
+  #       href: faq/performance.md
+  #     - name: Запросы
+  #       href: faq/queries.md
+  #     - name: Консольный клиент
+  #       href: faq/cli.md
+  #     - name: Поиск в веб-интерфейсе
+  #       href: faq/fts.md
+  #     - name: Временные данные
+  #       href: faq/temp.md
+  # - name: Инструкции
+  #   items:
+  #     - name: Для начинающих
+  #       href: guides/beginners.md
+  #     - name: Пользовательские агрегатные функции
+  #       href: guides/udaf.md
+  #     - name: Запуск по расписанию
+  #       href: guides/schedule.md
+  #     - name: Работа из Jupyter
+  #       href: guides/jupyter.md
+  #     - name: Метапрограммирование
+  #       href: guides/metaprogramming.md
+  #     - name: Кодогенерация
+  #       href: guides/codegen.md
+  # - name: Интерфейсы
+  #   items:
+  #     - name: Веб
+  #       href: interfaces/web.md
+  #     - name: Консольный
+  #       href: interfaces/cli.md
+  #     - name: Python
+  #       href: interfaces/python.md
+  #     - name: JDBC
+  #       href: interfaces/jdbc.md
+  #     - name: HTTP
+  #       href: interfaces/http.md
+  #     - name: Картинки в веб-интерфейсе
+  #       href: interfaces/web_tagged.md
+  # - name: Библиотеки
+  #   items:
+  #     - name: Клиентские
+  #       href: libraries/client.md
+  #     - name: Embedded YQL
+  #       href: libraries/embedded.md
+  #     - name: PureCalc
+  #       href: libraries/purecalc.md
+  #     - name: Тестирование
+  #       href: libraries/testing.md
+  # - name: Прочее
+  #   items:
+  #     - name: Схематизация данных в {{product-name}}
+  #       href: misc/schema.md
+  #     - name: Этапы исполнения запроса
+  #       href: misc/exec_steps.md
+  #     - name: Публичная статистика запросов
+  #       href: misc/public_stat.md
+  #     - name: Подсветка синтаксиса
+  #       href: misc/syntax_highlight.md
+# base: .

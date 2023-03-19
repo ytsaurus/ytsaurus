@@ -1,0 +1,60 @@
+commit dcf0c638bdee9598c8705d23236ee465170272dd
+author: alex-shishkin
+date: 2022-10-17T16:50:57+03:00
+
+    event_logs
+
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/history/EventLogFileWriters.scala	(454e6fbb93344b57287602e3b66e04f6600a1af1)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/history/EventLogFileWriters.scala	(dcf0c638bdee9598c8705d23236ee465170272dd)
+@@ -236,6 +236,7 @@ class SingleEventLogFileWriter(
+   override def stop(): Unit = {
+     closeWriter()
+     renameFile(new Path(inProgressPath), new Path(logPath), shouldOverwrite)
++    fileSystem.close()
+   }
+ }
+ 
+@@ -357,6 +358,7 @@ class RollingEventLogFilesWriter(
+     val appStatusPathComplete = getAppStatusFilePath(logDirForAppPath, appId, appAttemptId,
+       inProgress = false)
+     renameFile(appStatusPathIncomplete, appStatusPathComplete, overwrite = true)
++    fileSystem.close()
+   }
+ 
+   override def logPath: String = logDirForAppPath.toString
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/history/FsHistoryProvider.scala	(454e6fbb93344b57287602e3b66e04f6600a1af1)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/history/FsHistoryProvider.scala	(dcf0c638bdee9598c8705d23236ee465170272dd)
+@@ -284,11 +284,15 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
+       }
+     } catch {
+       case f: FileNotFoundException =>
+-        var msg = s"Log directory specified does not exist: $logDir"
+-        if (logDir == DEFAULT_LOG_DIR) {
+-          msg += " Did you configure the correct one through spark.history.fs.logDirectory?"
++        if (conf.get(CREATE_LOG_DIR)) {
++          fs.mkdirs(path)
++        } else {
++          var msg = s"Log directory specified does not exist: $logDir"
++          if (logDir == DEFAULT_LOG_DIR) {
++            msg += " Did you configure the correct one through spark.history.fs.logDirectory?"
++          }
++          throw new FileNotFoundException(msg).initCause(f)
+         }
+-        throw new FileNotFoundException(msg).initCause(f)
+     }
+ 
+     // Disable the background thread during tests.
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/internal/config/History.scala	(454e6fbb93344b57287602e3b66e04f6600a1af1)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/internal/config/History.scala	(dcf0c638bdee9598c8705d23236ee465170272dd)
+@@ -30,6 +30,11 @@ private[spark] object History {
+     .stringConf
+     .createWithDefault(DEFAULT_LOG_DIR)
+ 
++  val CREATE_LOG_DIR = ConfigBuilder("spark.history.fs.createLogDirectory")
++    .version("3.0.1")
++    .booleanConf
++    .createWithDefault(false)
++
+   val SAFEMODE_CHECK_INTERVAL_S = ConfigBuilder("spark.history.fs.safemodeCheck.interval")
+     .version("1.6.0")
+     .timeConf(TimeUnit.SECONDS)

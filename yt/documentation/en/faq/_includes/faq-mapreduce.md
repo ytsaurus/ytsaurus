@@ -1,0 +1,1 @@
+{% include [FAQ mapreduce](../../_includes/user-guide/faq/_includes/faq-mapreduce.md) %}

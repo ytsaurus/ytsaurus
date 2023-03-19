@@ -3,10 +3,10 @@ package chyt
 import (
 	"context"
 
-	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yt"
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yt"
 )
 
 const (

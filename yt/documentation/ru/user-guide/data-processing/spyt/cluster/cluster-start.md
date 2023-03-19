@@ -1,0 +1,1 @@
+{% include [Starting a Spark cluster](../../../../_includes/user-guide/data-processing/spyt/cluster/cluster-start.md) %}

@@ -5,9 +5,8 @@ import (
 	"io"
 
 	"go.uber.org/atomic"
-
-	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/library/go/core/log/ctxlog"
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 )
 
 type loggingReader struct {

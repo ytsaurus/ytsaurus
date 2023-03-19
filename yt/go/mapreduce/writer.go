@@ -3,7 +3,7 @@ package mapreduce
 import (
 	"io"
 
-	"a.yandex-team.ru/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 // Writer is single output of mapreduce job.

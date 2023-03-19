@@ -1,8 +1,8 @@
 package yt
 
 import (
-	"a.yandex-team.ru/yt/go/guid"
-	"a.yandex-team.ru/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/ypath"
 )
 
 type (

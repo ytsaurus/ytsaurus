@@ -6,8 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"a.yandex-team.ru/library/go/ptr"
+	"go.ytsaurus.tech/library/go/ptr"
 )
 
 type simpleStruct struct {

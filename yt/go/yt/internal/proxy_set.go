@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"a.yandex-team.ru/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/log"
 )
 
 type proxyBan struct {

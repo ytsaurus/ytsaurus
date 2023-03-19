@@ -1,0 +1,799 @@
+commit 896e1bf60a326f9f7978bd9083a6d7b098ecab5c
+author: alex-shishkin
+date: 2022-10-17T16:58:34+03:00
+
+    extends_master_api
+
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/DeployMessage.scala	(4dfc6cb40ee326d7cc7647d95cd7cd0a52fe23f7)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/DeployMessage.scala	(896e1bf60a326f9f7978bd9083a6d7b098ecab5c)
+@@ -192,6 +192,8 @@ private[deploy] object DeployMessages {
+   case class RegisterApplication(appDescription: ApplicationDescription, driver: RpcEndpointRef)
+     extends DeployMessage
+ 
++  case class RegisterDriverToAppId(driverId: String, appId: String) extends DeployMessage
++
+   case class UnregisterApplication(appId: String)
+ 
+   case class MasterChangeAcknowledged(appId: String)
+@@ -234,9 +236,30 @@ private[deploy] object DeployMessages {
+ 
+   case class RequestDriverStatus(driverId: String) extends DeployMessage
+ 
++  case object RequestDriverStatuses extends DeployMessage
++
++  case class RequestApplicationStatus(appId: String) extends DeployMessage
++
++  case object RequestApplicationStatuses extends DeployMessage
++
+   case class DriverStatusResponse(found: Boolean, state: Option[DriverState],
+     workerId: Option[String], workerHostPort: Option[String], exception: Option[Exception])
+ 
++  case class DriverStatus(id: String, state: String, startTimeMs: Long)
++
++  case class DriverStatusesResponse(statuses: Seq[DriverStatus],
++                                    exception: Option[Exception])
++
++  case class ApplicationStatusResponse(found: Boolean, info: Option[ApplicationInfo])
++
++  case class ApplicationStatusesResponse(statuses: Seq[ApplicationInfo], masterIsAlive: Boolean)
++
++  case class RequestAppId(driverId: String) extends DeployMessage
++
++  case class AppIdResponse(appId: Option[String])
++
++  case class AppStatusResponse(found: Boolean, appState: Option[String])
++
+   // Internal message in AppClient
+ 
+   case object StopAppClient
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/master/Master.scala	(4dfc6cb40ee326d7cc7647d95cd7cd0a52fe23f7)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/master/Master.scala	(896e1bf60a326f9f7978bd9083a6d7b098ecab5c)
+@@ -70,6 +70,8 @@ private[deploy] class Master(
+   private val waitingApps = new ArrayBuffer[ApplicationInfo]
+   val apps = new HashSet[ApplicationInfo]
+ 
++  val driverIdToApp = new HashMap[String, String]
++
+   private val idToWorker = new HashMap[String, WorkerInfo]
+   private val addressToWorker = new HashMap[RpcAddress, WorkerInfo]
+ 
+@@ -312,6 +314,18 @@ private[deploy] class Master(
+         schedule()
+       }
+ 
++    case RegisterDriverToAppId(driverId, appId) =>
++      if (driverId != null && appId != null) {
++        if (state == RecoveryState.STANDBY) {
++          // ignore, don't send response
++        } else {
++          logInfo("Registered driverId " + driverId + " to appId " + appId)
++          driverIdToApp(driverId) = appId
++        }
++      } else {
++        logInfo("Unsuccessful registration try " + driverId + " to " + appId)
++      }
++
+     case DriverStateChanged(driverId, state, exception) =>
+       state match {
+         case DriverState.ERROR | DriverState.FINISHED | DriverState.KILLED | DriverState.FAILED =>
+@@ -482,6 +496,46 @@ private[deploy] class Master(
+         }
+       }
+ 
++    case RequestDriverStatuses =>
++      logDebug(s"Driver statuses requested, state=$state")
++      if (state != RecoveryState.ALIVE) {
++        val msg = s"${Utils.BACKUP_STANDALONE_MASTER_PREFIX}: $state. " +
++          "Can only request driver statuses in ALIVE state."
++        context.reply(DriverStatusesResponse(Seq(), Some(new Exception(msg))))
++      } else {
++        val statuses = (drivers ++ completedDrivers).map(driver =>
++          DriverStatus(driver.id, driver.state.toString, driver.startTime))
++        context.reply(DriverStatusesResponse(statuses.toSeq, None))
++      }
++
++    case RequestApplicationStatus(appId) =>
++      logDebug(s"Driver status requested, state=$state, id=$appId")
++      if (state != RecoveryState.ALIVE) {
++        context.reply(
++          ApplicationStatusResponse(found = false, None))
++      } else {
++        logInfo("Asked application status for application " + appId)
++        idToApp.get(appId) match {
++          case Some(application) =>
++            context.reply(ApplicationStatusResponse(found = true, Some(application)))
++          case None =>
++            context.reply(ApplicationStatusResponse(found = false, None))
++        }
++      }
++
++    case RequestApplicationStatuses =>
++      logInfo("Application statuses requested")
++      val res = ApplicationStatusesResponse(
++        idToApp.values.filter(app => app.state != ApplicationState.FINISHED).toSeq,
++        state == RecoveryState.ALIVE
++      )
++      context.reply(res)
++
++    case RequestAppId(driverId) =>
++      logInfo("Asked app id for driver " + driverId)
++      val appIdOption = driverIdToApp.get(driverId)
++      context.reply(AppIdResponse(appIdOption))
++
+     case RequestMasterState =>
+       context.reply(MasterStateResponse(
+         address.host, address.port, restServerBoundPort,
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/rest/RestSubmissionClient.scala	(4dfc6cb40ee326d7cc7647d95cd7cd0a52fe23f7)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/rest/RestSubmissionClient.scala	(896e1bf60a326f9f7978bd9083a6d7b098ecab5c)
+@@ -75,30 +75,30 @@ private[spark] class RestSubmissionClient(master: String) extends Logging {
+   // whether there are masters still alive for us to communicate with
+   private val lostMasters = new mutable.HashSet[String]
+ 
+-  /**
+-   * Submit an application specified by the parameters in the provided request.
+-   *
+-   * If the submission was successful, poll the status of the submission and report
+-   * it to the user. Otherwise, report the error message provided by the server.
+-   */
+-  def createSubmission(request: CreateSubmissionRequest): SubmitRestProtocolResponse = {
+-    logInfo(s"Submitting a request to launch an application in $master.")
++  object HandledResponse extends Enumeration {
++    type HandledResponse = Value
++    val HFailure, HUnexpectedResponse, HSuccess = Value
++  }
++  import HandledResponse._
++
++  private def requestProcess(urlGetter: String => URL,
++                             responseGetter: URL => SubmitRestProtocolResponse,
++                             handler: SubmitRestProtocolResponse => HandledResponse):
++  SubmitRestProtocolResponse = {
+     var handled: Boolean = false
+     var response: SubmitRestProtocolResponse = null
+     for (m <- masters if !handled) {
+       validateMaster(m)
+-      val url = getSubmitUrl(m)
++      val url = urlGetter(m)
+       try {
+-        response = postJson(url, request.toJson)
+-        response match {
+-          case s: CreateSubmissionResponse =>
+-            if (s.success) {
+-              reportSubmissionStatus(s)
+-              handleRestResponse(s)
+-              handled = true
+-            }
+-          case unexpected =>
+-            handleUnexpectedRestResponse(unexpected)
++        response = responseGetter(url)
++        handler(response) match {
++          case HSuccess =>
++            handled = true
++          case HUnexpectedResponse =>
++            handleUnexpectedRestResponse(response)
++          case HFailure =>
++            logWarning(s"Failure response from $url")
+         }
+       } catch {
+         case e: SubmitRestConnectionException =>
+@@ -109,66 +109,134 @@ private[spark] class RestSubmissionClient(master: String) extends Logging {
+     }
+     response
+   }
++  /**
++   * Submit an application specified by the parameters in the provided request.
++   *
++   * If the submission was successful, poll the status of the submission and report
++   * it to the user. Otherwise, report the error message provided by the server.
++   */
++  def createSubmission(request: CreateSubmissionRequest): SubmitRestProtocolResponse = {
++    logInfo(s"Submitting a request to launch an application in $master.")
++    requestProcess(
++      getSubmitUrl,
++      postJson(_, request.toJson),
++      {
++        case s: CreateSubmissionResponse =>
++          if (s.success) {
++            reportSubmissionStatus(s)
++            handleRestResponse(s)
++            HSuccess
++          } else {
++            HFailure
++          }
++        case _ => HUnexpectedResponse
++      }
++    )
++  }
+ 
+   /** Request that the server kill the specified submission. */
+   def killSubmission(submissionId: String): SubmitRestProtocolResponse = {
+     logInfo(s"Submitting a request to kill submission $submissionId in $master.")
+-    var handled: Boolean = false
+-    var response: SubmitRestProtocolResponse = null
+-    for (m <- masters if !handled) {
+-      validateMaster(m)
+-      val url = getKillUrl(m, submissionId)
+-      try {
+-        response = post(url)
+-        response match {
+-          case k: KillSubmissionResponse =>
+-            if (!Utils.responseFromBackup(k.message)) {
+-              handleRestResponse(k)
+-              handled = true
+-            }
+-          case unexpected =>
+-            handleUnexpectedRestResponse(unexpected)
+-        }
+-      } catch {
+-        case e: SubmitRestConnectionException =>
+-          if (handleConnectionException(m)) {
+-            throw new SubmitRestConnectionException("Unable to connect to server", e)
++    requestProcess(
++      getKillUrl(_, submissionId),
++      post,
++      {
++        case k: KillSubmissionResponse =>
++          if (!Utils.responseFromBackup(k.message)) {
++            handleRestResponse(k)
++            HSuccess
++          } else {
++            HFailure
+           }
++        case _ => HUnexpectedResponse
+       }
++    )
++  }
++
++  def requestAppId(submissionId: String): SubmitRestProtocolResponse = {
++    logInfo(s"Submitting a request for the app id of submission $submissionId in $master.")
++    requestProcess(
++      getAppIdUrl(_, submissionId),
++      get,
++      {
++        case r: AppIdRestResponse =>
++          if (r.success) HSuccess else HFailure
++        case _ => HUnexpectedResponse
++      }
++    )
++  }
++
++  def requestAppStatus(appId: String): SubmitRestProtocolResponse = {
++    logInfo(s"Submitting a request for the status of application $appId in $master.")
++    requestProcess(
++      getAppStatusUrl(_, appId),
++      get,
++      {
++        case r: AppStatusRestResponse =>
++          if (r.success) HSuccess else HFailure
++        case _ => HUnexpectedResponse
++      }
++    )
++  }
++
++
++  def requestAppStatuses: SubmitRestProtocolResponse = {
++    logInfo(s"Submitting a request for the status of applications in $master.")
++    requestProcess(getAppStatusUrl(_, ""), get, {
++      case r: AppStatusesRestResponse =>
++        if (r.success) HSuccess else HFailure
++      case _ =>
++        HUnexpectedResponse
+     }
+-    response
++    )
++  }
++
++  def logAppId(submissionId: String): Unit = {
++    val response = requestAppId(submissionId)
++    val shs = response match {
++      case s: AppIdRestResponse if s.success && s.appId != null =>
++        // TODO SPYT return history server
++        val shsUrl = Option.empty[String]
++        shsUrl.map(baseUrl => s"http://$baseUrl/history/${s.appId}/jobs/")
++          .getOrElse("SHS url not found")
++      case _ =>
++        "App id not found"
++    }
++    logInfo( s"Job on history server: $shs")
+   }
+ 
+   /** Request the status of a submission from the server. */
+   def requestSubmissionStatus(
+-      submissionId: String,
+-      quiet: Boolean = false): SubmitRestProtocolResponse = {
++                               submissionId: String,
++                               quiet: Boolean = false): SubmitRestProtocolResponse = {
+     logInfo(s"Submitting a request for the status of submission $submissionId in $master.")
+-
+-    var handled: Boolean = false
+-    var response: SubmitRestProtocolResponse = null
+-    for (m <- masters if !handled) {
+-      validateMaster(m)
+-      val url = getStatusUrl(m, submissionId)
+-      try {
+-        response = get(url)
+-        response match {
+-          case s: SubmissionStatusResponse if s.success =>
++    requestProcess(
++      getStatusUrl(_, submissionId),
++      get,
++      {
++        case s: SubmissionStatusResponse =>
++          if (s.success) {
+             if (!quiet) {
++              logAppId(submissionId)
+               handleRestResponse(s)
+             }
+-            handled = true
+-          case unexpected =>
+-            handleUnexpectedRestResponse(unexpected)
+-        }
+-      } catch {
+-        case e: SubmitRestConnectionException =>
+-          if (handleConnectionException(m)) {
+-            throw new SubmitRestConnectionException("Unable to connect to server", e)
++            HSuccess
++          } else {
++            HFailure
+           }
++        case _ => HUnexpectedResponse
+       }
+-    }
+-    response
++    )
++  }
++
++  def requestSubmissionStatuses(): SubmitRestProtocolResponse = {
++    logDebug(s"Submitting a request for the statuses of submissions in $master.")
++    requestProcess(getStatusUrl(_, ""), get, {
++      case s: SubmissionStatusesResponse =>
++        if (s.success) HSuccess else HFailure
++      case _ =>
++        HUnexpectedResponse
++    })
+   }
+ 
+   /** Construct a message that captures the specified parameters for submitting an application. */
+@@ -302,6 +370,18 @@ private[spark] class RestSubmissionClient(master: String) extends Logging {
+     new URL(s"$baseUrl/kill/$submissionId")
+   }
+ 
++  /** Return the REST URL for getting app id an existing submission. */
++  private def getAppIdUrl(master: String, submissionId: String): URL = {
++    val baseUrl = getBaseUrl(master)
++    new URL(s"$baseUrl/getAppId/$submissionId")
++  }
++
++  /** Return the REST URL for getting app status. */
++  private def getAppStatusUrl(master: String, appId: String): URL = {
++    val baseUrl = getBaseUrl(master)
++    new URL(s"$baseUrl/getAppStatus/$appId")
++  }
++
+   /** Return the REST URL for requesting the status of an existing submission. */
+   private def getStatusUrl(master: String, submissionId: String): URL = {
+     val baseUrl = getBaseUrl(master)
+@@ -409,7 +489,7 @@ private[spark] class RestSubmissionClient(master: String) extends Logging {
+   }
+ }
+ 
+-private[spark] object RestSubmissionClient {
++private[spark] object RestSubmissionClient extends Logging {
+ 
+   val supportedMasterPrefixes = Seq("spark://", "mesos://")
+ 
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/rest/RestSubmissionServer.scala	(4dfc6cb40ee326d7cc7647d95cd7cd0a52fe23f7)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/rest/RestSubmissionServer.scala	(896e1bf60a326f9f7978bd9083a6d7b098ecab5c)
+@@ -55,6 +55,9 @@ private[spark] abstract class RestSubmissionServer(
+   protected val submitRequestServlet: SubmitRequestServlet
+   protected val killRequestServlet: KillRequestServlet
+   protected val statusRequestServlet: StatusRequestServlet
++  protected val masterStateRequestServlet: MasterStateRequestServlet
++  protected val appIdRequestServlet: AppIdRequestServlet
++  protected val appStatusRequestServlet: AppStatusRequestServlet
+ 
+   private var _server: Option[Server] = None
+ 
+@@ -64,6 +67,9 @@ private[spark] abstract class RestSubmissionServer(
+     s"$baseContext/create/*" -> submitRequestServlet,
+     s"$baseContext/kill/*" -> killRequestServlet,
+     s"$baseContext/status/*" -> statusRequestServlet,
++    s"$baseContext/master/*" -> masterStateRequestServlet,
++    s"$baseContext/getAppId/*" -> appIdRequestServlet,
++    s"$baseContext/getAppStatus/*" -> appStatusRequestServlet,
+     "/*" -> new ErrorServlet // default handler
+   )
+ 
+@@ -240,14 +246,20 @@ private[rest] abstract class StatusRequestServlet extends RestServlet {
+       request: HttpServletRequest,
+       response: HttpServletResponse): Unit = {
+     val submissionId = parseSubmissionId(request.getPathInfo)
+-    val responseMessage = submissionId.map(handleStatus).getOrElse {
+-      response.setStatus(HttpServletResponse.SC_BAD_REQUEST)
+-      handleError("Submission ID is missing in status request.")
++    val responseMessage = submissionId match {
++      case Some(value) =>
++        log.debug("Status request for submission ID " + value)
++        handleStatus(value)
++      case None =>
++        log.debug("No submission ID in status request.")
++        handleStatuses
+     }
+     sendResponse(responseMessage, response)
+   }
+ 
+   protected def handleStatus(submissionId: String): SubmissionStatusResponse
++
++  protected def handleStatuses: SubmissionStatusesResponse
+ }
+ 
+ /**
+@@ -289,6 +301,85 @@ private[rest] abstract class SubmitRequestServlet extends RestServlet {
+ }
+ 
+ /**
++ * A servlet for handling get application id requests passed to the [[RestSubmissionServer]].
++ */
++private[rest] abstract class AppIdRequestServlet extends RestServlet {
++
++  /**
++   * If a submission ID is specified in the URL, request the status of the corresponding
++   * driver from the Master and include it in the response. Otherwise, return error.
++   */
++  protected override def doGet(
++                                request: HttpServletRequest,
++                                response: HttpServletResponse): Unit = {
++    val submissionId = parseSubmissionId(request.getPathInfo)
++    val responseMessage = submissionId.map(handleGetAppId(_, response)).getOrElse {
++      response.setStatus(HttpServletResponse.SC_BAD_REQUEST)
++      handleError("Submission ID is missing in status request.")
++    }
++    sendResponse(responseMessage, response)
++  }
++
++  protected def handleGetAppId(submissionId: String,
++                               responseServlet: HttpServletResponse): AppIdRestResponse
++}
++
++/**
++ * A servlet for handling get application id requests passed to the [[RestSubmissionServer]].
++ */
++private[rest] abstract class AppStatusRequestServlet extends RestServlet {
++
++  /**
++   * If a submission ID is specified in the URL, request the status of the corresponding
++   * driver from the Master and include it in the response. Otherwise, return error.
++   */
++  protected override def doGet(
++                                request: HttpServletRequest,
++                                response: HttpServletResponse): Unit = {
++    val responseMessage = parseSubmissionId(request.getPathInfo) match {
++      case Some(appId) =>
++        handleGetAppStatus(appId, response)
++      case None =>
++        handleGetAllAppStatuses(response)
++    }
++    sendResponse(responseMessage, response)
++  }
++
++  protected def handleGetAppStatus(appId: String,
++                                   responseServlet: HttpServletResponse): AppStatusRestResponse
++
++  protected def handleGetAllAppStatuses(response: HttpServletResponse): AppStatusesRestResponse
++
++}
++
++/**
++ * A servlet for handling master state requests passed to the [[RestSubmissionServer]].
++ */
++private[rest] abstract class MasterStateRequestServlet extends RestServlet {
++
++  /**
++   * If a submission ID is specified in the URL, request the status of the corresponding
++   * driver from the Master and include it in the response. Otherwise, return error.
++   */
++  protected override def doGet(
++                                request: HttpServletRequest,
++                                response: HttpServletResponse): Unit = {
++    val responseMessage =
++      try {
++        handleMasterState(response)
++      } catch {
++        // The client failed to provide a valid JSON, so this is not our fault
++        case e @ (_: JsonProcessingException | _: SubmitRestProtocolException) =>
++          response.setStatus(HttpServletResponse.SC_BAD_REQUEST)
++          handleError("Malformed request: " + formatException(e))
++      }
++    sendResponse(responseMessage, response)
++  }
++
++  protected def handleMasterState(responseServlet: HttpServletResponse): MasterStateResponse
++}
++
++/**
+  * A default servlet that handles error cases that are not captured by other servlets.
+  */
+ private class ErrorServlet extends RestServlet {
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/rest/StandaloneRestServer.scala	(4dfc6cb40ee326d7cc7647d95cd7cd0a52fe23f7)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/rest/StandaloneRestServer.scala	(896e1bf60a326f9f7978bd9083a6d7b098ecab5c)
+@@ -65,6 +65,12 @@ private[deploy] class StandaloneRestServer(
+     new StandaloneKillRequestServlet(masterEndpoint, masterConf)
+   protected override val statusRequestServlet =
+     new StandaloneStatusRequestServlet(masterEndpoint, masterConf)
++  protected override val masterStateRequestServlet =
++    new StandaloneMasterStateRequestServlet(masterEndpoint, masterConf)
++  protected override val appIdRequestServlet =
++    new StandaloneAppIdRequestServlet(masterEndpoint, masterConf)
++  protected override val appStatusRequestServlet =
++    new StandaloneAppStatusRequestServlet(masterEndpoint, masterConf)
+ }
+ 
+ /**
+@@ -105,6 +111,24 @@ private[rest] class StandaloneStatusRequestServlet(masterEndpoint: RpcEndpointRe
+     d.message = message.orNull
+     d
+   }
++
++  protected def handleStatuses: SubmissionStatusesResponse = {
++    val response = masterEndpoint.askSync[DeployMessages.DriverStatusesResponse](
++      DeployMessages.RequestDriverStatuses)
++    val resp = new SubmissionStatusesResponse
++    resp.serverSparkVersion = sparkVersion
++    resp.success = response.exception.isEmpty
++    resp.message = response.exception.map(s"Exception from the cluster:\n"
++      + formatException(_)).orNull
++    resp.statuses = response.statuses.map(r => {
++      val d = new SubmissionsStatus
++      d.driverId = r.id
++      d.status = r.state
++      d.startedAt = r.startTimeMs
++      d
++    })
++    resp
++  }
+ }
+ 
+ /**
+@@ -216,3 +240,79 @@ private[rest] class StandaloneSubmitRequestServlet(
+     }
+   }
+ }
++
++private[rest] class StandaloneMasterStateRequestServlet(
++    masterEndpoint: RpcEndpointRef,
++    conf: SparkConf)
++  extends MasterStateRequestServlet {
++  override protected def handleMasterState(
++    responseServlet: HttpServletResponse
++  ): MasterStateResponse = {
++    val response = masterEndpoint.askSync[DeployMessages.MasterStateResponse](
++      DeployMessages.RequestMasterState)
++    val masterStateResponse = new MasterStateResponse
++    masterStateResponse.workers = response.workers
++    masterStateResponse.serverSparkVersion = sparkVersion
++    masterStateResponse
++  }
++}
++
++private[rest] class StandaloneAppIdRequestServlet(
++                                                   masterEndpoint: RpcEndpointRef,
++                                                   conf: SparkConf)
++  extends AppIdRequestServlet {
++  override protected def handleGetAppId(
++                                         submissionId: String,
++                                         responseServlet: HttpServletResponse
++                                       ): AppIdRestResponse = {
++    val response = masterEndpoint.askSync[DeployMessages.AppIdResponse](
++      DeployMessages.RequestAppId(submissionId))
++    val appIdResponse = new AppIdRestResponse
++    appIdResponse.submissionId = submissionId
++    appIdResponse.success = true
++    appIdResponse.appId = response.appId.orNull
++    appIdResponse.serverSparkVersion = sparkVersion
++    appIdResponse
++  }
++}
++
++private[rest] class StandaloneAppStatusRequestServlet(
++                                                       masterEndpoint: RpcEndpointRef,
++                                                       conf: SparkConf)
++  extends AppStatusRequestServlet {
++  override protected def handleGetAppStatus(
++                                             appId: String,
++                                             responseServlet: HttpServletResponse
++                                           ): AppStatusRestResponse = {
++    val response = masterEndpoint.askSync[DeployMessages.ApplicationStatusResponse](
++      DeployMessages.RequestApplicationStatus(appId))
++    val appStatusResponse = new AppStatusRestResponse
++    appStatusResponse.appId = appId
++    appStatusResponse.success = response.found
++    appStatusResponse.appState = response.info.map(_.state.toString).orNull
++    appStatusResponse.appSubmittedAt = response.info.map(_.submitDate).orNull
++    appStatusResponse.appStartedAt = response.info.map(_.startTime).getOrElse(-1L)
++    appStatusResponse.serverSparkVersion = sparkVersion
++    appStatusResponse
++  }
++
++  override protected def handleGetAllAppStatuses(response: HttpServletResponse):
++  AppStatusesRestResponse = {
++    val response = masterEndpoint.askSync[DeployMessages.ApplicationStatusesResponse](
++      DeployMessages.RequestApplicationStatuses)
++    val statusesRestResponse = new AppStatusesRestResponse
++    statusesRestResponse.statuses = response.statuses.map { info =>
++      val status = new AppStatusRestResponse
++      status.appId = info.id
++      status.appState = info.state.toString
++      status.appSubmittedAt = info.submitDate
++      status.appStartedAt = info.startTime
++      status.serverSparkVersion = sparkVersion
++      status.success = true
++      status
++    }
++    statusesRestResponse.success = true
++    statusesRestResponse.serverSparkVersion = sparkVersion
++    statusesRestResponse
++  }
++}
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/rest/SubmitRestProtocolResponse.scala	(4dfc6cb40ee326d7cc7647d95cd7cd0a52fe23f7)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/rest/SubmitRestProtocolResponse.scala	(896e1bf60a326f9f7978bd9083a6d7b098ecab5c)
+@@ -18,6 +18,9 @@
+ package org.apache.spark.deploy.rest
+ 
+ import java.lang.Boolean
++import java.util.Date
++
++import org.apache.spark.deploy.master.WorkerInfo
+ 
+ /**
+  * An abstract response sent from the server in the REST application submission protocol.
+@@ -58,6 +61,47 @@ private[spark] class KillSubmissionResponse extends SubmitRestProtocolResponse {
+ /**
+  * A response to a status request in the REST application submission protocol.
+  */
++private[spark] class AppIdRestResponse extends SubmitRestProtocolResponse {
++  var submissionId: String = null
++  var appId: String = null
++
++  protected override def doValidate(): Unit = {
++    super.doValidate()
++    assertFieldIsSet(submissionId, "submissionId")
++    assertFieldIsSet(success, "success")
++  }
++}
++
++/**
++ * A response to a status request in the REST application submission protocol.
++ */
++private[spark] class AppStatusRestResponse extends SubmitRestProtocolResponse {
++  var appId: String = null
++  var appState: String = null
++  var appSubmittedAt: Date = null
++  var appStartedAt: Long = -1L
++
++  protected override def doValidate(): Unit = {
++    super.doValidate()
++    assertFieldIsSet(appId, "appId")
++    assertFieldIsSet(appState, "appState")
++    assertFieldIsSet(success, "success")
++    assertFieldIsSet(appSubmittedAt, "appStartedAt")
++  }
++}
++
++private[spark] class AppStatusesRestResponse extends SubmitRestProtocolResponse {
++  var statuses: Seq[AppStatusRestResponse] = Seq()
++
++  protected override def doValidate(): Unit = {
++    super.doValidate()
++    assertFieldIsSet(statuses, "statuses")
++  }
++}
++
++/**
++ * A response to a status request in the REST application submission protocol.
++ */
+ private[spark] class SubmissionStatusResponse extends SubmitRestProtocolResponse {
+   var submissionId: String = null
+   var driverState: String = null
+@@ -71,6 +115,34 @@ private[spark] class SubmissionStatusResponse extends SubmitRestProtocolResponse
+   }
+ }
+ 
++private[spark] class SubmissionsStatus {
++  var driverId: String = null
++  var status: String = null
++  var startedAt: Long = -1L
++}
++
++private[spark] class SubmissionStatusesResponse extends SubmitRestProtocolResponse {
++  var statuses: Seq[SubmissionsStatus] = null
++
++  protected override def doValidate(): Unit = {
++    super.doValidate()
++    assertFieldIsSet(success, "success")
++    assertFieldIsSet(statuses, "statuses")
++  }
++}
++
++/**
++ * A response to a status request in the REST application submission protocol.
++ */
++private[spark] class MasterStateResponse extends SubmitRestProtocolResponse {
++  var workers: Array[WorkerInfo] = null
++
++  protected override def doValidate(): Unit = {
++    super.doValidate()
++    assertFieldIsSet(workers, "workers")
++  }
++}
++
+ /**
+  * An error response message used in the REST application submission protocol.
+  */
+--- taxi/dmp/spark/spark/core/src/test/scala/org/apache/spark/deploy/rest/StandaloneRestSubmitSuite.scala	(4dfc6cb40ee326d7cc7647d95cd7cd0a52fe23f7)
++++ taxi/dmp/spark/spark/core/src/test/scala/org/apache/spark/deploy/rest/StandaloneRestSubmitSuite.scala	(896e1bf60a326f9f7978bd9083a6d7b098ecab5c)
+@@ -32,6 +32,7 @@ import org.apache.spark._
+ import org.apache.spark.deploy.{SparkSubmit, SparkSubmitArguments}
+ import org.apache.spark.deploy.DeployMessages._
+ import org.apache.spark.deploy.master.DriverState._
++import org.apache.spark.deploy.master.WorkerInfo
+ import org.apache.spark.rpc._
+ import org.apache.spark.util.Utils
+ 
+@@ -625,6 +626,10 @@ private class FaultyStandaloneRestServer(
+   protected override val submitRequestServlet = new MalformedSubmitServlet
+   protected override val killRequestServlet = new InvalidKillServlet
+   protected override val statusRequestServlet = new ExplodingStatusServlet
++  protected override val masterStateRequestServlet = new ExplodingMasterStateServlet
++  protected override val appIdRequestServlet: AppIdRequestServlet = new ExplodingAppIdRequestServlet
++  protected override val appStatusRequestServlet: AppStatusRequestServlet =
++    new ExplodingAppStatusRequestServlet
+ 
+   /** A faulty servlet that produces malformed responses. */
+   class MalformedSubmitServlet
+@@ -655,4 +660,47 @@ private class FaultyStandaloneRestServer(
+       s
+     }
+   }
++
++  /** A faulty master state servlet that explodes. */
++  class ExplodingMasterStateServlet
++    extends StandaloneMasterStateRequestServlet(masterEndpoint, masterConf) {
++
++    private def explode: Int = 1 / 0
++    protected override def handleMasterState(
++      response: HttpServletResponse): MasterStateResponse = {
++      val s = super.handleMasterState(response)
++      s.workers = explode.asInstanceOf[Array[WorkerInfo]]
++      s
++    }
++  }
++
++  /** A faulty app if servlet that explodes. */
++  class ExplodingAppIdRequestServlet
++    extends StandaloneAppIdRequestServlet(masterEndpoint, masterConf) {
++
++    private def explode: Int = 1 / 0
++
++    override protected def handleGetAppId(submissionId: String,
++                                          responseServlet: HttpServletResponse
++                                         ): AppIdRestResponse = {
++      val s = super.handleGetAppId(submissionId, responseServlet)
++      s.appId = explode.asInstanceOf[String]
++      s
++    }
++  }
++
++  /** A faulty app if servlet that explodes. */
++  class ExplodingAppStatusRequestServlet
++    extends StandaloneAppStatusRequestServlet(masterEndpoint, masterConf) {
++
++    private def explode: Int = 1 / 0
++
++    override protected def handleGetAppStatus(submissionId: String,
++                                              responseServlet: HttpServletResponse
++                                             ): AppStatusRestResponse = {
++      val s = super.handleGetAppStatus(submissionId, responseServlet)
++      s.appId = explode.asInstanceOf[String]
++      s
++    }
++  }
+ }

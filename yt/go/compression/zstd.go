@@ -5,8 +5,7 @@ import (
 	"encoding/binary"
 
 	"github.com/klauspost/compress/zstd"
-
-	"a.yandex-team.ru/library/go/core/xerrors"
+	"go.ytsaurus.tech/library/go/core/xerrors"
 )
 
 type CodecZstd int

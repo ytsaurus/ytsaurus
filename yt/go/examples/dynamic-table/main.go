@@ -6,13 +6,12 @@ import (
 	"os"
 
 	"github.com/davecgh/go-spew/spew"
-
-	"a.yandex-team.ru/yt/go/guid"
-	"a.yandex-team.ru/yt/go/migrate"
-	"a.yandex-team.ru/yt/go/schema"
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yt/ythttp"
+	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/migrate"
+	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt/ythttp"
 )
 
 const (

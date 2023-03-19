@@ -1,9 +1,0 @@
-// It is a stub library.
-// This file is filled automatically.
-// DO NOT EDIT!!! 
-
-package NYT.NProtoMigration;
-
-message TRoot
-{
-}

@@ -1,5 +1,0 @@
-include helpers.py
-include VERSION
-include yt/wrapper/bin/yt
-include yt/wrapper/bin/mapreduce-yt
-include yt/wrapper/bin/yt-fuse

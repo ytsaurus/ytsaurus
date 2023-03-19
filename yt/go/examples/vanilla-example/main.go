@@ -7,11 +7,11 @@ import (
 	"os/exec"
 	"time"
 
-	"a.yandex-team.ru/library/go/core/xerrors"
-	"a.yandex-team.ru/yt/go/mapreduce"
-	"a.yandex-team.ru/yt/go/mapreduce/spec"
-	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yt/ythttp"
+	"go.ytsaurus.tech/library/go/core/xerrors"
+	"go.ytsaurus.tech/yt/go/mapreduce"
+	"go.ytsaurus.tech/yt/go/mapreduce/spec"
+	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt/ythttp"
 )
 
 const cluster = "freud"

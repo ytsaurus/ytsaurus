@@ -4,10 +4,9 @@ import (
 	"context"
 
 	"github.com/golang/protobuf/proto"
-
-	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/library/go/core/log/ctxlog"
-	"a.yandex-team.ru/yt/go/bus"
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/log/ctxlog"
+	"go.ytsaurus.tech/yt/go/bus"
 )
 
 type LoggingInterceptor struct {

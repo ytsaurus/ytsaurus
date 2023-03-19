@@ -1,0 +1,1 @@
+{% include [Vanilla](../../../_includes/user-guide/data-processing/operations/vanilla.md) %}

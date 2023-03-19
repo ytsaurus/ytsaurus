@@ -1,0 +1,1 @@
+{% include [Резервная копия динтаблицы](../../../_includes/user-guide/dynamic-tables/tutorials/backup-table.md) %}

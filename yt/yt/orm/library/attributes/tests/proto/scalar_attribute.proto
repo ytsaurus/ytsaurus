@@ -1,0 +1,49 @@
+package NYT.NOrm.NAttributes.NTests.NProto;
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
+message TNestedMessage
+{
+    optional int32 int32_field = 1;
+    optional TNestedMessage nested_message = 2;
+    repeated int32 repeated_int32_field = 100;
+    map<string, TNestedMessage> nested_message_map = 3 [(NYT.NYson.NProto.yson_map) = true];
+}
+
+enum EColor
+{
+    C_GREEN = -1 [(NYT.NYson.NProto.enum_value_name) = "green"];
+    C_RED = 2 [(NYT.NYson.NProto.enum_value_name) = "red"];
+    C_BLUE = 3 [(NYT.NYson.NProto.enum_value_name) = "blue"];
+}
+
+message TMessage
+{
+    optional int64 int64_field = 1;
+    optional uint64 uint64_field = 2;
+    optional sint64 sint64_field = 3;
+    optional fixed32 fixed32_field = 4;
+    optional fixed64 fixed64_field = 5;
+    optional sfixed32 sfixed32_field = 6;
+    optional sfixed64 sfixed64_field = 7;
+    optional bool bool_field = 8;
+    optional string string_field = 9;
+    optional float float_field = 10;
+    optional double double_field = 11;
+    optional int32 int32_field = 24;
+    optional uint32 uint32_field = 25;
+    optional EColor enum_field = 26;
+    optional TNestedMessage nested_message = 12;
+    repeated int32 repeated_int32_field = 13;
+    repeated uint32 repeated_uint32_field = 27;
+    repeated int64 repeated_int64_field = 28;
+    repeated uint64 repeated_uint64_field = 29;
+    repeated double repeated_double_field = 30;
+    repeated float repeated_float_field = 31;
+    repeated bool repeated_bool_field = 32;
+    repeated string repeated_string_field = 33;
+    repeated EColor repeated_enum_field = 34;
+    repeated TNestedMessage repeated_nested_message = 14;
+    map<string, TNestedMessage> nested_message_map = 15 [(NYT.NYson.NProto.yson_map) = true];
+    map<string, int32> string_to_int32_map = 23 [(NYT.NYson.NProto.yson_map) = true];
+}

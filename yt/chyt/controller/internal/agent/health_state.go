@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"a.yandex-team.ru/yt/chyt/controller/internal/monitoring"
-	"a.yandex-team.ru/yt/go/yterrors"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/monitoring"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 type HealthState struct {

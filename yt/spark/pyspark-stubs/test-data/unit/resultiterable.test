@@ -1,5 +1,0 @@
-[case resultIterable]
-from pyspark.resultiterable import ResultIterable
-
-ResultIterable([])
-[out]

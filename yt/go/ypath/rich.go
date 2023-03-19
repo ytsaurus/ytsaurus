@@ -2,10 +2,9 @@ package ypath
 
 import (
 	"github.com/mitchellh/copystructure"
-
-	"a.yandex-team.ru/library/go/ptr"
-	"a.yandex-team.ru/yt/go/schema"
-	"a.yandex-team.ru/yt/go/yson"
+	"go.ytsaurus.tech/library/go/ptr"
+	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 // ReadLimit is either table key or row index.

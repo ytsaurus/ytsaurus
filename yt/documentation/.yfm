@@ -1,0 +1,24 @@
+allowHTML: true
+apply-presets: true
+varsPreset: public
+langs: ['ru', 'en']
+
+docs-viewer:
+  project-name: yt-public
+  abc-slug: yt
+  show-revision: true
+  langs: ['ru', 'en']
+  auto-release-to:
+    testing: true
+  releasers:
+    - arivkin
+    - andozer
+  index-page:
+    hidden: true
+    title: YT-public
+    description: "{{product-name}} public docs"
+  crawler:
+    notifications:
+      interval: daily
+      receivers:
+        - pewit

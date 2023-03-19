@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"regexp"
 
-	"a.yandex-team.ru/yt/go/yterrors"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 func validateStringParameter(pattern string, value string) error {

@@ -3,11 +3,10 @@ package ytrpc
 import (
 	"testing"
 
+	"go.ytsaurus.tech/yt/go/mapreduce"
+	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt/internal/rpcclient"
 	"golang.org/x/xerrors"
-
-	"a.yandex-team.ru/yt/go/mapreduce"
-	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yt/internal/rpcclient"
 )
 
 func checkNotInsideJob(c *yt.Config) error {

@@ -1,0 +1,1 @@
+{% include [Клика в веб-интерфейсе](../../../../_includes/user-guide/data-processing/chyt/cliques/ui.md) %}

@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 
-	"a.yandex-team.ru/library/go/blockcodecs"
-	"a.yandex-team.ru/yt/go/yt"
+	"go.ytsaurus.tech/library/go/blockcodecs"
+	"go.ytsaurus.tech/yt/go/yt"
 )
 
 type rowBatch struct {

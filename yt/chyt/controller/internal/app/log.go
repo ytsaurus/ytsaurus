@@ -5,9 +5,8 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-
-	logzap "a.yandex-team.ru/library/go/core/log/zap"
-	"a.yandex-team.ru/yt/go/ytlog"
+	logzap "go.ytsaurus.tech/library/go/core/log/zap"
+	"go.ytsaurus.tech/yt/go/ytlog"
 )
 
 func stderrLogger() *logzap.Logger {

@@ -3,8 +3,8 @@ package auth
 import (
 	"net/http"
 
-	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/library/go/core/log/ctxlog"
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 )
 
 // Auth returns a middleware that validates yt authorization via provided oauth token.

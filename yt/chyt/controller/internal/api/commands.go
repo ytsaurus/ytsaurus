@@ -4,12 +4,11 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-
-	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/yt/chyt/controller/internal/auth"
-	"a.yandex-team.ru/yt/chyt/controller/internal/httpserver"
-	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yt/ythttp"
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/auth"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/httpserver"
+	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt/ythttp"
 )
 
 var AliasParameter = CmdParameter{

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"a.yandex-team.ru/yt/go/yterrors"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 type ErrorWrapper struct{}

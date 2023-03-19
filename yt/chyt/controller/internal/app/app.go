@@ -6,19 +6,18 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-
-	"a.yandex-team.ru/library/go/core/log"
-	logzap "a.yandex-team.ru/library/go/core/log/zap"
-	"a.yandex-team.ru/yt/chyt/controller/internal/agent"
-	"a.yandex-team.ru/yt/chyt/controller/internal/api"
-	"a.yandex-team.ru/yt/chyt/controller/internal/httpserver"
-	"a.yandex-team.ru/yt/chyt/controller/internal/monitoring"
-	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yson"
-	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yt/ythttp"
-	"a.yandex-team.ru/yt/go/ytlock"
+	"go.ytsaurus.tech/library/go/core/log"
+	logzap "go.ytsaurus.tech/library/go/core/log/zap"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/agent"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/api"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/httpserver"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/monitoring"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt/ythttp"
+	"go.ytsaurus.tech/yt/go/ytlock"
 )
 
 // Config is taken from yson config file. It contains both strawberry-specific options

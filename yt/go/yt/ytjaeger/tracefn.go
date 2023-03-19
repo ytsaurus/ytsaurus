@@ -5,8 +5,7 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber/jaeger-client-go"
-
-	"a.yandex-team.ru/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/guid"
 )
 
 func TraceFn(ctx context.Context) (traceID guid.GUID, spanID uint64, flags byte, ok bool) {

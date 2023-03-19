@@ -6,7 +6,7 @@ import (
 	"errors"
 	"strconv"
 
-	"a.yandex-team.ru/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 // RawMessage is type that wraps raw JSON message and marshals it directly to YSON using streaming API

@@ -4,13 +4,12 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
-
-	"a.yandex-team.ru/library/go/ptr"
-	"a.yandex-team.ru/yt/go/compression"
-	"a.yandex-team.ru/yt/go/guid"
-	"a.yandex-team.ru/yt/go/proto/core/misc"
-	"a.yandex-team.ru/yt/go/proto/core/rpc"
-	"a.yandex-team.ru/yt/go/proto/core/tracing"
+	"go.ytsaurus.tech/library/go/ptr"
+	"go.ytsaurus.tech/yt/go/compression"
+	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/proto/core/misc"
+	"go.ytsaurus.tech/yt/go/proto/core/rpc"
+	"go.ytsaurus.tech/yt/go/proto/core/tracing"
 )
 
 type SendOption interface {

@@ -7,8 +7,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
-
-	"a.yandex-team.ru/yt/go/bus"
+	"go.ytsaurus.tech/yt/go/bus"
 )
 
 type TracingInterceptor struct {

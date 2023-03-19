@@ -1,0 +1,1 @@
+{% include [Основные понятия](../../_includes/user-guide/dynamic-tables/concepts.md) %}

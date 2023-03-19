@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yt"
 )
 
 // BlobTableReader allows reading YT blob tables.

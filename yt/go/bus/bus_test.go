@@ -5,8 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"a.yandex-team.ru/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/guid"
 )
 
 func connPair() (a, b net.Conn, err error) {

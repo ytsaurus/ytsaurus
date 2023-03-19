@@ -1,0 +1,31 @@
+allowHTML: true
+apply-presets: true
+varsPreset: public
+langs: ['ru', 'en']
+
+docs-viewer:
+  project-name: YTsaurus
+  show-revision: true
+  langs: ['ru', 'en']
+  themes: ['light', 'dark']
+  favicon-src: https://ytsaurus.tech/favicon/favicon.svg
+  logo-options:
+    title: YTsaurus
+    url:
+      en: https://ytsaurus.tech/
+      default: https://ytsaurus.tech/{lang}
+    src: https://ytsaurus.tech/assets/logo-light.svg
+    src-dark: https://ytsaurus.tech/assets/logo-dark.svg
+    preview: https://ytsaurus.tech/assets/logo-light.svg
+    img-has:
+      offset: true
+      height: 34px
+
+  index-page:
+    hidden: true
+    title: YT-public
+    description: "{{product-name}} public docs"
+
+resources:
+  style:
+    - _assets/style/redefenitions.css

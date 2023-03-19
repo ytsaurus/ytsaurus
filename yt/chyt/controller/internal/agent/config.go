@@ -1,8 +1,8 @@
 package agent
 
 import (
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 // Config contains strawberry-specific configuration.

@@ -5,14 +5,11 @@ import (
 	"context"
 	"sync"
 
-	"a.yandex-team.ru/yt/go/yterrors"
-
-	"a.yandex-team.ru/yt/go/yson"
-
-	"a.yandex-team.ru/library/go/core/xerrors"
-
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yt"
+	"go.ytsaurus.tech/library/go/core/xerrors"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 type WinnerTx struct {

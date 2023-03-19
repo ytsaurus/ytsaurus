@@ -1,6 +1,0 @@
-Tests for different MR stuff.
-  * lib -- kind of a framework (based on library/cpp/testing/unittest/gtest.h) for these tests
-  * operations -- NMR operations (Map/Reduce/etc) library
-  * common -- tests for common for YaMR/YT API (namespace NMR)
-  * library -- tests for mapreduce/library
-  * native -- tests for YT native API (namespace NYT)

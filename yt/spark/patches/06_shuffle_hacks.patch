@@ -1,0 +1,87 @@
+commit db499a652a6f30f47ec4091ea209a836391054da
+author: alex-shishkin
+date: 2022-10-17T16:49:48+03:00
+
+    shuffle_hacks
+
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/Dependency.scala	(3769b9290f43a039a52a755aaff9801b6418168d)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/Dependency.scala	(db499a652a6f30f47ec4091ea209a836391054da)
+@@ -72,7 +72,7 @@ abstract class NarrowDependency[T](_rdd: RDD[T]) extends Dependency[T] {
+  */
+ @DeveloperApi
+ class ShuffleDependency[K: ClassTag, V: ClassTag, C: ClassTag](
+-    @transient private val _rdd: RDD[_ <: Product2[K, V]],
++    @transient private[spark] val _rdd: RDD[_ <: Product2[K, V]],
+     val partitioner: Partitioner,
+     val serializer: Serializer = SparkEnv.get.serializer,
+     val keyOrdering: Option[Ordering[K]] = None,
+--- taxi/dmp/spark/spark/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/plans/physical/partitioning.scala	(3769b9290f43a039a52a755aaff9801b6418168d)
++++ taxi/dmp/spark/spark/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/plans/physical/partitioning.scala	(db499a652a6f30f47ec4091ea209a836391054da)
+@@ -157,6 +157,10 @@ case class BroadcastDistribution(mode: BroadcastMode) extends Distribution {
+   }
+ }
+ 
++trait CustomDistribution extends Distribution {
++  def exchangeExecClass: String
++}
++
+ /**
+  * Describes how an operator's output is split across partitions. It has 2 major properties:
+  *   1. number of partitions.
+--- taxi/dmp/spark/spark/sql/core/src/main/scala/org/apache/spark/sql/execution/exchange/EnsureRequirements.scala	(3769b9290f43a039a52a755aaff9801b6418168d)
++++ taxi/dmp/spark/spark/sql/core/src/main/scala/org/apache/spark/sql/execution/exchange/EnsureRequirements.scala	(db499a652a6f30f47ec4091ea209a836391054da)
+@@ -25,6 +25,7 @@ import org.apache.spark.sql.catalyst.plans.physical._
+ import org.apache.spark.sql.catalyst.rules.Rule
+ import org.apache.spark.sql.execution._
+ import org.apache.spark.sql.execution.joins.{ShuffledHashJoinExec, SortMergeJoinExec}
++import org.apache.spark.util.Utils
+ 
+ /**
+  * Ensures that the [[org.apache.spark.sql.catalyst.plans.physical.Partitioning Partitioning]]
+@@ -41,6 +42,19 @@ import org.apache.spark.sql.execution.joins.{ShuffledHashJoinExec, SortMergeJoin
+  */
+ case class EnsureRequirements(optimizeOutRepartition: Boolean = true) extends Rule[SparkPlan] {
+ 
++  def instantiateExchangeExec(cls: Class[_ <: Exchange],
++                              partitioning: Partitioning,
++                              distribution: Distribution,
++                              child: SparkPlan): Exchange = {
++    cls
++      .getConstructor(classOf[Partitioning], classOf[Distribution], classOf[SparkPlan])
++      .newInstance(
++        partitioning.asInstanceOf[AnyRef],
++        distribution.asInstanceOf[AnyRef],
++        child.asInstanceOf[AnyRef]
++      )
++  }
++
+   private def ensureDistributionAndOrdering(operator: SparkPlan): SparkPlan = {
+     val requiredChildDistributions: Seq[Distribution] = operator.requiredChildDistribution
+     val requiredChildOrderings: Seq[Seq[SortOrder]] = operator.requiredChildOrdering
+@@ -57,7 +71,14 @@ case class EnsureRequirements(optimizeOutRepartition: Boolean = true) extends Ru
+       case (child, distribution) =>
+         val numPartitions = distribution.requiredNumPartitions
+           .getOrElse(conf.numShufflePartitions)
+-        ShuffleExchangeExec(distribution.createPartitioning(numPartitions), child)
++        val partitioning = distribution.createPartitioning(numPartitions)
++        distribution match {
++          case customDistribution: CustomDistribution =>
++            val clsName = customDistribution.exchangeExecClass
++            val cls = Utils.classForName(clsName).asInstanceOf[Class[_ <: Exchange]]
++            instantiateExchangeExec(cls, partitioning, distribution, child)
++          case _ => ShuffleExchangeExec(partitioning, child)
++        }
+     }
+ 
+     // Get the indexes of children which have specified distribution requirements and need to have
+--- taxi/dmp/spark/spark/sql/core/src/main/scala/org/apache/spark/sql/execution/joins/SortMergeJoinExec.scala	(3769b9290f43a039a52a755aaff9801b6418168d)
++++ taxi/dmp/spark/spark/sql/core/src/main/scala/org/apache/spark/sql/execution/joins/SortMergeJoinExec.scala	(db499a652a6f30f47ec4091ea209a836391054da)
+@@ -119,7 +119,7 @@ case class SortMergeJoinExec(
+     }
+   }
+ 
+-  protected override def doExecute(): RDD[InternalRow] = {
++  override def doExecute(): RDD[InternalRow] = {
+     val numOutputRows = longMetric("numOutputRows")
+     val spillThreshold = getSpillThreshold
+     val inMemoryThreshold = getInMemoryThreshold

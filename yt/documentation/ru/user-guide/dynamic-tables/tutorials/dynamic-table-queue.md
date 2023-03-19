@@ -1,0 +1,1 @@
+{% include [Динтаблица в качестве очереди](../../../_includes/user-guide/dynamic-tables/tutorials/dynamic-table-queue.md) %}

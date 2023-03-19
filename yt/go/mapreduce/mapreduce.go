@@ -7,10 +7,9 @@ import (
 	"fmt"
 	"io"
 
+	"go.ytsaurus.tech/yt/go/mapreduce/spec"
+	"go.ytsaurus.tech/yt/go/yt"
 	"golang.org/x/xerrors"
-
-	"a.yandex-team.ru/yt/go/mapreduce/spec"
-	"a.yandex-team.ru/yt/go/yt"
 )
 
 func jobCommand(job Job, outputPipes int) string {

@@ -1,0 +1,1 @@
+{% include [Динамический учет потребления CPU](../../../_includes/user-guide/data-processing/scheduler/job-cpu-monitor.md) %}

@@ -3,9 +3,8 @@ package ytlock
 import (
 	"testing"
 
-	"a.yandex-team.ru/yt/go/ypath"
-
 	"github.com/stretchr/testify/require"
+	"go.ytsaurus.tech/yt/go/ypath"
 )
 
 func TestLockWithOptions(t *testing.T) {

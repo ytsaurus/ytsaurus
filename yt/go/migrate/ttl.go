@@ -3,7 +3,7 @@ package migrate
 import (
 	"time"
 
-	"a.yandex-team.ru/library/go/ptr"
+	"go.ytsaurus.tech/library/go/ptr"
 )
 
 // RetentionConfig stores dynamic table retention policy.

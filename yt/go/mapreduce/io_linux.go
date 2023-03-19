@@ -8,10 +8,9 @@ import (
 	"os"
 	"syscall"
 
+	"go.ytsaurus.tech/yt/go/skiff"
+	"go.ytsaurus.tech/yt/go/yson"
 	"golang.org/x/xerrors"
-
-	"a.yandex-team.ru/yt/go/skiff"
-	"a.yandex-team.ru/yt/go/yson"
 )
 
 type skiffReader struct {

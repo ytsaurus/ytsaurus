@@ -1,0 +1,1 @@
+{% include [Быстрый старт](../../../_includes/user-guide/data-processing/spyt/quick-start.md) %}

@@ -1,9 +1,0 @@
-import "yt/yt_proto/yt/formats/extension.proto";
-
-package NYtSkynetTable;
-
-message TSkynetTableRow {
-    optional string FileName = 1 [(NYT.column_name) = "filename"];
-    optional int64 PartIndex = 2 [(NYT.column_name) = "part_index"];
-    optional string Data = 3 [(NYT.column_name) = "data"];
-}

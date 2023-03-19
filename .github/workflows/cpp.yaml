@@ -1,0 +1,99 @@
+name: C++ CI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  start-vm:
+    name: Start VM
+    runs-on: trampoline
+    outputs:
+      label: ${{ steps.start-yc-runner.outputs.label }}
+      instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
+    steps:
+      - name: Start YC runner
+        id: start-yc-runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: start
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          folder-id: b1gcvl619mdunf1cqqbv
+          image-id: fd8ddda1ka78hnn4iiel
+          zone-id: 'ru-central1-b'
+          subnet-id: e2lno1rkqo63l729dlo7
+          cores: 16
+          memory: 32GB
+          core-fraction: 100
+          disk-type: network-ssd-nonreplicated
+          disk-size: 93GB
+
+  checkout:
+    name: Checkout sources
+    needs: start-vm
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+  check:
+    name: Run checks
+    needs:
+      - start-vm
+      - checkout
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Configure
+        shell: bash
+        run: |
+          mkdir -p ../build
+          cd ../build
+          rm -rf *
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=On -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain ../ytsaurus
+
+      - name: Build
+        shell: bash
+        run: |
+          cd ../build
+          ninja
+
+      - name: Unittests
+        shell: bash
+        run: |
+          cp ./yt/yt/scripts/run_unittests.sh ../build/
+          cd ../build
+          ./run_unittests.sh
+
+  stop-vm:
+    name: Stop VM
+    needs:
+      - start-vm
+      - check
+    runs-on: trampoline
+    if: ${{ always() }}
+    steps:
+      - name: Stop YC runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: stop
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-vm.outputs.label }}
+          instance-id: ${{ needs.start-vm.outputs.instance-id }}
+
+  send-notifications:
+    name: Send notifications
+    needs:
+      - stop-vm
+    runs-on: trampoline
+    if: ${{ failure() }}
+    steps:
+      - name: Send telegram message
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          message: |
+            Workflow "${{github.workflow}}" failed for commit "${{github.event.head_commit.message}}": ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"a.yandex-team.ru/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 type Inner struct {
