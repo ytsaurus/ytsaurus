@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y \
 
 # TODO: Change url
 RUN pip install -i https://test.pypi.org/simple/ \
-    --extra-index-url https://pypi.yandex-team.ru/simple/ \
+    --extra-index-url https://pypi.org/simple/ \
     ytsaurus-local \
     ytsaurus-client \
     attrs

@@ -143,9 +143,8 @@ if [ -z "$(which docker)" ]; then
 refer to the instructions at URL $url"
 fi
 
-# TODO: change urls
-yt_image=registry.yandex.net/yt/yt:$yt_version
-ui_image=registry.yandex.net/yt/yt-interface:$ui_version
+yt_image=ytsaurus/local:$yt_version
+ui_image=ytsaurus/ui:$ui_version
 
 if [ -n "$local_cypress_dir" ]; then
     if [ ! -d "$local_cypress_dir" ]; then

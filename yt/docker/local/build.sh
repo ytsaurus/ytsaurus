@@ -53,8 +53,7 @@ cp $yt_local_path data/yt_local
 cp $ytserver_all_path data/ytserver-all
 cp $ytserver_all_credits_path data/ytserver-all.CREDITS
 
-# TODO: change url
-docker build -t registry.yandex.net/yt/yt:stable \
+docker build -t ytsaurus/local:stable \
     --build-arg YT_LOCAL_PATH=data/yt_local \
     --build-arg YTSERVER_ALL_PATH=data/ytserver-all \
     --build-arg YTSERVER_ALL_CREDITS_PATH=data/ytserver-all.CREDITS \
