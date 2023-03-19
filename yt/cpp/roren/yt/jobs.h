@@ -6,7 +6,7 @@
 #include <yt/cpp/roren/interface/roren.h>
 #include <yt/cpp/roren/interface/private/fwd.h>
 
-#include <mapreduce/yt/interface/client.h>
+#include <yt/cpp/mapreduce/interface/client.h>
 
 #include <vector>
 

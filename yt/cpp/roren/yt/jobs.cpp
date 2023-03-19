@@ -5,11 +5,11 @@
 
 #include <yt/cpp/roren/interface/roren.h>
 
-#include <mapreduce/yt/interface/client.h>
-#include <mapreduce/yt/interface/format.h>
-#include <mapreduce/yt/interface/logging/yt_log.h>
-#include <mapreduce/yt/io/node_table_reader.h>
-#include <mapreduce/yt/io/stream_table_reader.h>
+#include <yt/cpp/mapreduce/interface/client.h>
+#include <yt/cpp/mapreduce/interface/format.h>
+#include <yt/cpp/mapreduce/interface/logging/yt_log.h>
+#include <yt/cpp/mapreduce/io/node_table_reader.h>
+#include <yt/cpp/mapreduce/io/stream_table_reader.h>
 
 #include <library/cpp/yson/writer.h>
 

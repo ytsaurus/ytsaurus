@@ -7,9 +7,9 @@
 #include <yt/cpp/roren/interface/roren.h>
 #include <yt/cpp/roren/yt/proto/config.pb.h>
 
-#include <mapreduce/yt/interface/client.h>
-#include <mapreduce/yt/interface/format.h>
-#include <mapreduce/yt/interface/logging/yt_log.h>
+#include <yt/cpp/mapreduce/interface/client.h>
+#include <yt/cpp/mapreduce/interface/format.h>
+#include <yt/cpp/mapreduce/interface/logging/yt_log.h>
 
 #include <library/cpp/yson/writer.h>
 
