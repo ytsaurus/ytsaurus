@@ -497,10 +497,19 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
 
 def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=None,
                 freeze=False, sync=False, target_cell_ids=None, client=None):
-    """Mounts table.
+    """Mounts the table.
 
-    TODO
+    :param path: path to table.
+    :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param int first_tablet_index: first tablet index.
+    :param int last_tablet_index: last tablet index, inclusive.
+    :param str cell_id: the id of the cell where all tablets should be mounted to.
+    :param bool freeze: whether the table should be mounted in frozen mode.
+    :param bool sync: wait for completion.
+    :param target_cell_ids:
+        the ids of the cells where corresponding tablets should be mounted to.
     """
+
     if sync and get_option("_client_type", client) == "batch":
         raise YtError("Sync mode is not available with batch client")
 
@@ -522,10 +531,18 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
 
 
 def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None, sync=False, client=None):
-    """Unmounts table.
+    """Unmounts the table.
 
-    TODO
+    :param path: path to table.
+    :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param int first_tablet_index: first tablet index.
+    :param int last_tablet_index: last tablet index, inclusive.
+    :param bool force:
+        unmounts the table immediately without flushing the dynamic stores.
+        May cause data corruption.
+    :param bool sync: wait for completion.
     """
+
     if sync and get_option("_client_type", client) == "batch":
         raise YtError("Sync mode is not available with batch client")
 
@@ -543,10 +560,18 @@ def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=N
 
 
 def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
-    """Remounts table.
+    """Remounts the table.
 
-    TODO
+    :param path: path to table.
+    :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param int first_tablet_index: first tablet index.
+    :param int last_tablet_index: last tablet index, inclusive.
+
+    This command effectively sends updated table settings to tablets and should be used
+    whenever some attributes are set to a mounted table. It is not equivalent to
+    unmount+mount and does not cause any downtime.
     """
+
     params = {"path": path}
     set_param(params, "first_tablet_index", first_tablet_index)
     set_param(params, "last_tablet_index", last_tablet_index)
@@ -555,10 +580,15 @@ def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=
 
 
 def freeze_table(path, first_tablet_index=None, last_tablet_index=None, sync=False, client=None):
-    """Freezes table.
+    """Freezes the table.
 
-    TODO
+    :param path: path to table.
+    :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param int first_tablet_index: first tablet index.
+    :param int last_tablet_index: last tablet index, inclusive.
+    :param bool sync: wait for completion.
     """
+
     if sync and get_option("_client_type", client) == "batch":
         raise YtError("Sync mode is not available with batch client")
 
@@ -575,10 +605,15 @@ def freeze_table(path, first_tablet_index=None, last_tablet_index=None, sync=Fal
 
 
 def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, sync=False, client=None):
-    """Unfreezes table.
+    """Unfreezes the table.
 
-    TODO
+    :param path: path to table.
+    :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param int first_tablet_index: first tablet index.
+    :param int last_tablet_index: last tablet index, inclusive.
+    :param bool sync: wait for completion.
     """
+
     if sync and get_option("_client_type", client) == "batch":
         raise YtError("Sync mode is not available with batch client")
 
@@ -599,8 +634,24 @@ def reshard_table(path,
                   uniform=None, enable_slicing=None, slicing_accuracy=None, sync=False, client=None):
     """Changes pivot keys separating tablets of a given table.
 
-    TODO
+    :param path: path to table.
+    :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param int first_tablet_index: first tablet index.
+    :param int last_tablet_index: last tablet index, inclusive.
+    :param pivot_keys: explicit pivot keys for the new tablets.
+    :param int tablet_count:
+        desired tablet count used by the system to determine pivot keys
+        automatically.
+    :param bool uniform:
+        pick pivot keys uniformly for given tablet_count. First key column
+        must have integral type.
+    :param bool enable_slicing:
+        use more precise algorithm for picking pivot keys when tablet_count
+        is specified.
+    :param bool sync: wait for completion.
+
     """
+
     if sync and get_option("_client_type", client) == "batch":
         raise YtError("Sync mode is not available with batch client")
 
@@ -688,7 +739,13 @@ def trim_rows(path, tablet_index, trimmed_row_count, client=None):
 
 
 def alter_table_replica(replica_id, enabled=None, mode=None, client=None):
-    """TODO"""
+    """Changes mode and enables or disables a table replica.
+
+    :param str replica_id: replica id.
+    :param bool enabled: enable or disable the replica.
+    :param str mode: switch the replica to sync or async mode.
+    """
+
     if mode is not None:
         require(mode in ("sync", "async"), lambda: YtError("Invalid mode. Expected sync or async"))
 
@@ -700,16 +757,24 @@ def alter_table_replica(replica_id, enabled=None, mode=None, client=None):
 
 
 def get_tablet_infos(path, tablet_indexes, format=None, client=None):
-    """TODO"""
+    """Returns various runtime tablet information.
+
+    :param path: path to table.
+    :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param indexes: tablet indexes.
+    """
+
     params = {"path": path, "tablet_indexes": tablet_indexes}
     return make_formatted_request("get_tablet_infos", params, format=format, client=client)
 
 
 def get_tablet_errors(path, limit=None, format=None, client=None):
-    """Gets dynamic table tablet and replication errors.
-    :param str path: path to table
-    :param int limit: maximum number of returned errors of any kind
+    """Returns dynamic table tablet and replication errors.
+
+    :param str path: path to table.
+    :param int limit: maximum number of returned errors of any kind.
     """
+
     params = {"path": path}
     set_param(params, "limit", limit)
 

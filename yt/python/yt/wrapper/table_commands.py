@@ -1036,7 +1036,7 @@ def alter_table(path, schema=None, dynamic=None, upstream_replica_id=None, clien
 
 
 def get_table_columnar_statistics(paths, client=None):
-    """ Gets columnar statistics of tables listed in paths
+    """Gets columnar statistics of tables listed in paths
     :param paths: paths to tables
     :type paths: list of (str or :class:`TablePath <yt.wrapper.ypath.TablePath>`)
     """

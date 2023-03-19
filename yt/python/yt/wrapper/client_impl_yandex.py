@@ -57,7 +57,8 @@ class YtClient(ClientState):
         * exact_key, lower_key, upper_key -- tuple of strings to identify range of rows.
         * exact_index, start_index, end_index -- tuple of indexes to identify range of rows.
         * ranges -- list of dicts, allows to specify arbitrary ranges on the table, see more details in the docs.
-        * schema -- TableSchema (or list with column schemas -- deprecated), see     `static schema doc <https://ytsaurus.tech/docs/en/user-guide/storage/static-schema#sozdanie-tablicy-so-shemoj>`_
+        * schema -- TableSchema (or list with column schemas -- deprecated), see
+        `static schema doc <https://ytsaurus.tech/docs/en/user-guide/storage/static-schema#creating-a-table-with-a-schema>`_
 
         .. seealso:: `YPath in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/ypath>`_
 
@@ -244,7 +245,12 @@ class YtClient(ClientState):
             replica_id,
             enabled=None, mode=None):
         """
-        TODO
+        Changes mode and enables or disables a table replica.
+
+        :param str replica_id: replica id.
+        :param bool enabled: enable or disable the replica.
+        :param str mode: switch the replica to sync or async mode.
+
         """
         return client_api.alter_table_replica(
             replica_id,
@@ -679,9 +685,13 @@ class YtClient(ClientState):
             path,
             first_tablet_index=None, last_tablet_index=None, sync=False):
         """
-        Freezes table.
+        Freezes the table.
 
-        TODO
+        :param path: path to table.
+        :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param int first_tablet_index: first tablet index.
+        :param int last_tablet_index: last tablet index, inclusive.
+        :param bool sync: wait for completion.
 
         """
         return client_api.freeze_table(
@@ -945,9 +955,10 @@ class YtClient(ClientState):
             path,
             limit=None, format=None):
         """
-        Gets dynamic table tablet and replication errors.
-        :param str path: path to table
-        :param int limit: maximum number of returned errors of any kind
+        Returns dynamic table tablet and replication errors.
+
+        :param str path: path to table.
+        :param int limit: maximum number of returned errors of any kind.
 
         """
         return client_api.get_tablet_errors(
@@ -960,7 +971,12 @@ class YtClient(ClientState):
             path, tablet_indexes,
             format=None):
         """
-        TODO
+        Returns various runtime tablet information.
+
+        :param path: path to table.
+        :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param indexes: tablet indexes.
+
         """
         return client_api.get_tablet_infos(
             path, tablet_indexes,
@@ -1334,9 +1350,17 @@ class YtClient(ClientState):
             first_tablet_index=None, last_tablet_index=None, cell_id=None, freeze=False, sync=False,
             target_cell_ids=None):
         """
-        Mounts table.
+        Mounts the table.
 
-        TODO
+        :param path: path to table.
+        :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param int first_tablet_index: first tablet index.
+        :param int last_tablet_index: last tablet index, inclusive.
+        :param str cell_id: the id of the cell where all tablets should be mounted to.
+        :param bool freeze: whether the table should be mounted in frozen mode.
+        :param bool sync: wait for completion.
+        :param target_cell_ids:
+        the ids of the cells where corresponding tablets should be mounted to.
 
         """
         return client_api.mount_table(
@@ -1537,9 +1561,16 @@ class YtClient(ClientState):
             path,
             first_tablet_index=None, last_tablet_index=None):
         """
-        Remounts table.
+        Remounts the table.
 
-        TODO
+        :param path: path to table.
+        :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param int first_tablet_index: first tablet index.
+        :param int last_tablet_index: last tablet index, inclusive.
+
+        This command effectively sends updated table settings to tablets and should be used
+        whenever some attributes are set to a mounted table. It is not equivalent to
+        unmount+mount and does not cause any downtime.
 
         """
         return client_api.remount_table(
@@ -1620,7 +1651,22 @@ class YtClient(ClientState):
         """
         Changes pivot keys separating tablets of a given table.
 
-        TODO
+        :param path: path to table.
+        :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param int first_tablet_index: first tablet index.
+        :param int last_tablet_index: last tablet index, inclusive.
+        :param pivot_keys: explicit pivot keys for the new tablets.
+        :param int tablet_count:
+        desired tablet count used by the system to determine pivot keys
+        automatically.
+        :param bool uniform:
+        pick pivot keys uniformly for given tablet_count. First key column
+        must have integral type.
+        :param bool enable_slicing:
+        use more precise algorithm for picking pivot keys when tablet_count
+        is specified.
+        :param bool sync: wait for completion.
+
 
         """
         return client_api.reshard_table(
@@ -2381,9 +2427,13 @@ class YtClient(ClientState):
             path,
             first_tablet_index=None, last_tablet_index=None, sync=False):
         """
-        Unfreezes table.
+        Unfreezes the table.
 
-        TODO
+        :param path: path to table.
+        :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param int first_tablet_index: first tablet index.
+        :param int last_tablet_index: last tablet index, inclusive.
+        :param bool sync: wait for completion.
 
         """
         return client_api.unfreeze_table(
@@ -2414,9 +2464,16 @@ class YtClient(ClientState):
             path,
             first_tablet_index=None, last_tablet_index=None, force=None, sync=False):
         """
-        Unmounts table.
+        Unmounts the table.
 
-        TODO
+        :param path: path to table.
+        :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param int first_tablet_index: first tablet index.
+        :param int last_tablet_index: last tablet index, inclusive.
+        :param bool force:
+        unmounts the table immediately without flushing the dynamic stores.
+        May cause data corruption.
+        :param bool sync: wait for completion.
 
         """
         return client_api.unmount_table(

@@ -313,8 +313,8 @@ class TablePath(YPathSupportingAppend):
     * exact_key, lower_key, upper_key -- tuple of strings to identify range of rows.
     * exact_index, start_index, end_index -- tuple of indexes to identify range of rows.
     * ranges -- list of dicts, allows to specify arbitrary ranges on the table, see more details in the docs.
-    * schema -- TableSchema (or list with column schemas -- deprecated), see \
-    `static schema doc <https://ytsaurus.tech/docs/en/user-guide/storage/static-schema#creating-a-table-with-a-schema>`_
+    * schema -- TableSchema (or list with column schemas -- deprecated), see
+        `static schema doc <https://ytsaurus.tech/docs/en/user-guide/storage/static-schema#creating-a-table-with-a-schema>`_
 
     .. seealso:: `YPath in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/ypath>`_
     """
