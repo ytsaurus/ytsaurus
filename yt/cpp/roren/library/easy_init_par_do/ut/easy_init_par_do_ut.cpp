@@ -1,4 +1,5 @@
-#include <yt/cpp/roren/interface/easy_init_par_do/easy_init_par_do.h>
+#include <yt/cpp/roren/library/easy_init_par_do/easy_init_par_do.h>
+
 #include <yt/cpp/roren/interface/roren.h>
 #include <yt/cpp/roren/local/local.h>
 #include <yt/cpp/roren/local/vector_io.h>
