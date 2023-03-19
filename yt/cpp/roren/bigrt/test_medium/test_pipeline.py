@@ -400,7 +400,8 @@ def test_smoke(yt_cluster, yt_client, test_home_ypath, enable_v2_graph_parsing: 
     ]
 
 
-def test_bigrt_execution_context(yt_cluster, yt_client, test_home_ypath):
+@parametrize_enable_v2_graph_parsing
+def test_bigrt_execution_context(yt_cluster, yt_client, test_home_ypath, enable_v2_graph_parsing: str):
     os.environ["SET_DEFAULT_LOCAL_YT_PARAMETERS"] = "1"
 
     input_queue = f"{test_home_ypath}/input"
@@ -414,6 +415,7 @@ def test_bigrt_execution_context(yt_cluster, yt_client, test_home_ypath):
         outf.write(f"""\
 {{
     "RorenConfig": {{
+        "EnableV2GraphParsing": {enable_v2_graph_parsing},
         "Consumers": [
             {{
                 "ConsumingSystemConfig": {{
@@ -467,7 +469,8 @@ def test_bigrt_execution_context(yt_cluster, yt_client, test_home_ypath):
     ]
 
 
-def test_ytdyntable_write_node(yt_client, yt_cluster, test_home_ypath):
+@parametrize_enable_v2_graph_parsing
+def test_ytdyntable_write_node(yt_client, yt_cluster, test_home_ypath, enable_v2_graph_parsing: str):
     os.environ["SET_DEFAULT_LOCAL_YT_PARAMETERS"] = "1"
 
     input_queue = f"{test_home_ypath}/input"
@@ -486,6 +489,7 @@ def test_ytdyntable_write_node(yt_client, yt_cluster, test_home_ypath):
         outf.write(f"""\
 {{
     "RorenConfig": {{
+        "EnableV2GraphParsing": {enable_v2_graph_parsing},
         "Consumers": [
             {{
                 "ConsumingSystemConfig": {{
@@ -538,7 +542,8 @@ def test_ytdyntable_write_node(yt_client, yt_cluster, test_home_ypath):
     assert (rows == expected_result)
 
 
-def test_ytdyntable_unversionedrow_write(yt_client, yt_cluster, test_home_ypath):
+@parametrize_enable_v2_graph_parsing
+def test_ytdyntable_unversionedrow_write(yt_client, yt_cluster, test_home_ypath, enable_v2_graph_parsing):
     os.environ["SET_DEFAULT_LOCAL_YT_PARAMETERS"] = "1"
 
     input_queue = f"{test_home_ypath}/input"
@@ -557,6 +562,7 @@ def test_ytdyntable_unversionedrow_write(yt_client, yt_cluster, test_home_ypath)
         outf.write(f"""\
 {{
     "RorenConfig": {{
+        "EnableV2GraphParsing": {enable_v2_graph_parsing},
         "Consumers": [
             {{
                 "ConsumingSystemConfig": {{
@@ -609,7 +615,8 @@ def test_ytdyntable_unversionedrow_write(yt_client, yt_cluster, test_home_ypath)
     assert (rows == expected_result)
 
 
-def test_logbroker_write(yt_client, yt_cluster, test_home_ypath, logbroker_stuff):
+@parametrize_enable_v2_graph_parsing
+def test_logbroker_write(yt_client, yt_cluster, test_home_ypath, logbroker_stuff, enable_v2_graph_parsing: str):
     os.environ["SET_DEFAULT_LOCAL_YT_PARAMETERS"] = "1"
 
     input_queue = f"{test_home_ypath}/input"
@@ -622,6 +629,7 @@ def test_logbroker_write(yt_client, yt_cluster, test_home_ypath, logbroker_stuff
         outf.write(f"""\
 {{
     "RorenConfig": {{
+        "EnableV2GraphParsing": {enable_v2_graph_parsing},
         "Consumers": [
             {{
                 "ConsumingSystemConfig": {{
@@ -682,7 +690,8 @@ def test_logbroker_write(yt_client, yt_cluster, test_home_ypath, logbroker_stuff
     ]
 
 
-def test_metrics(yt_client, yt_cluster, test_home_ypath, logbroker_stuff):
+@parametrize_enable_v2_graph_parsing
+def test_metrics(yt_client, yt_cluster, test_home_ypath, enable_v2_graph_parsing: str):
     os.environ["SET_DEFAULT_LOCAL_YT_PARAMETERS"] = "1"
 
     input_queue = f"{test_home_ypath}/input"
@@ -695,6 +704,7 @@ def test_metrics(yt_client, yt_cluster, test_home_ypath, logbroker_stuff):
             outf.write(f"""\
     {{
         "RorenConfig": {{
+            "EnableV2GraphParsing": {enable_v2_graph_parsing},
             "Consumers": [
                 {{
                     "ConsumingSystemConfig": {{
@@ -745,19 +755,19 @@ def test_metrics(yt_client, yt_cluster, test_home_ypath, logbroker_stuff):
         execution.terminate()
 
 
-def test_in_memory_dict_resolver(yt_stuff):
+@parametrize_enable_v2_graph_parsing
+def test_in_memory_dict_resolver(yt_stuff, test_home_ypath, enable_v2_graph_parsing: str):
     os.environ["SET_DEFAULT_LOCAL_YT_PARAMETERS"] = "1"
     yt_cluster = yt_stuff.get_server()
     yt_client = yt_stuff.get_yt_client()
 
-    home_dir = "//home/test_in_memory_dict_resolver"
-    yt_client.create("map_node", home_dir)
+    test_home_ypath = test_home_ypath
 
     schema = [
         {"name": "key", "type": "string", "sort_order": "ascending"},
         {"name": "value", "type": "string"},
     ]
-    dict_table = f"{home_dir}/dict_table"
+    dict_table = f"{test_home_ypath}/dict_table"
     yt_client.create("table", dict_table, attributes={"dynamic": True, "schema": schema})
     yt_client.mount_table(dict_table, sync=True)
     yt_client.insert_rows(dict_table, [
@@ -765,22 +775,23 @@ def test_in_memory_dict_resolver(yt_stuff):
         {"key": "key3", "value": "dict3"},
     ])
 
-    input_queue = f"{home_dir}/input"
+    input_queue = f"{test_home_ypath}/input"
     yt_queue_create(yt_client, input_queue, shards=2)
     yt_queue_create_consumer(yt_client, input_queue, "consumer")
 
-    output_queue = f"{home_dir}/output"
+    output_queue = f"{test_home_ypath}/output"
     yt_queue_create(yt_client, output_queue)
 
     with open("pipeline_config", "w") as outf:
         outf.write(f"""\
 {{
     "RorenConfig": {{
+        "EnableV2GraphParsing": {enable_v2_graph_parsing},
         "Consumers": [
             {{
                 "ConsumingSystemConfig": {{
                     "Cluster": "{yt_cluster}",
-                    "MainPath": "{home_dir}/consuming_system",
+                    "MainPath": "{test_home_ypath}/consuming_system",
                     "MaxShards": 2
                 }}
             }}
@@ -960,34 +971,33 @@ def test_multiple_consuming_systems(yt_stuff, test_home_ypath, enable_v2_graph_p
     ])
 
 
-def test_multiple_inputs(yt_stuff):
+@parametrize_enable_v2_graph_parsing
+def test_multiple_inputs(yt_stuff, test_home_ypath, enable_v2_graph_parsing: str):
     os.environ["SET_DEFAULT_LOCAL_YT_PARAMETERS"] = "1"
     yt_cluster = yt_stuff.get_server()
     yt_client = yt_stuff.get_yt_client()
 
-    home_dir = "//home/test_multiple_inputs"
-    yt_client.create("map_node", home_dir)
-
-    input_queue1 = f"{home_dir}/input1"
+    input_queue1 = f"{test_home_ypath}/input1"
     yt_queue_create(yt_client, input_queue1)
     yt_queue_create_consumer(yt_client, input_queue1, "cons1")
 
-    input_queue2 = f"{home_dir}/input2"
+    input_queue2 = f"{test_home_ypath}/input2"
     yt_queue_create(yt_client, input_queue2)
     yt_queue_create_consumer(yt_client, input_queue2, "cons2")
 
-    output_queue = f"{home_dir}/output"
+    output_queue = f"{test_home_ypath}/output"
     yt_queue_create(yt_client, output_queue)
 
     with open("pipeline_config", "w") as outf:
         outf.write(f"""\
 {{
     "RorenConfig": {{
+        "EnableV2GraphParsing": {enable_v2_graph_parsing},
         "Consumers": [
             {{
                 "ConsumingSystemConfig": {{
                     "Cluster": "{yt_cluster}",
-                    "MainPath": "{home_dir}/consuming_system",
+                    "MainPath": "{test_home_ypath}/consuming_system",
                     "MaxShards": 2
                 }},
                 "InputTag": "tag"
