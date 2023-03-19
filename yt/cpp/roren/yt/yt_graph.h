@@ -3,7 +3,7 @@
 #include <yt/cpp/roren/interface/fwd.h>
 #include <yt/cpp/roren/interface/private/fwd.h>
 
-#include <mapreduce/yt/interface/fwd.h>
+#include <yt/cpp/mapreduce/interface/fwd.h>
 
 #include <memory>
 #include <optional>

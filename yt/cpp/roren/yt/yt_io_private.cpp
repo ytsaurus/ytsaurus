@@ -2,8 +2,8 @@
 #include "jobs.h"
 
 #include <yt/cpp/roren/interface/private/raw_data_flow.h>
-#include <mapreduce/yt/interface/format.h>
-#include <mapreduce/yt/interface/io.h>
+#include <yt/cpp/mapreduce/interface/format.h>
+#include <yt/cpp/mapreduce/interface/io.h>
 
 #include <library/cpp/yson/writer.h>
 #include <library/cpp/yson/node/node_visitor.h>

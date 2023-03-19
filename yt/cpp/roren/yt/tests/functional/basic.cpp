@@ -2,7 +2,7 @@
 #include <yt/cpp/roren/yt/yt.h>
 #include <yt/cpp/roren/transforms/sum.h>
 
-#include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
+#include <yt/cpp/mapreduce/tests/yt_unittest_lib/yt_unittest_lib.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 

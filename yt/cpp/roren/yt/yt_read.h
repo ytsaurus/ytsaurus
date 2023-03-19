@@ -7,7 +7,7 @@
 #include <yt/cpp/roren/interface/private/raw_transform.h>
 #include <yt/cpp/roren/interface/private/row_vtable.h>
 
-#include <mapreduce/yt/interface/common.h>
+#include <yt/cpp/mapreduce/interface/common.h>
 
 #include <util/stream/mem.h>
 #include <util/ysaveload.h>

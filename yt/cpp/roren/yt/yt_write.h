@@ -4,7 +4,7 @@
 
 #include <yt/cpp/roren/interface/transforms.h>
 
-#include <mapreduce/yt/interface/common.h>
+#include <yt/cpp/mapreduce/interface/common.h>
 
 namespace NRoren {
 

@@ -5,7 +5,7 @@
 #include <yt/cpp/roren/interface/private/raw_data_flow.h>
 #include <yt/cpp/roren/interface/private/raw_transform.h>
 
-#include <mapreduce/yt/interface/common.h>
+#include <yt/cpp/mapreduce/interface/common.h>
 
 namespace NRoren::NPrivate {
 
