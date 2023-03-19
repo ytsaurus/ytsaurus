@@ -162,7 +162,7 @@ def prepare_python_source_tree(
             name="yson_lib")
         prepare_bindings_library(
             module_path="yt/yt/python/yt_driver_bindings",
-            library_path="yt/yt/python/driver/narive_shared/",
+            library_path="yt/yt/python/driver/native_shared/",
             name="driver_lib")
         prepare_bindings_library(
             module_path="yt/yt/python/yt_driver_rpc_bindings",

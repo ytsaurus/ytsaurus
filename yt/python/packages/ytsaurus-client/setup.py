@@ -44,7 +44,7 @@ def main():
             "argcomplete==2.0.0",
             "six==1.16.0",
             "charset-normalizer==2.0.10",
-            "typing-extenstions==4.5.0",
+            "typing-extensions==4.5.0",
         ],
     )
 
