@@ -437,7 +437,7 @@ class StructuredSkiffFormat(Format):
 class SkiffFormat(Format):
     """Efficient schemaful format
 
-    .. seealso:: `Skiff in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/skiff>`_
+    .. seealso:: `Skiff in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/skiff>`_
     """
 
     def __init__(self, schemas=None, schema_registry=None, attributes=None, raw=None):
@@ -510,7 +510,7 @@ class SkiffFormat(Format):
 class DsvFormat(Format):
     """Tabular format widely used in Statistics.
 
-    .. seealso:: `DSV in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/formats#dsv>`_
+    .. seealso:: `DSV in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/formats#dsv>`_
     """
 
     def __init__(self, enable_escaping=None, enable_table_index=None, table_index_column=None,
@@ -654,7 +654,7 @@ class DsvFormat(Format):
 class YsonFormat(Format):
     """Main and default YT data format.
 
-    .. seealso:: `YSON in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/formats#yson>`_
+    .. seealso:: `YSON in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/formats#yson>`_
     """
 
     def __init__(self, format=None, control_attributes_mode=None,
@@ -1031,7 +1031,7 @@ class YamrFormat(Format):
 class JsonFormat(Format):
     """Open standard text data format for attribute-value data.
 
-    .. seealso:: `JSON in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/formats#json>`_
+    .. seealso:: `JSON in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/formats#json>`_
     """
     @staticmethod
     def _wrap_json_module(json_module):
@@ -1328,7 +1328,7 @@ class SchemafulDsvFormat(Format):
     """Schemaful dsv format. It accepts column names and outputs values of these columns.
 
     .. seealso:: `SchemafulDsvFormat in the docs \
-    <https://ytsaurus.tech/docs/ru/user-guide/storage/formats#schemaful_dsv`_
+    <https://ytsaurus.tech/docs/en/user-guide/storage/formats#schemaful_dsv`_
     """
 
     def __init__(self, columns=None, enable_escaping=None, enable_table_index=None, table_index_column=None,

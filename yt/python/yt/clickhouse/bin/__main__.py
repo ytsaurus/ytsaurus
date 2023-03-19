@@ -134,7 +134,7 @@ def add_clickhouse_execute_parser(add_parser):
                                                              "via CHYT_PROXY env variable")
     add_hybrid_argument(parser, "query", help="Query to execute; do not specify FORMAT in query, use --format instead")
     parser.add_argument("--format",
-                        help="ClickHouse data format; refer to https://clickhouse.tech/docs/ru/interfaces/formats/; "
+                        help="ClickHouse data format; refer to https://clickhouse.tech/docs/en/interfaces/formats/; "
                              "default is TabSeparated",
                         default="TabSeparated")
     parser.add_argument("--setting", action="append", help="Add ClickHouse setting to query in format <key>=<value>.")

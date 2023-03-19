@@ -100,7 +100,7 @@ class Transaction(object):
     :param bool acquire: commit/abort transaction in exit from with. By default False if new transaction is not started else True and false values are not allowed.
     :param bool ping: ping transaction in separate thread. By default True if acquire is also True else False.
 
-    .. seealso:: `transactions in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/transactions>`_
+    .. seealso:: `transactions in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/transactions>`_
     """
 
     def __init__(self, timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True,

@@ -75,7 +75,7 @@ def get(path, max_size=None, attributes=None, format=None, read_from=None,
 
     Be careful: attributes have specific representation in JSON format.
 
-    .. seealso:: `get in the docs <https://ytsaurus.tech/docs/ru/api/commands#get>`_
+    .. seealso:: `get in the docs <https://ytsaurus.tech/docs/en/api/commands#get>`_
     """
     if max_size is None:
         max_size = 65535
@@ -105,7 +105,7 @@ def set(path, value, format=None, recursive=False, force=None, suppress_transact
     object that can be dumped to JSON of YSON. Otherwise it should be string.
     :param bool recursive: recursive.
 
-    .. seealso:: `set in the docs <https://ytsaurus.tech/docs/ru/api/commands#set>`_
+    .. seealso:: `set in the docs <https://ytsaurus.tech/docs/en/api/commands#set>`_
     """
     is_format_specified = format is not None
     format = get_structured_format(format, client=client)
@@ -152,7 +152,7 @@ def copy(source_path, destination_path,
     :param bool force: force.
     :param bool pessimistic_quota_check: pessimistic quota check.
 
-    .. seealso:: `copy in the docs <https://ytsaurus.tech/docs/ru/api/commands#copy>`_
+    .. seealso:: `copy in the docs <https://ytsaurus.tech/docs/en/api/commands#copy>`_
     """
     params = {"source_path": YPath(source_path, client=client),
               "destination_path": YPath(destination_path, client=client)}
@@ -195,7 +195,7 @@ def move(source_path, destination_path,
     :param bool force: force.
     :param bool pessimistic_quota_check: pessimistic quota check.
 
-    .. seealso:: `move in the docs <https://ytsaurus.tech/docs/ru/api/commands#move>`_
+    .. seealso:: `move in the docs <https://ytsaurus.tech/docs/en/api/commands#move>`_
     """
     params = {"source_path": YPath(source_path, client=client),
               "destination_path": YPath(destination_path, client=client)}
@@ -272,7 +272,7 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, lock_ex
     :param bool ignore_existing: ignore existing.
     :param bool lock_existing: lock existing node.
 
-    .. seealso:: `link in the docs <https://ytsaurus.tech/docs/ru/api/commands#link>`_
+    .. seealso:: `link in the docs <https://ytsaurus.tech/docs/en/api/commands#link>`_
     """
     params = {
         "target_path": YPath(target_path, client=client),
@@ -309,7 +309,7 @@ def list(path,
 
     :return: raw YSON (string) by default, parsed YSON or JSON if format is not specified (= `None`).
 
-    .. seealso:: `list in the docs <https://ytsaurus.tech/docs/ru/api/commands#list>`_
+    .. seealso:: `list in the docs <https://ytsaurus.tech/docs/en/api/commands#list>`_
     """
 
     def _process_result(request_result):
@@ -353,7 +353,7 @@ def exists(path, read_from=None, cache_sticky_group_size=None, suppress_transact
     :param path: path.
     :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
 
-    .. seealso:: `exists in the docs <https://ytsaurus.tech/docs/ru/api/commands#exists>`_
+    .. seealso:: `exists in the docs <https://ytsaurus.tech/docs/en/api/commands#exists>`_
     """
     def _process_result(result):
         return result["value"] if get_api_version(client) == "v4" else result
@@ -376,7 +376,7 @@ def remove(path, recursive=False, force=False, client=None):
     :param bool recursive: recursive.
     :param bool force: force.
 
-    .. seealso:: `remove in the docs <https://ytsaurus.tech/docs/ru/api/commands#remove>`_
+    .. seealso:: `remove in the docs <https://ytsaurus.tech/docs/en/api/commands#remove>`_
     """
     params = {
         "path": YPath(path, client=client),
@@ -397,7 +397,7 @@ def create(type, path=None, recursive=False, ignore_existing=False, lock_existin
     :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
     :param dict attributes: attributes.
 
-    .. seealso:: `create in the docs <https://ytsaurus.tech/docs/ru/api/commands#create>`_
+    .. seealso:: `create in the docs <https://ytsaurus.tech/docs/en/api/commands#create>`_
     """
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
     params = {

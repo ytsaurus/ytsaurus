@@ -29,7 +29,7 @@ class SortColumn(object):
 class ColumnSchema(object):
     """ Class representing table column schema.
 
-    See https://ytsaurus.tech/docs/ru/user-guide/storage/static-schema
+    See https://ytsaurus.tech/docs/en/user-guide/storage/static-schema
     """
 
     def __init__(self, name, type, sort_order=None, group=None):
@@ -95,7 +95,7 @@ class TableSchema(object):
             .add_column("key", ti.String, sort_order="ascending") \
             .add_column("value", ti.List[ti.Int32])
 
-    See https://ytsaurus.tech/docs/ru/user-guide/storage/static-schema
+    See https://ytsaurus.tech/docs/en/user-guide/storage/static-schema
     """
 
     def __init__(self, columns=None, strict=None, unique_keys=None):

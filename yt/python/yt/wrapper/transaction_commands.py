@@ -26,7 +26,7 @@ def start_transaction(parent_transaction=None, timeout=None, deadline=None, attr
     :return: new transaction id.
     :rtype: str
 
-    .. seealso:: `start_tx in the docs <https://ytsaurus.tech/docs/ru/api/commands#start_tx>`_
+    .. seealso:: `start_tx in the docs <https://ytsaurus.tech/docs/en/api/commands#start_tx>`_
     """
     params = transaction_params(parent_transaction, client=client)
     timeout = get_value(timeout, get_config(client)["transaction_timeout"])
@@ -50,7 +50,7 @@ def abort_transaction(transaction, client=None):
 
     :param str transaction: transaction id.
 
-    .. seealso:: `abort_tx in the docs <https://ytsaurus.tech/docs/ru/api/commands#abort_tx>`_
+    .. seealso:: `abort_tx in the docs <https://ytsaurus.tech/docs/en/api/commands#abort_tx>`_
     """
     params = transaction_params(transaction, client=client)
     command_name = "abort_transaction" if get_api_version(client) == "v4" else "abort_tx"
@@ -62,7 +62,7 @@ def commit_transaction(transaction, client=None):
 
     :param str transaction: transaction id.
 
-    .. seealso:: `commit_tx in the docs <https://ytsaurus.tech/docs/ru/api/commands#commit_tx>`_
+    .. seealso:: `commit_tx in the docs <https://ytsaurus.tech/docs/en/api/commands#commit_tx>`_
     """
     params = transaction_params(transaction, client=client)
     command_name = "commit_transaction" if get_api_version(client) == "v4" else "commit_tx"
@@ -74,7 +74,7 @@ def ping_transaction(transaction, timeout=None, retry_config=None, client=None):
 
     :param str transaction: transaction id.
 
-    .. seealso:: `ping_tx in the docs <https://ytsaurus.tech/docs/ru/api/commands#ping_tx>`_
+    .. seealso:: `ping_tx in the docs <https://ytsaurus.tech/docs/en/api/commands#ping_tx>`_
     """
     params = transaction_params(transaction, client=client)
     command_name = "ping_transaction" if get_api_version(client) == "v4" else "ping_tx"

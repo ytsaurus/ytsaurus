@@ -269,7 +269,7 @@ class OperationsTrackerBase(object):
             return
         logger.warning(
             "OperationsTracker is supposed to be used as context manager, "
-            "see https://ytsaurus.tech/docs/ru/api/python/userdoc#operations_tracker_class")
+            "see https://ytsaurus.tech/docs/en/api/python/userdoc#operations_tracker_class")
         self._tracking_thread.stop()
 
 

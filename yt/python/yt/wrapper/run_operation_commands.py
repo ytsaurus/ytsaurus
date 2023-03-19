@@ -1,7 +1,7 @@
 """
 Commands for table working and Map-Reduce operations.
 
-.. seealso:: `operations in the docs <https://ytsaurus.tech/docs/ru/user-guide/data-processing/operations/overview>`_
+.. seealso:: `operations in the docs <https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/overview>`_
 
 Python wrapper has some improvements over bare YT operations:
 
@@ -17,13 +17,13 @@ Common operations parameters
 * **spec** : (dict) universal method to set operation parameters.
 
 * **job_io** : (dict) spec for job io of all stages of operation, see  \
-`IO settings doc <https://ytsaurus.tech/docs/ru/user-guide/storage/io-configuration>`_.
+`IO settings doc <https://ytsaurus.tech/docs/en/user-guide/storage/io-configuration>`_.
 
 * **table_writer** : (dict) spec of `"write_table" command \
-<https://ytsaurus.tech/docs/ru/api/commands#write_table>`_.
+<https://ytsaurus.tech/docs/en/api/commands#write_table>`_.
 
 * **table_reader** : (dict) spec of `"read_table" command \
-<https://ytsaurus.tech/docs/ru/api/commands#read_table>`_.
+<https://ytsaurus.tech/docs/en/api/commands#read_table>`_.
 
 * **format** : (str or descendant of :class:`Format <yt.wrapper.format.Format>`) format of input and output \
 data of operation.

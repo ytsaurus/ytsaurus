@@ -1,7 +1,7 @@
 """
 Python wrapper for HTTP-interface of YT system.
 
-Package supports `YT API <https://ytsaurus.tech/docs/ru/api/python/start>`_.
+Package supports `YT API <https://ytsaurus.tech/docs/en/api/python/start>`_.
 
 Be ready to catch :class:`YtError <yt.common.YtError>` after all commands!
 """

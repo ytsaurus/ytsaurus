@@ -57,9 +57,9 @@ class YtClient(ClientState):
         * exact_key, lower_key, upper_key -- tuple of strings to identify range of rows.
         * exact_index, start_index, end_index -- tuple of indexes to identify range of rows.
         * ranges -- list of dicts, allows to specify arbitrary ranges on the table, see more details in the docs.
-        * schema -- TableSchema (or list with column schemas -- deprecated), see     `static schema doc <https://ytsaurus.tech/docs/ru/user-guide/storage/static-schema#sozdanie-tablicy-so-shemoj>`_
+        * schema -- TableSchema (or list with column schemas -- deprecated), see     `static schema doc <https://ytsaurus.tech/docs/en/user-guide/storage/static-schema#sozdanie-tablicy-so-shemoj>`_
 
-        .. seealso:: `YPath in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/ypath>`_
+        .. seealso:: `YPath in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/ypath>`_
 
         """
         return client_api.TablePath(
@@ -108,7 +108,7 @@ class YtClient(ClientState):
         :param bool acquire: commit/abort transaction in exit from with. By default False if new transaction is not started else True and false values are not allowed.
         :param bool ping: ping transaction in separate thread. By default True if acquire is also True else False.
 
-        .. seealso:: `transactions in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/transactions>`_
+        .. seealso:: `transactions in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/transactions>`_
 
         """
         return client_api.Transaction(
@@ -178,7 +178,7 @@ class YtClient(ClientState):
 
         :param str transaction: transaction id.
 
-        .. seealso:: `abort_tx in the docs <https://ytsaurus.tech/docs/ru/api/commands#abort_tx>`_
+        .. seealso:: `abort_tx in the docs <https://ytsaurus.tech/docs/en/api/commands#abort_tx>`_
 
         """
         return client_api.abort_transaction(
@@ -212,7 +212,7 @@ class YtClient(ClientState):
         :param str member: member to add.
         :param str group: group to add member to.
 
-        .. seealso:: `permissions in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/access-control>`_
+        .. seealso:: `permissions in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/access-control>`_
 
         """
         return client_api.add_member(
@@ -290,7 +290,7 @@ class YtClient(ClientState):
         :param str permission: one of ["read", "write", "administer", "create", "use"].
         :return: permission in specified format (YSON by default).
 
-        .. seealso:: `permissions in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/access-control>`_
+        .. seealso:: `permissions in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/access-control>`_
 
         """
         return client_api.check_permission(
@@ -307,7 +307,7 @@ class YtClient(ClientState):
 
         :param str transaction: transaction id.
 
-        .. seealso:: `commit_tx in the docs <https://ytsaurus.tech/docs/ru/api/commands#commit_tx>`_
+        .. seealso:: `commit_tx in the docs <https://ytsaurus.tech/docs/en/api/commands#commit_tx>`_
 
         """
         return client_api.commit_transaction(
@@ -373,7 +373,7 @@ class YtClient(ClientState):
         :param bool force: force.
         :param bool pessimistic_quota_check: pessimistic quota check.
 
-        .. seealso:: `copy in the docs <https://ytsaurus.tech/docs/ru/api/commands#copy>`_
+        .. seealso:: `copy in the docs <https://ytsaurus.tech/docs/en/api/commands#copy>`_
 
         """
         return client_api.copy(
@@ -400,7 +400,7 @@ class YtClient(ClientState):
         :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
         :param dict attributes: attributes.
 
-        .. seealso:: `create in the docs <https://ytsaurus.tech/docs/ru/api/commands#create>`_
+        .. seealso:: `create in the docs <https://ytsaurus.tech/docs/en/api/commands#create>`_
 
         """
         return client_api.create(
@@ -597,7 +597,7 @@ class YtClient(ClientState):
         :param path: path.
         :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
 
-        .. seealso:: `exists in the docs <https://ytsaurus.tech/docs/ru/api/commands#exists>`_
+        .. seealso:: `exists in the docs <https://ytsaurus.tech/docs/en/api/commands#exists>`_
 
         """
         return client_api.exists(
@@ -614,7 +614,7 @@ class YtClient(ClientState):
         """
         Explains a SQL-like query on dynamic table.
 
-        .. seealso:: `supported features <https://ytsaurus.tech/docs/ru/user-guide/dynamic-tables/dyn-query-language>`_
+        .. seealso:: `supported features <https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/dyn-query-language>`_
 
         :param str query: for example "<columns> [as <alias>], ... from \\[<table>\\]                   [where <predicate> [group by <columns> [as <alias>], ...]]".
         :param int timestamp: timestamp.
@@ -712,7 +712,7 @@ class YtClient(ClientState):
 
         Be careful: attributes have specific representation in JSON format.
 
-        .. seealso:: `get in the docs <https://ytsaurus.tech/docs/ru/api/commands#get>`_
+        .. seealso:: `get in the docs <https://ytsaurus.tech/docs/en/api/commands#get>`_
 
         """
         return client_api.get(
@@ -1119,7 +1119,7 @@ class YtClient(ClientState):
         :param bool ignore_existing: ignore existing.
         :param bool lock_existing: lock existing node.
 
-        .. seealso:: `link in the docs <https://ytsaurus.tech/docs/ru/api/commands#link>`_
+        .. seealso:: `link in the docs <https://ytsaurus.tech/docs/en/api/commands#link>`_
 
         """
         return client_api.link(
@@ -1149,7 +1149,7 @@ class YtClient(ClientState):
 
         :return: raw YSON (string) by default, parsed YSON or JSON if format is not specified (= `None`).
 
-        .. seealso:: `list in the docs <https://ytsaurus.tech/docs/ru/api/commands#list>`_
+        .. seealso:: `list in the docs <https://ytsaurus.tech/docs/en/api/commands#list>`_
 
         """
         return client_api.list(
@@ -1247,7 +1247,7 @@ class YtClient(ClientState):
         :param int wait_for: wait interval in milliseconds. If timeout occurred,     :class:`YtError <yt.common.YtError>` is raised.
         :return: map with lock information (as dict) or throws     :class:`YtResponseError <yt.wrapper.errors.YtResponseError>` with 40* code if lock conflict detected.
 
-        .. seealso:: `lock in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/transactions#locks>`_
+        .. seealso:: `lock in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/transactions#locks>`_
 
         """
         return client_api.lock(
@@ -1285,7 +1285,7 @@ class YtClient(ClientState):
         """
         Lookups rows in dynamic table.
 
-        .. seealso:: `supported features <https://ytsaurus.tech/docs/ru/user-guide/dynamic-tables/dyn-query-language>`_
+        .. seealso:: `supported features <https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/dyn-query-language>`_
 
         :param format: output format.
         :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
@@ -1357,7 +1357,7 @@ class YtClient(ClientState):
         :param bool force: force.
         :param bool pessimistic_quota_check: pessimistic quota check.
 
-        .. seealso:: `move in the docs <https://ytsaurus.tech/docs/ru/api/commands#move>`_
+        .. seealso:: `move in the docs <https://ytsaurus.tech/docs/en/api/commands#move>`_
 
         """
         return client_api.move(
@@ -1377,7 +1377,7 @@ class YtClient(ClientState):
 
         :param str transaction: transaction id.
 
-        .. seealso:: `ping_tx in the docs <https://ytsaurus.tech/docs/ru/api/commands#ping_tx>`_
+        .. seealso:: `ping_tx in the docs <https://ytsaurus.tech/docs/en/api/commands#ping_tx>`_
 
         """
         return client_api.ping_transaction(
@@ -1548,7 +1548,7 @@ class YtClient(ClientState):
         :param bool recursive: recursive.
         :param bool force: force.
 
-        .. seealso:: `remove in the docs <https://ytsaurus.tech/docs/ru/api/commands#remove>`_
+        .. seealso:: `remove in the docs <https://ytsaurus.tech/docs/en/api/commands#remove>`_
 
         """
         return client_api.remove(
@@ -1594,7 +1594,7 @@ class YtClient(ClientState):
         :param str member: member to remove.
         :param str group: group to remove member from.
 
-        .. seealso:: `permissions in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/access-control>`_
+        .. seealso:: `permissions in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/access-control>`_
 
         """
         return client_api.remove_member(
@@ -2059,7 +2059,7 @@ class YtClient(ClientState):
         """
         Executes a SQL-like query on dynamic table.
 
-        .. seealso:: `supported features <https://ytsaurus.tech/docs/ru/user-guide/dynamic-tables/dyn-query-language>`_
+        .. seealso:: `supported features <https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/dyn-query-language>`_
 
         :param str query: for example "<columns> [as <alias>], ... from \\[<table>\\]                   [where <predicate> [group by <columns> [as <alias>], ...]]".
         :param int timestamp: timestamp.
@@ -2091,7 +2091,7 @@ class YtClient(ClientState):
         :param format: format of the value. If format is None than value should be     object that can be dumped to JSON of YSON. Otherwise it should be string.
         :param bool recursive: recursive.
 
-        .. seealso:: `set in the docs <https://ytsaurus.tech/docs/ru/api/commands#set>`_
+        .. seealso:: `set in the docs <https://ytsaurus.tech/docs/en/api/commands#set>`_
 
         """
         return client_api.set(
@@ -2211,7 +2211,7 @@ class YtClient(ClientState):
             spark_master_memory_limit='2G', spark_history_server_memory_limit='8G', dynamic_config_path='//sys/spark/bin/releases/spark-launch-conf',
             operation_spec=None):
         """
-        Start Spark Standalone cluster in YT Vanilla Operation. See https://ytsaurus.tech/docs/ru/user-guide/data-processing/spyt/overview
+        Start Spark Standalone cluster in YT Vanilla Operation. See https://ytsaurus.tech/docs/en/user-guide/data-processing/spyt/overview
         :param spark_worker_core_count: Number of cores that will be available on Spark worker
         :param spark_worker_memory_limit: Amount of memory that will be available on Spark worker
         :param spark_worker_count: Number of Spark workers
@@ -2251,7 +2251,7 @@ class YtClient(ClientState):
         :return: new transaction id.
         :rtype: str
 
-        .. seealso:: `start_tx in the docs <https://ytsaurus.tech/docs/ru/api/commands#start_tx>`_
+        .. seealso:: `start_tx in the docs <https://ytsaurus.tech/docs/en/api/commands#start_tx>`_
 
         """
         return client_api.start_transaction(
@@ -2372,7 +2372,7 @@ class YtClient(ClientState):
         If the node is not locked, succeeds silently. If the locked version of the node
         contains changes compared to its original version, :class:`YtError <yt.common.YtError>` is raised.
 
-        .. seealso:: `unlock in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/transactions#locks>`_
+        .. seealso:: `unlock in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/transactions#locks>`_
 
         """
         return client_api.unlock(

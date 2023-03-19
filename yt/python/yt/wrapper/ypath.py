@@ -184,7 +184,7 @@ def escape_ypath_literal(literal, encoding=_ENCODING_SENTINEL):
 class YPath(object):
     """Represents path with attributes (YPath).
 
-    .. seealso:: `YPath in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/ypath>`_
+    .. seealso:: `YPath in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/ypath>`_
     """
     def __init__(self,
                  path,
@@ -314,9 +314,9 @@ class TablePath(YPathSupportingAppend):
     * exact_index, start_index, end_index -- tuple of indexes to identify range of rows.
     * ranges -- list of dicts, allows to specify arbitrary ranges on the table, see more details in the docs.
     * schema -- TableSchema (or list with column schemas -- deprecated), see \
-    `static schema doc <https://ytsaurus.tech/docs/ru/user-guide/storage/static-schema#sozdanie-tablicy-so-shemoj>`_
+    `static schema doc <https://ytsaurus.tech/docs/en/user-guide/storage/static-schema#creating-a-table-with-a-schema>`_
 
-    .. seealso:: `YPath in the docs <https://ytsaurus.tech/docs/ru/user-guide/storage/ypath>`_
+    .. seealso:: `YPath in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/ypath>`_
     """
     def __init__(self,
                  # TODO(ignat): rename to path
@@ -364,7 +364,7 @@ class TablePath(YPathSupportingAppend):
         :param bool foreign: table is foreign for sorted reduce and joinreduce operations.
         :param dict attributes: attributes, it updates attributes specified in name.
 
-        .. seealso:: `usage example <https://ytsaurus.tech/docs/ru/user-guide/storage/ypath#known_attributes>`_
+        .. seealso:: `usage example <https://ytsaurus.tech/docs/en/user-guide/storage/ypath#known_attributes>`_
         .. note:: don't specify lower_key (upper_key) and start_index (end_index) simultaneously.
         """
         if PY3 and isinstance(name, binary_type):
