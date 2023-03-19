@@ -7,7 +7,7 @@ except ImportError:
     from six import iteritems, integer_types, text_type, binary_type, b, PY3
     from six.moves import xrange
 
-from yt.test_helpers import wait, get_tests_sandbox as get_tests_sandbox_impl
+from yt.test_helpers import wait, get_tests_sandbox
 from yt.test_helpers.job_events import JobEvents
 
 from yt.testlib import (yatest_common, authors, check_rows_equality, set_config_option, set_config_options)  # noqa
@@ -43,12 +43,6 @@ def get_tests_location():
         return os.path.abspath(os.path.join(os.path.dirname(__file__), "../tests"))
     else:
         return yatest_common.source_path("yt/python/yt/wrapper/tests")
-
-
-def get_tests_sandbox():
-    return get_tests_sandbox_impl(
-        os.environ.get("TESTS_SANDBOX", os.path.dirname(os.path.abspath(__file__)) + ".sandbox")
-    )
 
 
 def get_test_files_dir_path():

@@ -237,7 +237,7 @@ func TestPyTest(t *testing.T) {
 		pythonVersion = useSystemPython
 	}
 
-	testsRoot := os.Getenv("TESTS_SANDBOX")
+	testsRoot := os.Getenv("YT_TESTS_SANDBOX")
 	if testsRoot == "" {
 		if yatest.HasRAMDrive() {
 			testsRoot = yatest.OutputRAMDrivePath("")
@@ -298,7 +298,7 @@ func TestPyTest(t *testing.T) {
 		os.Environ(),
 		"PYTHONPATH="+strings.Join(pythonPaths, ":"),
 		"LD_LIBRARY_PATH="+yatest.PythonLibPath(),
-		"TESTS_SANDBOX="+sandboxDir,
+		"YT_TESTS_SANDBOX="+sandboxDir,
 		"YT_ENABLE_VERBOSE_LOGGING=1",
 	)
 	cmdPytest.Env = append(

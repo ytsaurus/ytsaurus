@@ -22,7 +22,7 @@ from yt.environment.helpers import (  # noqa
     HTTP_PROXIES_SERVICE,
 )
 
-from yt.test_helpers import wait, WaitFailed
+from yt.test_helpers import wait, WaitFailed, get_work_path, get_build_root, get_tests_sandbox
 import yt.test_helpers.cleanup as test_cleanup
 
 from yt.common import YtResponseError, format_error, update_inplace
@@ -44,6 +44,7 @@ import hashlib
 from time import sleep, time
 from threading import Thread
 
+OUTPUT_PATH = None
 SANDBOX_ROOTDIR = None
 
 ##################################################################
@@ -53,18 +54,13 @@ def prepare_yatest_environment(need_suid, artifact_components=None, force_create
     yt.logger.LOGGER.setLevel(logging.DEBUG)
     artifact_components = artifact_components or {}
 
+    global OUTPUT_PATH
     global SANDBOX_ROOTDIR
 
     # This env var is used for determining if we are in Devtools' ytexec environment or not.
     ytrecipe = os.environ.get("YT_OUTPUT") is not None
 
-    ram_drive_path = arcadia_interop.yatest_common.get_param("ram_drive_path")
-    if ram_drive_path is None:
-        destination = os.path.join(arcadia_interop.yatest_common.work_path(), "build")
-    else:
-        destination = os.path.join(ram_drive_path, "build")
-
-    destination = os.path.join(destination, "suid" if need_suid else "nosuid")
+    destination = os.path.join(get_work_path(), "build", "suid" if need_suid else "nosuid")
 
     if "trunk" in artifact_components:
         # Explicitly specifying trunk components is not necessary as we already assume
@@ -81,13 +77,18 @@ def prepare_yatest_environment(need_suid, artifact_components=None, force_create
         os.makedirs(destination)
         path = arcadia_interop.prepare_yt_environment(
             destination,
+            binary_root=get_build_root(),
             copy_ytserver_all=not ytrecipe,
             need_suid=need_suid and not ytrecipe,
             artifact_components=artifact_components,
         )
         assert path == bin_path
 
-    SANDBOX_ROOTDIR = arcadia_interop.get_output_path()
+    SANDBOX_ROOTDIR = get_tests_sandbox(arcadia_suffix=None)
+    if arcadia_interop.yatest_common is not None:
+        OUTPUT_PATH = arcadia_interop.yatest_common.output_path()
+    else:
+        OUTPUT_PATH = SANDBOX_ROOTDIR
 
     return bin_path
 
@@ -425,7 +426,8 @@ class YTEnvSetup(object):
             kill_child_processes=True,
             modify_configs_func=modify_configs_func,
             stderrs_path=os.path.join(
-                arcadia_interop.yatest_common.output_path("yt_stderrs"),
+                OUTPUT_PATH,
+                "yt_stderrs",
                 cls.run_name,
                 str(index)),
             external_bin_path=cls.bin_path
@@ -497,11 +499,11 @@ class YTEnvSetup(object):
         cls.ssd_disk_path = os.path.join(disk_path, cls.run_name, "disk_ssd")
 
         cls.fake_default_disk_path = os.path.join(
-            arcadia_interop.yatest_common.output_path(),
+            OUTPUT_PATH,
             cls.run_name,
             "disk_default")
         cls.fake_ssd_disk_path = os.path.join(
-            arcadia_interop.yatest_common.output_path(),
+            OUTPUT_PATH,
             cls.run_name,
             "disk_ssd")
 
