@@ -120,7 +120,7 @@ $ yt get "//tmp/sepulki/@"
     }}
 
 You can use GUID of object #1-2-3-4 instead path.
-See also https://ytsaurus.tech/docs/ru/user-guide/storage/ypath
+See also https://ytsaurus.tech/docs/en/user-guide/storage/ypath
 
 Note! Create parent directory of table before writing to it. Recursive path creating is not available during operation.
 
@@ -155,14 +155,14 @@ $ echo '{{host=abc.com}}' | yt lookup-rows //my/dynamic/table
 >> {{"host"="abc.com";"last_seen_time": "2017-04-10T12:35:10"}}
 
 See also:
-    YT CLI client           https://ytsaurus.tech/docs/ru/api/cli/cli
+    YT CLI client           https://ytsaurus.tech/docs/en/api/cli/cli
 
-    user documentation      https://ytsaurus.tech/docs/ru/
+    user documentation      https://ytsaurus.tech/docs/en/
     access to the system    {gettingstarted_doc_url}
     tutorial                {tutorial_doc_url}
-    command specification   https://ytsaurus.tech/docs/ru/api/commands
-    ACL                     https://ytsaurus.tech/docs/ru/user-guide/storage/access-control
-    transactions            https://ytsaurus.tech/docs/ru/user-guide/storage/transactions
+    command specification   https://ytsaurus.tech/docs/en/api/commands
+    ACL                     https://ytsaurus.tech/docs/en/user-guide/storage/access-control
+    transactions            https://ytsaurus.tech/docs/en/user-guide/storage/transactions
 '''.format(
     gettingstarted_doc_url=GETTINGSTARTED_DOC_URL,
     tutorial_doc_url=TUTORIAL_DOC_URL,
@@ -284,7 +284,7 @@ def add_hybrid_argument(parser, name, help=None, description=None, group_require
 
 
 def add_ypath_argument(parser, name, help="address in Cypress", hybrid=False, **kwargs):
-    description = "See also: https://ytsaurus.tech/docs/ru/user-guide/storage/ypath"
+    description = "See also: https://ytsaurus.tech/docs/en/user-guide/storage/ypath"
 
     if hybrid:
         positional, optional = add_hybrid_argument(parser, name, help=help, description=description, **kwargs)
@@ -297,13 +297,13 @@ def add_ypath_argument(parser, name, help="address in Cypress", hybrid=False, **
 
 def add_structured_format_argument(parser, name="--format", help="", **kwargs):
     description = 'response or input format: yson or json, for example: "<format=binary>yson". '\
-                  'See also: https://ytsaurus.tech/docs/ru/user-guide/storage/formats'
+                  'See also: https://ytsaurus.tech/docs/en/user-guide/storage/formats'
     add_argument(parser, name, help, description=description, action=ParseFormat, **kwargs)
 
 
 def add_format_argument(parser, name="--format", help="", **kwargs):
     description = '(yson string), one of "yson", "json", "yamr", "dsv", "yamred_dsv", "schemaful_dsv" '\
-                  'with modifications. See also: https://ytsaurus.tech/docs/ru/user-guide/storage/formats'
+                  'with modifications. See also: https://ytsaurus.tech/docs/en/user-guide/storage/formats'
     add_argument(parser, name, help, description=description, action=ParseFormat, **kwargs)
 
 
@@ -1023,7 +1023,7 @@ def add_select_rows_parser(add_parser):
     parser = add_parser(
         "select-rows", select_rows,
         epilog="Supported features: "
-               "https://ytsaurus.tech/docs/ru/user-guide/dynamic-tables/dyn-query-language")
+               "https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/dyn-query-language")
     add_hybrid_argument(parser, "query")
     parser.add_argument("--timestamp", type=int)
     parser.add_argument("--input-row-limit", type=int)
@@ -1277,7 +1277,7 @@ def show_spec(operation):
     spec_description = get_spec_description(SPEC_BUILDERS[operation])
     print("Spec options for {0} operation\n".format(operation))
     print(spec_description)
-    print("\nSee more in the documentation: https://ytsaurus.tech/docs/ru/user-guide/data-processing/operations/overview")
+    print("\nSee more in the documentation: https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/overview")
 
 
 def add_show_spec_parser(add_parser):
@@ -2189,7 +2189,7 @@ def add_clickhouse_execute_parser(add_parser):
                                                              "via CHYT_PROXY env variable")
     add_hybrid_argument(parser, "query", help="Query to execute; do not specify FORMAT in query, use --format instead")
     parser.add_argument("--format",
-                        help="ClickHouse data format; refer to https://clickhouse.tech/docs/ru/interfaces/formats/; "
+                        help="ClickHouse data format; refer to https://clickhouse.tech/docs/en/interfaces/formats/; "
                              "default is TabSeparated",
                         default="TabSeparated")
     parser.add_argument("--setting", action="append", help="Add ClickHouse setting to query in format <key>=<value>.")

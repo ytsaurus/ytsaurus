@@ -1,7 +1,7 @@
 """
 YSON library.
 
-Package supports `YT YSON format <https://ytsaurus.tech/docs/ru/user-guide/storage/yson>`_.
+Package supports `YT YSON format <https://ytsaurus.tech/docs/en/user-guide/storage/yson>`_.
 
 Package provides special classes for all yson types, see :mod:`yson_types <yt.yson.yson_types>` module.
 Also it provides methods for serialization and deserialization yson data:
