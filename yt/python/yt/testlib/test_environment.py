@@ -2,6 +2,7 @@ from __future__ import print_function
 
 from .helpers import yatest_common
 
+from yt.test_helpers import get_work_path
 import yt.test_helpers.cleanup as test_cleanup
 
 from yt.common import get_fqdn
@@ -79,23 +80,20 @@ class YtTestEnvironment(object):
             os.makedirs(self.core_path)
 
         self.binaries_path = None
-        if yatest_common is not None:
-            ytrecipe = os.environ.get("YT_OUTPUT") is not None
 
-            suffix = "need_suid_" + str(int(need_suid))
-            if yatest_common.get_param("ram_drive_path") is not None:
-                prepare_dir = os.path.join(yatest_common.ram_drive_path(), suffix)
-            else:
-                prepare_dir = os.path.join(yatest_common.work_path(), suffix)
+        ytrecipe = os.environ.get("YT_OUTPUT") is not None
 
-            if not os.path.exists(prepare_dir):
-                os.makedirs(prepare_dir)
+        suffix = "need_suid_" + str(int(need_suid))
+        prepare_dir = os.path.join(get_work_path(), suffix)
 
-                self.binaries_path = arcadia_interop.prepare_yt_environment(
-                    prepare_dir,
-                    copy_ytserver_all=not ytrecipe,
-                    need_suid=need_suid and not ytrecipe)
-                os.environ["PATH"] = os.pathsep.join([self.binaries_path, os.environ.get("PATH", "")])
+        if not os.path.exists(prepare_dir):
+            os.makedirs(prepare_dir)
+
+            self.binaries_path = arcadia_interop.prepare_yt_environment(
+                prepare_dir,
+                copy_ytserver_all=not ytrecipe,
+                need_suid=need_suid and not ytrecipe)
+            os.environ["PATH"] = os.pathsep.join([self.binaries_path, os.environ.get("PATH", "")])
 
         common_delta_node_config = {
             "exec_agent": {

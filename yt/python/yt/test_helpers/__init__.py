@@ -111,8 +111,8 @@ def get_tmpfs_path():
     return None
 
 
-def get_tests_sandbox(non_arcadia_path):
-    path = os.environ.get("TESTS_SANDBOX")
+def get_tests_sandbox(non_arcadia_path=None, arcadia_suffix="sandbox"):
+    path = os.environ.get("YT_TESTS_SANDBOX")
     if path is None:
         if yatest_common is not None:
             if os.environ.get("YT_OUTPUT") is not None:
@@ -120,10 +120,13 @@ def get_tests_sandbox(non_arcadia_path):
             else:
                 tmpfs_path = get_tmpfs_path()
                 if tmpfs_path is None:
-                    path = os.path.join(yatest_common.output_path(), "sandbox")
+                    path = yatest_common.output_path()
                 else:
-                    path = os.path.join(tmpfs_path, "sandbox")
+                    path = tmpfs_path
+                if arcadia_suffix is not None:
+                    path = os.path.join(path, arcadia_suffix)
         else:
+            assert non_arcadia_path is not None
             path = non_arcadia_path
     if not os.path.exists(path):
         try:
@@ -131,3 +134,20 @@ def get_tests_sandbox(non_arcadia_path):
         except OSError:  # Already exists.
             pass
     return path
+
+
+def get_build_root():
+    if yatest_common is not None:
+        return yatest_common.build_path()
+    else:
+        return os.environ["YT_BUILD_ROOT"]
+
+
+def get_work_path():
+    if yatest_common is not None:
+        if yatest_common.get_param("ram_drive_path") is not None:
+            return os.path.join(yatest_common.ram_drive_path())
+        else:
+            return os.path.join(yatest_common.work_path())
+    else:
+        return os.environ["YT_TESTS_SANDBOX"]

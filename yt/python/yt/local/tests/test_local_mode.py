@@ -1,19 +1,17 @@
 from yt.local import start, stop, delete
 import yt.local as yt_local
-from yt.common import remove_file, is_process_alive, which
+from yt.common import remove_file, is_process_alive
 from yt.wrapper import YtClient
 from yt.wrapper.common import generate_uuid
 from yt.environment.helpers import is_dead
-from yt.test_helpers import get_tests_sandbox, wait
+from yt.environment.arcadia_interop import yatest_common, search_binary_path
+from yt.test_helpers import get_tests_sandbox, get_build_root, wait
 import yt.subprocess_wrapper as subprocess
 
 import yt.yson as yson
 import yt.json_wrapper as json
 
 import yt.wrapper as yt
-
-import yatest.common
-import yatest.common.network
 
 import os
 import logging
@@ -30,23 +28,24 @@ logger = logging.getLogger("YtLocal")
 yt.http_helpers.RECEIVE_TOKEN_FROM_SSH_SESSION = False
 
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
-TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
 
 
 def _get_tests_location():
-    return yatest.common.source_path("yt/python/yt/local/tests")
-
-
-def _get_tests_sandbox():
-    return get_tests_sandbox(TESTS_SANDBOX)
+    if yatest_common is not None:
+        return yatest_common.source_path("yt/python/yt/local/tests")
+    else:
+        return TESTS_LOCATION
 
 
 def _get_local_mode_tests_sandbox():
-    return os.path.join(_get_tests_sandbox(), "TestLocalMode")
+    return os.path.join(get_tests_sandbox(), "TestLocalMode")
 
 
 def _get_yt_local_binary():
-    return yatest.common.binary_path("yt/python/yt/local/bin/yt_local_make/yt_local")
+    if yatest_common is not None:
+        return yatest_common.binary_path("yt/python/yt/local/bin/yt_local_make/yt_local")
+    else:
+        return os.path.join(TESTS_LOCATION, "../bin/yt_local")
 
 
 def _get_instance_path(instance_id):
@@ -88,9 +87,9 @@ def _wait_instance_to_become_ready(process, instance_id):
 def prepare_path():
     try:
         from yt.environment import arcadia_interop
-        destination = os.path.join(yatest.common.work_path(), "build")
+        destination = os.path.join(get_tests_sandbox(), "build")
         os.makedirs(destination)
-        path = arcadia_interop.prepare_yt_environment(destination, copy_ytserver_all=True)
+        path = arcadia_interop.prepare_yt_environment(destination, binary_root=get_build_root())
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
     except ImportError:
         pass
@@ -331,7 +330,7 @@ class TestLocalMode(object):
 
             assert set(client.search("//test")) == set(["//test", "//test/folder", table])
 
-        with yt_local.LocalYt(path=yatest.common.output_path("test_path"), enable_debug_logging=True):
+        with yt_local.LocalYt(path=os.path.join(get_tests_sandbox(), "test_path"), enable_debug_logging=True):
             pass
 
     def test_local_cypress_synchronization(self):
@@ -372,7 +371,7 @@ class TestLocalMode(object):
             assert list(client.read_table("//home/my_table")) == [{"x": 1, "y": 2, "z": 3}]
 
     def test_preserve_state_with_tmpfs(self):
-        kwargs = dict(tmpfs_path=os.path.join(_get_tests_sandbox(), "tmpfs"))
+        kwargs = dict(tmpfs_path=os.path.join(get_tests_sandbox(), "tmpfs"))
         with local_yt(id=_get_id("test_preserve_state"), **kwargs) as environment:
             client = environment.create_client()
             client.write_table("//home/my_table", [{"x": 1, "y": 2, "z": 3}])
@@ -384,9 +383,9 @@ class TestLocalMode(object):
     def test_config_patches_path(self):
         patch = {"test_key": "test_value"}
         try:
-            with tempfile.NamedTemporaryFile(dir=_get_tests_sandbox(), delete=False) as yson_file:
+            with tempfile.NamedTemporaryFile(dir=get_tests_sandbox(), delete=False) as yson_file:
                 yson.dump(patch, yson_file)
-            with tempfile.NamedTemporaryFile(mode="w", dir=_get_tests_sandbox(), delete=False) as json_file:
+            with tempfile.NamedTemporaryFile(mode="w", dir=get_tests_sandbox(), delete=False) as json_file:
                 json.dump(patch, json_file)
 
             with local_yt(id=_get_id("test_configs_patches"),
@@ -454,9 +453,9 @@ class TestLocalMode(object):
 
         patch = {"exec_agent": {"job_controller": {"resource_limits": {"user_slots": 20}}}}
         try:
-            with tempfile.NamedTemporaryFile(dir=_get_tests_sandbox(), delete=False) as node_config:
+            with tempfile.NamedTemporaryFile(dir=get_tests_sandbox(), delete=False) as node_config:
                 yson.dump(patch, node_config)
-            with tempfile.NamedTemporaryFile(dir=_get_tests_sandbox(), delete=False) as config:
+            with tempfile.NamedTemporaryFile(dir=get_tests_sandbox(), delete=False) as config:
                 yson.dump({"yt_local_test_key": "yt_local_test_value"}, config)
 
             env_id = self.yt_local(
@@ -487,7 +486,7 @@ class TestLocalMode(object):
     def test_yt_local_binary_config_patches(self):
         patch = {"scheduler": {"cluster_info_logging_period": 1234}}
         try:
-            with tempfile.NamedTemporaryFile(dir=_get_tests_sandbox(), delete=False) as yson_file:
+            with tempfile.NamedTemporaryFile(dir=get_tests_sandbox(), delete=False) as yson_file:
                 yson.dump(patch, yson_file)
 
             env_id = self.yt_local("start", fqdn="localhost", id=_get_id("test_yt_local_binary_with_configs"), scheduler_config=yson_file.name)
@@ -562,16 +561,19 @@ class TestLocalMode(object):
                 time.sleep(1.0)
 
     def test_ytserver_all(self):
-        ytserver_all_paths = which("ytserver-all.trunk")
-        assert ytserver_all_paths
-        with local_yt(id=_get_id("ytserver_all"), ytserver_all_path=ytserver_all_paths[0]) as environment:
+        ytserver_all_path = search_binary_path("ytserver-all", binary_root=get_build_root())
+        assert ytserver_all_path
+
+        with local_yt(id=_get_id("ytserver_all"), ytserver_all_path=ytserver_all_path) as environment:
             client = environment.create_client()
             client.get("/")
             client.write_table("//tmp/test_table", [{"a": "b"}])
             client.run_map("cat", "//tmp/test_table", "//tmp/test_table", format=yt.JsonFormat())
 
+    @pytest.mark.skipif("yatest_common is None")
     def test_ports(self):
-        with yatest.common.network.PortManager() as port_manager:
+        from yatest.common.network import PortManager
+        with PortManager() as port_manager:
             http_proxy_port = port_manager.get_port()
             rpc_proxy_port = port_manager.get_port()
             with local_yt(id=_get_id("test_ports"), rpc_proxy_count=1, http_proxy_ports=[http_proxy_port], rpc_proxy_ports=[rpc_proxy_port]) as environment:
