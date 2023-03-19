@@ -51,62 +51,43 @@ object SpytSnapshot {
   )
 
   case class SnapshotVersion(main: String,
-                             fork: Option[String],
-                             ticket: String,
-                             dev: Int,
-                             hash: String) {
-    def mainWithSuffix(suffix: String): String = {
-      if (main.nonEmpty) {
-        s"$main$suffix"
-      } else {
-        ""
-      }
-    }
-
-    def mainPlusFork: String = {
-      mainWithSuffix("+") + fork.getOrElse("")
-    }
-
-    def mainMinusFork: String = {
-      mainWithSuffix("-fork-") + fork.getOrElse("")
-    }
-
+                             ticket: Int,
+                             hash: Int,
+                             dev: Int) {
     def toScalaString: String = {
-      s"$mainMinusFork-$ticket-$dev-$hash-SNAPSHOT"
+      s"$main-$ticket-$hash-$dev-SNAPSHOT"
     }
 
     def toPythonString: String = {
-      if (main.nonEmpty) {
-        s"${mainPlusFork}b1.dev$dev.$hash"
-      } else {
-        s"${fork.get}b1.dev$dev+$ticket.$hash"
-      }
+      s"${main}b$ticket.post$hash.dev$dev"
     }
 
     def inc: SnapshotVersion = getVcsInfo()
-        .map(info => copy(dev = dev + 1, hash = info.hash, ticket = info.ticketName.getOrElse("")))
+        .map(info => copy(dev = dev + 1, hash = info.hash, ticket = info.ticketNumber))
         .get
 
     def updateDev(other: Option[SnapshotVersion]): SnapshotVersion = {
       other.map(o => copy(dev = dev.max(o.dev))).getOrElse(this)
     }
 
-    case class VcsInfo(hash: String, branch: String, isGit: Boolean) {
-      def ticketName: Option[String] = {
-        val p = "^(\\w+)[ -_](\\d+).*$".r
+    case class VcsInfo(rawHash: String, branch: String, isGit: Boolean) {
+      val hash: Int = Integer.parseInt(rawHash.take(5), 36)
+
+      def ticketNumber: Int = {
+        val p = "^(.*/)?(\\w+)[ -_](\\d+)[^/]*$".r
 
         branch match {
-          case p(q, n) => Some(q.toLowerCase + n)
-          case "develop" => Some("develop")
-          case "trunk" => Some("trunk")
-          case "teamcity" => Some("teamcity")
-          case _ => None
+          case p(_, _, n) => n.toInt
+          case "develop" => 1
+          case "trunk" => 1
+          case "teamcity" => 1
+          case _ => 0
         }
       }
     }
 
     private def getTeamcityBuildNumber: String = {
-      sys.env.getOrElse("TC_BUILD", Random.alphanumeric.take(7).mkString)
+      sys.env.getOrElse("TC_BUILD", Random.alphanumeric.take(5).mkString)
     }
 
     private def getVcsInfo(submodule: String = ""): Option[VcsInfo] = {
@@ -120,13 +101,11 @@ object SpytSnapshot {
             override def buffer[T](f: => T): T = f
           }
           val out = Process("arc info").lineStream(catchStderr).toList
-          val m = out.map(_.split(':').toList)
-            .map(as => (as(0), as(1).trim))
-            .toMap
+          val m = out.map(_.split(':').toList).map(as => (as(0), as(1).trim)).toMap
           for {
             hash <- m.get("hash")
             branch <- m.get("branch")
-          } yield VcsInfo(hash.take(7), branch, isGit = false)
+          } yield VcsInfo(hash, branch, isGit = false)
         } catch {
           // arc not found or it is not arc branch
           // let's try git
@@ -156,17 +135,31 @@ object SpytSnapshot {
   }
 
   object SnapshotVersion {
-    private val snapshotVersionRegex = "^([0-9.]*)(-fork-)*([0-9.]*?)(-[a-z0-9]*?)?(-[0-9]*?)?(-[a-f0-9]*?)?-SNAPSHOT$".r
-    private val releaseVersionRegex = "^([0-9.]*)(-fork-)*(\\d+)\\.(\\d+)\\.(\\d+)$".r
-    private val pythonVersionRegex = "^([0-9.]*)[+]*([0-9.]*)([ab](\\d+))?(\\.dev(\\d+))?([.+].*)?$".r
+    private val snapshotVersionRegex = "^([0-9.]+)(-(\\d+))?(-(\\d+))?(-(\\d+))?-SNAPSHOT$".r
+    private val releaseVersionRegex = "^(\\d+)\\.(\\d+)\\.(\\d+)$".r
+    private val pythonVersionRegex = "^([0-9.]+)(b(\\d+))?(\\.post(\\d+))?(\\.dev(\\d+))?$".r
+    private val defaultTicket = 0
+    private val defaultHash = 0
+    private val defaultDev = 0
+
+    private def intOrDefault(str: String, default: Int): Int = {
+      Option(str).filter(_.nonEmpty).map(_.toInt).getOrElse(default)
+    }
+
+    private def parseTicket(str: String): Int = intOrDefault(str, defaultTicket)
+    private def parseHash(str: String): Int = intOrDefault(str, defaultHash)
+    private def parseDev(str: String): Int = intOrDefault(str, defaultDev)
 
     def parse(str: String): SnapshotVersion = {
       str match {
-        case snapshotVersionRegex(main, _, fork, _, dev, _) =>
-          val parseDev = Option(dev).map(_.drop(1)).map(_.toInt).getOrElse(0)
-          SnapshotVersion(main, Option(fork).filter(_.nonEmpty), "", parseDev, "")
-        case releaseVersionRegex(main, _, major, minor, bugfix) =>
-          SnapshotVersion(main, Some(s"$major.$minor.${bugfix.toInt + 1}"), "", 0, "")
+        case snapshotVersionRegex(main, _, ticket, _, hash, _, dev) =>
+          SnapshotVersion(
+            main, parseTicket(ticket), parseHash(hash), parseDev(dev)
+          )
+        case releaseVersionRegex(major, minor, bugfix) =>
+          SnapshotVersion(
+            s"$major.$minor.${bugfix.toInt + 1}", parseTicket(""), parseHash(""), parseDev("")
+          )
         case _ =>
           println(s"Unable to parse version $str")
           throw new IllegalArgumentException(s"Unable to parse version $str")
@@ -175,8 +168,9 @@ object SpytSnapshot {
 
     def latestPublishedPython(log: Logger, pythonRegistry: String, packageName: String): Option[SnapshotVersion] = {
       PypiUtils.latestVersion(log, pythonRegistry, packageName).map {
-        case pythonVersionRegex(main, fork, _, _, _, dev, suffix) =>
-            SnapshotVersion(main, Option(fork).filter(_.nonEmpty), "", dev = Option(dev).map(_.toInt).getOrElse(0), suffix)      }
+        case pythonVersionRegex(main, _, ticket, _, hash, _, dev) =>
+            SnapshotVersion(main, parseTicket(ticket), parseHash(hash), parseDev(dev))
+      }
     }
   }
 
@@ -223,10 +217,14 @@ object SpytSnapshot {
                                st: State,
                                versionSetting: SettingKey[String],
                                pythonPackage: String): State = {
-    val curVer = SnapshotVersion.parse(st.extract.get(versionSetting))
+    val rawCurVer = st.extract.get(versionSetting)
+    st.log.debug(s"Current raw version: $rawCurVer")
+
+    val curVer = SnapshotVersion.parse(rawCurVer)
+    st.log.info(s"Current version: ${curVer.toScalaString}")
+
     val latestPythonVer = SnapshotVersion.latestPublishedPython(st.log, st.extract.get(pypiRegistry), pythonPackage)
     val newVer = curVer.updateDev(latestPythonVer).inc
-    st.log.info(s"Current version: ${curVer.toScalaString}")
     st.log.info(s"New scala version: ${newVer.toScalaString}")
     st.log.info(s"New python version: ${newVer.toPythonString}")
 
@@ -236,9 +234,13 @@ object SpytSnapshot {
   private def snapshotVersion(versions: SettingKey[Versions],
                               st: State,
                               versionSetting: SettingKey[String]): State = {
-    val curVer = SnapshotVersion.parse(st.extract.get(versionSetting))
-    val newVer = curVer.inc
+    val rawCurVer = st.extract.get(versionSetting)
+    st.log.debug(s"Current raw version: $rawCurVer")
+
+    val curVer = SnapshotVersion.parse(rawCurVer)
     st.log.info(s"Current version: ${curVer.toScalaString}")
+
+    val newVer = curVer.inc
     st.log.info(s"New scala version: ${newVer.toScalaString}")
 
     st.put(versions.key, (newVer.toScalaString, ""))

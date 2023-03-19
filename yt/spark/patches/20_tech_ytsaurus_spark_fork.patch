@@ -1,0 +1,133 @@
+--- yt/spark/spark/assembly/pom.xml	(b870192f3571db88c7099291f940297036c085bc)
++++ yt/spark/spark/assembly/pom.xml	(working tree)
+@@ -47,7 +47,7 @@
+     <dependency>
+       <groupId>tech.ytsaurus.spark</groupId>
+       <artifactId>spark-core_${scala.binary.version}</artifactId>
+-      <version>${project.version}</version>
++      <version>${fork.version}</version>
+     </dependency>
+     <dependency>
+       <groupId>org.apache.spark</groupId>
+@@ -67,7 +67,7 @@
+     <dependency>
+       <groupId>tech.ytsaurus.spark</groupId>
+       <artifactId>spark-sql_${scala.binary.version}</artifactId>
+-      <version>${project.version}</version>
++      <version>${fork.version}</version>
+     </dependency>
+     <dependency>
+       <groupId>org.apache.spark</groupId>
+--- yt/spark/spark/graphx/pom.xml	(b870192f3571db88c7099291f940297036c085bc)
++++ yt/spark/spark/graphx/pom.xml	(working tree)
+@@ -37,7 +37,7 @@
+     <dependency>
+       <groupId>tech.ytsaurus.spark</groupId>
+       <artifactId>spark-core_${scala.binary.version}</artifactId>
+-      <version>${project.version}</version>
++      <version>${fork.version}</version>
+     </dependency>
+     <dependency>
+       <groupId>org.apache.spark</groupId>
+--- yt/spark/spark/mllib/pom.xml	(b870192f3571db88c7099291f940297036c085bc)
++++ yt/spark/spark/mllib/pom.xml	(working tree)
+@@ -41,7 +41,7 @@
+     <dependency>
+       <groupId>tech.ytsaurus.spark</groupId>
+       <artifactId>spark-core_${scala.binary.version}</artifactId>
+-      <version>${project.version}</version>
++      <version>${fork.version}</version>
+     </dependency>
+     <dependency>
+       <groupId>org.apache.spark</groupId>
+@@ -58,7 +58,7 @@
+     <dependency>
+       <groupId>tech.ytsaurus.spark</groupId>
+       <artifactId>spark-sql_${scala.binary.version}</artifactId>
+-      <version>${project.version}</version>
++      <version>${fork.version}</version>
+     </dependency>
+     <dependency>
+       <groupId>org.apache.spark</groupId>
+--- yt/spark/spark/repl/pom.xml	(b870192f3571db88c7099291f940297036c085bc)
++++ yt/spark/spark/repl/pom.xml	(working tree)
+@@ -38,7 +38,7 @@
+     <dependency>
+       <groupId>tech.ytsaurus.spark</groupId>
+       <artifactId>spark-core_${scala.binary.version}</artifactId>
+-      <version>${project.version}</version>
++      <version>${fork.version}</version>
+     </dependency>
+     <dependency>
+       <groupId>org.apache.spark</groupId>
+@@ -56,7 +56,7 @@
+     <dependency>
+       <groupId>tech.ytsaurus.spark</groupId>
+       <artifactId>spark-sql_${scala.binary.version}</artifactId>
+-      <version>${project.version}</version>
++      <version>${fork.version}</version>
+     </dependency>
+     <dependency>
+       <groupId>org.scala-lang</groupId>
+--- yt/spark/spark/streaming/pom.xml	(b870192f3571db88c7099291f940297036c085bc)
++++ yt/spark/spark/streaming/pom.xml	(working tree)
+@@ -37,7 +37,7 @@
+     <dependency>
+       <groupId>tech.ytsaurus.spark</groupId>
+       <artifactId>spark-core_${scala.binary.version}</artifactId>
+-      <version>${project.version}</version>
++      <version>${fork.version}</version>
+     </dependency>
+     <dependency>
+       <groupId>org.apache.spark</groupId>
+--- yt/spark/spark/sql/catalyst/pom.xml	(b870192f3571db88c7099291f940297036c085bc)
++++ yt/spark/spark/sql/catalyst/pom.xml	(working tree)
+@@ -49,7 +49,7 @@
+     <dependency>
+       <groupId>tech.ytsaurus.spark</groupId>
+       <artifactId>spark-core_${scala.binary.version}</artifactId>
+-      <version>${project.version}</version>
++      <version>${fork.version}</version>
+     </dependency>
+     <dependency>
+       <groupId>org.apache.spark</groupId>
+--- yt/spark/spark/sql/core/pom.xml	(b870192f3571db88c7099291f940297036c085bc)
++++ yt/spark/spark/sql/core/pom.xml	(working tree)
+@@ -55,7 +55,7 @@
+     <dependency>
+       <groupId>tech.ytsaurus.spark</groupId>
+       <artifactId>spark-core_${scala.binary.version}</artifactId>
+-      <version>${project.version}</version>
++      <version>${fork.version}</version>
+     </dependency>
+     <dependency>
+       <groupId>org.apache.spark</groupId>
+@@ -67,7 +67,7 @@
+     <dependency>
+       <groupId>tech.ytsaurus.spark</groupId>
+       <artifactId>spark-catalyst_${scala.binary.version}</artifactId>
+-      <version>${project.version}</version>
++      <version>${fork.version}</version>
+     </dependency>
+     <dependency>
+       <groupId>org.apache.spark</groupId>
+--- yt/spark/spark/sql/hive/pom.xml	(b870192f3571db88c7099291f940297036c085bc)
++++ yt/spark/spark/sql/hive/pom.xml	(working tree)
+@@ -38,7 +38,7 @@
+     <dependency>
+       <groupId>tech.ytsaurus.spark</groupId>
+       <artifactId>spark-core_${scala.binary.version}</artifactId>
+-      <version>${project.version}</version>
++      <version>${fork.version}</version>
+     </dependency>
+     <dependency>
+       <groupId>org.apache.spark</groupId>
+@@ -50,7 +50,7 @@
+     <dependency>
+       <groupId>tech.ytsaurus.spark</groupId>
+       <artifactId>spark-sql_${scala.binary.version}</artifactId>
+-      <version>${project.version}</version>
++      <version>${fork.version}</version>
+     </dependency>
+     <dependency>
+       <groupId>org.apache.spark</groupId>
