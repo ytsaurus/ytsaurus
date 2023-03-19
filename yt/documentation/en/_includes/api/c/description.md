@@ -10,9 +10,9 @@ See also [Use cases](../../../api/c/examples.md).{% else %}{% endif %}
 {% note warning %}
 
 Please note, the C++ client is provided as-is, so:
-- client code may change;
-- only static linking is supported in the current version;
-- write to info@ytsaurus.tech if you have questions about the client's build.
+- the client interface can change without backward compatibility;
+- only static linkage is currently supported;
+- email info@ytsaurus.tech if you have questions about building the client.
 
 {% endnote %}
 
