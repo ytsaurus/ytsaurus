@@ -1,1 +1,0 @@
-CONSTANT = 10
