@@ -1,1 +1,1 @@
-# Work in progress
+{% include [rpc](../../_includes/user-guide/proxy/rpc.md) %}
