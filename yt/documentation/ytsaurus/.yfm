@@ -25,7 +25,3 @@ docs-viewer:
     hidden: true
     title: YT-public
     description: "{{product-name}} public docs"
-
-resources:
-  style:
-    - _assets/style/redefenitions.css
