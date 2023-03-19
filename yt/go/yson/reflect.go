@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"sync"
 
-	"a.yandex-team.ru/library/go/core/xerrors"
+	"go.ytsaurus.tech/library/go/core/xerrors"
 )
 
 type field struct {

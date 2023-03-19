@@ -5,8 +5,7 @@ import (
 	"net/http"
 
 	"github.com/golang/protobuf/proto"
-
-	"a.yandex-team.ru/yt/go/proto/core/rpc"
+	"go.ytsaurus.tech/yt/go/proto/core/rpc"
 )
 
 const (

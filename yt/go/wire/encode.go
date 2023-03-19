@@ -4,10 +4,9 @@ import (
 	"encoding"
 	"reflect"
 
+	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/yson"
 	"golang.org/x/xerrors"
-
-	"a.yandex-team.ru/yt/go/schema"
-	"a.yandex-team.ru/yt/go/yson"
 )
 
 type NameTable []NameTableEntry

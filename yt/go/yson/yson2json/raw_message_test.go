@@ -6,8 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"a.yandex-team.ru/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 func TestRawMessage_MarshalYSON(t *testing.T) {

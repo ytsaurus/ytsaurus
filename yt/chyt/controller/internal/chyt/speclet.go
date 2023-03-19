@@ -1,7 +1,7 @@
 package chyt
 
 import (
-	"a.yandex-team.ru/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/ypath"
 )
 
 type Speclet struct {

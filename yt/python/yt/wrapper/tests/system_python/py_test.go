@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"a.yandex-team.ru/library/go/test/yatest"
 	"github.com/stretchr/testify/require"
+	"go.ytsaurus.tech/library/go/test/yatest"
 )
 
 type Testcase struct {

@@ -1,0 +1,87 @@
+commit ab5923972943a6111392d00eecabd1110e96e682
+author: alex-shishkin
+date: 2022-10-17T16:54:55+03:00
+
+    reading_features
+
+--- taxi/dmp/spark/spark/sql/catalyst/src/main/java/org/apache/spark/sql/connector/read/PartitionReaderFactory.java	(94bae369ef25fd33198eed4a51f2aed0fd5d54bc)
++++ taxi/dmp/spark/spark/sql/catalyst/src/main/java/org/apache/spark/sql/connector/read/PartitionReaderFactory.java	(ab5923972943a6111392d00eecabd1110e96e682)
+@@ -19,6 +19,7 @@ package org.apache.spark.sql.connector.read;
+ 
+ import java.io.Serializable;
+ 
++import org.apache.spark.TaskContext;
+ import org.apache.spark.annotation.Evolving;
+ import org.apache.spark.sql.catalyst.InternalRow;
+ import org.apache.spark.sql.vectorized.ColumnarBatch;
+@@ -65,4 +66,7 @@ public interface PartitionReaderFactory extends Serializable {
+   default boolean supportColumnarReads(InputPartition partition) {
+     return false;
+   }
++
++  default void setTaskContext(TaskContext context) {
++  }
+ }
+--- taxi/dmp/spark/spark/sql/catalyst/src/main/scala/org/apache/spark/sql/internal/SQLConf.scala	(94bae369ef25fd33198eed4a51f2aed0fd5d54bc)
++++ taxi/dmp/spark/spark/sql/catalyst/src/main/scala/org/apache/spark/sql/internal/SQLConf.scala	(ab5923972943a6111392d00eecabd1110e96e682)
+@@ -2016,6 +2016,15 @@ object SQLConf {
+       .booleanConf
+       .createWithDefault(true)
+ 
++  val FORCING_SCHEMA_NULLABLE_FLAG_IF_NO_METADATA =
++    buildConf("spark.sql.schema.forcingNullableIfNoMetadata.enabled")
++      .doc("When true, force the schema of non streaming file source to be nullable" +
++        " (including all the fields).")
++      .version("3.0.0")
++      .internal()
++      .booleanConf
++      .createWithDefault(true)
++
+   val PARALLEL_FILE_LISTING_IN_STATS_COMPUTATION =
+     buildConf("spark.sql.statistics.parallelFileListingInStatsComputation.enabled")
+       .internal()
+--- taxi/dmp/spark/spark/sql/core/src/main/scala/org/apache/spark/sql/execution/datasources/PartitioningAwareFileIndex.scala	(94bae369ef25fd33198eed4a51f2aed0fd5d54bc)
++++ taxi/dmp/spark/spark/sql/core/src/main/scala/org/apache/spark/sql/execution/datasources/PartitioningAwareFileIndex.scala	(ab5923972943a6111392d00eecabd1110e96e682)
+@@ -62,6 +62,13 @@ abstract class PartitioningAwareFileIndex(
+   protected def matchPathPattern(file: FileStatus): Boolean =
+     pathFilters.forall(_.accept(file))
+ 
++  protected lazy val pathGlobFilter: Option[GlobFilter] =
++    caseInsensitiveMap.get("pathGlobFilter").map(new GlobFilter(_))
++
++  protected def matchGlobPattern(file: FileStatus): Boolean = {
++    pathGlobFilter.forall(_.accept(file.getPath))
++  }
++
+   protected lazy val recursiveFileLookup: Boolean = {
+     caseInsensitiveMap.getOrElse("recursiveFileLookup", "false").toBoolean
+   }
+--- taxi/dmp/spark/spark/sql/core/src/main/scala/org/apache/spark/sql/execution/datasources/v2/DataSourceRDD.scala	(94bae369ef25fd33198eed4a51f2aed0fd5d54bc)
++++ taxi/dmp/spark/spark/sql/core/src/main/scala/org/apache/spark/sql/execution/datasources/v2/DataSourceRDD.scala	(ab5923972943a6111392d00eecabd1110e96e682)
+@@ -54,6 +54,7 @@ class DataSourceRDD(
+   }
+ 
+   override def compute(split: Partition, context: TaskContext): Iterator[InternalRow] = {
++    partitionReaderFactory.setTaskContext(context)
+     val inputPartition = castPartition(split).inputPartition
+     val (iter, reader) = if (columnarReads) {
+       val batchReader = partitionReaderFactory.createColumnarReader(inputPartition)
+--- taxi/dmp/spark/spark/sql/core/src/main/scala/org/apache/spark/sql/execution/datasources/v2/FileTable.scala	(94bae369ef25fd33198eed4a51f2aed0fd5d54bc)
++++ taxi/dmp/spark/spark/sql/core/src/main/scala/org/apache/spark/sql/execution/datasources/v2/FileTable.scala	(ab5923972943a6111392d00eecabd1110e96e682)
+@@ -29,6 +29,7 @@ import org.apache.spark.sql.connector.expressions.Transform
+ import org.apache.spark.sql.errors.QueryCompilationErrors
+ import org.apache.spark.sql.execution.datasources._
+ import org.apache.spark.sql.execution.streaming.{FileStreamSink, MetadataLogFileIndex}
++import org.apache.spark.sql.internal.SQLConf
+ import org.apache.spark.sql.types.{DataType, StructType}
+ import org.apache.spark.sql.util.CaseInsensitiveStringMap
+ import org.apache.spark.sql.util.SchemaUtils
+@@ -73,6 +74,8 @@ abstract class FileTable(
+     }
+     fileIndex match {
+       case _: MetadataLogFileIndex => schema
++      case _ if !sparkSession.sessionState.conf
++        .getConf(SQLConf.FORCING_SCHEMA_NULLABLE_FLAG_IF_NO_METADATA) => schema
+       case _ => schema.asNullable
+     }
+   }

@@ -1,0 +1,18 @@
+commit 0ee5c459a888c10bf20e030264342ea5278e7a5e
+author: alex-shishkin
+date: 2023-02-14T11:50:29+03:00
+
+    SPYT-413: Fix log page scrolling
+
+--- yt/spark/spark/core/src/main/resources/org/apache/spark/ui/static/log-view.js	(26479bafa8dd7d85ee2eaa8cf658f18eebd1ee1d)
++++ yt/spark/spark/core/src/main/resources/org/apache/spark/ui/static/log-view.js	(0ee5c459a888c10bf20e030264342ea5278e7a5e)
+@@ -53,6 +53,9 @@ function noNewAlert() {
+   window.setTimeout(function () {alert.css("display", "none");}, 4000);
+ }
+ 
++function getBaseURI(){
++  return document.baseURI || document.URL;
++}
+ 
+ function getRESTEndPoint() {
+   // If the worker is served from the master through a proxy (see doc on spark.ui.reverseProxy), 

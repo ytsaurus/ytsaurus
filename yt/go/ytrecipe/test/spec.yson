@@ -1,6 +1,0 @@
-{
-    cluster=hahn;
-    pool="devtools";
-    cypress_root="//home/devtools/ytexec-cache";
-    run_as_root = %true;
-}

@@ -5,16 +5,15 @@ import (
 	"net/http"
 	"time"
 
+	"go.ytsaurus.tech/library/go/ptr"
+	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
+	"go.ytsaurus.tech/yt/go/proto/core/misc"
+	"go.ytsaurus.tech/yt/go/proto/core/ytree"
+	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yterrors"
 	"golang.org/x/xerrors"
-
-	"a.yandex-team.ru/library/go/ptr"
-	"a.yandex-team.ru/yt/go/guid"
-	"a.yandex-team.ru/yt/go/proto/client/api/rpc_proxy"
-	"a.yandex-team.ru/yt/go/proto/core/misc"
-	"a.yandex-team.ru/yt/go/proto/core/ytree"
-	"a.yandex-team.ru/yt/go/yson"
-	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 // unexpectedStatusCode is last effort attempt to get useful error message from a failed request.

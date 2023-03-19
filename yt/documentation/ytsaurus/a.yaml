@@ -1,0 +1,154 @@
+service: yt
+title: YTsaurus external docs
+
+shared:
+  requirements: &requirements
+    cores: 1
+    ram: 2 GB
+    disk: 1 GB
+    sandbox:
+      client_tags: GENERIC & LINUX & SSD & LXC
+      container_resource: 4095076035
+      dns: dns64
+  secret_environment_variables: &secret_environment_variables
+    - key: AWS_S3_BUCKET
+      secret_spec:
+        key: s3_bucket_name
+    - key: AWS_ACCESS_KEY_ID
+      secret_spec:
+        key: s3_bucket_access_key
+    - key: AWS_SECRET_ACCESS_KEY
+      secret_spec:
+        key: s3_bucket_secret_key
+  config: &config
+    arc_mount_config:
+      enabled: true
+    logs_config:
+      redirect_stderr_to_stdout: true
+      stdout_ci_badge: true
+    secret_environment_variables: *secret_environment_variables
+  start_flow: &start_flow
+    title: Start flow
+    task: dummy
+    stage: build
+  finish_flow: &finish_flow
+    title: Finish flow
+    task: dummy
+
+ci:
+  release-title-source: flow
+  secret: sec-01gswqg7ebx9ytg66sehgrhba0
+  runtime:
+    sandbox-owner: DATA-UI
+
+  actions:
+    precommit:
+      title: YTsaurus precommit
+      flow: precommit-flow
+      triggers:
+        - on: pr
+      cleanup:
+        conditions:
+          - reasons:
+              - new-diff-set
+            interrupt: true
+            cleanup: false # Не выполнять cleanup на каждый diff-set
+          - reasons:
+              - pr-merged
+              - pr-discarded
+            interrupt: true
+            cleanup: true
+
+  flows:
+    precommit-flow:
+      title: Docs viewer Global precommit
+      cleanup-jobs:
+        drop-revision:
+          title: Drop revision from S3
+          task: common/misc/run_command
+          requirements: *requirements
+          manual: true
+          input:
+            config:
+              <<: *config
+              cmd_line: |
+                PREFIX=rev/pr-${context.target_revision.pull_request_id}
+
+                s3cmd \
+                  --region=eu-central-1 \
+                  --access_key=$AWS_ACCESS_KEY_ID \
+                  --secret_key=$AWS_SECRET_ACCESS_KEY \
+                  --no-mime-magic \
+                  rm -r s3://$AWS_S3_BUCKET/$PREFIX/
+      jobs:
+        start-flow: *start_flow
+
+        build:
+          title: Build YFM docs revision
+          task: common/misc/run_command
+          needs: start-flow
+          requirements: *requirements
+          input:
+            config:
+              <<: *config
+              result_resources:
+                - path: docs.tar.gz
+                  description: Builded docs archive
+                  type: ARCADIA_DOCS_MD
+                  compression_type: none
+                  attributes:
+                    name: build
+              cmd_line: |
+                set -e
+                cd ${context.config_info.dir}
+
+                ya make
+                cp preprocessed.tar.gz $RESULT_RESOURCES_PATH/docs.tar.gz
+        upload:
+          title: Upload YFM docs revision to S3
+          task: common/misc/run_command
+          needs: build
+          requirements: *requirements
+          input:
+            config:
+              <<: *config
+              sb_resources_env: PARENT_RESOURCES
+              cmd_line: |
+                set -e
+                cd ${context.config_info.dir}
+
+                PREFIX=rev/pr-${context.target_revision.pull_request_id}
+                BUILD=$(echo "$PARENT_RESOURCES" | jq '.[] | select(.attributes.name == "build").id | tonumber')
+
+                ya download sbr:$BUILD --untar --output=build
+
+                s3cmd \
+                  --region=eu-central-1 \
+                  --access_key=$AWS_ACCESS_KEY_ID \
+                  --secret_key=$AWS_SECRET_ACCESS_KEY \
+                  --no-mime-magic \
+                  sync build/ s3://$AWS_S3_BUCKET/$PREFIX/
+
+        release:
+          title: Release YFM docs revision
+          task: common/misc/run_command
+          needs: upload
+          manual: true
+          requirements: *requirements
+          input:
+            config:
+              <<: *config
+              cmd_line: |
+                set -e
+
+                echo '{ "revision": "pr-${context.target_revision.pull_request_id}" }' > head
+
+                s3cmd \
+                  --region=eu-central-1 \
+                  --access_key=$AWS_ACCESS_KEY_ID \
+                  --secret_key=$AWS_SECRET_ACCESS_KEY \
+                  put head s3://$AWS_S3_BUCKET
+
+        finish-flow:
+          <<: *finish_flow
+          needs: release

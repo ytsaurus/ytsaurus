@@ -3,10 +3,10 @@ package chyt
 import (
 	"context"
 
-	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yson"
-	"a.yandex-team.ru/yt/go/yt"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yt"
 )
 
 func appendArtifactDescription(ctx context.Context, description *map[string]yson.RawValue, ytc yt.Client, name string, path ypath.Path) (err error) {

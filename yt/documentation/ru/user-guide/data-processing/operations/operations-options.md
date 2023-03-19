@@ -1,0 +1,1 @@
+{% include [Настройки операций](../../../_includes/user-guide/data-processing/operations/operations-options.md) %}

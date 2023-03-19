@@ -1,6 +1,6 @@
 package mapreduce
 
-import "a.yandex-team.ru/yt/go/skiff"
+import "go.ytsaurus.tech/yt/go/skiff"
 
 // jobState is transferred from the client to the job.
 //

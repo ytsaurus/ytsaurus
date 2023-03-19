@@ -7,8 +7,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
-
-	"a.yandex-team.ru/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 type (

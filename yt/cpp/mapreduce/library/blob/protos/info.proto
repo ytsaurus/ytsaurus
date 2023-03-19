@@ -1,9 +1,0 @@
-package NYtBlob;
-
-message TBlobInfo {
-    optional string MD5         = 1;
-    optional uint64 SizeInBytes = 2;
-
-    // same as `Name` field in `TBlobChunk`
-    optional string Name        = 3;
-}

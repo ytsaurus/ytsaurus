@@ -1,0 +1,28 @@
+---
+vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/index.md
+sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/index.md
+---
+# Список статей по синтаксису YQL
+
+* [Лексическая структура](lexer.md)
+* [Выражения](expressions.md)
+* [USE](use.md)
+* [SELECT](select.md)
+* [VALUES](values.md)
+* [CREATE TABLE](create_table.md)
+* [DROP TABLE](drop_table.md)
+* [INSERT](insert_into.md)
+* [UPSERT](upsert_into.md)
+* [GROUP BY](group_by.md)
+* [JOIN](join.md)
+* [WINDOW](window.md)
+* [FLATTEN](flatten.md)
+* [ACTION](action.md)
+* [SUBQUERY](subquery.md)
+* [DISCARD](discard.md)
+* [INTO RESULT](into_result.md)
+* [PROCESS](process.md)
+* [REDUCE](reduce.md)
+* [PRAGMA](pragma.md)
+* [DECLARE](declare.md)
+* [EXPORT и IMPORT](export_import.md)

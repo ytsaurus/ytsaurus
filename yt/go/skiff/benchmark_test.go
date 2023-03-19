@@ -5,8 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"a.yandex-team.ru/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/schema"
 )
 
 func benchmarkEncode(b *testing.B, value interface{}) {

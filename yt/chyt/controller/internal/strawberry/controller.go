@@ -3,10 +3,10 @@ package strawberry
 import (
 	"context"
 
-	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yson"
-	"a.yandex-team.ru/yt/go/yt"
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yt"
 )
 
 // Controller encapsulates particular application business logic, in particular:

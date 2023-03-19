@@ -8,7 +8,7 @@ package ypath
 import (
 	"fmt"
 
-	"a.yandex-team.ru/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 // Path is ypath in simple text form.

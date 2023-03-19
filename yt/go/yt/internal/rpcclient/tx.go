@@ -4,13 +4,12 @@ import (
 	"context"
 
 	"github.com/golang/protobuf/proto"
-
-	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/library/go/core/xerrors"
-	"a.yandex-team.ru/yt/go/bus"
-	"a.yandex-team.ru/yt/go/yson"
-	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yt/internal"
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/xerrors"
+	"go.ytsaurus.tech/yt/go/bus"
+	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt/internal"
 )
 
 func (c *client) BeginTx(

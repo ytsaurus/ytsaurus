@@ -9,10 +9,10 @@ import (
 	"net"
 	"sync"
 
-	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/library/go/core/log/nop"
-	"a.yandex-team.ru/yt/go/crc64"
-	"a.yandex-team.ru/yt/go/guid"
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/log/nop"
+	"go.ytsaurus.tech/yt/go/crc64"
+	"go.ytsaurus.tech/yt/go/guid"
 )
 
 type AttributeKey string

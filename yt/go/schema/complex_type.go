@@ -3,7 +3,7 @@ package schema
 import (
 	"fmt"
 
-	"a.yandex-team.ru/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 type ComplexType interface {

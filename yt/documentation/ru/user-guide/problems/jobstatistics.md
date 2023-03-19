@@ -1,0 +1,1 @@
+{% include [Статистики джобов](../../_includes/user-guide/problems/jobstatistics.md) %}

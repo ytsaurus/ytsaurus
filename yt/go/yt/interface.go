@@ -36,11 +36,11 @@ import (
 	"context"
 	"io"
 
-	"a.yandex-team.ru/yt/go/guid"
-	"a.yandex-team.ru/yt/go/schema"
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yson"
-	"a.yandex-team.ru/yt/go/yterrors"
+	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 //go:generate yt-gen-client -interface interface.go -output internal/params.go

@@ -1,9 +1,9 @@
 package rpcclient
 
 import (
-	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/yt/go/proto/client/api/rpc_proxy"
-	"a.yandex-team.ru/yt/go/yt"
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
+	"go.ytsaurus.tech/yt/go/yt"
 )
 
 var _ TransactionalRequest = (*CreateNodeRequest)(nil)

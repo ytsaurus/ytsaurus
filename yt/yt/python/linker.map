@@ -1,9 +1,0 @@
-{
-global:
-    init*_lib;
-    init*_lib_d;
-    PyInit_*_lib;
-    PyInit_*_lib_d;
-local:
-    *;
-};

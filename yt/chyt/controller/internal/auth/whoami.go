@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yterrors"
+	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 func ContainsUnauthorized(err error) bool {

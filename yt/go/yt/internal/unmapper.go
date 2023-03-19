@@ -3,7 +3,7 @@ package internal
 import (
 	"fmt"
 
-	"a.yandex-team.ru/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 // unmapper decodes value of single key inside YSON map.

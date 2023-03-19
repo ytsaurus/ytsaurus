@@ -6,8 +6,7 @@ import (
 	"io"
 
 	"github.com/andybalholm/brotli"
-
-	"a.yandex-team.ru/library/go/core/xerrors"
+	"go.ytsaurus.tech/library/go/core/xerrors"
 )
 
 type CodecBrotli int

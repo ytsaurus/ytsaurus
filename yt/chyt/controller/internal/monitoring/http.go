@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"time"
 
-	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/yt/chyt/controller/internal/httpserver"
-	"a.yandex-team.ru/yt/go/yterrors"
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/httpserver"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 type HTTPLeaderMonitoring struct {

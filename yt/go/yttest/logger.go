@@ -7,8 +7,7 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-
-	zaplog "a.yandex-team.ru/library/go/core/log/zap"
+	zaplog "go.ytsaurus.tech/library/go/core/log/zap"
 )
 
 // testingWriter is a WriteSyncer that writes to the given testing.TB.

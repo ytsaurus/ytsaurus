@@ -4,7 +4,7 @@ import (
 	"io"
 	"reflect"
 
-	"a.yandex-team.ru/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 // Reader represents input of the job.

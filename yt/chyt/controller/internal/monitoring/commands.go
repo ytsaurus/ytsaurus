@@ -2,9 +2,8 @@ package monitoring
 
 import (
 	"github.com/go-chi/chi/v5"
-
-	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/yt/chyt/controller/internal/httpserver"
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/httpserver"
 )
 
 func RegisterHTTPMonitoring(c HTTPMonitoringConfig, l log.Logger, leader LeaderChecker, healthers map[string]Healther) chi.Router {

@@ -16,10 +16,10 @@ func emit(f file, out io.Writer) error {
 	write("package internal")
 
 	write("import (")
-	write("%q", "a.yandex-team.ru/yt/go/yson")
-	write("%q", "a.yandex-team.ru/yt/go/ypath")
-	write("%q", "a.yandex-team.ru/yt/go/yt")
-	write("%q", "a.yandex-team.ru/library/go/core/log")
+	write("%q", "go.ytsaurus.tech/yt/go/yson")
+	write("%q", "go.ytsaurus.tech/yt/go/ypath")
+	write("%q", "go.ytsaurus.tech/yt/go/yt")
+	write("%q", "go.ytsaurus.tech/library/go/core/log")
 	write(")")
 
 	for _, opt := range f.options {

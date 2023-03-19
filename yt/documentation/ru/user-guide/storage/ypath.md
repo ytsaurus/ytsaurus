@@ -1,0 +1,1 @@
+{% include [YPATH](../../_includes/user-guide/storage/ypath.md) %}

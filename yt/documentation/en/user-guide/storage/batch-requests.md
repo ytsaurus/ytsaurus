@@ -1,0 +1,1 @@
+{% include [Пакетная обработка запросов](../../_includes/user-guide/storage/batch-requests.md) %}

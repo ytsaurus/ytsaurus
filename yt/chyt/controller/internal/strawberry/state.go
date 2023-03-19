@@ -3,8 +3,8 @@ package strawberry
 import (
 	"time"
 
-	"a.yandex-team.ru/yt/go/yson"
-	"a.yandex-team.ru/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yt"
 )
 
 // PersistentState contains a part of agent's state which should be persistent in a cypress.

@@ -3,8 +3,8 @@ package skiff
 import (
 	"testing"
 
-	"a.yandex-team.ru/yt/go/yson"
 	"github.com/stretchr/testify/require"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 func TestWireTypeYSON(t *testing.T) {

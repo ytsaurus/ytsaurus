@@ -7,12 +7,11 @@ import (
 	"reflect"
 	"strings"
 
-	"a.yandex-team.ru/library/go/core/log"
-
-	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
-	"a.yandex-team.ru/yt/go/yson"
-	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yterrors"
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
+	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 type RequestParams struct {

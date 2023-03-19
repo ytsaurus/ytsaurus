@@ -5,8 +5,8 @@ import (
 	"encoding/gob"
 	"fmt"
 
-	"a.yandex-team.ru/yt/go/schema"
-	"a.yandex-team.ru/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 type WireType int

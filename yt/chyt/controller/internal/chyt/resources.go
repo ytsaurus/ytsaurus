@@ -3,7 +3,7 @@ package chyt
 import (
 	"fmt"
 
-	"a.yandex-team.ru/library/go/ptr"
+	"go.ytsaurus.tech/library/go/ptr"
 )
 
 const (

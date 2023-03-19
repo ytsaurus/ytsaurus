@@ -1,0 +1,73 @@
+commit 8b17ab1d21358f7face4144717bb7e4a9a920810
+author: alex-shishkin
+date: 2022-10-17T16:59:20+03:00
+
+    fix_freezing_driver
+
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/worker/DriverWrapper.scala	(896e1bf60a326f9f7978bd9083a6d7b098ecab5c)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/worker/DriverWrapper.scala	(8b17ab1d21358f7face4144717bb7e4a9a920810)
+@@ -18,6 +18,9 @@
+ package org.apache.spark.deploy.worker
+ 
+ import java.io.File
++import java.net.URI
++
++import org.apache.hadoop.fs.FileSystem
+ 
+ import org.apache.spark.{SecurityManager, SparkConf}
+ import org.apache.spark.deploy.SparkHadoopUtil
+@@ -40,29 +43,34 @@ object DriverWrapper extends Logging {
+        */
+       case workerUrl :: userJar :: mainClass :: extraArgs =>
+         val conf = new SparkConf()
+-        val host: String = Utils.localHostName()
+-        val port: Int = sys.props.getOrElse(config.DRIVER_PORT.key, "0").toInt
+-        val rpcEnv = RpcEnv.create("Driver", host, port, conf, new SecurityManager(conf))
+-        logInfo(s"Driver address: ${rpcEnv.address}")
+-        rpcEnv.setupEndpoint("workerWatcher", new WorkerWatcher(rpcEnv, workerUrl))
++        val hadoopConf = SparkHadoopUtil.newConfiguration(conf)
++        try {
++          val host: String = Utils.localHostName()
++          val port: Int = sys.props.getOrElse(config.DRIVER_PORT.key, "0").toInt
++          val rpcEnv = RpcEnv.create("Driver", host, port, conf, new SecurityManager(conf))
++          logInfo(s"Driver address: ${rpcEnv.address}")
++          rpcEnv.setupEndpoint("workerWatcher", new WorkerWatcher(rpcEnv, workerUrl))
+ 
+-        val currentLoader = Thread.currentThread.getContextClassLoader
+-        val userJarUrl = new File(userJar).toURI().toURL()
+-        val loader =
+-          if (sys.props.getOrElse(config.DRIVER_USER_CLASS_PATH_FIRST.key, "false").toBoolean) {
+-            new ChildFirstURLClassLoader(Array(userJarUrl), currentLoader)
+-          } else {
+-            new MutableURLClassLoader(Array(userJarUrl), currentLoader)
+-          }
+-        Thread.currentThread.setContextClassLoader(loader)
+-        setupDependencies(loader, userJar)
++          val currentLoader = Thread.currentThread.getContextClassLoader
++          val userJarUrl = new File(userJar).toURI().toURL()
++          val loader =
++            if (sys.props.getOrElse(config.DRIVER_USER_CLASS_PATH_FIRST.key, "false").toBoolean) {
++              new ChildFirstURLClassLoader(Array(userJarUrl), currentLoader)
++            } else {
++              new MutableURLClassLoader(Array(userJarUrl), currentLoader)
++            }
++          Thread.currentThread.setContextClassLoader(loader)
++          setupDependencies(loader, userJar)
+ 
+-        // Delegate to supplied main class
+-        val clazz = Utils.classForName(mainClass)
+-        val mainMethod = clazz.getMethod("main", classOf[Array[String]])
+-        mainMethod.invoke(null, extraArgs.toArray[String])
++          // Delegate to supplied main class
++          val clazz = Utils.classForName(mainClass)
++          val mainMethod = clazz.getMethod("main", classOf[Array[String]])
++          mainMethod.invoke(null, extraArgs.toArray[String])
+ 
+-        rpcEnv.shutdown()
++          rpcEnv.shutdown()
++        } finally {
++          FileSystem.get(new URI("yt:///"), hadoopConf).close()
++        }
+ 
+       case _ =>
+         // scalastyle:off println

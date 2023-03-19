@@ -1,0 +1,16 @@
+commit 454e6fbb93344b57287602e3b66e04f6600a1af1
+author: alex-shishkin
+date: 2022-10-17T16:50:21+03:00
+
+    passing_yt_token
+
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/SparkSubmit.scala	(db499a652a6f30f47ec4091ea209a836391054da)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/SparkSubmit.scala	(454e6fbb93344b57287602e3b66e04f6600a1af1)
+@@ -337,6 +337,7 @@ private[spark] class SparkSubmit extends Logging {
+ 
+     // update spark config from args
+     args.toSparkConf(Option(sparkConf))
++    sys.env.get("SPARK_YT_TOKEN").foreach(token => sparkConf.set("spark.hadoop.yt.token", token))
+     val hadoopConf = conf.getOrElse(SparkHadoopUtil.newConfiguration(sparkConf))
+     val targetDir = Utils.createTempDir()
+ 

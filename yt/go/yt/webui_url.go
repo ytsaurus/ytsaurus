@@ -3,7 +3,7 @@ package yt
 import (
 	"fmt"
 
-	"a.yandex-team.ru/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/ypath"
 )
 
 func WebUITableURL(cluster string, path ypath.Path) string {

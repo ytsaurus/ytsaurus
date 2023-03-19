@@ -1,6 +1,0 @@
-{
-    cluster=hahn;
-    pool="devtools";
-    cypress_root="//home/devtools/ytexec-cache";
-    output_ttl=3600000000000;
-}

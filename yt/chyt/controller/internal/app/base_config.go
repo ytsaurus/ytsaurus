@@ -1,6 +1,6 @@
 package app
 
-import "a.yandex-team.ru/yt/go/ypath"
+import "go.ytsaurus.tech/yt/go/ypath"
 
 type BaseConfig struct {
 	// Token of the user for cluster initialization.

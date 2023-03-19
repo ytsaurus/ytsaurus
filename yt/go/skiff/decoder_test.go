@@ -5,8 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"a.yandex-team.ru/library/go/ptr"
+	"go.ytsaurus.tech/library/go/ptr"
 )
 
 type TestRow struct {

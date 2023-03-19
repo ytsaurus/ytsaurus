@@ -5,11 +5,11 @@ import (
 	"reflect"
 	"time"
 
-	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yson"
-	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yterrors"
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 // AgentInfo contains information about the Agent which is needed in Oplet.

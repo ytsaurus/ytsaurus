@@ -4,8 +4,7 @@ import (
 	"context"
 
 	"github.com/golang/protobuf/proto"
-
-	"a.yandex-team.ru/yt/go/bus"
+	"go.ytsaurus.tech/yt/go/bus"
 )
 
 type BusConn interface {

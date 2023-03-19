@@ -3,7 +3,7 @@ package httpclient
 import (
 	"io"
 
-	"a.yandex-team.ru/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 type tableWriter struct {

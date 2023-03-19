@@ -1,9 +1,9 @@
 package misc
 
 import (
-	"a.yandex-team.ru/yt/go/guid"
-	"a.yandex-team.ru/yt/go/yson"
-	"a.yandex-team.ru/yt/go/yterrors"
+	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 func NewErrorFromProto(proto *TError) error {

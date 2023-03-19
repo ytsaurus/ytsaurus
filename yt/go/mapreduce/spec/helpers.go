@@ -1,6 +1,6 @@
 package spec
 
-import "a.yandex-team.ru/yt/go/yt"
+import "go.ytsaurus.tech/yt/go/yt"
 
 // ConfigureJobIOForDynamicTable sets appropriate IO settings for operation
 // that outputs static table that would be later converted to dynamic table.

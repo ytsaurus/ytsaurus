@@ -2,9 +2,8 @@ package main
 
 import (
 	"github.com/spf13/cobra"
-
-	"a.yandex-team.ru/yt/chyt/controller/internal/app"
-	"a.yandex-team.ru/yt/chyt/controller/internal/chyt"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/app"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/chyt"
 )
 
 var initClusterCmd = &cobra.Command{

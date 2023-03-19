@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"a.yandex-team.ru/library/go/core/xerrors"
-	"a.yandex-team.ru/yt/go/schema"
-	"a.yandex-team.ru/yt/go/yson"
+	"go.ytsaurus.tech/library/go/core/xerrors"
+	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 type field struct {

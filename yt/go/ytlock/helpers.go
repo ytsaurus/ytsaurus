@@ -3,8 +3,8 @@ package ytlock
 import (
 	"context"
 
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yt"
 )
 
 // AbortExclusiveLock cancels transaction under exclusive lock specified by the path.

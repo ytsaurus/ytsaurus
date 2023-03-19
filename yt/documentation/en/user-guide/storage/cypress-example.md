@@ -1,0 +1,1 @@
+{% include [Работа с деревом метаинформации](../../_includes/user-guide/storage/cypress-example.md) %}

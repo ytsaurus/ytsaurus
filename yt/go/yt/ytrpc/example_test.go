@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yt/ytrpc"
-	"a.yandex-team.ru/yt/go/ytlog"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt/ytrpc"
+	"go.ytsaurus.tech/yt/go/ytlog"
 )
 
 func ExampleNewCypressClient() {

@@ -4,8 +4,8 @@ package schema
 import (
 	"reflect"
 
-	"a.yandex-team.ru/library/go/ptr"
-	"a.yandex-team.ru/yt/go/yson"
+	"go.ytsaurus.tech/library/go/ptr"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 type Type string

@@ -1,0 +1,3 @@
+default:
+    audience: public
+    web-interface: 'веб-интерфейс'

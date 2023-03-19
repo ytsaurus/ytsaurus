@@ -3,7 +3,7 @@ package schema_test
 import (
 	"fmt"
 
-	"a.yandex-team.ru/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/schema"
 )
 
 type MyStruct struct {

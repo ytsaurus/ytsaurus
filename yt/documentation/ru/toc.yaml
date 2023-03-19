@@ -1,0 +1,459 @@
+title: "{{product-name}}"
+href: index.md
+items:
+  - include: { mode: merge, path: yandex-specific/toc-internal.yaml }
+    when: audience == "internal"
+  - name: "{{product-name}}"
+    when: audience == "public"
+    href: index.md
+  - name: Обзор
+    when: audience == "public"
+    href: overview/about.md
+  - name: Как попробовать
+    when: audience == "public"
+    href: overview/try-yt.md
+  - name: Руководство пользователя
+    expanded: true
+    items:
+      - name: Аутентификация
+        href: user-guide/storage/auth.md
+      - name: Хранение данных
+        when: audience == "public"
+        items:
+          - name: Дерево метаинформации
+            href: user-guide/storage/cypress.md
+          - name: Атрибуты
+            href: user-guide/storage/attributes.md
+          - name: YSON
+            href: user-guide/storage/yson.md
+          - name: YPath
+            href: user-guide/storage/ypath.md
+          - name: Объекты
+            items:
+              - name: Общие сведения
+                href: user-guide/storage/objects.md
+              - name: Статические таблицы
+                href: user-guide/storage/static-tables.md
+              #- name: Динамические таблицы
+              #  href: user-guide/dynamic-tables/add-remove-line.md
+              - name: Файлы
+                href: user-guide/storage/files.md
+              - name: Ссылки
+                href: user-guide/storage/links.md
+              - name: YSON-документы
+                href: user-guide/storage/yson-docs.md
+              - name: Транзакции
+                href: user-guide/storage/transactions.md
+              - name: Чанки
+                href: user-guide/storage/chunks.md
+          - name: Контроль доступа
+            items:
+              - name: Общие сведения
+                href: user-guide/storage/access-control.md
+              - name: Управление доступом к колонкам таблиц
+                href: user-guide/storage/columnar-acl.md
+          - name: Квотирование ресурсов
+            items:
+              - name: Квоты
+                href: user-guide/storage/quotas.md
+              - name: Аккаунты
+                href: user-guide/storage/accounts.md
+          - name: Настройки слоя хранения
+            items:
+              - name: Схема данных
+                href: user-guide/storage/static-schema.md
+              - name: Типы данных
+                href: user-guide/storage/data-types.md
+              - name: Бинарные данные в таблицах
+                href: user-guide/storage/blobtables.md
+              - name: Сжатие
+                href: user-guide/storage/compression.md
+              - name: Репликация и erasure-кодирование
+                href: user-guide/storage/replication.md
+              - name: Медиумы
+                href: user-guide/storage/media.md
+              - name: Аннотации
+                href: user-guide/storage/annotations.md
+          - name: Настройки чтения и записи
+            items:
+              - name: Форматы данных
+                href: user-guide/storage/formats.md
+              - name: Настройки ввода и вывода
+                href: user-guide/storage/io-configuration.md
+              - name: Формат Skiff
+                href: user-guide/storage/skiff.md
+              - name: Кеш
+                href: user-guide/storage/file-cache.md
+          - name: Примеры
+            items:
+              - name: Работа с деревом метаинформации
+                href: user-guide/storage/cypress-example.md
+              - name: Работа с объектами дерева метаинформации
+                href: user-guide/storage/examples.md
+              - name: Пакетная обработка запросов
+                href: user-guide/storage/batch-requests.md
+              # - name: Работа с Excel
+              #   href: user-guide/storage/excel.md
+          - name: FAQ
+            href: user-guide/storage/faq.md
+      - name: Динамические таблицы
+        when: audience == "public"
+        items:
+        - name: Обзор
+          href: user-guide/dynamic-tables/overview.md
+        - name: Основные понятия
+          href: user-guide/dynamic-tables/concepts.md
+        - name: Операции
+          href: user-guide/dynamic-tables/operations.md
+        - name: Сортированные таблицы
+          href: user-guide/dynamic-tables/sorted-dynamic-tables.md
+        - name: Упорядоченные таблицы
+          href: user-guide/dynamic-tables/ordered-dynamic-tables.md
+        - name: Реплицированные таблицы
+          href: user-guide/dynamic-tables/replicated-dynamic-tables.md
+        - name: Транзакции
+          href: user-guide/dynamic-tables/transactions.md
+        - name: Шардирование
+          href: user-guide/dynamic-tables/resharding.md
+        - name: Фоновая компактификация
+          href: user-guide/dynamic-tables/compaction.md
+        - name: MapReduce по динамическим таблицам
+          href: user-guide/dynamic-tables/mapreduce.md
+        - name: Вставка из операций
+          href: user-guide/dynamic-tables/bulk-insert.md
+        - name: Язык запросов
+          href: user-guide/dynamic-tables/dyn-query-language.md
+        - name: Примеры
+          items:
+            - name: Создание веб-сервиса
+              href: user-guide/dynamic-tables/tutorials/dyn-tables-tutorial.md
+            #- name: Предоставление прав на tablet cell bundle
+            #  href: user-guide/dynamic-tables/tutorials/tablet_cell_bundle_access.md
+            #- name: Определение источника нагрузки на tablet cell bundle
+            #  href: user-guide/dynamic-tables/tutorials/tablet_cell_bundle_load.md
+            - name: Использование динамической таблицы как очереди
+              href: user-guide/dynamic-tables/tutorials/dynamic-table-queue.md
+            - name: Вставка и удаление данных из консоли
+              href: user-guide/dynamic-tables/tutorials/add-remove-line.md
+            - name: Конвертация динамической таблицы в статическую
+              href: user-guide/dynamic-tables/tutorials/dynamic-to-static.md
+            - name: Создание резервной копии динамической таблицы
+              href: user-guide/dynamic-tables/tutorials/backup-table.md
+            #- name: Поиск уязвимостей в запросах к динамическим таблицам
+            #  href: user-guide/dynamic-tables/tutorials/debug.md
+        - name: FAQ
+          href: user-guide/dynamic-tables/faq.md
+      - name: Обработка данных
+        expanded: true
+        items:
+        - name: Планировщик и пулы
+          when: audience == "public"
+          items:
+            - name: Обзор
+              href: user-guide/data-processing/scheduler/scheduler-and-pools.md
+            - name: Характеристики пулов
+              href: user-guide/data-processing/scheduler/pool-settings.md
+            - name: Вычисление fair share ratio
+              href: user-guide/data-processing/scheduler/fair-share.md
+            - name: Вытеснение
+              href: user-guide/data-processing/scheduler/preemption.md
+            - name: Интегральные гарантии
+              href: user-guide/data-processing/scheduler/integral-guarantees.md
+            - name: Динамический учёт потребления CPU
+              href: user-guide/data-processing/scheduler/job-cpu-monitor.md
+            - name: Подбор памяти для джобов
+              href: user-guide/data-processing/scheduler/memory-digest.md
+            - name: Управление вычислительными пулами
+              href: user-guide/data-processing/scheduler/manage-pools.md
+            - name: Пример настройки пулов
+              href: user-guide/data-processing/scheduler/pool-examples.md
+        - name: Типы операций
+          when: audience == "public"
+          items:
+            - name: Обзор
+              href: user-guide/data-processing/operations/overview.md
+            - name: Map
+              href: user-guide/data-processing/operations/map.md
+            - name: Reduce
+              href: user-guide/data-processing/operations/reduce.md
+            - name: MapReduce
+              href: user-guide/data-processing/operations/mapreduce.md
+            - name: Sort
+              href: user-guide/data-processing/operations/sort.md
+            - name: Merge
+              href: user-guide/data-processing/operations/merge.md
+            - name: Erase
+              href: user-guide/data-processing/operations/erase.md
+            - name: RemoteCopy
+              href: user-guide/data-processing/operations/remote-copy.md
+            - name: Vanilla
+              href: user-guide/data-processing/operations/vanilla.md
+        - name: Настройки операций
+          when: audience == "public"
+          href: user-guide/data-processing/operations/operations-options.md
+        - name: Автоматическое слияние чанков на выходе операций
+          when: audience == "public"
+          href: user-guide/data-processing/operations/automerge.md
+        - name: Рекомендации
+          when: audience == "public"
+          href: user-guide/data-processing/operations/recommendations.md
+        - name: Porto слои
+          when: audience == "public"
+          href: user-guide/data-processing/porto/layer-paths.md
+        - name: Переключение таблиц
+          when: audience == "public"
+          href: user-guide/data-processing/table-switch.md
+        - name: CHYT
+          when: audience == "public"
+          items:
+          - name: Обзор
+            href: user-guide/data-processing/chyt/about-chyt.md
+          - name: Как попробовать
+            href: user-guide/data-processing/chyt/try-chyt.md
+          - name: Концепции
+            items:
+            - name: Введение
+              href: user-guide/data-processing/chyt/general.md
+            - name: Анатомия запроса
+              href: user-guide/data-processing/chyt/queries/anatomy.md
+            - name: Запросы JOIN
+              href: user-guide/data-processing/chyt/queries/joins.md
+          - name: Работа с таблицами {{product-name}}
+            href: user-guide/data-processing/chyt/yt-tables.md
+          - name: Клики
+            items:
+            - name: Как запустить приватную клику
+              href: user-guide/data-processing/chyt/cliques/start.md
+            - name: Клика в интерфейсе {{product-name}}
+              href: user-guide/data-processing/chyt/cliques/ui.md
+            - name: Администрирование приватной клики
+              href: user-guide/data-processing/chyt/cliques/administration.md
+            - name: Производительность и рекомендации
+              href: user-guide/data-processing/chyt/cliques/resources.md
+          - name: CLI и Python API
+            href: user-guide/data-processing/chyt/cli-and-api.md
+          - name: Справочник
+            items:
+            - name: Выполнение запросов
+              href: user-guide/data-processing/chyt/reference/execute.md
+            - name: Настройки запросов
+              href: user-guide/data-processing/chyt/reference/settings.md
+            - name: Конфигурация клики
+              href: user-guide/data-processing/chyt/reference/configuration.md
+            - name: Типы данных
+              href: user-guide/data-processing/chyt/reference/data-types.md
+            - name: Функции
+              href: user-guide/data-processing/chyt/reference/functions.md
+          - name: Контроллер
+            href: user-guide/data-processing/chyt/cliques/controller.md
+          - name: Производительность и рекомендации
+            href: user-guide/data-processing/chyt/reference/performance.md
+          - name: Диагностика запросов
+            href: user-guide/data-processing/chyt/queries/diagnostics.md
+          - name: FAQ
+            href: user-guide/data-processing/chyt/faq-chyt.md
+        - name: SPYT
+          when: audience == "public"
+          items:
+            - name: Обзор
+              href: user-guide/data-processing/spyt/overview.md
+            - name: Быстрый старт кластера в SPYT
+              href: user-guide/data-processing/spyt/quick-start.md
+            - name: Кластер SPYT
+              items:
+              - name: Описание кластера Spark
+                href: user-guide/data-processing/spyt/cluster/cluster-desc.md
+              - name: Запуск кластера Spark
+                href: user-guide/data-processing/spyt/cluster/cluster-start.md
+              # - name: Метрики в Prometheus
+              #   href: user-guide/data-processing/spyt/cluster/prometheus.md
+              - name: Конфигурации
+                href: user-guide/data-processing/spyt/cluster/configuration.md
+            - name: Чтение под транзакцией
+              href: user-guide/data-processing/spyt/read-transaction.md
+            - name: Логи
+              href: user-guide/data-processing/spyt/logs.md
+            - name: API
+              items:
+                - name: SPYT в Scala
+                  href: user-guide/data-processing/spyt/API/spyt-scala.md
+                - name: SPYT в Java
+                  href: user-guide/data-processing/spyt/API/spyt-java.md
+                - name: SPYT в Python
+                  href: user-guide/data-processing/spyt/API/spyt-python.md
+                - name: SPYT в Jyputer
+                  href: user-guide/data-processing/spyt/API/spyt-jupyter.md
+            - name: Справочник
+              items:
+                - name: Опции чтения
+                  href: user-guide/data-processing/spyt/thesaurus/read-options.md
+                - name: Опции записи
+                  href: user-guide/data-processing/spyt/thesaurus/write-options.md
+            - name: Порядок обновления SPYT
+              href: user-guide/data-processing/spyt/version.md
+            - name: Best practices
+              href: user-guide/data-processing/spyt/best-practices.md
+            - name: Решение проблем
+              href: user-guide/data-processing/spyt/problems.md
+        - name: YQL
+          when: audience == "public"
+          items:
+            - include: { mode: link, path: yql/toc.yaml }
+      - name: Прокси
+        when: audience == "public" 
+        items: 
+          - name: Обзор
+            href: user-guide/proxy/about.md 
+          - name: HTTP-прокси
+            href: user-guide/proxy/http.md
+          - name: RPC-прокси
+            href: user-guide/proxy/rpc.md
+          - name: Справочник по HTTP-прокси
+            href: user-guide/proxy/http-reference.md
+          - name: gRPC-прокси
+            href: user-guide/proxy/grpc.md
+      - name: Решение проблем
+        when: audience == "public"
+        items:
+          - name: Диагностика медленных джобов
+            href: user-guide/problems/jobshell-and-slowjobs.md
+          - name: Медленное чтение файлов и таблиц
+            href: user-guide/problems/slow-read.md
+          - name: Статистики джобов
+            href: user-guide/problems/jobstatistics.md
+      - name: Импорт внешних данных
+        when: audience == "public"
+        href: user-guide/import.md
+  - name: API и справочник
+    when: audience == "public"
+    items:
+      - name: Перечень API и клиентских библиотек
+        items:
+          - name: Работа из командной строки
+            items:
+              - name: Обзор
+                href: api/cli/cli.md
+              - name: Установка
+                href: api/cli/install.md
+              - name: Примеры
+                href: api/cli/examples.md
+          - name: Python API
+            items:
+              - name: Введение
+                href: api/python/start.md
+              - name: Пользовательская документация
+                href: api/python/userdoc.md
+              - name: Классы данных
+                href: api/python/dataclass.md
+              - name: Примеры
+                href: api/python/examples.md
+          - name: C++
+            items:
+              - name: Описание
+                href: api/c/description.md
+              - name: Protobuf-представление таблиц
+                href: api/c/protobuf.md
+              # - name: Лямбда-выражения
+              #   href: api/c/lambda.md
+              # - name: Примеры использования
+              #   href: api/c/examples.md
+              - name: Справочник
+                href: api/c/reference.md
+          - name: Go API
+            href: api/go/reference.md
+          - name: Java API
+            href: api/java/examples.md
+          - name: JavaScript Wrapper
+            href: api/js-wrapper.md
+      - name: Общие команды
+        href: api/commands.md
+      - name: Параметры запросов
+        href: api/query-parameters.md
+      - name: Коды ошибок
+        href: api/error-codes.md
+  - name: Руководство администратора
+    when: audience == "public"
+    items:
+      - name: Установка {{product-name}}
+        items:
+          - name: Предварительные требования
+            href: admin-guide/set-req.md
+          - name: Подготовка окружения
+            href: admin-guide/set-environment.md
+          - name: Установка
+            href: admin-guide/set-install.md
+          - name: Проверка корректности установки
+            href: admin-guide/set-check.md
+          - name: Решение проблем с установкой
+            href: admin-guide/set-problems.md
+      - name: Описание конфигурации
+        items:
+          - name: Статическая конфигурация
+            href: admin-guide/static-config.md
+          - name: Динамическая конфигурация
+            href: admin-guide/dynamic-config.md
+          - name: Межкластерное взаимодействие
+            href: admin-guide/cluster-connection.md
+          - name: Настройка памяти, CPU, дисков, сети
+            href: admin-guide/hardware-setup.md
+      - name: Логирование
+        items:
+          - name: Обзор
+            href: admin-guide/logging.md
+          - name: Настройки
+            href: admin-guide/logging-config.md
+          - name: Категории метрик
+            href: admin-guide/logging-metrics.md
+      - name: Описание папки sys
+        items:
+          - name: Обзор объектов
+            href: admin-guide/sys-folder.md
+          - name: Атрибуты объекта cluster_node
+            href: admin-guide/cluster-node-attributes.md
+      - name: Базовые задачи администратора
+        items:
+          - name: Добавление узла
+            href: admin-guide/add-node.md
+          - name: Удаление узла
+            href: admin-guide/del-node.md
+          - name: Замена диска
+            href: admin-guide/change-disk.md
+          - name: Расширение мастеров
+            href: admin-guide/ext-masters.md
+          - name: Обновление версии компонент
+            href: admin-guide/new-ver.md
+          - name: Поднятие сервисов dyn_tables, chyt, spyt
+            href: admin-guide/services.md
+          - name: Забанить пользователя
+            href: admin-guide/block-user.md
+          - name: Создание и удаление пользователей
+            href: admin-guide/create-del-users.md
+          - name: Создание и удаление аккаунтов, пулов, бандлов
+            href: admin-guide/acc-pull-bundle.md
+          - name: Управление квотами аккаунта, пула, бандла
+            href: admin-guide/quotas.md
+          - name: Версия компонента и другие настройки
+            href: admin-guide/ver-settings.md
+          - name: Полезные команды
+            href: admin-guide/admin-commands.md
+  - name: Рекомендации по эксплуатации
+    items:
+      - name: Гайд по безопасности
+        href: admin-guide/safety-guide.md
+      - name: Мониторинг
+        items:
+          - name: Мониторинг кластера
+            href: admin-guide/monitoring.md
+          - name: Мониторинг квот
+            href: user-guide/best-practice/quota-monitoring.md
+      - name: Бекап настроек
+        href: admin-guide/back-up.md
+      - name: Скрипты и инструменты
+        href: admin-guide/scripts.md
+      - name: Гайд по производительности
+        href: admin-guide/performance-guide.md
+  - name: FAQ
+    href: faq/faq.md
+  - name: Как сообщить о проблеме
+    href: user-guide/problems/howtoreport.md
+

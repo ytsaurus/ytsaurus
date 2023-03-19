@@ -3,10 +3,9 @@ package migrate
 import (
 	"context"
 
-	"a.yandex-team.ru/yt/go/ypath"
-
-	"a.yandex-team.ru/yt/go/schema"
-	"a.yandex-team.ru/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yt"
 )
 
 // Create creates new dynamic table with provided schema.

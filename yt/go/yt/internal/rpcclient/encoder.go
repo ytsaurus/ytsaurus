@@ -4,13 +4,13 @@ import (
 	"context"
 	"io"
 
-	"a.yandex-team.ru/library/go/core/xerrors"
-	"a.yandex-team.ru/library/go/ptr"
-	"a.yandex-team.ru/yt/go/guid"
-	"a.yandex-team.ru/yt/go/proto/client/api/rpc_proxy"
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yson"
-	"a.yandex-team.ru/yt/go/yt"
+	"go.ytsaurus.tech/library/go/core/xerrors"
+	"go.ytsaurus.tech/library/go/ptr"
+	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yt"
 )
 
 // Encoder is adapter between typed and untyped layer of API.

@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"a.yandex-team.ru/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt"
 )
 
 // NewTestHTTPClient creates new http client from config to be used in integration tests.

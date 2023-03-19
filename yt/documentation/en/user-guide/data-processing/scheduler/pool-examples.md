@@ -1,0 +1,1 @@
+{% include [Вытеснение](../../../_includes/user-guide/data-processing/scheduler/pool-examples.md) %}

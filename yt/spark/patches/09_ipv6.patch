@@ -1,0 +1,161 @@
+commit 94bae369ef25fd33198eed4a51f2aed0fd5d54bc
+author: alex-shishkin
+date: 2022-10-17T16:52:22+03:00
+
+    ipv6
+
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/master/WorkerInfo.scala	(dcf0c638bdee9598c8705d23236ee465170272dd)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/master/WorkerInfo.scala	(94bae369ef25fd33198eed4a51f2aed0fd5d54bc)
+@@ -101,9 +101,15 @@ private[spark] class WorkerInfo(
+     lastHeartbeat = System.currentTimeMillis()
+   }
+ 
++  private def urlHost(host: String): String = {
++    if (host.contains(":")) {
++      s"[$host]"
++    } else host
++  }
++
+   def hostPort: String = {
+     assert (port > 0)
+-    host + ":" + port
++    urlHost(host) + ":" + port
+   }
+ 
+   def addExecutor(exec: ExecutorDesc): Unit = {
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/master/ui/MasterPage.scala	(dcf0c638bdee9598c8705d23236ee465170272dd)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/master/ui/MasterPage.scala	(94bae369ef25fd33198eed4a51f2aed0fd5d54bc)
+@@ -259,7 +259,7 @@ private[ui] class MasterPage(parent: MasterWebUI) extends WebUIPage("") {
+           }
+         }
+       </td>
+-      <td>{worker.host}:{worker.port}</td>
++      <td>{worker.hostPort}</td>
+       <td>{worker.state}</td>
+       <td>{worker.cores} ({worker.coresUsed} Used)</td>
+       <td sorttable_customkey={"%s.%s".format(worker.memory, worker.memoryUsed)}>
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/worker/Worker.scala	(dcf0c638bdee9598c8705d23236ee465170272dd)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/deploy/worker/Worker.scala	(94bae369ef25fd33198eed4a51f2aed0fd5d54bc)
+@@ -183,7 +183,8 @@ private[deploy] class Worker(
+ 
+   private val publicAddress = {
+     val envVar = conf.getenv("SPARK_PUBLIC_DNS")
+-    if (envVar != null) envVar else host
++    val rawHost = if (envVar != null) envVar else host
++    if (rawHost.contains(":")) s"[$rawHost]" else rawHost
+   }
+   private var webUi: WorkerWebUI = null
+ 
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/rpc/RpcEndpointAddress.scala	(dcf0c638bdee9598c8705d23236ee465170272dd)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/rpc/RpcEndpointAddress.scala	(94bae369ef25fd33198eed4a51f2aed0fd5d54bc)
+@@ -38,7 +38,11 @@ private[spark] case class RpcEndpointAddress(rpcAddress: RpcAddress, name: Strin
+   }
+ 
+   override val toString = if (rpcAddress != null) {
+-      s"spark://$name@${rpcAddress.host}:${rpcAddress.port}"
++      if (rpcAddress.host.contains(':')) {
++        s"spark://$name@[${rpcAddress.host}]:${rpcAddress.port}"
++      } else {
++        s"spark://$name@${rpcAddress.host}:${rpcAddress.port}"
++      }
+     } else {
+       s"spark-client://$name"
+     }
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/ui/WebUI.scala	(dcf0c638bdee9598c8705d23236ee465170272dd)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/ui/WebUI.scala	(94bae369ef25fd33198eed4a51f2aed0fd5d54bc)
+@@ -54,8 +54,13 @@ private[spark] abstract class WebUI(
+   protected val handlers = ArrayBuffer[ServletContextHandler]()
+   protected val pageToHandlers = new HashMap[WebUIPage, ArrayBuffer[ServletContextHandler]]
+   protected var serverInfo: Option[ServerInfo] = None
+-  protected val publicHostName = Option(conf.getenv("SPARK_PUBLIC_DNS")).getOrElse(
+-    conf.get(DRIVER_HOST_ADDRESS))
++  protected val publicHostName = {
++    val host = Option(conf.getenv("SPARK_PUBLIC_DNS")).getOrElse(
++      conf.get(DRIVER_HOST_ADDRESS))
++    if (host.contains(":")) {
++      s"[$host]"
++    } else host
++  }
+   private val className = Utils.getFormattedClassName(this)
+ 
+   def getBasePath: String = basePath
+--- taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/util/Utils.scala	(dcf0c638bdee9598c8705d23236ee465170272dd)
++++ taxi/dmp/spark/spark/core/src/main/scala/org/apache/spark/util/Utils.scala	(94bae369ef25fd33198eed4a51f2aed0fd5d54bc)
+@@ -47,7 +47,7 @@ import _root_.io.netty.channel.unix.Errors.NativeIoException
+ import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
+ import com.google.common.collect.Interners
+ import com.google.common.io.{ByteStreams, Files => GFiles}
+-import com.google.common.net.InetAddresses
++import com.google.common.net.{HostAndPort, InetAddresses}
+ import org.apache.commons.codec.binary.Hex
+ import org.apache.commons.io.IOUtils
+ import org.apache.commons.lang3.SystemUtils
+@@ -1098,27 +1098,14 @@ private[spark] object Utils extends Logging {
+     customHostname.getOrElse(InetAddresses.toUriString(localIpAddress))
+   }
+ 
+-  /**
+-   * Checks if the host contains only valid hostname/ip without port
+-   * NOTE: Incase of IPV6 ip it should be enclosed inside []
+-   */
+   def checkHost(host: String): Unit = {
+-    if (host != null && host.split(":").length > 2) {
+-      assert(host.startsWith("[") && host.endsWith("]"),
+-        s"Expected hostname or IPv6 IP enclosed in [] but got $host")
+-    } else {
+-      assert(host != null && host.indexOf(':') == -1, s"Expected hostname or IP but got $host")
+-    }
++    assert(host != null && !HostAndPort.fromString(host).hasPort,
++      s"Expected hostname (not IP) but got $host")
+   }
+ 
+   def checkHostPort(hostPort: String): Unit = {
+-    if (hostPort != null && hostPort.split(":").length > 2) {
+-      assert(hostPort != null && hostPort.indexOf("]:") != -1,
+-        s"Expected host and port but got $hostPort")
+-    } else {
+-      assert(hostPort != null && hostPort.indexOf(':') != -1,
+-        s"Expected host and port but got $hostPort")
+-    }
++    assert(hostPort != null && HostAndPort.fromString(hostPort).hasPort,
++      s"Expected host and port but got $hostPort")
+   }
+ 
+   // Typically, this will be of order of number of nodes in cluster
+@@ -1132,30 +1119,15 @@ private[spark] object Utils extends Logging {
+       return cached
+     }
+ 
+-    def setDefaultPortValue: (String, Int) = {
+-      val retval = (hostPort, 0)
+-      hostPortParseResults.put(hostPort, retval)
+-      retval
+-    }
+-    // checks if the hostport contains IPV6 ip and parses the host, port
+-    if (hostPort != null && hostPort.split(":").length > 2) {
+-      val index: Int = hostPort.lastIndexOf("]:")
+-      if (-1 == index) {
+-        return setDefaultPortValue
+-      }
+-      val port = hostPort.substring(index + 2).trim()
+-      val retval = (hostPort.substring(0, index + 1).trim(), if (port.isEmpty) 0 else port.toInt)
+-      hostPortParseResults.putIfAbsent(hostPort, retval)
++    val hostAndPort = HostAndPort.fromString(hostPort)
++    // For now, we assume that if port exists, then it is valid - not check if it is an int > 0
++    val retval = if (!hostAndPort.hasPort) {
++      (hostPort, 0)
+     } else {
+-      val index: Int = hostPort.lastIndexOf(':')
+-      if (-1 == index) {
+-        return setDefaultPortValue
+-      }
+-      val port = hostPort.substring(index + 1).trim()
+-      val retval = (hostPort.substring(0, index).trim(), if (port.isEmpty) 0 else port.toInt)
+-      hostPortParseResults.putIfAbsent(hostPort, retval)
++      (hostAndPort.getHostText, hostAndPort.getPort)
+     }
+ 
++    hostPortParseResults.putIfAbsent(hostPort, retval)
+     hostPortParseResults.get(hostPort)
+   }
+ 

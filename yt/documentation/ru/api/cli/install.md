@@ -1,0 +1,1 @@
+{% include [Установка](../../_includes/api/cli/install.md) %}

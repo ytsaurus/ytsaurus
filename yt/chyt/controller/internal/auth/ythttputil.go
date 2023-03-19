@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	"a.yandex-team.ru/yt/go/yterrors"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 type requester struct{}

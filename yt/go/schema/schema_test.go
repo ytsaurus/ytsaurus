@@ -4,9 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"a.yandex-team.ru/library/go/ptr"
-	"a.yandex-team.ru/yt/go/yson"
+	"go.ytsaurus.tech/library/go/ptr"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 func TestSchemaMarshalYSON(t *testing.T) {

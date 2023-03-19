@@ -1,0 +1,1 @@
+{% include [Пример настройки пулов](../../../_includes/user-guide/data-processing/scheduler/pool-examples.md) %}

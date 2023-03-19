@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/mitchellh/copystructure"
-
 	"github.com/stretchr/testify/require"
 )
 
