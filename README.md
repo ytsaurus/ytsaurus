@@ -1,7 +1,6 @@
 <img width="64" src="yt/documentation/images/logo.png"/><br/>
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/ytsaurus/ytsaurus/blob/main/LICENSE)
-[![Release](https://img.shields.io/github/v/release/ytsaurus/ytsaurus.svg?style=flat-square)](https://github.com/ytsaurus/ytsaurus/releases)
 [![Telegram](https://img.shields.io/badge/chat-on%20Telegram-2ba2d9.svg)](https://t.me/ytsaurus)
 
 ## YTsaurus
