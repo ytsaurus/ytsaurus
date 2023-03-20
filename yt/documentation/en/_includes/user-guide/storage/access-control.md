@@ -2,7 +2,7 @@
 
 This section contains information about the system of access control to tables and other [Cypress](../../../user-guide/storage/cypress.md) nodes (users, groups, accounts, chunks, transactions, etc.).
 
-Any user request passes through proxies that [**authenticate**](https://en.wikipedia.org/wiki/Authentication) the user, that is, verify their authenticity. Based on the token contained in the request and obtained using the [OAuth](https://ru.wikipedia.org/wiki/OAuth) protocol, the proxy determines the name of the user who initiated the request. If no token is specified in the request, it is assumed that the request was made by the `guest` user. After authentication, the token is not used at the subsequent user request processing stages. For more information, see [Authentication](../../../user-guide/storage/auth.md).
+Any user request passes through proxies that [**authenticate**](https://en.wikipedia.org/wiki/Authentication) the user, that is, verify their authenticity. Based on the token contained in the request and obtained using the [OAuth](https://en.wikipedia.org/wiki/OAuth) protocol, the proxy determines the name of the user who initiated the request. If no token is specified in the request, it is assumed that the request was made by the `guest` user. After authentication, the token is not used at the subsequent user request processing stages. For more information, see [Authentication](../../../user-guide/storage/auth.md).
 
 **Authorization** (granting permissions) is performed by the Cypress master server. The decision to grant or deny access depends on:
 

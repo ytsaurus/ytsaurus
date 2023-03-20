@@ -4,7 +4,7 @@ This section provides information on the file cache.
 
 ## General information { #common }
 
-The file cache enables you to upload a file to [Cypress](../../../user-guide/storage/cypress.md) once and then obtain a path to the file multiple times via a specified [MD5 hash](https://ru.wikipedia.org/wiki/MD5).
+The file cache enables you to upload a file to [Cypress](../../../user-guide/storage/cypress.md) once and then obtain a path to the file multiple times via a specified [MD5 hash](https://en.wikipedia.org/wiki/MD5).
 The file cache is required to run operations. When users run tasks, this uploads an executable and all its dependencies.
 Using Python, for instance, requires loading a large number of modules and dynamic link libraries. To avoid loading identical files multiple times, you only need to read them into the cache and request the path to these files in Cypress using an MD5 hash for any subsequent runs.
 

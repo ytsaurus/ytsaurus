@@ -1,6 +1,6 @@
 # Symbolic links
 
-This section provides information on [symbolic links](https://ru.wikipedia.org/wiki/Symbolic_link).
+This section provides information on [symbolic links](https://en.wikipedia.org/wiki/Symbolic_link).
 
 ## General information { #common }
 

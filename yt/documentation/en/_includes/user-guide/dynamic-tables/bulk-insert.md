@@ -135,7 +135,7 @@ The operation specification may contain the same fields as usual, with a few exc
 ## Compaction features { #compaction }
 This section describes the use of bulk insert for large amounts of data.
 
-Sorted dynamic tables resemble an [LSM tree](https://ru.wikipedia.org/wiki/LSM-%D0%B4%D0%B5%D1%80%D0%B5%D0%B2%D0%BE). The used data structure is designed to maintain an even, albeit quite large, flow of writes. Written data is compacted in background mode and stacked in chunks in a predictable manner.
+Sorted dynamic tables resemble an [LSM tree](https://en.wikipedia.org/wiki/Log-structured_merge-tree). The used data structure is designed to maintain an even, albeit quite large, flow of writes. Written data is compacted in background mode and stacked in chunks in a predictable manner.
 
 When inserted from an operation, many new chunks are added to the table, at least one per job. These chunks are not aligned to the table structure, but "piled up" in an unpredictable manner. After a few operations, access to the data will become inefficient, so it must be repaired.
 

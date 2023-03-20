@@ -28,7 +28,7 @@ h3 {
 }
 </style>
 
-**{{product-name}}** is a distributed storage and processing platform for large amounts of data featuring [MapReduce](http://ru.wikipedia.org/wiki/MapReduce) support, a distributed file system, and a NoSQL key-value database.
+**{{product-name}}** is a distributed storage and processing platform for large amounts of data featuring [MapReduce](http://en.wikipedia.org/wiki/MapReduce) support, a distributed file system, and a NoSQL key-value database.
 
 
 <div class="grid-container">
@@ -73,18 +73,9 @@ h3 {
 
 ## Useful links { #links }
 
-{% if lang == ru %}
-* [GitHub](https://github.com/ytsaurus/ytsaurus)
-* [{{product-name}} site](https://ytsaurus.tech/ru)
-* [Telegram](https://t.me/ytsaurus_ru)
-* [Stack Overflow](https://stackoverflow.com/tags/ytsaurus)
-* [Email for questions](mailto:community_ru@ytsaurus.tech)
-   {% else %}
 * [GitHub](https://github.com/ytsaurus/ytsaurus)
 * [{{product-name}} site](https://ytsaurus.tech)
 * [Telegram](https://t.me/ytsaurus)
 * [Stack Overflow](https://stackoverflow.com/tags/ytsaurus)
 * [Email for questions](mailto:community@ytsaurus.tech)
-   {% endif %}
-
 

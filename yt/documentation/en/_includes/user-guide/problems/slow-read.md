@@ -28,7 +28,7 @@ From there, they are moved to data proxies where they are unpacked, recoded as r
 
 ## Where do I start?
 1. Increase parallelism (see above). This may solve most of your reading problems. If this does not help or does not help enough, you need to do further troubleshooting.
-1. Look CPU load up in the [profiler](https://en.wikipedia.org/wiki/Perf_(Linux)) or [top-e](https://ru.wikipedia.org/wiki/Top). If you can see activities related to reading, the possible reasons are:
+1. Look CPU load up in the [profiler](https://en.wikipedia.org/wiki/Perf_(Linux)) or [top-e](https://en.wikipedia.org/wiki/Top). If you can see activities related to reading, the possible reasons are:
    - HTTP codec. Python API, for instance, uses gzip by default, and that may prove to be the bottleneck because of compression speed. In the latter case, top-e may show high CPU load from the python process. You can try replacing it with `identity`.
    - Format. Such as parsing YSON and distributing it to objects in memory.
 1. As an experiment, try moving some of the data to an SSD (see above) and reading from there. This will help you ascertain whether node disk limitations are your problem.
