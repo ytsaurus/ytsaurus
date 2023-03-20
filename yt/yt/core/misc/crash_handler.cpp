@@ -537,6 +537,15 @@ void PopCodicil()
 #endif
 }
 
+std::vector<TString> GetCodicils()
+{
+#ifdef _unix_
+    return *CodicilsStack;
+#else
+    return {};
+#endif
+}
+
 TCodicilGuard::TCodicilGuard()
     : Active_(false)
 { }

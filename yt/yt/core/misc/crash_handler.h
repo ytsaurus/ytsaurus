@@ -35,8 +35,12 @@ void DumpStackTrace(TCallback flushCallback);
 
 //! Installs a new codicil into the stack.
 void PushCodicil(const TString& data);
+
 //! Removes the top codicils from the stack.
 void PopCodicil();
+
+//! Returns the list of the currently installed codicils.
+std::vector<TString> GetCodicils();
 
 //! Invokes #PushCodicil in ctor and #PopCodicil in dtor.
 class TCodicilGuard
@@ -51,7 +55,6 @@ public:
 
     TCodicilGuard& operator=(const TCodicilGuard& other) = delete;
     TCodicilGuard& operator=(TCodicilGuard&& other);
-
 
 private:
     bool Active_;
