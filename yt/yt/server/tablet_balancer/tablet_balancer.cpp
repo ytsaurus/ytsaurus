@@ -116,7 +116,7 @@ private:
 
     TParameterizedBalancingTimeoutScheduler ParameterizedBalancingScheduler_;
     TInstant CurrentIterationStartTime_;
-    TInstant PreviousIterationStartTime_;
+    THashMap<TGlobalGroupTag, TInstant> GroupPreviousIterationStartTime_;
     i64 IterationIndex_;
 
     void BalancerIteration();
@@ -139,7 +139,10 @@ private:
         const TBundleStatePtr& bundleState,
         const IAttributeDictionary* attributes) const;
 
-    bool DidBundleBalancingTimeHappen(const TTabletCellBundlePtr& bundle, const TTimeFormula& groupSchedule) const;
+    bool DidBundleBalancingTimeHappen(
+        const TTabletCellBundlePtr& bundle,
+        const TGlobalGroupTag& groupTag,
+        const TTimeFormula& groupSchedule) const;
     TTimeFormula GetBundleSchedule(const TTabletCellBundlePtr& bundle, const TTimeFormula& groupSchedule) const;
 
     void BuildOrchid(IYsonConsumer* consumer) const;
@@ -170,7 +173,6 @@ TTabletBalancer::TTabletBalancer(
     , ParameterizedBalancingScheduler_(
         Config_->ParameterizedTimeoutOnStart,
         Config_->ParameterizedTimeout)
-    , PreviousIterationStartTime_(TruncatedNow())
     , IterationIndex_(0)
 {
     bootstrap->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(&TTabletBalancer::OnDynamicConfigChanged, MakeWeak(this)));
@@ -258,7 +260,6 @@ void TTabletBalancer::BalancerIteration()
     }
 
     ++IterationIndex_;
-    PreviousIterationStartTime_ = CurrentIterationStartTime_;
 }
 
 void TTabletBalancer::TryBalancerIteration()
@@ -301,7 +302,7 @@ void TTabletBalancer::BalanceBundle(const TBundleStatePtr& bundle)
                     }
                     break;
             }
-        } else if (DidBundleBalancingTimeHappen(bundle->GetBundle(), groupConfig->Schedule)) {
+        } else if (DidBundleBalancingTimeHappen(bundle->GetBundle(), groupTag, groupConfig->Schedule)) {
             GroupsToMoveOnNextIteration_.insert(std::move(groupTag));
             BalanceViaReshard(bundle, groupName);
         } else {
@@ -309,6 +310,8 @@ void TTabletBalancer::BalanceBundle(const TBundleStatePtr& bundle)
                 bundleName,
                 groupName);
         }
+
+        GroupPreviousIterationStartTime_[groupTag] = CurrentIterationStartTime_;
     }
 }
 
@@ -427,16 +430,28 @@ bool TTabletBalancer::HasUntrackedUnfinishedActions(
     return false;
 }
 
-bool TTabletBalancer::DidBundleBalancingTimeHappen(const TTabletCellBundlePtr& bundle, const TTimeFormula& groupSchedule) const
+bool TTabletBalancer::DidBundleBalancingTimeHappen(
+    const TTabletCellBundlePtr& bundle,
+    const TGlobalGroupTag& groupTag,
+    const TTimeFormula& groupSchedule) const
 {
     auto formula = GetBundleSchedule(bundle, groupSchedule);
 
     try {
         if (Config_->Period >= MinBalanceFrequency) {
-            TInstant timePoint = PreviousIterationStartTime_ + MinBalanceFrequency;
+            TInstant timePoint;
+            if (auto it = GroupPreviousIterationStartTime_.find(groupTag); it != GroupPreviousIterationStartTime_.end()) {
+                timePoint = it->second + MinBalanceFrequency;
+            } else {
+                // First balance of this group in this instance
+                // so it's ok to balance if this time is satisfied by the formula.
+                timePoint = CurrentIterationStartTime_;
+            }
+
             if (timePoint > CurrentIterationStartTime_) {
                 return false;
             }
+
             while (timePoint <= CurrentIterationStartTime_) {
                 if (formula.IsSatisfiedBy(timePoint)) {
                     return true;
