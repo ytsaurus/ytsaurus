@@ -58,12 +58,6 @@ h3 {
     <div class="grid-item">
         <h3><a href="user-guide/data-processing/scheduler/scheduler-and-pools">Обработка данных</a></h3>
         <p>Обработка данных при помощи {{product-name}}: планировщик, парадигма MapReduce, поддерживаемые операции.</p>
-    </div>
-    <div class="grid-item">
-        <h3><a href="admin-guide/set-req">Руководство администратора</a></h3>
-        <p>Конфигурации, процесс установки и инструкции к базовым задачам администратора при работе с системой.</p>
-    </div>
-        <div class="grid-item last">
         <ul>
             <li><b><a href="yql/index">YQL</a></b> — декларативный SQL-подобный язык запросов.</li>
             <li><b><a href="user-guide/data-processing/chyt/about-chyt">CHYT</a></b> — кластер ClickHouse внутри {{product-name}}.</li>

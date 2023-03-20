@@ -55,12 +55,6 @@ h3 {
     <div class="grid-item">
         <h3><a href="user-guide/data-processing/scheduler/scheduler-and-pools">Data processing</a></h3>
         <p>Processing data with {{product-name}}: scheduler, MapReduce paradigm, operations supported.</p>
-    </div>
-    <div class="grid-item">
-        <h3><a href="admin-guide/set-req">Administrator guide</a></h3>
-        <p>Configurations, installation process, and instructions on how to perform basic administrative tasks in the system.</p>
-    </div>
-        <div class="grid-item">
         <ul>
             <li><b><a href="yql/index">YQL</a></b>: A declarative SQL-like query language.</li>
             <li><b><a href="user-guide/data-processing/chyt/about-chyt">CHYT</a></b>: A ClickHouse cluster running in {{product-name}}.</li>
