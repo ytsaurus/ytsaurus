@@ -27,8 +27,8 @@
     ```
     curl -s https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add
     curl -s https://apt.kitware.com/keys/kitware-archive-latest.asc | gpg --dearmor - | sudo tee /usr/share/keyrings/kitware-archive-keyring.gpg
-    echo 'deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-12 main' | sudo tee /etc/apt/sources.list.d/llvm.list
-    echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main' | sudo tee /etc/apt/sources.list.d/kitware.list
+    echo "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-12 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+    echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/kitware.list
 
     sudo apt-get update
     ```
