@@ -17,15 +17,14 @@ require (
 	github.com/stretchr/testify v1.8.1
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	go.uber.org/atomic v1.10.0
-	go.uber.org/goleak v1.2.0
 	go.uber.org/zap v1.23.0
+	go.ytsaurus.tech/library/go/blockcodecs v0.0.1
+	go.ytsaurus.tech/library/go/core/log v0.0.2
+	go.ytsaurus.tech/library/go/core/xerrors v0.0.2
+	go.ytsaurus.tech/library/go/ptr v0.0.1
 	golang.org/x/sync v0.1.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/protobuf v1.28.1
-	go.ytsaurus.tech/library/go/blockcodecs v0.0.0-00010101000000-000000000000
-	go.ytsaurus.tech/library/go/core/log v0.0.0-00010101000000-000000000000
-	go.ytsaurus.tech/library/go/core/xerrors v0.0.0-00010101000000-000000000000
-	go.ytsaurus.tech/library/go/ptr v0.0.0-00010101000000-000000000000
 )
 
 require (
@@ -35,9 +34,9 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	go.uber.org/multierr v1.8.0 // indirect
+	go.ytsaurus.tech/library/go/x/xreflect v0.0.1 // indirect
+	go.ytsaurus.tech/library/go/x/xruntime v0.0.3 // indirect
 	golang.org/x/crypto v0.5.0 // indirect
 	golang.org/x/sys v0.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	go.ytsaurus.tech/library/go/x/xreflect v0.0.0-00010101000000-000000000000 // indirect
-	go.ytsaurus.tech/library/go/x/xruntime v0.0.0-00010101000000-000000000000 // indirect
 )
