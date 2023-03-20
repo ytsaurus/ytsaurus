@@ -24,6 +24,8 @@ go.ytsaurus.tech/library/go/x/xreflect v0.0.1 h1:U2nIJSzcNTKZcGrwNdhZZZmTQh48E9l
 go.ytsaurus.tech/library/go/x/xreflect v0.0.1/go.mod h1:o+lsYjag7qm63gJyqsJVnS5xq1FmkD6i15MDvokpz6g=
 go.ytsaurus.tech/library/go/x/xruntime v0.0.1 h1:09ggxCDbErryY8ErwDATyojXYU1iAo2D0vsabr+4qpQ=
 go.ytsaurus.tech/library/go/x/xruntime v0.0.1/go.mod h1:H1ongvokqocR6CBKltgZVV9Z81Pe/SIuJb355YYPFm0=
+go.ytsaurus.tech/library/go/x/xruntime v0.0.3 h1:/km3v+CPSuID5FsPKvE2LcwmYJPS8TcxeBMGH1MjtVs=
+go.ytsaurus.tech/library/go/x/xruntime v0.0.3/go.mod h1:b+ypj9bGoFpoupNQW2rLJRSrT8rLA0NcUfyBYQwHc68=
 golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 h1:H2TDz8ibqkAF6YGhCdN3jS9O0/s90v0rJh3X/OLHEUk=
 golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2/go.mod h1:K8+ghG5WaK9qNqU5K3HdILfMLy1f3aNYFI/wnl100a8=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
