@@ -5,15 +5,11 @@ sourcePath: yql-product/udf/list/url.md
 
 {% include [url.md](_includes/url.md) %}
 
-## Дополнения Yandex
-
-Подробнее про Punycode смотрите [комментарии в используемой библиотеке](https://a.yandex-team.ru/arc/trunk/arcadia/library/cpp/unicode/punycode/punycode.h). ???
-
-## IsAllowedByRobotsTxt
+<!-- ## IsAllowedByRobotsTxt
 ``` yql
 Url::IsAllowedByRobotsTxt(
   String{Flag:AutoMap}, -- URL
-  String?, -- бинарное представление robots.txt в формате https://a.yandex-team.ru/arc/trunk/arcadia/library/robots_txt ???
-  Uint32 -- идентификатор робота из https://a.yandex-team.ru/arc/trunk/arcadia/library/robots_txt/robotstxtcfg.h?rev=3514373#L14 ???
+  String?, -- бинарное представление robots.txt 
+  Uint32 -- идентификатор робота 
 ) -> Bool
-```
+``` -->
