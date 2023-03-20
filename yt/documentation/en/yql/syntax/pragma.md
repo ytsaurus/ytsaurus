@@ -14,15 +14,6 @@ sourcePath: yql-product/syntax/pragma.md
 
 {% if audience == internal %}
 
-{% note warning %}
-
-
-Only links to https://proxy.sandbox.yandex-team.ru with resources containing the directory are supported for the PRAGMA `Folder`.
-
-
-
-{% endnote %}
-
 {% endif %}
 
 

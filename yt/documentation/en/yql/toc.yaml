@@ -185,20 +185,20 @@ items:
 #         href: differences_from/oracle.md
 #       - name: Microsoft SQL Server
 #         href: differences_from/mssql.md
-  - name: F.A.Q.
-    items:
-       - name: Common mistakes
-         href: faq/errors.md
-       - name: Performance
-         href: faq/performance.md
-       - name: Queries
-         href: faq/queries.md
-       - name: Console client
-         href: faq/cli.md
-       - name: Search in web interface
-         href: faq/fts.md
-       - name: Temporary data
-         href: faq/temp.md
+  # - name: F.A.Q.
+  #   items:
+  #      - name: Common mistakes
+  #        href: faq/errors.md
+  #      - name: Performance
+  #        href: faq/performance.md
+  #      - name: Queries
+  #        href: faq/queries.md
+  #      - name: Console client
+  #        href: faq/cli.md
+  #      - name: Search in web interface
+  #        href: faq/fts.md
+  #      - name: Temporary data
+  #        href: faq/temp.md
 #   - name: Instructions
 #     items:
 #       - name: For beginners
