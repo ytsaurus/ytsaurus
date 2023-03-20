@@ -1,5 +1,7 @@
 module go.ytsaurus.tech/yt/chyt/controller
 
+go 1.18
+
 require (
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/spf13/cobra v1.6.0
@@ -34,26 +36,3 @@ require (
 	go.ytsaurus.tech/library/go/x/xreflect v0.0.0-00010101000000-000000000000 // indirect
 	go.ytsaurus.tech/library/go/x/xruntime v0.0.0-00010101000000-000000000000 // indirect
 )
-
-go 1.18
-
-replace github.com/cactus/go-statsd-client => github.com/cactus/go-statsd-client v3.2.1+incompatible
-
-// otel prometheusexporter has transitive dependencies on docker, pin old one, see CONTRIB-2759
-replace github.com/docker/docker => github.com/docker/docker v17.12.0-ce-rc1.0.20190822180741-9552f2b2fdde+incompatible
-
-replace go.ytsaurus.tech/yt/go => ../../go
-
-replace go.ytsaurus.tech/library/go/core/xerrors => ../../../library/go/core/xerrors
-
-replace go.ytsaurus.tech/library/go/x/xreflect => ../../../library/go/x/xreflect
-
-replace go.ytsaurus.tech/library/go/x/xruntime => ../../../library/go/x/xruntime
-
-replace go.ytsaurus.tech/library/go/ptr => ../../../library/go/ptr
-
-replace go.ytsaurus.tech/library/go/blockcodecs => ../../../library/go/blockcodecs
-
-replace go.ytsaurus.tech/library/go/test/testhelpers => ../../../library/go/test/testhelpers
-
-replace go.ytsaurus.tech/library/go/core/log => ../../../library/go/core/log
