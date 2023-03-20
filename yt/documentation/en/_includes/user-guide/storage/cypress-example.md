@@ -471,8 +471,11 @@ The `-f, --force` option makes the command run even if the destination node exis
 
 The `concatenate` command combines data from the nodes in `<source_paths>` into a node in `<destination_path>`. All the nodes must exist and belong to the same type by being either tables or files.
 
-info "Note"
-: the data is combined at the meta information level, that is, only on the master
+{% note warning "Attention!" %}
+
+The data is combined at the meta information level, that is, only on the master-server.
+
+{% endnote %}
 
 ### Description of the concatenate command
 ```bash

@@ -393,7 +393,7 @@ yt.get("//home/lst")  # Output: [7L, "cabbage"]
 
 - [copy](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.copy) и [move](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.move) — скопировать/переместить узел Кипариса. Подробнее про значение опций можно прочитать в [разделе](../../../user-guide/storage/cypress-example.md#copy_move).
 
-- [link](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.link) — сделать символьную ссылку на узел Кипариса. [Подробнее](../../../user-guide/storage/cypress-example.mdd#link).
+- [link](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.link) — сделать символьную ссылку на узел Кипариса. [Подробнее](../../../user-guide/storage/cypress-example.md#link).
   Чтобы узнать, куда указывает символьная ссылка, необходимо прочитать значение атрибута `@path`. Для обращения к объекту типа `link` используйте `&` в конце пути.
 
 Примеры:

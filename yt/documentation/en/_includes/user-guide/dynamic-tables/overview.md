@@ -35,7 +35,7 @@ Besides the attributes inherent to all tables, dynamic tables have a number of u
 | chunk_row_count | Int | Total number of non-combined rows in all table chunks. |
 | tablets[*](**) | TabletInfo | Tablet description. |
 | atomicity | Atomicity | [Atomicity mode](../../../user-guide/dynamic-tables/transactions.md#atomicity). By default: `full`. |
-| in_memory_mode | InMemoryMode | [In-memory mode](../../../user-guide/dynamic-tables/sorted_dynamic_tables#in_memory) for tables. By default: `none`. |
+| in_memory_mode | InMemoryMode | [In-memory mode](../../../user-guide/dynamic-tables/sorted-dynamic-tables#in_memory) for tables. By default: `none`. |
 
 The `chunk_row_count` attribute can be used to evaluate the table size, but the evaluation is approximate for the following reasons:
 - It does not take into account the rows that were recently written and have not yet been flushed into chunks, residing only in nodes memory.
