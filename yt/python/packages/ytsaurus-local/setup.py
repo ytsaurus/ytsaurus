@@ -44,7 +44,8 @@ def main():
             "which can be used to manage local instances manually from command-line.",
 
         install_requires=[
-            "ytsaurus-client>=0.10.11",
+            "ytsaurus-client>=0.13.1",
+            "attrs==22.2.0",
         ],
 
         # Using py.test, because it much more verbose
