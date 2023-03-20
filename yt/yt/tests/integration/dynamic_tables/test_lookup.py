@@ -1528,11 +1528,13 @@ class TestLookupRpcProxy(TestLookup):
 
         def _set_timeout_slack_options(value):
             set("//sys/rpc_proxies/@config", {"cluster_connection": {"lookup_rows_request_timeout_slack": value}})
-            proxy_name = ls("//sys/rpc_proxies")[0]
 
             def _config_updated():
-                config = get("//sys/rpc_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
-                return config["cluster_connection"]["lookup_rows_request_timeout_slack"] == value
+                for proxy_name in ls("//sys/rpc_proxies"):
+                    config = get("//sys/rpc_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+                    if config["cluster_connection"]["lookup_rows_request_timeout_slack"] != value:
+                        return False
+                return True
             wait(_config_updated)
 
         assert lookup_rows("//tmp/t", keys, timeout=1000, enable_partial_result=True) == rows
