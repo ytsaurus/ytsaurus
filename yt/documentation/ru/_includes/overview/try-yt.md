@@ -1,3 +1,5 @@
+# Как попробовать {{product-name}}
+
 В данном разделе можно ознакомиться с различными вариантами установки {{product-name}}.
 
 ## С использованием Docker
@@ -25,13 +27,13 @@
 
 ## Kubernetes
 
-В настоящее время для самостоятельной установки доступна версия YTsaurus без поддержки языка запросов YQL. Соответсвующий код будет выложен в свободный доступ в ближайшее время.
+В настоящее время для самостоятельной установки доступна версия {{product-name}} без поддержки языка запросов YQL. Соответствующий код будет выложен в свободный доступ в ближайшее время.
 
-Для разворачивания YTsaurus в Kubernetes рекомендуется воспользоваться [оператором](https://github.com/ytsaurus/yt-k8s-operator). Готовые docker-образы с оператором, UI, серверными компонентами и туториалом можно найти на [dockerhub](https://hub.docker.com/orgs/ytsaurus).
+Для разворачивания {{product-name}} в Kubernetes рекомендуется воспользоваться [оператором](https://github.com/ytsaurus/yt-k8s-operator). Готовые docker-образы с оператором, UI, серверными компонентами и примерами можно найти на [dockerhub](https://hub.docker.com/orgs/ytsaurus).
 
 ### Развёртывание в кластере Kubernetes
 
-В данном разделе описана установка YTsaurus в кластере Kubernetes с поддержкой динамического создания вольюмов, например в Managed Kubernetes в Яндекс.Облаке. Предполагается, что у вас установлена и настроена утилита kubectl. Для успешного разворачивания YTsaurus в кластере Kubernetes должно быть как минимум три ноды, следующей конфигурации: от 4-х ядер CPU и от 8-ми Gb RAM.
+В данном разделе описана установка {{product-name}} в кластере Kubernetes с поддержкой динамического создания volumes, например в Managed Kubernetes в Яндекс.Облаке. Предполагается, что у вас установлена и настроена утилита kubectl. Для успешного разворачивания {{product-name}} в кластере Kubernetes должно быть как минимум три ноды, следующей конфигурации: от 4-х ядер CPU и от 8-ми GB RAM.
 
 #### Установка оператора
 
@@ -54,11 +56,11 @@ kubectl create namespace <namespace>
 kubectl create secret generic ytadminsec --from-literal=login=admin --from-literal=password=<password> --from-literal=token=<password>  -n <namespace> 
 ```
 
-Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_demo_without_yql.yaml), поправьте по-необходимости и загрузите в кластер `kubectl apply -f cluster_v1_demo_without_yql.yaml -n <namespace>`.
+Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_demo_without_yql.yaml), поправьте по необходимости и загрузите в кластер `kubectl apply -f cluster_v1_demo_without_yql.yaml -n <namespace>`.
 
-Необходимо прописать гарантии или лимиты ресурсов в секции `execNodes`, эти значения будут отражены в конфигурации нод, и будут видны шедулеру. Для надёжного хранения данных, обязательно выделите персистентные тома.
+Необходимо прописать гарантии или лимиты ресурсов в секции `execNodes`, указанные значения будут отражены в конфигурации нод, и будут видны планировщику. Для надёжного хранения данных, обязательно выделите персистентные тома.
 
-Для доступа к UI YTsaurus можно использовать тип сервиса LoadBalancer либо отдельно настоить балансировщик для обслуживания HTTP запросов. На данный момент UI YTsaurus не имеет встроенной возможности работать по протоколу HTTPS. 
+Для доступа к UI {{product-name}} можно использовать тип сервиса LoadBalancer либо отдельно настроить балансировщик для обслуживания HTTP запросов. На данный момент UI {{product-name}} не имеет встроенной возможности работать по протоколу HTTPS. 
 
 Для запуска приложений использующих кластер, используйте тот же кластер Kubernetes. В качестве адреса кластера подставьте адрес сервиса http proxy - `http-proxies.<namespace>.svc.cluster.local`.
 
@@ -75,7 +77,7 @@ https://kubernetes.io/ru/docs/tasks/tools/install-minikube/
 3. Установите [Minikube](https://kubernetes.io/ru/docs/tasks/tools/install-minikube/);
 4. Выполните команду `minikube start --driver=docker`
 
-В результате должна успешно выполняться, например, команда `kubectl cluster-info`.
+В результате должна успешно выполняться команда `kubectl cluster-info`.
 
 #### Установка оператора
 

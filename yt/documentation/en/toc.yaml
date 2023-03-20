@@ -424,11 +424,11 @@ items:
   #       href: admin-guide/safety-guide.md
   #     - name: Гайд по производительности
   #       href: admin-guide/performance-guide.md
-   - name: Recommendations
-     items:
-       - name: Quota monitoring
-         when: audience == "public"
-         href: user-guide/best-practice/quota-monitoring.md
+#   - name: Recommendations
+#     items:
+#       - name: Quota monitoring
+#         when: audience == "public"
+#         href: user-guide/best-practice/quota-monitoring.md
    - name: FAQ
      when: audience == "public"
      href: faq/faq.md
