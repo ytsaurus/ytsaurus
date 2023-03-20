@@ -293,6 +293,12 @@ loop:
 }
 
 func (a *Agent) GetAgentInfo() strawberry.AgentInfo {
+	clusterURLTemplateData := struct {
+		Proxy string
+	}{
+		a.proxy,
+	}
+
 	return strawberry.AgentInfo{
 		StrawberryRoot:        a.config.Root,
 		Hostname:              a.hostname,
@@ -301,6 +307,7 @@ func (a *Agent) GetAgentInfo() strawberry.AgentInfo {
 		OperationNamespace:    a.OperationNamespace(),
 		RobotUsername:         a.config.RobotUsername,
 		DefaultNetworkProject: a.config.DefaultNetworkProject,
+		ClusterURL:            strawberry.ExecuteTemplate(a.config.ClusterURLTemplate, clusterURLTemplateData),
 	}
 }
 

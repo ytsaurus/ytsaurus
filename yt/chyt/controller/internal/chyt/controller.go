@@ -18,13 +18,15 @@ import (
 type Config struct {
 	// LocalBinariesDir is set if we want to execute local binaries on the clique.
 	// This directory should contain trampoline, chyt and log-tailer binaries.
-	LocalBinariesDir *string        `yson:"local_binaries_dir"`
-	EnableLogTailer  *bool          `yson:"enable_log_tailer"`
-	AddressResolver  map[string]any `yson:"address_resolver"`
+	LocalBinariesDir          *string        `yson:"local_binaries_dir"`
+	EnableLogTailer           *bool          `yson:"enable_log_tailer"`
+	AddressResolver           map[string]any `yson:"address_resolver"`
+	EnableYandexSpecificLinks *bool          `yson:"enable_yandex_specific_links"`
 }
 
 const (
-	DefaultEnableLogTailer = true
+	DefaultEnableLogTailer           = true
+	DefaultEnableYandexSpecificLinks = false
 )
 
 func (c *Config) EnableLogTailerOrDefault() bool {
@@ -32,6 +34,13 @@ func (c *Config) EnableLogTailerOrDefault() bool {
 		return *c.EnableLogTailer
 	}
 	return DefaultEnableLogTailer
+}
+
+func (c *Config) EnableYandexSpecificLinksOrDefault() bool {
+	if c.EnableYandexSpecificLinks != nil {
+		return *c.EnableYandexSpecificLinks
+	}
+	return DefaultEnableYandexSpecificLinks
 }
 
 type Controller struct {
@@ -105,7 +114,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	spec map[string]interface{}, description map[string]interface{}, annotations map[string]interface{}, err error) {
 	alias := oplet.Alias()
 
-	description = buildDescription(c.cluster, alias)
+	description = buildDescription(c.cluster, alias, c.config.EnableYandexSpecificLinksOrDefault())
 	speclet := oplet.ControllerSpeclet().(Speclet)
 
 	var filePaths []ypath.Rich
