@@ -506,21 +506,33 @@ func (e *Encoder) SelectRows(
 		opts = &yt.SelectRowsOptions{}
 	}
 
+	placeholderValues, err := convertPlaceHolderValues(opts.PlaceholderValues)
+	if err != nil {
+		err = xerrors.Errorf("unable to serialize placeholder values: %w", err)
+		return
+	}
+
 	req := &rpc_proxy.TReqSelectRows{
-		Query:                             ptr.String(query),
-		Timestamp:                         convertTimestamp(opts.Timestamp),
-		InputRowLimit:                     intPtrToUint64Ptr(opts.InputRowLimit),
-		OutputRowLimit:                    intPtrToUint64Ptr(opts.OutputRowLimit),
-		RangeExpansionLimit:               nil, // todo
-		FailOnIncompleteResult:            opts.FailOnIncompleteResult,
-		VerboseLogging:                    nil, // todo
-		EnableCodeCache:                   nil, // todo
-		MaxSubqueries:                     nil, // todo
-		AllowFullScan:                     nil, // todo
-		AllowJoinWithoutIndex:             nil, // todo
-		UdfRegistryPath:                   nil, // todo
-		MemoryLimitPerNode:                nil, // todo
-		ExecutionPool:                     nil, // todo
+		Query: ptr.String(query),
+
+		Timestamp:          convertTimestamp(opts.Timestamp),
+		RetentionTimestamp: nil, // todo
+
+		InputRowLimit:          intPtrToUint64Ptr(opts.InputRowLimit),
+		OutputRowLimit:         intPtrToUint64Ptr(opts.OutputRowLimit),
+		RangeExpansionLimit:    nil, // todo
+		FailOnIncompleteResult: opts.FailOnIncompleteResult,
+		VerboseLogging:         nil, // todo
+		EnableCodeCache:        nil, // todo
+		MaxSubqueries:          nil, // todo
+		AllowFullScan:          nil, // todo
+		AllowJoinWithoutIndex:  nil, // todo
+		UdfRegistryPath:        nil, // todo
+		MemoryLimitPerNode:     nil, // todo
+		ExecutionPool:          nil, // todo
+		ReplicaConsistency:     nil, // todo
+		PlaceholderValues:      placeholderValues,
+
 		SuppressableAccessTrackingOptions: nil, // todo
 	}
 

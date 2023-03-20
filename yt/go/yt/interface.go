@@ -1001,6 +1001,8 @@ type SelectRowsOptions struct {
 
 	Timestamp *Timestamp `http:"timestamp,omitnil"`
 
+	PlaceholderValues interface{} `http:"placeholder_values,omitnil"`
+
 	*TransactionOptions
 	*TimeoutOptions
 }

@@ -835,6 +835,10 @@ func writeSelectRowsOptions(w *yson.Writer, o *yt.SelectRowsOptions) {
 		w.MapKeyString("timestamp")
 		w.Any(o.Timestamp)
 	}
+	if o.PlaceholderValues != nil {
+		w.MapKeyString("placeholder_values")
+		w.Any(o.PlaceholderValues)
+	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeTimeoutOptions(w, o.TimeoutOptions)
 }

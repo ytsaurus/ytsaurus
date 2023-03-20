@@ -985,3 +985,11 @@ func makeLockNodeResult(r *rpc_proxy.TRspLockNode) (yt.LockResult, error) {
 
 	return ret, nil
 }
+
+func convertPlaceHolderValues(placeholderValues interface{}) ([]byte, error) {
+	if placeholderValues == nil {
+		return nil, nil
+	}
+
+	return yson.Marshal(placeholderValues)
+}
