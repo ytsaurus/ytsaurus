@@ -5,7 +5,7 @@ This section contains information about Porto layers.
 ## Terminology
 
 - A **Porto layer** is a fragment of an image of a root file system for [Porto](https://github.com/yandex/porto);
-- A **[RootFS Image](http://wiki.rosalab.ru/ru/index.php/Образ_rootfs)** is an image of a root file system;
+- A **RootFS Image** is an image of a root file system;
 - A **base layer**(**base image**) is an autonomous layer that contains the main part of the ambient scene (/bin/bash, libc6, etc.); by selecting a base layer, you are confirming the Ubuntu version (Precise, Trusty, Xenial, Bionic, etc.) your code will be working in.
 - A **Delta layer** is a layer that supplements the base image and usually contains additional libraries or binary artifacts.
 

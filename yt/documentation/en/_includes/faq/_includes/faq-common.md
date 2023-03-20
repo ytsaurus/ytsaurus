@@ -1,6 +1,3 @@
-#### **Q: How do I get a computational or a disk quota in {{product-name}}?**
-
-**A:** To get a new quota or increase an existing one, you need to complete a form. Links to forms for different situations are provided in Requesting and getting resources.
 
 ------
 #### **Q: How do I add a column to a {{product-name}} table?**
