@@ -283,12 +283,12 @@ void Lz4Decompress(TSource* source, TBlob* sink)
                 THROW_ERROR_EXCEPTION("LZ4 decompression failed: output size is too big")
                     << TErrorAttribute("size", outputSize);
             }
-            int rv = LZ4_decompress_fast(input, output, static_cast<int>(outputSize));
+            int rv = LZ4_decompress_safe(input, output, inputSize, static_cast<int>(outputSize));
             if (rv < 0) {
-                THROW_ERROR_EXCEPTION("LZ4 decompression failed: LZ4_decompress_fast returned an error")
+                THROW_ERROR_EXCEPTION("LZ4 decompression failed: LZ4_decompress_safe returned an error")
                     << TErrorAttribute("error", rv);
             }
-            if (rv != static_cast<int>(inputSize)) {
+            if (rv != static_cast<int>(outputSize)) {
                 THROW_ERROR_EXCEPTION("LZ4 decompression failed: output size mismatch")
                     << TErrorAttribute("expected_size", inputSize)
                     << TErrorAttribute("actual_size", rv);
