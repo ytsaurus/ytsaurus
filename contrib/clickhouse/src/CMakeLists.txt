@@ -104,6 +104,7 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   contrib-libs-sparsehash
   contrib-libs-xxhash
   contrib-libs-zstd
+  abseil-cpp-absl-container
   restricted-boost-context
   restricted-boost-dynamic_bitset
   restricted-boost-filesystem
@@ -117,7 +118,6 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   contrib-restricted-murmurhash
   contrib-restricted-turbo_base64
   consistent-hashing
-  cpp-containers-absl_flat_hash
   library-cpp-re2_st
 )
 target_sources(contrib-clickhouse-src PRIVATE
