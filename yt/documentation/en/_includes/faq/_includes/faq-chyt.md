@@ -2,31 +2,31 @@
 
 #### **Q: Why does CHYT have cliques, while regular ClickHouse has nothing analogous? What is a clique?**
 
-**A:** There is a dedicated [article](../../user-guide/data-processing/chyt/general.md) about this.
+**A:** There is a dedicated [article](../../../user-guide/data-processing/chyt/general.md) about this.
 
 ------
 
 #### **Q: I am getting the "DB::NetException: Connection refused" or the "DB::Exception: Attempt to read after eof: while receiving packet" error. What does it mean?**
 
-**A:** This normally means that the CHYT process inside the Vanilla transaction crashed. You can view the aborted/failed job [counters](../../user-guide/data-processing/chyt/cliques/ui.md) in the operation UI. If there are recent jobs aborted due to preemption, it means that the clique is short on resources. If there are recent failed jobs, please contact your system administrator.
+**A:** This normally means that the CHYT process inside the Vanilla transaction crashed. You can view the aborted/failed job [counters](../../../user-guide/data-processing/chyt/cliques/ui.md) in the operation UI. If there are recent jobs aborted due to preemption, it means that the clique is short on resources. If there are recent failed jobs, please contact your system administrator.
 
 ------
 
 #### **Q: I am getting the "Subquery exceeds data weight limit: XXX > YYY" error. What does it mean?**
 
-<!-- **A:** смотрите опцию `max_data_weight_per_subquery` в документации по [конфигурации](../../user-guide/data-processing/chyt/reference/configuration.md#yt) клики. -->
+<!-- **A:** смотрите опцию `max_data_weight_per_subquery` в документации по [конфигурации](../../../user-guide/data-processing/chyt/reference/configuration.md#yt) клики. -->
 
 ------
 
 #### **Q: How do I save to a table?**
 
-**A:** There are **INSERT INTO** and **CREATE TABLE** functions. Learn more in the section on [Differences from ClickHouse.](../../user-guide/data-processing/chyt/yt-tables.md#save)
+**A:** There are **INSERT INTO** and **CREATE TABLE** functions. Learn more in the section on [Differences from ClickHouse.](../../../user-guide/data-processing/chyt/yt-tables.md#save)
 
 ------
 
 #### **Q: How do I load geo-dicts in my own clique?**
 
-**A:** When starting any clique, you can specify the `--cypress-geodata-path` option that enables you to specify the path to geo-dicts in [Cypress](../../user-guide/storage/cypress.md).
+**A:** When starting any clique, you can specify the `--cypress-geodata-path` option that enables you to specify the path to geo-dicts in [Cypress](../../../user-guide/storage/cypress.md).
 
 <!-- For more information, see [Getting started.](../../../user-guide/data-processing/chyt/reference/start-clique.md) -->
 
@@ -48,7 +48,7 @@ toDate(reinterpretAsInt64(reverse(unhex(substring(hex(payment_dt), 1, 8)))))
 
 After obtaining the quota for the **ssd_blobs** medium, you will need to change the value of the `primary_medium` attribute, and the data will be moved to the corresponding medium in the background. Learn more in the section on [storage](../../../faq/faq.md).
 
-For static tables, you can force a move using the [Merge](../../user-guide/data-processing/operations/merge.md) operation:
+For static tables, you can force a move using the [Merge](../../../user-guide/data-processing/operations/merge.md) operation:
 
 ```bash
 yt set //home/dev/test_table/@primary_medium ssd_blobs
@@ -64,7 +64,7 @@ yt set //home/dev/test_table/@primary_medium ssd_blobs
 yt mount-table //home/dev/test_table --sync
 ```
 
-You can speed up the move further with [forced_compaction](../../user-guide/dynamic-tables/overview.md#attributes) but using this method creates a heavy load in the cluster and is strongly discouraged.
+You can speed up the move further with [forced_compaction](../../../user-guide/dynamic-tables/overview.md#attributes) but using this method creates a heavy load in the cluster and is strongly discouraged.
 
 To verify that the table has in fact changed its medium, use the command below:
 

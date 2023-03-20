@@ -6,7 +6,7 @@
 
 #### **Q: Can I modify a table's schema?**
 
-**A:** Yes. You can find examples and limits in the [Table schema](../../user-guide/storage/static-schema.md#create) section.
+**A:** Yes. You can find examples and limits in the [Table schema](../../../user-guide/storage/static-schema.md#create) section.
 
 ------
 

@@ -17,7 +17,7 @@ yt alter-table //home/maps-nmaps/testing/pedestrian/address_tasks --schema '<"un
 ------
 #### **Q: I get the following error when I attempt to change a table schema: Changing "strict" from "false" to "true" is not allowed. What should I do?**
 
-**A:** You cannot change the schema of a non-empty table from weak to strict since the entire table must be read to validate this action to make sure that the data match the new schema. It is easiest to create a new table and copy data from the old one via a read+write or by launching a [Merge](../../user-guide/data-processing/operations/merge.md) transaction.
+**A:** You cannot change the schema of a non-empty table from weak to strict since the entire table must be read to validate this action to make sure that the data match the new schema. It is easiest to create a new table and copy data from the old one via a read+write or by launching a [Merge](../../../user-guide/data-processing/operations/merge.md) transaction.
 
 ------
 #### **Q: How do I authorize when communicating with YT through the console?**
@@ -49,7 +49,7 @@ Python versions on different cluster nodes may differ. It is better to use your 
 ------
 #### **Q: Can hex numbers be stored efficiently in keys instead of strings?**
 
-**A:** They can using the [YSON](../../user-guide/storage/formats.md#yson) or the [JSON](../../user-guide/storage/formats.md#json) format.
+**A:** They can using the [YSON](../../../user-guide/storage/formats.md#yson) or the [JSON](../../../user-guide/storage/formats.md#json) format.
 
 ------
 #### **Q: What are the logging levels in the console client and how can I select them?**
@@ -68,7 +68,7 @@ Python versions on different cluster nodes may differ. It is better to use your 
 ------
 #### **Q: When reading a small table using the read command, the client freezes up in a repeat query. What could be the reason?**
 
-**A:** One of the possible common reasons is too many (small) chunks in a table. We recommend running the [Merge](../../user-guide/data-processing/operations/merge.md) operation with the `--spec '{force_transform=true}'` option. When such tables come up in operation output, the console client issues a warning containing, among other things, the command you can run to increase the size of the table's chunks. You can also specify the `auto_merge_output={action=merge}` option to have a merge occur automatically.
+**A:** One of the possible common reasons is too many (small) chunks in a table. We recommend running the [Merge](../../../user-guide/data-processing/operations/merge.md) operation with the `--spec '{force_transform=true}'` option. When such tables come up in operation output, the console client issues a warning containing, among other things, the command you can run to increase the size of the table's chunks. You can also specify the `auto_merge_output={action=merge}` option to have a merge occur automatically.
 
 ------
 #### **Q: An operation returns error "Account "tmp" is over disk space (or chunk) limit". What is going on?**
@@ -79,7 +79,7 @@ Python versions on different cluster nodes may differ. It is better to use your 
 #### **Q: An operation fails with error "Account "intermediate" is over disk space (or chunk) limit". What is going on?**
 
 **A**: Your cluster has run out of storage space for intermediate data (`intermediate` account), or the account has too many chunks.
-Unless you specified `intermediate_data_account` (see [Operation settings](../../user-guide/data-processing/operations/operations-options.md), [Sort](../../user-guide/data-processing/operations/sort.md), [MapReduce](../../user-guide/data-processing/operations/mapreduce.md)), you are sharing this account with everybody else. To preempt this problem, set `intermediate_data_account`.
+Unless you specified `intermediate_data_account` (see [Operation settings](../../../user-guide/data-processing/operations/operations-options.md), [Sort](../../../user-guide/data-processing/operations/sort.md), [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md)), you are sharing this account with everybody else. To preempt this problem, set `intermediate_data_account`.
 
 ------
 #### **Q: Is reading a table (or file) a consistent operation in {{product-name}}? What will happen if I am reading a table while deleting it at the same time?**
@@ -111,7 +111,7 @@ To remove the YT_FORCE_IPV4 variable from the environment:
 ------
 #### **Q: What do I do if I get error "Account "..." is over disk space limit (node count limit, etc)"?**
 
-**A:** This message is an indication that the account is out of one of its quotas. The system has quotas for all kinds of resources. For more information on the types of quotas and for forms to change quotas, see the [Quotas](../../user-guide/storage/quotas.md) section.
+**A:** This message is an indication that the account is out of one of its quotas. The system has quotas for all kinds of resources. For more information on the types of quotas and for forms to change quotas, see the [Quotas](../../../user-guide/storage/quotas.md) section.
 
 ------
 #### **Q: How do I discover who is taking up space in an account or all the nodes with a specific account?**
@@ -202,7 +202,7 @@ For instance, a path looking like `//home/user/tables/` is always invalid. When 
 ------
 #### **Q: How do I copy a specified range of rows rather than the entire table?**
 
-**A:** In the current implementation, the `Copy` operation does not support the copying of ranges but you can use the [Merge](../../user-guide/data-processing/operations/merge.md) command which will run quickly. Using the `ordered` mode will keep the data sorted in simple situations (when there is a single range, for instance). Example command:
+**A:** In the current implementation, the `Copy` operation does not support the copying of ranges but you can use the [Merge](../../../user-guide/data-processing/operations/merge.md) command which will run quickly. Using the `ordered` mode will keep the data sorted in simple situations (when there is a single range, for instance). Example command:
 
 ```bash
 yt merge --src '_path/to/src/table[#100:#500]' --dst _path/to/dst/table --mode ordered
@@ -222,7 +222,7 @@ If the delete used `yt remove` or similar API calls, recovery is **not possible*
 ------
 #### **Q: Error "Operations of type "remote-copy" must have small enough specified resource limits in some of ancestor pools"**
 
-**A:** [RemoteCopy](../../user-guide/data-processing/operations/remote-copy.md) operations create load in the cross DC network.
+**A:** [RemoteCopy](../../../user-guide/data-processing/operations/remote-copy.md) operations create load in the cross DC network.
 To limit the load, an artificial load limit was introduced: RemoteCopy operations must run in a pool with the `user_slots` limit not exceeding `2000`.
 If the plan is only to run RemoteCopy in the pool, it is sufficient to set this limit for the pool
 `yt set //sys/pools/..../your_pool/@resource_limits '{user_slots=2000}'`.

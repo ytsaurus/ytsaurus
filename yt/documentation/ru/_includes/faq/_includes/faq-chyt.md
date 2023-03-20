@@ -2,25 +2,25 @@
 
 #### **Q: Почему в CHYT есть клики, тогда как в обычном ClickHouse ничего похожего нет? Что такое клика?**
 
-**A:** Про это есть отдельная [статья](../../user-guide/data-processing/chyt/general.md)
+**A:** Про это есть отдельная [статья](../../../user-guide/data-processing/chyt/general.md)
 
 ------
 
 #### **Q: Получаю одну из ошибок «DB::NetException: Connection refused», «DB::Exception: Attempt to read after eof: while receiving packet from». Что это значит?**
 
- **A:** Типично такое означает, что процесс CHYT внутри операции Vanilla аварийно завершился. Можно посмотреть в UI операции на [счётчики](../../user-guide/data-processing/chyt/cliques/ui.md) числа aborted/failed джобов. Если есть недавние aborted-джобы по причине preemption, это значит, что клике не хватает ресурсов. Если есть недавние failed джобы, обратитесь к администратору системы.
+ **A:** Типично такое означает, что процесс CHYT внутри операции Vanilla аварийно завершился. Можно посмотреть в UI операции на [счётчики](../../../user-guide/data-processing/chyt/cliques/ui.md) числа aborted/failed джобов. Если есть недавние aborted-джобы по причине preemption, это значит, что клике не хватает ресурсов. Если есть недавние failed джобы, обратитесь к администратору системы.
 
 ------
 
 #### **Q: Получаю ошибку «Subquery exceeds data weight limit: XXX > YYY». Что это значит?**
 
-<!-- **A:** смотрите опцию `max_data_weight_per_subquery` в документации по [конфигурации](../../user-guide/data-processing/chyt/reference/configuration.md#yt) клики. -->
+<!-- **A:** смотрите опцию `max_data_weight_per_subquery` в документации по [конфигурации](../../../user-guide/data-processing/chyt/reference/configuration.md#yt) клики. -->
 
 ------
 
 #### **Q: Как сохранять в таблицу?**
 
-**A:** Есть функции **INSERT INTO** и **CREATE TABLE**, Подробнее можно прочитать в разделе [Отличие от ClickHouse.](../../user-guide/data-processing/chyt/yt-tables.md#save)
+**A:** Есть функции **INSERT INTO** и **CREATE TABLE**, Подробнее можно прочитать в разделе [Отличие от ClickHouse.](../../../user-guide/data-processing/chyt/yt-tables.md#save)
 
 
 ------
@@ -41,7 +41,7 @@ toDate(reinterpretAsInt64(reverse(unhex(substring(hex(payment_dt), 1, 8)))))
 
 После получения квоты на медиуме **ssd_blobs** необходимо изменить значение атрибута `primary_medium`, данные будут в фоне переложены на соответсвующий медиум. Подробнее можно прочитать в разделе про [хранение](../../../faq/faq.md).
 
-Для статических таблиц можно форсировать перекладывание с помощью операции [Merge](../../user-guide/data-processing/operations/merge.md):
+Для статических таблиц можно форсировать перекладывание с помощью операции [Merge](../../../user-guide/data-processing/operations/merge.md):
 
 ```bash
 yt set //home/dev/test_table/@primary_medium ssd_blobs
@@ -57,7 +57,7 @@ yt set //home/dev/test_table/@primary_medium ssd_blobs
 yt mount-table //home/dev/test_table --sync
 ```
 
-Дополнительно ускорить перекладывание можно с помощью [forced_compaction](../../user-guide/dynamic-tables/overview.md#attributes), однако использование этого метода создаёт большую нагрузку на кластер и крайне не рекомендуется.
+Дополнительно ускорить перекладывание можно с помощью [forced_compaction](../../../user-guide/dynamic-tables/overview.md#attributes), однако использование этого метода создаёт большую нагрузку на кластер и крайне не рекомендуется.
 
 Для проверки того, что таблица действительно изменила медиум можно воспользоваться командой:
 
