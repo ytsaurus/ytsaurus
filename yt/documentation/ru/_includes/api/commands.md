@@ -2651,7 +2651,8 @@ PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 
 ### strace_job
 
-только для внутренней
+{% if audience == internal %}
+
 
 {% note warning "Внимание" %}
 
@@ -2685,6 +2686,9 @@ PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 ```bash
 PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 ```
+
+{% endif %}
+
 
 ### dump_job_context
 
