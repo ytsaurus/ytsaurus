@@ -1,3 +1,4 @@
+from .constants import YSON_PACKAGE_INSTALLATION_TEXT
 from .errors import YtError
 
 try:
@@ -13,8 +14,7 @@ def check_skiff_bindings():
         raise YtError('Skiff bingings are not available. '
                       'Try to use other format or install bindings. '
                       'Bindings are shipped as additional package and '
-                      'can be installed as Debian package "yandex-yt-python-yson" or as pip '
-                      'package "yandex-yt-yson-bindings"')
+                      'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
 
 
 def load(*args, **kwargs):

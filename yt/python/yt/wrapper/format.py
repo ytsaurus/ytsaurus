@@ -4,6 +4,7 @@
 parameters, and then by kwargs options.
 """
 from .config import get_config
+from .constants import YSON_PACKAGE_INSTALLATION_TEXT
 from .common import get_value, require, filter_dict, merge_dicts, YtError, parse_bool, declare_deprecated, flatten
 from .mappings import FrozenDict
 from .yamr_record import Record, SimpleRecord, SubkeyedRecord
@@ -713,8 +714,7 @@ class YsonFormat(Format):
         if self.require_yson_bindings and yson.TYPE != "BINARY":
             raise YtFormatError('YSON bindings required. Try to use other format or install bindings. '
                                 'Bindings are shipped as additional package and '
-                                'can be installed as Debian package "yandex-yt-python-yson" or as pip '
-                                'package "yandex-yt-yson-bindings"')
+                                'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
 
     def load_row(self, stream, raw=None):
         """Not supported."""
