@@ -521,7 +521,6 @@ schema = yt.TableSchema() \
 ```
 
 Тип колонки должен быть типом из библиотеки [type_info](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/yt/type_info).
-<!--TODO: Про все существующие типы можно почитать в [разделе](https://a.yandex-team.ru/arc_vcs/library/cpp/type_info/docs/main.md).-->
 Составные типы (`Optional`, `List`, `Struct`, `Tuple` и так далее) задаются с помощью квадратных скобок.
 
 Схему можно указывать при создании или записи (пустой) таблицы (в атрибуте `schema` класса [TablePath](#tablepath_class)). Получить схему таблицы можно так:
@@ -1475,7 +1474,6 @@ def reducer(key, rows):
 **Важно**: в частности, запустить операции или читать таблицы в формате YSON не получится
 
 C++-биндинги поставляются в виде debian- и pip-пакетов.
-<!-- Debian-пакет называется yandex-yt-python-yson (yandex-yt-python3-yson для Python3)
-pip-пакет называется yandex-yt-yson-bindings (wheel, представлен в PyPI для Python2 и 3). -->
+
 Пакеты собираются в виде универсальной .so библиотеки, в которую вкомпилена libcxx, поэтому должны работать в любой debian-системе.
 

@@ -85,11 +85,6 @@
 
 {% endnote %}
 
-<!-- ------
-#### **Q: При работе джобов, написанных с использованием пакета yandex-yt-python, возникает ошибка «Unicode symbols above 255 are not supported». Что делать?**
-
-**A:** Следует прочитать в разделе [Форматы](../../../user-guide/storage/formats#json) про формат JSON. Можно либо отказаться от использования JSON в пользу [YSON](../../../user-guide/storage/formats#yson), либо указать `encode_utf8=false`. -->
-
 ------
 #### **Q: Почему долго работает reduce_combiner? Что делать?**
 
