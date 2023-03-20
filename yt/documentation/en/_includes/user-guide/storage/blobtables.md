@@ -13,7 +13,7 @@ But this method has its drawbacks:
 
 Therefore, it is preferable to write the binary data in a single table:
 
-1. The data is divided into parts and saved in separate table rows. This table must have a set of key columns that uniquely identify the file: name and path. Besides that, there must be a column responsible for the [BLOB](https://ru.wikipedia.org/wiki/BLOB) number with the data and a column responsible for the data itself. The table must be sorted by a set of key columns and by a column with the BLOB number so that point reads by the key that specifies the file name are possible.
+1. The data is divided into parts and saved in separate table rows. This table must have a set of key columns that uniquely identify the file: name and path. Besides that, there must be a column responsible for the [BLOB](https://en.wikipedia.org/wiki/BLOB) number with the data and a column responsible for the data itself. The table must be sorted by a set of key columns and by a column with the BLOB number so that point reads by the key that specifies the file name are possible.
 2. For the file, all BLOBs, except for the last one, must have the same size, for example, 4 MB. The columns with data and the BLOB number must be named `data` and `part_index`, respectively.
 
 Tables that meet the described conditions are BLOB tables.

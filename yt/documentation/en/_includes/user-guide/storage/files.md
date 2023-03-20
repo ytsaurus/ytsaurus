@@ -30,7 +30,7 @@ If a file consists of 2 or more chunks, or has `compression_codec` set, the cach
 
 - By default, a [link](../../../user-guide/storage/links.md) to the artifact will be created in the job `sandbox`. This behavior is preferred since it works faster and creates less hard drive IO load.
 
-- If you include the `copy_file` option in the specification, the file will be copied into the `sandbox`. It does not make sense to use this behavior unless you need to mount the entire `sandbox` in [tmpfs](https://ru.wikipedia.org/wiki/Tmpfs).
+- If you include the `copy_file` option in the specification, the file will be copied into the `sandbox`. It does not make sense to use this behavior unless you need to mount the entire `sandbox` in [tmpfs](https://en.wikipedia.org/wiki/Tmpfs).
 
 If a file's `executable` attribute is set to `true`, it will be executable in the job `sandbox`. By default, the attribute is set to `false`.
 

@@ -6,7 +6,7 @@ You can find a full description of all {{product-name}} commands in the [Command
 
 {% note info "Note" %}
 
-To understand the material presented in this section, you need to know the [HTTP protocol](https://ru.wikipedia.org/wiki/HTTP) structure, the principles of working via HTTP, and the basics of [data storage](../../../user-guide/storage/cypress.md) in the {{product-name}} system.
+To understand the material presented in this section, you need to know the [HTTP protocol](https://en.wikipedia.org/wiki/HTTP) structure, the principles of working via HTTP, and the basics of [data storage](../../../user-guide/storage/cypress.md) in the {{product-name}} system.
 
 {% endnote %}
 

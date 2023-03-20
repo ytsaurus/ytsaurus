@@ -83,7 +83,7 @@ The following parameters are supported for each user script (default values, if 
 - `command` (mandatory parameter) — string to be executed via the`bash -c` call.
 - `file_paths` — list of [Cypress](../../../../user-guide/storage/cypress.md) paths to files or tables. These files and tables are downloaded to the cluster node where the command is executed, and a special `sandbox` environment houses symbolic links to the downloaded files. The links are read-only. The default filename is the basename of the Cypress path, but it can be changed by specifying the `file_name` path attribute. If the path points to a table, the `format` attribute must be specified, which determines the [format](../../../../user-guide/storage/formats.md) in which the table is saved to a file on disk. The size of tabular files is limited to 10 GB.
 - `layer_paths` — list of paths to porto layers in Cypress. The layers are listed top to bottom.
-   – `cuda_toolkit_version` — [CUDA](https://ru.wikipedia.org/wiki/CUDA) version required by a job. If the version is specified, then a standard delta layer with the respective CUDA toolkit is provided to the job.
+   – `cuda_toolkit_version` — [CUDA](https://en.wikipedia.org/wiki/CUDA) version required by a job. If the version is specified, then a standard delta layer with the respective CUDA toolkit is provided to the job.
 - `format`, `input_format`, `output_format` (yson) — [format](../../../../user-guide/storage/formats.md) in which input table data is fed to the operation. The `input_format` and `output_format` options have priority over `format`;
 - `environment`— dictionary of environment variables specified during the operation. This option is needed for specifying environment variables in the `command` parameter without making it less readable.
 - `cpu_limit` (1) — number of compute cores based on which the scheduler schedules the job being executed.
@@ -102,7 +102,7 @@ The following parameters are supported for each user script (default values, if 
 - `job_time_limit` — time limit (in milliseconds) on a job. Jobs exceeding the limit are deemed failed.
 - `disk_request` — list of disks the job wants. By default, a job is assigned a local disk on the same cluster node where the job is run. Disk space usage is not limited, but the job can be interrupted if the disk space runs out. Each disk is characterized by the following parameters:
    - `disk_space` — limit on the total size of files in a job's `sandbox` on the disk.
-   - `inode_count` — limit on the number of [inodes](https://ru.wikipedia.org/wiki/Inode) on the disk.
+   - `inode_count` — limit on the number of [inodes](https://en.wikipedia.org/wiki/Inode) on the disk.
    - `account` — account for which the requested space is provided.
    - `medium_name` (default) – name of the required disk [medium](../../../../user-guide/storage/media.md).
 - `interruption_signal` — number of the signal sent to the user process upon job preemption. Between the signal being sent and the job being interrupted, there is some timeout that depends on the cluster settings. During this time, the user process can work to finish processing the data and exit.

@@ -60,7 +60,7 @@ Key features of dynamic tables:
 - Isolation: instances serving tablets are grouped into bundles that reside on separate servers, ensuring load isolation.
 - Conflict checking at the individual key or even individual value level.
 - Hot data responses from RAM.
-- Deleting data by [TTL](https://ru.wikipedia.org/wiki/Time_to_live).
+- Deleting data by [TTL](https://en.wikipedia.org/wiki/Time_to_live).
 - A built-in SQL-like language for scanning analytical queries.
 
 In addition to dynamic tables with the k-v storage interface, the system supports dynamic tables that implement the message queue abstraction, namely topics and streams. These queues can also be considered tables because they consist of rows and have their own schema. In a transaction, you can modify rows in both the k-v dynamic table and the queue simultaneously. This enables you to build stream processing on top of {{product-name}}'s dynamic tables with exactly once semantics.
