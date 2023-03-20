@@ -761,8 +761,7 @@ class TProtoReducer
 
 You should not write `AddInput/AddOutput()` in the operation's specification. You must provide a specific type.
 
-In this case, the `GetRow()` and `AddRow()` methods become templates and must use specific user-defined types. For reading, you can select the function to call by using `GetTableIndex()` of the current entry before calling `GetRow()`. For writing, `AddRow(row, tableIndex)` is called. Types are controlled to be in accord with table indexes. {% if audience == "internal" %}
-See [example](https://a.yandex-team.ru/arc/trunk/arcadia/mapreduce/yt/examples/main.cpp#L320).{% else %}{% endif %}
+In this case, the `GetRow()` and `AddRow()` methods become templates and must use specific user-defined types. For reading, you can select the function to call by using `GetTableIndex()` of the current entry before calling `GetRow()`. For writing, `AddRow(row, tableIndex)` is called. Types are controlled to be in accord with table indexes. 
 
 
 ### Initializing and serializing jobs
@@ -814,9 +813,6 @@ preparer
         .Description<TOutputRow>()
     .EndOutputGroup();
 ```
-{% if audience == "internal" %}
-
-For a more detailed example, see [use cases](../../../api/c/examples.md#prepare_operation). Doxygen documentation can be found [here](https://yt.yandex-team.ru/docs/c++/classNYT_1_1IJob.html#a125e26039a472403f60149029e4c3793).{% else %}{% endif %}
 
 
 ### Notes

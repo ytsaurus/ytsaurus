@@ -3,7 +3,7 @@
 Before using the examples, read the [instructions for obtaining the token](../../../user-guide/storage/auth.md).
 
 The examples are located at [yt/java/ytsaurus-client-examples](https://github.com/ytsaurus/ytsaurus/tree/main/yt/java/ytsaurus-client-examples).
-{% include notitle [ytsaurus-client-readme](build-and-logs.md) %}
+
 
 ### Working with Cypress
 

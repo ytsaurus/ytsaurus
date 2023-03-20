@@ -1,11 +1,5 @@
 В этой директории находится набор небольших примеров, с помощью которых можно понять базовые принципы работы с библиотекой. Код интересных примеров лежит в файлах `Example01....java`, `Example02...java` и т.д.
 
-{% if audience == internal %}
-
-Если вы не знакомы с библиотекой, рекомендуется прочитать их по порядку. Так же рекомендуется прочитать [ya.make](https://a.yandex-team.ru/arc/trunk/arcadia/yt/java/ytclient/tutorial/ya.make) и [log4j2.xml](https://a.yandex-team.ru/arc/trunk/arcadia/yt/java/ytclient/tutorial/src/main/resources/log4j2.properties), о них написано ниже.
-
-{% endif %}
-
 
 ## Сборка и запуск примеров
 

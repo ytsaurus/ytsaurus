@@ -2,8 +2,8 @@ title: YQL over {{product-name}}
 items:
   - name: Introduction
     href: index.md
-  - name: How do I use it?
-    href: quickstart.md
+  # - name: How do I use it?
+  #   href: quickstart.md
   - name: Data types
     items:
       - name: Overview
@@ -169,10 +169,10 @@ items:
 #             href: udf/cpp_type_aware_udf.md
 #           - name: YQL-Stream in C++ UDF
 #             href: udf/cpp_stream.md
-#   - name: Differences from other systems
-#     items:
-#       - name: SQL ANSI
-#         href: differences_from/ansi.md
+  - name: Differences from other systems
+    items:
+      - name: SQL ANSI
+        href: differences_from/ansi.md
 #       - name: ClickHouse
 #         href: differences_from/clickhouse.md
 #       - name: Hive

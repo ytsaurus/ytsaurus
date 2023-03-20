@@ -3,7 +3,6 @@
 Перед использованием примеров прочитайте [инструкцию по получению токена](../../../user-guide/storage/auth.md).
 
 Примеры находятся в [yt/java/ytsaurus-client-examples](https://github.com/ytsaurus/ytsaurus/tree/main/yt/java/ytsaurus-client-examples).
-{% include notitle [ytsaurus-client-readme](build-and-logs.md) %}
 
 ### Работа с Кипарисом
 

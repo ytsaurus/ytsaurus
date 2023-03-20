@@ -1,1 +1,0 @@
-{% include [Start clique](../../../../_includes/user-guide/data-processing/chyt/reference/start-clique.md) %}
