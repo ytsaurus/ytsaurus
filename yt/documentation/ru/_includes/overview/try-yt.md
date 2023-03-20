@@ -23,25 +23,20 @@
 Для демонстрации возможностей системы {{product-name}} доступен стенд.
 Перейдите [по ссылке](https://ytsaurus.tech/#demo) чтобы получить к нему доступ.
 
-## Minikube
+## Kubernetes
 
-Для корректной работы кластера необходимо 150 GiB дискового пространства и от 10-ти ядер на хосте.
+В настоящее время для самостоятельной установки доступна версия YTsaurus без поддержки языка запросов YQL. Соответсвующий код будет выложен в свободный доступ в ближайшее время.
 
-### Установка Minikube
-https://kubernetes.io/ru/docs/tasks/tools/install-minikube/
+Для разворачивания YTsaurus в Kubernetes рекомендуется воспользоваться [оператором](https://github.com/ytsaurus/yt-k8s-operator). Готовые docker-образы с оператором, UI, серверными компонентами и туториалом можно найти на [dockerhub](https://hub.docker.com/orgs/ytsaurus).
 
-Пререквизиты:
-1. Установите [Docker](https://docs.docker.com/engine/install/);
-2. Установите [kubectl](https://kubernetes.io/ru/docs/tasks/tools/install-kubectl/#установка-kubectl-в-linux);
-3. Установите [Minikube](https://kubernetes.io/ru/docs/tasks/tools/install-minikube/);
-4. Выполните команду `minikube start --vm-driver=docker`
+### Развёртывание в кластере Kubernetes
 
-В результате должна успешно выполняться, например, команда `kubectl cluster-info`.
+В данном разделе описана установка YTsaurus в кластере Kubernetes с поддержкой динамического создания вольюмов, например в Managed Kubernetes в Яндекс.Облаке. Предполагается, что у вас установлена и настроена утилита kubectl. Для успешного разворачивания YTsaurus в кластере Kubernetes должно быть как минимум три ноды, следующей конфигурации: от 4-х ядер CPU и от 8-ми Gb RAM.
 
-### Установка оператора
+#### Установка оператора
 
 1. Установите утилиту [helm](https://helm.sh/docs/intro/install/).
-2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.1.4 --untar`.
+2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.1.6 --untar`.
 3. Установите оператор `helm install ytsaurus ytop-chart/`.
 4. Проверьте результат:
 
@@ -51,9 +46,53 @@ NAME                                                      READY   STATUS     RES
 ytsaurus-ytop-chart-controller-manager-5765c5f995-dntph   2/2     Running    0          7m57s
 ```
 
-### Запуск кластера {{product-name}}
+#### Запуск кластера {{product-name}}
 
-Загрузите спецификацию?? в кластер `kubectl apply -f minisaurus.yaml`.
+Создайте пространство имён для запуска кластера. Создайте секрет, содержащий логин, пароль и токен администратора кластера.
+```
+kubectl create namespace <namespace>
+kubectl create secret generic ytadminsec --from-literal=login=admin --from-literal=password=<password> --from-literal=token=<password>  -n <namespace> 
+```
+
+Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_demo_without_yql.yaml), поправьте по-необходимости и загрузите в кластер `kubectl apply -f cluster_v1_demo_without_yql.yaml -n <namespace>`.
+
+Необходимо прописать гарантии или лимиты ресурсов в секции `execNodes`, эти значения будут отражены в конфигурации нод, и будут видны шедулеру. Для надёжного хранения данных, обязательно выделите персистентные тома.
+
+Для доступа к UI YTsaurus можно использовать тип сервиса LoadBalancer либо отдельно настоить балансировщик для обслуживания HTTP запросов. На данный момент UI YTsaurus не имеет встроенной возможности работать по протоколу HTTPS. 
+
+Для запуска приложений использующих кластер, используйте тот же кластер Kubernetes. В качестве адреса кластера подставьте адрес сервиса http proxy - `http-proxies.<namespace>.svc.cluster.local`.
+
+### Minikube
+
+Для корректной работы кластера необходимо 150 GiB дискового пространства и от 8-ми ядер на хосте.
+
+#### Установка Minikube
+https://kubernetes.io/ru/docs/tasks/tools/install-minikube/
+
+Пререквизиты:
+1. Установите [Docker](https://docs.docker.com/engine/install/);
+2. Установите [kubectl](https://kubernetes.io/ru/docs/tasks/tools/install-kubectl/#установка-kubectl-в-linux);
+3. Установите [Minikube](https://kubernetes.io/ru/docs/tasks/tools/install-minikube/);
+4. Выполните команду `minikube start --driver=docker`
+
+В результате должна успешно выполняться, например, команда `kubectl cluster-info`.
+
+#### Установка оператора
+
+1. Установите утилиту [helm](https://helm.sh/docs/intro/install/).
+2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.1.6 --untar`.
+3. Установите оператор `helm install ytsaurus ytop-chart/`.
+4. Проверьте результат:
+
+```
+$ kubectl get pod
+NAME                                                      READY   STATUS     RESTARTS   AGE
+ytsaurus-ytop-chart-controller-manager-5765c5f995-dntph   2/2     Running    0          7m57s
+```
+
+#### Запуск кластера {{product-name}}
+
+Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_minikube_without_yql.yaml)  в кластер `kubectl apply -f cluster_v1_minikube_without_yql.yaml`.
 
 Если загрузка прошла успешно, через некоторое время список запущенных подов будет выглядеть следующим образом:
 
@@ -100,10 +139,5 @@ yt map cat --src //home/t1 --dst //home/t2 --format json
 
 Чтобы удалить кластер {{product-name}} выполните команду:
 ```
-kubectl delete -f minisaurus.yaml
+kubectl delete -f cluster_v1_minikube_without_yql.yaml
 ```
-
-## Kubernetes
-
-TODO
-
