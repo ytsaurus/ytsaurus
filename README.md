@@ -12,7 +12,7 @@
 
 YTsaurus is a distributed storage and processing platform for big data with support for MapReduce model, a distributed file system and a NoSQL key-value database.
 
-[post about YTsaurus](https://medium.com/p/42e7f5fa5fc6)
+You can read [post about YTsaurus](https://medium.com/p/42e7f5fa5fc6) or check video:
 
 [![video about YTsaurus](yt/documentation/images/ytsaurus-promo-video.png)](https://youtu.be/4Q2EB_uimLs)
 
@@ -47,15 +47,15 @@ YTsaurus is a distributed storage and processing platform for big data with supp
 
 ## Getting Started
 
-Try YTsaurus cluster [using Kubernetes](https://ytsaurus.tech/en/docs/overview/try-yt) or try our [online demo](https://ytsaurus.tech). [Todo: check link]
+Try YTsaurus cluster [using Kubernetes](https://ytsaurus.tech/en/docs/overview/try-yt) or try our [online demo](https://ytsaurus.tech).
 
 ## How to Build from Source Code
-* Build [from source code](BUILD.md). [Todo: fill in BUILD.md]
+* Build [from source code](BUILD.md).
 
 ## How to Contribute
 
 We are glad to welcome new contributors!
 
-1. Please read the [contributor's guide](CONTRIBUTING.md). [Todo: fill in CONTRIBUTING.md]
+1. Please read the [contributor's guide](CONTRIBUTING.md).
 2. We can accept your work to YTsaurus after you have signed contributor's license agreement (aka CLA).
 3. Please don't forget to add a note to your pull request, that you agree to the terms of the CLA.
