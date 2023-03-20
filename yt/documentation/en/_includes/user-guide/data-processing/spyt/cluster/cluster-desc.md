@@ -2,7 +2,7 @@
 
 This section features a top-level description of the SPYT cluster, its component, and the Spark application framework.
 
-Cluster start is described in a separate [section](../cluster/cluster-start.md).
+Cluster start is described in a separate [section](../../../../../user-guide/data-processing/spyt/cluster/cluster-start.md).
 
 ## Spark app { #spark-app }
 
