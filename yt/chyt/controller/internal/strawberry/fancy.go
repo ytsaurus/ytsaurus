@@ -1,8 +1,6 @@
 package strawberry
 
 import (
-	"bytes"
-	"text/template"
 	"time"
 
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -17,12 +15,20 @@ func ToYsonURL(value interface{}) interface{} {
 	}
 }
 
-func navigationURL(cluster string, path ypath.Path) interface{} {
-	return ToYsonURL("https://yt.yandex-team.ru/" + cluster + "/navigation?path=" + path.String())
+func navigationStringURL(clusterURL string, path ypath.Path) string {
+	return clusterURL + "/navigation?path=" + path.String()
 }
 
-func operationURL(cluster string, opID yt.OperationID) interface{} {
-	return ToYsonURL("https://yt.yandex-team.ru/" + cluster + "/operations/" + opID.String())
+func navigationYsonURL(clusterURL string, path ypath.Path) interface{} {
+	return ToYsonURL(navigationStringURL(clusterURL, path))
+}
+
+func operationStringURL(clusterURL string, opID yt.OperationID) string {
+	return clusterURL + "/operations/" + opID.String()
+}
+
+func operationYsonURL(clusterURL string, opID yt.OperationID) interface{} {
+	return ToYsonURL(operationStringURL(clusterURL, opID))
 }
 
 func (oplet *Oplet) OpAnnotations() map[string]interface{} {
@@ -42,11 +48,11 @@ func (oplet *Oplet) OpAnnotations() map[string]interface{} {
 
 func (oplet *Oplet) OpDescription() map[string]interface{} {
 	desc := map[string]interface{}{
-		"strawberry_node":        navigationURL(oplet.agentInfo.Proxy, oplet.cypressNode),
+		"strawberry_node":        navigationYsonURL(oplet.agentInfo.ClusterURL, oplet.cypressNode),
 		"strawberry_incarnation": oplet.NextIncarnationIndex(),
 	}
 	if oplet.persistentState.YTOpID != yt.NullOperationID {
-		desc["strawberry_previous_operation"] = operationURL(oplet.agentInfo.Proxy, oplet.persistentState.YTOpID)
+		desc["strawberry_previous_operation"] = operationYsonURL(oplet.agentInfo.ClusterURL, oplet.persistentState.YTOpID)
 	}
 	return desc
 }
@@ -54,27 +60,27 @@ func (oplet *Oplet) OpDescription() map[string]interface{} {
 func (oplet *Oplet) CypAnnotation() string {
 	data := struct {
 		Alias             string
-		AgentInfo         AgentInfo
 		PersistentState   PersistentState
 		InfoState         InfoState
 		StrawberrySpeclet Speclet
 		Now               time.Time
+		OperationURL      string
 	}{
 		oplet.alias,
-		oplet.agentInfo,
 		oplet.persistentState,
 		oplet.infoState,
 		oplet.strawberrySpeclet,
 		time.Now(),
+		operationStringURL(oplet.agentInfo.ClusterURL, oplet.persistentState.YTOpID),
 	}
 
-	t := template.Must(template.New("cypAnnotation").Parse(`
+	templateString := `
 ## Strawberry operation {{.Alias}}
 **Active**: {{.StrawberrySpeclet.ActiveOrDefault}}
 **Pool**: {{.StrawberrySpeclet.Pool}}
 
 **Current operation state**: {{.PersistentState.YTOpState}}
-**Current operation id**: [{{.PersistentState.YTOpID}}](https://yt.yandex-team.ru/{{.AgentInfo.Proxy}}/operations/{{.PersistentState.YTOpID}})
+**Current operation id**: [{{.PersistentState.YTOpID}}]({{.OperationURL}})
 **Current operation incarnation**: {{.PersistentState.IncarnationIndex}}
 **Current operation speclet revision**: {{.PersistentState.YTOpSpecletRevision}}
 
@@ -85,12 +91,7 @@ func (oplet *Oplet) CypAnnotation() string {
 
 {{if .PersistentState.BackoffUntil}}**Backoff until**: {{.PersistentState.BackoffUntil}}
 {{end}}{{if .InfoState.Error}}**Error**: {{.InfoState.Error}}
-{{end}}`))
+{{end}}`
 
-	b := new(bytes.Buffer)
-	if err := t.Execute(b, &data); err != nil {
-		panic(err)
-	}
-
-	return b.String()
+	return ExecuteTemplate(templateString, &data)
 }

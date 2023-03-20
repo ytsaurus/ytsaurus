@@ -27,6 +27,13 @@ type Config struct {
 
 	// DefaultNetworkProject is the default network project used for oplets.
 	DefaultNetworkProject *string `yson:"default_network_project"`
+
+	// ClusterURLTemplate is a template executed via text/template library to get cluster URL.
+	// Cluster URL is used for generating "fancy" links for debug purposes only.
+	// If template parsing or execution fails, panic is called.
+	// Available template parameters: Proxy.
+	// E.g. "https://example.com/{{.Proxy}}"
+	ClusterURLTemplate string `yson:"cluster_url_template"`
 }
 
 const (
