@@ -279,7 +279,7 @@ items:
                    href: user-guide/data-processing/spyt/API/spyt-java.md
                  - name: SPYT in Python
                    href: user-guide/data-processing/spyt/API/spyt-python.md
-                 - name: SPYT in Jyputer
+                 - name: SPYT in Jyputyr
                    href: user-guide/data-processing/spyt/API/spyt-jupyter.md
              - name: Thesaurus
                items:
