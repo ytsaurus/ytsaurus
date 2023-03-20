@@ -138,12 +138,8 @@ items:
 #            href: udf/list/streaming.md
 #          - name: Compress и Decompress
 #            href: udf/list/compress_decompress.md
-#          - name: CatBoost
-#            href: udf/list/catboost.md
 #          - name: ConfigurableRearrange
 #            href: udf/list/configurable_rearrange.md
-#          - name: TensorFlow
-#            href: udf/list/tensorflow.md
 #          - name: DSSM
 #            href: udf/list/dssm.md
 #          - name: Matrixnet

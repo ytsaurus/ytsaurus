@@ -130,7 +130,7 @@ For regular deletions, in most scenarios compaction will run automatically, but 
 
 The operation specification may contain the same fields as usual, with a few exceptions.
 
-* To specify the [table writer](../storage/io_configuration#table_writer) configuration, use the `dynamic_table_writer` option indicated in the same place as the ordinary `table_writer` (in `*_job_io`). Chunks and blocks of dynamic tables must be smaller than chunks of static tables. The default value is `{desired_chunk_size=100MB; block_size=256KB}`.
+* To specify the [table writer](../../../user-guide/storage/io-configuration#table_writer) configuration, use the `dynamic_table_writer` option indicated in the same place as the ordinary `table_writer` (in `*_job_io`). Chunks and blocks of dynamic tables must be smaller than chunks of static tables. The default value is `{desired_chunk_size=100MB; block_size=256KB}`.
 
 ## Compaction features { #compaction }
 This section describes the use of bulk insert for large amounts of data.

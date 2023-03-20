@@ -393,7 +393,7 @@ yt.get("//home/lst")  # Output: [7L, "cabbage"]
 
 - [copy](https://pydoc.yt.yandex.net/yt.wrapper.html#yt.wrapper.client_impl.YtClient.copy)?? and [move](https://pydoc.yt.yandex.net/yt.wrapper.html#yt.wrapper.client_impl.YtClient.move): Copy/move the Cypress node. To learn more about the option value, see [section](../../../user-guide/storage/cypress-example.md#copy_move).
 
-- [link](https://pydoc.yt.yandex.net/yt.wrapper.html#yt.wrapper.client_impl.YtClient.link): create a symlink to a Cypress node. [Read more](../../../user-guide/storage/cypress-example.mdd#link).
+- [link](https://pydoc.yt.yandex.net/yt.wrapper.html#yt.wrapper.client_impl.YtClient.link): create a symlink to a Cypress node. [Read more](../../../user-guide/storage/cypress-example.md#link).
    To learn where the symlink points, read the value from the `@path` attribute. To access a `link` object, add `&` at the end of the path.
 
 Examples:

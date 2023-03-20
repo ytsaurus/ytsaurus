@@ -93,7 +93,6 @@ YQL benefits include:
 - Efficient implementation of joins, subqueries, and window functions with no restrictions on their topology or nesting.
 - Extensive function library.
 - Support for custom functions in C++, Python, and JavaScript.
-- Support for using machine learning models via CatBoost and TensorFlow.
 - Automatic execution of small parts of queries on prepared compute instances, bypassing MapReduce operations to reduce latency.
 
 ### CHYT { #chyt }
