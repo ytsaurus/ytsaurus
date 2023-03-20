@@ -158,7 +158,7 @@ default_config = {
         # This option enables checking response format for light requests.
         "check_response_format": True,
 
-        # List of commands that use framing (cf. https://yt.yandex-team.ru/docs/description/proxy/http_proxy_reference#framing).
+        # List of commands that use framing (cf. https://ytsaurus.tech/docs/en/user-guide/proxy/http-reference#framing).
         "commands_with_framing": [
             "read_table",
             "get_table_columnar_statistics",

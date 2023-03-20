@@ -8,6 +8,8 @@ try:
         SKYNET_MANAGER_URL,
         GETTINGSTARTED_DOC_URL,
         TUTORIAL_DOC_URL,
+        YSON_PACKAGE_INSTALLATION_TEXT,
+        RPC_PACKAGE_INSTALLATION_TEXT,
     )
 except ImportError:
     DEFAULT_HOST_SUFFIX = ""
@@ -18,3 +20,5 @@ except ImportError:
     SKYNET_MANAGER_URL = "{cluster_name}"
     GETTINGSTARTED_DOC_URL = "<TODO>"
     TUTORIAL_DOC_URL = "<TODO>"
+    YSON_PACKAGE_INSTALLATION_TEXT = 'as pip package "ytsaurus-yson"'
+    RPC_PACKAGE_INSTALLATION_TEXT = 'as pip package "ytsaurus-rpc-driver"'

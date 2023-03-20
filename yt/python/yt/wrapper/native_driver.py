@@ -1,5 +1,6 @@
 from .config import get_config, get_option, set_option
 from .common import require, generate_int64, update, get_value
+from .constants import RPC_PACKAGE_INSTALLATION_TEXT
 from .errors import create_response_error, YtError
 from .string_iter_io import StringIterIO
 from .response_stream import ResponseStream
@@ -180,8 +181,7 @@ def get_driver_instance(client):
             if config["backend"] == "rpc":
                 raise YtError("Driver class not found, install RPC driver bindings. "
                               "Bindings are shipped as additional package and "
-                              "can be installed as Debian package \"yandex-yt-python-driver-rpc\" "
-                              "or as pip package \"yandex-yt-driver-rpc-bindings\"")
+                              "can be installed " + RPC_PACKAGE_INSTALLATION_TEXT)
             else:
                 raise YtError("Driver class not found, install native yt driver bindings")
 
