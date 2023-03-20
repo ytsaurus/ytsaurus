@@ -16,6 +16,7 @@ from .local_cluster_configuration import modify_cluster_configuration
 
 from yt.common import YtError, remove_file, makedirp, update, get_value, which, to_native_str
 from yt.wrapper.common import flatten
+from yt.wrapper.constants import FEEDBACK_URL
 from yt.wrapper.errors import YtResponseError
 from yt.wrapper import YtClient
 
@@ -1887,8 +1888,8 @@ class YTInstance(object):
         if process.poll() is not None:
             self._process_stderrs(name, number)
             raise YtError("Process {0} unexpectedly terminated with error code {1}. "
-                          "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
-                          .format(name_with_number, process.returncode))
+                          "If the problem is reproducible please report to {2}"
+                          .format(name_with_number, process.returncode, FEEDBACK_URL))
 
     def _validate_processes_are_running(self, name):
         for index, process in enumerate(self._service_processes[name]):
