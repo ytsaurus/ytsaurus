@@ -94,7 +94,7 @@ void TNonversionedMapObjectProxyBase<TObject>::SetParent(const ICompositeNodePtr
 }
 
 template <class TObject>
-bool TNonversionedMapObjectProxyBase<TObject>::DoInvoke(const NRpc::IServiceContextPtr& context)
+bool TNonversionedMapObjectProxyBase<TObject>::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Create);
     DISPATCH_YPATH_SERVICE_METHOD(Copy);
@@ -109,7 +109,7 @@ bool TNonversionedMapObjectProxyBase<TObject>::DoInvoke(const NRpc::IServiceCont
 template <class TObject>
 IYPathService::TResolveResult TNonversionedMapObjectProxyBase<TObject>::ResolveRecursive(
     const TYPath& path,
-    const NRpc::IServiceContextPtr& context)
+    const IYPathServiceContextPtr& context)
 {
     return TMapNodeMixin::ResolveRecursive(path, context);
 }

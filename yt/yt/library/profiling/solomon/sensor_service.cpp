@@ -111,7 +111,7 @@ private:
         context->Reply();
     }
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Get);
         return TYPathServiceBase::DoInvoke(context);
@@ -206,7 +206,7 @@ private:
 
     IYPathService::TResolveResult ResolveSelf(
         const TYPath& path,
-        const NRpc::IServiceContextPtr& context) override
+        const IYPathServiceContextPtr& context) override
     {
         if (context->GetMethod() == "List") {
             return TResolveResultHere{path};
@@ -216,12 +216,12 @@ private:
 
     IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
-        const NRpc::IServiceContextPtr& /*context*/) override
+        const IYPathServiceContextPtr& /*context*/) override
     {
         return TResolveResultThere{Root_, "/" + path};
     }
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(List);
         return TYPathServiceBase::DoInvoke(context);

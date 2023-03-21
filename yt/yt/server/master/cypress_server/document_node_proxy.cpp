@@ -9,7 +9,6 @@ namespace NYT::NCypressServer {
 using namespace NYTree;
 using namespace NYPath;
 using namespace NYson;
-using namespace NRpc;
 using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NCellMaster;
@@ -72,7 +71,7 @@ public:
 private:
     using TBase = TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TDocumentNode>;
 
-    TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& /*context*/) override
+    TResolveResult ResolveRecursive(const TYPath& path, const IYPathServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{"/" + path};
     }

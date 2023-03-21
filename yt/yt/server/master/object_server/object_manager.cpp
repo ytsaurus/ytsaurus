@@ -219,7 +219,7 @@ public:
     IObjectProxyPtr GetSchemaProxy(EObjectType type) override;
 
     std::unique_ptr<TMutation> CreateExecuteMutation(
-        const IServiceContextPtr& context,
+        const IYPathServiceContextPtr& context,
         const TAuthenticationIdentity& identity) override;
     std::unique_ptr<TMutation> CreateDestroyObjectsMutation(
         const NProto::TReqDestroyObjects& request) override;
@@ -328,7 +328,7 @@ private:
     void HydraExecuteLeader(
         const TAuthenticationIdentity& identity,
         const TString& codicilData,
-        const IServiceContextPtr& rpcContext,
+        const IYPathServiceContextPtr& rpcContext,
         TMutationContext*);
     void HydraExecuteFollower(NProto::TReqExecute* request);
     void HydraDestroyObjects(NProto::TReqDestroyObjects* request);
@@ -392,12 +392,12 @@ public:
         , ForwardedCellTag_(forwardedCellTag)
     { }
 
-    TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
+    TResolveResult Resolve(const TYPath& path, const IYPathServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{path};
     }
 
-    void Invoke(const IServiceContextPtr& context) override
+    void Invoke(const IYPathServiceContextPtr& context) override
     {
         auto* mutationContext = TryGetCurrentMutationContext();
         if (mutationContext) {
@@ -596,7 +596,7 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
+    TResolveResult Resolve(const TYPath& path, const IYPathServiceContextPtr& context) override
     {
         if (IsRequestMutating(context->RequestHeader()) && !HasHydraContext()) {
             // Nested call or recovery.
@@ -606,7 +606,7 @@ public:
         }
     }
 
-    void Invoke(const IServiceContextPtr& context) override
+    void Invoke(const IYPathServiceContextPtr& context) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto mutation = objectManager->CreateExecuteMutation(context, context->GetAuthenticationIdentity());
@@ -645,7 +645,7 @@ private:
     TBootstrap* const Bootstrap_;
 
 
-    TResolveResult DoResolveThere(const TYPath& targetPath, const IServiceContextPtr& context)
+    TResolveResult DoResolveThere(const TYPath& targetPath, const IYPathServiceContextPtr& context)
     {
         auto resolvePath = ResolvePath(Bootstrap_, targetPath, context);
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1316,7 +1316,7 @@ void TObjectManager::FillAttributes(
 }
 
 std::unique_ptr<TMutation> TObjectManager::CreateExecuteMutation(
-    const IServiceContextPtr& context,
+    const IYPathServiceContextPtr& context,
     const TAuthenticationIdentity& identity)
 {
     NProto::TReqExecute request;
@@ -1736,7 +1736,7 @@ TString TObjectManager::MakeCodicilData(const TAuthenticationIdentity& identity)
 void TObjectManager::HydraExecuteLeader(
     const TAuthenticationIdentity& identity,
     const TString& codicilData,
-    const IServiceContextPtr& rpcContext,
+    const IYPathServiceContextPtr& rpcContext,
     TMutationContext* mutationContext)
 {
     TWallTimer timer;

@@ -58,10 +58,10 @@ struct IYPathService
     >;
 
     //! Resolves the given path by either returning "here" or "there" result.
-    virtual TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) = 0;
+    virtual TResolveResult Resolve(const TYPath& path, const IYPathServiceContextPtr& context) = 0;
 
     //! Executes a given request.
-    virtual void Invoke(const NRpc::IServiceContextPtr& context) = 0;
+    virtual void Invoke(const IYPathServiceContextPtr& context) = 0;
 
     //! Writes a map fragment consisting of attributes conforming to #filter into #consumer.
     /*!

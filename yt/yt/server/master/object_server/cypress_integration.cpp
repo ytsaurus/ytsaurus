@@ -51,7 +51,7 @@ private:
             , ObjectId_(objectId)
         { }
 
-        TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
+        TResolveResult Resolve(const TYPath& path, const IYPathServiceContextPtr& context) override
         {
             const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
             if (ypathExt.mutating()) {
@@ -63,7 +63,7 @@ private:
             return TResolveResultHere{path};
         }
 
-        void Invoke(const IServiceContextPtr& context) override
+        void Invoke(const IYPathServiceContextPtr& context) override
         {
             auto requestMessage = context->GetRequestMessage();
             auto requestHeader = context->RequestHeader();

@@ -27,7 +27,6 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
-using namespace NRpc;
 using namespace NSequoiaClient;
 using namespace NTableClient;
 using namespace NTransactionClient;
@@ -45,12 +44,12 @@ public:
 
     TResolveResult Resolve(
         const TYPath& path,
-        const IServiceContextPtr& /*context*/) override
+        const IYPathServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{path};
     }
 
-    bool DoInvoke(const IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Create);
 

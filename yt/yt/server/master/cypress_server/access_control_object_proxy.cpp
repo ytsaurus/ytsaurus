@@ -81,7 +81,7 @@ public:
         YT_ABORT();
     }
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         // Resolve ambiguity between the two base class overrides.
         return TBase::DoInvoke(context);
@@ -92,7 +92,7 @@ public:
         TNodeBase::GetSelf(request, response, context);
     }
 
-    TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override
+    TResolveResult ResolveRecursive(const NYPath::TYPath& path, const IYPathServiceContextPtr& context) override
     {
         return TMapNodeMixin::ResolveRecursive(path, context);
     }
@@ -392,7 +392,7 @@ protected:
         Y_UNREACHABLE();
     }
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(CheckPermission);
         return TBase::DoInvoke(context);
@@ -743,7 +743,7 @@ public:
     }
 
 private:
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         // Resolve ambiguity between the two base class overrides.
         return TBase::DoInvoke(context);
@@ -754,7 +754,7 @@ private:
         TNodeBase::GetSelf(request, response, context);
     }
 
-    TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override
+    TResolveResult ResolveRecursive(const NYPath::TYPath& path, const IYPathServiceContextPtr& context) override
     {
         return TMapNodeMixin::ResolveRecursive(path, context);
     }

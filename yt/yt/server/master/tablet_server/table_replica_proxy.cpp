@@ -220,7 +220,7 @@ private:
         return TBase::SetBuiltinAttribute(key, value);
     }
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Alter);
         return TBase::DoInvoke(context);

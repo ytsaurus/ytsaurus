@@ -86,7 +86,6 @@ using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NQueueClient;
-using namespace NRpc;
 using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NTabletClient;
@@ -1634,7 +1633,7 @@ TComparator TTableNodeProxy::GetComparator() const
     return schema->AsTableSchema()->ToComparator();
 }
 
-bool TTableNodeProxy::DoInvoke(const IServiceContextPtr& context)
+bool TTableNodeProxy::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(ReshardAutomatic);
     DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);

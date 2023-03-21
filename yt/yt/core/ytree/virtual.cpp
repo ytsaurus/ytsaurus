@@ -33,7 +33,7 @@ TVirtualMapBase::TVirtualMapBase(INodePtr owningNode)
     : OwningNode_(std::move(owningNode))
 { }
 
-bool TVirtualMapBase::DoInvoke(const IServiceContextPtr& context)
+bool TVirtualMapBase::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(List);
@@ -44,7 +44,7 @@ bool TVirtualMapBase::DoInvoke(const IServiceContextPtr& context)
 
 IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
     const TYPath& path,
-    const IServiceContextPtr& context)
+    const IYPathServiceContextPtr& context)
 {
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
@@ -413,7 +413,7 @@ public:
 
     TResolveResult Resolve(
         const TYPath& path,
-        const IServiceContextPtr& /*context*/) override
+        const IYPathServiceContextPtr& /*context*/) override
     {
         // TODO(babenko): handle ugly face
         return TResolveResultThere{UnderlyingService_, path};
@@ -450,7 +450,7 @@ INodePtr CreateVirtualNode(IYPathServicePtr service)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TVirtualListBase::DoInvoke(const IServiceContextPtr& context)
+bool TVirtualListBase::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(Exists);
@@ -459,7 +459,7 @@ bool TVirtualListBase::DoInvoke(const IServiceContextPtr& context)
 
 IYPathService::TResolveResult TVirtualListBase::ResolveRecursive(
     const TYPath& path,
-    const IServiceContextPtr& context)
+    const IYPathServiceContextPtr& context)
 {
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();

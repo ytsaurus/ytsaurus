@@ -41,9 +41,9 @@ protected:
     virtual bool IsValid(NObjectServer::TObject* object) const = 0;
     virtual NYPath::TYPath GetWellKnownPath() const = 0;
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
-    TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override;
+    TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NYTree::IYPathServiceContextPtr& context) override;
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
     void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
 

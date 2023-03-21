@@ -11,15 +11,13 @@
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 #include <library/cpp/yt/threading/spin_lock.h>
 
-#include <atomic>
-
 namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! \note Thread affinity: single-threaded (unless noted otherwise)
 class TServiceContextBase
-    : public IServiceContext
+    : public virtual IServiceContext
 {
 public:
     const NProto::TRequestHeader& GetRequestHeader() const override;
@@ -156,7 +154,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServiceContextWrapper
-    : public IServiceContext
+    : public virtual IServiceContext
 {
 public:
     explicit TServiceContextWrapper(IServiceContextPtr underlyingContext);

@@ -76,7 +76,7 @@ protected:
         std::vector<NChunkClient::TReadRange> Ranges;
     };
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
     //! This method validates if requested read limit is allowed for this type of node
     //! (i.e. key limits requires node to be a sorted table).

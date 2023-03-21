@@ -165,7 +165,7 @@ struct IObjectManager
      *  Thread affinity: any
      */
     virtual std::unique_ptr<NHydra::TMutation> CreateExecuteMutation(
-        const NRpc::IServiceContextPtr& context,
+        const NYTree::IYPathServiceContextPtr& context,
         const NRpc::TAuthenticationIdentity& identity) = 0;
 
     //! Creates a mutation that destroys given objects.

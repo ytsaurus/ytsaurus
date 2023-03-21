@@ -37,7 +37,6 @@ namespace NYT::NNodeTrackerServer {
 using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
-using namespace NRpc;
 using namespace NCypressServer;
 using namespace NCypressClient;
 using namespace NTransactionServer;
@@ -60,7 +59,7 @@ public:
 
     TResolveResult ResolveSelf(
         const TYPath& path,
-        const IServiceContextPtr& context) override
+        const IYPathServiceContextPtr& context) override
     {
         const auto& method = context->GetMethod();
         if (method == "Remove") {
@@ -72,7 +71,7 @@ public:
 
     IYPathService::TResolveResult ResolveAttributes(
         const TYPath& path,
-        const IServiceContextPtr& /*context*/) override
+        const IYPathServiceContextPtr& /*context*/) override
     {
         return TResolveResultThere{GetTargetProxy(), "/@" + path};
     }

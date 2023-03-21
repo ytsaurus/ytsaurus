@@ -103,9 +103,9 @@ protected:
 
     void LogAcdUpdate(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
 
-    void BeforeInvoke(const NRpc::IServiceContextPtr& context) override;
-    void AfterInvoke(const NRpc::IServiceContextPtr& context) override;
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    void BeforeInvoke(const NYTree::IYPathServiceContextPtr& context) override;
+    void AfterInvoke(const NYTree::IYPathServiceContextPtr& context) override;
+    bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
     void GetSelf(
         TReqGet* request,
@@ -453,7 +453,7 @@ public:
 private:
     using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode>;
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
     void SetChildNode(
         NYTree::INodeFactory* factory,
@@ -466,7 +466,7 @@ private:
 
     TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
-        const NRpc::IServiceContextPtr& context) override;
+        const NYTree::IYPathServiceContextPtr& context) override;
 
     void ListSelf(
         TReqList* request,
@@ -522,7 +522,7 @@ private:
 
     TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
-        const NRpc::IServiceContextPtr& context) override;
+        const NYTree::IYPathServiceContextPtr& context) override;
 
     void SetRecursive(
         const NYTree::TYPath& path,

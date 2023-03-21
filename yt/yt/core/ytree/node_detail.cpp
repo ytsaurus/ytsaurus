@@ -21,7 +21,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TNodeBase::DoInvoke(const IServiceContextPtr& context)
+bool TNodeBase::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetKey);
     DISPATCH_YPATH_SERVICE_METHOD(Get);
@@ -142,7 +142,7 @@ void TNodeBase::DoRemoveSelf(bool /*recursive*/, bool /*force*/)
 
 IYPathService::TResolveResult TNodeBase::ResolveRecursive(
     const NYPath::TYPath& path,
-    const IServiceContextPtr& context)
+    const IYPathServiceContextPtr& context)
 {
     if (context->GetMethod() == "Exists") {
         return TResolveResultHere{path};
@@ -253,7 +253,7 @@ void TCompositeNodeMixin::ValidateChildCount(const TYPath& path, int childCount)
 
 IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     const TYPath& path,
-    const IServiceContextPtr& context)
+    const IYPathServiceContextPtr& context)
 {
     const auto& method = context->GetMethod();
 
@@ -449,7 +449,7 @@ void TMapNodeMixin::ThrowMaxKeyLengthViolated() const
 
 IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     const TYPath& path,
-    const IServiceContextPtr& context)
+    const IYPathServiceContextPtr& context)
 {
     NYPath::TTokenizer tokenizer(path);
     switch (tokenizer.Advance()) {
@@ -589,7 +589,7 @@ IYPathServicePtr TNonexistingService::Get()
     return LeakyRefCountedSingleton<TNonexistingService>();
 }
 
-bool TNonexistingService::DoInvoke(const IServiceContextPtr& context)
+bool TNonexistingService::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Exists);
     return TYPathServiceBase::DoInvoke(context);
@@ -597,7 +597,7 @@ bool TNonexistingService::DoInvoke(const IServiceContextPtr& context)
 
 IYPathService::TResolveResult TNonexistingService::Resolve(
     const TYPath& path,
-    const IServiceContextPtr& /*context*/)
+    const IYPathServiceContextPtr& /*context*/)
 {
     return TResolveResultHere{path};
 }
