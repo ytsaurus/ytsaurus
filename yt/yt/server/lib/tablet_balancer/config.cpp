@@ -8,6 +8,8 @@ using namespace NYTree;
 
 void TParameterizedBalancingConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("enable_swaps", &TThis::EnableSwaps)
+        .Default();
     registrar.Parameter("metric", &TThis::Metric)
         .Default();
     registrar.Parameter("max_action_count", &TThis::MaxActionCount)

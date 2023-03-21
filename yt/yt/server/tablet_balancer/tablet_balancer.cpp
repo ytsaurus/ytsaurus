@@ -600,6 +600,7 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
             bundleState->GetBundle(),
             bundleState->DefaultPerformanceCountersKeys_,
             TParameterizedReassignSolverConfig{
+                .EnableSwaps = dynamicConfig->EnableSwaps,
                 .MaxMoveActionCount = dynamicConfig->MaxParameterizedMoveActionCount,
                 .DeviationThreshold = dynamicConfig->ParameterizedDeviationThreshold,
                 .MinRelativeMetricImprovement = dynamicConfig->ParameterizedMinRelativeMetricImprovement,

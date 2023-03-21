@@ -38,6 +38,8 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_everywhere", &TThis::EnableEverywhere)
         .Default(false);
 
+    registrar.Parameter("enable_swaps", &TThis::EnableSwaps)
+        .Default(true);
     registrar.Parameter("max_parameterized_move_action_count", &TThis::MaxParameterizedMoveActionCount)
         .Default(5)
         .GreaterThanOrEqual(0);

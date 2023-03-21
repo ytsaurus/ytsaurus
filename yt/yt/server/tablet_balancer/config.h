@@ -52,6 +52,7 @@ public:
 
     std::optional<TDuration> Period;
 
+    bool EnableSwaps;
     int MaxParameterizedMoveActionCount;
     double ParameterizedDeviationThreshold;
     double ParameterizedMinRelativeMetricImprovement;
