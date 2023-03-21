@@ -50,6 +50,7 @@ TParameterizedReassignSolverConfig TParameterizedReassignSolverConfig::MergeWith
     const TParameterizedBalancingConfigPtr& groupConfig) const
 {
     return TParameterizedReassignSolverConfig{
+        .EnableSwaps = groupConfig->EnableSwaps.value_or(EnableSwaps),
         .MaxMoveActionCount = groupConfig->MaxActionCount.value_or(MaxMoveActionCount),
         .DeviationThreshold = groupConfig->DeviationThreshold.value_or(DeviationThreshold),
         .MinRelativeMetricImprovement = groupConfig->MinRelativeMetricImprovement.value_or(
@@ -641,6 +642,10 @@ bool TParameterizedReassignSolver::TryFindBestAction(bool canMakeSwap)
 {
     BestAction_ = TBestAction{.Metric = CurrentMetric_};
 
+    if (!Config_.EnableSwaps) {
+        YT_LOG_DEBUG("Swap actions are forbidden");
+    }
+
     for (const auto& [tablet, _] : TabletToMetric_) {
         for (const auto& cell : Cells_) {
             TryMoveTablet(tablet, cell.Get());
@@ -651,6 +656,10 @@ bool TParameterizedReassignSolver::TryFindBestAction(bool canMakeSwap)
             YT_LOG_DEBUG_IF(
                 Bundle_->Config->EnableVerboseLogging,
                 "Swap cannot be done because there are not enough actions available");
+            continue;
+        }
+
+        if (!Config_.EnableSwaps) {
             continue;
         }
 
