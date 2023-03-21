@@ -91,9 +91,8 @@ void FromProto(TOperationInfo* operationInfo, const NProto::TOperationInfo& oper
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TCtxHeartbeatPtr>
 void ProcessScheduleJobMailboxes(
-    TCtxHeartbeatPtr context,
+    const TControllerAgentTracker::TCtxAgentScheduleJobHeartbeatPtr& context,
     const TControllerAgentPtr& agent,
     const TNodeManagerPtr& nodeManager,
     std::vector<std::vector<const NProto::TScheduleJobResponse*>>& groupedScheduleJobResponses)
@@ -127,9 +126,8 @@ void ProcessScheduleJobMailboxes(
     YT_LOG_DEBUG("Schedule job mailboxes processed");
 }
 
-template <class TCtxHeartbeatPtr>
 void ProcessScheduleJobResponses(
-    TCtxHeartbeatPtr context,
+    TControllerAgentTracker::TCtxAgentScheduleJobHeartbeatPtr context,
     const std::vector<TNodeShardPtr>& nodeShards,
     const std::vector<IInvokerPtr>& nodeShardInvokers,
     std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses,
@@ -620,7 +618,6 @@ public:
 
         auto nodeManager = scheduler->GetNodeManager();
         std::vector<std::vector<const NProto::TAgentToSchedulerJobEvent*>> groupedJobEvents(nodeManager->GetNodeShardCount());
-        std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeManager->GetNodeShardCount());
 
         // TODO(eshcherbin): Capturing by reference is dangerous, should fix this.
         RunInMessageOffloadInvoker(agent, [&] {
@@ -648,8 +645,6 @@ public:
                     protoEvent->set_event_type(static_cast<int>(event.EventType));
                     ToProto(protoEvent->mutable_operation_id(), event.OperationId);
                 });
-
-            ProcessScheduleJobMailboxes(context, agent, nodeManager, groupedScheduleJobResponses);
         });
 
         agent->GetOperationEventsInbox()->HandleIncoming(
@@ -800,7 +795,6 @@ public:
             nodeShards = nodeManager->GetNodeShards(),
             nodeShardInvokers = nodeManager->GetNodeShardInvokers(),
             groupedJobEvents = std::move(groupedJobEvents),
-            groupedScheduleJobResponses = std::move(groupedScheduleJobResponses),
             dtorInvoker = MessageOffloadThreadPool_->GetInvoker()
         ] {
             const auto Logger = SchedulerLogger
@@ -859,8 +853,6 @@ public:
                     }));
             }
             YT_LOG_DEBUG("Job events are processed");
-
-            ProcessScheduleJobResponses(context, nodeShards, nodeShardInvokers, std::move(groupedScheduleJobResponses), dtorInvoker);
         });
 
         response->set_operation_archive_version(Bootstrap_->GetScheduler()->GetOperationArchiveVersion());

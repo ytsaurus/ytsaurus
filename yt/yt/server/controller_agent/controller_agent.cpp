@@ -467,11 +467,6 @@ public:
 
         if (ScheduleJobHeartbeatExecutor_) {
             ScheduleJobHeartbeatExecutor_->SetPeriod(Config_->ScheduleJobHeartbeatPeriod);
-            if (Config_->EnableScheduleJobHeartbeats) {
-                ScheduleJobHeartbeatExecutor_->Start();
-            } else {
-                YT_UNUSED_FUTURE(ScheduleJobHeartbeatExecutor_->Stop());
-            }
         }
 
         StaticOrchidService_->SetCachePeriod(Config_->StaticOrchidCacheUpdatePeriod);
@@ -1323,9 +1318,7 @@ private:
             CancelableControlInvoker_,
             BIND(&TControllerAgent::TImpl::SendScheduleJobHeartbeat, MakeWeak(this)),
             Config_->ScheduleJobHeartbeatPeriod);
-        if (Config_->EnableScheduleJobHeartbeats) {
-            ScheduleJobHeartbeatExecutor_->Start();
-        }
+        ScheduleJobHeartbeatExecutor_->Start();
 
         ZombieOperationOrchids_->Clean();
         ZombieOperationOrchids_->StartPeriodicCleaning(CancelableControlInvoker_);
@@ -1398,34 +1391,6 @@ private:
         bool OperationAlertsSent = false;
         bool SuspiciousJobsSent = false;
     };
-
-    template <class THeartbeatReqPtr>
-    void BuildOutcomingScheduleJobResponses(const THeartbeatReqPtr& req)
-    {
-        ScheduleJobResposesOutbox_->BuildOutcoming(
-            req->mutable_agent_to_scheduler_schedule_job_responses(),
-            [] (auto* protoResponse, const auto& response) {
-                const auto& scheduleJobResult = *response.Result;
-                ToProto(protoResponse->mutable_job_id(), response.JobId);
-                ToProto(protoResponse->mutable_operation_id(), response.OperationId);
-                protoResponse->set_controller_epoch(scheduleJobResult.ControllerEpoch);
-                protoResponse->set_success(static_cast<bool>(scheduleJobResult.StartDescriptor));
-                if (scheduleJobResult.StartDescriptor) {
-                    const auto& startDescriptor = *scheduleJobResult.StartDescriptor;
-                    YT_ASSERT(response.JobId == startDescriptor.Id);
-                    ToProto(protoResponse->mutable_resource_limits(), startDescriptor.ResourceLimits);
-                    protoResponse->set_interruptible(startDescriptor.Interruptible);
-                }
-                protoResponse->set_duration(ToProto<i64>(scheduleJobResult.Duration));
-                for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-                    if (scheduleJobResult.Failed[reason] > 0) {
-                        auto* protoCounter = protoResponse->add_failed();
-                        protoCounter->set_reason(static_cast<int>(reason));
-                        protoCounter->set_value(scheduleJobResult.Failed[reason]);
-                    }
-                }
-            });
-    }
 
     TPreparedHeartbeatRequest PrepareHeartbeatRequest()
     {
@@ -1532,8 +1497,6 @@ private:
                 }
             });
 
-        BuildOutcomingScheduleJobResponses(request);
-
         auto error = WaitFor(BIND([&, request] {
                 JobEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_job_events());
             })
@@ -1627,8 +1590,7 @@ private:
             preparedRequest.OperationAlertsSent,
             preparedRequest.SuspiciousJobsSent,
             preparedRequest.RpcRequest->agent_to_scheduler_operation_events().items_size(),
-            preparedRequest.RpcRequest->agent_to_scheduler_job_events().items_size(),
-            preparedRequest.RpcRequest->agent_to_scheduler_schedule_job_responses().items_size());
+            preparedRequest.RpcRequest->agent_to_scheduler_job_events().items_size());
 
         auto rspOrError = WaitFor(preparedRequest.RpcRequest->Invoke());
         if (!rspOrError.IsOK()) {
@@ -1647,11 +1609,9 @@ private:
 
         OperationEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_operation_events());
         JobEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_job_events());
-        ScheduleJobResposesOutbox_->HandleStatus(rsp->agent_to_scheduler_schedule_job_responses());
 
         HandleJobEvents(rsp);
         HandleOperationEvents(rsp);
-        HandleScheduleJobRequests(rsp, preparedRequest.RpcRequest->GetRequestId(), GetExecNodeDescriptors({}));
 
         if (rsp->has_exec_nodes()) {
             int onlineExecNodeCount = 0;
@@ -1689,135 +1649,36 @@ private:
         ConfirmHeartbeatRequest(preparedRequest);
     }
 
-    void SendScheduleJobHeartbeat()
+    void BuildOutcomingScheduleJobResponses(
+        const TControllerAgentTrackerServiceProxy::TReqScheduleJobHeartbeatPtr&  req)
     {
-        auto req = SchedulerProxy_.ScheduleJobHeartbeat();
-
-        req->SetTimeout(Config_->SchedulerHeartbeatRpcTimeout);
-        req->SetRequestHeavy(true);
-        req->SetResponseHeavy(true);
-        req->set_agent_id(Bootstrap_->GetAgentId());
-        ToProto(req->mutable_incarnation_id(), IncarnationId_);
-        GenerateMutationId(req);
-
-        BuildOutcomingScheduleJobResponses(req);
-
-        ScheduleJobRequestsInbox_->ReportStatus(req->mutable_scheduler_to_agent_schedule_job_requests());
-
-        YT_LOG_DEBUG("Sending schedule jobs heartbeat (ScheduleJobResponseCount: %v)",
-            req->agent_to_scheduler_schedule_job_responses().items_size());
-
-        auto rspOrError = WaitFor(req->Invoke());
-        if (!rspOrError.IsOK()) {
-            if (NRpc::IsRetriableError(rspOrError)) {
-                YT_LOG_WARNING(rspOrError, "Error reporting heartbeat to scheduler");
-                TDelayedExecutor::WaitForDuration(Config_->SchedulerHeartbeatFailureBackoff);
-            } else {
-                Disconnect(rspOrError);
-            }
-            return;
-        }
-
-        YT_LOG_DEBUG("Schedule jobs heartbeat succeeded");
-
-        const auto& rsp = rspOrError.Value();
-
-        ScheduleJobResposesOutbox_->HandleStatus(rsp->agent_to_scheduler_schedule_job_responses());
-
-        HandleScheduleJobRequests(rsp, req->GetRequestId(), GetExecNodeDescriptors({}));
-    }
-
-    void HandleJobEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
-    {
-        struct TOperationJobEvents
-        {
-            std::vector<TFinishedJobSummary> FinishedJobEvents;
-            std::vector<TAbortedBySchedulerJobSummary> AbortedJobEvents;
-        };
-
-        auto jobEventsPerOperationIdOrError = WaitFor(BIND([this, rsp] {
-                THashMap<TOperationId, TOperationJobEvents> jobEventsPerOperationId;
-
-                auto handleJobSummary = [&] (auto&& jobSummary) {
-                    auto& operationJobEvents = jobEventsPerOperationId[jobSummary.OperationId];
-                    auto& storage = TOverloaded{
-                        [&] (const TFinishedJobSummary&) -> auto& {
-                            return operationJobEvents.FinishedJobEvents;
-                        },
-                        [&] (const TAbortedBySchedulerJobSummary&) -> auto& {
-                            return operationJobEvents.AbortedJobEvents;
-                        }
-                    }(jobSummary);
-
-                    storage.push_back(std::move(jobSummary));
-                };
-
-                JobEventsInbox_->HandleIncoming<TSchedulerToAgentJobEvent>(
-                    rsp->mutable_scheduler_to_agent_job_events(),
-                    [&] (TSchedulerToAgentJobEvent&& jobEvent) {
-                        std::visit(
-                            handleJobSummary,
-                            std::move(jobEvent.EventSummary));
-                        });
-
-                return jobEventsPerOperationId;
-            })
-            .AsyncVia(JobEventsInvoker_)
-            .Run());
-
-        YT_LOG_FATAL_IF(!jobEventsPerOperationIdOrError.IsOK(), jobEventsPerOperationIdOrError, "Failed to parse scheduler message");
-
-        auto jobEventsPerOperationId = std::move(jobEventsPerOperationIdOrError.Value());
-
-        for (auto& [operationId, events] : jobEventsPerOperationId) {
-            auto operation = this->FindOperation(operationId);
-            if (!operation) {
-                continue;
-            }
-
-            auto controller = operation->GetController();
-            controller->GetCancelableInvoker(Config_->JobEventsControllerQueue)->Invoke(
-                BIND([rsp, controller, this_ = MakeStrong(this), events = std::move(events)] () mutable {
-                    for (auto& finishedJobInfo : events.FinishedJobEvents) {
-                        controller->OnJobFinishedEventReceivedFromScheduler(std::move(finishedJobInfo));
-                    }
-                    for (auto& abortedJobInfo : events.AbortedJobEvents) {
-                        controller->OnJobAbortedEventReceivedFromScheduler(std::move(abortedJobInfo));
-                    }
-                }));
-        }
-    }
-
-    void HandleOperationEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
-    {
-        OperationEventsInbox_->HandleIncoming(
-            rsp->mutable_scheduler_to_agent_operation_events(),
-            [&] (const auto* protoEvent) {
-                auto eventType = static_cast<ESchedulerToAgentOperationEventType>(protoEvent->event_type());
-                auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
-                auto operation = this->FindOperation(operationId);
-                if (!operation) {
-                    return;
+        ScheduleJobResposesOutbox_->BuildOutcoming(
+            req->mutable_agent_to_scheduler_schedule_job_responses(),
+            [] (auto* protoResponse, const auto& response) {
+                const auto& scheduleJobResult = *response.Result;
+                ToProto(protoResponse->mutable_job_id(), response.JobId);
+                ToProto(protoResponse->mutable_operation_id(), response.OperationId);
+                protoResponse->set_controller_epoch(scheduleJobResult.ControllerEpoch);
+                protoResponse->set_success(static_cast<bool>(scheduleJobResult.StartDescriptor));
+                if (scheduleJobResult.StartDescriptor) {
+                    const auto& startDescriptor = *scheduleJobResult.StartDescriptor;
+                    YT_ASSERT(response.JobId == startDescriptor.Id);
+                    ToProto(protoResponse->mutable_resource_limits(), startDescriptor.ResourceLimits);
+                    protoResponse->set_interruptible(startDescriptor.Interruptible);
                 }
-
-                auto controller = operation->GetController();
-                controller->GetCancelableInvoker(EOperationControllerQueue::Default)->Invoke(
-                    BIND([controller, eventType] {
-                        switch (eventType) {
-                            case ESchedulerToAgentOperationEventType::UpdateMinNeededJobResources:
-                                controller->UpdateMinNeededJobResources();
-                                break;
-
-                            default:
-                                YT_ABORT();
-                        }
-                    }));
+                protoResponse->set_duration(ToProto<i64>(scheduleJobResult.Duration));
+                for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
+                    if (scheduleJobResult.Failed[reason] > 0) {
+                        auto* protoCounter = protoResponse->add_failed();
+                        protoCounter->set_reason(static_cast<int>(reason));
+                        protoCounter->set_value(scheduleJobResult.Failed[reason]);
+                    }
+                }
             });
     }
 
-    template <class THeartbeatRspPtr>
     void HandleScheduleJobRequests(
-        const THeartbeatRspPtr& rsp,
+        const TControllerAgentTrackerServiceProxy::TRspScheduleJobHeartbeatPtr& rsp,
         TRequestId requestId,
         const TRefCountedExecNodeDescriptorMapPtr& execNodeDescriptors)
     {
@@ -1959,6 +1820,131 @@ private:
             });
     }
 
+    void SendScheduleJobHeartbeat()
+    {
+        auto req = SchedulerProxy_.ScheduleJobHeartbeat();
+
+        req->SetTimeout(Config_->SchedulerHeartbeatRpcTimeout);
+        req->SetRequestHeavy(true);
+        req->SetResponseHeavy(true);
+        req->set_agent_id(Bootstrap_->GetAgentId());
+        ToProto(req->mutable_incarnation_id(), IncarnationId_);
+        GenerateMutationId(req);
+
+        BuildOutcomingScheduleJobResponses(req);
+
+        ScheduleJobRequestsInbox_->ReportStatus(req->mutable_scheduler_to_agent_schedule_job_requests());
+
+        YT_LOG_DEBUG("Sending schedule jobs heartbeat (ScheduleJobResponseCount: %v)",
+            req->agent_to_scheduler_schedule_job_responses().items_size());
+
+        auto rspOrError = WaitFor(req->Invoke());
+        if (!rspOrError.IsOK()) {
+            if (NRpc::IsRetriableError(rspOrError)) {
+                YT_LOG_WARNING(rspOrError, "Error reporting heartbeat to scheduler");
+                TDelayedExecutor::WaitForDuration(Config_->SchedulerHeartbeatFailureBackoff);
+            } else {
+                Disconnect(rspOrError);
+            }
+            return;
+        }
+
+        YT_LOG_DEBUG("Schedule jobs heartbeat succeeded");
+
+        const auto& rsp = rspOrError.Value();
+
+        ScheduleJobResposesOutbox_->HandleStatus(rsp->agent_to_scheduler_schedule_job_responses());
+
+        HandleScheduleJobRequests(rsp, req->GetRequestId(), GetExecNodeDescriptors({}));
+    }
+
+    void HandleJobEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
+    {
+        struct TOperationJobEvents
+        {
+            std::vector<TFinishedJobSummary> FinishedJobEvents;
+            std::vector<TAbortedBySchedulerJobSummary> AbortedJobEvents;
+        };
+
+        auto jobEventsPerOperationIdOrError = WaitFor(BIND([this, rsp] {
+                THashMap<TOperationId, TOperationJobEvents> jobEventsPerOperationId;
+
+                auto handleJobSummary = [&] (auto&& jobSummary) {
+                    auto& operationJobEvents = jobEventsPerOperationId[jobSummary.OperationId];
+                    auto& storage = TOverloaded{
+                        [&] (const TFinishedJobSummary&) -> auto& {
+                            return operationJobEvents.FinishedJobEvents;
+                        },
+                        [&] (const TAbortedBySchedulerJobSummary&) -> auto& {
+                            return operationJobEvents.AbortedJobEvents;
+                        }
+                    }(jobSummary);
+
+                    storage.push_back(std::move(jobSummary));
+                };
+
+                JobEventsInbox_->HandleIncoming<TSchedulerToAgentJobEvent>(
+                    rsp->mutable_scheduler_to_agent_job_events(),
+                    [&] (TSchedulerToAgentJobEvent&& jobEvent) {
+                        std::visit(
+                            handleJobSummary,
+                            std::move(jobEvent.EventSummary));
+                        });
+
+                return jobEventsPerOperationId;
+            })
+            .AsyncVia(JobEventsInvoker_)
+            .Run());
+
+        YT_LOG_FATAL_IF(!jobEventsPerOperationIdOrError.IsOK(), jobEventsPerOperationIdOrError, "Failed to parse scheduler message");
+
+        auto jobEventsPerOperationId = std::move(jobEventsPerOperationIdOrError.Value());
+
+        for (auto& [operationId, events] : jobEventsPerOperationId) {
+            auto operation = this->FindOperation(operationId);
+            if (!operation) {
+                continue;
+            }
+
+            auto controller = operation->GetController();
+            controller->GetCancelableInvoker(Config_->JobEventsControllerQueue)->Invoke(
+                BIND([rsp, controller, this_ = MakeStrong(this), events = std::move(events)] () mutable {
+                    for (auto& finishedJobInfo : events.FinishedJobEvents) {
+                        controller->OnJobFinishedEventReceivedFromScheduler(std::move(finishedJobInfo));
+                    }
+                    for (auto& abortedJobInfo : events.AbortedJobEvents) {
+                        controller->OnJobAbortedEventReceivedFromScheduler(std::move(abortedJobInfo));
+                    }
+                }));
+        }
+    }
+
+    void HandleOperationEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
+    {
+        OperationEventsInbox_->HandleIncoming(
+            rsp->mutable_scheduler_to_agent_operation_events(),
+            [&] (const auto* protoEvent) {
+                auto eventType = static_cast<ESchedulerToAgentOperationEventType>(protoEvent->event_type());
+                auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
+                auto operation = this->FindOperation(operationId);
+                if (!operation) {
+                    return;
+                }
+
+                auto controller = operation->GetController();
+                controller->GetCancelableInvoker(EOperationControllerQueue::Default)->Invoke(
+                    BIND([controller, eventType] {
+                        switch (eventType) {
+                            case ESchedulerToAgentOperationEventType::UpdateMinNeededJobResources:
+                                controller->UpdateMinNeededJobResources();
+                                break;
+
+                            default:
+                                YT_ABORT();
+                        }
+                    }));
+            });
+    }
 
     // TODO(ignat): eliminate this copy/paste from scheduler.cpp somehow.
     TFilteredExecNodeDescriptors FilterExecNodes(const TSchedulingTagFilter& filter) const
