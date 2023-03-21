@@ -29,7 +29,7 @@
 
 В настоящее время для самостоятельной установки доступна версия {{product-name}} без поддержки языка запросов YQL. Соответствующий код будет выложен в свободный доступ в ближайшее время.
 
-Для разворачивания {{product-name}} в Kubernetes рекомендуется воспользоваться [оператором](https://github.com/ytsaurus/yt-k8s-operator). Готовые docker-образы с оператором, UI, серверными компонентами и примерами можно найти на [dockerhub](https://hub.docker.com/orgs/ytsaurus).
+Для разворачивания {{product-name}} в Kubernetes рекомендуется воспользоваться [оператором](https://github.com/ytsaurus/yt-k8s-operator). Готовые docker-образы с оператором, UI, серверными компонентами и примерами можно найти на [dockerhub](https://hub.docker.com/u/ytsaurus).
 
 ### Развёртывание в кластере Kubernetes
 
