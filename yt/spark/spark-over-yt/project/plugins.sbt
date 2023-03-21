@@ -24,7 +24,7 @@ libraryDependencies ++= Seq(
 ).map(_ % circeVersion)
 
 libraryDependencies ++= Seq(
-  "tech.ytsaurus" % "ytsaurus-client" % "1.0.0" excludeAll (
+  "tech.ytsaurus" % "ytsaurus-client" % "1.0.1" excludeAll (
     ExclusionRule(organization = "com.fasterxml.jackson.core")
   )
 )
