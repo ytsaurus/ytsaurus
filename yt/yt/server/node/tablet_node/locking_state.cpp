@@ -53,8 +53,7 @@ void TLockingState::Lock(TTransactionId transactionId, EObjectLockMode lockMode)
             YT_ABORT();
     };
 
-    // TODO(gritukan): Add IsMutationLoggingEnabled().
-    YT_LOG_DEBUG(
+    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
         "Object is locked by transaction (ObjectId: %v, TransactionId: %v, LockMode: %v)",
         ObjectId_,
         transactionId,
@@ -79,8 +78,7 @@ bool TLockingState::Unlock(TTransactionId transactionId, EObjectLockMode lockMod
     }
 
     if (unlocked) {
-        // TODO(gritukan): Add IsMutationLoggingEnabled().
-        YT_LOG_DEBUG(
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Object is unlocked by transaction (ObjectId: %v, TransactionId: %v, LockMode: %v)",
             ObjectId_,
             transactionId,

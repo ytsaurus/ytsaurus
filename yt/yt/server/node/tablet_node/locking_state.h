@@ -13,7 +13,7 @@ public:
     //! Used for persistence only.
     TLockingState() = default;
 
-    TLockingState(TObjectId objectId);
+    explicit TLockingState(TObjectId objectId);
 
     //! Attempts to lock object in given transaction with given lock mode.
     //! Throws on conflict error.
