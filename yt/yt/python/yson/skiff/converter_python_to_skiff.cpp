@@ -362,6 +362,44 @@ private:
     TPythonToSkiffConverter ItemConverter_;
 };
 
+class TTuplePythonToSkiffConverter
+{
+public:
+    explicit TTuplePythonToSkiffConverter(TString description, Py::Object pySchema)
+        : Description_(description)
+    {
+        int i = 0;
+        for (const auto& pyElementSchema : Py::List(GetAttr(pySchema, ElementsFieldName))) {
+            ElementConverters_.push_back(
+                CreatePythonToSkiffConverter(Format("%v.<tuple-element-%v>", description, i), pyElementSchema)
+            );
+            i += 1;
+        }
+    }
+
+    void operator() (PyObject* obj, TCheckedInDebugSkiffWriter* writer)
+    {
+        for (int i = 0; i < std::ssize(ElementConverters_); i++) {
+            auto element = PyTuple_GetItem(obj, i);
+            if (!element) {
+                THROW_ERROR_EXCEPTION("Failed to get item from tuple %Qv",
+                    Description_)
+                    << Py::BuildErrorFromPythonException(/*clear*/ true);
+            }
+            ElementConverters_[i](element, writer);
+        }
+        if (PyErr_Occurred()) {
+            THROW_ERROR_EXCEPTION("Error occurred during iteration over %Qv",
+                Description_)
+                << Py::BuildErrorFromPythonException(/*clear*/ true);
+        }
+    }
+
+private:
+    TString Description_;
+    std::vector<TPythonToSkiffConverter> ElementConverters_;
+};
+
 class TDictPythonToSkiffConverter
 {
 public:
@@ -452,6 +490,7 @@ TPythonToSkiffConverter CreatePythonToSkiffConverterImpl(TString description, Py
     static auto PrimitiveSchemaClass = GetSchemaType("PrimitiveSchema");
     static auto OptionalSchemaClass = GetSchemaType("OptionalSchema");
     static auto ListSchemaClass = GetSchemaType("ListSchema");
+    static auto TupleSchemaClass = GetSchemaType("TupleSchema");
     static auto DictSchemaClass = GetSchemaType("DictSchema");
 
     if (PyObject_IsInstance(pySchema.ptr(), StructSchemaClass.get())) {
@@ -471,6 +510,10 @@ TPythonToSkiffConverter CreatePythonToSkiffConverterImpl(TString description, Py
         return MaybeWrapPythonToSkiffConverter<IsPySchemaOptional>(
             pySchema,
             TListPythonToSkiffConverter(description, pySchema));
+    } else if (PyObject_IsInstance(pySchema.ptr(), TupleSchemaClass.get())) {
+        return MaybeWrapPythonToSkiffConverter<IsPySchemaOptional>(
+            pySchema,
+            TTuplePythonToSkiffConverter(description, pySchema));
     } else if (PyObject_IsInstance(pySchema.ptr(), DictSchemaClass.get())) {
         return MaybeWrapPythonToSkiffConverter<IsPySchemaOptional>(
             pySchema,

@@ -392,6 +392,48 @@ TSkiffToPythonConverter CreateListSkiffToPythonConverter(TString description, Py
     return MaybeWrapSkiffToPythonConverter(pySchema, std::move(converter), forceOptional);
 }
 
+class TTupleSkiffToPythonConverter
+{
+public:
+    explicit TTupleSkiffToPythonConverter(TString description, Py::Object pySchema)
+        : Description_(description)
+    {
+        int i = 0;
+        for (const auto& pyElementSchema: Py::List(GetAttr(pySchema, ElementsFieldName))) {
+            ElementConverters_.push_back(
+                CreateSkiffToPythonConverter(Format("%v.<tuple-element-%v>", description, i), pyElementSchema)
+            );
+        }
+    }
+
+    PyObjectPtr operator() (TCheckedInDebugSkiffParser* parser)
+    {
+        auto tuple = PyObjectPtr(PyTuple_New(std::ssize(ElementConverters_)));
+        if (!tuple) {
+            THROW_ERROR_EXCEPTION("Failed to create tuple for field %Qv",
+                Description_)
+                << Py::BuildErrorFromPythonException(/*clear*/ true);
+        }
+
+        for (int i = 0; i < std::ssize(ElementConverters_); i++) {
+            auto element = ElementConverters_[i](parser);
+            // NB: PyTuple_SetItem - steals py_obj reference
+            PyTuple_SetItem(tuple.get(), i, Py::new_reference_to(element.get()));
+        }
+        return tuple;
+    }
+
+private:
+    TString Description_;
+    std::vector<TSkiffToPythonConverter> ElementConverters_;
+};
+
+TSkiffToPythonConverter CreateTupleSkiffToPythonConverter(TString description, Py::Object pySchema, bool forceOptional = false)
+{
+    auto converter = TTupleSkiffToPythonConverter(description, pySchema);
+    return MaybeWrapSkiffToPythonConverter(pySchema, std::move(converter), forceOptional);
+}
+
 class TDictSkiffToPythonConverter
 {
 public:
@@ -565,6 +607,7 @@ TSkiffToPythonConverter CreateSkiffToPythonConverter(TString description, Py::Ob
     static auto PrimitiveSchemaClass = GetSchemaType("PrimitiveSchema");
     static auto OptionalSchemaClass = GetSchemaType("OptionalSchema");
     static auto ListSchemaClass = GetSchemaType("ListSchema");
+    static auto TupleSchemaClass = GetSchemaType("TupleSchema");
     static auto DictSchemaClass = GetSchemaType("DictSchema");
 
     if (PyObject_IsInstance(pySchema.ptr(), PrimitiveSchemaClass.get())) {
@@ -587,6 +630,8 @@ TSkiffToPythonConverter CreateSkiffToPythonConverter(TString description, Py::Ob
             return CreateStructSkiffToPythonConverter(elementDescription, item, /* forceOptional */ true);
         } else if (PyObject_IsInstance(pySchema.ptr(), ListSchemaClass.get())) {
             return CreateListSkiffToPythonConverter(elementDescription, item, /* forceOptional */ true);
+        } else if (PyObject_IsInstance(pySchema.ptr(), TupleSchemaClass.get())) {
+            return CreateTupleSkiffToPythonConverter(elementDescription, item, /* forceOptional */ true);
         } else if (PyObject_IsInstance(pySchema.ptr(), DictSchemaClass.get())) {
             return CreateDictSkiffToPythonConverter(elementDescription, item, /* forceOptional */ true);
         } else {
@@ -594,6 +639,8 @@ TSkiffToPythonConverter CreateSkiffToPythonConverter(TString description, Py::Ob
         }
     } else if (PyObject_IsInstance(pySchema.ptr(), ListSchemaClass.get())) {
         return CreateListSkiffToPythonConverter(description, pySchema);
+    } else if (PyObject_IsInstance(pySchema.ptr(), TupleSchemaClass.get())) {
+        return CreateTupleSkiffToPythonConverter(description, pySchema);
     } else if (PyObject_IsInstance(pySchema.ptr(), DictSchemaClass.get())) {
         return CreateDictSkiffToPythonConverter(description, pySchema);
     } else {

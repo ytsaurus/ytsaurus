@@ -57,6 +57,7 @@ const TString FieldsFieldName = "_fields";
 const TString PySchemaFieldName = "_py_schema";
 const TString NameFieldName = "_name";
 const TString ItemFieldName = "_item";
+const TString ElementsFieldName = "_elements";
 const TString KeyFieldName = "_key";
 const TString ValueFieldName = "_value";
 const TString StructSchemaFieldName = "_struct_schema";
