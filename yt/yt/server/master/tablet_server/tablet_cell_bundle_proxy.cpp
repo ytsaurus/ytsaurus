@@ -68,7 +68,7 @@ public:
 private:
     using TBase = TCellBundleProxy;
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(BalanceTabletCells);
         return TBase::DoInvoke(context);

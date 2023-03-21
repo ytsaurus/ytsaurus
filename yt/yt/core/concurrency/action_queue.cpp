@@ -560,7 +560,6 @@ private:
 
     private:
         TIntrusivePtr<TSuspendableInvoker> Owner_;
-
     };
 
 

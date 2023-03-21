@@ -31,6 +31,7 @@ DEFINE_REFCOUNTED_TYPE(IParameterizedReassignSolver)
 
 struct TParameterizedReassignSolverConfig
 {
+    bool EnableSwaps = true;
     int MaxMoveActionCount = 0;
     double DeviationThreshold = 0;
     double MinRelativeMetricImprovement = 0;

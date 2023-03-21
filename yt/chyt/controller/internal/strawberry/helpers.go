@@ -1,9 +1,11 @@
 package strawberry
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
 	"regexp"
+	"text/template"
 
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -90,4 +92,13 @@ func specletDiff(oldSpeclet, newSpeclet any) map[string]FieldDiff {
 		}
 	}
 	return diff
+}
+
+func ExecuteTemplate(templateString string, data any) string {
+	t := template.Must(template.New("strawberry").Parse(templateString))
+	b := new(bytes.Buffer)
+	if err := t.Execute(b, data); err != nil {
+		panic(err)
+	}
+	return b.String()
 }

@@ -61,7 +61,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(AddMember);
         DISPATCH_YPATH_SERVICE_METHOD(RemoveMember);

@@ -38,7 +38,7 @@ static const auto NoneYsonFuture = MakeFuture(TYsonString());
 
 IYPathService::TResolveResult TYPathServiceBase::Resolve(
     const TYPath& path,
-    const IServiceContextPtr& context)
+    const IYPathServiceContextPtr& context)
 {
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
@@ -58,26 +58,26 @@ IYPathService::TResolveResult TYPathServiceBase::Resolve(
 
 IYPathService::TResolveResult TYPathServiceBase::ResolveSelf(
     const TYPath& path,
-    const IServiceContextPtr& /*context*/)
+    const IYPathServiceContextPtr& /*context*/)
 {
     return TResolveResultHere{path};
 }
 
 IYPathService::TResolveResult TYPathServiceBase::ResolveAttributes(
     const TYPath& /*path*/,
-    const IServiceContextPtr& /*context*/)
+    const IYPathServiceContextPtr& /*context*/)
 {
     THROW_ERROR_EXCEPTION("Object cannot have attributes");
 }
 
 IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(
     const TYPath& /*path*/,
-    const IServiceContextPtr& /*context*/)
+    const IYPathServiceContextPtr& /*context*/)
 {
     THROW_ERROR_EXCEPTION("Object cannot have children");
 }
 
-void TYPathServiceBase::Invoke(const IServiceContextPtr& context)
+void TYPathServiceBase::Invoke(const IYPathServiceContextPtr& context)
 {
     TError error;
     try {
@@ -96,15 +96,15 @@ void TYPathServiceBase::Invoke(const IServiceContextPtr& context)
     }
 }
 
-void TYPathServiceBase::BeforeInvoke(const IServiceContextPtr& /*context*/)
+void TYPathServiceBase::BeforeInvoke(const IYPathServiceContextPtr& /*context*/)
 { }
 
-bool TYPathServiceBase::DoInvoke(const IServiceContextPtr& /*context*/)
+bool TYPathServiceBase::DoInvoke(const IYPathServiceContextPtr& /*context*/)
 {
     return false;
 }
 
-void TYPathServiceBase::AfterInvoke(const IServiceContextPtr& /*context*/)
+void TYPathServiceBase::AfterInvoke(const IYPathServiceContextPtr& /*context*/)
 { }
 
 void TYPathServiceBase::DoWriteAttributesFragment(
@@ -225,7 +225,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupportsMultisetAttributes, Multiset)
     context->SetRequestInfo("KeyCount: %v", request->subrequests_size());
 
     auto ctx = New<TCtxMultisetAttributes>(
-        context->GetUnderlyingContext(),
+        context->GetUnderlyingYPathContext(),
         context->GetOptions());
     ctx->DeserializeRequest();
 
@@ -433,7 +433,7 @@ TSupportsAttributes::TSupportsAttributes()
 
 IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
     const TYPath& path,
-    const IServiceContextPtr& context)
+    const IYPathServiceContextPtr& context)
 {
     const auto& method = context->GetMethod();
     if (method != "Get" &&
@@ -1611,6 +1611,7 @@ void SetNodeFromProducer(
 
 class TYPathServiceContext
     : public TServiceContextBase
+    , public IYPathServiceContext
 {
 public:
     using TServiceContextBase::TServiceContextBase;
@@ -1716,7 +1717,7 @@ protected:
     }
 };
 
-IServiceContextPtr CreateYPathContext(
+IYPathServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
     NLogging::TLogger logger,
     NLogging::ELogLevel logLevel)
@@ -1729,7 +1730,7 @@ IServiceContextPtr CreateYPathContext(
         logLevel);
 }
 
-IServiceContextPtr CreateYPathContext(
+IYPathServiceContextPtr CreateYPathContext(
     std::unique_ptr<TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
     NLogging::TLogger logger,
@@ -1754,14 +1755,14 @@ public:
         : UnderlyingService_(std::move(underlyingService))
     { }
 
-    void Invoke(const IServiceContextPtr& /*context*/) override
+    void Invoke(const IYPathServiceContextPtr& /*context*/) override
     {
         YT_ABORT();
     }
 
     TResolveResult Resolve(
         const TYPath& path,
-        const IServiceContextPtr& /*context*/) override
+        const IYPathServiceContextPtr& /*context*/) override
     {
         NYPath::TTokenizer tokenizer(path);
         if (tokenizer.Advance() != NYPath::ETokenType::Slash) {

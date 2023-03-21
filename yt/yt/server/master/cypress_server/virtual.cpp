@@ -42,7 +42,6 @@
 
 namespace NYT::NCypressServer {
 
-using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
@@ -65,7 +64,7 @@ TVirtualMulticellMapBase::TVirtualMulticellMapBase(
     , OwningNode_(owningNode)
 { }
 
-bool TVirtualMulticellMapBase::DoInvoke(const IServiceContextPtr& context)
+bool TVirtualMulticellMapBase::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(List);
@@ -76,7 +75,7 @@ bool TVirtualMulticellMapBase::DoInvoke(const IServiceContextPtr& context)
 
 IYPathService::TResolveResult TVirtualMulticellMapBase::ResolveRecursive(
     const TYPath& path,
-    const IServiceContextPtr& context)
+    const IYPathServiceContextPtr& context)
 {
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
@@ -623,12 +622,12 @@ private:
     const TYPathServiceProducer Producer_;
 
 
-    static EPermission PermissionFromRequest(const IServiceContextPtr& context)
+    static EPermission PermissionFromRequest(const IYPathServiceContextPtr& context)
     {
         return IsRequestMutating(context->RequestHeader()) ? EPermission::Write : EPermission::Read;
     }
 
-    TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) override
+    TResolveResult Resolve(const TYPath& path, const IYPathServiceContextPtr& context) override
     {
         NYPath::TTokenizer tokenizer(path);
         tokenizer.Advance();
@@ -651,7 +650,7 @@ private:
         }
     }
 
-    TResolveResult ResolveSelf(const TYPath& path, const IServiceContextPtr& context) override
+    TResolveResult ResolveSelf(const TYPath& path, const IYPathServiceContextPtr& context) override
     {
         auto service = GetService();
         const auto& method = context->GetMethod();
@@ -669,7 +668,7 @@ private:
         }
     }
 
-    TResolveResult ResolveRecursive(const TYPath& path, const IServiceContextPtr& /*context*/) override
+    TResolveResult ResolveRecursive(const TYPath& path, const IYPathServiceContextPtr& /*context*/) override
     {
         auto service = GetService();
         NYPath::TTokenizer tokenizer(path);

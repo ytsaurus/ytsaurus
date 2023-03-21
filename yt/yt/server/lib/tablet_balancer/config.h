@@ -20,6 +20,7 @@ class TParameterizedBalancingConfig
 {
 public:
     TString Metric;
+    std::optional<bool> EnableSwaps;
     std::optional<int> MaxActionCount;
     std::optional<double> DeviationThreshold;
     std::optional<double> MinRelativeMetricImprovement;

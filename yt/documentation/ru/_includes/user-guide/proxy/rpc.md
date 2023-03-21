@@ -5,9 +5,6 @@
 ## С++ { #c_plus_plus }
 
 Пример на [Github](https://github.com/ytsaurus/ytsaurus/blob/main/yt/examples/rpc_proxy_sample/main.cpp)
-{{% if audience == internal %}}| ----- | Интерфейс клиента | Создание подключения  | Примеры   | 
-|------ | ----------------- | --------------------- | --------- |
-| Аркадия | [Ссылка](https://a.yandex-team.ru/arc/trunk/arcadia/yt/yt/client/api/client.h) | [Ссылка](https://a.yandex-team.ru/arc//trunk/arcadia/yt/yt/client/api/rpc_proxy/connection.h) | [Ссылка](https://a.yandex-team.ru/arc/trunk/arcadia/yt/yt/experiments/rpc_proxy_sample/main.cpp) |{{% endif %}}
 
 В примере реализована программа, через которую можно работать с динамическими таблицами в интерактивном режиме. 
 

@@ -25,9 +25,9 @@ protected:
 
     virtual IYPathServicePtr FindItemService(TStringBuf key) const = 0;
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const IYPathServiceContextPtr& context) override;
 
-    TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
+    TResolveResult ResolveRecursive(const TYPath& path, const IYPathServiceContextPtr& context) override;
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
     void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
     void RemoveRecursive(
@@ -96,9 +96,9 @@ protected:
     virtual i64 GetSize() const = 0;
     virtual IYPathServicePtr FindItemService(int index) const = 0;
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const IYPathServiceContextPtr& context) override;
 
-    TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
+    TResolveResult ResolveRecursive(const TYPath& path, const IYPathServiceContextPtr& context) override;
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
 
     // TSupportsAttributes overrides

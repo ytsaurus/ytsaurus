@@ -248,7 +248,7 @@ private:
         THROW_ERROR_EXCEPTION("Changing storage settings for journal nodes is forbidden");
     }
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(UpdateStatistics);
         DISPATCH_YPATH_SERVICE_METHOD(Seal);

@@ -291,7 +291,7 @@ private:
     THashMap<TString, INodePtr> KeyToChild_;
     THashMap<INodePtr, TString> ChildToKey_;
 
-    bool DoInvoke(const IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(List);
         return TEphemeralNodeBase::DoInvoke(context);
@@ -299,7 +299,7 @@ private:
 
     IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
-        const IServiceContextPtr& context) override
+        const IYPathServiceContextPtr& context) override
     {
         return TMapNodeMixin::ResolveRecursive(path, context);
     }
@@ -421,7 +421,7 @@ private:
 
     TResolveResult ResolveRecursive(
         const TYPath& path,
-        const IServiceContextPtr& context) override
+        const IYPathServiceContextPtr& context) override
     {
         return TListNodeMixin::ResolveRecursive(path, context);
     }

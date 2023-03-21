@@ -44,7 +44,6 @@
 namespace NYT::NScheduler {
 
 using namespace NConcurrency;
-using namespace NRpc;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
@@ -1187,7 +1186,7 @@ private:
 
         TResolveResult ResolveSelf(
             const TYPath& path,
-            const IServiceContextPtr& context) final
+            const IYPathServiceContextPtr& context) final
         {
             if (context->GetMethod() == "List") {
                 auto typedContext = New<TCtxGet>(context, NRpc::THandlerInvocationOptions{});
@@ -1220,14 +1219,14 @@ private:
 
         IYPathService::TResolveResult ResolveAttributes(
             const TYPath& path,
-            const IServiceContextPtr& context) final
+            const IYPathServiceContextPtr& context) final
         {
             return ResolveSelf("/@" + path, context);
         }
 
         IYPathService::TResolveResult ResolveRecursive(
             const TYPath& path,
-            const IServiceContextPtr& /*context*/) final
+            const IYPathServiceContextPtr& /*context*/) final
         {
             auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshotForOrchid();
 
@@ -1267,7 +1266,7 @@ private:
             return TResolveResultThere{std::move(service), NYPath::TYPath{tokenizer.GetSuffix()}};
         }
 
-        bool DoInvoke(const IServiceContextPtr& context) final
+        bool DoInvoke(const IYPathServiceContextPtr& context) final
         {
             DISPATCH_YPATH_SERVICE_METHOD(Get);
             DISPATCH_YPATH_SERVICE_METHOD(List);

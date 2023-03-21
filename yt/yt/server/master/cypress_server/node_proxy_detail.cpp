@@ -68,7 +68,6 @@ using namespace NYTree;
 using namespace NLogging;
 using namespace NYson;
 using namespace NYPath;
-using namespace NRpc;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCellMaster;
@@ -828,7 +827,7 @@ void TNontemplateCypressNodeProxyBase::GetBasicAttributes(TGetBasicAttributesCon
     context->ContentRevision = node->GetContentRevision();
 }
 
-void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IServiceContextPtr& context)
+void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
 {
     AccessTrackingSuppressed_ = GetSuppressAccessTracking(context->RequestHeader());
     ExpirationTimeoutRenewalSuppressed_ = GetSuppressExpirationTimeoutRenewal(context->RequestHeader());
@@ -836,18 +835,18 @@ void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IServiceContextPtr& co
     TObjectProxyBase::BeforeInvoke(context);
 }
 
-void TNontemplateCypressNodeProxyBase::AfterInvoke(const IServiceContextPtr& context)
+void TNontemplateCypressNodeProxyBase::AfterInvoke(const IYPathServiceContextPtr& context)
 {
     SetAccessed();
     SetTouched();
     TObjectProxyBase::AfterInvoke(context);
 }
 
-bool TNontemplateCypressNodeProxyBase::DoInvoke(const NRpc::IServiceContextPtr& context)
+bool TNontemplateCypressNodeProxyBase::DoInvoke(const IYPathServiceContextPtr& context)
 {
     ValidateAccessTransaction();
 
-    auto doInvoke = [&] (const NRpc::IServiceContextPtr& context) {
+    auto doInvoke = [&] (const IYPathServiceContextPtr& context) {
         DISPATCH_YPATH_SERVICE_METHOD(Lock);
         DISPATCH_YPATH_SERVICE_METHOD(Create);
         DISPATCH_YPATH_SERVICE_METHOD(Copy);
@@ -2692,7 +2691,7 @@ std::optional<TString> TMapNodeProxy::FindChildKey(const IConstNodePtr& child)
         Transaction_);
 }
 
-bool TMapNodeProxy::DoInvoke(const NRpc::IServiceContextPtr& context)
+bool TMapNodeProxy::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(List);
     return TBase::DoInvoke(context);
@@ -2723,7 +2722,7 @@ int TMapNodeProxy::GetMaxKeyLength() const
 
 IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
     const TYPath& path,
-    const IServiceContextPtr& context)
+    const IYPathServiceContextPtr& context)
 {
     return TMapNodeMixin::ResolveRecursive(path, context);
 }
@@ -3005,7 +3004,7 @@ int TListNodeProxy::GetMaxChildCount() const
 
 IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
     const TYPath& path,
-    const IServiceContextPtr& context)
+    const IYPathServiceContextPtr& context)
 {
     return TListNodeMixin::ResolveRecursive(path, context);
 }

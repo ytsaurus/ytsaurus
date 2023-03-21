@@ -1,6 +1,6 @@
 # Starting a Spark cluster
 
-This section contains expanded instructions for starting a Spark cluster.  Basic start operations are described in the [Quick start](../quick-start.md) section.
+This section contains expanded instructions for starting a Spark cluster.  Basic start operations are described in the [Quick start](../../../../../user-guide/data-processing/spyt/quick-start.md) section.
 
 {% note warning "Attention!" %}
 

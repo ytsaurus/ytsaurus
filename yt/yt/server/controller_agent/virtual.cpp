@@ -19,7 +19,6 @@ namespace NYT::NControllerAgent {
 
 using namespace NYTree;
 using namespace NYson;
-using namespace NRpc;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NChunkClient;
@@ -34,7 +33,7 @@ TVirtualStaticTable::TVirtualStaticTable(const THashSet<NChunkClient::TInputChun
     , NodeDirectory_(std::move(nodeDirectory))
 { }
 
-bool TVirtualStaticTable::DoInvoke(const IServiceContextPtr& context)
+bool TVirtualStaticTable::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(GetBasicAttributes);

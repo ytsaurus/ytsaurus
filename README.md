@@ -45,7 +45,6 @@ You can read [post about YTsaurus](https://medium.com/p/42e7f5fa5fc6) or check v
 * Easy migration for ready-made solutions
 
 ## Getting Started
-
 Try YTsaurus cluster [using Kubernetes](https://ytsaurus.tech/docs/en/overview/try-yt#kubernetes) or try our [online demo](https://ytsaurus.tech).
 
 ## How to Build from Source Code

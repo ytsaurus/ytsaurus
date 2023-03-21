@@ -10,7 +10,6 @@ ARG CLICKHOUSE_TRAMPOLINE_PATH=clickhouse-trampoline
 ARG YTSERVER_CLICKHOUSE_PATH=ytserver-clickhouse
 ARG YTSERVER_LOG_TAILER_PATH=ytserver-log-tailer
 ARG INIT_OPERATION_ARCHIVE_PATH=init_operation_archive
-ARG YT_PATH=yt
 
 ARG YTSERVER_ALL_CREDITS_PATH=ytserver-all.CREDITS
 ARG CHYT_CONTROLLER_CREDITS_PATH=chyt-controller.CREDITS
@@ -62,7 +61,6 @@ COPY ${CHYT_CONTROLLER_CREDITS_PATH} /usr/bin/chyt-controller.CREDITS
 COPY ${YTSERVER_CLICKHOUSE_CREDITS_PATH} /usr/bin/ytserver-clickhouse.CREDITS
 COPY ${YTSERVER_LOG_TAILER_CREDITS_PATH} /usr/bin/ytserver-log-tailer.CREDITS
 
-# TODO: remove vim and lynx
 RUN apt-get update && apt-get install -y \
   curl \
   less \
@@ -73,26 +71,19 @@ RUN apt-get update && apt-get install -y \
   dnsutils \
   iputils-ping \
   lsb-release \
-  openjdk-11-jdk \
-  vim \
-  lynx
+  openjdk-11-jdk
 
 # This is required for jobs, using yson format in python 3.
-# TODO: To be replaced by public pip.
-# https://pypi.yandex-team.ru/simple/ \
-RUN pip install -i https://test.pypi.org/simple/ \
-    --extra-index-url https://pypi.org/simple/ \
+RUN pip install -i https://pypi.org/simple/ \
     ytsaurus-client \
     ytsaurus-yson
 
 # Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
 RUN ln -s /opt/conda/bin/python3.7 /usr/bin/python3 -f
 
-RUN /opt/conda/bin/python3.7 -m pip install -i https://test.pypi.org/simple/ \
-    --extra-index-url https://pypi.yandex-team.ru/simple/ \
+RUN /opt/conda/bin/python3.7 -m pip install -i https://pypi.org/simple/ \
     ytsaurus-client \
-    ytsaurus-local \
-    ytsaurus-spyt==1.67.3
+    ytsaurus-local
 
 # Local built package with native driver bindings
 COPY ${DRIVER_BINDINGS_PACKAGE_PATH} ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl

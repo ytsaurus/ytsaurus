@@ -446,7 +446,7 @@ private:
         int Index = -1;
         bool TentativelyRemote = false;
         EExecutionSessionSubrequestType Type = EExecutionSessionSubrequestType::Undefined;
-        IServiceContextPtr RpcContext;
+        IYPathServiceContextPtr RpcContext;
         std::unique_ptr<TMutation> Mutation;
         std::optional<TObjectServiceCache::TCookie> CacheCookie;
         NRpc::NProto::TRequestHeader RequestHeader;

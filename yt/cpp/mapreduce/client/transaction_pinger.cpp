@@ -163,7 +163,7 @@ public:
 
     void RemoveTransaction(const TPingableTransaction& pingableTx) override
     {
-        NConcurrency::TPeriodicExecutorPtr periodic;
+        std::shared_ptr<NConcurrency::TPeriodicExecutorPtr> periodic;
         {
             auto guard = Guard(SpinLock_);
 
@@ -171,10 +171,10 @@ public:
 
             YT_VERIFY(it != Transactions_.end());
 
-            periodic = std::move(*it->second);
+            periodic = std::move(it->second);
             Transactions_.erase(it);
         }
-        NConcurrency::WaitUntilSet(periodic->Stop());
+        NConcurrency::WaitUntilSet((*periodic)->Stop());
     }
 
 private:

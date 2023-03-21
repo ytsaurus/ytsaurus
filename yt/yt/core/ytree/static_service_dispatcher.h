@@ -38,7 +38,7 @@ private:
 
     TResolveResult ResolveRecursive(
         const TYPath& path,
-        const NRpc::IServiceContextPtr& context) override;
+        const IYPathServiceContextPtr& context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

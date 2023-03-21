@@ -13,7 +13,6 @@ namespace NYT::NTabletServer {
 using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NObjectServer;
-using namespace NRpc;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
@@ -145,7 +144,7 @@ private:
         return TBase::DoGetBuiltinAttribute(key, consumer, /*showTabletAttributes*/ true);
     }
 
-    bool DoInvoke(const IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
         return TBase::DoInvoke(context);

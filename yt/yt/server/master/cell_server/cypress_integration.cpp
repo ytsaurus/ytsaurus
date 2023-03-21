@@ -19,7 +19,6 @@
 namespace NYT::NCellServer {
 
 using namespace NYPath;
-using namespace NRpc;
 using namespace NYson;
 using namespace NYTree;
 using namespace NObjectClient;
@@ -95,7 +94,7 @@ public:
 
     TResolveResult ResolveSelf(
         const TYPath& path,
-        const IServiceContextPtr& context) override
+        const IYPathServiceContextPtr& context) override
     {
         const auto& method = context->GetMethod();
         if (method == "Remove") {
@@ -107,7 +106,7 @@ public:
 
     IYPathService::TResolveResult ResolveAttributes(
         const TYPath& path,
-        const IServiceContextPtr& /*context*/) override
+        const IYPathServiceContextPtr& /*context*/) override
     {
         return TResolveResultThere{GetTargetProxy(), "/@" + path};
     }

@@ -24,6 +24,7 @@ type AgentInfo struct {
 	// TODO(dakovalkov): remove after YT-17557
 	RobotUsername         string
 	DefaultNetworkProject *string
+	ClusterURL            string
 }
 
 type OpletOptions struct {
@@ -823,7 +824,7 @@ type OpletStatus struct {
 
 func (oplet *Oplet) Status() (s OpletStatus, err error) {
 	if oplet.persistentState.YTOpID != yt.NullOperationID {
-		s.OperationURL = yson.ValueOf(operationURL(oplet.agentInfo.Proxy, oplet.persistentState.YTOpID)).(string)
+		s.OperationURL = operationStringURL(oplet.agentInfo.ClusterURL, oplet.persistentState.YTOpID)
 		s.OperationState = oplet.persistentState.YTOpState
 
 		if oplet.strawberrySpeclet.ActiveOrDefault() {

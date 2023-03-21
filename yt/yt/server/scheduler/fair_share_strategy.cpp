@@ -641,7 +641,7 @@ public:
         }
 
         for (const auto& [treeName, options] : runtimeParameters->SchedulingOptionsPerPoolTree) {
-            auto offloadingSettings = GetTree(treeName)->GetOffloadingSettingsFor(options->Pool.GetPool());
+            auto offloadingSettings = GetTree(treeName)->GetOffloadingSettingsFor(options->Pool.GetSpecifiedPoolName());
             for (const auto& [offloadingPoolTreeName, offloadingPoolSettings] : offloadingSettings) {
                 if (runtimeParameters->SchedulingOptionsPerPoolTree.contains(offloadingPoolTreeName)) {
                     YT_LOG_DEBUG("Ignoring offloading pool since offloading pool tree is already used (OffloadingPoolTree: %v, OffloadingPool: %v, OperationId: %v)",

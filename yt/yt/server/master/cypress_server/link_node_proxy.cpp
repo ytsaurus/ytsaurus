@@ -13,7 +13,6 @@ namespace NYT::NCypressServer {
 using namespace NYTree;
 using namespace NYPath;
 using namespace NYson;
-using namespace NRpc;
 using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NCellMaster;
@@ -34,7 +33,7 @@ public:
 
     TResolveResult Resolve(
         const TYPath& path,
-        const IServiceContextPtr& context) override
+        const IYPathServiceContextPtr& context) override
     {
         auto propagate = [&] {
             const auto& objectManager = Bootstrap_->GetObjectManager();

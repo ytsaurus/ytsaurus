@@ -1,32 +1,110 @@
 The following authors have created the source code of "YTsaurus" published and distributed by YANDEX LLC as the owner.
 
+Credits for YQL go to YDB team: https://github.com/ydb-platform/ydb/blob/main/AUTHORS.
+
 This list is incomplete and will be expanded and revised in the future.
 
+Aleksandra Belousova <sashbel94@gmail.com>
 Aleksandra Zhikhareva <aleksandra-zh@ytsaurus.tech>
+Aleksandr Priymak
+Alexander Dmitriev <monster@yandex-team.com>
+Alexander Kernazhytski
+Alexander Kolodezny <alexkolodezny@yandex-team.com>
 Alexander Kozhikhov <akozhikhov@ytsaurus.tech>
+Alexander Tiunov
 Alexandra Latysheva <alexelexa@ytsaurus.tech>
+Alexey Akinshchikov 
 Alexey Filinovich <aleex.fil@yandex.com>
 Alexey Kristev <kristevalex@gmail.com>
+Alexey Lukyanchikov <lukyan@ytsaurus.tech>
+Alexey Ozeritskiy <aozeritsky@gmail.com>
+Alexey Ponomarev
+Alexey Sevastianov
+Alexey Shishkin <alex-shishkin@ytsaurus.tech>
 Alexey Tinarsky <tinarsky@gmail.com>
+Amir Shakurov <shakurov@ytsaurus.tech>
 Andrey Chulkov <achulkov2@ytsaurus.tech>
+Andrey Grunau <andozer@ytsaurus.tech>
+Andrey Kashin
 Andrey Lanin <andrey@lanin.dev>
+Andrey Rivkin <arivkin@ytsaurus.tech>
+Andrey Saitgalin
+Andrey Shetinin <aschetinin@yandex-team.com>
+Andrey Tonkikh
 Andrey Zvorygin <don-dron@ytsaurus.tech>
+Anton Kvasha <amkvasha@yandex.ru>
+Anzor Apshev <capone212@ytsaurus.tech>
 Arseny Balovanov <verytable@ytsaurus.tech>
+Artemiy Matrosov 
+Bulat Gaifullin <bulatman@yandex-team.com> 
+Diana Arapova
 Dimitris Golear <dgolear@ytsaurus.tech>
 Dmitrii Kovalkov <dakovalkov@ytsaurus.tech>
+Dmitry Akulov
 Dmitry Ermolov <dmitry.ermolov@gmail.com>
+Dmitry Orlov <orlovorlov@ytsaurus.tech>
+Dmitry Panin
 Dmitry Torilov <dtorilov@ytsaurus.tech>
+Egor Gutrov
 Egor Shcherbin <eshcherbin@ytsaurus.tech>
+Evgeny Kazakov
+Evgeny Taranov
+Fedor Korotkiy
 Fedor Kuranov <deep@ytsaurus.tech>
+George Khalin
+Grigory Demchenko	
 Grigory Reznikov <gritukan@gmail.com>
 Ignat Kolesnichenko <ignat1990@gmail.com>
+Ilia Pauzner <ilpauzner@gmail.com>
+Ilya Ivanashev
+Ilya Soin
+Ilya Popovnin
+Ivan Barantsev <h0pless@ytsaurus.tech>
+Ivan Pouzyrevsky <sandello@yandex-team.com>, <sandello@gmail.com>
+Ivan Smirnov <ifsmirnov@ytsaurus.tech>
+Kirill Kovalev
+Konstantin Khlebnikov
+Konstantin Malov <k-malov@ytsaurus.tech>
 Konstantin Pogorelov <pogorelov@ytsaurus.tech>
-Malinovskii Vladimir <galqiwi@gmail.com>
+Konstantin Shishov <shishovka@ytsaurus.tech>
+Lev Vysotsky
 Maxim Akhmedov <max42@ytsaurus.tech>
 Maxim Babenko <maxim.babenko@gmail.com>
+Maxim Efremov <ma-efremoff@ytsaurus.tech>
+Maxim Gorbunov <m.v.gorbunov@gmail.com>
+Mikhail Babich <mbabich@yandex-team.com>
+Mikhail Roizner
+Mikhail Turnovskiy <joyfolk@gmail.com>
 Nadezhda Savchenko <yak.nadya@gmail.com>
 Natalia Chizhonkova <gudqeit@ytsaurus.tech>
+Nikita Morozov
+Nikita Zvonkov
+Nikolay Gaivoronskiy <cezarnik@yandex-team.com>
+Pavel Kiselyov
+Pavel Ostyakov
+Pavel Sushin <psushin@ytsaurus.tech>
+Renat Khairetdinov <renadeen@ytsaurus.tech>
+Roman Lipovskiy
 Ruslan Savchenko <savrus@ytsaurus.tech>
 Sergei Fomin <se4min@ytsaurus.tech>
+Sergey Berdnikov <s-berdnikov@ytsaurus.tech>
 Sergey Galtsev <galtsev@ytsaurus.tech>
+Sergey Puzyrev
+Sergey Zveroboev <szveroboyev@yandex-team.com>
+Stepan Kalinin <mrkastep@gmail.com>
+Timur Iskhakov <me@timur.is>
+Timur Sufiev
 Vasilii Kalmykov <kvk1920@ytsaurus.tech>
+Vasiliy Morozov <greatdraken@gmail.com>
+Vadim Skipin
+Veronika Ivannikova
+Vladimir Goncharov
+Vladimir Malinovskii <galqiwi@gmail.com>
+Vladimir Ogorodnikov
+Vladislav Bidzilya <bidzilya@yandex-team.com>
+Vladislav Klyachin
+Yaroslav Leonov <alximik@yandex-team.com>
+Yaroslav Rebenko <rebenkoy@ytsaurus.tech>
+Yaroslav Zhavoronkov
+Yuriy Diachenko <yurial@ytsaurus.tech>
+Yuriy Pechatnov <pechatnov@yandex-team.com>

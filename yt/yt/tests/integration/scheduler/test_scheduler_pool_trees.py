@@ -1967,6 +1967,33 @@ class TestMultiTreeOperations(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    @authors("renadeen")
+    def test_offloading_of_ephemeral_pools(self):
+        create_pool(
+            "ephemeral_hub",
+            pool_tree="default",
+            attributes={
+                "create_ephemeral_subpools": True,
+                "offloading_settings": {
+                    "offload_tree": {
+                        "pool": "offload_pool",
+                    }
+                }
+            })
+
+        create_custom_pool_tree_with_one_node("offload_tree")
+        create_pool("offload_pool", pool_tree="offload_tree")
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "ephemeral_hub"})
+
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/ephemeral_hub$root"))
+
+        cloud_tree_op_path = scheduler_orchid_operation_path(op.id, "offload_tree")
+        wait(lambda: get(cloud_tree_op_path + "/pool", default="") == "offload_pool")
+
+        release_breakpoint()
+        op.track()
+
 
 ##################################################################
 

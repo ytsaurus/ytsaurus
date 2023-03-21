@@ -207,7 +207,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
         });
 }
 
-void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
+void TObjectProxyBase::Invoke(const IYPathServiceContextPtr& context)
 {
     const auto& requestHeader = context->RequestHeader();
 
@@ -376,7 +376,7 @@ bool TObjectProxyBase::ShouldHideAttributes()
     return true;
 }
 
-bool TObjectProxyBase::DoInvoke(const IServiceContextPtr& context)
+bool TObjectProxyBase::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetBasicAttributes);
     DISPATCH_YPATH_SERVICE_METHOD(Get);
@@ -1062,7 +1062,7 @@ TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase
     CustomAttributes_ = CustomAttributesImpl_.Get();
 }
 
-bool TNontemplateNonversionedObjectProxyBase::DoInvoke(const IServiceContextPtr& context)
+bool TNontemplateNonversionedObjectProxyBase::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Remove);
     return TObjectProxyBase::DoInvoke(context);

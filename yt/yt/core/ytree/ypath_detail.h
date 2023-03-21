@@ -26,14 +26,47 @@ namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IYPathServiceContext
+    : public virtual NRpc::IServiceContext
+{
+    // YPathService-specific methods will be placed here.
+};
+
+DEFINE_REFCOUNTED_TYPE(IYPathServiceContext)
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRequestMessage, class TResponseMessage>
+class TTypedYPathServiceContext
+    : public NRpc::TTypedServiceContext<TRequestMessage, TResponseMessage>
+    , public IYPathServiceContext
+{
+    using TBase = NRpc::TTypedServiceContext<TRequestMessage, TResponseMessage>;
+
+public:
+    using typename TBase::TTypedRequest;
+    using typename TBase::TTypedResponse;
+
+    TTypedYPathServiceContext(
+        IYPathServiceContextPtr context,
+        const NRpc::THandlerInvocationOptions& options);
+
+    IYPathServiceContext* GetUnderlyingYPathContext();
+
+protected:
+    IYPathServiceContext* const UnderlyingYPathContext_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define DECLARE_YPATH_SERVICE_METHOD(ns, method) \
-    using TCtx##method = ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> ; \
+    using TCtx##method = ::NYT::NYTree::TTypedYPathServiceContext<ns::TReq##method, ns::TRsp##method>; \
     using TCtx##method##Ptr = ::NYT::TIntrusivePtr<TCtx##method>; \
     using TReq##method = TCtx##method::TTypedRequest; \
     using TRsp##method = TCtx##method::TTypedResponse; \
     \
     void method##Thunk( \
-        const ::NYT::NRpc::IServiceContextPtr& context, \
+        const ::NYT::NYTree::IYPathServiceContextPtr& context, \
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
         auto typedContext = ::NYT::New<TCtx##method>(context, options); \
@@ -71,8 +104,8 @@ class TYPathServiceBase
     : public virtual IYPathService
 {
 public:
-    void Invoke(const NRpc::IServiceContextPtr& context) override;
-    TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
+    void Invoke(const IYPathServiceContextPtr& context) override;
+    TResolveResult Resolve(const TYPath& path, const IYPathServiceContextPtr& context) override;
     void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
         const TAttributeFilter& attributeFilter,
@@ -80,13 +113,13 @@ public:
     bool ShouldHideAttributes() override;
 
 protected:
-    virtual void BeforeInvoke(const NRpc::IServiceContextPtr& context);
-    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context);
-    virtual void AfterInvoke(const NRpc::IServiceContextPtr& context);
+    virtual void BeforeInvoke(const IYPathServiceContextPtr& context);
+    virtual bool DoInvoke(const IYPathServiceContextPtr& context);
+    virtual void AfterInvoke(const IYPathServiceContextPtr& context);
 
-    virtual TResolveResult ResolveSelf(const TYPath& path, const NRpc::IServiceContextPtr& context);
-    virtual TResolveResult ResolveAttributes(const TYPath& path, const NRpc::IServiceContextPtr& context);
-    virtual TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context);
+    virtual TResolveResult ResolveSelf(const TYPath& path, const IYPathServiceContextPtr& context);
+    virtual TResolveResult ResolveAttributes(const TYPath& path, const IYPathServiceContextPtr& context);
+    virtual TResolveResult ResolveRecursive(const TYPath& path, const IYPathServiceContextPtr& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,7 +233,7 @@ protected:
 
     TResolveResult ResolveAttributes(
         const NYPath::TYPath& path,
-        const NRpc::IServiceContextPtr& context) override;
+        const IYPathServiceContextPtr& context) override;
 
     void GetAttribute(
         const TYPath& path,
@@ -342,12 +375,12 @@ void SetNodeFromProducer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServiceContextPtr CreateYPathContext(
+IYPathServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
     NLogging::TLogger logger = NLogging::TLogger(),
     NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug);
 
-NRpc::IServiceContextPtr CreateYPathContext(
+IYPathServiceContextPtr CreateYPathContext(
     std::unique_ptr<NRpc::NProto::TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
     NLogging::TLogger logger = NLogging::TLogger(),
@@ -358,3 +391,8 @@ IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTree
+
+
+#define YPATH_DETAIL_INL_H_
+#include "ypath_detail-inl.h"
+#undef YPATH_DETAIL_INL_H_

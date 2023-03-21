@@ -1,5 +1,7 @@
 module go.ytsaurus.tech/library/go/blockcodecs
 
+go 1.18
+
 require (
 	github.com/andybalholm/brotli v1.0.4
 	github.com/golang/snappy v0.0.4
@@ -18,10 +20,3 @@ require (
 	golang.org/x/tools v0.1.12 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-go 1.18
-
-replace github.com/cactus/go-statsd-client => github.com/cactus/go-statsd-client v3.2.1+incompatible
-
-// otel prometheusexporter has transitive dependencies on docker, pin old one, see CONTRIB-2759
-replace github.com/docker/docker => github.com/docker/docker v17.12.0-ce-rc1.0.20190822180741-9552f2b2fdde+incompatible

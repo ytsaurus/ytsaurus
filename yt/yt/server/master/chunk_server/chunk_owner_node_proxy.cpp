@@ -602,7 +602,7 @@ ENodeType TChunkOwnerNodeProxy::GetType() const
     return ENodeType::Entity;
 }
 
-bool TChunkOwnerNodeProxy::DoInvoke(const NRpc::IServiceContextPtr& context)
+bool TChunkOwnerNodeProxy::DoInvoke(const IYPathServiceContextPtr& context)
 {
     YT_LOG_ACCESS_IF(
         IsAccessLoggedMethod(context->GetMethod()),

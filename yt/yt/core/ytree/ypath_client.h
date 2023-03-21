@@ -196,7 +196,7 @@ bool IsRequestMutating(const NRpc::NProto::TRequestHeader& header);
 //! ultimate endpoint responsible for serving a given request.
 void ResolveYPath(
     const IYPathServicePtr& rootService,
-    const NRpc::IServiceContextPtr& context,
+    const IYPathServiceContextPtr& context,
     IYPathServicePtr* suffixService,
     TYPath* suffixPath);
 
@@ -209,7 +209,7 @@ ExecuteVerb(
 //! Asynchronously executes a request against a given service.
 void ExecuteVerb(
     const IYPathServicePtr& service,
-    const NRpc::IServiceContextPtr& context);
+    const IYPathServiceContextPtr& context);
 
 //! Asynchronously executes a typed YPath request against a given service.
 template <class TTypedRequest>

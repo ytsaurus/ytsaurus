@@ -14,7 +14,7 @@
 
 ### Клиент и глобальный клиент { #client }
 
-Функции и классы доступны из глобального окружения библиотеки модуля yt.wrapper и могут менять его глобальное состояние. Например, сохраняют туда текущую транзакцию. Также, меняя yt.config, вы меняете глобальную конфигурацию. Если вы хотите иметь возможность работать из нескольких независимых (по-разному сконфигурированных) клиентов, то используйте класс [YtClient](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient). У данного класса доступны практически все функции из модуля [yt.wrapper](https://pydoc.ytsaurus.tech/yt.wrapper.html), то есть вы можете вызывать `client.run_map`, `client.read_table_structured`, `with client.Transaction()` и так далее. Обратите внимание, что переменные окружения `YT_PROXY`, `YT_TOKEN` и остальные задают только конфигурацияю глобального клиента, то есть влияют только на [yt.wrapper.config](https://pydoc.ytsaurus.tech/yt.wrapper.html#module-yt.wrapper.config), но не на конфигурацию явно созданных экземпляров `YtClient`.
+Функции и классы доступны из глобального окружения библиотеки модуля yt.wrapper и могут менять его глобальное состояние. Например, сохраняют туда текущую транзакцию. Также, меняя yt.config, вы меняете глобальную конфигурацию. Если вы хотите иметь возможность работать из нескольких независимых (по-разному сконфигурированных) клиентов, то используйте класс [YtClient](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient). У данного класса доступны практически все функции из модуля [yt.wrapper](https://pydoc.ytsaurus.tech/yt.wrapper.html), то есть вы можете вызывать `client.run_map`, `client.read_table_structured`, `with client.Transaction()` и так далее. Обратите внимание, что переменные окружения `YT_PROXY`, `YT_TOKEN` и остальные задают только конфигурацию глобального клиента, то есть влияют только на [yt.wrapper.config](https://pydoc.ytsaurus.tech/yt.wrapper.html#module-yt.wrapper.config), но не на конфигурацию явно созданных экземпляров `YtClient`.
 
 ```python
 from yt.wrapper import YtClient
@@ -99,7 +99,7 @@ client = yt.YtClient(config=my_config)
 
 #### Общий конфиг { #configuration_common }
 
-#### Настройка логгирования { #configuration_logging }
+#### Настройка логирования { #configuration_logging }
 
 Логирование в ytsaurus-client и всех инструментах, использующих данную библиотеку, устроено следующим образом. Заведен специальный логгер, который находится в модуле `yt.logger` в виде глобальной переменной `LOGGER` и алиасов для логирования на уровне модуля.
 
@@ -521,7 +521,6 @@ schema = yt.TableSchema() \
 ```
 
 Тип колонки должен быть типом из библиотеки [type_info](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/yt/type_info).
-<!--TODO: Про все существующие типы можно почитать в [разделе](https://a.yandex-team.ru/arc_vcs/library/cpp/type_info/docs/main.md).-->
 Составные типы (`Optional`, `List`, `Struct`, `Tuple` и так далее) задаются с помощью квадратных скобок.
 
 Схему можно указывать при создании или записи (пустой) таблицы (в атрибуте `schema` класса [TablePath](#tablepath_class)). Получить схему таблицы можно так:
@@ -1475,7 +1474,6 @@ def reducer(key, rows):
 **Важно**: в частности, запустить операции или читать таблицы в формате YSON не получится
 
 C++-биндинги поставляются в виде debian- и pip-пакетов.
-<!-- Debian-пакет называется yandex-yt-python-yson (yandex-yt-python3-yson для Python3)
-pip-пакет называется yandex-yt-yson-bindings (wheel, представлен в PyPI для Python2 и 3). -->
+
 Пакеты собираются в виде универсальной .so библиотеки, в которую вкомпилена libcxx, поэтому должны работать в любой debian-системе.
 

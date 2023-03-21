@@ -96,7 +96,7 @@ The wrapper enables you to specify global and local settings for each query.
 
 You can subscribe to `requestStart`, `requestEnd`, and `error` events:
 
-    yt.subsribe('requestStart', function () {
+    yt.subscribe('requestStart', function () {
         console.log('requestStart');
     });
 

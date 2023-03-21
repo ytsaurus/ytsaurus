@@ -5,8 +5,7 @@
 #include <yt/yt/ytlib/orchid/orchid_service_proxy.h>
 
 #include <yt/yt/core/ytree/fluent.h>
-#include <yt/yt/core/ytree/ypath_service.h>
-#include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/ypath_detail.h>
 
 #include <yt/yt/core/rpc/service.h>
 
@@ -30,12 +29,12 @@ public:
         : Options_(std::move(options))
     { }
 
-    TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
+    TResolveResult Resolve(const TYPath& path, const IYPathServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{path};
     }
 
-    void Invoke(const IServiceContextPtr& context) override
+    void Invoke(const IYPathServiceContextPtr& context) override
     {
         // Throw options-provided error, if it is non-trivial.
         Options_.Error.ThrowOnError();

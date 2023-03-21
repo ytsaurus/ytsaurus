@@ -264,7 +264,7 @@ bool IsRequestMutating(const NRpc::NProto::TRequestHeader& header)
 
 void ResolveYPath(
     const IYPathServicePtr& rootService,
-    const IServiceContextPtr& context,
+    const IYPathServiceContextPtr& context,
     IYPathServicePtr* suffixService,
     TYPath* suffixPath)
 {
@@ -345,7 +345,7 @@ TFuture<TSharedRefArray> ExecuteVerb(
 
 void ExecuteVerb(
     const IYPathServicePtr& service,
-    const IServiceContextPtr& context)
+    const IYPathServiceContextPtr& context)
 {
     IYPathServicePtr suffixService;
     TYPath suffixPath;
@@ -373,11 +373,12 @@ void ExecuteVerb(
 
     class TInvokeContext
         : public TServiceContextBase
+        , public IYPathServiceContext
     {
     public:
         TInvokeContext(
             TSharedRefArray requestMessage,
-            IServiceContextPtr underlyingContext)
+            IYPathServiceContextPtr underlyingContext)
             : TServiceContextBase(
                 std::move(requestMessage),
                 underlyingContext->GetLogger(),
@@ -406,7 +407,7 @@ void ExecuteVerb(
         }
 
     private:
-        const IServiceContextPtr UnderlyingContext_;
+        const IYPathServiceContextPtr UnderlyingContext_;
 
 
         void LogRequest() override

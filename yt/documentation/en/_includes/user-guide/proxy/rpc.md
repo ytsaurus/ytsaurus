@@ -5,9 +5,6 @@ This section contains examples of working with YT via RPC proxy for different pr
 ## С++ { #c_plus_plus }
 
 Example on [Github](https://github.com/ytsaurus/ytsaurus/blob/main/yt/examples/rpc_proxy_sample/main.cpp)
-{{% if audience == internal %}}| ----- | Client interface | Creating a connection | Examples   |
-|------ | ----------------- | --------------------- | --------- |
-| Arcadia | [Link](https://a.yandex-team.ru/arc/trunk/arcadia/yt/yt/client/api/client.h) | [Link](https://a.yandex-team.ru/arc//trunk/arcadia/yt/yt/client/api/rpc_proxy/connection.h) | [Link](https://a.yandex-team.ru/arc/trunk/arcadia/yt/yt/experiments/rpc_proxy_sample/main.cpp) |{{% endif %}}
 
 The example implements a program in which you can work with dynamic tables in interactive mode.
 

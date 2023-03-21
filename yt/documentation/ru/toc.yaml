@@ -92,8 +92,8 @@ items:
                 href: user-guide/storage/examples.md
               - name: Пакетная обработка запросов
                 href: user-guide/storage/batch-requests.md
-              # - name: Работа с Excel
-              #   href: user-guide/storage/excel.md
+              #  - name: Работа с Excel
+              #    href: user-guide/storage/excel.md
           - name: FAQ
             href: user-guide/storage/faq.md
       - name: Динамические таблицы
