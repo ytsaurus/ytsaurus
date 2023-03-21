@@ -1,3 +1,3 @@
 # Справочник
 
-Детальное описание Go API системы расположено по адресу: [http://go.ytsaurus.tech/](http://go.ytsaurus.tech/).
+Детальное описание Go API расположено по адресу: [https://pkg.go.dev/go.ytsaurus.tech/yt/go](https://pkg.go.dev/go.ytsaurus.tech/yt/go).
