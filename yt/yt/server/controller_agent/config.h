@@ -782,9 +782,6 @@ public:
     //! Controller agent-to-scheduler heartbeat period.
     TDuration SchedulerHeartbeatPeriod;
 
-    //! Enables new schedule jobs heartbeats.
-    bool EnableScheduleJobHeartbeats;
-
     //! Controller agent-to-scheduler heartbeat with schedule jobs period.
     TDuration ScheduleJobHeartbeatPeriod;
 
