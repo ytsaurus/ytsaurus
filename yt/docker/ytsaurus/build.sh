@@ -8,7 +8,6 @@ clickhouse_trampoline_path=../../chyt/trampoline/clickhouse-trampoline.py
 ytserver_clickhouse_path=./ytserver-clickhouse
 ytserver_log_tailer_path=./ytserver-log-tailer
 init_operation_archive_path=../../python/yt/environment/init_operation_archive.py
-yt_path=../../python/yt/wrapper/bin/yt
 
 driver_bindings_package_path=./ytsaurus_native_driver-1.0.0-cp39-cp39-linux_x86_64.whl
 
@@ -33,7 +32,6 @@ Usage: $script_name [-h|--help]
   --ytserver-log-tailer: Path to ytserver-log-tailer binary (default: $ytserver_log_tailer_path)
   --ytserver-log-tailer-credits: Path to CREDITS file for ytserver-log-tailer binary (default: $ytserver_log_tailer_credits_path)
   --init-operation-archive: Path to init_operation_archive script (default: $init_operation_archive_path)
-  --yt: Path to yt script (default: $yt_path)
   --driver-bindings-package: Path to built python driver_bindings package (default: $driver_bindings_package_path)
 
 EOF
@@ -84,10 +82,6 @@ while [[ $# -gt 0 ]]; do
         init_operation_archive_path="$2"
         shift 2
         ;;
-        --yt)
-        yt_path="$2"
-        shift 2
-        ;;
         --driver-bindings-package)
         driver_bindings_package_path="$2"
         shift 2
@@ -114,11 +108,9 @@ cp $ytserver_clickhouse_credits_path data/ytserver-clickhouse.CREDITS
 cp $ytserver_log_tailer_path data/ytserver-log-tailer
 cp $ytserver_log_tailer_credits_path data/ytserver-log-tailer.CREDITS
 cp $init_operation_archive_path data/init_operation_archive
-cp $yt_path data/yt
 cp $driver_bindings_package_path data/ytsaurus_native_driver-1.0.0-cp39-cp39-linux_x86_64.whl
 
-# TODO: change url
-docker build -t ytsaurus/ytsaurus:0.1.0-nadya73 \
+docker build -t ytsaurus/ytsaurus:0.0.1 \
     --build-arg YTSERVER_ALL_PATH=data/ytserver-all \
     --build-arg YTSERVER_ALL_CREDITS_PATH=data/ytserver-all.CREDITS \
     --build-arg CHYT_CONTROLLER_PATH=data/chyt-controller \
@@ -129,7 +121,6 @@ docker build -t ytsaurus/ytsaurus:0.1.0-nadya73 \
     --build-arg YTSERVER_LOG_TAILER_PATH=data/ytserver-log-tailer \
     --build-arg YTSERVER_LOG_TAILER_CREDITS_PATH=data/ytserver-log-tailer.CREDITS \
     --build-arg INIT_OPERATION_ARCHIVE_PATH=data/init_operation_archive \
-    --build-arg YT_PATH=data/yt \
     --build-arg DRIVER_BINDINGS_PACKAGE_PATH=data/ytsaurus_native_driver-1.0.0-cp39-cp39-linux_x86_64.whl \
     .
 
