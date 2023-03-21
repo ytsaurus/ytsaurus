@@ -39,7 +39,7 @@
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
-#include <yt/yt/library/query/engine/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/name_table.h>

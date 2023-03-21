@@ -32,7 +32,7 @@
 
 #include <yt/yt/ytlib/table_client/table_upload_options.h>
 
-#include <yt/yt/library/query/engine/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/ytlib/object_client/helpers.h>
 

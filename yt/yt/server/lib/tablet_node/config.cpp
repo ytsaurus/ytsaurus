@@ -8,7 +8,7 @@
 
 #include <yt/yt/library/dynamic_config/config.h>
 
-#include <yt/yt/library/query/engine/config.h>
+#include <yt/yt/library/query/engine_api/config.h>
 
 #include <yt/yt/core/rpc/config.h>
 

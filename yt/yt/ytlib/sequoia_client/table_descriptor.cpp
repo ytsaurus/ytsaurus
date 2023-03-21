@@ -3,7 +3,7 @@
 #include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.record.h>
 #include <yt/yt/ytlib/sequoia_client/resolve_node.record.h>
 
-#include <yt/yt/library/query/engine/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 namespace NYT::NSequoiaClient {
 

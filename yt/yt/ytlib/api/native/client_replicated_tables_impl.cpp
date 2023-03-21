@@ -3,8 +3,9 @@
 #include "tablet_helpers.h"
 #include "config.h"
 
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
-#include <yt/yt/library/query/engine/column_evaluator.h>
 
 #include <yt/yt/ytlib/chaos_client/banned_replica_tracker.h>
 

@@ -2,6 +2,8 @@
 
 #include <llvm/ADT/FoldingSet.h>
 
+#include <util/str_stl.h>
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // A hasher for llvm::FoldingSetNodeID

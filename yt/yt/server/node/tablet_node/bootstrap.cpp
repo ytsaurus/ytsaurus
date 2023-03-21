@@ -37,7 +37,7 @@
 
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/yt/library/query/engine/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_service.h>

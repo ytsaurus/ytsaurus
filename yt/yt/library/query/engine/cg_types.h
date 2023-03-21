@@ -1,6 +1,7 @@
 #pragma once
 
-#include "evaluation_helpers.h"
+#include <yt/yt/library/query/engine_api/evaluation_helpers.h>
+
 #include <yt/yt/library/query/misc/function_context.h>
 
 #include <yt/yt/client/table_client/llvm_types.h>

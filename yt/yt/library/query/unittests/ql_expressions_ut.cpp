@@ -3,15 +3,17 @@
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/query_client/query_statistics.h>
 
-#include <yt/yt/library/query/engine/column_evaluator.h>
-#include <yt/yt/library/query/engine/config.h>
-#include <yt/yt/library/query/engine/folding_profiler.h>
 #include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/functions.h>
-#include <yt/yt/library/query/engine/functions_cg.h>
-#include <yt/yt/library/query/engine/coordinator.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/config.h>
+#include <yt/yt/library/query/engine_api/coordinator.h>
+
+#include <yt/yt/library/query/engine/folding_profiler.h>
 #include <yt/yt/library/query/engine/functions_builtin_profilers.h>
+#include <yt/yt/library/query/engine/functions_cg.h>
 
 #include <library/cpp/resource/resource.h>
 

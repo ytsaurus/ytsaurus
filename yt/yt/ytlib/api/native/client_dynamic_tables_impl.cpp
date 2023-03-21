@@ -15,10 +15,12 @@
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
 
-#include <yt/yt/ytlib/query_client/query_service_proxy.h>
-#include <yt/yt/library/query/engine/column_evaluator.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/functions.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+
+#include <yt/yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 #include <yt/yt/ytlib/query_client/executor.h>
 #include <yt/yt/ytlib/query_client/explain.h>

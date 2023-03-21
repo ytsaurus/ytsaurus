@@ -1,7 +1,7 @@
 #include "row_merger.h"
 #include "config.h"
 
-#include <yt/yt/library/query/engine/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
 

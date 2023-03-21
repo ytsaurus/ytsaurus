@@ -2,7 +2,7 @@
 
 #include <yt/yt/ytlib/api/native/tablet_request_batcher.h>
 
-#include <yt/yt/library/query/engine/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/row_buffer.h>

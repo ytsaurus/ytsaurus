@@ -2,13 +2,13 @@
 #include "functions_cache.h"
 #include "query_service_proxy.h"
 
-#include <yt/yt/library/query/engine/column_evaluator.h>
-#include <yt/yt/library/query/engine/coordinator.h>
-#include <yt/yt/library/query/engine/evaluator.h>
-
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/library/query/base/coordination_helpers.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/coordinator.h>
+#include <yt/yt/library/query/engine_api/evaluator.h>
 
 #include <yt/yt/client/query_client/query_statistics.h>
 

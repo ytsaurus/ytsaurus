@@ -5,16 +5,19 @@
 #include <library/cpp/resource/resource.h>
 
 #include <yt/yt/library/query/base/callbacks.h>
-#include <yt/yt/library/query/engine/column_evaluator.h>
-#include <yt/yt/library/query/engine/config.h>
-#include <yt/yt/library/query/engine/coordinator.h>
-#include <yt/yt/library/query/engine/evaluator.h>
-#include <yt/yt/library/query/engine/folding_profiler.h>
 #include <yt/yt/library/query/base/query.h>
-#include <yt/yt/library/query/proto/query.pb.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/functions.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/config.h>
+#include <yt/yt/library/query/engine_api/coordinator.h>
+#include <yt/yt/library/query/engine_api/evaluator.h>
+
+#include <yt/yt/library/query/engine/folding_profiler.h>
 #include <yt/yt/library/query/engine/functions_cg.h>
+
+#include <yt/yt/library/query/proto/query.pb.h>
 
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>

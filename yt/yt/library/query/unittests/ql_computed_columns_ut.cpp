@@ -1,10 +1,11 @@
 #include "ql_helpers.h"
 
-#include <yt/yt/library/query/engine/column_evaluator.h>
-#include <yt/yt/library/query/engine/config.h>
-#include <yt/yt/library/query/engine/coordinator.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/functions.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/config.h>
+#include <yt/yt/library/query/engine_api/coordinator.h>
 
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/convert.h>

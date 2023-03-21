@@ -19,8 +19,7 @@
 #pragma clang diagnostic pop
 #endif
 
-
-#include <yt/yt/library/query/engine/evaluation_helpers.h>
+#include <yt/yt/library/query/engine_api/evaluation_helpers.h>
 
 #include <Parsers/IAST.h>
 #include <Parsers/ASTSubquery.h>

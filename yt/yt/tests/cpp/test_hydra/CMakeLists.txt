@@ -19,6 +19,7 @@ target_link_libraries(cpp-integration-test-hydra PUBLIC
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
+  library-query-engine
   tests-cpp-test_base
   server-lib-hydra
   yt-yt-ytlib

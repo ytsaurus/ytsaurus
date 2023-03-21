@@ -2,10 +2,12 @@
 
 #include "private.h"
 
-#include <yt/yt/library/query/engine/evaluator.h>
-#include <yt/yt/ytlib/query_client/functions_cache.h>
-#include <yt/yt/library/query/engine/config.h>
 #include <yt/yt/library/query/base/query.h>
+
+#include <yt/yt/library/query/engine_api/evaluator.h>
+#include <yt/yt/library/query/engine_api/config.h>
+
+#include <yt/yt/ytlib/query_client/functions_cache.h>
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 

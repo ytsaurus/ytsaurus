@@ -1,7 +1,8 @@
 #pragma once
 
-#include "evaluation_helpers.h"
 #include "llvm_folding_set.h"
+
+#include <yt/yt/library/query/engine_api/evaluation_helpers.h>
 
 #include <util/generic/hash_set.h>
 #include <util/generic/noncopyable.h>

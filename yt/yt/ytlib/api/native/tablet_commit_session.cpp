@@ -9,7 +9,7 @@
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
-#include <yt/yt/library/query/engine/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
