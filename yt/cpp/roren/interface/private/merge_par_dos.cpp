@@ -190,7 +190,8 @@ public:
         }
         auto newTransform = RawPipeline_->AddTransform(
             transform->GetRawTransform(),
-            MapPCollectionNodes(transform->GetSourceList())
+            MapPCollectionNodes(transform->GetSourceList()),
+            transform->GetPStateNode()
         );
         AddPCollectionNodeMapping(transform->GetSinkList(), newTransform->GetSinkList());
     }
