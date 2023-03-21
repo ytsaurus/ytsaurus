@@ -49,6 +49,13 @@ def sudo_move(src_path, dst_path):
     subprocess.check_call(["sudo", "mv", src_path, dst_path])
 
 
+def get_default_package_dir():
+    if yatest_common is not None:
+        return "yt/yt/packages/tests_package"
+    else:
+        return "yt/yt"
+
+
 def get_output_path():
     assert yatest_common is not None
 
@@ -111,7 +118,8 @@ def prepare_yt_binaries(destination,
                         binary_root=None, package_dir=None, copy_ytserver_all=False, ytserver_all_suffix=None,
                         need_suid=False, component_whitelist=None):
     if package_dir is None:
-        package_dir = "yt/yt"
+        package_dir = get_default_package_dir()
+
     ytserver_all = search_binary_path("ytserver-all", binary_root=binary_root, build_path_dir=package_dir)
 
     if copy_ytserver_all:
@@ -191,19 +199,11 @@ def prepare_yt_environment(destination, artifact_components=None, **kwargs):
 
     if not os.path.exists(bin_dir):
         os.makedirs(bin_dir)
-
         if trunk_components:
-            if "package_dir" not in kwargs:
-                prepare_yt_binaries(bin_dir,
-                                    component_whitelist=trunk_components,
-                                    package_dir="yt/yt/packages/tests_package",
-                                    ytserver_all_suffix="trunk",
-                                    **kwargs)
-            else:
-                prepare_yt_binaries(bin_dir,
-                                    component_whitelist=trunk_components,
-                                    ytserver_all_suffix="trunk",
-                                    **kwargs)
+            prepare_yt_binaries(bin_dir,
+                                component_whitelist=trunk_components,
+                                ytserver_all_suffix="trunk",
+                                **kwargs)
 
         for version, components in artifact_components.items():
             prepare_yt_binaries(bin_dir,
