@@ -1,12 +1,14 @@
-#include "column_evaluator.h"
+
 #include "cg_fragment_compiler.h"
-#include "config.h"
 #include "folding_profiler.h"
 #include "functions_cg.h"
 
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/private.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/config.h>
 
 #include <yt/yt/client/query_client/query_statistics.h>
 

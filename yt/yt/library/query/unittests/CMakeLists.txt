@@ -26,6 +26,7 @@ target_link_libraries(unittester-query PUBLIC
   yt-yt-build
   yt-core-test_framework
   library-query-engine
+  library-query-engine_api
   query-unittests-udf
   contrib-libs-sparsehash
 )

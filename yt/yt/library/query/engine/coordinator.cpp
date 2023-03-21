@@ -1,9 +1,10 @@
-#include "coordinator.h"
-#include "range_inferrer.h"
 
 #include <yt/yt/library/query/base/private.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
+
+#include <yt/yt/library/query/engine_api/coordinator.h>
+#include <yt/yt/library/query/engine_api/range_inferrer.h>
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>

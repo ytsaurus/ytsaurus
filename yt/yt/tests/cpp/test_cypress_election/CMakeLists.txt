@@ -19,6 +19,7 @@ target_link_libraries(cpp-integration-test-cypress-election PUBLIC
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
+  library-query-engine
   yt-core-test_framework
   server-lib-cypress_election
   tests-cpp-test_base

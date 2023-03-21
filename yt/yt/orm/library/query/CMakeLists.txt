@@ -15,11 +15,11 @@ target_link_libraries(orm-library-query PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  library-query-engine
   orm-library-attributes
   yt-yt-ytlib
   yt-yt-core
   yt-yt-client
-  library-query-engine
 )
 target_sources(orm-library-query PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/query/expression_evaluator.cpp

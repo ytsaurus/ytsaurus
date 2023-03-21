@@ -25,8 +25,8 @@
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
-#include <yt/yt/library/query/engine/config.h>
-#include <yt/yt/library/query/engine/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/config.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 namespace NYT::NTableClient {
 

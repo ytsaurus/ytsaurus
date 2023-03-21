@@ -8,6 +8,7 @@
 
 add_subdirectory(base)
 add_subdirectory(engine)
+add_subdirectory(engine_api)
 add_subdirectory(misc)
 add_subdirectory(proto)
 add_subdirectory(unittests)

@@ -1,7 +1,7 @@
 #include "cg_routines.h"
 #include "cg_types.h"
 
-#include "evaluation_helpers.h"
+#include <yt/yt/library/query/engine_api/evaluation_helpers.h>
 
 #include <yt/yt/library/query/base/private.h>
 

@@ -1,4 +1,3 @@
-#include "range_inferrer.h"
 
 #include "folding_profiler.h"
 
@@ -7,6 +6,8 @@
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/library/query/base/coordination_helpers.h>
+
+#include <yt/yt/library/query/engine_api/range_inferrer.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>

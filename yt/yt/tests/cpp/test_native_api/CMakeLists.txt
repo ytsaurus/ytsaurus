@@ -19,6 +19,7 @@ target_link_libraries(cpp-integration-test-native-api PUBLIC
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
+  library-query-engine
   tests-cpp-test_base
   yt-yt-ytlib
   yt-core-test_framework

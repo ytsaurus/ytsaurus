@@ -1,9 +1,10 @@
 #pragma once
 
-#include "public.h"
 #include "cg_fragment_compiler.h"
 
 #include <yt/yt/library/query/base/functions_common.h>
+
+#include <yt/yt/library/query/engine_api/public.h>
 
 namespace NYT::NQueryClient {
 

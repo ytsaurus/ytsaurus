@@ -19,6 +19,7 @@ target_link_libraries(ytserver-all PUBLIC
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
   library-cpp-cpuid_check
+  library-query-engine
   yt-server-cell_balancer
   yt-server-clock_server
   yt-server-controller_agent

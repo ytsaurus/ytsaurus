@@ -126,7 +126,7 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/library/query/engine/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>

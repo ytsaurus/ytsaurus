@@ -29,6 +29,7 @@ target_link_libraries(yt-chyt-server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  library-query-engine
   yt-chyt-client
   chyt-client-protos
   chyt-server-protos

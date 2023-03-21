@@ -40,9 +40,11 @@
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/library/query/base/query.h>
+
+#include <yt/yt/library/query/engine_api/evaluator.h>
+
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
-#include <yt/yt/library/query/engine/evaluator.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 

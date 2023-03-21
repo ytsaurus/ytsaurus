@@ -182,9 +182,7 @@ target_sources(library-query-engine PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/cg_ir_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/cg_routines.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/column_evaluator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/coordinator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/evaluation_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/evaluator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/folding_profiler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/functions_cg.cpp

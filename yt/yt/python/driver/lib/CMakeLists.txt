@@ -22,6 +22,7 @@ target_link_libraries(python-driver-lib PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  library-query-engine
   yt-yt-core
   core-service_discovery-yp
   yt-client-driver

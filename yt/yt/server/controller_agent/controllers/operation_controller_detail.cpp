@@ -82,10 +82,11 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/helpers.h>
 
-#include <yt/yt/library/query/engine/column_evaluator.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
-#include <yt/yt/library/query/engine/range_inferrer.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/range_inferrer.h>
 
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 

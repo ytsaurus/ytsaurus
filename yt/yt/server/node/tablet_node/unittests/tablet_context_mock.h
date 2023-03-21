@@ -4,8 +4,8 @@
 
 #include <yt/yt/server/node/tablet_node/tablet.h>
 
-#include <yt/yt/library/query/engine/config.h>
-#include <yt/yt/library/query/engine/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/config.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 namespace NYT::NTabletNode {
 
