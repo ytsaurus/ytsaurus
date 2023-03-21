@@ -1,4 +1,4 @@
-# SPYT в Jypyter
+# SPYT в Jupyter
 
 ##  Подготовка { #prepare }
 
