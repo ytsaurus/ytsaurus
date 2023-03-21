@@ -213,7 +213,7 @@ EPermission TSchedulerPoolProxy::GetCustomAttributeModifyPermission()
     return NYTree::EPermission::Administer;
 }
 
-bool TSchedulerPoolProxy::DoInvoke(const NRpc::IServiceContextPtr& context)
+bool TSchedulerPoolProxy::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(TransferPoolResources);
     return TBase::DoInvoke(context);

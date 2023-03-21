@@ -88,11 +88,11 @@ protected:
     static TIntrusivePtr<const TSelf> FromNode(const NYTree::IConstNodePtr& node);
     static TSelfPtr FromNode(const NYTree::INodePtr& node);
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
    NYTree::IYPathService::TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
-        const NRpc::IServiceContextPtr& context) override;
+        const NYTree::IYPathServiceContextPtr& context) override;
 
     void GetSelf(
         TReqGet* request,

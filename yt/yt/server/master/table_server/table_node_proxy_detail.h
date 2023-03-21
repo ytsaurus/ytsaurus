@@ -43,7 +43,7 @@ protected:
     void ValidateReadLimit(const NChunkClient::NProto::TReadLimit& context) const override;
     NTableClient::TComparator GetComparator() const override;
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
     void ValidateBeginUpload() override;
     void ValidateStorageParametersUpdate() override;

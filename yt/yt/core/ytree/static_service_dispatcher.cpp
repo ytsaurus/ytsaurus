@@ -38,7 +38,7 @@ void TStaticServiceDispatcher::ListSelf(
 
 TStaticServiceDispatcher::TResolveResult TStaticServiceDispatcher::ResolveRecursive(
     const NYPath::TYPath& path,
-    const NRpc::IServiceContextPtr& context)
+    const IYPathServiceContextPtr& context)
 {
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();

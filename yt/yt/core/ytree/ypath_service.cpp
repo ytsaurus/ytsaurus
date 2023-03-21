@@ -100,7 +100,7 @@ public:
 
     TResolveResult Resolve(
         const TYPath& path,
-        const IServiceContextPtr& context) override
+        const IYPathServiceContextPtr& context) override
     {
         // Try to handle root get requests without constructing ephemeral YTree.
         if (path.empty() && context->GetMethod() == "Get") {
@@ -124,7 +124,7 @@ private:
     TInstant LastStringUpdateTime_;
     TInstant LastNodeUpdateTime_;
 
-    bool DoInvoke(const IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Get);
         return TYPathServiceBase::DoInvoke(context);
@@ -135,7 +135,7 @@ private:
         if (request->has_attributes())  {
             // Execute fallback.
             auto node = BuildNodeFromProducer();
-            ExecuteVerb(node, IServiceContextPtr(context));
+            ExecuteVerb(node, IYPathServiceContextPtr(context));
             return;
         }
 
@@ -223,7 +223,7 @@ public:
 
     TResolveResult Resolve(
         const TYPath& path,
-        const IServiceContextPtr& context) override
+        const IYPathServiceContextPtr& context) override
     {
         // Try to handle root get requests without constructing ephemeral YTree.
         if (path.empty() && context->GetMethod() == "Get") {
@@ -249,7 +249,7 @@ public:
 private:
     TUnderlyingProducer Producer_;
 
-    bool DoInvoke(const IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Get);
         return TYPathServiceBase::DoInvoke(context);
@@ -265,7 +265,7 @@ private:
         if (request->has_attributes())  {
             // Execute fallback.
             auto node = BuildNodeFromProducer(options);
-            ExecuteVerb(node, IServiceContextPtr(context));
+            ExecuteVerb(node, IYPathServiceContextPtr(context));
             return;
         }
 
@@ -329,7 +329,7 @@ public:
 
     TResolveResult Resolve(
         const TYPath& path,
-        const IServiceContextPtr& /*context*/) override
+        const IYPathServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{path};
     }
@@ -337,7 +337,7 @@ public:
 private:
     TYsonProducer Producer_;
 
-    bool DoInvoke(const IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Get);
         DISPATCH_YPATH_SERVICE_METHOD(Exists);
@@ -356,7 +356,7 @@ private:
         if (request->has_attributes())  {
             // Execute fallback.
             auto node = BuildNodeFromProducer();
-            ExecuteVerb(node, IServiceContextPtr(context));
+            ExecuteVerb(node, IYPathServiceContextPtr(context));
             return;
         }
 
@@ -370,7 +370,7 @@ private:
         if (request->has_attributes())  {
             // Execute fallback.
             auto node = BuildNodeFromProducer();
-            ExecuteVerb(node, IServiceContextPtr(context));
+            ExecuteVerb(node, IYPathServiceContextPtr(context));
             return;
         }
 
@@ -395,14 +395,14 @@ private:
     {
         // Execute fallback.
         auto node = BuildNodeFromProducer();
-        ExecuteVerb(node, IServiceContextPtr(context));
+        ExecuteVerb(node, IYPathServiceContextPtr(context));
     }
 
     void ListSelf(TReqList* /*request*/, TRspList* /*response*/, const TCtxListPtr& context) override
     {
         // Execute fallback.
         auto node = BuildNodeFromProducer();
-        ExecuteVerb(node, IServiceContextPtr(context));
+        ExecuteVerb(node, IYPathServiceContextPtr(context));
     }
 
     void ListRecursive(const TYPath& path, TReqList* request, TRspList* response, const TCtxListPtr& context) override
@@ -431,7 +431,7 @@ private:
    {
         // Execute fallback.
         auto node = BuildNodeFromProducer();
-        ExecuteVerb(node, IServiceContextPtr(context));
+        ExecuteVerb(node, IYPathServiceContextPtr(context));
    }
 
     void ExistsRecursive(const TYPath& path, TReqExists* /*request*/, TRspExists* /*response*/, const TCtxExistsPtr& context) override
@@ -566,7 +566,7 @@ public:
 
     TResolveResult Resolve(
         const TYPath& path,
-        const IServiceContextPtr& /*context*/) override
+        const IYPathServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{path};
     }
@@ -581,7 +581,7 @@ private:
     const IInvokerPtr Invoker_;
 
 
-    bool DoInvoke(const IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         Invoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] () {
             ExecuteVerb(UnderlyingService_, context);
@@ -675,10 +675,11 @@ DECLARE_REFCOUNTED_CLASS(TCachedYPathServiceContext)
 
 class TCachedYPathServiceContext
     : public TServiceContextWrapper
+    , public IYPathServiceContext
 {
 public:
     TCachedYPathServiceContext(
-        IServiceContextPtr underlyingContext,
+        IYPathServiceContextPtr underlyingContext,
         TWeakPtr<TCacheSnapshot> cacheSnapshot,
         TCacheKey cacheKey)
         : TServiceContextWrapper(std::move(underlyingContext))
@@ -728,7 +729,7 @@ public:
         IInvokerPtr workerInvoker,
         const NProfiling::TProfiler& profiler);
 
-    TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override;
+    TResolveResult Resolve(const TYPath& path, const IYPathServiceContextPtr& /*context*/) override;
 
     void SetCachePeriod(TDuration period) override;
 
@@ -744,7 +745,7 @@ private:
 
     TAtomicObject<TCacheSnapshotPtr> CurrentCacheSnapshot_ = nullptr;
 
-    bool DoInvoke(const IServiceContextPtr& context) override;
+    bool DoInvoke(const IYPathServiceContextPtr& context) override;
 
     void RebuildCache();
 
@@ -772,7 +773,7 @@ TCachedYPathService::TCachedYPathService(
     SetCachePeriod(updatePeriod);
 }
 
-IYPathService::TResolveResult TCachedYPathService::Resolve(const TYPath& path, const IServiceContextPtr&)
+IYPathService::TResolveResult TCachedYPathService::Resolve(const TYPath& path, const IYPathServiceContextPtr&)
 {
     return TResolveResultHere{path};
 }
@@ -794,7 +795,7 @@ void TCachedYPathService::SetCachePeriod(TDuration period)
     }
 }
 
-void ReplyErrorOrValue(const IServiceContextPtr& context, const TErrorOr<TSharedRefArray>& response)
+void ReplyErrorOrValue(const IYPathServiceContextPtr& context, const TErrorOr<TSharedRefArray>& response)
 {
     if (response.IsOK()) {
         context->Reply(response.Value());
@@ -803,7 +804,7 @@ void ReplyErrorOrValue(const IServiceContextPtr& context, const TErrorOr<TShared
     }
 }
 
-bool TCachedYPathService::DoInvoke(const IServiceContextPtr& context)
+bool TCachedYPathService::DoInvoke(const IYPathServiceContextPtr& context)
 {
     if (IsCacheEnabled_ && IsCacheValid_) {
         WorkerInvoker_->Invoke(BIND([this, context, this_ = MakeStrong(this)]() {
@@ -898,7 +899,7 @@ public:
 
     TResolveResult Resolve(
         const TYPath& path,
-        const IServiceContextPtr& /*context*/) override
+        const IYPathServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{path};
     }
@@ -922,7 +923,7 @@ private:
         ValidationCallback_.Run(user, permission);
     }
 
-    bool DoInvoke(const IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         // TODO(max42): choose permission depending on method.
         PermissionValidator_.Validate(EPermission::Read, context->GetAuthenticationIdentity().User);

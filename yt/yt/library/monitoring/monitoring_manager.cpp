@@ -18,7 +18,6 @@ namespace NYT::NMonitoring {
 using namespace NYTree;
 using namespace NYPath;
 using namespace NYson;
-using namespace NRpc;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,7 +86,7 @@ private:
             : Owner_(std::move(owner))
         { }
 
-        TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
+        TResolveResult Resolve(const TYPath& path, const IYPathServiceContextPtr& /*context*/) override
         {
             return TResolveResultThere{Owner_->GetRoot(), path};
         }

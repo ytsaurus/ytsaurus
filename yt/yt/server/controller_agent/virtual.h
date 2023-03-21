@@ -25,7 +25,7 @@ public:
         const THashSet<NChunkClient::TInputChunkPtr>& chunks,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
     // TSupportsAttributes overrides
     ISystemAttributeProvider* GetBuiltinAttributeProvider() override;

@@ -17,8 +17,8 @@ public:
 
     void SetUpdatePeriod(TDuration period);
 
-    TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
-    void Invoke(const NRpc::IServiceContextPtr& context) override;
+    TResolveResult Resolve(const TYPath& path, const IYPathServiceContextPtr& context) override;
+    void Invoke(const IYPathServiceContextPtr& context) override;
 
     ~TServiceCombiner();
 

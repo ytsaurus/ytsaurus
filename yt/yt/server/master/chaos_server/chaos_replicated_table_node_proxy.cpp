@@ -45,7 +45,6 @@ using namespace NCellMaster;
 using namespace NChaosClient;
 using namespace NCypressServer;
 using namespace NObjectServer;
-using namespace NRpc;
 using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NTransactionServer;
@@ -238,7 +237,7 @@ private:
         return TCypressNodeProxyBase::GetBuiltinAttributeAsync(key);
     }
 
-    bool DoInvoke(const IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
         DISPATCH_YPATH_SERVICE_METHOD(Alter);

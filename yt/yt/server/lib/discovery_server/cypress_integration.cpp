@@ -11,7 +11,6 @@
 
 namespace NYT::NDiscoveryServer {
 
-using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
 using namespace NDiscoveryClient;
@@ -29,7 +28,7 @@ public:
         : GroupTree_(std::move(groupTree))
     { }
 
-    TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
+    TResolveResult Resolve(const TYPath& path, const IYPathServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{path};
     }
@@ -37,7 +36,7 @@ public:
 private:
     const TGroupTreePtr GroupTree_;
 
-    bool DoInvoke(const IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Exists);
         DISPATCH_YPATH_SERVICE_METHOD(List);

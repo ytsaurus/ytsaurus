@@ -87,7 +87,7 @@ private:
     TKeyMappingOrError KeyMapping_;
 
 private:
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Get);
         DISPATCH_YPATH_SERVICE_METHOD(List);
@@ -95,7 +95,7 @@ private:
         return TSupportsAttributes::DoInvoke(context);
     }
 
-    TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context) override
+    TResolveResult ResolveRecursive(const TYPath& path, const IYPathServiceContextPtr& context) override
     {
         NYPath::TTokenizer tokenizer(path);
         tokenizer.Advance();
@@ -359,12 +359,12 @@ void TServiceCombiner::SetUpdatePeriod(TDuration period)
     Impl_->SetUpdatePeriod(period);
 }
 
-IYPathService::TResolveResult TServiceCombiner::Resolve(const TYPath& path, const NRpc::IServiceContextPtr& /*context*/)
+IYPathService::TResolveResult TServiceCombiner::Resolve(const TYPath& path, const IYPathServiceContextPtr& /*context*/)
 {
     return TResolveResultHere{path};
 }
 
-void TServiceCombiner::Invoke(const NRpc::IServiceContextPtr& context)
+void TServiceCombiner::Invoke(const IYPathServiceContextPtr& context)
 {
     Impl_->GetInitialized().Subscribe(BIND([impl = Impl_, context = context] (const TError& error) {
         if (error.IsOK()) {

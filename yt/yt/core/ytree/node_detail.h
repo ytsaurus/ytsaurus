@@ -52,9 +52,9 @@ public:
     TYPath GetPath() const override;
 
 protected:
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const IYPathServiceContextPtr& context) override;
 
-    TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override;
+    TResolveResult ResolveRecursive(const NYPath::TYPath& path, const IYPathServiceContextPtr& context) override;
     void GetKeySelf(TReqGetKey* request, TRspGetKey* response, const TCtxGetKeyPtr& context) override;
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
     void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
@@ -105,7 +105,7 @@ class TMapNodeMixin
 protected:
     IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
-        const NRpc::IServiceContextPtr& context) override;
+        const IYPathServiceContextPtr& context) override;
 
     void ListSelf(
         TReqList* request,
@@ -139,7 +139,7 @@ class TListNodeMixin
 protected:
     IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
-        const NRpc::IServiceContextPtr& context) override;
+        const IYPathServiceContextPtr& context) override;
 
     void SetChild(
         INodeFactory* factory,
@@ -169,11 +169,11 @@ public:
     static IYPathServicePtr Get();
 
 private:
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const IYPathServiceContextPtr& context) override;
 
     TResolveResult Resolve(
         const TYPath& path,
-        const NRpc::IServiceContextPtr& context) override;
+        const IYPathServiceContextPtr& context) override;
 
     void ExistsSelf(
         TReqExists* request,

@@ -44,7 +44,7 @@ public:
     NTransactionServer::TTransaction* GetTransaction() const override;
     const NYTree::IAttributeDictionary& Attributes() const override;
     NYTree::IAttributeDictionary* MutableAttributes() override;
-    void Invoke(const NRpc::IServiceContextPtr& context) override;
+    void Invoke(const NYTree::IYPathServiceContextPtr& context) override;
     void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
         const NYTree::TAttributeFilter& attributeFilter,
@@ -92,7 +92,7 @@ protected:
     //! Returns the ACD for the object or |nullptr| is none exists.
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() = 0;
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
     // NYTree::TSupportsAttributes members
     void SetAttribute(
@@ -250,7 +250,7 @@ protected:
 
     TCustomAttributeDictionaryPtr CustomAttributesImpl_;
 
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+    bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
 
