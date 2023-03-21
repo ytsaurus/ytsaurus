@@ -8,6 +8,7 @@ docs-viewer:
   show-revision: true
   langs: ['ru', 'en']
   themes: ['light', 'dark']
+  github-url-prefix: https://github.com/ytsaurus/ytsaurus/tree/main
   favicon-src: https://ytsaurus.tech/favicon/favicon.svg
   logo-options:
     title: YTsaurus
