@@ -24,11 +24,8 @@ RUN apt-get update && apt-get install -y \
     python \
     pip
 
-# TODO: Change url
-RUN pip install -i https://test.pypi.org/simple/ \
-    --extra-index-url https://pypi.org/simple/ \
+RUN pip install -i https://pypi.org/simple/ \
     ytsaurus-local \
-    ytsaurus-client \
-    attrs
+    ytsaurus-client
 
 ENTRYPOINT ["bash", "/usr/bin/start.sh"]
