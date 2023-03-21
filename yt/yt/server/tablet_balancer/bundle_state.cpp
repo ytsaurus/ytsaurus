@@ -178,7 +178,7 @@ void TBundleState::DoUpdateState(bool fetchTabletCellsFromSecondaryMasters)
 
     THashSet<TTabletId> tabletIds;
     THashSet<TTableId> newTableIds;
-    THashMap<TTableId, std::vector<TTabletId>> newTableIdToTablets;
+    THashMap<TTableId, THashSet<TTabletId>> newTableIdToTablets;
 
     for (const auto& [id, info] : tabletCells) {
         for (auto [tabletId, tableId] : info.TabletToTableId) {
@@ -195,8 +195,12 @@ void TBundleState::DoUpdateState(bool fetchTabletCellsFromSecondaryMasters)
                 } else {
                     // A new table has been found.
                     newTableIds.insert(tableId);
-                    auto it = newTableIdToTablets.emplace(tableId, std::vector<TTabletId>{}).first;
-                    it->second.emplace_back(tabletId);
+                    auto it = newTableIdToTablets.emplace(tableId, THashSet<TTabletId>{}).first;
+
+                    // A tablet can be found mounted on two cells at the same time
+                    // if the old cell's fetch was before the unmount and the new cell's fetch was after the mount.
+                    // The correct cell will be picked later in DoFetchStatistics.
+                    it->second.insert(tabletId);
                 }
             }
         }
