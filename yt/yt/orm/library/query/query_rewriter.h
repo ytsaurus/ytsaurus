@@ -8,13 +8,13 @@ namespace NYT::NOrm::NQuery {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TReferenceMapping = std::function<NYT::NQueryClient::NAst::TExpressionPtr(
-    const NYT::NQueryClient::NAst::TReference&)>;
-using TFunctionRewriter = std::function<NYT::NQueryClient::NAst::TExpressionPtr(
-    NYT::NQueryClient::NAst::TFunctionExpression*)>;
+using TReferenceMapping = std::function<NQueryClient::NAst::TExpressionPtr(
+    const NQueryClient::NAst::TReference&)>;
+using TFunctionRewriter = std::function<NQueryClient::NAst::TExpressionPtr(
+    NQueryClient::NAst::TFunctionExpression*)>;
 
-NYT::NQueryClient::NAst::TExpressionPtr DummyFunctionRewriter(
-    NYT::NQueryClient::NAst::TFunctionExpression*);
+NQueryClient::NAst::TExpressionPtr DummyFunctionRewriter(
+    NQueryClient::NAst::TFunctionExpression*);
 
 class TQueryRewriter
 {
@@ -23,15 +23,15 @@ public:
         TReferenceMapping referenceMapping,
         TFunctionRewriter functionRewriter = DummyFunctionRewriter);
 
-    NYT::NQueryClient::NAst::TExpressionPtr Run(const NYT::NQueryClient::NAst::TExpressionPtr& expr);
+    NQueryClient::NAst::TExpressionPtr Run(const NQueryClient::NAst::TExpressionPtr& expr);
 
 private:
     const TReferenceMapping ReferenceMapping_;
     const TFunctionRewriter FunctionRewriter_;
 
-    void Visit(NYT::NQueryClient::NAst::TExpressionPtr* expr);
-    void Visit(NYT::NQueryClient::NAst::TNullableExpressionList& list);
-    void Visit(NYT::NQueryClient::NAst::TExpressionList& list);
+    void Visit(NQueryClient::NAst::TExpressionPtr* expr);
+    void Visit(NQueryClient::NAst::TNullableExpressionList& list);
+    void Visit(NQueryClient::NAst::TExpressionList& list);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

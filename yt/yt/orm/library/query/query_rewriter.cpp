@@ -2,7 +2,7 @@
 
 namespace NYT::NOrm::NQuery {
 
-using namespace NYT::NQueryClient::NAst;
+using namespace NQueryClient::NAst;
 
 ////////////////////////////////////////////////////////////////////////////////
 
