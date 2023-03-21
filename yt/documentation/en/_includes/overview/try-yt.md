@@ -29,7 +29,7 @@ Go to [link](https://ytsaurus.tech/#demo ) to get access to it.
 
 Currently, a version of {{product-name}} is available for self-installation without support for the SQL query language. The corresponding code will be made freely available in the near future.
 
-To deploy {{product-name}} in Kubernetes, it is recommended to use the [operator](https://github.com/ytsaurus/yt-k8s-operator). Ready-made docker images with operator, UI, server components and examples can be found on [dockerhub](https://hub.docker.com/orgs/ytsaurus).
+To deploy {{product-name}} in Kubernetes, it is recommended to use the [operator](https://github.com/ytsaurus/yt-k8s-operator). Ready-made docker images with operator, UI, server components and examples can be found on [dockerhub](https://hub.docker.com/u/ytsaurus).
 
 ### Deployment in a Kubernetes cluster
 
