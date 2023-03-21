@@ -138,6 +138,7 @@ PyObject* TSkiffStructuredIterator::iternext()
 
     try {
         PyObjectPtr obj = Converters_[tableIndex](Parser_.get(), &RowContext_);
+
         if (Raw_) {
             size_t curRowBytesSize = Parser_->GetReadBytesCount() - numParsedBytes;
             TmpBuffer_.Clear();

@@ -19,10 +19,11 @@ from flaky import flaky
 
 from datetime import datetime, timedelta
 import pytest
-import sys
 
-
-IS_PY3 = sys.version_info >= (3, 0)
+try:
+    from yt.packages.six import PY3
+except ImportError:
+    from six import PY3
 
 
 def is_debug():
@@ -189,7 +190,7 @@ def test_escape_c():
     assert escape_c("There are questions ???") == "There are questions \\x3F\\x3F?"
     assert escape_c("There are questions ??") == "There are questions \\x3F?"
     assert escape_c(bytearray("\0\1What about some bytes?", "utf-8")) == "\\x00\\x01\\x57\\x68\\x61\\x74\\x20\\x61\\x62\\x6F\\x75\\x74\\x20\\x73\\x6F\\x6D\\x65\\x20\\x62\\x79\\x74\\x65\\x73\\x3F"
-    if IS_PY3:
+    if PY3:
         assert escape_c(b"\0\1What about some bytes?") == "\\x00\\x01\\x57\\x68\\x61\\x74\\x20\\x61\\x62\\x6F\\x75\\x74\\x20\\x73\\x6F\\x6D\\x65\\x20\\x62\\x79\\x74\\x65\\x73\\x3F"
     else:
         assert escape_c(b"\0\1What about some bytes?") == "\\0\\1What about some bytes?"

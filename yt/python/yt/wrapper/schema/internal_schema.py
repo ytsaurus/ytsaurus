@@ -64,7 +64,7 @@ class PrimitiveSchema(_PySchemaSerializer):
         _check_ti_types_compatible(src_type=src_type, dst_type=dst_type, field_path=field_path)
 
     def __repr__(self):
-        return "PrimitiveSchema(py_type={}, ti_type={}, wire_type={}, is_ti_type_optional={}"\
+        return "PrimitiveSchema(py_type={}, ti_type={}, wire_type={}, is_ti_type_optional={})"\
             .format(self._py_type, self._ti_type, self._wire_type, self._is_ti_type_optional)
 
 
@@ -108,6 +108,15 @@ class ListSchema:
         return "ListSchema(item={}, is_ti_type_optional={})".format(self._item, self._is_ti_type_optional)
 
 
+class TupleSchema:
+    def __init__(self, elements, is_ti_type_optional=False):
+        self._elements = elements
+        self._is_ti_type_optional = is_ti_type_optional
+
+    def __repr__(self):
+        return "TupleSchema(elements={}, is_ti_type_optional={})".format(self._elements, self._is_ti_type_optional)
+
+
 class DictSchema:
     def __init__(self, key, value, is_ti_type_optional=False):
         self._key = key
@@ -137,6 +146,9 @@ class RowSchema:
             for field in self._struct_schema._fields
             if isinstance(field, StructField)
         ]
+
+    def __repr__(self):
+        return "RowSchema(struct_schema={})".format(self._struct_schema)
 
 
 class FieldMissingFromRowClass(_PySchemaSerializer):
@@ -186,15 +198,23 @@ def _get_annotation(py_type):
 def _get_list_item_type(py_type):
     if _get_origin(py_type) is not list:
         return None
-    assert len(_get_args(py_type)) == 1
+    assert len(_get_args(py_type)) == 1, "List members must be specified (\"List[<some_type>]\")"
     return _get_args(py_type)[0]
+
+
+def _get_tuple_elements_types(py_type):
+    if _get_origin(py_type) is not tuple:
+        return None
+    arg_types = _get_args(py_type)
+    assert len(arg_types) > 0, "Tuple members must be specified (\"Tuple[<some_type>, <some_type>...]\")"
+    return arg_types
 
 
 def _get_dict_key_value_types(py_type):
     if _get_origin(py_type) is not dict:
         return None
     arg_types = _get_args(py_type)
-    assert len(arg_types) == 2
+    assert len(arg_types) == 2, "Dict key/value must be specified (\"Dict[<some_type>, <some_type>]\")"
     return arg_types
 
 
@@ -373,6 +393,10 @@ def _validate_py_schema_impl(py_schema, for_reading, field_path):
     elif isinstance(py_schema, ListSchema):
         validate_not_optional()
         _validate_py_schema_impl(py_schema._item, for_reading=for_reading, field_path=field_path + ".<list-element>")
+    elif isinstance(py_schema, TupleSchema):
+        validate_not_optional()
+        for i, element in enumerate(py_schema._elements):
+            _validate_py_schema_impl(element, for_reading=for_reading, field_path=field_path + ".<tuple-element-{}>".format(i))
     elif isinstance(py_schema, DictSchema):
         validate_not_optional()
         _validate_py_schema_impl(py_schema._key, for_reading=for_reading, field_path=field_path + ".<key>")
@@ -469,6 +493,27 @@ def _create_py_schema(py_type, ti_type=None, field_name=None):
             item_ti_type = ti_type.item
         item_py_schema = _create_py_schema(_get_list_item_type(py_type), ti_type=item_ti_type)
         return ListSchema(item_py_schema, is_ti_type_optional=is_ti_type_optional)
+    elif _get_tuple_elements_types(py_type) is not None:
+        if ti_type is None:
+            element_ti_types = [None] * len(_get_tuple_elements_types(py_type))
+        else:
+            if ti_type.name != "Tuple":
+                raise YtError(
+                    "Schema and row class mismatch for field \"{}\": "
+                    "expected \"Tuple\" type, found \"{}\""
+                    .format(field_name, ti_type)
+                )
+            element_ti_types = ti_type.items
+            if len(element_ti_types) != len(_get_tuple_elements_types(py_type)):
+                raise YtError(
+                    "Tuple's elements type are diverged \"{}\": {} / {} - {} / {}"
+                    .format(field_name, len(_get_tuple_elements_types(py_type)), len(element_ti_types), py_type, ti_type)
+                )
+        elements_py_schema = [
+            _create_py_schema(py_type=el_py_type, ti_type=el_ti_type)
+                for el_py_type, el_ti_type in zip(_get_tuple_elements_types(py_type), element_ti_types)
+        ]
+        return TupleSchema(elements_py_schema, is_ti_type_optional=is_ti_type_optional)
     elif _get_dict_key_value_types(py_type) is not None:
         if ti_type is None:
             key_ti_type = None
@@ -489,7 +534,7 @@ def _create_py_schema(py_type, ti_type=None, field_name=None):
     elif primitive_origin is not None:
         return _create_primitive_schema(py_type, ti_type, is_ti_type_optional=is_ti_type_optional, field_name=field_name)
     else:
-        raise YtError("Cannot create py_schema for field \"{}\" from type {}".format(effective_field_name, py_type))
+        raise YtError("Unsupported field type. Cannot create py_schema for field \"{}\" from type {}".format(effective_field_name, py_type))
 
 
 def _ti_type_to_wire_type(ti_type):
@@ -615,6 +660,13 @@ def _py_schema_to_skiff_schema(py_schema, name=None):
             ],
             "wire_type": "repeated_variant8",
         }
+    elif isinstance(py_schema, TupleSchema):
+        skiff_schema = {
+            "children": [
+                _py_schema_to_skiff_schema(tt) for tt in py_schema._elements
+            ],
+            "wire_type": "tuple",
+        }
     elif isinstance(py_schema, DictSchema):
         skiff_schema = {
             "children": [
@@ -650,6 +702,8 @@ def _py_schema_to_ti_type(py_schema):
         ti_type = ti.Optional[_py_schema_to_ti_type(py_schema._item)]
     elif isinstance(py_schema, ListSchema):
         ti_type = ti.List[_py_schema_to_ti_type(py_schema._item)]
+    elif isinstance(py_schema, TupleSchema):
+        ti_type = ti.Tuple[tuple(_py_schema_to_ti_type(element) for element in py_schema._elements)]
     elif isinstance(py_schema, DictSchema):
         ti_type = ti.Dict[_py_schema_to_ti_type(py_schema._key), _py_schema_to_ti_type(py_schema._value)]
     elif isinstance(py_schema, PrimitiveSchema):

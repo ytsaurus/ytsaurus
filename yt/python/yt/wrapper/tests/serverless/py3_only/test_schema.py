@@ -5,12 +5,15 @@ from yt.testlib import authors
 from yt.wrapper.schema import SortColumn, ColumnSchema, TableSchema, yt_dataclass, _create_row_py_schema
 from yt.wrapper.schema.types import Uint8, Int32, YsonBytes
 from yt.wrapper.format import StructuredSkiffFormat
+from yt.common import YtError
 
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 import yt.type_info as ti
 
 from copy import deepcopy
+
+import pytest
 
 
 @yt_dataclass
@@ -156,3 +159,23 @@ def test_table_schema_sorting():
 
     # unique_keys is not reset.
     assert sorted_table_schema.unique_keys
+
+
+@authors("denvr")
+def test_elements_diverge():
+    @yt_dataclass
+    class MyClassV1:
+        my_tuple: Tuple[Int32, Uint8]
+
+    @yt_dataclass
+    class MyTableClassV2:
+        my_tuple: Tuple[Int32, Uint8, Uint8]
+
+    table_schema_v1 = TableSchema.from_row_type(MyClassV1)
+    py_schema = _create_row_py_schema(MyClassV1, table_schema_v1)
+    assert py_schema
+
+    with pytest.raises(YtError) as ex:
+        table_schema_v2 = TableSchema.from_row_type(MyTableClassV2)
+        py_schema = _create_row_py_schema(MyClassV1, table_schema_v2)
+    assert "elements type are diverged" in str(ex.value)

@@ -27,6 +27,7 @@ def skiff_optional(skiff_value):
 
 
 SKIFF_INT64_15 = b"\x0F\x00\x00\x00\x00\x00\x00\x00"
+SKIFF_INT64_13330 = b"\x12\x34\x00\x00\x00\x00\x00\x00"
 SKIFF_INT64_MAX = b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x7F"
 SKIFF_INT64_MIN = b"\x00\x00\x00\x00\x00\x00\x00\x80"
 
@@ -115,6 +116,9 @@ SKIFF_LIST_INT64 = b"".join(
     )
 )
 
+SKIFF_TUPLE_INT_BOOL_13330_TRUE = \
+    SKIFF_INT64_13330 + b"\x01"
+
 SKIFF_DICT_STRING_INT64 = b"".join(
     (
         b"\x00",
@@ -160,11 +164,11 @@ def check_dump_load(type_, skiff_bytes, value, *, expected_type=None, assert_val
     Row = create_single_value_row_class(type_)
 
     py_schema = _create_row_py_schema(Row)
+
     skiff_schema_for_reading = SkiffSchema([_row_py_schema_to_skiff_schema(py_schema, for_reading=True)])
 
     skiff_bytes_extended = b"\x00\x00" + skiff_bytes
     stream = io.BytesIO(skiff_bytes_extended)
-
     actual_list = list(load_structured(stream, py_schemas=[py_schema], skiff_schemas=[skiff_schema_for_reading]))
 
     assert len(actual_list) == 1
@@ -273,6 +277,37 @@ class TestDumpLoadStructuredSkiff(object):
             )
         )
         check_dump_load(typing.List[Struct1], skiff_list_struct1, [STRUCT1_VALUE] * 2, expected_type=list)
+
+    @authors("denvr")
+    def test_tuple(self):
+        with pytest.raises(AssertionError) as ex:
+            check_dump_load(typing.Tuple, SKIFF_INT64_13330 + b"\x01", (13330, True, ), expected_type=tuple)
+        assert "members must be specified" in str(ex.value)
+
+        check_dump_load(
+            typing.List[typing.Tuple[int, int]],
+            b"\x00" + SKIFF_INT64_13330 + SKIFF_INT64_13330 + b"\x00" + SKIFF_INT64_15 + SKIFF_INT64_15 + b"\xff",
+            [(13330, 13330,), (15, 15,)],
+            expected_type=list
+        )
+
+        check_dump_load(typing.Tuple[str], SKIFF_STRING32_ABC, ("ABC", ), expected_type=tuple)
+
+        check_dump_load(typing.Optional[typing.Tuple[int]], SKIFF_OPTIONAL_INT64_15, (15, ), expected_type=tuple)
+
+        check_dump_load(typing.Optional[typing.Tuple[int]], SKIFF_OPTIONAL_NOTHING, None, expected_type=type(None))
+
+        check_dump_load(typing.Tuple[int, typing.List[int]], SKIFF_INT64_13330 + b"\x00" + SKIFF_UINT64_15 + b"\x00" + SKIFF_UINT64_15 + b"\xff", (13330, [15, 15],), expected_type=tuple)
+
+        check_dump_load(typing.Tuple[int, bool], SKIFF_TUPLE_INT_BOOL_13330_TRUE, (13330, True, ), expected_type=tuple)
+
+        with pytest.raises(SkiffError) as ex:
+            check_dump_load(typing.Tuple[int, bool], SKIFF_INT64_13330 + b"", tuple(), expected_type=tuple)
+        assert "Premature end of stream while parsing Skiff" in str(ex.value)
+
+        with pytest.raises(SkiffError) as ex:
+            check_dump_load(typing.Tuple[int, bool], SKIFF_TUPLE_INT_BOOL_13330_TRUE + b"\x00\x00", tuple(), expected_type=tuple)
+        assert "Premature end of stream while parsing Skiff" in str(ex.value)
 
     @authors("levysotsky")
     def test_optional(self):

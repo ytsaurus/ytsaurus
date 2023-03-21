@@ -1291,6 +1291,33 @@ class TestTypedApi(object):
         assert row.dict_str_to_int == {"a": 10, "b": 20}
         assert row.dict_int_to_bytes == {1: b"\x01", 2: b"\x02"}
 
+    @authors("denvr")
+    def test_tuple(self):
+        @yt_dataclass
+        class RowWithTuple:
+            tuple_str_int: typing.Optional[typing.Tuple[str, int]]
+            tuple_int_bytes: typing.Optional[typing.Tuple[int, bytes]]
+
+        schema = TableSchema.from_row_type(RowWithTuple)
+
+        table = "//tmp/table"
+        yt.create("table", table, attributes={"schema": schema})
+        yt.write_table_structured(
+            table,
+            RowWithTuple,
+            [
+                RowWithTuple(
+                    tuple_str_int=tuple(["a", 10]),
+                    tuple_int_bytes=tuple([1, b"\x01"]),
+                )
+            ])
+
+        typed_rows = list(yt.read_table_structured(table, RowWithTuple))
+        assert len(typed_rows) == 1
+        row = typed_rows[0]
+        assert row.tuple_str_int == ("a", 10,)
+        assert row.tuple_int_bytes == (1, b"\x01",)
+
     class SimpleIdentityMapper(TypedJob):
         def __call__(self, input_row: TheRow) -> typing.Iterable[TheRow]:
             yield input_row
