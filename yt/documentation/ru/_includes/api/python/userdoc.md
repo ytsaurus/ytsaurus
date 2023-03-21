@@ -14,7 +14,7 @@
 
 ### Клиент и глобальный клиент { #client }
 
-Функции и классы доступны из глобального окружения библиотеки модуля yt.wrapper и могут менять его глобальное состояние. Например, сохраняют туда текущую транзакцию. Также, меняя yt.config, вы меняете глобальную конфигурацию. Если вы хотите иметь возможность работать из нескольких независимых (по-разному сконфигурированных) клиентов, то используйте класс [YtClient](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient). У данного класса доступны практически все функции из модуля [yt.wrapper](https://pydoc.ytsaurus.tech/yt.wrapper.html), то есть вы можете вызывать `client.run_map`, `client.read_table_structured`, `with client.Transaction()` и так далее. Обратите внимание, что переменные окружения `YT_PROXY`, `YT_TOKEN` и остальные задают только конфигурацияю глобального клиента, то есть влияют только на [yt.wrapper.config](https://pydoc.ytsaurus.tech/yt.wrapper.html#module-yt.wrapper.config), но не на конфигурацию явно созданных экземпляров `YtClient`.
+Функции и классы доступны из глобального окружения библиотеки модуля yt.wrapper и могут менять его глобальное состояние. Например, сохраняют туда текущую транзакцию. Также, меняя yt.config, вы меняете глобальную конфигурацию. Если вы хотите иметь возможность работать из нескольких независимых (по-разному сконфигурированных) клиентов, то используйте класс [YtClient](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient). У данного класса доступны практически все функции из модуля [yt.wrapper](https://pydoc.ytsaurus.tech/yt.wrapper.html), то есть вы можете вызывать `client.run_map`, `client.read_table_structured`, `with client.Transaction()` и так далее. Обратите внимание, что переменные окружения `YT_PROXY`, `YT_TOKEN` и остальные задают только конфигурацию глобального клиента, то есть влияют только на [yt.wrapper.config](https://pydoc.ytsaurus.tech/yt.wrapper.html#module-yt.wrapper.config), но не на конфигурацию явно созданных экземпляров `YtClient`.
 
 ```python
 from yt.wrapper import YtClient
@@ -99,7 +99,7 @@ client = yt.YtClient(config=my_config)
 
 #### Общий конфиг { #configuration_common }
 
-#### Настройка логгирования { #configuration_logging }
+#### Настройка логирования { #configuration_logging }
 
 Логирование в ytsaurus-client и всех инструментах, использующих данную библиотеку, устроено следующим образом. Заведен специальный логгер, который находится в модуле `yt.logger` в виде глобальной переменной `LOGGER` и алиасов для логирования на уровне модуля.
 
