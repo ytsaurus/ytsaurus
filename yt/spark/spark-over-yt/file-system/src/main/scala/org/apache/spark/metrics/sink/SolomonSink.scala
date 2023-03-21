@@ -16,7 +16,8 @@ private[this] case class SolomonSink(props: Properties, registry: MetricRegistry
   private val reporter: Try[SolomonReporter] = for {
     solomonConfig <- Try(SolomonConfig.read(props))
     reporterConfig <- Try(ReporterConfig.read(props))
-  } yield SolomonReporter(registry, solomonConfig, reporterConfig)
+    reporter <- SolomonReporter.tryCreateSolomonReporter(registry, solomonConfig, reporterConfig)
+  } yield reporter
 
   override def start(): Unit = reporter match {
     case Failure(ex) =>

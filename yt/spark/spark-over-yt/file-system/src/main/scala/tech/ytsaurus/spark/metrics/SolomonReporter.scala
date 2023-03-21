@@ -9,6 +9,7 @@ import java.time.{Duration, Instant}
 import java.util
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
 
 case class SolomonReporter(registry: MetricRegistry, solomonConfig: SolomonConfig, reporterConfig: ReporterConfig)
@@ -64,4 +65,13 @@ case class SolomonReporter(registry: MetricRegistry, solomonConfig: SolomonConfi
 
 object SolomonReporter {
   private val STARTUP_THRESHOLD: Duration = Duration.ofMinutes(1)
+
+  def tryCreateSolomonReporter(registry: MetricRegistry, solomonConfig: SolomonConfig,
+            reporterConfig: ReporterConfig): Try[SolomonReporter] = {
+    if (reporterConfig.enabled) {
+      Success(SolomonReporter(registry, solomonConfig, reporterConfig))
+    } else {
+      Failure(new RuntimeException("Solomon reporter is disabled"))
+    }
+  }
 }

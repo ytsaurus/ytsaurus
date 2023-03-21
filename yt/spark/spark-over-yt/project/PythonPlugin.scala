@@ -61,7 +61,7 @@ object PythonPlugin extends AutoPlugin {
     },
     pythonUpload := {
       val log = streams.value.log
-      val command = s"${pythonCommand.value} -m twine upload -r test-pypi --verbose dist/*"
+      val command = s"${pythonCommand.value} -m twine upload -r release-pypi --verbose dist/*"
       if (sys.env.get("RELEASE_TEST").exists(_.toBoolean)) {
         log.info(s"RELEASE_TEST: run $command")
       } else {

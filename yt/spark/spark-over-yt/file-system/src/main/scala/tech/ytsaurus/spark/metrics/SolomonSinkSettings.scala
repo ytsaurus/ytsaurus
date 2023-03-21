@@ -1,7 +1,7 @@
 package tech.ytsaurus.spark.metrics
 
-import tech.ytsaurus.spyt.fs.conf.StringMapConfigEntry
-import tech.ytsaurus.spyt.fs.conf.{DurationSecondsConfigEntry, IntConfigEntry, StringConfigEntry, StringMapConfigEntry}
+import tech.ytsaurus.spyt.fs.conf.{BooleanConfigEntry, DurationSecondsConfigEntry,
+  IntConfigEntry, StringConfigEntry, StringMapConfigEntry}
 
 import scala.concurrent.duration.DurationInt
 
@@ -14,6 +14,7 @@ case object SolomonSinkSettings {
   case object SolomonMetricNameRegex extends StringConfigEntry("accept_metrics", Some(".*"))
   case object SolomonMetricNameTransform extends StringConfigEntry("rename_metrics", Some(""))
 
+  case object ReporterEnabled extends BooleanConfigEntry("reporter_enabled", Some(true))
   case object ReporterPollPeriod extends DurationSecondsConfigEntry("poll_period",
     Some(500.milliseconds))
   case object ReporterName extends StringConfigEntry("reporter_name", Some("spyt"))
