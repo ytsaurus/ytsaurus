@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from .helpers import yatest_common
 
-from yt.test_helpers import get_work_path
+from yt.test_helpers import get_work_path, get_build_root
 import yt.test_helpers.cleanup as test_cleanup
 
 from yt.common import get_fqdn
@@ -91,6 +91,7 @@ class YtTestEnvironment(object):
 
             self.binaries_path = arcadia_interop.prepare_yt_environment(
                 prepare_dir,
+                binary_root=get_build_root(),
                 copy_ytserver_all=not ytrecipe,
                 need_suid=need_suid and not ytrecipe)
             os.environ["PATH"] = os.pathsep.join([self.binaries_path, os.environ.get("PATH", "")])
