@@ -2366,29 +2366,35 @@ void TClient::DoUnregisterQueueConsumer(
     const TUnregisterQueueConsumerOptions& /*options*/)
 {
     const auto& tableMountCache = Connection_->GetTableMountCache();
-    auto queueTableInfo = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()))
-        .ValueOrThrow();
-    NSecurityClient::TPermissionKey queuePermissionKey{
-        .Object = FromObjectId(queueTableInfo->TableId),
-        .User = Options_.GetAuthenticatedUser(),
-        .Permission = EPermission::Remove,
-    };
+    auto queueTableInfoOrError = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()));
 
     auto consumerConnection = FindRemoteConnection(Connection_, consumerPath.GetCluster());
-    auto consumerTableInfo = WaitFor(consumerConnection->GetTableMountCache()->GetTableInfo(consumerPath.GetPath()))
-        .ValueOrThrow();
-    NSecurityClient::TPermissionKey consumerPermissionKey{
-        .Object = FromObjectId(consumerTableInfo->TableId),
-        .User = Options_.GetAuthenticatedUser(),
-        .Permission = EPermission::Remove,
-    };
+    auto consumerTableInfoOrError = WaitFor(consumerConnection->GetTableMountCache()->GetTableInfo(consumerPath.GetPath()));
 
-    WaitFor(AnySucceeded(std::vector{
-        Connection_->GetPermissionCache()->Get(queuePermissionKey),
-        consumerConnection->GetPermissionCache()->Get(consumerPermissionKey)
-    }))
-        .ThrowOnError();
+    // NB: We cannot really check permissions if the objects are not available anymore.
+    // For now, we will allow anyone to delete registrations with nonexistent queues/consumers.
+    if (queueTableInfoOrError.IsOK() && consumerTableInfoOrError.IsOK()) {
+        const auto& queueTableInfo = queueTableInfoOrError.Value();
+        const auto& consumerTableInfo = consumerTableInfoOrError.Value();
 
+        NSecurityClient::TPermissionKey queuePermissionKey{
+            .Object = FromObjectId(queueTableInfo->TableId),
+            .User = Options_.GetAuthenticatedUser(),
+            .Permission = EPermission::Remove,
+        };
+
+        NSecurityClient::TPermissionKey consumerPermissionKey{
+            .Object = FromObjectId(consumerTableInfo->TableId),
+            .User = Options_.GetAuthenticatedUser(),
+            .Permission = EPermission::Remove,
+        };
+
+        WaitFor(AnySucceeded(std::vector{
+            Connection_->GetPermissionCache()->Get(queuePermissionKey),
+            consumerConnection->GetPermissionCache()->Get(consumerPermissionKey)
+        }))
+            .ThrowOnError();
+    }
 
     auto registrationCache = Connection_->GetQueueConsumerRegistrationManager();
     registrationCache->UnregisterQueueConsumer(queuePath, consumerPath);

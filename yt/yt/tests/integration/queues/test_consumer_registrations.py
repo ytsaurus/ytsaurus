@@ -3,7 +3,7 @@ from yt_tests_common.chaos_test_base import ChaosTestBase
 from yt_commands import (authors, wait, get, set, create, sync_mount_table, create_table_replica, get_driver,
                          sync_enable_table_replica, select_rows, print_debug, check_permission, register_queue_consumer,
                          unregister_queue_consumer, list_queue_consumer_registrations, raises_yt_error, create_user,
-                         sync_create_cells)
+                         sync_create_cells, remove)
 
 from yt_env_setup import (
     Restarter,
@@ -336,6 +336,13 @@ class TestConsumerRegistrations(ChaosTestBase):
         # Now Egor can unregister any consumer to his queue.
         unregister_queue_consumer("//tmp/q", "//tmp/c2", authenticated_user="egor")
 
+        wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
+
+        register_queue_consumer("//tmp/q", "//tmp/c2", vital=True)
+        remove("//tmp/q")
+        # Bulat can unregister any consumer to a deleted queue.
+        # No neat solution here, we cannot check permissions on deleted objects :(
+        self._insistent_call(lambda: unregister_queue_consumer("//tmp/q", "//tmp/c2", authenticated_user="bulat"))
         wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
 
     @authors("achulkov2")
