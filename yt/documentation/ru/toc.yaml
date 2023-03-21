@@ -281,7 +281,7 @@ items:
                   href: user-guide/data-processing/spyt/API/spyt-java.md
                 - name: SPYT в Python
                   href: user-guide/data-processing/spyt/API/spyt-python.md
-                - name: SPYT в Jyputer
+                - name: SPYT в Jupyter
                   href: user-guide/data-processing/spyt/API/spyt-jupyter.md
             - name: Справочник
               items:
