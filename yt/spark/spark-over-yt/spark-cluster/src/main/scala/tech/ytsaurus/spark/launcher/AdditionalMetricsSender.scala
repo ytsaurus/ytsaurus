@@ -25,10 +25,11 @@ object AdditionalMetricsSender {
       props <- Try(propsOpt.get)
       solomonConfig <- Try(SC.read(props))
       reporterConfig <- Try(ReporterConfig.read(props))
-    } yield SolomonReporter(registry, solomonConfig, reporterConfig)
+      reporter <- SolomonReporter.tryCreateSolomonReporter(registry, solomonConfig, reporterConfig)
+    } yield reporter
 
     reporter.failed.foreach { ex =>
-      log.error(s"Failed to parse solomon reporter configs: ${ex.getMessage}", ex)
+      log.error(s"Failed to create solomon reporter: ${ex.getMessage}", ex)
     }
 
     new AdditionalMetricsSender {
