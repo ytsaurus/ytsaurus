@@ -10,7 +10,6 @@ void avg_init(
     intStatePtr[0] = 0;
     intStatePtr[1] = 0;
 
-    ClearValue(result);
     result->Type = VT_String;
     result->Length = stateSize;
     result->Data.String = statePtr;
@@ -30,7 +29,6 @@ void avg_update(
         intStatePtr[1] += newValue->Data.Int64;
     }
 
-    ClearValue(result);
     result->Type = VT_String;
     result->Length = 2 * sizeof(int64_t);
     result->Data.String = (char*)intStatePtr;
@@ -50,7 +48,6 @@ void avg_merge(
     dstStatePtr[0] += intStatePtr[0];
     dstStatePtr[1] += intStatePtr[1];
 
-    ClearValue(result);
     result->Type = VT_String;
     result->Length = 2 * sizeof(int64_t);
     result->Data.String = (char*)dstStatePtr;
@@ -63,7 +60,6 @@ void avg_finalize(
 {
     (void)context;
 
-    ClearValue(result);
     int64_t* intStatePtr = (int64_t*)state->Data.String;
     if (intStatePtr[0] == 0) {
         result->Type = VT_Null;

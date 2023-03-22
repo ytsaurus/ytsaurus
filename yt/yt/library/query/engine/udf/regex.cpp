@@ -65,7 +65,6 @@ extern "C" void regex_full_match(
     TUnversionedValue* input)
 {
     if (pattern->Type == EValueType::Null || input->Type == EValueType::Null) {
-        ClearValue(result);
         result->Type = EValueType::Boolean;
         result->Data.Boolean = false;
     } else {
@@ -73,7 +72,6 @@ extern "C" void regex_full_match(
             functionContext,
             pattern,
             [=] (TRe2Regex* regex) {
-                ClearValue(result);
                 result->Type = EValueType::Boolean;
                 result->Data.Boolean = RegexFullMatch(regex->Re2, input);
             });
@@ -88,7 +86,6 @@ extern "C" void regex_partial_match(
     TUnversionedValue* input)
 {
     if (pattern->Type == EValueType::Null || input->Type == EValueType::Null) {
-        ClearValue(result);
         result->Type = EValueType::Boolean;
         result->Data.Boolean = false;
     } else {
@@ -96,7 +93,6 @@ extern "C" void regex_partial_match(
             functionContext,
             pattern,
             [=] (TRe2Regex* regex) {
-                ClearValue(result);
                 result->Type = EValueType::Boolean;
                 result->Data.Boolean = RegexPartialMatch(regex->Re2, input);
             });
@@ -112,7 +108,6 @@ extern "C" void regex_replace_first(
     TUnversionedValue* rewrite)
 {
     if (pattern->Type == EValueType::Null || input->Type == EValueType::Null || rewrite->Type == EValueType::Null) {
-        ClearValue(result);
         result->Type = EValueType::Null;
     } else {
         regex_apply(
@@ -133,7 +128,6 @@ extern "C" void regex_replace_all(
     TUnversionedValue* rewrite)
 {
     if (pattern->Type == EValueType::Null || input->Type == EValueType::Null || rewrite->Type == EValueType::Null) {
-        ClearValue(result);
         result->Type = EValueType::Null;
     } else {
         regex_apply(
@@ -154,7 +148,6 @@ extern "C" void regex_extract(
     TUnversionedValue* rewrite)
 {
     if (pattern->Type == EValueType::Null || input->Type == EValueType::Null || rewrite->Type == EValueType::Null) {
-        ClearValue(result);
         result->Type = EValueType::Null;
     } else {
         regex_apply(
@@ -173,7 +166,6 @@ extern "C" void regex_escape(
     TUnversionedValue* input)
 {
     if (input->Type == EValueType::Null) {
-        ClearValue(result);
         result->Type = EValueType::Null;
     } else {
         RegexEscape(expressionContext, input, result);

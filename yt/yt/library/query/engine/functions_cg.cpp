@@ -302,10 +302,22 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
         builder,
         UnversionedValueStructName);
 
-    auto resultPtr = builder->CreateAlloca(
-        unversionedValueType,
-        nullptr,
-        "resultPtr");
+    auto allocaAndInitResult = [&] {
+        auto resultPtr = builder->CreateAlloca(
+            unversionedValueType,
+            nullptr,
+            "resultPtr");
+
+        builder->CreateMemSet(
+            resultPtr,
+            builder->getInt8(0),
+            sizeof(TValue),
+            llvm::Align(8));
+
+        return resultPtr;
+    };
+
+    auto resultPtr = allocaAndInitResult();
     auto castedResultPtr = builder->CreateBitCast(
         resultPtr,
         PointerType::getUnqual(unversionedValueOpaqueType));

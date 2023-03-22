@@ -12,7 +12,6 @@ extern "C" void farm_hash(
     TUnversionedValue* args,
     int args_len)
 {
-    ClearValue(result);
     result->Type = EValueType::Uint64;
     result->Data.Uint64 = GetFarmFingerprint(args, args + args_len);
 }
