@@ -43,6 +43,7 @@ namespace NYT::NNodeTrackerServer {
 
 using namespace NCellarClient;
 using namespace NChunkClient;
+using namespace NMaintenanceTrackerServer;
 using namespace NNodeTrackerClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NObjectServer;
@@ -204,10 +205,10 @@ private:
                     .DoMapFor(requests, [] (TFluentMap map, const auto& request) {
                         map.Item(ToString(request.first))
                             .BeginMap()
-                                .Item("user_name").Value(request.second.UserName)
+                                .Item("user").Value(request.second.User)
                                 .Item("comment").Value(request.second.Comment)
                                 .Item("timestamp").Value(request.second.Timestamp)
-                                .Item("maintenance_type").Value(request.second.Type)
+                                .Item("type").Value(request.second.Type)
                             .EndMap();
                     });
                 return true;

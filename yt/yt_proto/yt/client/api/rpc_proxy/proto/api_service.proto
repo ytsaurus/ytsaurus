@@ -245,13 +245,21 @@ enum EPartitionTablesMode
     TPM_UNORDERED = 2;
 }
 
-enum ENodeMaintenanceType
+enum EMaintenanceType
 {
-    NMT_BAN = 1;
-    NMT_DECOMMISSION = 2;
-    NMT_DISABLE_SCHEDULER_JOBS = 3;
-    NMT_DISABLE_WRITE_SESSIONS = 4;
-    NMT_DISABLE_TABLET_CELLS = 5;
+    MT_BAN = 1;
+    MT_DECOMMISSION = 2;
+    MT_DISABLE_SCHEDULER_JOBS = 3;
+    MT_DISABLE_WRITE_SESSIONS = 4;
+    MT_DISABLE_TABLET_CELLS = 5;
+}
+
+enum EMaintenanceComponent
+{
+    MC_CLUSTER_NODE = 1;
+    MC_HTTP_PROXY = 2;
+    MC_RPC_PROXY = 3;
+    MC_HOST = 4;
 }
 
 // COMPAT(max42).
@@ -935,26 +943,36 @@ message TRspResumeChaosCells
 
 message TReqAddMaintenance
 {
-    required string node_address = 1;
-    required ENodeMaintenanceType type = 2;
-    required string comment = 3;
+    required EMaintenanceComponent component = 1;
+    required string address = 2;
+    required EMaintenanceType type = 3;
+    required string comment = 4;
 }
 
 message TRspAddMaintenance
 {
-    required NYT.NProto.TGuid id = 1;  // TMaintenanceId
+    required NYT.NProto.TGuid id = 1; // TMaintenanceId
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqRemoveMaintenance
 {
-    required string node_address = 1;
-    required NYT.NProto.TGuid id = 2;  // TMaintenanceId
+    required EMaintenanceComponent component = 1;
+    required string address = 2;
+    repeated NYT.NProto.TGuid ids = 3; // TMaintenanceId
+    optional EMaintenanceType type = 4;
+    optional string user = 5;
+    optional bool mine = 6 [default = false];
 }
 
 message TRspRemoveMaintenance
 {
+    required int32 ban = 1;
+    required int32 decommission = 2;
+    required int32 disable_scheduler_jobs = 3;
+    required int32 disable_write_sessions = 4;
+    required int32 disable_tablet_cells = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

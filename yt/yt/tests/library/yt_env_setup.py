@@ -978,15 +978,11 @@ class YTEnvSetup(object):
 
         yt_commands.execute_batch(requests)
 
-    # COMPAT(kvk1920)
-    def _check_if_maintenance_requests_available(self, driver):
-        nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)
-        if not nodes:
-            return False
-        return yt_commands.exists(f"//sys/cluster_nodes/{nodes[0]}/@maintenance_requests", driver=driver)
-
     def _reset_nodes(self, driver=None):
-        use_maintenance_requests = self._check_if_maintenance_requests_available(driver)
+        use_maintenance_requests = yt_commands.get(
+            "//sys/@config/node_tracker/forbid_maintenance_attribute_writes",
+            default=False,
+            driver=driver)
         if use_maintenance_requests:
             maintenance_attributes = ["maintenance_requests"]
         else:
@@ -1019,12 +1015,13 @@ class YTEnvSetup(object):
                     )
                 )
             if use_maintenance_requests:
-                for maintenance in node.attributes["maintenance_requests"]:
+                if node.attributes["maintenance_requests"]:
                     requests.append(
                         yt_commands.make_batch_request(
                             "remove_maintenance",
-                            node_address=node_name,
-                            id=maintenance,
+                            component="cluster_node",
+                            address=node_name,
+                            all=True
                         )
                     )
             else:
@@ -1158,7 +1155,7 @@ class YTEnvSetup(object):
         if self.TEST_LOCATION_AWARE_REPLICATOR:
             assert dynamic_master_config["node_tracker"].pop("enable_real_chunk_locations")
 
-        if not self.TEST_MAINTENANCE_FLAGS:
+        if not self.TEST_MAINTENANCE_FLAGS and self.Env.get_component_version("ytserver-master").abi >= (23, 1):
             dynamic_master_config["node_tracker"]["forbid_maintenance_attribute_writes"] = True
 
         default_pool_tree_config = {

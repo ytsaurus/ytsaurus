@@ -836,21 +836,23 @@ TFuture<void> TDelegatingClient::ResumeTabletCells(
     return Underlying_->ResumeTabletCells(cellIds, options);
 }
 
-TFuture<NNodeTrackerClient::TMaintenanceId> TDelegatingClient::AddMaintenance(
-    const TString& nodeAddress,
-    NNodeTrackerClient::EMaintenanceType type,
+TFuture<TMaintenanceId> TDelegatingClient::AddMaintenance(
+    EMaintenanceComponent component,
+    const TString& address,
+    EMaintenanceType type,
     const TString& comment,
     const TAddMaintenanceOptions& options)
 {
-    return Underlying_->AddMaintenance(nodeAddress, type, comment, options);
+    return Underlying_->AddMaintenance(component, address, type, comment, options);
 }
 
-TFuture<void> TDelegatingClient::RemoveMaintenance(
-    const TString& nodeAddress,
-    NNodeTrackerClient::TMaintenanceId id,
+TFuture<TMaintenanceCounts> TDelegatingClient::RemoveMaintenance(
+    EMaintenanceComponent component,
+    const TString& address,
+    const TMaintenanceFilter& filter,
     const TRemoveMaintenanceOptions& options)
 {
-    return Underlying_->RemoveMaintenance(nodeAddress, id, options);
+    return Underlying_->RemoveMaintenance(component, address, filter, options);
 }
 
 TFuture<TDisableChunkLocationsResult> TDelegatingClient::DisableChunkLocations(

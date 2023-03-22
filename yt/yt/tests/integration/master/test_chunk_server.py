@@ -717,7 +717,7 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
         chunk_ids = get("//tmp/t5/@chunk_ids")
 
         troubled_node = get("#{}/@stored_replicas".format(chunk_ids[0]))[1]
-        add_maintenance(troubled_node, trouble_mode, "test node trouble")
+        add_maintenance("cluster_node", troubled_node, trouble_mode, "test node trouble")
 
         def are_chunks_collocated():
             chunk0_replicas = get("#{}/@stored_replicas".format(chunk_ids[0]))
@@ -749,7 +749,7 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
         chunk_ids = get("//tmp/t5/@chunk_ids")
 
         troubled_node = get("#{}/@stored_replicas".format(chunk_ids[0]))[1]
-        maintenance_id = add_maintenance(troubled_node, trouble_mode, "test roubled node restart")
+        maintenance_id = add_maintenance("cluster_node", troubled_node, trouble_mode, "test roubled node restart")
 
         def are_chunks_collocated(troubled_node_ok):
             chunk0_replicas = get("#{}/@stored_replicas".format(chunk_ids[0]))
@@ -775,7 +775,7 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
         with Restarter(self.Env, NODES_SERVICE):
             if trouble_mode == "ban":
                 # Otherwise the node won't restart.
-                remove_maintenance(troubled_node, maintenance_id)
+                remove_maintenance("cluster_node", troubled_node, id=maintenance_id)
 
         wait(lambda: are_chunks_collocated(True), iter=120, sleep_backoff=1.0)
 

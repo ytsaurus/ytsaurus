@@ -262,15 +262,17 @@ public:
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TResumeTabletCellsOptions& options), (override));
 
-    MOCK_METHOD(TFuture<NNodeTrackerClient::TMaintenanceId>, AddMaintenance, (
-        const TString& nodeAddress,
-        NNodeTrackerClient::EMaintenanceType type,
+    MOCK_METHOD(TFuture<TMaintenanceId>, AddMaintenance, (
+        EMaintenanceComponent component,
+        const TString& address,
+        EMaintenanceType type,
         const TString& comment,
         const TAddMaintenanceOptions& options), (override));
 
-    MOCK_METHOD(TFuture<void>, RemoveMaintenance, (
-        const TString& nodeAddress,
-        NNodeTrackerClient::TMaintenanceId,
+    MOCK_METHOD(TFuture<TMaintenanceCounts>, RemoveMaintenance, (
+        EMaintenanceComponent component,
+        const TString& address,
+        const TMaintenanceFilter& filter,
         const TRemoveMaintenanceOptions& options), (override));
 
     // IClient

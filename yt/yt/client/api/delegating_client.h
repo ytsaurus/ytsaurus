@@ -522,15 +522,17 @@ public:
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TResumeTabletCellsOptions& options = {}) override;
 
-    TFuture<NNodeTrackerClient::TMaintenanceId> AddMaintenance(
-        const TString& nodeAddress,
-        NNodeTrackerClient::EMaintenanceType type,
+    TFuture<TMaintenanceId> AddMaintenance(
+        EMaintenanceComponent component,
+        const TString& address,
+        EMaintenanceType type,
         const TString& comment,
         const TAddMaintenanceOptions& options = {}) override;
 
-    TFuture<void> RemoveMaintenance(
-        const TString& nodeAddress,
-        NNodeTrackerClient::TMaintenanceId id,
+    TFuture<TMaintenanceCounts> RemoveMaintenance(
+        EMaintenanceComponent component,
+        const TString& address,
+        const TMaintenanceFilter& filter,
         const TRemoveMaintenanceOptions& options = {}) override;
 
     TFuture<TDisableChunkLocationsResult> DisableChunkLocations(

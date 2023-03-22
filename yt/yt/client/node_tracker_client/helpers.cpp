@@ -18,15 +18,6 @@ NYPath::TYPath GetExecNodesPath()
     return "//sys/exec_nodes";
 }
 
-void ValidateMaintenanceComment(const TString& comment)
-{
-    if (comment.length() > MaxMaintenanceCommentLength) {
-        THROW_ERROR_EXCEPTION("Maintenance comment length is exceeded")
-            << TErrorAttribute("comment_length", comment.length())
-            << TErrorAttribute("max_comment_length", MaxMaintenanceCommentLength);
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {

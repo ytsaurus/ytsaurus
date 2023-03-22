@@ -8,20 +8,25 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 
-#include <yt/yt/server/master/security_server/security_manager.h>
-#include <yt/yt/server/master/security_server/subject.h>
-#include <yt/yt/server/master/security_server/acl.h>
-#include <yt/yt/server/master/security_server/user.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/config.h>
+#include <yt/yt/server/master/chunk_server/helpers.h>
+#include <yt/yt/server/master/chunk_server/medium.h>
+
+#include <yt/yt/server/master/maintenance_tracker_server/maintenance_request.h>
+#include <yt/yt/server/master/maintenance_tracker_server/maintenance_tracker.h>
 
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 #include <yt/yt/server/master/node_tracker_server/node_discovery_manager.h>
 
-#include <yt/yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/yt/server/master/chunk_server/config.h>
-#include <yt/yt/server/master/chunk_server/helpers.h>
-#include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/object_server/proto/object_manager.pb.h>
+
+#include <yt/yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/subject.h>
+#include <yt/yt/server/master/security_server/acl.h>
+#include <yt/yt/server/master/security_server/user.h>
 
 #include <yt/yt/ytlib/election/config.h>
 
@@ -34,6 +39,7 @@
 namespace NYT::NObjectServer {
 
 using namespace NSecurityServer;
+using namespace NMaintenanceTrackerServer;
 using namespace NNodeTrackerServer;
 using namespace NHydra;
 using namespace NObjectClient;
@@ -64,6 +70,8 @@ private:
             .SetHeavy(true)
             .SetResponseCodec(NCompression::ECodec::Lz4));
         DISPATCH_YPATH_SERVICE_METHOD(CheckPermissionByAcl);
+        DISPATCH_YPATH_SERVICE_METHOD(AddMaintenance);
+        DISPATCH_YPATH_SERVICE_METHOD(RemoveMaintenance);
         return TBase::DoInvoke(context);
     }
 
@@ -258,6 +266,82 @@ private:
             const auto& chunkManagerConfig = configManager->GetConfig()->ChunkManager;
             response->set_features(CreateFeatureRegistryYson(chunkManagerConfig->DeprecatedCodecIds).ToString());
         }
+
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, AddMaintenance)
+    {
+        DeclareMutating();
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsPrimaryMaster()) {
+            THROW_ERROR_EXCEPTION("Maintenance can only be added via primary master");
+        }
+
+        auto component = CheckedEnumCast<EMaintenanceComponent>(request->component());
+        auto type = CheckedEnumCast<EMaintenanceType>(request->type());
+
+        const auto& maintenanceTracker = Bootstrap_->GetMaintenanceTracker();
+        auto id = maintenanceTracker->AddMaintenance(
+            component,
+            request->address(),
+            type,
+            request->comment());
+
+        ToProto(response->mutable_id(), id);
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, RemoveMaintenance)
+    {
+        DeclareMutating();
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsPrimaryMaster()) {
+            THROW_ERROR_EXCEPTION("Maintenance can only be added via primary master");
+        }
+
+        auto component = CheckedEnumCast<EMaintenanceComponent>(request->component());
+
+        std::optional<TCompactSet<TMaintenanceId, TypicalMaintenanceRequestCount>> ids;
+        if (!request->ids().empty()) {
+            ids.emplace();
+            for (auto id : request->ids()) {
+                ids->insert(FromProto<TMaintenanceId>(id));
+            }
+        }
+
+        std::optional<TStringBuf> user;
+        if (request->has_user()) {
+            THROW_ERROR_EXCEPTION_IF(request->has_mine(),
+                "At most one of {\"mine\", \"user\"} can be specified");
+
+            user = request->user();
+        } else if (request->mine()) {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            user = securityManager->GetAuthenticatedUser()->GetName();
+        }
+
+        std::optional<EMaintenanceType> type;
+        if (request->has_type()) {
+            type = CheckedEnumCast<EMaintenanceType>(request->type());
+        }
+
+        const auto& maintenanceTracker = Bootstrap_->GetMaintenanceTracker();
+        auto removed = maintenanceTracker->RemoveMaintenance(
+            component,
+            request->address(),
+            ids,
+            user,
+            type);
+
+        using enum EMaintenanceType;
+        response->set_ban(removed[Ban]);
+        response->set_decommission(removed[Decommission]);
+        response->set_disable_scheduler_jobs(removed[DisableSchedulerJobs]);
+        response->set_disable_write_sessions(removed[DisableWriteSessions]);
+        response->set_disable_tablet_cells(removed[DisableTabletCells]);
 
         context->Reply();
     }

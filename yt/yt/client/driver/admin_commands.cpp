@@ -15,6 +15,9 @@ using namespace NConcurrency;
 using namespace NChaosClient;
 using namespace NObjectClient;
 
+using NApi::TMaintenanceId;
+using NApi::TMaintenanceFilter;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TBuildSnapshotCommand::TBuildSnapshotCommand()
@@ -231,14 +234,20 @@ void TResumeTabletCellsCommand::DoExecute(ICommandContextPtr context)
 
 TAddMaintenanceCommand::TAddMaintenanceCommand()
 {
-    RegisterParameter("node_address", NodeAddress_);
+    RegisterParameter("component", Component_);
+    RegisterParameter("address", Address_);
     RegisterParameter("type", Type_);
     RegisterParameter("comment", Comment_);
 }
 
 void TAddMaintenanceCommand::DoExecute(ICommandContextPtr context)
 {
-    auto id = WaitFor(context->GetClient()->AddMaintenance(NodeAddress_, Type_, Comment_, Options))
+    auto id = WaitFor(context->GetClient()->AddMaintenance(
+        Component_,
+        Address_,
+        Type_,
+        Comment_,
+        Options))
         .ValueOrThrow();
 
     ProduceSingleOutputValue(context, "id", id);
@@ -248,14 +257,106 @@ void TAddMaintenanceCommand::DoExecute(ICommandContextPtr context)
 
 TRemoveMaintenanceCommand::TRemoveMaintenanceCommand()
 {
-    RegisterParameter("node_address", NodeAddress_);
-    RegisterParameter("id", Id_);
+    RegisterParameter("component", Component_);
+    RegisterParameter("address", Address_);
+
+    RegisterParameter("id", Id_)
+        .Default();
+
+    RegisterParameter("ids", Ids_)
+        .Default();
+
+    RegisterParameter("user", User_)
+        .Default();
+    RegisterParameter("mine", Mine_)
+        .Optional();
+
+    RegisterParameter("type", Type_)
+        .Optional();
+
+    RegisterParameter("all", All_)
+        .Optional();
+
+    RegisterPostprocessor([&] {
+        THROW_ERROR_EXCEPTION_IF(Id_ && Ids_,
+            "At most one of {\"id\", \"ids\"} can be specified at the same time");
+
+        THROW_ERROR_EXCEPTION_IF(Ids_ && Ids_->empty(),
+            "\"ids\" must not be empty if specified");
+
+        THROW_ERROR_EXCEPTION_IF(!Id_ && !Ids_ && !User_ && !Mine_ && !Type_ && !All_,
+            "\"all\" must be specified explicitly");
+
+        THROW_ERROR_EXCEPTION_IF(Mine_ && User_,
+            "Cannot specify both \"user\" and \"mine\"");
+
+        THROW_ERROR_EXCEPTION_IF(All_ && (User_ || Mine_ || Type_ || Id_ || Ids_),
+            "\"all\" cannot be used with other options");
+    });
 }
+
+namespace {
+
+TStringBuf MaintenanceTypeToString(NApi::EMaintenanceType type)
+{
+    using enum NApi::EMaintenanceType;
+    switch (type) {
+        case Ban:
+            return "ban";
+        case Decommission:
+            return "decommission";
+        case DisableSchedulerJobs:
+            return "disable_scheduler_jobs";
+        case DisableWriteSessions:
+            return "disable_write_sessions";
+        case DisableTabletCells:
+            return "disable_tablet_cells";
+        default:
+            YT_ABORT();
+    }
+}
+
+} // namespace
 
 void TRemoveMaintenanceCommand::DoExecute(ICommandContextPtr context)
 {
-    WaitFor(context->GetClient()->RemoveMaintenance(NodeAddress_, Id_, Options))
-        .ThrowOnError();
+    TMaintenanceFilter filter;
+
+    if (Id_) {
+        filter.Ids = {*Id_};
+    } else if (Ids_) {
+        filter.Ids = *Ids_;
+    }
+
+    if (Mine_) {
+        filter.User = TMaintenanceFilter::TByUser::TMine{};
+    } else if (User_) {
+        filter.User = *User_;
+    } else {
+        filter.User = TMaintenanceFilter::TByUser::TAll{};
+    }
+
+    if (Type_) {
+        filter.Type = *Type_;
+    }
+
+    auto removedMaintenanceCounts = WaitFor(context->GetClient()->RemoveMaintenance(
+        Component_,
+        Address_,
+        filter,
+        Options))
+        .ValueOrThrow();
+
+    ProduceOutput(context, [&] (NYson::IYsonConsumer* consumer) {
+        auto fluent = BuildYsonFluently(consumer)
+            .BeginMap();
+        for (auto type : TEnumTraits<NApi::EMaintenanceType>::GetDomainValues()) {
+            if (removedMaintenanceCounts[type] > 0) {
+                fluent = fluent.Item(MaintenanceTypeToString(type)).Value(removedMaintenanceCounts[type]);
+            }
+        }
+        fluent.EndMap();
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

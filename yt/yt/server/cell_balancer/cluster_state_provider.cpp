@@ -61,13 +61,13 @@ TClusterStateProvider::TClusterStateProvider(NCellBalancerClient::NProto::TRspGe
         }
         node->SetNodeAddresses(FromProto<TNodeAddressMap>(protoNode->node_addresses()));
         if (protoNode->decommissioned()) {
-            Y_UNUSED(node->SetMaintenanceFlag(NNodeTrackerClient::EMaintenanceType::Decommission, "", TInstant::Zero()));
+            Y_UNUSED(node->SetMaintenanceFlag(NApi::EMaintenanceType::Decommission, "", TInstant::Zero()));
         }
         if (protoNode->disable_tablet_cells()) {
-            Y_UNUSED(node->SetMaintenanceFlag(NNodeTrackerClient::EMaintenanceType::DisableTabletCells, "", TInstant::Zero()));
+            Y_UNUSED(node->SetMaintenanceFlag(NApi::EMaintenanceType::DisableTabletCells, "", TInstant::Zero()));
         }
         if (protoNode->banned()) {
-            Y_UNUSED(node->SetMaintenanceFlag(NNodeTrackerClient::EMaintenanceType::Ban, "", TInstant::Zero()));
+            Y_UNUSED(node->SetMaintenanceFlag(NApi::EMaintenanceType::Ban, "", TInstant::Zero()));
         }
         return node;
     };

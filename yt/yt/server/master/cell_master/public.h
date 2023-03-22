@@ -125,6 +125,8 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (Zookeeper)
     (ChunkReincarnator)
     (GraftingManager)
+    (NodeStatisticsFixer)
+    (MaintenanceTracker)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,

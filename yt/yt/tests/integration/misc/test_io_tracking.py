@@ -2287,63 +2287,82 @@ class TestRemoteCopyErasureIOTracking(TestRemoteCopyIOTrackingBase):
 
         assert read_table("//tmp/table_out") == self.TABLE_DATA
 
+    def _enable_direct_maintenance_flag_set(self):
+        path = "//sys/@config/node_tracker/forbid_maintenance_attribute_writes"
+        local = get(path)
+        remote = get(path, driver=self.remote_driver)
+        yt_commands.set(path, False)
+        yt_commands.set(path, False, driver=self.remote_driver)
+        return local, remote
+
+    def _restore_maintenance_flag_config(self, old_value):
+        path = "//sys/@config/node_tracker/forbid_maintenance_attribute_writes"
+        local, remote = old_value
+        yt_commands.set(path, local)
+        yt_commands.set(path, remote, driver=self.remote_driver)
+
     @authors("gepardo")
     def test_remote_copy_erasure_repair(self):
-        self._write_remote_erasure_table("//tmp/table_in")
+        old_value = self._enable_direct_maintenance_flag_set()
+        try:
+            self._write_remote_erasure_table("//tmp/table_in")
 
-        yt_commands.set("//sys/@config/chunk_manager/enable_chunk_replicator", False,
-                        driver=self.remote_driver)
-        yt_commands.set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
-        time.sleep(1.0)
+            yt_commands.set("//sys/@config/chunk_manager/enable_chunk_replicator", False,
+                            driver=self.remote_driver)
+            yt_commands.set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
+            time.sleep(1.0)
 
-        from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
+            from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
 
-        chunk_id = get("//tmp/table_in/@chunk_ids/0", driver=self.remote_driver)
-        chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
-        node_to_ban = str(chunk_replicas[0])
+            chunk_id = get("//tmp/table_in/@chunk_ids/0", driver=self.remote_driver)
+            chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
+            node_to_ban = str(chunk_replicas[0])
 
-        create("table", "//tmp/table_out", attributes={"erasure_codec": "reed_solomon_3_3"})
-        op = remote_copy(
-            in_="//tmp/table_in",
-            out="//tmp/table_out",
-            spec={
-                "cluster_name": self.REMOTE_CLUSTER_NAME,
-                "max_failed_job_count": 1,
-                "delay_in_copy_chunk": 5000,
-                "erasure_chunk_repair_delay": 2000,
-                "repair_erasure_chunks": True,
-            },
-            track=False,
-        )
-        wait(lambda: len(op.get_running_jobs()) == 1)
+            create("table", "//tmp/table_out", attributes={"erasure_codec": "reed_solomon_3_3"})
+            op = remote_copy(
+                in_="//tmp/table_in",
+                out="//tmp/table_out",
+                spec={
+                    "cluster_name": self.REMOTE_CLUSTER_NAME,
+                    "max_failed_job_count": 1,
+                    "delay_in_copy_chunk": 5000,
+                    "erasure_chunk_repair_delay": 2000,
+                    "repair_erasure_chunks": True,
+                },
+                track=False,
+            )
+            wait(lambda: len(op.get_running_jobs()) == 1)
 
-        # We need to ban node after job start because CA will not start job until
-        # all the parts were found.
-        set_node_banned(node_to_ban, True,  driver=self.remote_driver)
+            # We need to ban node after job start because CA will not start job until
+            # all the parts were found.
+            set_node_banned(node_to_ban, True,  driver=self.remote_driver)
 
-        op.track()
-        time.sleep(3.0)
+            op.track()
+            time.sleep(3.0)
 
-        write_count = 0
-        read_count = 0
-        for node_id in range(self.NUM_NODES):
-            raw_events = self.wait_for_raw_events(count=1, node_id=node_id, from_barrier=from_barriers[node_id],
-                                                  check_event_count=False)
-            local_write_count = 0
-            for event in raw_events:
-                self._check_remote_copy_tags(event, op)
-                assert event["data_node_method@"] in ["GetBlockSet", "GetBlockRange", "FinishChunk"]
-                assert event["object_path"] == "//tmp/table_out"
-                if event["data_node_method@"] == "FinishChunk":
-                    local_write_count += 1
-                    write_count += 1
-                else:
-                    read_count += 1
-            assert local_write_count > 0
-        assert write_count == 6
-        assert read_count >= 3
+            write_count = 0
+            read_count = 0
+            for node_id in range(self.NUM_NODES):
+                raw_events = self.wait_for_raw_events(count=1, node_id=node_id, from_barrier=from_barriers[node_id],
+                                                      check_event_count=False)
+                local_write_count = 0
+                for event in raw_events:
+                    self._check_remote_copy_tags(event, op)
+                    assert event["data_node_method@"] in ["GetBlockSet", "GetBlockRange", "FinishChunk"]
+                    assert event["object_path"] == "//tmp/table_out"
+                    if event["data_node_method@"] == "FinishChunk":
+                        local_write_count += 1
+                        write_count += 1
+                    else:
+                        read_count += 1
+                assert local_write_count > 0
+            assert write_count == 6
+            assert read_count >= 3
 
-        set_node_banned(node_to_ban, False, driver=self.remote_driver)
+            set_node_banned(node_to_ban, False, driver=self.remote_driver)
+        finally:
+            self._restore_maintenance_flag_config(old_value)
+
 
 ##################################################################
 

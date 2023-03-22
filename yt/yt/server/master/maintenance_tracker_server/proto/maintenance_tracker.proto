@@ -1,0 +1,26 @@
+package NYT.NMaintenanceTrackerServer.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReplicateMaintenanceRequestCreation
+{
+    required int32 component = 1; // EMaintenanceComponent
+    required string address = 2;
+    required NYT.NProto.TGuid id = 3;
+    required string user = 4;
+    required int32 type = 5; // EMaintenanceType
+    required string comment = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReplicateMaintenanceRequestRemoval
+{
+    required int32 component = 1; // EMaintenanceComponent
+    required string address = 2;
+    repeated NYT.NProto.TGuid ids = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -664,17 +664,19 @@ public:
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TResumeTabletCellsOptions& options),
         (cellIds, options))
-    IMPLEMENT_METHOD(NNodeTrackerClient::TMaintenanceId, AddMaintenance, (
-        const TString& nodeAddress,
-        NNodeTrackerClient::EMaintenanceType type,
+    IMPLEMENT_METHOD(TMaintenanceId, AddMaintenance, (
+        EMaintenanceComponent component,
+        const TString& address,
+        EMaintenanceType type,
         const TString& comment,
         const TAddMaintenanceOptions& options),
-        (nodeAddress, type, comment, options))
-    IMPLEMENT_METHOD(void, RemoveMaintenance, (
-        const TString& nodeAddress,
-        NNodeTrackerClient::TMaintenanceId id,
+        (component, address, type, comment, options))
+    IMPLEMENT_METHOD(TMaintenanceCounts, RemoveMaintenance, (
+        EMaintenanceComponent component,
+        const TString& address,
+        const TMaintenanceFilter& target,
         const TRemoveMaintenanceOptions& options),
-        (nodeAddress, id, options))
+        (component, address, target, options))
 
 
     IMPLEMENT_METHOD(std::vector<NChaosClient::TAlienCellDescriptor>, SyncAlienCells, (
@@ -1656,14 +1658,16 @@ private:
     void DoResumeTabletCells(
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TResumeTabletCellsOptions& options);
-    NNodeTrackerClient::TMaintenanceId DoAddMaintenance(
-        const TString& nodeAddress,
-        NNodeTrackerClient::EMaintenanceType type,
+    TMaintenanceId DoAddMaintenance(
+        EMaintenanceComponent component,
+        const TString& address,
+        EMaintenanceType type,
         const TString& comment,
         const TAddMaintenanceOptions& options);
-    void DoRemoveMaintenance(
-        const TString& nodeAddress,
-        NNodeTrackerClient::TMaintenanceId id,
+    TMaintenanceCounts DoRemoveMaintenance(
+        EMaintenanceComponent component,
+        const TString& address,
+        const TMaintenanceFilter& filter,
         const TRemoveMaintenanceOptions& options);
 
     void SyncCellsIfNeeded(const std::vector<NObjectClient::TCellId>& cellIds);

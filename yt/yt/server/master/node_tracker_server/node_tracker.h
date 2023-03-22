@@ -8,14 +8,17 @@
 
 #include <yt/yt/server/master/node_tracker_server/public.h>
 
+#include <yt/yt/server/master/maintenance_tracker_server/public.h>
+
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/hydra/public.h>
 
+#include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
+
 #include <yt/yt/ytlib/node_tracker_client/node_statistics.h>
-#include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
@@ -24,6 +27,8 @@
 #include <yt/yt/core/rpc/service_detail.h>
 
 namespace NYT::NNodeTrackerServer {
+
+using NMaintenanceTrackerServer::EMaintenanceType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,17 +54,11 @@ public:
         NNodeTrackerClient::NProto::TReqAddMaintenance,
         NNodeTrackerClient::NProto::TRspAddMaintenance>;
     using TCtxAddMaintenancePtr = TIntrusivePtr<TCtxAddMaintenance>;
-    virtual void ProcessAddMaintenance(
-        TCtxAddMaintenancePtr context,
-        const NNodeTrackerClient::NProto::TReqAddMaintenance* request) = 0;
 
     using TCtxRemoveMaintenance = NRpc::TTypedServiceContext<
         NNodeTrackerClient::NProto::TReqRemoveMaintenance,
         NNodeTrackerClient::NProto::TRspRemoveMaintenance>;
     using TCtxRemoveMaintenancePtr = TIntrusivePtr<TCtxRemoveMaintenance>;
-    virtual void ProcessRemoveMaintenance(
-        TCtxRemoveMaintenancePtr context,
-        const NNodeTrackerClient::NProto::TReqRemoveMaintenance* request) = 0;
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Node, TNode);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Host, THost);
@@ -199,8 +198,7 @@ public:
     virtual void UpdateLastSeenTime(TNode* node) = 0;
 
     //! Recalculates maintenance status.
-    virtual void OnNodeMaintenanceUpdated(TNode* node, NNodeTrackerClient::EMaintenanceType type) = 0;
-
+    virtual void OnNodeMaintenanceUpdated(TNode* node, EMaintenanceType type) = 0;
 
     //! Sets the rack and notifies the subscribers.
     virtual void SetNodeHost(TNode* node, THost* host) = 0;

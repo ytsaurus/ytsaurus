@@ -22,9 +22,6 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterNode);
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);
-
-    DEFINE_RPC_PROXY_METHOD(NProto, AddMaintenance);
-    DEFINE_RPC_PROXY_METHOD(NProto, RemoveMaintenance);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

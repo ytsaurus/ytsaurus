@@ -1,5 +1,6 @@
 from .batch_response import apply_function_to_result
-from .driver import make_request
+from .driver import get_api_version, make_request
+from .errors import YtError
 
 import json
 
@@ -48,45 +49,90 @@ def resume_tablet_cells(cell_ids, client=None):
     return make_request("resume_tablet_cells", params=params, client=client)
 
 
-def add_maintenance(node_address, maintenance_type, comment, client=None):
-    """
-    Add maintenance request for given node
+def add_maintenance(component, address, type, comment, client=None):
+    """Adds maintenance request for given node
 
-    :param node_address: node address.
-    :param maintenance_type: maintenance type. There are 5 maintenance types: ban, decommission, disable_scheduler_jobs,
+    :param component: component type. There are 4 component types: `cluster_node`, `http_proxy`, `rpc_proxy`, `host`.
+    :param address: component address.
+    :param type: maintenance type. There are 5 maintenance types: ban, decommission, disable_scheduler_jobs,
     disable_write_sessions, disable_tablet_cells.
     :param comment: any string with length not larger than 512 characters.
-    :return: unique (per node) maintenance id.
+    :return: unique (per component) maintenance id.
     """
     params = {
-        "node_address": node_address,
-        "type": maintenance_type,
+        "component": component,
+        "address": address,
+        "type": type,
         "comment": comment
     }
 
-    def _process_result(result):
+    request = make_request("add_maintenance", params=params, client=client)
+
+    def _extract_id(result):
         try:
-            return str(json.loads(result)["id"])
-        except Exception:
+            result = json.loads(result)
+            return result["id"] if get_api_version(client) == "v4" else result
+        except TypeError:
             return result
 
-    result = make_request("add_maintenance", params=params, client=client)
-    return apply_function_to_result(_process_result, result)
+    return apply_function_to_result(_extract_id, request)
 
 
-def remove_maintenance(node_address, maintenance_id, client=None):
-    """
-    Remove maintenance request from given node
+def remove_maintenance(component,
+                       address,
+                       id=None,
+                       ids=None,
+                       type=None,
+                       user=None,
+                       mine=False,
+                       all=False,
+                       client=None):
+    """Removes maintenance requests from given node by id or filter.
 
-    :param node_address: node address.
-    :param maintenance_id: maintenance id.
+    :param component: component type. There are 4 component types: `cluster_node`, `http_proxy`, `rpc_proxy`, `host`.
+    :param address: component address.
+    :param ids: maintenance ids. Only maintenance requests which id is listed can be removed.
+    :param id: single maintenance id. The same as `ids` but accepts single id instead of list.
+    Cannot be used at the same time with `ids`.
+    :param type: maintenance type. If set only maintenance requests with given type will be removed.
+    There are 5 maintenance types: ban, decommission, disable_scheduler_jobs, disable_write_sessions,
+    disable_tablet_cells.
+    :param user: only maintenance requests with this user will be removed.
+    :param mine: only maintenance requests with authenticated user will be removed.
+    Cannot be used with `user`.
+    :param all: all maintenance requests from given node will be removed.
+    Cannot be used with other options.
+    :return: Dictionary with removed maintenance request count for each maintenance type.
     """
     params = {
-        "node_address": node_address,
-        "id": maintenance_id,
+        "component": component,
+        "address": address,
     }
 
-    return make_request("remove_maintenance", params=params, client=client)
+    if not (user or mine or all or type or id or ids):
+        raise YtError("At least one of {\"id\", \"all\", \"type_\", \"user\", \"mine\"} must be specified")
+
+    if id and ids:
+        raise YtError("At most one of {\"id\", \"ids\"} can be specified")
+
+    if id is not None:
+        params["id"] = id
+    elif ids is not None:
+        params["ids"] = ids
+    if type is not None:
+        params["type"] = type
+    if mine:
+        params["mine"] = True
+    if all:
+        params["all"] = True
+    if user is not None:
+        params["user"] = user
+
+    def _parse_result(result):
+        return json.loads(result)
+
+    request = make_request("remove_maintenance", params=params, client=client)
+    return apply_function_to_result(_parse_result, request)
 
 
 def disable_chunk_locations(node_address, location_uuids, client=None):

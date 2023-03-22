@@ -20,6 +20,7 @@
 #include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/file_writer.h>
+#include <yt/yt/client/api/helpers.h>
 #include <yt/yt/client/api/journal_reader.h>
 #include <yt/yt/client/api/journal_writer.h>
 #include <yt/yt/client/api/rowset.h>
@@ -1042,7 +1043,7 @@ private:
             std::move(context),
             std::move(executor),
             std::move(resultHandler))
-        ->Run();
+            ->Run();
     }
 
     template <class TContext, class TExecutor>
@@ -4237,18 +4238,63 @@ private:
             });
     }
 
+    static EMaintenanceComponent ComponentFromProto(
+        NApi::NRpcProxy::NProto::EMaintenanceComponent component)
+    {
+        using enum EMaintenanceComponent;
+        using enum NApi::NRpcProxy::NProto::EMaintenanceComponent;
+
+        switch (component) {
+            case MC_CLUSTER_NODE:
+                return ClusterNode;
+            case MC_HTTP_PROXY:
+                return HttpProxy;
+            case MC_RPC_PROXY:
+                return RpcProxy;
+            case MC_HOST:
+                return Host;
+            default:
+                THROW_ERROR_EXCEPTION("Invalid maintenance component: %Qv",
+                    static_cast<int>(component));
+        }
+    }
+
+    static EMaintenanceType TypeFromProto(NApi::NRpcProxy::NProto::EMaintenanceType type)
+    {
+        using enum EMaintenanceType;
+        using enum NApi::NRpcProxy::NProto::EMaintenanceType;
+
+        switch (type) {
+            case MT_BAN:
+                return Ban;
+            case MT_DECOMMISSION:
+                return Decommission;
+            case MT_DISABLE_WRITE_SESSIONS:
+                return DisableWriteSessions;
+            case MT_DISABLE_TABLET_CELLS:
+                return DisableTabletCells;
+            case MT_DISABLE_SCHEDULER_JOBS:
+                return DisableSchedulerJobs;
+            default:
+                THROW_ERROR_EXCEPTION("Invalid maintenance type: %Qv",
+                    static_cast<int>(type));
+        }
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AddMaintenance)
     {
-        auto nodeAddress = request->node_address();
-        auto type = FromProto<EMaintenanceType>(request->type());
+        auto component = ComponentFromProto(request->component());
+        auto address = request->address();
+        auto type = TypeFromProto(request->type());
         auto comment = request->comment();
         ValidateMaintenanceComment(comment);
 
         TAddMaintenanceOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("NodeAddress: %v, Type: %v, Comment: %v",
-            nodeAddress,
+        context->SetRequestInfo("Component: %v, Address: %v, Type: %v, Comment: %v",
+            component,
+            address,
             type,
             comment);
 
@@ -4257,7 +4303,7 @@ private:
         ExecuteCall(
             context,
             [=] {
-                return client->AddMaintenance(nodeAddress, type, comment, options);
+                return client->AddMaintenance(component, address, type, comment, options);
             },
             [=] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
@@ -4268,20 +4314,60 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemoveMaintenance)
     {
-        auto nodeAddress = request->node_address();
-        auto id = FromProto<TMaintenanceId>(request->id());
+        auto component = ComponentFromProto(request->component());
+        auto address = request->address();
+
+        TStringBuilder requestInfo;
+        requestInfo.AppendFormat("Component: %v, Address: %v",
+            component,
+            address);
+
+        if (request->mine() && request->has_user()) {
+            THROW_ERROR_EXCEPTION("Cannot specify both \"user\" and \"mine\"");
+        }
+
+        TMaintenanceFilter filter;
+        filter.Ids = FromProto<std::vector<TMaintenanceId>>(request->ids());
+
+        if (request->has_type()) {
+            filter.Type = TypeFromProto(request->type());
+            requestInfo.AppendFormat(", Type: %v", filter.Type);
+        }
+
+        using TByUser = TMaintenanceFilter::TByUser;
+        if (request->has_user()) {
+            auto user = request->user();
+            requestInfo.AppendFormat(", User: ", user);
+            filter.User = std::move(user);
+        } else if (request->mine()) {
+            filter.User = TByUser::TMine{};
+            requestInfo.AppendString(", Mine: true");
+        } else {
+            filter.User = TByUser::TAll{};
+        }
+
         TRemoveMaintenanceOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("NodeAddress: %v, Id: %v",
-            nodeAddress,
-            id);
+        context->SetRawRequestInfo(requestInfo.Flush(), /*incremental*/ false);
 
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        ExecuteCall(context, [=] {
-            return client->RemoveMaintenance(nodeAddress, id);
-        });
+        ExecuteCall(
+            context,
+            [=] {
+                return client->RemoveMaintenance(component, address, filter);
+            },
+            [=] (const auto& context, const TMaintenanceCounts& result) {
+                auto* response = &context->Response();
+                using enum EMaintenanceType;
+
+                response->set_ban(result[Ban]);
+                response->set_decommission(result[Decommission]);
+                response->set_disable_scheduler_jobs(result[DisableSchedulerJobs]);
+                response->set_disable_write_sessions(result[DisableWriteSessions]);
+                response->set_disable_tablet_cells(result[DisableTabletCells]);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DisableChunkLocations)

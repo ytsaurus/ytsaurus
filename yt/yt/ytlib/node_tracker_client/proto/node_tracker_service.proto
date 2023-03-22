@@ -93,6 +93,7 @@ message TRspHeartbeat
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(kvk1920): Remove after 23.2.
 message TReqAddMaintenance
 {
     required string node_address = 1;
@@ -107,6 +108,7 @@ message TRspAddMaintenance
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(kvk1920): Remove after 23.2.
 message TReqRemoveMaintenance
 {
     required string node_address = 1;

@@ -72,7 +72,7 @@ def check_maintenance_flags():
 
     assert get(f"//sys/cluster_nodes/{node}/@banned")
     maintenances = get(f"//sys/cluster_nodes/{node}/@maintenance_requests")
-    assert list(map(lambda req: req["maintenance_type"], maintenances.values())) == ["ban"]
+    assert list(map(lambda req: req["type"], maintenances.values())) == ["ban"]
     set(f"//sys/cluster_nodes/{node}/@banned", False)
     assert not get(f"//sys/cluster_nodes/{node}/@banned")
     assert not get(f"//sys/cluster_nodes/{node}/@maintenance_requests")

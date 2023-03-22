@@ -51,10 +51,6 @@ public:
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
             .SetHeavy(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AddMaintenance)
-            .SetHeavy(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMaintenance)
-            .SetHeavy(true));
     }
 
 private:
@@ -112,70 +108,6 @@ private:
             statistics);
 
         nodeTracker->ProcessHeartbeat(context);
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, AddMaintenance)
-    {
-        ValidateClusterInitialized();
-        ValidatePeer(EPeerKind::Leader);
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (!multicellManager->IsPrimaryMaster()) {
-            THROW_ERROR_EXCEPTION("Cannot add maintenance at secondary master");
-        }
-
-        ValidateMaintenanceComment(request->comment());
-
-        auto nodeAddress = request->node_address();
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* node = nodeTracker->GetNodeByAddressOrThrow(nodeAddress);
-        if (!IsObjectAlive(node)) {
-            context->Reply(TError("No such node")
-                << TErrorAttribute("address", nodeAddress));
-            return;
-        }
-
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        TAuthenticatedUserGuard authenticatedUserGuard(securityManager);
-        securityManager->ValidatePermission(node, EPermission::Write);
-
-        context->SetRequestInfo("Address: %v, Type: %v, Comment: %v, User: %v",
-            nodeAddress,
-            CheckedEnumCast<EMaintenanceType>(request->type()),
-            request->comment(),
-            securityManager->GetAuthenticatedUser()->GetName());
-
-        nodeTracker->ProcessAddMaintenance(context, request);
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, RemoveMaintenance)
-    {
-        ValidateClusterInitialized();
-        ValidatePeer(EPeerKind::Leader);
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (!multicellManager->IsPrimaryMaster()) {
-            THROW_ERROR_EXCEPTION("Cannot remove maintenance at secondary master");
-        }
-
-        auto nodeAddress = request->node_address();
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* node = nodeTracker->GetNodeByAddressOrThrow(nodeAddress);
-        if (!IsObjectAlive(node)) {
-            context->Reply(TError("No such node")
-                << TErrorAttribute("address", nodeAddress));
-            return;
-        }
-
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        TAuthenticatedUserGuard authenticatedUserGuard(securityManager);
-        securityManager->ValidatePermission(node, EPermission::Write);
-
-        context->SetRequestInfo("Address: %v, MaintenanceId: %v",
-            nodeAddress,
-            FromProto<TMaintenanceId>(request->id()));
-
-        nodeTracker->ProcessRemoveMaintenance(context, request);
     }
 };
 

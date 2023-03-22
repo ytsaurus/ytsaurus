@@ -31,6 +31,8 @@
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
+#include <yt/yt/server/master/maintenance_tracker_server/proto/maintenance_tracker.pb.h>
+
 #include <yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
 
 #include <yt/yt/server/master/object_server/attribute_set.h>
@@ -94,6 +96,7 @@ using namespace NCypressClient;
 using namespace NCypressServer;
 using namespace NHiveServer;
 using namespace NHydra;
+using namespace NMaintenanceTrackerServer;
 using namespace NNet;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
@@ -261,63 +264,6 @@ public:
             &TNodeTracker::HydraClusterNodeHeartbeat,
             this);
         CommitMutationWithSemaphore(std::move(mutation), std::move(context), HeartbeatSemaphore_);
-    }
-
-    void ProcessAddMaintenance(
-        TCtxAddMaintenancePtr context,
-        const NNodeTrackerClient::NProto::TReqAddMaintenance* request) override
-    {
-        CheckedEnumCast<EMaintenanceType>(request->type());
-
-        auto* node = GetNodeByAddress(request->node_address());
-        // We have already checked it.
-        YT_ASSERT(IsObjectAlive(node));
-
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto userName = securityManager->GetAuthenticatedUser()->GetName();
-
-        TReqAddClusterNodeMaintenance mutationRequest;
-        mutationRequest.set_comment(request->comment());
-        mutationRequest.set_user_name(userName);
-        mutationRequest.set_type(request->type());
-        mutationRequest.set_node_address(request->node_address());
-        auto mutation = CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            context,
-            mutationRequest,
-            &TNodeTracker::HydraAddMaintenance,
-            this);
-        mutation->SetCurrentTraceContext();
-        mutation->CommitAndReply(context);
-    }
-
-    void ProcessRemoveMaintenance(
-        TCtxRemoveMaintenancePtr context,
-        const NNodeTrackerClient::NProto::TReqRemoveMaintenance* request) override
-    {
-        auto nodeAddress = request->node_address();
-        auto* node = GetNodeByAddress(nodeAddress);
-        // We have already checked it.
-        YT_ASSERT(IsObjectAlive(node));
-        auto id = FromProto<TMaintenanceId>(request->id());
-
-        if (!node->MaintenanceRequests().contains(id)) {
-            context->Reply(TError("Invalid request id"));
-            return;
-        }
-
-        TReqRemoveClusterNodeMaintenance mutationRequest;
-        mutationRequest.set_node_address(nodeAddress);
-        ToProto(mutationRequest.mutable_id(), id);
-
-        auto mutation = CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            context,
-            mutationRequest,
-            &TNodeTracker::HydraRemoveMaintenance,
-            this);
-        mutation->SetCurrentTraceContext();
-        mutation->CommitAndReply(context);
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Node, TNode);
@@ -1321,7 +1267,16 @@ private:
 
         if (multicellManager->IsPrimaryMaster()) {
             YT_VERIFY(!request->has_id());
-            ToProto(request->mutable_id(), node->GenerateMaintenanceId());
+
+            // NB: Code duplication is OK here because this mutation will be removed in near future.
+            // See TMaintenanceTracker::GenerateMaintenanceId().
+            const auto& generator = NHydra::GetCurrentMutationContext()->RandomGenerator();
+            TMaintenanceId id;
+            do {
+                id = TMaintenanceId(generator->Generate<ui64>(), generator->Generate<ui64>());
+            } while (node->MaintenanceRequests().contains(id) || IsBuiltinMaintenanceId(id));
+
+            ToProto(request->mutable_id(), id);
         } else {
             YT_VERIFY(request->has_id());
         }
@@ -2028,11 +1983,13 @@ private:
                 multicellManager->PostToMaster(request, cellTag);
             }
             for (const auto& [id, request] : node->MaintenanceRequests()) {
-                TReqAddClusterNodeMaintenance addMaintenance;
+                using NMaintenanceTrackerServer::NProto::TReqReplicateMaintenanceRequestCreation;
+                TReqReplicateMaintenanceRequestCreation addMaintenance;
+                addMaintenance.set_component(ToProto<i32>(EMaintenanceComponent::ClusterNode));
                 addMaintenance.set_comment(request.Comment);
-                addMaintenance.set_user_name(request.UserName);
+                addMaintenance.set_user(request.User);
                 addMaintenance.set_type(ToProto<i32>(request.Type));
-                addMaintenance.set_node_address(node->GetDefaultAddress());
+                addMaintenance.set_address(node->GetDefaultAddress());
                 ToProto(addMaintenance.mutable_id(), id);
                 multicellManager->PostToMaster(addMaintenance, cellTag);
             }
@@ -2345,21 +2302,8 @@ private:
         ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
     }
 
-    static void LogNodeMaintenanceUpdate(TNode* node, EMaintenanceType type)
-    {
-        auto requestCount = node->MaintenanceCounts_[type];
-        YT_LOG_ALERT_UNLESS(requestCount == 0 || requestCount == 1,
-            "Node maintenance update triggered unexpectedly"
-            "(NodeAddress: %v, MaintenanceType: %v, MaintenanceRequestCount: %v)",
-            node->GetDefaultAddress(),
-            type,
-            requestCount);
-    }
-
     void OnNodeBanUpdated(TNode* node)
     {
-        LogNodeMaintenanceUpdate(node, EMaintenanceType::Ban);
-
         if (node->IsBanned()) {
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node is banned (NodeId: %v, Address: %v)",
                 node->GetId(),
@@ -2381,8 +2325,6 @@ private:
 
     void OnNodeDecommissionUpdated(TNode* node)
     {
-        LogNodeMaintenanceUpdate(node, EMaintenanceType::Decommission);
-
         if (node->IsDecommissioned()) {
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node is decommissioned (NodeId: %v, Address: %v)",
                 node->GetId(),
@@ -2397,8 +2339,6 @@ private:
 
     void OnDisableWriteSessionsUpdated(TNode* node)
     {
-        LogNodeMaintenanceUpdate(node, EMaintenanceType::DisableWriteSessions);
-
         if (node->AreWriteSessionsDisabled()) {
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Disabled write sessions on node (NodeId: %v, Address: %v)",
                 node->GetId(),
@@ -2413,8 +2353,6 @@ private:
 
     void OnDisableTabletCellsUpdated(TNode* node)
     {
-        LogNodeMaintenanceUpdate(node, EMaintenanceType::DisableTabletCells);
-
         if (node->AreTabletCellsDisabled()) {
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Disabled tablet cells on node (NodeId: %v, Address: %v)",
                 node->GetId(),

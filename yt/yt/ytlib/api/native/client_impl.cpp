@@ -468,6 +468,8 @@ std::unique_ptr<TProxy> TClient::CreateWriteProxy(
 
 template std::unique_ptr<TChunkServiceProxy> TClient::CreateWriteProxy<TChunkServiceProxy>(TCellTag cellTag);
 
+template std::unique_ptr<TObjectServiceProxy> TClient::CreateWriteProxy<TObjectServiceProxy>(TCellTag cellTag);
+
 IChannelPtr TClient::GetReadCellChannelOrThrow(TTabletCellId cellId)
 {
     const auto& cellDirectory = Connection_->GetCellDirectory();

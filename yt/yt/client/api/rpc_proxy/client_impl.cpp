@@ -7,6 +7,7 @@
 #include "timestamp_provider.h"
 #include "transaction.h"
 
+#include <yt/yt/client/api/helpers.h>
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
 
@@ -1722,57 +1723,116 @@ TFuture<void> TClient::MigrateReplicationCards(
     return req->Invoke().As<void>();
 }
 
-TFuture<NNodeTrackerClient::TMaintenanceId> TClient::AddMaintenance(
-    const TString& nodeAddress,
-    NNodeTrackerClient::EMaintenanceType type,
+namespace {
+
+NProto::EMaintenanceComponent ConvertMaintenanceComponentToProto(EMaintenanceComponent component)
+{
+    using enum EMaintenanceComponent;
+    using enum NProto::EMaintenanceComponent;
+
+    switch (component) {
+        case ClusterNode:
+            return MC_CLUSTER_NODE;
+        case HttpProxy:
+            return MC_HTTP_PROXY;
+        case RpcProxy:
+            return MC_RPC_PROXY;
+        case Host:
+            return MC_HOST;
+        default:
+            THROW_ERROR_EXCEPTION("Invalid maintenance component: %Qv", component);
+    }
+}
+
+NProto::EMaintenanceType ConvertMaintenanceTypeToProto(EMaintenanceType type)
+{
+    using enum EMaintenanceType;
+    using enum NProto::EMaintenanceType;
+
+    switch (type) {
+        case Ban:
+            return MT_BAN;
+        case Decommission:
+            return MT_DECOMMISSION;
+        case DisableSchedulerJobs:
+            return MT_DISABLE_SCHEDULER_JOBS;
+        case DisableWriteSessions:
+            return MT_DISABLE_WRITE_SESSIONS;
+        case DisableTabletCells:
+            return MT_DISABLE_TABLET_CELLS;
+        default:
+            THROW_ERROR_EXCEPTION("Invalid maintenance type: %Qv", type);
+    }
+}
+
+} // namespace
+
+TFuture<TMaintenanceId> TClient::AddMaintenance(
+    EMaintenanceComponent component,
+    const TString& address,
+    EMaintenanceType type,
     const TString& comment,
     const TAddMaintenanceOptions& options)
 {
-    using NNodeTrackerClient::EMaintenanceType;
+    ValidateMaintenanceComment(comment);
+
     auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.AddMaintenance();
-    req->set_node_address(nodeAddress);
-    switch (type) {
-        case EMaintenanceType::Ban:
-            req->set_type(NProto::ENodeMaintenanceType::NMT_BAN);
-            break;
-        case EMaintenanceType::Decommission:
-            req->set_type(NProto::ENodeMaintenanceType::NMT_DECOMMISSION);
-            break;
-        case EMaintenanceType::DisableSchedulerJobs:
-            req->set_type(NProto::ENodeMaintenanceType::NMT_DISABLE_SCHEDULER_JOBS);
-            break;
-        case EMaintenanceType::DisableWriteSessions:
-            req->set_type(NProto::ENodeMaintenanceType::NMT_DISABLE_WRITE_SESSIONS);
-            break;
-        case EMaintenanceType::DisableTabletCells:
-            req->set_type(NProto::ENodeMaintenanceType::NMT_DISABLE_TABLET_CELLS);
-            break;
-        default:
-            THROW_ERROR_EXCEPTION("Invalid maintenance type: %v", type);
-    }
+    req->set_component(ConvertMaintenanceComponentToProto(component));
+    req->set_address(address);
+    req->set_type(ConvertMaintenanceTypeToProto(type));
     req->set_comment(comment);
     SetTimeoutOptions(*req, options);
 
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspAddMaintenancePtr>& rsp) {
-        return FromProto<NNodeTrackerClient::TMaintenanceId>(rsp.ValueOrThrow()->id());
+        return FromProto<TMaintenanceId>(rsp.ValueOrThrow()->id());
     }));
 }
 
-TFuture<void> TClient::RemoveMaintenance(
-    const TString& nodeAddress,
-    NNodeTrackerClient::TMaintenanceId id,
+TFuture<TMaintenanceCounts> TClient::RemoveMaintenance(
+    EMaintenanceComponent component,
+    const TString& address,
+    const TMaintenanceFilter& filter,
     const TRemoveMaintenanceOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.RemoveMaintenance();
-    req->set_node_address(nodeAddress);
-    ToProto(req->mutable_id(), id);
+    req->set_component(ConvertMaintenanceComponentToProto(component));
+    req->set_address(address);
+
+    ToProto(req->mutable_ids(), filter.Ids);
+
+    if (filter.Type) {
+        req->set_type(ConvertMaintenanceTypeToProto(*filter.Type));
+    }
+
+    using TByUser = TMaintenanceFilter::TByUser;
+    Visit(filter.User,
+        [] (TByUser::TAll) {},
+        [&] (TByUser::TMine) {
+            req->set_mine(true);
+        },
+        [&] (const TString& user) {
+            req->set_user(user);
+        });
+
     SetTimeoutOptions(*req, options);
 
-    return req->Invoke().AsVoid();
+    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspRemoveMaintenancePtr>& rsp) {
+        auto rspValue = rsp.ValueOrThrow();
+
+        TMaintenanceCounts counts;
+        using enum EMaintenanceType;
+
+        counts[Ban] = rspValue->ban();
+        counts[Decommission] = rspValue->decommission();
+        counts[DisableSchedulerJobs] = rspValue->disable_scheduler_jobs();
+        counts[DisableWriteSessions] = rspValue->disable_write_sessions();
+        counts[DisableTabletCells] = rspValue->disable_tablet_cells();
+        return counts;
+    }));
 }
 
 TFuture<void> TClient::SuspendChaosCells(

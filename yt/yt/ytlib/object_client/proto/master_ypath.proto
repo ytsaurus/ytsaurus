@@ -67,3 +67,39 @@ message TRspCheckPermissionByAcl
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqAddMaintenance
+{
+    required int32 component = 1; // EMaintenanceComponent
+    required string address = 2;
+    required int32 type = 3; // EMaintenanceType
+    required string comment = 4;
+}
+
+message TRspAddMaintenance
+{
+    required NYT.NProto.TGuid id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveMaintenance
+{
+    required int32 component = 1; // EMaintenanceComponent
+    required string address = 2;
+    repeated NYT.NProto.TGuid ids = 3; // TMaintenanceId
+    optional string user = 4;
+    optional int32 type = 5; // EMaintenanceType
+    optional bool mine = 6 [default = false];
+}
+
+message TRspRemoveMaintenance
+{
+    required int32 ban = 1;
+    required int32 decommission = 2;
+    required int32 disable_scheduler_jobs = 3;
+    required int32 disable_write_sessions = 4;
+    required int32 disable_tablet_cells = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
