@@ -1481,4 +1481,3 @@ The YSON's native parser and writer written in Python are very slow and can onl
 C++ bindings are delivered as Debian and pip packages.
 
 The packages are built as a universal .so library with libcxx compiled into it: that's why they should work in any Debian-based system.
-

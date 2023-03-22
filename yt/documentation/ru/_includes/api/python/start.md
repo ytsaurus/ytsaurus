@@ -34,7 +34,7 @@ pip install ytsaurus-client
 
 {% note info "Для пользователей платформы Apple M1" %}
 
-В настоящий момент нет YSON биндингов собранных под платформу Apple. В качестве временного решения можно воспользовать [Rosetta 2](https://ru.wikipedia.org/wiki/Rosetta_(программное_обеспечение)), и устновить версию Python для архитектуры x86_64.
+В настоящий момент нет YSON биндингов собранных под платформу Apple. В качестве временного решения можно воспользоваться [Rosetta 2](https://ru.wikipedia.org/wiki/Rosetta_(программное_обеспечение)), и установить версию Python для архитектуры x86_64.
 
 Подробнее об этом можно прочитать по [ссылке](https://stackoverflow.com/questions/71691598/how-to-run-python-as-x86-with-rosetta2-on-arm-macos-machine).
 
@@ -43,7 +43,7 @@ pip install ytsaurus-client
 
 Подробнее про YSON можно прочитать в разделе [Форматы](../../../api/python/userdoc.md#formats).
 
-Чтобы узнать версию установленной обертки из Python, распечатайте переменную `yt.VERSION` или вызвовите команду `yt --version`.
+Чтобы узнать версию установленной обертки из Python, распечатайте переменную `yt.VERSION` или вызовите команду `yt --version`.
 
 При возникновении проблем ознакомьтесь с разделом [FAQ](#faq). Если проблема сохранилась, напишите в [чат](https://t.me/ytsaurus_ru).
 
@@ -59,7 +59,7 @@ pip install ytsaurus-client
   * [Общее](../../../api/python/userdoc.md#common)
     - [Соглашения, использующиеся в коде](../../../api/python/userdoc.md#agreements)
     - [Клиент](../../../api/python/userdoc.md#client)
-      - [Потокобезопасноть](../../../api/python/userdoc.md#threadsafety)
+      - [Потокобезопасность](../../../api/python/userdoc.md#threadsafety)
       - [Асинхронный клиента на основе gevent](../../../api/python/userdoc.md#gevent)
     - [Конфигурация](../../../api/python/userdoc.md#configuration)
       - [Общий конфиг](../../../api/python/userdoc.md#configuration_common)

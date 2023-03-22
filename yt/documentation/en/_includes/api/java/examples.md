@@ -74,4 +74,3 @@ The example is located at [yt/java/ytsaurus-client-examples/map-reduce-entity-ex
 The example is located at [yt/java/ytsaurus-client-examples/map-reduce-ytree-example/src/main/java/tech/ytsaurus/example/ExampleMapReduceYTree.java](https://github.com/ytsaurus/ytsaurus/blob/main/yt/java/ytsaurus-client-examples/map-reduce-ytree-example/src/main/java/tech/ytsaurus/example/ExampleMapReduceYTree.java).
 
 {% code '/yt/java/ytsaurus-client-examples/map-reduce-ytree-example/src/main/java/tech/ytsaurus/example/ExampleMapReduceYTree.java' lang='java' %}
-

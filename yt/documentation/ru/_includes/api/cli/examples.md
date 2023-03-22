@@ -25,7 +25,7 @@ yt read '//tmp/yt_cli_examples/grep_result_table[#5:#7]' --format dsv
 # Поколоночное чтение:
 yt read '//tmp/yt_cli_examples/grep_result_table{column1,column2}' --format dsv
 
-# **Tолько для сортированной таблицы**
+# **Только для сортированной таблицы**
 # Смотрим диапазон ключей в таблице c "key_begin" по "key_end" (полуинтервал, включающий левую границу и не включающий правую).
 yt read '//tmp/yt_cli_examples/grep_result_table["key_begin":"key_end"]' --format dsv
 ```

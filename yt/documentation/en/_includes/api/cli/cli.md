@@ -55,4 +55,3 @@ Below are some features of the CLI:
    ```
 
 - Auto-completion of binary file commands and paths for bash is supported.
-

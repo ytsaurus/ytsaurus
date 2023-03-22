@@ -2417,7 +2417,7 @@ Output data:
 | `pool` | `string` | Name of the [pool](../../user-guide/data-processing/scheduler/scheduler-and-pools.md) where the job was run. |
 | `pool_tree` | `string` | Name of the [pool tree](../../user-guide/data-processing/scheduler/scheduler-and-pools.md) where the job was run. |
 | `progress` | `float in [0,1]` | Evaluation of the share of work executed by the job by the current moment. |
-| `stderr_size` | `integer` | Size of the saved stderr of the job (you can get stderr using the command `get_job_stder`). |
+| `stderr_size` | `integer` | Size of the saved stderr of the job (you can get stderr using the command `get_job_stderr`). |
 | `error` | `map` | Dictionary with an error description (for a failed job). |
 | `statistics` | `map` | Dictionary with the job's statistics |
 | `brief_statistics` | `map` | Dictionary with brief statistics. |
@@ -2496,7 +2496,7 @@ Output data:
 
 - Type: `structured`.
 - Structure with the fields `jobs`, `cypress_job_count`, `controller_agent_job_count`, and `archive_job_count`.
-- `*_count` fields: Сounter of jobs found for a given operation in the appropriate data sources, without filtering. If all three numbers are zeros, it means that there's no information about the operation's jobs. If all the three numbers aren't zeros, but the `jobs` response is empty, it means that all the jobs were filtered out. If you get `null` instead of a number, the corresponding data source wasn't polled.
+- `*_count` fields: Counter of jobs found for a given operation in the appropriate data sources, without filtering. If all three numbers are zeros, it means that there's no information about the operation's jobs. If all the three numbers aren't zeros, but the `jobs` response is empty, it means that all the jobs were filtered out. If you get `null` instead of a number, the corresponding data source wasn't polled.
 
 - `jobs` field: List of structures that describe each job. Each job can have the following fields:
    - `id` (`guid`), `type` (`string`), `state` (`string`), `address` (`string`): Required fields.
