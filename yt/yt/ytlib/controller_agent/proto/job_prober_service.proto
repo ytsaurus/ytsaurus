@@ -1,7 +1,6 @@
 package NYT.NControllerAgent.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
-import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

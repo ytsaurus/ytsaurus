@@ -52,7 +52,6 @@ using namespace NMaintenanceTrackerServer;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NCellarClient;
-using namespace NCellarNodeTrackerClient::NProto;
 using namespace NYTree;
 using namespace NProfiling;
 

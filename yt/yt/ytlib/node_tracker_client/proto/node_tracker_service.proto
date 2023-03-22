@@ -3,9 +3,7 @@ package NYT.NNodeTrackerClient.NProto;
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
-import "yt/ytlib/tablet_client/proto/heartbeat.proto";
 import "yt/ytlib/chunk_client/proto/heartbeat.proto";
-import "yt/ytlib/cellar_node_tracker_client/proto/heartbeat.proto";
 
 // COMPAT(kvk1920)
 import "yt/ytlib/chunk_client/proto/medium_directory.proto";
