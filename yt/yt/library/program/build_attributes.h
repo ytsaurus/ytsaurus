@@ -24,6 +24,9 @@ public:
     REGISTER_YSON_STRUCT(TBuildInfo);
 
     static void Register(TRegistrar registrar);
+
+private:
+    static std::optional<TInstant> ParseBuildTime();
 };
 
 DEFINE_REFCOUNTED_TYPE(TBuildInfo)

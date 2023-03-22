@@ -27,16 +27,29 @@ void TBuildInfo::Register(TRegistrar registrar)
     registrar.Parameter("build_host", &TThis::BuildHost)
         .Default(GetBuildHost());
 
-    try {
-        auto buildTime = TInstant::ParseIso8601(GetBuildTime());
-        registrar.Parameter("build_time", &TThis::BuildTime)
-            .Default(buildTime);
-    } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Error parsing build time");
-    }
+    registrar.Parameter("build_time", &TThis::BuildTime)
+        .Default(ParseBuildTime());
 
     registrar.Parameter("start_time", &TThis::StartTime)
         .Default(TInstant::Now());
+}
+
+std::optional<TInstant> TBuildInfo::ParseBuildTime()
+{
+    TString rawBuildTime(GetBuildTime());
+
+    // Build time may be empty if code is building
+    // without -DBUILD_DATE (for example, in opensource build).
+    if (rawBuildTime.empty()) {
+        return std::nullopt;
+    }
+
+    try {
+        return TInstant::ParseIso8601(rawBuildTime);
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Error parsing build time");
+        return std::nullopt;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
