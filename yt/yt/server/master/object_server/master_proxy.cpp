@@ -336,12 +336,11 @@ private:
             user,
             type);
 
-        using enum EMaintenanceType;
-        response->set_ban(removed[Ban]);
-        response->set_decommission(removed[Decommission]);
-        response->set_disable_scheduler_jobs(removed[DisableSchedulerJobs]);
-        response->set_disable_write_sessions(removed[DisableWriteSessions]);
-        response->set_disable_tablet_cells(removed[DisableTabletCells]);
+        response->set_ban(removed[EMaintenanceType::Ban]);
+        response->set_decommission(removed[EMaintenanceType::Decommission]);
+        response->set_disable_scheduler_jobs(removed[EMaintenanceType::DisableSchedulerJobs]);
+        response->set_disable_write_sessions(removed[EMaintenanceType::DisableWriteSessions]);
+        response->set_disable_tablet_cells(removed[EMaintenanceType::DisableTabletCells]);
 
         context->Reply();
     }
