@@ -299,17 +299,16 @@ namespace {
 
 TStringBuf MaintenanceTypeToString(NApi::EMaintenanceType type)
 {
-    using enum NApi::EMaintenanceType;
     switch (type) {
-        case Ban:
+        case NApi::EMaintenanceType::Ban:
             return "ban";
-        case Decommission:
+        case NApi::EMaintenanceType::Decommission:
             return "decommission";
-        case DisableSchedulerJobs:
+        case NApi::EMaintenanceType::DisableSchedulerJobs:
             return "disable_scheduler_jobs";
-        case DisableWriteSessions:
+        case NApi::EMaintenanceType::DisableWriteSessions:
             return "disable_write_sessions";
-        case DisableTabletCells:
+        case NApi::EMaintenanceType::DisableTabletCells:
             return "disable_tablet_cells";
         default:
             YT_ABORT();

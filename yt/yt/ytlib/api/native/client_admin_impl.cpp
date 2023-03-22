@@ -589,12 +589,11 @@ TMaintenanceCounts TClient::DoRemoveMaintenance(
         .ValueOrThrow();
 
     TMaintenanceCounts result;
-    using enum EMaintenanceType;
-    result[Ban] = response->ban();
-    result[Decommission] = response->decommission();
-    result[DisableSchedulerJobs] = response->disable_scheduler_jobs();
-    result[DisableWriteSessions] = response->disable_write_sessions();
-    result[DisableTabletCells] = response->disable_tablet_cells();
+    result[EMaintenanceType::Ban] = response->ban();
+    result[EMaintenanceType::Decommission] = response->decommission();
+    result[EMaintenanceType::DisableSchedulerJobs] = response->disable_scheduler_jobs();
+    result[EMaintenanceType::DisableWriteSessions] = response->disable_write_sessions();
+    result[EMaintenanceType::DisableTabletCells] = response->disable_tablet_cells();
 
     return result;
 }

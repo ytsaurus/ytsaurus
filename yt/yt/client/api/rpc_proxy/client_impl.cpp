@@ -1727,18 +1727,15 @@ namespace {
 
 NProto::EMaintenanceComponent ConvertMaintenanceComponentToProto(EMaintenanceComponent component)
 {
-    using enum EMaintenanceComponent;
-    using enum NProto::EMaintenanceComponent;
-
     switch (component) {
-        case ClusterNode:
-            return MC_CLUSTER_NODE;
-        case HttpProxy:
-            return MC_HTTP_PROXY;
-        case RpcProxy:
-            return MC_RPC_PROXY;
-        case Host:
-            return MC_HOST;
+        case EMaintenanceComponent::ClusterNode:
+            return NProto::EMaintenanceComponent::MC_CLUSTER_NODE;
+        case EMaintenanceComponent::HttpProxy:
+            return NProto::EMaintenanceComponent::MC_HTTP_PROXY;
+        case EMaintenanceComponent::RpcProxy:
+            return NProto::EMaintenanceComponent::MC_RPC_PROXY;
+        case EMaintenanceComponent::Host:
+            return NProto::EMaintenanceComponent::MC_HOST;
         default:
             THROW_ERROR_EXCEPTION("Invalid maintenance component: %Qv", component);
     }
@@ -1746,20 +1743,17 @@ NProto::EMaintenanceComponent ConvertMaintenanceComponentToProto(EMaintenanceCom
 
 NProto::EMaintenanceType ConvertMaintenanceTypeToProto(EMaintenanceType type)
 {
-    using enum EMaintenanceType;
-    using enum NProto::EMaintenanceType;
-
     switch (type) {
-        case Ban:
-            return MT_BAN;
-        case Decommission:
-            return MT_DECOMMISSION;
-        case DisableSchedulerJobs:
-            return MT_DISABLE_SCHEDULER_JOBS;
-        case DisableWriteSessions:
-            return MT_DISABLE_WRITE_SESSIONS;
-        case DisableTabletCells:
-            return MT_DISABLE_TABLET_CELLS;
+        case EMaintenanceType::Ban:
+            return NProto::EMaintenanceType::MT_BAN;
+        case EMaintenanceType::Decommission:
+            return NProto::EMaintenanceType::MT_DECOMMISSION;
+        case EMaintenanceType::DisableSchedulerJobs:
+            return NProto::EMaintenanceType::MT_DISABLE_SCHEDULER_JOBS;
+        case EMaintenanceType::DisableWriteSessions:
+            return NProto::EMaintenanceType::MT_DISABLE_WRITE_SESSIONS;
+        case EMaintenanceType::DisableTabletCells:
+            return NProto::EMaintenanceType::MT_DISABLE_TABLET_CELLS;
         default:
             THROW_ERROR_EXCEPTION("Invalid maintenance type: %Qv", type);
     }
@@ -1824,13 +1818,11 @@ TFuture<TMaintenanceCounts> TClient::RemoveMaintenance(
         auto rspValue = rsp.ValueOrThrow();
 
         TMaintenanceCounts counts;
-        using enum EMaintenanceType;
-
-        counts[Ban] = rspValue->ban();
-        counts[Decommission] = rspValue->decommission();
-        counts[DisableSchedulerJobs] = rspValue->disable_scheduler_jobs();
-        counts[DisableWriteSessions] = rspValue->disable_write_sessions();
-        counts[DisableTabletCells] = rspValue->disable_tablet_cells();
+        counts[EMaintenanceType::Ban] = rspValue->ban();
+        counts[EMaintenanceType::Decommission] = rspValue->decommission();
+        counts[EMaintenanceType::DisableSchedulerJobs] = rspValue->disable_scheduler_jobs();
+        counts[EMaintenanceType::DisableWriteSessions] = rspValue->disable_write_sessions();
+        counts[EMaintenanceType::DisableTabletCells] = rspValue->disable_tablet_cells();
         return counts;
     }));
 }

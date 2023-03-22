@@ -4241,18 +4241,17 @@ private:
     static EMaintenanceComponent ComponentFromProto(
         NApi::NRpcProxy::NProto::EMaintenanceComponent component)
     {
-        using enum EMaintenanceComponent;
-        using enum NApi::NRpcProxy::NProto::EMaintenanceComponent;
+        using EProtoMaintenanceComponent = NApi::NRpcProxy::NProto::EMaintenanceComponent;
 
         switch (component) {
-            case MC_CLUSTER_NODE:
-                return ClusterNode;
-            case MC_HTTP_PROXY:
-                return HttpProxy;
-            case MC_RPC_PROXY:
-                return RpcProxy;
-            case MC_HOST:
-                return Host;
+            case EProtoMaintenanceComponent::MC_CLUSTER_NODE:
+                return EMaintenanceComponent::ClusterNode;
+            case EProtoMaintenanceComponent::MC_HTTP_PROXY:
+                return EMaintenanceComponent::HttpProxy;
+            case EProtoMaintenanceComponent::MC_RPC_PROXY:
+                return EMaintenanceComponent::RpcProxy;
+            case EProtoMaintenanceComponent::MC_HOST:
+                return EMaintenanceComponent::Host;
             default:
                 THROW_ERROR_EXCEPTION("Invalid maintenance component: %Qv",
                     static_cast<int>(component));
@@ -4261,20 +4260,19 @@ private:
 
     static EMaintenanceType TypeFromProto(NApi::NRpcProxy::NProto::EMaintenanceType type)
     {
-        using enum EMaintenanceType;
-        using enum NApi::NRpcProxy::NProto::EMaintenanceType;
+        using EProtoMaintenanceType = NApi::NRpcProxy::NProto::EMaintenanceType;
 
         switch (type) {
-            case MT_BAN:
-                return Ban;
-            case MT_DECOMMISSION:
-                return Decommission;
-            case MT_DISABLE_WRITE_SESSIONS:
-                return DisableWriteSessions;
-            case MT_DISABLE_TABLET_CELLS:
-                return DisableTabletCells;
-            case MT_DISABLE_SCHEDULER_JOBS:
-                return DisableSchedulerJobs;
+            case EProtoMaintenanceType::MT_BAN:
+                return EMaintenanceType::Ban;
+            case EProtoMaintenanceType::MT_DECOMMISSION:
+                return EMaintenanceType::Decommission;
+            case EProtoMaintenanceType::MT_DISABLE_WRITE_SESSIONS:
+                return EMaintenanceType::DisableWriteSessions;
+            case EProtoMaintenanceType::MT_DISABLE_TABLET_CELLS:
+                return EMaintenanceType::DisableTabletCells;
+            case EProtoMaintenanceType::MT_DISABLE_SCHEDULER_JOBS:
+                return EMaintenanceType::DisableSchedulerJobs;
             default:
                 THROW_ERROR_EXCEPTION("Invalid maintenance type: %Qv",
                     static_cast<int>(type));
@@ -4360,13 +4358,12 @@ private:
             },
             [=] (const auto& context, const TMaintenanceCounts& result) {
                 auto* response = &context->Response();
-                using enum EMaintenanceType;
 
-                response->set_ban(result[Ban]);
-                response->set_decommission(result[Decommission]);
-                response->set_disable_scheduler_jobs(result[DisableSchedulerJobs]);
-                response->set_disable_write_sessions(result[DisableWriteSessions]);
-                response->set_disable_tablet_cells(result[DisableTabletCells]);
+                response->set_ban(result[EMaintenanceType::Ban]);
+                response->set_decommission(result[EMaintenanceType::Decommission]);
+                response->set_disable_scheduler_jobs(result[EMaintenanceType::DisableSchedulerJobs]);
+                response->set_disable_write_sessions(result[EMaintenanceType::DisableWriteSessions]);
+                response->set_disable_tablet_cells(result[EMaintenanceType::DisableTabletCells]);
             });
     }
 
