@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/use.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/use.md
----
 # USE
 
 Указать «базу данных». Как правило, в её роли выступает один из кластеров {{product-name}}. Это указание будет использоваться по умолчанию для поиска таблиц в тех случаях, где база данных не указана явно.

@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/order_by.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/order_by.md
----
 ## ORDER BY {#order-by}
 
 Сортировка результата `SELECT` по разделенному запятыми перечню критериев сортировки. В качестве критерия может выступать значение столбца, или выражение над столбцами. Не поддерживается указание порядкового номера колонки выборки (`ORDER BY N`, где `N` - номер).

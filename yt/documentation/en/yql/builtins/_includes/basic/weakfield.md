@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/weakfield.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/weakfield.md
----
+
 ## WeakField {#weakfield}
 
 Fetches a table column from a strong schema, if it is in a strong schema, or from the `_other` and `_rest` fields. If the value is missing, it returns `NULL`.

@@ -1,8 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/folder.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/folder.md
----
-
 ## Listing the contents of a directory in a cluster {#folder}
 
 Specified as the `FOLDER` function in [FROM](#from).

@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/list.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/list.md
----
 # Functions for lists
 
 ## ListCreate {#list-create}

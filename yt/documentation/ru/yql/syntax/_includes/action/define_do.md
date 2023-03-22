@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/action/define_do.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/action/define_do.md
----
 ## DEFINE ACTION {#define-action}
 
 Задает именованное действие, которое представляют собой параметризуемый блок из нескольких выражений верхнего уровня.

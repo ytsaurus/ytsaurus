@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/export_import.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/export_import.md
----
 # Putting part of the query into a separate file
 
 Here's the mechanism for putting part of the query into a separate attached file:

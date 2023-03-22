@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/digest.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/digest.md
----
 # Digest
 
 Digest functions calculate hashes (aka fingerprints) of original messages. A hash is usually a short or fixed-length string. Hash length depends on the algorithm. The result is a bit sequence.

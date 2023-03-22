@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/to_from_bytes.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/to_from_bytes.md
----
+
 ## ToBytes и FromBytes {#to-from-bytes}
 
 Conversion of [primitive data types](../../../types/primitive.md) to a string with their binary representation and back. Numbers are represented in the [little endian](https://en.wikipedia.org/wiki/Endianness#Little-endian) encoding.

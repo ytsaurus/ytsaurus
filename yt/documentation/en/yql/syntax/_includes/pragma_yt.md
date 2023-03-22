@@ -1,7 +1,4 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/syntax/_includes/pragma_yt.md
-sourcePath: yql-product/syntax/_includes/pragma_yt.md
----
+
 ## {{product-name}} {#yt}
 
 {{product-name}} pragmas may be defined as static or dynamic based on their lifetimes. Static pragmas are initialized one time at the earliest query processing step. If a static pragma is specified multiple times in a query, it accepts the latest value set for it. Dynamic pragma values are initialized at the query execution step after its optimization and roadmap development. The specified value is valid until the next identical pragma is found or until the query is completed. For dynamic pragmas only, you can reset their values to the default by assigning a `default`. All pragmas that affect query optimizers are static because dynamic pragma values haven't yet been calculated at this step.

@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/pire.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/pire.md
----
 # Pire
 
 **Список функций**

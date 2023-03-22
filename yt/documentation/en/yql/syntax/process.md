@@ -1,8 +1,3 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/syntax/process.md
-sourcePath: yql-product/syntax/process.md
----
-
 {% include [x](_includes/process.md) %}
 
 

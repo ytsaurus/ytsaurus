@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/reduce.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/reduce.md
----
 # REDUCE
 
 Выполняет группировку входа по указанным ключевым столбцам, затем передает текущие ключи и ленивый итератор соответствующих им значений из остальных колонок на обработку в указанную UDF. По аналогии с `PROCESS` UDF может вернуть произвольное количество строк результата на каждый вызов, а также возвращать альтернативы (`Variant`) для создания множества выходов. В терминах MapReduce  очень близок к Reduce.

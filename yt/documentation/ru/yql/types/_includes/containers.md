@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/containers.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/containers.md
----
 # Контейнеры
 
 YQL поддерживает контейнерные типы для определения сложных структур данных различной организации.

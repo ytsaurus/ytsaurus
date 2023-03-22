@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/types/index.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/types/index.md
----
 # YQL data types
 
 This section contains articles on YQL data types:

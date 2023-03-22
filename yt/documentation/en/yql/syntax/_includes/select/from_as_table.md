@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/from_as_table.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/from_as_table.md
----
+
 ## FROM AS_TABLE {#as-table}
 
 Accessing named expressions as tables using the `AS_TABLE` function.

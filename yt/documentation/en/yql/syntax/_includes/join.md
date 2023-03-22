@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/join.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/join.md
----
 # JOIN
 
 It lets you combine multiple data sources (subqueries or tables) by equality of values in the specified columns or expressions (the `JOIN` keys).

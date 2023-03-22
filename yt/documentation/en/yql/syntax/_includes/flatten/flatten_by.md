@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/flatten/flatten_by.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/flatten/flatten_by.md
----
 # FLATTEN
 
 ## FLATTEN BY {#flatten-by}

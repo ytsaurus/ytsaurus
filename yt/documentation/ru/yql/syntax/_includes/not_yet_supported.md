@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/not_yet_supported.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/not_yet_supported.md
----
 # Ещё не поддерживаемые конструкции из классического SQL
 
 ## \[NOT\] \[EXISTS|INTERSECT\|EXCEPT] {#not-exists}

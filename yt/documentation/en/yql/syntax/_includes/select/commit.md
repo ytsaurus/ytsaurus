@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/commit.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/commit.md
----
+
 ## COMMIT {#commit}
 
 By default, the entire YQL query is executed within a single transaction, and independent parts inside it are executed in parallel, if possible.

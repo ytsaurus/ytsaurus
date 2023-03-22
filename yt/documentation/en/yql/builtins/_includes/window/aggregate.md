@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/window/aggregate.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/window/aggregate.md
----
+
 ## Aggregate functions {#aggregate-functions}
 
 All the [aggregate functions](../../aggregation.md) can also be used as window functions.

@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/datatypes_primitive_datetime.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/datatypes_primitive_datetime.md
----
+
 | Type | Description | Notes   |
 ----- | ----- | -----
 | `Date` | Date, precision to the day | Range of values for all time types except `Interval`: From 00:00 01.01.1970 to 00:00 01.01.2106. Internal `Date` representation: Unsigned 16-bit integer |

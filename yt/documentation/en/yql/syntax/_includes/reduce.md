@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/reduce.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/reduce.md
----
 # REDUCE
 
 Groups the input by the specified key columns, then passes the current keys and a lazy iterator over their corresponding values from the remaining columns to the specified UDF for processing. Similarly to `PROCESS`, the UDF can return an arbitrary number of result rows per call and also return `Variants` to create multiple outputs. In terms of MapReduce, it's very similar to Reduce.

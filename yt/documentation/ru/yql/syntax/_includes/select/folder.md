@@ -1,8 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/folder.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/folder.md
----
-
 ## Перечисление содержимого директории на кластере {#folder}
 
 Указывается как функция `FOLDER` в [FROM](#from).

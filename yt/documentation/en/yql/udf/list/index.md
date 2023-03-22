@@ -1,7 +1,4 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/udf/list/index.md
-sourcePath: yql-product/udf/list/index.md
----
+
 {% include [x](_includes/index/intro.md) %}
 
 Embedded C++ libraries are linked using UDFs in C++.

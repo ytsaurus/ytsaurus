@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/length.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/length.md
----
+
 ## LENGTH {#length}
 
 Returns the length of the string in bytes. This function is also available under the `LEN` name .

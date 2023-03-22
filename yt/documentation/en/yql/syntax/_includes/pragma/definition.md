@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/pragma/definition.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/pragma/definition.md
----
+
 ## Definition
 
 Redefinition of settings.

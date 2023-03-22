@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/functional_tables.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/functional_tables.md
----
+
 ## Accessing multiple tables in one query {#concat} {#each} {#range} {#like} {#filter} {#regexp}
 
 In standard SQL, [UNION ALL](#unionall) is used to execute a query across tables that bundle outputs of two or more `SELECT`s. This is not very convenient for the use case of running the same query on multiple tables (for example, if they contain data for different dates). To make this more convenient, in YQL `SELECT` statements, after `FROM`, you can specify not only a table or a subquery, but also call built-in functions letting you combine data from multiple tables.

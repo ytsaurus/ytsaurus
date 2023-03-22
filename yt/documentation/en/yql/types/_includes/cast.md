@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/cast.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/cast.md
----
+
 # Rules for type casting using the operator [CAST](../../syntax/expressions.md#cast).
 
 ## Rules for casting primitive data types.

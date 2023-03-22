@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/index.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/index.md
----
 # Список статей по синтаксису YQL
 
 * [Лексическая структура](lexer.md)

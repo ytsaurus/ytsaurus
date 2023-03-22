@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/substring.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/substring.md
----
+
 ## SUBSTRING {#substring}
 
 Returns a substring.

@@ -1,7 +1,3 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/syntax/pragma.md
-sourcePath: yql-product/syntax/pragma.md
----
 # PRAGMA
 
 {% include [x](_includes/pragma/definition.md) %}

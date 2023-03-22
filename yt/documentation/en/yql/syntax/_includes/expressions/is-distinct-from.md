@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/is-distinct-from.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/is-distinct-from.md
----
+
 ## IS \[NOT\] DISTINCT FROM {#is-distinct-from}
 
 Comparing of two values. Unlike regular [comparison operators](#comparison-operators), NULLs are considered equal to each other.

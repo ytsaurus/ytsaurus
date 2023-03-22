@@ -1,8 +1,3 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/builtins/basic.md
-sourcePath: yql-product/builtins/basic.md
----
-
 {% include [x](_includes/basic/intro.md) %}
 
 {% include [x](_includes/basic/coalesce.md) %}

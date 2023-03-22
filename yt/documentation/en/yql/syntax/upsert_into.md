@@ -1,7 +1,4 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/syntax/upsert_into.md
-sourcePath: yql-product/syntax/upsert_into.md
----
+
 {% include [x](_includes/upsert_into.md) %}
 
 

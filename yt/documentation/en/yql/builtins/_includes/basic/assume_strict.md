@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/assume_strict.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/assume_strict.md
----
+
 ## AssumeStrict {#assumestrict}
 
 **Signature**

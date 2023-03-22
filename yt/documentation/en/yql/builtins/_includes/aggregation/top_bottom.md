@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/top_bottom.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/top_bottom.md
----
+
 ## TOP and BOTTOM {#top-bottom}
 
 **Signature**

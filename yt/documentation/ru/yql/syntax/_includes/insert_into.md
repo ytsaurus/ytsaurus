@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/insert_into.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/insert_into.md
----
 # INSERT INTO
 Добавляет строки в таблицу.  Если целевая таблица уже существует и не является сортированной, операция `INSERT INTO` дописывает строки в конец таблицы. В случае сортированной таблицы, YQL пытается сохранить сортированность путем запуска сортированного слияния. 
 

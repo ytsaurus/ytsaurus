@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/tables.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/tables.md
----
+
 ## Table expressions {#table-contexts}
 
 A table expression is an expression that returns a table. Table expressions in YQL are as follows:

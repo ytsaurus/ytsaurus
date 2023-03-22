@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/struct.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/struct.md
----
 # Functions for working with structures
 
 ## TryMember {#trymember}

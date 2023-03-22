@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/_includes/url.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/_includes/url.md
----
 # Url
 
 ## Normalize {#normalize}

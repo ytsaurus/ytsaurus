@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/order_by.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/order_by.md
----
+
 ## ORDER BY {#order-by}
 
 Sorting the `SELECT` result using a comma-separated list of sorting criteria. As a criteria, you can use a column value or an expression on columns. Ordering by column sequence number is not supported (`ORDER BY N`where `N` is a number).

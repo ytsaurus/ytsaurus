@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/find.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/find.md
----
+
 ## FIND {#find}
 
 Finding the position of a substring in a string.

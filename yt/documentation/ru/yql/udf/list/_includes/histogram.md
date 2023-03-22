@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/_includes/histogram.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/_includes/histogram.md
----
 # Histogram
 
 Набор вспомогательных функций для агрегатной функции `HISTOGRAM`. В описании сигнатур ниже под HistogramStruct подразумевается результат работы агрегатной функции `HISTOGRAM`, `LinearHistogram` или `LogarithmicHistogram`, который является структурой определенного вида.

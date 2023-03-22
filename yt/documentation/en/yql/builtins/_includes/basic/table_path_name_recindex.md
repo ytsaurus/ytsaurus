@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/table_path_name_recindex.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/table_path_name_recindex.md
----
+
 ## TablePath {#tablepath}
 
 Access to the current table name, which might be needed when using [CONCAT](../../../syntax/select.md#concat), [RANGE](../../../syntax/select.md#range), and other related mechanisms.

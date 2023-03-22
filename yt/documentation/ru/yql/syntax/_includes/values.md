@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/values.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/values.md
----
 # Базовый синтаксис VALUES в YQL
 
 ## VALUES как оператор верхнего уровня

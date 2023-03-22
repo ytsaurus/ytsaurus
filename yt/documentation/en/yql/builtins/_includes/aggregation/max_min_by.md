@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/max_min_by.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/max_min_by.md
----
+
 ## MAX_BY and MIN_BY {#max-min-by}
 
 **Signature**

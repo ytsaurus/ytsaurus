@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/stddev_variance.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/stddev_variance.md
----
+
 ## STDDEV and VARIANCE {#stddev-variance}
 
 **Signature**

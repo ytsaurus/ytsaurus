@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/codegen.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/codegen.md
----
 # Functions for working with code generation
 
 During computations, you can generate code consisting of [S-expressions](/docs/s_expressions) nodes. To do this, use a mechanism for representing code packed in a [resource](../../types/special.md). After constructing the code, you can place it into the main program using the [EvaluateCode](#evaluatecode) function. For debugging, you can convert the code into a string using the [FormatCode](#formatcode) function.

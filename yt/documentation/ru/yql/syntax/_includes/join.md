@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/join.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/join.md
----
 # JOIN
 
 Позволяет объединить несколько источников данных (подзапросов или таблиц) по равенству значений указанных столбцов или выражений (ключей `JOIN`).

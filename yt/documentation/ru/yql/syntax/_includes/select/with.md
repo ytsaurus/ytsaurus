@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/with.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/with.md
----
 ## WITH
 
 Задается после источника данных во `FROM` и используется для указания дополнительных подсказок использования таблиц. Подсказки нельзя задать для подзапросов и [именованных выражений](../../expressions.md#named-nodes).

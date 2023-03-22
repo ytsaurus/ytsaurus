@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/byteat.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/byteat.md
----
+
 ## ByteAt {#byteat}
 
 Getting the byte value in the string by the index from its beginning. If the index is invalid, `NULL` is returned.

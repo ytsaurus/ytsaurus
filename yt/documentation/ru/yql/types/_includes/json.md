@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/json.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/json.md
----
 # Представление данных в формате JSON
 
 ## Bool {#bool}

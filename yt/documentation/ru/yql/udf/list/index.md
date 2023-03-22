@@ -1,7 +1,3 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/udf/list/index.md
-sourcePath: yql-product/udf/list/index.md
----
 {% include [x](_includes/index/intro.md) %}
 
 Для подключения встроенных C++ библиотек используется механизм С++ UDF.

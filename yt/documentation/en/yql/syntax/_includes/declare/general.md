@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/declare/general.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/declare/general.md
----
 # DECLARE
 
 Declares a typified [named expression](../../expressions.md#named-nodes) whose value will be passed by a parameter separately from the query's text. With parameterization, you can separately develop an analytical solution and then launch it sequentially with different input values.

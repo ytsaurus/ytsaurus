@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/flatten/flatten_type_by.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/flatten/flatten_type_by.md
----
 ### Уточнение типа контейнера {#flatten-by-specific-type}
 
 Чтобы уточнить тип контейнера, по которому необходимо произвести преобразование, можно использовать:

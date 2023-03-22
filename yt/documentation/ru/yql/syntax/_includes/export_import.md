@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/export_import.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/export_import.md
----
 # Вынос части запроса в отдельный файл
 
 Механизм для выноса части запроса в отдельный приложенный файл:

@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/index.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/index.md
----
 # Built-in YQL functions
 
 - [Basic](../basic.md)

@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/without.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/without.md
----
+
 ## WITHOUT {#without}
 
 Excluding columns from the result of `SELECT *`.

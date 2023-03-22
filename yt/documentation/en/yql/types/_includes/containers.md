@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/containers.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/containers.md
----
 # Containers
 
 YQL supports container types to define complex data structures organized in various ways.

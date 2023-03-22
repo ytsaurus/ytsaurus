@@ -1,7 +1,3 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/syntax/group_by.md
-sourcePath: yql-product/syntax/group_by.md
----
  <!-- {{product-name}}, YDB below -->
 
 {% include [x](_includes/group_by/general.md) %}

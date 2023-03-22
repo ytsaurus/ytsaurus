@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/bool_bit.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/bool_bit.md
----
+
 ## BOOL_AND, BOOL_OR and BOOL_XOR {#bool-and-or-xor}
 
 **Signature**

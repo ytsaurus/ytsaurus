@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/container_literal.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/container_literal.md
----
+
 ## Container literals {#containerliteral}
 
 For some containers, an operator format of their literal values is possible:

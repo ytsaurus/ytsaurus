@@ -1,7 +1,3 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/syntax/select.md
-sourcePath: yql-product/syntax/select.md
----
 # SELECT syntax
 
 {% include [x](_includes/select/calc.md) %}

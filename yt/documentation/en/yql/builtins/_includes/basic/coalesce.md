@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/coalesce.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/coalesce.md
----
+
 ## COALESCE {#coalesce}
 
 Goes through the arguments from left to right and returns the first non-empty argument found. For the result to be guaranteed non-empty (not [optional type](../../../types/optional.md)), the rightmost argument must be of this type (a literal is often used). If there is one argument, returns it without change.

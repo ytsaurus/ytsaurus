@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/optional_ops.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/optional_ops.md
----
+
 ## Just, Unwrap, Nothing {#optional-ops}
 
 `Just()`: Change the data type of the value to an [optional](../../../types/optional.md) type derived from the current data type (for example, `T` becomes `T?`).

@@ -1,8 +1,3 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/syntax/reduce.md
-sourcePath: yql-product/syntax/reduce.md
----
-
 {% include [x](_includes/reduce.md) %}
 
 <!--Примеры из tutorial:

@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/metadata.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/metadata.md
----
+
 ## Access to the metadata of the current operation {#metadata}
 
 When you run YQL operations via the web interface or HTTP API, you get access to the following data:

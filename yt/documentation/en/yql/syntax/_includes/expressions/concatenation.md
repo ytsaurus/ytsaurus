@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/concatenation.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/concatenation.md
----
+
 ## String concatenation {#concatenation}
 
 Executed using the binary operator `||`.

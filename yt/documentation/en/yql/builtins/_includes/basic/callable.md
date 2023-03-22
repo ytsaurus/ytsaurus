@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/callable.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/callable.md
----
+
 ## Callable {#callable}
 
 Create a callable value with the given signature from a lambda function. Usually used to place callable values in containers.

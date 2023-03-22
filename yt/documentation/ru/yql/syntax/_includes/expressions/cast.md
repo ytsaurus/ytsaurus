@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/cast.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/cast.md
----
 ## CAST {#cast}
 
 Пробует привести значение к указанному типу. Попытка может оказаться неуспешной и вернуть `NULL`. Для чисел может потерять точность или старшие биты.

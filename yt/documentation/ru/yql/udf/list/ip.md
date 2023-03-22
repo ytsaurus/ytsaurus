@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/ip.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/ip.md
----
 # Ip
 В модуле `Ip` поддерживаются как IPv4, так и IPv6 адреса. По умолчанию они представляются в виде бинарных строк длиной 4 и 16 байт, соответственно.
 

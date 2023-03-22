@@ -1,7 +1,4 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/syntax/join.md
-sourcePath: yql-product/syntax/join.md
----
+
 {% include [x](_includes/join.md) %}
 
 

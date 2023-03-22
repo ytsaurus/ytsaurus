@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/view.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/view.md
----
 ## Представления данных (VIEW) {#view}
 
 В YQL реализовано два вида представления данных:

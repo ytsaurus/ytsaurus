@@ -1,8 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/assume_order_by.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/assume_order_by.md
----
-
 ## ASSUME ORDER BY
 
 Checking that the `SELECT` result is sorted by the value in the specified column or multiple columns. The result of such a `SELECT` statement is treated as sorted, but without actually running a sort. Sort check is performed at the query execution stage.

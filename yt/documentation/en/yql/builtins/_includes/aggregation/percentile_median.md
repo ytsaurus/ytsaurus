@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/percentile_median.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/percentile_median.md
----
+
 ## PERCENTILE and MEDIAN {#percentile-median}
 
 **Signature**

@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/case.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/case.md
----
 ## CASE {#case}
 
 Условные выражения и ветвление. Аналог `if`, `switch` и тернарных операторов в императивных языках программирования.

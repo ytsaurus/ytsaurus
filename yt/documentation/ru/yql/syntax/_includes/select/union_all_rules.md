@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/union_all_rules.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/union_all_rules.md
----
 * в результирующую таблицу включаются все колонки, которые встречались хоть в одной из входных таблиц;
 * если колонка присутствовала не во всех входных таблицах, то ей автоматически присваивается [опциональный тип данных](../../../types/optional.md) (допускающий значение `NULL`);
 * если колонка в разных входных таблицах имела разные типы, то выводится общий тип (наиболее широкий);

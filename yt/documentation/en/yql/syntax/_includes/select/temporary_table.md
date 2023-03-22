@@ -1,8 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/temporary_table.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/temporary_table.md
----
-
 ## Explicitly created temporary (anonymous) tables {#temporary-tables}
 
 In complex multiphase queries, it can be useful to explicitly create a physical temporary table in order to manually affect the query process. To do this, you can use the table name starting with `@`. Such tables are called anonymous to distinguish them from temporary tables created by {{product-name}} operation.

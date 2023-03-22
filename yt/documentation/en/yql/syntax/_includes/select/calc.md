@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/calc.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/calc.md
----
+
 ## SELECT
 
 Returns the result of evaluating the expressions specified after `SELECT`.

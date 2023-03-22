@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/count_distinct_estimate.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/count_distinct_estimate.md
----
+
 ## CountDistinctEstimate, HyperLogLog and HLL {#countdistinctestimate}
 
 **Signature**

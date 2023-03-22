@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/datatypes_primitive_number.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/datatypes_primitive_number.md
----
+
 | Type | Description | Notes   |
 ----- | ----- | -----
 | `Bool` | Boolean value. |

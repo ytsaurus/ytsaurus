@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/_includes/index/list.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/_includes/index/list.md
----
 * [Hyperscan](../../hyperscan.md)
 * [Pcre](../../pcre.md)
 * [Pire](../../pire.md)

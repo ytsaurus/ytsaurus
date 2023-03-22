@@ -1,9 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/pragma/files.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/pragma/files.md
----
-
-
 ## Working with files
 
 ### File

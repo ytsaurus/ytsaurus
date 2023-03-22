@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/column_order.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/column_order.md
----
+
 ## Column order in YQL {#orderedcolumns}
 The standard SQL is sensitive to the order of columns in projections (that is, in `SELECT`). While the order of columns must be preserved in the query results or when writing data to a new table, some SQL constructs use this order.
 This is also true for [UNION ALL](#unionall) and positional [ORDER BY](#orderby) (ORDER BY ordinal).

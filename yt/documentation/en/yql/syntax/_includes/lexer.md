@@ -1,8 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/lexer.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/lexer.md
----
-
 # Lexical structure
 
 An application written in YQL language is a valid UTF-8 text consisting of _commands_ (statement) separated by semicolons (`;`).

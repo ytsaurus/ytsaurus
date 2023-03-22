@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/window/first_last_value.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/window/first_last_value.md
----
+
 ## FIRST_VALUE / LAST_VALUE
 
 Accessing the values from the first and last rows of the [window border](../../../syntax/window.md#frame) (in the order of the window's `ORDER BY`). The only argument is the expression that you need to access.

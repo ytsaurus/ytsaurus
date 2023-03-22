@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/lambda.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/lambda.md
----
+
 ## Lambda functions {#lambda}
 
 Let you combine multiple expressions into a single callable value.

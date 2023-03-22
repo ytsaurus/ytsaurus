@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/json.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/json.md
----
 # Functions for JSON
 
 **JSON** is a lightweight [data-interchange format](https://www.json.org). It's represented by the `Json` type in YQL. Unlike relational tables, JSON can store data with no schema defined. Here is an example of a valid JSON object:
