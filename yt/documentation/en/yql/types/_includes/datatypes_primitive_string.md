@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/datatypes_primitive_string.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/datatypes_primitive_string.md
----
+
 | Type | Description | Notes   |
 ----- | ----- | -----
 | `String` | A string that can contain any binary data |

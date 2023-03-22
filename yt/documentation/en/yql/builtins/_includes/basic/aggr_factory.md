@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/aggr_factory.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/aggr_factory.md
----
+
 ## AggregationFactory {#aggregationfactory}
 
 Create the [aggregate function](../../aggregation.md) factory to separate the process of describing how to aggregate data and which data to apply it to.

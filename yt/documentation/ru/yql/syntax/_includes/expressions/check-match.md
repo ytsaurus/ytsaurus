@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/check-match.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/check-match.md
----
 ## Проверка строки на соответствие шаблону {#check-match}
 
 `REGEXP` и `RLIKE` являются алиасами и представляют собой короткий способ записи для вызова [Re2::Grep](../../../udf/list/re2.md#match). `MATCH` — аналогично для [Re2::Match](../../../udf/list/re2.md#match).

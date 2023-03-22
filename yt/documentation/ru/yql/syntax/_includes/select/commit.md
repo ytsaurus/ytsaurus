@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/commit.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/commit.md
----
 ## COMMIT {#commit}
 
 По умолчанию весь YQL запрос выполняется в рамках одной транзакции и независимые его части внутри выполняются по возможности параллельно.

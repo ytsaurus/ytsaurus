@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/group_by/distinct.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/group_by/distinct.md
----
 ## DISTINCT {#distinct}
 
 Применение агрегатных функций только к уникальным значениям столбца.

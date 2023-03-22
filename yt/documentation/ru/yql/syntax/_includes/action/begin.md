@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/action/begin.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/action/begin.md
----
 ## BEGIN .. END DO {#begin}
 
 Выполнение действия без его объявления (анонимное действие).

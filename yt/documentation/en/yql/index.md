@@ -1,7 +1,3 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/index.md
-sourcePath: yql-product/index.md
----
 # Introduction
 
 YQL is an SQL-based language of universal declarative queries against data storage and processing systems, as well as an infrastructure to run such queries.
@@ -14,7 +10,6 @@ YQL benefits include:
 - extensive function library;
 - support for custom functions in C++, Python, and JavaScript;
 - automatic execution of small parts of queries on prepared compute instances, bypassing MapReduce operations to reduce latency.
-
 # How to try
 
 YQL provides a functional web interface in which, among other things, you can:

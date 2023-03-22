@@ -1,7 +1,4 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/syntax/flatten.md
-sourcePath: yql-product/syntax/flatten.md
----
+
 {% include [x](_includes/flatten/flatten_by.md) %}
 
 To apply `FLATTEN BY` to Yson, you first need to transform it into one of the container types discussed above. For instance, you can do this using the [UDF module of the same name](../udf/list/yson.md) from the list of presets.

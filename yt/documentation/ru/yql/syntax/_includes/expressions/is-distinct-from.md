@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/is-distinct-from.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/is-distinct-from.md
----
 ## IS \[NOT\] DISTINCT FROM {#is-distinct-from}
 
 Сравнение двух значений. В отличие от обычных [операторов сравнения](#comparison-operators), нуллы считаются равными друг другу.

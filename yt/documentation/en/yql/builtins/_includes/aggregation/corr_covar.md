@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/corr_covar.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/corr_covar.md
----
 ## CORRELATION and COVARIANCE {#correlation-covariance}
 
 **Signature**

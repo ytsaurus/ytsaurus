@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/as_container.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/as_container.md
----
+
 ## AsTuple, AsStruct, AsList, AsDict, AsSet, AsListStrict, AsDictStrict and AsSetStrict {#as-container}
 
 Creates containers of the appropriate types. [Operator writing](#containerliteral) of container literals is also available.

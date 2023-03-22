@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/use.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/use.md
----
 # USE
 
 Specifying the "database". As a rule, one of the {{product-name}} clusters is used as a database. This database will be used by default to search for tables whenever the database hasn't been specified explicitly.

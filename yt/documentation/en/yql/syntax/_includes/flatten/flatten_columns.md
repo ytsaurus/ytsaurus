@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/flatten/flatten_columns.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/flatten/flatten_columns.md
----
+
 ## FLATTEN COLUMNS {#flatten-columns}
 
 Converts a table where all columns must be structures to a table with columns corresponding to each element of each structure from the source columns.

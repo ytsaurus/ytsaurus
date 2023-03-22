@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/values.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/values.md
----
 # Basic VALUES syntax in YQL
 
 ## VALUES as a top-level operator

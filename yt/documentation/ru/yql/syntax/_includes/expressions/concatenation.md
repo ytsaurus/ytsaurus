@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/concatenation.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/concatenation.md
----
 ## Конкатенация строк {#concatenation}
 
 Выполняется через бинарный оператор `||`.

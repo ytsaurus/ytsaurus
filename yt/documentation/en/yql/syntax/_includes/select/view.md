@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/view.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/view.md
----
+
 ## Data views (VIEW) {#view}
 
 YQL supports two types of data views:

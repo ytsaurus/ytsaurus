@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/if.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/if.md
----
+
 ## IF {#if}
 
 Checks the condition: `IF(condition_expression, then_expression, else_expression)`.

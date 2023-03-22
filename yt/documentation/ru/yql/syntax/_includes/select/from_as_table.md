@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/from_as_table.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/from_as_table.md
----
 ## FROM AS_TABLE {#as-table}
 
 Обращение к именованным выражениям как к таблицам с помощью функции `AS_TABLE`.

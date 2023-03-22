@@ -1,9 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/distinct.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/distinct.md
----
-
-
 ## DISTINCT {#distinct}
 
 Выбор уникальных строк.

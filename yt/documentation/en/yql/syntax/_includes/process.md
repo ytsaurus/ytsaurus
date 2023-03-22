@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/process.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/process.md
----
 # PROCESS
 
 Convert the input table (using UDF) to C++, Python or JavaScript, or [lambda function](../../syntax/expressions.md#lambda), which is applied sequentially to each input string and is able to create zero, one, or multiple output strings per input string (similar to Map in terms of MapReduce).

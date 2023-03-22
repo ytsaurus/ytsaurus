@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/discard.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/discard.md
----
 # DISCARD
 
 Вычисляет [`SELECT`](../select.md), [`REDUCE`](../reduce.md)  или [`PROCESS`](../process.md), но не возвращает результат ни в клиент, ни в таблицу. Не может быть задано одновременно с [INTO RESULT](../into_result.md).

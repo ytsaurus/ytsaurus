@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/staticzip.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/staticzip.md
----
+
 ## StaticZip
 
 Merges structures or tuples element-by-element. All arguments (one or more) must be either structures with the same set of fields or tuples of the same length.

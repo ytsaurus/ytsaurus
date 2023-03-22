@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/primitive.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/primitive.md
----
 # Примитивные типы данных
 
 Термины «простые», «примитивные» и «элементарные» типы данных используются как синонимы.

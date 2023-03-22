@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/union_all.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/union_all.md
----
+
 ## UNION ALL {#union-all}
 
 Concatenating results of multiple `SELECT` statements (or subqueries).

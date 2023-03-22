@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/session_start.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/session_start.md
----
+
 ## SessionStart {#session-start}
 
 Without arguments. Only allowed if there is [SessionWindow](../../../syntax/group_by.md#session-window) in

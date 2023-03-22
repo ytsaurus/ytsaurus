@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/cast.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/types/_includes/cast.md
----
 # Правила преобразования типов через оператор [CAST](../../syntax/expressions.md#cast)
 
 ## Правила преобразования примитивных типов данных.

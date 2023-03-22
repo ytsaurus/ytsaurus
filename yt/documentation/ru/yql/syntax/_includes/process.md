@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/process.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/process.md
----
 # PROCESS
 
 Преобразовать входную таблицу с помощью UDF на C++, Python или JavaScript или [лямбда функции](../../syntax/expressions.md#lambda), которая применяется последовательно к каждой строке входа и имеет возможность для каждой строки входа создать ноль, одну или несколько строк результата (аналог Map в терминах MapReduce).

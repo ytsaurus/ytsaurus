@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/group_by/distinct.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/group_by/distinct.md
----
+
 ## DISTINCT {#distinct}
 
 Applying aggregate functions only to distinct values of the column.

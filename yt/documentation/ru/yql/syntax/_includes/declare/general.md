@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/declare/general.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/declare/general.md
----
 # DECLARE
 
 Объявляет типизированное [именованное выражение](../../expressions.md#named-nodes), значение для которого будет передано параметром отдельно от текста запроса. Параметризация дает возможность отделить разработку аналитического решения задачи от её запуска с различными вариантами входных значений.

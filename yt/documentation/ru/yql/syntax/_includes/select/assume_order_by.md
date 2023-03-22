@@ -1,8 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/assume_order_by.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/assume_order_by.md
----
-
 ## ASSUME ORDER BY
 
 Проверка сортированности результата `SELECT` по значению в указанном столбце или нескольких столбцах. Результат такого `SELECT`-а будет считаться сортированным, но без выполнения фактической сортировки. Проверка сортированности осуществляется на этапе исполнения запроса.

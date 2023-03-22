@@ -1,8 +1,3 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/builtins/window.md
-sourcePath: yql-product/builtins/window.md
----
-
 {% include [x](_includes/window/intro.md) %}
 
 {% include [x](_includes/window/aggregate.md) %}

@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/types.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/types.md
----
 # Functions for working with data types
 
 In addition to the ordinary functions that work with particular values (FIND, COALESCE types), YQL supports functions for working with [types](../../types/index.md).

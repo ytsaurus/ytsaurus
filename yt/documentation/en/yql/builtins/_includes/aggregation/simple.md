@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/simple.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/simple.md
----
+
 ## COUNT {#count}
 
 **Signature**

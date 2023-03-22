@@ -1,8 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/limit_offset.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/limit_offset.md
----
-
 ## LIMIT и OFFSET {#limit-offset}
 
 `LIMIT` ограничивает вывод указанным количеством строк. Если значение лимита равно `NULL`, или `LIMIT` не указан, то вывод не ограничен.

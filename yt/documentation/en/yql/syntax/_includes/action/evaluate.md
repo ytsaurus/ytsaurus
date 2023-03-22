@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/action/evaluate.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/action/evaluate.md
----
+
 ## EVALUATE IF {#evaluate-if}
 `EVALUATE IF`: Executing an action depending on the condition. It's followed by:
 

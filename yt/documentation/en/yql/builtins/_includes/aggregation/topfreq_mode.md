@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/topfreq_mode.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/aggregation/topfreq_mode.md
----
+
 ## TOPFREQ and MODE {#topfreq-mode}
 
 **Signature**

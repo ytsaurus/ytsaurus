@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/insert_into.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/insert_into.md
----
 # INSERT INTO
 Adds rows to the table.  If the target table already exists and is not sorted, the operation `INSERT INTO` adds rows at the end of the table. For a sorted table, YQL tries to preserve sorting by starting a sorted merge.
 

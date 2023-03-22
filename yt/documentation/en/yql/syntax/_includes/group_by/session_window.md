@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/group_by/session_window.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/group_by/session_window.md
----
+
 ## GROUP BY ... SessionWindow() {#session-window}
 
 YQL supports grouping by session. To standard expressions in `GROUP BY`, you can add a special `SessionWindow` function:

@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/items-access.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/items-access.md
----
 ## Обращение к контейнерам {#items-access}
 
 Для адресации к значениям внутри контейнеров:

@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/upsert_into.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/upsert_into.md
----
 # UPSERT INTO
 
 UPSERT (which stands for UPDATE or INSERT) updates or inserts multiple rows to a table based on a comparison by the primary key. Missing rows are added. For the existing rows, the values of the specified columns are updated, but the values of the other columns are preserved.

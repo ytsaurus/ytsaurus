@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/sample.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/sample.md
----
+
 ## TABLESAMPLE and SAMPLE {#tablesample} {#sample}
 
 Building a random sample from the data source specified in `FROM`.

@@ -1,7 +1,3 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/syntax/expressions.md
-sourcePath: yql-product/syntax/expressions.md
----
 # Expressions
 
 {% include [x](_includes/expressions/concatenation.md) %}

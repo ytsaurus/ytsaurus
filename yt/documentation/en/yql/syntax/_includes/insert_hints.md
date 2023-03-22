@@ -1,8 +1,3 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/syntax/_includes/insert_hints.md
-sourcePath: yql-product/syntax/_includes/insert_hints.md
----
-
 Write operation can be performed with one or more modifiers. The modifier is specified after the `WITH` keyword after the table name: `INSERT INTO ... WITH SOME_HINT`.
 If the modifier has a value, it's specified after the `=` sign: `INSERT INTO ... WITH SOME_HINT=value`.
 If you need to specify multiple modifiers, they must be enclosed in parentheses: `INSERT INTO ... WITH (SOME_HINT1=value, SOME_HINT2, SOME_HINT3=value)`.

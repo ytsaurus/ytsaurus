@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/evaluate_expr_atom.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/evaluate_expr_atom.md
----
+
 ## EvaluateExpr, EvaluateAtom {#evaluate_expr_atom}
 
 Evaluate an expression before the start of the main calculation and input its result to the query as a literal (constant). In many contexts where the standard SQL would only expect a constant (for example in table names, number of rows in [LIMIT](../../../syntax/select.md#limit), and so on), this functionality is automatically activated implicitly.

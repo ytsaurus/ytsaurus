@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/window/row_number.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/window/row_number.md
----
+
 ## ROW_NUMBER {#row_number}
 
 Row number within a [partition](../../../syntax/window.md#partition). Without arguments.

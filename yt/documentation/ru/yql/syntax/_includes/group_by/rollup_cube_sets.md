@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/group_by/rollup_cube_sets.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/group_by/rollup_cube_sets.md
----
 ## ROLLUP, CUBE и GROUPING SETS {#rollup}
 
 Результаты вычисления агрегатной функции в виде промежуточных итогов для групп и общих итогов для отдельных столбцов или всей таблицы.

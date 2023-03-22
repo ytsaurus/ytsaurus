@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/pcre.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/pcre.md
----
 # Pcre
 
 Библиотека Pcre на данный момент является алиасом к [Hyperscan](hyperscan.md).

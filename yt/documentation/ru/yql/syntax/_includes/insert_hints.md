@@ -1,8 +1,3 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/syntax/_includes/insert_hints.md
-sourcePath: yql-product/syntax/_includes/insert_hints.md
----
-
 Запись может выполняться с одним или несколькими модификаторами. Модификатор указывается после ключевого слова `WITH` после имени таблицы: `INSERT INTO ... WITH SOME_HINT`.
 Если у модификатора есть значение, то оно указывается после знака `=`: `INSERT INTO ... WITH SOME_HINT=value`.
 При необходимости указать несколько модификаторов они должны заключаться в круглые скобки: `INSERT INTO ... WITH (SOME_HINT1=value, SOME_HINT2, SOME_HINT3=value)`.

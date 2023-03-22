@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/pragma/yson.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/pragma/yson.md
----
 ## Yson
 
 Управление поведением Yson UDF по умолчанию, Подробнее можно прочитать в[документации по ней](../../../udf/list/yson.md) и в частности [Yson::Options](../../../udf/list/yson.md#ysonoptions).

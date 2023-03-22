@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/_includes/string.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/_includes/string.md
----
 # String
 Функции для работы с ASCII-строками.
 

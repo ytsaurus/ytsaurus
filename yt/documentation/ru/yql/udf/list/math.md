@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/math.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/math.md
----
 # Math
 Набор обёрток вокруг функций из библиотеки libm, а также утилит Яндекс.
 

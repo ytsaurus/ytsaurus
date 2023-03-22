@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/pragma/global.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/pragma/global.md
----
 ## Глобальные {#pragmas}
 
 ### AutoCommit {#autocommit}

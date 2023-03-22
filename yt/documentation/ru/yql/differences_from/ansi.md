@@ -1,7 +1,3 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/differences_from/ansi.md
-sourcePath: yql-product/differences_from/ansi.md
----
 # Отличия SQL диалекта YQL от ANSI SQL
 
 В данном разделе описываются различие SQL диалекта YQL и стандарта ISO/IEC 9075-2 (part 2: Foundation) в версии SQL-2011.

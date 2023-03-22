@@ -1,7 +1,3 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/index.md
-sourcePath: yql-product/index.md
----
 # Введение
 
 YQL — универсальный, декларативный, основанный на SQL язык запросов к системам хранения и обработки данных, а также инфраструктура для их выполнения. 

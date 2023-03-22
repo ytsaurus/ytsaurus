@@ -1,8 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/temporary_table.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/temporary_table.md
----
-
 ## Явно создаваемые временные (анонимные) таблицы {#temporary-tables}
 
 В сложных многофазных запросах бывает полезно явно создать физическую временную таблицу, чтобы вручную повлиять на ход его выполнения. Для этого можно использовать имя таблицы, начинающееся на `@`. Такие таблицы называются анонимными, чтобы отличать от временных таблиц, создаваемых {{product-name}}-операцией.

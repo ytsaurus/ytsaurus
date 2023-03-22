@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/functional_tables.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/functional_tables.md
----
 ## Обращение к нескольким таблицам в одном запросе {#concat} {#each} {#range} {#like} {#filter} {#regexp}
 
 В стандартном SQL для выполнения запроса по нескольким таблицам используется [UNION ALL](#unionall), который объединяет результаты двух и более `SELECT`. Это не совсем удобно для сценария использования, в котором требуется выполнить один и тот же запрос по нескольким таблицам (например, содержащим данные на разные даты). В YQL, чтобы было удобнее, в `SELECT` после `FROM` можно указывать не только одну таблицу или подзапрос, но и вызывать встроенные функции, позволяющие объединять данные нескольких таблиц.

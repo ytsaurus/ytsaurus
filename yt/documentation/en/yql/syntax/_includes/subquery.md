@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/subquery.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/subquery.md
----
 # Subquery templates
 
 ## DEFINE SUBQUERY {#define-subquery}

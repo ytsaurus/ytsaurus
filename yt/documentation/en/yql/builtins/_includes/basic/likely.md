@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/likely.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/likely.md
----
+
 ## Likely {#likely}
 
 **Signature**

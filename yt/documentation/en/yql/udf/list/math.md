@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/math.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/math.md
----
 # Math
 A set of wrappers around the functions from the libm library and the Yandex utilities.
 

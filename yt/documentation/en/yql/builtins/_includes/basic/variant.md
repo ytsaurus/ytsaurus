@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/variant.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/variant.md
----
+
 ## Variant, AsVariant {#variant}
 
 `Variant()` creates a variant value over a tuple or structure.

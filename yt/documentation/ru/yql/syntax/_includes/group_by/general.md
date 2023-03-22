@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/group_by/general.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/group_by/general.md
----
 ## GROUP BY
 
 Группирует результаты `SELECT` по значениям указанных столбцов или выражений. Вместе с `GROUP BY` часто применяются агрегатные функции (`COUNT`, `MAX`, `MIN`, `SUM`, `AVG`) для выполнения вычислений в каждой группе.

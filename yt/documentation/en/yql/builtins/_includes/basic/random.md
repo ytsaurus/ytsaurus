@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/random.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/random.md
----
+
 ## Random... {#random}
 
 Generates a pseudorandom number:

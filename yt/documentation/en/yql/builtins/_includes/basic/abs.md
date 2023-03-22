@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/abs.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/abs.md
----
+
 ## Abs {#abs}
 
 Absolute value of the number.

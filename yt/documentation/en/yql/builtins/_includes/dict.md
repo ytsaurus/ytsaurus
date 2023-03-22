@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/dict.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/dict.md
----
 # Functions for working with dicts
 
 ## DictCreate {#dictcreate}

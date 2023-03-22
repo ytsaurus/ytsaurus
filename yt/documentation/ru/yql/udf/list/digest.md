@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/digest.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/digest.md
----
 # Digest
 
 Модуль Digest вычисляют хеши(aka fingerprint'ы) от исходных сообщений. Хеши представляют собой (обычно) некоторую строку небольшого / фиксированного размера. Фактический размер хеша зависит от используемого алгоритма. Результат представляет собой последовательность бит.

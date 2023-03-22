@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/lambda.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/expressions/lambda.md
----
 ## Lambda функции {#lambda}
 
 Позволяют комбинировать несколько выражений в одно вызываемое значение.

@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/ensure.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/ensure.md
----
+
 ## Ensure... {#ensure}
 
 Checking for the user conditions:

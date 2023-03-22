@@ -1,7 +1,4 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/builtins/aggregation.md
-sourcePath: yql-product/builtins/aggregation.md
----
+
 {% include [x](_includes/aggregation/simple.md) %}
 
 {% include [x](_includes/aggregation/count_distinct_estimate.md) %}

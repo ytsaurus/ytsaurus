@@ -1,8 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/from_select.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/select/from_select.md
----
-
 ## FROM ... SELECT ... {#from-select}
 
 Перевернутая форма записи, в которой сначала указывается источник данных, а затем — операция.

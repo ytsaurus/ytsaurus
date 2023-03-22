@@ -1,7 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/re2.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/udf/list/re2.md
----
 # Re2
 
 **List of functions**

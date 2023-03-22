@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/starts_ends_with.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/starts_ends_with.md
----
+
 ## StartsWith, EndsWith {#starts_ends_with}
 
 Checking for a prefix or suffix in a string.

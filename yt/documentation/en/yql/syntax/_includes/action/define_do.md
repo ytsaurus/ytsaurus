@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/action/define_do.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/action/define_do.md
----
+
 ## DEFINE ACTION {#define-action}
 
 Specifies a named action that is a parameterizable block of multiple top-level expressions.

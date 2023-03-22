@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/nanvl.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/nanvl.md
----
+
 ## NANVL {#nanvl}
 
 Replaces the values `NaN` (not a number) in the expressions that have the type `Float`, `Double`, or [Optional](../../../types/optional.md).

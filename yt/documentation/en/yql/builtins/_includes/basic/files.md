@@ -1,7 +1,4 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/files.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/builtins/_includes/basic/files.md
----
+
 ## FileContent and FilePath {#file-content-path}
 
 You can add arbitrary named files to your query both in the console and web interfaces. With these functions, you can use the name of the attached file to get its contents or the path in the sandbox, and then use it as you like in the query.

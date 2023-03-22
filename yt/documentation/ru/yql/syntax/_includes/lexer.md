@@ -1,8 +1,3 @@
----
-vcsPath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/lexer.md
-sourcePath: ydb/docs/ru/core/yql/reference/yql-core/syntax/_includes/lexer.md
----
-
 # Лексическая структура
 
 Программа  на языке YQL представляет собой валидный UTF-8 текст, который состоит из _команд_ (statement) разделенных символом точка с запятой (`;`).
