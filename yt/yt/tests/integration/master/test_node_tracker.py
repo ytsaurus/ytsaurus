@@ -6,8 +6,7 @@ from yt_commands import (
     write_table, update_nodes_dynamic_config,
     create_rack, create_data_center, vanilla,
     build_master_snapshots, set_node_banned,
-    add_maintenance, remove_maintenance,
-    create_user, raises_yt_error, make_ace)
+    add_maintenance, remove_maintenance)
 
 import yt_error_codes
 
@@ -15,8 +14,6 @@ from yt.common import YtError
 
 import pytest
 
-import builtins
-from datetime import datetime
 from time import sleep
 
 import shutil
@@ -65,7 +62,7 @@ class TestNodeTracker(YTEnvSetup):
         write_table("//tmp/t", {"a": "b"})
 
         maintenances = {
-            node: add_maintenance(node, "disable_write_sessions", "test")
+            node: add_maintenance("cluster_node", node, "disable_write_sessions", "test")
             for node in nodes
         }
 
@@ -79,7 +76,7 @@ class TestNodeTracker(YTEnvSetup):
         assert not can_write()
 
         for node, maintenance in maintenances.items():
-            remove_maintenance(node, maintenance)
+            remove_maintenance("cluster_node", node, id=maintenance)
 
         wait(lambda: can_write())
 
@@ -90,7 +87,7 @@ class TestNodeTracker(YTEnvSetup):
 
         test_node = nodes[0]
         assert get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(test_node)) > 0
-        add_maintenance(test_node, "disable_scheduler_jobs", "test")
+        add_maintenance("cluster_node", test_node, "disable_scheduler_jobs", "test")
 
         wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(test_node)) == 0)
 
@@ -155,7 +152,7 @@ class TestNodeTracker(YTEnvSetup):
         wait(lambda: can_write())
 
         maintenances = {
-            node: add_maintenance(node, "decommission", "test")
+            node: add_maintenance("cluster_node", node, "decommission", "test")
             for node in nodes
         }
 
@@ -164,7 +161,7 @@ class TestNodeTracker(YTEnvSetup):
         wait(lambda: not can_write())
 
         for node, maintenance in maintenances.items():
-            remove_maintenance(node, maintenance)
+            remove_maintenance("cluster_node", node, id=maintenance)
 
         for node in nodes:
             wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) > 0)
@@ -404,139 +401,3 @@ class TestReregisterNode(YTEnvSetup):
         wait(lambda: get_online_node_count() == 1)
         sleep(5)
         assert get_online_node_count() == 1
-
-
-################################################################################
-
-
-class TestNodeMaintenance(YTEnvSetup):
-    TEST_MAINTENANCE_FLAGS = True
-
-    _KIND_TO_FLAG = {
-        "ban": "banned",
-        "decommission": "decommissioned",
-        "disable_write_sessions": "disable_write_sessions",
-        "disable_scheduler_jobs": "disable_scheduler_jobs",
-        "disable_tablet_cells": "disable_tablet_cells",
-    }
-
-    @authors("kvk1920")
-    def test_direct_flag_set(self):
-        create_user("u1")
-        create_user("u2")
-        node = ls("//sys/cluster_nodes")[0]
-
-        for kind, flag in self._KIND_TO_FLAG.items():
-            for user in ["u1", "u2"]:
-                add_maintenance(node, kind, f"maintenance by {user}", authenticated_user=user)
-            set(f"//sys/cluster_nodes/{node}/@{flag}", True, authenticated_user="u1")
-            maintenances = get(f"//sys/cluster_nodes/{node}/@maintenance_requests")
-            assert get(f"//sys/cluster_nodes/{node}/@{flag}")
-            # Setting @{flag} %true removes all existing requests.
-            assert len(maintenances) == 1
-            ((maintenance_id, maintenance),) = maintenances.items()
-            assert maintenance["maintenance_type"] == kind
-            assert maintenance["user_name"] == "u1"
-            ts = datetime.strptime(maintenance["timestamp"], "%Y-%m-%dT%H:%M:%S.%fZ")
-            assert (datetime.utcnow() - ts).seconds / 60 <= 30
-
-            add_maintenance(node, kind, "another maintenance by u2", authenticated_user="u2")
-            maintenances = get(f"//sys/cluster_nodes/{node}/@maintenance_requests")
-            assert len(maintenances) == 2
-            m1, m2 = maintenances.values()
-            if m1["user_name"] != "u1":
-                m1, m2 = m2, m1
-            assert m2["user_name"] == "u2"
-            assert m2["comment"] == "another maintenance by u2"
-            set(f"//sys/cluster_nodes/{node}/@{flag}", False)
-            assert not get(f"//sys/cluster_nodes/{node}/@maintenance_requests")
-            assert not get(f"//sys/cluster_nodes/{node}/@{flag}")
-
-    @authors("kvk1920")
-    def test_deprecation_message(self):
-        set("//sys/@config/node_tracker/forbid_maintenance_attribute_writes", True)
-        try:
-            node = ls("//sys/cluster_nodes")[0]
-            for flag in self._KIND_TO_FLAG.values():
-                with raises_yt_error("deprecated"):
-                    set(f"//sys/cluster_nodes/{node}/@{flag}", True)
-        finally:
-            set("//sys/@config/node_tracker/forbid_maintenance_attribute_writes", False)
-
-    @authors("kvk1920")
-    def test_add_remove(self):
-        create_user("u1")
-        create_user("u2")
-        node = ls("//sys/cluster_nodes")[0]
-        for kind, flag in self._KIND_TO_FLAG.items():
-            m1 = add_maintenance(node, kind, "comment1", authenticated_user="u1")
-            assert get(f"//sys/cluster_nodes/{node}/@{flag}")
-            m2 = add_maintenance(node, kind, "comment2", authenticated_user="u2")
-            assert get(f"//sys/cluster_nodes/{node}/@{flag}")
-
-            remove_maintenance(node, m1)
-            assert get(f"//sys/cluster_nodes/{node}/@{flag}")
-
-            ((m_id, m),) = get(f"//sys/cluster_nodes/{node}/@maintenance_requests").items()
-            assert m_id == m2
-
-            assert m["maintenance_type"] == kind
-            assert m["comment"] == "comment2"
-            assert m["user_name"] == "u2"
-            ts = datetime.strptime(m["timestamp"], "%Y-%m-%dT%H:%M:%S.%fZ")
-            assert (datetime.utcnow() - ts).seconds / 60 <= 30
-
-            remove_maintenance(node, m2)
-            assert not get(f"//sys/cluster_nodes/{node}/@{flag}")
-
-    @authors("kvk1920")
-    def test_mixing_types(self):
-        node = ls("//sys/cluster_nodes")[0]
-        for kind in self._KIND_TO_FLAG:
-            add_maintenance(node, kind, kind)
-
-        for flag in self._KIND_TO_FLAG.values():
-            assert get(f"//sys/cluster_nodes/{node}/@{flag}")
-
-        maintenances = get(f"//sys/cluster_nodes/{node}/@maintenance_requests")
-        assert len(maintenances) == len(self._KIND_TO_FLAG)
-        kinds = builtins.set(self._KIND_TO_FLAG)
-        assert kinds == {req["maintenance_type"] for req in maintenances.values()}
-        assert kinds == {req["comment"] for req in maintenances.values()}
-        maintenance_ids = {req["maintenance_type"]: req_id for req_id, req in maintenances.items()}
-
-        cleared_flags = builtins.set()
-
-        def check_flags():
-            for flag in self._KIND_TO_FLAG.values():
-                assert get(f"//sys/cluster_nodes/{node}/@{flag}") == (flag not in cleared_flags)
-
-        for kind, flag in self._KIND_TO_FLAG.items():
-            check_flags()
-            remove_maintenance(node, maintenance_ids[kind])
-            cleared_flags.add(flag)
-            check_flags()
-
-    @authors("kvk1920")
-    def test_access(self):
-        create_user("u")
-
-        node = ls("//sys/cluster_nodes")[0]
-
-        old_acl = get("//sys/schemas/cluster_node/@acl")
-        set("//sys/schemas/cluster_node/@acl", [make_ace("deny", "u", "write")])
-        try:
-            maintenance_id = add_maintenance(node, "ban", "ban by root")
-            with raises_yt_error("Access denied"):
-                add_maintenance(node, "ban", "ban by u", authenticated_user="u")
-            with raises_yt_error("Access denied"):
-                remove_maintenance(node, maintenance_id, authenticated_user="u")
-        finally:
-            set("//sys/schemas/cluster_node/@acl", old_acl)
-
-
-################################################################################
-
-
-class TestNodeMaintenanceMulticell(TestNodeMaintenance):
-    NUM_SECONDARY_MASTER_CELLS = 2

@@ -178,8 +178,9 @@ public:
     TAddMaintenanceCommand();
 
 private:
-    TString NodeAddress_;
-    NNodeTrackerClient::EMaintenanceType Type_;
+    NApi::EMaintenanceComponent Component_;
+    TString Address_;
+    NApi::EMaintenanceType Type_;
     TString Comment_;
 
     void DoExecute(ICommandContextPtr context) override;
@@ -194,8 +195,14 @@ public:
     TRemoveMaintenanceCommand();
 
 private:
-    TString NodeAddress_;
-    NNodeTrackerClient::TMaintenanceId Id_;
+    NApi::EMaintenanceComponent Component_;
+    TString Address_;
+    bool Mine_ = false;
+    bool All_ = false;
+    std::optional<TString> User_;
+    std::optional<NApi::TMaintenanceId> Id_;
+    std::optional<std::vector<NApi::TMaintenanceId>> Ids_;
+    std::optional<NApi::EMaintenanceType> Type_;
 
     void DoExecute(ICommandContextPtr context) override;
 };

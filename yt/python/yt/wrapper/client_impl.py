@@ -188,20 +188,20 @@ class YtClient(ClientState):
 
     def add_maintenance(
             self,
-            node_address, maintenance_type, comment):
+            component, address, type, comment):
         """
+        Adds maintenance request for given node
 
-        Add maintenance request for given node
-
-        :param node_address: node address.
-        :param maintenance_type: maintenance type. There are 5 maintenance types: ban, decommission, disable_scheduler_jobs,
+        :param component: component type. There are 4 component types: `cluster_node`, `http_proxy`, `rpc_proxy`, `host`.
+        :param address: component address.
+        :param type: maintenance type. There are 5 maintenance types: ban, decommission, disable_scheduler_jobs,
         disable_write_sessions, disable_tablet_cells.
         :param comment: any string with length not larger than 512 characters.
-        :return: unique (per node) maintenance id.
+        :return: unique (per component) maintenance id.
 
         """
         return client_api.add_maintenance(
-            node_address, maintenance_type, comment,
+            component, address, type, comment,
             client=self)
 
     def add_member(
@@ -1603,18 +1603,31 @@ class YtClient(ClientState):
 
     def remove_maintenance(
             self,
-            node_address, maintenance_id):
+            component, address,
+            id=None, ids=None, type=None, user=None, mine=False, all=False):
         """
+        Removes maintenance requests from given node by id or filter.
 
-        Remove maintenance request from given node
-
-        :param node_address: node address.
-        :param maintenance_id: maintenance id.
+        :param component: component type. There are 4 component types: `cluster_node`, `http_proxy`, `rpc_proxy`, `host`.
+        :param address: component address.
+        :param ids: maintenance ids. Only maintenance requests which id is listed can be removed.
+        :param id: single maintenance id. The same as `ids` but accepts single id instead of list.
+        Cannot be used at the same time with `ids`.
+        :param type: maintenance type. If set only maintenance requests with given type will be removed.
+        There are 5 maintenance types: ban, decommission, disable_scheduler_jobs, disable_write_sessions,
+        disable_tablet_cells.
+        :param user: only maintenance requests with this user will be removed.
+        :param mine: only maintenance requests with authenticated user will be removed.
+        Cannot be used with `user`.
+        :param all: all maintenance requests from given node will be removed.
+        Cannot be used with other options.
+        :return: Dictionary with removed maintenance request count for each maintenance type.
 
         """
         return client_api.remove_maintenance(
-            node_address, maintenance_id,
-            client=self)
+            component, address,
+            client=self,
+            id=id, ids=ids, type=type, user=user, mine=mine, all=all)
 
     def remove_member(
             self,

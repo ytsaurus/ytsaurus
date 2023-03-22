@@ -336,46 +336,65 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
+    # COMPAT(kvk1920)
+    def _enable_maintenance_flag_set(self):
+        path = "//sys/@config/node_tracker/forbid_maintenance_attribute_writes"
+        local = get(path)
+        remote = get(path, driver=self.remote_driver)
+        set(path, False)
+        set(path, False, driver=self.remote_driver)
+        return local, remote
+
+    def _restore_maintenance_flag_config(self, old_value):
+        local, remote = old_value
+        path = "//sys/@config/node_tracker/forbid_maintenance_attribute_writes"
+        set(path, local)
+        set(path, remote, driver=self.remote_driver)
+
     @authors("ignat")
     def test_chunk_scraper(self):
-        create("table", "//tmp/t1", driver=self.remote_driver)
-        set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
-        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+        old_value = self._enable_maintenance_flag_set()
+        try:
+            create("table", "//tmp/t1", driver=self.remote_driver)
+            set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
+            write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
-        chunk_id = get("//tmp/t1/@chunk_ids/0", driver=self.remote_driver)
-        chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
-        node = list(str(r) for r in chunk_replicas if r.attributes["index"] == 0)[0]
+            chunk_id = get("//tmp/t1/@chunk_ids/0", driver=self.remote_driver)
+            chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
+            node = list(str(r) for r in chunk_replicas if r.attributes["index"] == 0)[0]
 
-        set(
-            "//sys/@config/chunk_manager/enable_chunk_replicator",
-            False,
-            driver=self.remote_driver,
-        )
-        multicell_sleep()
+            set(
+                "//sys/@config/chunk_manager/enable_chunk_replicator",
+                False,
+                driver=self.remote_driver,
+            )
+            multicell_sleep()
 
-        set_banned_flag(True, [node], driver=self.remote_driver)
+            set_banned_flag(True, [node], driver=self.remote_driver)
 
-        wait(lambda: not get("#{}/@available".format(chunk_id), driver=self.remote_driver))
+            wait(lambda: not get("#{}/@available".format(chunk_id), driver=self.remote_driver))
 
-        create("table", "//tmp/t2")
-        op = remote_copy(
-            track=False,
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={
-                "cluster_name": self.REMOTE_CLUSTER_NAME,
-                "unavailable_chunk_strategy": "wait",
-                "network_name": "interconnect",
-            },
-        )
+            create("table", "//tmp/t2")
+            op = remote_copy(
+                track=False,
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={
+                    "cluster_name": self.REMOTE_CLUSTER_NAME,
+                    "unavailable_chunk_strategy": "wait",
+                    "network_name": "interconnect",
+                },
+            )
 
-        set_banned_flag(False, [node], driver=self.remote_driver)
+            set_banned_flag(False, [node], driver=self.remote_driver)
 
-        wait(lambda: get("#{}/@available".format(chunk_id), driver=self.remote_driver))
+            wait(lambda: get("#{}/@available".format(chunk_id), driver=self.remote_driver))
 
-        op.track()
+            op.track()
 
-        assert read_table("//tmp/t2") == [{"a": "b"}]
+            assert read_table("//tmp/t2") == [{"a": "b"}]
+        finally:
+            self._restore_maintenance_flag_config(old_value)
 
     @authors("ignat")
     def test_revive(self):
@@ -621,85 +640,89 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
     @authors("gritukan")
     @pytest.mark.timeout(300)
     def test_erasure_repair(self):
-        create("table", "//tmp/t1", driver=self.remote_driver)
-        create("table", "//tmp/t2")
-        set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
+        old_value = self._enable_maintenance_flag_set()
+        try:
+            create("table", "//tmp/t1", driver=self.remote_driver)
+            create("table", "//tmp/t2")
+            set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
 
-        content = [{"key": i, "value": "x" * 1024} for i in range(12)]
-        write_table("//tmp/t1",
-                    content,
-                    table_writer={"block_size": 1024},
-                    driver=self.remote_driver)
+            content = [{"key": i, "value": "x" * 1024} for i in range(12)]
+            write_table("//tmp/t1",
+                        content,
+                        table_writer={"block_size": 1024},
+                        driver=self.remote_driver)
 
-        set(
-            "//sys/@config/chunk_manager/enable_chunk_replicator",
-            False,
-            driver=self.remote_driver,
-        )
-        set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
-        multicell_sleep()
-
-        chunk_id = get("//tmp/t1/@chunk_ids/0", driver=self.remote_driver)
-
-        def run_operation():
-            op = remote_copy(
-                track=False,
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                spec={
-                    "cluster_name": self.REMOTE_CLUSTER_NAME,
-                    "max_failed_job_count": 1,
-                    "delay_in_copy_chunk": 5000,
-                    "erasure_chunk_repair_delay": 2000,
-                    "repair_erasure_chunks": True,
-                },
+            set(
+                "//sys/@config/chunk_manager/enable_chunk_replicator",
+                False,
+                driver=self.remote_driver,
             )
-            wait(lambda: len(op.get_running_jobs()) == 1)
-            return op
+            set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
+            multicell_sleep()
 
-        def check_everything():
-            assert get("//tmp/t2/@chunk_count") == 1
-            if self.Env.get_component_version("ytserver-job-proxy").abi > (21, 3):
-                new_chunk_id = get("//tmp/t2/@chunk_ids/0")
-                new_chunk_replicas = get("#{}/@stored_replicas".format(new_chunk_id))
-                replicas = [str(r) for r in new_chunk_replicas]
-                assert len(replicas) == 9 and len({r for r in replicas}) == 9
-            assert read_table("//tmp/t2") == content
+            chunk_id = get("//tmp/t1/@chunk_ids/0", driver=self.remote_driver)
 
-        def set_banned_flag_for_part_nodes(part_indicies, banned_flag):
-            chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
+            def run_operation():
+                op = remote_copy(
+                    track=False,
+                    in_="//tmp/t1",
+                    out="//tmp/t2",
+                    spec={
+                        "cluster_name": self.REMOTE_CLUSTER_NAME,
+                        "max_failed_job_count": 1,
+                        "delay_in_copy_chunk": 5000,
+                        "erasure_chunk_repair_delay": 2000,
+                        "repair_erasure_chunks": True,
+                    },
+                )
+                wait(lambda: len(op.get_running_jobs()) == 1)
+                return op
 
-            nodes_to_ban = []
-            for part_index in part_indicies:
-                nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
-                nodes_to_ban += nodes
+            def check_everything():
+                assert get("//tmp/t2/@chunk_count") == 1
+                if self.Env.get_component_version("ytserver-job-proxy").abi > (21, 3):
+                    new_chunk_id = get("//tmp/t2/@chunk_ids/0")
+                    new_chunk_replicas = get("#{}/@stored_replicas".format(new_chunk_id))
+                    replicas = [str(r) for r in new_chunk_replicas]
+                    assert len(replicas) == 9 and len({r for r in replicas}) == 9
+                assert read_table("//tmp/t2") == content
 
-            set_banned_flag(banned_flag, nodes_to_ban, driver=self.remote_driver)
+            def set_banned_flag_for_part_nodes(part_indicies, banned_flag):
+                chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
 
-        def unban_all_nodes():
-            nodes = list(get("//sys/cluster_nodes", driver=self.remote_driver).keys())
-            set_banned_flag(False, nodes, driver=self.remote_driver)
-            wait(lambda: get("#{}/@available".format(chunk_id), driver=self.remote_driver))
+                nodes_to_ban = []
+                for part_index in part_indicies:
+                    nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
+                    nodes_to_ban += nodes
 
-        op = run_operation()
-        # Some 3 parts are unavailable.
-        # NB(gritukan): Cannot ban node before job started because CA will not start job until
-        # all the parts were found.
-        set_banned_flag_for_part_nodes([2, 3, 5], True)
-        op.track()
-        check_everything()
-        unban_all_nodes()
+                set_banned_flag(banned_flag, nodes_to_ban, driver=self.remote_driver)
 
-        op = run_operation()
-        # Some 4 parts are unavailable, repair is impossible.
-        set_banned_flag_for_part_nodes([0, 1, 3, 8], True)
-        time.sleep(8)
-        assert op.get_state() not in ("failed", "aborted", "completed")
-        # Unban one part, job should complete.
-        set_banned_flag_for_part_nodes([1], False)
-        op.track()
-        check_everything()
-        unban_all_nodes()
+            def unban_all_nodes():
+                nodes = list(get("//sys/cluster_nodes", driver=self.remote_driver).keys())
+                set_banned_flag(False, nodes, driver=self.remote_driver)
+                wait(lambda: get("#{}/@available".format(chunk_id), driver=self.remote_driver))
+
+            op = run_operation()
+            # Some 3 parts are unavailable.
+            # NB(gritukan): Cannot ban node before job started because CA will not start job until
+            # all the parts were found.
+            set_banned_flag_for_part_nodes([2, 3, 5], True)
+            op.track()
+            check_everything()
+            unban_all_nodes()
+
+            op = run_operation()
+            # Some 4 parts are unavailable, repair is impossible.
+            set_banned_flag_for_part_nodes([0, 1, 3, 8], True)
+            time.sleep(8)
+            assert op.get_state() not in ("failed", "aborted", "completed")
+            # Unban one part, job should complete.
+            set_banned_flag_for_part_nodes([1], False)
+            op.track()
+            check_everything()
+            unban_all_nodes()
+        finally:
+            self._restore_maintenance_flag_config(old_value)
 
     @authors("ignat")
     def test_multiple_tables_are_not_supported(self):

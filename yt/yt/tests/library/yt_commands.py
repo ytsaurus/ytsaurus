@@ -1661,14 +1661,33 @@ def resume_coordinator(coordinator_cell_id, **kwargs):
     return execute_command("resume_coordinator", parameters, **kwargs)
 
 
-def add_maintenance(node_address, type, comment, **kwargs):
-    kwargs.update({"node_address": node_address, "type": type, "comment": comment})
+def add_maintenance(component, address, type, comment, **kwargs):
+    kwargs.update({
+        "component": component,
+        "address": address,
+        "type": type,
+        "comment": comment
+    })
     return execute_command("add_maintenance", kwargs, parse_yson=True)
 
 
-def remove_maintenance(node_address, id, **kwargs):
-    kwargs.update({"node_address": node_address, "id": id})
-    return execute_command("remove_maintenance", kwargs, parse_yson=False)
+def remove_maintenance(component, address, *, id_=None, ids=None, type_=None, user=None,
+                       mine=False, all=False, **kwargs):
+    kwargs.update({
+        "component": component,
+        "address": address,
+        "mine": mine,
+        "all": all ,
+    })
+    if id_ is not None:
+        kwargs["ids"] = [id_]
+    elif ids is not None:
+        kwargs["ids"] = ids
+    if type_ is not None:
+        kwargs["type"] = type_
+    if user is not None:
+        kwargs["user"] = user
+    return execute_command("remove_maintenance", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
 def disable_chunk_locations(node_address, uuids, **kwargs):
@@ -2498,44 +2517,29 @@ _MAINTENANCE_FLAGS = {
 }
 
 
-def clear_node_maintenance_flag(address, maintenance_type, driver=None):
-    try:
-        maintenance_ids = [
-            maintenance_id
-            for maintenance_id, request
-            in get(f"//sys/cluster_nodes/{address}/@maintenance_requests", driver=driver).items()
-            if request["maintenance_type"] == maintenance_type
-        ]
-        for maintenance_id in maintenance_ids:
-            remove_maintenance(address, maintenance_id, driver=driver)
-        return
-    except YtResponseError as error:
-        if not error.is_resolve_error() or not error.contains_text("maintenance_requests"):
-            raise
-
+def clear_node_maintenance_flag(address, type, driver=None):
+    path = f"//sys/cluster_nodes/{address}"
     # COMPAT(kvk1920)
-    flag = _MAINTENANCE_FLAGS[maintenance_type]
-    set(f"//sys/cluster_nodes/{address}/@{flag}", False, driver=driver)
-
-
-def set_node_maintenance_flag(address, maintenance_type, reason="", driver=None):
-    # COMPAT(kvk1920)
-    if exists(f"//sys/cluster_nodes/{address}/@maintenance_requests", driver=driver):
-        new_request = add_maintenance(address, maintenance_type, reason, driver=driver)
-        other_requests = [
-            request_id for request_id, request
-            in get(f"//sys/cluster_nodes/{address}/@maintenance_requests", driver=driver).items()
-            if request_id != new_request and request["maintenance_type"] == maintenance_type
-        ]
-        for request in other_requests:
-            remove_maintenance(address, request, driver=driver)
+    if get("//sys/@config/node_tracker/forbid_maintenance_attribute_writes", default=False, driver=driver):
+        remove_maintenance("cluster_node", address, type=type, driver=driver)
     else:
-        flag = _MAINTENANCE_FLAGS[maintenance_type]
-        set(f"//sys/cluster_nodes/{address}/@{flag}", True, driver=driver)
+        flag = _MAINTENANCE_FLAGS[type]
+        set(f"{path}/@{flag}", False, driver=driver)
+
+
+def set_node_maintenance_flag(address, type, reason="", driver=None):
+    path = f"//sys/cluster_nodes/{address}"
+    # COMPAT(kvk1920)
+    if get("//sys/@config/node_tracker/forbid_maintenance_attribute_writes", default=False, driver=driver):
+        # NB: Maintenance request api was changed in 23.1.
+        add_maintenance("cluster_node", address, type, reason, driver=driver)
+    else:
+        flag = _MAINTENANCE_FLAGS[type]
+        set(f"{path}/@{flag}", True, driver=driver)
 
 
 def ban_node(address, reason="", driver=None):
-    set_node_maintenance_flag(address, "ban", reason=reason, driver=driver)
+    set_node_maintenance_flag(address, "ban", reason, driver=driver)
 
 
 def unban_node(address, driver=None):

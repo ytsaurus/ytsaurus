@@ -135,6 +135,11 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
         self.replica_driver = get_driver(cluster=self.REPLICA_CLUSTER_NAME)
         self.primary_driver = get_driver(cluster="primary")
 
+        # COMPAT(kvk1920): Drop this after maintenance request API changed.
+        for driver in (self.replica_driver, self.primary_driver):
+            set("//sys/@config/node_tracker/forbid_maintenance_attribute_writes", False, driver=driver)
+            set("//sys/@config/node_tracker/forbid_maintenance_attribute_writes", False, driver=driver)
+
     def teardown_method(self, method):
         self.replica_driver = None
         self.primary_driver = None

@@ -199,6 +199,18 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 add_library(yt-server-master)
 target_compile_options(yt-server-master PRIVATE
@@ -249,6 +261,7 @@ target_proto_messages(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/cypress_manager.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/grafting_manager.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/portal_manager.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/maintenance_tracker_server/proto/maintenance_tracker.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/proto/node_tracker.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/proto/object_manager.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/proto/transaction_manager.proto
@@ -425,6 +438,9 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/journal_server/journal_node_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/journal_server/journal_node_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/journal_server/public.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/maintenance_tracker_server/maintenance_request.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/maintenance_tracker_server/maintenance_target.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/maintenance_tracker_server/maintenance_tracker.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/cypress_integration.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/data_center.cpp

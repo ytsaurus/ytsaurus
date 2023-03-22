@@ -41,3 +41,19 @@ class TestAdminCommands(object):
         assert os.path.exists(core_path)
         assert os.path.getsize(core_path) >= 5 * 10**6
         os.remove(core_path)
+
+    @authors("kvk1920")
+    def test_maintenance_requests(self):
+        if yt.config["backend"] in ("native", "rpc"):
+            # TODO(kvk1920): Enable this test later.
+            pytest.skip("maintenance requests are not supported in old YT binaries")
+
+        node = yt.list("//sys/cluster_nodes")[0]
+        path = "//sys/cluster_nodes/" + node
+        maintenance_id = yt.add_maintenance("cluster_node", node, "decommission", "1234")
+        assert list(yt.get(path + "/@maintenance_requests").keys()) == [maintenance_id]
+        assert yt.get(path + "/@decommissioned")
+        assert yt.remove_maintenance("cluster_node", node, id=maintenance_id) == {
+            "decommission": 1,
+        }
+        assert not yt.get(path + "/@decommissioned")

@@ -32,6 +32,8 @@
 #include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
 #include <yt/yt/server/master/incumbent_server/incumbent_service.h>
 
+#include <yt/yt/server/master/maintenance_tracker_server/maintenance_tracker.h>
+
 #include <yt/yt/server/master/zookeeper_server/bootstrap_proxy.h>
 #include <yt/yt/server/master/zookeeper_server/cypress_integration.h>
 #include <yt/yt/server/master/zookeeper_server/zookeeper_manager.h>
@@ -215,6 +217,7 @@ using namespace NHydra;
 using namespace NIncumbentServer;
 using namespace NJournalServer;
 using namespace NJournalServer;
+using namespace NMaintenanceTrackerServer;
 using namespace NMonitoring;
 using namespace NNet;
 using namespace NNodeTrackerClient;
@@ -367,6 +370,11 @@ const IChangelogStoreFactoryPtr& TBootstrap::GetChangelogStoreFactory() const
 const ISnapshotStorePtr& TBootstrap::GetSnapshotStore() const
 {
     return SnapshotStore_;
+}
+
+const IMaintenanceTrackerPtr& TBootstrap::GetMaintenanceTracker() const
+{
+    return MaintenanceTracker_;
 }
 
 const INodeTrackerPtr& TBootstrap::GetNodeTracker() const
@@ -855,6 +863,8 @@ void TBootstrap::DoInitialize()
     SecurityManager_ = CreateSecurityManager(this);
 
     TransactionManager_ = New<TTransactionManager>(this);
+
+    MaintenanceTracker_ = CreateMaintenanceTracker(this);
 
     NodeTracker_ = CreateNodeTracker(this);
 

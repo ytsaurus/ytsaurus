@@ -16,6 +16,8 @@
 
 #include <yt/yt/server/master/hive/public.h>
 
+#include <yt/yt/server/master/maintenance_tracker_server/public.h>
+
 #include <yt/yt/server/master/node_tracker_server/public.h>
 
 #include <yt/yt/server/master/object_server/public.h>
@@ -113,6 +115,7 @@ public:
     const NElection::TCellManagerPtr& GetCellManager() const;
     const NHydra::IChangelogStoreFactoryPtr& GetChangelogStoreFactory() const;
     const NHydra::ISnapshotStorePtr& GetSnapshotStore() const;
+    const NMaintenanceTrackerServer::IMaintenanceTrackerPtr& GetMaintenanceTracker() const;
     const NNodeTrackerServer::INodeTrackerPtr& GetNodeTracker() const;
     const NChunkServer::IDataNodeTrackerPtr& GetDataNodeTracker() const;
     const NNodeTrackerServer::IExecNodeTrackerPtr& GetExecNodeTracker() const;
@@ -197,6 +200,7 @@ protected:
     NElection::TCellManagerPtr CellManager_;
     NHydra::IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     NHydra::ISnapshotStorePtr SnapshotStore_;
+    NMaintenanceTrackerServer::IMaintenanceTrackerPtr MaintenanceTracker_;
     NNodeTrackerServer::INodeTrackerPtr NodeTracker_;
     NChunkServer::IDataNodeTrackerPtr DataNodeTracker_;
     NNodeTrackerServer::IExecNodeTrackerPtr ExecNodeTracker_;

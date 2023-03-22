@@ -127,6 +127,7 @@ DEFINE_ENUM(EMasterReign,
     ((HistoricallyNonVital)                                         (2312))  // gritukan
     ((DeprecateCypressListNodes)                                    (2313))  // kvk1920
     ((ConfigurableCollocationSizeLimit)                             (2314))  // akozhikhov
+    ((GeneralizeMaintenanceRequestsApi)                             (2315))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

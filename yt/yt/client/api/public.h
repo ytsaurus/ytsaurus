@@ -179,5 +179,27 @@ inline const TString HunkPayloadKey("payload");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EMaintenanceType,
+    // 0 is reserved for None.
+    ((Ban)                      (1))
+    ((Decommission)             (2))
+    ((DisableSchedulerJobs)     (3))
+    ((DisableWriteSessions)     (4))
+    ((DisableTabletCells)       (5))
+);
+
+DEFINE_ENUM(EMaintenanceComponent,
+    ((ClusterNode) (1))
+    ((HttpProxy)   (2))
+    ((RpcProxy)    (3))
+    ((Host)        (4))
+);
+
+using TMaintenanceId = TGuid;
+
+using TMaintenanceCounts = TEnumIndexedVector<EMaintenanceType, int>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi
 

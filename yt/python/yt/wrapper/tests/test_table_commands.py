@@ -497,7 +497,7 @@ class TestTableCommands(object):
 
             # COMPAT(kvk1920)
             if client.exists("//sys/cluster_nodes/{0}/@maintenance_requests".format(address)):
-                client.add_maintenance(address, "ban", "test read lost chunk")
+                client.add_maintenance("cluster_node", address, "ban", "test read lost chunk")
             else:
                 client.set("//sys/cluster_nodes/{0}/@banned".format(address), True)
             wait(lambda: client.get("//sys/cluster_nodes/{0}/@state".format(address)) == "offline")

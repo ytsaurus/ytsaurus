@@ -1772,6 +1772,23 @@ struct TAddMaintenanceOptions
     : public TTimeoutOptions
 { };
 
+struct TMaintenanceFilter
+{
+    struct TByUser
+    {
+        struct TAll
+        { };
+
+        struct TMine
+        { };
+    };
+
+    // Empty means no filtering by id.
+    std::vector<TMaintenanceId> Ids;
+    std::optional<EMaintenanceType> Type;
+    std::variant<TByUser::TAll, TByUser::TMine, TString> User = {};
+};
+
 struct TRemoveMaintenanceOptions
     : public TTimeoutOptions
 { };
@@ -2316,15 +2333,17 @@ struct IClient
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TResumeTabletCellsOptions& options = {}) = 0;
 
-    virtual TFuture<NNodeTrackerClient::TMaintenanceId> AddMaintenance(
-        const TString& nodeAddress,
-        NNodeTrackerClient::EMaintenanceType type,
+    virtual TFuture<TMaintenanceId> AddMaintenance(
+        EMaintenanceComponent component,
+        const TString& address,
+        EMaintenanceType type,
         const TString& comment,
         const TAddMaintenanceOptions& options = {}) = 0;
 
-    virtual TFuture<void> RemoveMaintenance(
-        const TString& nodeAddress,
-        NNodeTrackerClient::TMaintenanceId id,
+    virtual TFuture<TMaintenanceCounts> RemoveMaintenance(
+        EMaintenanceComponent component,
+        const TString& address,
+        const TMaintenanceFilter& filter,
         const TRemoveMaintenanceOptions& options = {}) = 0;
 
     virtual TFuture<TDisableChunkLocationsResult> DisableChunkLocations(

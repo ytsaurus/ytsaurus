@@ -6,9 +6,9 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_location.h>
 
-#include <yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
+#include <yt/yt/server/master/maintenance_tracker_server/maintenance_target.h>
 
-#include <yt/yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
@@ -77,20 +77,15 @@ struct TIncrementalHeartbeatCounters
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMaintenanceRequest
-{
-    TString UserName;
-    EMaintenanceType Type;
-    TString Comment;
-    TInstant Timestamp;
-
-    void Persist(const NCellMaster::TPersistenceContext& context);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TNode
     : public NObjectServer::TObject
+    , public NMaintenanceTrackerServer::TMaintenanceTarget<
+        TNode,
+        NMaintenanceTrackerServer::EMaintenanceType::Ban,
+        NMaintenanceTrackerServer::EMaintenanceType::Decommission,
+        NMaintenanceTrackerServer::EMaintenanceType::DisableSchedulerJobs,
+        NMaintenanceTrackerServer::EMaintenanceType::DisableWriteSessions,
+        NMaintenanceTrackerServer::EMaintenanceType::DisableTabletCells>
     , public TRefTracked<TNode>
 {
 public:
@@ -205,27 +200,7 @@ public:
         NNodeTrackerClient::NProto::TDataNodeStatistics&& statistics,
         const NChunkServer::IChunkManagerPtr& chunkManager);
 
-    bool IsBanned() const;
     void ValidateNotBanned();
-
-    bool IsDecommissioned() const;
-
-    using TMaintenanceRequests = THashMap<TMaintenanceId, TMaintenanceRequest>;
-    DEFINE_BYREF_RO_PROPERTY(TMaintenanceRequests, MaintenanceRequests);
-
-    // COMPAT(kvk1920)
-    bool GetMaintenanceFlag(EMaintenanceType type) const;
-    //! Returns |true| if maintenance flag is changed.
-    [[nodiscard]] bool ClearMaintenanceFlag(EMaintenanceType type);
-    //! Returns |true| if maintenance flag is changed.
-    [[nodiscard]] bool SetMaintenanceFlag(EMaintenanceType type, TString userName, TInstant timestamp);
-
-    //! Returns |true| if maintenance flag is changed.
-    // Precondition: this node has not maintenance request with such id.
-    bool AddMaintenance(TMaintenanceId id, TMaintenanceRequest request);
-    //! Returns maintenance type if maintenance flag is changed.
-    // Precondition: this node has maintenance request with such id.
-    std::optional<EMaintenanceType> RemoveMaintenance(TMaintenanceId id);
 
     using TLoadFactorIterator = std::optional<NChunkServer::TLoadFactorToNodeIterator>;
     using TLoadFactorIterators = TMediumMap<TLoadFactorIterator>;
@@ -233,10 +208,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TLoadFactorIterators, LoadFactorIterators);
     TLoadFactorIterator GetLoadFactorIterator(int mediumIndex) const;
     void SetLoadFactorIterator(int mediumIndex, TLoadFactorIterator iter);
-
-    bool AreWriteSessionsDisabled() const;
-    bool AreSchedulerJobsDisabled() const;
-    bool AreTabletCellsDisabled() const;
 
     bool GetEffectiveDisableWriteSessions() const;
 
@@ -466,8 +437,6 @@ private:
 
     THashMap<NCellarClient::ECellarType, NNodeTrackerClient::NProto::TCellarNodeStatistics> CellarNodeStatistics_;
 
-    TEnumIndexedVector<NNodeTrackerClient::EMaintenanceType, int> MaintenanceCounts_;
-
     int GetHintedSessionCount(int mediumIndex, int chunkHostMasterCellCount) const;
 
     void ComputeAggregatedState();
@@ -487,8 +456,6 @@ private:
 
     void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
     void SetResourceLimits(const NNodeTrackerClient::NProto::TNodeResources& resourceLimits);
-
-    NNodeTrackerClient::TMaintenanceId GenerateMaintenanceId() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

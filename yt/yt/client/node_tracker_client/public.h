@@ -39,15 +39,6 @@ DEFINE_ENUM(EAddressType,
     ((MonitoringHttp) (2))
 );
 
-DEFINE_ENUM(EMaintenanceType,
-    // 0 is reserved for None.
-    ((Ban)                      (1))
-    ((Decommission)             (2))
-    ((DisableSchedulerJobs)     (3))
-    ((DisableWriteSessions)     (4))
-    ((DisableTabletCells)       (5))
-);
-
 using TNodeId = ui32;
 constexpr TNodeId InvalidNodeId = 0;
 constexpr TNodeId MaxNodeId = (1 << 24) - 1; // TNodeId must fit into 24 bits (see TChunkReplica)
@@ -71,9 +62,6 @@ class TNodeDescriptor;
 
 extern const TString DefaultNetworkName;
 extern const TNetworkPreferenceList DefaultNetworkPreferences;
-
-using TMaintenanceId = TGuid;
-constexpr int MaxMaintenanceCommentLength = 512;
 
 ////////////////////////////////////////////////////////////////////////////////
 

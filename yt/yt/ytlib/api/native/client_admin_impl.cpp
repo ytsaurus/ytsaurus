@@ -1,6 +1,7 @@
 #include "client_impl.h"
 #include "config.h"
 #include "connection.h"
+#include "helpers.h"
 #include "private.h"
 #include "transaction.h"
 
@@ -28,13 +29,13 @@
 #include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 #include <yt/yt/ytlib/hydra/helpers.h>
 
-#include <yt/yt/ytlib/node_tracker_client/node_tracker_service_proxy.h>
-
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
+
+#include <yt/yt/client/api/helpers.h>
 
 #include <yt/yt/client/chaos_client/helpers.h>
 
@@ -59,7 +60,6 @@ using namespace NExecNode;
 using namespace NHiveClient;
 using namespace NHydra;
 using namespace NJobTrackerClient;
-using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NSecurityClient;
 using namespace NRpc;
@@ -67,6 +67,8 @@ using namespace NScheduler;
 using namespace NTabletClient;
 using namespace NYson;
 using namespace NYTree;
+
+using NApi::ValidateMaintenanceComment;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -517,42 +519,84 @@ void TClient::DoResumeTabletCells(
 }
 
 TMaintenanceId TClient::DoAddMaintenance(
-    const TString& nodeAddress,
+    EMaintenanceComponent component,
+    const TString& address,
     EMaintenanceType type,
     const TString& comment,
     const TAddMaintenanceOptions& options)
 {
     ValidateMaintenanceComment(comment);
 
-    auto channel = GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-    TNodeTrackerServiceProxy proxy(std::move(channel));
+    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto batchRequest = proxy->ExecuteBatch();
+    batchRequest->SetSuppressTransactionCoordinatorSync(true);
 
-    auto req = proxy.AddMaintenance();
-    req->set_node_address(nodeAddress);
-    req->set_type(ToProto<i32>(type));
-    req->set_comment(comment);
-    req->SetTimeout(options.Timeout);
+    auto request = TMasterYPathProxy::AddMaintenance();
+    request->set_component(static_cast<int>(component));
+    request->set_address(address);
+    request->set_type(static_cast<int>(type));
+    request->set_comment(comment);
+    batchRequest->AddRequest(request);
+    batchRequest->SetTimeout(options.Timeout);
 
-    auto rsp = WaitFor(req->Invoke())
+    auto batchResponse = WaitFor(batchRequest->Invoke())
         .ValueOrThrow();
-    return FromProto<TMaintenanceId>(rsp->id());
+
+    auto response = batchResponse
+        ->GetResponse<TMasterYPathProxy::TRspAddMaintenance>(0)
+        .ValueOrThrow();
+
+    return FromProto<TMaintenanceId>(response->id());
 }
 
-void TClient::DoRemoveMaintenance(
-    const TString& nodeAddress,
-    TMaintenanceId id,
+TMaintenanceCounts TClient::DoRemoveMaintenance(
+    EMaintenanceComponent component,
+    const TString& address,
+    const TMaintenanceFilter& filter,
     const TRemoveMaintenanceOptions& options)
 {
-    auto channel = GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-    TNodeTrackerServiceProxy proxy(std::move(channel));
+    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto batchRequest = proxy->ExecuteBatch();
+    batchRequest->SetSuppressTransactionCoordinatorSync(true);
 
-    auto req = proxy.RemoveMaintenance();
-    req->set_node_address(nodeAddress);
-    ToProto(req->mutable_id(), id);
-    req->SetTimeout(options.Timeout);
+    auto request = TMasterYPathProxy::RemoveMaintenance();
+    request->set_component(static_cast<int>(component));
+    request->set_address(address);
 
-    WaitFor(req->Invoke())
-        .ThrowOnError();
+    ToProto(request->mutable_ids(), filter.Ids);
+
+    if (filter.Type) {
+        request->set_type(static_cast<int>(*filter.Type));
+    }
+
+    using TByUser = TMaintenanceFilter::TByUser;
+    Visit(
+        filter.User,
+        [] (TByUser::TAll) { },
+        [&] (TByUser::TMine) {
+            request->set_mine(true);
+        },
+        [&] (const TString& user) {
+            request->set_user(user);
+        });
+
+    batchRequest->AddRequest(request);
+    batchRequest->SetTimeout(options.Timeout);
+
+    auto batchResponse = WaitFor(batchRequest->Invoke())
+        .ValueOrThrow();
+    auto response = batchResponse->GetResponse<TMasterYPathProxy::TRspRemoveMaintenance>(0)
+        .ValueOrThrow();
+
+    TMaintenanceCounts result;
+    using enum EMaintenanceType;
+    result[Ban] = response->ban();
+    result[Decommission] = response->decommission();
+    result[DisableSchedulerJobs] = response->disable_scheduler_jobs();
+    result[DisableWriteSessions] = response->disable_write_sessions();
+    result[DisableTabletCells] = response->disable_tablet_cells();
+
+    return result;
 }
 
 TDisableChunkLocationsResult TClient::DoDisableChunkLocations(
