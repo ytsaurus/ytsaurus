@@ -33,39 +33,36 @@ h3 {
 
 **{{product-name}}** — платформа распределенного хранения и обработки больших объемов данных с поддержкой [MapReduce](http://ru.wikipedia.org/wiki/MapReduce), распределенной файловой системой и NoSQL key-value базой данных.
 
-
 <div class="grid-container">
     <div class="grid-item">
-        <h3><a href="overview/about">Обзор</a></h3>
+        <h3><a lang="ru" href="overview/about">Обзор</a></h3>
         <p>Общее описание системы: назначение {{product-name}} и основные возможности платформы.</p>
     </div>
     <div class="grid-item">
-        <h3><a href="user-guide/storage/cypress">Хранение информации</a></h3>
+        <h3><a lang="ru" href="user-guide/storage/cypress">Хранение информации</a></h3>
         <p>Хранение данных в {{product-name}}: дерево метаинформации Кипарис, основные объектах системы, ACL, статические таблицы, транзакции, форматы хранения.</p>
     </div>
     <div class="grid-item">
-        <h3><a href="overview/try-yt">Как попробовать</a></h3>
+        <h3><a lang="ru" href="overview/try-yt">Как попробовать</a></h3>
         <p>Пошаговая инструкция по тому, как быстро развернуть свою копию {{product-name}}.</p>
     </div>
     <div class="grid-item">
-        <h3><a href="user-guide/dynamic-tables/overview">Динамические таблицы</a></h3>
+        <h3><a lang="ru" href="user-guide/dynamic-tables/overview">Динамические таблицы</a></h3>
         <p>NoSQL key-value база данных: транзакции, язык запросов, реплицированные динамические таблицы.</p>
     </div>
     <div class="grid-item">
-        <h3><a href="api/commands">API и справочник</a></h3>
+        <h3><a lang="ru" href="api/commands">API и справочник</a></h3>
         <p>Команды и их параметры, описание SDK и примеры кода для взаимодействия с платформой.</p>
     </div>
     <div class="grid-item">
-        <h3><a href="user-guide/data-processing/scheduler/scheduler-and-pools">Обработка данных</a></h3>
+        <h3><a lang="ru" href="user-guide/data-processing/scheduler/scheduler-and-pools">Обработка данных</a></h3>
         <p>Обработка данных при помощи {{product-name}}: планировщик, парадигма MapReduce, поддерживаемые операции.</p>
         <ul>
-            <li><b><a href="yql/index">YQL</a></b> — декларативный SQL-подобный язык запросов.</li>
-            <li><b><a href="user-guide/data-processing/chyt/about-chyt">CHYT</a></b> — кластер ClickHouse внутри {{product-name}}.</li>
-            <li><b><a href="user-guide/data-processing/spyt/overview">SPYT</a></b> — кластер Apache Spark внутри {{product-name}}.</li>
+            <li><b><a lang="ru" href="yql/index">YQL</a></b> — декларативный SQL-подобный язык запросов.</li>
+            <li><b><a lang="ru" href="user-guide/data-processing/chyt/about-chyt">CHYT</a></b> — кластер ClickHouse внутри {{product-name}}.</li>
+            <li><b><a lang="ru" href="user-guide/data-processing/spyt/overview">SPYT</a></b> — кластер Apache Spark внутри {{product-name}}.</li>
         </ul>
     </div>
-
-
 </div>
 
 ## Полезные ссылки { #links }
