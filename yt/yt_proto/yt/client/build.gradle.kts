@@ -1,3 +1,6 @@
+group = "tech.ytsaurus"
+version = "1.0.1"
+
 import com.google.protobuf.gradle.*
 
 val buildProtoDir = File("${buildDir}", "__proto__")
