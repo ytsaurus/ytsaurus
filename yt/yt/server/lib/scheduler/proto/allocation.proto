@@ -1,7 +1,5 @@
 package NYT.NScheduler.NProto;
 
-import "yt/ytlib/controller_agent/proto/job.proto";
-
 import "yt/ytlib/job_tracker_client/proto/job.proto";
 
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
@@ -16,7 +14,7 @@ message TAllocationResult
     required NYT.NProto.TError error = 1;
 }
 
-// Describes the current status.
+//! Describes the current allocation status.
 message TAllocationStatus
 {
     required NYT.NProto.TGuid allocation_id = 1;
