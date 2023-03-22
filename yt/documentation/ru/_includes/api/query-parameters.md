@@ -46,4 +46,3 @@ for obj in client.search("//tmp/my_table", read_from="cache"):
     if "abc" in str(obj):
         ...
 ```
-

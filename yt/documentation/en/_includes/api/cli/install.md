@@ -69,4 +69,3 @@ If you see something else (either nothing or paths in the current directory) ins
 - The main bash_completion package must be installed. On Ubuntu-like systems, this can be achieved by running the `sudo apt-get install bash-completion` command.
 - Bash-completion must be initiated when a bash session is started. For example, by default, Ubuntu contains a `. /etc/bash_completion` string. If you don't see it, you should add it to .bashrc.
 - The `yt_completion` file that configures autocompletion for the yt command must be placed to /etc/bash_completion.d. If all the contents of /etc/bash_completion.d do not run automatically on your system for some reason, you can run this script yourself at the end of your .bashrc.
-

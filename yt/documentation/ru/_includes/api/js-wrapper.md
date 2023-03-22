@@ -146,4 +146,3 @@ yt.v3.set({ setup, parameters: { path: "//home/user/@account" } }, "default");
 ## Полезные ссылки
 
 [Регистрация команд по версиям на бэкенде](https://github.com/YTsaurus/YTsaurus/blob/main/yt/yt/client/driver/driver.cpp).
-

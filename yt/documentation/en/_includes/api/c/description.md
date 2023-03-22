@@ -449,7 +449,7 @@ message TSampleProto {
 }
 ```
 
-There is support for nested structures, in which case binary protobuff serialization is used: a row with binary protobuf serialization of the [nested message](../../../api/c/protobuf.md#embedded) is stored in a table column. Nested structures can have `repeated` fields, which undergo binary serialization along with the rest of the nested message.
+There is support for nested structures, in which case binary protobuf serialization is used: a row with binary protobuf serialization of the [nested message](../../../api/c/protobuf.md#embedded) is stored in a table column. Nested structures can have `repeated` fields, which undergo binary serialization along with the rest of the nested message.
 
 {% note warning %}
 
