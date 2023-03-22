@@ -783,10 +783,10 @@ void PackBaggageForChunkWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 IAttributeDictionaryPtr ResolveExternalTable(
+    const NNative::IClientPtr& client,
     const TYPath& path,
     TTableId* tableId,
     TCellTag* externalCellTag,
-    const NNative::IClientPtr& client,
     const std::vector<TString>& extraAttributeKeys)
 {
     TMasterReadOptions options;

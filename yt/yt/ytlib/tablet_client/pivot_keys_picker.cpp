@@ -45,10 +45,10 @@ constexpr i64 ExpectedAverageOverlapping = 10;
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
+    const NNative::IClientPtr& client,
     const TYPath& path,
     int tabletCount,
     const TReshardTableOptions& options,
-    const NNative::IClientPtr& client,
     const TLogger& Logger)
 {
     const auto& connection = client->GetNativeConnection();
@@ -62,10 +62,10 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
     TTableId tableId;
     TCellTag externalCellTag;
     auto tableAttributes = ResolveExternalTable(
+        client,
         path,
         &tableId,
-        &externalCellTag,
-        client);
+        &externalCellTag);
 
     TReadRange range;
     if (options.FirstTabletIndex) {
