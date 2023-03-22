@@ -201,7 +201,7 @@ public:
 
     virtual void Do(const TInputRow& input, TOutput<TOutputRow>& output, TState& state) = 0;
 
-    virtual void Finish(TStateStore<typename TInputRow::TKey, TState>& /*stateMap*/)
+    virtual void Finish(TOutput<TOutputRow>& /*output*/, TStateStore<typename TInputRow::TKey, TState>& /*stateMap*/)
     { }
 };
 
