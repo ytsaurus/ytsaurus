@@ -23,7 +23,6 @@ void max_init(
 {
     (void)context;
 
-    ClearValue(result);
     result->Type = VT_Null;
 }
 
@@ -33,7 +32,6 @@ static void max_iteration(
     TUnversionedValue* state,
     TUnversionedValue* newValue)
 {
-    ClearValue(result);
     if (newValue->Type == VT_Null) {
         result->Type = state->Type;
         result->Length = state->Length;
@@ -85,7 +83,6 @@ void max_finalize(
 {
     (void)context;
 
-    ClearValue(result);
     result->Type = state->Type;
     result->Length = state->Length;
     result->Data = state->Data;

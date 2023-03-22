@@ -6,7 +6,6 @@ void sum_init(
 {
     (void)context;
 
-    ClearValue(result);
     result->Type = VT_Null;
 }
 
@@ -18,7 +17,6 @@ static void sum_iteration(
 {
     (void)context;
 
-    ClearValue(result);
     if (newValue->Type == VT_Null) {
         result->Type = state->Type;
         result->Data = state->Data;
@@ -62,7 +60,6 @@ void sum_finalize(
 {
     (void)context;
 
-    ClearValue(result);
     result->Type = state->Type;
     result->Data = state->Data;
 }

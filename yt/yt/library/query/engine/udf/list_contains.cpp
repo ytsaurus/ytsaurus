@@ -15,7 +15,6 @@ extern "C" void list_contains(
     TUnversionedValue* what)
 {
     if (ysonList->Type == EValueType::Null) {
-        ClearValue(result);
         result->Type = EValueType::Null;
         return;
     }

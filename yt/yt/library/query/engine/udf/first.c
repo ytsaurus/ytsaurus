@@ -7,7 +7,6 @@ void first_init(
 {
     (void)context;
 
-    ClearValue(result);
     result->Type = VT_Null;
 }
 
@@ -17,7 +16,6 @@ static void first_iteration(
     TUnversionedValue* state,
     TUnversionedValue* newValue)
 {
-    ClearValue(result);
     if (state->Type == VT_Null) {
         result->Type = newValue->Type;
         if (newValue->Type == VT_String || newValue->Type == VT_Any) {
@@ -60,7 +58,6 @@ void first_finalize(
 {
     (void)context;
 
-    ClearValue(result);
     result->Type = state->Type;
     result->Length = state->Length;
     result->Data = state->Data;

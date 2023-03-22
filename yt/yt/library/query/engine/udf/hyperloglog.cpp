@@ -28,7 +28,6 @@ extern "C" void cardinality_update(
     TUnversionedValue* state,
     TUnversionedValue* newValue)
 {
-    ClearValue(result);
     result->Type = EValueType::String;
     result->Length = state->Length;
     result->Data.String = state->Data.String;
@@ -42,7 +41,6 @@ extern "C" void cardinality_merge(
     TUnversionedValue* state1,
     TUnversionedValue* state2)
 {
-    ClearValue(result);
     result->Type = EValueType::String;
     result->Length = state1->Length;
     result->Data.String = state1->Data.String;
@@ -55,7 +53,6 @@ extern "C" void cardinality_finalize(
     TUnversionedValue* result,
     TUnversionedValue* state)
 {
-    ClearValue(result);
     result->Type = EValueType::Uint64;
     result->Data.Uint64 = HyperLogLogEstimateCardinality(state->Data.String);
 }

@@ -17,8 +17,7 @@ void xdelta_init(
     TUnversionedValue* result)
 {
     (void)context;
-    
-    ClearValue(result);
+
     result->Type = VT_Null;
 }
 
@@ -41,8 +40,6 @@ void xdelta_merge(
     TUnversionedValue* dstState,
     TUnversionedValue* state)
 {
-    ClearValue(result);
-
     if (state->Type == VT_Null) {
         result->Type = dstState->Type;
         result->Data = dstState->Data;
@@ -56,13 +53,13 @@ void xdelta_merge(
         size_t result_offset;
         size_t result_size;
         int ret = XdeltaMerge(
-            context, 
-            (uint8_t*)dstState->Data.String, 
-            dstState->Length, 
-            (uint8_t*)state->Data.String, 
-            state->Length, 
-            &result_data, 
-            &result_offset, 
+            context,
+            (uint8_t*)dstState->Data.String,
+            dstState->Length,
+            (uint8_t*)state->Data.String,
+            state->Length,
+            &result_data,
+            &result_offset,
             &result_size);
         if (ret != 0) {
             result->Type = VT_String;
@@ -73,7 +70,7 @@ void xdelta_merge(
             // Error
             result->Type = VT_Null;
         }
-        
+
     } else {
         result->Type = VT_String;
         result->Flags = VF_Aggregate;
@@ -88,8 +85,6 @@ void xdelta_finalize(
     TUnversionedValue* state)
 {
     (void)context;
-
-    ClearValue(result);
 
     result->Type = state->Type;
     result->Data = state->Data;

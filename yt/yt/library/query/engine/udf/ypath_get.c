@@ -14,7 +14,6 @@
         TUnversionedValue* ypath) \
     { \
         if (anyValue->Type == VT_Null || ypath->Type == VT_Null) { \
-            ClearValue(result); \
             result->Type = VT_Null; \
         } else { \
             PREFIX ## Get ## TYPE(context, result, anyValue, ypath); \
