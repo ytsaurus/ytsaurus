@@ -80,10 +80,10 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
     tableInfo.DestinationPath = manifest->DestinationPath;
 
     tableInfo.Attributes = ResolveExternalTable(
+        Client_,
         tableInfo.SourcePath,
         &tableInfo.SourceTableId,
         &tableInfo.ExternalCellTag,
-        Client_,
         {
             "sorted",
             "upstream_replica_id",

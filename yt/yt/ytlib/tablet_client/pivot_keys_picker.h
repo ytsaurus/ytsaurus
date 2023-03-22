@@ -11,10 +11,10 @@ namespace NYT::NTabletClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<NTableClient::TLegacyOwningKey> PickPivotKeysWithSlicing(
+    const NApi::NNative::IClientPtr& client,
     const NYPath::TYPath& path,
     int tabletCount,
     const NApi::TReshardTableOptions& options,
-    const NApi::NNative::IClientPtr& client,
     const NLogging::TLogger& Logger);
 
 ////////////////////////////////////////////////////////////////////////////////

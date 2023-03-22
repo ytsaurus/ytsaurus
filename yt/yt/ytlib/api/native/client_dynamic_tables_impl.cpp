@@ -1594,10 +1594,10 @@ void TClient::ExecuteTabletServiceRequest(
     TTableId tableId;
     TCellTag externalCellTag;
     auto tableAttributes = NTableClient::ResolveExternalTable(
+        MakeStrong(this),
         path,
         &tableId,
         &externalCellTag,
-        MakeStrong(this),
         {"path"});
 
     if (!IsTabletOwnerType(TypeFromId(tableId))) {
@@ -1865,10 +1865,10 @@ void TClient::DoReshardTableWithTabletCount(
 
     if (options.EnableSlicing.value_or(false)) {
         auto pivots = PickPivotKeysWithSlicing(
+            MakeStrong(this),
             path,
             tabletCount,
             options,
-            MakeStrong(this),
             Logger);
         DoReshardTableWithPivotKeys(path, pivots, options);
         return;
@@ -1891,10 +1891,10 @@ std::vector<TTabletActionId> TClient::DoReshardTableAutomatic(
     TTableId tableId;
     TCellTag externalCellTag;
     auto attributes =  NTableClient::ResolveExternalTable(
+        MakeStrong(this),
         path,
         &tableId,
         &externalCellTag,
-        MakeStrong(this),
         {"tablet_cell_bundle", "dynamic"});
 
     if (TypeFromId(tableId) != EObjectType::Table) {
@@ -2078,10 +2078,10 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
             TTableId tableId;
             TCellTag externalCellTag;
             auto attributes =  NTableClient::ResolveExternalTable(
+                MakeStrong(this),
                 path,
                 &tableId,
                 &externalCellTag,
-                MakeStrong(this),
                 {"dynamic", "tablet_cell_bundle"});
 
             if (TypeFromId(tableId) != EObjectType::Table) {

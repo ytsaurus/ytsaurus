@@ -216,10 +216,10 @@ void PackBaggageForChunkWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 NYTree::IAttributeDictionaryPtr ResolveExternalTable(
+    const NApi::NNative::IClientPtr& client,
     const NYPath::TYPath& path,
     TTableId* tableId,
     NObjectClient::TCellTag* externalCellTag,
-    const NApi::NNative::IClientPtr& client,
     const std::vector<TString>& extraAttributeKeys = {});
 
 ////////////////////////////////////////////////////////////////////////////////
