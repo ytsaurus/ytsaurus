@@ -394,7 +394,7 @@ void Deserialize(Py::Object& obj, INodePtr node, const std::optional<TString>& e
     } else if (type == ENodeType::Boolean) {
         obj = NPython::CreateYsonObject("YsonBoolean", Py::Boolean(node->AsBoolean()->GetValue()), attributes);
     } else if (type == ENodeType::Int64) {
-        obj = NPython::CreateYsonObject("YsonInt64", Py::Int(node->AsInt64()->GetValue()), attributes);
+        obj = NPython::CreateYsonObject("YsonInt64", Py::LongLong(node->AsInt64()->GetValue()), attributes);
     } else if (type == ENodeType::Uint64) {
         obj = NPython::CreateYsonObject("YsonUint64", Py::LongLong(node->AsUint64()->GetValue()), attributes);
     } else if (type == ENodeType::Double) {
