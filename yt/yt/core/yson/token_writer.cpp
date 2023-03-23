@@ -90,6 +90,11 @@ void TUncheckedYsonTokenWriter::WriteRawNodeUnchecked(TStringBuf value)
     Writer_->Write(value.data(), value.size());
 }
 
+ui64 TUncheckedYsonTokenWriter::GetTotalWrittenSize() const
+{
+    return Writer_->GetTotalWrittenSize();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCheckedYsonTokenWriter::TCheckedYsonTokenWriter(IZeroCopyOutput* writer, EYsonType type, int nestingLevelLimit)

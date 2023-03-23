@@ -233,6 +233,7 @@ TFuture<TYsonString> TClientBase::GetNode(
     ToProto(req->mutable_prerequisite_options(), options);
     ToProto(req->mutable_master_read_options(), options);
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
+    ToProto(req->mutable_complexity_limits(), options.ComplexityLimits);
     if (options.Options) {
         ToProto(req->mutable_options(), *options.Options);
     }
@@ -269,6 +270,7 @@ TFuture<TYsonString> TClientBase::ListNode(
     ToProto(req->mutable_prerequisite_options(), options);
     ToProto(req->mutable_master_read_options(), options);
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
+    ToProto(req->mutable_complexity_limits(), options.ComplexityLimits);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspListNodePtr& rsp) {
         return TYsonString(rsp->value());

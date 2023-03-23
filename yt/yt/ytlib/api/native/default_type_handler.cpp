@@ -73,6 +73,8 @@ public:
         if (options.MaxSize) {
             req->set_limit(*options.MaxSize);
         }
+        auto* header = req->Header().MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        ToProto(header->mutable_complexity_limits(), options.ComplexityLimits);
         if (options.Options) {
             ToProto(req->mutable_options(), *options.Options);
         }
@@ -106,6 +108,8 @@ public:
         if (options.MaxSize) {
             req->set_limit(*options.MaxSize);
         }
+        auto* header = req->Header().MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        ToProto(header->mutable_complexity_limits(), options.ComplexityLimits);
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())

@@ -1,13 +1,11 @@
 #include "ypath_detail.h"
+
 #include "node_detail.h"
+#include "helpers.h"
+#include "request_complexity_limiter.h"
+#include "system_attribute_provider.h"
 #include "ypath_client.h"
 
-#include <yt/yt/core/ytree/convert.h>
-#include <yt/yt/core/ytree/node.h>
-#include <yt/yt/core/ytree/helpers.h>
-#include <yt/yt/core/ytree/system_attribute_provider.h>
-
-#include <yt/yt/core/yson/async_writer.h>
 #include <yt/yt/core/yson/attribute_consumer.h>
 
 #include <yt/yt/core/ypath/tokenizer.h>
@@ -584,6 +582,18 @@ void TSupportsAttributes::GetAttribute(
             context->Reply(ysonOrError);
             return;
         }
+
+        {
+            auto resultSize = ysonOrError.Value().AsStringBuf().Size();
+            if (auto limiter = context->GetReadRequestComplexityLimiter()) {
+                limiter->Charge(TReadRequestComplexityUsage({/*nodeCount*/ 1, resultSize}));
+                if (auto error = limiter->CheckOverdraught(); !error.IsOK()) {
+                    context->Reply(error);
+                    return;
+                }
+            }
+        }
+
         response->set_value(ysonOrError.Value().ToString());
         context->Reply();
     }));
@@ -678,6 +688,16 @@ void TSupportsAttributes::ListAttribute(
 
     DoListAttribute(path).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {
         if (ysonOrError.IsOK()) {
+            {
+                auto resultSize = ysonOrError.Value().AsStringBuf().Size();
+                if (auto limiter = context->GetReadRequestComplexityLimiter()) {
+                    limiter->Charge(TReadRequestComplexityUsage({/*nodeCount*/ 1, resultSize}));
+                    if (auto error = limiter->CheckOverdraught(); !error.IsOK()) {
+                        context->Reply(error);
+                        return;
+                    }
+                }
+            }
             response->set_value(ysonOrError.Value().ToString());
             context->Reply();
         } else {
@@ -1614,11 +1634,21 @@ class TYPathServiceContext
     , public IYPathServiceContext
 {
 public:
-    using TServiceContextBase::TServiceContextBase;
+    template <class... TArg>
+    TYPathServiceContext(const TReadRequestComplexity& limits, TArg&&... arg)
+        : TServiceContextBase(std::forward<TArg>(arg)...)
+        , ReadComplexityLimiter_(New<TReadRequestComplexityLimiter>(limits))
+    { }
+
+    TReadRequestComplexityLimiterPtr GetReadRequestComplexityLimiter() final
+    {
+        return ReadComplexityLimiter_;
+    }
 
 protected:
     std::optional<NProfiling::TWallTimer> Timer_;
     const NProto::TYPathHeaderExt* YPathExt_ = nullptr;
+    TReadRequestComplexityLimiterPtr ReadComplexityLimiter_;
 
 
     const NProto::TYPathHeaderExt& GetYPathExt()
@@ -1720,11 +1750,13 @@ protected:
 IYPathServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
     NLogging::TLogger logger,
-    NLogging::ELogLevel logLevel)
+    NLogging::ELogLevel logLevel,
+    const TReadRequestComplexity* readComplexityLimits)
 {
     YT_ASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
+        readComplexityLimits ? *readComplexityLimits : TReadRequestComplexity{},
         std::move(requestMessage),
         std::move(logger),
         logLevel);
@@ -1734,11 +1766,13 @@ IYPathServiceContextPtr CreateYPathContext(
     std::unique_ptr<TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
     NLogging::TLogger logger,
-    NLogging::ELogLevel logLevel)
+    NLogging::ELogLevel logLevel,
+    const TReadRequestComplexity* readComplexityLimits)
 {
     YT_ASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
+        readComplexityLimits ? *readComplexityLimits : TReadRequestComplexity{},
         std::move(requestHeader),
         std::move(requestMessage),
         std::move(logger),

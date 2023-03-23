@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <yt/yt/core/rpc/public.h>
+
 namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////

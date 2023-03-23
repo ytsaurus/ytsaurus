@@ -29,7 +29,7 @@ namespace NYT::NYTree {
 struct IYPathServiceContext
     : public virtual NRpc::IServiceContext
 {
-    // YPathService-specific methods will be placed here.
+    virtual TReadRequestComplexityLimiterPtr GetReadRequestComplexityLimiter() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IYPathServiceContext)
@@ -52,6 +52,8 @@ public:
         const NRpc::THandlerInvocationOptions& options);
 
     IYPathServiceContext* GetUnderlyingYPathContext();
+
+    TReadRequestComplexityLimiterPtr GetReadRequestComplexityLimiter() override;
 
 protected:
     IYPathServiceContext* const UnderlyingYPathContext_;
@@ -378,13 +380,15 @@ void SetNodeFromProducer(
 IYPathServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
     NLogging::TLogger logger = NLogging::TLogger(),
-    NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug);
+    NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug,
+    const TReadRequestComplexity* readComplexityLimits = nullptr);
 
 IYPathServiceContextPtr CreateYPathContext(
     std::unique_ptr<NRpc::NProto::TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
     NLogging::TLogger logger = NLogging::TLogger(),
-    NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug);
+    NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug,
+    const TReadRequestComplexity* readComplexityLimits = nullptr);
 
 IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
 

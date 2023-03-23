@@ -223,7 +223,6 @@ struct IServiceContext
     //! Changes the response codec.
     virtual void SetResponseCodec(NCompression::ECodec codec) = 0;
 
-
     // Extension methods.
 
     void SetRequestInfo();

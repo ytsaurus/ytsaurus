@@ -682,9 +682,10 @@ public:
         IYPathServiceContextPtr underlyingContext,
         TWeakPtr<TCacheSnapshot> cacheSnapshot,
         TCacheKey cacheKey)
-        : TServiceContextWrapper(std::move(underlyingContext))
+        : TServiceContextWrapper(underlyingContext)
         , CacheSnapshot_(std::move(cacheSnapshot))
         , CacheKey_(std::move(cacheKey))
+        , UnderlyingYPathContext_(underlyingContext.Get())
     { }
 
     void Reply(const TError& error) override
@@ -699,11 +700,18 @@ public:
         TServiceContextWrapper::Reply(responseMessage);
     }
 
+    TReadRequestComplexityLimiterPtr GetReadRequestComplexityLimiter() override
+    {
+        return UnderlyingYPathContext_->GetReadRequestComplexityLimiter();
+    }
+
 private:
     typedef TIntrusivePtr<TCacheSnapshot> TCacheSnapshotPtr;
 
     const TWeakPtr<TCacheSnapshot> CacheSnapshot_;
     const TCacheKey CacheKey_;
+
+    IYPathServiceContext* const UnderlyingYPathContext_;
 
     void TryAddResponseToCache(const TErrorOr<TSharedRefArray>& response)
     {
@@ -773,7 +781,9 @@ TCachedYPathService::TCachedYPathService(
     SetCachePeriod(updatePeriod);
 }
 
-IYPathService::TResolveResult TCachedYPathService::Resolve(const TYPath& path, const IYPathServiceContextPtr&)
+IYPathService::TResolveResult TCachedYPathService::Resolve(
+    const TYPath& path,
+    const IYPathServiceContextPtr& /*context*/)
 {
     return TResolveResultHere{path};
 }

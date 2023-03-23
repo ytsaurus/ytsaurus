@@ -1,8 +1,8 @@
 #pragma once
 
+#include "authentication_identity.h"
 #include "server.h"
 #include "service.h"
-#include "authentication_identity.h"
 
 #include <yt/yt/core/logging/log.h>
 
@@ -233,7 +233,6 @@ public:
 
 protected:
     const IServiceContextPtr UnderlyingContext_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

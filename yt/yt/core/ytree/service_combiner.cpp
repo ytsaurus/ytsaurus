@@ -359,7 +359,9 @@ void TServiceCombiner::SetUpdatePeriod(TDuration period)
     Impl_->SetUpdatePeriod(period);
 }
 
-IYPathService::TResolveResult TServiceCombiner::Resolve(const TYPath& path, const IYPathServiceContextPtr& /*context*/)
+IYPathService::TResolveResult TServiceCombiner::Resolve(
+    const TYPath& path,
+    const IYPathServiceContextPtr& /*context*/)
 {
     return TResolveResultHere{path};
 }

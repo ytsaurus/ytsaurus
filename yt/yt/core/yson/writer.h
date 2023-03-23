@@ -128,6 +128,8 @@ public:
 
     int GetDepth() const;
 
+    ui64 GetTotalWrittenSize() const;
+
 protected:
     const EYsonType Type_;
     const bool EnableRaw_;

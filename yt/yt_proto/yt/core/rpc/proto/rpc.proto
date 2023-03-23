@@ -67,6 +67,26 @@ message TRequestHeader
     optional int64 logical_request_weight = 38;
 
     reserved 32;
+
+    /*
+     * Extensions:
+     * transaction_id                       100
+     * suppress_access_tracking             103
+     * ypath_header_ext                     104
+     * caching_header_ext                   105
+     * tracing_ext                          106
+     * suppress_modification_tracking       108
+     * prerequisites_ext                    109
+     * credentials_ext                      110
+     * balancing_ext                        111
+     * multicell_sync_ext                   112
+     * suppress_expiration_timeout_renewal  113
+     * workload_descriptor                  114
+     * ssl_credentials_ext                  120
+     * req_execute_ext                      200
+     * req_multiread_ext                    201
+     */
+
     extensions 100 to max;
 
     extend NRpc.NProto.TRequestHeader

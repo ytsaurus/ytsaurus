@@ -1,6 +1,10 @@
 #include "config.h"
 
+#include <yt/yt/core/ytree/request_complexity_limiter.h>
+
 namespace NYT::NObjectServer {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,6 +19,8 @@ void TMutationIdempotizerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_expired_mutation_id_removals_per_commit", &TThis::MaxExpiredMutationIdRemovalsPerCommit)
         .Default(50000);
 }
+
+DEFINE_REFCOUNTED_TYPE(TMutationIdempotizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,6 +42,8 @@ void TDynamicObjectManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
 }
+
+DEFINE_REFCOUNTED_TYPE(TDynamicObjectManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,6 +74,40 @@ void TObjectServiceConfig::Register(TRegistrar registrar)
         .Default(true);
 }
 
+DEFINE_REFCOUNTED_TYPE(TObjectServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TReadRequestComplexityLimitsConfig::RegisterParameters(
+    TRegistrar registrar,
+    const TReadRequestComplexity& defaults)
+{
+    registrar.Parameter("node_count", &TThis::NodeCount)
+        .Default(defaults.NodeCount);
+    registrar.Parameter("result_size", &TThis::ResultSize)
+        .Default(defaults.ResultSize);
+};
+
+void TReadRequestComplexityLimitsConfig::ToReadRequestComplexity(TReadRequestComplexity& limits) const
+{
+    limits.NodeCount = NodeCount;
+    limits.ResultSize = ResultSize;
+}
+
+void TDefaultReadRequestComplexityLimitsConfig::Register(TRegistrar registrar)
+{
+    RegisterParameters(
+        registrar,
+        TReadRequestComplexity(/*nodeCount*/ 100'000, /*resultSize*/ 50'000'000));
+}
+
+void TMaxReadRequestComplexityLimitsConfig::Register(TRegistrar registrar)
+{
+    RegisterParameters(
+        registrar,
+        TReadRequestComplexity(/*nodeCount*/ 1'000'000, /*resultSize*/ 5000000000ULL));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
@@ -85,7 +127,15 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("process_sessions_period", &TThis::ProcessSessionsPeriod)
         .Default(TDuration::MilliSeconds(10));
+
+    registrar.Parameter("default_read_request_complexity_limits", &TThis::DefaultReadRequestComlexityLimits)
+        .DefaultCtor([] { return New<TDefaultReadRequestComplexityLimitsConfig>(); });
+
+    registrar.Parameter("max_read_request_complexity_limits", &TThis::MaxReadRequestComplexityLimits)
+        .DefaultCtor([] { return New<TMaxReadRequestComplexityLimitsConfig>(); });
 }
+
+DEFINE_REFCOUNTED_TYPE(TDynamicObjectServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -128,6 +128,7 @@ DEFINE_ENUM(EMasterReign,
     ((DeprecateCypressListNodes)                                    (2313))  // kvk1920
     ((ConfigurableCollocationSizeLimit)                             (2314))  // akozhikhov
     ((GeneralizeMaintenanceRequestsApi)                             (2315))  // kvk1920
+    ((ReadRequestComplexityLimits)                                  (2316))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

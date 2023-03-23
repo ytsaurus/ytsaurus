@@ -1,8 +1,9 @@
 #include "server_detail.h"
-#include "private.h"
+
+#include "authentication_identity.h"
 #include "config.h"
 #include "message.h"
-#include "authentication_identity.h"
+#include "private.h"
 
 #include <yt/yt/core/bus/bus.h>
 

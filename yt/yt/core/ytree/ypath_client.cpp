@@ -406,6 +406,11 @@ void ExecuteVerb(
             UnderlyingContext_->SetRawResponseInfo(std::move(info), incremental);
         }
 
+        TReadRequestComplexityLimiterPtr GetReadRequestComplexityLimiter() override
+        {
+            return UnderlyingContext_->GetReadRequestComplexityLimiter();
+        }
+
     private:
         const IYPathServiceContextPtr UnderlyingContext_;
 
@@ -418,7 +423,7 @@ void ExecuteVerb(
 
         void DoReply() override
         {
-            UnderlyingContext_->Reply(GetResponseMessage());
+            UnderlyingContext_->Reply(TServiceContextBase::GetResponseMessage());
         }
     };
 
