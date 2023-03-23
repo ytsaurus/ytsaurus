@@ -133,7 +133,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     TChunkReaderHostPtr chunkReaderHost,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
-    TSharedRange<TUnversionedRow> hintKeyPrefixes,
+    std::optional<THintKeyPrefixes> hintKeyPrefixes,
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
@@ -215,10 +215,10 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         chunkState->DataSource = dataSource;
 
                         YT_LOG_DEBUG("Create chunk reader (HintCount: %v, ChunkFormat: %v, Sorted: %v)",
-                                    std::ssize(hintKeyPrefixes), chunkMeta->GetChunkFormat(),
-                                    chunkMeta->Misc().sorted());
+                                    hintKeyPrefixes ? std::ssize(hintKeyPrefixes->HintPrefixes) : -1,
+                                    chunkMeta->GetChunkFormat(), chunkMeta->Misc().sorted());
 
-                        if (hintKeyPrefixes.empty() || !chunkMeta->Misc().sorted() ||
+                        if (!hintKeyPrefixes || !chunkMeta->Misc().sorted() ||
                             chunkMeta->GetChunkFormat() != EChunkFormat::TableUnversionedSchemalessHorizontal) {
                             return CreateSchemalessRangeChunkReader(
                                 std::move(chunkState),
@@ -239,7 +239,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 dataSliceDescriptor.VirtualRowIndex,
                                 interruptDescriptorKeyLength);
                          } else {
-                            YT_LOG_DEBUG("Only reading hint prefixes (Count: %v)", hintKeyPrefixes.size());
+                            YT_LOG_DEBUG("Only reading hint prefixes (Count: %v)", hintKeyPrefixes->HintPrefixes.size());
                             return CreateSchemalessKeyRangesChunkReader(
                                 std::move(chunkState),
                                 std::move(chunkMeta),
@@ -251,7 +251,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 sortColumns,
                                 dataSource.OmittedInaccessibleColumns(),
                                 columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
-                                hintKeyPrefixes,
+                                hintKeyPrefixes->HintPrefixes,
                                 /*performanceCounters*/ nullptr,
                                 partitionTag,
                                 chunkReaderMemoryManager
@@ -575,7 +575,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TChunkReaderHostPtr chunkReaderHost,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
-    TSharedRange<TUnversionedRow> hintKeyPrefixes,
+    std::optional<THintKeyPrefixes> hintKeyPrefixes,
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     ReaderInterruptionOptions interruptionOptions,
@@ -623,7 +623,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TChunkReaderHostPtr chunkReaderHost,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
-    TSharedRange<TUnversionedRow> hintKeyPrefixes,
+    std::optional<THintKeyPrefixes> hintKeyPrefixes,
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     ReaderInterruptionOptions interruptionOptions,
@@ -1335,7 +1335,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 chunkReaderHost,
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
-                nullptr,
+                std::nullopt,
                 nameTable,
                 chunkReadOptions,
                 ReaderInterruptionOptions::InterruptibleWithEmptyKey(),

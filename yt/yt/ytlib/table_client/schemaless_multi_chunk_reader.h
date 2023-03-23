@@ -58,13 +58,20 @@ struct ReaderInterruptionOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct THintKeyPrefixes
+{
+    TSharedRange<TUnversionedRow> HintPrefixes;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
     NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
-    TSharedRange<TUnversionedRow> hintKeyPrefixes,
+    std::optional<THintKeyPrefixes> hintKeyPrefixes,
     TNameTablePtr nameTable,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     ReaderInterruptionOptions interruptionOptions,
@@ -80,7 +87,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
-    TSharedRange<TUnversionedRow> hintKeysUnused,
+    std::optional<THintKeyPrefixes> hintKeysUnused,
     TNameTablePtr nameTable,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     ReaderInterruptionOptions interruptionOptions,
