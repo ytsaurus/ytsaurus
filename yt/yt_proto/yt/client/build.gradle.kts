@@ -1,6 +1,3 @@
-group = "tech.ytsaurus"
-version = "1.0.1"
-
 import com.google.protobuf.gradle.*
 
 val buildProtoDir = File("${buildDir}", "__proto__")
@@ -11,6 +8,9 @@ plugins {
     `maven-publish`
     `signing`
 }
+
+group = "tech.ytsaurus"
+version = "1.0.1"
 
 repositories {
     mavenCentral()
