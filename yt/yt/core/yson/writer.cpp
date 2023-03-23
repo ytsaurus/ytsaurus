@@ -395,6 +395,11 @@ int TBufferedBinaryYsonWriter::GetDepth() const
     return Depth_;
 }
 
+ui64 TBufferedBinaryYsonWriter::GetTotalWrittenSize() const
+{
+    return TokenWriter_ ? TokenWriter_->GetTotalWrittenSize() : 0;
+}
+
 void TBufferedBinaryYsonWriter::OnStringScalar(TStringBuf value)
 {
     WriteStringScalar(value);

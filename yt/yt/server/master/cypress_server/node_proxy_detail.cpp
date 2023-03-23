@@ -893,11 +893,13 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
             ICypressManagerPtr cypressManager,
             ISecurityManagerPtr securityManager,
             TTransaction* transaction,
-            TAttributeFilter attributeFilter)
+            TAttributeFilter attributeFilter,
+            TReadRequestComplexityLimiterPtr complexityLimiter)
             : CypressManager_(std::move(cypressManager))
             , SecurityManager_(std::move(securityManager))
             , Transaction_(transaction)
             , AttributeFilter_(std::move(attributeFilter))
+            , Writer_(std::move(complexityLimiter))
         { }
 
         void Run(TCypressNode* root)
@@ -916,8 +918,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         TTransaction* const Transaction_;
         const TAttributeFilter AttributeFilter_;
 
-        TAsyncYsonWriter Writer_;
-
+        TLimitedAsyncYsonWriter Writer_;
 
         void VisitAny(TCypressNode* trunkParent, TCypressNode* trunkChild)
         {
@@ -1022,7 +1023,8 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         Bootstrap_->GetCypressManager(),
         Bootstrap_->GetSecurityManager(),
         Transaction_,
-        std::move(attributeFilter));
+        std::move(attributeFilter),
+        context->GetReadRequestComplexityLimiter());
     visitor.Run(TrunkNode_);
     visitor.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
         if (resultOrError.IsOK()) {
@@ -2771,7 +2773,7 @@ void TMapNodeProxy::ListSelf(
         attributeFilter,
         limit);
 
-    TAsyncYsonWriter writer;
+    TLimitedAsyncYsonWriter writer(context->GetReadRequestComplexityLimiter());
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     const auto& securityManager = Bootstrap_->GetSecurityManager();

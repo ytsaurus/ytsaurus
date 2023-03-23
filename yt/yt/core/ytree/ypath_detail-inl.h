@@ -22,6 +22,12 @@ IYPathServiceContext* TTypedYPathServiceContext<TRequestMessage, TResponseMessag
     return UnderlyingYPathContext_;
 }
 
+template <class TRequestMessage, class TResponseMessage>
+TReadRequestComplexityLimiterPtr TTypedYPathServiceContext<TRequestMessage, TResponseMessage>::GetReadRequestComplexityLimiter()
+{
+    return UnderlyingYPathContext_->GetReadRequestComplexityLimiter();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTree

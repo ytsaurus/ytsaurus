@@ -248,6 +248,19 @@ TEST(TYsonTokenWriterTest, ThroughZeroCopyOutputStreamWriter)
     }
 }
 
+TEST(TYsonTokenWriterTest, TotalWrittenSize)
+{
+    TString out;
+    TFixedGrowthStringOutput outStream(&out, 15);
+    TZeroCopyOutputStreamWriter writer(&outStream);
+    TUncheckedYsonTokenWriter tokenWriter(&writer);
+    EXPECT_EQ(tokenWriter.GetTotalWrittenSize(), 0u);
+    tokenWriter.WriteBinaryString("abcdef");
+    EXPECT_EQ(tokenWriter.GetTotalWrittenSize(), 8u);
+    tokenWriter.WriteBinaryString("abcd");
+    EXPECT_EQ(tokenWriter.GetTotalWrittenSize(), 14u);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

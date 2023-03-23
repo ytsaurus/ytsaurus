@@ -28,7 +28,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TMutationIdempotizerConfig)
+DECLARE_REFCOUNTED_CLASS(TMutationIdempotizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +78,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDynamicObjectManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicObjectManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,7 +118,49 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TObjectServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TObjectServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NB: This config must not be used directly. Use one of it's derivations instead.
+class TReadRequestComplexityLimitsConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<ui64> NodeCount;
+    std::optional<ui64> ResultSize;
+
+    void ToReadRequestComplexity(NYTree::TReadRequestComplexity& limits) const;
+
+    REGISTER_YSON_STRUCT(TReadRequestComplexityLimitsConfig);
+
+    static void Register(TRegistrar /*registrar*/)
+    { }
+
+protected:
+    static void RegisterParameters(
+        TRegistrar registrar,
+        const NYTree::TReadRequestComplexity& defaults);
+};
+
+class TDefaultReadRequestComplexityLimitsConfig
+    : public TReadRequestComplexityLimitsConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TDefaultReadRequestComplexityLimitsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+
+class TMaxReadRequestComplexityLimitsConfig
+    : public TReadRequestComplexityLimitsConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TMaxReadRequestComplexityLimitsConfig);
+
+    static void Register(TRegistrar registrar);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,6 +168,8 @@ class TDynamicObjectServiceConfig
     : public NYTree::TYsonStruct
 {
 public:
+    using TReadRequestComplexityLimitsPtr = TIntrusivePtr<TReadRequestComplexityLimitsConfig>;
+
     bool EnableTwoLevelCache;
     bool EnableLocalReadExecutor;
     int LocalReadWorkerCount;
@@ -135,12 +179,15 @@ public:
 
     TDuration ProcessSessionsPeriod;
 
+    TReadRequestComplexityLimitsPtr DefaultReadRequestComlexityLimits;
+    TReadRequestComplexityLimitsPtr MaxReadRequestComplexityLimits;
+
     REGISTER_YSON_STRUCT(TDynamicObjectServiceConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDynamicObjectServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicObjectServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

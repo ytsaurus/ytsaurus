@@ -54,6 +54,8 @@ public:
     Y_FORCE_INLINE void Flush();
     Y_FORCE_INLINE void Finish();
 
+    ui64 GetTotalWrittenSize() const;
+
 private:
     template <typename T>
     Y_FORCE_INLINE void WriteSimple(T value);

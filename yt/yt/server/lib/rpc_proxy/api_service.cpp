@@ -1533,6 +1533,9 @@ private:
         if (request->has_options()) {
             options.Options = NYTree::FromProto(request->options());
         }
+        if (request->has_complexity_limits()) {
+            NYTree::FromProto(&options.ComplexityLimits, request->complexity_limits());
+        }
 
         context->SetRequestInfo("Path: %v, AttributeFilter: %v",
             path,
@@ -1577,6 +1580,9 @@ private:
         }
         if (request->has_suppressable_access_tracking_options()) {
             FromProto(&options, request->suppressable_access_tracking_options());
+        }
+        if (request->has_complexity_limits()) {
+            NYTree::FromProto(&options.ComplexityLimits, request->complexity_limits());
         }
 
         context->SetRequestInfo("Path: %v, AttributeFilter: %v",

@@ -8,6 +8,7 @@ namespace NYT::NYson {
 TAsyncYsonWriter::TAsyncYsonWriter(EYsonType type)
     : Type_(type)
     , SyncWriter_(&Stream_, type)
+    , FlushedSize_(std::make_shared<std::atomic<ui64>>(0))
 { }
 
 void TAsyncYsonWriter::OnStringScalar(TStringBuf value)
@@ -89,12 +90,18 @@ void TAsyncYsonWriter::OnRaw(TFuture<TYsonString> asyncStr)
 {
     FlushCurrentSegment();
     AsyncSegments_.push_back(asyncStr.Apply(
-        BIND([topLevel = SyncWriter_.GetDepth() == 0, type = Type_] (const TYsonString& ysonStr) {
+        BIND([topLevel = SyncWriter_.GetDepth() == 0, type = Type_, flushedSize = FlushedSize_] (const TYsonString& ysonStr) {
+            flushedSize->fetch_add(ysonStr.AsStringBuf().size(), std::memory_order::relaxed);
             return TSegment{
                 ysonStr,
                 ysonStr.GetType() == EYsonType::Node && (!topLevel || type != EYsonType::Node)
             };
         })));
+}
+
+ui64 TAsyncYsonWriter::GetTotalWrittenSize() const
+{
+    return FlushedSize_->load(std::memory_order::relaxed) + SyncWriter_.GetTotalWrittenSize();
 }
 
 TFuture<TYsonString> TAsyncYsonWriter::Finish()
@@ -134,6 +141,7 @@ void TAsyncYsonWriter::FlushCurrentSegment()
 {
     SyncWriter_.Flush();
     if (!Stream_.Str().empty()) {
+        FlushedSize_->fetch_add(Stream_.Str().length());
         AsyncSegments_.push_back(MakeFuture(TSegment{Stream_.Str(), false}));
         Stream_.Str().clear();
     }
