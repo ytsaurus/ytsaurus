@@ -14,7 +14,7 @@
 
 {{product-name}} позволяет записывать данные в таблицы, а также дописывать данные в конец существующих таблиц. Для чтения таблиц доступны несколько режимов: чтение всей таблицы, чтение отдельных диапазонов по номеру строки или ключу.
 
-Пример находится в [yt/cpp/mapreduce/examples/typed-python-tutorial/table_read_write](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/table_read_write).
+Пример находится в [yt/python/examples/table_read_write_typed](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/table_read_write_typed).
 
 ### Простой map { #simple_map }
 
@@ -23,13 +23,13 @@
 
 Для решения задачи подойдёт простой mapper.
 
-Пример находится в [yt/cpp/mapreduce/examples/typed-python-tutorial/simple_map](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/simple_map)
+Пример находится в [yt/python/examples/simple_map_typed](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/simple_map_typed)
 
 ### Сортировка таблицы и простая операция reduce { #sort_and_reduce }
 
 По той же таблице что и в предыдущем примере можно посчитать статистику — сколько раз встречается то или иное имя и самый длинный логин среди всех людей с одним именем. Для решения данной задачи хорошо подходит операция Reduce. Так как операцию Reduce можно запускать только на сортированных таблицах, сперва необходимо отсортировать исходную таблицу.
 
-Пример находится в [yt/cpp/mapreduce/examples/typed-python-tutorial/simple_reduce](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/simple_reduce).
+Пример находится в [yt/python/examples/simple_reduce_typed](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/simple_reduce_typed).
 
 ### Reduce с несколькими входными таблицами { #reduce_multiple_output }
 
@@ -37,50 +37,50 @@
 
 Следующая программа формирует таблицу, в которой остаются только служебные пользователи.
 
-Пример находится в [yt/cpp/mapreduce/examples/typed-python-tutorial/multiple_input_reduce](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/multiple_input_reduce).
+Пример находится в [yt/python/examples/multiple_input_reduce_typed](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/multiple_input_reduce_typed).
 
 ### Reduce с несколькими входными и несколькими выходными таблицами { #reduce_multiple_input_output }
 
 Данный пример повторяет предыдущий с той разницей, что запись будет производиться сразу в две выходные таблицы — и с пользователями-людьми, и со служебными пользователями.
 
-Пример находится в [yt/cpp/mapreduce/examples/typed-python-tutorial/multiple_input_multiple_output_reduce](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/multiple_input_multiple_output_reduce).
+Пример находится в [yt/python/examples/multiple_input_multiple_output_reduce_typed](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/multiple_input_multiple_output_reduce_typed).
 
 ### Схемы таблиц { #table_schema }
 
 У всех таблиц в {{product-name}} есть [схема](userdoc.md#table_schema).
 В коде продемонстрированы примеры работы со схемой таблиц.
 
-Пример находится в [yt/cpp/mapreduce/examples/typed-python-tutorial/table_schema](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/table_schema).
+Пример находится в [yt/python/examples/table_schema_typed](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/table_schema_typed).
 
 ### MapReduce { #map_reduce }
 
 В {{product-name}} реализована слитная операция MapReduce, которая работает быстрее, нежели Map + Sort + Reduce. Попробуем по таблице с пользователями ещё раз посчитать статистику, сколько раз встречается то или иное имя. Перед подсчётом статистики нормализируем имена, приведя их к нижнему регистру, чтобы люди с именами `АРКАДИЙ` и `Аркадий` склеились в нашей статистике.
 
-Пример находится в [yt/cpp/mapreduce/examples/typed-python-tutorial/map_reduce](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/map_reduce).
+Пример находится в [yt/python/examples/map_reduce_typed](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/map_reduce_typed).
 
 ### MapReduce с несколькими промежуточными таблицами { #map_reduce_multiple_intermediate_streams }
 
 Промежуточные данные (между стадиями map и reduce) в операции MapReduce могут "течь" в несколько потоков и иметь разные типы. В данном примере на входе операции две таблицы: первая отображает uid в имя, а вторая содержит информация о событиях, связанных с пользователем с данным uid. Mapper отбирает события типа "клик" и посылает их в один выходной поток, а всех пользователей отправляет в другой. Reducer считает все клики по данному пользователю.
 
-Пример находится в [yt/cpp/mapreduce/examples/typed-python-tutorial/map_reduce_multiple_intermediate_streams](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/map_reduce_multiple_intermediate_streams).
+Пример находится в [yt/python/examples/map_reduce_multiple_intermediate_streams_typed](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/map_reduce_multiple_intermediate_streams_typed).
 
 ### Декораторы для классов-джобов { #job_decorators }
 
 Существует возможность пометить функции или классы джобов специальными декораторами, меняющими ожидаемый интерфейс взаимодействия с джобами.
 Примеры декораторов: `with_context`, `aggregator`, `reduce_aggregator`, `raw`, `raw_io`. Полное описание можно найти в [документации](../../../api/python/userdoc.md#python_decorators)
 
-Пример находится в [yt/cpp/mapreduce/examples/typed-python-tutorial/job_decorators](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/job_decorators).
+Пример находится в [yt/python/examples/job_decorators_typed](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/job_decorators_typed).
 
 ### Работа с файлами на клиенте и в операциях { #files }
 Более полная информация в [документации](../../../api/python/userdoc.md#file_commands).
 Подробнее про файлы в Кипарисе можно прочитать в [разделе](../../../user-guide/storage/files.md).
 
-Пример находится в [yt/cpp/mapreduce/examples/typed-python-tutorial/files](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/files).
+Пример находится в [yt/python/examples/files_types](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/files_types).
 
 ### Генеричный grep { #grep }
 Типизированное API позволяет работать с достаточно произвольными данными, используя один класс данных и один класс операции. В качестве примера рассмотрим задачу фильтрации таблицы по условию совпадения регулярного выражения с заданным строковым полем.
 
-Пример находится в [yt/cpp/mapreduce/examples/typed-python-tutorial/grep](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/grep).
+Пример находится в [yt/python/examples/grep_typed](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/grep_typed).
 
 ## Продвинутый уровень { #advanced }
 
@@ -88,7 +88,7 @@
 
 Существует возможность исполнять "лёгкие" запросы (создать/удалить таблицу, проверить её существование и так далее) группами. Разумно пользоваться данным способом, если необходимо выполнить большое количество однотипных операций, batch запросы могут заметно сэкономить время выполнения.
 
-Пример находится в [yt/cpp/mapreduce/examples/python-tutorial/batch_client](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/python-tutorial/batch_client).
+Пример находится в [yt/python/examples/batch_client](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/batch_client).
 
 ### Использование RPC { #rpc }
 
@@ -101,18 +101,18 @@ home
 ...
 ```
 
-Аналогичный пример (полный код в [yt/cpp/mapreduce/examples/python-tutorial/simple_rpc](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/python-tutorial/simple_rpc)) можно соорудить из питона (в аркадийной сборке):
+Аналогичный пример (полный код в [yt/python/examples/simple_rpc](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/simple_rpc)) можно соорудить из питона (в аркадийной сборке):
 
 Обратите внимание на дополнительный `PEERDIR(yt/python/client_with_rpc)` в `ya.make`.
 
 C помощью RPC можно работать с динамическими таблицами.
-Пример находится в [yt/cpp/mapreduce/examples/python-tutorial/dynamic_tables_rpc](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/python-tutorial/dynamic_tables_rpc).
+Пример находится в [yt/python/examples/dynamic_tables_rpc](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/dynamic_tables_rpc).
 
 ### Указание типов строк с помощью prepare_operation { #prepare_operation }
 
 Помимо использования type hints, для указания Python-типов строк таблиц можно определить метод `prepare_operation`, где все типы указываются с использованием специальных методов. При наличии в классе джоба метода `prepare_operation` библиотека будет использовать типы, указанные внутри метода, и попытка вывести типы строк из type hints производиться не будет.
 
-Пример находится в [yt/cpp/mapreduce/examples/typed-python-tutorial/prepare_operation](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/prepare_operation).
+Пример находится в [yt/python/examples/prepare_operation_typed](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/prepare_operation_typed).
 
 ## Разные примеры { #misc }
 
@@ -120,7 +120,7 @@ C помощью RPC можно работать с динамическими �
 
 В данном примере более подробно продемонстрированы возможности и особенности работы с [классами данных](userdoc.md#dataclass).
 
-Пример находится в [yt/cpp/mapreduce/examples/typed-python-tutorial/dataclass](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/dataclass).
+Пример находится в [yt/python/examples/dataclass_types](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/dataclass_types).
 
 ### Контекст и управление записью в выходные таблицы { #table_switches }
 
@@ -130,15 +130,15 @@ C помощью RPC можно работать с динамическими �
 
 В reducer, mapper-агрегаторах и при чтении таблиц — всегда, когда есть итератор на строки, используйте метод `with_context` итератора.
 
-Пример находится в [yt/cpp/mapreduce/examples/typed-python-tutorial/table_switches](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/table_switches).
+Пример находится в [yt/python/examples/table_switches_typed](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/table_switches_typed).
 
 ### Spec builders { #spec_builder }
 
 Используйте [spec builder](../../../api/python/userdoc.md#spec_builder) для описания спецификации операций чтобы избегать ошибок.
 
-Пример находится в [yt/cpp/mapreduce/examples/typed-python-tutorial/spec_builder](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/spec_builder).
+Пример находится в [yt/python/examples/spec_builder_typed](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/spec_builder_typed).
 
 ### Использование gevent { #gevent }
 
 Документация содержится [в отдельном разделе](../../../api/python/userdoc.md#gevent).
-Пример находится в [yt/cpp/mapreduce/examples/python-tutorial/gevent](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/python-tutorial/gevent).
+Пример находится в [yt/python/examples/gevent](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/gevent).

@@ -6,7 +6,7 @@
 
 {% endnote %}
 
-Основной способ представления строк таблицы — это классы с полями, которые размечены типами (аналог [dataclasses](https://docs.python.org/3/library/dataclasses.html)). См. также [пример](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/dataclass).
+Основной способ представления строк таблицы — это классы с полями, которые размечены типами (аналог [dataclasses](https://docs.python.org/3/library/dataclasses.html)). См. также [пример](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/dataclass_types).
 
 ## Мотивация { #motivation }
 

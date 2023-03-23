@@ -6,7 +6,7 @@ Data classes are supported only in Python 3.
 
 {% endnote %}
 
-The main method used to represent table rows is to create classes with fields marked by types (similar to [dataclasses](https://docs.python.org/3/library/dataclasses.html)). See also the [example](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/examples/typed-python-tutorial/dataclass).
+The main method used to represent table rows is to create classes with fields marked by types (similar to [dataclasses](https://docs.python.org/3/library/dataclasses.html)). See also the [example](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/dataclass_types).
 
 ## Motivation { #motivation }
 
