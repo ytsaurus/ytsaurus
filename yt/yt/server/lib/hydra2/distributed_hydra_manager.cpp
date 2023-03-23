@@ -1478,7 +1478,13 @@ private:
         auto epochContext = GetControlEpochContext(epochId);
         ValidateTerm(epochContext, term);
 
-        return DecoratedAutomaton_->GetSequenceNumber();
+        YT_VERIFY(epochContext->LeaderCommitter);
+        auto lastOffloadedSequenceNumber = epochContext->LeaderCommitter->GetLastOffloadedSequenceNumber();
+        // We still do not want followers to apply mutations before leader.
+        WaitFor(epochContext->LeaderCommitter->GeLastOffloadedMutationsFuture())
+            .ThrowOnError();
+
+        return lastOffloadedSequenceNumber;
     }
 
     void PrepareLeaderSwitch()

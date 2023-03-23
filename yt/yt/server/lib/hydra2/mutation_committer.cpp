@@ -93,6 +93,13 @@ TFuture<void> TCommitterBase::ScheduleApplyMutations(std::vector<TPendingMutatio
     return LastOffloadedMutationsFuture_;
 }
 
+TFuture<void> TCommitterBase::GeLastOffloadedMutationsFuture()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    return LastOffloadedMutationsFuture_;
+}
+
 TFuture<void> TCommitterBase::GetLastLoggedMutationFuture()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1113,6 +1120,13 @@ i64 TLeaderCommitter::GetLoggedSequenceNumber() const
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     return PeerStates_[CellManager_->GetSelfPeerId()].LastLoggedSequenceNumber;
+}
+
+i64 TLeaderCommitter::GetLastOffloadedSequenceNumber() const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    return LastOffloadedSequenceNumber_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

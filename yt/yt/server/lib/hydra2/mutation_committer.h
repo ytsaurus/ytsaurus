@@ -49,6 +49,7 @@ public:
     DEFINE_SIGNAL(void(const TError& error), LoggingFailed);
 
     TFuture<void> GetLastLoggedMutationFuture();
+    TFuture<void> GeLastOffloadedMutationsFuture();
 
 protected:
     const TConfigWrapperPtr Config_;
@@ -113,6 +114,7 @@ public:
 
     TVersion GetLoggedVersion() const;
     i64 GetLoggedSequenceNumber() const;
+    i64 GetLastOffloadedSequenceNumber() const;
 
     bool CanBuildSnapshot() const;
     TFuture<int> BuildSnapshot(bool waitForCompletion, bool readOnly);
