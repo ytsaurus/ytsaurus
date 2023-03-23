@@ -92,6 +92,9 @@ protected:
             }
             defaultConfig->ControllerAgent->Tags = std::vector<TString>({Tag_});
             defaultConfig->RpcPort = 9014;
+            defaultConfig->ClusterConnection = New<NApi::NNative::TConnectionCompoundConfig>();
+            defaultConfig->ClusterConnection->Static = New<NApi::NNative::TConnectionStaticConfig>();
+            defaultConfig->ClusterConnection->Dynamic = New<NApi::NNative::TConnectionDynamicConfig>();
             // Building and loading snapshots at local controller agent seems pretty dangerous and useless, so let's disable it by default.
             defaultConfig->ControllerAgent->EnableSnapshotBuilding = false;
             defaultConfig->ControllerAgent->EnableSnapshotBuildingDisabledAlert = false;

@@ -87,6 +87,9 @@ protected:
             auto defaultConfig = New<NHttpProxy::TProxyConfig>();
             defaultConfig->SetDefaults();
             defaultConfig->Port = 8080;
+            defaultConfig->ClusterConnection = New<NApi::NNative::TConnectionCompoundConfig>();
+            defaultConfig->ClusterConnection->Static = New<NApi::NNative::TConnectionStaticConfig>();
+            defaultConfig->ClusterConnection->Dynamic = New<NApi::NNative::TConnectionDynamicConfig>();
             defaultConfig->Logging = NLogging::TLogManagerConfig::CreateYTServer("http_proxy" /* componentName */);
             // One may disable authentication at all via config, but by default it is better
             // to require authentication. Even YT developers may unintentionally do something

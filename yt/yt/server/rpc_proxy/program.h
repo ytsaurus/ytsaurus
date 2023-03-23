@@ -77,6 +77,9 @@ protected:
             // Form a default rpc proxy config listening port 9013.
             auto defaultConfig = New<NRpcProxy::TProxyConfig>();
             defaultConfig->SetDefaults();
+            defaultConfig->ClusterConnection = New<NApi::NNative::TConnectionCompoundConfig>();
+            defaultConfig->ClusterConnection->Static = New<NApi::NNative::TConnectionStaticConfig>();
+            defaultConfig->ClusterConnection->Dynamic = New<NApi::NNative::TConnectionDynamicConfig>();
             defaultConfig->Logging = NLogging::TLogManagerConfig::CreateYTServer(
                 /*componentName*/ "rpc_proxy",
                 /*directory*/ ".",
@@ -97,7 +100,8 @@ protected:
             config->Load(configNode);
 
             if (!config->RpcPort) {
-                defaultConfig->RpcPort = 9013;
+                config->RpcPort = 9013;
+                config->Postprocess();
             }
 
             // Do not forget to forcefully disable discovery service. Otherwise our local proxy would register
