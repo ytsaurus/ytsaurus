@@ -18,7 +18,7 @@ items:
        - name: Data storage
          when: audience == "public"
          items:
-           - name: Meta information tree
+           - name: Metadata tree
              href: user-guide/storage/cypress.md
            - name: Attributes
              href: user-guide/storage/attributes.md
@@ -435,4 +435,5 @@ items:
    - name: How to report
      when: audience == "public"
      href: user-guide/problems/howtoreport.md
+
 

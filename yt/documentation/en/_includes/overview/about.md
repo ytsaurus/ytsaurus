@@ -13,9 +13,9 @@ Based on the tasks to be solved, clusters can be divided into:
 A {{product-name}} computing cluster is able:
 - To store exabytes of data.
 - To use HDD, SDD, and RAM for data storage.
-- To process data on hundreds of thousands of Hyper Threading cores.
-- To solve machine learning problems on thousands of graphics processors (GPUs).
-- To store and process data from tens of thousands of users.
+- To process data on hundreds of thousands of CPU cores.
+- To solve machine learning problems on thousands GPUs.
+- To store and process data owned by tens of thousands of platform tenants.
 
 ## Architecture
 
