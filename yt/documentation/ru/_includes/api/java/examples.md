@@ -8,6 +8,11 @@ Java API опубликовано в [maven](https://central.sonatype.com/artifa
 
 Перед использованием примеров прочитайте [инструкцию по получению токена](../../../user-guide/storage/auth.md).
 
+Нужно иметь специальные таблицы с данными на вашем YTsaurus кластере, их можно сгенерировать так:
+```bash
+./yt/documentation/upload_tutorial_data/upload_tutorial_data.py -gw --proxy <your-http-proxy>
+```
+
 Примеры можно запускать с помощью gradle из директории примера:
 ```bash
 cd yt/java/ytsaurus-client-examples/<some-example>

@@ -8,6 +8,10 @@ The examples are located at [yt/java/ytsaurus-client-examples](https://github.co
 
 Before using the examples, read the [instructions for obtaining the token](../../../user-guide/storage/auth.md).
 
+Also you need to have tutorial tables on your YTsaurus cluster. It can be generated using this script:
+```bash
+./yt/documentation/upload_tutorial_data/upload_tutorial_data.py -gw --proxy <your-http-proxy>
+```
 
 Every example can be run from its directory using gradle:
 ```bash
