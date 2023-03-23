@@ -2,16 +2,16 @@
 
 This section contains information about YSON, a JSON-like data format.
 
-The main differences between YSON and JSON include:
+The main differences between YSON and JSON are:
 
 1. Support for binary representation of scalar types (numbers, strings, and boolean types).
-2. [Attributes](#attributes): A random dict which can be set additionally on a literal of any type, even scalar.
+2. [Attributes](#attributes): Attributes are an arbitrary dict which can be set additionally on a literal of any type, including scalar ones.
 
 Besides that, there are syntactic differences:
 
 1. A semicolon is used as a separator instead of a comma.
 2. In dicts, a key is not separated from a value by a colon, but by an equal sign: `=`.
-3. String literals do not always have to be enclosed in quotes — only if there is ambiguity in the process of parsing.
+3. String literals do not always have to be enclosed in quotes, but only if there is a parsing ambiguity.
 
 The following set of **scalar** types is available:
 
@@ -19,7 +19,7 @@ The following set of **scalar** types is available:
 2. [Signed](#int) and [unsigned](#uint) 64-bit integers (`int64` and `uint64` ).
 3. Double-precision [floating-point numbers](#double) (`double`).
 4. [Boolean](#boolean) (logical) type (`boolean`).
-5. A [special entity type](#entity) with only one literal (`#`).
+5. A [special entity type](#entity) with only one value, a literal `#`.
 
 Scalar types usually have both textual and binary representation.
 
@@ -34,7 +34,7 @@ There are two **composite** types:
 
 There are three types of string tokens:
 
-1. **Identifiers** are set by the regular expression ` [A-Za-z_][A-Za-z0-9_.\-]*`, extended C identifiers, difference in the `-` and `.` symbols. The identifier specifies a string with identical content and is used primarily for brevity (no need to use quotes).
+1. **Identifiers** are strings that match the regular expression ` [A-Za-z_][A-Za-z0-9_.\-]*`. It describes the set of possible C identifiers, extended with the `-` and `.` characters. An identifier specifies a string with identical content and is used primarily for brevity (no need to use quotes).
 
    Examples:
 
@@ -75,7 +75,7 @@ Two methods of writing:
 
 {% note warning "Attention!" %}
 
-Textual representation of floating-point numbers involves rounding, which can cause the value to be different in case of reverse parsing. If you need accuracy, use binary representation.
+Textual representation of floating-point numbers involves rounding. The result value may become different after a round of serialization and parsing. To store an accurate value, use binary representation.
 
 {% endnote %}
 
@@ -88,7 +88,7 @@ Two methods of writing:
 
 ### Entity (`entity`) { #entity }
 
-Entity is an atomic scalar value with no content of its own. There are various scenarios in which this type can be useful. For example, entity often means null. In addition, when a `get` request is made to a [Cypress](../../../user-guide/storage/cypress.md) subtree, [files](../../../user-guide/storage/objects.md#files) and [tables](../../../user-guide/storage/objects.md#tables) are returned as entities (useful data is stored in the [attributes](#attributes) of that node).
+Entity is an atomic scalar value with no content of its own. There are various scenarios in which this type can be useful. For example, entity often means null. In addition, when a `get` request is made to a [Cypress](../../../user-guide/storage/cypress.md) subtree, [files](../../../user-guide/storage/objects.md#files) and [tables](../../../user-guide/storage/objects.md#tables) are returned as entities (actual data is stored in the [attributes](#attributes) of that node).
 
 Lexically, entity is encoded by the `#` symbol.
 
@@ -102,19 +102,19 @@ Not all of these symbols are used in YSON, some are used in [YPath](../../../use
 
 ### List (`list`) { #list }
 
-Set as follows: `[value; ...; value]` where `value` is literals of random scalar or composite types.
+Set as follows: `[value; ...; value]` where `value` is a literal of some scalar or composite type.
 
 Example: `[1; "hello"; {a=1; b=2}]`.
 
 ### Dict (`map`) { #map }
 
-Set as follows: `{key = value; ...; key = value}`. Here `*key*` is string literals and `value` is literals of random scalar or composite types.
+Set as follows: `{key = value; ...; key = value}`. Here `*key*` is a string literal and `value` is a literals of some scalar or composite type.
 
 Example: `{a = "hello"; "38 parrots" = [38]}`.
 
 ### Attributes { #attributes }
 
-You can set attributes on any literal in YSON. Write format: `<key = value; ...; key = value> value`. Inside angle brackets, the syntax is similar to the dict. For example, `<a = 10; b = [7,7,8]>"some-string"` or `<"44" = 44>44`. But most often attributes can be found on literals like `entity`, for example, `<id="aaad6921-b5704588-17990259-7b88bad3">#`.
+It is possible to set attributes on any literal in YSON, in the followin format: `<key = value; ...; key = value> value`. Inside angle brackets, syntax is similar to the dict. For example, `<a = 10; b = [7,7,8]>"some-string"` or `<"44" = 44>44`. But most often attributes can be found on literals like `entity`, for example, `<id="aaad6921-b5704588-17990259-7b88bad3">#`.
 
 ## Working with YSON from code { #working_from_code }
 
