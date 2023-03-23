@@ -1281,7 +1281,7 @@ def swap_table(client, target, source, version):
 
     logging.info("Swapping tables %s <-> %s", source, target)
     if has_target:
-        client.move(target, backup_path)
+        client.move(target, backup_path, force=True)
     client.move(source, target)
 
     mount_table(client, target)
