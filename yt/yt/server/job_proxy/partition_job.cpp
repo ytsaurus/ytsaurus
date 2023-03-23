@@ -89,7 +89,7 @@ public:
                 Host_->GetChunkReaderHost(),
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
-                /*hintKeys*/ nullptr,
+                /*hintKeys*/ std::nullopt,
                 nameTable,
                 ChunkReadOptions_,
                 ReaderInterruptionOptions::InterruptibleWithEmptyKey(),

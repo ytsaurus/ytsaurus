@@ -1012,6 +1012,13 @@ INSTANTIATE_TEST_SUITE_P(Sorted,
             ::testing::Values(10000, 4)  // max rows per read
 ));
 
+TEST_P(TSchemalessChunksKeyRangesTest, NoIntervals)
+{
+    std::vector<TUnversionedRow> keys{};
+    auto reader = LookupRanges(MakeSharedRange(keys), Schema_->GetSortColumns());
+    CheckSchemalessResult(std::vector<TUnversionedRow>{}, reader, Schema_->GetKeyColumnCount(), ReadOptions());
+}
+
 TEST_P(TSchemalessChunksKeyRangesTest, Simple)
 {
     std::vector<TUnversionedRow> expected;

@@ -182,7 +182,7 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
         std::move(chunkReaderHost),
         dataSourceDirectory,
         std::move(dataSliceDescriptors),
-        /*hintKeyPrefixes*/ nullptr,
+        /*hintKeyPrefixes*/ std::nullopt,
         std::move(nameTable),
         chunkReadOptions,
         ReaderInterruptionOptions::InterruptibleWithEmptyKey(),
@@ -397,7 +397,7 @@ public:
         }
 
         std::vector<std::vector<TUnversionedRow>> primaryKeyPrefixes;
-        TSharedRange<TUnversionedRow> hintKeyPrefixes;
+        std::optional<THintKeyPrefixes> hintKeyPrefixes;
 
         if (reduceJobSpecExt.has_foreign_table_lookup_keys_threshold() &&
             inputRowCount < reduceJobSpecExt.foreign_table_lookup_keys_threshold() &&
@@ -421,7 +421,7 @@ public:
                     ChunkReaderHost_,
                     dataSourceDirectory,
                     std::move(dataSliceDescriptors),
-                    /*hintKeyPrefixes*/ nullptr,
+                    /*hintKeyPrefixes*/ std::nullopt,
                     nameTable,
                     ChunkReadOptions_,
                     ReaderInterruptionOptions::InterruptibleWithKeyLength(std::ssize(sortColumns)),
@@ -432,12 +432,12 @@ public:
                 primaryKeyPrefixes[i] = FetchReaderKeyPrefixes(reader, reduceJobSpecExt.join_key_column_count(), Buffer_);
                 primaryRowCount += std::ssize(primaryKeyPrefixes[i]);
             }
-            hintKeyPrefixes = DedupRows(sortColumns, std::move(primaryKeyPrefixes));
+            hintKeyPrefixes = THintKeyPrefixes{DedupRows(sortColumns, std::move(primaryKeyPrefixes))};
 
             YT_LOG_INFO("Read all keys from primary table in a preliminary pass "
                         "(EstimatedRowCount: %v, ActualRowCount: %v, DedupedRowCount: %v, "
                         "NumForeignTables: %v)",
-                        inputRowCount, primaryRowCount, std::ssize(hintKeyPrefixes),
+                        inputRowCount, primaryRowCount, std::ssize(hintKeyPrefixes->HintPrefixes),
                         schedulerJobSpecExt.foreign_input_table_specsSize());
         }
 
@@ -453,7 +453,7 @@ public:
                 ChunkReaderHost_,
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
-                /*hintKeyPrefixes*/ nullptr,
+                /*hintKeyPrefixes*/ std::nullopt,
                 nameTable,
                 ChunkReadOptions_,
                 ReaderInterruptionOptions::InterruptibleWithKeyLength(std::ssize(sortColumns)),

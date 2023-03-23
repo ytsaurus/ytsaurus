@@ -1362,7 +1362,7 @@ private:
             std::move(chunkReaderHost),
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
-            /*hintKeys*/ nullptr,
+            /*hintKeys*/ std::nullopt,
             nameTable,
             chunkReadOptions,
             ReaderInterruptionOptions::InterruptibleWithEmptyKey(),
