@@ -693,7 +693,7 @@ private:
 
     bool IsChunkInfoExpired(const TChunkInfoPtr& chunkInfo, TInstant now) const
     {
-        VERIFY_SPINLOCK_AFFINITY(chunkInfo->Lock);
+        VERIFY_SPINLOCK_AFFINITY(Reader_->ChunkIdToChunkInfoLock_);
         return chunkInfo->LastAccessTime + Config_->ChunkInfoCacheExpirationTimeout < now;
     }
 
