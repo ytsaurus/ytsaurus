@@ -162,6 +162,8 @@ type Spec struct {
 
 	ProbingRatio    int    `yson:"probing_ratio,omitempty"`
 	ProbingPoolTree string `yson:"probing_pool_tree,omitempty"`
+
+	InputQuery string `yson:"input_query,omitempty"`
 }
 
 func (s *Spec) ReduceByColumns(columns ...string) *Spec {
