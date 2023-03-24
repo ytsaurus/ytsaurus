@@ -1400,9 +1400,7 @@ def build_arguments_parser():
     return parser
 
 
-def run(client, args):
-    archive_path = args.archive_path
-
+def run(client, archive_path, target_version, shard_count, latest, force):
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
     client.config['pickling']['module_filter'] = lambda module: 'hashlib' not in getattr(module, '__name__', '')
@@ -1417,20 +1415,27 @@ def run(client, args):
 
     next_version = current_version + 1
 
-    if args.latest:
+    if latest:
         target_version = max(TRANSFORMS.keys())
         if ACTIONS:
             target_version = max(target_version, max(ACTIONS.keys()))
     else:
-        target_version = args.target_version
-    transform_archive(client, next_version, target_version, args.force, archive_path, shard_count=args.shard_count)
+        target_version = target_version
+    transform_archive(client, next_version, target_version, force, archive_path, shard_count=shard_count)
 
 
 def main():
     args = build_arguments_parser().parse_args()
     client = YtClient(proxy=args.proxy, token=config["token"])
 
-    run(client, args)
+    run(
+        client=client,
+        archive_path=args.archive_path,
+        target_version=args.target_version,
+        shard_count=args.shard_count,
+        latest=args.latest,
+        force=args.force,
+    )
 
 
 if __name__ == "__main__":
