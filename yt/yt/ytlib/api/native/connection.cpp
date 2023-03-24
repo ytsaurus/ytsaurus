@@ -94,6 +94,7 @@
 
 #include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/lazy_ptr.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 
 namespace NYT::NApi::NNative {
@@ -160,6 +161,14 @@ public:
         , Profiler_(TProfiler("/connection").WithTag("connection_name", StaticConfig_->ConnectionName))
         , TabletSyncReplicaCache_(New<TTabletSyncReplicaCache>())
         , BannedReplicaTrackerCache_(CreateBannedReplicaTrackerCache(StaticConfig_->BannedReplicaTrackerCache, Logger))
+        , QueryEvaluator_(BIND([this] {
+            auto config = Config_.Acquire();
+            return CreateEvaluator(config->QueryEvaluator);
+        }))
+        , ColumnEvaluatorCache_(BIND([this] {
+            auto config = Config_.Acquire();
+            return CreateColumnEvaluatorCache(config->ColumnEvaluatorCache);
+        }))
     { }
 
     void Initialize()
@@ -300,9 +309,6 @@ public:
                 this,
                 Logger);
         }
-
-        QueryEvaluator_ = CreateEvaluator(config->QueryEvaluator);
-        ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(config->ColumnEvaluatorCache);
 
         SyncReplicaCache_ = New<TSyncReplicaCache>(
             StaticConfig_->SyncReplicaCache,
@@ -538,12 +544,12 @@ public:
 
     const IEvaluatorPtr& GetQueryEvaluator() override
     {
-        return QueryEvaluator_;
+        return QueryEvaluator_.Value();
     }
 
     const IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() override
     {
-        return ColumnEvaluatorCache_;
+        return ColumnEvaluatorCache_.Value();
     }
 
     const NCellMasterClient::TCellDirectoryPtr& GetMasterCellDirectory() override
@@ -775,6 +781,9 @@ private:
     const TTabletSyncReplicaCachePtr TabletSyncReplicaCache_;
     const IBannedReplicaTrackerCachePtr BannedReplicaTrackerCache_;
 
+    const TLazyIntrusivePtr<IEvaluator> QueryEvaluator_;
+    const TLazyIntrusivePtr<IColumnEvaluatorCache> ColumnEvaluatorCache_;
+
     // NB: There're also CellDirectory_ and CellDirectorySynchronizer_, which are completely different from these.
     NCellMasterClient::TCellDirectoryPtr MasterCellDirectory_;
     NCellMasterClient::TCellDirectorySynchronizerPtr MasterCellDirectorySynchronizer_;
@@ -793,8 +802,6 @@ private:
     IClockManagerPtr ClockManager_;
     TJobShellDescriptorCachePtr JobShellDescriptorCache_;
     TPermissionCachePtr PermissionCache_;
-    IEvaluatorPtr QueryEvaluator_;
-    IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     TSyncReplicaCachePtr SyncReplicaCache_;
 
     ICellDirectoryPtr CellDirectory_;
