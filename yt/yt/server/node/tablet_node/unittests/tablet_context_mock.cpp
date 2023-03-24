@@ -72,7 +72,7 @@ IColumnEvaluatorCachePtr TTabletContextMock::GetColumnEvaluatorCache() const
     return ColumnEvaluatorCache_;
 }
 
-NTabletClient::IRowComparerProviderPtr TTabletContextMock::GetRowComparerProvider() const
+NQueryClient::IRowComparerProviderPtr TTabletContextMock::GetRowComparerProvider() const
 {
     return RowComparerProvider_;
 }

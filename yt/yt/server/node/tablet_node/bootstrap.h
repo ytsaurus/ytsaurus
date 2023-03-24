@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/security_server/public.h>
 
+#include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,7 +57,7 @@ struct IBootstrap
 
     // QL stuff.
     virtual const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const = 0;
-    virtual const NTabletClient::IRowComparerProviderPtr& GetRowComparerProvider() const = 0;
+    virtual const NQueryClient::IRowComparerProviderPtr& GetRowComparerProvider() const = 0;
 
     // Master connection stuff.
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;

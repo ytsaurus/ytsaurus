@@ -366,7 +366,7 @@ public:
         auto schema = GetSchema();
 
         StaticComparer_ = TStaticComparer(*schema);
-        LlvmComparer_ = TSortedDynamicRowKeyComparer(GenerateComparers(schema->GetKeyColumnTypes()));
+        LlvmComparer_ = TSortedDynamicRowKeyComparer(NQueryClient::GenerateComparers(schema->GetKeyColumnTypes()));
     }
 
     TSortedDynamicRow BuildDynamicRow(

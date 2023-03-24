@@ -1,4 +1,4 @@
-#include "row_comparer_generator.h"
+
 #include "llvm_types.h"
 
 #include <yt/yt/client/table_client/llvm_types.h>
@@ -11,6 +11,8 @@
 #include <yt/yt/library/codegen/routine_registry.h>
 #include <yt/yt/library/codegen/type_builder.h>
 
+#include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
+
 #include <mutex>
 
 #include <llvm/ADT/Twine.h>
@@ -22,9 +24,10 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NYT::NTabletClient {
+namespace NYT::NQueryClient {
 
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NCodegen;
 using namespace llvm;
 
@@ -566,7 +569,7 @@ public:
         if (!cachedEvaluator) {
             cachedEvaluator = New<TCachedRowComparer>(
                 keyColumnTypes,
-                TCGKeyComparers(NTabletClient::GenerateComparers(keyColumnTypes)));
+                TCGKeyComparers(GenerateComparers(keyColumnTypes)));
 
             TryInsert(cachedEvaluator, &cachedEvaluator);
         }
@@ -583,4 +586,4 @@ IRowComparerProviderPtr CreateRowComparerProvider(TSlruCacheConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletClient
+} // namespace NYT::NQueryClient

@@ -69,8 +69,6 @@ constexpr int OrderedTabletSystemColumnCount = 2;
 DECLARE_REFCOUNTED_CLASS(TTabletCellOptions)
 DECLARE_REFCOUNTED_CLASS(TDynamicTabletCellOptions)
 
-DECLARE_REFCOUNTED_STRUCT(IRowComparerProvider)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletClient

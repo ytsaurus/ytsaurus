@@ -666,7 +666,7 @@ private:
             return Owner_->Bootstrap_->GetColumnEvaluatorCache();
         }
 
-        NTabletClient::IRowComparerProviderPtr GetRowComparerProvider() const override
+        NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const override
         {
             return Owner_->Bootstrap_->GetRowComparerProvider();
         }

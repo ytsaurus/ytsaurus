@@ -2,12 +2,12 @@
 
 #include "private.h"
 
-#include <yt/yt/ytlib/tablet_client/dynamic_value.h>
-
 #include <yt/yt/ytlib/table_client/hunks.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/schema.h>
+
+#include <yt/yt/client/tablet_client/dynamic_value.h>
 
 #include <yt/yt/core/misc/ring_queue.h>
 

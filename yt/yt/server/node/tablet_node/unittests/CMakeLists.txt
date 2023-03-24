@@ -32,6 +32,7 @@ target_link_libraries(unittester-tablet-node PUBLIC
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
+  library-query-row_comparer
   yt-server-node
   yt-server-tools
   lib-hydra_common-mock

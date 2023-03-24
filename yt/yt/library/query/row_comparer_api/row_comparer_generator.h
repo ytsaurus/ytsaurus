@@ -1,19 +1,20 @@
 #pragma once
 
-#include "public.h"
+#include <yt/yt/core/actions/callback.h>
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/ytlib/tablet_client/dynamic_value.h>
+#include <yt/yt/client/tablet_client/dynamic_value.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NYT::NTabletClient {
+namespace NYT::NQueryClient {
 
 using NTableClient::EValueType;
 using NTableClient::TUnversionedValue;
 using NTableClient::TUnversionedRow;
+using NTabletClient::TDynamicValueData;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +35,8 @@ TCGKeyComparers GenerateComparers(TRange<EValueType> keyColumnTypes);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(IRowComparerProvider)
+
 struct IRowComparerProvider
     : public virtual TRefCounted
 {
@@ -44,4 +47,4 @@ DEFINE_REFCOUNTED_TYPE(IRowComparerProvider)
 
 IRowComparerProviderPtr CreateRowComparerProvider(TSlruCacheConfigPtr config);
 
-} // namespace NYT::NTabletClient
+} // namespace NYT::NQueryClient

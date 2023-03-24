@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
+#include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,7 +52,7 @@ struct IBootstrap
 
     // Caches.
     virtual const TTableSchemaCachePtr& GetTableSchemaCache() const = 0;
-    virtual const NTabletClient::IRowComparerProviderPtr& GetRowComparerProvider() const = 0;
+    virtual const NQueryClient::IRowComparerProviderPtr& GetRowComparerProvider() const = 0;
 
     virtual const IIOThroughputMeterPtr& GetIOThroughputMeter() const = 0;
 

@@ -8,8 +8,8 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSortedDynamicRowKeyComparer::TSortedDynamicRowKeyComparer(NTabletClient::TCGKeyComparers comparers)
-    : NTabletClient::TCGKeyComparers(std::move(comparers))
+TSortedDynamicRowKeyComparer::TSortedDynamicRowKeyComparer(NQueryClient::TCGKeyComparers comparers)
+    : NQueryClient::TCGKeyComparers(std::move(comparers))
 { }
 
 int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TSortedDynamicRow rhs) const

@@ -314,7 +314,7 @@ struct ITabletContext
     virtual IInvokerPtr GetControlInvoker() const = 0;
     virtual IInvokerPtr GetEpochAutomatonInvoker() const = 0;
     virtual NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const = 0;
-    virtual NTabletClient::IRowComparerProviderPtr GetRowComparerProvider() const = 0;
+    virtual NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const = 0;
     virtual NApi::NNative::IClientPtr GetClient() const = 0;
     virtual NClusterNode::TClusterNodeDynamicConfigManagerPtr GetDynamicConfigManager() const = 0;
     virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) const = 0;

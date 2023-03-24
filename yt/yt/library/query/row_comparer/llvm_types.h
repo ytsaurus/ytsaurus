@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dynamic_value.h"
+#include <yt/yt/client/tablet_client/dynamic_value.h>
 
 #include <yt/yt/library/codegen/type_builder.h>
 

@@ -900,6 +900,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   library-tvm-service
   yt-client-formats
   library-query-engine
+  library-query-row_comparer_api
   yt-library-program
   yt-library-vector_hdrf
   yt-ytlib-discovery_client
@@ -1296,7 +1297,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/pivot_keys_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/pivot_keys_picker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/row_comparer_generator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/action.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/clock_manager.cpp
@@ -1506,6 +1506,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   library-tvm-service
   yt-client-formats
   library-query-engine
+  library-query-row_comparer_api
   yt-library-program
   yt-library-vector_hdrf
   yt-ytlib-discovery_client

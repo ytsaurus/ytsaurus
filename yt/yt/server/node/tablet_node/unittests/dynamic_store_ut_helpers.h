@@ -367,7 +367,7 @@ public:
     const IColumnEvaluatorCachePtr ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(
         New<TColumnEvaluatorCacheConfig>());
 
-    const NTabletClient::IRowComparerProviderPtr RowComparerProvider_ = CreateRowComparerProvider(New<TSlruCacheConfig>());
+    const NQueryClient::IRowComparerProviderPtr RowComparerProvider_ = CreateRowComparerProvider(New<TSlruCacheConfig>());
 
     TNameTablePtr NameTable_;
     TNameTablePtr QueryNameTable_;

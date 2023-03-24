@@ -26,7 +26,7 @@ public:
     IInvokerPtr GetEpochAutomatonInvoker() const override;
     int GetAutomatonTerm() const override;
     NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const override;
-    NTabletClient::IRowComparerProviderPtr GetRowComparerProvider() const override;
+    NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const override;
     NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) const override;
     NApi::NNative::IClientPtr GetClient() const override;
     NClusterNode::TClusterNodeDynamicConfigManagerPtr GetDynamicConfigManager() const override;
@@ -55,8 +55,8 @@ private:
     const NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_ =
         NQueryClient::CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>());
 
-    const NTabletClient::IRowComparerProviderPtr RowComparerProvider_ =
-        NTabletClient::CreateRowComparerProvider(New<TSlruCacheConfig>());
+    const NQueryClient::IRowComparerProviderPtr RowComparerProvider_ =
+        NQueryClient::CreateRowComparerProvider(New<TSlruCacheConfig>());
 
     const TMockBackendChunkReadersHolderPtr BackendChunkReadersHolder_ = New<TMockBackendChunkReadersHolder>();
 };

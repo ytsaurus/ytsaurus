@@ -26,12 +26,12 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-#include <yt/yt/ytlib/tablet_client/row_comparer_generator.h>
-
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
 #include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
+
+#include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
 
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 
@@ -227,7 +227,7 @@ public:
 
         TableSchemaCache_ = New<TTableSchemaCache>(GetConfig()->DataNode->TableSchemaCache);
 
-        RowComparerProvider_ = NTabletClient::CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
+        RowComparerProvider_ = NQueryClient::CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
 
         GetRpcServer()->RegisterService(CreateDataNodeService(GetConfig()->DataNode, this));
 
@@ -420,7 +420,7 @@ public:
         return TableSchemaCache_;
     }
 
-    const NTabletClient::IRowComparerProviderPtr& GetRowComparerProvider() const override
+    const NQueryClient::IRowComparerProviderPtr& GetRowComparerProvider() const override
     {
         return RowComparerProvider_;
     }
@@ -464,7 +464,7 @@ private:
 
     TTableSchemaCachePtr TableSchemaCache_;
 
-    NTabletClient::IRowComparerProviderPtr RowComparerProvider_;
+    NQueryClient::IRowComparerProviderPtr RowComparerProvider_;
 
     NHttp::IServerPtr SkynetHttpServer_;
 
