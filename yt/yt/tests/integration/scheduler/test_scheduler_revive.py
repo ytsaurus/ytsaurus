@@ -1344,20 +1344,6 @@ class TestJobRevival(TestJobRevivalBase):
         wait(lambda: concurrent_op.get_state() == "running")
 
 
-class TestJobRevivalWithoutAllocationService(TestJobRevival):
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "job_controller": {
-                "resource_limits": {"user_slots": 5, "cpu": 5},
-                "total_confirmation_period": 5000,
-            },
-            "scheduler_connector": {
-                "use_allocation_tracker_service": False,
-            },
-        }
-    }
-
-
 ##################################################################
 
 

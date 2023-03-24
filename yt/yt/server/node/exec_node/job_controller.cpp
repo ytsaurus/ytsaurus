@@ -70,114 +70,24 @@ static const auto& Logger = ExecNodeLogger;
 
 namespace {
 
-// COMPAT(pogorelov)
-
-const auto& GetAllocationsToAbort(const IJobController::TRspSchedulerHeartbeatPtr& response)
+NScheduler::TAllocationToAbort ParseAllocationToAbort(const NScheduler::NProto::NNode::TAllocationToAbort& allocationToAbortProto)
 {
-    return response->allocations_to_abort();
-}
+    NScheduler::TAllocationToAbort result;
 
-const auto& GetAllocationsToAbort(const IJobController::TRspOldSchedulerHeartbeatPtr& response)
-{
-    return response->jobs_to_abort();
-}
+    FromProto(&result, allocationToAbortProto);
 
-NScheduler::TAllocationToAbort ParseAllocationToAbort(const NScheduler::NProto::NNode::TAllocationToAbort& protoAllocationToAbort)
-{
-    NScheduler::TAllocationToAbort allocationToAbort;
-    FromProto(&allocationToAbort, protoAllocationToAbort);
-
-    return allocationToAbort;
-}
-
-NScheduler::TAllocationToAbort ParseAllocationToAbort(const NJobTrackerClient::NProto::TJobToAbort& protoJobToAbort)
-{
-    NJobTrackerClient::TJobToAbort jobToAbort;
-    FromProto(&jobToAbort, protoJobToAbort);
-
-    return {jobToAbort.JobId, jobToAbort.AbortReason};
-}
-
-const auto& GetAllocationsToInterrupt(const IJobController::TRspSchedulerHeartbeatPtr& response)
-{
-    return response->allocations_to_interrupt();
-}
-
-const auto& GetAllocationsToInterrupt(const IJobController::TRspOldSchedulerHeartbeatPtr& response)
-{
-    return response->jobs_to_interrupt();
-}
-
-const auto& GetAllocationId(const NScheduler::NProto::NNode::TAllocationToInterrupt& allocationToInterrupt)
-{
-    return allocationToInterrupt.allocation_id();
-}
-
-const auto& GetAllocationId(const NJobTrackerClient::NProto::TJobToInterrupt& jobToInterrupt)
-{
-    return jobToInterrupt.job_id();
-}
-
-auto* AddAllocations(const IJobController::TReqSchedulerHeartbeatPtr& request)
-{
-    return request->add_allocations();
-}
-
-auto* AddAllocations(const IJobController::TReqOldSchedulerHeartbeatPtr& request)
-{
-    return request->add_jobs();
-}
-
-auto* MutableUnconfirmedAllocations(const IJobController::TReqSchedulerHeartbeatPtr& request)
-{
-    return request->mutable_unconfirmed_allocations();
-}
-
-auto* MutableUnconfirmedAllocations(const IJobController::TReqOldSchedulerHeartbeatPtr& request)
-{
-    return request->mutable_unconfirmed_jobs();
-}
-
-const auto& GetAllocationsToStart(const IJobController::TRspSchedulerHeartbeatPtr& response)
-{
-    return response->allocations_to_start();
-}
-
-const auto& GetAllocationsToStart(const IJobController::TRspOldSchedulerHeartbeatPtr& response)
-{
-    return response->jobs_to_start();
-}
-
-[[maybe_unused]] TAllocationStartInfo GetAllocationStartInfoType(const IJobController::TRspSchedulerHeartbeatPtr& response);
-[[maybe_unused]] NJobTrackerClient::NProto::TJobStartInfo GetAllocationStartInfoType(const IJobController::TRspOldSchedulerHeartbeatPtr& response);
-
-[[maybe_unused]] TAllocationResult GetAllocationResultType(const IJobController::TReqSchedulerHeartbeatPtr& request);
-[[maybe_unused]] NJobTrackerClient::NProto::TJobResult GetAllocationResultType(const IJobController::TReqOldSchedulerHeartbeatPtr& request);
-
-const auto& GetAllocationId(const TAllocationStartInfo& allocationToInterrupt)
-{
-    return allocationToInterrupt.allocation_id();
-}
-
-const auto& GetAllocationId(const NJobTrackerClient::NProto::TJobStartInfo& jobToInterrupt)
-{
-    return jobToInterrupt.job_id();
-}
-
-auto* MutableAllocationId(TAllocationStatus* allocationStatus)
-{
-    return allocationStatus->mutable_allocation_id();
-}
-
-auto* MutableAllocationId(NJobTrackerClient::NProto::TJobStatus* jobStatus)
-{
-    return jobStatus->mutable_job_id();
+    return result;
 }
 
 // AllcationId is currently equal to JobId.
 TJobId ParseAllocationIdAsJobId(auto& protoAllocationId)
 {
     return FromProto<TJobId>(protoAllocationId);
+}
+
+TAllocationId ToAllocationId(TJobId jobId)
+{
+    return jobId;
 }
 
 } // namespace
@@ -359,7 +269,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return
-            BIND(&TJobController::DoPrepareSchedulerHeartbeatRequest<TReqSchedulerHeartbeatPtr>, MakeStrong(this))
+            BIND(&TJobController::DoPrepareSchedulerHeartbeatRequest, MakeStrong(this))
                 .AsyncVia(Bootstrap_->GetJobInvoker())
                 .Run(request);
     }
@@ -370,29 +280,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return
-            BIND(&TJobController::DoProcessSchedulerHeartbeatResponse<TRspSchedulerHeartbeatPtr>, MakeStrong(this))
-                .AsyncVia(Bootstrap_->GetJobInvoker())
-                .Run(response);
-    }
-
-    TFuture<void> PrepareSchedulerHeartbeatRequest(
-        const TReqOldSchedulerHeartbeatPtr& request) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return
-            BIND(&TJobController::DoPrepareSchedulerHeartbeatRequest<TReqOldSchedulerHeartbeatPtr>, MakeStrong(this))
-                .AsyncVia(Bootstrap_->GetJobInvoker())
-                .Run(request);
-    }
-
-    TFuture<void> ProcessSchedulerHeartbeatResponse(
-        const TRspOldSchedulerHeartbeatPtr& response) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return
-            BIND(&TJobController::DoProcessSchedulerHeartbeatResponse<TRspOldSchedulerHeartbeatPtr>, MakeStrong(this))
+            BIND(&TJobController::DoProcessSchedulerHeartbeatResponse, MakeStrong(this))
                 .AsyncVia(Bootstrap_->GetJobInvoker())
                 .Run(response);
     }
@@ -540,11 +428,11 @@ private:
     };
     THashMap<TJobId, TRecentlyRemovedJobRecord> RecentlyRemovedJobMap_;
 
-    //! Jobs that did not succeed in fetching spec are not getting
-    //! their IJob structure, so we have to store job id alongside
+    //! Allocations that did not succeed in fetching spec are not getting
+    //! their TJob structure, so we have to store job id alongside
     //! with the operation id to fill the TJobStatus proto message
     //! properly.
-    THashMap<TJobId, TOperationId> SpecFetchFailedJobIds_;
+    THashMap<TAllocationId, TOperationId> SpecFetchFailedAllocationIds_;
 
     bool StartJobsScheduled_ = false;
 
@@ -588,7 +476,6 @@ private:
         return GetOrCrash(JobFactoryMap_, type);
     }
 
-    template <class TAllocationStartInfo>
     TFuture<void> RequestJobSpecsAndStartJobs(std::vector<TAllocationStartInfo> jobStartInfos)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -597,7 +484,7 @@ private:
 
         for (auto& startInfo : jobStartInfos) {
             auto operationId = FromProto<TOperationId>(startInfo.operation_id());
-            auto jobId = ParseAllocationIdAsJobId(GetAllocationId(startInfo));
+            auto jobId = ParseAllocationIdAsJobId(startInfo.allocation_id());
 
             auto agentDescriptorOrError = TryParseControllerAgentDescriptor(startInfo.controller_agent_descriptor());
 
@@ -612,7 +499,7 @@ private:
                 YT_LOG_DEBUG(agentDescriptorOrError, "Job spec cannot be requested (OperationId: %v, JobId: %v)",
                     operationId,
                     jobId);
-                YT_VERIFY(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
+                EmplaceOrCrash(SpecFetchFailedAllocationIds_, ToAllocationId(jobId), operationId);
             }
         }
 
@@ -633,7 +520,8 @@ private:
             for (const auto& startInfo : startInfos) {
                 auto* subrequest = jobSpecRequest->add_requests();
                 *subrequest->mutable_operation_id() = startInfo.operation_id();
-                *subrequest->mutable_job_id() = GetAllocationId(startInfo);
+                // TODO(pogorelov): Rename job_id to allocation_id in JobSpecService proto types.
+                *subrequest->mutable_job_id() = startInfo.allocation_id();
             }
 
             YT_LOG_DEBUG("Requesting job specs (SpecServiceAddress: %v, Count: %v)",
@@ -665,9 +553,9 @@ private:
             YT_LOG_DEBUG(rspOrError, "Error getting job specs (SpecServiceAddress: %v)",
                 controllerAgentDescriptor.Address);
             for (const auto& startInfo : startInfos) {
-                auto jobId = ParseAllocationIdAsJobId(GetAllocationId(startInfo));
+                auto jobId = ParseAllocationIdAsJobId(startInfo.allocation_id());
                 auto operationId = FromProto<TOperationId>(startInfo.operation_id());
-                EmplaceOrCrash(SpecFetchFailedJobIds_, jobId, operationId);
+                EmplaceOrCrash(SpecFetchFailedAllocationIds_, ToAllocationId(jobId), operationId);
             }
             return;
         }
@@ -680,12 +568,12 @@ private:
         for (size_t index = 0; index < startInfos.size(); ++index) {
             auto& startInfo = startInfos[index];
             auto operationId = FromProto<TOperationId>(startInfo.operation_id());
-            auto jobId = ParseAllocationIdAsJobId(GetAllocationId(startInfo));
+            auto jobId = ParseAllocationIdAsJobId(startInfo.allocation_id());
 
             const auto& subresponse = rsp->mutable_responses(index);
             auto error = FromProto<TError>(subresponse->error());
             if (!error.IsOK()) {
-                YT_VERIFY(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
+                EmplaceOrCrash(SpecFetchFailedAllocationIds_, ToAllocationId(jobId), operationId);
                 YT_LOG_DEBUG(error, "No spec is available for job (OperationId: %v, JobId: %v)",
                     operationId,
                     jobId);
@@ -1069,7 +957,6 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
     }
 
-    template <class TRspSchedulerHeartbeatPtr>
     void DoProcessSchedulerHeartbeatResponse(
         TRspSchedulerHeartbeatPtr response)
     {
@@ -1095,7 +982,7 @@ private:
         for (const auto& protoJobToRemove : response->jobs_to_remove()) {
             auto jobToRemove = FromProto<TJobToRelease>(protoJobToRemove);
             auto jobId = jobToRemove.JobId;
-            if (SpecFetchFailedJobIds_.erase(jobId) == 1) {
+            if (SpecFetchFailedAllocationIds_.erase(jobId) == 1) {
                 continue;
             }
 
@@ -1107,8 +994,8 @@ private:
             }
         }
 
-        for (const auto& protoJobToAbort : GetAllocationsToAbort(response)) {
-            auto allocationToAbort = ParseAllocationToAbort(protoJobToAbort);
+        for (const auto& protoAllocationToAbort : response->allocations_to_abort()) {
+            auto allocationToAbort = ParseAllocationToAbort(protoAllocationToAbort);
 
             if (auto job = FindJob(allocationToAbort.AllocationId)) {
                 AbortJob(job, std::move(allocationToAbort));
@@ -1119,9 +1006,9 @@ private:
             }
         }
 
-        for (const auto& jobToInterrupt : GetAllocationsToInterrupt(response)) {
+        for (const auto& jobToInterrupt : response->allocations_to_interrupt()) {
             auto timeout = FromProto<TDuration>(jobToInterrupt.timeout());
-            auto jobId = ParseAllocationIdAsJobId(GetAllocationId(jobToInterrupt));
+            auto jobId = ParseAllocationIdAsJobId(jobToInterrupt.allocation_id());
 
             YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
 
@@ -1161,6 +1048,7 @@ private:
             }
         }
 
+        // COMPAT(pogorelov)
         for (const auto& protoJobId : response->jobs_to_store()) {
             auto jobId = FromProto<TJobId>(protoJobId);
 
@@ -1177,6 +1065,7 @@ private:
             }
         }
 
+        // COMPAT(pogorelov)
         std::vector<TJobId> jobIdsToConfirm;
         jobIdsToConfirm.reserve(response->jobs_to_confirm_size());
         for (auto& jobInfo : *response->mutable_jobs_to_confirm()) {
@@ -1241,9 +1130,9 @@ private:
 
         YT_VERIFY(response->Attachments().empty());
 
-        std::vector<decltype(GetAllocationStartInfoType(response))> jobStartInfos;
-        jobStartInfos.reserve(GetAllocationsToStart(response).size());
-        for (const auto& startInfo : GetAllocationsToStart(response)) {
+        std::vector<TAllocationStartInfo> jobStartInfos;
+        jobStartInfos.reserve(response->allocations_to_start_size());
+        for (const auto& startInfo : response->allocations_to_start()) {
             jobStartInfos.push_back(startInfo);
 
             // We get vcpu here. Need to replace it with real cpu back.
@@ -1258,7 +1147,6 @@ private:
             "Failed to request some job specs");
     }
 
-    template <class TReqSchedulerHeartbeatPtr>
     void DoPrepareSchedulerHeartbeatRequest(
         TReqSchedulerHeartbeatPtr request)
     {
@@ -1337,7 +1225,7 @@ private:
                 JobIdsToConfirm_.erase(confirmIt);
             }
 
-            auto* allocationStatus = AddAllocations(request);
+            auto* allocationStatus = request->add_allocations();
             FillJobStatus(allocationStatus, job);
             switch (job->GetState()) {
                 case EJobState::Running: {
@@ -1373,15 +1261,15 @@ private:
 
         request->set_confirmed_job_count(confirmedJobCount);
 
-        for (auto [jobId, operationId] : GetSpecFetchFailedJobIds()) {
-            auto* jobStatus = AddAllocations(request);
-            ToProto(MutableAllocationId(jobStatus), jobId);
+        for (auto [allocationId, operationId] : GetSpecFetchFailedAllocationIds()) {
+            auto* jobStatus = request->add_allocations();
+            ToProto(jobStatus->mutable_allocation_id(), allocationId);
             ToProto(jobStatus->mutable_operation_id(), operationId);
             jobStatus->set_state(static_cast<int>(JobStateToAllocationState(EJobState::Aborted)));
 
             jobStatus->mutable_time_statistics();
 
-            decltype(GetAllocationResultType(request)) jobResult;
+            TAllocationResult jobResult;
             auto error = TError("Failed to get job spec")
                 << TErrorAttribute("abort_reason", EAbortReason::GetSpecFailed);
             ToProto(jobResult.mutable_error(), error);
@@ -1393,7 +1281,7 @@ private:
             for (auto jobId : JobIdsToConfirm_) {
                 YT_LOG_DEBUG("Unconfirmed job (JobId: %v)", jobId);
             }
-            ToProto(MutableUnconfirmedAllocations(request), JobIdsToConfirm_);
+            ToProto(request->mutable_unconfirmed_allocations(), JobIdsToConfirm_);
         }
 
         // COMPAT(pogorelov)
@@ -1843,11 +1731,11 @@ private:
         JobFinished_.Fire(job);
     }
 
-    const THashMap<TJobId, TOperationId>& GetSpecFetchFailedJobIds() const noexcept
+    const THashMap<TJobId, TOperationId>& GetSpecFetchFailedAllocationIds() const noexcept
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        return SpecFetchFailedJobIds_;
+        return SpecFetchFailedAllocationIds_;
     }
 
     void UpdateJobProxyBuildInfo()

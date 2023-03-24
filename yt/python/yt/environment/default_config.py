@@ -483,7 +483,6 @@ def get_node_config():
             failed_heartbeat_backoff_max_time = 50;
             failed_heartbeat_backoff_multiplier = 1.0;
             heartbeat_period = 200;
-            use_allocation_tracker_service = %true;
         };
 
         controller_agent_connector = {

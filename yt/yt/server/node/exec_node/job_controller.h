@@ -80,15 +80,6 @@ public:
     using TRspSchedulerHeartbeatPtr = TIntrusivePtr<TRspSchedulerHeartbeat>;
     using TReqSchedulerHeartbeatPtr = TIntrusivePtr<TReqSchedulerHeartbeat>;
 
-    // COMPAT(pogorelov)
-    using TRspOldSchedulerHeartbeat = NRpc::TTypedClientResponse<
-         NJobTrackerClient::NProto::TRspHeartbeat>;
-    using TReqOldSchedulerHeartbeat = NRpc::TTypedClientRequest<
-        NJobTrackerClient::NProto::TReqHeartbeat,
-        TRspOldSchedulerHeartbeat>;
-    using TRspOldSchedulerHeartbeatPtr = TIntrusivePtr<TRspOldSchedulerHeartbeat>;
-    using TReqOldSchedulerHeartbeatPtr = TIntrusivePtr<TReqOldSchedulerHeartbeat>;
-
     virtual void PrepareAgentHeartbeatRequest(
         const TReqAgentHeartbeatPtr& request,
         const TAgentHeartbeatContextPtr& context) = 0;
@@ -103,14 +94,6 @@ public:
     //! Handles scheduler heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
     virtual TFuture<void> ProcessSchedulerHeartbeatResponse(
         const TRspSchedulerHeartbeatPtr& response) = 0;
-
-    // COMPAT(pogorelov)
-    //! Prepares a scheduler heartbeat request.
-    virtual TFuture<void> PrepareSchedulerHeartbeatRequest(
-        const TReqOldSchedulerHeartbeatPtr& request) = 0;
-    //! Handles scheduler heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
-    virtual TFuture<void> ProcessSchedulerHeartbeatResponse(
-        const TRspOldSchedulerHeartbeatPtr& response) = 0;
 
     virtual TBuildInfoPtr GetBuildInfo() const = 0;
 

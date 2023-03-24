@@ -108,8 +108,7 @@ public:
     void ResetOperationRevival(TOperationId operationId);
     void UnregisterOperation(TOperationId operationId);
 
-    template <class TCtxNodeHeartbeatPtr>
-    void ProcessHeartbeat(const TCtxNodeHeartbeatPtr& context);
+    void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
     void UnregisterAndRemoveNodeById(NNodeTrackerClient::TNodeId nodeId);
     void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason);
@@ -293,8 +292,7 @@ private:
 
     void DoCleanup();
 
-    template <class TCtxNodeHeartbeatPtr>
-    void DoProcessHeartbeat(const TCtxNodeHeartbeatPtr& context);
+    void DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
     TResourceStatistics CalculateResourceStatistics(const TSchedulingTagFilter& filter);
 
@@ -321,11 +319,10 @@ private:
         TShardEpoch shardEpoch,
         const std::vector<TJobPtr>& jobs);
 
-    template <class TReqHeartbeat, class TRspHeartbeat>
     void ProcessHeartbeatJobs(
         const TExecNodePtr& node,
-        TReqHeartbeat* request,
-        TRspHeartbeat* response,
+        TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
+        TScheduler::TCtxNodeHeartbeat::TTypedResponse* response,
         std::vector<TJobPtr>* runningJobs,
         bool* hasWaitingJobs);
 

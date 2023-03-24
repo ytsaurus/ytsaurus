@@ -613,6 +613,13 @@ TJobId TJob::GetId() const
     return Id_;
 }
 
+TAllocationId TJob::GetAllocationId() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return GetId();
+}
+
 TOperationId TJob::GetOperationId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -2923,7 +2930,7 @@ void FillStatus(NScheduler::NProto::TAllocationStatus* status, const TJobPtr& jo
 {
     using NYT::ToProto;
 
-    ToProto(status->mutable_allocation_id(), job->GetId());
+    ToProto(status->mutable_allocation_id(), job->GetAllocationId());
 
     status->set_state(ToProto<int>(JobStateToAllocationState(job->GetState())));
 }
@@ -2950,12 +2957,6 @@ void FillStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& job
     }
 }
 
-void FillStatus(NJobTrackerClient::NProto::TJobStatus* status, const TJobPtr& job)
-{
-    ToProto(status->mutable_job_id(), job->GetId());
-    status->set_state(ToProto<int>(job->GetState()));
-}
-
 template <class TStatus>
 void FillJobStatus(TStatus* status, const TJobPtr& job)
 {
@@ -2969,7 +2970,6 @@ void FillJobStatus(TStatus* status, const TJobPtr& job)
 
 template void FillJobStatus(NScheduler::NProto::TAllocationStatus* status, const TJobPtr& job);
 template void FillJobStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& job);
-template void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* status, const TJobPtr& job);
 
 ////////////////////////////////////////////////////////////////////////////////
 

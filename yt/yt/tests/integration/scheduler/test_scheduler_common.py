@@ -981,23 +981,6 @@ class TestSchedulerCommonMulticell(TestSchedulerCommon):
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
-class TestSchedulerCommonWithoutAllocationService(TestSchedulerCommon):
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 5,
-                    "cpu": 5,
-                    "memory": 5 * 1024 ** 3,
-                }
-            },
-            "scheduler_connector": {
-                "use_allocation_tracker_service": False,
-            },
-        }
-    }
-
-
 ##################################################################
 
 

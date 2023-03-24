@@ -246,8 +246,6 @@ class TSchedulerConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
 {
 public:
-    std::optional<bool> UseAllocationTrackerService;
-
     bool SendHeartbeatOnJobFinished;
 
     REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
@@ -310,8 +308,6 @@ class TSchedulerConnectorConfig
     : public THeartbeatReporterConfigBase
 {
 public:
-    bool UseAllocationTrackerService;
-
     TSchedulerConnectorConfigPtr ApplyDynamic(const TSchedulerConnectorDynamicConfigPtr& dynamicConfig);
 
     void ApplyDynamicInplace(const TSchedulerConnectorDynamicConfig& dynamicConfig);

@@ -48,8 +48,7 @@ class TNodeManager
 public:
     TNodeManager(TSchedulerConfigPtr config, INodeManagerHost* host, TBootstrap* bootstrap);
 
-    template <class TCtxNodeHeartbeatPtr>
-    void ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context);
+    void ProcessNodeHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 

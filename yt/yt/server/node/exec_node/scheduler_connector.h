@@ -60,7 +60,6 @@ private:
 
     void SendHeartbeat();
 
-    template <class TServiceProxy>
     void DoSendHeartbeat();
 
     void OnResourcesAcquired();

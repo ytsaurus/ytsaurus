@@ -177,13 +177,3 @@ class TestSchedulerConfig(YTEnvSetup):
 
         set("//sys/scheduler/config/min_spare_job_resources_on_node", {"user_slots": 2})
         wait(lambda: get("{0}/min_spare_job_resources_on_node".format(orchid_scheduler_config)) == {"user_slots": 2})
-
-
-class TestSchedulerConfigWithoutAllocationService(TestSchedulerConfig):
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "scheduler_connector": {
-                "use_allocation_tracker_service": False,
-            },
-        },
-    }

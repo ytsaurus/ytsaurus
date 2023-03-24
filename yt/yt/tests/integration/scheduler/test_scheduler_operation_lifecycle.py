@@ -754,16 +754,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert new_connection_time == connection_time
 
 
-class TestSchedulerFunctionalityWithoutAllocationService(TestSchedulerFunctionality):
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "scheduler_connector": {
-                "use_allocation_tracker_service": False,
-            },
-        },
-    }
-
-
 class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -1082,15 +1072,6 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
         wait(lambda: started_job_profiler.get_job_count_delta() == started_vanilla_job_profiler.get_job_count_delta() == 1)
 
-
-class TestSchedulerProfilingWithoutAllocationService(TestSchedulerProfiling):
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "scheduler_connector": {
-                "use_allocation_tracker_service": False,
-            },
-        },
-    }
 
 ##################################################################
 
@@ -1656,16 +1637,6 @@ class TestAsyncControllerActions(YTEnvSetup):
         release_breakpoint()
 
         op.track()
-
-
-class TestAsyncControllerActionsWithoutAllocationService(TestAsyncControllerActions):
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "scheduler_connector": {
-                "use_allocation_tracker_service": False,
-            },
-        },
-    }
 
 
 class TestControllerAgentPrerequisiteTxError(YTEnvSetup):

@@ -70,11 +70,6 @@ namespace {
 
 // COMPAT(pogorelov)
 
-TJobId GetJobId(const NJobTrackerClient::NProto::TJobStatus* status)
-{
-    return FromProto<TJobId>(status->job_id());
-}
-
 TAllocationId GetJobId(const NProto::TAllocationStatus* status)
 {
     return FromProto<TAllocationId>(status->allocation_id());
@@ -85,19 +80,9 @@ auto* MutableJobId(NProto::NNode::TAllocationToInterrupt* proto)
     return proto->mutable_allocation_id();
 }
 
-auto* MutableJobId(NJobTrackerClient::NProto::TJobToInterrupt* proto)
-{
-    return proto->mutable_job_id();
-}
-
 auto* MutableJobId(NProto::NNode::TAllocationStartInfo* proto)
 {
     return proto->mutable_allocation_id();
-}
-
-auto* MutableJobId(NJobTrackerClient::NProto::TJobStartInfo* proto)
-{
-    return proto->mutable_job_id();
 }
 
 auto& GetJobs(NProto::NNode::TReqHeartbeat* request)
@@ -110,24 +95,9 @@ auto* MutableJobs(NProto::NNode::TReqHeartbeat* request)
     return request->mutable_allocations();
 }
 
-auto& GetJobs(NJobTrackerClient::NProto::TReqHeartbeat* request)
-{
-    return request->jobs();
-}
-
-auto* MutableJobs(NJobTrackerClient::NProto::TReqHeartbeat* request)
-{
-    return request->mutable_jobs();
-}
-
 auto& UnconfirmedJobs(NProto::NNode::TReqHeartbeat* request)
 {
     return request->unconfirmed_allocations();
-}
-
-auto& UnconfirmedJobs(NJobTrackerClient::NProto::TReqHeartbeat* request)
-{
-    return request->unconfirmed_jobs();
 }
 
 EAllocationState GetAllocationState(NProto::TAllocationStatus* status)
@@ -135,13 +105,6 @@ EAllocationState GetAllocationState(NProto::TAllocationStatus* status)
     YT_VERIFY(status->has_state());
 
     return CheckedEnumCast<EAllocationState>(status->state());
-}
-
-EAllocationState GetAllocationState(NJobTrackerClient::NProto::TJobStatus* status)
-{
-    YT_VERIFY(status->has_state());
-
-    return JobStateToAllocationState(CheckedEnumCast<EJobState>(status->state()));
 }
 
 void SetControllerAgentInfo(
@@ -165,24 +128,13 @@ auto* AddJobsToInterrupt(NProto::NNode::TRspHeartbeat* response)
     return response->add_allocations_to_interrupt();
 }
 
-auto* AddJobsToInterrupt(NJobTrackerClient::NProto::TRspHeartbeat* response)
-{
-    return response->add_jobs_to_interrupt();
-}
-
 auto* AddJobsToStart(NProto::NNode::TRspHeartbeat* response)
 {
     return response->add_allocations_to_start();
 }
 
-auto* AddJobsToStart(NJobTrackerClient::NProto::TRspHeartbeat* response)
-{
-    return response->add_jobs_to_start();
-}
-
-template <class TRspHeartbeat>
 void AddJobToInterrupt(
-    TRspHeartbeat* response,
+    TScheduler::TCtxNodeHeartbeat::TTypedResponse* response,
     TJobId jobId,
     TDuration duration,
     EInterruptReason interruptionReason,
@@ -224,11 +176,6 @@ std::optional<EAbortReason> ParseAbortReason(const TError& error, TJobId jobId, 
 void AddAllocationToAbort(NProto::NNode::TRspHeartbeat* response, const TAllocationToAbort& allocationToAbort)
 {
     NProto::ToProto(response->add_allocations_to_abort(), allocationToAbort);
-}
-
-void AddAllocationToAbort(NJobTrackerClient::NProto::TRspHeartbeat* response, const NJobTrackerClient::TJobToAbort& allocationToAbort)
-{
-    ToProto(response->add_jobs_to_abort(), allocationToAbort);
 }
 
 } // namespace
@@ -541,8 +488,7 @@ void TNodeShard::AbortJobsAtNode(TNodeId nodeId, EAbortReason reason)
     }
 }
 
-template <class TCtxNodeHeartbeatPtr>
-void TNodeShard::ProcessHeartbeat(const TCtxNodeHeartbeatPtr& context)
+void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
 {
     GetInvoker()->Invoke(
         BIND([=, this, this_ = MakeStrong(this)] {
@@ -559,11 +505,7 @@ void TNodeShard::ProcessHeartbeat(const TCtxNodeHeartbeatPtr& context)
         }));
 }
 
-template void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxOldNodeHeartbeatPtr& context);
-template void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
-
-template <class TCtxNodeHeartbeatPtr>
-void TNodeShard::DoProcessHeartbeat(const TCtxNodeHeartbeatPtr& context)
+void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker_);
 
@@ -746,11 +688,8 @@ void TNodeShard::DoProcessHeartbeat(const TCtxNodeHeartbeatPtr& context)
         schedulingContext,
         /*requestContext*/ context);
 
-    // COMPAT(pogorelov)
-    if constexpr (std::is_same_v<TCtxNodeHeartbeatPtr, TScheduler::TCtxNodeHeartbeatPtr>) {
-        ProcessOperationInfoHeartbeat(request, response);
-        SetMinSpareResources(response);
-    }
+    ProcessOperationInfoHeartbeat(request, response);
+    SetMinSpareResources(response);
 
     AddRegisteredControllerAgentsToResponse(response);
 
@@ -1804,11 +1743,10 @@ void TNodeShard::AbortUnconfirmedJobs(
 }
 
 // TODO(eshcherbin): This method has become too big -- gotta split it.
-template <class TReqHeartbeat, class TRspHeartbeat>
 void TNodeShard::ProcessHeartbeatJobs(
     const TExecNodePtr& node,
-    TReqHeartbeat* request,
-    TRspHeartbeat* response,
+    TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
+    TScheduler::TCtxNodeHeartbeat::TTypedResponse* response,
     std::vector<TJobPtr>* runningJobs,
     bool* hasWaitingJobs)
 {

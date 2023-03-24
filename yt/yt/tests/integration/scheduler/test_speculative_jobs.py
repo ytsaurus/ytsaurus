@@ -557,26 +557,6 @@ class TestListSpeculativeJobs(YTEnvSetup):
         assert jobs[1]["has_competitors"]
 
 
-class TestListSpeculativeJobsWithoutAllocationService(TestListSpeculativeJobs):
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "job_reporter": {
-                "enabled": True,
-                "reporting_period": 10,
-                "min_repeat_delay": 10,
-                "max_repeat_delay": 10,
-            },
-            "job_controller": {"resource_limits": {"user_slots": 4, "cpu": 4.0}},
-            "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
-            "scheduler_connector": {
-                "heartbeat_period": 100,
-                "use_allocation_tracker_service": False,
-            },
-        },
-        "job_proxy_heartbeat_period": 100,
-    }
-
-
 class TestSpeculativeJobsOther(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1

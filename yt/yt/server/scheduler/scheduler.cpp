@@ -1153,7 +1153,6 @@ public:
         return NodeManager_->AbortJobByUserRequest(jobId, interruptTimeout, user);
     }
 
-    template <class TCtxNodeHeartbeatPtr>
     void ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -4565,14 +4564,10 @@ TFuture<void> TScheduler::AbortJob(TJobId jobId, std::optional<TDuration> interr
     return Impl_->AbortJob(jobId, interruptTimeout, user);
 }
 
-template <class TCtxNodeHeartbeatPtr>
 void TScheduler::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
 {
     Impl_->ProcessNodeHeartbeat(context);
 }
-
-template void TScheduler::ProcessNodeHeartbeat(const TCtxOldNodeHeartbeatPtr& context);
-template void TScheduler::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context);
 
 TSerializableAccessControlList TScheduler::GetOperationBaseAcl() const
 {

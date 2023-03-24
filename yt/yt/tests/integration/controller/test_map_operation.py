@@ -1825,23 +1825,6 @@ done
         assert exists("//tmp/core_table1")
 
 
-class TestSchedulerMapCommandsWithoutAllocationService(TestSchedulerMapCommands):
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 5,
-                    "cpu": 5,
-                    "memory": 5 * 1024 ** 3,
-                }
-            },
-            "scheduler_connector": {
-                "use_allocation_tracker_service": False,
-            },
-        }
-    }
-
-
 ##################################################################
 
 
@@ -2003,16 +1986,6 @@ class TestJobSizeAdjuster(YTEnvSetup):
 
         op.track()
         assert op.get_state() == "completed"
-
-
-class TestJobSizeAdjusterWithoutAllocationService(TestJobSizeAdjuster):
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "scheduler_connector": {
-                "use_allocation_tracker_service": False,
-            },
-        }
-    }
 
 
 ##################################################################
@@ -2315,21 +2288,6 @@ print '{hello=world}'
         assert actual_content == expected_content
 
 
-class TestInputOutputFormatsWithoutAllocationService(TestInputOutputFormats):
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 5,
-                    "cpu": 5,
-                    "memory": 5 * 1024 ** 3,
-                },
-            },
-            "scheduler_connector": {
-                "use_allocation_tracker_service": False,
-            },
-        }
-    }
 ##################################################################
 
 
@@ -2397,11 +2355,4 @@ class TestNestingLevelLimitOperations(YTEnvSetup):
             map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"annotations": bad_obj})
 
 
-class TestNestingLevelLimitOperationsWithoutAllocationService(TestNestingLevelLimitOperations):
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "scheduler_connector": {
-                "use_allocation_tracker_service": False,
-            },
-        }
-    }
+##################################################################

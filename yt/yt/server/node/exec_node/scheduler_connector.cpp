@@ -160,14 +160,13 @@ void TSchedulerConnector::OnDynamicConfigChanged(
     }));
 }
 
-template <class TServiceProxy>
 void TSchedulerConnector::DoSendHeartbeat()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     const auto& client = Bootstrap_->GetClient();
 
-    TServiceProxy proxy(client->GetSchedulerChannel());
+    TAllocationTrackerServiceProxy proxy(client->GetSchedulerChannel());
 
     auto req = proxy.Heartbeat();
     req->SetRequestCodec(NCompression::ECodec::Lz4);
@@ -258,11 +257,7 @@ void TSchedulerConnector::SendHeartbeat()
         return;
     }
 
-    if (CurrentConfig_->UseAllocationTrackerService) {
-        DoSendHeartbeat<TAllocationTrackerServiceProxy>();
-    } else {
-        DoSendHeartbeat<TJobTrackerServiceProxy>();
-    }
+    DoSendHeartbeat();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

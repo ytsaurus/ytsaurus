@@ -349,13 +349,3 @@ class TestEventLog(YTEnvSetup):
                 assert event["trimmed_annotations"]["tag"] == "my_value"
                 assert len(event["trimmed_annotations"]["long_key"]) <= 150
                 assert "nested_tag" not in event["trimmed_annotations"]
-
-
-class TestEventLogWithoutAllocationService(TestEventLog):
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "scheduler_connector": {
-                "use_allocation_tracker_service": False,
-            },
-        },
-    }

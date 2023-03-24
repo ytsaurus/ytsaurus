@@ -501,16 +501,3 @@ class TestResourceMetering(YTEnvSetup):
             return self._validate_metering_records(root_key, desired_allocation_metering_data, event_key_to_last_record, precision=0.15)
 
         wait(check_expected_allocation_records)
-
-
-class TestResourceMeteringWithoutAllocationService(TestResourceMetering):
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "job_controller": {
-                "resource_limits": {"user_slots": 3, "cpu": 3}
-            },
-            "scheduler_connector": {
-                "use_allocation_tracker_service": False,
-            },
-        }
-    }

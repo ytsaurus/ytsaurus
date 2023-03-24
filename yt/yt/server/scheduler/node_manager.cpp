@@ -42,8 +42,7 @@ TNodeManager::TNodeManager(TSchedulerConfigPtr config, INodeManagerHost* host, T
     }
 }
 
-template <class TCtxNodeHeartbeatPtr>
-void TNodeManager::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
+void TNodeManager::ProcessNodeHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
 {
     auto* request = &context->Request();
     auto nodeId = request->node_id();
@@ -81,12 +80,9 @@ void TNodeManager::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
         }
 
         const auto& nodeShard = GetNodeShard(nodeId);
-        nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat<TCtxNodeHeartbeatPtr>, nodeShard, context));
+        nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
     }));
 }
-
-template void TNodeManager::ProcessNodeHeartbeat(const TScheduler::TCtxOldNodeHeartbeatPtr& context);
-template void TNodeManager::ProcessNodeHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
 void TNodeManager::UpdateConfig(const TSchedulerConfigPtr& config)
 {

@@ -25,7 +25,7 @@ message TAllocationStatus
     optional NNodeTrackerClient.NProto.TNodeResources resource_usage = 5;
 
     // COMPAT(pogorelov)
-    required NJobTrackerClient.NProto.TTimeStatistics time_statistics = 6;
+    optional NJobTrackerClient.NProto.TTimeStatistics time_statistics = 6;
     optional int64 status_timestamp = 7;
 }
 
