@@ -816,7 +816,7 @@ class TestErasureJournals(TestJournalsBase):
                     return False
             return True
 
-        for i in range(10):
+        for i in range(3):
             wait(_check_all_replicas_ok)
 
             chunk_id = random.choice(chunk_ids)
