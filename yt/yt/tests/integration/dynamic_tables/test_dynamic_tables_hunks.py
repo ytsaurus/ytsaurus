@@ -4,11 +4,16 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, wait, create, exists, get, set, ls, set_banned_flag, insert_rows, remove, select_rows,
-    lookup_rows, delete_rows, remount_table,
+    lookup_rows, delete_rows, remount_table, build_snapshot,
     alter_table, read_table, map, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks,
     write_journal)
+
+from yt_env_setup import (
+    Restarter,
+    NODES_SERVICE
+)
 
 from yt.common import YtError
 from yt.test_helpers import assert_items_equal
@@ -1229,3 +1234,250 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         for request in requests:
             with pytest.raises(YtError):
                 read_hunks([request], parse_header=False)
+
+
+################################################################################
+
+
+class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
+    NUM_TEST_PARTITIONS = 7
+
+    NUM_NODES = 5
+
+    NUM_SCHEDULERS = 1
+
+    SCHEMA = [
+        {"name": "key", "type": "int64"},
+        {"name": "value", "type": "string"},
+    ]
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "tablet_manager": {
+            "enable_hunks": True
+        }
+    }
+
+    # Do not allow multiple erasure parts per node.
+    DELTA_MASTER_CONFIG = {}
+
+    def _get_table_schema(self, schema, max_inline_hunk_size):
+        schema[1]["max_inline_hunk_size"] = max_inline_hunk_size
+        return schema
+
+    def _create_table(self, optimize_for="lookup", max_inline_hunk_size=10, hunk_erasure_codec="none", schema=SCHEMA):
+        self._create_simple_table("//tmp/t",
+                                  schema=self._get_table_schema(schema, max_inline_hunk_size),
+                                  enable_dynamic_store_read=False,
+                                  hunk_chunk_reader={
+                                      "max_hunk_count_per_read": 2,
+                                      "max_total_hunk_length_per_read": 60,
+                                      "fragment_read_hedging_delay": 1
+                                  },
+                                  hunk_chunk_writer={
+                                      "desired_block_size": 50,
+                                  },
+                                  min_hunk_compaction_total_hunk_length=1,
+                                  max_hunk_compaction_garbage_ratio=0.5,
+                                  enable_lsm_verbose_logging=True,
+                                  optimize_for=optimize_for,
+                                  hunk_erasure_codec=hunk_erasure_codec)
+
+    def _get_store_chunk_ids(self, path):
+        chunk_ids = get(path + "/@chunk_ids")
+        return [chunk_id for chunk_id in chunk_ids if get("#{}/@chunk_type".format(chunk_id)) == "table"]
+
+    def _get_active_store_id(self, hunk_storage, tablet_index=0):
+        tablets = get("{}/@tablets".format(hunk_storage))
+        tablet_id = tablets[tablet_index]["tablet_id"]
+        wait(lambda: exists("//sys/tablets/{}/orchid/active_store_id".format(tablet_id)))
+        return get("//sys/tablets/{}/orchid/active_store_id".format(tablet_id))
+
+    def _get_active_store_orchid(self, hunk_storage, tablet_index=0):
+        tablets = get("{}/@tablets".format(hunk_storage))
+        tablet_id = tablets[tablet_index]["tablet_id"]
+        get("//sys/tablets/{}/orchid".format(tablet_id))
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_flush_inline(self, optimize_for):
+        sync_create_cells(1)
+        self._create_table(optimize_for=optimize_for)
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": "value" + str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        get("#{}/@chunk_format".format(chunk_ids[0]))
+
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
+        sync_unmount_table("//tmp/t")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+
+        assert get("#{}/@hunk_chunk_refs".format(store_chunk_ids[0])) == []
+
+        sync_mount_table("//tmp/t")
+
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_flush_to_hunk_chunk(self, optimize_for):
+        sync_create_cells(1)
+        self._create_table(optimize_for=optimize_for)
+
+        create("hunk_storage", "//tmp/h")
+        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        sync_mount_table("//tmp/h")
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        for i in range(len(rows)):
+            rows[i]["$tablet_index"] = 0
+            rows[i]["$row_index"] = i
+
+        hunk_store_id = self._get_active_store_id("//tmp/h")
+        set("//sys/cluster_nodes/@config", {"%true": {
+            "tablet_node": {"hunk_lock_manager": {"hunk_store_extra_lifetime": 123, "unlock_check_period": 127}}
+        }})
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        sync_unmount_table("//tmp/h")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+
+        assert get("#{}/@ref_counter".format(store_chunk_id)) == 1
+
+        assert get("#{}/@hunk_chunk_refs".format(store_chunk_id)) == [
+            {"chunk_id": hunk_store_id, "hunk_count": 10, "total_hunk_length": 260, "erasure_codec": "none"}
+        ]
+
+        hunk_statistics = get("//tmp/t/@hunk_statistics")
+        assert hunk_statistics["store_chunk_count"] == 1
+        assert hunk_statistics["referenced_hunk_count"] == 10
+        assert hunk_statistics["total_referenced_hunk_length"] == 260
+
+        sync_mount_table("//tmp/t")
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        remove("//tmp/t")
+        wait(lambda: not exists("#{}".format(store_chunk_id)))
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_journal_hunk_chunk_parents(self, optimize_for):
+        sync_create_cells(1)
+        self._create_table(optimize_for=optimize_for)
+
+        create("hunk_storage", "//tmp/h", attributes={
+            "store_rotation_period": 20000,
+            "store_removal_grace_period": 4000,
+        })
+        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        sync_mount_table("//tmp/h")
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        for i in range(len(rows)):
+            rows[i]["$tablet_index"] = 0
+            rows[i]["$row_index"] = i
+
+        hunk_store_id = self._get_active_store_id("//tmp/h")
+        set("//sys/cluster_nodes/@config", {"%true": {
+            "tablet_node": {"hunk_lock_manager": {"hunk_store_extra_lifetime": 123, "unlock_check_period": 127}}
+        }})
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+
+        assert get("#{}/@ref_counter".format(store_chunk_id)) == 1
+
+        assert get("#{}/@hunk_chunk_refs".format(store_chunk_id)) == [
+            {"chunk_id": hunk_store_id, "hunk_count": 10, "total_hunk_length": 260, "erasure_codec": "none"}
+        ]
+
+        hunk_store_parents = get("#{}/@owning_nodes".format(hunk_store_id))
+        assert sorted(hunk_store_parents) == ["//tmp/h", "//tmp/t"]
+
+        sync_mount_table("//tmp/t")
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        set("//tmp/h/@store_removal_grace_period", 100)
+        set("//tmp/h/@store_rotation_period", 500)
+        wait(lambda: get("#{}/@owning_nodes".format(hunk_store_id)) == ["//tmp/t"])
+
+        remove("//tmp/t")
+        wait(lambda: not exists("#{}".format(store_chunk_id)))
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_restart_preserves_locks(self, optimize_for):
+        sync_create_cells(1)
+        self._create_table(optimize_for=optimize_for)
+
+        create("hunk_storage", "//tmp/h", attributes={
+            "store_removal_grace_period": 100,
+        })
+        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        sync_mount_table("//tmp/h")
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        for i in range(len(rows)):
+            rows[i]["$tablet_index"] = 0
+            rows[i]["$row_index"] = i
+
+        hunk_store_id = self._get_active_store_id("//tmp/h")
+        set("//sys/cluster_nodes/@config", {"%true": {
+            "tablet_node": {"hunk_lock_manager": {"hunk_store_extra_lifetime": 123, "unlock_check_period": 127}}
+        }})
+
+        build_snapshot(cell_id=None)
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        sync_unmount_table("//tmp/h")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+
+        assert get("#{}/@ref_counter".format(store_chunk_id)) == 1
+
+        assert get("#{}/@hunk_chunk_refs".format(store_chunk_id)) == [
+            {"chunk_id": hunk_store_id, "hunk_count": 10, "total_hunk_length": 260, "erasure_codec": "none"}
+        ]
+
+        hunk_statistics = get("//tmp/t/@hunk_statistics")
+        assert hunk_statistics["store_chunk_count"] == 1
+        assert hunk_statistics["referenced_hunk_count"] == 10
+        assert hunk_statistics["total_referenced_hunk_length"] == 260
+
+        sync_mount_table("//tmp/t")
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        remove("//tmp/t")
+        wait(lambda: not exists("#{}".format(store_chunk_id)))

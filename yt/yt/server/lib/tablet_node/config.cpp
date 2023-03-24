@@ -495,6 +495,17 @@ void TTabletCellWriteManagerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTabletHunkLockManagerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("hunk_store_extra_lifetime", &TThis::HunkStoreExtraLifeTime)
+        .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("unlock_check_period", &TThis::UnlockCheckPeriod)
+        .Default(TDuration::Seconds(30));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TStoreFlusherConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
@@ -747,6 +758,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("tablet_cell_write_manager", &TThis::TabletCellWriteManager)
+        .DefaultNew();
+
+    registrar.Parameter("hunk_lock_manager", &TThis::HunkLockManager)
         .DefaultNew();
 
     registrar.Parameter("throttlers", &TThis::Throttlers)

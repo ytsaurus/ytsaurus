@@ -269,6 +269,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    int GetAutomatonTerm() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr /*config*/) override
     {
         YT_UNIMPLEMENTED();

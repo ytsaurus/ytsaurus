@@ -598,6 +598,9 @@ void TDynamicStoreBase::SetStoreState(EStoreState state)
     if (StoreState_ == EStoreState::ActiveDynamic && state == EStoreState::PassiveDynamic) {
         OnSetPassive();
     }
+    if (state == EStoreState::Removed) {
+        OnSetRemoved();
+    }
     TStoreBase::SetStoreState(state);
 }
 
@@ -683,6 +686,9 @@ void TDynamicStoreBase::UpdateTimestampRange(TTimestamp commitTimestamp)
 }
 
 void TDynamicStoreBase::SetBackupCheckpointTimestamp(TTimestamp /*timestamp*/)
+{ }
+
+void TDynamicStoreBase::LockHunkStores(const NTableClient::THunkChunksInfo& /*hunkChunksInfo*/)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

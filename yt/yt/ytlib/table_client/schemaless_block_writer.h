@@ -15,7 +15,7 @@ namespace NYT::NTableClient {
 class THorizontalBlockWriter
 {
 public:
-    THorizontalBlockWriter(i64 reserveSize = 2 * 64 * 1024);
+    explicit THorizontalBlockWriter(TTableSchemaPtr schema, i64 reserveSize = 128_KB);
 
     void WriteRow(TUnversionedRow row);
 
@@ -31,12 +31,16 @@ public:
 
 private:
     const i64 ReserveSize_;
+    const int ColumnCount_;
+    const std::unique_ptr<bool[]> ColumnHunkFlags_;
 
     TChunkedOutputStream Offsets_;
     TChunkedOutputStream Data_;
 
     i64 RowCount_ = 0;
     bool Closed_ = false;
+
+    bool IsInlineHunkValue(const TUnversionedValue& value) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

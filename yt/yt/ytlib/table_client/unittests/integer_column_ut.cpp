@@ -438,7 +438,7 @@ protected:
 
     std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
     {
-        return CreateUnversionedInt64ColumnReader(ColumnMeta_, ColumnIndex, ColumnId, std::nullopt);
+        return CreateUnversionedInt64ColumnReader(ColumnMeta_, ColumnIndex, ColumnId, std::nullopt, TColumnSchema());
     }
 
     std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
@@ -472,7 +472,7 @@ protected:
 
     std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
     {
-        return CreateUnversionedUint64ColumnReader(ColumnMeta_, ColumnIndex, ColumnId, std::nullopt);
+        return CreateUnversionedUint64ColumnReader(ColumnMeta_, ColumnIndex, ColumnId, std::nullopt, TColumnSchema());
     }
 
     std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override

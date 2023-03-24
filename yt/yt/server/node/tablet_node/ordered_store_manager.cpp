@@ -17,6 +17,9 @@
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -103,6 +106,11 @@ bool TOrderedStoreManager::ExecuteWrites(
     TWriteContext* context)
 {
     YT_VERIFY(context->Phase == EWritePhase::Commit);
+
+    if (context->HunkChunksInfo) {
+        ActiveStore_->LockHunkStores(*context->HunkChunksInfo);
+    }
+
     while (!reader->IsFinished()) {
         auto command = reader->ReadWriteCommand(
             Tablet_->TableSchemaData(),
@@ -275,10 +283,11 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             tabletSnapshot->FlushThrottler
         });
 
+        auto tabletCellTag = CellTagFromId(tabletSnapshot->TabletId);
         auto chunkWriter = CreateConfirmingWriter(
             writerConfig,
             writerOptions,
-            CellTagFromId(tabletSnapshot->TabletId),
+            tabletCellTag,
             transaction->GetId(),
             NullChunkListId,
             Client_,
@@ -300,6 +309,23 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             /*dataSink*/ std::nullopt,
             chunkTimestamps,
             blockCache);
+        auto hunkStoreRefs = orderedDynamicStore->GetHunkStoreRefs();
+        tableWriter->GetMeta()->RegisterFinalizer(
+            [
+                weakUnderlying = MakeWeak(chunkWriter),
+                hunkStoreRefs = hunkStoreRefs
+            ] (TDeferredChunkMeta* meta) mutable {
+                if (hunkStoreRefs.empty()) {
+                    return;
+                }
+
+                auto underlying = weakUnderlying.Lock();
+                YT_VERIFY(underlying);
+
+                NTableClient::NProto::THunkChunkRefsExt hunkChunkRefsExt;
+                ToProto(hunkChunkRefsExt.mutable_refs(), hunkStoreRefs);
+                SetProtoExtension(meta->mutable_extensions(), hunkChunkRefsExt);
+            });
 
         std::vector<TUnversionedRow> rows;
         rows.reserve(MaxRowsPerFlushRead);
@@ -351,10 +377,13 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             dataStatistics.regular_disk_space(),
             dataStatistics.erasure_disk_space());
 
-        YT_LOG_DEBUG("Ordered store flushed (StoreId: %v, ChunkId: %v, DiskSpace: %v)",
+        YT_LOG_DEBUG("Ordered store flushed (StoreId: %v, ChunkId: %v, DiskSpace: %v, HunkChunkIds: %v)",
             store->GetId(),
             chunkWriter->GetChunkId(),
-            diskSpace);
+            diskSpace,
+            MakeFormattableView(hunkStoreRefs, [] (auto* builder, const auto& hunkStoreRef) {
+                FormatValue(builder, hunkStoreRef.ChunkId, TStringBuf());
+            }));
 
         TStoreFlushResult result;
         {
@@ -365,6 +394,13 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             FilterProtoExtensions(descriptor.mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
             descriptor.set_starting_row_index(orderedDynamicStore->GetStartingRowIndex());
         }
+
+        for (const auto& hunkStoreRef : hunkStoreRefs) {
+            auto& descriptor = result.HunkChunksToAdd.emplace_back();
+            ToProto(descriptor.mutable_chunk_id(), hunkStoreRef.ChunkId);
+            // TODO(aleksandra-zh): add meta as well.
+        }
+
         return result;
     });
 }

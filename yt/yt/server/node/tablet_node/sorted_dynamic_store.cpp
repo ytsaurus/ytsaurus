@@ -1346,6 +1346,9 @@ void TSortedDynamicStore::OnSetPassive()
     FlushRevision_ = GetLatestRevision();
 }
 
+void TSortedDynamicStore::OnSetRemoved()
+{ }
+
 TSortedDynamicRow TSortedDynamicStore::AllocateRow()
 {
     return TSortedDynamicRow::Allocate(

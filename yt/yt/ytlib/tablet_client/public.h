@@ -16,6 +16,8 @@ class TReqRegisterTransactionActions;
 class TRspRegisterTransactionActions;
 class TTableReplicaStatistics;
 
+class THunkChunksInfo;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

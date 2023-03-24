@@ -46,7 +46,7 @@ class TSchemalessBlocksTestOneRow
 protected:
     void SetUp() override
     {
-        THorizontalBlockWriter blockWriter;
+        THorizontalBlockWriter blockWriter(New<TTableSchema>());
 
         auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 5);
         row[0] = MakeUnversionedStringValue("a", 0);
@@ -74,7 +74,7 @@ protected:
         auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 1);
         row[0] = MakeUnversionedStringLikeValue(WriterType, "[]", 0);
 
-        THorizontalBlockWriter blockWriter;
+        THorizontalBlockWriter blockWriter(New<TTableSchema>());
         blockWriter.WriteRow(row);
         auto block = blockWriter.FlushBlock();
 
@@ -95,6 +95,9 @@ protected:
             Data,
             Meta,
             compositeColumnFlags,
+            /*hunkColumnFlags*/ std::vector<bool>{},
+            /*hunkChunkMetasExt*/ {},
+            /*hunkChunkRefsExt*/ {},
             idMapping,
             /*sortOrders*/ {},
             /*commonKeyPrefix*/ 0,
@@ -138,6 +141,9 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
         Data,
         Meta,
         /*compositeColumnFlags*/ std::vector<bool>{},
+        /*hunkColumnFlags*/ std::vector<bool>{},
+        /*hunkChunkMetasExt*/ {},
+        /*hunkChunkRefsExt*/ {},
         idMapping,
         /*sortOrders*/ {},
         /*commonKeyPrefix*/ 0,
@@ -164,6 +170,9 @@ TEST_F(TSchemalessBlocksTestOneRow, SkipToKey)
         Data,
         Meta,
         std::vector<bool>{},
+        /*hunkColumnFlags*/ std::vector<bool>{},
+        /*hunkChunkMetasExt*/ {},
+        /*hunkChunkRefsExt*/ {},
         idMapping,
         sortOrders,
         sortOrders.size(),
@@ -198,7 +207,7 @@ class TSchemalessBlocksTestManyRows
 protected:
     void SetUp() override
     {
-        THorizontalBlockWriter blockWriter;
+        THorizontalBlockWriter blockWriter(New<TTableSchema>());
 
         for (auto row : MakeRows(0, 1000)) {
             blockWriter.WriteRow(row);
@@ -234,6 +243,9 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToKey)
         Data,
         Meta,
         std::vector<bool>{},
+        /*hunkColumnFlags*/ std::vector<bool>{},
+        /*hunkChunkMetasExt*/ {},
+        /*hunkChunkRefsExt*/ {},
         idMapping,
         sortOrders,
         sortOrders.size(),
@@ -256,6 +268,9 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToWiderKey)
         Data,
         Meta,
         std::vector<bool>{},
+        /*hunkColumnFlags*/ std::vector<bool>{},
+        /*hunkChunkMetasExt*/ {},
+        /*hunkChunkRefsExt*/ {},
         idMapping,
         sortOrders,
         /*commonKeyPrefix*/ 1,

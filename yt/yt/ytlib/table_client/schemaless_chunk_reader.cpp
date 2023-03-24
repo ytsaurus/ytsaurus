@@ -2,6 +2,7 @@
 #include "schemaless_chunk_reader.h"
 #include "helpers.h"
 #include "private.h"
+#include "hunks.h"
 #include "chunk_reader_base.h"
 #include "chunk_state.h"
 #include "columnar_chunk_meta.h"
@@ -683,6 +684,9 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
         CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
         GetCompositeColumnFlags(ChunkMeta_->GetChunkSchema()),
+        GetHunkColumnFlags(ChunkMeta_->GetChunkSchema()),
+        ChunkMeta_->HunkChunkMetasExt(),
+        ChunkMeta_->HunkChunkRefsExt(),
         ChunkToReaderIdMapping_,
         SortOrders_,
         CommonKeyPrefix_,
@@ -1103,6 +1107,9 @@ void THorizontalSchemalessLookupChunkReaderBase::InitFirstBlock()
         CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
         GetCompositeColumnFlags(ChunkMeta_->GetChunkSchema()),
+        GetHunkColumnFlags(ChunkMeta_->GetChunkSchema()),
+        ChunkMeta_->HunkChunkMetasExt(),
+        ChunkMeta_->HunkChunkRefsExt(),
         ChunkToReaderIdMapping_,
         SortOrders_,
         CommonKeyPrefix_,
@@ -1268,7 +1275,6 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
 
             if (key == BlockReader_->GetLegacyKey()) {
                 auto row = BlockReader_->GetRow(&MemoryPool_);
-
                 rows.push_back(row);
                 dataWeight += GetDataWeight(row);
 

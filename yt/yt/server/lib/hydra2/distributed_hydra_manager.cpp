@@ -339,6 +339,13 @@ public:
         return AutomatonEpochContext_ ? AutomatonEpochContext_->EpochId : TEpochId();
     }
 
+    int GetAutomatonTerm() const override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        return AutomatonEpochContext_ ? AutomatonEpochContext_->Term : InvalidTerm;
+    }
+
     TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr dynamicConfig) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);

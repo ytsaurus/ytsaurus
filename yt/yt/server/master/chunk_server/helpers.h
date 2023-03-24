@@ -74,6 +74,9 @@ void AppendChunkTreeChild(
 //! Apply statisticsDelta to all proper ancestors of |child|.
 //! Both statistics and cumulative statistics are updated.
 //! |statisticsDelta| should have |child|'s rank.
+void AccumulateAncestorsStatistics(
+    TChunkTree* child,
+    const TChunkTreeStatistics& statisticsDelta);
 void AccumulateUniqueAncestorsStatistics(
     TChunkTree* child,
     const TChunkTreeStatistics& statisticsDelta);
@@ -90,8 +93,6 @@ TFuture<NYson::TYsonString> GetMulticellOwningNodes(
 
 bool IsEmpty(const TChunkList* chunkList);
 bool IsEmpty(const TChunkTree* chunkTree);
-
-bool IsHunkChunk(const TChunkTree* chunkTree);
 
 //! Returns the upper boundary key of a chunk. Throws if the chunk contains no
 //! boundary info (i.e. it's not sorted).

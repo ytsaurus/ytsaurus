@@ -109,13 +109,14 @@ protected:
 
     std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
     {
-        return CreateUnversionedStringColumnReader(ColumnMeta_, ColumnIndex, ColumnId, ESortOrder::Ascending);
+        return CreateUnversionedStringColumnReader(ColumnMeta_, ColumnIndex, ColumnId, ESortOrder::Ascending, TColumnSchema());
     }
 
     std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
     {
         return CreateUnversionedStringColumnWriter(
             ColumnIndex,
+            TColumnSchema(),
             blockWriter);
     }
 };

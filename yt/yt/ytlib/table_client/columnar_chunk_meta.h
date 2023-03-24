@@ -23,6 +23,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TTableSchemaPtr, ChunkSchema);
     DEFINE_BYREF_RO_PROPERTY(TNameTablePtr, ChunkNameTable);
     DEFINE_BYREF_RO_PROPERTY(TSharedRange<TUnversionedRow>, BlockLastKeys);
+    DEFINE_BYREF_RO_PROPERTY(NTableClient::NProto::THunkChunkRefsExt, HunkChunkRefsExt);
+    DEFINE_BYREF_RO_PROPERTY(NTableClient::NProto::THunkChunkMetasExt, HunkChunkMetasExt);
 
 public:
     explicit TColumnarChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);

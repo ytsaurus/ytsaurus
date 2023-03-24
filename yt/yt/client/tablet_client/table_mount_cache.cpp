@@ -43,6 +43,11 @@ bool TTableMountInfo::IsReplicationLog() const
     return TypeFromId(TableId) == EObjectType::ReplicationLogTable;
 }
 
+bool TTableMountInfo::IsHunkStorage() const
+{
+    return TypeFromId(TableId) == EObjectType::HunkStorage;
+}
+
 bool TTableMountInfo::IsPhysicallyLog() const
 {
     return IsReplicated() || IsReplicationLog();
@@ -105,7 +110,7 @@ TTabletInfoPtr TTableMountInfo::GetTabletForRow(TVersionedRow row) const
 
 int TTableMountInfo::GetRandomMountedTabletIndex() const
 {
-    ValidateDynamic();
+    ValidateTabletOwner();
 
     if (MountedTablets.empty()) {
         THROW_ERROR_EXCEPTION(
@@ -120,6 +125,13 @@ int TTableMountInfo::GetRandomMountedTabletIndex() const
 TTabletInfoPtr TTableMountInfo::GetRandomMountedTablet() const
 {
     return MountedTablets[GetRandomMountedTabletIndex()];
+}
+
+void TTableMountInfo::ValidateTabletOwner() const
+{
+    if (!Dynamic && !IsHunkStorage()) {
+        THROW_ERROR_EXCEPTION("Table %v is neither dynamic nor a hunk storage", Path);
+    }
 }
 
 void TTableMountInfo::ValidateDynamic() const

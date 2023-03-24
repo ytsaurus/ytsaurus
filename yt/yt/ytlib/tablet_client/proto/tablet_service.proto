@@ -1,7 +1,18 @@
 package NYT.NTabletClient.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt/ytlib/transaction_client/proto/action.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message THunkChunksInfo
+{
+    required NYT.NProto.TGuid hunk_cell_id = 1;
+    required NYT.NProto.TGuid hunk_tablet_id = 2;
+    required uint64 hunk_mount_revision = 3;
+    repeated NYT.NTableClient.NProto.THunkChunkRef hunk_chunk_refs = 4;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +34,7 @@ message TReqWrite
     optional NYT.NProto.TGuid upstream_replica_id = 12;
     optional int64 data_weight = 13 [default = 0];
     optional uint64 replication_era = 15 [default = 0];
+    optional THunkChunksInfo hunk_chunks_info = 17;
     // Attachment contains wire-encoded data.
 }
 
@@ -97,12 +109,28 @@ message TRspWriteHunks
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// For hunk storage tablet cell.
 message TReqToggleHunkTabletStoreLock
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required uint64 mount_revision = 2;
     required NYT.NProto.TGuid store_id = 3;
     required NYT.NProto.TGuid locker_tablet_id = 4;
+
+    //! If true, store is locked.
+    //! If false, store is unlocked.
+    required bool lock = 5;
+}
+
+// For normal tablet cell.
+message TReqBoggleHunkTabletStoreLock
+{
+    required NYT.NProto.TGuid hunk_tablet_id = 1;
+    required uint64 mount_revision = 2;
+    required NYT.NProto.TGuid store_id = 3;
+    required NYT.NProto.TGuid hunk_cell_id = 4;
+    required NYT.NProto.TGuid tablet_id = 6;
+    required int32 term = 7;
 
     //! If true, store is locked.
     //! If false, store is unlocked.

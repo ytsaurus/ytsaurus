@@ -421,6 +421,24 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellWriteManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTabletHunkLockManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Period of time each hunks store is kept alive after it is no longer referenced.
+    TDuration HunkStoreExtraLifeTime;
+
+    TDuration UnlockCheckPeriod;
+
+    REGISTER_YSON_STRUCT(TTabletHunkLockManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletHunkLockManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStoreFlusherConfig
     : public NYTree::TYsonStruct
 {
@@ -748,6 +766,8 @@ public:
     TTabletManagerDynamicConfigPtr TabletManager;
 
     TTabletCellWriteManagerDynamicConfigPtr TabletCellWriteManager;
+
+    TTabletHunkLockManagerDynamicConfigPtr HunkLockManager;
 
     TEnumIndexedVector<ETabletNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
 

@@ -1789,7 +1789,8 @@ private:
                 // and rolling update of abort semantics change is not possible.
                 auto reign = GetCurrentMutationContext()->Request().Reign;
                 // EMasterReign::FixLatePrepareTxAbort = 2124.
-                YT_VERIFY(reign >= 2124 && reign <= 3000);
+                // ETabletReign::LockingState = 100700.
+                YT_VERIFY((reign >= 2124 && reign <= 3000) || (reign >= 100700 && reign < 103000));
 
                 auto error = TError(
                     NTransactionClient::EErrorCode::ParticipantFailedToPrepare,

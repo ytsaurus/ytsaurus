@@ -21,7 +21,8 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedFloatingPointColumnRe
     const NProto::TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
-    std::optional<NTableClient::ESortOrder> sortOrder);
+    std::optional<NTableClient::ESortOrder> sortOrder,
+    const NTableClient::TColumnSchema& columnSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

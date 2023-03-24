@@ -80,7 +80,7 @@ size_t GetByteSize(const TUnversionedValue& value)
     return result;
 }
 
-size_t WriteRowValue(char* output, const TUnversionedValue& value)
+size_t WriteRowValue(char* output, const TUnversionedValue& value, bool isInlineHunkValue)
 {
     char* current = output;
 
@@ -114,7 +114,10 @@ size_t WriteRowValue(char* output, const TUnversionedValue& value)
         case EValueType::String:
         case EValueType::Any:
         case EValueType::Composite:
-            current += WriteVarUint32(current, value.Length);
+            current += WriteVarUint32(current, value.Length + (isInlineHunkValue ? 1 : 0));
+            if (isInlineHunkValue) {
+                *current++ = static_cast<char>(EHunkValueTag::Inline);
+            }
             ::memcpy(current, value.Data.String, value.Length);
             current += value.Length;
             break;

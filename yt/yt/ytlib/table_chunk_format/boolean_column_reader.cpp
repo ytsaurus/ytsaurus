@@ -180,13 +180,7 @@ class TUnversionedBooleanColumnReader
     : public TUnversionedColumnReaderBase
 {
 public:
-    TUnversionedBooleanColumnReader(
-        const TColumnMeta& columnMeta,
-        int columnIndex,
-        int columnId,
-        std::optional<ESortOrder> sortOrder)
-        : TUnversionedColumnReaderBase(columnMeta, columnIndex, columnId, sortOrder)
-    { }
+    using TUnversionedColumnReaderBase::TUnversionedColumnReaderBase;
 
     std::pair<i64, i64> GetEqualRange(
         const TUnversionedValue& value,
@@ -217,13 +211,15 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedBooleanColumnReader(
     const TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
-    std::optional<ESortOrder> sortOrder)
+    std::optional<ESortOrder> sortOrder,
+    const NTableClient::TColumnSchema& columnSchema)
 {
     return std::make_unique<TUnversionedBooleanColumnReader>(
         columnMeta,
         columnIndex,
         columnId,
-        sortOrder);
+        sortOrder,
+        columnSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

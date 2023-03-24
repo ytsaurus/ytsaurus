@@ -7,6 +7,8 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
+#include <yt/yt/ytlib/table_client/public.h>
+
 #include <yt/yt/client/chaos_client/public.h>
 
 #include <yt/yt/core/misc/backoff_strategy_api.h>
@@ -35,6 +37,8 @@ struct ITabletCommitSession
         NTableClient::TTypeErasedRow row) = 0;
 
     virtual void PrepareRequests() = 0;
+
+    virtual void MemorizeHunkInfo(const NTableClient::THunkChunksInfo& hunkInfo) = 0;
 
     virtual TFuture<void> Invoke(int retryIndex = 0) = 0;
 };

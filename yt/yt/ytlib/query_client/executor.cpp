@@ -467,7 +467,9 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::InvalidMountRevision,
             "Invalid revision for table info; schema has changed")
-            << TErrorAttribute("path", tableInfo->Path);
+            << TErrorAttribute("path", tableInfo->Path)
+            << TErrorAttribute("original_schema", *query->Schema.Original)
+            << TErrorAttribute("query_schema", *tableInfo->Schemas[ETableSchemaKind::Query]);
     }
 
     tableInfo->ValidateDynamic();

@@ -137,6 +137,7 @@ message TRspGetMountInfo
     repeated TReplicaInfo replicas = 7;
     optional bool enable_detailed_profiling = 8;
     optional NYT.NProto.TGuid replication_card_id = 9; // NChaosClient::TReplicationCardId
+    optional NYT.NProto.TGuid hunk_storage_node_id = 10;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

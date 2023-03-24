@@ -60,13 +60,13 @@ struct ISimpleHydraManager
      */
     virtual bool IsActiveFollower() const = 0;
 
-    //! Returns the cancelable context for the current epoch, as viewed by the Automaton Thread.
+    //! Returns the cancelable context for the current epoch, as viewed by the automaton thread.
     /*!
      *  \note Thread affinity: AutomatonThread
      */
     virtual TCancelableContextPtr GetAutomatonCancelableContext() const = 0;
 
-    //! Returns the id of the current epoch (null if none), as viewed by the Automaton thread.
+    //! Returns the id of the current epoch (null if none), as viewed by the automaton thread.
     /*!
      *  \note Thread affinity: AutomatonThread
      */
@@ -149,13 +149,19 @@ struct IHydraManager
      */
     virtual TVersion GetAutomatonVersion() const = 0;
 
+    //! Returns current term (#InvalidTerm if none), as viewed by the automaton thread.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
+    virtual int GetAutomatonTerm() const = 0;
+
     //! Returns a wrapper invoker used for accessing the automaton.
     /*!
      *  \note Thread affinity: any
      */
     virtual IInvokerPtr CreateGuardedAutomatonInvoker(IInvokerPtr underlyingInvoker) = 0;
 
-    //! Returns the cancelable context for the current epoch, as viewed by the Control Thread.
+    //! Returns the cancelable context for the current epoch, as viewed by the control thread.
     /*!
      *  \note Thread affinity: ControlThread
      */

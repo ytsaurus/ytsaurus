@@ -4,9 +4,13 @@
 
 #include <yt/yt/server/master/table_server/public.h>
 
+#include <yt/yt/server/master/chunk_server/public.h>
+
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool IsHunkChunk(const TTabletBase* tablet, const NChunkServer::TChunkTree* child);
 
 bool IsDynamicStoreReadEnabled(
     const NTableServer::TTableNode* table,

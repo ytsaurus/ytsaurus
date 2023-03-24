@@ -536,14 +536,17 @@ private:
         auto* tablet = GetTabletOrThrow(tabletId);
 
         auto mountRevision = request->mount_revision();
-        tablet->ValidateMounted(mountRevision);
+        auto lock = request->lock();
+
+        if (lock) {
+            tablet->ValidateMounted(mountRevision);
+        } else {
+            tablet->ValidateMountRevision(mountRevision);
+        }
 
         auto storeId = FromProto<TStoreId>(request->store_id());
         auto store = tablet->GetStoreOrThrow(storeId);
-
         store->Lock(transaction->GetId(), EObjectLockMode::Shared);
-
-        auto lock = request->lock();
         if (!lock && !store->IsLockedByTablet(lockerTabletId)) {
             THROW_ERROR_EXCEPTION("Store %v of tablet %v is not locked by tablet %v",
                 storeId,
@@ -579,7 +582,12 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetState() != ETabletState::Mounted || tablet->GetMountRevision() != mountRevision) {
+        if (tablet->GetMountRevision() != mountRevision) {
+            return;
+        }
+
+        auto lock = request->lock();
+        if (lock && tablet->GetState() != ETabletState::Mounted) {
             return;
         }
 
@@ -596,8 +604,6 @@ private:
         }
 
         store->Unlock(transaction->GetId(), EObjectLockMode::Shared);
-
-        auto lock = request->lock();
         if (lock) {
             store->Lock(lockerTabletId);
         } else {
@@ -606,13 +612,12 @@ private:
             // However this should not happen if hunk tablets are properly unlocked
             // in regular tablets.
             if (!store->IsLockedByTablet(lockerTabletId)) {
-                YT_LOG_ALERT_IF(
-                    IsMutationLoggingEnabled(),
+                YT_LOG_ALERT(
                     "Hunk store lock is lost during lock toggle "
                     "(TransactionId: %v, TabletId: %v, StoreId: %v)",
                     transaction->GetId(),
                     tabletId,
-                    storeId);
+                    store->GetId());
                 return;
             }
 

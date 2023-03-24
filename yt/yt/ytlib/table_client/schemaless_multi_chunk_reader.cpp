@@ -103,7 +103,9 @@ TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
         TProtoExtensionTag<NProto::TDataBlockMetaExt>::Value,
         TProtoExtensionTag<NProto::TColumnMetaExt>::Value,
         TProtoExtensionTag<NProto::TNameTableExt>::Value,
-        TProtoExtensionTag<NProto::TKeyColumnsExt>::Value
+        TProtoExtensionTag<NProto::TKeyColumnsExt>::Value,
+        TProtoExtensionTag<NProto::THunkChunkRefsExt>::Value,
+        TProtoExtensionTag<NProto::THunkChunkMetasExt>::Value
     };
 
     return chunkReader->GetMeta(

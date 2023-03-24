@@ -188,6 +188,14 @@ public:
         return hydraManager ? hydraManager->GetAutomatonState() : EPeerState::None;
     }
 
+    int GetAutomatonTerm() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto hydraManager = GetHydraManager();
+        return hydraManager ? hydraManager->GetAutomatonTerm() : InvalidTerm;
+    }
+
     const TString& GetTabletCellBundleName() override
     {
         VERIFY_THREAD_AFFINITY_ANY();

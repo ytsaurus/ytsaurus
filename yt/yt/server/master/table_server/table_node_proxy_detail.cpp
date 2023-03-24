@@ -1780,6 +1780,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         ToProto(response->mutable_replication_card_id(), trunkTable->GetReplicationCardId());
     }
 
+    if (const auto& hunkStorageNode = trunkTable->GetHunkStorageNode()) {
+        ToProto(response->mutable_hunk_storage_node_id(), hunkStorageNode->GetId());
+    }
+
     context->Reply();
 }
 

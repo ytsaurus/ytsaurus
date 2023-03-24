@@ -7,6 +7,7 @@
 #include <yt/yt/ytlib/table_client/public.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
@@ -37,7 +38,7 @@ TEST(TComplexColumnTest, Simple)
     }
 
     TDataBlockWriter blockWriter;
-    auto columnWriter = CreateUnversionedCompositeColumnWriter(0, &blockWriter);
+    auto columnWriter = CreateUnversionedCompositeColumnWriter(0, TColumnSchema(), &blockWriter);
     columnWriter->WriteUnversionedValues(MakeRange(rows));
     columnWriter->FinishCurrentSegment();
 
@@ -47,7 +48,7 @@ TEST(TComplexColumnTest, Simple)
     auto columnData = codec->Compress(block.Data);
     auto columnMeta = columnWriter->ColumnMeta();
 
-    auto reader = CreateUnversionedCompositeColumnReader(columnMeta, 0, 0, std::nullopt);
+    auto reader = CreateUnversionedCompositeColumnReader(columnMeta, 0, 0, std::nullopt, TColumnSchema());
     reader->SetCurrentBlock(columnData, 0);
     reader->Rearm();
     EXPECT_EQ(std::ssize(rows), reader->GetReadyUpperRowIndex());
@@ -83,10 +84,10 @@ void TestCompatibility()
     TDataBlockWriter blockWriter;
     std::unique_ptr<IValueColumnWriter> columnWriter;
     if constexpr (WriterType == EValueType::Composite) {
-        columnWriter = CreateUnversionedCompositeColumnWriter(0, &blockWriter);
+        columnWriter = CreateUnversionedCompositeColumnWriter(0, TColumnSchema(), &blockWriter);
     } else {
         static_assert(WriterType == EValueType::Any);
-        columnWriter = CreateUnversionedAnyColumnWriter(0, &blockWriter);
+        columnWriter = CreateUnversionedAnyColumnWriter(0, TColumnSchema(), &blockWriter);
     }
     columnWriter->WriteUnversionedValues(MakeRange(rows));
     columnWriter->FinishCurrentSegment();
@@ -99,10 +100,10 @@ void TestCompatibility()
 
     std::unique_ptr<IUnversionedColumnReader> reader;
     if constexpr (ReaderType == EValueType::Composite) {
-        reader = CreateUnversionedCompositeColumnReader(columnMeta, 0, 0, std::nullopt);
+        reader = CreateUnversionedCompositeColumnReader(columnMeta, 0, 0, std::nullopt, TColumnSchema());
     } else {
         static_assert(ReaderType == EValueType::Any);
-        reader = CreateUnversionedAnyColumnReader(columnMeta, 0, 0, std::nullopt);
+        reader = CreateUnversionedAnyColumnReader(columnMeta, 0, 0, std::nullopt, TColumnSchema());
     }
     reader->SetCurrentBlock(columnData, 0);
     reader->Rearm();

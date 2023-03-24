@@ -28,6 +28,8 @@
 #include <yt/yt/ytlib/tablet_client/config.h>
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
+#include <yt/yt/ytlib/table_client/hunks.h>
+
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
@@ -120,6 +122,10 @@ private:
             .Versioned = request->versioned(),
             .SyncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids())
         };
+
+        if (request->has_hunk_chunks_info()) {
+            params.HunkChunksInfo = FromProto<THunkChunksInfo>(request->hunk_chunks_info());
+        }
 
         ValidateTabletTransactionId(params.TransactionId);
 

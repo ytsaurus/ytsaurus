@@ -51,9 +51,6 @@ class TCachedVersionedChunkMeta
     : public TColumnarChunkMeta
 {
 public:
-    DEFINE_BYREF_RO_PROPERTY(NTableClient::NProto::THunkChunkRefsExt, HunkChunkRefsExt);
-    DEFINE_BYREF_RO_PROPERTY(NTableClient::NProto::THunkChunkMetasExt, HunkChunkMetasExt);
-
     DEFINE_BYREF_RO_PROPERTY(std::optional<THashTableChunkIndexMeta>, HashTableChunkIndexMeta);
 
     static TCachedVersionedChunkMetaPtr Create(

@@ -141,6 +141,8 @@ struct IDynamicStore
     virtual void UpdateFlushAttemptTimestamp() = 0;
 
     virtual void SetBackupCheckpointTimestamp(TTimestamp timestamp) = 0;
+
+    virtual void LockHunkStores(const NTableClient::THunkChunksInfo& hunkChunksInfo) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDynamicStore)

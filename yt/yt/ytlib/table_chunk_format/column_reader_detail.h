@@ -85,7 +85,8 @@ public:
         int columnIndex,
         int columnId,
         NTableClient::EValueType valueType,
-        std::optional<NTableClient::ESortOrder> sortOrder);
+        std::optional<NTableClient::ESortOrder> sortOrder,
+        const NTableClient::TColumnSchema& columnSchema);
 
     i64 EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex) override;
 
@@ -96,8 +97,8 @@ protected:
     const int ColumnId_;
     const NTableClient::EValueType ValueType_;
     const std::optional<NTableClient::ESortOrder> SortOrder_;
-
     const i64 SegmentStartRowIndex_;
+    const bool HunkColumnFlag_;
 
     i64 SegmentRowIndex_ = 0;
 
@@ -128,8 +129,16 @@ public:
         const NProto::TSegmentMeta& meta,
         int columnIndex,
         int columnId,
-        std::optional<NTableClient::ESortOrder> sortOrder)
-        : TUnversionedSegmentReaderBase(data, meta, columnIndex, columnId, ValueType, sortOrder)
+        std::optional<NTableClient::ESortOrder> sortOrder,
+        const NTableClient::TColumnSchema& columnSchema)
+        : TUnversionedSegmentReaderBase(
+            data,
+            meta,
+            columnIndex,
+            columnId,
+            ValueType,
+            sortOrder,
+            columnSchema)
         , ValueExtractor_(data, meta)
     { }
 
@@ -203,6 +212,9 @@ private:
     void SetValue(NTableClient::TUnversionedValue* value, i64 rowIndex) const
     {
         ValueExtractor_.ExtractValue(value, rowIndex, ColumnId_, NTableClient::EValueFlags::None);
+        if (HunkColumnFlag_ && value->Type != NTableClient::EValueType::Null) {
+            value->Flags |= NTableClient::EValueFlags::Hunk;
+        }
     }
 
     template<class TRow>
@@ -259,8 +271,16 @@ public:
         const NProto::TSegmentMeta& meta,
         int columnIndex,
         int columnId,
-        std::optional<NTableClient::ESortOrder> sortOrder)
-        : TUnversionedSegmentReaderBase(data, meta, columnIndex, columnId, ValueType, sortOrder)
+        std::optional<NTableClient::ESortOrder> sortOrder,
+        const NTableClient::TColumnSchema& columnSchema)
+        : TUnversionedSegmentReaderBase(
+            data,
+            meta,
+            columnIndex,
+            columnId,
+            ValueType,
+            sortOrder,
+            columnSchema)
         , ValueExtractor_(data, meta)
     { }
 
@@ -379,6 +399,9 @@ private:
     void SetValue(NTableClient::TUnversionedValue* value, i64 valueIndex) const
     {
         ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, NTableClient::EValueFlags::None);
+        if (value->Type != NTableClient::EValueType::Null && HunkColumnFlag_) {
+            value->Flags |= NTableClient::EValueFlags::Hunk;
+        }
     }
 
     template <class TRow>
@@ -473,7 +496,8 @@ public:
         const NProto::TColumnMeta& columnMeta,
         int columnIndex,
         int columnId,
-        std::optional<NTableClient::ESortOrder> sortOrder);
+        std::optional<NTableClient::ESortOrder> sortOrder,
+        const NTableClient::TColumnSchema& columnSchema);
 
     void ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override;
     void ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) override;
@@ -488,6 +512,7 @@ protected:
     const int ColumnIndex_;
     const int ColumnId_;
     const std::optional<NTableClient::ESortOrder> SortOrder_;
+    const NTableClient::TColumnSchema ColumnSchema_;
 
     std::unique_ptr<IUnversionedSegmentReader> SegmentReader_;
 
@@ -508,7 +533,8 @@ protected:
             meta,
             ColumnIndex_,
             ColumnId_,
-            SortOrder_);
+            SortOrder_,
+            ColumnSchema_);
         return std::unique_ptr<IUnversionedSegmentReader>(reader);
     }
 
@@ -737,8 +763,7 @@ protected:
             flags |= NTableClient::EValueFlags::Aggregate;
         }
         ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, flags);
-
-        if (value->Type != NTableClient::EValueType::Null && HunkColumnFlag_) {
+        if (HunkColumnFlag_ && value->Type != NTableClient::EValueType::Null) {
             value->Flags |= NTableClient::EValueFlags::Hunk;
         }
     }

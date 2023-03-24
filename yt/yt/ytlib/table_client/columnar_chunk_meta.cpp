@@ -99,6 +99,14 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
     BlockLastKeys_ = MakeSharedRange(
         blockLastKeys,
         std::move(buffer));
+
+    if (auto optionalHunkChunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(chunkMeta.extensions())) {
+        HunkChunkRefsExt_ = std::move(*optionalHunkChunkRefsExt);
+    }
+
+    if (auto optionalHunkChunkMetasExt = FindProtoExtension<THunkChunkMetasExt>(chunkMeta.extensions())) {
+        HunkChunkMetasExt_ = std::move(*optionalHunkChunkMetasExt);
+    }
 }
 
 i64 TColumnarChunkMeta::GetMemoryUsage() const

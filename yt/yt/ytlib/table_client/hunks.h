@@ -6,7 +6,12 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/yt/ytlib/tablet_client/public.h>
+
+#include <yt/yt/client/table_client/public.h>
 #include <yt/yt/client/table_client/versioned_row.h>
+
+#include <yt/yt/client/api/internal_client.h>
 
 #include <yt/yt/library/erasure/public.h>
 
@@ -32,6 +37,9 @@ struct THunkChunkRef
     NErasure::ECodec ErasureCodec = NErasure::ECodec::None;
     i64 HunkCount = 0;
     i64 TotalHunkLength = 0;
+
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
 };
 
 void ToProto(NProto::THunkChunkRef* protoRef, const THunkChunkRef& ref);
@@ -41,6 +49,23 @@ void Serialize(const THunkChunkRef& ref, NYson::IYsonConsumer* consumer);
 
 void FormatValue(TStringBuilderBase* builder, const THunkChunkRef& ref, TStringBuf spec);
 TString ToString(const THunkChunkRef& ref);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct THunkChunksInfo
+{
+    NElection::TCellId CellId;
+    NTabletClient::TTabletId HunkTabletId;
+    NHydra::TRevision MountRevision;
+
+    THashMap<NChunkClient::TChunkId, THunkChunkRef> HunkChunkRefs;
+
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
+};
+
+void ToProto(NTabletClient::NProto::THunkChunksInfo* protoRef, const THunkChunksInfo& ref);
+void FromProto(THunkChunksInfo* ref, const NTabletClient::NProto::THunkChunksInfo& protoRef);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,12 +236,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM_WITH_UNDERLYING_TYPE(EHunkValueTag, ui8,
-    ((Inline)   (0))
-    ((LocalRef) (1))
-    ((GlobalRef)(2))
-);
-
 /*
  *  Hunk value format
  *  =================
@@ -312,7 +331,16 @@ void GlobalizeHunkValues(
     TChunkedMemoryPool* pool,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     TMutableVersionedRow row);
+void GlobalizeHunkValues(
+    TChunkedMemoryPool* pool,
+    const TColumnarChunkMetaPtr& chunkMeta,
+    TMutableUnversionedRow row);
 
+void GlobalizeHunkValueAndSetHunkFlag(
+    TChunkedMemoryPool* pool,
+    const NTableClient::NProto::THunkChunkRefsExt& hunkChunkRefsExt,
+    const NTableClient::NProto::THunkChunkMetasExt& hunkChunkMetasExt,
+    TUnversionedValue* value);
 void GlobalizeHunkValuesAndSetHunkFlag(
     TChunkedMemoryPool* pool,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
@@ -432,6 +460,14 @@ IHunkChunkPayloadWriterPtr CreateHunkChunkPayloadWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 void DecodeInlineHunkInUnversionedValue(TUnversionedValue* value);
+std::vector<TRef> ExtractHunks(
+    TUnversionedRow row,
+    TTableSchemaPtr schema);
+void ReplaceHunks(
+    TMutableUnversionedRow row,
+    const TTableSchemaPtr& schema,
+    const std::vector<NApi::THunkDescriptor>& descriptors,
+    TChunkedMemoryPool* pool);
 
 ////////////////////////////////////////////////////////////////////////////////
 

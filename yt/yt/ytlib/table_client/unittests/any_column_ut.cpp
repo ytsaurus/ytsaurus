@@ -8,6 +8,7 @@
 
 #include <yt/yt/ytlib/table_client/public.h>
 
+#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/client/table_client/unittests/helpers/helpers.h>
@@ -61,7 +62,7 @@ TEST(TAnyColumnTest, Simple)
         });
 
     TDataBlockWriter blockWriter;
-    auto columnWriter = CreateUnversionedAnyColumnWriter(0, &blockWriter);
+    auto columnWriter = CreateUnversionedAnyColumnWriter(0, TColumnSchema(), &blockWriter);
 
     columnWriter->WriteUnversionedValues(MakeRange(expected));
     columnWriter->FinishCurrentSegment();
@@ -72,7 +73,7 @@ TEST(TAnyColumnTest, Simple)
     auto columnData = codec->Compress(block.Data);
     auto columnMeta = columnWriter->ColumnMeta();
 
-    auto reader = CreateUnversionedAnyColumnReader(columnMeta, 0, 0, std::nullopt);
+    auto reader = CreateUnversionedAnyColumnReader(columnMeta, 0, 0, std::nullopt, TColumnSchema());
     reader->SetCurrentBlock(columnData, 0);
     reader->Rearm();
 

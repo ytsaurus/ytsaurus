@@ -268,7 +268,7 @@ public:
     void ReadColumnarBatch(
         i64 startRowIndex,
         i64 rowCount,
-        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns)
+        TMutableRange<IUnversionedColumnarRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 2);
         auto& primaryColumn = columns[0];
@@ -329,7 +329,7 @@ public:
     void ReadColumnarBatch(
         i64 startRowIndex,
         i64 rowCount,
-        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns)
+        TMutableRange<IUnversionedColumnarRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 3);
         auto& primaryColumn = columns[0];
@@ -392,7 +392,7 @@ public:
     void ReadColumnarBatch(
         i64 startRowIndex,
         i64 rowCount,
-        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns)
+        TMutableRange<IUnversionedColumnarRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 2);
         auto& primaryColumn = columns[0];
@@ -447,7 +447,7 @@ public:
     void ReadColumnarBatch(
         i64 startRowIndex,
         i64 rowCount,
-        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns)
+        TMutableRange<IUnversionedColumnarRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 1);
         auto& column = columns[0];
@@ -565,17 +565,7 @@ class TUnversionedStringColumnReader
     : public TUnversionedColumnReaderBase
 {
 public:
-    TUnversionedStringColumnReader(
-        const TColumnMeta& columnMeta,
-        int columnIndex,
-        int columnId,
-        std::optional<ESortOrder> sortOrder)
-        : TUnversionedColumnReaderBase(
-            columnMeta,
-            columnIndex,
-            columnId,
-            sortOrder)
-    { }
+    using TUnversionedColumnReaderBase::TUnversionedColumnReaderBase;
 
     std::pair<i64, i64> GetEqualRange(
         const TUnversionedValue& value,
@@ -674,39 +664,45 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedStringColumnReader(
     const TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
-    std::optional<ESortOrder> sortOrder)
+    std::optional<ESortOrder> sortOrder,
+    const TColumnSchema& columnSchema)
 {
     return std::make_unique<TUnversionedStringColumnReader<EValueType::String>>(
         columnMeta,
         columnIndex,
         columnId,
-        sortOrder);
+        sortOrder,
+        columnSchema);
 }
 
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedAnyColumnReader(
     const TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
-    std::optional<ESortOrder> sortOrder)
+    std::optional<ESortOrder> sortOrder,
+    const TColumnSchema& columnSchema)
 {
     return std::make_unique<TUnversionedStringColumnReader<EValueType::Any>>(
         columnMeta,
         columnIndex,
         columnId,
-        sortOrder);
+        sortOrder,
+        columnSchema);
 }
 
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedCompositeColumnReader(
     const TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
-    std::optional<ESortOrder> sortOrder)
+    std::optional<ESortOrder> sortOrder,
+    const TColumnSchema& columnSchema)
 {
     return std::make_unique<TUnversionedStringColumnReader<EValueType::Composite>>(
         columnMeta,
         columnIndex,
         columnId,
-        sortOrder);
+        sortOrder,
+        columnSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

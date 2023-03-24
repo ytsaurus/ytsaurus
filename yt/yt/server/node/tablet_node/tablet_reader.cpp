@@ -220,7 +220,7 @@ ISchemafulUnversionedReaderPtr WrapSchemafulTabletReader(
         std::move(reader));
 
     reader = CreateHunkDecodingSchemafulReader(
-        tabletSnapshot->PhysicalSchema,
+        tabletSnapshot->QuerySchema,
         columnFilter,
         tabletSnapshot->Settings.HunkReaderConfig,
         std::move(reader),

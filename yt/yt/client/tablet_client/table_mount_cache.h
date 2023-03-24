@@ -90,6 +90,8 @@ struct TTableMountInfo
     NObjectClient::TObjectId TableId;
     TEnumIndexedVector<ETableSchemaKind, NTableClient::TTableSchemaPtr> Schemas;
 
+    NObjectClient::TObjectId HunkStorageId;
+
     bool Dynamic;
     TTableReplicaId UpstreamReplicaId;
     bool NeedKeyEvaluation;
@@ -119,6 +121,7 @@ struct TTableMountInfo
     bool IsReplicationLog() const;
     bool IsPhysicallyLog() const;
     bool IsChaosReplica() const;
+    bool IsHunkStorage() const;
 
     TTabletInfoPtr GetTabletByIndexOrThrow(int tabletIndex) const;
     int GetTabletIndexForKey(NTableClient::TUnversionedValueRange key) const;
@@ -129,6 +132,7 @@ struct TTableMountInfo
     int GetRandomMountedTabletIndex() const;
     TTabletInfoPtr GetRandomMountedTablet() const;
 
+    void ValidateTabletOwner() const;
     void ValidateDynamic() const;
     void ValidateSorted() const;
     void ValidateOrdered() const;

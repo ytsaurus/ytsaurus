@@ -153,7 +153,7 @@ public:
     void ReadColumnarBatch(
         i64 startRowIndex,
         i64 rowCount,
-        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns)
+        TMutableRange<IUnversionedColumnarRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 1);
         auto& column = columns[0];
@@ -186,12 +186,14 @@ public:
         const TColumnMeta& columnMeta,
         int columnIndex,
         int columnId,
-        std::optional<ESortOrder> sortOrder)
+        std::optional<ESortOrder> sortOrder,
+        const TColumnSchema& columnSchema)
         : TUnversionedColumnReaderBase(
             columnMeta,
             columnIndex,
             columnId,
-            sortOrder)
+            sortOrder,
+            columnSchema)
     {
         static_assert(std::is_floating_point_v<T>);
     }
@@ -226,13 +228,15 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedFloatingPointColumnRe
     const TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
-    std::optional<ESortOrder> sortOrder)
+    std::optional<ESortOrder> sortOrder,
+    const TColumnSchema& columnSchema)
 {
     return std::make_unique<TUnversionedFloatingPointColumnReader<T>>(
         columnMeta,
         columnIndex,
         columnId,
-        sortOrder);
+        sortOrder,
+        columnSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,14 +258,16 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedFloatingPointColumnRe
     const NProto::TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
-    std::optional<ESortOrder> sortOrder);
+    std::optional<ESortOrder> sortOrder,
+    const TColumnSchema& columnSchema);
 
 template
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedFloatingPointColumnReader<double>(
     const NProto::TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
-    std::optional<ESortOrder> sortOrder);
+    std::optional<ESortOrder> sortOrder,
+    const TColumnSchema& columnSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

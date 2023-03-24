@@ -143,6 +143,7 @@ public:
         TWriteContext context{
             .Phase = EWritePhase::Commit,
             .CommitTimestamp = TimestampFromTransactionId(transactionId),
+            .HunkChunksInfo = writeRecord.HunkChunksInfo
         };
         const auto& storeManager = Tablet_->GetStoreManager();
         YT_VERIFY(storeManager->ExecuteWrites(reader.get(), &context));
@@ -804,6 +805,7 @@ private:
         TCompactFlatMap<TTableReplicaInfo*, int, 8> replicaToCommittedRowCount;
         for (const auto& record : locklessWriteLog) {
             auto context = CreateWriteContext(transaction);
+            context.HunkChunksInfo = record.HunkChunksInfo;
             context.Phase = EWritePhase::Commit;
             context.CommitTimestamp = commitTimestamp;
 

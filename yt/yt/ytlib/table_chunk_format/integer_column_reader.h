@@ -28,13 +28,15 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedInt64ColumnReader(
     const NProto::TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
-    std::optional<NTableClient::ESortOrder> sortOrder);
+    std::optional<NTableClient::ESortOrder> sortOrder,
+    const NTableClient::TColumnSchema& columnSchema);
 
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedUint64ColumnReader(
     const NProto::TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
-    std::optional<NTableClient::ESortOrder> sortOrder);
+    std::optional<NTableClient::ESortOrder> sortOrder,
+    const NTableClient::TColumnSchema& columnSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

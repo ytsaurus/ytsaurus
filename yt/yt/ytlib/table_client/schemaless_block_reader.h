@@ -26,6 +26,7 @@ struct TKeyWideningOptions
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<bool> GetCompositeColumnFlags(const TTableSchemaPtr& schema);
+std::vector<bool> GetHunkColumnFlags(const TTableSchemaPtr& schema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +44,9 @@ public:
         const TSharedRef& block,
         const NProto::TDataBlockMeta& meta,
         const std::vector<bool>& compositeColumnFlags,
+        const std::vector<bool>& hunkColumnFlags,
+        const NTableClient::NProto::THunkChunkMetasExt& hunkChunkMetasExt,
+        const NTableClient::NProto::THunkChunkRefsExt& hunkChunkRefsExt,
         const std::vector<int>& chunkToReaderIdMapping,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
@@ -71,6 +75,10 @@ private:
     // Maps chunk name table ids to client name table ids.
     std::vector<int> ChunkToReaderIdMapping_;
     std::vector<bool> CompositeColumnFlags_;
+    std::vector<bool> HunkColumnFlags_;
+
+    const NTableClient::NProto::THunkChunkMetasExt& HunkChunkMetasExt_;
+    const NTableClient::NProto::THunkChunkRefsExt& HunkChunkRefsExt_;
 
     const TKeyWideningOptions KeyWideningOptions_;
 

@@ -1,6 +1,7 @@
 #include "transaction.h"
 
 #include "cell_commit_session.h"
+#include "client.h"
 #include "connection.h"
 #include "config.h"
 #include "sync_replica_cache.h"
@@ -23,6 +24,7 @@
 #include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/hunks.h>
 
 #include <yt/yt/ytlib/api/native/tablet_helpers.h>
 
@@ -67,6 +69,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NRpc;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,6 +101,7 @@ public:
         , Counters_(Client_->GetCounters().TransactionCounters)
         , SerializedInvoker_(CreateSerializedInvoker(
             Client_->GetConnection()->GetInvoker()))
+        , HunkMemoryPool_(THunkTransactionTag())
         , OrderedRequestsSlidingWindow_(
             Client_->GetNativeConnection()->GetConfig()->MaxRequestWindowSize)
         , CellCommitSessionProvider_(CreateCellCommitSessionProvider(
@@ -362,6 +366,7 @@ public:
                     Client_->GetNativeConnection(),
                     path,
                     std::move(nameTable),
+                    &HunkMemoryPool_,
                     std::move(modifications),
                     options));
         } catch (const std::exception& ex) {
@@ -556,6 +561,10 @@ private:
 
     const IInvokerPtr SerializedInvoker_;
 
+    struct THunkTransactionTag
+    { };
+    TChunkedMemoryPool HunkMemoryPool_{THunkTransactionTag()};
+
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     ETransactionState State_ = ETransactionState::Active;
     TPromise<void> AbortPromise_;
@@ -575,12 +584,14 @@ private:
             IConnectionPtr connection,
             const TYPath& path,
             TNameTablePtr nameTable,
+            TChunkedMemoryPool* memoryPool,
             TSharedRange<TRowModification> modifications,
             const TModifyRowsOptions& options)
             : Transaction_(transaction)
             , Connection_(std::move(connection))
             , Path_(path)
             , NameTable_(std::move(nameTable))
+            , HunkMemoryPool_(memoryPool)
             , Modifications_(std::move(modifications))
             , Options_(options)
             , Logger(transaction->Logger)
@@ -603,17 +614,18 @@ private:
             }
         }
 
-        void SubmitRows()
+        void PrepareRows()
         {
             try {
-                GuardedSubmitRows();
+                GuardedPrepareRows();
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error submitting rows for table %v", TableSession_->GetInfo()->Path)
+                THROW_ERROR_EXCEPTION("Error preparing rows for table %v",
+                    TableSession_->GetInfo()->Path)
                     << TError(ex);
             }
         }
 
-        void GuardedSubmitRows()
+        void GuardedPrepareRows()
         {
             auto transaction = Transaction_.Lock();
             if (!transaction) {
@@ -670,6 +682,7 @@ private:
                             Connection_,
                             syncReplica.ReplicaInfo->ReplicaPath,
                             NameTable_,
+                            HunkMemoryPool_,
                             Modifications_,
                             replicaOptions));
                     }
@@ -703,15 +716,6 @@ private:
 
             const auto& modificationSchema = !tableInfo->IsPhysicallyLog() && !tableInfo->IsSorted() ? primarySchema : primarySchemaWithTabletIndex;
             const auto& modificationIdMapping = !tableInfo->IsPhysicallyLog() && !tableInfo->IsSorted() ? primaryIdMapping : primaryWithTabletIndexIdMapping;
-
-            const auto& rowBuffer = transaction->RowBuffer_;
-
-            auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
-            auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
-
-            auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
-
-            std::vector<bool> columnPresenceBuffer(modificationSchema->GetColumnCount());
 
             for (const auto& modification : Modifications_) {
                 switch (modification.Type) {
@@ -780,17 +784,143 @@ private:
                     default:
                         YT_ABORT();
                 }
+            }
 
+            const auto& rowBuffer = transaction->RowBuffer_;
+
+            std::vector<bool> columnPresenceBuffer(modificationSchema->GetColumnCount());
+
+            ModificationsData_.resize(Modifications_.size());
+            for (int modificationIndex = 0; modificationIndex < std::ssize(Modifications_); ++modificationIndex) {
+                const auto& modification = Modifications_[modificationIndex];
+                auto& modificationsData = ModificationsData_[modificationIndex];
                 switch (modification.Type) {
                     case ERowModificationType::Write:
                     case ERowModificationType::Delete:
                     case ERowModificationType::WriteAndLock: {
-                        auto capturedRow = rowBuffer->CaptureAndPermuteRow(
+                        modificationsData.CapturedRow = rowBuffer->CaptureAndPermuteRow(
                             TUnversionedRow(modification.Row),
                             *modificationSchema,
                             modificationSchema->GetKeyColumnCount(),
                             modificationIdMapping,
                             modification.Type == ERowModificationType::Write ? &columnPresenceBuffer : nullptr);
+
+                        if (tableInfo->HunkStorageId) {
+                            auto rowPayloads = ExtractHunks(modificationsData.CapturedRow, modificationSchema);
+                            modificationsData.HunkCount = std::ssize(rowPayloads);
+                            HunkPayloads_.insert(
+                                HunkPayloads_.end(),
+                                std::make_move_iterator(rowPayloads.begin()),
+                                std::make_move_iterator(rowPayloads.end()));
+                        }
+                    }
+                    default:
+                        continue;
+                }
+            }
+        }
+
+        TFuture<void> WriteHunks()
+        {
+            if (HunkPayloads_.empty()) {
+                return VoidFuture;
+            }
+
+            auto transaction = Transaction_.Lock();
+            if (!transaction) {
+                return VoidFuture;
+            }
+
+            auto hunkTableInfo = TableSession_->GetHunkTableInfo();
+            RandomHunkTabletInfo_ = hunkTableInfo->GetRandomMountedTablet();
+
+            auto cellChannel = transaction->Client_->GetCellChannelOrThrow(RandomHunkTabletInfo_->CellId);
+            TTabletServiceProxy proxy(cellChannel);
+            auto req = proxy.WriteHunks();
+            ToProto(req->mutable_tablet_id(), RandomHunkTabletInfo_->TabletId);
+            req->set_mount_revision(RandomHunkTabletInfo_->MountRevision);
+
+            auto payloadCount = std::ssize(HunkPayloads_);
+            auto payloadHolder = MakeSharedRangeHolder(transaction);
+            for (const auto& payload : HunkPayloads_) {
+                req->Attachments().push_back(TSharedRef(payload, payloadHolder));
+            }
+            return req->Invoke().Apply(BIND([this, payloadCount]
+                (const TTabletServiceProxy::TErrorOrRspWriteHunksPtr& rspOrError) mutable {
+                    if (!rspOrError.IsOK()) {
+                        THROW_ERROR_EXCEPTION("Failed to write hunks")
+                            << rspOrError;
+                    }
+                    const auto& rsp = rspOrError.Value();
+                    YT_VERIFY(payloadCount == rsp->descriptors_size());
+                    for (const auto& protoDescriptor : rsp->descriptors()) {
+                        auto hunkChunkId = FromProto<TChunkId>(protoDescriptor.chunk_id());
+                        HunkDescriptors_.push_back(THunkDescriptor{
+                            .ChunkId = hunkChunkId,
+                            .BlockIndex = protoDescriptor.record_index(),
+                            .BlockOffset = protoDescriptor.record_offset(),
+                            .Length = protoDescriptor.length(),
+                        });
+                    }
+            }));
+        }
+
+        void SubmitRows()
+        {
+            try {
+                GuardedSubmitRows();
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error submitting rows for table %v",
+                    TableSession_->GetInfo()->Path)
+                    << TError(ex);
+            }
+        }
+
+        void GuardedSubmitRows()
+        {
+            auto transaction = Transaction_.Lock();
+            if (!transaction) {
+                return;
+            }
+
+            const auto& tableInfo = TableSession_->GetInfo();
+            if (Options_.TopmostTransaction && tableInfo->ReplicationCardId) {
+                // For chaos tables we write to all replicas via nested invocations in GuardedPrepareRows.
+                return;
+            }
+
+            std::optional<int> tabletIndexColumnId;
+            if (!tableInfo->IsSorted()) {
+                tabletIndexColumnId = NameTable_->GetIdOrRegisterName(TabletIndexColumnName);
+            }
+
+            const auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
+            const auto& primaryIdMapping = GetColumnIdMapping(transaction, tableInfo, ETableSchemaKind::Primary);
+
+            const auto& primarySchemaWithTabletIndex = tableInfo->Schemas[ETableSchemaKind::PrimaryWithTabletIndex];
+
+            const auto& modificationSchema = !tableInfo->IsPhysicallyLog() && !tableInfo->IsSorted() ? primarySchema : primarySchemaWithTabletIndex;
+
+            const auto& rowBuffer = transaction->RowBuffer_;
+
+            auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
+            auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
+
+            auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
+
+            std::vector<bool> columnPresenceBuffer(modificationSchema->GetColumnCount());
+
+            int currentHunkDescriptorIndex = 0;
+            for (int modificationIndex = 0; modificationIndex < std::ssize(Modifications_); ++modificationIndex) {
+                const auto& modification = Modifications_[modificationIndex];
+                auto& modificationData = ModificationsData_[modificationIndex];
+
+                switch (modification.Type) {
+                    case ERowModificationType::Write:
+                    case ERowModificationType::Delete:
+                    case ERowModificationType::WriteAndLock: {
+                        auto capturedRow = std::move(modificationData.CapturedRow);
+
                         TTabletInfoPtr tabletInfo;
                         if (tableInfo->IsSorted()) {
                             if (evaluator) {
@@ -818,8 +948,43 @@ private:
                         }
 
                         auto session = transaction->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
+                        if (modificationData.HunkCount > 0) {
+                            YT_VERIFY(RandomHunkTabletInfo_);
+
+                            THunkChunksInfo hunkInfo{
+                                .CellId = RandomHunkTabletInfo_->CellId,
+                                .HunkTabletId = RandomHunkTabletInfo_->TabletId,
+                                .MountRevision = RandomHunkTabletInfo_->MountRevision
+                            };
+
+                            int lastHunkDescriptorIndex = currentHunkDescriptorIndex + modificationData.HunkCount;
+                            YT_VERIFY(lastHunkDescriptorIndex <= std::ssize(HunkDescriptors_));
+
+                            std::vector<THunkDescriptor> descriptors(
+                                HunkDescriptors_.begin() + currentHunkDescriptorIndex,
+                                HunkDescriptors_.begin() + lastHunkDescriptorIndex);
+
+                            for (const auto& descriptor : descriptors) {
+                                auto& ref = hunkInfo.HunkChunkRefs[descriptor.ChunkId];
+                                ref.ChunkId = descriptor.ChunkId;
+                                ++ref.HunkCount;
+                                ref.TotalHunkLength += descriptor.Length - sizeof(THunkPayloadHeader);
+                                ref.ErasureCodec = descriptor.ErasureCodec;
+                            }
+
+                            ReplaceHunks(
+                                capturedRow,
+                                modificationSchema,
+                                std::move(descriptors),
+                                HunkMemoryPool_);
+
+                            session->MemorizeHunkInfo(hunkInfo);
+                            currentHunkDescriptorIndex += modificationData.HunkCount;
+                        }
+
                         auto command = GetCommand(modificationType);
                         session->SubmitUnversionedRow(command, capturedRow, modification.Locks);
+
                         break;
                     }
 
@@ -863,6 +1028,7 @@ private:
                         YT_ABORT();
                 }
             }
+            YT_VERIFY(currentHunkDescriptorIndex == std::ssize(HunkDescriptors_));
         }
 
     protected:
@@ -870,12 +1036,23 @@ private:
         const IConnectionPtr Connection_;
         const TYPath Path_;
         const TNameTablePtr NameTable_;
+        TChunkedMemoryPool* HunkMemoryPool_;
         const TSharedRange<TRowModification> Modifications_;
         const TModifyRowsOptions Options_;
 
         const NLogging::TLogger& Logger;
         const TTableCommitSessionPtr TableSession_;
 
+        struct TModificationData
+        {
+            TMutableUnversionedRow CapturedRow;
+            int HunkCount;
+        };
+        std::vector<TModificationData> ModificationsData_;
+
+        TTabletInfoPtr RandomHunkTabletInfo_;
+        std::vector<TRef> HunkPayloads_;
+        std::vector<THunkDescriptor> HunkDescriptors_;
 
         static EWireProtocolCommand GetCommand(ERowModificationType modificationType)
         {
@@ -952,6 +1129,12 @@ private:
             return TableInfo_;
         }
 
+        const TTableMountInfoPtr& GetHunkTableInfo() const
+        {
+            YT_VERIFY(HunkTableInfo_);
+            return HunkTableInfo_;
+        }
+
         TTableReplicaId GetUpstreamReplicaId() const
         {
             return UpstreamReplicaId_;
@@ -973,17 +1156,17 @@ private:
 
         TFuture<void> PrepareFuture_;
         TTableMountInfoPtr TableInfo_;
+        TTableMountInfoPtr HunkTableInfo_;
         TTableReplicaId UpstreamReplicaId_;
         TReplicationCardPtr ReplicationCard_;
         std::vector<TSyncReplica> SyncReplicas_;
 
         const NLogging::TLogger Logger;
 
-        TFuture<void> OnGotTableInfo(const TTableMountInfoPtr& tableInfo)
+        TFuture<void> GetReplicationCardFuture()
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            TableInfo_ = tableInfo;
             if (TableInfo_->ReplicationCardId) {
                 UpstreamReplicaId_ = TableInfo_->UpstreamReplicaId;
             }
@@ -999,7 +1182,7 @@ private:
 
                 const auto& replicationCardCache = transaction->Client_->GetReplicationCardCache();
                 return replicationCardCache->GetReplicationCard({
-                        .CardId = tableInfo->ReplicationCardId,
+                        .CardId = TableInfo_->ReplicationCardId,
                         .FetchOptions = {
                             .IncludeCoordinators = true
                         }
@@ -1013,6 +1196,42 @@ private:
                         return OnGotReplicationCard(true);
                     }).AsyncVia(transaction->SerializedInvoker_));
             }
+        }
+
+        TFuture<void> GetHunkStorageInfoFuture()
+        {
+            VERIFY_THREAD_AFFINITY_ANY();
+
+            if (!TableInfo_->HunkStorageId) {
+                return VoidFuture;
+            }
+
+            auto transaction = Transaction_.Lock();
+            if (!transaction) {
+                return VoidFuture;
+            }
+
+            auto hunkStorageId = TableInfo_->HunkStorageId;
+            const auto& tableMountCache = transaction->Client_->GetTableMountCache();
+            return tableMountCache->GetTableInfo(FromObjectId(hunkStorageId)
+                ).Apply(BIND([=, this, this_ = MakeStrong(this)] (const TTableMountInfoPtr& hunkTableInfo) {
+                    HunkTableInfo_ = hunkTableInfo;
+
+                    YT_LOG_DEBUG("Got hunk table info (Path: %v, HunkStorageId: %v)",
+                        TableInfo_->Path,
+                        TableInfo_->HunkStorageId);
+
+                    return VoidFuture;
+                }).AsyncVia(transaction->SerializedInvoker_));
+        }
+
+        TFuture<void> OnGotTableInfo(const TTableMountInfoPtr& tableInfo)
+        {
+            VERIFY_THREAD_AFFINITY_ANY();
+
+            TableInfo_ = tableInfo;
+
+            return AllSucceeded(std::vector{GetReplicationCardFuture(), GetHunkStorageInfoFuture()});
         }
 
         TFuture<void> OnGotReplicationCard(bool exploreReplicas)
@@ -1414,12 +1633,25 @@ private:
             }
 
             return AllSucceeded(std::move(prepareFutures))
-                .Apply(BIND([=, this, this_ = MakeStrong(this), pendingRequests = std::move(pendingRequests)] {
+                .Apply(BIND([=, this, pendingRequests = std::move(pendingRequests)] {
+                    std::vector<TFuture<void>> writeHunksFutures;
+
                     for (auto* request : pendingRequests) {
-                        request->SubmitRows();
+                        request->PrepareRows();
                     }
 
-                    return DoPrepareRequests();
+                    for (auto* request : pendingRequests) {
+                        writeHunksFutures.push_back(request->WriteHunks());
+                    }
+
+                    return AllSucceeded(std::move(writeHunksFutures))
+                        .Apply(BIND([=, this, pendingRequests = std::move(pendingRequests)] {
+                            for (auto* request : pendingRequests) {
+                                request->SubmitRows();
+                            }
+
+                            return DoPrepareRequests();
+                    }).AsyncVia(SerializedInvoker_));
                 }).AsyncVia(SerializedInvoker_));
         } else {
             for (const auto& [tabletId, tabletSession] : TabletIdToSession_) {

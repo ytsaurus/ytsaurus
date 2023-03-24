@@ -19,30 +19,34 @@ public:
     explicit TTabletContextMock(ITabletWriteManagerHost* host);
 
     // ITabletContext implementation.
-    TCellId GetCellId() override;
-    const TString& GetTabletCellBundleName() override;
-    NHydra::EPeerState GetAutomatonState() override;
-    IInvokerPtr GetControlInvoker() override;
-    NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() override;
-    NTabletClient::IRowComparerProviderPtr GetRowComparerProvider() override;
-    NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) override;
+    TCellId GetCellId() const override;
+    const TString& GetTabletCellBundleName() const override;
+    NHydra::EPeerState GetAutomatonState() const override;
+    IInvokerPtr GetControlInvoker() const override;
+    IInvokerPtr GetEpochAutomatonInvoker() const override;
+    int GetAutomatonTerm() const override;
+    NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const override;
+    NTabletClient::IRowComparerProviderPtr GetRowComparerProvider() const override;
+    NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) const override;
+    NApi::NNative::IClientPtr GetClient() const override;
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr GetDynamicConfigManager() const override;
     IStorePtr CreateStore(
         TTablet* tablet,
         EStoreType type,
         TStoreId storeId,
-        const NTabletNode::NProto::TAddStoreDescriptor* descriptor) override;
+        const NTabletNode::NProto::TAddStoreDescriptor* descriptor) const override;
     THunkChunkPtr CreateHunkChunk(
         TTablet* tablet,
         NChunkClient::TChunkId chunkId,
-        const NTabletNode::NProto::TAddHunkChunkDescriptor* descriptor) override;
-    TTransactionManagerPtr GetTransactionManager() override;
-    NRpc::IServerPtr GetLocalRpcServer() override;
-    NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() override;
-    INodeMemoryTrackerPtr GetMemoryUsageTracker() override;
-    NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() override;
-    TString GetLocalHostName() override;
-    IHedgingManagerRegistryPtr GetHedgingManagerRegistry() override;
-    ITabletWriteManagerHostPtr GetTabletWriteManagerHost() override;
+        const NTabletNode::NProto::TAddHunkChunkDescriptor* descriptor) const override;
+    TTransactionManagerPtr GetTransactionManager() const override;
+    NRpc::IServerPtr GetLocalRpcServer() const override;
+    NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override;
+    INodeMemoryTrackerPtr GetMemoryUsageTracker() const override;
+    NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const override;
+    TString GetLocalHostName() const override;
+    IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const override;
+    ITabletWriteManagerHostPtr GetTabletWriteManagerHost() const override;
     TMockBackendChunkReadersHolderPtr GetBackendChunkReadersHolder() const;
 
 private:

@@ -40,17 +40,8 @@ public:
     EStoreType GetType() const override;
     i64 GetRowCount() const override;
 
-    void Save(TSaveContext& context) const override
-    {
-        TStoreBase::Save(context);
-        TOrderedStoreBase::Save(context);
-    }
-
-    void Load(TLoadContext& context) override
-    {
-        TStoreBase::Load(context);
-        TOrderedStoreBase::Load(context);
-    }
+    void Save(TSaveContext& context) const override;
+    void Load(TLoadContext& context) override;
 
     TCallback<void(TSaveContext&)> AsyncSave() override;
     void AsyncLoad(TLoadContext& context) override;
@@ -70,8 +61,14 @@ public:
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         std::optional<EWorkloadCategory> workloadCategory) override;
 
+    std::vector<NTableClient::THunkChunkRef> GetHunkStoreRefs() const;
+
+    void LockHunkStores(const NTableClient::THunkChunksInfo& hunkChunksInfo) override;
+
 private:
     class TReader;
+
+    const IHunkLockManagerPtr HunkLockManager_;
 
     const std::optional<int> TimestampColumnId_;
     const std::optional<int> CumulativeDataWeightColumnId_;
@@ -85,8 +82,10 @@ private:
 
     i64 FlushRowCount_ = -1;
 
+    THashMap<NChunkClient::TChunkId, NTableClient::THunkChunkRef> HunkStoreRefs_;
 
     void OnSetPassive() override;
+    void OnSetRemoved() override;
 
     void AllocateCurrentSegment(int index);
     void OnDynamicMemoryUsageUpdated();

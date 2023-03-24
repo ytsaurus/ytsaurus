@@ -41,7 +41,7 @@ TSingleColumnReader::TSingleColumnReader(TReaderCreatorFunc readerCreator)
 
 std::vector<TUnversionedOwningRow> TSingleColumnReader::ReadBlock(const TSharedRef& data, const TColumnMeta& meta, ui16 columnId)
 {
-    auto reader = ReaderCreatorFunc_(meta, 0, columnId, std::nullopt);
+    auto reader = ReaderCreatorFunc_(meta, 0, columnId, std::nullopt, TColumnSchema());
     reader->SetCurrentBlock(data, 0);
     i64 totalRowCount = 0;
     for (const auto& segment : meta.segments()) {

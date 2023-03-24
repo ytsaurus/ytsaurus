@@ -6,6 +6,9 @@
 #include <yt/yt/server/node/tablet_node/sorted_chunk_store.h>
 #include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
@@ -20,6 +23,7 @@ using namespace NTabletNode;
 using namespace NHydra;
 using namespace NQueryClient;
 using namespace NCypressClient;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,47 +36,68 @@ TMockBackendChunkReadersHolderPtr TTabletContextMock::GetBackendChunkReadersHold
     return BackendChunkReadersHolder_;
 }
 
-TCellId TTabletContextMock::GetCellId()
+TCellId TTabletContextMock::GetCellId() const
 {
     return NullCellId;
 }
 
-const TString& TTabletContextMock::GetTabletCellBundleName()
+const TString& TTabletContextMock::GetTabletCellBundleName() const
 {
     const static TString TabletCellBundleName;
     return TabletCellBundleName;
 }
 
-EPeerState TTabletContextMock::GetAutomatonState()
+EPeerState TTabletContextMock::GetAutomatonState() const
 {
     return EPeerState::Leading;
 }
 
-IInvokerPtr TTabletContextMock::GetControlInvoker()
+int TTabletContextMock::GetAutomatonTerm() const
+{
+    return 0;
+}
+
+IInvokerPtr TTabletContextMock::GetControlInvoker() const
 {
     YT_ABORT();
 }
 
-IColumnEvaluatorCachePtr TTabletContextMock::GetColumnEvaluatorCache()
+IInvokerPtr TTabletContextMock::GetEpochAutomatonInvoker() const
+{
+    return GetCurrentInvoker();
+}
+
+IColumnEvaluatorCachePtr TTabletContextMock::GetColumnEvaluatorCache() const
 {
     return ColumnEvaluatorCache_;
 }
 
-NTabletClient::IRowComparerProviderPtr TTabletContextMock::GetRowComparerProvider()
+NTabletClient::IRowComparerProviderPtr TTabletContextMock::GetRowComparerProvider() const
 {
     return RowComparerProvider_;
 }
 
-TObjectId TTabletContextMock::GenerateId(EObjectType /*type*/)
+TObjectId TTabletContextMock::GenerateId(EObjectType /*type*/) const
 {
     return TObjectId::Create();
+}
+
+NNative::IClientPtr TTabletContextMock::GetClient() const
+{
+    return nullptr;
+}
+
+TClusterNodeDynamicConfigManagerPtr TTabletContextMock::GetDynamicConfigManager() const
+{
+    auto config = New<TClusterNodeDynamicConfig>();
+    return New<TClusterNodeDynamicConfigManager>(std::move(config));
 }
 
 IStorePtr TTabletContextMock::CreateStore(
     TTablet* tablet,
     EStoreType type,
     TStoreId storeId,
-    const NTabletNode::NProto::TAddStoreDescriptor* descriptor)
+    const NTabletNode::NProto::TAddStoreDescriptor* descriptor) const
 {
     switch (type) {
         case EStoreType::SortedDynamic:
@@ -111,47 +136,47 @@ IStorePtr TTabletContextMock::CreateStore(
 THunkChunkPtr TTabletContextMock::CreateHunkChunk(
     TTablet* /*tablet*/,
     TChunkId /*chunkId*/,
-    const NTabletNode::NProto::TAddHunkChunkDescriptor* /*descriptor*/)
+    const NTabletNode::NProto::TAddHunkChunkDescriptor* /*descriptor*/) const
 {
     YT_ABORT();
 }
 
-TTransactionManagerPtr TTabletContextMock::GetTransactionManager()
+TTransactionManagerPtr TTabletContextMock::GetTransactionManager() const
 {
     return nullptr;
 }
 
-IServerPtr TTabletContextMock::GetLocalRpcServer()
+IServerPtr TTabletContextMock::GetLocalRpcServer() const
 {
     return nullptr;
 }
 
-TNodeDescriptor TTabletContextMock::GetLocalDescriptor()
+TNodeDescriptor TTabletContextMock::GetLocalDescriptor() const
 {
     return NNodeTrackerClient::NullNodeDescriptor();
 }
 
-INodeMemoryTrackerPtr TTabletContextMock::GetMemoryUsageTracker()
+INodeMemoryTrackerPtr TTabletContextMock::GetMemoryUsageTracker() const
 {
     return nullptr;
 }
 
-NChunkClient::IChunkReplicaCachePtr TTabletContextMock::GetChunkReplicaCache()
+NChunkClient::IChunkReplicaCachePtr TTabletContextMock::GetChunkReplicaCache() const
 {
     return nullptr;
 }
 
-IHedgingManagerRegistryPtr TTabletContextMock::GetHedgingManagerRegistry()
+IHedgingManagerRegistryPtr TTabletContextMock::GetHedgingManagerRegistry() const
 {
     return nullptr;
 }
 
-TString TTabletContextMock::GetLocalHostName()
+TString TTabletContextMock::GetLocalHostName() const
 {
     return TString();
 }
 
-ITabletWriteManagerHostPtr TTabletContextMock::GetTabletWriteManagerHost()
+ITabletWriteManagerHostPtr TTabletContextMock::GetTabletWriteManagerHost() const
 {
     return MakeStrong(TabletWriteManagerHost_);
 }

@@ -1,6 +1,7 @@
 #include "schemaless_block_reader.h"
 #include "private.h"
 #include "helpers.h"
+#include "hunks.h"
 
 #include <yt/yt/client/table_client/key_bound.h>
 #include <yt/yt/client/table_client/logical_type.h>
@@ -23,12 +24,28 @@ std::vector<bool> GetCompositeColumnFlags(const TTableSchemaPtr& schema)
     return compositeColumnFlag;
 }
 
+std::vector<bool> GetHunkColumnFlags(const TTableSchemaPtr& schema)
+{
+    std::vector<bool> columnHunkFlags;
+    if (schema->HasHunkColumns()) {
+        auto columnCount = schema->GetColumnCount();
+        columnHunkFlags.resize(columnCount);
+        for (int i = 0; i < columnCount; ++i) {
+            columnHunkFlags[i] = schema->Columns()[i].MaxInlineHunkSize().has_value();
+        }
+    }
+    return columnHunkFlags;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 THorizontalBlockReader::THorizontalBlockReader(
     const TSharedRef& block,
     const NProto::TDataBlockMeta& meta,
     const std::vector<bool>& compositeColumnFlags,
+    const std::vector<bool>& hunkColumnFlags,
+    const NTableClient::NProto::THunkChunkMetasExt& hunkChunkMetasExt,
+    const NTableClient::NProto::THunkChunkRefsExt& hunkChunkRefsExt,
     const std::vector<int>& chunkToReaderIdMapping,
     TRange<ESortOrder> sortOrders,
     int commonKeyPrefix,
@@ -38,6 +55,9 @@ THorizontalBlockReader::THorizontalBlockReader(
     , Meta_(meta)
     , ChunkToReaderIdMapping_(chunkToReaderIdMapping)
     , CompositeColumnFlags_(compositeColumnFlags)
+    , HunkColumnFlags_(hunkColumnFlags)
+    , HunkChunkMetasExt_(hunkChunkMetasExt)
+    , HunkChunkRefsExt_(hunkChunkRefsExt)
     , KeyWideningOptions_(keyWideningOptions)
     , SortOrders_(sortOrders.begin(), sortOrders.end())
     , CommonKeyPrefix_(commonKeyPrefix)
@@ -149,6 +169,14 @@ TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memory
     auto pushRegularValue = [&]() {
         TUnversionedValue value;
         CurrentPointer_ += ReadRowValue(CurrentPointer_, &value);
+
+        if (!HunkColumnFlags_.empty() && HunkColumnFlags_[value.Id]) {
+            GlobalizeHunkValueAndSetHunkFlag(
+                memoryPool,
+                HunkChunkRefsExt_,
+                HunkChunkMetasExt_,
+                &value);
+        }
 
         const auto remappedId = ChunkToReaderIdMapping_[value.Id];
         if (remappedId >= 0) {

@@ -137,6 +137,7 @@ private:
                 }
                 break;
 
+            // TODO(aleksandra-zh): add journal chunks.
             case EChunkType::Hunk:
                 if (auto hunkChunkMiscExt = chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkMiscExt>()) {
                     HunkChunkCount_ += 1;

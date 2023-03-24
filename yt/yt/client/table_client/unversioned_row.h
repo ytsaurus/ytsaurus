@@ -215,7 +215,7 @@ inline size_t GetDataWeight(const TUnversionedValue& value)
 }
 
 size_t GetByteSize(const TUnversionedValue& value);
-size_t WriteRowValue(char* output, const TUnversionedValue& value);
+size_t WriteRowValue(char* output, const TUnversionedValue& value, bool isInlineHunkValue = false);
 size_t ReadRowValue(const char* input, TUnversionedValue* value);
 
 void Save(TStreamSaveContext& context, const TUnversionedValue& value);
@@ -285,7 +285,7 @@ size_t GetDataWeight(TRange<TUnversionedRow> rows);
  *
  *  Memory layout:
  *  1) TUnversionedRowHeader
- *  2) TUnversionedValue per each value (#TUnversionedRowHeader::ValueCount)
+ *  2) TUnversionedValue per each value (#TUnversionedRowHeader::Count)
  */
 class TUnversionedRow
 {

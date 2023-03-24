@@ -307,30 +307,34 @@ struct ITabletContext
 {
     virtual ~ITabletContext() = default;
 
-    virtual NObjectClient::TCellId GetCellId() = 0;
-    virtual const TString& GetTabletCellBundleName() = 0;
-    virtual NHydra::EPeerState GetAutomatonState() = 0;
-    virtual IInvokerPtr GetControlInvoker() = 0;
-    virtual NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
-    virtual NTabletClient::IRowComparerProviderPtr GetRowComparerProvider() = 0;
-    virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) = 0;
+    virtual NObjectClient::TCellId GetCellId() const = 0;
+    virtual const TString& GetTabletCellBundleName() const = 0;
+    virtual NHydra::EPeerState GetAutomatonState() const = 0;
+    virtual int GetAutomatonTerm() const = 0;
+    virtual IInvokerPtr GetControlInvoker() const = 0;
+    virtual IInvokerPtr GetEpochAutomatonInvoker() const = 0;
+    virtual NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const = 0;
+    virtual NTabletClient::IRowComparerProviderPtr GetRowComparerProvider() const = 0;
+    virtual NApi::NNative::IClientPtr GetClient() const = 0;
+    virtual NClusterNode::TClusterNodeDynamicConfigManagerPtr GetDynamicConfigManager() const = 0;
+    virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) const = 0;
     virtual IStorePtr CreateStore(
         TTablet* tablet,
         EStoreType type,
         TStoreId storeId,
-        const NTabletNode::NProto::TAddStoreDescriptor* descriptor) = 0;
+        const NTabletNode::NProto::TAddStoreDescriptor* descriptor) const = 0;
     virtual THunkChunkPtr CreateHunkChunk(
         TTablet* tablet,
         NChunkClient::TChunkId chunkId,
-        const NTabletNode::NProto::TAddHunkChunkDescriptor* descriptor) = 0;
-    virtual TTransactionManagerPtr GetTransactionManager() = 0;
-    virtual NRpc::IServerPtr GetLocalRpcServer() = 0;
-    virtual TString GetLocalHostName() = 0;
-    virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() = 0;
-    virtual INodeMemoryTrackerPtr GetMemoryUsageTracker() = 0;
-    virtual NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() = 0;
-    virtual IHedgingManagerRegistryPtr GetHedgingManagerRegistry() = 0;
-    virtual ITabletWriteManagerHostPtr GetTabletWriteManagerHost() = 0;
+        const NTabletNode::NProto::TAddHunkChunkDescriptor* descriptor) const = 0;
+    virtual TTransactionManagerPtr GetTransactionManager() const = 0;
+    virtual NRpc::IServerPtr GetLocalRpcServer() const = 0;
+    virtual TString GetLocalHostName() const = 0;
+    virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const = 0;
+    virtual INodeMemoryTrackerPtr GetMemoryUsageTracker() const = 0;
+    virtual NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const = 0;
+    virtual IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const = 0;
+    virtual ITabletWriteManagerHostPtr GetTabletWriteManagerHost() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -729,10 +733,13 @@ public:
 
     TTimestamp GetOrderedChaosReplicationMinTimestamp();
 
+    const IHunkLockManagerPtr& GetHunkLockManager() const;
+
 private:
     ITabletContext* const Context_;
 
     const TLockManagerPtr LockManager_;
+    const IHunkLockManagerPtr HunkLockManager_;
     const NLogging::TLogger Logger;
 
     TTableSettings Settings_;

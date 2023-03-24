@@ -15,7 +15,8 @@ TUnversionedSegmentReaderBase::TUnversionedSegmentReaderBase(
     int columnIndex,
     int columnId,
     EValueType valueType,
-    std::optional<ESortOrder> sortOrder)
+    std::optional<ESortOrder> sortOrder,
+    const NTableClient::TColumnSchema& columnSchema)
     : Data_(data)
     , Meta_(meta)
     , ColumnIndex_(columnIndex)
@@ -23,6 +24,7 @@ TUnversionedSegmentReaderBase::TUnversionedSegmentReaderBase(
     , ValueType_(valueType)
     , SortOrder_(sortOrder)
     , SegmentStartRowIndex_(meta.chunk_row_count() - meta.row_count())
+    , HunkColumnFlag_(static_cast<bool>(columnSchema.MaxInlineHunkSize()))
 { }
 
 i64 TUnversionedSegmentReaderBase::EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex)
@@ -333,11 +335,13 @@ TUnversionedColumnReaderBase::TUnversionedColumnReaderBase(
     const NProto::TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
-    std::optional<ESortOrder> sortOrder)
+    std::optional<ESortOrder> sortOrder,
+    const NTableClient::TColumnSchema& columnSchema)
     : TColumnReaderBase(columnMeta)
     , ColumnIndex_(columnIndex)
     , ColumnId_(columnId)
     , SortOrder_(sortOrder)
+    , ColumnSchema_(columnSchema)
 { }
 
 void TUnversionedColumnReaderBase::ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows)
@@ -436,7 +440,7 @@ void TVersionedColumnReaderBase::ReadAllValues(TMutableRange<TMutableVersionedRo
 
 ISegmentReaderBase* TVersionedColumnReaderBase::GetCurrentSegmentReader() const
 {
-        return SegmentReader_.get();
+    return SegmentReader_.get();
 }
 
 void TVersionedColumnReaderBase::ResetCurrentSegmentReader()

@@ -541,7 +541,7 @@ public:
             std::move(nameTable),
             chunkTimestamps,
             dataSink)
-        , BlockWriter_(std::make_unique<THorizontalBlockWriter>())
+        , BlockWriter_(std::make_unique<THorizontalBlockWriter>(Schema_))
     { }
 
     i64 GetCompressedDataSize() const override
@@ -566,7 +566,7 @@ public:
                 auto block = BlockWriter_->FlushBlock();
                 block.Meta.set_chunk_row_count(RowCount_);
                 RegisterBlock(block, row);
-                BlockWriter_ = std::make_unique<THorizontalBlockWriter>();
+                BlockWriter_ = std::make_unique<THorizontalBlockWriter>(Schema_);
             }
         }
 
@@ -1361,7 +1361,7 @@ public:
         BlockWriters_.reserve(partitionCount);
 
         for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
-            BlockWriters_.emplace_back(new THorizontalBlockWriter(BlockReserveSize_));
+            BlockWriters_.emplace_back(new THorizontalBlockWriter(Schema_, BlockReserveSize_));
             CurrentBufferCapacity_ += BlockWriters_.back()->GetCapacity();
         }
 
@@ -1523,7 +1523,7 @@ private:
 
         auto block = blockWriter->FlushBlock();
         block.Meta.set_partition_index(partitionIndex);
-        blockWriter.reset(new THorizontalBlockWriter(BlockReserveSize_));
+        blockWriter.reset(new THorizontalBlockWriter(Schema_, BlockReserveSize_));
         CurrentBufferCapacity_ += blockWriter->GetCapacity();
 
         YT_LOG_DEBUG("Flushing partition block (PartitonIndex: %v, BlockSize: %v, BlockRowCount: %v, CurrentBufferCapacity: %v)",

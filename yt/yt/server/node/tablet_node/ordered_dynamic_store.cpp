@@ -1,4 +1,6 @@
 #include "ordered_dynamic_store.h"
+
+#include "hunk_lock_manager.h"
 #include "tablet.h"
 #include "transaction.h"
 #include "automaton.h"
@@ -42,6 +44,7 @@ using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NHydra;
 
 using NChunkClient::NProto::TChunkSpec;
 using NChunkClient::NProto::TChunkMeta;
@@ -287,6 +290,39 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
     return dynamicRow;
 }
 
+void TOrderedDynamicStore::LockHunkStores(const THunkChunksInfo& hunkChunksInfo)
+{
+    const auto& hunkLockManager = Tablet_->GetHunkLockManager();
+    for (const auto& [hunkStoreId, hunkStoreRef] : hunkChunksInfo.HunkChunkRefs) {
+        YT_LOG_DEBUG("Referencing hunk store during write row (HunkStoreId: %v, RefCount: %v)",
+            hunkStoreId,
+            hunkStoreRef.HunkCount);
+        YT_VERIFY(hunkLockManager->GetPersistentLockCount(hunkStoreId) > 0);
+        auto [it, inserted] = HunkStoreRefs_.emplace(hunkStoreId, hunkStoreRef);
+        if (!inserted) {
+            hunkLockManager->IncrementPersistentLockCount(hunkStoreId, -1);
+
+            // Should still be locked by us.
+            YT_VERIFY(hunkLockManager->GetPersistentLockCount(hunkStoreId) > 0);
+
+            auto& totalHunkStoreRef = it->second;
+            totalHunkStoreRef.HunkCount += hunkStoreRef.HunkCount;
+            totalHunkStoreRef.TotalHunkLength += hunkStoreRef.TotalHunkLength;
+            YT_VERIFY(totalHunkStoreRef.ErasureCodec == hunkStoreRef.ErasureCodec);
+        }
+    }
+}
+
+std::vector<NTableClient::THunkChunkRef> TOrderedDynamicStore::GetHunkStoreRefs() const
+{
+    std::vector<NTableClient::THunkChunkRef> refs;
+    refs.reserve(HunkStoreRefs_.size());
+    for (const auto& [_, hunkStoreRef] : HunkStoreRefs_) {
+        refs.push_back(hunkStoreRef);
+    }
+    return refs;
+}
+
 TOrderedDynamicRow TOrderedDynamicStore::GetRow(i64 rowIndex)
 {
     rowIndex -= StartingRowIndex_;
@@ -320,6 +356,28 @@ EStoreType TOrderedDynamicStore::GetType() const
 i64 TOrderedDynamicStore::GetRowCount() const
 {
     return StoreRowCount_;
+}
+
+void TOrderedDynamicStore::Save(TSaveContext& context) const
+{
+    TStoreBase::Save(context);
+    TOrderedStoreBase::Save(context);
+
+    using NYT::Save;
+    Save(context, HunkStoreRefs_);
+}
+
+void TOrderedDynamicStore::Load(TLoadContext& context)
+{
+    TStoreBase::Load(context);
+    TOrderedStoreBase::Load(context);
+
+    using NYT::Load;
+
+    // COMPAT(aleksandra-zh).
+    if (context.GetVersion() >= ETabletReign::JournalHunks) {
+        Load(context, HunkStoreRefs_);
+    }
 }
 
 TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
@@ -477,6 +535,22 @@ void TOrderedDynamicStore::OnSetPassive()
 {
     YT_VERIFY(FlushRowCount_ == -1);
     FlushRowCount_ = GetRowCount();
+}
+
+void TOrderedDynamicStore::OnSetRemoved()
+{
+    YT_VERIFY(HasHydraContext());
+
+    const auto& hunkLockManager = Tablet_->GetHunkLockManager();
+    for (const auto& [hunkStoreId, hunkStoreRef] : HunkStoreRefs_) {
+        YT_LOG_DEBUG_IF(
+            IsMutationLoggingEnabled(),
+            "Unreferencing hunk store before death (HunkStoreId: %v)",
+            hunkStoreId);
+        hunkLockManager->IncrementPersistentLockCount(hunkStoreId, -1);
+    }
+
+    HunkStoreRefs_.clear();
 }
 
 void TOrderedDynamicStore::AllocateCurrentSegment(int index)

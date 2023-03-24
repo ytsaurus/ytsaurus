@@ -7,6 +7,8 @@
 
 #include <yt/yt/ytlib/tablet_client/public.h>
 
+#include <yt/yt/ytlib/table_client/hunks.h>
+
 #include <yt/yt/client/table_client/versioned_row.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
@@ -30,12 +32,14 @@ TTransactionWriteRecord::TTransactionWriteRecord(
     TSharedRef data,
     int rowCount,
     i64 dataWeight,
-    const TSyncReplicaIdList& syncReplicaIds)
+    const TSyncReplicaIdList& syncReplicaIds,
+    const std::optional<NTableClient::THunkChunksInfo>& hunkChunksInfo)
     : TabletId(tabletId)
     , Data(std::move(data))
     , RowCount(rowCount)
     , DataWeight(dataWeight)
     , SyncReplicaIds(syncReplicaIds)
+    , HunkChunksInfo(hunkChunksInfo)
 { }
 
 void TTransactionWriteRecord::Save(TSaveContext& context) const
@@ -46,6 +50,7 @@ void TTransactionWriteRecord::Save(TSaveContext& context) const
     Save(context, RowCount);
     Save(context, DataWeight);
     Save(context, SyncReplicaIds);
+    Save(context, HunkChunksInfo);
 }
 
 void TTransactionWriteRecord::Load(TLoadContext& context)
@@ -56,6 +61,11 @@ void TTransactionWriteRecord::Load(TLoadContext& context)
     Load(context, RowCount);
     Load(context, DataWeight);
     Load(context, SyncReplicaIds);
+
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= ETabletReign::JournalHunks) {
+        Load(context, HunkChunksInfo);
+    }
 }
 
 i64 TTransactionWriteRecord::GetByteSize() const

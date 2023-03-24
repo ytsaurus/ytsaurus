@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/tablet_client/dynamic_value.h>
 
+#include <yt/yt/ytlib/table_client/hunks.h>
+
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/schema.h>
 
@@ -559,6 +561,8 @@ struct TWriteContext
     TError Error;
 
     TTimestampToRevisionMap TimestampToRevision;
+
+    std::optional<NTableClient::THunkChunksInfo> HunkChunksInfo;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

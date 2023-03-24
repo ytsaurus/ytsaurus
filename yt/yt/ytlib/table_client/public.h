@@ -37,6 +37,8 @@ using TStableColumnNameFilterDictionary = TGenericColumnFilterDictionary<TStable
 
 class THorizontalBlockReader;
 
+struct THunkChunksInfo;
+
 struct TTableReadSpec;
 struct TFetchSingleTableReadSpecOptions;
 

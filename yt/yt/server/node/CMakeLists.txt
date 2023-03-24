@@ -185,6 +185,7 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/hint_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_chunk.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_chunk_sweeper.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_lock_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_store.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_tablet.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_tablet_scanner.cpp

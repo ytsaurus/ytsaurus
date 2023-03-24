@@ -326,6 +326,7 @@ private:
             tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
             tableInfo->SecondaryRevision = SecondaryRevision_;
             tableInfo->PrimaryRevision = PrimaryRevision_;
+            tableInfo->HunkStorageId = FromProto<TObjectId>(rsp->hunk_storage_node_id());
 
             auto primarySchema = FromProto<TTableSchemaPtr>(rsp->schema());
             tableInfo->Schemas[ETableSchemaKind::Primary] = primarySchema;

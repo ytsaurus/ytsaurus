@@ -23,6 +23,12 @@ struct ITabletChunkManager
         int firstTabletIndex,
         int lastTabletIndex,
         bool force = false) = 0;
+    virtual void CopyChunkListIfShared(
+        NTableServer::TTableNode* table,
+        NChunkServer::EChunkListContentType contentType,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        bool force = false) = 0;
 
     virtual void ReshardTable(
         NTableServer::TTableNode* table,

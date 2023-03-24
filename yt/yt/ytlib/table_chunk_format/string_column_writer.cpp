@@ -39,7 +39,7 @@ protected:
     i64 DictionaryByteSize_;
     THashMap<TStringBuf, ui32> Dictionary_;
 
-    explicit TStringColumnWriterBase(const TColumnSchema& columnSchema = {})
+    explicit TStringColumnWriterBase(const TColumnSchema& columnSchema)
         : Hunk_(columnSchema.MaxInlineHunkSize().has_value())
     { }
 
@@ -377,8 +377,13 @@ class TUnversionedStringColumnWriter
     , public TStringColumnWriterBase<ValueType>
 {
 public:
-    TUnversionedStringColumnWriter(int columnIndex, TDataBlockWriter* blockWriter, int maxValueCount)
+    TUnversionedStringColumnWriter(
+        int columnIndex,
+        const TColumnSchema& columnSchema,
+        TDataBlockWriter* blockWriter,
+        int maxValueCount)
         : TColumnWriterBase(blockWriter)
+        , TStringColumnWriterBase<ValueType>(columnSchema)
         , ColumnIndex_(columnIndex)
         , MaxValueCount_(maxValueCount)
     {
@@ -623,7 +628,6 @@ private:
     {
         for (auto row : rows) {
             const auto& unversionedValue = GetUnversionedValue(row, ColumnIndex_);
-            YT_ASSERT(None(unversionedValue.Flags & EValueFlags::Hunk));
             auto value = this->CaptureValue(unversionedValue);
             if (Values_.empty() || !this->AreValuesEqual(value, Values_.back())) {
                 DirectRleSize_ += value.length();
@@ -643,26 +647,29 @@ private:
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedStringColumnWriter(
     int columnIndex,
+    const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
     int maxValueCount)
 {
-    return std::make_unique<TUnversionedStringColumnWriter<EValueType::String>>(columnIndex, blockWriter, maxValueCount);
+    return std::make_unique<TUnversionedStringColumnWriter<EValueType::String>>(columnIndex, columnSchema, blockWriter, maxValueCount);
 }
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedAnyColumnWriter(
     int columnIndex,
+    const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
     int maxValueCount)
 {
-    return std::make_unique<TUnversionedStringColumnWriter<EValueType::Any>>(columnIndex, blockWriter, maxValueCount);
+    return std::make_unique<TUnversionedStringColumnWriter<EValueType::Any>>(columnIndex, columnSchema, blockWriter, maxValueCount);
 }
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedCompositeColumnWriter(
     int columnIndex,
+    const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
     int maxValueCount)
 {
-    return std::make_unique<TUnversionedStringColumnWriter<EValueType::Composite>>(columnIndex, blockWriter, maxValueCount);
+    return std::make_unique<TUnversionedStringColumnWriter<EValueType::Composite>>(columnIndex, columnSchema, blockWriter, maxValueCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

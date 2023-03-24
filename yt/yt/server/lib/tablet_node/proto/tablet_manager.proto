@@ -3,6 +3,7 @@ package NYT.NTabletNode.NProto;
 import "yt/ytlib/chunk_client/proto/session_id.proto";
 
 import "yt/ytlib/tablet_client/proto/heartbeat.proto";
+import "yt/ytlib/tablet_client/proto/tablet_service.proto";
 import "yt/ytlib/tablet_client/proto/backup.proto";
 
 import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
@@ -244,6 +245,7 @@ message TReqWriteRows
     optional string user = 14;
     optional string user_tag = 15;
     optional bool update_replication_progress = 17;
+    optional NYT.NTabletClient.NProto.THunkChunksInfo hunk_chunks_info = 20;
 }
 
 message TReqWriteDelayedRows

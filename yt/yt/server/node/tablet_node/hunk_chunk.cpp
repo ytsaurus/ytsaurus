@@ -16,6 +16,7 @@ THunkChunk::THunkChunk(
     TChunkId id,
     const NTabletNode::NProto::TAddHunkChunkDescriptor* descriptor)
     : Id_(id)
+    , LockingState_(id)
 {
     if (descriptor) {
         ChunkMeta_ = descriptor->chunk_meta();
@@ -24,9 +25,10 @@ THunkChunk::THunkChunk(
 
 void THunkChunk::Initialize()
 {
-    auto miscExt = GetProtoExtension<NTableClient::NProto::THunkChunkMiscExt>(ChunkMeta_.extensions());
-    HunkCount_ = miscExt.hunk_count();
-    TotalHunkLength_ = miscExt.total_hunk_length();
+    if (auto miscExt = FindProtoExtension<NTableClient::NProto::THunkChunkMiscExt>(ChunkMeta_.extensions())) {
+        HunkCount_ = miscExt->hunk_count();
+        TotalHunkLength_ = miscExt->total_hunk_length();
+    }
 }
 
 void THunkChunk::Save(TSaveContext& context) const
@@ -49,6 +51,16 @@ void THunkChunk::Load(TLoadContext& context)
     Load(context, ReferencedTotalHunkLength_);
     Load(context, StoreRefCount_);
     Load(context, PreparedStoreRefCount_);
+}
+
+void THunkChunk::Lock(TTransactionId transactionId, EObjectLockMode lockMode)
+{
+    LockingState_.Lock(transactionId, lockMode);
+}
+
+void THunkChunk::Unlock(TTransactionId transactionId, EObjectLockMode lockMode)
+{
+    LockingState_.Unlock(transactionId, lockMode);
 }
 
 bool THunkChunk::IsDangling() const

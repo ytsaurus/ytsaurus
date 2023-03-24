@@ -12,6 +12,7 @@
 #include "tablet_profiling.h"
 #include "transaction_manager.h"
 #include "hunk_chunk.h"
+#include "hunk_lock_manager.h"
 #include "hedging_manager_registry.h"
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
@@ -500,6 +501,7 @@ TTablet::TTablet(
     , TabletWriteManager_(CreateTabletWriteManager(this, context))
     , Context_(context)
     , LockManager_(New<TLockManager>())
+    , HunkLockManager_(CreateHunkLockManager(Context_, Id_))
     , Logger(TabletNodeLogger.WithTag("TabletId: %v", Id_))
     , Settings_(TTableSettings::CreateNew())
 {
@@ -545,6 +547,7 @@ TTablet::TTablet(
     , TabletWriteManager_(CreateTabletWriteManager(this, context))
     , Context_(context)
     , LockManager_(New<TLockManager>())
+    , HunkLockManager_(CreateHunkLockManager(Context_, Id_))
     , Logger(TabletNodeLogger.WithTag("TabletId: %v", Id_))
     , Settings_(std::move(settings))
     , Eden_(std::make_unique<TPartition>(
@@ -684,6 +687,8 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, *TabletWriteManager_);
     Save(context, LastDiscardStoresRevision_);
     Save(context, PreparedReplicatorTransactionIds_);
+
+    HunkLockManager_->Save(context);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -815,6 +820,11 @@ void TTablet::Load(TLoadContext& context)
 
     Load(context, LastDiscardStoresRevision_);
     Load(context, PreparedReplicatorTransactionIds_);
+
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= ETabletReign::JournalHunks) {
+        HunkLockManager_->Load(context);
+    }
 
     UpdateOverlappingStoreCount();
     DynamicStoreCount_ = ComputeDynamicStoreCount();
@@ -1527,6 +1537,8 @@ void TTablet::StartEpoch(const ITabletSlotPtr& slot)
 
     ReconfigureRowCache(slot);
     ResetRowDigestRequestTime();
+
+    HunkLockManager_->StartEpoch();
 }
 
 void TTablet::StopEpoch()
@@ -1546,6 +1558,8 @@ void TTablet::StopEpoch()
     }
 
     RowCache_.Reset();
+
+    HunkLockManager_->StopEpoch();
 }
 
 IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
@@ -1714,6 +1728,8 @@ void TTablet::Initialize()
         Id_,
         TableId_,
         TablePath_);
+
+    HunkLockManager_->Initialize();
 }
 
 void TTablet::ReconfigureRowCache(const ITabletSlotPtr& slot)
@@ -2306,6 +2322,11 @@ TTimestamp TTablet::GetOrderedChaosReplicationMinTimestamp()
     }
 
     return replicationTimestamp;
+}
+
+const IHunkLockManagerPtr& TTablet::GetHunkLockManager() const
+{
+    return HunkLockManager_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

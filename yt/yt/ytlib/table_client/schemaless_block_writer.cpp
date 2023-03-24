@@ -1,4 +1,7 @@
 #include "schemaless_block_writer.h"
+#include "schema.h"
+
+#include <yt/yt/client/table_client/schema.h>
 
 #include <library/cpp/yt/coding/varint.h>
 
@@ -14,13 +17,25 @@ struct THorizontalSchemalessBlockWriterTag { };
 const i64 THorizontalBlockWriter::MinReserveSize = 64_KB + 1;
 const i64 THorizontalBlockWriter::MaxReserveSize = 2_MB;
 
-THorizontalBlockWriter::THorizontalBlockWriter(i64 reserveSize)
+THorizontalBlockWriter::THorizontalBlockWriter(TTableSchemaPtr schema, i64 reserveSize)
     : ReserveSize_(std::min(
         std::max(MinReserveSize, reserveSize),
         MaxReserveSize))
+    , ColumnCount_(schema->GetColumnCount())
+    , ColumnHunkFlags_(new bool[ColumnCount_])
     , Offsets_(GetRefCountedTypeCookie<THorizontalSchemalessBlockWriterTag>(), 4_KB, ReserveSize_ / 2)
     , Data_(GetRefCountedTypeCookie<THorizontalSchemalessBlockWriterTag>(), 4_KB, ReserveSize_ / 2)
-{ }
+{
+    for (int index = 0; index < ColumnCount_; ++index) {
+        const auto& columnSchema = schema->Columns()[index];
+        ColumnHunkFlags_[index] = columnSchema.MaxInlineHunkSize().has_value();
+    }
+}
+
+bool THorizontalBlockWriter::IsInlineHunkValue(const TUnversionedValue& value) const
+{
+    return value.Id < ColumnCount_ && ColumnHunkFlags_[value.Id] && None(value.Flags & EValueFlags::Hunk);
+}
 
 void THorizontalBlockWriter::WriteRow(TUnversionedRow row)
 {
@@ -39,14 +54,12 @@ void THorizontalBlockWriter::WriteRow(TUnversionedRow row)
     char* current = begin;
 
     current += WriteVarUint32(current, static_cast<ui32>(row.GetCount()));
-    for (const auto& value : row) {
+    for (auto value : row) {
         if (value.Type == EValueType::Composite) {
-            auto valueCopy = value;
-            valueCopy.Type = EValueType::Any;
-            current += WriteRowValue(current, valueCopy);
-        } else {
-            current += WriteRowValue(current, value);
+            value.Type = EValueType::Any;
         }
+        auto isInlineHunkValue = IsInlineHunkValue(value);
+        current += WriteRowValue(current, value, isInlineHunkValue);
     }
 
     Data_.Advance(current - begin);

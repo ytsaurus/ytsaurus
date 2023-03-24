@@ -30,16 +30,19 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedCompositeColumnWriter(
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedStringColumnWriter(
     int columnIndex,
+    const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
     int maxValueCount = DefaultMaxSegmentValueCount);
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedAnyColumnWriter(
     int columnIndex,
+    const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter,
     int maxValueCount = DefaultMaxSegmentValueCount);
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedCompositeColumnWriter(
     int columnIndex,
+    const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter,
     int maxValueCount = DefaultMaxSegmentValueCount);
 

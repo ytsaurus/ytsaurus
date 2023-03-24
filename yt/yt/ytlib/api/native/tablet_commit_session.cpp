@@ -9,6 +9,8 @@
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
+#include <yt/yt/ytlib/table_client/hunks.h>
+
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
@@ -117,6 +119,26 @@ public:
         return commitContext->CommitPromise;
     }
 
+    void MemorizeHunkInfo(const THunkChunksInfo& hunkInfo) override
+    {
+        if (!HunkChunksInfo_) {
+            HunkChunksInfo_ = std::move(hunkInfo);
+            return;
+        }
+
+        YT_VERIFY(hunkInfo.CellId == HunkChunksInfo_->CellId);
+        YT_VERIFY(hunkInfo.HunkTabletId == HunkChunksInfo_->HunkTabletId);
+        YT_VERIFY(hunkInfo.MountRevision == HunkChunksInfo_->MountRevision);
+        for (const auto& [hunkChunkId, otherRef] : hunkInfo.HunkChunkRefs) {
+            // TODO(aleksandra-zh): helper
+            auto& ref = HunkChunksInfo_->HunkChunkRefs[hunkChunkId];
+            ref.ChunkId = otherRef.ChunkId;
+            ref.ErasureCodec = otherRef.ErasureCodec;
+            ref.HunkCount += otherRef.HunkCount;
+            ref.TotalHunkLength += otherRef.TotalHunkLength;
+        }
+    }
+
 private:
     const IClientPtr Client_;
     const TConnectionDynamicConfigPtr Config_;
@@ -126,6 +148,8 @@ private:
     const TTableMountInfoPtr TableInfo_;
     const ICellCommitSessionPtr CellCommitSession_;
     const TLogger Logger;
+
+    std::optional<THunkChunksInfo> HunkChunksInfo_;
 
     ITabletRequestBatcherPtr Batcher_;
 
@@ -210,15 +234,31 @@ private:
         }
         req->Attachments().push_back(batch->RequestData);
 
+        if (HunkChunksInfo_) {
+            ToProto(req->mutable_hunk_chunks_info(), *HunkChunksInfo_);
+        }
+
         YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, "
-            "PrepareSignature: %x, CommitSignature: %x, Versioned: %v, UpstreamReplicaId: %v)",
+            "PrepareSignature: %x, CommitSignature: %x, Versioned: %v, UpstreamReplicaId: %v%v)",
             batchIndex,
             Batches_.size(),
             batch->RowCount,
             req->prepare_signature(),
             req->commit_signature(),
             req->versioned(),
-            Options_.UpstreamReplicaId);
+            Options_.UpstreamReplicaId,
+            MakeFormatterWrapper([&] (auto* builder) {
+                if (HunkChunksInfo_) {
+                    builder->AppendFormat(", HunkCellId: %v, HunkTabletId: %v, HunkChunkRefs: %v",
+                        HunkChunksInfo_->CellId,
+                        HunkChunksInfo_->HunkTabletId,
+                        MakeFormattableView(
+                            HunkChunksInfo_->HunkChunkRefs,
+                            [&] (auto* builder, const auto& info) {
+                                builder->AppendFormat("%v: %v", info.first, info.second.HunkCount);
+                            }));
+                }
+            }));
 
         req->Invoke().Subscribe(
             BIND(&TTabletCommitSession::OnResponse, MakeStrong(this), commitContext));

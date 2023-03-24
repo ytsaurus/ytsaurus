@@ -48,13 +48,7 @@ class TUnversionedNullColumnReader
     : public TUnversionedColumnReaderBase
 {
 public:
-    TUnversionedNullColumnReader(
-        const TColumnMeta& columnMeta,
-        int columnIndex,
-        int columnId,
-        std::optional<ESortOrder> sortOrder)
-        : TUnversionedColumnReaderBase(columnMeta, columnIndex, columnId, sortOrder)
-    { }
+    using TUnversionedColumnReaderBase::TUnversionedColumnReaderBase;
 
     std::pair<i64, i64> GetEqualRange(
         const TUnversionedValue& value,
@@ -211,9 +205,10 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedNullColumnReader(
     const TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
-    std::optional<ESortOrder> sortOrder)
+    std::optional<ESortOrder> sortOrder,
+    const NTableClient::TColumnSchema& columnSchema)
 {
-    return std::make_unique<TUnversionedNullColumnReader>(columnMeta, columnIndex, columnId, sortOrder);
+    return std::make_unique<TUnversionedNullColumnReader>(columnMeta, columnIndex, columnId, sortOrder, columnSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

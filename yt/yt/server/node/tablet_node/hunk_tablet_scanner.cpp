@@ -218,6 +218,7 @@ private:
         const auto& mountConfig = tablet->MountConfig();
 
         std::vector<TStoreId> storeIdsToRemove;
+        auto state = tablet->GetState();
         for (const auto& store : tablet->PassiveStores()) {
             if (store->IsLocked()) {
                 continue;
@@ -227,7 +228,9 @@ private:
                 continue;
             }
 
-            if (store->GetLastWriteTime() + mountConfig->StoreRemovalGracePeriod > TInstant::Now()) {
+            if (store->GetLastWriteTime() + mountConfig->StoreRemovalGracePeriod > TInstant::Now() &&
+                state == ETabletState::Mounted)
+            {
                 continue;
             }
 

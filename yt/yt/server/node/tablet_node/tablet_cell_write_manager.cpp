@@ -2,6 +2,7 @@
 
 #include "automaton.h"
 #include "backup_manager.h"
+#include "hunk_lock_manager.h"
 #include "tablet.h"
 #include "sorted_store_manager.h"
 #include "transaction_manager.h"
@@ -40,6 +41,8 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletNode::NProto;
 using namespace NTransactionClient;
+using namespace NChunkClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,6 +156,13 @@ public:
             }
         }
 
+        if (params.HunkChunksInfo) {
+            const auto& hunkLockManager = tablet->GetHunkLockManager();
+            auto future = hunkLockManager->LockHunkStores(*params.HunkChunksInfo);
+            WaitForFast(std::move(future))
+                .ThrowOnError();
+        }
+
         // Due to possible row blocking, serving the request may involve a number of write attempts.
         // Each attempt causes a mutation to be enqueued to Hydra.
         // Since all these mutations are enqueued within a single epoch, only the last commit outcome is
@@ -243,6 +253,13 @@ public:
 
             auto lockless = context.Lockless;
 
+            if (params.HunkChunksInfo) {
+                const auto& hunkLockManager = tablet->GetHunkLockManager();
+                for (const auto& [hunkStoreId, _] : params.HunkChunksInfo->HunkChunkRefs) {
+                    hunkLockManager->IncrementTransientLockCount(hunkStoreId, +1);
+                }
+            }
+
             YT_LOG_DEBUG_IF(context.RowCount > 0, "Rows written "
                 "(TransactionId: %v, TabletId: %v, RowCount: %v, Lockless: %v, "
                 "Generation: %x, PrepareSignature: %x, CommitSignature: %x)",
@@ -263,7 +280,13 @@ public:
             if (readerBefore != readerAfter) {
                 auto recordData = reader->Slice(readerBefore, readerAfter);
                 auto compressedRecordData = ChangelogCodec_->Compress(recordData);
-                TTransactionWriteRecord writeRecord(tabletId, recordData, context.RowCount, context.DataWeight, params.SyncReplicaIds);
+                TTransactionWriteRecord writeRecord(
+                    tabletId,
+                    recordData,
+                    context.RowCount,
+                    context.DataWeight,
+                    params.SyncReplicaIds,
+                    params.HunkChunksInfo);
 
                 PrelockedTablets_.push(tablet);
                 LockTablet(tablet, ETabletLockType::TransientWrite);
@@ -285,6 +308,11 @@ public:
                 hydraRequest.set_row_count(writeRecord.RowCount);
                 hydraRequest.set_data_weight(writeRecord.DataWeight);
                 hydraRequest.set_update_replication_progress(updateReplicationProgress);
+
+                if (params.HunkChunksInfo) {
+                    ToProto(hydraRequest.mutable_hunk_chunks_info(), *params.HunkChunksInfo);
+                }
+
                 ToProto(hydraRequest.mutable_sync_replica_ids(), params.SyncReplicaIds);
                 NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, identity);
 
@@ -417,6 +445,27 @@ private:
             return;
         }
 
+        if (writeRecord.HunkChunksInfo) {
+            TCompactVector<THunkStoreId, 1> lostHunkStoreIds;
+            const auto& hunkLockManager = tablet->GetHunkLockManager();
+            for (const auto& [hunkStoreId, _] : writeRecord.HunkChunksInfo->HunkChunkRefs) {
+                if (!hunkLockManager->GetTotalLockCount(hunkStoreId)) {
+                    lostHunkStoreIds.push_back(hunkStoreId);
+                } else {
+                    hunkLockManager->IncrementTransientLockCount(hunkStoreId, -1);
+                }
+            }
+
+            if (!lostHunkStoreIds.empty()) {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Hunk store locks are lost; write ignored "
+                    "(%v, TransactionId: %v, HunkStoreIds: %v)",
+                    tablet->GetLoggingTag(),
+                    transactionId,
+                    lostHunkStoreIds);
+                return;
+            }
+        }
+
         TTransaction* transaction = nullptr;
         switch (atomicity) {
             case EAtomicity::Full: {
@@ -494,6 +543,13 @@ private:
             default:
                 YT_ABORT();
         }
+
+        if (writeRecord.HunkChunksInfo) {
+            const auto& hunkLockManager = tablet->GetHunkLockManager();
+            for (const auto& [hunkStoreId, _] : writeRecord.HunkChunksInfo->HunkChunkRefs) {
+                hunkLockManager->IncrementPersistentLockCount(hunkStoreId, +1);
+            }
+        }
     }
 
     void HydraFollowerWriteRows(TReqWriteRows* request) noexcept
@@ -511,6 +567,10 @@ private:
         auto dataWeight = request->data_weight();
         auto syncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids());
         auto updateReplicationProgress = request->update_replication_progress();
+        std::optional<THunkChunksInfo> hunkChunksInfo;
+        if (request->has_hunk_chunks_info()) {
+            hunkChunksInfo = FromProto<THunkChunksInfo>(request->hunk_chunks_info());
+        }
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = Host_->FindTablet(tabletId);
@@ -525,6 +585,15 @@ private:
             return;
         }
 
+        auto lockHunkStores = [&] {
+            if (hunkChunksInfo) {
+                const auto& hunkLockManager = tablet->GetHunkLockManager();
+                for (const auto& [hunkChunkId, _] : hunkChunksInfo->HunkChunkRefs) {
+                    hunkLockManager->IncrementPersistentLockCount(hunkChunkId, +1);
+                }
+            }
+        };
+
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
@@ -532,7 +601,13 @@ private:
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
         auto recordData = codec->Decompress(compressedRecordData);
-        TTransactionWriteRecord writeRecord(tabletId, recordData, rowCount, dataWeight, syncReplicaIds);
+        TTransactionWriteRecord writeRecord(
+            tabletId,
+            recordData,
+            rowCount,
+            dataWeight,
+            syncReplicaIds,
+            hunkChunksInfo);
 
         switch (atomicity) {
             case EAtomicity::Full: {
@@ -551,6 +626,8 @@ private:
                         tabletId);
                     return;
                 }
+
+                lockHunkStores();
 
                 AddPersistentAffectedTablet(transaction, tablet);
 
@@ -597,6 +674,8 @@ private:
                     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell is decommissioning, skip non-atomic write");
                     return;
                 }
+
+                lockHunkStores();
 
                 // This is ensured by a corresponding check in #Write.
                 YT_VERIFY(generation == InitialTransactionGeneration);
@@ -658,7 +737,13 @@ private:
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
         auto recordData = codec->Decompress(compressedRecordData);
-        TTransactionWriteRecord writeRecord(tabletId, recordData, rowCount, dataWeight, /*syncReplicaIds*/ {});
+        TTransactionWriteRecord writeRecord(
+            tabletId,
+            recordData,
+            rowCount,
+            dataWeight,
+            /*syncReplicaIds*/ {},
+            /*hunkChunksInfo*/ {});
 
         const auto& transactionManager = Host_->GetTransactionManager();
         auto* transaction = transactionManager->FindPersistentTransaction(transactionId);

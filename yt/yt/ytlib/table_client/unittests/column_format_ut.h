@@ -45,7 +45,8 @@ public:
         const NTableChunkFormat::NProto::TColumnMeta&,
         int,
         int,
-        std::optional<ESortOrder>)>;
+        std::optional<ESortOrder>,
+        const NTableClient::TColumnSchema& columnSchema)>;
     explicit TSingleColumnReader(TReaderCreatorFunc readerCreator);
 
     std::vector<TUnversionedOwningRow> ReadBlock(

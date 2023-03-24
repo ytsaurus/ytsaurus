@@ -578,6 +578,31 @@ void AppendChunkTreeChild(
     chunkList->Children().push_back(child);
 }
 
+void AccumulateAncestorsStatistics(
+    TChunkTree* child,
+    const TChunkTreeStatistics& statisticsDelta)
+{
+    for (const auto& [parent, _] : child->AsChunk()->Parents()) {
+        auto mutableStatisticsDelta = statisticsDelta;
+
+        VisitUniqueAncestors(
+            parent->AsChunkList(),
+            [&] (TChunkList* parent, TChunkTree* child) {
+                ++mutableStatisticsDelta.Rank;
+                parent->Statistics().Accumulate(mutableStatisticsDelta);
+
+                if (parent->HasCumulativeStatistics()) {
+                    auto& cumulativeStatistics = parent->CumulativeStatistics();
+                    TCumulativeStatisticsEntry entry{mutableStatisticsDelta};
+
+                    int index = GetChildIndex(parent, child);
+                    cumulativeStatistics.Update(index, entry);
+                }
+            },
+            child);
+    }
+}
+
 void AccumulateUniqueAncestorsStatistics(
     TChunkTree* child,
     const TChunkTreeStatistics& statisticsDelta)
@@ -588,6 +613,7 @@ void AccumulateUniqueAncestorsStatistics(
     }
 
     auto mutableStatisticsDelta = statisticsDelta;
+    // TODO(aleksandra-zh): remove copypaste.
     VisitUniqueAncestors(
         parent,
         [&] (TChunkList* parent, TChunkTree* child) {
@@ -859,18 +885,6 @@ bool IsEmpty(const TChunkTree* chunkTree)
     } else {
         return false;
     }
-}
-
-bool IsHunkChunk(const TChunkTree* chunkTree)
-{
-    if (!chunkTree) {
-        return false;
-    }
-    if (!IsBlobChunkType(chunkTree->GetType())) {
-        return false;
-    }
-    const auto* chunk = chunkTree->AsChunk();
-    return chunk->GetChunkType() == EChunkType::Hunk;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

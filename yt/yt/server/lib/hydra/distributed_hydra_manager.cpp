@@ -289,6 +289,11 @@ public:
         return DecoratedAutomaton_->GetState();
     }
 
+    int GetAutomatonTerm() const override
+    {
+        YT_ABORT();
+    }
+
     TVersion GetAutomatonVersion() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();

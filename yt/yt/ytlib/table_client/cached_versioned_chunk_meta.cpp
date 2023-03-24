@@ -67,12 +67,6 @@ TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(
             ChunkFormat_);
     }
 
-    if (auto optionalHunkChunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(chunkMeta.extensions())) {
-        HunkChunkRefsExt_ = std::move(*optionalHunkChunkRefsExt);
-    }
-    if (auto optionalHunkChunkMetasExt = FindProtoExtension<THunkChunkMetasExt>(chunkMeta.extensions())) {
-        HunkChunkMetasExt_ = std::move(*optionalHunkChunkMetasExt);
-    }
 
     if (auto optionalSystemBlockMetaExt = FindProtoExtension<TSystemBlockMetaExt>(chunkMeta.extensions())) {
         ParseHashTableChunkIndexMeta(*optionalSystemBlockMetaExt);

@@ -13,12 +13,18 @@
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
+
+#include <yt/yt/ytlib/tablet_client/proto/tablet_service.pb.h>
+
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
+
+#include <yt/yt/client/tablet_client/public.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
@@ -41,6 +47,9 @@ namespace NYT::NTableClient {
 using namespace NChunkClient;
 using namespace NYson;
 using namespace NYTree;
+using namespace NApi;
+using namespace NElection;
+using namespace NTabletClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -203,6 +212,73 @@ void FormatValue(TStringBuilderBase* builder, const THunkChunkRef& ref, TStringB
 TString ToString(const THunkChunkRef& ref)
 {
     return ToStringViaBuilder(ref);
+}
+
+void THunkChunkRef::Save(TStreamSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, ChunkId);
+    Save(context, ErasureCodec);
+    Save(context, HunkCount);
+    Save(context, TotalHunkLength);
+}
+
+void THunkChunkRef::Load(TStreamLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, ChunkId);
+    Load(context, ErasureCodec);
+    Load(context, HunkCount);
+    Load(context, TotalHunkLength);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void THunkChunksInfo::Save(TStreamSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, CellId);
+    Save(context, HunkTabletId);
+    Save(context, MountRevision);
+    Save(context, HunkChunkRefs);
+}
+
+void THunkChunksInfo::Load(TStreamLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, CellId);
+    Load(context, HunkTabletId);
+    Load(context, MountRevision);
+    Load(context, HunkChunkRefs);
+}
+
+void ToProto(
+    NTabletClient::NProto::THunkChunksInfo* protoHunkChunkInfo,
+    const THunkChunksInfo& hunkChunkInfo)
+{
+    ToProto(protoHunkChunkInfo->mutable_hunk_cell_id(), hunkChunkInfo.CellId);
+    ToProto(protoHunkChunkInfo->mutable_hunk_tablet_id(), hunkChunkInfo.HunkTabletId);
+    protoHunkChunkInfo->set_hunk_mount_revision(hunkChunkInfo.MountRevision);
+    for (const auto& [_, ref] : hunkChunkInfo.HunkChunkRefs) {
+        ToProto(protoHunkChunkInfo->add_hunk_chunk_refs(), ref);
+    }
+}
+
+void FromProto(
+    THunkChunksInfo* hunkChunkInfo,
+    const NTabletClient::NProto::THunkChunksInfo& protoHunkChunkInfo)
+{
+    hunkChunkInfo->CellId = FromProto<TCellId>(protoHunkChunkInfo.hunk_cell_id());
+    hunkChunkInfo->HunkTabletId = FromProto<TTabletId>(protoHunkChunkInfo.hunk_tablet_id());
+    hunkChunkInfo->MountRevision = protoHunkChunkInfo.hunk_mount_revision();
+    for (const auto& protoHunkRef : protoHunkChunkInfo.hunk_chunk_refs()) {
+        auto ref = FromProto<THunkChunkRef>(protoHunkRef);
+        EmplaceOrCrash(hunkChunkInfo->HunkChunkRefs, ref.ChunkId, ref);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -408,6 +484,46 @@ void GlobalizeHunkValues(
     }
 }
 
+void GlobalizeHunkValues(
+    TChunkedMemoryPool* pool,
+    const TColumnarChunkMetaPtr& chunkMeta,
+    TMutableUnversionedRow row)
+{
+    if (!row) {
+        return;
+    }
+
+    const auto& hunkChunkRefsExt = chunkMeta->HunkChunkRefsExt();
+    const auto& hunkChunkMetasExt = chunkMeta->HunkChunkMetasExt();
+
+    for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
+        auto& value = row.Begin()[index];
+        if (None(value.Flags & EValueFlags::Hunk)) {
+            continue;
+        }
+
+        DoGlobalizeHunkValue(
+            pool,
+            hunkChunkRefsExt,
+            hunkChunkMetasExt,
+            &value);
+    }
+}
+
+void GlobalizeHunkValueAndSetHunkFlag(
+    TChunkedMemoryPool* pool,
+    const NTableClient::NProto::THunkChunkRefsExt& hunkChunkRefsExt,
+    const NTableClient::NProto::THunkChunkMetasExt& hunkChunkMetasExt,
+    TUnversionedValue* value)
+{
+    value->Flags |= EValueFlags::Hunk;
+    DoGlobalizeHunkValue(
+        pool,
+        hunkChunkRefsExt,
+        hunkChunkMetasExt,
+        value);
+}
+
 void GlobalizeHunkValuesAndSetHunkFlag(
     TChunkedMemoryPool* pool,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
@@ -420,6 +536,7 @@ void GlobalizeHunkValuesAndSetHunkFlag(
 
     const auto& hunkChunkRefsExt = chunkMeta->HunkChunkRefsExt();
     const auto& hunkChunkMetasExt = chunkMeta->HunkChunkMetasExt();
+
     for (int index = 0; index < row.GetValueCount(); ++index) {
         auto& value = row.BeginValues()[index];
 
@@ -1929,6 +2046,85 @@ void DecodeInlineHunkInUnversionedValue(TUnversionedValue* value)
         value->Data.String++;
         value->Length--;
         value->Flags &= ~EValueFlags::Hunk;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool ValidateHunkValue(
+    const TUnversionedValue& value,
+    const TTableSchemaPtr& schema)
+{
+    if (!IsStringLikeType(value.Type)) {
+        return false;
+    }
+
+    auto maxInlineHunkSize = schema->Columns()[value.Id].MaxInlineHunkSize();
+    if (!maxInlineHunkSize) {
+        return false;
+    }
+
+    auto payload = GetValueRef(value);
+    auto payloadLength = std::ssize(payload);
+    if (payloadLength < *maxInlineHunkSize) {
+        // Leave as is.
+        return false;
+    }
+
+    return true;
+}
+
+std::vector<TRef> ExtractHunks(
+    TUnversionedRow row,
+    TTableSchemaPtr schema)
+{
+    std::vector<TRef> payloads;
+    for (const auto& value : row.Elements()) {
+        if (!ValidateHunkValue(value, schema)) {
+            continue;
+        }
+
+        auto payload = GetValueRef(value);
+        payloads.push_back(payload);
+    }
+
+    return payloads;
+}
+
+void ReplaceHunks(
+    TMutableUnversionedRow row,
+    const TTableSchemaPtr& schema,
+    const std::vector<THunkDescriptor>& descriptors,
+    TChunkedMemoryPool* pool)
+{
+    int descriptorIndex = 0;
+    for (auto& value : row.Elements()) {
+        if (!ValidateHunkValue(value, schema)) {
+            continue;
+        }
+
+        YT_VERIFY(descriptorIndex < std::ssize(descriptors));
+        const auto& descriptor = descriptors[descriptorIndex];
+
+        // TODO(alesandra-zh): support erasure.
+        YT_VERIFY(!IsErasureChunkId(descriptor.ChunkId));
+        YT_VERIFY(descriptor.ErasureCodec == NErasure::ECodec::None);
+
+        auto payloadSize = static_cast<i64>(descriptor.Length - sizeof(THunkPayloadHeader));
+        auto globalRefHunkValue = TGlobalRefHunkValue{
+            .ChunkId = descriptor.ChunkId,
+            .ErasureCodec = descriptor.ErasureCodec,
+            .BlockIndex = descriptor.BlockIndex,
+            .BlockOffset = descriptor.BlockOffset,
+            .BlockSize = descriptor.BlockSize,
+            .Length = payloadSize
+        };
+        auto globalRefPayload = WriteHunkValue(pool, globalRefHunkValue);
+        value.Data.String = globalRefPayload.Begin();
+        value.Length = globalRefPayload.Size();
+        value.Flags |= EValueFlags::Hunk;
+
+        ++descriptorIndex;
     }
 }
 

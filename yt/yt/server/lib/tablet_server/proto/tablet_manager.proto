@@ -95,6 +95,8 @@ message TReqUpdateTabletStores
     required uint64 retained_timestamp = 5;
     optional int32 update_reason = 6 [default = 0]; // ETabletStoresUpdateReason
     optional bool request_dynamic_store_id = 7 [default = false];
+    // COMPAT(aleksandra-zh)
+    optional bool create_hunk_chunks_during_prepare = 10 [default = false];
 }
 
 message TReqUpdateTabletTrimmedRowCount

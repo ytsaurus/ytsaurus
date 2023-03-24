@@ -2501,11 +2501,55 @@ public:
     {
         YT_VERIFY(chunk->IsSealed());
 
-        // TODO(gritukan): Copy chunk list if shared.
-        // TODO(gritukan): Multiple parents.
+        auto owningNodes = GetOwningNodes(chunk);
+        std::vector<TTableNode*> tableNodes;
+
+        for (auto* node : owningNodes) {
+            if (!IsTableType(node->GetType())) {
+                continue;
+            }
+
+            auto* tableNode = node->As<TTableNode>();
+            if (!tableNode->IsDynamic()) {
+                continue;
+            }
+
+            tableNodes.push_back(tableNode);
+        }
+
+        for (auto* table : tableNodes) {
+            for (auto* tablet : table->Tablets()) {
+                auto tabletStatistics = tablet->GetTabletStatistics();
+                table->DiscountTabletStatistics(tabletStatistics);
+            }
+        }
 
         auto statistics = chunk->GetStatistics();
-        AccumulateUniqueAncestorsStatistics(chunk, statistics);
+        AccumulateAncestorsStatistics(chunk, statistics);
+
+        const auto& parents = chunk->Parents();
+        for (auto* table : tableNodes) {
+            RecomputeTableSnapshotStatistics(table);
+
+            for (auto* tablet : table->Tablets()) {
+                auto* tabletHunkChunkList = tablet->GetHunkChunkList();
+                // TODO(aleksandra-zh): remove linear search if someday chunks will have a lot of parents.
+                auto it = std::find_if(parents.begin(), parents.end(), [tabletHunkChunkList] (auto parent) {
+                    return parent.first->GetId() == tabletHunkChunkList->GetId();
+                });
+
+                if (it != parents.end()) {
+                        TabletChunkManager_->CopyChunkListIfShared(
+                            table,
+                            EChunkListContentType::Hunk,
+                            tablet->GetIndex(),
+                            tablet->GetIndex());
+                }
+
+                auto tabletStatistics = tablet->GetTabletStatistics();
+                table->AccountTabletStatistics(tabletStatistics);
+            }
+        }
     }
 
     void UpdateExtraMountConfigKeys(std::vector<TString> keys)
@@ -3527,7 +3571,7 @@ private:
                 EnumerateStoresInChunkTree(chunkList, &chunksOrViews);
             }
             for (const auto* chunkOrView : chunksOrViews) {
-                if (IsHunkChunk(chunkOrView)) {
+                if (IsHunkChunk(tablet, chunkOrView)) {
                     FillHunkChunkDescriptor(chunkOrView->AsChunk(), req.add_hunk_chunks());
                 } else {
                     FillStoreDescriptor(table, chunkOrView, req.add_stores(), &startingRowIndex);
@@ -4137,10 +4181,7 @@ private:
         }
 
         // TODO(savrus) Looks like this is unnecessary. Need to check.
-        table->SnapshotStatistics() = {};
-        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-            table->SnapshotStatistics() += table->GetChunkList(contentType)->Statistics().ToDataStatistics();
-        }
+        RecomputeTableSnapshotStatistics(table);
 
         auto resourceUsageDelta = table->GetTabletResourceUsage() - resourceUsageBefore;
         UpdateResourceUsage(table, resourceUsageDelta);
@@ -4148,6 +4189,14 @@ private:
         table->RecomputeTabletMasterMemoryUsage();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateMasterMemoryUsage(table);
+    }
+
+    void RecomputeTableSnapshotStatistics(TTableNode* table)
+    {
+        table->SnapshotStatistics() = {};
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            table->SnapshotStatistics() += table->GetChunkList(contentType)->Statistics().ToDataStatistics();
+        }
     }
 
     void SetSyncTabletActionsKeepalive(const std::vector<TTabletActionId>& actionIds)
@@ -5176,10 +5225,8 @@ private:
                 : EChunkDetachPolicy::OrderedTabletSuffix);
 
         auto* table = tablet->GetTable();
-        table->SnapshotStatistics() = {};
-        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-            table->SnapshotStatistics() += table->GetChunkList(contentType)->Statistics().ToDataStatistics();
-        }
+        RecomputeTableSnapshotStatistics(table);
+
         const auto& tableManager = Bootstrap_->GetTableManager();
         tableManager->ScheduleStatisticsUpdate(
             table,
@@ -5356,10 +5403,7 @@ private:
             tablet->GetId(),
             dynamicStore->GetId());
 
-        table->SnapshotStatistics() = {};
-        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-            table->SnapshotStatistics() += table->GetChunkList(contentType)->Statistics().ToDataStatistics();
-        }
+        RecomputeTableSnapshotStatistics(table);
 
         const auto& tableManager = Bootstrap_->GetTableManager();
         tableManager->ScheduleStatisticsUpdate(
@@ -5566,10 +5610,7 @@ private:
             request,
             updateReason);
 
-        table->SnapshotStatistics() = {};
-        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-            table->SnapshotStatistics() += table->GetChunkList(contentType)->Statistics().ToDataStatistics();
-        }
+        RecomputeTableSnapshotStatistics(table);
 
         // Get new tablet resource usage.
         auto newMemorySize = tablet->GetTabletStaticMemorySize();
@@ -5588,7 +5629,7 @@ private:
             TTabletResources().SetTabletStaticMemory(newMemorySize - oldMemorySize));
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
+            "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, %v, "
             "RetainedTimestamp: %v, UpdateReason: %v)",
             transaction->GetId(),
             table->GetId(),
@@ -6486,7 +6527,6 @@ private:
                 << ex;
         }
     }
-
 
     static void PopulateTableReplicaDescriptor(TTableReplicaDescriptor* descriptor, const TTableReplica* replica, const TTableReplicaInfo& info)
     {

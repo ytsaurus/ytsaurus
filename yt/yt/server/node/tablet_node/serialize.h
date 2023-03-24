@@ -31,6 +31,7 @@ DEFINE_ENUM(ETabletReign,
     ((MountConfigExperiments)             (100604)) // ifsmirnov
     // 23.1 starts here.
     ((LockingState)                       (100700)) // gritukan
+    ((JournalHunks)                       (100701)) // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

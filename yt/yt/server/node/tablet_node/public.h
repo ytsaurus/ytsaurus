@@ -64,6 +64,7 @@ DEFINE_ENUM(ETabletLockType,
 using TTabletDistributedThrottlersVector = TEnumIndexedVector<
     ETabletDistributedThrottlerKind,
     NConcurrency::IThroughputThrottlerPtr>;
+using THunkStoreId = NChunkClient::TChunkId;
 
 struct IBootstrap;
 
@@ -130,6 +131,8 @@ DECLARE_REFCOUNTED_CLASS(TOrderedDynamicStore)
 DECLARE_REFCOUNTED_CLASS(TOrderedChunkStore)
 
 DECLARE_REFCOUNTED_CLASS(THunkChunk)
+
+DECLARE_REFCOUNTED_STRUCT(IHunkLockManager)
 
 DECLARE_REFCOUNTED_CLASS(TReaderProfiler)
 DECLARE_REFCOUNTED_CLASS(TWriterProfiler)

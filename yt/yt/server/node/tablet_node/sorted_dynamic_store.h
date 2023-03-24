@@ -188,6 +188,7 @@ private:
     bool MergeRowsOnFlushAllowed_ = true;
 
     void OnSetPassive() override;
+    void OnSetRemoved() override;
 
     TSortedDynamicRow AllocateRow();
 

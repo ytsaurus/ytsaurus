@@ -37,16 +37,16 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
             }
 
         case EValueType::String:
-            return CreateUnversionedStringColumnWriter(columnIndex, blockWriter, maxValueCount);
+            return CreateUnversionedStringColumnWriter(columnIndex, columnSchema, blockWriter, maxValueCount);
 
         case EValueType::Boolean:
             return CreateUnversionedBooleanColumnWriter(columnIndex, blockWriter);
 
         case EValueType::Any:
-            return CreateUnversionedAnyColumnWriter(columnIndex, blockWriter, maxValueCount);
+            return CreateUnversionedAnyColumnWriter(columnIndex, columnSchema, blockWriter, maxValueCount);
 
         case EValueType::Composite:
-            return CreateUnversionedCompositeColumnWriter(columnIndex, blockWriter, maxValueCount);
+            return CreateUnversionedCompositeColumnWriter(columnIndex, columnSchema, blockWriter, maxValueCount);
 
         case EValueType::Null:
             return CreateUnversionedNullColumnWriter(blockWriter);

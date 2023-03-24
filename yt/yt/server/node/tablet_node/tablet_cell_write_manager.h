@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
 
+#include <yt/yt/ytlib/table_client/hunks.h>
+
 #include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/core/misc/memory_usage_tracker.h>
@@ -62,6 +64,8 @@ struct TTabletCellWriteParams
     i64 DataWeight = 0;
     bool Versioned = false;
     TSyncReplicaIdList SyncReplicaIds;
+
+    std::optional<NTableClient::THunkChunksInfo> HunkChunksInfo;
 };
 
 //! A component containing tablet write logic: dynamic store writing,

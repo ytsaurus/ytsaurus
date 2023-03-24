@@ -26,6 +26,7 @@
 #include "tablet_snapshot_store.h"
 #include "table_puller.h"
 #include "backup_manager.h"
+#include "hunk_lock_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -65,6 +66,7 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
+#include <yt/yt/ytlib/tablet_client/proto/tablet_service.pb.h>
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
@@ -255,6 +257,10 @@ public:
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, Unretained(this))));
+        transactionManager->RegisterTransactionActionHandlers(
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareBoggleHunkTabletStoreLock, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitBoggleHunkTabletStoreLock, Unretained(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortBoggleHunkTabletStoreLock, Unretained(this))));
 
         BackupManager_->Initialize();
 
@@ -615,37 +621,57 @@ private:
             : Owner_(owner)
         { }
 
-        TCellId GetCellId() override
+        TCellId GetCellId() const override
         {
             return Owner_->Slot_->GetCellId();
         }
 
-        const TString& GetTabletCellBundleName() override
+        NNative::IClientPtr GetClient() const override
+        {
+            return Owner_->Bootstrap_->GetClient();
+        }
+
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr GetDynamicConfigManager() const override
+        {
+            return Owner_->Bootstrap_->GetDynamicConfigManager();
+        }
+
+        const TString& GetTabletCellBundleName() const override
         {
             return Owner_->Slot_->GetTabletCellBundleName();
         }
 
-        EPeerState GetAutomatonState() override
+        EPeerState GetAutomatonState() const override
         {
             return Owner_->Slot_->GetAutomatonState();
         }
 
-        IInvokerPtr GetControlInvoker() override
+        int GetAutomatonTerm() const override
+        {
+            return Owner_->Slot_->GetAutomatonTerm();
+        }
+
+        IInvokerPtr GetControlInvoker() const override
         {
             return Owner_->Bootstrap_->GetControlInvoker();
         }
 
-        IColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
+        IInvokerPtr GetEpochAutomatonInvoker() const override
+        {
+            return Owner_->Slot_->GetEpochAutomatonInvoker();
+        }
+
+        IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const override
         {
             return Owner_->Bootstrap_->GetColumnEvaluatorCache();
         }
 
-        NTabletClient::IRowComparerProviderPtr GetRowComparerProvider() override
+        NTabletClient::IRowComparerProviderPtr GetRowComparerProvider() const override
         {
             return Owner_->Bootstrap_->GetRowComparerProvider();
         }
 
-        TObjectId GenerateId(EObjectType type) override
+        TObjectId GenerateId(EObjectType type) const override
         {
             return Owner_->Slot_->GenerateId(type);
         }
@@ -654,7 +680,7 @@ private:
             TTablet* tablet,
             EStoreType type,
             TStoreId storeId,
-            const TAddStoreDescriptor* descriptor) override
+            const TAddStoreDescriptor* descriptor) const override
         {
             return Owner_->CreateStore(tablet, type, storeId, descriptor);
         }
@@ -662,47 +688,47 @@ private:
         THunkChunkPtr CreateHunkChunk(
             TTablet* tablet,
             TChunkId chunkId,
-            const TAddHunkChunkDescriptor* descriptor) override
+            const TAddHunkChunkDescriptor* descriptor) const override
         {
             return Owner_->CreateHunkChunk(tablet, chunkId, descriptor);
         }
 
-        TTransactionManagerPtr GetTransactionManager() override
+        TTransactionManagerPtr GetTransactionManager() const override
         {
             return Owner_->Slot_->GetTransactionManager();
         }
 
-        NRpc::IServerPtr GetLocalRpcServer() override
+        NRpc::IServerPtr GetLocalRpcServer() const override
         {
             return Owner_->Bootstrap_->GetRpcServer();
         }
 
-        INodeMemoryTrackerPtr GetMemoryUsageTracker() override
+        INodeMemoryTrackerPtr GetMemoryUsageTracker() const override
         {
             return Owner_->Bootstrap_->GetMemoryUsageTracker();
         }
 
-        NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() override
+        NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const override
         {
             return Owner_->Bootstrap_->GetConnection()->GetChunkReplicaCache();
         }
 
-        IHedgingManagerRegistryPtr GetHedgingManagerRegistry() override
+        IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const override
         {
             return Owner_->Bootstrap_->GetHedgingManagerRegistry();
         }
 
-        TString GetLocalHostName() override
+        TString GetLocalHostName() const override
         {
             return Owner_->Bootstrap_->GetLocalHostName();
         }
 
-        NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() override
+        NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override
         {
             return Owner_->Bootstrap_->GetLocalDescriptor();
         }
 
-        ITabletWriteManagerHostPtr GetTabletWriteManagerHost() override
+        ITabletWriteManagerHostPtr GetTabletWriteManagerHost() const override
         {
             return Owner_;
         }
@@ -1563,7 +1589,7 @@ private:
     void HydraPrepareUpdateTabletStores(
         TTransaction* transaction,
         TReqUpdateTabletStores* request,
-        const TTransactionPrepareOptions& options)
+        const NTransactionSupervisor::TTransactionPrepareOptions& options)
     {
         YT_VERIFY(options.Persistent);
 
@@ -1579,6 +1605,17 @@ private:
         for (const auto& descriptor : request->hunk_chunks_to_add()) {
             auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
             YT_VERIFY(hunkChunkIdsToAdd.insert(chunkId).second);
+        }
+
+        if (request->create_hunk_chunks_during_prepare()) {
+            for (auto chunkId : hunkChunkIdsToAdd) {
+                auto hunkChunk = tablet->FindHunkChunk(chunkId);
+                if (hunkChunk && hunkChunk->GetState() != EHunkChunkState::Active) {
+                    THROW_ERROR_EXCEPTION("Referenced hunk chunk %v is in %Qlv state",
+                        chunkId,
+                        hunkChunk->GetState());
+                }
+            }
         }
 
         std::vector<TStoreId> storeIdsToAdd;
@@ -1644,7 +1681,31 @@ private:
             auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
             auto hunkChunk = tablet->GetHunkChunk(chunkId);
             hunkChunk->SetState(EHunkChunkState::RemovePrepared);
+            // COMPAT(aleksandra-zh)
+            if (request->create_hunk_chunks_during_prepare()) {
+                hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
+            }
             structuredLogger->OnHunkChunkStateChanged(hunkChunk);
+        }
+
+        // COMPAT(aleksandra-zh)
+        if (request->create_hunk_chunks_during_prepare()) {
+            for (auto chunkId : hunkChunkIdsToAdd) {
+                auto hunkChunk = tablet->FindHunkChunk(chunkId);
+                if (!hunkChunk) {
+                    hunkChunk = CreateHunkChunk(tablet, chunkId);
+                    hunkChunk->Initialize();
+                    tablet->AddHunkChunk(hunkChunk);
+                }
+
+                hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
+
+                YT_LOG_DEBUG_IF(
+                    IsMutationLoggingEnabled(),
+                    "Hunk chunk added (%v, ChunkId: %v)",
+                    tablet->GetLoggingTag(),
+                    chunkId);
+            }
         }
 
         for (const auto& descriptor : request->stores_to_add()) {
@@ -1654,6 +1715,10 @@ private:
                     if (!hunkChunkIdsToAdd.contains(chunkId)) {
                         auto hunkChunk = tablet->GetHunkChunk(chunkId);
                         tablet->UpdatePreparedStoreRefCount(hunkChunk, +1);
+                        // COMPAT(aleksandra-zh)
+                        if (request->create_hunk_chunks_during_prepare()) {
+                            hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
+                        }
                     }
                 }
             }
@@ -1678,6 +1743,97 @@ private:
             storeIdsToRemove,
             hunkChunkIdsToRemove,
             updateReason);
+    }
+
+    void HydraPrepareBoggleHunkTabletStoreLock(
+        TTransaction* /*transaction*/,
+        TReqBoggleHunkTabletStoreLock* request,
+        const NTransactionSupervisor::TTransactionPrepareOptions& /*options*/)
+    {
+        const auto* context = GetCurrentMutationContext();
+        // TODO(aleksandra-zh): maybe move that validation to Hydra some day.
+        if (context->GetTerm() != request->term()) {
+            THROW_ERROR_EXCEPTION("Request term %v does not match mutation term %v",
+                request->term(),
+                context->GetTerm());
+        }
+
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto hunkStoreId = FromProto<THunkStoreId>(request->store_id());
+        auto lock = request->lock();
+        if (lock) {
+            return;
+        }
+
+        const auto& hunkLockManager = tablet->GetHunkLockManager();
+        auto lockCount = hunkLockManager->GetPersistentLockCount(hunkStoreId);
+        if (lockCount > 0) {
+            THROW_ERROR_EXCEPTION("Hunk store %v has positive lock count %v",
+                hunkStoreId,
+                lockCount);
+        }
+
+        // Set transient flags and create futures once again if we are in recovery,
+        // as they were lost.
+        hunkLockManager->OnBoggleLockPrepared(hunkStoreId, lock);
+    }
+
+    void HydraCommitBoggleHunkTabletStoreLock(
+        TTransaction* /*transaction*/,
+        TReqBoggleHunkTabletStoreLock* request,
+        const NTransactionSupervisor::TTransactionCommitOptions& /*options*/)
+    {
+        const auto* context = GetCurrentMutationContext();
+        YT_VERIFY(context->GetTerm() == request->term());
+
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto hunkCellId = FromProto<TCellId>(request->hunk_cell_id());
+        auto hunkTabletId = FromProto<TTabletId>(request->hunk_tablet_id());
+        auto hunkMountRevision = request->mount_revision();
+        auto hunkStoreId = FromProto<THunkStoreId>(request->store_id());
+        auto lock = request->lock();
+
+        const auto& hunkLockManager = tablet->GetHunkLockManager();
+        if (lock) {
+            hunkLockManager->RegisterHunkStore(hunkStoreId, hunkCellId, hunkTabletId, hunkMountRevision);
+        } else {
+            hunkLockManager->UnregisterHunkStore(hunkStoreId);
+            CheckIfTabletFullyFlushed(tablet);
+        }
+    }
+
+    void HydraAbortBoggleHunkTabletStoreLock(
+        TTransaction* /*transaction*/,
+        TReqBoggleHunkTabletStoreLock* request,
+        const NTransactionSupervisor::TTransactionAbortOptions& /*options*/)
+    {
+        const auto* context = GetCurrentMutationContext();
+        if (context->GetTerm() != request->term()) {
+            // We do not need to discard transient flags in that case, as they were discarded during restart.
+            return;
+        }
+
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto lock = request->lock();
+        auto hunkStoreId = FromProto<THunkStoreId>(request->store_id());
+
+        const auto& hunkLockManager = tablet->GetHunkLockManager();
+        hunkLockManager->OnBoggleLockAborted(hunkStoreId, lock);
     }
 
     void BackoffStoreRemoval(TTablet* tablet, const IStorePtr& store)
@@ -1724,6 +1880,17 @@ private:
             YT_VERIFY(hunkChunkIdsToAdd.insert(chunkId).second);
         }
 
+        // COMPAT(aleksandra-zh)
+        if (request->create_hunk_chunks_during_prepare()) {
+            for (auto chunkId : hunkChunkIdsToAdd) {
+                auto hunkChunk = tablet->FindHunkChunk(chunkId);
+                if (!hunkChunk) {
+                    continue;
+                }
+                hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
+            }
+        }
+
         for (const auto& descriptor : request->stores_to_add()) {
             if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(descriptor.chunk_meta().extensions())) {
                 for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
@@ -1735,6 +1902,10 @@ private:
                         }
 
                         tablet->UpdatePreparedStoreRefCount(hunkChunk, -1);
+                        // COMPAT(aleksandra-zh)
+                        if (request->create_hunk_chunks_during_prepare()) {
+                            hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
+                        }
                     }
                 }
             }
@@ -1755,6 +1926,10 @@ private:
             }
 
             hunkChunk->SetState(EHunkChunkState::Active);
+            // COMPAT(aleksandra-zh)
+            if (request->create_hunk_chunks_during_prepare()) {
+                hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Exclusive);
+            }
         }
 
         CheckIfTabletFullyFlushed(tablet);
@@ -1848,15 +2023,25 @@ private:
         THashSet<THunkChunkPtr> addedHunkChunks;
         for (const auto& descriptor : request->hunk_chunks_to_add()) {
             auto chunkId = FromProto<TChunkId>(descriptor.chunk_id());
+            if (request->create_hunk_chunks_during_prepare()) {
+                auto hunkChunk = tablet->FindHunkChunk(chunkId);
+                if (!hunkChunk) {
+                    YT_LOG_ALERT("Hunk chunk is missing (%v, ChunkId: %v)",
+                        tablet->GetLoggingTag(),
+                        chunkId);
+                }
+                hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
+                InsertOrCrash(addedHunkChunks, hunkChunk);
+            } else {
+                auto hunkChunk = CreateHunkChunk(tablet, chunkId, &descriptor);
+                hunkChunk->Initialize();
+                tablet->AddHunkChunk(hunkChunk);
 
-            auto hunkChunk = CreateHunkChunk(tablet, chunkId, &descriptor);
-            hunkChunk->Initialize();
-            tablet->AddHunkChunk(hunkChunk);
-            YT_VERIFY(addedHunkChunks.insert(hunkChunk).second);
-
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Hunk chunk added (%v, ChunkId: %v)",
-                tablet->GetLoggingTag(),
-                chunkId);
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Hunk chunk added (%v, ChunkId: %v)",
+                    tablet->GetLoggingTag(),
+                    chunkId);
+                InsertOrCrash(addedHunkChunks, hunkChunk);
+            }
         }
 
         std::vector<TStoreId> removedStoreIds;
@@ -1896,7 +2081,10 @@ private:
             auto hunkChunk = tablet->GetHunkChunk(chunkId);
             tablet->RemoveHunkChunk(hunkChunk);
             hunkChunk->SetState(EHunkChunkState::Removed);
-
+            // COMPAT(aleksandra-zh)
+            if (request->create_hunk_chunks_during_prepare()) {
+                hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Exclusive);
+            }
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Hunk chunk removed (%v, ChunkId: %v)",
                 tablet->GetLoggingTag(),
                 chunkId);
@@ -1933,6 +2121,11 @@ private:
                     const auto& hunkChunk = ref.HunkChunk;
                     if (!addedHunkChunks.contains(hunkChunk)) {
                         tablet->UpdatePreparedStoreRefCount(hunkChunk, -1);
+
+                        // COMPAT(aleksandra-zh)
+                        if (request->create_hunk_chunks_during_prepare()) {
+                            hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
+                        }
                     }
 
                     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Hunk chunk referenced (%v, StoreId: %v, HunkChunkRef: %v, StoreRefCount: %v)",
@@ -2751,7 +2944,7 @@ private:
         Slot_->GetTransactionManager()->SetRemoving();
     }
 
-    void HydraSuspendTabletCell(TReqSuspendTabletCell* /*request*/)
+    void HydraSuspendTabletCell(NTabletServer::NProto::TReqSuspendTabletCell* /*request*/)
     {
         YT_VERIFY(HasHydraContext());
 
@@ -2761,7 +2954,7 @@ private:
         Suspending_ = true;
     }
 
-    void HydraResumeTabletCell(TReqResumeTabletCell* /*request*/)
+    void HydraResumeTabletCell(NTabletServer::NProto::TReqResumeTabletCell* /*request*/)
     {
         YT_VERIFY(HasHydraContext());
 
@@ -3086,6 +3279,10 @@ private:
             return;
         }
 
+        if (tablet->GetHunkLockManager()->GetTotalLockedHunkStoreCount() > 0) {
+            return;
+        }
+
         ETabletState newTransientState;
         ETabletState newPersistentState;
         switch (state) {
@@ -3383,6 +3580,7 @@ private:
                         .Item(ToString(chunkId))
                         .Do(BIND(&TImpl::BuildHunkChunkOrchidYson, Unretained(this), hunkChunk));
                 })
+                .Item("hunk_lock_manager").Do(BIND(&IHunkLockManager::BuildOrchid, tablet->GetHunkLockManager()))
                 .DoIf(tablet->IsReplicated(), [&] (auto fluent) {
                     fluent
                         .Item("replicas").DoMapFor(
@@ -3794,7 +3992,7 @@ private:
     THunkChunkPtr CreateHunkChunk(
         TTablet* /*tablet*/,
         TChunkId chunkId,
-        const TAddHunkChunkDescriptor* descriptor)
+        const TAddHunkChunkDescriptor* descriptor = nullptr)
     {
         return New<THunkChunk>(
             chunkId,
@@ -4186,7 +4384,7 @@ private:
 
                 ++it;
                 ++jt;
-            } else if (jt == jtEnd || it->first < jt->first) {
+            } else if (jt == jtEnd || it == itEnd || it->first < jt->first) {
                 // Previously matching experiment is now gone.
                 return scheduleUpdate();
             } else {

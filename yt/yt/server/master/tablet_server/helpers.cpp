@@ -7,8 +7,29 @@
 namespace NYT::NTabletServer {
 
 using namespace NTableServer;
+using namespace NCypressClient;
+using namespace NChunkServer;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool IsHunkChunk(const TTabletBase* tablet, const TChunkTree* child)
+{
+    if (!child) {
+        return false;
+    }
+
+    if (tablet->GetType() == EObjectType::Tablet && IsJournalChunkType(child->GetType())) {
+        return true;
+    }
+
+    if (!IsBlobChunkType(child->GetType())) {
+        return false;
+    }
+
+    const auto* chunk = child->AsChunk();
+    return chunk->GetChunkType() == EChunkType::Hunk;
+}
 
 bool IsDynamicStoreReadEnabled(
     const TTableNode* table,
