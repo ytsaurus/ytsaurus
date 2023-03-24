@@ -939,6 +939,10 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::RegisterParameter(
 template <class T>
 TIntrusivePtr<T> CloneYsonSerializable(const TIntrusivePtr<T>& obj)
 {
+    static_assert(
+        std::is_convertible_v<T*, TYsonSerializable*>,
+        "'obj' must be convertible to TYsonSerializable");
+
     return NYTree::ConvertTo<TIntrusivePtr<T>>(NYson::ConvertToYsonString(*obj));
 }
 

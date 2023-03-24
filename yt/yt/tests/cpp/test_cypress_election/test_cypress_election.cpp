@@ -441,7 +441,7 @@ TEST_F(TCypressElectionManagerTest, TestAbortTransactionAndChangeLeader)
     for (auto abort : {false, true}) {
         SetUpCounts();
         auto actionQueue1 = New<TActionQueue>();
-        auto config = CloneYsonSerializable(Config_);
+        auto config = CloneYsonStruct(Config_);
         config->TransactionPingPeriod = TDuration::Seconds(10);
         auto electionManager1 = CreateElectionManager("electionManager1", actionQueue1, config);
         electionManager1->Start();

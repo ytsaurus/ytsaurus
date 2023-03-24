@@ -115,9 +115,9 @@ void TProxyConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* config) {
         if (!config->TvmOnlyAuth && config->TvmService) {
             auto auth = New<TAuthenticationManagerConfig>();
-            auth->TvmService = CloneYsonSerializable(config->TvmService);
-            auth->BlackboxService = CloneYsonSerializable(config->BlackboxService);
-            auth->BlackboxTicketAuthenticator = CloneYsonSerializable(config->BlackboxTicketAuthenticator);
+            auth->TvmService = CloneYsonStruct(config->TvmService);
+            auth->BlackboxService = CloneYsonStruct(config->BlackboxService);
+            auth->BlackboxTicketAuthenticator = CloneYsonStruct(config->BlackboxTicketAuthenticator);
 
             config->TvmOnlyAuth = auth;
         }

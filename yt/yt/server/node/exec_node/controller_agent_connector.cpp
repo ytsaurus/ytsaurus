@@ -210,7 +210,7 @@ TControllerAgentConnectorPool::TControllerAgentConnectorPool(
     TControllerAgentConnectorConfigPtr config,
     IBootstrap* const bootstrap)
     : StaticConfig_(std::move(config))
-    , CurrentConfig_(CloneYsonSerializable(StaticConfig_))
+    , CurrentConfig_(CloneYsonStruct(StaticConfig_))
     , Bootstrap_(bootstrap)
 { }
 

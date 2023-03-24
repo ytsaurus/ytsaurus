@@ -208,7 +208,7 @@ private:
         const TJournalHunkChunkWriterConfigPtr& config)
     {
         // Do not batch records in journal chunk writer.
-        auto newConfig = CloneYsonSerializable(config);
+        auto newConfig = CloneYsonStruct(config);
         newConfig->MaxBatchDelay = TDuration::Zero();
         newConfig->MaxBatchRowCount = 1;
 

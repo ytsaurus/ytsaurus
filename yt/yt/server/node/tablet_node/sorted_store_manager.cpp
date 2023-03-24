@@ -629,23 +629,23 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
 
-        auto storeWriterConfig = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterConfig);
+        auto storeWriterConfig = CloneYsonStruct(tabletSnapshot->Settings.StoreWriterConfig);
         storeWriterConfig->WorkloadDescriptor = workloadDescriptor;
         storeWriterConfig->MinUploadReplicationFactor = storeWriterConfig->UploadReplicationFactor;
         storeWriterConfig->Postprocess();
 
-        auto storeWriterOptions = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterOptions);
+        auto storeWriterOptions = CloneYsonStruct(tabletSnapshot->Settings.StoreWriterOptions);
         storeWriterOptions->ChunksEden = true;
         storeWriterOptions->ValidateResourceUsageIncrease = false;
         storeWriterOptions->ConsistentChunkReplicaPlacementHash = tabletSnapshot->ConsistentChunkReplicaPlacementHash;
         storeWriterOptions->Postprocess();
 
-        auto hunkWriterConfig = CloneYsonSerializable(tabletSnapshot->Settings.HunkWriterConfig);
+        auto hunkWriterConfig = CloneYsonStruct(tabletSnapshot->Settings.HunkWriterConfig);
         hunkWriterConfig->WorkloadDescriptor = workloadDescriptor;
         hunkWriterConfig->MinUploadReplicationFactor = hunkWriterConfig->UploadReplicationFactor;
         hunkWriterConfig->Postprocess();
 
-        auto hunkWriterOptions = CloneYsonSerializable(tabletSnapshot->Settings.HunkWriterOptions);
+        auto hunkWriterOptions = CloneYsonStruct(tabletSnapshot->Settings.HunkWriterOptions);
         hunkWriterOptions->ValidateResourceUsageIncrease = false;
         hunkWriterOptions->ConsistentChunkReplicaPlacementHash = tabletSnapshot->ConsistentChunkReplicaPlacementHash;
         hunkWriterOptions->Postprocess();

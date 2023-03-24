@@ -50,7 +50,7 @@ TSchedulerConnector::TSchedulerConnector(
     TSchedulerConnectorConfigPtr config,
     IBootstrap* bootstrap)
     : StaticConfig_(config)
-    , CurrentConfig_(CloneYsonSerializable(StaticConfig_))
+    , CurrentConfig_(CloneYsonStruct(StaticConfig_))
     , Bootstrap_(bootstrap)
     , HeartbeatExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),

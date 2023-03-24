@@ -315,7 +315,7 @@ private:
             return config;
         }
 
-        auto masterCacheConfig = CloneYsonSerializable(Config_->MasterCache);
+        auto masterCacheConfig = CloneYsonStruct(Config_->MasterCache);
         masterCacheConfig->CellId = config->CellId;
         if (masterCacheConfig->EnableMasterCacheDiscovery) {
             masterCacheConfig->Addresses = config->Addresses;
@@ -379,7 +379,7 @@ private:
         const NNative::TConnectionOptions& options,
         const std::vector<TString>& discoveredAddresses)
     {
-        auto peerChannelConfig = CloneYsonSerializable(config);
+        auto peerChannelConfig = CloneYsonStruct(config);
         if (!discoveredAddresses.empty()) {
             peerChannelConfig->Addresses = discoveredAddresses;
         }

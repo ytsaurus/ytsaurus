@@ -84,7 +84,7 @@ public:
         , SchedulerJobSpecExt_(Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt())
         , RemoteCopyJobSpecExt_(Host_->GetJobSpecHelper()->GetJobSpec().GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext))
         , ReaderConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader)
-        , WriterConfig_(CloneYsonSerializable(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter))
+        , WriterConfig_(CloneYsonStruct(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter))
         , RemoteCopyQueue_(New<TActionQueue>("RemoteCopy"))
         , CopySemaphore_(New<TAsyncSemaphore>(RemoteCopyJobSpecExt_.concurrency()))
         , InputTraceContext_(CreateTraceContextFromCurrent("TableReader"))
@@ -325,7 +325,7 @@ private:
 
     NChunkClient::TSessionId CreateOutputChunk(const TChunkSpec& inputChunkSpec)
     {
-        auto writerOptions = CloneYsonSerializable(WriterOptionsTemplate_);
+        auto writerOptions = CloneYsonStruct(WriterOptionsTemplate_);
         writerOptions->ErasureCodec = FromProto<NErasure::ECodec>(inputChunkSpec.erasure_codec());
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());

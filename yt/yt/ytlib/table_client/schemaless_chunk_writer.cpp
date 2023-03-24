@@ -2144,7 +2144,7 @@ private:
 
     void DoOpen()
     {
-        auto writerConfig = CloneYsonSerializable(Config_);
+        auto writerConfig = CloneYsonStruct(Config_);
         writerConfig->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
 
         const auto& path = RichPath_.GetPath();

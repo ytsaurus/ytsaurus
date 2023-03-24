@@ -1644,7 +1644,7 @@ TJournalManagerConfigPtr TStoreLocation::BuildJournalManagerConfig(
     const TDataNodeConfigPtr& dataNodeConfig,
     const TStoreLocationConfigPtr& storeLocationConfig)
 {
-    auto journalManagerConfig = CloneYsonSerializable(TJournalManagerConfigPtr(dataNodeConfig));
+    auto journalManagerConfig = CloneYsonStruct(TJournalManagerConfigPtr(dataNodeConfig));
     journalManagerConfig->MultiplexedChangelog = UpdateYsonStruct(dataNodeConfig->MultiplexedChangelog, storeLocationConfig->MultiplexedChangelog);
     journalManagerConfig->HighLatencySplitChangelog = UpdateYsonStruct(dataNodeConfig->HighLatencySplitChangelog, storeLocationConfig->HighLatencySplitChangelog);
     journalManagerConfig->LowLatencySplitChangelog = UpdateYsonStruct(dataNodeConfig->LowLatencySplitChangelog, storeLocationConfig->LowLatencySplitChangelog);

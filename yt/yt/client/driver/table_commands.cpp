@@ -326,7 +326,7 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
     Options.EnableEarlyFinish = EnableEarlyFinish;
 
     if (MaxChunksPerNodeFetch) {
-        Options.FetcherConfig = CloneYsonSerializable(Options.FetcherConfig);
+        Options.FetcherConfig = CloneYsonStruct(Options.FetcherConfig);
         Options.FetcherConfig->MaxChunksPerNodeFetch = *MaxChunksPerNodeFetch;
     }
 

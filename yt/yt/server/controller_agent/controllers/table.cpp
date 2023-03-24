@@ -103,7 +103,7 @@ TOutputStreamDescriptorPtr TOutputTable::GetStreamDescriptorTemplate(int tableIn
 {
     auto descriptor = New<TOutputStreamDescriptor>();
     descriptor->TableUploadOptions = TableUploadOptions;
-    descriptor->TableWriterOptions = CloneYsonSerializable(TableWriterOptions);
+    descriptor->TableWriterOptions = CloneYsonStruct(TableWriterOptions);
     descriptor->TableWriterOptions->TableIndex = tableIndex;
     descriptor->TableWriterConfig = WriterConfig;
     descriptor->Timestamp = Timestamp;

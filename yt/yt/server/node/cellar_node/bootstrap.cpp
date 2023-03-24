@@ -147,7 +147,7 @@ public:
             cellarConfig->Occupant->ResponseKeeper = GetConfig()->TabletNode->HydraManager->ResponseKeeper;
             cellarConfig->Occupant->UseNewHydra = GetConfig()->TabletNode->HydraManager->UseNewHydra;
 
-            auto cellarManagerConfig = CloneYsonSerializable(config);
+            auto cellarManagerConfig = CloneYsonStruct(config);
             cellarManagerConfig->Cellars.insert({ECellarType::Tablet, std::move(cellarConfig)});
             return cellarManagerConfig;
         };
@@ -240,7 +240,7 @@ private:
             if (!slotsCount) {
                 return config;
             } else {
-                auto cellarManagerConfig = CloneYsonSerializable(config);
+                auto cellarManagerConfig = CloneYsonStruct(config);
                 for (const auto& [type, cellarConfig] : cellarManagerConfig->Cellars) {
                     if (type == ECellarType::Tablet) {
                         if (bundleDynamicSlotsCount) {

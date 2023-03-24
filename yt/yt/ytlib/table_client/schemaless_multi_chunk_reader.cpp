@@ -123,7 +123,7 @@ TChunkReaderConfigPtr PatchConfig(TChunkReaderConfigPtr config, i64 memoryEstima
         return config;
     }
 
-    auto newConfig = CloneYsonSerializable(config);
+    auto newConfig = CloneYsonStruct(config);
     newConfig->WindowSize = std::max(memoryEstimate / 2, (i64) 1);
     newConfig->GroupSize = std::max(memoryEstimate / 2, (i64) 1);
     return newConfig;

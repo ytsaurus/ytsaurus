@@ -97,7 +97,7 @@ IServerPtr CreateServer(
     auto address = TNetworkAddress::CreateIPv6Any(config->Port);
     auto tlsListener = sslContext->CreateListener(address, poller, acceptor);
 
-    auto configCopy = CloneYsonSerializable(config);
+    auto configCopy = CloneYsonStruct(config);
     configCopy->IsHttps = true;
     auto httpServer = NHttp::CreateServer(configCopy, tlsListener, poller, acceptor);
 

@@ -185,19 +185,19 @@ TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state, const TSchedulerM
             bundleOrchidInfo->ResourceQuota->Vcpu = bundleInfo->ResourceQuota->Vcpu();
             bundleOrchidInfo->ResourceQuota->Memory = bundleInfo->ResourceQuota->Memory;
         } else {
-            bundleOrchidInfo->ResourceQuota = CloneYsonSerializable(bundleOrchidInfo->ResourceAllocated);
+            bundleOrchidInfo->ResourceQuota = CloneYsonStruct(bundleOrchidInfo->ResourceAllocated);
         }
 
         if (auto it = state.BundleResourceAlive.find(bundleName); it != state.BundleResourceAlive.end()) {
-            bundleOrchidInfo->ResourceAlive = CloneYsonSerializable(it->second);
+            bundleOrchidInfo->ResourceAlive = CloneYsonStruct(it->second);
         }
 
         if (auto it = state.BundleResourceAllocated.find(bundleName); it != state.BundleResourceAllocated.end()) {
-            bundleOrchidInfo->ResourceAllocated = CloneYsonSerializable(it->second);
+            bundleOrchidInfo->ResourceAllocated = CloneYsonStruct(it->second);
         }
 
         if (auto it = state.BundleResourceTarget.find(bundleName); it != state.BundleResourceTarget.end()) {
-            bundleOrchidInfo->ResourceTarget = CloneYsonSerializable(it->second);
+            bundleOrchidInfo->ResourceTarget = CloneYsonStruct(it->second);
         }
 
         if (auto it = mergedBundlesState.find(bundleName); it != mergedBundlesState.end()) {

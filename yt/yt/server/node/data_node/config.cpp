@@ -167,7 +167,7 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
 
 TStoreLocationConfigPtr TStoreLocationConfig::ApplyDynamic(const TStoreLocationDynamicConfigPtr& dynamicConfig)
 {
-    auto config = CloneYsonSerializable(MakeStrong(this));
+    auto config = CloneYsonStruct(MakeStrong(this));
     config->ApplyDynamicInplace(*dynamicConfig);
     config->Postprocess();
     return config;

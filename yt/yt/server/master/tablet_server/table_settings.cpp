@@ -148,7 +148,7 @@ TTableSettings GetTableSettings(
 
     // Parse and prepare store writer config.
     try {
-        auto config = CloneYsonSerializable(dynamicConfig->StoreChunkWriter);
+        auto config = CloneYsonStruct(dynamicConfig->StoreChunkWriter);
         config->PreferLocalHost = primaryMedium->Config()->PreferLocalHostForDynamicTables;
         if (dynamicConfig->IncreaseUploadReplicationFactor ||
             table->TabletCellBundle()->GetDynamicOptions()->IncreaseUploadReplicationFactor)
@@ -167,7 +167,7 @@ TTableSettings GetTableSettings(
 
     // Parse and prepare hunk writer config.
     try {
-        auto config = CloneYsonSerializable(dynamicConfig->HunkChunkWriter);
+        auto config = CloneYsonStruct(dynamicConfig->HunkChunkWriter);
         config->PreferLocalHost = primaryMedium->Config()->PreferLocalHostForDynamicTables;
         config->UploadReplicationFactor = replicationFactor;
 
@@ -180,7 +180,7 @@ TTableSettings GetTableSettings(
     }
 
     // Set global patch and experiments.
-    result.GlobalPatch = CloneYsonSerializable(
+    result.GlobalPatch = CloneYsonStruct(
         ConvertTo<TTableConfigPatchPtr>(dynamicConfig));
     result.Experiments = dynamicConfig->TableConfigExperiments;
 

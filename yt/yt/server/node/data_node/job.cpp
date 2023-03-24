@@ -2284,7 +2284,7 @@ private:
             YT_VERIFY(std::ssize(writeTargets) == ReplicationFactor_);
 
             // Each writer uploads exactly one replica.
-            auto writerConfig = CloneYsonSerializable(Config_->AutotomyWriter);
+            auto writerConfig = CloneYsonStruct(Config_->AutotomyWriter);
             writerConfig->UploadReplicationFactor = 1;
             writerConfig->MinUploadReplicationFactor = 1;
 

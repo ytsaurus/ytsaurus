@@ -383,7 +383,7 @@ TConnectionCompoundConfig::TConnectionCompoundConfig(
 
 TConnectionCompoundConfigPtr TConnectionCompoundConfig::Clone() const
 {
-    return New<TConnectionCompoundConfig>(CloneYsonSerializable(Static), CloneYsonSerializable(Dynamic));
+    return New<TConnectionCompoundConfig>(CloneYsonStruct(Static), CloneYsonStruct(Dynamic));
 }
 
 void Serialize(const TConnectionCompoundConfigPtr& connectionConfig, NYson::IYsonConsumer* consumer)

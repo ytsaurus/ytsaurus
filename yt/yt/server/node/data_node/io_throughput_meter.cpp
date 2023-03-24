@@ -111,7 +111,7 @@ public:
             Location_->GetId());
 
         // Override max write rate for current location.
-        mediumConfig = CloneYsonSerializable(mediumConfig);
+        mediumConfig = CloneYsonStruct(mediumConfig);
         if (auto dwpd = Location_->GetMaxWriteRateByDwpd()) {
             mediumConfig->MaxWriteRate = static_cast<i64>(dwpd * mediumConfig->DWPDFactor);
 
@@ -267,7 +267,7 @@ private:
             Location_->GetId(),
             stage);
 
-        auto config = NYTree::CloneYsonSerializable(Session_->MediumConfig);
+        auto config = NYTree::CloneYsonStruct(Session_->MediumConfig);
         if (stage == ETestingStage::Verify) {
             auto window = Session_->BestRoundCongestionWindow;
             config->SegmentSize = static_cast<i64>(window * config->VerificationSegmentSizeFactor) + 1;

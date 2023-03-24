@@ -319,7 +319,7 @@ public:
 
     void ChangeConfig(const TDynamicReplicatedTableTrackerConfigPtr& config)
     {
-        ConfigChanged_(CloneYsonSerializable(config));
+        ConfigChanged_(CloneYsonStruct(config));
     }
 
     const TReplicatedTableOptionsPtr& GetTableOptions(TTableId tableId) const
@@ -441,7 +441,7 @@ public:
         Config_->UseNewReplicatedTableTracker = true;
         Tracker_ = ::NYT::NTabletServer::CreateReplicatedTableTracker(
             Host_,
-            CloneYsonSerializable(Config_));
+            CloneYsonStruct(Config_));
         Tracker_->Initialize();
         Tracker_->EnableTracking();
 

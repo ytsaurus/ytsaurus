@@ -1324,11 +1324,11 @@ void ManageSystemAccountLimit(const TSchedulerInputState& input, TSchedulerMutat
         return;
     }
 
-    auto rootQuota = CloneYsonSerializable(input.RootSystemAccount->ResourceLimits);
+    auto rootQuota = CloneYsonStruct(input.RootSystemAccount->ResourceLimits);
 
     for (const auto& [accountName, quotaChange] : quotaChanges) {
         const auto& accountInfo = GetOrCrash(input.SystemAccounts, accountName);
-        auto newQuota = CloneYsonSerializable(accountInfo->ResourceLimits);
+        auto newQuota = CloneYsonStruct(accountInfo->ResourceLimits);
         ApplyQuotaChange(quotaChange, newQuota);
         ApplyQuotaChange(quotaChange, rootQuota);
 
@@ -1459,7 +1459,7 @@ TInstanceAnnotationsPtr GetInstanceAnnotationsToSet(
     if (!annotations->AllocatedForBundle.empty() && annotations->Allocated) {
         return {};
     }
-    auto result = NYTree::CloneYsonSerializable(annotations);
+    auto result = NYTree::CloneYsonStruct(annotations);
     result->YPCluster = allocationInfo->Spec->YPCluster;
     result->NannyService = allocationInfo->Spec->NannyService;
     result->AllocatedForBundle = bundleName;
@@ -2051,7 +2051,7 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
 
         auto bundleState = New<TBundleControllerState>();
         if (auto it = input.BundleStates.find(bundleName); it != input.BundleStates.end()) {
-            bundleState = NYTree::CloneYsonSerializable(it->second);
+            bundleState = NYTree::CloneYsonStruct(it->second);
         }
         mutations->ChangedStates[bundleName] = bundleState;
 
@@ -2108,8 +2108,8 @@ void ManageBundlesDynamicConfig(TSchedulerInputState& input, TSchedulerMutations
         }
 
         auto bundleConfig = New<TBundleDynamicConfig>();
-        bundleConfig->CpuLimits = NYTree::CloneYsonSerializable(bundleInfo->TargetConfig->CpuLimits);
-        bundleConfig->MemoryLimits = NYTree::CloneYsonSerializable(bundleInfo->TargetConfig->MemoryLimits);
+        bundleConfig->CpuLimits = NYTree::CloneYsonStruct(bundleInfo->TargetConfig->CpuLimits);
+        bundleConfig->MemoryLimits = NYTree::CloneYsonStruct(bundleInfo->TargetConfig->MemoryLimits);
         freshConfig[bundleInfo->NodeTagFilter] = bundleConfig;
     }
 
@@ -2208,7 +2208,7 @@ void InitializeBundleTargetConfig(TSchedulerInputState& input, TSchedulerMutatio
         const auto& zoneInfo = zoneIt->second;
         if (!zoneInfo->TabletNodeSizes.empty()) {
             auto& front = *zoneInfo->TabletNodeSizes.begin();
-            targetConfig->TabletNodeResourceGuarantee = NYTree::CloneYsonSerializable(front.second->ResourceGuarantee);
+            targetConfig->TabletNodeResourceGuarantee = NYTree::CloneYsonStruct(front.second->ResourceGuarantee);
             targetConfig->TabletNodeResourceGuarantee->Type = front.first;
             targetConfig->CpuLimits = front.second->DefaultConfig->CpuLimits;
             targetConfig->MemoryLimits = front.second->DefaultConfig->MemoryLimits;
@@ -2216,7 +2216,7 @@ void InitializeBundleTargetConfig(TSchedulerInputState& input, TSchedulerMutatio
 
         if (!zoneInfo->RpcProxySizes.empty()) {
             auto& front = *zoneInfo->RpcProxySizes.begin();
-            targetConfig->RpcProxyResourceGuarantee = NYTree::CloneYsonSerializable(front.second->ResourceGuarantee);
+            targetConfig->RpcProxyResourceGuarantee = NYTree::CloneYsonStruct(front.second->ResourceGuarantee);
             targetConfig->RpcProxyResourceGuarantee->Type = front.first;
         }
     }
@@ -2262,7 +2262,7 @@ TIndexedEntries<TBundleControllerState> MergeBundleStates(
     TIndexedEntries<TBundleControllerState> results = schedulerState.BundleStates;
 
     for (const auto& [bundleName, state] : mutations.ChangedStates) {
-        results[bundleName] = NYTree::CloneYsonSerializable(state);
+        results[bundleName] = NYTree::CloneYsonStruct(state);
     }
 
     return results;

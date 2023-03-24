@@ -336,7 +336,7 @@ private:
                     }
 
                     // Aim for safely: always upload snapshots with maximum RF.
-                    options.Config = CloneYsonSerializable(Store_->Config_->Writer);
+                    options.Config = CloneYsonStruct(Store_->Config_->Writer);
                     options.Config->UploadReplicationFactor = Store_->Options_->SnapshotReplicationFactor;
                     options.Config->MinUploadReplicationFactor = Store_->Options_->SnapshotReplicationFactor;
 

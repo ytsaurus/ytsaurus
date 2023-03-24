@@ -20,7 +20,7 @@ using namespace NDynamicConfig;
 
 static TDynamicConfigManagerConfigPtr MakeManagerConfig(NClusterNode::IBootstrap* bootstrap)
 {
-    auto config = CloneYsonSerializable(bootstrap->GetConfig()->DynamicConfigManager);
+    auto config = CloneYsonStruct(bootstrap->GetConfig()->DynamicConfigManager);
     config->IgnoreConfigAbsence = true;
     return config;
 }

@@ -1972,7 +1972,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto proxyConfig = CloneYsonSerializable(Bootstrap_->GetJobProxyConfigTemplate());
+    auto proxyConfig = CloneYsonStruct(Bootstrap_->GetJobProxyConfigTemplate());
     auto localDescriptor = Bootstrap_->GetLocalDescriptor();
     proxyConfig->DataCenter = localDescriptor.GetDataCenter();
     proxyConfig->Rack = localDescriptor.GetRack();
@@ -2126,7 +2126,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
         }
     }
 
-    proxyConfig->JobThrottler = CloneYsonSerializable(DynamicConfig_->JobThrottler);
+    proxyConfig->JobThrottler = CloneYsonStruct(DynamicConfig_->JobThrottler);
     if (!SchedulerJobSpecExt_->enable_prefetching_job_throttler()) {
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable = false;
         proxyConfig->JobThrottler->RpsPrefetch->Enable = false;

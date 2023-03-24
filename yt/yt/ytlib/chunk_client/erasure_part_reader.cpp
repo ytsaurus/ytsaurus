@@ -55,7 +55,7 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateErasurePartReaders(
             return lhs.GetReplicaIndex() < rhs.GetReplicaIndex();
         });
 
-    auto partConfig = CloneYsonSerializable(config);
+    auto partConfig = CloneYsonStruct(config);
     partConfig->FailOnNoSeeds = true;
 
     std::vector<IChunkReaderAllowingRepairPtr> readers;

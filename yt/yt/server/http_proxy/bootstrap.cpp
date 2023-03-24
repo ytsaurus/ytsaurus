@@ -187,11 +187,11 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     AccessChecker_ = CreateAccessChecker(this);
 
-    auto driverV3Config = CloneYsonSerializable(Config_->Driver);
+    auto driverV3Config = CloneYsonStruct(Config_->Driver);
     driverV3Config->ApiVersion = ApiVersion3;
     DriverV3_ = CreateDriver(Connection_, driverV3Config);
 
-    auto driverV4Config = CloneYsonSerializable(Config_->Driver);
+    auto driverV4Config = CloneYsonStruct(Config_->Driver);
     driverV4Config->ApiVersion = ApiVersion4;
     DriverV4_ = CreateDriver(Connection_, driverV4Config);
 

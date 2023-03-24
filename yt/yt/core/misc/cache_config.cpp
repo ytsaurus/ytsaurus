@@ -98,7 +98,7 @@ void TAsyncExpiringCacheConfig::ApplyDynamicInplace(
 TAsyncExpiringCacheConfigPtr TAsyncExpiringCacheConfig::ApplyDynamic(
     const TAsyncExpiringCacheDynamicConfigPtr& dynamicConfig)
 {
-    auto mergedConfig = CloneYsonSerializable(MakeStrong(this));
+    auto mergedConfig = CloneYsonStruct(MakeStrong(this));
     mergedConfig->ApplyDynamicInplace(dynamicConfig);
     mergedConfig->Postprocess();
     return mergedConfig;

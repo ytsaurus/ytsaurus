@@ -100,7 +100,7 @@ TEST(TIOTrackerTest, QueueOverflow)
         ioTracker->Enqueue(CreateEvent(1, 1, "good", i < 10 ? "true" : "false"));
     }
 
-    auto newConfig = CloneYsonSerializable(config);
+    auto newConfig = CloneYsonStruct(config);
     newConfig->EnableEventDequeue = true;
     ioTracker->SetConfig(std::move(newConfig));
 

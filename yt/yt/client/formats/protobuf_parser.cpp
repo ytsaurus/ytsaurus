@@ -698,7 +698,7 @@ std::unique_ptr<IParser> CreateParserForProtobuf(
 {
     if (!config->Tables.empty()) {
         // Retain only one table config, as we have only one schema here.
-        config = NYTree::CloneYsonSerializable(config);
+        config = NYTree::CloneYsonStruct(config);
         if (tableIndex >= std::ssize(config->Tables)) {
             THROW_ERROR_EXCEPTION("Protobuf format does not have table with index %v",
                 tableIndex);
@@ -706,7 +706,7 @@ std::unique_ptr<IParser> CreateParserForProtobuf(
         config->Tables = {config->Tables[tableIndex]};
     } else if (!config->TypeNames.empty()) {
         // Retain only one type name, as we have only one schema here.
-        config = NYTree::CloneYsonSerializable(config);
+        config = NYTree::CloneYsonStruct(config);
         if (tableIndex >= std::ssize(config->TypeNames)) {
             THROW_ERROR_EXCEPTION("Protobuf format does not have table with index %v",
                 tableIndex);

@@ -256,12 +256,12 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             writerProfiler->Update(tableWriter);
         });
 
-        auto writerOptions = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterOptions);
+        auto writerOptions = CloneYsonStruct(tabletSnapshot->Settings.StoreWriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
         writerOptions->ConsistentChunkReplicaPlacementHash = tabletSnapshot->ConsistentChunkReplicaPlacementHash;
         writerOptions->Postprocess();
 
-        auto writerConfig = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterConfig);
+        auto writerConfig = CloneYsonStruct(tabletSnapshot->Settings.StoreWriterConfig);
         writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
         writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;
         writerConfig->Postprocess();

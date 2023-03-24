@@ -163,7 +163,7 @@ void TBootstrap::DoRun()
 
     BusServer_ = CreateBusServer(Config_->BusServer);
     if (Config_->TvmOnlyRpcPort) {
-        auto busConfigCopy = CloneYsonSerializable(Config_->BusServer);
+        auto busConfigCopy = CloneYsonStruct(Config_->BusServer);
         busConfigCopy->Port = Config_->TvmOnlyRpcPort;
         TvmOnlyBusServer_ = CreateBusServer(busConfigCopy);
     }
@@ -277,7 +277,7 @@ void TBootstrap::DoRun()
 
     if (TvmOnlyRpcServer_) {
         YT_LOG_INFO("Listening for TVM-only RPC requests on port %v", Config_->TvmOnlyRpcPort);
-        auto rpcServerConfigCopy = CloneYsonSerializable(Config_->RpcServer);
+        auto rpcServerConfigCopy = CloneYsonStruct(Config_->RpcServer);
         TvmOnlyRpcServer_->Configure(rpcServerConfigCopy);
         TvmOnlyRpcServer_->Start();
     }

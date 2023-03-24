@@ -47,7 +47,7 @@ IChannelPtr CreateTimestampProviderChannelFromAddresses(
     IChannelFactoryPtr channelFactory,
     const std::vector<TString>& discoveredAddresses)
 {
-    auto channelConfig = CloneYsonSerializable(config);
+    auto channelConfig = CloneYsonStruct(config);
     if (!discoveredAddresses.empty()) {
         channelConfig->Addresses = discoveredAddresses;
     }

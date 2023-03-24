@@ -394,7 +394,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         queryContext->Host->GetConfig()->ReaderMemoryRequirement,
         {{"user", queryContext->User}});
 
-    auto tableReaderConfig = CloneYsonSerializable(storageContext->Settings->TableReader);
+    auto tableReaderConfig = CloneYsonStruct(storageContext->Settings->TableReader);
     tableReaderConfig->SamplingMode = subquerySpec.TableReaderConfig->SamplingMode;
     tableReaderConfig->SamplingRate = subquerySpec.TableReaderConfig->SamplingRate;
     tableReaderConfig->SamplingSeed = subquerySpec.TableReaderConfig->SamplingSeed;

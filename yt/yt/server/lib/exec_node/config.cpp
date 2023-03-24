@@ -236,7 +236,7 @@ TSchedulerConnectorConfigPtr TSchedulerConnectorConfig::ApplyDynamic(const TSche
 {
     YT_VERIFY(dynamicConfig);
 
-    auto newConfig = CloneYsonSerializable(MakeStrong(this));
+    auto newConfig = CloneYsonStruct(MakeStrong(this));
     newConfig->ApplyDynamicInplace(*dynamicConfig);
 
     return newConfig;
@@ -263,7 +263,7 @@ TControllerAgentConnectorConfigPtr TControllerAgentConnectorConfig::ApplyDynamic
 {
     YT_VERIFY(dynamicConfig);
 
-    auto newConfig = CloneYsonSerializable(MakeStrong(this));
+    auto newConfig = CloneYsonStruct(MakeStrong(this));
     newConfig->ApplyDynamicInplace(*dynamicConfig);
 
     return newConfig;

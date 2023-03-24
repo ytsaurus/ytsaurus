@@ -702,7 +702,7 @@ IChunkReaderPtr CreateRemoteReader(
             erasureCodec->GetTotalPartCount() :
             erasureCodec->GetDataPartCount();
 
-        auto partConfig = CloneYsonSerializable(config);
+        auto partConfig = CloneYsonStruct(config);
         partConfig->FailOnNoSeeds = true;
 
         std::vector<IChunkReaderAllowingRepairPtr> readers;

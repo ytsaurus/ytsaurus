@@ -2939,8 +2939,8 @@ protected:
 
     void InitJobIOConfigs()
     {
-        RootPartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
-        PartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
+        RootPartitionJobIOConfig = CloneYsonStruct(Spec->PartitionJobIO);
+        PartitionJobIOConfig = CloneYsonStruct(Spec->PartitionJobIO);
         PartitionJobIOConfig->TableReader->SamplingRate = std::nullopt;
     }
 
@@ -3528,18 +3528,18 @@ private:
     {
         TSortControllerBase::InitJobIOConfigs();
 
-        IntermediateSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
+        IntermediateSortJobIOConfig = CloneYsonStruct(Spec->SortJobIO);
 
         // Final sort: reader like sort and output like merge.
-        FinalSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
-        FinalSortJobIOConfig->TableWriter = CloneYsonSerializable(Spec->MergeJobIO->TableWriter);
+        FinalSortJobIOConfig = CloneYsonStruct(Spec->SortJobIO);
+        FinalSortJobIOConfig->TableWriter = CloneYsonStruct(Spec->MergeJobIO->TableWriter);
 
-        SortedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
+        SortedMergeJobIOConfig = CloneYsonStruct(Spec->MergeJobIO);
 
-        UnorderedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
+        UnorderedMergeJobIOConfig = CloneYsonStruct(Spec->MergeJobIO);
         // Since we're reading from huge number of paritition chunks, we must use larger buffers,
         // as we do for sort jobs.
-        UnorderedMergeJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
+        UnorderedMergeJobIOConfig->TableReader = CloneYsonStruct(Spec->SortJobIO->TableReader);
     }
 
     EJobType GetIntermediateSortJobType() const override
@@ -4345,18 +4345,18 @@ private:
     {
         TSortControllerBase::InitJobIOConfigs();
 
-        RootPartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
-        PartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
+        RootPartitionJobIOConfig = CloneYsonStruct(Spec->PartitionJobIO);
+        PartitionJobIOConfig = CloneYsonStruct(Spec->PartitionJobIO);
         PartitionJobIOConfig->TableReader->SamplingRate = std::nullopt;
 
         IntermediateSortJobIOConfig = Spec->SortJobIO;
 
         // Partition reduce: writer like in merge and reader like in sort.
-        FinalSortJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
-        FinalSortJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
+        FinalSortJobIOConfig = CloneYsonStruct(Spec->MergeJobIO);
+        FinalSortJobIOConfig->TableReader = CloneYsonStruct(Spec->SortJobIO->TableReader);
 
         // Sorted reduce.
-        SortedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
+        SortedMergeJobIOConfig = CloneYsonStruct(Spec->MergeJobIO);
     }
 
     EJobType GetPartitionJobType(bool isRoot) const override

@@ -13,7 +13,7 @@ void TTableMountCacheConfig::Register(TRegistrar registrar)
 TTableMountCacheConfigPtr TTableMountCacheConfig::ApplyDynamic(
     const TTableMountCacheDynamicConfigPtr& dynamicConfig)
 {
-    auto mergedConfig = CloneYsonSerializable(MakeStrong(this));
+    auto mergedConfig = CloneYsonStruct(MakeStrong(this));
 
     mergedConfig->ApplyDynamicInplace(dynamicConfig);
 

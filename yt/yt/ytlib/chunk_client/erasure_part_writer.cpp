@@ -54,7 +54,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     IBlockCachePtr blockCache,
     TChunkReplicaWithMediumList targetReplicas)
 {
-    auto partConfig = NYTree::CloneYsonSerializable(config);
+    auto partConfig = NYTree::CloneYsonStruct(config);
     // Ignore upload replication factor for erasure chunk parts.
     partConfig->UploadReplicationFactor = 1;
 

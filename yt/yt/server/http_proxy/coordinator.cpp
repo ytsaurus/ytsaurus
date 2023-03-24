@@ -300,7 +300,7 @@ void TCoordinator::UpdateState()
 
     auto selfPath = SysProxies + "/" + ToYPathLiteral(Self_->Entry->Endpoint);
 
-    auto proxyEntry = CloneYsonSerializable(Self_->Entry);
+    auto proxyEntry = CloneYsonStruct(Self_->Entry);
     proxyEntry->Liveness = GetSelfLiveness();
     {
         auto guard = Guard(SelfLock_);

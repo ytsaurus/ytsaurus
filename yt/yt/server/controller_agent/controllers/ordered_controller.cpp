@@ -422,7 +422,7 @@ protected:
     //! Initializes #JobIOConfig.
     void InitJobIOConfig()
     {
-        JobIOConfig_ = CloneYsonSerializable(Spec_->JobIO);
+        JobIOConfig_ = CloneYsonStruct(Spec_->JobIO);
     }
 
     void InitTeleportableInputTables()

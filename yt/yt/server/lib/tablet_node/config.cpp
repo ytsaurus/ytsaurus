@@ -599,7 +599,7 @@ void THunkChunkSweeperDynamicConfig::Register(TRegistrar registrar)
 
 TInMemoryManagerConfigPtr TInMemoryManagerConfig::ApplyDynamic(const TInMemoryManagerDynamicConfigPtr& dynamicConfig)
 {
-    auto config = CloneYsonSerializable(TInMemoryManagerConfigPtr(this));
+    auto config = CloneYsonStruct(TInMemoryManagerConfigPtr(this));
     UpdateYsonStructField(config->MaxConcurrentPreloads, dynamicConfig->MaxConcurrentPreloads);
     UpdateYsonStructField(config->InterceptedDataRetentionTime, dynamicConfig->InterceptedDataRetentionTime);
     UpdateYsonStructField(config->PingPeriod, dynamicConfig->PingPeriod);

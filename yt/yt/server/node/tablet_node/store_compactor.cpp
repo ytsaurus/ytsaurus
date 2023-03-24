@@ -199,22 +199,22 @@ private:
 
     void Initialize()
     {
-        StoreWriterConfig_ = CloneYsonSerializable(TabletSnapshot_->Settings.StoreWriterConfig);
+        StoreWriterConfig_ = CloneYsonStruct(TabletSnapshot_->Settings.StoreWriterConfig);
         StoreWriterConfig_->MinUploadReplicationFactor = StoreWriterConfig_->UploadReplicationFactor;
         StoreWriterConfig_->WorkloadDescriptor = TWorkloadDescriptor(WorkloadCategory_);
 
-        StoreWriterOptions_ = CloneYsonSerializable(TabletSnapshot_->Settings.StoreWriterOptions);
+        StoreWriterOptions_ = CloneYsonStruct(TabletSnapshot_->Settings.StoreWriterOptions);
         StoreWriterOptions_->ChunksEden = ResultsInEden_;
         StoreWriterOptions_->ValidateResourceUsageIncrease = false;
         StoreWriterOptions_->ConsistentChunkReplicaPlacementHash = TabletSnapshot_->ConsistentChunkReplicaPlacementHash;
         StoreWriterOptions_->MemoryTracker = Bootstrap_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground);
         StoreWriterOptions_->MemoryReferenceTracker = Bootstrap_->GetNodeMemoryReferenceTracker()->WithCategory(EMemoryCategory::TabletBackground);
 
-        HunkWriterConfig_ = CloneYsonSerializable(TabletSnapshot_->Settings.HunkWriterConfig);
+        HunkWriterConfig_ = CloneYsonStruct(TabletSnapshot_->Settings.HunkWriterConfig);
         HunkWriterConfig_->WorkloadDescriptor = TWorkloadDescriptor(WorkloadCategory_);
         HunkWriterConfig_->MinUploadReplicationFactor = HunkWriterConfig_->UploadReplicationFactor;
 
-        HunkWriterOptions_ = CloneYsonSerializable(TabletSnapshot_->Settings.HunkWriterOptions);
+        HunkWriterOptions_ = CloneYsonStruct(TabletSnapshot_->Settings.HunkWriterOptions);
         HunkWriterOptions_->ValidateResourceUsageIncrease = false;
         HunkWriterOptions_->ConsistentChunkReplicaPlacementHash = TabletSnapshot_->ConsistentChunkReplicaPlacementHash;
 

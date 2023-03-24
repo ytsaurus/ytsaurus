@@ -287,7 +287,7 @@ public:
             return config;
         }
 
-        auto patchedConfig = CloneYsonSerializable(config);
+        auto patchedConfig = CloneYsonStruct(config);
         patchedConfig->Limit = *config->RelativeLimit * Config_->NetworkBandwidth;
 
         return patchedConfig;
@@ -1248,8 +1248,8 @@ private:
             }
         };
 
-        auto blockCacheConfig = CloneYsonSerializable(nodeConfig->DataNode->BlockCache);
-        auto versionedChunkMetaConfig = CloneYsonSerializable(nodeConfig->TabletNode->VersionedChunkMetaCache);
+        auto blockCacheConfig = CloneYsonStruct(nodeConfig->DataNode->BlockCache);
+        auto versionedChunkMetaConfig = CloneYsonStruct(nodeConfig->TabletNode->VersionedChunkMetaCache);
 
         const auto& memoryLimits = bundleConfig->MemoryLimits;
         overrideCapacity(blockCacheConfig->CompressedData, memoryLimits->CompressedBlockCache);

@@ -489,7 +489,7 @@ protected:
 
     void InitJobIOConfig()
     {
-        JobIOConfig = CloneYsonSerializable(Spec->JobIO);
+        JobIOConfig = CloneYsonStruct(Spec->JobIO);
     }
 
     void PrepareInputQuery() override

@@ -1819,7 +1819,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
                 auto streamDescriptor = standardStreamDescriptors[index]->Clone();
                 // Auto-merge jobs produce single output, so we override the table
                 // index in writer options with 0.
-                streamDescriptor->TableWriterOptions = CloneYsonSerializable(streamDescriptor->TableWriterOptions);
+                streamDescriptor->TableWriterOptions = CloneYsonStruct(streamDescriptor->TableWriterOptions);
                 streamDescriptor->TableWriterOptions->TableIndex = 0;
                 outputStreamDescriptors.push_back(std::move(streamDescriptor));
                 AutoMergeEnabled_[index] = true;
@@ -10109,7 +10109,7 @@ const NChunkClient::TMediumDirectoryPtr& TOperationControllerBase::GetMediumDire
 
 TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfigTemplate() const
 {
-    auto config = CloneYsonSerializable(Options->JobSplitter);
+    auto config = CloneYsonStruct(Options->JobSplitter);
 
     if (!Spec_->EnableJobSplitting || !Config->EnableJobSplitting) {
         config->EnableJobSplitting = false;

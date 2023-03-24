@@ -293,7 +293,7 @@ TJaegerChannelManager::TJaegerChannelManager(const TIntrusivePtr<TJaegerTracerCo
     , PayloadSize_(Profiler.WithTag("endpoint", endpoint).Summary("/payload_size"))
     , PushDuration_(Profiler.WithTag("endpoint", endpoint).Timer("/push_duration"))
 {
-    auto channelEndpointConfig = CloneYsonSerializable(config->CollectorChannelConfig);
+    auto channelEndpointConfig = CloneYsonStruct(config->CollectorChannelConfig);
     channelEndpointConfig->Address = endpoint;
 
     Channel_ = NGrpc::CreateGrpcChannel(channelEndpointConfig);

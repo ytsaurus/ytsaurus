@@ -59,8 +59,8 @@ public:
         TTrafficMeterPtr trafficMeter,
         TSessionId sessionId,
         TChunkReplicaWithMediumList targetReplicas)
-        : Config_(CloneYsonSerializable(config))
-        , Options_(CloneYsonSerializable(options))
+        : Config_(CloneYsonStruct(config))
+        , Options_(CloneYsonStruct(options))
         , CellTag_(cellTag)
         , TransactionId_(transactionId)
         , ParentChunkListId_(parentChunkListId)
@@ -267,9 +267,9 @@ private:
         auto* erasureCodec = GetCodec(Options_->ErasureCodec);
         // NB(psushin): we don't ask master for new erasure replicas,
         // because we cannot guarantee proper replica placement.
-        auto options = CloneYsonSerializable(Options_);
+        auto options = CloneYsonStruct(Options_);
         options->AllowAllocatingNewTargetNodes = Config_->EnableErasureTargetNodeReallocation;
-        auto config = CloneYsonSerializable(Config_);
+        auto config = CloneYsonStruct(Config_);
         // Block reordering is done in erasure writer.
         config->EnableBlockReordering = false;
 

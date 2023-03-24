@@ -218,7 +218,7 @@ void TDynamicDistributedHydraManagerConfig::Register(TRegistrar registrar)
 TDistributedHydraManagerConfigPtr TDistributedHydraManagerConfig::ApplyDynamic(
     const TDynamicDistributedHydraManagerConfigPtr& dynamicConfig)
 {
-    auto config = CloneYsonSerializable(MakeStrong(this));
+    auto config = CloneYsonStruct(MakeStrong(this));
     config->ApplyDynamicInplace(*dynamicConfig);
     config->Postprocess();
     return config;

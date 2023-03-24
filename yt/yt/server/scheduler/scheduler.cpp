@@ -2324,7 +2324,7 @@ private:
             THROW_ERROR(rspOrError.Wrap(EErrorCode::WatcherHandlerFailed, "Error getting scheduler configuration"));
         }
 
-        auto newConfig = CloneYsonSerializable(InitialConfig_);
+        auto newConfig = CloneYsonStruct(InitialConfig_);
         try {
             const auto& rsp = rspOrError.Value();
             auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));

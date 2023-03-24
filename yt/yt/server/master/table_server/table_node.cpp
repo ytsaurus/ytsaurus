@@ -235,7 +235,7 @@ void TTableNode::TDynamicTableAttributes::CopyFrom(const TDynamicTableAttributes
     FOR_EACH_COPYABLE_ATTRIBUTE(XX)
     #undef XX
 
-    TabletBalancerConfig = CloneYsonSerializable(other->TabletBalancerConfig);
+    TabletBalancerConfig = CloneYsonStruct(other->TabletBalancerConfig);
     *MountConfigStorage = *other->MountConfigStorage;
 }
 

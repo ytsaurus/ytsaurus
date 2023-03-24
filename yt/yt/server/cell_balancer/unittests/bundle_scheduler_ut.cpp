@@ -35,7 +35,7 @@ TString GetPodIdForInstance(const TString& name)
 void ApplyChangedStates(TSchedulerInputState* schedulerState, const TSchedulerMutations& mutations)
 {
     for (const auto& [bundleName, state] : mutations.ChangedStates) {
-        schedulerState->BundleStates[bundleName] = NYTree::CloneYsonSerializable(state);
+        schedulerState->BundleStates[bundleName] = NYTree::CloneYsonStruct(state);
     }
 }
 
@@ -218,7 +218,7 @@ THashSet<TString> GenerateNodesForBundle(
         nodeInfo->Annotations->YPCluster = "pre-pre";
         nodeInfo->Annotations->AllocatedForBundle = bundleName;
         nodeInfo->Annotations->DeallocationStrategy = DeallocationStrategyHulkRequest;
-        nodeInfo->Annotations->Resource = CloneYsonSerializable(targetConfig->TabletNodeResourceGuarantee);
+        nodeInfo->Annotations->Resource = CloneYsonStruct(targetConfig->TabletNodeResourceGuarantee);
 
         for (int index = 0; index < slotCount; ++index) {
             nodeInfo->TabletSlots.push_back(New<TTabletSlot>());
@@ -261,7 +261,7 @@ THashSet<TString> GenerateProxiesForBundle(
         proxyInfo->Annotations->YPCluster = "pre-pre";
         proxyInfo->Annotations->AllocatedForBundle = bundleName;
         proxyInfo->Annotations->DeallocationStrategy = DeallocationStrategyHulkRequest;
-        proxyInfo->Annotations->Resource = CloneYsonSerializable(targetConfig->RpcProxyResourceGuarantee);
+        proxyInfo->Annotations->Resource = CloneYsonStruct(targetConfig->RpcProxyResourceGuarantee);
 
         if (setRole) {
             auto& bundleInfo = GetOrCrash(inputState.Bundles, bundleName);
@@ -2583,8 +2583,8 @@ TEST(TBundleSchedulerTest, CheckSystemAccountLimit)
         mutations.ChangedRootSystemAccountLimit);
 
     // Check nothing changed is limits are ok
-    input.SystemAccounts["default-bundle-account"]->ResourceLimits = NYTree::CloneYsonSerializable(mutations.LiftedSystemAccountLimit["default-bundle-account"]);
-    input.RootSystemAccount->ResourceLimits = NYTree::CloneYsonSerializable(mutations.ChangedRootSystemAccountLimit);
+    input.SystemAccounts["default-bundle-account"]->ResourceLimits = NYTree::CloneYsonStruct(mutations.LiftedSystemAccountLimit["default-bundle-account"]);
+    input.RootSystemAccount->ResourceLimits = NYTree::CloneYsonStruct(mutations.ChangedRootSystemAccountLimit);
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
     EXPECT_EQ(0, std::ssize(mutations.LiftedSystemAccountLimit));
