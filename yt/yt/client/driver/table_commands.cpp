@@ -989,7 +989,7 @@ void TGetInSyncReplicasCommand::DoExecute(ICommandContextPtr context)
         .ValueOrThrow();
 
     tableInfo->ValidateDynamic();
-    if (!tableInfo->IsChaosReplica()) {
+    if (!tableInfo->IsChaosReplica() && !tableInfo->IsChaosReplicated()) {
         tableInfo->ValidateReplicated();
     }
 

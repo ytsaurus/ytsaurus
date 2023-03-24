@@ -880,39 +880,52 @@ class TestChaos(ChaosTestBase):
     @authors("savrus")
     @pytest.mark.parametrize("all_keys", [True, False])
     def test_get_in_sync_replicas(self, all_keys):
-        def _get_in_sync_replicas():
+        def _get_in_sync_replicas(path):
             if all_keys:
-                return get_in_sync_replicas("//tmp/t", [], all_keys=True, timestamp=MaxTimestamp)
+                return get_in_sync_replicas(path, [], all_keys=True, timestamp=MaxTimestamp)
             else:
-                return get_in_sync_replicas("//tmp/t", [{"key": 0}], timestamp=MaxTimestamp)
+                return get_in_sync_replicas(path, [{"key": 0}], timestamp=MaxTimestamp)
 
-        cell_id = self._sync_create_chaos_bundle_and_cell()
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "chaos_cell_bundle": "chaos_bundle",
+            "schema": schema,
+        })
 
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
         ]
-        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        self._create_replica_tables(replicas, replica_ids, schema=schema)
+        card_id = get("//tmp/crt/@replication_card_id")
 
-        sync_replicas = _get_in_sync_replicas()
-        assert len(sync_replicas) == 0
+        assert len(_get_in_sync_replicas("//tmp/t")) == 0
+        assert len(_get_in_sync_replicas("//tmp/crt")) == 0
 
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="sync")
 
-        sync_replicas = _get_in_sync_replicas()
-        assert len(sync_replicas) == 1
+        assert len(_get_in_sync_replicas("//tmp/t")) == 1
+        assert len(_get_in_sync_replicas("//tmp/crt")) == 1
 
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=False)
 
         rows = [{"key": 0, "value": "0"}]
         keys = [{"key": 0}]
-        insert_rows("//tmp/t", rows)
+        insert_rows("//tmp/crt", rows)
 
         sync_unmount_table("//tmp/t")
         alter_table_replica(replica_ids[0], enabled=True)
 
-        sync_replicas = _get_in_sync_replicas()
-        assert len(sync_replicas) == 0
+        assert len(_get_in_sync_replicas("//tmp/t")) == 0
+        assert len(_get_in_sync_replicas("//tmp/crt")) == 0
 
         sync_mount_table("//tmp/t")
         wait(lambda: lookup_rows("//tmp/t", keys) == rows)
@@ -928,8 +941,8 @@ class TestChaos(ChaosTestBase):
 
         wait(_check_progress)
 
-        sync_replicas = _get_in_sync_replicas()
-        assert len(sync_replicas) == 1
+        assert len(_get_in_sync_replicas("//tmp/t")) == 1
+        assert len(_get_in_sync_replicas("//tmp/crt")) == 1
 
     @authors("savrus")
     def test_async_get_in_sync_replicas(self):
