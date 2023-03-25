@@ -350,11 +350,11 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterDryRunConfig::TMasterDryRunConfig()
+void TMasterDryRunConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_host_name_validation", EnableHostNameValidation)
+    registrar.Parameter("enable_host_name_validation", &TThis::EnableHostNameValidation)
         .Default(true);
-    RegisterParameter("enable_dry_run", EnableDryRun)
+    registrar.Parameter("enable_dry_run", &TThis::EnableDryRun)
         .Default(false);
 }
 

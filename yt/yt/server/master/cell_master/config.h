@@ -338,14 +338,16 @@ DEFINE_REFCOUNTED_TYPE(TDynamicClusterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterDryRunConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableHostNameValidation;
 
     bool EnableDryRun;
 
-    TMasterDryRunConfig();
+    REGISTER_YSON_STRUCT(TMasterDryRunConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterDryRunConfig)

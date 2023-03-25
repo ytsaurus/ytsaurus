@@ -343,18 +343,12 @@ TString ToString(const TTabletStatistics& tabletStatistics, const IChunkManagerP
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSerializableTabletCellStatisticsBase::TSerializableTabletCellStatisticsBase()
-{
-    InitParameters();
-}
-
 TSerializableTabletCellStatisticsBase::TSerializableTabletCellStatisticsBase(
     const TTabletCellStatisticsBase& statistics,
     const IChunkManagerPtr& chunkManager)
     : TTabletCellStatisticsBase(statistics)
 {
-    InitParameters();
-
+    NYTree::TYsonStructRegistry::Get()->InitializeStruct(this);
     DiskSpace_ = 0;
     for (const auto& [mediumIndex, mediumDiskSpace] : DiskSpacePerMedium) {
         const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
@@ -363,42 +357,37 @@ TSerializableTabletCellStatisticsBase::TSerializableTabletCellStatisticsBase(
     }
 }
 
-void TSerializableTabletCellStatisticsBase::InitParameters()
+void TSerializableTabletCellStatisticsBase::Register(TRegistrar registrar)
 {
-    RegisterParameter("unmerged_row_count", UnmergedRowCount);
-    RegisterParameter("uncompressed_data_size", UncompressedDataSize);
-    RegisterParameter("compressed_data_size", CompressedDataSize);
-    RegisterParameter("hunk_uncompressed_data_size", HunkUncompressedDataSize);
-    RegisterParameter("hunk_compressed_data_size", HunkCompressedDataSize);
-    RegisterParameter("memory_size", MemorySize);
-    RegisterParameter("disk_space", DiskSpace_);
-    RegisterParameter("disk_space_per_medium", DiskSpacePerMediumMap_);
-    RegisterParameter("chunk_count", ChunkCount);
-    RegisterParameter("partition_count", PartitionCount);
-    RegisterParameter("store_count", StoreCount);
-    RegisterParameter("preload_pending_store_count", PreloadPendingStoreCount);
-    RegisterParameter("preload_completed_store_count", PreloadCompletedStoreCount);
-    RegisterParameter("preload_failed_store_count", PreloadFailedStoreCount);
-    RegisterParameter("dynamic_memory_pool_size", DynamicMemoryPoolSize);
-    RegisterParameter("tablet_count", TabletCount);
-    RegisterParameter("tablet_count_per_memory_mode", TabletCountPerMemoryMode);
-}
-
-TSerializableTabletStatisticsBase::TSerializableTabletStatisticsBase()
-{
-    InitParameters();
+    registrar.BaseClassParameter("unmerged_row_count", &TThis::UnmergedRowCount);
+    registrar.BaseClassParameter("uncompressed_data_size", &TThis::UncompressedDataSize);
+    registrar.BaseClassParameter("compressed_data_size", &TThis::CompressedDataSize);
+    registrar.BaseClassParameter("hunk_uncompressed_data_size", &TThis::HunkUncompressedDataSize);
+    registrar.BaseClassParameter("hunk_compressed_data_size", &TThis::HunkCompressedDataSize);
+    registrar.BaseClassParameter("memory_size", &TThis::MemorySize);
+    registrar.Parameter("disk_space", &TThis::DiskSpace_);
+    registrar.Parameter("disk_space_per_medium", &TThis::DiskSpacePerMediumMap_);
+    registrar.BaseClassParameter("chunk_count", &TThis::ChunkCount);
+    registrar.BaseClassParameter("partition_count", &TThis::PartitionCount);
+    registrar.BaseClassParameter("store_count", &TThis::StoreCount);
+    registrar.BaseClassParameter("preload_pending_store_count", &TThis::PreloadPendingStoreCount);
+    registrar.BaseClassParameter("preload_completed_store_count", &TThis::PreloadCompletedStoreCount);
+    registrar.BaseClassParameter("preload_failed_store_count", &TThis::PreloadFailedStoreCount);
+    registrar.BaseClassParameter("dynamic_memory_pool_size", &TThis::DynamicMemoryPoolSize);
+    registrar.BaseClassParameter("tablet_count", &TThis::TabletCount);
+    registrar.BaseClassParameter("tablet_count_per_memory_mode", &TThis::TabletCountPerMemoryMode);
 }
 
 TSerializableTabletStatisticsBase::TSerializableTabletStatisticsBase(
     const TTabletStatisticsBase& statistics)
     : TTabletStatisticsBase(statistics)
 {
-    InitParameters();
+    NYTree::TYsonStructRegistry::Get()->InitializeStruct(this);
 }
 
-void TSerializableTabletStatisticsBase::InitParameters()
+void TSerializableTabletStatisticsBase::Register(TRegistrar registrar)
 {
-    RegisterParameter("overlapping_store_count", OverlappingStoreCount);
+    registrar.BaseClassParameter("overlapping_store_count", &TThis::OverlappingStoreCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -407,14 +396,18 @@ TSerializableTabletCellStatistics::TSerializableTabletCellStatistics(
     const TTabletCellStatistics& statistics,
     const IChunkManagerPtr& chunkManager)
     : TSerializableTabletCellStatisticsBase(statistics, chunkManager)
-{ }
+{
+    NYTree::TYsonStructRegistry::Get()->InitializeStruct(this);
+}
 
 TSerializableTabletStatistics::TSerializableTabletStatistics(
     const TTabletStatistics& statistics,
     const IChunkManagerPtr& chunkManager)
     : TSerializableTabletCellStatisticsBase(statistics, chunkManager)
     , TSerializableTabletStatisticsBase(statistics)
-{ }
+{
+    NYTree::TYsonStructRegistry::Get()->InitializeStruct(this);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

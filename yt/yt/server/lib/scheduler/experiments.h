@@ -15,7 +15,7 @@ namespace NYT::NScheduler {
 //! Parameters defining effect on operation.
 //! Each patch is present in two versions; one is applied before user spec changing
 //! default values of the fields and another is applied after user spec allowing you
-//! to override some user-provided values (similar to TYsonSerializable preprocessors
+//! to override some user-provided values (similar to TYsonStruct preprocessors
 //! and postprocessor).
 struct TExperimentEffectConfig
     : public NYTree::TYsonStruct

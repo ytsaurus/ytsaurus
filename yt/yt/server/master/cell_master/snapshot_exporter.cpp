@@ -31,7 +31,7 @@ DEFINE_ENUM(EPresetAttributes,
 DECLARE_REFCOUNTED_CLASS(TExportArgumentsConfig)
 
 class TExportArgumentsConfig
-    : public TYsonSerializable
+    : public TYsonStruct
 {
 public:
     std::optional<int> JobIndex;
@@ -42,45 +42,47 @@ public:
     std::vector<TString> UserAttributes;
     std::optional<EPresetAttributes> PresetAttributes;
 
-    TExportArgumentsConfig()
+    REGISTER_YSON_STRUCT(TExportArgumentsConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("job_index", JobIndex)
+        registrar.Parameter("job_index", &TThis::JobIndex)
             .GreaterThanOrEqual(0)
             .Default();
-        RegisterParameter("job_count", JobCount)
+        registrar.Parameter("job_count", &TThis::JobCount)
             .GreaterThan(0)
             .Default();
-        RegisterParameter("lower_index", LowerIndex)
+        registrar.Parameter("lower_index", &TThis::LowerIndex)
             .GreaterThanOrEqual(0)
             .Default();
-        RegisterParameter("upper_index", UpperIndex)
+        registrar.Parameter("upper_index", &TThis::UpperIndex)
             .GreaterThan(0)
             .Default();
-        RegisterParameter("types", UserTypes)
+        registrar.Parameter("types", &TThis::UserTypes)
             .Default();
-        RegisterParameter("attributes", UserAttributes)
+        registrar.Parameter("attributes", &TThis::UserAttributes)
             .Default();
-        RegisterParameter("preset_attributes", PresetAttributes)
+        registrar.Parameter("preset_attributes", &TThis::PresetAttributes)
             .Default();
 
-        RegisterPostprocessor([&] () {
-            if (PresetAttributes.has_value() ^ UserAttributes.empty()) {
+        registrar.Postprocessor([] (TThis* config) {
+            if (config->PresetAttributes.has_value() ^ config->UserAttributes.empty()) {
                 THROW_ERROR_EXCEPTION("Invalid export config: exactly one key \"attributes\" or \"preset_attributes\" must be defined");
             }
-            if ((JobIndex.has_value() || JobCount.has_value()) &&
-                (LowerIndex.has_value() || UpperIndex.has_value()))
+            if ((config->JobIndex.has_value() || config->JobCount.has_value()) &&
+                (config->LowerIndex.has_value() || config->UpperIndex.has_value()))
             {
                 THROW_ERROR_EXCEPTION("Invalid export config: only one way of iterating (through keys or through jobs) may be set");
             }
-            if (LowerIndex.has_value() && UpperIndex.has_value() &&
-                LowerIndex.value() >= UpperIndex.value())
+            if (config->LowerIndex.has_value() && config->UpperIndex.has_value() &&
+                config->LowerIndex.value() >= config->UpperIndex.value())
             {
                 THROW_ERROR_EXCEPTION("Invalid export config: \"lower_index\" must be less than \"upper_index\"");
             }
-            if (JobIndex.has_value() ^ JobCount.has_value()) {
+            if (config->JobIndex.has_value() ^ config->JobCount.has_value()) {
                 THROW_ERROR_EXCEPTION("Invalid export config: \"job_index\" and \"job_count\" can only be defined together");
             }
-            if (JobIndex.has_value() && JobIndex.value() >= JobCount.value()) {
+            if (config->JobIndex.has_value() && config->JobIndex.value() >= config->JobCount.value()) {
                 THROW_ERROR_EXCEPTION("Invalid export config: \"job_count\" must be greater than \"job_index\"");
             }
         });

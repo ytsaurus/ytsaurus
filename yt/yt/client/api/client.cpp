@@ -48,37 +48,53 @@ TUserWorkloadDescriptor::operator TWorkloadDescriptor() const
 }
 
 struct TSerializableUserWorkloadDescriptor
-    : public TYsonSerializableLite
+    : public TYsonStructLite
+    , public TUserWorkloadDescriptor
 {
-    TUserWorkloadDescriptor Underlying;
+    REGISTER_YSON_STRUCT_LITE(TSerializableUserWorkloadDescriptor);
 
-    TSerializableUserWorkloadDescriptor()
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("category", Underlying.Category);
-        RegisterParameter("band", Underlying.Band)
+        registrar.BaseClassParameter("category", &TThis::Category);
+        registrar.BaseClassParameter("band", &TThis::Band)
             .Optional();
+    }
+
+public:
+    static TThis Wrap(const TUserWorkloadDescriptor& source)
+    {
+        TThis result = Create();
+        result.Band = source.Band;
+        result.Category = source.Category;
+        return result;
+    }
+
+    TUserWorkloadDescriptor Unwrap()
+    {
+        TUserWorkloadDescriptor result;
+        result.Band = Band;
+        result.Category = Category;
+        return result;
     }
 };
 
 void Serialize(const TUserWorkloadDescriptor& workloadDescriptor, NYson::IYsonConsumer* consumer)
 {
-    TSerializableUserWorkloadDescriptor serializableWorkloadDescriptor;
-    serializableWorkloadDescriptor.Underlying = workloadDescriptor;
-    Serialize(serializableWorkloadDescriptor, consumer);
+    NYTree::Serialize(TSerializableUserWorkloadDescriptor::Wrap(workloadDescriptor), consumer);
 }
 
 void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, INodePtr node)
 {
-    TSerializableUserWorkloadDescriptor serializableWorkloadDescriptor;
-    Deserialize(serializableWorkloadDescriptor, node);
-    workloadDescriptor = serializableWorkloadDescriptor.Underlying;
+    auto serializableWorkloadDescriptor = TSerializableUserWorkloadDescriptor::Create();
+    NYTree::Deserialize(serializableWorkloadDescriptor, node);
+    workloadDescriptor = serializableWorkloadDescriptor.Unwrap();
 }
 
 void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, NYson::TYsonPullParserCursor* cursor)
 {
-    TSerializableUserWorkloadDescriptor serializableWorkloadDescriptor;
-    Deserialize(serializableWorkloadDescriptor, cursor);
-    workloadDescriptor = serializableWorkloadDescriptor.Underlying;
+    auto serializableWorkloadDescriptor = TSerializableUserWorkloadDescriptor::Create();
+    NYTree::Deserialize(serializableWorkloadDescriptor, cursor);
+    workloadDescriptor = serializableWorkloadDescriptor.Unwrap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

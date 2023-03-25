@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/misc/aggregate_property.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NTabletServer {
 
@@ -111,31 +111,33 @@ TString ToString(const TTabletStatistics& statistics, const NChunkServer::IChunk
 
 // COMPAT(akozhikhov)
 class TSerializableTabletCellStatisticsBase
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
     , public TTabletCellStatisticsBase
 {
 public:
-    TSerializableTabletCellStatisticsBase();
-
     TSerializableTabletCellStatisticsBase(
         const TTabletCellStatisticsBase& statistics,
         const NChunkServer::IChunkManagerPtr& chunkManager);
 
+    REGISTER_YSON_STRUCT(TSerializableTabletCellStatisticsBase);
+
+    static void Register(TRegistrar registrar);
+
 private:
     i64 DiskSpace_ = 0;
     THashMap<TString, i64> DiskSpacePerMediumMap_;
-
-    void InitParameters();
 };
 
 class TSerializableTabletStatisticsBase
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
     , public TTabletStatisticsBase
 {
 public:
-    TSerializableTabletStatisticsBase();
-
     explicit TSerializableTabletStatisticsBase(const TTabletStatisticsBase& statistics);
+
+    REGISTER_YSON_STRUCT(TSerializableTabletStatisticsBase);
+
+    static void Register(TRegistrar registrar);
 
 private:
     void InitParameters();
@@ -145,11 +147,14 @@ class TSerializableTabletCellStatistics
     : public TSerializableTabletCellStatisticsBase
 {
 public:
-    TSerializableTabletCellStatistics() = default;
-
     TSerializableTabletCellStatistics(
         const TTabletCellStatistics& statistics,
         const NChunkServer::IChunkManagerPtr& chunkManager);
+
+    REGISTER_YSON_STRUCT(TSerializableTabletCellStatistics);
+
+    static void Register(TRegistrar)
+    { }
 };
 
 class TSerializableTabletStatistics
@@ -157,11 +162,14 @@ class TSerializableTabletStatistics
     , public TSerializableTabletStatisticsBase
 {
 public:
-    TSerializableTabletStatistics() = default;
-
     TSerializableTabletStatistics(
         const TTabletStatistics& statistics,
         const NChunkServer::IChunkManagerPtr& chunkManager);
+
+    REGISTER_YSON_STRUCT(TSerializableTabletStatistics);
+
+    static void Register(TRegistrar)
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

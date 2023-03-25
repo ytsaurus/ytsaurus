@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/ytree/node.h>
 #include <yt/yt/core/ytree/serialize.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NSkiffExt {
 
@@ -208,19 +208,20 @@ static constexpr char ReferencePrefix = '$';
 DECLARE_REFCOUNTED_CLASS(TSkiffSchemaRepresentation);
 
 class TSkiffSchemaRepresentation
-    : public TYsonSerializable
+    : public TYsonStruct
 {
 public:
     TString Name;
     EWireType WireType;
     std::optional<std::vector<INodePtr>> Children;
 
-    TSkiffSchemaRepresentation()
-    {
-        RegisterParameter("name", Name)
+    REGISTER_YSON_STRUCT(TSkiffSchemaRepresentation);
+
+    static void Register(TRegistrar registrar) {
+        registrar.Parameter("name", &TThis::Name)
             .Default();
-        RegisterParameter("wire_type", WireType);
-        RegisterParameter("children", Children)
+        registrar.Parameter("wire_type", &TThis::WireType);
+        registrar.Parameter("children", &TThis::Children)
             .Default();
     }
 };

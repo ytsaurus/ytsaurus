@@ -14,7 +14,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NTabletBalancer {
 namespace {
@@ -36,21 +36,11 @@ TObjectId MakeSequentialId(EObjectType type)
 }
 
 struct TTestTablet
-    : public TYsonSerializable
+    : public TYsonStruct
 {
     i64 UncompressedDataSize;
     i64 MemorySize;
     int CellIndex;
-
-    TTestTablet()
-    {
-        RegisterParameter("uncompressed_data_size", UncompressedDataSize)
-            .Default(100);
-        RegisterParameter("memory_size", MemorySize)
-            .Default(100);
-        RegisterParameter("cell_index", CellIndex)
-            .Default(0);
-    }
 
     TTabletPtr CreateTablet(
         const TTabletId& tabletId,
@@ -75,6 +65,18 @@ struct TTestTablet
 
         return tablet;
     }
+
+    REGISTER_YSON_STRUCT(TTestTablet);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("uncompressed_data_size", &TThis::UncompressedDataSize)
+            .Default(100);
+        registrar.Parameter("memory_size", &TThis::MemorySize)
+            .Default(100);
+        registrar.Parameter("cell_index", &TThis::CellIndex)
+            .Default(0);
+    }
 };
 
 DECLARE_REFCOUNTED_STRUCT(TTestTablet)
@@ -83,24 +85,12 @@ DEFINE_REFCOUNTED_TYPE(TTestTablet)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTestTable
-    : public TYsonSerializable
+    : public TYsonStruct
 {
     bool Sorted;
     i64 CompressedDataSize;
     i64 UncompressedDataSize;
     EInMemoryMode InMemoryMode;
-
-    TTestTable()
-    {
-        RegisterParameter("sorted", Sorted)
-            .Default(true);
-        RegisterParameter("compressed_data_size", CompressedDataSize)
-            .Default(100);
-        RegisterParameter("uncompressed_data_size", UncompressedDataSize)
-            .Default(100);
-        RegisterParameter("in_memory_mode", InMemoryMode)
-            .Default(EInMemoryMode::None);
-    }
 
     TTablePtr CreateTable(const TTabletCellBundlePtr& bundle) const
     {
@@ -118,6 +108,20 @@ struct TTestTable
         table->InMemoryMode = InMemoryMode;
         return table;
     }
+
+    REGISTER_YSON_STRUCT(TTestTable);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("sorted", &TThis::Sorted)
+            .Default(true);
+        registrar.Parameter("compressed_data_size", &TThis::CompressedDataSize)
+            .Default(100);
+        registrar.Parameter("uncompressed_data_size", &TThis::UncompressedDataSize)
+            .Default(100);
+        registrar.Parameter("in_memory_mode", &TThis::InMemoryMode)
+            .Default(EInMemoryMode::None);
+    }
 };
 
 DECLARE_REFCOUNTED_STRUCT(TTestTable)
@@ -126,19 +130,21 @@ DEFINE_REFCOUNTED_TYPE(TTestTable)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTestNode
-    : public TYsonSerializable
+    : public TYsonStruct
 {
     TString NodeAddress;
     i64 Used;
     std::optional<i64> Limit;
 
-    TTestNode()
+    REGISTER_YSON_STRUCT(TTestNode);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("node_address", NodeAddress)
+        registrar.Parameter("node_address", &TThis::NodeAddress)
             .Default();
-        RegisterParameter("used", Used)
+        registrar.Parameter("used", &TThis::Used)
             .Default(0);
-        RegisterParameter("limit", Limit)
+        registrar.Parameter("limit", &TThis::Limit)
             .Default();
     }
 };
@@ -149,16 +155,18 @@ DEFINE_REFCOUNTED_TYPE(TTestNode)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTestTabletCell
-    : public TYsonSerializable
+    : public TYsonStruct
 {
     i64 MemorySize;
     std::optional<TString> NodeAddress;
 
-    TTestTabletCell()
+    REGISTER_YSON_STRUCT(TTestTabletCell);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("memory_size", MemorySize)
+        registrar.Parameter("memory_size", &TThis::MemorySize)
             .Default(100);
-        RegisterParameter("node_address", NodeAddress)
+        registrar.Parameter("node_address", &TThis::NodeAddress)
             .Default();
     }
 };
@@ -277,19 +285,21 @@ TTestBundle CreateTabletCellBundle(
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTestMoveDescriptor
-    : public TYsonSerializable
+    : public TYsonStruct
 {
     int TableIndex;
     int TabletIndex;
     int CellIndex;
 
-    TTestMoveDescriptor()
+    REGISTER_YSON_STRUCT(TTestMoveDescriptor);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("table_index", TableIndex)
+        registrar.Parameter("table_index", &TThis::TableIndex)
             .Default(0);
-        RegisterParameter("tablet_index", TabletIndex)
+        registrar.Parameter("tablet_index", &TThis::TabletIndex)
             .Default(0);
-        RegisterParameter("cell_index", CellIndex)
+        registrar.Parameter("cell_index", &TThis::CellIndex)
             .Default(0);
     }
 };
@@ -310,22 +320,24 @@ bool IsEqual(const TTestMoveDescriptorPtr& expected, const TMoveDescriptor& actu
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTestReshardDescriptor
-    : public TYsonSerializable
+    : public TYsonStruct
 {
     int TableIndex;
     std::vector<int> TabletIndexes;
     i64 DataSize;
     int TabletCount;
 
-    TTestReshardDescriptor()
+    REGISTER_YSON_STRUCT(TTestReshardDescriptor);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("table_index", TableIndex)
+        registrar.Parameter("table_index", &TThis::TableIndex)
             .Default(0);
-        RegisterParameter("tablets", TabletIndexes)
+        registrar.Parameter("tablets", &TThis::TabletIndexes)
             .Default();
-        RegisterParameter("data_size", DataSize)
+        registrar.Parameter("data_size", &TThis::DataSize)
             .Default(0);
-        RegisterParameter("tablet_count", TabletCount)
+        registrar.Parameter("tablet_count", &TThis::TabletCount)
             .Default(1);
     }
 };

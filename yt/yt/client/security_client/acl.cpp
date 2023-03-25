@@ -41,9 +41,9 @@ bool operator != (const TSerializableAccessControlEntry& lhs, const TSerializabl
     return !(lhs == rhs);
 }
 
-// NB(levysotsky): We don't use TYsonSerializable here
+// NB(levysotsky): We don't use TYsonStruct here
 // because we want to mirror the TAccessControlList structure,
-// and a vector of TYsonSerializable-s cannot be declared (as it has no move constructor).
+// and a vector of TYsonStruct-s cannot be declared (as it has no move constructor).
 void Serialize(const TSerializableAccessControlEntry& ace, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
