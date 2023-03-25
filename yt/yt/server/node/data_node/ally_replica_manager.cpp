@@ -50,6 +50,8 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 const static auto& Logger = DataNodeLogger;
+constexpr auto ProfilingPeriod = TDuration::Seconds(1);
+constexpr auto QueueFlushPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,10 +82,14 @@ public:
     explicit TAllyReplicaManager(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Throttler_(Bootstrap_->GetAnnounceChunkReplicaRpsOutThrottler())
+        , ProfilingExecutor_(New<TPeriodicExecutor>(
+            Bootstrap_->GetStorageLightInvoker(),
+            BIND(&TAllyReplicaManager::OnProfiling, MakeWeak(this)),
+            ProfilingPeriod))
         , QueueFlushExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetStorageLightInvoker(),
-            BIND(&TAllyReplicaManager::FlushQueue, MakeWeak(this)),
-            TDuration::Seconds(1)))
+            BIND(&TAllyReplicaManager::OnQueueFlush, MakeWeak(this)),
+            QueueFlushPeriod))
     { }
 
     void Start() override
@@ -98,6 +104,7 @@ public:
         PendingAnnouncementCount_ = profiler.Gauge("/pending_announcement_count");
         AllyAwareChunkCount_ = profiler.Gauge("/ally_aware_chunk_count");
 
+        ProfilingExecutor_->Start();
         QueueFlushExecutor_->Start();
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
@@ -365,7 +372,10 @@ public:
 
 private:
     IBootstrap* const Bootstrap_;
+
     const IThroughputThrottlerPtr Throttler_;
+    const TPeriodicExecutorPtr ProfilingExecutor_;
+    const TPeriodicExecutorPtr QueueFlushExecutor_;
 
     TConcurrentHashMap<TChunkId, TAllyReplicasInfo, 32, NThreading::TSpinLock> AllyReplicasInfos_;
 
@@ -418,8 +428,6 @@ private:
         New<TAllyReplicaManagerDynamicConfig>();
 
     std::atomic<bool> EnableLazyAnnouncements_ = false;
-
-    const TPeriodicExecutorPtr QueueFlushExecutor_;
 
     NProfiling::TCounter AnnouncementsSent_;
     NProfiling::TCounter AnnouncementsReceived_;
@@ -572,9 +580,12 @@ private:
         AllyAwareChunkCount_.Update(allyAwareChunkCount);
     }
 
-    void FlushQueue()
+    void OnQueueFlush()
     {
-        OnProfiling();
+        const auto& masterConnector = Bootstrap_->GetMasterConnector();
+        if (!masterConnector->IsOnline()) {
+            return;
+        }
 
         auto now = TInstant::Now();
 
