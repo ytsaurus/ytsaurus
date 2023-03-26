@@ -417,7 +417,7 @@ protected:
         };
     }
 
-    virtual bool UpdatePeerBlockMap(const TPeerProbeResult& /*probeResult*/)
+    virtual bool UpdatePeerBlockMap(const TPeer& /*suggestorPeer*/, const TPeerProbeResult& /*probeResult*/)
     {
         // P2P is not supported by default.
         return false;
@@ -1459,7 +1459,7 @@ private:
 
             auto& probeResult = probeResultOrError.Value();
 
-            if (UpdatePeerBlockMap(probeResult)) {
+            if (UpdatePeerBlockMap(peer, probeResult)) {
                 receivedNewPeers = true;
             }
 
@@ -1641,10 +1641,11 @@ private:
             BIND(&TReadBlockSetSession::DoRequestBlocks, MakeStrong(this)));
     }
 
-    bool UpdatePeerBlockMap(const TPeerProbeResult& probeResult) override
+    bool UpdatePeerBlockMap(const TPeer& suggestorPeer, const TPeerProbeResult& probeResult) override
     {
         if (!ReaderConfig_->FetchFromPeers && !probeResult.PeerDescriptors.empty()) {
-            YT_LOG_DEBUG("Peer suggestions received but ignored");
+            YT_LOG_DEBUG("Peer suggestions received but ignored (SuggestorAddress: %v)",
+                suggestorPeer.Address);
             return false;
         }
 
@@ -1654,8 +1655,9 @@ private:
             for (auto peerNodeId : peerDescriptor.node_ids()) {
                 auto maybeSuggestedDescriptor = NodeDirectory_->FindDescriptor(peerNodeId);
                 if (!maybeSuggestedDescriptor) {
-                    YT_LOG_DEBUG("Cannot resolve peer descriptor (NodeId: %v)",
-                        peerNodeId);
+                    YT_LOG_DEBUG("Cannot resolve peer descriptor (SuggestedNodeId: %v, SuggestorAddress: %v)",
+                        peerNodeId,
+                        suggestorPeer.Address);
                     continue;
                 }
 
@@ -1671,9 +1673,10 @@ private:
                     }
 
                     PeerBlocksMap_[*suggestedAddress].insert(blockIndex);
-                    YT_LOG_DEBUG("Block peer descriptor received (Block: %v, SuggestedAddress: %v)",
+                    YT_LOG_DEBUG("Block peer descriptor received (Block: %v, SuggestedAddress: %v, SuggestorAddress: %v)",
                         blockIndex,
-                        *suggestedAddress);
+                        *suggestedAddress,
+                        suggestorPeer.Address);
 
                     if (peerDescriptor.has_delivery_barier()) {
                         P2PDeliveryBarrier_[peerNodeId].emplace(
@@ -1682,9 +1685,10 @@ private:
                     }
                 } else {
                     YT_LOG_WARNING("Peer suggestion ignored, required network is missing "
-                        "(SuggestedAddress: %v, Networks: %v)",
+                        "(SuggestedAddress: %v, Networks: %v, SuggestorAddress: %v)",
                         maybeSuggestedDescriptor->GetDefaultAddress(),
-                        Networks_);
+                        Networks_,
+                        suggestorPeer.Address);
                 }
             }
         }
@@ -1930,7 +1934,7 @@ private:
 
         auto probeResult = ParseProbeResponse(rsp);
 
-        UpdatePeerBlockMap(probeResult);
+        UpdatePeerBlockMap(respondedPeer, probeResult);
 
         if (probeResult.NetThrottling || probeResult.DiskThrottling) {
             YT_LOG_DEBUG("Peer is throttling (Address: %v, NetThrottling: %v, DiskThrottling: %v)",
@@ -3025,7 +3029,7 @@ private:
         Promise_.TrySet(std::move(result));
     }
 
-    bool UpdatePeerBlockMap(const TPeerProbeResult& probeResult) override
+    bool UpdatePeerBlockMap(const TPeer& /*suggestorPeer*/, const TPeerProbeResult& probeResult) override
     {
         if (probeResult.AllyReplicas) {
             MaybeUpdateSeeds(probeResult.AllyReplicas);
