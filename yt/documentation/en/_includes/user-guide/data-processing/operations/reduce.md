@@ -10,7 +10,7 @@ The Reduce operation supports the following parameters (default values, if set, 
 * `input_table_paths` — list of input tables with full paths (cannot be empty).
 * `output_table_paths` — list of output tables.
 * `reduce_by` — set of columns used for grouping.
-* `sort_by` (defaults to `reduce_by`) — set of columns used for sorting input tables. The option enables an additional check for whether input tables are sorted and provides guarantees the rows are going to be sorted according to the column set within the user script. The `reduce_by` field sequence should be set as the prefix of the `sort_by` field sequence.
+* `sort_by` (defaults to `reduce_by`) — set of columns used for sorting primary input tables. The option enables an additional check for whether input tables are sorted and provides guarantees the rows are going to be sorted according to the column set within the user script. The `reduce_by` field sequence should be set as the prefix of the `sort_by` field sequence.
 * `job_count`, `data_size_per_job` (256 MB) — options specifying how many jobs should be started (these are recommendations). The `job_count` option takes precedence over `data_size_per_job`.
 * `pivot_keys` — enables manual data partitioning, so you can determine which jobs get certain data ranges. As its value, this option takes a sorted list of table keys (bordering ones).
    For example, if `pivot_keys = [["a", 3], ["c", -1], ["x", 42]]`, then four jobs (and no more) start:

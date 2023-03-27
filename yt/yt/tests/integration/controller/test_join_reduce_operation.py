@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    get, insert_rows, write_file, read_table, write_table, reduce, join_reduce, interrupt_job, sync_create_cells, sync_mount_table,
+    get, insert_rows, write_file, read_table, write_table, join_reduce, interrupt_job, sync_create_cells, sync_mount_table,
     sync_unmount_table, raises_yt_error, assert_statistics, sorted_dicts)
 
 from yt_helpers import skip_if_no_descending
@@ -113,6 +113,210 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             ]
 
         assert get("//tmp/out/@sorted")
+
+    @authors("orlovorlov")
+    def test_join_reduce_key_prefix(self):
+        create("table", "//tmp/in1")
+        create("table", "//tmp/in2")
+
+        write_table(
+            "//tmp/in1",
+            [
+                {"key1": 0, "key2": 2, "value": 2},
+                {"key1": 0, "key2": 7, "value": 7},
+                {"key1": 0, "key2": 17, "value": 17},
+
+                {"key1": 2, "key2": 4, "value": 24},
+                {"key1": 2, "key2": 8, "value": 28},
+                {"key1": 2, "key2": 34, "value": 234},
+
+                {"key1": 14, "key2": 0, "value": 14},
+                {"key1": 14, "key2": 77, "value": 1477},
+
+                {"key1": 200, "key2": -3, "value": 0},
+            ],
+            sorted_by=[{"name": "key1", "sort_order": "ascending"},
+                       {"name": "key2", "sort_order": "ascending"}]
+        )
+
+        write_table(
+            "//tmp/in2",
+            [
+                {"key1": -1, "key3": 12, "value": 12},
+
+                {"key1": 0, "key3": -14, "value": 88},
+                {"key1": 0, "key3": 1, "value": 1},
+
+                {"key1": 7, "key3": 18, "value": 124},
+
+                {"key1": 14, "key3": 337, "value": 14337},
+
+                {"key1": 18, "key3": 1000, "value": 18000},
+            ],
+            sorted_by=[{"name": "key1", "sort_order": "ascending"},
+                       {"name": "key3", "sort_order": "ascending"}]
+        )
+
+        create("table", "//tmp/out")
+
+        join_reduce(
+            in_=["//tmp/in1", "<foreign=true>//tmp/in2"],
+            out="//tmp/out",
+            join_by=[{"name": "key1", "sort_order": "ascending"}],
+            reduce_by=["key1", "key2"],
+            sort_by=["key1", "key2"],
+            command="cat",
+            spec={
+                "reducer": {"format": "dsv"},
+                "enable_key_guarantee": True,
+            },
+        )
+
+        rows = read_table("//tmp/out")
+        assert rows == [
+            {'key1': '0', 'key2': '2', 'value': '2'},
+            {'key1': '0', 'key2': '7', 'value': '7'},
+            {'key1': '0', 'key2': '17', 'value': '17'},
+            {'key1': '0', 'key3': '-14', 'value': '88'},
+            {'key1': '0', 'key3': '1', 'value': '1'},
+            {'key1': '2', 'key2': '4', 'value': '24'},
+            {'key1': '2', 'key2': '8', 'value': '28'},
+            {'key1': '2', 'key2': '34', 'value': '234'},
+            {'key1': '14', 'key2': '0', 'value': '14'},
+            {'key1': '14', 'key2': '77', 'value': '1477'},
+            {'key1': '14', 'key3': '337', 'value': '14337'},
+            {'key1': '200', 'key2': '-3', 'value': '0'}
+        ]
+
+    @authors("orlovorlov")
+    @pytest.mark.parametrize("sort_a", ["ascending", "descending"])
+    @pytest.mark.parametrize("sort_b", ["ascending", "descending"])
+    def test_join_reduce_key_prefix_multiple_chunks(self, sort_a, sort_b):
+        if "descending" in [sort_a, sort_b]:
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
+        def compare_primary(row):
+            return (
+                row['a'] if sort_a == "ascending" else -row['a'],
+                row['b'] if sort_b == "ascending" else -row['b'],
+            )
+
+        def compare_foreign(row):
+            return (
+                row['a'] if sort_a == "ascending" else -row['a'],
+            )
+
+        def compare_output(row):
+            return (row['a'], row['b']) if 'b' in row else ('z', 'z')
+
+        create("table", "//tmp/in")
+
+        num_rows_primary = 20
+        num_rows_foreign = 2
+
+        rows_primary = sorted(
+            [{"a": 2 * (i // 10), "b": i, "c": "hahaha"} for i in range(num_rows_primary)],
+            key=compare_primary
+        )
+
+        rows_foreign = sorted(
+            [{"a": i * 10 + i % 2, "d": i, "e": "bzz{}".format(i * 13 % 101)} for i in range(num_rows_foreign)],
+            key=compare_foreign
+        )
+
+        write_table(
+            "//tmp/in",
+            rows_primary,
+            sorted_by=[{"name": "a", "sort_order": sort_a},
+                       {"name": "b", "sort_order": sort_b}],
+            table_writer={"desired_chunk_size": 1},
+            max_row_buffer_size=1,
+        )
+
+        create("table", "//tmp/in_foreign")
+        write_table(
+            "//tmp/in_foreign",
+            rows_foreign,
+            sorted_by=[{"name": "a", "sort_order": sort_a}],
+            table_writer={"desired_chunk_size": 1},
+            max_row_buffer_size=1,
+        )
+
+        create("table", "//tmp/out")
+        join_reduce(
+            in_=["//tmp/in", "<foreign=true>//tmp/in_foreign"],
+            out="//tmp/out",
+            command="cat",
+            join_by=[{"name": "a", "sort_order": sort_a}],
+            reduce_by=[{"name": "a", "sort_order": sort_a}, {"name": "b", "sort_order": sort_b}],
+            spec={
+                "reducer": {"format": "dsv"},
+                "enable_key_guarantee": True,
+                "data_size_per_job": 1,
+                "max_failed_job_count": 1,
+            }
+        )
+
+        out = read_table("//tmp/out")
+        assert get("//tmp/in/@chunk_count") > 1
+        assert get("//tmp/in_foreign/@chunk_count") > 1
+        assert get("//tmp/out/@chunk_count") > 1
+
+        assert sorted(out, key=compare_output) == [
+            {'a': '0', 'b': '%d' % i, 'c': 'hahaha'} for i in range(10)
+        ] + [
+            {'a': '2', 'b': '%d' % i, 'c': 'hahaha'} for i in range(10, 20)
+        ] + [
+            {'a': '0', 'd': '0', 'e': 'bzz0'},
+        ] * 10
+
+    @authors("orlovorlov")
+    def test_join_reduce_reduce_by_sort_prefix(telf):
+        create("table", "//tmp/in")
+        write_table(
+            "//tmp/in",
+            [
+                {"key1" : 0, "key2": 0, "key3": 0, "value": 1},
+                {"key1" : 0, "key2": 0, "key3": 1, "value": 1},
+
+                {"key1" : 1, "key2": 1, "key3": 0, "value": 1},
+                {"key1" : 2, "key2": 2, "key3": 1, "value": 1},
+            ],
+
+            sorted_by=[{"name": "key1", "sort_order": "ascending"},
+                       {"name": "key2", "sort_order": "ascending"},
+                       {"name": "key3", "sort_order": "ascending"}]
+        )
+
+        create("table", "//tmp/in_foreign")
+        write_table(
+            "//tmp/in_foreign",
+            [
+                {"key1": 0, "key2": 0, "key3": 0, "value": "foo"},
+                {"key1": 0, "key2": 1, "key3": 2, "value": "bar"},
+            ],
+
+            sorted_by=[{"name": "key1", "sort_order": "ascending"},
+                       {"name": "key2", "sort_order": "ascending"},
+                       {"name": "key3", "sort_order": "ascending"}]
+        )
+
+        create("table", "//tmp/out")
+
+        with raises_yt_error("Reduce sort columns are not compatible with sort columns"):
+            join_reduce(
+                in_=["//tmp/in", "<foreign=true>//tmp/in_foreign"],
+                out="//tmp/out",
+                reduce_by=["key1", "key2", "key3"],
+                join_by=["key1", "key2", "key3"],
+                sort_by=["key1", "key2"],
+                command="cat",
+                spec={
+                    "reducer": {"format": "dsv"},
+                    "enable_key_guarantee": True,
+                }
+            )
 
     @authors("klyachin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
@@ -1423,14 +1627,17 @@ done
         write_table("//tmp/a", [{"Host": "bar", "LastAccess": "a"}])
         write_table("//tmp/b", [{"Host": "bar", "Path": "foo", "LastAccess": "a"}])
 
-        reduce(
+        join_reduce(
             in_=["<foreign=true>//tmp/a", "//tmp/b"],
             out="//tmp/c",
             join_by=["Host"],
             reduce_by=["Host", "Path"],
             sort_by=["Host", "Path", "LastAccess"],
             command="cat",
-            spec={"reducer": {"format": "dsv"}}
+            spec={
+                "reducer": {"format": "dsv"},
+                "enable_key_guarantee": True,
+            }
         )
 
         assert read_table("//tmp/c") == [

@@ -126,7 +126,7 @@ std::vector<TUnversionedRow> FetchReaderKeyPrefixes(
 }
 
 TSharedRange<TUnversionedRow> DedupRows(
-    const TSortColumns& sortColumns,
+    const TComparator& comparator,
     std::vector<std::vector<TUnversionedRow>> tableKeys)
 {
     std::vector<TUnversionedRow> keys;
@@ -142,9 +142,8 @@ TSharedRange<TUnversionedRow> DedupRows(
         std::copy(key.begin(), key.end(), back_inserter(keys));
     }
 
-    auto sortComparator = GetComparator(sortColumns);
     std::sort(keys.begin(), keys.end(), [&] (TUnversionedRow lhs, TUnversionedRow rhs) {
-        return sortComparator.CompareKeys(TKey::FromRow(lhs), TKey::FromRow(rhs)) < 0;
+        return comparator.CompareKeys(TKey::FromRow(lhs), TKey::FromRow(rhs)) < 0;
     });
 
     keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
@@ -399,6 +398,11 @@ public:
         std::vector<std::vector<TUnversionedRow>> primaryKeyPrefixes;
         std::optional<THintKeyPrefixes> hintKeyPrefixes;
 
+        int foreignKeyColumnCount = reduceJobSpecExt.join_key_column_count();
+        auto sortComparator = GetComparator(sortColumns);
+        auto reduceComparator = sortComparator.Trim(reduceJobSpecExt.reduce_key_column_count());
+        auto joinComparator = sortComparator.Trim(foreignKeyColumnCount);
+
         if (reduceJobSpecExt.has_foreign_table_lookup_keys_threshold() &&
             inputRowCount < reduceJobSpecExt.foreign_table_lookup_keys_threshold() &&
             schedulerJobSpecExt.foreign_input_table_specsSize() > 0)
@@ -432,7 +436,7 @@ public:
                 primaryKeyPrefixes[i] = FetchReaderKeyPrefixes(reader, reduceJobSpecExt.join_key_column_count(), Buffer_);
                 primaryRowCount += std::ssize(primaryKeyPrefixes[i]);
             }
-            hintKeyPrefixes = THintKeyPrefixes{DedupRows(sortColumns, std::move(primaryKeyPrefixes))};
+            hintKeyPrefixes = THintKeyPrefixes{DedupRows(joinComparator, std::move(primaryKeyPrefixes))};
 
             YT_LOG_INFO("Read all keys from primary table in a preliminary pass "
                         "(EstimatedRowCount: %v, ActualRowCount: %v, DedupedRowCount: %v, "
@@ -464,7 +468,6 @@ public:
             primaryReaders.emplace_back(reader);
         }
 
-        const auto foreignKeyColumnCount = reduceJobSpecExt.join_key_column_count();
         std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
 
         for (const auto& inputSpec : schedulerJobSpecExt.foreign_input_table_specs()) {
@@ -489,9 +492,6 @@ public:
             foreignReaders.emplace_back(reader);
         }
 
-        auto sortComparator = GetComparator(sortColumns);
-        auto reduceComparator = sortComparator.Trim(reduceJobSpecExt.reduce_key_column_count());
-        auto joinComparator = sortComparator.Trim(foreignKeyColumnCount);
         return CreateSortedJoiningReader(
             primaryReaders,
             sortComparator,
