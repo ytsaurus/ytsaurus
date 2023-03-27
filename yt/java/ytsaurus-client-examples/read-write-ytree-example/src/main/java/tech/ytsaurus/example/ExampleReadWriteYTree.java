@@ -2,12 +2,15 @@ package tech.ytsaurus.example;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import tech.ytsaurus.client.TableReader;
 import tech.ytsaurus.client.TableWriter;
 import tech.ytsaurus.client.YTsaurusClient;
+import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.request.WriteTable;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
@@ -35,17 +38,27 @@ public class ExampleReadWriteYTree {
             // so that they use different output tables.
             YPath table = YPath.simple("//tmp/" + System.getProperty("user.name") + "-read-write");
 
+            // Create table
+
+            TableSchema tableSchema = TableSchema.builder()
+                    .addValue("english", ColumnValueType.STRING)
+                    .addValue("russian", ColumnValueType.STRING)
+                    .build().toWrite();
+
+            client.createNode(CreateNode.builder()
+                    .setPath(table)
+                    .setType(CypressNodeType.TABLE)
+                    .setAttributes(Map.of("schema", tableSchema.toYTree()))
+                    .setIgnoreExisting(true)
+                    .build()
+            ).join();
+
             // Write a table.
 
             // Create the writer.
             TableWriter<YTreeMapNode> writer = client.writeTable(
                     new WriteTable<>(table, YTreeMapNode.class)
             ).join();
-
-            TableSchema tableSchema = TableSchema.builder()
-                    .addValue("english", ColumnValueType.STRING)
-                    .addValue("russian", ColumnValueType.STRING)
-                    .build().toWrite();
 
             try {
                 while (true) {
