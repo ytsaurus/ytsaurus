@@ -184,9 +184,11 @@ DECLARE_REFCOUNTED_TYPE(TFederatedTransaction);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TClientDescr final
+DECLARE_REFCOUNTED_STRUCT(TClientDescription);
+
+struct TClientDescription final
 {
-    TClientDescr(IClientPtr client, int priority)
+    TClientDescription(IClientPtr client, int priority)
         : Client(std::move(client))
         , Priority(priority)
     { }
@@ -195,8 +197,8 @@ struct TClientDescr final
     int Priority;
     std::atomic<int> HasErrors{false};
 };
-DECLARE_REFCOUNTED_STRUCT(TClientDescr);
-DEFINE_REFCOUNTED_TYPE(TClientDescr);
+
+DEFINE_REFCOUNTED_TYPE(TClientDescription);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -412,7 +414,7 @@ private:
         const NApi::TTransactionStartOptions& options);
 
 private:
-    std::vector<TClientDescrPtr> Clients_;
+    std::vector<TClientDescriptionPtr> Clients_;
     IClientPtr ActiveClient_;
     std::atomic<size_t> ActiveClientId_;
 
@@ -443,10 +445,10 @@ auto TFederatedTransaction::CreateResultHandler()
     };
 }
 
-#define TRANSACTION_METHOD_IMPL(ResultType, MethodName, Args)                           \
-TFuture<ResultType> TFederatedTransaction::MethodName(Y_METHOD_USED_ARGS_DECLARATION(Args))                                     \
-{                                                                                             \
-    return Underlying_->MethodName(Y_PASS_METHOD_USED_ARGS(Args)).Apply(BIND(CreateResultHandler<ResultType>()));  \
+#define TRANSACTION_METHOD_IMPL(ResultType, MethodName, Args)                                                           \
+TFuture<ResultType> TFederatedTransaction::MethodName(Y_METHOD_USED_ARGS_DECLARATION(Args))                             \
+{                                                                                                                       \
+    return Underlying_->MethodName(Y_PASS_METHOD_USED_ARGS(Args)).Apply(BIND(CreateResultHandler<ResultType>()));       \
 } Y_SEMICOLON_GUARD
 
 TRANSACTION_METHOD_IMPL(IUnversionedRowsetPtr, LookupRows, (const NYPath::TYPath&, NTableClient::TNameTablePtr, const TSharedRange<NTableClient::TUnversionedRow>&, const TLookupRowsOptions&));
@@ -497,9 +499,9 @@ DEFINE_REFCOUNTED_TYPE(TFederatedTransaction);
 TFederatedClient::TFederatedClient(const std::vector<IClientPtr>& clients, TFederatedClientConfigPtr config)
     : Config_(std::move(config))
     , Executor_(New<NConcurrency::TPeriodicExecutor>(
-            NYT::NRpc::TDispatcher::Get()->GetLightInvoker(),
-            BIND(&TFederatedClient::CheckClustersHealth, MakeWeak(this)),
-            Config_->CheckClustersHealthPeriod))
+        NRpc::TDispatcher::Get()->GetLightInvoker(),
+        BIND(&TFederatedClient::CheckClustersHealth, MakeWeak(this)),
+        Config_->CheckClustersHealthPeriod))
 {
     // TODO: check that Clients_ is not empty
 
@@ -509,7 +511,7 @@ TFederatedClient::TFederatedClient(const std::vector<IClientPtr>& clients, TFede
             continue;
         }
         int priority = *dataCenter == NNet::GetLocalYPCluster() ? 1 : 0;
-        Clients_.push_back(New<TClientDescr>(client, priority));
+        Clients_.push_back(New<TClientDescription>(client, priority));
     }
     std::sort(Clients_.begin(), Clients_.end(), [](const auto& lhs, const auto& rhs) {
         return lhs->Priority > rhs->Priority;
@@ -554,7 +556,7 @@ void TFederatedClient::CheckClustersHealth()
         return;
     }
 
-    // If active cluster isn't health, try change it.
+    // If active cluster is not healthy, try changing it.
     if (Clients_[activeClientId]->HasErrors) {
         auto guard = NThreading::WriterGuard(Lock_);
         // Check that active client wasn't changed.
@@ -570,7 +572,7 @@ std::optional<TString> TFederatedClient::GetDataCenter(const IClientPtr& client)
     options.MaxSize = 1;
 
     auto items = NConcurrency::WaitFor(client->ListNode("//sys/rpc_proxies", options))
-         .ValueOrThrow();
+        .ValueOrThrow();
     auto itemsList = NYTree::ConvertTo<NYTree::IListNodePtr>(items);
     if (itemsList->GetChildCount() < 1) {
         return std::nullopt;
@@ -608,7 +610,9 @@ TFuture<ITransactionPtr> TFederatedClient::DoStartTransaction(
     auto [client, clientId] = GetActiveClient();
 
     return client->StartTransaction(type, options)
-        .Apply(BIND([this, this_ = MakeStrong(this), clientId=clientId, retryAttemptsCount, type, &options] (const TErrorOr<ITransactionPtr>& transactionOrError) {
+        .Apply(BIND([this, this_ = MakeStrong(this), clientId = clientId, retryAttemptsCount, type, &options]
+            (const TErrorOr<ITransactionPtr>& transactionOrError)
+        {
             if (!transactionOrError.IsOK()) {
                 HandleError(transactionOrError, clientId);
                 if (retryAttemptsCount > 1) {
@@ -616,24 +620,26 @@ TFuture<ITransactionPtr> TFederatedClient::DoStartTransaction(
                 }
                 return MakeFuture(transactionOrError);
             }
-            return MakeFuture(ITransactionPtr{New<TFederatedTransaction>(std::move(this_), clientId, transactionOrError.Value())});
+            return MakeFuture(ITransactionPtr{
+                New<TFederatedTransaction>(std::move(this_), clientId, transactionOrError.Value())
+            });
         }
     ));
 }
 
 #define CLIENT_METHOD_IMPL(ResultType, MethodName, Args, CaptureList)                                                   \
-TFuture<ResultType> TFederatedClient::MethodName(Y_METHOD_USED_ARGS_DECLARATION(Args))                                      \
+TFuture<ResultType> TFederatedClient::MethodName(Y_METHOD_USED_ARGS_DECLARATION(Args))                                  \
 {                                                                                                                       \
-    return Do##MethodName(Config_->ClusterRetryAttempts, Y_PASS_METHOD_USED_ARGS(Args));                  \
-}                                                                                                  \
+    return Do##MethodName(Config_->ClusterRetryAttempts, Y_PASS_METHOD_USED_ARGS(Args));                                \
+}                                                                                                                       \
                                                                                                                         \
-TFuture<ResultType> TFederatedClient::Do##MethodName(int retryAttempsCount, Y_METHOD_USED_ARGS_DECLARATION(Args))          \
+TFuture<ResultType> TFederatedClient::Do##MethodName(int retryAttempsCount, Y_METHOD_USED_ARGS_DECLARATION(Args))       \
 {                                                                                                                       \
     auto [client, clientId] = GetActiveClient();                                                                        \
                                                                                                                         \
     return client->MethodName(Y_PASS_METHOD_USED_ARGS(Args)).Apply(BIND(CreateResultHandler<ResultType>(                \
-        clientId, retryAttempsCount, [this, Y_METHOD_UNUSED_ARGS_DECLARATION(CaptureList)] (int attemptsCount) {                                          \
-            return Do##MethodName(attemptsCount, Y_PASS_METHOD_USED_ARGS(Args));                                       \
+        clientId, retryAttempsCount, [this, Y_METHOD_UNUSED_ARGS_DECLARATION(CaptureList)] (int attemptsCount) {        \
+            return Do##MethodName(attemptsCount, Y_PASS_METHOD_USED_ARGS(Args));                                        \
         }                                                                                                               \
     )));                                                                                                                \
 } Y_SEMICOLON_GUARD

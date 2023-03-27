@@ -40,7 +40,7 @@ namespace NYT::NYTree {
 template <class T>
 const std::type_info& CallCtor()
 {
-    if constexpr (std::is_convertible<T*, TRefCountedBase*>::value) {
+    if constexpr (std::convertible_to<T*, TRefCountedBase*>) {
         auto dummy = New<T>();
         // NB: |New| returns pointer to TRefCountedWrapper<T>.
         return typeid(*dummy);
@@ -69,7 +69,7 @@ void TYsonStructRegistry::InitializeStruct(TStruct* target)
     }
 
     auto metaConstructor = [] {
-        auto result = new TYsonStructMeta();
+        auto* result = new TYsonStructMeta();
         NSan::MarkAsIntentionallyLeaked(result);
 
         // NB: Here initialization of TYsonStructMeta of particular struct takes place.
@@ -109,11 +109,11 @@ TTargetStruct* TYsonStructRegistry::CachedDynamicCast(const TYsonStructBase* con
     auto holder = LeakySingleton<CacheHolder>();
 
     // TODO(renadeen): is there a better way to use same function for const and non-const contexts?
-    auto source = const_cast<TYsonStructBase*>(constSource);
+    auto* source = const_cast<TYsonStructBase*>(constSource);
     ptrdiff_t* offset = holder->OffsetCache.FindOrInsert(std::type_index(typeid(*source)), [=] () {
         auto* target = dynamic_cast<TTargetStruct*>(source);
-        // NB: Unfortunatly it is possible that dynamic cast fails.
-        // For example when class is derived from template class with `const char *` template parameter
+        // NB: Unfortunately, it is possible that dynamic cast fails.
+        // For example, when class is derived from template class with `const char *` template parameter
         // and variable with internal linkage is used for this parameter.
         YT_VERIFY(target);
         return reinterpret_cast<intptr_t>(target) - reinterpret_cast<intptr_t>(source);
@@ -180,7 +180,7 @@ TYsonStructRegistrar<TStruct>::operator TYsonStructRegistrar<TBase>()
 template <class T>
 TIntrusivePtr<T> CloneYsonStruct(const TIntrusivePtr<T>& obj)
 {
-    return NYTree::ConvertTo<TIntrusivePtr<T>>(NYson::ConvertToYsonString(*obj));
+    return ConvertTo<TIntrusivePtr<T>>(NYson::ConvertToYsonString(*obj));
 }
 
 template <class T>
@@ -208,14 +208,11 @@ THashMap<TString, TIntrusivePtr<T>> CloneYsonStructs(const THashMap<TString, TIn
 template <class T>
 TIntrusivePtr<T> UpdateYsonStruct(
     const TIntrusivePtr<T>& obj,
-    const NYTree::INodePtr& patch)
+    const INodePtr& patch)
 {
     static_assert(
-        std::is_convertible_v<T*, TYsonStruct*>,
+        std::convertible_to<T*, TYsonStruct*>,
         "'obj' must be convertible to TYsonStruct");
-
-    using NYTree::INodePtr;
-    using NYTree::ConvertTo;
 
     if (patch) {
         return ConvertTo<TIntrusivePtr<T>>(PatchNode(ConvertTo<INodePtr>(obj), patch));
@@ -255,18 +252,18 @@ bool ReconfigureYsonStruct(
 template <class T>
 bool ReconfigureYsonStruct(
     const TIntrusivePtr<T>& config,
-    const NYTree::INodePtr& newConfigNode)
+    const INodePtr& newConfigNode)
 {
-    auto configNode = NYTree::ConvertToNode(config);
+    auto configNode = ConvertToNode(config);
 
-    auto newConfig = NYTree::ConvertTo<TIntrusivePtr<T>>(newConfigNode);
-    auto newCanonicalConfigNode = NYTree::ConvertToNode(newConfig);
+    auto newConfig = ConvertTo<TIntrusivePtr<T>>(newConfigNode);
+    auto newCanonicalConfigNode = ConvertToNode(newConfig);
 
     if (NYTree::AreNodesEqual(configNode, newCanonicalConfigNode)) {
         return false;
     }
 
-    config->Load(newConfigNode, /* postprocess */ true, /* setDefaults */ false);
+    config->Load(newConfigNode, /*postprocess*/ true, /*setDefaults*/ false);
     return true;
 }
 

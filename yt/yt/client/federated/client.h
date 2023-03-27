@@ -14,7 +14,7 @@
 //!
 //! Client in the same datacenter is more prior than other.
 //!
-//! Federated client implements IClient interface, but doesn's support
+//! Federated client implements IClient interface, but does not support
 //! the most of mutable methods (except modifications inside transactions).
 namespace NYT::NClient::NFederated {
 
