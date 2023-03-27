@@ -11,7 +11,7 @@ The RemoteCopy operation supports the following additional options (default valu
 * `networks` — set of networks used to copy the data (in order of priority). **Important:** Do not enable this and the previous option without first consulting with the system administrator.
 * `input_table_paths` — list of tables to be copied.
 * `output_table_path` — name of the table where the data is copied to.
-* `schema_inference_mode` (auto) — schema definition mode. Possible values: auto, from_input, from_output. To learn more, see [Data schema](../../../user-guide/storage/static-schema.md#schema_inference).
+* `schema_inference_mode` (auto) — schema definition mode. Possible values: auto, from_input, from_output. To learn more, see [Data schema](../../../../user-guide/storage/static-schema.md#schema_inference).
 * `cluster_connection` — configuration for connecting to the source cluster. Configured by the {{product-name}} system administrator when configuring the cluster.
 * `copy_attributes` (false) — copy the attributes of the input table. Available only if there is one input table. Only user attributes are copied (not system attributes).
 * `attribute_keys` — when this option is enabled along with `copy_attributes`, only attributes from the given list are copied.

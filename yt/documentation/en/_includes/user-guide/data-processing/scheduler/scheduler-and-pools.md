@@ -58,7 +58,7 @@ Job scheduling takes place on each cluster node separately:
 
 To understand which jobs should be started and which should be aborted on a particular cluster node, the scheduler analyzes the pool tree. Each pool in the tree has a number of characteristics that enable the scheduler to understand whether a given subtree needs to start new jobs, and, if it does, how much this subpool needs it. According to the pool characteristics, the scheduler goes down the tree from top to bottom until it reaches a leaf. After reaching the leaf, the scheduler suggests that the operation should start the job. The scheduler makes such bypasses as long as there are unscheduled jobs and the cluster node resources are not exhausted.
 
-There may be operations to which the scheduler allocated less resources than it was obliged to guarantee. Such operations are called "[starving](../../../user-guide/data-processing/scheduler/preemption.md)" in the system. When the scheduler detects a starving operation, it selects the job with the minimum running time of the non-starving operation on the same cluster node and aborts it.
+There may be operations to which the scheduler allocated less resources than it was obliged to guarantee. Such operations are called "[starving](../../../../user-guide/data-processing/scheduler/preemption.md)" in the system. When the scheduler detects a starving operation, it selects the job with the minimum running time of the non-starving operation on the same cluster node and aborts it.
 
 {% note info "Note" %}
 

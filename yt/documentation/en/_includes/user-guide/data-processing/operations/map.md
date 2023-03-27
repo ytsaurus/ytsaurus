@@ -31,7 +31,7 @@ Possible scenarios:
 
 The ordered version of the Map operation is characterized by the determinism of output table rows and their order, provided that the mappers' logic is deterministic, regardless of the number of jobs in the operation and the order of their execution. This characteristic is not there for unordered Map.
 
-General parameters for all operation types are described in [Operation options](../../../user-guide/data-processing/operations/operations-options.md).
+General parameters for all operation types are described in [Operation options](../../../../user-guide/data-processing/operations/operations-options.md).
 
 The Map operation supports the following additional options (the default values, if set, are specified in brackets):
 

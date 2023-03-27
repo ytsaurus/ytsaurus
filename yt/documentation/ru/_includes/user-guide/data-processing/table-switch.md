@@ -85,7 +85,7 @@
 
 {% note info "Примечание" %}
 
-[DSV](./../../user-guide/storage/formats.md#dsv) не поддерживает переключение выходных таблиц.
+[DSV](../../../user-guide/storage/formats.md#dsv) не поддерживает переключение выходных таблиц.
 
 {% endnote %}
 
@@ -95,7 +95,7 @@
 
 ### SCHEMAFUL_DSV { #schemaful_dsv }
 
-При установке опции `enable_table_index=true` для таблиц в формате [SCHEMAFUL_DSV](./../../user-guide/storage/formats.md#schemaful_dsv) во всех строках таблицы первым полем, перед колонами схемы, будет записан индекс таблицы.
+При установке опции `enable_table_index=true` для таблиц в формате [SCHEMAFUL_DSV](../../../user-guide/storage/formats.md#schemaful_dsv) во всех строках таблицы первым полем, перед колонами схемы, будет записан индекс таблицы.
 
 ## Примеры
 

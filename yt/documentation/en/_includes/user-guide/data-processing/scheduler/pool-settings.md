@@ -12,7 +12,7 @@ A pool tree has the following attributes:
 - `max_running_operation_count`: The default value for the maximum number of concurrently running operations in the root pool.
 - `max_running_operation_count_per_pool`: The default value for the maximum number of concurrently running operations in the pool. Can be overwritten by a setting on the pool.
 - `default_parent_pool`: The default pool, in which operations that do not have a pool indicated in the specification will be started.
-- `enable_pool_starvation`: Allow pool "starving". For more information, see [Preemption](../../../user-guide/data-processing/scheduler/preemption.md).
+- `enable_pool_starvation`: Allow pool "starving". For more information, see [Preemption](../../../../user-guide/data-processing/scheduler/preemption.md).
 - `forbid_immediate_operations_in_root`: Allow operations to run in the root pool of the tree.
 - `max_ephemeral_pool_per_user`: The maximum number of ephemeral pools for each user. An ephemeral pool is a pool that was indicated in the specification, but for which there is no explicit node in Cypress.
 - `fair-share_preemption_timeout`: The time when the operation was below its fair-share, after which preemption will start to run the operation jobs.

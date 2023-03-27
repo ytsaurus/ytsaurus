@@ -48,7 +48,7 @@ When you have a class like this, you can:
 
 1. Create a table with a relevant schema (you can just start writing to an empty or a non-existent table or use the `TableSchema.from_row_type()` function).
 2. Write and read [tables](../../../api/python/userdoc.md#table_commands), [example](../../../api/python/examples.md#read_write).
-3. Run [operations](../../../api/python/userdoc.md#python_operations), [example](./../../api/python/examples.md#simple_map).
+3. Run [operations](../../../api/python/userdoc.md#python_operations), [example](../../../api/python/examples.md#simple_map).
 
 
 ## Special types { #types }

@@ -1,6 +1,6 @@
 # Data types
 
-ClickHouse has a wide variety of [data types](https://clickhouse.com/docs/ru/sql-reference/data-types) available. {{product-name}} uses its own data type system that significantly overlaps with the ClickHouse type system, but individual {{product-name}} data types may not exist in CH and vice versa. For a complete list of the types supported in the {{product-name}} system, see [{{product-name}} data types](../../../../user-guide/storage/data-types.md).
+ClickHouse has a wide variety of [data types](https://clickhouse.com/docs/ru/sql-reference/data-types) available. {{product-name}} uses its own data type system that significantly overlaps with the ClickHouse type system, but individual {{product-name}} data types may not exist in CH and vice versa. For a complete list of the types supported in the {{product-name}} system, see [{{product-name}} data types](../../../../../user-guide/storage/data-types.md).
 
 ## Primitive data types
 
@@ -132,7 +132,7 @@ Many tables contain dates and times in text or numeric representation (for examp
 
 {{product-name}} has historically used the `Any` data type for working with composite data (arrays, dicts, structures). Despite the appearance of composite type support in the {{product-name}} type system, a lot of old data still remains represented in `Any`: it will be available as a binary YSON to the ClickHouse engine.
 
-However, `Any` representation as a binary YSON means almost nothing for the ClickHouse engine, since YSON support is not built into ClickHouse. ClickHouse interprets such data simply as a binary string with a custom format. Therefore, the ClickHouse and {{product-name}} compatibility layer provides a number of auxiliary functions that enable you to address over a YSON structure using the [YPath language](../../../../../user-guide/storage/yson-docs.md). And also interpret its nodes as primitive {{product-name}} types (`Int64`, `UInt64`, `Double`, or `Boolean`), strings (`String`), or lists of primitive {{product-name}} types (`Array(Int64)`, `Array(UInt64)`, `Array(Double)`, or `Array(Boolean)`) with the conversion into the corresponding built-in ClickHouse type. For more information about these functions, see [Functions for working with YSON](../../../../user-guide/data-processing/chyt/reference/functions.md#yson_functions).
+However, `Any` representation as a binary YSON means almost nothing for the ClickHouse engine, since YSON support is not built into ClickHouse. ClickHouse interprets such data simply as a binary string with a custom format. Therefore, the ClickHouse and {{product-name}} compatibility layer provides a number of auxiliary functions that enable you to address over a YSON structure using the [YPath language](../../../../../user-guide/storage/yson-docs.md). And also interpret its nodes as primitive {{product-name}} types (`Int64`, `UInt64`, `Double`, or `Boolean`), strings (`String`), or lists of primitive {{product-name}} types (`Array(Int64)`, `Array(UInt64)`, `Array(Double)`, or `Array(Boolean)`) with the conversion into the corresponding built-in ClickHouse type. For more information about these functions, see [Functions for working with YSON](../../../../../user-guide/data-processing/chyt/reference/functions.md#yson_functions).
 
 {% note warning "Attention!" %}
 

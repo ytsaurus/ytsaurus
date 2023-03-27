@@ -21,7 +21,7 @@ select * from `//sys/clickhouse/sample_table`;
 - Не нужно копировать данные из {{product-name}} в ClickHouse.
 - Можно использовать вычислительную квоту в {{product-name}} для быстрых вычислений.
 - Можно быстро проводить вычисления над данными в {{product-name}} небольшого и среднего объемов (до 1 TБ), до 100 раз быстрее чем запуск MapReduce операции.
-- Поддерживается работа со [статическими таблицами](../../../../user-guide/storage/static-tables.md) и [динамическими таблицами](../../../user-guide/dynamic-tables/overview.md).
+- Поддерживается работа со [статическими таблицами](../../../../user-guide/storage/static-tables.md) и [динамическими таблицами](../../../../user-guide/dynamic-tables/overview.md).
 
 ## Ограничения { #disadvantages }
 

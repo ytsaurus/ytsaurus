@@ -6,18 +6,18 @@ This section defines the data processing operations available in the {{product-n
 
 {{product-name}} supports the following data processing operations:
 
-- **[Map](../../../user-guide/data-processing/operations/map.md), [Reduce](../../../user-guide/data-processing/operations/reduce.md), and [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md)** execute user-provided code against input data.
-- **[Sort](../../../user-guide/data-processing/operations/sort.md)** sorts input tables.
-- **[Merge](../../../user-guide/data-processing/operations/merge.md)** merges tables.
-- **[Erase](../../../user-guide/data-processing/operations/erase.md)** deletes specified data from a table.
-- **[RemoteCopy](../../../user-guide/data-processing/operations/remote-copy.md)** copies data between clusters.
-- **[Vanilla](../../../user-guide/data-processing/operations/vanilla.md)** launches an appropriate number of **user scripts** on cluster nodes and keeps them running.
+- **[Map](../../../../user-guide/data-processing/operations/map.md), [Reduce](../../../../user-guide/data-processing/operations/reduce.md), and [MapReduce](../../../../user-guide/data-processing/operations/mapreduce.md)** execute user-provided code against input data.
+- **[Sort](../../../../user-guide/data-processing/operations/sort.md)** sorts input tables.
+- **[Merge](../../../../user-guide/data-processing/operations/merge.md)** merges tables.
+- **[Erase](../../../../user-guide/data-processing/operations/erase.md)** deletes specified data from a table.
+- **[RemoteCopy](../../../../user-guide/data-processing/operations/remote-copy.md)** copies data between clusters.
+- **[Vanilla](../../../../user-guide/data-processing/operations/vanilla.md)** launches an appropriate number of **user scripts** on cluster nodes and keeps them running.
 
-Each operation has a `spec` parameter, which, as the name implies, conveys the operation's **specification** (aka its options). The specification is a hierarchical structure that exists in the [YSON format](../../../user-guide/storage/formats.md#yson). Each operation type has its own specification structure, whose detailed description can be found in the subsections dedicated to specific operation types.
+Each operation has a `spec` parameter, which, as the name implies, conveys the operation's **specification** (aka its options). The specification is a hierarchical structure that exists in the [YSON format](../../../../user-guide/storage/formats.md#yson). Each operation type has its own specification structure, whose detailed description can be found in the subsections dedicated to specific operation types.
 
-**User script** is a user-defined string that is executed via a `bash -c` call, plus the parameters detailing the execution. User scripts run in a `sandbox` environment, where they are executed by a service user that is not formally present in the system (referring to Linux system users) and that only has read/write rights for the current directory and for the `tmp` directory. To learn more about user script parameters, see [Operation options](../../../user-guide/data-processing/operations/operations-options.md#user_script_options).
+**User script** is a user-defined string that is executed via a `bash -c` call, plus the parameters detailing the execution. User scripts run in a `sandbox` environment, where they are executed by a service user that is not formally present in the system (referring to Linux system users) and that only has read/write rights for the current directory and for the `tmp` directory. To learn more about user script parameters, see [Operation options](../../../../user-guide/data-processing/operations/operations-options.md#user_script_options).
 
-Operations are run in **compute pools**, which are structured as a tree and serve to allocate the cluster's compute resources. For more information, see [Scheduler and pools](../../../user-guide/data-processing/scheduler/scheduler-and-pools.md).
+Operations are run in **compute pools**, which are structured as a tree and serve to allocate the cluster's compute resources. For more information, see [Scheduler and pools](../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md).
 
 Operations are comprised of **jobs**. Jobs as units enable the parallelism of an operation. Input data fed to an operation is divided into parts, with each such part processed by one job.
 
@@ -45,11 +45,11 @@ For use cases of Python's `get_operation` and `list_jobs`, see "Python Wrapper".
 In the course of execution, an operation can have one of the following statuses:
 
 - `running` — the operation is executing.
-- `pending` — the operation is queued for launch. Each [pool](../../../user-guide/data-processing/scheduler/scheduler-and-pools.md) has a limit on the number of simultaneously running operations, and, if it is exceeded, operations are sent to a queue.
+- `pending` — the operation is queued for launch. Each [pool](../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md) has a limit on the number of simultaneously running operations, and, if it is exceeded, operations are sent to a queue.
 - `completed` — the operation was successfully completed.
 - `failed` — the operation encountered an error. The main possible reasons are failure to start due to incorrect parameters, or the threshold of jobs stopped due to an error being exceeded.
 - `aborted` — the operation was aborted. The main possible reasons are it being interrupted by the user, or the transaction housing the operation being interrupted.
-- `reviving` — the operation is being recovered following the restart of the [scheduler](../../../user-guide/data-processing/scheduler/scheduler-and-pools.md).
+- `reviving` — the operation is being recovered following the restart of the [scheduler](../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md).
 - `initializing`, `preparing`, `materializing`, `completing`, `aborting`, `failing` — intermediate states of an operation that facilitate the step-by-step change of meta-information on the {{product-name}} master server.
 
 ### Job states
@@ -58,8 +58,8 @@ Each operation comprises a number of jobs. Like operations, jobs can have variou
 
 - `running` — the job is executing.
 - `completed` — the job completed successfully.
-- `aborted` — the job was interrupted. This normally occurs as a result of **preemption** or network errors. To learn more about preemption, see [Scheduler and pools](../../../user-guide/data-processing/scheduler/scheduler-and-pools.md).
-- `failed` — the job encountered an error. This state usually results from errors in the user script. An error log (stderr) for the failed job has been generated and can be viewed. Such cases may also occur if the [account](../../../user-guide/storage/cypress.md) in use has run out of space, meaning the job cannot write the result of its work.
+- `aborted` — the job was interrupted. This normally occurs as a result of **preemption** or network errors. To learn more about preemption, see [Scheduler and pools](../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md).
+- `failed` — the job encountered an error. This state usually results from errors in the user script. An error log (stderr) for the failed job has been generated and can be viewed. Such cases may also occur if the [account](../../../../user-guide/storage/cypress.md) in use has run out of space, meaning the job cannot write the result of its work.
 - `waiting` — the job was sent to a cluster node, but is awaiting resources in a queue.
 - `aborting` — the scheduler decided to interrupt the job, but the process on the cluster node has not yet ended.
 
@@ -136,7 +136,7 @@ These procedures are fully automated and do not require manual set-up.
 ## C++ and Python Wrapper
 
 Running operations via С~++ or Python Wrapper is associated with a number of priming works in addition to the calling of the corresponding driver command. Those include:
-* Uploading files to the [File cache](../../../user-guide/storage/file-cache.md).
+* Uploading files to the [File cache](../../../../user-guide/storage/file-cache.md).
 
    **Note**: Automatic file upload to the cache always takes place outside of the user transaction, which may lead to conflicts on Cypress nodes if the file cache directory was not created in advance.
 * Сreating output tables or clearing them using the `erase` command. When it comes to the system, all output tables should already be there at the start of the operation.
@@ -150,7 +150,7 @@ The system has restrictions on operation parameters in place that need to be tak
 
 1. There is a limit on the number of input tables for any operation. By default, this limit on "big" production clusters is 3,000. Testing clusters, as well as clusters that do not run large-scale MapReduce operations, can have lower restrictions, which can still be increased to 3,000 if necessary.
 2. There is no special limit on the number of output tables, but keep in mind that each output table has memory buffer requirements. If an operation has 1,000 output tables, its jobs will have impossible memory requirements and therefore not run. In practice, the upper bound for output tables is approximately 100. If you need more output tables, split the operation into several smaller ones and stagger the processing.
-3. There is a limit on the number of jobs an operation can have. For [Map](../../../user-guide/data-processing/operations/map.md), [Merge](merge.md), [Reduce](../../../user-guide/data-processing/operations/reduce.md), and [RemoteCopy](../../../user-guide/data-processing/operations/remote-copy.md) it is 100,000 jobs. In the cases of [Reduce](../../../user-guide/data-processing/operations/reduce.md) and sorted [Merge](../../../user-guide/data-processing/operations/merge.md), it may be impossible to generate so many jobs due to the scheduler not having enough samples. For operations that include the shuffle stage ([Sort](../../../user-guide/data-processing/operations/sort.md) and [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md)), there is a limit of 5,000 partitions. To learn more about partitions, see the corresponding sections dedicated to specific operation types.
+3. There is a limit on the number of jobs an operation can have. For [Map](../../../../user-guide/data-processing/operations/map.md), [Merge](merge.md), [Reduce](../../../../user-guide/data-processing/operations/reduce.md), and [RemoteCopy](../../../../user-guide/data-processing/operations/remote-copy.md) it is 100,000 jobs. In the cases of [Reduce](../../../../user-guide/data-processing/operations/reduce.md) and sorted [Merge](../../../../user-guide/data-processing/operations/merge.md), it may be impossible to generate so many jobs due to the scheduler not having enough samples. For operations that include the shuffle stage ([Sort](../../../../user-guide/data-processing/operations/sort.md) and [MapReduce](../../../../user-guide/data-processing/operations/mapreduce.md)), there is a limit of 5,000 partitions. To learn more about partitions, see the corresponding sections dedicated to specific operation types.
 4. There is a limit on the product of an operation's jobs multiplied by the number of output tables. This restriction helps prevent operations from generating a large number of chunks, which can exert an excessive load on the master servers. For "big" production clusters, this limit is 2,000,000.
 
 ## Transactions in data processing { #transactions }

@@ -14,7 +14,7 @@ One of the main sorting parameters is the number of partitions (`partition_count
 2. Second phase is sorting jobs, which sort the data from the partitions. Here, there are two options: if there is little data in the partition, it is sorted whole, and the partition processing ends there. If there is a lot of data and one job is not enough to sort it, sorting jobs are run on fixed-size parts of the partition before the transition to the third phase.
 3. The third phase consists of merge jobs, which merge the sorted parts of large partitions.
 
-General parameters for all operation types are described in [Operation options](../../../user-guide/data-processing/operations/operations-options.md).
+General parameters for all operation types are described in [Operation options](../../../../user-guide/data-processing/operations/operations-options.md).
 
 The Sort operation supports the following additional options (default values, if set, are specified in brackets):
 
@@ -28,7 +28,7 @@ The Sort operation supports the following additional options (default values, if
 * `intermediate_compression_codec` (lz4) — codec used for compressing intermediate data.
 * `intermediate_data_medium` (`default`) — type of medium storing chunks of intermediate data produced by sorting.
 * `partition_job_io, sort_job_io, merge_job_io` — I/O settings for the respective job types; in the `merge_job_io` option, the `table_writer` section is added for all jobs that write to output tables.
-* `schema_inference_mode` (auto) — schema definition mode. Possible values: auto, from_input, from_output. For more information, see the [Data schema](../../../user-guide/storage/static-schema.md#schema_inference) section.
+* `schema_inference_mode` (auto) — schema definition mode. Possible values: auto, from_input, from_output. For more information, see the [Data schema](../../../../user-guide/storage/static-schema.md#schema_inference) section.
 * `samples_per_partition` (1000) — number of keys for samples from the table for each partition (only available for dynamic tables).
 * `data_size_per_sorted_merge_job` — determines the amount of input data for merge jobs (it is a recommendation).
 * `sort_locality_timeout` (1 min) — time during which the scheduler waits for resources to free up on specific cluster nodes in order to start sorting all the parts of each partition on a node. This is necessary to ensure higher read locality in the course of the subsequent merging of sorted data.

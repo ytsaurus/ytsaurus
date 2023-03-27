@@ -2,7 +2,7 @@
 
 The Erase operation deletes the specified row range from the table. If the range is not specified for the input table, all data is deleted from the table (the table itself remains).
 
-General parameters for all operation types are described in [Operation options](../../../user-guide/data-processing/operations/operations-options.md).
+General parameters for all operation types are described in [Operation options](../../../../user-guide/data-processing/operations/operations-options.md).
 
 The Erase operation supports the following options (if set, default values are specified in brackets):
 

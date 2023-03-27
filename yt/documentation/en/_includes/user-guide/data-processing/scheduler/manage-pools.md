@@ -26,7 +26,7 @@ You can change the compute pool settings by editing the relevant pool attributes
 * `ephemeral_subpool_config`: A dict describing the configuration of virtual pools.
 * `integral-guarantees`: Integral guarantees.
 
-For more information about the listed attributes, see [Pool characteristics](../../../user-guide/data-processing/scheduler/pool-settings.md#pools).
+For more information about the listed attributes, see [Pool characteristics](../../../../user-guide/data-processing/scheduler/pool-settings.md#pools).
 
 ### Validating
 

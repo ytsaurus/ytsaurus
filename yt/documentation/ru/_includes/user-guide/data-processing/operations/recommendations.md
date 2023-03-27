@@ -10,7 +10,7 @@
 
 {% endnote %}
 
-Маленьким можно считать [чанк](../../../user-guide/storage/chunks.md) размером менее 100 Mб. Чтобы чанков в системе не становилось слишком много, стоит стремиться к тому, чтобы средний размер чанка был не менее 512 Мб.
+Маленьким можно считать [чанк](../../../../user-guide/storage/chunks.md) размером менее 100 Mб. Чтобы чанков в системе не становилось слишком много, стоит стремиться к тому, чтобы средний размер чанка был не менее 512 Мб.
 
 Мелкие чанки затрудняют работу кластера по нескольким причинам:
 
@@ -23,7 +23,7 @@
 yt merge --src //your/table --dst //your/table --spec '{combine_chunks=true;mode=<mode>}'
 ```
 
-Следует установить значение атрибута `<mode>` в `sorted`, для [сортированной таблицы](../../../user-guide/storage/static-tables.md#sorted_tables) и `ordered`, для [несортированной](../../../user-guide/storage/static-tables.md#unsorted_tables). Подробнее о типах таблиц в разделе [Статические таблицы](../../../user-guide/storage/static-tables.md).
+Следует установить значение атрибута `<mode>` в `sorted`, для [сортированной таблицы](../../../../user-guide/storage/static-tables.md#sorted_tables) и `ordered`, для [несортированной](../../../../user-guide/storage/static-tables.md#unsorted_tables). Подробнее о типах таблиц в разделе [Статические таблицы](../../../../user-guide/storage/static-tables.md).
 
 В обоих случаях merge сохранит порядок данных. Но в случае `sorted` он также сохранит сортированность таблицы с точки зрения системы: таблица останется `sorted` и сохранит все соответствующие атрибуты).
 
@@ -31,7 +31,7 @@ yt merge --src //your/table --dst //your/table --spec '{combine_chunks=true;mode
 
 ## MapReduce vs Map+Sort+Reduce
 
-Подробнее про устройство операции MapReduce, а также про то, почему она обычно быстрее цепочки Map+Sort+Reduce, в разделе [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md). 
+Подробнее про устройство операции MapReduce, а также про то, почему она обычно быстрее цепочки Map+Sort+Reduce, в разделе [MapReduce](../../../../user-guide/data-processing/operations/mapreduce.md). 
 
 Далее будут описаны случаи, когда **не рекомендуется** использовать слитную операцию MapReduce. 
 
@@ -50,7 +50,7 @@ yt merge --src //your/table --dst //your/table --spec '{combine_chunks=true;mode
 Данная схема будет хорошо работать только в двух случаях:
 
 1. Данные не меняются.
-2. Данные дописываются в конец (append). Например, таблица отсортирована по времени. Приходит дополнительная порция данных, для которой все значения ключа (времени) больше, чем все значения ключа (времени) в таблице. Тогда порцию данных можно отсортировать, после запустить Reduce с параметром `teleport=%true` Подробнее об опции в разделе [Reduce](../../../user-guide/data-processing/operations/reduce.md#foreign_tables).
+2. Данные дописываются в конец (append). Например, таблица отсортирована по времени. Приходит дополнительная порция данных, для которой все значения ключа (времени) больше, чем все значения ключа (времени) в таблице. Тогда порцию данных можно отсортировать, после запустить Reduce с параметром `teleport=%true` Подробнее об опции в разделе [Reduce](../../../../user-guide/data-processing/operations/reduce.md#foreign_tables).
 
 ### Тяжёлый reducer
 
@@ -60,7 +60,7 @@ yt merge --src //your/table --dst //your/table --spec '{combine_chunks=true;mode
 
 ## Большое количество записей с одинаковым ключом в reduce-фазе
 
-Для борьбы с данной проблемой в {{product-name}} существуют [Reduce-комбайнеры](../../../user-guide/data-processing/operations/mapreduce#reduce_combiner.md), которые позволяют обрабатывать большие ключи в нескольких джобах в reduce-фазе.
+Для борьбы с данной проблемой в {{product-name}} существуют [Reduce-комбайнеры](../../../../user-guide/data-processing/operations/mapreduce#reduce_combiner.md), которые позволяют обрабатывать большие ключи в нескольких джобах в reduce-фазе.
 
 ### Map-комбайнеры
 

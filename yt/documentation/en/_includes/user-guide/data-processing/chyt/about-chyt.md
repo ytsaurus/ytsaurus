@@ -12,7 +12,7 @@ Besides that, there are the following advantages:
 - You don't need to copy data from {{product-name}} to ClickHouse.
 - You can use the computing quota in {{product-name}} for fast computations.
 - You can quickly perform computations on {{product-name}} data of small and medium size (up to 1 TB) up to 100 times faster than running MapReduce operations.
-- Working with [static](../../../../user-guide/storage/static-tables.md) and [dynamic](../../../user-guide/dynamic-tables/overview.md) tables is supported.
+- Working with [static](../../../../user-guide/storage/static-tables.md) and [dynamic](../../../../user-guide/dynamic-tables/overview.md) tables is supported.
 
 ## Restrictions { #disadvantages }
 

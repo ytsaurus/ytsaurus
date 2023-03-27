@@ -2,7 +2,7 @@
 
 The Reduce operation may consist of one or more jobs. Each job receives part of the input table data processed by the user script, and the result is written to the output table. The input data is grouped according to the set of columns indicated in the `reduce_by` option. This grouping guarantees that all data with the same value in the `reduce_by` columns is input to the same job. The guarantee can be eased using the `enable_key_guarantee` option. For the operation to start, each input table must be sorted according to a column set beginning with `reduce_by`.
 
-General parameters for all operation types are described in [Operation options](../../../user-guide/data-processing/operations/operations-options.md).
+General parameters for all operation types are described in [Operation options](../../../../user-guide/data-processing/operations/operations-options.md).
 
 The Reduce operation supports the following parameters (default values, if set, are specified in brackets):
 
@@ -21,13 +21,13 @@ The Reduce operation supports the following parameters (default values, if set, 
 
    The scheduler will not try to split such jobs into smaller ones. If some of the ranges do not contain keys, then the corresponding jobs may not launch. It is impossible to guarantee which jobs do not run, because the scheduler does not see the data in full, only samples from it.
 
-* `enable_key_guarantee` — enables/disables the guarantee that all records with one key are given as input to one job (`true` by default). [Reduce with foreign tables](../../../user-guide/data-processing/operations/reduce.md#foreign_tables) describes a special scenario for using this option.
+* `enable_key_guarantee` — enables/disables the guarantee that all records with one key are given as input to one job (`true` by default). [Reduce with foreign tables](../../../../user-guide/data-processing/operations/reduce.md#foreign_tables) describes a special scenario for using this option.
 * `auto_merge` — dictionary containing the settings for automatic merge of small-sized output chunks. By default, automatic merge is disabled.
 
 The order of inputs in the Reduce operation is associated with the following guarantees:
 
 * data from each input table is divided into continuous parts that are fed to jobs based on `reduce_by` columns. In other words, one job cannot get keys `A` and `C`, while another job gets key `B`.
-* within a job, data from all the input tables is merged and sorted — first according to the `sort_by` fields, and then by input table index (`table_index`). For foreign (`foreign`) tables — within one `join_by` key — sorting is done by external table index. More information about foreign tables [below](../../../user-guide/data-processing/operations/reduce.md#foreign_tables).
+* within a job, data from all the input tables is merged and sorted — first according to the `sort_by` fields, and then by input table index (`table_index`). For foreign (`foreign`) tables — within one `join_by` key — sorting is done by external table index. More information about foreign tables [below](../../../../user-guide/data-processing/operations/reduce.md#foreign_tables).
 
 Input tables whose path has the `teleport=%true` attribute get processed by the Reduce operation in a special way. Chunks of such tables without key range overlaps with other input tables' chunks are not fed to the user script. Such unprocessed chunks are written to the output table whose path has the `teleport=%true` attribute. There can be no more than one such output table. You can still specify the `sorted_by` attribute for the output table to make it sorted. In this case, the user must ensure that the key range at the user script output is not wider than the key range at the operation's input.
 

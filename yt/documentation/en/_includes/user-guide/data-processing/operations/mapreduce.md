@@ -7,7 +7,7 @@ How the MapReduce operation works:
 
 ![](../../../../../images/mapreduce_op1.png){ .center }
 
-The MapReduce operation is similar to the [Sort](../../../user-guide/data-processing/operations/sort.md) operation, but allows for executing a mapper user script before partitioning jobs, and a reducer user script after sorting jobs.
+The MapReduce operation is similar to the [Sort](../../../../user-guide/data-processing/operations/sort.md) operation, but allows for executing a mapper user script before partitioning jobs, and a reducer user script after sorting jobs.
 
 {% note warning "Attention!" %}
 
@@ -23,7 +23,7 @@ In the merged MapReduce operation:
    If the scheduler detects a large partition that cannot be sorted within one job, it has an opportunity to save time and start processing the partitioned data before all map jobs finish. The scheduler, at its own discretion, divides the partition into several parts. The individual parts are then sorted on different cluster nodes by intermediate sort jobs, which take this data in over the network and sort it. This technique allows for a partial overlap of the phases, shortening the operation time.
 
 ## MapReduce vs Map+Sort+Reduce
-The merged MapReduce operation has several advantages over the [Map](../../../user-guide/data-processing/operations/map.md) + [Sort](../../../user-guide/data-processing/operations/sort.md) + [Reduce](../../../user-guide/data-processing/operations/reduce.md) combination:
+The merged MapReduce operation has several advantages over the [Map](../../../../user-guide/data-processing/operations/map.md) + [Sort](../../../../user-guide/data-processing/operations/sort.md) + [Reduce](../../../../user-guide/data-processing/operations/reduce.md) combination:
 
 1. **Less I/O operations on intermediate data.** Without the merge phase, map-sort-reduce typically writes intermediate data to disk three times: after the map phase, after the partition sort phase, and after sorting. Some of these writes may have a replication factor other than 1. For a MapReduce operation, a single write to disk will suffice, and the replication factor will be 1.
 2. **No unnecessary barriers (synchronization points).** With the map-sort-reduce combination, {{product-name}} is forced to wait for **all** the map jobs (including the longest ones) to finish before starting partitioning. Similarly, sorting needs to be completed before the first reduce jobs can be run. As for the merged MapReduce operation, there is only one inevitable synchronization point (reduce jobs cannot be started before map jobs run their course).
@@ -76,7 +76,7 @@ These results were collected on a cluster with 200 nodes, each having 48 GB of R
 
 ## MapReduce operation options
 
-General parameters for all operation types are described in [Operation options](../../../user-guide/data-processing/operations/operations-options.md).
+General parameters for all operation types are described in [Operation options](../../../../user-guide/data-processing/operations/operations-options.md).
 
 The MapReduce operation supports the following additional options (default values, if set, are specified in brackets):
 
@@ -100,7 +100,7 @@ The MapReduce operation supports the following additional options (default value
 * `map_job_io, sort_job_io, reduce_job_io` — I/O settings for the respective job types; in the `reduce_job_io` option, the `table_writer` section is added for all jobs that write to output tables.
 * `sort_locality_timeout` (1 min) — time during which the scheduler waits for resources to free up on specific cluster nodes in order to start sorting all the parts of each partition on a node. This is necessary to ensure higher read locality in the course of the subsequent merging of sorted data.
 * `ordered` (false) — enables the logic that is similar to ordered map at the partition map phase (input data is divided into jobs in successive segments, with the input of each map phase job being fed rows according to the order contained in the input tables).
-* `pivot_keys` — list of keys to be used for data partitioning at the reduce phase. This option is exactly the same as the corresponding reduce [option](../../../user-guide/data-processing/operations/reduce.md).
+* `pivot_keys` — list of keys to be used for data partitioning at the reduce phase. This option is exactly the same as the corresponding reduce [option](../../../../user-guide/data-processing/operations/reduce.md).
 
 The MapReduce operation supports `table_index` only for the mapper. If you want `table_index` for the reducer, you need to add `table_index` to a separate column in a mapper record and use `table_index` in the reducer that way.
 

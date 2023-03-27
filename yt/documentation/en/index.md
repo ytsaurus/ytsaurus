@@ -55,10 +55,10 @@ h3 {
         <h3><a lang="en" href="user-guide/data-processing/scheduler/scheduler-and-pools">Data processing</a></h3>
         <p>Processing data with {{product-name}}: scheduler, MapReduce paradigm, operations supported.</p>
     </div>
-    <div class="grid-item">
+    <!-- <div class="grid-item">
         <h3><a href="admin-guide/set-req">Administration Guide</a></h3>
         <p>Configuration, installation process and instructions for basic administrative tasks.</p>
-    </div>
+    </div> -->
         <div class="grid-item">
         <ul>
             <li><b><a lang="en" href="yql/index">YQL</a></b>: A declarative SQL-like query language.</li>

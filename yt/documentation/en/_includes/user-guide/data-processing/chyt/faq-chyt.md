@@ -8,25 +8,25 @@
 
 #### **Q: I get one of the `DB::NetException: Connection refused`, `DB::Exception: Attempt to read after eof: while receiving packet from` errors. What does it mean?**
 
-**A:** This usually means that an instance has left for one reason or another. You can view the counters of the number of aborted/failed jobs in the [operation UI](../../../user-guide/data-processing/chyt/cliques/ui.md#jobs). If there are (recent) jobs aborted due to preemption, it means that the clique does not have enough resources. If there are (recent) failed jobs, contact the administrator.
+**A:** This usually means that an instance has left for one reason or another. You can view the counters of the number of aborted/failed jobs in the [operation UI](../../../../user-guide/data-processing/chyt/cliques/ui.md#jobs). If there are (recent) jobs aborted due to preemption, it means that the clique does not have enough resources. If there are (recent) failed jobs, contact the administrator.
 
 ------
 
 #### **Q: What does the `Subquery exceeds data weight limit: XXX > YYY` error mean?**
 
-**A:** See the `max_data_weight_per_subquery` option in the article about [configuration](../../../user-guide/data-processing/chyt/reference/configuration.md#configuration_example).
+**A:** See the `max_data_weight_per_subquery` option in the article about [configuration](../../../../user-guide/data-processing/chyt/reference/configuration.md#configuration_example).
 
 ------
 
 #### **Q: How do I save data to a table?**
 
-**A:** There are **INSERT INTO** and **CREATE TABLE** functions. Learn more about them in the [Working with {{product-name}} tables](../../../user-guide/data-processing/chyt/yt-tables.md#save) section.
+**A:** There are **INSERT INTO** and **CREATE TABLE** functions. Learn more about them in the [Working with {{product-name}} tables](../../../../user-guide/data-processing/chyt/yt-tables.md#save) section.
 
 ------
 
 #### **Q: How do I load geo-dicts in my own clique?**
 
-**A:** When starting any clique, you can specify the `--cypress-geodata-path` option that enables you to specify the path to geo-dicts in Cypress. For more information about this option, see the [How to try](../../../user-guide/data-processing/chyt/try-chyt.md) article.
+**A:** When starting any clique, you can specify the `--cypress-geodata-path` option that enables you to specify the path to geo-dicts in Cypress. For more information about this option, see the [How to try](../../../../user-guide/data-processing/chyt/try-chyt.md) article.
 
 ------
 
@@ -45,7 +45,7 @@ toDate(reinterpretAsInt64(reverse(unhex(substring(hex(payment_dt), 1, 8)))))
 
 After obtaining the quota, you need to change the value of the `primary_medium` attribute on the **ssd_blobs** medium, the data will be moved to the corresponding medium in the background.
 
-For static tables, you can force a move using the [Merge](../../../user-guide/data-processing/operations/merge.md) operation.
+For static tables, you can force a move using the [Merge](../../../../user-guide/data-processing/operations/merge.md) operation.
 
 ```bash
 yt set //home/dev/test_table/@primary_medium ssd_blobs
@@ -61,7 +61,7 @@ yt set //home/dev/test_table/@primary_medium ssd_blobs
 yt mount-table //home/dev/test_table --sync
 ```
 
-You can additionally speed up moving using [forced_compaction](../../../user-guide/dynamic-tables/overview.md#attributes), but using this method creates a heavy load on the cluster and is strongly not recommended.
+You can additionally speed up moving using [forced_compaction](../../../../user-guide/dynamic-tables/overview.md#attributes), but using this method creates a heavy load on the cluster and is strongly not recommended.
 
 
 To check that the table really changed the medium, you can use the command:
@@ -101,7 +101,7 @@ SELECT count(*) FROM "//tmp/sample_table" SAMPLE 100500;
 
 #### **Q: How do I get the table name in a query?**
 
-**A:** You can use the `$table_name` and `$table_path` virtual columns. For more information about the virtual columns, see [Working with {{product-name}} tables](../../../user-guide/data-processing/chyt/yt-tables.md#virtual_columns).
+**A:** You can use the `$table_name` and `$table_path` virtual columns. For more information about the virtual columns, see [Working with {{product-name}} tables](../../../../user-guide/data-processing/chyt/yt-tables.md#virtual_columns).
 
 
 

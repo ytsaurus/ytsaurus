@@ -14,7 +14,7 @@ CHYT works only with [schematized tables](../../../../user-guide/storage/static-
 SELECT * FROM `//tmp/sample_table`
 ```
 
-CHYT can read and write static and sorted dynamic tables, but note that due to the data storage peculiarities, reading from [dynamic tables](../../../user-guide/dynamic-tables/overview.md) may take by several times more time than reading from static tables.
+CHYT can read and write static and sorted dynamic tables, but note that due to the data storage peculiarities, reading from [dynamic tables](../../../../user-guide/dynamic-tables/overview.md) may take by several times more time than reading from static tables.
 
 ## Reading multiple tables { #many }
 
@@ -177,7 +177,7 @@ FROM concatYtTables("//home/dev/username/t0", "//home/dev/username/t1");
 
 ## Working with dynamic tables { #dynamic }
 
-You can read [dynamic](../../../user-guide/dynamic-tables/overview.md) tables, including dynamic stores (fresh data in memory), from CHYT.
+You can read [dynamic](../../../../user-guide/dynamic-tables/overview.md) tables, including dynamic stores (fresh data in memory), from CHYT.
 
 {% note warning "Attention!" %}
 
@@ -185,6 +185,6 @@ To make data in dynamic stores visible when reading from CHYT and Map-Reduce, th
 
 {% endnote %}
 
-By default, if you try to read a dynamic table without the `enable_dynamic_store_read = %true` attribute, the query will end with an error. If you really need data only from chunk stores (with a delay of tens of minutes), then you can set `chyt.dynamic_table.enable_dynamic_store_read` to `0`, after which CHYT will forcibly start reading only chunk stores (see the [query settings](../../../user-guide/data-processing/chyt/reference/settings.md) page).
+By default, if you try to read a dynamic table without the `enable_dynamic_store_read = %true` attribute, the query will end with an error. If you really need data only from chunk stores (with a delay of tens of minutes), then you can set `chyt.dynamic_table.enable_dynamic_store_read` to `0`, after which CHYT will forcibly start reading only chunk stores (see the [query settings](../../../../user-guide/data-processing/chyt/reference/settings.md) page).
 
 

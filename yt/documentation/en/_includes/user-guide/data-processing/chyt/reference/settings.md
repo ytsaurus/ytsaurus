@@ -18,7 +18,7 @@ As usual, many of the settings include certain optimizations that are enabled by
 
 - `composite`: A section with settings related to composite `type_v3` and `YSON any/composite` types:
 
-   - `default_yson_format` [`binary`]: The default format for representing YSON strings. Possible values are `binary, text, and pretty`. Note that options other than `binary` are less efficient, because they require an explicit conversion from binary format. [Functions for working with YSON](../../../../user-guide/data-processing/chyt/reference/functions.md) work with any of the possible YSON formats.
+   - `default_yson_format` [`binary`]: The default format for representing YSON strings. Possible values are `binary, text, and pretty`. Note that options other than `binary` are less efficient, because they require an explicit conversion from binary format. [Functions for working with YSON](../../../../../user-guide/data-processing/chyt/reference/functions.md) work with any of the possible YSON formats.
 
 - `dynamic_table`: A section with settings related to working with dynamic tables.
 
