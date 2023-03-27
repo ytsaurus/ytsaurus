@@ -2043,7 +2043,7 @@ private:
             auto mutationCount = DecoratedAutomaton_->GetMutationCountSinceLastSnapshot();
             auto mutationSize = DecoratedAutomaton_->GetMutationSizeSinceLastSnapshot();
             auto lastSnapshotId = DecoratedAutomaton_->GetLastSuccessfulSnapshotId();
-            auto tailChangelogCount = epochContext->ReachableState.SegmentId - lastSnapshotId - 1;
+            auto tailChangelogCount = epochContext->ReachableState.SegmentId - lastSnapshotId;
             if (tailChangelogCount >= Config_->Get()->MaxChangelogsForRecovery ||
                 mutationCount >= Config_->Get()->MaxChangelogMutationCountForRecovery ||
                 mutationSize >= Config_->Get()->MaxTotalChangelogSizeForRecovery)
