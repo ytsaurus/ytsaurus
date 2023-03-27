@@ -207,6 +207,10 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         }
     }
 
+    if (replicationProgress && !IsChaosTableReplicaType(TypeFromId(upstreamReplicaId))) {
+        THROW_ERROR_EXCEPTION("Replication progress can only be initialized for tables bound for chaos replication");
+    }
+
     const auto& tabletManager = this->Bootstrap_->GetTabletManager();
     auto* tabletCellBundle = optionalTabletCellBundleName
         ? tabletManager->GetTabletCellBundleByNameOrThrow(*optionalTabletCellBundleName, true /*activeLifeStageOnly*/)
@@ -281,11 +285,11 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                 }
             }
 
+            node->SetUpstreamReplicaId(upstreamReplicaId);
+
             if (replicationProgress) {
                 ScatterReplicationProgress(node, *replicationProgress);
             }
-
-            node->SetUpstreamReplicaId(upstreamReplicaId);
         }
     } catch (const std::exception&) {
         this->Destroy(node);

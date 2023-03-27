@@ -1903,7 +1903,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             if (table->IsReplicated()) {
                 THROW_ERROR_EXCEPTION("Replication progress cannot be set for replicated tables");
             }
-            if (!table->GetReplicationCardId()) {
+
+            if (!table->GetReplicationCardId() &&
+                !(options.UpstreamReplicaId && IsChaosTableReplicaType(TypeFromId(*options.UpstreamReplicaId))))
+            {
                 THROW_ERROR_EXCEPTION("Replication progress can only be set for tables bound for chaos replication");
             }
 

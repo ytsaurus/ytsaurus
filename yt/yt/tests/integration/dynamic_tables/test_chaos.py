@@ -1236,7 +1236,7 @@ class TestChaos(ChaosTestBase):
         card_id = get("//tmp/crt/@replication_card_id")
         self._sync_replication_era(card_id, replicas)
 
-        def _filter_rows(rows, schema, dump=False):
+        def _filter_rows(rows, schema):
             columns = builtins.set([c["name"] for c in schema])
             for row in rows:
                 row_columns = list(row.keys())
@@ -1254,7 +1254,7 @@ class TestChaos(ChaosTestBase):
         def _check_read_replica(values_row, replica_path, remote_driver, schema):
             values = _filter_rows([values_row], schema)
             keys = [{"key": values_row["key"]}]
-            wait(lambda: _filter_rows(lookup_rows(replica_path, keys, driver=remote_driver), schema, True) == values)
+            wait(lambda: _filter_rows(lookup_rows(replica_path, keys, driver=remote_driver), schema) == values)
 
         # check data written and can be read
         values0 = {"key": 0, "value": "0", "value2": "10"}
@@ -1281,7 +1281,7 @@ class TestChaos(ChaosTestBase):
         for i, r in enumerate(new_replicas):
             if r["content_type"] == "data":
                 continue
-            new_replica_ids[i] = self._create_chaos_table_replicas([new_replicas[i]], table_path="//tmp/crt")[0]
+            new_replica_ids[i] = self._create_chaos_table_replica(new_replicas[i], table_path="//tmp/crt")
             self._create_replica_tables([new_replicas[i]], [new_replica_ids[i]], schema=new_schema)
             _validate_schema(new_schema, "//tmp/q.new", get_driver(cluster=r["cluster_name"]))
 
@@ -1330,8 +1330,13 @@ class TestChaos(ChaosTestBase):
                 driver=driver
             )
             replication_progress = get("//tmp/t/@replication_progress", driver=driver)
-            alter_table("//tmp/t.new", dynamic=True, upstream_replica_id=new_replica_ids[data_replica_index], driver=driver)
-            alter_table("//tmp/t.new", replication_progress=replication_progress, driver=driver)
+            alter_table(
+                "//tmp/t.new",
+                dynamic=True,
+                upstream_replica_id=new_replica_ids[data_replica_index],
+                replication_progress=replication_progress,
+                driver=driver
+            )
             sync_mount_table("//tmp/t.new", driver=driver)
 
             # remove old replicas and tables
@@ -1665,14 +1670,15 @@ class TestChaos(ChaosTestBase):
 
     @authors("savrus")
     @pytest.mark.parametrize("mode", ["sync", "async"])
-    def test_new_replica_with_progress(self, mode):
+    @pytest.mark.parametrize("method", ["replica", "table"])
+    def test_new_replica_with_progress(self, mode, method):
         cell_id = self._sync_create_chaos_bundle_and_cell()
         drivers = self._get_drivers()
 
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/t"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
-            {"cluster_name": "remote_1", "content_type": "data", "mode": mode, "enabled": True, "replica_path": "//tmp/r"},
+            {"cluster_name": "remote_0", "content_type": "data", "mode": mode, "enabled": True, "replica_path": "//tmp/r"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas[:2])
 
@@ -1689,8 +1695,28 @@ class TestChaos(ChaosTestBase):
         }
         print_debug("Creating new replica with progress:", replication_progress)
 
-        replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, replication_progress=replication_progress))
-        self._create_replica_tables(replicas[2:], replica_ids[2:])
+        if method == "replica":
+            # set replication progress in replica creation
+            replica_ids.append(self._create_chaos_table_replica(
+                replicas[2],
+                replication_card_id=card_id,
+                replication_progress=replication_progress
+            ))
+            self._create_replica_tables(replicas[2:], replica_ids[2:])
+        else:
+            # set replication progress in table creation
+            replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id))
+
+            self._create_sorted_table(
+                "//tmp/r",
+                dynamic=True,
+                upstream_replica_id=replica_ids[2],
+                replication_progress=replication_progress,
+                driver=drivers[1]
+            )
+
+            sync_mount_table("//tmp/r", driver=drivers[1])
+
         if mode == "sync":
             self._sync_replication_era(card_id, replicas)
 
@@ -1701,9 +1727,9 @@ class TestChaos(ChaosTestBase):
         wait(lambda: select_rows("* from [//tmp/t]") == values0 + values1)
 
         if mode == "sync":
-            assert select_rows("* from [//tmp/r]", driver=drivers[2]) == values1
+            assert select_rows("* from [//tmp/r]", driver=drivers[1]) == values1
         else:
-            wait(lambda: select_rows("* from [//tmp/r]", driver=drivers[2]) == values1)
+            wait(lambda: select_rows("* from [//tmp/r]", driver=drivers[1]) == values1)
 
     @authors("savrus")
     def test_coordinator_suspension(self):

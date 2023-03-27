@@ -200,7 +200,12 @@ bool IsTableReplicaType(EObjectType type)
 {
     return
         type == EObjectType::TableReplica ||
-        type == EObjectType::ChaosTableReplica;
+        IsChaosTableReplicaType(type);
+}
+
+bool IsChaosTableReplicaType(EObjectType type)
+{
+    return type == EObjectType::ChaosTableReplica;
 }
 
 bool IsCollocationType(EObjectType type)
