@@ -7,6 +7,5 @@ yt_local start --proxy-port 80 \
 --controller-agent-config /etc/yt/controller-agent.yson \
 --rpc-proxy-config /etc/yt/server.yson \
 --local-cypress-dir /var/lib/yt/local-cypress \
---fqdn localhost \
 --ytserver-all-path /usr/bin/ytserver-all \
---sync "$@"
+--sync $@

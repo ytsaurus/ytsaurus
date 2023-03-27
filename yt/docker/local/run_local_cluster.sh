@@ -169,7 +169,7 @@ if [ -z "`docker network ls | grep $network_name`" ]; then
 fi
 
 set +e
-cluster_container=$(docker run -itd --network $network_name --name $yt_container_name -p ${proxy_port}:80 -p ${rpc_proxy_port}:${rpc_proxy_port} --rm $local_cypress_dir $yt_image --proxy-config "{address_resolver={enable_ipv4=%true;enable_ipv6=%false;};coordinator={public_fqdn=\"${docker_hostname}:${proxy_port}\"}}" --rpc-proxy-count ${rpc_proxy_count} --rpc-proxy-port ${rpc_proxy_port})
+cluster_container=$(docker run -itd --network $network_name --name $yt_container_name -p ${proxy_port}:80 -p ${rpc_proxy_port}:${rpc_proxy_port} --rm $local_cypress_dir $yt_image --fqdn "${docker_hostname}" --proxy-config "{address_resolver={enable_ipv4=%true;enable_ipv6=%false;};coordinator={public_fqdn=\"${docker_hostname}:${proxy_port}\"}}" --rpc-proxy-count ${rpc_proxy_count} --rpc-proxy-port ${rpc_proxy_port})
 if [ "$?" != "0" ]; then
    die "Image $yt_image failed to run. Most likely that was because the port $proxy_port is already busy, \
 so you have to provide another port via --proxy-port option."
