@@ -7,12 +7,15 @@
 #undef PARALLEL_WRITER_INL_H_
 
 #include <yt/cpp/mapreduce/interface/client.h>
+#include <yt/cpp/mapreduce/interface/fwd.h>
 #include <yt/cpp/mapreduce/interface/io.h>
 #include <yt/cpp/mapreduce/interface/mpl.h>
 
 #include <yt/cpp/mapreduce/interface/logging/yt_log.h>
 
 #include <library/cpp/threading/blocking_queue/blocking_queue.h>
+#include <library/cpp/threading/future/future.h>
+#include <library/cpp/threading/future/async.h>
 
 #include <util/generic/maybe.h>
 #include <util/generic/ptr.h>
@@ -21,6 +24,8 @@
 #include <util/string/builder.h>
 
 #include <util/system/thread.h>
+
+#include <util/thread/pool.h>
 
 namespace NYT {
 namespace NDetail {
@@ -69,11 +74,13 @@ class TParallelUnorderedTableWriterBase
 public:
     TParallelUnorderedTableWriterBase(
         const IClientBasePtr& client,
-        const TRichYPath &path,
+        const TRichYPath& path,
+        const std::shared_ptr<IThreadPool>& threadPool,
         const TParallelTableWriterOptions& options)
-        : Tasks_(options.TaskCount_)
-        , Transaction_(client->StartTransaction())
+        : Transaction_(client->StartTransaction())
         , Path_(path)
+        , ThreadPool_(threadPool)
+        , WritersPool_(options.ThreadCount_)
         , Options_(options.TableWriterOptions_)
     {
         if (!Path_.Append_.GetOrElse(false)) {
@@ -98,13 +105,12 @@ public:
 
         Transaction_->Lock(Path_.Path_, LM_SHARED);
 
-        for (size_t i = 0; i < options.ThreadCount_; ++i) {
-            TString threadName = ::TStringBuilder() << "par_writer_" << i;
-
-            Threads_.push_back(::MakeHolder<TThread>(
-                TThread::TParams(WriterThread, this).SetName(threadName)));
-            Threads_.back()->Start();
-        }
+        StartWritersFuture_ = ::NThreading::Async([this, threadCount = options.ThreadCount_]() mutable {
+            for (size_t i = 0; i < threadCount; ++i) {
+                WritersPool_.Push(Transaction_->CreateTableWriter<T>(Path_, Options_));
+            }
+            YT_LOG_DEBUG("All writers was created");
+        }, *ThreadPool_);
     }
 
     ~TParallelUnorderedTableWriterBase()
@@ -118,8 +124,8 @@ public:
     void Abort() override
     {
         Transaction_->Abort();
-        Tasks_.Stop();
-        WaitThreads();
+        Stopped_ = true;
+        WaitAndFinish();
         State_ = EWriterState::Finished;
     }
 
@@ -131,8 +137,8 @@ public:
     void FinishTable(size_t) override
     {
         if (State_ != EWriterState::Finished) {
-            Tasks_.Stop();
-            WaitThreads();
+            Stopped_ = true;
+            WaitAndFinish();
         }
         if (State_ == EWriterState::Exception) {
             State_ = EWriterState::Finished;
@@ -145,41 +151,26 @@ public:
         }
     }
 
-    static void* WriterThread(void* opaque)
-    {
-        auto self = static_cast<TParallelUnorderedTableWriterBase<T>*>(opaque);
-        self->WriterThread();
-        return nullptr;
-    }
-
 private:
-    void WriterThread()
+    void WaitAndFinish()
     {
-        try {
-            auto writer = Transaction_->CreateTableWriter<T>(Path_, Options_);
-            while (TMaybe<TWriteTask<T>> task = Tasks_.Pop()) {
-                task.GetRef().Process(writer);
-            }
-            writer->Finish();
-        } catch (const std::exception&) {
-            auto state = State_.exchange(EWriterState::Exception);
-            if (state == EWriterState::Ok) {
-                Exception_ = std::current_exception();
-                Tasks_.Stop();
+        StartWritersFuture_.Wait();
+        ::NThreading::WaitAll(Futures_).GetValueSync();
+
+        WritersPool_.Stop();
+
+        while (auto writer = WritersPool_.Pop()) {
+            try {
+                (*writer)->Finish();
+            } catch (const std::exception&) {
+                auto state = State_.exchange(EWriterState::Exception);
+                if (state == EWriterState::Ok) {
+                    Exception_ = std::current_exception();
+                    Stopped_ = true;
+                }
             }
         }
     }
-
-    void WaitThreads()
-    {
-        for (auto& thread : Threads_) {
-            thread->Join();
-        }
-    }
-
-protected:
-
-    ::NThreading::TBlockingQueue<TWriteTask<T>> Tasks_;
 
 protected:
     void AddRowError() {
@@ -187,6 +178,36 @@ protected:
             std::rethrow_exception(Exception_);
         }
         ythrow TApiUsageError() << "Can't write after Finish or Abort";
+    }
+
+    bool AddWriteTask(TWriteTask<T> task) {
+        if (Stopped_) {
+            return false;
+        }
+
+        Futures_.emplace_back(::NThreading::Async([
+            this,
+            task=std::move(task)
+        ] () mutable {
+            try {
+                TMaybe<TTableWriterPtr<T>> writer = WritersPool_.Pop();
+                if (!writer) {
+                    return;
+                }
+                task.Process(*writer);
+                WritersPool_.Push(std::move(*writer));
+            } catch (const std::exception&) {
+                auto state = State_.exchange(EWriterState::Exception);
+                if (state == EWriterState::Ok) {
+                    Exception_ = std::current_exception();
+                    Stopped_ = true;
+                }
+            }
+
+            return;
+        }, *ThreadPool_));
+
+        return true;
     }
 
 private:
@@ -198,9 +219,15 @@ private:
     };
 
 private:
-    TVector<THolder<TThread>> Threads_;
     ITransactionPtr Transaction_;
     TRichYPath Path_;
+
+    std::shared_ptr<IThreadPool> ThreadPool_;
+    std::atomic<bool> Stopped_{false};
+    ::NThreading::TBlockingQueue<TTableWriterPtr<T>> WritersPool_;
+    std::vector<::NThreading::TFuture<void>> Futures_;
+    ::NThreading::TFuture<void> StartWritersFuture_;
+
     const TTableWriterOptions Options_;
     std::exception_ptr Exception_ = nullptr;
 
@@ -217,28 +244,28 @@ public:
 
     void AddRow(T&& row, size_t) override
     {
-        if (!TBase::Tasks_.Push(TWriteTask<T>(std::move(row)))) {
+        if (!TBase::AddWriteTask(TWriteTask<T>(std::move(row)))) {
             TBase::AddRowError();
         }
     }
 
     void AddRow(const T& row, size_t) override
     {
-        if (!TBase::Tasks_.Push(TWriteTask<T>(row))) {
+        if (!TBase::AddWriteTask(TWriteTask<T>(row))) {
             TBase::AddRowError();
         }
     }
 
     void AddRowBatch(TVector<T>&& rows, size_t) override
     {
-        if (!TBase::Tasks_.Push(TWriteTask<T>(std::move(rows)))) {
+        if (!TBase::AddWriteTask(TWriteTask<T>(std::move(rows)))) {
             TBase::AddRowError();
         }
     }
 
     void AddRowBatch(const TVector<T>& rows, size_t) override
     {
-        if (!TBase::Tasks_.Push(TWriteTask<T>(rows))) {
+        if (!TBase::AddWriteTask(TWriteTask<T>(rows))) {
             TBase::AddRowError();
         }
     }
@@ -257,14 +284,14 @@ public:
 
     void AddRow(Message&& row, size_t) override
     {
-        if (!TBase::Tasks_.Push(TWriteTask<T>(std::move(static_cast<T&&>(row))))) {
+        if (!TBase::AddWriteTask(TWriteTask<T>(std::move(static_cast<T&&>(row))))) {
             TBase::AddRowError();
         }
     }
 
     void AddRow(const Message& row, size_t) override
     {
-        if (!TBase::Tasks_.Push(TWriteTask<T>(static_cast<const T&>(row)))) {
+        if (!TBase::AddWriteTask(TWriteTask<T>(static_cast<const T&>(row)))) {
             TBase::AddRowError();
         }
     }
@@ -280,7 +307,19 @@ TTableWriterPtr<T> CreateParallelUnorderedTableWriter(
     const TRichYPath& path,
     const TParallelTableWriterOptions& options)
 {
-    return ::MakeIntrusive<TTableWriter<T>>(new NDetail::TParallelUnorderedTableWriter<T>(client, path, options));
+    auto threadPool = std::make_shared<TSimpleThreadPool>();
+    threadPool->Start(options.ThreadCount_);
+    return CreateParallelUnorderedTableWriter<T>(client, path, threadPool, options);
+}
+
+template <typename T>
+TTableWriterPtr<T> CreateParallelUnorderedTableWriter(
+    const IClientBasePtr& client,
+    const TRichYPath& path,
+    const std::shared_ptr<IThreadPool>& threadPool,
+    const TParallelTableWriterOptions& options)
+{
+    return ::MakeIntrusive<TTableWriter<T>>(new NDetail::TParallelUnorderedTableWriter<T>(client, path, threadPool, options));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
