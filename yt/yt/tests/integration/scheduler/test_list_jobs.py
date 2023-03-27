@@ -5,7 +5,7 @@ from yt_commands import (
     get, create_tmpdir,
     create_pool, insert_rows, select_rows, lookup_rows, write_table, map, map_reduce, vanilla, run_test_vanilla,
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
-    make_random_string, raises_yt_error, clear_metadata_caches)
+    make_random_string, raises_yt_error, clear_metadata_caches, ls)
 
 from yt_scheduler_helpers import scheduler_new_orchid_pool_tree_path
 
@@ -166,14 +166,25 @@ class TestListJobsBase(YTEnvSetup):
 
     @staticmethod
     def _validate_address_filter(op):
-        address_to_job_ids = defaultdict(list)
+        nodes = ls("//sys/cluster_nodes")
+        random_address = nodes[0]
+        prefixes = []
+        for node in nodes:
+            prefixes.append(node)
+            prefixes.append(node[:-1])
+        for small_prefix in ["", random_address[:1], random_address[:2]]:
+            prefixes.append(small_prefix)
+        for wrong_prefix in [random_address[2:5], random_address[3:7], random_address[1:4]]:
+            prefixes.append(wrong_prefix)
+
         jobs = checked_list_jobs(op.id)["jobs"]
-        for job in jobs:
-            address = job["address"]
-            address_to_job_ids[address].append(job["id"])
-        for address, job_ids in address_to_job_ids.items():
-            actual_jobs_for_address = checked_list_jobs(op.id, address=address)["jobs"]
-            assert builtins.set(job["id"] for job in actual_jobs_for_address) == builtins.set(job_ids)
+        prefix_to_expected_job_list = defaultdict(list)
+        for prefix in prefixes:
+            prefix_to_expected_job_list[prefix] = [job["id"] for job in jobs if job["address"].startswith(prefix)]
+
+        for prefix, expected_jobs in prefix_to_expected_job_list.items():
+            actual_jobs_for_address = checked_list_jobs(op.id, address=prefix)["jobs"]
+            assert builtins.set(job["id"] for job in actual_jobs_for_address) == builtins.set(expected_jobs)
 
     @staticmethod
     def _get_answers_for_filters_during_map(job_ids):

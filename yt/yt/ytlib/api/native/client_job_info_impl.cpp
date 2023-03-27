@@ -950,7 +950,7 @@ static TQueryBuilder GetListJobsQueryBuilder(
         (TInstant::Now() - options.RunningJobsLookbehindPeriod).MicroSeconds()));
 
     if (options.Address) {
-        builder.AddWhereConjunct(Format("address = %Qv", *options.Address));
+        builder.AddWhereConjunct(Format("is_prefix(%Qv, address)", *options.Address));
     }
 
     return builder;
