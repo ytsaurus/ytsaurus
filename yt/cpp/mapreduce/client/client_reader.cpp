@@ -54,17 +54,18 @@ TClientReader::TClientReader(
     , ReadTransaction_(nullptr)
 {
     if (options.CreateTransaction_) {
-      ReadTransaction_ = MakeHolder<TPingableTransaction>(
-          ClientRetryPolicy_,
-          Context_,
-          transactionId,
-          transactionPinger->GetChildTxPinger(),
-          TStartTransactionOptions());
-      Path_.Path(Snapshot(
-        ClientRetryPolicy_,
-        Context_,
-        ReadTransaction_->GetId(),
-        path.Path_));
+        Y_VERIFY(transactionPinger, "Internal error: transactionPinger is null");
+        ReadTransaction_ = MakeHolder<TPingableTransaction>(
+            ClientRetryPolicy_,
+            Context_,
+            transactionId,
+            transactionPinger->GetChildTxPinger(),
+            TStartTransactionOptions());
+        Path_.Path(Snapshot(
+            ClientRetryPolicy_,
+            Context_,
+            ReadTransaction_->GetId(),
+            path.Path_));
     }
 
     if (useFormatFromTableAttributes) {
