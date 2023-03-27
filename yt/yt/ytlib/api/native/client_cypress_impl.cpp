@@ -206,18 +206,16 @@ protected:
     template <class TOptions>
     void StartTransaction(
         const TString& title,
-        const TOptions& options,
-        bool requirePortalExitSynchronization = false)
+        const TOptions& options)
     {
         YT_LOG_DEBUG("Starting transaction");
 
         auto transactionAttributes = CreateEphemeralAttributes();
         transactionAttributes->Set("title", title);
 
-        TNativeTransactionStartOptions transactionOptions;
+        TTransactionStartOptions transactionOptions;
         transactionOptions.ParentId = options.TransactionId;
         transactionOptions.Attributes = std::move(transactionAttributes);
-        transactionOptions.RequirePortalExitSynchronization = requirePortalExitSynchronization;
         auto transactionOrError = WaitFor(Client_->StartNativeTransaction(
             ETransactionType::Master,
             transactionOptions));
@@ -641,29 +639,10 @@ public:
     void Run()
     {
         YT_LOG_DEBUG("Node internalization started");
-        try {
-            DoRun(/*requirePortalExitSynchronization*/ true);
-        } catch (const TErrorException& ex) {
-            if (!ex.Error().FindMatching(NRpc::EErrorCode::UnsupportedServerFeature)) {
-                throw;
-            }
-            MaybeAbortTransaction();
-            DoRun(/*requirePortalExitSynchronization*/ false);
-        }
-        YT_LOG_DEBUG("Node internalization completed");
-    }
 
-private:
-    const TYPath Path_;
-    const TInternalizeNodeOptions Options_;
-
-
-    void DoRun(bool requirePortalExitSynchronization)
-    {
         StartTransaction(
             Format("Internalize %v", Path_),
-            Options_,
-            requirePortalExitSynchronization);
+            Options_);
 
         auto entranceNodeId = GetEntranceNodeId();
 
@@ -680,18 +659,22 @@ private:
 
         SyncExternalCellsWithClonedNodeCell();
 
-        if (requirePortalExitSynchronization) {
-            NProto::TReqCopySynchronizablePortalAttributes req;
-            ToProto(req.mutable_source_node_id(), entranceNodeId);
-            ToProto(req.mutable_destination_node_id(), clonedNodeId);
+        NProto::TReqCopySynchronizablePortalAttributes req;
+        ToProto(req.mutable_source_node_id(), entranceNodeId);
+        ToProto(req.mutable_destination_node_id(), clonedNodeId);
 
-            const auto& connection = Client_->GetNativeConnection();
-            auto cellId = connection->GetMasterCellId(CellTagFromId(clonedNodeId));
-            Transaction_->AddAction(cellId, MakeTransactionActionData(req));
-        }
+        const auto& connection = Client_->GetNativeConnection();
+        auto cellId = connection->GetMasterCellId(CellTagFromId(clonedNodeId));
+        Transaction_->AddAction(cellId, MakeTransactionActionData(req));
 
         CommitTransaction({.Force2PC = true});
+
+        YT_LOG_DEBUG("Node internalization completed");
     }
+
+private:
+    const TYPath Path_;
+    const TInternalizeNodeOptions Options_;
 
     TNodeId GetEntranceNodeId()
     {

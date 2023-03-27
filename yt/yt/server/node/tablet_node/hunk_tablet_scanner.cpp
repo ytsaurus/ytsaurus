@@ -266,7 +266,7 @@ private:
         transactionAttributes->Set("title", Format("Updating stores of tablet %v",
             tablet->GetId()));
 
-        NApi::NNative::TNativeTransactionStartOptions transactionOptions;
+        NApi::TTransactionStartOptions transactionOptions;
         transactionOptions.AutoAbort = false;
         transactionOptions.Attributes = std::move(transactionAttributes);
         transactionOptions.CoordinatorMasterCellTag = CellTagFromId(tablet->GetId());

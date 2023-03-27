@@ -38,8 +38,6 @@ DECLARE_REFCOUNTED_CLASS(TJournalChunkWriterOptions)
 
 struct TConnectionOptions;
 
-struct TNativeTransactionStartOptions;
-
 class TTabletSyncReplicaCache;
 
 using TTableReplicaInfoPtrList = TCompactVector<

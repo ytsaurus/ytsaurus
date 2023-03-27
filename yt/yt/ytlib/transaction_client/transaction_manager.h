@@ -146,7 +146,7 @@ public:
      */
     TFuture<TTransactionPtr> Start(
         ETransactionType type,
-        const NApi::NNative::TNativeTransactionStartOptions& options = {});
+        const NApi::TTransactionStartOptions& options = {});
 
     //! Attaches to an existing transaction.
     /*!

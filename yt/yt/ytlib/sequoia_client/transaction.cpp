@@ -60,7 +60,7 @@ public:
             Client_->GetConnection()->GetInvoker()))
     { }
 
-    TFuture<void> Start(const TNativeTransactionStartOptions& options) override
+    TFuture<void> Start(const TTransactionStartOptions& options) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -72,7 +72,7 @@ public:
             StartOptions_.Timeout = config->SequoiaTransactionTimeout;
         }
 
-        TNativeTransactionStartOptions startOptions;
+        TTransactionStartOptions startOptions;
         startOptions.Timeout = StartOptions_.Timeout;
         return transactionManager->Start(ETransactionType::Tablet, startOptions)
             .Apply(BIND(&TSequoiaTransaction::OnTransactionStarted, MakeStrong(this))
@@ -241,7 +241,7 @@ private:
 
     TTransactionPtr Transaction_;
 
-    TNativeTransactionStartOptions StartOptions_;
+    TTransactionStartOptions StartOptions_;
 
     std::unique_ptr<TRandomGenerator> RandomGenerator_;
 

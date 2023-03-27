@@ -16,22 +16,12 @@ namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// COMPAT(kvk1920)
-struct TNativeTransactionStartOptions
-    : public TTransactionStartOptions
-{
-    bool RequirePortalExitSynchronization = false;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IClientBase
     : public virtual NApi::IClientBase
 {
-    // COMPAT(kvk1920)
     virtual TFuture<ITransactionPtr> StartNativeTransaction(
         NTransactionClient::ETransactionType type,
-        const TNativeTransactionStartOptions& options = {}) = 0;
+        const TTransactionStartOptions& options = {}) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1611,7 +1611,7 @@ void TClient::ExecuteTabletServiceRequest(
         "title",
         Format("%v node %v", action, path));
 
-    TNativeTransactionStartOptions transactionOptions;
+    TTransactionStartOptions transactionOptions;
     transactionOptions.Attributes = std::move(transactionAttributes);
     transactionOptions.SuppressStartTimestampGeneration = true,
     transactionOptions.CoordinatorMasterCellTag = nativeCellTag;

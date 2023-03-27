@@ -1319,7 +1319,7 @@ private:
     {
         auto transactionAttributes = CreateEphemeralAttributes();
         transactionAttributes->Set("title", title);
-        NApi::NNative::TNativeTransactionStartOptions transactionOptions;
+        TTransactionStartOptions transactionOptions;
         transactionOptions.AutoAbort = false;
         transactionOptions.Attributes = std::move(transactionAttributes);
         transactionOptions.CoordinatorMasterCellTag = CellTagFromId(tabletSnapshot->TabletId);

@@ -147,7 +147,7 @@ private:
                     tablet->GetTablePath(),
                     tabletId));
 
-                NApi::NNative::TNativeTransactionStartOptions transactionOptions;
+                TTransactionStartOptions transactionOptions;
                 transactionOptions.AutoAbort = false;
                 transactionOptions.Attributes = std::move(transactionAttributes);
                 transactionOptions.CoordinatorMasterCellTag = CellTagFromId(tablet->GetId());

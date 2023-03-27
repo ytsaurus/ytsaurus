@@ -58,7 +58,6 @@ using NYT::FromProto;
 
 using NNative::IConnection;
 using NNative::IConnectionPtr;
-using NNative::TNativeTransactionStartOptions;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,10 +75,9 @@ public:
         IConnectionPtr connection,
         const TString& user);
 
-    // COMPAT(kvk1920)
     TFuture<TTransactionPtr> Start(
         ETransactionType type,
-        const TNativeTransactionStartOptions& options);
+        const TTransactionStartOptions& options);
 
     TTransactionPtr Attach(
         TTransactionId id,
@@ -173,7 +171,7 @@ public:
 
     TFuture<void> Start(
         ETransactionType type,
-        const TNativeTransactionStartOptions& options)
+        const TTransactionStartOptions& options)
     {
         try {
             ValidateStartOptions(type, options);
@@ -654,7 +652,7 @@ private:
 
     TFuture<void> DoStart(
         ETransactionType type,
-        const TNativeTransactionStartOptions& options)
+        const TTransactionStartOptions& options)
     {
         auto connectionOrError = TryLockConnection();
         if (!connectionOrError.IsOK()) {
@@ -702,7 +700,7 @@ private:
     }
 
     TFuture<void> OnGotStartTimestamp(
-        const TNativeTransactionStartOptions& options,
+        const TTransactionStartOptions& options,
         TTimestamp timestamp)
     {
         StartTimestamp_ = timestamp;
@@ -717,7 +715,6 @@ private:
             case ETransactionType::Master:
                 return StartMasterTransaction(options);
             case ETransactionType::Tablet:
-                YT_ASSERT(!options.RequirePortalExitSynchronization);
                 return StartAtomicTabletTransaction(options);
             default:
                 YT_ABORT();
@@ -733,8 +730,7 @@ private:
         }
     }
 
-    // COMPAT(kvk1920)
-    TFuture<void> StartMasterTransaction(const TNativeTransactionStartOptions& options)
+    TFuture<void> StartMasterTransaction(const TTransactionStartOptions& options)
     {
         auto connection = TryLockConnection()
             .ValueOrThrow();
@@ -743,9 +739,7 @@ private:
         TTransactionServiceProxy proxy(channel);
         auto req = proxy.StartTransaction();
 
-        if (options.RequirePortalExitSynchronization) {
-            req->Header().add_required_server_feature_ids(FeatureIdToInt(EMasterFeature::PortalExitSynchronization));
-        }
+        req->Header().add_required_server_feature_ids(FeatureIdToInt(EMasterFeature::PortalExitSynchronization));
 
         req->SetUser(Owner_->User_);
         auto attributes = options.Attributes
@@ -1331,10 +1325,9 @@ TTransactionManager::TImpl::TImpl(
     , DownedCellTracker_(connection->GetDownedCellTracker())
 { }
 
-// COMPAT(kvk1920)
 TFuture<TTransactionPtr> TTransactionManager::TImpl::Start(
     ETransactionType type,
-    const TNativeTransactionStartOptions& options)
+    const TTransactionStartOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1476,7 +1469,7 @@ TTransactionManager::~TTransactionManager()
 
 TFuture<TTransactionPtr> TTransactionManager::Start(
     ETransactionType type,
-    const TNativeTransactionStartOptions& options)
+    const TTransactionStartOptions& options)
 {
     return Impl_->Start(type, options);
 }

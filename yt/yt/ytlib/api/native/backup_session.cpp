@@ -240,7 +240,7 @@ void TClusterBackupSession::StartTransaction()
 
     auto transactionAttributes = CreateEphemeralAttributes();
     transactionAttributes->Set("title", title);
-    TNativeTransactionStartOptions options;
+    TTransactionStartOptions options;
     options.Attributes = std::move(transactionAttributes);
     options.ReplicateToMasterCellTags = TCellTagList(CellTags_.begin(), CellTags_.end());
 

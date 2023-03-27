@@ -16,7 +16,7 @@ struct ISequoiaTransaction
     : public TRefCounted
 {
 public:
-    virtual TFuture<void> Start(const NApi::NNative::TNativeTransactionStartOptions& options) = 0;
+    virtual TFuture<void> Start(const NApi::TTransactionStartOptions& options) = 0;
 
     virtual TFuture<void> Commit(const NApi::TTransactionCommitOptions& options) = 0;
 

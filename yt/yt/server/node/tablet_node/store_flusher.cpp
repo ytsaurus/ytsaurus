@@ -356,7 +356,7 @@ private:
                 tabletSnapshot->TablePath,
                 store->GetId(),
                 tabletId));
-            NNative::TNativeTransactionStartOptions transactionOptions;
+            TTransactionStartOptions transactionOptions;
             transactionOptions.AutoAbort = false;
             transactionOptions.Attributes = std::move(transactionAttributes);
             transactionOptions.CoordinatorMasterCellTag = CellTagFromId(tablet->GetId());
