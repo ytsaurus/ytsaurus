@@ -169,7 +169,6 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
         std::sort(parents.begin(), parents.end(), TObjectIdComparer());
         Save(context, parents);
     }
-    Save(context, ExpirationTime_);
     if (ReplicasData_) {
         Save(context, true);
         Save(context, *ReplicasData_);
@@ -231,7 +230,11 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         ++Parents_[parent];
     }
 
-    ExpirationTime_ = Load<TInstant>(context);
+    // COMPAT(shakurov)
+    if (context.GetVersion() < EMasterReign::DropChunkExpirationTracker) {
+        // Used to be expiration time.
+        Load<TInstant>(context);
+    }
 
     if (Load<bool>(context)) {
         MutableReplicasData()->Load(context);

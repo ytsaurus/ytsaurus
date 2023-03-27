@@ -32,7 +32,6 @@ DECLARE_REFCOUNTED_STRUCT(IChunkTreeBalancerCallbacks)
 DECLARE_REFCOUNTED_STRUCT(IChunkReplacerCallbacks)
 DECLARE_REFCOUNTED_STRUCT(IDataNodeTrackerInternal)
 
-DECLARE_REFCOUNTED_CLASS(TExpirationTracker)
 DECLARE_REFCOUNTED_CLASS(TJobRegistry)
 
 class TChunkScanner;

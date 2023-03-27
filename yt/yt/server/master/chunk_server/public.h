@@ -244,9 +244,6 @@ using TFillFactorToNodeIterator = TFillFactorToNodeMap::iterator;
 using TLoadFactorToNodeMap = std::multimap<double, NNodeTrackerServer::TNode*>;
 using TLoadFactorToNodeIterator = TLoadFactorToNodeMap::iterator;
 
-using TChunkExpirationMap = std::multimap<TInstant, TChunk*>;
-using TChunkExpirationMapIterator = TChunkExpirationMap::iterator;
-
 struct TChunkPartLossTimeComparer
 {
     bool operator()(const TChunk* lhs, const TChunk* rhs) const;

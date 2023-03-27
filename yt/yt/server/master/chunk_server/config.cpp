@@ -467,14 +467,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("per_type_job_throttlers", &TThis::JobTypeToThrottler)
         .Default();
 
-    registrar.Parameter("staged_chunk_expiration_timeout", &TThis::StagedChunkExpirationTimeout)
-        .Default(TDuration::Hours(1))
-        .GreaterThanOrEqual(TDuration::Minutes(10));
-    registrar.Parameter("expiration_check_period", &TThis::ExpirationCheckPeriod)
-        .Default(TDuration::Minutes(1));
-    registrar.Parameter("max_expired_chunks_unstages_per_commit", &TThis::MaxExpiredChunksUnstagesPerCommit)
-        .Default(1000);
-
     registrar.Parameter("max_heavy_columns", &TThis::MaxHeavyColumns)
         .Default(30)
         .GreaterThanOrEqual(0);

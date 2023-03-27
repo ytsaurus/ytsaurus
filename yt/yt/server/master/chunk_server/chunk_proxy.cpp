@@ -179,8 +179,6 @@ private:
             .SetPresent(chunk->IsStaged()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StagingAccount)
             .SetPresent(chunk->IsStaged()));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTime)
-            .SetPresent(chunk->IsStaged()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MinKey)
             .SetPresent(hasBoundaryKeysExt));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxKey)
@@ -758,20 +756,6 @@ private:
                 }
                 BuildYsonFluently(consumer)
                     .Value(chunk->StagingAccount()->GetName());
-                return true;
-
-            case EInternedAttributeKey::ExpirationTime:
-                if (!chunk->IsStaged()) {
-                    break;
-                }
-                // COMPAT(shakurov)
-                // Old staged chunks didn't have expiration time.
-                if (!chunk->GetExpirationTime()) {
-                    break;
-                }
-
-                BuildYsonFluently(consumer)
-                    .Value(chunk->GetExpirationTime());
                 return true;
 
             case EInternedAttributeKey::MinKey: {

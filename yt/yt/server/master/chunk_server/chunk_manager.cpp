@@ -21,7 +21,6 @@
 #include "data_node_tracker.h"
 #include "dynamic_store.h"
 #include "dynamic_store_type_handler.h"
-#include "expiration_tracker.h"
 #include "helpers.h"
 #include "job.h"
 #include "job_controller.h"
@@ -375,7 +374,6 @@ public:
         , JobRegistry_(CreateJobRegistry(Bootstrap_))
         , ChunkReplicator_(New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_, JobRegistry_))
         , ChunkSealer_(CreateChunkSealer(Bootstrap_))
-        , ExpirationTracker_(New<TExpirationTracker>(Bootstrap_))
         , ChunkAutotomizer_(CreateChunkAutotomizer(Bootstrap_))
         , ChunkMerger_(New<TChunkMerger>(Bootstrap_))
         , ChunkReincarnator_(CreateChunkReincarnator(Bootstrap_))
@@ -852,8 +850,6 @@ public:
         chunk->Confirm(chunkInfo, chunkMeta);
 
         UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
-
-        CancelChunkExpiration(chunk);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
@@ -1355,7 +1351,6 @@ public:
         if (chunk->IsStaged() && chunk->IsDiskSizeFinal()) {
             UpdateTransactionResourceUsage(chunk, -1);
         }
-        CancelChunkExpiration(chunk);
         UnstageChunkTree(chunk);
     }
 
@@ -1737,27 +1732,6 @@ public:
         chunkTree->SetStagingTransaction(nullptr);
         chunkTree->StagingAccount().Reset();
     }
-
-
-    void ScheduleChunkExpiration(TChunk* chunk)
-    {
-        YT_VERIFY(HasMutationContext());
-        YT_VERIFY(chunk->IsStaged());
-        YT_VERIFY(!chunk->IsConfirmed());
-
-        auto now = GetCurrentMutationContext()->GetTimestamp();
-        chunk->SetExpirationTime(now + GetDynamicConfig()->StagedChunkExpirationTimeout);
-        ExpirationTracker_->ScheduleExpiration(chunk);
-    }
-
-    void CancelChunkExpiration(TChunk* chunk)
-    {
-        if (chunk->IsStaged()) {
-            ExpirationTracker_->CancelExpiration(chunk);
-            chunk->SetExpirationTime(TInstant::Zero());
-        }
-    }
-
 
     TNodePtrWithReplicaIndexList LocateChunk(TChunkPtrWithReplicaIndex chunkWithReplicaIndex) override
     {
@@ -2552,8 +2526,6 @@ private:
 
     const TChunkReplicatorPtr ChunkReplicator_;
     const IChunkSealerPtr ChunkSealer_;
-
-    const TExpirationTrackerPtr ExpirationTracker_;
 
     const IChunkAutotomizerPtr ChunkAutotomizer_;
 
@@ -4298,11 +4270,6 @@ private:
             if (chunk->HasConsistentReplicaPlacementHash()) {
                 ++CrpChunkCount_;
             }
-
-            // COMPAT(shakurov)
-            if (chunk->GetExpirationTime()) {
-                ExpirationTracker_->ScheduleExpiration(chunk);
-            }
         }
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -4394,8 +4361,6 @@ private:
         ChunkDataWeightHistogram_.Reset();
 
         DefaultStoreMedium_ = nullptr;
-
-        ExpirationTracker_->Clear();
 
         NeedRecomputeChunkWeightStatisticsHistogram_ = false;
     }
@@ -4674,13 +4639,6 @@ private:
         CrpBufferedProducer_->SetEnabled(true);
     }
 
-    void OnLeaderRecoveryComplete() override
-    {
-        TMasterAutomatonPart::OnLeaderRecoveryComplete();
-
-        ExpirationTracker_->Start();
-    }
-
     void OnLeaderActive() override
     {
         TMasterAutomatonPart::OnLeaderActive();
@@ -4715,8 +4673,6 @@ private:
         ChunkReplicator_->OnLeadingFinished();
 
         ChunkSealer_->Stop();
-
-        ExpirationTracker_->Stop();
     }
 
     void OnStartFollowing() override
@@ -4754,7 +4710,6 @@ private:
 
     void UnregisterChunk(TChunk* chunk)
     {
-        CancelChunkExpiration(chunk);
         GetAllChunksLinkedList(chunk).Remove(chunk);
     }
 
@@ -4800,10 +4755,6 @@ private:
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
             ++ChunkReplicasAdded_;
-        }
-
-        if (chunk->IsStaged() && !chunk->IsConfirmed() && !chunk->GetExpirationTime()) {
-            ScheduleChunkExpiration(chunk);
         }
 
         ScheduleChunkRefresh(chunk);

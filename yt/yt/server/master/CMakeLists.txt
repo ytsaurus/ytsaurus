@@ -364,7 +364,6 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/expiration_tracker.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_proxy.cpp

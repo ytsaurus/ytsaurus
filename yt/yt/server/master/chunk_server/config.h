@@ -473,10 +473,6 @@ public:
     //! Throttles chunk jobs per type.
     THashMap<EJobType, NConcurrency::TThroughputThrottlerConfigPtr> JobTypeToThrottler;
 
-    TDuration StagedChunkExpirationTimeout;
-    TDuration ExpirationCheckPeriod;
-    int MaxExpiredChunksUnstagesPerCommit;
-
     //! Maximum number of heavy columns in chunk approximate statistics.
     int MaxHeavyColumns;
 

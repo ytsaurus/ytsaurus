@@ -129,6 +129,7 @@ DEFINE_ENUM(EMasterReign,
     ((ConfigurableCollocationSizeLimit)                             (2314))  // akozhikhov
     ((GeneralizeMaintenanceRequestsApi)                             (2315))  // kvk1920
     ((ReadRequestComplexityLimits)                                  (2316))  // kvk1920
+    ((DropChunkExpirationTracker)                                   (2317))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

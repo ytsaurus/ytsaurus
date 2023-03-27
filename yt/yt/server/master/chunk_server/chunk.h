@@ -103,9 +103,6 @@ public:
     using TParents = TCompactFlatMap<TChunkTree*, int, TypicalChunkParentCount>;
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
 
-    // Limits the lifetime of staged chunks. Useful for cleaning up abandoned staged chunks.
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, ExpirationTime);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TChunkExpirationMapIterator>, ExpirationIterator);
     DEFINE_BYVAL_RW_PROPERTY(TConsistentReplicaPlacementHash, ConsistentReplicaPlacementHash, NullConsistentReplicaPlacementHash);
 
     DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerServer::TNode*, NodeWithEndorsement);
