@@ -147,9 +147,9 @@ class TMockEngine
     : public IQueryEngine
 {
 public:
-    TMockEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
-        : StateClient_(stateClient)
-        , StateRoot_(stateRoot)
+    TMockEngine(IClientPtr stateClient, TYPath stateRoot)
+        : StateClient_(std::move(stateClient))
+        , StateRoot_(std::move(stateRoot))
     { }
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
@@ -163,8 +163,8 @@ public:
     }
 
 private:
-    IClientPtr StateClient_;
-    TYPath StateRoot_;
+    const IClientPtr StateClient_;
+    const TYPath StateRoot_;
     TEngineConfigBasePtr Config_;
 };
 

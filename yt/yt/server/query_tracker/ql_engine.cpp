@@ -79,9 +79,9 @@ class TQlEngine
     : public IQueryEngine
 {
 public:
-    TQlEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
-        : StateClient_(stateClient)
-        , StateRoot_(stateRoot)
+    TQlEngine(IClientPtr stateClient, TYPath stateRoot)
+        : StateClient_(std::move(stateClient))
+        , StateRoot_(std::move(stateRoot))
         , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
     { }
 
@@ -99,8 +99,8 @@ public:
     }
 
 private:
-    IClientPtr StateClient_;
-    TYPath StateRoot_;
+    const IClientPtr StateClient_;
+    const TYPath StateRoot_;
     TQLEngineConfigPtr Config_;
     TClusterDirectoryPtr ClusterDirectory_;
 };

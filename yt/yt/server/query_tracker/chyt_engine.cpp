@@ -117,7 +117,7 @@ public:
     }
 
 private:
-    TChytSettingsPtr Settings_;
+    const TChytSettingsPtr Settings_;
     TString Clique_;
     TString Cluster_;
     NApi::NNative::IConnectionPtr NativeConnection_;
@@ -299,9 +299,9 @@ class TChytEngine
     : public IQueryEngine
 {
 public:
-    TChytEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
-        : StateClient_(stateClient)
-        , StateRoot_(stateRoot)
+    TChytEngine(IClientPtr stateClient, TYPath stateRoot)
+        : StateClient_(std::move(stateClient))
+        , StateRoot_(std::move(stateRoot))
         , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
         , ChannelFactory_(CreateCachingChannelFactory(CreateTcpBusChannelFactory(New<NYT::NBus::TBusConfig>())))
     { }
@@ -317,8 +317,8 @@ public:
     }
 
 private:
-    IClientPtr StateClient_;
-    TYPath StateRoot_;
+    const IClientPtr StateClient_;
+    const TYPath StateRoot_;
     TChytEngineConfigPtr ChytConfig_;
     TClusterDirectoryPtr ClusterDirectory_;
     IChannelFactoryPtr ChannelFactory_;
