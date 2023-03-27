@@ -730,8 +730,8 @@ public:
     }
 
 private:
-    TFunctionProfilerMapPtr FunctionProfilers_;
-    TAggregateProfilerMapPtr AggregateProfilers_;
+    const TFunctionProfilerMapPtr FunctionProfilers_;
+    const TAggregateProfilerMapPtr AggregateProfilers_;
 };
 
 std::unique_ptr<IFunctionRegistryBuilder> CreateProfilerFunctionRegistryBuilder(

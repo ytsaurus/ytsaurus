@@ -13,7 +13,7 @@ class TTypeInferrerFunctionRegistryBuilder
     : public IFunctionRegistryBuilder
 {
 public:
-    TTypeInferrerFunctionRegistryBuilder(const TTypeInferrerMapPtr& typeInferrers)
+    explicit TTypeInferrerFunctionRegistryBuilder(const TTypeInferrerMapPtr& typeInferrers)
         : TypeInferrers_(typeInferrers)
     { }
 
@@ -82,7 +82,7 @@ public:
     }
 
 private:
-    TTypeInferrerMapPtr TypeInferrers_;
+    const TTypeInferrerMapPtr TypeInferrers_;
 };
 
 std::unique_ptr<IFunctionRegistryBuilder> CreateTypeInferrerFunctionRegistryBuilder(

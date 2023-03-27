@@ -98,8 +98,8 @@ public:
     }
 
 private:
-    std::unique_ptr<IFunctionRegistryBuilder> TypeInferrersBuilder_;
-    std::unique_ptr<IFunctionRegistryBuilder> FunctionProfilersBuilder_;
+    const std::unique_ptr<IFunctionRegistryBuilder> TypeInferrersBuilder_;
+    const std::unique_ptr<IFunctionRegistryBuilder> FunctionProfilersBuilder_;
 };
 
 std::unique_ptr<IFunctionRegistryBuilder> CreateFunctionRegistryBuilder(
