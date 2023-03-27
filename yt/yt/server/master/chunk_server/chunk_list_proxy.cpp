@@ -62,7 +62,9 @@ private:
     {
         switch (chunkTree->GetType()) {
             case EObjectType::Chunk:
-            case EObjectType::ErasureChunk: {
+            case EObjectType::ErasureChunk:
+            case EObjectType::JournalChunk:
+            case EObjectType::ErasureJournalChunk: {
                 BuildYsonFluently(consumer)
                     .Value(chunkTree->GetId());
                 break;
