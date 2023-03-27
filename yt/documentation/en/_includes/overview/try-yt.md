@@ -7,16 +7,9 @@ This section describes various installation options of the {{product-name}}.
 For debugging or testing purposes, it is possible to run [Docker](https://docs.docker.com/get-docker/)-container {{product-name}}.
 The code for cluster deployment is available [by the link](https://github.com/ytsaurus/ytsaurus/tree/main/yt/docker/local).
 
-### Building Docker-image
-
-1. Build binary file ytserver-all.
-2. Launch `./build.sh --ytserver-all <YTSERVER_ALL_PATH>`.
-3. Launch `./run_local_cluster.sh --yt-skip-pull true`.
-
-### Starting a local cluster
-
-To start a local cluster, run the command:
+To start a local cluster, run the commands:
 ```
+cd yt/docker/local
 ./run_local_cluster.sh
 ```
 

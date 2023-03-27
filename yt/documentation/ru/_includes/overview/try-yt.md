@@ -7,16 +7,9 @@
 В целях отладки или тестирования есть возможность запустить [Docker](https://docs.docker.com/get-docker/)-контейнер {{product-name}}.
 Код для развёртывания кластера доступен [по ссылке](https://github.com/ytsaurus/ytsaurus/tree/main/yt/docker/local).
 
-### Сборка Docker-образа
-
-1. Соберите бинарный файл ytserver-all.
-2. Запустите `./build.sh --ytserver-all <YTSERVER_ALL_PATH>`.
-3. Запустите `./run_local_cluster.sh --yt-skip-pull true`.
-
-### Запуск локального кластера
-
-Для запуска локального кластера выполните команду:
+Для запуска локального кластера выполните команды:
 ```
+cd yt/docker/local
 ./run_local_cluster.sh
 ```
 
