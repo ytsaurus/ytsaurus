@@ -71,7 +71,8 @@ NHttp::TServerConfigPtr TServerConfig::CreateMonitoringHttpServerConfig()
 
 void TNativeServerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
+    registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
+        .DefaultNew();
 
     registrar.Parameter("cluster_connection_dynamic_config_mode", &TThis::ClusterConnectionDynamicConfigPolicy)
         .Default(EClusterConnectionDynamicConfigPolicy::FromStaticConfig);
