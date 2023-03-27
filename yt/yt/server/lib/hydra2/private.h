@@ -33,7 +33,7 @@ DECLARE_REFCOUNTED_STRUCT(TPendingMutation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NConcurrency::TFls<NElection::TEpochId> CurrentEpochId;
+extern NConcurrency::TFlsSlot<NElection::TEpochId> CurrentEpochId;
 
 class TCurrentEpochIdGuard
 {

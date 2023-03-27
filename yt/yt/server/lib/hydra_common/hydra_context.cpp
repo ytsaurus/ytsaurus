@@ -77,23 +77,23 @@ THydraContextGuard::~THydraContextGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NConcurrency::TFls<THydraContext*> CurrentHydraContext;
+static NConcurrency::TFlsSlot<THydraContext*> CurrentHydraContextSlot;
 
 THydraContext* TryGetCurrentHydraContext()
 {
-    return *CurrentHydraContext;
+    return *CurrentHydraContextSlot;
 }
 
 THydraContext* GetCurrentHydraContext()
 {
     auto* hydraContext = TryGetCurrentHydraContext();
-    YT_VERIFY(hydraContext);
+    YT_ASSERT(hydraContext);
     return hydraContext;
 }
 
 void SetCurrentHydraContext(THydraContext* context)
 {
-    *CurrentHydraContext = context;
+    *CurrentHydraContextSlot = context;
 }
 
 bool HasHydraContext()

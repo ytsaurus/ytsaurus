@@ -439,14 +439,10 @@ THazardPtrReclaimGuard::~THazardPtrReclaimGuard()
 /////////////////////////////////////////////////////////////////////////////
 
 THazardPtrReclaimOnContextSwitchGuard::THazardPtrReclaimOnContextSwitchGuard()
-{
-    PushContextHandler([] { ReclaimHazardPointers(); }, nullptr);
-}
-
-THazardPtrReclaimOnContextSwitchGuard::~THazardPtrReclaimOnContextSwitchGuard()
-{
-    PopContextHandler();
-}
+    : NConcurrency::TContextSwitchGuard(
+        [] { ReclaimHazardPointers(); },
+        nullptr)
+{ }
 
 /////////////////////////////////////////////////////////////////////////////
 

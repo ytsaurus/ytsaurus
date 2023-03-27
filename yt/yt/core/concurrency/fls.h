@@ -2,50 +2,38 @@
 
 #include "public.h"
 
-#include <library/cpp/yt/small_containers/compact_vector.h>
-
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-using TFlsSlotCtor = uintptr_t(*)();
-using TFlsSlotDtor = void(*)(uintptr_t);
-
-int FlsAllocateSlot(TFlsSlotDtor dtor);
-
-int FlsCountSlots();
-
-uintptr_t FlsConstruct(TFlsSlotCtor ctor);
-void FlsDestruct(int index, uintptr_t value);
-
-uintptr_t& FlsAt(int index);
-
-class TFsdHolder
+class TFls
 {
 public:
-    uintptr_t& FsdAt(int index);
+    TFls() = default;
+    ~TFls();
 
-    ~TFsdHolder();
+    TFls(const TFls&) = delete;
+    TFls& operator=(const TFls&) = delete;
+
+    using TCookie = void*;
+
+    TCookie Get(int index) const;
+    void Set(int index, TCookie cookie);
 
 private:
-    TCompactVector<uintptr_t, 8> Fsd_;
-
-    void FsdResize();
+    std::vector<TCookie> Slots_;
 };
 
-TFsdHolder* SetCurrentFsdHolder(TFsdHolder* currentFsd);
-
-} // namespace NDetail
+TFls* GetCurrentFls();
+TFls* SwapCurrentFls(TFls* newFls);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-class TFls
+class TFlsSlot
 {
 public:
-    TFls();
+    TFlsSlot();
 
     const T& operator*() const;
     T& operator*();
@@ -53,16 +41,15 @@ public:
     const T* operator->() const;
     T* operator->();
 
-    T* Get() const;
+    T* GetOrCreate() const;
+    const T* Get(const TFls& fls) const;
 
     bool IsInitialized() const;
 
 private:
+    T* Create() const;
+
     const int Index_;
-
-    static uintptr_t ValueCtor();
-    static void ValueDtor(uintptr_t value);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

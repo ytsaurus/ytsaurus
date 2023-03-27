@@ -15,7 +15,7 @@ namespace NYT::NLogging {
 
 TLoggingContext GetLoggingContext()
 {
-    auto* traceContext = NTracing::GetCurrentTraceContext();
+    auto* traceContext = NTracing::TryGetCurrentTraceContext();
 
     return TLoggingContext{
         .Instant = GetCpuInstant(),

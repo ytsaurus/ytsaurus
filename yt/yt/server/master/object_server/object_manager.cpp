@@ -1768,7 +1768,7 @@ void TObjectManager::HydraExecuteLeader(
     }
 
     std::optional<NTracing::TChildTraceContextGuard> traceContextGuard;
-    if (auto* traceContext = NTracing::GetCurrentTraceContext()) {
+    if (auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
         traceContextGuard.emplace(
             traceContext,
             ConcatToString(TStringBuf("YPathWrite:"), rpcContext->GetService(), TStringBuf("."), rpcContext->GetMethod()));

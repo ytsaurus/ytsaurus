@@ -827,7 +827,7 @@ private:
     std::optional<TDuration> GetTraceContextTime() const override
     {
         if (TraceContext_) {
-            FlushCurrentTraceContextTime();
+            FlushCurrentTraceContextElapsedTime();
             return TraceContext_->GetElapsedTime();
         } else {
             return std::nullopt;

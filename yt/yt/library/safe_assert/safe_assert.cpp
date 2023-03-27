@@ -40,8 +40,8 @@ using TSafeAssertionsContext = std::vector<TSafeAssertionsFrame>;
 
 TSafeAssertionsContext& SafeAssertionsContext()
 {
-    static TFls<TSafeAssertionsContext> context;
-    return *context;
+    static TFlsSlot<TSafeAssertionsContext> Slot;
+    return *Slot;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -821,7 +821,7 @@ private:
 
     void SetupTracing(const IServiceContextPtr& context)
     {
-        auto traceContext = NTracing::GetCurrentTraceContext();
+        auto* traceContext = NTracing::TryGetCurrentTraceContext();
         if (!traceContext) {
             return;
         }

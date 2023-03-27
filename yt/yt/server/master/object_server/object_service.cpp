@@ -363,7 +363,7 @@ public:
         TCtxExecutePtr rpcContext)
         : Owner_(std::move(owner))
         , RpcContext_(std::move(rpcContext))
-        , TraceContext_(GetCurrentTraceContext())
+        , TraceContext_(TryGetCurrentTraceContext())
         , Bootstrap_(Owner_->Bootstrap_)
         , TotalSubrequestCount_(RpcContext_->Request().part_counts_size())
         , UserName_(RpcContext_->GetAuthenticationIdentity().User)

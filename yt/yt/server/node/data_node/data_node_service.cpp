@@ -1392,8 +1392,8 @@ private:
                 response->set_fetched_rows(true);
 
                 const auto& chunkReaderStatistics = chunkReadSession->GetChunkReaderStatistics();
-                if (const auto* traceContext = NTracing::GetCurrentTraceContext()) {
-                    NTracing::FlushCurrentTraceContextTime();
+                if (const auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
+                    NTracing::FlushCurrentTraceContextElapsedTime();
                     chunkReaderStatistics->RemoteCpuTime.fetch_add(
                         traceContext->GetElapsedTime().GetValue(),
                         std::memory_order_relaxed);

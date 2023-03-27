@@ -415,7 +415,7 @@ TTraceContextPtr GetOrCreateHandlerTraceContext(
 
 TTraceContextPtr CreateCallTraceContext(const TString& service, const TString& method)
 {
-    auto context = GetCurrentTraceContext();
+    auto context = TryGetCurrentTraceContext();
     if (!context) {
         return nullptr;
     }

@@ -33,11 +33,11 @@ static const auto& Logger = TransactionServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NConcurrency::TFls<bool> BoomerangMutation;
+static NConcurrency::TFlsSlot<bool> BoomerangMutationSlot;
 
 bool IsBoomerangMutation()
 {
-    return *BoomerangMutation;
+    return *BoomerangMutationSlot;
 }
 
 class TBoomerangMutationGuard
@@ -46,16 +46,15 @@ class TBoomerangMutationGuard
 public:
     TBoomerangMutationGuard()
     {
-        YT_VERIFY(!*BoomerangMutation);
-        *BoomerangMutation = true;
+        YT_VERIFY(!*BoomerangMutationSlot);
+        *BoomerangMutationSlot = true;
     }
 
     ~TBoomerangMutationGuard()
     {
-        *BoomerangMutation = false;
+        *BoomerangMutationSlot = false;
     }
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

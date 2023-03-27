@@ -88,6 +88,15 @@ constexpr size_t InvalidThreadId = 0;
 using TFiberId = size_t;
 constexpr size_t InvalidFiberId = 0;
 
+DEFINE_ENUM(EFiberState,
+    (Created)
+    (Running)
+    (Introspecting)
+    (Waiting)
+    (Idle)
+    (Finished)
+);
+
 DEFINE_ENUM(EThreadPriority,
     (Normal)
     (RealTime)

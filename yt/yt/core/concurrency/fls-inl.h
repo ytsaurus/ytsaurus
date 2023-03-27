@@ -5,65 +5,107 @@
 #endif
 #undef FLS_INL_H_
 
+#include <library/cpp/ytalloc/api/ytalloc.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+using TFlsSlotCtor = TFls::TCookie(*)();
+using TFlsSlotDtor = void(*)(TFls::TCookie cookie);
+
+int AllocateFlsSlot(TFlsSlotDtor dtor);
+
+extern thread_local TFls* CurrentFls;
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE TFls::TCookie TFls::Get(int index) const
+{
+    // NB: This produces the best assembly so far, with just one
+    // additional compare + branch (which is perfectly predictable).
+    // Reinterpret casts are required since incrementing a pointer
+    // past the allocated storage is UB.
+    auto ptr = reinterpret_cast<uintptr_t>(Slots_.data()) + index * sizeof(TCookie);
+    if (Y_UNLIKELY(ptr >= reinterpret_cast<uintptr_t>(Slots_.data() + Slots_.size()))) {
+        return nullptr;
+    }
+    return *reinterpret_cast<const TCookie*>(ptr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TFls* GetCurrentFls()
+{
+    return NDetail::CurrentFls;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
-TFls<T>::TFls()
-    : Index_(NDetail::FlsAllocateSlot(&ValueDtor))
+TFlsSlot<T>::TFlsSlot()
+    : Index_(NDetail::AllocateFlsSlot([] (TFls::TCookie cookie) {
+        delete static_cast<T*>(cookie);
+    }))
 { }
 
 template <class T>
-T* TFls<T>::operator->()
+Y_FORCE_INLINE T* TFlsSlot<T>::operator->()
 {
-    return Get();
+    return GetOrCreate();
 }
 
 template <class T>
-const T* TFls<T>::operator->() const
+Y_FORCE_INLINE const T* TFlsSlot<T>::operator->() const
 {
-    return Get();
+    return GetOrCreate();
 }
 
 template <class T>
-T& TFls<T>::operator*()
+Y_FORCE_INLINE T& TFlsSlot<T>::operator*()
 {
-    return *Get();
+    return *GetOrCreate();
 }
 
 template <class T>
-const T& TFls<T>::operator*() const
+Y_FORCE_INLINE const T& TFlsSlot<T>::operator*() const
 {
-    return *Get();
+    return *GetOrCreate();
 }
 
 template <class T>
-T* TFls<T>::Get() const
+Y_FORCE_INLINE T* TFlsSlot<T>::GetOrCreate() const
 {
-    auto& slot = NDetail::FlsAt(Index_);
-    if (slot == 0) {
-        slot = NDetail::FlsConstruct(ValueCtor);
+    auto cookie = GetCurrentFls()->Get(Index_);
+    if (Y_UNLIKELY(!cookie)) {
+        cookie = Create();
     }
-    return reinterpret_cast<T*>(slot);
+    return static_cast<T*>(cookie);
 }
 
 template <class T>
-bool TFls<T>::IsInitialized() const
+T* TFlsSlot<T>::Create() const
 {
-    return NDetail::FlsAt(Index_) != 0;
+    NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
+    auto cookie = new T();
+    GetCurrentFls()->Set(Index_, cookie);
+    return static_cast<T*>(cookie);
 }
 
 template <class T>
-uintptr_t TFls<T>::ValueCtor()
+const T* TFlsSlot<T>::Get(const TFls& fls) const
 {
-    return reinterpret_cast<uintptr_t>(new T());
+    return static_cast<const T*>(fls.Get(Index_));
 }
 
 template <class T>
-void TFls<T>::ValueDtor(uintptr_t value)
+Y_FORCE_INLINE bool TFlsSlot<T>::IsInitialized() const
 {
-    delete reinterpret_cast<T*>(value);
+    return static_cast<bool>(GetCurrentFls()->Get(Index_));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

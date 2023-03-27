@@ -556,7 +556,7 @@ void TContext::LogStructuredRequest()
     }
 
     auto path = DriverRequest_.Parameters->AsMap()->FindChild("path");
-    const auto* traceContext = NTracing::GetCurrentTraceContext();
+    const auto* traceContext = NTracing::TryGetCurrentTraceContext();
     NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
         if (path && path->GetType() == ENodeType::String) {
             traceContext->AddTag("yt.table_path", path->AsString()->GetValue());
@@ -689,7 +689,7 @@ void TContext::SetupOutputParameters()
 
 void TContext::SetupTracing()
 {
-    if (auto traceContext = NTracing::GetCurrentTraceContext()) {
+    if (auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
         if (Api_->GetConfig()->ForceTracing) {
             traceContext->SetSampled();
         }
@@ -848,8 +848,8 @@ TSharedRef DumpError(const TError& error)
 void TContext::LogAndProfile()
 {
     WallTime_ = Timer_.GetElapsedTime();
-    if (const auto* traceContext = NTracing::GetCurrentTraceContext()) {
-        NTracing::FlushCurrentTraceContextTime();
+    if (const auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
+        NTracing::FlushCurrentTraceContextElapsedTime();
         CpuTime_ = traceContext->GetElapsedTime();
     }
 

@@ -60,6 +60,7 @@ target_link_libraries(yt-yt-core PUBLIC
   isa-l_crc_yt_patch
   yt_proto-yt-core
   cpp-yt-coding
+  cpp-yt-malloc
   cpp-yt-small_containers
   cpp-yt-system
   cpp-yt-threading
@@ -248,7 +249,6 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/allocation_tags.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/trace_context.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/utilex/random.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ypath/stack.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ypath/token.cpp
@@ -349,6 +349,7 @@ target_link_libraries(yt-yt-core.global PUBLIC
   isa-l_crc_yt_patch
   yt_proto-yt-core
   cpp-yt-coding
+  cpp-yt-malloc
   cpp-yt-small_containers
   cpp-yt-system
   cpp-yt-threading
@@ -366,5 +367,5 @@ target_sources(yt-yt-core.global PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/guid.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/ref_tracked.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/allocation_hooks.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/debug_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/trace_context.cpp
 )

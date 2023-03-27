@@ -27,7 +27,7 @@ void TAsyncQueueTrace::Join(i64 queueIndex, const TTraceContextPtr& context)
 
 void TAsyncQueueTrace::Join(i64 queueIndex)
 {
-    auto traceContext = GetCurrentTraceContext();
+    auto* traceContext = TryGetCurrentTraceContext();
     if (!traceContext) {
         return;
     }

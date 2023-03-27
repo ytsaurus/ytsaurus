@@ -2,6 +2,8 @@
 
 #include <library/cpp/yt/small_containers/compact_flat_map.h>
 
+#include <library/cpp/yt/threading/fork_aware_spin_lock.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,8 +51,6 @@ public:
 
 private:
     TStorage Data_;
-
-    friend TPropagatingStorage SwapCurrentPropagatingStorage(TPropagatingStorage storage);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,9 +77,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPropagatingStorage::TPropagatingStorage()
-    : Impl_(nullptr)
-{ }
+TPropagatingStorage::TPropagatingStorage() = default;
 
 TPropagatingStorage::TPropagatingStorage(TIntrusivePtr<TImpl> impl)
     : Impl_(std::move(impl))
@@ -95,7 +93,7 @@ TPropagatingStorage& TPropagatingStorage::operator=(TPropagatingStorage&& other)
 
 bool TPropagatingStorage::IsNull() const
 {
-    return Impl_ == nullptr;
+    return !static_cast<bool>(Impl_);
 }
 
 bool TPropagatingStorage::IsEmpty() const
@@ -180,34 +178,80 @@ void TPropagatingStorage::EnsureUnique()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static thread_local TPropagatingStorage CurrentPropagatingStorage;
+class TPropagatingStorageManager
+{
+public:
+    static TPropagatingStorageManager* Get()
+    {
+        return Singleton<TPropagatingStorageManager>();
+    }
+
+    TPropagatingStorage& GetCurrentPropagatingStorage()
+    {
+        return *Slot_;
+    }
+
+    const TPropagatingStorage& GetPropagatingStorage(const TFls& fls)
+    {
+        return *Slot_.Get(fls);
+    }
+
+    void InstallGlobalSwitchHandler(TPropagatingStorageGlobalSwitchHandler handler)
+    {
+        auto guard = Guard(Lock_);
+        int index = SwitchHandlerCount_.load();
+        YT_VERIFY(index < MaxSwitchHandlerCount);
+        SwitchHandlers_[index] = handler;
+        ++SwitchHandlerCount_;
+    }
+
+    TPropagatingStorage SwitchPropagatingStorage(TPropagatingStorage newStorage)
+    {
+        auto& storage = *Slot_;
+        int count = SwitchHandlerCount_.load(std::memory_order::acquire);
+        for (int index = 0; index < count; ++index) {
+            SwitchHandlers_[index](storage, newStorage);
+        }
+        return std::exchange(storage, std::move(newStorage));
+    }
+
+private:
+    TFlsSlot<TPropagatingStorage> Slot_;
+
+    NThreading::TForkAwareSpinLock Lock_;
+
+    static constexpr int MaxSwitchHandlerCount = 16;
+    std::array<TPropagatingStorageGlobalSwitchHandler, MaxSwitchHandlerCount> SwitchHandlers_;
+    std::atomic<int> SwitchHandlerCount_ = 0;
+
+    TPropagatingStorageManager() = default;
+    Y_DECLARE_SINGLETON_FRIEND()
+};
 
 TPropagatingStorage& GetCurrentPropagatingStorage()
 {
-    return CurrentPropagatingStorage;
+    return TPropagatingStorageManager::Get()->GetCurrentPropagatingStorage();
 }
 
-TPropagatingStorage SwapCurrentPropagatingStorage(TPropagatingStorage storage)
+const TPropagatingStorage& GetPropagatingStorage(const TFls& fls)
 {
-    if (!CurrentPropagatingStorage.IsNull()) {
-        CurrentPropagatingStorage.Impl_->OnBeforeUninstall_.Fire();
-    }
-    auto result = std::exchange(CurrentPropagatingStorage, std::move(storage));
-    if (!CurrentPropagatingStorage.IsNull()) {
-        CurrentPropagatingStorage.Impl_->OnAfterInstall_.Fire();
-    }
-    return result;
+    return TPropagatingStorageManager::Get()->GetPropagatingStorage(fls);
+}
+
+void InstallGlobalPropagatingStorageSwitchHandler(TPropagatingStorageGlobalSwitchHandler handler)
+{
+    TPropagatingStorageManager::Get()->InstallGlobalSwitchHandler(handler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TPropagatingStorageGuard::TPropagatingStorageGuard(TPropagatingStorage storage)
-    : OldStorage_(SwapCurrentPropagatingStorage(std::move(storage)))
+    : OldStorage_(TPropagatingStorageManager::Get()->SwitchPropagatingStorage(std::move(storage)))
 { }
 
 TPropagatingStorageGuard::~TPropagatingStorageGuard()
 {
-    SwapCurrentPropagatingStorage(std::move(OldStorage_));
+    TPropagatingStorageManager::Get()->SwitchPropagatingStorage(std::move(OldStorage_));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

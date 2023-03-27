@@ -100,6 +100,7 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SecurityServerLogger;
+static TFlsSlot<TUser*> AuthenticatedUserSlot;
 
 namespace {
 
@@ -1795,20 +1796,20 @@ public:
 
     void SetAuthenticatedUser(TUser* user) override
     {
-        *AuthenticatedUser_ = user;
+        *AuthenticatedUserSlot = user;
     }
 
     void ResetAuthenticatedUser() override
     {
-        *AuthenticatedUser_ = nullptr;
+        *AuthenticatedUserSlot = nullptr;
     }
 
     TUser* GetAuthenticatedUser() override
     {
         TUser* result = nullptr;
 
-        if (AuthenticatedUser_.IsInitialized()) {
-            result = *AuthenticatedUser_;
+        if (AuthenticatedUserSlot.IsInitialized()) {
+            result = *AuthenticatedUserSlot;
         }
 
         return result ? result : RootUser_;
@@ -2488,8 +2489,6 @@ private:
 
     TGroupId SuperusersGroupId_;
     TGroup* SuperusersGroup_ = nullptr;
-
-    TFls<TUser*> AuthenticatedUser_;
 
     NHydra::TEntityMap<TNetworkProject> NetworkProjectMap_;
     THashMap<TString, TNetworkProject*> NetworkProjectNameMap_;

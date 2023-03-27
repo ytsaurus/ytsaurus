@@ -552,7 +552,7 @@ DELEGATE_SIGNAL_WITH_RENAME(
 
 void IIOTracker::Enqueue(TIOCounters counters, THashMap<TString, TString> tags)
 {
-    auto* traceContext = NTracing::GetCurrentTraceContext();
+    auto* traceContext = NTracing::TryGetCurrentTraceContext();
     Enqueue(TIOEvent{
         .Counters = std::move(counters),
         .Baggage = traceContext ? traceContext->GetBaggage() : TYsonString{},

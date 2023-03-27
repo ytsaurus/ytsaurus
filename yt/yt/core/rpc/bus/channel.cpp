@@ -1122,7 +1122,7 @@ private:
 
         NTracing::TCurrentTraceContextGuard GetTraceContextGuard() const
         {
-            return TraceContext_.GetTraceContextGuard();
+            return TraceContext_.MakeTraceContextGuard();
         }
 
         bool IsActive(const TGuard<NThreading::TSpinLock>&) const

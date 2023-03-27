@@ -10,7 +10,7 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFls<TEpochId> CurrentEpochId;
+TFlsSlot<TEpochId> CurrentEpochId;
 
 TCurrentEpochIdGuard::TCurrentEpochIdGuard(TEpochId epochId)
 {

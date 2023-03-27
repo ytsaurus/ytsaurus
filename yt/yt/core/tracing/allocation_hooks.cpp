@@ -17,8 +17,8 @@ static auto* FreeList = LeakySingleton<TAllocationTagsFreeList>();
 
 void* CreateAllocationTagsData()
 {
-    auto* traceContext = GetCurrentTraceContext();
-    if (traceContext == nullptr) {
+    auto* traceContext = TryGetCurrentTraceContext();
+    if (!traceContext) {
         return nullptr;
     }
     auto allocationTagsPtr = traceContext->GetAllocationTags();
@@ -27,7 +27,7 @@ void* CreateAllocationTagsData()
 
 void* CopyAllocationTagsData(void* ptr)
 {
-    if (ptr != nullptr) {
+    if (ptr) {
         auto* allocationTagsPtr = static_cast<TAllocationTags*>(ptr);
         allocationTagsPtr->Ref();
     }

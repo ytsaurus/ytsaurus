@@ -6,7 +6,7 @@ namespace NYT::NTracing {
 
 void TBatchTrace::Join()
 {
-    if (auto context = GetCurrentTraceContext(); context && context->IsRecorded()) {
+    if (auto* context = TryGetCurrentTraceContext(); context && context->IsRecorded()) {
         Join(MakeStrong(context));
     }
 }

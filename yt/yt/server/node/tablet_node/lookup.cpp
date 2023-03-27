@@ -1238,8 +1238,8 @@ std::vector<TSharedRef> TLookupSession::ProcessResults(
     VERIFY_THREAD_AFFINITY_ANY();
 
     // NB: No trace context is available in dtor so we have to fetch cpu time here.
-    if (const auto* traceContext = NTracing::GetCurrentTraceContext()) {
-        NTracing::FlushCurrentTraceContextTime();
+    if (const auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
+        NTracing::FlushCurrentTraceContextElapsedTime();
         CpuTime_ = traceContext->GetElapsedTime();
     }
 

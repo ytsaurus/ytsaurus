@@ -3,6 +3,8 @@
 #include "config.h"
 #include "allocation_tags.h"
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/misc/atomic_object.h>
@@ -18,6 +20,7 @@
 #include <library/cpp/yt/threading/spin_lock.h>
 
 #include <atomic>
+#include <mutex>
 
 namespace NYT::NTracing {
 
@@ -94,14 +97,116 @@ TTracingConfigPtr GetTracingConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace  {
+namespace NDetail {
+
+thread_local TTraceContext* CurrentTraceContext;
+thread_local TCpuInstant TraceContextTimingCheckpoint;
 
 TSpanId GenerateSpanId()
 {
     return RandomNumber<ui64>(std::numeric_limits<ui64>::max() - 1) + 1;
 }
 
-} // namespace
+void SetCurrentTraceContext(TTraceContext* context)
+{
+    CurrentTraceContext = context;
+    std::atomic_signal_fence(std::memory_order::seq_cst);
+}
+
+TTraceContextPtr SwapTraceContext(TTraceContextPtr newContext)
+{
+    auto& propagatingStorage = GetCurrentPropagatingStorage();
+    auto oldContext = propagatingStorage.Exchange<TTraceContextPtr>(newContext).value_or(nullptr);
+
+    auto now = GetApproximateCpuInstant();
+    // Invalid if no oldContext.
+    auto delta = now - TraceContextTimingCheckpoint;
+
+    if (oldContext && newContext) {
+        YT_LOG_TRACE("Switching context (OldContext: %v, NewContext: %v, CpuTimeDelta: %v)",
+            oldContext,
+            newContext,
+            NProfiling::CpuDurationToDuration(delta));
+    } else if (oldContext) {
+        YT_LOG_TRACE("Uninstalling context (Context: %v, CpuTimeDelta: %v)",
+            oldContext,
+            NProfiling::CpuDurationToDuration(delta));
+    } else if (newContext) {
+        YT_LOG_TRACE("Installing context (Context: %v)",
+            newContext);
+    }
+
+    if (oldContext) {
+        oldContext->IncrementElapsedCpuTime(delta);
+    }
+
+    SetCurrentTraceContext(newContext.Get());
+    TraceContextTimingCheckpoint = now;
+
+    return oldContext;
+}
+
+void OnContextSwitchOut()
+{
+    if (auto* context = TryGetCurrentTraceContext()) {
+        auto now = GetApproximateCpuInstant();
+        context->IncrementElapsedCpuTime(now - TraceContextTimingCheckpoint);
+        SetCurrentTraceContext(nullptr);
+        TraceContextTimingCheckpoint = 0;
+    }
+}
+
+void OnContextSwitchIn()
+{
+    if (auto* context = GetTraceContextFromPropagatingStorage(GetCurrentPropagatingStorage())) {
+        SetCurrentTraceContext(context);
+        TraceContextTimingCheckpoint = GetApproximateCpuInstant();
+    } else {
+        SetCurrentTraceContext(nullptr);
+        TraceContextTimingCheckpoint = 0;
+    }
+}
+
+void OnPropagatingStorageSwitch(
+    const TPropagatingStorage& oldStorage,
+    const TPropagatingStorage& newStorage)
+{
+    TCpuInstant now = 0;
+
+    if (auto* oldContext = TryGetCurrentTraceContext()) {
+        YT_ASSERT(oldContext == GetTraceContextFromPropagatingStorage(oldStorage));
+        YT_ASSERT(TraceContextTimingCheckpoint != 0);
+        now = GetApproximateCpuInstant();
+        oldContext->IncrementElapsedCpuTime(now - TraceContextTimingCheckpoint);
+    }
+
+    if (auto* newContext = GetTraceContextFromPropagatingStorage(newStorage)) {
+        SetCurrentTraceContext(newContext);
+        if (now == 0) {
+            now = GetApproximateCpuInstant();
+        }
+        TraceContextTimingCheckpoint = now;
+    } else {
+        SetCurrentTraceContext(nullptr);
+        TraceContextTimingCheckpoint = 0;
+    }
+}
+
+void InitializeTraceContexts()
+{
+    static std::once_flag Initialized;
+    std::call_once(
+        Initialized,
+        [] {
+            InstallGlobalContextSwitchHandlers(
+                OnContextSwitchOut,
+                OnContextSwitchIn);
+            InstallGlobalPropagatingStorageSwitchHandler(
+                OnPropagatingStorageSwitch);
+        });
+}
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,7 +230,7 @@ TTraceContext::TTraceContext(
     TString spanName,
     TTraceContextPtr parentTraceContext)
     : TraceId_(parentSpanContext.TraceId)
-    , SpanId_(GenerateSpanId())
+    , SpanId_(NDetail::GenerateSpanId())
     , ParentSpanId_(parentSpanContext.SpanId)
     , Debug_(parentSpanContext.Debug)
     , State_(parentTraceContext
@@ -140,7 +245,7 @@ TTraceContext::TTraceContext(
     , StartTime_(GetCpuInstant())
     , Baggage_(ParentContext_ ? ParentContext_->GetBaggage() : TYsonString{})
 {
-
+    NDetail::InitializeTraceContexts();
 }
 
 void TTraceContext::SetTargetEndpoint(const std::optional<TString>& targetEndpoint)
@@ -193,7 +298,7 @@ TTraceContextPtr TTraceContext::CreateChild(
     auto child = New<TTraceContext>(
         GetSpanContext(),
         std::move(spanName),
-        /* parentTraceContext */ this);
+        /*parentTraceContext*/ this);
 
     auto guard = Guard(Lock_);
     child->ProfilingTags_ = ProfilingTags_;
@@ -535,89 +640,24 @@ TTraceContextPtr TTraceContext::NewChildFromRpc(
     return traceContext;
 }
 
+void TTraceContext::IncrementElapsedCpuTime(NProfiling::TCpuDuration delta)
+{
+    for (auto* current = this; current; current = current->ParentContext_.Get()) {
+        current->ElapsedCpuTime_ += delta;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-thread_local TTraceContext* CurrentTraceContext;
-thread_local TCpuInstant TraceContextTimingCheckpoint;
-
-TTraceContext* DoGetCurrentTraceContext()
+void FlushCurrentTraceContextElapsedTime()
 {
-    auto& propagatingStorage = GetCurrentPropagatingStorage();
-    if (propagatingStorage.IsNull()) {
-        return nullptr;
-    }
-    auto context = propagatingStorage.Find<TTraceContextPtr>();
-    return context ? context->Get() : nullptr;
-}
-
-void DoSwitchTraceContext(TTraceContext* oldContext, TTraceContext* newContext)
-{
-    auto now = GetCpuInstant();
-
-    // Invalid if no oldContext
-    auto delta = now - NDetail::TraceContextTimingCheckpoint;
-
-    if (oldContext && newContext) {
-        YT_LOG_TRACE("Switching context (OldContext: %v, NewContext: %v, CpuTimeDelta: %v)",
-            oldContext,
-            newContext,
-            NProfiling::CpuDurationToDuration(delta));
-    } else if (oldContext) {
-        YT_LOG_TRACE("Uninstalling context (Context: %v, CpuTimeDelta: %v)",
-            oldContext,
-            NProfiling::CpuDurationToDuration(delta));
-    } else if (newContext) {
-        YT_LOG_TRACE("Installing context (Context: %v)",
-            newContext);
-    }
-
-    if (oldContext) {
-        oldContext->IncrementElapsedCpuTime(delta);
-    }
-
-    NDetail::CurrentTraceContext = newContext;
-    std::atomic_signal_fence(std::memory_order::seq_cst);
-
-    NDetail::TraceContextTimingCheckpoint = now;
-}
-
-TTraceContextPtr DoExchangeTraceContext(TTraceContextPtr traceContext)
-{
-    auto& propagatingStorage = GetCurrentPropagatingStorage();
-    auto result = propagatingStorage.Exchange<TTraceContextPtr>(std::move(traceContext));
-    if (!result) {
-        propagatingStorage.SubscribeOnBeforeUninstall(BIND_NO_PROPAGATE([] {
-            DoSwitchTraceContext(DoGetCurrentTraceContext(), nullptr);
-        }));
-        propagatingStorage.SubscribeOnAfterInstall(BIND_NO_PROPAGATE([] {
-            DoSwitchTraceContext(nullptr, DoGetCurrentTraceContext());
-        }));
-        return nullptr;
-    }
-    return std::move(*result);
-}
-
-} // namespace NDetail
-
-TTraceContextPtr SwitchTraceContext(TTraceContextPtr newContext)
-{
-    auto newContextPtr = newContext.Get();
-    auto oldContext = NDetail::DoExchangeTraceContext(std::move(newContext));
-    NDetail::DoSwitchTraceContext(oldContext.Get(), newContextPtr);
-    return oldContext;
-}
-
-void FlushCurrentTraceContextTime()
-{
-    auto* context = GetCurrentTraceContext();
+    auto* context = TryGetCurrentTraceContext();
     if (!context) {
         return;
     }
 
-    auto now = GetCpuInstant();
-    auto delta = now - NDetail::TraceContextTimingCheckpoint;
+    auto now = GetApproximateCpuInstant();
+    auto delta = std::max(now - NDetail::TraceContextTimingCheckpoint, static_cast<TCpuInstant>(0));
     YT_LOG_TRACE("Flushing context time (Context: %v, CpuTimeDelta: %v)",
         context,
         NProfiling::CpuDurationToDuration(delta));
@@ -625,20 +665,21 @@ void FlushCurrentTraceContextTime()
     NDetail::TraceContextTimingCheckpoint = now;
 }
 
-void TTraceContext::IncrementElapsedCpuTime(NProfiling::TCpuDuration delta)
+TTraceContext* GetTraceContextFromPropagatingStorage(const NConcurrency::TPropagatingStorage& storage)
 {
-    auto* current = this;
-    while (current) {
-        current->ElapsedCpuTime_ += delta;
-        current = current->ParentContext_.Get();
-    }
+    auto result = storage.Find<TTraceContextPtr>();
+    return result ? result->Get() : nullptr;
+}
+
+TTraceContext* RetrieveTraceContextFromPropStorage(NConcurrency::TPropagatingStorage* storage)
+{
+    auto result = storage->Find<TTraceContextPtr>();
+    return result ? result->Get() : nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTracing
-
-////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT::NYTProf {
 
@@ -646,7 +687,7 @@ namespace NYT::NYTProf {
 
 void* AcquireFiberTagStorage()
 {
-    auto traceContext = NTracing::GetCurrentTraceContext();
+    auto* traceContext = NTracing::TryGetCurrentTraceContext();
     if (traceContext) {
         Ref(traceContext);
     }

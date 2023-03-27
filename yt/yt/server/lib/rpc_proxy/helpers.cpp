@@ -14,7 +14,7 @@ using namespace NTracing;
 
 void PutMethodInfoInTraceContext(const TStringBuf& methodName)
 {
-    if (auto traceContext = GetCurrentTraceContext()) {
+    if (auto* traceContext = TryGetCurrentTraceContext()) {
         auto baggage = traceContext->UnpackOrCreateBaggage();
         AddTagToBaggage(baggage, EAggregateIOTag::ApiMethod, methodName);
         AddTagToBaggage(baggage, EAggregateIOTag::ProxyKind, "rpc");

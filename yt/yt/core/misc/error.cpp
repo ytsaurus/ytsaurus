@@ -274,7 +274,7 @@ private:
         Pid_ = GetPID();
         Tid_ = TThread::CurrentThreadId();
         Fid_ = NConcurrency::GetCurrentFiberId();
-        if (const auto* traceContext = NTracing::GetCurrentTraceContext()) {
+        if (const auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
             TraceId_ = traceContext->GetTraceId();
             SpanId_ = traceContext->GetSpanId();
         }

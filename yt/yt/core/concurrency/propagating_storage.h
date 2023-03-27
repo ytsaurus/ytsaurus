@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "fls.h"
 
 #include <yt/yt/core/actions/signal.h>
 
@@ -73,8 +74,6 @@ private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl_;
 
-    friend TPropagatingStorage SwapCurrentPropagatingStorage(TPropagatingStorage storage);
-
     explicit TPropagatingStorage(TIntrusivePtr<TImpl> impl);
 
     const std::any* FindRaw(const std::type_info& typeInfo) const;
@@ -87,7 +86,17 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TPropagatingStorage& GetCurrentPropagatingStorage();
-TPropagatingStorage SwapCurrentPropagatingStorage(TPropagatingStorage storage);
+const TPropagatingStorage& GetPropagatingStorage(const NConcurrency::TFls& fls);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NB: Use function pointer to minimize the overhead.
+using TPropagatingStorageGlobalSwitchHandler = void(*)(
+    const TPropagatingStorage& oldStorage,
+    const TPropagatingStorage& newStorage);
+
+void InstallGlobalPropagatingStorageSwitchHandler(
+    TPropagatingStorageGlobalSwitchHandler handler);
 
 ////////////////////////////////////////////////////////////////////////////////
 
