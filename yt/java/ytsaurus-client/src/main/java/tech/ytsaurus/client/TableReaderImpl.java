@@ -27,6 +27,8 @@ class TableReaderBaseImpl<T> extends StreamReaderImpl<TRspReadTable> {
     @Nullable
     private final Class<T> objectClazz;
     protected TRspReadTableMeta metadata = null;
+    @Nullable
+    protected ApiServiceTransaction transaction;
 
     TableReaderBaseImpl(Class<T> objectClazz) {
         this.objectClazz = objectClazz;
@@ -35,6 +37,13 @@ class TableReaderBaseImpl<T> extends StreamReaderImpl<TRspReadTable> {
     TableReaderBaseImpl(TableAttachmentReader<T> reader) {
         this.reader = reader;
         this.objectClazz = null;
+    }
+
+    public void setTransaction(ApiServiceTransaction transaction) {
+        if (this.transaction != null) {
+            throw new IllegalStateException("Read transaction already started");
+        }
+        this.transaction = transaction;
     }
 
     @Override
@@ -134,7 +143,12 @@ class TableReaderImpl<T> extends TableReaderBaseImpl<T> implements TableReader<T
 
     @Override
     public CompletableFuture<Void> close() {
-        return doClose();
+        return doClose()
+                .thenAccept(unused -> {
+                    if (transaction != null && transaction.isActive()) {
+                        transaction.commit();
+                    }
+                });
     }
 }
 

@@ -3,6 +3,7 @@ package tech.ytsaurus.client.rows;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -62,11 +63,12 @@ public class EntityTableSchemaCreator {
         boolean isNullable = true;
         if (annotation != null &&
                 anyMatchWithAnnotation(annotation, JavaPersistenceApi.columnAnnotations())) {
-            name = JavaPersistenceApi.getColumnName(annotation);
+            var columnName = JavaPersistenceApi.getColumnName(annotation);
+            name = columnName.isEmpty() ? name : columnName;
             isNullable = JavaPersistenceApi.isColumnNullable(annotation);
         }
 
-        TiType tiType = getClassTiType(clazz, genericTypeParameters);
+        TiType tiType = getClassTiType(clazz, annotation, genericTypeParameters);
 
         if (isNullable && !clazz.isPrimitive()) {
             tiType = TiType.optional(tiType);
@@ -75,7 +77,9 @@ public class EntityTableSchemaCreator {
         return new ColumnSchema(name, tiType);
     }
 
-    private static <T> TiType getClassTiType(Class<T> clazz, List<Type> genericTypeParameters) {
+    private static <T> TiType getClassTiType(Class<T> clazz,
+                                             @Nullable Annotation annotation,
+                                             List<Type> genericTypeParameters) {
         Optional<TiType> tiTypeIfSimple = getTiTypeIfSimple(clazz);
         if (Collection.class.isAssignableFrom(clazz)) {
             return getCollectionTiType(genericTypeParameters.get(0));
@@ -85,6 +89,9 @@ public class EntityTableSchemaCreator {
         }
         if (clazz.isArray()) {
             return getArrayTiType(clazz);
+        }
+        if (clazz.equals(BigDecimal.class)) {
+            return getDecimalTiType(annotation);
         }
         return tiTypeIfSimple.orElseGet(() -> getEntityTiType(clazz));
     }
@@ -149,5 +156,21 @@ public class EntityTableSchemaCreator {
                         List.of())
                         .getTypeV3()
         );
+    }
+
+    private static TiType getDecimalTiType(@Nullable Annotation annotation) {
+        if (annotation == null ||
+                !anyMatchWithAnnotation(annotation, JavaPersistenceApi.columnAnnotations())) {
+            throw new PrecisionAndScaleNotSpecifiedException();
+        }
+        int precision = JavaPersistenceApi.getColumnPrecision(annotation);
+        if (precision == 0) {
+            throw new PrecisionAndScaleNotSpecifiedException();
+        }
+        int scale = JavaPersistenceApi.getColumnScale(annotation);
+        return TiType.decimal(precision, scale);
+    }
+
+    public static class PrecisionAndScaleNotSpecifiedException extends RuntimeException {
     }
 }

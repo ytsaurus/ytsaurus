@@ -2,11 +2,14 @@ package tech.ytsaurus.client.request;
 
 import java.io.ByteArrayOutputStream;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
+import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.rpcproxy.ERowsetFormat;
 import tech.ytsaurus.rpcproxy.TReqReadTable;
 import tech.ytsaurus.rpcproxy.TTransactionalOptions;
@@ -19,7 +22,8 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
     @Nullable
     private final String stringPath;
     private final SerializationContext<T> serializationContext;
-
+    @Nullable
+    private final TableSchema tableSchema;
     private final boolean unordered;
     private final boolean omitInaccessibleColumns;
     @Nullable
@@ -35,6 +39,7 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
         this.path = builder.path;
         this.stringPath = builder.stringPath;
         this.serializationContext = Objects.requireNonNull(builder.serializationContext);
+        this.tableSchema = builder.tableSchema;
         this.unordered = builder.unordered;
         this.omitInaccessibleColumns = builder.omitInaccessibleColumns;
         this.config = builder.config;
@@ -59,6 +64,21 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
 
     public SerializationContext<T> getSerializationContext() {
         return serializationContext;
+    }
+
+    public YPath getYPath() {
+        return Objects.requireNonNull(path);
+    }
+
+    public Optional<TableSchema> getTableSchema() {
+        return Optional.ofNullable(tableSchema);
+    }
+
+    public Optional<GUID> getTransactionId() {
+        if (this.transactionalOptions == null) {
+            return Optional.empty();
+        }
+        return this.transactionalOptions.getTransactionId();
     }
 
     private String getPath() {
@@ -102,6 +122,7 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
                 .setPath(path)
                 .setPath(stringPath)
                 .setSerializationContext(serializationContext)
+                .setTableSchema(tableSchema)
                 .setUnordered(unordered)
                 .setOmitInaccessibleColumns(omitInaccessibleColumns)
                 .setConfig(config)
@@ -129,7 +150,8 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
         private String stringPath;
         @Nullable
         private SerializationContext<T> serializationContext;
-
+        @Nullable
+        private TableSchema tableSchema;
         private boolean unordered = false;
         private boolean omitInaccessibleColumns = false;
         @Nullable
@@ -153,6 +175,11 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
                 throw new IllegalArgumentException("WriteSerializationContext do not allowed here");
             }
             this.serializationContext = serializationContext;
+            return self();
+        }
+
+        public TBuilder setTableSchema(@Nullable TableSchema tableSchema) {
+            this.tableSchema = tableSchema;
             return self();
         }
 

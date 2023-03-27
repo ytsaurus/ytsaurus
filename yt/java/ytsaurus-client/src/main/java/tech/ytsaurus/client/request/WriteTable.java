@@ -7,7 +7,6 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
-import tech.ytsaurus.client.rows.EntityTableSchemaCreator;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
@@ -60,16 +59,9 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
     public WriteTable(BuilderBase<T, ?> builder) {
         super(builder);
         this.serializationContext = Objects.requireNonNull(builder.serializationContext);
-        if (builder.needRetries && serializationContext.getSkiffSerializer().isPresent() && builder.path != null) {
-            this.path = builder.path
-                    .withSchema(EntityTableSchemaCreator.create(
-                            serializationContext.getObjectClass().orElseThrow(IllegalStateException::new)
-                    ).toYTree());
-        } else {
-            this.path = builder.path;
-        }
-        this.stringPath = builder.stringPath;
         this.tableSchema = builder.tableSchema;
+        this.path = builder.path;
+        this.stringPath = builder.stringPath;
         this.config = builder.config;
         this.transactionalOptions = builder.transactionalOptions;
         this.windowSize = builder.windowSize;
@@ -184,6 +176,7 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
     }
 
     public static class Builder<T> extends BuilderBase<T, Builder<T>> {
+
         @Override
         protected Builder<T> self() {
             return this;
@@ -194,6 +187,7 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
             T,
             TBuilder extends BuilderBase<T, TBuilder>>
             extends RequestBase.Builder<TBuilder, WriteTable<T>> {
+
         @Nullable
         private YPath path;
         @Nullable

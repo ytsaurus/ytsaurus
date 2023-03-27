@@ -160,6 +160,10 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
         return id;
     }
 
+    public TransactionalOptions getTransactionalOptions() {
+        return transactionalOptions;
+    }
+
     public YtTimestamp getStartTimestamp() {
         return startTimestamp;
     }

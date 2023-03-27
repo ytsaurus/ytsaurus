@@ -2,11 +2,14 @@ package tech.ytsaurus.client.rows;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
+import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.typeinfo.StructType;
 import tech.ytsaurus.typeinfo.TiType;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-public class TiTypeUtil {
+class TiTypeUtil {
     private static final Map<Class<?>, TiType> SIMPLE_TYPES_MAP = Map.ofEntries(
             Map.entry(byte.class, TiType.int8()),
             Map.entry(Byte.class, TiType.int8()),
@@ -26,10 +29,28 @@ public class TiTypeUtil {
     private TiTypeUtil() {
     }
 
-    public static Optional<TiType> getTiTypeIfSimple(Class<?> clazz) {
+    static Optional<TiType> getTiTypeIfSimple(Class<?> clazz) {
         if (YTreeNode.class.isAssignableFrom(clazz)) {
             return Optional.of(TiType.yson());
         }
         return Optional.ofNullable(SIMPLE_TYPES_MAP.get(clazz));
+    }
+
+    static boolean isSimpleType(TiType tiType) {
+        return tiType.isInt8() || tiType.isInt16() ||
+                tiType.isInt32() || tiType.isInt64() ||
+                tiType.isDouble() || tiType.isBool() ||
+                tiType.isString() || tiType.isYson() ||
+                tiType.isNull();
+    }
+
+    static TiType tableSchemaToStructTiType(TableSchema tableSchema) {
+        return TiType.struct(
+                tableSchema.getColumns().stream()
+                        .map(columnSchema -> new StructType.Member(
+                                columnSchema.getName(), columnSchema.getTypeV3()
+                        ))
+                        .collect(Collectors.toList())
+        );
     }
 }

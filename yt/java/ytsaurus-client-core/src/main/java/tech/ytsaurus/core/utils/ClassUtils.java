@@ -287,7 +287,10 @@ public class ClassUtils {
         try {
             return castToType(annotation.annotationType().getDeclaredMethod(propertyName).invoke(annotation));
         } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException(
+                    String.format("Cannot get value of property '%s' of annotation '%s'", propertyName,
+                            annotation),
+                    e);
         }
     }
 

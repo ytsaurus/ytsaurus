@@ -2,6 +2,7 @@ package tech.ytsaurus.client;
 
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
+import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,7 @@ import tech.ytsaurus.client.request.BaseOperation;
 import tech.ytsaurus.client.request.BuildSnapshot;
 import tech.ytsaurus.client.request.CheckClusterLiveness;
 import tech.ytsaurus.client.request.CheckPermission;
+import tech.ytsaurus.client.request.ColumnFilter;
 import tech.ytsaurus.client.request.CommitTransaction;
 import tech.ytsaurus.client.request.ConcatenateNodes;
 import tech.ytsaurus.client.request.CopyNode;
@@ -104,6 +106,7 @@ import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.ConsumerSourceRet;
+import tech.ytsaurus.client.rows.EntitySkiffSerializer;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.client.rpc.RpcClient;
@@ -118,8 +121,10 @@ import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.core.cypress.RichYPathParser;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.core.request.LockMode;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
 import tech.ytsaurus.core.rows.YTreeSerializer;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.rpc.TRequestHeader;
@@ -130,18 +135,14 @@ import tech.ytsaurus.rpcproxy.TCheckPermissionResult;
 import tech.ytsaurus.rpcproxy.TReqGetInSyncReplicas;
 import tech.ytsaurus.rpcproxy.TReqModifyRows;
 import tech.ytsaurus.rpcproxy.TReqReadFile;
-import tech.ytsaurus.rpcproxy.TReqReadTable;
 import tech.ytsaurus.rpcproxy.TReqStartTransaction;
 import tech.ytsaurus.rpcproxy.TReqWriteFile;
-import tech.ytsaurus.rpcproxy.TReqWriteTable;
 import tech.ytsaurus.rpcproxy.TRspLookupRows;
 import tech.ytsaurus.rpcproxy.TRspReadFile;
-import tech.ytsaurus.rpcproxy.TRspReadTable;
 import tech.ytsaurus.rpcproxy.TRspSelectRows;
 import tech.ytsaurus.rpcproxy.TRspStartTransaction;
 import tech.ytsaurus.rpcproxy.TRspVersionedLookupRows;
 import tech.ytsaurus.rpcproxy.TRspWriteFile;
-import tech.ytsaurus.rpcproxy.TRspWriteTable;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeBuilder;
@@ -1012,12 +1013,6 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req) {
-        RpcClientRequestBuilder<TReqReadTable.Builder, TRspReadTable>
-                builder = ApiServiceMethodTable.READ_TABLE.createRequestBuilder(rpcOptions);
-
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-
         Optional<TableAttachmentReader<T>> attachmentReader = req.getSerializationContext().getAttachmentReader();
         if (attachmentReader.isEmpty()) {
             Optional<YTreeSerializer<T>> serializer = req.getSerializationContext().getYtreeSerializer();
@@ -1036,21 +1031,27 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             }
             tableReader = new TableReaderImpl<>(req, req.getSerializationContext().getObjectClass().get());
         }
-        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableReader);
-        CompletableFuture<TableReader<T>> result = streamControlFuture.thenCompose(
-                control -> tableReader.waitMetadata(serializationResolver));
-        RpcUtil.relayCancel(result, streamControlFuture);
-        return result;
+
+        return setTableSchemaInSerializer(req)
+                .thenCompose(transactionAndLockResult -> {
+                    var readReq = getReadReqByTransactionAndLockResult(req, transactionAndLockResult);
+                    if (transactionAndLockResult != null) {
+                        tableReader.setTransaction(transactionAndLockResult.getKey());
+                    }
+
+                    var builder = ApiServiceMethodTable.READ_TABLE.createRequestBuilder(rpcOptions);
+                    readReq.writeHeaderTo(builder.header());
+                    readReq.writeTo(builder.body());
+                    CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableReader);
+                    CompletableFuture<TableReader<T>> result = streamControlFuture.thenCompose(
+                            control -> tableReader.waitMetadata(serializationResolver));
+                    RpcUtil.relayCancel(result, streamControlFuture);
+                    return result;
+                });
     }
 
     @Override
     public <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req) {
-        RpcClientRequestBuilder<TReqReadTable.Builder, TRspReadTable>
-                builder = ApiServiceMethodTable.READ_TABLE.createRequestBuilder(rpcOptions);
-
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-
         Optional<TableAttachmentReader<T>> attachmentReader = req.getSerializationContext().getAttachmentReader();
         if (attachmentReader.isEmpty()) {
             Optional<YTreeSerializer<T>> serializer = req.getSerializationContext().getYtreeSerializer();
@@ -1070,12 +1071,23 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             tableReader = new AsyncTableReaderImpl<>(req,
                     req.getSerializationContext().getObjectClass().get());
         }
-        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableReader);
-        CompletableFuture<AsyncReader<T>> result = streamControlFuture.thenCompose(
-                control -> tableReader.waitMetadata(serializationResolver));
-        RpcUtil.relayCancel(result, streamControlFuture);
-        return result;
 
+        return setTableSchemaInSerializer(req)
+                .thenCompose(transactionAndLockResult -> {
+                    var readReq = getReadReqByTransactionAndLockResult(req, transactionAndLockResult);
+                    if (transactionAndLockResult != null) {
+                        tableReader.setTransaction(transactionAndLockResult.getKey());
+                    }
+
+                    var builder = ApiServiceMethodTable.READ_TABLE.createRequestBuilder(rpcOptions);
+                    readReq.writeHeaderTo(builder.header());
+                    readReq.writeTo(builder.body());
+                    CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableReader);
+                    CompletableFuture<AsyncReader<T>> result = streamControlFuture.thenCompose(
+                            control -> tableReader.waitMetadata(serializationResolver));
+                    RpcUtil.relayCancel(result, streamControlFuture);
+                    return result;
+                });
     }
 
     @Override
@@ -1084,19 +1096,23 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             throw new IllegalStateException("Cannot write table with retries in ApiServiceClient");
         }
 
-        RpcClientRequestBuilder<TReqWriteTable.Builder, TRspWriteTable>
-                builder = ApiServiceMethodTable.WRITE_TABLE.createRequestBuilder(rpcOptions);
+        return setTableSchemaInSerializer(req)
+                .thenCompose(transactionAndLockResult -> {
+                    var writeReq = getWriteReqByTransactionAndLockResult(req, transactionAndLockResult);
+                    var tableWriter = new TableWriterImpl<>(writeReq, serializationResolver);
+                    if (transactionAndLockResult != null) {
+                        tableWriter.setTransaction(transactionAndLockResult.getKey());
+                    }
 
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-
-        TableWriterImpl<T> tableWriter = new TableWriterImpl<>(req, serializationResolver);
-
-        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableWriter);
-        CompletableFuture<TableWriter<T>> result = streamControlFuture
-                .thenCompose(control -> tableWriter.startUpload());
-        RpcUtil.relayCancel(result, streamControlFuture);
-        return result;
+                    var builder = ApiServiceMethodTable.WRITE_TABLE.createRequestBuilder(rpcOptions);
+                    writeReq.writeHeaderTo(builder.header());
+                    writeReq.writeTo(builder.body());
+                    CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableWriter);
+                    CompletableFuture<TableWriter<T>> result = streamControlFuture
+                            .thenCompose(control -> tableWriter.startUpload());
+                    RpcUtil.relayCancel(result, streamControlFuture);
+                    return result;
+                });
     }
 
     @Override
@@ -1105,19 +1121,23 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             throw new IllegalStateException("Cannot write table with retries in ApiServiceClient");
         }
 
-        RpcClientRequestBuilder<TReqWriteTable.Builder, TRspWriteTable>
-                builder = ApiServiceMethodTable.WRITE_TABLE.createRequestBuilder(rpcOptions);
+        return setTableSchemaInSerializer(req)
+                .thenCompose(transactionAndLockResult -> {
+                    var writeReq = getWriteReqByTransactionAndLockResult(req, transactionAndLockResult);
+                    var tableWriter = new AsyncTableWriterImpl<>(writeReq, serializationResolver);
+                    if (transactionAndLockResult != null) {
+                        tableWriter.setTransaction(transactionAndLockResult.getKey());
+                    }
 
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-
-        AsyncTableWriterImpl<T> tableWriter = new AsyncTableWriterImpl<>(req, serializationResolver);
-
-        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableWriter);
-        CompletableFuture<AsyncWriter<T>> result = streamControlFuture
-                .thenCompose(control -> tableWriter.startUpload());
-        RpcUtil.relayCancel(result, streamControlFuture);
-        return result;
+                    var builder = ApiServiceMethodTable.WRITE_TABLE.createRequestBuilder(rpcOptions);
+                    writeReq.writeHeaderTo(builder.header());
+                    writeReq.writeTo(builder.body());
+                    CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableWriter);
+                    CompletableFuture<AsyncWriter<T>> result = streamControlFuture
+                            .thenCompose(control -> tableWriter.startUpload());
+                    RpcUtil.relayCancel(result, streamControlFuture);
+                    return result;
+                });
     }
 
     @Override
@@ -1153,8 +1173,103 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return result;
     }
 
-    /* */
+    private <T> CompletableFuture<Map.Entry<ApiServiceTransaction, LockNodeResult>> setTableSchemaInSerializer(
+            WriteTable<T> req
+    ) {
+        var skiffSerializer = req.getSerializationContext().getSkiffSerializer();
+        if (skiffSerializer.isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        if (req.getTableSchema().isPresent()) {
+            skiffSerializer.get()
+                    .setTableSchema(req.getTableSchema().get());
+            return CompletableFuture.completedFuture(null);
+        }
+        return startTransactionAndSetSchema(req.getTransactionId().orElse(null),
+                req.getYPath(),
+                skiffSerializer.get(),
+                req.getYPath().getAppend().orElse(false) ? LockMode.Shared : LockMode.Exclusive);
+    }
 
+    private <T> CompletableFuture<Map.Entry<ApiServiceTransaction, LockNodeResult>> setTableSchemaInSerializer(
+            ReadTable<T> req
+    ) {
+        var skiffSerializer = req.getSerializationContext().getSkiffSerializer();
+        if (skiffSerializer.isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        if (req.getTableSchema().isPresent()) {
+            skiffSerializer.get()
+                    .setTableSchema(req.getTableSchema().get());
+            return CompletableFuture.completedFuture(null);
+        }
+        return startTransactionAndSetSchema(req.getTransactionId().orElse(null),
+                req.getYPath(),
+                skiffSerializer.get(),
+                LockMode.Snapshot);
+    }
+
+    private <T> CompletableFuture<Map.Entry<ApiServiceTransaction, LockNodeResult>> startTransactionAndSetSchema(
+            GUID transactionId,
+            YPath path,
+            EntitySkiffSerializer<T> serializer,
+            LockMode lockMode) {
+        return startTransaction(StartTransaction.master().toBuilder()
+                .setParentId(transactionId)
+                .build()
+        )
+                .thenCompose(transaction -> transaction.lockNode(new LockNode(path, lockMode))
+                        .thenCompose(lockNodeResult -> transaction.getNode(GetNode.builder()
+                                                .setPath(YPath.objectRoot(lockNodeResult.nodeId))
+                                                .setAttributes(ColumnFilter.of("schema"))
+                                                .build()
+                                        )
+                                        .thenApply(node ->
+                                                TableSchema.fromYTree(node.getAttributeOrThrow("schema"))
+                                        )
+                                        .thenAccept(serializer::setTableSchema)
+                                        .thenApply(unused -> lockNodeResult)
+                        )
+                        .handle((lockNodeResult, ex) -> {
+                            if (ex == null) {
+                                return CompletableFuture.completedFuture(lockNodeResult);
+                            }
+                            return transaction.abort()
+                                    .thenAccept(voidRes -> {
+                                        throw new RuntimeException(ex);
+                                    })
+                                    .thenApply(unused -> lockNodeResult);
+                        })
+                        .thenCompose(future -> future)
+                        .thenApply(lockNodeResult -> new AbstractMap.SimpleEntry<>(transaction, lockNodeResult))
+                );
+    }
+
+    private static <T> WriteTable<T> getWriteReqByTransactionAndLockResult(
+            WriteTable<T> req,
+            Map.Entry<ApiServiceTransaction, LockNodeResult> transactionAndLockResult
+    ) {
+        return transactionAndLockResult != null ?
+                req.toBuilder()
+                        .setTransactionalOptions(transactionAndLockResult.getKey().getTransactionalOptions())
+                        .setPath(YPath.objectRoot(transactionAndLockResult.getValue().nodeId))
+                        .build() :
+                req;
+    }
+
+    private static <T> ReadTable<T> getReadReqByTransactionAndLockResult(
+            ReadTable<T> req,
+            Map.Entry<ApiServiceTransaction, LockNodeResult> transactionAndLockResult
+    ) {
+        return transactionAndLockResult != null ?
+                req.toBuilder()
+                        .setTransactionalOptions(transactionAndLockResult.getKey().getTransactionalOptions())
+                        .setPath(YPath.objectRoot(transactionAndLockResult.getValue().nodeId))
+                        .build() :
+                req;
+    }
+
+    /* */
     private <T, Response> CompletableFuture<T> handleHeavyResponse(CompletableFuture<Response> future,
                                                                    Function<Response, T> fn) {
         return RpcUtil.applyAsync(future, fn, heavyExecutor);
@@ -1183,7 +1298,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             RequestType extends HighLevelRequest<RequestMsgBuilder>>
     CompletableFuture<RpcClientResponse<ResponseMsg>>
     sendRequest(RequestType req, RpcClientRequestBuilder<RequestMsgBuilder, ResponseMsg> builder) {
-        /**
+        /*
          * If several mutating requests was done with the same RequestType instance,
          * it must have different mutation ids.
          * So we reset mutationId for every request.

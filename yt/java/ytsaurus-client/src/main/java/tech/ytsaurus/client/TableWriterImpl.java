@@ -26,6 +26,8 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
     protected @Nullable
     TableRowsSerializer<T> tableRowsSerializer;
     private final SerializationResolver serializationResolver;
+    @Nullable
+    protected ApiServiceTransaction transaction;
 
     TableWriterBaseImpl(WriteTable<T> req, SerializationResolver serializationResolver) {
         super(req.getWindowSize(), req.getPacketSize());
@@ -33,6 +35,13 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
         this.serializationResolver = serializationResolver;
         this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(
                 this.req.getSerializationContext(), serializationResolver);
+    }
+
+    public void setTransaction(ApiServiceTransaction transaction) {
+        if (this.transaction != null) {
+            throw new IllegalStateException("Write transaction already started");
+        }
+        this.transaction = transaction;
     }
 
     public CompletableFuture<TableWriterBaseImpl<T>> startUploadImpl() {
@@ -78,6 +87,17 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
     public boolean write(List<T> rows, TableSchema schema) throws IOException {
         byte[] serializedRows = tableRowsSerializer.serializeRows(rows, schema);
         return write(serializedRows);
+    }
+
+    @Override
+    public CompletableFuture<?> close() {
+        return super.close()
+                .thenApply(response -> {
+                    if (transaction != null && transaction.isActive()) {
+                        transaction.commit();
+                    }
+                    return response;
+                });
     }
 }
 

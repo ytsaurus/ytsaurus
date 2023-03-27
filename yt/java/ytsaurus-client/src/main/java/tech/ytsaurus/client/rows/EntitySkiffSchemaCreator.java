@@ -3,6 +3,7 @@ package tech.ytsaurus.client.rows;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -15,6 +16,7 @@ import tech.ytsaurus.skiff.ComplexSchema;
 import tech.ytsaurus.skiff.SkiffSchema;
 import tech.ytsaurus.skiff.WireType;
 
+import static tech.ytsaurus.client.rows.WireTypeUtil.getWireTypeOf;
 import static tech.ytsaurus.core.utils.ClassUtils.anyMatchWithAnnotation;
 import static tech.ytsaurus.core.utils.ClassUtils.anyOfAnnotationsPresent;
 import static tech.ytsaurus.core.utils.ClassUtils.getAllDeclaredFields;
@@ -22,7 +24,6 @@ import static tech.ytsaurus.core.utils.ClassUtils.getAnnotationIfPresent;
 import static tech.ytsaurus.core.utils.ClassUtils.getTypeDescription;
 import static tech.ytsaurus.core.utils.ClassUtils.getTypeParametersOfField;
 import static tech.ytsaurus.core.utils.ClassUtils.isFieldTransient;
-import static tech.ytsaurus.skiff.WireTypeUtil.getClassWireType;
 
 public class EntitySkiffSchemaCreator {
 
@@ -41,15 +42,16 @@ public class EntitySkiffSchemaCreator {
                                                   String name,
                                                   @Nullable Annotation annotation,
                                                   List<Type> genericTypeParameters) {
-        WireType wireType = getClassWireType(clazz);
+        WireType wireType = getWireTypeOf(clazz);
         boolean isNullable = true;
         if (annotation != null &&
                 anyMatchWithAnnotation(annotation, JavaPersistenceApi.columnAnnotations())) {
-            name = JavaPersistenceApi.getColumnName(annotation);
+            var columnName = JavaPersistenceApi.getColumnName(annotation);
+            name = columnName.isEmpty() ? name : columnName;
             isNullable = JavaPersistenceApi.isColumnNullable(annotation);
         }
 
-        var schema = getSchemaByWireType(clazz, wireType, genericTypeParameters);
+        var schema = getSchemaByWireType(clazz, wireType, annotation, genericTypeParameters);
 
         if (isNullable && !clazz.isPrimitive()) {
             schema = SkiffSchema.variant8(
@@ -64,15 +66,19 @@ public class EntitySkiffSchemaCreator {
 
     private static <T> SkiffSchema getSchemaByWireType(Class<T> clazz,
                                                        WireType wireType,
+                                                       @Nullable Annotation annotation,
                                                        List<Type> genericTypeParameters) {
         if (Collection.class.isAssignableFrom(clazz)) {
-            return getCollectionTypeSchema(genericTypeParameters.get(0));
+            return getCollectionSchema(genericTypeParameters.get(0));
         }
         if (Map.class.isAssignableFrom(clazz)) {
-            return getMapTypeSchema(genericTypeParameters.get(0), genericTypeParameters.get(1));
+            return getMapSchema(genericTypeParameters.get(0), genericTypeParameters.get(1));
         }
         if (clazz.isArray()) {
             return getArraySchema(clazz);
+        }
+        if (clazz.equals(BigDecimal.class)) {
+            return getDecimalSchema(annotation);
         }
         return wireType.isSimpleType() ?
                 SkiffSchema.simpleType(wireType) :
@@ -100,7 +106,7 @@ public class EntitySkiffSchemaCreator {
         );
     }
 
-    private static ComplexSchema getCollectionTypeSchema(Type elementType) {
+    private static ComplexSchema getCollectionSchema(Type elementType) {
         var elementTypeDescr = getTypeDescription(elementType);
         return SkiffSchema.repeatedVariant8(List.of(
                 getClassSchema(
@@ -111,7 +117,7 @@ public class EntitySkiffSchemaCreator {
         );
     }
 
-    private static ComplexSchema getMapTypeSchema(Type keyType, Type valueType) {
+    private static ComplexSchema getMapSchema(Type keyType, Type valueType) {
         var keyTypeDescr = getTypeDescription(keyType);
         var valueTypeDescr = getTypeDescription(valueType);
         return SkiffSchema.repeatedVariant8(List.of(
@@ -141,5 +147,20 @@ public class EntitySkiffSchemaCreator {
                         null,
                         List.of()))
         );
+    }
+
+    private static SkiffSchema getDecimalSchema(@Nullable Annotation annotation) {
+        if (annotation == null ||
+                !anyMatchWithAnnotation(annotation, JavaPersistenceApi.columnAnnotations())) {
+            throw new IllegalArgumentException("Field with BigDecimal must be annotated with @Column");
+        }
+        int precision = JavaPersistenceApi.getColumnPrecision(annotation);
+        if (precision <= 9) {
+            return SkiffSchema.simpleType(WireType.INT_32);
+        }
+        if (precision <= 18) {
+            return SkiffSchema.simpleType(WireType.INT_64);
+        }
+        return SkiffSchema.simpleType(WireType.INT_128);
     }
 }

@@ -17,6 +17,8 @@ class JavaPersistenceApi {
     private static final String COLUMN = "Column";
     private static final String COLUMN_NAME = "name";
     private static final String COLUMN_NULLABLE = "nullable";
+    private static final String COLUMN_PRECISION = "precision";
+    private static final String COLUMN_SCALE = "scale";
     private static final Set<String> ENTITY_ANNOTATIONS = getAnnotationsFor(ENTITY);
     private static final Set<String> TRANSIENT_ANNOTATIONS = getAnnotationsFor(TRANSIENT);
     private static final Set<String> COLUMN_ANNOTATIONS = getAnnotationsFor(COLUMN);
@@ -46,6 +48,14 @@ class JavaPersistenceApi {
 
     static boolean isColumnNullable(Annotation columnAnnotation) {
         return getValueOfAnnotationProperty(columnAnnotation, COLUMN_NULLABLE);
+    }
+
+    static int getColumnPrecision(Annotation columnAnnotation) {
+        return getValueOfAnnotationProperty(columnAnnotation, COLUMN_PRECISION);
+    }
+
+    static int getColumnScale(Annotation columnAnnotation) {
+        return getValueOfAnnotationProperty(columnAnnotation, COLUMN_SCALE);
     }
 
     private static Set<String> getAnnotationsFor(String annotationName) {

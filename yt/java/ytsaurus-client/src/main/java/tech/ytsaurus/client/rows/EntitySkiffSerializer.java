@@ -8,6 +8,7 @@ import java.io.OutputStream;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Type;
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
@@ -24,13 +25,19 @@ import java.util.Set;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.request.Format;
+import tech.ytsaurus.core.common.Decimal;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.skiff.SkiffParser;
 import tech.ytsaurus.skiff.SkiffSchema;
-import tech.ytsaurus.skiff.WireType;
+import tech.ytsaurus.typeinfo.DecimalType;
+import tech.ytsaurus.typeinfo.TiType;
 import tech.ytsaurus.yson.BufferReference;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
 
+import static tech.ytsaurus.client.rows.TiTypeUtil.isSimpleType;
+import static tech.ytsaurus.client.rows.TiTypeUtil.tableSchemaToStructTiType;
 import static tech.ytsaurus.core.utils.ClassUtils.anyOfAnnotationsPresent;
 import static tech.ytsaurus.core.utils.ClassUtils.boxArray;
 import static tech.ytsaurus.core.utils.ClassUtils.castToType;
@@ -40,14 +47,16 @@ import static tech.ytsaurus.core.utils.ClassUtils.getInstanceWithoutArguments;
 import static tech.ytsaurus.core.utils.ClassUtils.getTypeDescription;
 import static tech.ytsaurus.core.utils.ClassUtils.setFieldsAccessibleToTrue;
 import static tech.ytsaurus.core.utils.ClassUtils.unboxArray;
-import static tech.ytsaurus.skiff.WireTypeUtil.getClassWireType;
 
 public class EntitySkiffSerializer<T> {
     private static final byte ZERO_TAG = 0x00;
     private static final byte ONE_TAG = 0x01;
     private static final byte END_TAG = (byte) 0xFF;
     private final Class<T> entityClass;
-    private final SkiffSchema schema;
+    private @Nullable TableSchema entityTableSchema;
+    private @Nullable TiType entityTiType;
+    private @Nullable SkiffSchema skiffSchema;
+    private @Nullable Format format;
     private final List<EntityFieldDescr> entityFieldDescriptions;
     private final Map<Class<?>, List<EntityFieldDescr>> entityFieldsMap = new HashMap<>();
     private final Map<Class<?>, Constructor<?>> complexObjectConstructorMap = new HashMap<>();
@@ -57,7 +66,13 @@ public class EntitySkiffSerializer<T> {
             throw new IllegalArgumentException("Class must be annotated with @Entity");
         }
         this.entityClass = entityClass;
-        this.schema = EntitySkiffSchemaCreator.create(entityClass);
+        try {
+            this.entityTableSchema = EntityTableSchemaCreator.create(entityClass);
+            this.entityTiType = tableSchemaToStructTiType(entityTableSchema);
+            this.skiffSchema = SchemaConverter.toSkiffSchema(entityTableSchema);
+            this.format = Format.skiff(skiffSchema, 1);
+        } catch (EntityTableSchemaCreator.PrecisionAndScaleNotSpecifiedException ignored) {
+        }
 
         var declaredFields = getAllDeclaredFields(entityClass);
         this.entityFieldDescriptions = EntityFieldDescr.of(declaredFields);
@@ -65,13 +80,35 @@ public class EntitySkiffSerializer<T> {
         entityFieldsMap.put(entityClass, entityFieldDescriptions);
     }
 
-    public SkiffSchema getSchema() {
-        return schema;
+    public Optional<Format> getFormat() {
+        return Optional.ofNullable(format);
+    }
+
+    public void setTableSchema(TableSchema tableSchema) {
+        if (entityTableSchema == null) {
+            this.entityTableSchema = tableSchema;
+            this.entityTiType = tableSchemaToStructTiType(tableSchema);
+            this.skiffSchema = SchemaConverter.toSkiffSchema(tableSchema);
+            this.format = Format.skiff(skiffSchema, 1);
+            return;
+        }
+        if (!tableSchema.equals(entityTableSchema)) {
+            throw new MismatchEntityAndTableSchemaException(
+                    String.format(
+                            "Entity schema does not match received table schema:\nEntity schema: %s\nTable schema: %s",
+                            entityTableSchema, tableSchema
+                    )
+            );
+        }
     }
 
     public byte[] serialize(T object) {
+        if (entityTiType == null) {
+            throwNoSchemaException();
+        }
+
         ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
-        serializeEntity(object, schema, entityFieldDescriptions, byteOS);
+        serializeEntity(object, entityTiType, entityFieldDescriptions, byteOS);
         try {
             byteOS.flush();
         } catch (IOException e) {
@@ -81,7 +118,11 @@ public class EntitySkiffSerializer<T> {
     }
 
     public void serialize(T object, BufferedOutputStream outputStream) {
-        serializeEntity(object, schema, entityFieldDescriptions, outputStream);
+        if (entityTiType == null) {
+            throwNoSchemaException();
+        }
+
+        serializeEntity(object, entityTiType, entityFieldDescriptions, outputStream);
     }
 
     public Optional<T> deserialize(byte[] objectBytes) {
@@ -89,49 +130,107 @@ public class EntitySkiffSerializer<T> {
     }
 
     public Optional<T> deserialize(SkiffParser parser) {
-        return Optional.ofNullable(deserializeObject(parser, entityClass, schema, List.of()));
+        if (entityTiType == null) {
+            throwNoSchemaException();
+        }
+        return Optional.ofNullable(deserializeObject(
+                parser, entityClass, entityTiType, List.of()
+        ));
     }
 
     private <ObjectType> void serializeObject(@Nullable ObjectType object,
-                                              SkiffSchema objectSchema,
+                                              TiType tiType,
                                               OutputStream byteOS) throws IOException {
-        boolean isNullable = objectSchema.getWireType().isVariant() &&
-                objectSchema.getChildren().get(0).getWireType() == WireType.NOTHING;
+        boolean isNullable = tiType.isOptional();
         if (object == null) {
             if (!isNullable) {
-                throw new NullPointerException("Field \"" + objectSchema.getName() + "\" is non nullable");
+                throw new NullPointerException(
+                        String.format("Field '%s' is non nullable", tiType));
             }
             byteOS.write(ZERO_TAG);
             return;
         }
         if (isNullable) {
             byteOS.write(ONE_TAG);
-            objectSchema = objectSchema.getChildren().get(1);
+            tiType = tiType.asOptional().getItem();
         }
 
         Class<?> clazz = object.getClass();
-        WireType wireType = getClassWireType(clazz);
-        if (wireType.isSimpleType()) {
-            serializeSimpleType(object, wireType, byteOS);
+        if (isSimpleType(tiType)) {
+            serializeSimpleType(object, tiType, byteOS);
+            return;
+        }
+        if (tiType.isDecimal()) {
+            if (!object.getClass().equals(BigDecimal.class)) {
+                throwInvalidSchemeException(null);
+            }
+            serializeDecimal((BigDecimal) object, tiType.asDecimal(), byteOS);
             return;
         }
 
-        serializeComplexObject(object, objectSchema, byteOS, clazz);
+        serializeComplexObject(object, tiType, byteOS, clazz);
+    }
+
+    private void serializeDecimal(BigDecimal value,
+                                  DecimalType decimalType,
+                                  OutputStream byteOS) throws IOException {
+        byte[] dataInBigEndian = Decimal.textToBinary(
+                value.toString(),
+                decimalType.getPrecision(),
+                decimalType.getScale()
+        );
+        dataInBigEndian[0] = (byte) (dataInBigEndian[0] ^ (0x1 << 7));
+
+        for (int i = dataInBigEndian.length - 1; i >= 0; i--) {
+            byteOS.write(dataInBigEndian[i]);
+        }
+    }
+
+    private <SimpleType> void serializeSimpleType(SimpleType object,
+                                                  TiType tiType,
+                                                  OutputStream byteOS) {
+        try {
+            if (tiType.isInt8()) {
+                serializeByte((byte) object, byteOS);
+            } else if (tiType.isInt16()) {
+                serializeShort((short) object, byteOS);
+            } else if (tiType.isInt32()) {
+                serializeInt((int) object, byteOS);
+            } else if (tiType.isInt64()) {
+                serializeLong((long) object, byteOS);
+            } else if (tiType.isDouble()) {
+                serializeDouble((double) object, byteOS);
+            } else if (tiType.isBool()) {
+                serializeBoolean((boolean) object, byteOS);
+            } else if (tiType.isString()) {
+                serializeString((String) object, byteOS);
+            } else if (tiType.isYson()) {
+                serializeYson((YTreeNode) object, byteOS);
+            } else {
+                throw new IllegalArgumentException(
+                        String.format("Type '%s' is not supported", tiType));
+            }
+            return;
+        } catch (ClassCastException | IOException e) {
+            throwInvalidSchemeException(e);
+        }
+        throw new IllegalStateException();
     }
 
     private <ObjectType> void serializeComplexObject(ObjectType object,
-                                                     SkiffSchema objectSchema,
-                                                     OutputStream byteOS, Class<?> clazz) throws IOException {
+                                                     TiType objectTiType,
+                                                     OutputStream byteOS,
+                                                     Class<?> clazz) throws IOException {
         if (Collection.class.isAssignableFrom(object.getClass())) {
-            serializeCollection(object, objectSchema, byteOS);
+            serializeCollection(object, objectTiType, byteOS);
             return;
         }
         if (Map.class.isAssignableFrom(object.getClass())) {
-            serializeMap(object, objectSchema, byteOS);
+            serializeMap(object, objectTiType, byteOS);
             return;
         }
         if (clazz.isArray()) {
-            serializeArray(object, objectSchema, byteOS);
+            serializeArray(object, objectTiType, byteOS);
             return;
         }
 
@@ -140,14 +239,14 @@ public class EntitySkiffSerializer<T> {
             setFieldsAccessibleToTrue(declaredFields);
             return EntityFieldDescr.of(declaredFields);
         });
-        serializeEntity(object, objectSchema, entityFields, byteOS);
+        serializeEntity(object, objectTiType, entityFields, byteOS);
     }
 
     private <ObjectType> void serializeEntity(ObjectType object,
-                                              SkiffSchema objectSchema,
+                                              TiType structTiType,
                                               List<EntityFieldDescr> fieldDescriptions,
                                               OutputStream byteOS) {
-        if (objectSchema.getWireType() != WireType.TUPLE) {
+        if (!structTiType.isStruct()) {
             throwInvalidSchemeException(null);
         }
 
@@ -159,7 +258,8 @@ public class EntitySkiffSerializer<T> {
             try {
                 serializeObject(
                         fieldDescr.getField().get(object),
-                        objectSchema.getChildren().get(indexInSchema),
+                        structTiType.asStruct().getMembers()
+                                .get(indexInSchema).getType(),
                         byteOS);
                 indexInSchema++;
             } catch (IllegalAccessException | IndexOutOfBoundsException | IOException e) {
@@ -169,43 +269,43 @@ public class EntitySkiffSerializer<T> {
     }
 
     private <CollectionType, ElemType> void serializeCollection(CollectionType object,
-                                                                SkiffSchema schema,
+                                                                TiType tiType,
                                                                 OutputStream byteOS) throws IOException {
-        if (!schema.isListSchema()) {
+        if (!tiType.isList()) {
             throwInvalidSchemeException(null);
         }
 
         Collection<ElemType> collection = castToType(object);
-        SkiffSchema elemSchema = schema.getChildren().get(0);
+        var elemTiType = tiType.asList().getItem();
         for (var elem : collection) {
             byteOS.write(ZERO_TAG);
-            serializeObject(elem, elemSchema, byteOS);
+            serializeObject(elem, elemTiType, byteOS);
         }
         serializeByte(END_TAG, byteOS);
     }
 
     private <ListType, KeyType, ValueType> void serializeMap(ListType object,
-                                                             SkiffSchema mapSchema,
+                                                             TiType tiType,
                                                              OutputStream byteOS) throws IOException {
-        if (!mapSchema.isMapSchema()) {
+        if (!tiType.isDict()) {
             throwInvalidSchemeException(null);
         }
 
         Map<KeyType, ValueType> map = castToType(object);
-        SkiffSchema keySchema = mapSchema.getChildren().get(0).getChildren().get(0);
-        SkiffSchema valueSchema = mapSchema.getChildren().get(0).getChildren().get(1);
+        var keyTiType = tiType.asDict().getKey();
+        var valueTiType = tiType.asDict().getValue();
         for (var entry : map.entrySet()) {
             byteOS.write(ZERO_TAG);
-            serializeObject(entry.getKey(), keySchema, byteOS);
-            serializeObject(entry.getValue(), valueSchema, byteOS);
+            serializeObject(entry.getKey(), keyTiType, byteOS);
+            serializeObject(entry.getValue(), valueTiType, byteOS);
         }
         serializeByte(END_TAG, byteOS);
     }
 
     private <ArrayType, ElemType> void serializeArray(ArrayType object,
-                                                      SkiffSchema listSchema,
+                                                      TiType tiType,
                                                       OutputStream byteOS) throws IOException {
-        if (!listSchema.isListSchema()) {
+        if (!tiType.isList()) {
             throwInvalidSchemeException(null);
         }
 
@@ -213,50 +313,12 @@ public class EntitySkiffSerializer<T> {
         ElemType[] list = elementClass.isPrimitive() ?
                 boxArray(object, elementClass) :
                 castToType(object);
-        SkiffSchema elemSchema = listSchema.getChildren().get(0);
+        var elemTiType = tiType.asList().getItem();
         for (var elem : list) {
             byteOS.write(ZERO_TAG);
-            serializeObject(elem, elemSchema, byteOS);
+            serializeObject(elem, elemTiType, byteOS);
         }
         serializeByte(END_TAG, byteOS);
-    }
-
-    private <SimpleType> void serializeSimpleType(SimpleType object,
-                                                  WireType wireType,
-                                                  OutputStream byteOS) {
-        try {
-            switch (wireType) {
-                case INT_8:
-                    serializeByte((byte) object, byteOS);
-                    return;
-                case INT_16:
-                    serializeShort((short) object, byteOS);
-                    return;
-                case INT_32:
-                    serializeInt((int) object, byteOS);
-                    return;
-                case INT_64:
-                    serializeLong((long) object, byteOS);
-                    return;
-                case DOUBLE:
-                    serializeDouble((double) object, byteOS);
-                    return;
-                case BOOLEAN:
-                    serializeBoolean((boolean) object, byteOS);
-                    return;
-                case STRING_32:
-                    serializeString((String) object, byteOS);
-                    return;
-                case YSON_32:
-                    serializeYson((YTreeNode) object, byteOS);
-                    return;
-                default:
-                    throw new IllegalArgumentException("This type + (\"" + wireType + "\") is not supported");
-            }
-        } catch (ClassCastException | IOException e) {
-            throwInvalidSchemeException(e);
-        }
-        throw new IllegalStateException();
     }
 
     private void serializeByte(byte number, OutputStream byteOS) throws IOException {
@@ -313,27 +375,64 @@ public class EntitySkiffSerializer<T> {
 
     private <ObjectType> @Nullable ObjectType deserializeObject(SkiffParser parser,
                                                                 Class<ObjectType> clazz,
-                                                                SkiffSchema schema,
+                                                                TiType tiType,
                                                                 List<Type> genericTypeParameters) {
-        schema = extractSchemeFromVariant(parser, schema);
+        tiType = extractSchemeFromOptional(parser, tiType);
 
-        if (schema.getWireType().isSimpleType()) {
-            return deserializeSimpleType(parser, schema);
+        if (isSimpleType(tiType)) {
+            return deserializeSimpleType(parser, tiType);
+        }
+        if (tiType.isDecimal()) {
+            if (!clazz.equals(BigDecimal.class)) {
+                throwInvalidSchemeException(null);
+            }
+            return castToType(deserializeDecimal(parser, tiType.asDecimal()));
         }
 
-        return deserializeComplexObject(parser, clazz, schema, genericTypeParameters);
+        return deserializeComplexObject(parser, clazz, tiType, genericTypeParameters);
+    }
+
+    private BigDecimal deserializeDecimal(SkiffParser parser,
+                                          DecimalType decimalType) {
+        byte[] binaryDecimal = parser.getDataInBigEndian(
+                getBinaryDecimalLength(decimalType)
+        );
+        binaryDecimal[0] = (byte) (binaryDecimal[0] ^ (0x1 << 7));
+        String textDecimal = Decimal.binaryToText(
+                binaryDecimal,
+                decimalType.getPrecision(),
+                decimalType.getScale()
+        );
+
+        if (textDecimal.equals("nan") || textDecimal.equals("inf") || textDecimal.equals("-inf")) {
+            throw new IllegalArgumentException(String.format(
+                    "YT Decimal value '%s' is not supported by Java BigDecimal", textDecimal));
+        }
+
+        return new BigDecimal(textDecimal);
+    }
+
+    private int getBinaryDecimalLength(TiType tiType) {
+        int precision = tiType.asDecimal().getPrecision();
+        if (precision <= 9) {
+            return 4;
+        }
+        if (precision <= 18) {
+            return 8;
+        }
+        return 16;
     }
 
     private <ObjectType> ObjectType deserializeComplexObject(SkiffParser parser,
                                                              Class<ObjectType> clazz,
-                                                             SkiffSchema schema,
+                                                             TiType tiType,
                                                              List<Type> genericTypeParameters) {
         if (List.class.isAssignableFrom(clazz)) {
             return castToType(deserializeCollection(
                     parser,
                     clazz,
                     genericTypeParameters.get(0),
-                    schema,
+                    tiType,
                     ArrayList.class
             ));
         }
@@ -342,7 +441,7 @@ public class EntitySkiffSerializer<T> {
                     parser,
                     clazz,
                     genericTypeParameters.get(0),
-                    schema,
+                    tiType,
                     HashSet.class
             ));
         }
@@ -351,7 +450,7 @@ public class EntitySkiffSerializer<T> {
                     parser,
                     clazz,
                     genericTypeParameters.get(0),
-                    schema,
+                    tiType,
                     LinkedList.class
             ));
         }
@@ -361,20 +460,20 @@ public class EntitySkiffSerializer<T> {
                     clazz,
                     genericTypeParameters.get(0),
                     genericTypeParameters.get(1),
-                    schema)
+                    tiType)
             );
         }
         if (clazz.isArray()) {
-            return deserializeArray(parser, clazz, schema);
+            return deserializeArray(parser, clazz, tiType);
         }
 
-        return deserializeEntity(parser, clazz, schema);
+        return deserializeEntity(parser, clazz, tiType);
     }
 
     private <ObjectType> ObjectType deserializeEntity(SkiffParser parser,
                                                       Class<ObjectType> clazz,
-                                                      SkiffSchema schema) {
-        if (schema.getWireType() != WireType.TUPLE) {
+                                                      TiType tiType) {
+        if (!tiType.isStruct()) {
             throwInvalidSchemeException(null);
         }
 
@@ -406,7 +505,7 @@ public class EntitySkiffSerializer<T> {
                         deserializeObject(
                                 parser,
                                 castToType(fieldDescr.getField().getType()),
-                                extractSchemeFromVariant(parser, schema.getChildren().get(indexInSchema)),
+                                tiType.asStruct().getMembers().get(indexInSchema).getType(),
                                 fieldDescr.getTypeParameters()
                         )
                 );
@@ -421,9 +520,9 @@ public class EntitySkiffSerializer<T> {
     private <ElemType> Collection<ElemType> deserializeCollection(SkiffParser parser,
                                                                   Class<?> clazz,
                                                                   Type elementType,
-                                                                  SkiffSchema schema,
+                                                                  TiType tiType,
                                                                   Class<?> defaultClass) {
-        if (!schema.isListSchema()) {
+        if (!tiType.isList()) {
             throwInvalidSchemeException(null);
         }
 
@@ -434,13 +533,13 @@ public class EntitySkiffSerializer<T> {
 
         Collection<ElemType> collection = getInstanceWithoutArguments(collectionConstructor);
         var elementTypeDescr = getTypeDescription(elementType);
-        byte tag;
-        while ((tag = parser.parseInt8()) != END_TAG) {
+        while (parser.parseInt8() != END_TAG) {
             collection.add(castToType(deserializeObject(
-                    parser,
-                    elementTypeDescr.getTypeClass(),
-                    schema.getChildren().get(tag),
-                    elementTypeDescr.getTypeParameters()))
+                            parser,
+                            elementTypeDescr.getTypeClass(),
+                            tiType.asList().getItem(),
+                            elementTypeDescr.getTypeParameters()
+                    ))
             );
         }
         return collection;
@@ -451,8 +550,8 @@ public class EntitySkiffSerializer<T> {
                                                                         Class<?> clazz,
                                                                         Type keyType,
                                                                         Type valueType,
-                                                                        SkiffSchema schema) {
-        if (!schema.isMapSchema()) {
+                                                                        TiType tiType) {
+        if (!tiType.isDict()) {
             throwInvalidSchemeException(null);
         }
 
@@ -464,18 +563,19 @@ public class EntitySkiffSerializer<T> {
         Map<KeyType, ValueType> map = getInstanceWithoutArguments(mapConstructor);
         var keyTypeDescr = getTypeDescription(keyType);
         var valueTypeDescr = getTypeDescription(valueType);
-        byte tag;
-        while ((tag = parser.parseInt8()) != END_TAG) {
+        while (parser.parseInt8() != END_TAG) {
             map.put(castToType(deserializeObject(
                             parser,
                             keyTypeDescr.getTypeClass(),
-                            schema.getChildren().get(tag).getChildren().get(0),
-                            keyTypeDescr.getTypeParameters())),
+                            tiType.asDict().getKey(),
+                            keyTypeDescr.getTypeParameters()
+                    )),
                     castToType(deserializeObject(
                             parser,
                             valueTypeDescr.getTypeClass(),
-                            schema.getChildren().get(tag).getChildren().get(1),
-                            valueTypeDescr.getTypeParameters()))
+                            tiType.asDict().getValue(),
+                            valueTypeDescr.getTypeParameters()
+                    ))
             );
         }
         return map;
@@ -483,10 +583,10 @@ public class EntitySkiffSerializer<T> {
 
     private <ArrayType, ElemType> ArrayType deserializeArray(SkiffParser parser,
                                                              Class<?> clazz,
-                                                             SkiffSchema schema) {
+                                                             TiType tiType) {
         var elementClass = clazz.getComponentType();
         List<ElemType> list = castToType(deserializeCollection(
-                parser, clazz, elementClass, schema, ArrayList.class
+                parser, clazz, elementClass, tiType, ArrayList.class
         ));
         Object arrayObject = Array.newInstance(elementClass, list.size());
         ElemType[] array = elementClass.isPrimitive() ?
@@ -501,31 +601,29 @@ public class EntitySkiffSerializer<T> {
         return castToType(array);
     }
 
-    private <SimpleType> @Nullable SimpleType deserializeSimpleType(SkiffParser parser, SkiffSchema schema) {
+    private <SimpleType> SimpleType deserializeSimpleType(SkiffParser parser, TiType tiType) {
         try {
-            switch (schema.getWireType()) {
-                case INT_8:
-                    return castToType(parser.parseInt8());
-                case INT_16:
-                    return castToType(parser.parseInt16());
-                case INT_32:
-                    return castToType(parser.parseInt32());
-                case INT_64:
-                    return castToType(parser.parseInt64());
-                case DOUBLE:
-                    return castToType(parser.parseDouble());
-                case BOOLEAN:
-                    return castToType(parser.parseBoolean());
-                case STRING_32:
-                    return deserializeString(parser);
-                case YSON_32:
-                    return deserializeYson(parser);
-                case NOTHING:
-                    return null;
-                default:
-                    throw new IllegalArgumentException("This type + (\"" + schema.getWireType() +
-                            "\") is not supported");
+            if (tiType.isInt8()) {
+                return castToType(parser.parseInt8());
+            } else if (tiType.isInt16()) {
+                return castToType(parser.parseInt16());
+            } else if (tiType.isInt32()) {
+                return castToType(parser.parseInt32());
+            } else if (tiType.isInt64()) {
+                return castToType(parser.parseInt64());
+            } else if (tiType.isDouble()) {
+                return castToType(parser.parseDouble());
+            } else if (tiType.isBool()) {
+                return castToType(parser.parseBoolean());
+            } else if (tiType.isString()) {
+                return deserializeString(parser);
+            } else if (tiType.isYson()) {
+                return deserializeYson(parser);
+            } else if (tiType.isNull()) {
+                return null;
             }
+            throw new IllegalArgumentException(
+                    String.format("Type '%s' is not supported", tiType));
         } catch (ClassCastException e) {
             throwInvalidSchemeException(e);
         }
@@ -544,22 +642,25 @@ public class EntitySkiffSerializer<T> {
                 new ByteArrayInputStream(ref.getBuffer(), ref.getOffset(), ref.getLength())));
     }
 
-    private SkiffSchema extractSchemeFromVariant(SkiffParser parser, SkiffSchema schema) {
-        if (!schema.getWireType().isVariant()) {
-            return schema;
+    private TiType extractSchemeFromOptional(SkiffParser parser, TiType tiType) {
+        if (!tiType.isOptional()) {
+            return tiType;
         }
-
-        int tag;
-        if (schema.getWireType() == WireType.VARIANT_8) {
-            tag = parser.parseVariant8Tag();
-        } else {
-            tag = parser.parseVariant16Tag();
-        }
-
-        return schema.getChildren().get(tag);
+        return parser.parseVariant8Tag() == ZERO_TAG ?
+                TiType.nullType() : tiType.asOptional().getItem();
     }
 
     private void throwInvalidSchemeException(@Nullable Exception e) {
         throw new IllegalStateException("Scheme does not correspond to object", e);
+    }
+
+    private void throwNoSchemaException() {
+        throw new IllegalStateException("Cannot create or get table schema");
+    }
+
+    public static class MismatchEntityAndTableSchemaException extends RuntimeException {
+        public MismatchEntityAndTableSchemaException(String message) {
+            super(message);
+        }
     }
 }

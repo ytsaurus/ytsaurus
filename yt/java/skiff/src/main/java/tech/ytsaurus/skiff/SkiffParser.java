@@ -114,6 +114,15 @@ public class SkiffParser {
         return parseUint16();
     }
 
+    public byte[] getDataInBigEndian(int length) {
+        getDataInLittleEndian(length);
+        var data = new byte[length];
+        for (int i = length - 1; i >= 0; i--) {
+            data[length - i - 1] = bufferReference.getBuffer()[bufferReference.getOffset() + i];
+        }
+        return data;
+    }
+
     public boolean hasMoreData() {
         boolean isNotEOF;
         isNotEOF = reader.tryReadByte() != StreamReader.END_OF_STREAM;
@@ -125,14 +134,5 @@ public class SkiffParser {
 
     private void getDataInLittleEndian(int length) {
         reader.readBytes(length, bufferReference);
-    }
-
-    private byte[] getDataInBigEndian(int length) {
-        getDataInLittleEndian(length);
-        var data = new byte[length];
-        for (int i = length - 1; i >= 0; i--) {
-            data[length - i - 1] = bufferReference.getBuffer()[bufferReference.getOffset() + i];
-        }
-        return data;
     }
 }

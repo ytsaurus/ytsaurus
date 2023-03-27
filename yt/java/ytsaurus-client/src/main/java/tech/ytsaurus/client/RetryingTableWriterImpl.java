@@ -2,6 +2,7 @@ package tech.ytsaurus.client;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -27,6 +28,7 @@ import tech.ytsaurus.client.request.GetNode;
 import tech.ytsaurus.client.request.LockNode;
 import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.client.request.WriteTable;
+import tech.ytsaurus.client.rows.EntityTableSchemaCreator;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowSerializer;
 import tech.ytsaurus.client.rpc.RpcOptions;
@@ -38,6 +40,7 @@ import tech.ytsaurus.core.request.LockMode;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
+import tech.ytsaurus.ysontree.YTreeNode;
 
 @NonNullApi
 @NonNullFields
@@ -106,7 +109,7 @@ class RetryingTableWriterBaseImpl<T> {
 
     final ApiServiceClient apiServiceClient;
     final ScheduledExecutorService executor;
-    final WriteTable<T> secondaryReq;
+    WriteTable<T> secondaryReq;
     final RpcOptions rpcOptions;
     @Nullable
     TableRowsSerializer<T> tableRowsSerializer;
@@ -138,7 +141,7 @@ class RetryingTableWriterBaseImpl<T> {
             RpcOptions rpcOptions,
             SerializationResolver serializationResolver
     ) {
-        Objects.requireNonNull(req.getYPath());
+        req = needSetTableSchema(req) ? getRequestWithTableSchema(req) : req;
 
         this.apiServiceClient = apiServiceClient;
         this.executor = executor;
@@ -146,9 +149,6 @@ class RetryingTableWriterBaseImpl<T> {
 
         this.req = req.toBuilder().setNeedRetries(false).build();
         this.secondaryReq = this.req.toBuilder().setPath(req.getYPath().append(true)).build();
-
-        this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(
-                this.req.getSerializationContext(), serializationResolver);
 
         YPath path = this.req.getYPath();
         boolean append = path.getAppend().orElse(false);
@@ -166,11 +166,15 @@ class RetryingTableWriterBaseImpl<T> {
                 .thenCompose(transaction -> {
                     CompletableFuture<?> createNodeFuture;
                     if (!append) {
+                        HashMap<String, YTreeNode> attributes = new HashMap<>();
+                        this.req.getTableSchema()
+                                .ifPresent(schema -> attributes.put("schema", schema.toYTree()));
                         createNodeFuture = transaction.createNode(
                                 CreateNode.builder()
                                         .setPath(path)
                                         .setType(CypressNodeType.TABLE)
-                                        .setIgnoreExisting(true)
+                                        .setAttributes(attributes)
+                                        .setForce(true)
                                         .build());
                     } else {
                         createNodeFuture = CompletableFuture.completedFuture(transaction);
@@ -185,6 +189,25 @@ class RetryingTableWriterBaseImpl<T> {
                             .thenApply(node -> new InitResult(
                                     transaction, TableSchema.fromYTree(node.getAttributeOrThrow("schema"))))
                             .thenApply(result -> {
+                                this.req.getSerializationContext()
+                                        .getSkiffSerializer()
+                                        .ifPresent(serializer -> serializer.setTableSchema(result.schema));
+
+                                if (this.req.getTableSchema().isEmpty()) {
+                                    if (this.req.getSerializationContext().getSkiffSerializer().isPresent()) {
+                                        this.req = this.req.toBuilder()
+                                                .setTableSchema(result.schema)
+                                                .build();
+                                        this.secondaryReq = this.secondaryReq.toBuilder()
+                                                .setTableSchema(result.schema)
+                                                .build();
+                                    }
+                                } else if (!this.req.getTableSchema().get().equals(result.schema)) {
+                                    throw new IllegalStateException("Incorrect table schema");
+                                }
+
+                                this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(
+                                        this.req.getSerializationContext(), serializationResolver);
                                 if (this.tableRowsSerializer == null) {
                                     if (this.req.getSerializationContext().getObjectClass().isEmpty()) {
                                         throw new IllegalStateException("No object clazz");
@@ -259,6 +282,23 @@ class RetryingTableWriterBaseImpl<T> {
         });
     }
 
+    private boolean needSetTableSchema(WriteTable<T> req) {
+        return req.getSerializationContext().getSkiffSerializer().isPresent() &&
+                !req.getYPath().getAppend().orElse(false) &&
+                req.getTableSchema().isEmpty();
+    }
+
+    private WriteTable<T> getRequestWithTableSchema(WriteTable<T> req) {
+        return req.toBuilder()
+                .setTableSchema(
+                        EntityTableSchemaCreator.create(
+                                req.getSerializationContext()
+                                        .getObjectClass()
+                                        .orElseThrow(IllegalStateException::new))
+                )
+                .build();
+    }
+
     private <U> U checkedGet(CompletableFuture<U> future) {
         if (!future.isDone() && future.isCompletedExceptionally()) {
             throw new IllegalArgumentException("internal error");
@@ -306,7 +346,7 @@ class RetryingTableWriterBaseImpl<T> {
             }
 
             Optional<Duration> backoff = writeTask.retryPolicy.getBackoffDuration(ex, rpcOptions);
-            if (!backoff.isPresent()) {
+            if (backoff.isEmpty()) {
                 writeTask.handled.completeExceptionally(ex);
                 result.completeExceptionally(ex);
                 return null;

@@ -15,6 +15,10 @@ public class TableAttachmentSkiffReader<T> extends TableAttachmentRowsetReader<T
         this.serializer = serializer;
     }
 
+    public EntitySkiffSerializer<T> getSerializer() {
+        return serializer;
+    }
+
     @Override
     protected List<T> parseMergedRow(ByteBuffer buffer, int size) {
         byte[] data = new byte[size];
