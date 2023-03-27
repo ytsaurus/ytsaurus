@@ -52,6 +52,7 @@
     XX(AllowUsingChunkMerger, allow_using_chunk_merger) \
     XX(Banned, banned) \
     XX(BannedNodeCount, banned_node_count) \
+    XX(BeingDisposed, being_disposed) \
     XX(BoundaryKeys, boundary_keys) \
     XX(BranchedNodeIds, branched_node_ids) \
     XX(Broken, broken) \
