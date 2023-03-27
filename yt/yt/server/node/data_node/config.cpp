@@ -119,13 +119,6 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0)
         .Default(0);
 
-    registrar.Parameter("disk_family", &TThis::DiskFamily)
-        .Default("UNKNOWN");
-    registrar.Parameter("device_name", &TThis::DeviceName)
-        .Default("UNKNOWN");
-    registrar.Parameter("device_model", &TThis::DeviceModel)
-        .Default("UNKNOWN");
-
     registrar.Parameter("io_weight", &TThis::IOWeight)
         .GreaterThanOrEqual(0)
         .Default(1.0);

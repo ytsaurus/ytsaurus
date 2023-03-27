@@ -25,6 +25,8 @@
 
 #include <yt/yt/library/program/program.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <yt/yt/client/misc/io_tags.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -51,6 +53,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NIO;
 using namespace NDataNode;
+using namespace NProfiling;
 using namespace NRpc;
 using namespace NFS;
 
@@ -90,7 +93,12 @@ TSlotLocation::TSlotLocation(
         BIND(&TSlotLocation::UpdateSlotLocationStatistics, MakeWeak(this)),
         Bootstrap_->GetConfig()->ExecNode->SlotManager->SlotLocationStatisticsUpdatePeriod))
     , LocationPath_(GetRealPath(Config_->Path))
-{ }
+{
+    ExecNodeProfiler.WithPrefix("/job_directory/artifacts")
+        .WithTag("device_name", Config_->DeviceName)
+        .WithTag("disk_family", Config_->DiskFamily)
+        .AddProducer("", MakeCopyMetricBuffer_);
+}
 
 TFuture<void> TSlotLocation::Initialize()
 {
@@ -445,6 +453,8 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                 destinationFile.GetName());
 
             TFile sourceFile(sourcePath, OpenExisting | RdOnly | Seq | CloseOnExec);
+
+            auto copyFileStart = TInstant::Now().MicroSeconds();
             ChunkedCopy(
                 sourceFile,
                 destinationFile,
@@ -474,6 +484,15 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                             /*location*/ nullptr,
                             /*slotLocationTags*/ TSlotLocationIOTags{.SlotIndex = slotIndex}));
                 }
+            }
+
+            if (Bootstrap_->GetConfig()->ExecNode->EnableArtifactCopyTracking) {
+                auto length = sourceFile.GetLength();
+                auto delta = TInstant::Now().MicroSeconds() - copyFileStart;
+
+                MakeCopyMetricBuffer_->Update([=] (ISensorWriter* writer) {
+                    writer->AddGauge("/copy/rate", std::max(0.0, (1.0 * length / delta)));
+                });
             }
 
             YT_LOG_DEBUG(

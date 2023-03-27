@@ -81,6 +81,15 @@ public:
     //! Minimum size the disk partition must have to make this location usable.
     std::optional<i64> MinDiskSpace;
 
+    //! Block device name.
+    TString DeviceName;
+
+    //! Storage device vendor info.
+    TString DeviceModel;
+
+    //! Disk family in this location (HDD, SDD, etc.)
+    TString DiskFamily;
+
     void ApplyDynamicInplace(const TDiskLocationDynamicConfig& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TDiskLocationConfig);

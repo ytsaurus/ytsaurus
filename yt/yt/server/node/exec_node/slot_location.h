@@ -11,6 +11,8 @@
 
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 #include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/atomic_object.h>
@@ -161,6 +163,8 @@ private:
     TAtomicObject<TError> Error_;
 
     TAtomicObject<TError> Alert_;
+
+    NProfiling::TBufferedProducerPtr MakeCopyMetricBuffer_ = New<NProfiling::TBufferedProducer>();
 
     void ValidateEnabled() const;
 

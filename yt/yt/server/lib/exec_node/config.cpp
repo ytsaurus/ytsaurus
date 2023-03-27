@@ -503,6 +503,9 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("test_root_fs", &TThis::TestRootFS)
         .Default(false);
 
+    registrar.Parameter("enable_artifact_copy_tracking", &TThis::EnableArtifactCopyTracking)
+        .Default(false);
+
     registrar.Parameter("use_common_root_fs_quota", &TThis::UseCommonRootFsQuota)
         .Default(false);
 

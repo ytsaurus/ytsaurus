@@ -89,9 +89,6 @@ public:
     // is subclass-specific).
     TString MediumName;
 
-    //! Disk family in this location (HDD, SDD, etc.)
-    TString DiskFamily;
-
     //! Configuration for various per-location throttlers.
     TEnumIndexedVector<EChunkLocationThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
 
@@ -106,12 +103,6 @@ public:
     //! Maximum number of bytes in the gap between two adjacent read locations
     //! in order to join them together during read coalescing.
     i64 CoalescedReadMaxGapSize;
-
-    //! Block device name.
-    TString DeviceName;
-
-    //! Storage device vendor info.
-    TString DeviceModel;
 
     i64 MaxWriteRateByDwpd;
 

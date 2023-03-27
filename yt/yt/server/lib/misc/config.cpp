@@ -92,6 +92,12 @@ void TDiskLocationConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_disk_space", &TThis::MinDiskSpace)
         .GreaterThanOrEqual(0)
         .Default();
+    registrar.Parameter("disk_family", &TThis::DiskFamily)
+        .Default("UNKNOWN");
+    registrar.Parameter("device_name", &TThis::DeviceName)
+        .Default("UNKNOWN");
+    registrar.Parameter("device_model", &TThis::DeviceModel)
+        .Default("UNKNOWN");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
