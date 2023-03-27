@@ -830,7 +830,7 @@ message TContainer {
 // Volumes
 
 message TVolumeDescription {
-    optional string path = 1;           // path in client namespace
+    required string path = 1;           // path in client namespace
     map<string, string> properties = 2;
     repeated string containers = 3;     // linked containers (legacy)
     repeated TVolumeLink links = 4;     // linked containers with details
@@ -1066,6 +1066,7 @@ message TCreateFromSpecRequest {
 
 message TUpdateFromSpecRequest {
     optional TContainerSpec container = 1;    //required
+    optional bool start = 2;
 }
 
 message TListContainersFilter {
