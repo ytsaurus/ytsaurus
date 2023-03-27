@@ -2649,9 +2649,9 @@ PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 ```
 
-### strace_job
-
 {% if audience == internal %}
+
+### strace_job
 
 
 {% note warning "Внимание" %}
