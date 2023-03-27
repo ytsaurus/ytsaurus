@@ -39,7 +39,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLockingState
+struct THunkStoreLockingState
 {
     // Persistent.
     int PersistentLockCount = 0;
@@ -76,14 +76,14 @@ struct TLockingState
 };
 
 
-void FormatValue(TStringBuilderBase* builder, const TLockingState& ref, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const THunkStoreLockingState& ref, TStringBuf /*spec*/)
 {
     builder->AppendFormat("PersistentLockCount: %v, TransientLockCount}",
         ref.PersistentLockCount,
         ref.TransientLockCount);
 }
 
-TString ToString(const TLockingState& ref)
+TString ToString(const THunkStoreLockingState& ref)
 {
     return ToStringViaBuilder(ref);
 }
@@ -150,7 +150,7 @@ public:
             hunkCellId,
             hunkTabletId);
 
-        TLockingState lockingState{
+        THunkStoreLockingState lockingState{
             .HunkCellId = hunkCellId,
             .HunkTabletId = hunkTabletId,
             .HunkMountRevision = hunkMountRevision,
@@ -380,7 +380,7 @@ private:
     TAtomicObject<TPeriodicExecutorPtr> UnlockExecutor_;
 
     THashMap<TChunkId, TPromise<void>> HunkStoreIdsBeingLockedToPromise_;
-    THashMap<TChunkId, TLockingState> HunkStoreIdToLockingState_;
+    THashMap<TChunkId, THunkStoreLockingState> HunkStoreIdToLockingState_;
 
     void Save(TSaveContext& context) const override
     {
@@ -438,7 +438,7 @@ private:
         }
     }
 
-    void Touch(TLockingState& state)
+    void Touch(THunkStoreLockingState& state)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
