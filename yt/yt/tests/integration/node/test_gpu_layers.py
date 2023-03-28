@@ -1215,10 +1215,3 @@ class TestExtraGpuCheckFailure(YTEnvSetup, GpuCheckBase):
         alerts = get(alerts_path)
         assert len(alerts) == 1
         assert "GPU check command failed" in str(alerts[0])
-
-
-@authors("don-dron")
-class TestGpuJobWorkspaceSetup(TestGpuCheck):
-    @classmethod
-    def modify_node_config(cls, config):
-        config["exec_agent"]["use_common_root_fs_quota"] = True

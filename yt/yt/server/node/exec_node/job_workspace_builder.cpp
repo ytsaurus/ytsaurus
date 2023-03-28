@@ -3,6 +3,8 @@
 #include "job_gpu_checker.h"
 #include "job_directory_manager.h"
 
+#include <yt/yt/server/lib/exec_node/helpers.h>
+
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -41,7 +43,7 @@ TJobWorkspaceBuilder::TJobWorkspaceBuilder(
     }
 }
 
-template<TFuture<void> (TJobWorkspaceBuilder::*Method)()>
+template<TFuture<void>(TJobWorkspaceBuilder::*Method)()>
 TFuture<void> TJobWorkspaceBuilder::GuardedAction()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -65,7 +67,7 @@ TFuture<void> TJobWorkspaceBuilder::GuardedAction()
     return (*this.*Method)();
 }
 
-template<TFuture<void> (TJobWorkspaceBuilder::*Method)()>
+template<TFuture<void>(TJobWorkspaceBuilder::*Method)()>
 TCallback<TFuture<void>()> TJobWorkspaceBuilder::MakeStep()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -191,6 +193,9 @@ private:
     TFuture<void> DoPrepareSandboxDirectories()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
+        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
 
         YT_LOG_INFO("Started preparing sandbox directories");
 
@@ -328,6 +333,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
+        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
+
         YT_LOG_INFO("Started preparing sandbox directories");
 
         auto slot = Settings_.Slot;
@@ -349,13 +357,13 @@ private:
 
         YT_VERIFY(ResultHolder_.RootVolume);
 
-        std::vector<TBind> binds = Settings_.Binds;
+        auto binds = Settings_.Binds;
 
         for (const auto& bind : ResultHolder_.RootBinds) {
             binds.push_back(bind);
         }
 
-        return TRootFS {
+        return TRootFS{
             .RootPath = ResultHolder_.RootVolume->GetPath(),
             .IsRootReadOnly = false,
             .Binds = binds

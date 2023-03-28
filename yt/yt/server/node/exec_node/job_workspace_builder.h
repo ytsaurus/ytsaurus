@@ -112,10 +112,10 @@ protected:
     void UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit);
 
 private:
-    template<TFuture<void> (TJobWorkspaceBuilder::*Method)()>
+    template<TFuture<void>(TJobWorkspaceBuilder::*Method)()>
     TCallback<TFuture<void>()> MakeStep();
 
-    template<TFuture<void> (TJobWorkspaceBuilder::*Method)()>
+    template<TFuture<void>(TJobWorkspaceBuilder::*Method)()>
     TFuture<void> GuardedAction();
 
 };

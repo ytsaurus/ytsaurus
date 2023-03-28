@@ -13,6 +13,7 @@
 #include "shallow_merge_job.h"
 
 #include <yt/yt/library/containers/public.h>
+#include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 

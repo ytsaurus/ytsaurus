@@ -7,6 +7,7 @@
 #include <yt/yt/library/containers/instance.h>
 
 #include <yt/yt/server/lib/exec_node/public.h>
+#include <yt/yt/server/lib/exec_node/helpers.h>
 
 #ifdef __linux__
 #include <yt/yt/library/containers/porto_executor.h>

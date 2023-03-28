@@ -29,6 +29,8 @@
 
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
 
+#include <yt/yt/server/lib/exec_node/helpers.h>
+
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
@@ -1572,8 +1574,6 @@ void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr
         }
 
         CopyTime_ = TInstant::Now();
-        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
-
         RunWithWorkspaceBuilder();
     });
 }
@@ -1753,7 +1753,8 @@ void TJob::OnJobPreparationTimeout(TDuration prepareTimeLimit, bool fatal)
             fatal ? EErrorCode::FatalJobPreparationTimeout : EErrorCode::JobPreparationTimeout,
             "Failed to prepare job within timeout")
             << TErrorAttribute("prepare_time_limit", prepareTimeLimit)
-            << TErrorAttribute("job_start_time", StartTime_);
+            << TErrorAttribute("job_start_time", StartTime_)
+            << TErrorAttribute("job_phase", JobPhase_);
         Abort(error);
     }
 }

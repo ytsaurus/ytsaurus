@@ -4,19 +4,10 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TEnumIndexedVector<ESandboxKind, TString> SandboxDirectoryNames{
-    "sandbox",
-    "udf",
-    "home",
-    "pipes",
-    "tmp",
-    "cores",
-    "logs"
-};
+TString GetRootFsUserDirectory();
 
-const TString EmptyCpuSet("");
+TString GetSandboxRelPath(ESandboxKind sandboxKind);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode
-
