@@ -136,15 +136,13 @@ private:
                 int result;
                 if (addressConfig->Credentials) {
                     Credentials_.push_back(LoadServerCredentials(addressConfig->Credentials));
-                    result = grpc_server_add_secure_http2_port(
-                        Native_.Unwrap(),
-                        addressConfig->Address.c_str(),
-                        Credentials_.back().Unwrap());
                 } else {
-                    result = grpc_server_add_insecure_http2_port(
-                        Native_.Unwrap(),
-                        addressConfig->Address.c_str());
+                    Credentials_.emplace_back(grpc_insecure_server_credentials_create());
                 }
+                result = grpc_server_add_http2_port(
+                    Native_.Unwrap(),
+                    addressConfig->Address.c_str(),
+                    Credentials_.back().Unwrap());
                 if (result == 0) {
                     THROW_ERROR_EXCEPTION("Error configuring server to listen at %Qv",
                         addressConfig->Address);

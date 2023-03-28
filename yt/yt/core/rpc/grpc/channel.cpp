@@ -86,7 +86,7 @@ private:
         void RecordReceivedTrailingMetadata(
             y_absl::Status /*status*/,
             grpc_metadata_batch* /*recv_trailing_metadata*/,
-            const grpc_transport_stream_stats& /*transport_stream_stats*/) override
+            const grpc_transport_stream_stats* /*transport_stream_stats*/) override
         { }
 
         void RecordCancel(grpc_error_handle cancelError) override
@@ -145,21 +145,16 @@ public:
             .BeginMap()
                 .Item("address").Value(EndpointAddress_)
             .EndMap()))
+        , Credentials_(
+            Config_->Credentials ?
+                LoadChannelCredentials(Config_->Credentials) :
+                TGrpcChannelCredentialsPtr(grpc_insecure_credentials_create()))
     {
         TGrpcChannelArgs args(Config_->GrpcArguments);
-        if (Config_->Credentials) {
-            Credentials_ = LoadChannelCredentials(Config_->Credentials);
-            Channel_ = TGrpcChannelPtr(grpc_secure_channel_create(
-                Credentials_.Unwrap(),
-                Config_->Address.c_str(),
-                args.Unwrap(),
-                nullptr));
-        } else {
-            Channel_ = TGrpcChannelPtr(grpc_insecure_channel_create(
-                Config_->Address.c_str(),
-                args.Unwrap(),
-                nullptr));
-        }
+        Channel_ = TGrpcChannelPtr(grpc_channel_create(
+            Config_->Address.c_str(),
+            Credentials_.Unwrap(),
+            args.Unwrap()));
     }
 
     // IChannel implementation.
