@@ -5,7 +5,7 @@ from yt_commands import (
     ls, get, sorted_dicts,
     set, remove, exists, create_user, make_ace, start_transaction, commit_transaction, write_file, read_table,
     write_table, map, reduce, map_reduce, sort, alter_table,
-    abort_job, get_operation,
+    abandon_job, abort_job, get_operation,
     raises_yt_error,
     ban_node, unban_node)
 
@@ -3006,6 +3006,31 @@ done
                     "mapper_output_table_count": 2,
                 }
             )
+
+    @authors("galtsev")
+    def test_no_segfault_after_abondon_job(self):
+        if self.Env.get_component_version("ytserver-controller-agent").abi < (23, 1):
+            pytest.skip("In versions less than 23.1 the controller agent segfaults after an abandon job request")
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"x": 1, "y": 2}, {"x": 2, "y": 3}] * 5)
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by="x",
+            sort_by="x",
+            reducer_command=with_breakpoint("cat; BREAKPOINT"),
+            track=False,
+        )
+
+        job_id = wait_breakpoint()[0]
+        abandon_job(job_id)
+
+        release_breakpoint()
+        op.track()
 
 
 ##################################################################
