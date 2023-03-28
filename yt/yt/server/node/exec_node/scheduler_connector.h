@@ -14,6 +14,17 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSchedulerHeartbeatContext
+    : public TRefCounted
+{
+    THashSet<TJobPtr> JobsToForcefullySend;
+    THashSet<TJobId> UnconfirmedJobIds;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSchedulerHeartbeatContext)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerConnector
     : public TRefCounted
 {
@@ -29,6 +40,10 @@ public:
         const TExecNodeDynamicConfigPtr& newConfig);
 
     void SetMinSpareResources(const NScheduler::TJobResources& minSpareResources);
+
+    void EnqueueFinishedJobs(std::vector<TJobPtr> jobs);
+
+    void AddUnconfirmedJobs(const std::vector<TJobId>& unconfirmedJobIds);
 
 private:
     const TSchedulerConnectorConfigPtr StaticConfig_;
@@ -55,6 +70,9 @@ private:
     NProfiling::TEventTimer TimeBetweenSentHeartbeatsCounter_;
     NProfiling::TEventTimer TimeBetweenAcknowledgedHeartbeatsCounter_;
     NProfiling::TEventTimer TimeBetweenFullyProcessedHeartbeatsCounter_;
+
+    THashSet<TJobPtr> JobsToForcefullySend_;
+    THashSet<TJobId> UnconfirmedJobIds_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

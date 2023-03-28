@@ -98,9 +98,11 @@ void TSchedulerConnector::SendOutOfBandHeartbeatIfNeeded()
         BIND(&TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded, MakeStrong(this)));
 }
 
-void TSchedulerConnector::OnJobFinished(const TJobPtr& /*job*/)
+void TSchedulerConnector::OnJobFinished(const TJobPtr& job)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    EnqueueFinishedJobs({job});
 
     HeartbeatExecutor_->ScheduleOutOfBand();
 }
@@ -133,6 +135,22 @@ void TSchedulerConnector::SetMinSpareResources(const NScheduler::TJobResources& 
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     MinSpareResources_ = minSpareResources;
+}
+
+void TSchedulerConnector::EnqueueFinishedJobs(std::vector<TJobPtr> jobs)
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    for (auto& job : jobs) {
+        JobsToForcefullySend_.emplace(std::move(job));
+    }
+}
+
+void TSchedulerConnector::AddUnconfirmedJobs(const std::vector<TJobId>& unconfirmedJobIds)
+{
+    for (auto jobId : unconfirmedJobIds) {
+        UnconfirmedJobIds_.emplace(jobId);
+    }
 }
 
 void TSchedulerConnector::Start()
@@ -183,9 +201,13 @@ void TSchedulerConnector::DoSendHeartbeat()
     auto req = proxy.Heartbeat();
     req->SetRequestCodec(NCompression::ECodec::Lz4);
 
+    auto heartbeatContext = New<TSchedulerHeartbeatContext>();
+    heartbeatContext->JobsToForcefullySend = std::move(JobsToForcefullySend_);
+    heartbeatContext->UnconfirmedJobIds = std::move(UnconfirmedJobIds_);
+
     const auto& jobController = Bootstrap_->GetJobController();
     {
-        auto error = WaitFor(jobController->PrepareSchedulerHeartbeatRequest(req));
+        auto error = WaitFor(jobController->PrepareSchedulerHeartbeatRequest(req, heartbeatContext));
         YT_LOG_FATAL_IF(
             !error.IsOK(),
             error,
@@ -243,7 +265,7 @@ void TSchedulerConnector::DoSendHeartbeat()
     }
 
     {
-        auto error = WaitFor(jobController->ProcessSchedulerHeartbeatResponse(rsp));
+        auto error = WaitFor(jobController->ProcessSchedulerHeartbeatResponse(rsp, heartbeatContext));
         YT_LOG_FATAL_IF(!error.IsOK(), error, "Error while processing scheduler heartbeat response");
     }
 }

@@ -55,6 +55,14 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
     HeartbeatExecutor_->Start();
 }
 
+void TControllerAgentConnectorPool::Start()
+{
+    const auto& jobController = Bootstrap_->GetJobController();
+    jobController->SubscribeJobFinished(BIND_NO_PROPAGATE(
+        &TControllerAgentConnectorPool::OnJobFinished,
+        MakeWeak(this)));
+}
+
 NRpc::IChannelPtr TControllerAgentConnectorPool::TControllerAgentConnector::GetChannel() const noexcept
 {
     return Channel_;
@@ -349,6 +357,14 @@ void TControllerAgentConnectorPool::OnConfigUpdated()
 
     for (const auto& [agentDescriptor, controllerAgentConnector] : ControllerAgentConnectors_) {
         controllerAgentConnector->OnConfigUpdated();
+    }
+}
+
+void TControllerAgentConnectorPool::OnJobFinished(const TJobPtr& job)
+{
+    if (auto controllerAgentConnector = job->GetControllerAgentConnector()) {
+        controllerAgentConnector->EnqueueFinishedJob(job);
+        controllerAgentConnector->SendOutOfBandHeartbeatIfNeeded();
     }
 }
 

@@ -196,6 +196,8 @@ public:
         MasterConnector_->Initialize();
 
         SchedulerConnector_->Start();
+
+        ControllerAgentConnectorPool_->Start();
     }
 
     const TGpuManagerPtr& GetGpuManager() const override

@@ -42,7 +42,6 @@ public:
         TControllerAgentConnector(
             TControllerAgentConnectorPool* controllerAgentConnectorPool,
             TControllerAgentDescriptor controllerAgentDescriptor);
-
         NRpc::IChannelPtr GetChannel() const noexcept;
         void SendOutOfBandHeartbeatIfNeeded();
         void EnqueueFinishedJob(const TJobPtr& job);
@@ -89,6 +88,8 @@ public:
 
     TControllerAgentConnectorPool(TControllerAgentConnectorConfigPtr config, IBootstrap* bootstrap);
 
+    void Start();
+
     NRpc::IChannelPtr GetOrCreateChannel(const TControllerAgentDescriptor& controllerAgentDescriptor);
 
     void SendOutOfBandHeartbeatsIfNeeded();
@@ -120,7 +121,7 @@ private:
 
     void OnConfigUpdated();
 
-    void ScanOutdatedAgents();
+    void OnJobFinished(const TJobPtr& job);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorPool)

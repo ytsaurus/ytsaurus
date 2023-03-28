@@ -89,11 +89,13 @@ public:
 
     //! Prepares a scheduler heartbeat request.
     virtual TFuture<void> PrepareSchedulerHeartbeatRequest(
-        const TReqSchedulerHeartbeatPtr& request) = 0;
+        const TReqSchedulerHeartbeatPtr& request,
+        const TSchedulerHeartbeatContextPtr& context) = 0;
 
     //! Handles scheduler heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
     virtual TFuture<void> ProcessSchedulerHeartbeatResponse(
-        const TRspSchedulerHeartbeatPtr& response) = 0;
+        const TRspSchedulerHeartbeatPtr& response,
+        const TSchedulerHeartbeatContextPtr& context) = 0;
 
     virtual TBuildInfoPtr GetBuildInfo() const = 0;
 

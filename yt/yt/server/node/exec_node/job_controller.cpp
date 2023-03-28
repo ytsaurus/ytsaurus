@@ -264,25 +264,27 @@ public:
     }
 
     TFuture<void> PrepareSchedulerHeartbeatRequest(
-        const TReqSchedulerHeartbeatPtr& request) override
+        const TReqSchedulerHeartbeatPtr& request,
+        const TSchedulerHeartbeatContextPtr& context) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return
             BIND(&TJobController::DoPrepareSchedulerHeartbeatRequest, MakeStrong(this))
                 .AsyncVia(Bootstrap_->GetJobInvoker())
-                .Run(request);
+                .Run(request, context);
     }
 
     TFuture<void> ProcessSchedulerHeartbeatResponse(
-        const TRspSchedulerHeartbeatPtr& response) override
+        const TRspSchedulerHeartbeatPtr& response,
+        const TSchedulerHeartbeatContextPtr& context) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return
             BIND(&TJobController::DoProcessSchedulerHeartbeatResponse, MakeStrong(this))
                 .AsyncVia(Bootstrap_->GetJobInvoker())
-                .Run(response);
+                .Run(response, context);
     }
 
     bool IsJobProxyProfilingDisabled() const override
@@ -435,8 +437,6 @@ private:
     // For converting vcpu to cpu back after getting response from scheduler.
     // It is needed because cpu_to_vcpu_factor can change between preparing request and processing response.
     double LastHeartbeatCpuToVCpuFactor_ = 1.0;
-
-    THashSet<NObjectClient::TJobId> JobIdsToConfirm_;
 
     TAtomicObject<TJobControllerDynamicConfigPtr> DynamicConfig_ = New<TJobControllerDynamicConfig>();
 
@@ -986,7 +986,8 @@ private:
     }
 
     void DoProcessSchedulerHeartbeatResponse(
-        TRspSchedulerHeartbeatPtr response)
+        TRspSchedulerHeartbeatPtr response,
+        TSchedulerHeartbeatContextPtr /*context*/)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1119,10 +1120,7 @@ private:
             jobIdsToConfirm.push_back(jobId);
         }
 
-        JobIdsToConfirm_.clear();
-        if (!jobIdsToConfirm.empty()) {
-            JobIdsToConfirm_.insert(std::cbegin(jobIdsToConfirm), std::cend(jobIdsToConfirm));
-        }
+        ConfirmJobs(jobIdsToConfirm);
 
         // COMPAT(pogorelov)
         if constexpr (std::is_same_v<TRspSchedulerHeartbeatPtr, IJobController::TRspSchedulerHeartbeatPtr>) {
@@ -1176,7 +1174,8 @@ private:
     }
 
     void DoPrepareSchedulerHeartbeatRequest(
-        TReqSchedulerHeartbeatPtr request)
+        TReqSchedulerHeartbeatPtr request,
+        TSchedulerHeartbeatContextPtr context)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1216,8 +1215,6 @@ private:
 
         int confirmedJobCount = 0;
 
-        bool shouldSendControllerAgentHeartbeatsOutOfBand = false;
-
         const bool requestOperationInfosForStoredJobs =
             TInstant::Now() > LastOperationInfosRequestTime_ +
                 DynamicConfig_.Load()->OperationInfosRequestPeriod;
@@ -1232,25 +1229,18 @@ private:
                 operationIdsToRequestInfo.insert(job->GetOperationId());
             }
 
-            auto confirmIt = JobIdsToConfirm_.find(jobId);
-            if (job->GetStored() && !totalConfirmation && confirmIt == std::cend(JobIdsToConfirm_)) {
+            bool sendForcefully = context->JobsToForcefullySend.erase(job) || totalConfirmation;
+            if (job->GetStored() && !sendForcefully) {
                 continue;
             }
 
-            const bool sendConfirmedJobToControllerAgent = !(job->GetStored() &&
-                confirmIt == std::cend(JobIdsToConfirm_) &&
-                totalConfirmation);
-
-            if (job->GetStored() || confirmIt != std::cend(JobIdsToConfirm_)) {
+            if (job->GetStored()) {
                 YT_LOG_DEBUG("Confirming job (JobId: %v, OperationId: %v, Stored: %v, State: %v)",
                     jobId,
                     job->GetOperationId(),
                     job->GetStored(),
                     job->GetState());
                 ++confirmedJobCount;
-            }
-            if (confirmIt != std::cend(JobIdsToConfirm_)) {
-                JobIdsToConfirm_.erase(confirmIt);
             }
 
             auto* allocationStatus = request->add_allocations();
@@ -1266,25 +1256,21 @@ private:
                 case EJobState::Aborted:
                 case EJobState::Failed: {
                     ToProto(allocationStatus->mutable_result()->mutable_error(), job->GetJobError());
-
-                    if (sendConfirmedJobToControllerAgent) {
-                        auto controllerAgentConnector = job->GetControllerAgentConnector();
-                        if (controllerAgentConnector) {
-                            controllerAgentConnector->EnqueueFinishedJob(job);
-                            shouldSendControllerAgentHeartbeatsOutOfBand = true;
-                        } else {
-                            YT_LOG_DEBUG(
-                                "Controller agent for job is not received yet; "
-                                "finished job info will be reported later (JobId: %v, JobControllerAgentDescriptor: %v)",
-                                jobId,
-                                job->GetControllerAgentDescriptor());
-                        }
-                    }
                     break;
                 }
                 default:
                     break;
             }
+        }
+
+        for (const auto& job : context->JobsToForcefullySend) {
+            YT_LOG_DEBUG("Forcefully send already removed job (JobId: %v, JobState: %v)", job->GetId(), job->GetState());
+
+            YT_VERIFY(job->IsFinished());
+
+            auto* allocationStatus = request->add_allocations();
+            FillJobStatus(allocationStatus, job);
+            ToProto(allocationStatus->mutable_result()->mutable_error(), job->GetJobError());
         }
 
         request->set_confirmed_job_count(confirmedJobCount);
@@ -1304,12 +1290,8 @@ private:
             *jobStatus->mutable_result() = jobResult;
         }
 
-        if (!std::empty(JobIdsToConfirm_)) {
-            YT_LOG_WARNING("Unconfirmed jobs found (UnconfirmedJobCount: %v)", std::size(JobIdsToConfirm_));
-            for (auto jobId : JobIdsToConfirm_) {
-                YT_LOG_DEBUG("Unconfirmed job (JobId: %v)", jobId);
-            }
-            ToProto(request->mutable_unconfirmed_allocations(), JobIdsToConfirm_);
+        if (!std::empty(context->UnconfirmedJobIds)) {
+            ToProto(request->mutable_unconfirmed_allocations(), context->UnconfirmedJobIds);
         }
 
         // COMPAT(pogorelov)
@@ -1326,13 +1308,6 @@ private:
         }
 
         YT_LOG_DEBUG("Scheduler heartbeat request prepared");
-
-        if (shouldSendControllerAgentHeartbeatsOutOfBand) {
-            Bootstrap_
-                ->GetExecNodeBootstrap()
-                ->GetControllerAgentConnectorPool()
-                ->SendOutOfBandHeartbeatsIfNeeded();
-        }
     }
 
     void StartWaitingJobs()
@@ -1868,6 +1843,42 @@ private:
         for (const auto& job : operationJobs) {
             job->UpdateControllerAgentDescriptor(controllerAgentDescriptor);
         }
+    }
+
+    void ConfirmJobs(const std::vector<TJobId>& jobs)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        std::vector<TJobPtr> confirmedJobs;
+        std::vector<TJobId> unconfirmedJobs;
+
+        confirmedJobs.reserve(std::size(jobs));
+
+        for (auto jobId : jobs) {
+            YT_LOG_DEBUG("Requested to confirm job (JobId: %v)", jobId);
+
+            if (auto job = FindJob(jobId)) {
+                if (auto controllerAgentConnector = job->GetControllerAgentConnector()) {
+                    controllerAgentConnector->EnqueueFinishedJob(job);
+                } else {
+                    YT_LOG_DEBUG(
+                        "Controller agent for job is not received yet; "
+                        "finished job info will be reported later (JobId: %v, JobControllerAgentDescriptor: %v)",
+                        jobId,
+                        job->GetControllerAgentDescriptor());
+                }
+
+                confirmedJobs.push_back(std::move(job));
+            } else {
+                YT_LOG_DEBUG("Job unconfimed (JobId: %v)", jobId);
+            }
+        }
+
+        const auto& schedulerConnector = Bootstrap_->GetExecNodeBootstrap()->GetSchedulerConnector();
+        schedulerConnector->AddUnconfirmedJobs(unconfirmedJobs);
+        schedulerConnector->EnqueueFinishedJobs(std::move(confirmedJobs));
+
+        Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool()->SendOutOfBandHeartbeatsIfNeeded();
     }
 };
 
