@@ -193,7 +193,7 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("running_job_statistics_sending_backoff", &TThis::RunningJobStatisticsSendingBackoff)
         .Default();
     registrar.Parameter("use_new_job_tracker_service", &TThis::UseNewJobTrackerService)
-        .Default();
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
