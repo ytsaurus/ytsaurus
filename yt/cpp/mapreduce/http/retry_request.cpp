@@ -51,9 +51,10 @@ TResponseInfo RequestWithoutRetry(
     TMaybe<TStringBuf> body,
     const TRequestConfig& config)
 {
-    header.SetToken(context.Token);
     if (context.ServiceTicketAuth) {
         header.SetServiceTicket(context.ServiceTicketAuth->Ptr->IssueServiceTicket());
+    } else {
+        header.SetToken(context.Token);
     }
 
     if (header.HasMutationId()) {
@@ -72,9 +73,10 @@ TResponseInfo RetryRequestWithPolicy(
     TMaybe<TStringBuf> body,
     const TRequestConfig& config)
 {
-    header.SetToken(context.Token);
     if (context.ServiceTicketAuth) {
         header.SetServiceTicket(context.ServiceTicketAuth->Ptr->IssueServiceTicket());
+    } else {
+        header.SetToken(context.Token);
     }
 
     bool useMutationId = header.HasMutationId();

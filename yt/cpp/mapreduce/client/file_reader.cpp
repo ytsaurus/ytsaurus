@@ -139,9 +139,10 @@ NHttpClient::IHttpResponsePtr TFileReader::Request(const TClientContext& context
     TString hostName = GetProxyForHeavyRequest(context);
 
     THttpHeader header("GET", GetReadFileCommand(context.Config->ApiVersion));
-    header.SetToken(context.Token);
     if (context.ServiceTicketAuth) {
         header.SetServiceTicket(context.ServiceTicketAuth->Ptr->IssueServiceTicket());
+    } else {
+        header.SetToken(context.Token);
     }
     header.AddTransactionId(transactionId);
     header.SetOutputFormat(TMaybe<TFormat>()); // Binary format
@@ -192,9 +193,10 @@ NHttpClient::IHttpResponsePtr TBlobTableReader::Request(const TClientContext& co
     TString hostName = GetProxyForHeavyRequest(context);
 
     THttpHeader header("GET", "read_blob_table");
-    header.SetToken(context.Token);
     if (context.ServiceTicketAuth) {
         header.SetServiceTicket(context.ServiceTicketAuth->Ptr->IssueServiceTicket());
+    } else {
+        header.SetToken(context.Token);
     }
     header.AddTransactionId(transactionId);
     header.SetOutputFormat(TMaybe<TFormat>()); // Binary format

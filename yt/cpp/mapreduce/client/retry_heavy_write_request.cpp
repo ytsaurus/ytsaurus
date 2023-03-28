@@ -31,9 +31,10 @@ void RetryHeavyWriteRequest(
     std::function<THolder<IInputStream>()> streamMaker)
 {
     int retryCount = context.Config->RetryCount;
-    header.SetToken(context.Token);
     if (context.ServiceTicketAuth) {
         header.SetServiceTicket(context.ServiceTicketAuth->Ptr->IssueServiceTicket());
+    } else {
+        header.SetToken(context.Token);
     }
 
     for (int attempt = 0; attempt < retryCount; ++attempt) {

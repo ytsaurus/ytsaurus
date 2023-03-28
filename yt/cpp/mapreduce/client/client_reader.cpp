@@ -149,9 +149,10 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
         CurrentRequestRetryPolicy_->NotifyNewAttempt();
 
         THttpHeader header("GET", GetReadTableCommand(Context_.Config->ApiVersion));
-        header.SetToken(Context_.Token);
         if (Context_.ServiceTicketAuth) {
             header.SetServiceTicket(Context_.ServiceTicketAuth->Ptr->IssueServiceTicket());
+        } else {
+            header.SetToken(Context_.Token);
         }
         auto transactionId = (ReadTransaction_ ? ReadTransaction_->GetId() : ParentTransactionId_);
         header.AddTransactionId(transactionId);

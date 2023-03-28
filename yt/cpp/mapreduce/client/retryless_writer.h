@@ -41,9 +41,10 @@ public:
         header.MergeParameters(FormIORequestParameters(path, options));
         header.AddTransactionId(parentId);
         header.SetRequestCompression(ToString(context.Config->ContentEncoding));
-        header.SetToken(context.Token);
         if (context.ServiceTicketAuth) {
             header.SetServiceTicket(context.ServiceTicketAuth->Ptr->IssueServiceTicket());
+        } else {
+            header.SetToken(context.Token);
         }
 
         TString requestId = CreateGuidAsString();

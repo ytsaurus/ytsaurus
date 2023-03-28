@@ -651,10 +651,10 @@ class TResponseReader
 public:
     TResponseReader(const TClientContext& context, THttpHeader header)
     {
-        header.SetToken(context.Token);
-
         if (context.ServiceTicketAuth) {
             header.SetServiceTicket(context.ServiceTicketAuth->Ptr->IssueServiceTicket());
+        } else {
+            header.SetToken(context.Token);
         }
 
         auto hostName = GetProxyForHeavyRequest(context);
