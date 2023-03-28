@@ -39,8 +39,7 @@ public:
     // Should return PollBreak if poller should stop polling this item.
     virtual EStatus OnRequestExecuted() = 0;
 
-    virtual void OnItemDiscarded()
-    { }
+    virtual void OnItemDiscarded() = 0;
 
 };
 using IYtPollerItemPtr = ::TIntrusivePtr<IYtPollerItem>;

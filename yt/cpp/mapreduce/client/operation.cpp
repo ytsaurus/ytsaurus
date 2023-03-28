@@ -2201,6 +2201,10 @@ public:
         return PollContinue;
     }
 
+    void OnItemDiscarded() override {
+        OperationImpl_->FinishWithException(std::make_exception_ptr(yexception() << "Operation cancelled"));
+    }
+
 private:
     ::TIntrusivePtr<TOperation::TOperationImpl> OperationImpl_;
     ::NThreading::TFuture<TOperationAttributes> OperationState_;

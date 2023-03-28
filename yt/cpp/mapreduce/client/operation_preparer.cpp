@@ -71,6 +71,9 @@ public:
         }
     }
 
+    void OnItemDiscarded() override {
+    }
+
 private:
     TOperationId OperationId_;
     THolder<TPingableTransaction> Transaction_;
