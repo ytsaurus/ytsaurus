@@ -26,13 +26,9 @@ namespace NDetail {
 
 Names ExtractColumnsFromPrewhereInfo(PrewhereInfoPtr prewhereInfo)
 {
-    Names prewhereColumns;
-    if (prewhereInfo->alias_actions) {
-        prewhereColumns = prewhereInfo->alias_actions->getRequiredColumnsNames();
-    } else {
-        prewhereColumns = prewhereInfo->prewhere_actions->getRequiredColumnsNames();
-    }
-    return prewhereColumns;
+    // TODO(dakovalkov): prewhereInfo also contains row_level_filter. Explore what it is.
+    // Probable we need to use both of them (see IMergeTreeSelectAlgorithm::getPrewhereActions).
+    return prewhereInfo->prewhere_actions->getRequiredColumnsNames();
 }
 
 std::vector<TDataSliceDescriptor> GetFilteredDataSliceDescriptors(std::shared_ptr<TBlockInputStream> blockInputStream)

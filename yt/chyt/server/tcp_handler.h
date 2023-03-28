@@ -3,14 +3,13 @@
 #include "private.h"
 
 #include <Server/IServer.h>
-
-#include <Poco/Net/TCPServerConnectionFactory.h>
+#include <Server/TCPServerConnectionFactory.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::Net::TCPServerConnectionFactory::Ptr CreateTcpHandlerFactory(THost* host, DB::IServer& server);
+DB::TCPServerConnectionFactory::Ptr CreateTcpHandlerFactory(THost* host, DB::IServer& server);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,4 +1,4 @@
-#include <common/DateLUT.h>
+#include <Common/DateLUT.h>
 
 #include <Core/Field.h>
 
@@ -81,7 +81,7 @@ public:
     }
 };
 
-void registerFunctionYesterday(FunctionFactory & factory)
+REGISTER_FUNCTION(Yesterday)
 {
     factory.registerFunction<YesterdayOverloadResolver>();
 }

@@ -28,6 +28,8 @@ CascadeWriteBuffer::CascadeWriteBuffer(WriteBufferPtrs && prepared_sources_, Wri
 
 void CascadeWriteBuffer::nextImpl()
 {
+    if (!curr_buffer)
+        return;
     try
     {
         curr_buffer->position() = position();
@@ -48,8 +50,6 @@ void CascadeWriteBuffer::nextImpl()
     }
 
     set(curr_buffer->position(), curr_buffer->buffer().end() - curr_buffer->position());
-//     std::cerr << "CascadeWriteBuffer a count=" << count() << " bytes=" << bytes << " offset=" << offset()
-//     << " bytes+size=" << bytes + buffer().size() << "\n";
 }
 
 

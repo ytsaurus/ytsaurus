@@ -18,29 +18,37 @@ using namespace NLogging;
 
 static TLogger Logger("Test");
 
-DB::SharedContextHolder SharedContext = DB::Context::createShared();
+// NOTE(dakovalkov): SharedContextPart is a singletone. Creating it multiple times leads to std::terminate().
+// Storing and initializing SharedContextHolder as a global variable is also a bad idea:
+// DB::Context::createShared() uses some global variables from other compilation units,
+// and an initialization order of such variables is unspecified.
+
+// NOTE(dakovalkov): Can be called only once.
+DB::ContextPtr InitGlobalContext()
+{
+    static DB::SharedContextHolder sharedContextHolder = DB::Context::createShared();
+    DB::ContextMutablePtr globalContext = DB::Context::createGlobal(sharedContextHolder.get());
+    globalContext->makeGlobalContext();
+    return globalContext;
+}
+
+DB::ContextPtr GetGlobalContext()
+{
+    static DB::ContextPtr globalContext = InitGlobalContext();
+    return globalContext;
+}
 
 class TComputedColumnPredicatePopulationTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<TTableSchemaPtr, TString, TString, TString>>
 {
 protected:
-    void SetUp() override
+    DB::ContextPtr CreateQueryContext() const
     {
-        GlobalContext_ = DB::Context::createGlobal(SharedContext.get());
-    }
-
-    DB::ContextPtr CreateContext() const
-    {
-        YT_VERIFY(GlobalContext_);
-        auto context = DB::Context::createCopy(GlobalContext_);
+        auto context = DB::Context::createCopy(GetGlobalContext());
         context->makeQueryContext();
         return context;
     }
-
-private:
-    DB::SharedContextHolder SharedContext_;
-    DB::ContextPtr GlobalContext_;
 };
 
 TEST_P(TComputedColumnPredicatePopulationTest, Test)
@@ -53,7 +61,7 @@ TEST_P(TComputedColumnPredicatePopulationTest, Test)
     TQuerySettingsPtr settings = New<TQuerySettings>();
     for (auto deducedStatementMode : TEnumTraits<EDeducedStatementMode>::GetDomainValues()) {
         settings->DeducedStatementMode = deducedStatementMode;
-        auto resultAst = PopulatePredicateWithComputedColumns(originalAst->clone(), schema, CreateContext(), preparedSets, settings, Logger);
+        auto resultAst = PopulatePredicateWithComputedColumns(originalAst->clone(), schema, CreateQueryContext(), preparedSets, settings, Logger);
         auto resultPredicate = TString(DB::serializeAST(*resultAst));
         if (deducedStatementMode == EDeducedStatementMode::In) {
             EXPECT_EQ(expectedPredicateWithIn, resultPredicate);

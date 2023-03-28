@@ -25,12 +25,13 @@
 
 #include <Storages/MergeTree/KeyCondition.h>
 
-#include <Access/AccessControlManager.h>
+#include <Access/AccessControl.h>
 #include <Access/User.h>
 
 #include <Parsers/ASTAsterisk.h>
-#include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTIdentifier.h>
+#include <Parsers/ASTSelectQuery.h>
+#include <Parsers/ASTSelectWithUnionQuery.h>
 #include <Parsers/ASTSubquery.h>
 #include <Parsers/ASTTablesInSelectQuery.h>
 
@@ -62,7 +63,7 @@ TGuid ToGuid(DB::UUID uuid)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterNewUser(DB::AccessControlManager& accessControlManager, TString userName)
+void RegisterNewUser(DB::AccessControl& accessControl, TString userName)
 {
     auto user = std::make_unique<DB::User>();
     user->setName(userName);
@@ -71,7 +72,7 @@ void RegisterNewUser(DB::AccessControlManager& accessControlManager, TString use
     user->access.grant(DB::AccessType::CREATE_TEMPORARY_TABLE);
     user->access.grant(DB::AccessType::dictGet);
 
-    accessControlManager.tryInsert(std::move(user));
+    accessControl.tryInsert(std::move(user));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -331,7 +332,7 @@ TQuerySettingsPtr ParseCustomSettings(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Leaves only some of the "significant" profile counters.
-THashMap<TString, size_t> GetBriefProfileCounters(const ProfileEvents::Counters& profileCounters)
+THashMap<TString, size_t> GetBriefProfileCounters(const ProfileEvents::Counters::Snapshot& profileCounters)
 {
     static const std::vector<ProfileEvents::Event> SignificantEvents = {
         ProfileEvents::Query,
@@ -357,7 +358,7 @@ THashMap<TString, size_t> GetBriefProfileCounters(const ProfileEvents::Counters&
     THashMap<TString, size_t> result;
 
     for (const auto& event : SignificantEvents) {
-        result[CamelCaseToUnderscoreCase(ProfileEvents::getName(event))] = profileCounters[event].load(std::memory_order::relaxed);
+        result[CamelCaseToUnderscoreCase(ProfileEvents::getName(event))] = profileCounters[event];
     }
 
     return result;

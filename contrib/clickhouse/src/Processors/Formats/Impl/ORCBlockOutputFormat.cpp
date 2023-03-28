@@ -20,6 +20,7 @@
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypeTuple.h>
 #include <DataTypes/DataTypeMap.h>
+#include <DataTypes/DataTypeLowCardinality.h>
 
 namespace DB
 {
@@ -48,11 +49,13 @@ void ORCOutputStream::write(const void* buf, size_t length)
 }
 
 ORCBlockOutputFormat::ORCBlockOutputFormat(WriteBuffer & out_, const Block & header_, const FormatSettings & format_settings_)
-    : IOutputFormat(header_, out_), format_settings{format_settings_}, output_stream(out_), data_types(header_.getDataTypes())
+    : IOutputFormat(header_, out_), format_settings{format_settings_}, output_stream(out_)
 {
+    for (const auto & type : header_.getDataTypes())
+        data_types.push_back(recursiveRemoveLowCardinality(type));
 }
 
-ORC_UNIQUE_PTR<orc::Type> ORCBlockOutputFormat::getORCType(const DataTypePtr & type, const std::string & column_name)
+std::unique_ptr<orc::Type> ORCBlockOutputFormat::getORCType(const DataTypePtr & type)
 {
     switch (type->getTypeId())
     {
@@ -84,6 +87,7 @@ ORC_UNIQUE_PTR<orc::Type> ORCBlockOutputFormat::getORCType(const DataTypePtr & t
         {
             return orc::createPrimitiveType(orc::TypeKind::DOUBLE);
         }
+        case TypeIndex::Date32: [[fallthrough]];
         case TypeIndex::Date:
         {
             return orc::createPrimitiveType(orc::TypeKind::DATE);
@@ -96,16 +100,18 @@ ORC_UNIQUE_PTR<orc::Type> ORCBlockOutputFormat::getORCType(const DataTypePtr & t
         case TypeIndex::FixedString: [[fallthrough]];
         case TypeIndex::String:
         {
+            if (format_settings.orc.output_string_as_string)
+                return orc::createPrimitiveType(orc::TypeKind::STRING);
             return orc::createPrimitiveType(orc::TypeKind::BINARY);
         }
         case TypeIndex::Nullable:
         {
-            return getORCType(removeNullable(type), column_name);
+            return getORCType(removeNullable(type));
         }
         case TypeIndex::Array:
         {
             const auto * array_type = assert_cast<const DataTypeArray *>(type.get());
-            return orc::createListType(getORCType(array_type->getNestedType(), column_name));
+            return orc::createListType(getORCType(array_type->getNestedType()));
         }
         case TypeIndex::Decimal32:
         {
@@ -125,21 +131,19 @@ ORC_UNIQUE_PTR<orc::Type> ORCBlockOutputFormat::getORCType(const DataTypePtr & t
         case TypeIndex::Tuple:
         {
             const auto * tuple_type = assert_cast<const DataTypeTuple *>(type.get());
+            const auto & nested_names = tuple_type->getElementNames();
             const auto & nested_types = tuple_type->getElements();
             auto struct_type = orc::createStructType();
             for (size_t i = 0; i < nested_types.size(); ++i)
-            {
-                String name = column_name + "." + std::to_string(i);
-                struct_type->addStructField(name, getORCType(nested_types[i], name));
-            }
+                struct_type->addStructField(nested_names[i], getORCType(nested_types[i]));
             return struct_type;
         }
         case TypeIndex::Map:
         {
             const auto * map_type = assert_cast<const DataTypeMap *>(type.get());
             return orc::createMapType(
-                getORCType(map_type->getKeyType(), column_name),
-                getORCType(map_type->getValueType(), column_name)
+                getORCType(map_type->getKeyType()),
+                getORCType(map_type->getValueType())
                 );
         }
         default:
@@ -221,9 +225,9 @@ void ORCBlockOutputFormat::writeStrings(
         }
 
         string_orc_column.notNull[i] = 1;
-        const StringRef & string = string_column.getDataAt(i);
-        string_orc_column.data[i] = const_cast<char *>(string.data);
-        string_orc_column.length[i] = string.size;
+        const std::string_view & string = string_column.getDataAt(i).toView();
+        string_orc_column.data[i] = const_cast<char *>(string.data());
+        string_orc_column.length[i] = string.size();
     }
     string_orc_column.numElements = string_column.size();
 }
@@ -289,6 +293,7 @@ void ORCBlockOutputFormat::writeColumn(
             writeNumbers<UInt16, orc::LongVectorBatch>(orc_column, column, null_bytemap, [](const UInt16 & value){ return value; });
             break;
         }
+        case TypeIndex::Date32: [[fallthrough]];
         case TypeIndex::Int32:
         {
             writeNumbers<Int32, orc::LongVectorBatch>(orc_column, column, null_bytemap, [](const Int32 & value){ return value; });
@@ -393,17 +398,21 @@ void ORCBlockOutputFormat::writeColumn(
             const auto & list_column = assert_cast<const ColumnArray &>(column);
             auto nested_type = assert_cast<const DataTypeArray &>(*type).getNestedType();
             const ColumnArray::Offsets & offsets = list_column.getOffsets();
-            list_orc_column.resize(list_column.size());
+
+            size_t column_size = list_column.size();
+            list_orc_column.resize(column_size);
+
             /// The length of list i in ListVectorBatch is offsets[i+1] - offsets[i].
             list_orc_column.offsets[0] = 0;
-            for (size_t i = 0; i != list_column.size(); ++i)
+            for (size_t i = 0; i != column_size; ++i)
             {
                 list_orc_column.offsets[i + 1] = offsets[i];
                 list_orc_column.notNull[i] = 1;
             }
+
             orc::ColumnVectorBatch & nested_orc_column = *list_orc_column.elements;
             writeColumn(nested_orc_column, list_column.getData(), nested_type, null_bytemap);
-            list_orc_column.numElements = list_column.size();
+            list_orc_column.numElements = column_size;
             break;
         }
         case TypeIndex::Tuple:
@@ -424,10 +433,12 @@ void ORCBlockOutputFormat::writeColumn(
             const auto & map_type = assert_cast<const DataTypeMap &>(*type);
             const ColumnArray::Offsets & offsets = list_column.getOffsets();
 
+            size_t column_size = list_column.size();
+
             map_orc_column.resize(list_column.size());
             /// The length of list i in ListVectorBatch is offsets[i+1] - offsets[i].
             map_orc_column.offsets[0] = 0;
-            for (size_t i = 0; i != list_column.size(); ++i)
+            for (size_t i = 0; i != column_size; ++i)
             {
                 map_orc_column.offsets[i + 1] = offsets[i];
                 map_orc_column.notNull[i] = 1;
@@ -442,7 +453,7 @@ void ORCBlockOutputFormat::writeColumn(
             auto value_type = map_type.getValueType();
             writeColumn(values_orc_column, *nested_columns[1], value_type, null_bytemap);
 
-            map_orc_column.numElements = list_column.size();
+            map_orc_column.numElements = column_size;
             break;
         }
         default:
@@ -456,8 +467,9 @@ size_t ORCBlockOutputFormat::getColumnSize(const IColumn & column, DataTypePtr &
     {
         auto nested_type = assert_cast<const DataTypeArray &>(*type).getNestedType();
         const IColumn & nested_column = assert_cast<const ColumnArray &>(column).getData();
-        return getColumnSize(nested_column, nested_type);
+        return std::max(column.size(), getColumnSize(nested_column, nested_type));
     }
+
     return column.size();
 }
 
@@ -466,9 +478,7 @@ size_t ORCBlockOutputFormat::getMaxColumnSize(Chunk & chunk)
     size_t columns_num = chunk.getNumColumns();
     size_t max_column_size = 0;
     for (size_t i = 0; i != columns_num; ++i)
-    {
         max_column_size = std::max(max_column_size, getColumnSize(*chunk.getColumns()[i], data_types[i]));
-    }
     return max_column_size;
 }
 
@@ -476,21 +486,28 @@ void ORCBlockOutputFormat::consume(Chunk chunk)
 {
     if (!writer)
         prepareWriter();
+
     size_t columns_num = chunk.getNumColumns();
     size_t rows_num = chunk.getNumRows();
+
     /// getMaxColumnSize is needed to write arrays.
-    /// The size of the batch must be no less than total amount of array elements.
-    ORC_UNIQUE_PTR<orc::ColumnVectorBatch> batch = writer->createRowBatch(getMaxColumnSize(chunk));
+    /// The size of the batch must be no less than total amount of array elements
+    /// and no less than the number of rows (ORC writes a null bit for every row).
+    std::unique_ptr<orc::ColumnVectorBatch> batch = writer->createRowBatch(getMaxColumnSize(chunk));
     orc::StructVectorBatch & root = dynamic_cast<orc::StructVectorBatch &>(*batch);
+
+    auto columns = chunk.detachColumns();
+    for (auto & column : columns)
+        column = recursiveRemoveLowCardinality(column);
+
     for (size_t i = 0; i != columns_num; ++i)
-    {
-        writeColumn(*root.fields[i], *chunk.getColumns()[i], data_types[i], nullptr);
-    }
+        writeColumn(*root.fields[i], *columns[i], data_types[i], nullptr);
+
     root.numElements = rows_num;
     writer->add(*batch);
 }
 
-void ORCBlockOutputFormat::finalize()
+void ORCBlockOutputFormat::finalizeImpl()
 {
     if (!writer)
         prepareWriter();
@@ -505,13 +522,13 @@ void ORCBlockOutputFormat::prepareWriter()
     options.setCompression(orc::CompressionKind::CompressionKind_NONE);
     size_t columns_count = header.columns();
     for (size_t i = 0; i != columns_count; ++i)
-        schema->addStructField(header.safeGetByPosition(i).name, getORCType(data_types[i], header.safeGetByPosition(i).name));
+        schema->addStructField(header.safeGetByPosition(i).name, getORCType(recursiveRemoveLowCardinality(data_types[i])));
     writer = orc::createWriter(*schema, &output_stream, options);
 }
 
-void registerOutputFormatProcessorORC(FormatFactory & factory)
+void registerOutputFormatORC(FormatFactory & factory)
 {
-    factory.registerOutputFormatProcessor("ORC", [](
+    factory.registerOutputFormat("ORC", [](
             WriteBuffer & buf,
             const Block & sample,
             const RowOutputFormatParams &,
@@ -519,6 +536,7 @@ void registerOutputFormatProcessorORC(FormatFactory & factory)
     {
         return std::make_shared<ORCBlockOutputFormat>(buf, sample, format_settings);
     });
+    factory.markFormatHasNoAppendSupport("ORC");
 }
 
 }
@@ -528,7 +546,7 @@ void registerOutputFormatProcessorORC(FormatFactory & factory)
 namespace DB
 {
     class FormatFactory;
-    void registerOutputFormatProcessorORC(FormatFactory &)
+    void registerOutputFormatORC(FormatFactory &)
     {
     }
 }

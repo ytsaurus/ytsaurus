@@ -260,7 +260,7 @@ public:
 
     DB::Pipe read(
         const DB::Names& columnNames,
-        const DB::StorageMetadataPtr& metadataSnapshot,
+        const DB::StorageSnapshotPtr& storageSnapshot,
         DB::SelectQueryInfo& /*queryInfo*/,
         DB::ContextPtr context,
         DB::QueryProcessingStage::Enum /*processingStage*/,
@@ -288,7 +288,7 @@ public:
 
         auto nodes = FetchNodesWithAttributes(attributesToFetch, queryContext);
 
-        auto header = metadataSnapshot->getSampleBlockForColumns(columnNames, getVirtuals());
+        auto header = storageSnapshot->getSampleBlockForColumns(columnNames);
         auto resultColumns = header.cloneEmptyColumns();
 
         for (const auto& node : nodes) {

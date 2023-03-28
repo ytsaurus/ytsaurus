@@ -6,7 +6,7 @@
 #include <Functions/IFunction.h>
 #include <pcg_random.hpp>
 #include <Common/randomSeed.h>
-#include <common/arithmeticOverflow.h>
+#include <base/arithmeticOverflow.h>
 
 #include <memory>
 
@@ -179,7 +179,7 @@ public:
 
 }
 
-void registerFunctionFuzzBits(FunctionFactory & factory)
+REGISTER_FUNCTION(FuzzBits)
 {
     factory.registerFunction<FunctionFuzzBits>();
 }

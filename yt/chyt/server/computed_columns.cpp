@@ -240,7 +240,7 @@ struct TComputedColumnPopulationMatcher
         // Part below is done similarly to DB::makeExplicitSet.
 
         auto setKey = DB::PreparedSetKey::forLiteral(*literal, dataTypes);
-        if (data.PreparedSets.count(setKey)) {
+        if (data.PreparedSets.get(setKey)) {
             // Already prepared.
             return;
         }
@@ -258,7 +258,7 @@ struct TComputedColumnPopulationMatcher
         set->insertFromBlock(block.getColumnsWithTypeAndName());
         set->finishInsert();
 
-        data.PreparedSets[setKey] = set;
+        data.PreparedSets.set(setKey, std::move(set));
     }
 
     static DB::ASTPtr PrepareInStatement(const TInclusionStatement& resultStatement, Data& data)

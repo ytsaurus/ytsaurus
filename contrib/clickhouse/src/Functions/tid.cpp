@@ -3,7 +3,7 @@
 #include <Functions/FunctionHelpers.h>
 #include <Functions/IFunction.h>
 
-#include <common/getThreadId.h>
+#include <base/getThreadId.h>
 
 namespace DB
 {
@@ -32,7 +32,7 @@ namespace
 
 }
 
-void registerFunctionTid(FunctionFactory & factory)
+REGISTER_FUNCTION(Tid)
 {
     factory.registerFunction<FunctionTid>();
 }

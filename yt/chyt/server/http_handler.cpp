@@ -11,12 +11,12 @@
 #include <Server/NotFoundHandler.h>
 #include <Server/StaticRequestHandler.h>
 
-#include <Access/AccessControlManager.h>
+#include <Access/AccessControl.h>
 #include <Access/User.h>
 
 #include <Poco/URI.h>
 
-#include <common/getFQDNOrHostName.h>
+#include <base/getFQDNOrHostName.h>
 
 #include <util/string/cast.h>
 
@@ -130,7 +130,7 @@ public:
         }
 
         YT_LOG_DEBUG("Registering new user (UserName: %v)", userName);
-        RegisterNewUser(Server_.context()->getAccessControlManager(), TString(userName));
+        RegisterNewUser(Server_.context()->getAccessControl(), TString(userName));
         YT_LOG_DEBUG("User registered");
 
         DB::HTTPHandler::handleRequest(request, response);

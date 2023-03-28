@@ -11,7 +11,7 @@
 #include <DataStreams/OneBlockInputStream.h>
 #include <Storages/IStorage.h>
 #include <Processors/Sources/SourceFromInputStream.h>
-#include <Processors/Pipe.h>
+#include <QueryPipeline/Pipe.h>
 
 #include <algorithm>
 
@@ -46,7 +46,7 @@ public:
 
     DB::Pipe read(
         const DB::Names& /* columnNames */,
-        const DB::StorageMetadataPtr& metadata_snapshot,
+        const DB::StorageSnapshotPtr& storageSnapshot,
         DB::SelectQueryInfo& /* queryInfo */,
         DB::ContextPtr /* context */,
         DB::QueryProcessingStage::Enum /* processedStage */,
@@ -55,7 +55,9 @@ public:
     {
         auto nodes = Discovery_->List();
 
-        DB::MutableColumns res_columns = metadata_snapshot->getSampleBlock().cloneEmptyColumns();
+        auto metadataSnapshot = storageSnapshot->getMetadataForQuery();
+
+        DB::MutableColumns res_columns = metadataSnapshot->getSampleBlock().cloneEmptyColumns();
 
         for (const auto& [name, attributes] : nodes) {
             if (!attributes || !attributes->Contains("clique_id")) {
@@ -75,7 +77,7 @@ public:
             res_columns[11]->insert(attributes->Get<i64>("clique_incarnation"));
         }
 
-        auto blockInputStream = std::make_shared<DB::OneBlockInputStream>(metadata_snapshot->getSampleBlock().cloneWithColumns(std::move(res_columns)));
+        auto blockInputStream = std::make_shared<DB::OneBlockInputStream>(metadataSnapshot->getSampleBlock().cloneWithColumns(std::move(res_columns)));
         auto source = std::make_shared<DB::SourceFromInputStream>(std::move(blockInputStream));
         return DB::Pipe(std::move(source));
     }

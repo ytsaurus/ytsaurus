@@ -17,7 +17,6 @@
 #include <yt/yt/core/ytree/convert.h>
 
 #include <Common/Exception.h>
-#include <Common/LRUCache.h>
 #include <Interpreters/Context.h>
 #include <Storages/IStorage.h>
 #include <Parsers/ParserCreateQuery.h>

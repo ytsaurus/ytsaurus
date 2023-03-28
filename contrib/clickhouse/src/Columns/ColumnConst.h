@@ -5,6 +5,7 @@
 #include <Columns/IColumn.h>
 #include <Common/typeid_cast.h>
 #include <Common/assert_cast.h>
+#include <Common/PODArray.h>
 
 
 namespace DB
@@ -80,11 +81,6 @@ public:
         return data->getDataAt(0);
     }
 
-    StringRef getDataAtWithTerminatingZero(size_t) const override
-    {
-        return data->getDataAtWithTerminatingZero(0);
-    }
-
     UInt64 get64(size_t) const override
     {
         return data->get64(0);
@@ -113,6 +109,11 @@ public:
     Float32 getFloat32(size_t) const override
     {
         return data->getFloat32(0);
+    }
+
+    bool isDefaultAt(size_t) const override
+    {
+        return data->isDefaultAt(0);
     }
 
     bool isNullAt(size_t) const override
@@ -157,7 +158,7 @@ public:
 
     const char * deserializeAndInsertFromArena(const char * pos) override
     {
-        auto res = data->deserializeAndInsertFromArena(pos);
+        const auto * res = data->deserializeAndInsertFromArena(pos);
         data->popBack(1);
         ++s;
         return res;
@@ -186,8 +187,10 @@ public:
     ColumnPtr replicate(const Offsets & offsets) const override;
     ColumnPtr permute(const Permutation & perm, size_t limit) const override;
     ColumnPtr index(const IColumn & indexes, size_t limit) const override;
-    void getPermutation(bool reverse, size_t limit, int nan_direction_hint, Permutation & res) const override;
-    void updatePermutation(bool reverse, size_t limit, int nan_direction_hint, Permutation & res, EqualRanges & equal_range) const override;
+    void getPermutation(PermutationSortDirection direction, PermutationSortStability stability,
+                        size_t limit, int nan_direction_hint, Permutation & res) const override;
+    void updatePermutation(PermutationSortDirection direction, PermutationSortStability stability,
+                        size_t limit, int nan_direction_hint, Permutation & res, EqualRanges & equal_ranges) const override;
 
     size_t byteSize() const override
     {
@@ -232,11 +235,33 @@ public:
         callback(data);
     }
 
+    void forEachSubcolumnRecursively(ColumnCallback callback) override
+    {
+        callback(data);
+        data->forEachSubcolumnRecursively(callback);
+    }
+
     bool structureEquals(const IColumn & rhs) const override
     {
-        if (auto rhs_concrete = typeid_cast<const ColumnConst *>(&rhs))
+        if (const auto * rhs_concrete = typeid_cast<const ColumnConst *>(&rhs))
             return data->structureEquals(*rhs_concrete->data);
         return false;
+    }
+
+    double getRatioOfDefaultRows(double) const override
+    {
+        return data->isDefaultAt(0) ? 1.0 : 0.0;
+    }
+
+    void getIndicesOfNonDefaultRows(Offsets & indices, size_t from, size_t limit) const override
+    {
+        if (!data->isDefaultAt(0))
+        {
+            size_t to = limit && from + limit < size() ? from + limit : size();
+            indices.reserve(indices.size() + to - from);
+            for (size_t i = from; i < to; ++i)
+                indices.push_back(i);
+        }
     }
 
     bool isNullable() const override { return isColumnNullable(*data); }

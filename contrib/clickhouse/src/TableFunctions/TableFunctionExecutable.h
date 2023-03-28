@@ -1,12 +1,12 @@
 #pragma once
 
-#include <DataStreams/IBlockStream_fwd.h>
 #include <TableFunctions/ITableFunction.h>
 
 namespace DB
 {
 
 class Context;
+class ASTSetQuery;
 
 /* executable(script_name_optional_arguments, format, structure, input_query) - creates a temporary storage from executable file
  *
@@ -33,5 +33,6 @@ private:
     String format;
     String structure;
     std::vector<ASTPtr> input_queries;
+    ASTPtr settings_query = nullptr;
 };
 }

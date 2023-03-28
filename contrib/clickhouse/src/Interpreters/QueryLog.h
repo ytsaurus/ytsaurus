@@ -1,8 +1,11 @@
 #pragma once
 
+#include <Core/NamesAndTypes.h>
 #include <Core/NamesAndAliases.h>
+#include <Core/Settings.h>
 #include <Interpreters/SystemLog.h>
 #include <Interpreters/ClientInfo.h>
+#include <Interpreters/TransactionVersionMetadata.h>
 
 namespace ProfileEvents
 {
@@ -80,14 +83,17 @@ struct QueryLogElement
     String log_comment;
 
     std::vector<UInt64> thread_ids;
-    std::shared_ptr<ProfileEvents::Counters> profile_counters;
+    std::shared_ptr<ProfileEvents::Counters::Snapshot> profile_counters;
     std::shared_ptr<Settings> query_settings;
+
+    TransactionID tid;
 
     static std::string name() { return "QueryLog"; }
 
     static NamesAndTypesList getNamesAndTypes();
     static NamesAndAliases getNamesAndAliases();
     void appendToBlock(MutableColumns & columns) const;
+    static const char * getCustomColumnList() { return nullptr; }
 
     static void appendClientInfo(const ClientInfo & client_info, MutableColumns & columns, size_t & i);
 };

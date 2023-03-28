@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "conversion.h"
+#include "helpers.h"
 #include "host.h"
 #include "query_context.h"
 
@@ -11,25 +12,36 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
+#include <yt/yt/core/actions/current_invoker.h>
+
 #include <yt/yt/core/misc/intrusive_ptr.h>
 
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt/core/rpc/service_detail.h>
 
 #include <Core/Types.h>
+#include <Common/ThreadPool.h>
 #include <Common/SettingsChanges.h>
 #include <DataStreams/IBlockInputStream.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/executeQuery.h>
 #include <Interpreters/Session.h>
+#include <Processors/Executors/CompletedPipelineExecutor.h>
 #include <Processors/Executors/PullingAsyncPipelineExecutor.h>
 
 namespace NYT::NClickHouseServer {
 
+using namespace NConcurrency;
+using namespace NLogging;
+using namespace NProto;
 using namespace NRpc;
 using namespace NRpc::NProto;
-using namespace NProto;
 using namespace NTableClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(dakovalkov): log something.
+static const TLogger Logger("RpcQueryService");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +55,8 @@ template <class TRequest>
 class TExecuteQueryCall
 {
 public:
+    using TThis = TExecuteQueryCall<TRequest>;
+
     TExecuteQueryCall(const TRequest* request, const TString& user, TQueryId queryId, THost* host)
         : Request_(request)
         , Host_(host)
@@ -53,12 +67,27 @@ public:
 
     TErrorOr<TRowset> Execute()
     {
-        try {
-            Run();
-            return TRowset{WireRowset_, TotalRowCount_};
-        } catch (const std::exception& ex) {
-            return TError(ex);
+        auto completedPromise = NewPromise<void>();
+        auto completedFuture = completedPromise.ToFuture();
+
+        ThreadFromGlobalPool masterThread([this, promise = std::move(completedPromise)] () mutable {
+            try {
+                Run();
+                promise.Set();
+            } catch (const std::exception& ex) {
+                promise.Set(TError(ex));
+            }
+        });
+
+        TError error = WaitFor(completedFuture);
+
+        masterThread.join();
+
+        if (!error.IsOK()) {
+            return error;
         }
+
+        return TRowset{WireRowset_, TotalRowCount_};
     }
 
 private:
@@ -78,12 +107,11 @@ private:
     void Run()
     {
         PrepareContext();
+
+        DB::CurrentThread::QueryScope queryScope(QueryContext_);
+
         BuildPipeline();
-        if (BlockIO_.pipeline.initialized()) {
-            ProcessPipeline();
-        } else if (BlockIO_.in) {
-            ProcessInputStream();
-        }
+        ProcessPipeline();
     }
 
     void PrepareContext()
@@ -91,8 +119,11 @@ private:
         auto& chytRequest = Request_->chyt_request();
         Query_ = chytRequest.query();
 
+        RegisterNewUser(Host_->GetContext()->getAccessControl(), User_);
+
         // Query context is inherited from session context like it was made in ClickHouse gRPC server.
         DB::Session session(Host_->GetContext(), DB::ClientInfo::Interface::GRPC);
+        session.authenticate(User_, /*password=*/ "", Poco::Net::SocketAddress());
         QueryContext_ = session.makeQueryContext();
 
         auto& clientInfo = QueryContext_->getClientInfo();
@@ -110,6 +141,7 @@ private:
         QueryContext_->applySettingsChanges(settingsChanges);
 
         auto traceContext = NTracing::TTraceContext::NewRoot("ChytRPCQueryHandler");
+
         SetupHostContext(Host_, QueryContext_, QueryId_, std::move(traceContext));
     }
 
@@ -120,6 +152,17 @@ private:
 
     void ProcessPipeline()
     {
+        if (!BlockIO_.pipeline.initialized()) {
+            return;
+        }
+
+        // insert into, create table ...
+        if (BlockIO_.pipeline.completed()) {
+            DB::CompletedPipelineExecutor executor(BlockIO_.pipeline);
+            executor.execute();
+            return;
+        }
+
         DB::PullingAsyncPipelineExecutor executor(BlockIO_.pipeline);
 
         const auto& header = executor.getHeader();
@@ -140,39 +183,6 @@ private:
             if (!block) {
                 continue;
             }
-            auto rowRange = ToRowRange(block, dataTypes, columnIndexToId, CompositeSettings_);
-            auto capturedRows = rowBuffer->CaptureRows(rowRange);
-            rowset.insert(rowset.end(), capturedRows.begin(), capturedRows.end());
-        }
-
-        if (rowCountLimitExceeded()) {
-            rowset.resize(Request_->row_count_limit());
-        }
-
-        TotalRowCount_ = std::ssize(rowset);
-
-        ConvertToWireRowset(schema, rowset);
-    }
-
-    // TODO(gudqeit): Super copy-paste, should be removed with new CH version.
-    void ProcessInputStream()
-    {
-        auto stream = BlockIO_.getInputStream();
-        const auto& header = stream->getHeader();
-        auto schema = GetTableSchema(header);
-        auto dataTypes = header.getDataTypes();
-        auto columnIndexToId = GetColumnIndexToId(header);
-
-        DB::Block block;
-        auto rowBuffer = New<TRowBuffer>();
-        std::vector<TUnversionedRow> rowset;
-        auto rowCountLimitExceeded = [&] {
-            if (!Request_->has_row_count_limit()) {
-                return false;
-            }
-            return std::ssize(rowset) >= Request_->row_count_limit();
-        };
-        while (!rowCountLimitExceeded() && (block = stream->read())) {
             auto rowRange = ToRowRange(block, dataTypes, columnIndexToId, CompositeSettings_);
             auto capturedRows = rowBuffer->CaptureRows(rowRange);
             rowset.insert(rowset.end(), capturedRows.begin(), capturedRows.end());

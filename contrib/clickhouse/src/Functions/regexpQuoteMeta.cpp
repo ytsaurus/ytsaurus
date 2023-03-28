@@ -2,7 +2,7 @@
 #include <DataTypes/DataTypeString.h>
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionHelpers.h>
-#include <common/find_symbols.h>
+#include <base/find_symbols.h>
 
 
 namespace DB
@@ -112,7 +112,7 @@ public:
 
 }
 
-void registerFunctionRegexpQuoteMeta(FunctionFactory & factory)
+REGISTER_FUNCTION(RegexpQuoteMeta)
 {
     factory.registerFunction<FunctionRegexpQuoteMeta>();
 }

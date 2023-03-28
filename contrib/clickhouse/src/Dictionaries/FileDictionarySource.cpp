@@ -1,11 +1,9 @@
 #include "FileDictionarySource.h"
-#include <common/logger_useful.h>
+#include <Common/logger_useful.h>
 #include <Common/StringUtils/StringUtils.h>
 #include <Common/filesystemHelpers.h>
-#include <DataStreams/OwningBlockInputStream.h>
 #include <IO/ReadBufferFromFile.h>
 #include <Interpreters/Context.h>
-#include <Formats/FormatFactory.h>
 #include <Processors/Formats/IInputFormat.h>
 #include "DictionarySourceFactory.h"
 #include "DictionaryStructure.h"
@@ -48,15 +46,15 @@ FileDictionarySource::FileDictionarySource(const FileDictionarySource & other)
 }
 
 
-Pipe FileDictionarySource::loadAll()
+QueryPipeline FileDictionarySource::loadAll()
 {
     LOG_TRACE(&Poco::Logger::get("FileDictionary"), "loadAll {}", toString());
     auto in_ptr = std::make_unique<ReadBufferFromFile>(filepath);
-    auto source = FormatFactory::instance().getInput(format, *in_ptr, sample_block, context, max_block_size);
+    auto source = context->getInputFormat(format, *in_ptr, sample_block, max_block_size);
     source->addBuffer(std::move(in_ptr));
     last_modification = getLastModification();
 
-    return Pipe(std::move(source));
+    return QueryPipeline(std::move(source));
 }
 
 

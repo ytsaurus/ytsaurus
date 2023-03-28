@@ -1,17 +1,25 @@
+#include <Interpreters/Aggregator.h>
 #include <Interpreters/AsynchronousMetrics.h>
 #include <Interpreters/AsynchronousMetricLog.h>
 #include <Interpreters/JIT/CompiledExpressionCache.h>
 #include <Interpreters/DatabaseCatalog.h>
 #include <Interpreters/Context.h>
+#include <Coordination/Keeper4LWInfo.h>
+#include <Coordination/KeeperDispatcher.h>
 #include <Common/Exception.h>
 #include <Common/setThreadName.h>
 #include <Common/CurrentMetrics.h>
 #include <Common/typeid_cast.h>
 #include <Common/filesystemHelpers.h>
+#include <Common/FileCacheFactory.h>
+#include <Common/getCurrentProcessFDCount.h>
+#include <Common/getMaxFileDescriptorCount.h>
+#include <Common/FileCache.h>
 #include <Server/ProtocolServerAdapter.h>
 #include <Storages/MarkCache.h>
 #include <Storages/StorageMergeTree.h>
 #include <Storages/StorageReplicatedMergeTree.h>
+#include <Storages/MergeTree/MergeTreeMetadataCache.h>
 #include <IO/UncompressedCache.h>
 #include <IO/MMappedFileCache.h>
 #include <IO/ReadHelpers.h>
@@ -19,9 +27,7 @@
 #include <chrono>
 
 
-#if !defined(ARCADIA_BUILD)
-#    include "config_core.h"
-#endif
+#include "config_core.h"
 
 #if USE_JEMALLOC
 #    include <jemalloc/jemalloc.h>
@@ -71,12 +77,10 @@ static std::unique_ptr<ReadBufferFromFilePRead> openFileIfExists(const std::stri
 AsynchronousMetrics::AsynchronousMetrics(
     ContextPtr global_context_,
     int update_period_seconds,
-    std::shared_ptr<std::vector<ProtocolServerAdapter>> servers_to_start_before_tables_,
-    std::shared_ptr<std::vector<ProtocolServerAdapter>> servers_)
+    const ProtocolServerMetricsFunc & protocol_server_metrics_func_)
     : WithContext(global_context_)
     , update_period(update_period_seconds)
-    , servers_to_start_before_tables(servers_to_start_before_tables_)
-    , servers(servers_)
+    , protocol_server_metrics_func(protocol_server_metrics_func_)
     , log(&Poco::Logger::get("AsynchronousMetrics"))
 {
 #if defined(OS_LINUX)
@@ -113,6 +117,23 @@ void AsynchronousMetrics::openSensors()
             else
                 break;
         }
+
+        file->rewind();
+        Int64 temperature = 0;
+        try
+        {
+            readText(temperature, *file);
+        }
+        catch (const ErrnoException & e)
+        {
+            LOG_WARNING(
+                &Poco::Logger::get("AsynchronousMetrics"),
+                "Thermal monitor '{}' exists but could not be read, error {}.",
+                thermal_device_index,
+                e.getErrno());
+            continue;
+        }
+
         thermal.emplace_back(std::move(file));
     }
 }
@@ -226,6 +247,23 @@ void AsynchronousMetrics::openSensorsChips()
                 std::replace(sensor_name.begin(), sensor_name.end(), ' ', '_');
             }
 
+            file->rewind();
+            Int64 temperature = 0;
+            try
+            {
+                readText(temperature, *file);
+            }
+            catch (const ErrnoException & e)
+            {
+                LOG_WARNING(
+                    &Poco::Logger::get("AsynchronousMetrics"),
+                    "Hardware monitor '{}', sensor '{}' exists but could not be read, error {}.",
+                    hwmon_name,
+                    sensor_name,
+                    e.getErrno());
+                continue;
+            }
+
             hwmon_devices[hwmon_name][sensor_name] = std::move(file);
         }
     }
@@ -240,7 +278,7 @@ void AsynchronousMetrics::start()
     thread = std::make_unique<ThreadFromGlobalPool>([this] { run(); });
 }
 
-AsynchronousMetrics::~AsynchronousMetrics()
+void AsynchronousMetrics::stop()
 {
     try
     {
@@ -251,12 +289,20 @@ AsynchronousMetrics::~AsynchronousMetrics()
 
         wait_cond.notify_one();
         if (thread)
+        {
             thread->join();
+            thread.reset();
+        }
     }
     catch (...)
     {
         DB::tryLogCurrentException(__PRETTY_FUNCTION__);
     }
+}
+
+AsynchronousMetrics::~AsynchronousMetrics()
+{
+    stop();
 }
 
 
@@ -335,7 +381,7 @@ static void calculateMaxAndSum(Max & max, Sum & sum, T x)
         max = x;
 }
 
-#if USE_JEMALLOC && JEMALLOC_VERSION_MAJOR >= 4
+#if USE_JEMALLOC
 uint64_t updateJemallocEpoch()
 {
     uint64_t value = 0;
@@ -547,11 +593,45 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
     }
 
     {
+        if (auto index_mark_cache = getContext()->getIndexMarkCache())
+        {
+            new_values["IndexMarkCacheBytes"] = index_mark_cache->weight();
+            new_values["IndexMarkCacheFiles"] = index_mark_cache->count();
+        }
+    }
+
+    {
+        if (auto index_uncompressed_cache = getContext()->getIndexUncompressedCache())
+        {
+            new_values["IndexUncompressedCacheBytes"] = index_uncompressed_cache->weight();
+            new_values["IndexUncompressedCacheCells"] = index_uncompressed_cache->count();
+        }
+    }
+
+    {
         if (auto mmap_cache = getContext()->getMMappedFileCache())
         {
             new_values["MMapCacheCells"] = mmap_cache->count();
         }
     }
+
+    {
+        auto caches = FileCacheFactory::instance().getAll();
+        for (const auto & [_, cache_data] : caches)
+        {
+            new_values["FilesystemCacheBytes"] = cache_data->cache->getUsedCacheSize();
+            new_values["FilesystemCacheFiles"] = cache_data->cache->getFileSegmentsNum();
+        }
+    }
+
+#if USE_ROCKSDB
+    {
+        if (auto metadata_cache = getContext()->tryGetMergeTreeMetadataCache())
+        {
+            new_values["MergeTreeMetadataCacheSize"] = metadata_cache->getEstimateNumKeys();
+        }
+    }
+#endif
 
 #if USE_EMBEDDED_COMPILER
     {
@@ -563,16 +643,28 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
     }
 #endif
 
+
     new_values["Uptime"] = getContext()->getUptimeSeconds();
 
+    {
+        if (const auto stats = getHashTablesCacheStatistics())
+        {
+            new_values["HashTableStatsCacheEntries"] = stats->entries;
+            new_values["HashTableStatsCacheHits"] = stats->hits;
+            new_values["HashTableStatsCacheMisses"] = stats->misses;
+        }
+    }
+
     /// Process process memory usage according to OS
-#if defined(OS_LINUX)
+#if defined(OS_LINUX) || defined(OS_FREEBSD)
     {
         MemoryStatisticsOS::Data data = memory_stat.get();
 
         new_values["MemoryVirtual"] = data.virt;
         new_values["MemoryResident"] = data.resident;
+#if !defined(OS_FREEBSD)
         new_values["MemoryShared"] = data.shared;
+#endif
         new_values["MemoryCode"] = data.code;
         new_values["MemoryDataAndStack"] = data.data_and_stack;
 
@@ -599,7 +691,9 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
             CurrentMetrics::set(CurrentMetrics::MemoryTracking, new_amount);
         }
     }
+#endif
 
+#if defined(OS_LINUX)
     if (loadavg)
     {
         try
@@ -895,9 +989,15 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
 
                 if (s.rfind("processor", 0) == 0)
                 {
+                    /// s390x example: processor 0: version = FF, identification = 039C88, machine = 3906
+                    /// non s390x example: processor : 0
                     if (auto colon = s.find_first_of(':'))
                     {
+#ifdef __s390x__
+                        core_id = std::stoi(s.substr(10)); /// 10: length of "processor" plus 1
+#else
                         core_id = std::stoi(s.substr(colon + 2));
+#endif
                     }
                 }
                 else if (s.rfind("cpu MHz", 0) == 0)
@@ -1105,7 +1205,8 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
     }
     catch (...)
     {
-        tryLogCurrentException(__PRETTY_FUNCTION__);
+        if (errno != ENODATA)   /// Ok for thermal sensors.
+            tryLogCurrentException(__PRETTY_FUNCTION__);
 
         /// Files maybe re-created on module load/unload
         try
@@ -1144,7 +1245,8 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
     }
     catch (...)
     {
-        tryLogCurrentException(__PRETTY_FUNCTION__);
+        if (errno != ENODATA)   /// Ok for thermal sensors.
+            tryLogCurrentException(__PRETTY_FUNCTION__);
 
         /// Files can be re-created on:
         /// - module load/unload
@@ -1206,9 +1308,9 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
     {
         auto stat = getStatVFS(getContext()->getPath());
 
-        new_values["FilesystemMainPathTotalBytes"] = stat.f_blocks * stat.f_bsize;
-        new_values["FilesystemMainPathAvailableBytes"] = stat.f_bavail * stat.f_bsize;
-        new_values["FilesystemMainPathUsedBytes"] = (stat.f_blocks - stat.f_bavail) * stat.f_bsize;
+        new_values["FilesystemMainPathTotalBytes"] = stat.f_blocks * stat.f_frsize;
+        new_values["FilesystemMainPathAvailableBytes"] = stat.f_bavail * stat.f_frsize;
+        new_values["FilesystemMainPathUsedBytes"] = (stat.f_blocks - stat.f_bavail) * stat.f_frsize;
         new_values["FilesystemMainPathTotalINodes"] = stat.f_files;
         new_values["FilesystemMainPathAvailableINodes"] = stat.f_favail;
         new_values["FilesystemMainPathUsedINodes"] = stat.f_files - stat.f_favail;
@@ -1218,9 +1320,9 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
         /// Current working directory of the server is the directory with logs.
         auto stat = getStatVFS(".");
 
-        new_values["FilesystemLogsPathTotalBytes"] = stat.f_blocks * stat.f_bsize;
-        new_values["FilesystemLogsPathAvailableBytes"] = stat.f_bavail * stat.f_bsize;
-        new_values["FilesystemLogsPathUsedBytes"] = (stat.f_blocks - stat.f_bavail) * stat.f_bsize;
+        new_values["FilesystemLogsPathTotalBytes"] = stat.f_blocks * stat.f_frsize;
+        new_values["FilesystemLogsPathAvailableBytes"] = stat.f_bavail * stat.f_frsize;
+        new_values["FilesystemLogsPathUsedBytes"] = (stat.f_blocks - stat.f_bavail) * stat.f_frsize;
         new_values["FilesystemLogsPathTotalINodes"] = stat.f_files;
         new_values["FilesystemLogsPathAvailableINodes"] = stat.f_favail;
         new_values["FilesystemLogsPathUsedINodes"] = stat.f_files - stat.f_favail;
@@ -1365,26 +1467,99 @@ void AsynchronousMetrics::update(std::chrono::system_clock::time_point update_ti
                 return it->second;
         };
 
-        if (servers_to_start_before_tables)
+        const auto server_metrics = protocol_server_metrics_func();
+        for (const auto & server_metric : server_metrics)
         {
-            for (const auto & server : *servers_to_start_before_tables)
-            {
-                if (const auto * name = get_metric_name(server.getPortName()))
-                    new_values[name] = server.currentThreads();
-            }
-        }
-
-        if (servers)
-        {
-            for (const auto & server : *servers)
-            {
-                if (const auto * name = get_metric_name(server.getPortName()))
-                    new_values[name] = server.currentThreads();
-            }
+            if (const auto * name = get_metric_name(server_metric.port_name))
+                new_values[name] = server_metric.current_threads;
         }
     }
+#if USE_NURAFT
+    {
+        auto keeper_dispatcher = getContext()->tryGetKeeperDispatcher();
+        if (keeper_dispatcher)
+        {
+            size_t is_leader = 0;
+            size_t is_follower = 0;
+            size_t is_observer = 0;
+            size_t is_standalone = 0;
+            size_t znode_count = 0;
+            size_t watch_count =0;
+            size_t ephemerals_count = 0;
+            size_t approximate_data_size =0;
+            size_t key_arena_size = 0;
+            size_t latest_snapshot_size =0;
+            size_t open_file_descriptor_count =0;
+            size_t max_file_descriptor_count =0;
+            size_t followers =0;
+            size_t synced_followers = 0;
+            size_t zxid = 0;
+            size_t session_with_watches = 0;
+            size_t paths_watched = 0;
+            size_t snapshot_dir_size = 0;
+            size_t log_dir_size = 0;
 
-#if USE_JEMALLOC && JEMALLOC_VERSION_MAJOR >= 4
+            if (keeper_dispatcher->isServerActive())
+            {
+                auto keeper_info = keeper_dispatcher -> getKeeper4LWInfo();
+                is_standalone = static_cast<size_t>(keeper_info.is_standalone);
+                is_leader = static_cast<size_t>(keeper_info.is_leader);
+                is_observer = static_cast<size_t>(keeper_info.is_observer);
+                is_follower = static_cast<size_t>(keeper_info.is_follower);
+
+                zxid = keeper_info.last_zxid;
+                const auto & state_machine = keeper_dispatcher->getStateMachine();
+                znode_count = state_machine.getNodesCount();
+                watch_count = state_machine.getTotalWatchesCount();
+                ephemerals_count = state_machine.getTotalEphemeralNodesCount();
+                approximate_data_size = state_machine.getApproximateDataSize();
+                key_arena_size = state_machine.getKeyArenaSize();
+                latest_snapshot_size = state_machine.getLatestSnapshotBufSize();
+                session_with_watches = state_machine.getSessionsWithWatchesCount();
+                paths_watched = state_machine.getWatchedPathsCount();
+                snapshot_dir_size = keeper_dispatcher->getSnapDirSize();
+                log_dir_size = keeper_dispatcher->getLogDirSize();
+
+                #if defined(__linux__) || defined(__APPLE__)
+                    open_file_descriptor_count = getCurrentProcessFDCount();
+                    max_file_descriptor_count = getMaxFileDescriptorCount();
+                #endif
+
+                if (keeper_info.is_leader)
+                {
+                    followers = keeper_info.follower_count;
+                    synced_followers = keeper_info.synced_follower_count;
+                }
+            }
+
+            new_values["KeeperIsLeader"] = is_leader;
+            new_values["KeeperIsFollower"] = is_follower;
+            new_values["KeeperIsObserver"] = is_observer;
+            new_values["KeeperIsStandalone"] = is_standalone;
+
+            new_values["KeeperZnodeCount"] = znode_count;
+            new_values["KeeperWatchCount"] = watch_count;
+            new_values["KeeperEphemeralsCount"] = ephemerals_count;
+
+            new_values["KeeperApproximateDataSize"] = approximate_data_size;
+            new_values["KeeperKeyArenaSize"] = key_arena_size;
+            new_values["KeeperLatestSnapshotSize"] = latest_snapshot_size;
+
+            new_values["KeeperOpenFileDescriptorCount"] = open_file_descriptor_count;
+            new_values["KeeperMaxFileDescriptorCount"] = max_file_descriptor_count;
+
+            new_values["KeeperFollowers"] = followers;
+            new_values["KeeperSyncedFollowers"] = synced_followers;
+            new_values["KeeperZxid"] = zxid;
+            new_values["KeeperSessionWithWatches"] = session_with_watches;
+            new_values["KeeperPathsWatched"] = paths_watched;
+            new_values["KeeperSnapshotDirSize"] = snapshot_dir_size;
+            new_values["KeeperLogDirSize"] = log_dir_size;
+        }
+    }
+#endif
+
+#if USE_JEMALLOC
     // 'epoch' is a special mallctl -- it updates the statistics. Without it, all
     // the following calls will return stale values. It increments and returns
     // the current epoch number, which might be useful to log as a sanity check.

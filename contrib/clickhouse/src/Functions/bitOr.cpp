@@ -16,6 +16,7 @@ struct BitOrImpl
 {
     using ResultType = typename NumberTraits::ResultOfBit<A, B>::Type;
     static constexpr const bool allow_fixed_string = true;
+    static const constexpr bool allow_string_integer = false;
 
     template <typename Result = ResultType>
     static inline Result apply(A a, B b)
@@ -40,7 +41,7 @@ using FunctionBitOr = BinaryArithmeticOverloadResolver<BitOrImpl, NameBitOr, tru
 
 }
 
-void registerFunctionBitOr(FunctionFactory & factory)
+REGISTER_FUNCTION(BitOr)
 {
     factory.registerFunction<FunctionBitOr>();
 }

@@ -1,6 +1,4 @@
-#if !defined(ARCADIA_BUILD)
-#    include "config_core.h"
-#endif
+#include "config_core.h"
 
 #if USE_NLP
 
@@ -127,7 +125,7 @@ public:
 
 }
 
-void registerFunctionStem(FunctionFactory & factory)
+REGISTER_FUNCTION(Stem)
 {
     factory.registerFunction<FunctionStem>(FunctionFactory::CaseInsensitive);
 }

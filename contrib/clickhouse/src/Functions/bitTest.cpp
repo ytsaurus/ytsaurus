@@ -18,6 +18,7 @@ struct BitTestImpl
 {
     using ResultType = UInt8;
     static const constexpr bool allow_fixed_string = false;
+    static const constexpr bool allow_string_integer = false;
 
     template <typename Result = ResultType>
     NO_SANITIZE_UNDEFINED static inline Result apply(A a [[maybe_unused]], B b [[maybe_unused]])
@@ -38,7 +39,7 @@ using FunctionBitTest = BinaryArithmeticOverloadResolver<BitTestImpl, NameBitTes
 
 }
 
-void registerFunctionBitTest(FunctionFactory & factory)
+REGISTER_FUNCTION(BitTest)
 {
     factory.registerFunction<FunctionBitTest>();
 }

@@ -105,7 +105,7 @@ private:
                     throw Exception("Logical error: unexpected function name " + concrete->name, ErrorCodes::LOGICAL_ERROR);
             }
             else if (table_join)
-                table_join->locality = ASTTableJoin::Locality::Global;
+                table_join->locality = JoinLocality::Global;
             else
                 throw Exception("Logical error: unexpected AST node", ErrorCodes::LOGICAL_ERROR);
         }
@@ -189,15 +189,27 @@ private:
             return;
 
         ASTTableJoin * table_join = node.table_join->as<ASTTableJoin>();
-        if (table_join->locality != ASTTableJoin::Locality::Global)
+        if (table_join->locality != JoinLocality::Global)
         {
-            if (auto & subquery = node.table_expression->as<ASTTableExpression>()->subquery)
+            if (auto * table = node.table_expression->as<ASTTableExpression>())
             {
-                std::vector<ASTPtr> renamed;
-                NonGlobalTableVisitor::Data table_data(data.getContext(), data.checker, renamed, nullptr, table_join);
-                NonGlobalTableVisitor(table_data).visit(subquery);
-                if (!renamed.empty()) //-V547
-                    data.renamed_tables.emplace_back(subquery, std::move(renamed));
+                if (auto & subquery = table->subquery)
+                {
+                    std::vector<ASTPtr> renamed;
+                    NonGlobalTableVisitor::Data table_data(data.getContext(), data.checker, renamed, nullptr, table_join);
+                    NonGlobalTableVisitor(table_data).visit(subquery);
+                    if (!renamed.empty()) //-V547
+                        data.renamed_tables.emplace_back(subquery, std::move(renamed));
+                }
+                else if (table->database_and_table_name)
+                {
+                    auto tb = node.table_expression;
+                    std::vector<ASTPtr> renamed;
+                    NonGlobalTableVisitor::Data table_data{data.getContext(), data.checker, renamed, nullptr, table_join};
+                    NonGlobalTableVisitor(table_data).visit(tb);
+                    if (!renamed.empty()) //-V547
+                        data.renamed_tables.emplace_back(tb, std::move(renamed));
+                }
             }
         }
     }

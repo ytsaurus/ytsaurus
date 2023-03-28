@@ -6,10 +6,9 @@
 #define USE_MYSQL 0
 #define USE_RDKAFKA 0
 #define USE_AMQPCPP 0
+#define USE_NATSIO 0
 #define USE_EMBEDDED_COMPILER 0
-#define USE_INTERNAL_LLVM_LIBRARY 0
-#define USE_SSL 1
-#define USE_OPENCL 0
+#define USE_SSL 0
 #define USE_LDAP 0
 #define USE_ROCKSDB 0
 #define USE_LIBPQXX 0
@@ -17,3 +16,9 @@
 #define USE_NURAFT 0
 #define USE_NLP 0
 #define USE_KRB5 0
+#define USE_SIMDJSON 0
+#define USE_RAPIDJSON 1
+#define USE_FILELOG defined(OS_LINUX)
+#define USE_ODBC 0
+#define USE_REPLXX 1
+#define USE_JEMALLOC 0

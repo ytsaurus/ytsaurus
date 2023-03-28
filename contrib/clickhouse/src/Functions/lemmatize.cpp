@@ -1,6 +1,4 @@
-#if !defined(ARCADIA_BUILD)
-#    include "config_core.h"
-#endif
+#include "config_core.h"
 
 #if USE_NLP
 
@@ -122,7 +120,7 @@ public:
 
 }
 
-void registerFunctionLemmatize(FunctionFactory & factory)
+REGISTER_FUNCTION(Lemmatize)
 {
     factory.registerFunction<FunctionLemmatize>(FunctionFactory::CaseInsensitive);
 }

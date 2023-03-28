@@ -7,6 +7,7 @@
 
 
 add_subdirectory(clickhouse)
+add_subdirectory(deprecated)
 add_subdirectory(libs)
 add_subdirectory(restricted)
 add_subdirectory(tools)

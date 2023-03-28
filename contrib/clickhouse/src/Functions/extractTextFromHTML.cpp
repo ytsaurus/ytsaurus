@@ -2,7 +2,7 @@
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionHelpers.h>
 #include <Functions/IFunction.h>
-#include <common/find_symbols.h>
+#include <base/find_symbols.h>
 #include <Common/StringUtils/StringUtils.h>
 
 
@@ -53,7 +53,7 @@
   *
   * Usage example:
   *
-  * SELECT extractTextFromHTML(html) FROM url('https://yandex.ru/', RawBLOB, 'html String')
+  * SELECT extractTextFromHTML(html) FROM url('https://github.com/ClickHouse/ClickHouse', RawBLOB, 'html String')
   *
   * - ClickHouse has embedded web browser.
   */
@@ -351,7 +351,7 @@ public:
     }
 };
 
-void registerFunctionExtractTextFromHTML(FunctionFactory & factory)
+REGISTER_FUNCTION(ExtractTextFromHTML)
 {
     factory.registerFunction<FunctionExtractTextFromHTML>();
 }

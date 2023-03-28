@@ -4,8 +4,8 @@
 #include "query_context.h"
 #include "secondary_query_header.h"
 
-#include <Poco/Util/LayeredConfiguration.h>
 #include <Server/TCPHandler.h>
+#include <Server/TCPServerConnectionFactory.h>
 
 #include <util/string/cast.h>
 #include <util/string/split.h>
@@ -20,31 +20,44 @@ static const auto& Logger = ClickHouseYtLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpHandlerFactory
-    : public Poco::Net::TCPServerConnectionFactory
+    : public DB::TCPServerConnectionFactory
 {
 private:
     THost* Host_;
-    IServer& Server;
+    IServer& Server_;
 
 public:
     TTcpHandlerFactory(THost* host, IServer& server)
         : Host_(host)
-        , Server(server)
+        , Server_(server)
     { }
 
-    Poco::Net::TCPServerConnection* createConnection(const Poco::Net::StreamSocket& socket) override;
+    Poco::Net::TCPServerConnection* createConnection(
+        const Poco::Net::StreamSocket& socket,
+        DB::TCPServer& tcpServer) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(const Poco::Net::StreamSocket& socket)
+Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
+    const Poco::Net::StreamSocket& socket,
+    DB::TCPServer& tcpServer)
 {
     class TTcpHandler
         : public DB::TCPHandler
     {
     public:
-        TTcpHandler(THost* host, DB::IServer& server, const Poco::Net::StreamSocket& socket)
-            : DB::TCPHandler(server, socket, false, {})
+        TTcpHandler(
+            THost* host,
+            DB::IServer& server,
+            DB::TCPServer& tcpServer,
+            const Poco::Net::StreamSocket& socket)
+            : DB::TCPHandler(
+                server,
+                tcpServer,
+                socket,
+                false /*parse_proxy_protocol*/,
+                "" /*server_display_name*/)
             , Host_(host)
         { }
 
@@ -65,7 +78,7 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(const Poco:
             TTraceContextPtr traceContext = New<TTraceContext>(*header->SpanContext, "TcpHandler");
 
             YT_LOG_DEBUG("Registering new user (UserName: %v)", clientInfo.current_user);
-            RegisterNewUser(context->getAccessControlManager(), TString(clientInfo.current_user));
+            RegisterNewUser(context->getAccessControl(), TString(clientInfo.current_user));
             YT_LOG_DEBUG("User registered");
 
             SetupHostContext(
@@ -73,8 +86,8 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(const Poco:
                 context,
                 header->QueryId,
                 std::move(traceContext),
-                /* dataLensRequestId */ std::nullopt,
-                /* yqlOperationId */ std::nullopt,
+                /*dataLensRequestId*/ std::nullopt,
+                /*yqlOperationId*/ std::nullopt,
                 header);
         }
 
@@ -82,12 +95,12 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(const Poco:
         THost* const Host_;
     };
 
-    return new TTcpHandler(Host_, Server, socket);
+    return new TTcpHandler(Host_, Server_, tcpServer, socket);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::Net::TCPServerConnectionFactory::Ptr CreateTcpHandlerFactory(THost* host, IServer& server)
+DB::TCPServerConnectionFactory::Ptr CreateTcpHandlerFactory(THost* host, IServer& server)
 {
     return new TTcpHandlerFactory(host, server);
 }

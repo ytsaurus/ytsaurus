@@ -13,7 +13,6 @@ target_compile_options(yt-library-clickhouse_functions PRIVATE
 )
 target_include_directories(yt-library-clickhouse_functions PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base
   ${CMAKE_SOURCE_DIR}/contrib/libs/double-conversion
   ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
   ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Net/include
@@ -28,13 +27,35 @@ target_link_libraries(yt-library-clickhouse_functions PUBLIC
   yutil
   yt-yt-core
   contrib-clickhouse-src
-  clickhouse-base-common
 )
 target_sources(yt-library-clickhouse_functions PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_functions/convert_yson.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_functions/functions.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_functions/unescaped_yson.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_functions/yson_parser_adapter.cpp
+)
+
+add_global_library_for(yt-library-clickhouse_functions.global yt-library-clickhouse_functions)
+target_compile_options(yt-library-clickhouse_functions.global PRIVATE
+  -Wdeprecated-this-capture
+)
+target_include_directories(yt-library-clickhouse_functions.global PRIVATE
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/double-conversion
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Net/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Util/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/XML/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
+  ${CMAKE_SOURCE_DIR}/contrib/libs/rapidjson/include
+)
+target_link_libraries(yt-library-clickhouse_functions.global PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  yt-yt-core
+  contrib-clickhouse-src
+)
+target_sources(yt-library-clickhouse_functions.global PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_functions/convert_yson.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_functions/ypath.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_functions/yson_extract.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_functions/yson_parser_adapter.cpp
 )

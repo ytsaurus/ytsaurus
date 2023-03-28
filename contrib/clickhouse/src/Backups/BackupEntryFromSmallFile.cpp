@@ -1,6 +1,6 @@
 #include <Backups/BackupEntryFromSmallFile.h>
 #include <Disks/IDisk.h>
-#include <IO/createReadBufferFromFileBase.h>
+#include <Disks/IO/createReadBufferFromFileBase.h>
 #include <IO/ReadHelpers.h>
 
 
@@ -10,7 +10,7 @@ namespace
 {
     String readFile(const String & file_path)
     {
-        auto buf = createReadBufferFromFileBase(file_path, {}, 0);
+        auto buf = createReadBufferFromFileBase(file_path, /* settings= */ {});
         String s;
         readStringUntilEOF(s, *buf);
         return s;

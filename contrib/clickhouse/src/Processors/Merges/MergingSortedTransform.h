@@ -14,10 +14,10 @@ public:
     MergingSortedTransform(
         const Block & header,
         size_t num_inputs,
-        SortDescription description,
+        const SortDescription & description,
         size_t max_block_size,
+        SortingQueueStrategy sorting_queue_strategy,
         UInt64 limit_ = 0,
-        bool has_limit_below_one_block_ = false,
         WriteBuffer * out_row_sources_buf_ = nullptr,
         bool quiet_ = false,
         bool use_average_block_sizes = false,

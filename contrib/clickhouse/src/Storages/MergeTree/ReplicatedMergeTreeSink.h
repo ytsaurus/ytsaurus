@@ -2,7 +2,7 @@
 
 #include <Processors/Sinks/SinkToStorage.h>
 #include <Storages/MergeTree/MergeTreeData.h>
-#include <common/types.h>
+#include <base/types.h>
 
 
 namespace Poco { class Logger; }
@@ -35,8 +35,11 @@ public:
         // needed to set the special LogEntryType::ATTACH_PART
         bool is_attach_ = false);
 
+    ~ReplicatedMergeTreeSink() override;
+
     void onStart() override;
     void consume(Chunk chunk) override;
+    void onFinish() override;
 
     String getName() const override { return "ReplicatedMergeTreeSink"; }
 
@@ -44,8 +47,12 @@ public:
     void writeExistingPart(MergeTreeData::MutableDataPartPtr & part);
 
     /// For proper deduplication in MaterializedViews
-    bool lastBlockIsDuplicate() const
+    bool lastBlockIsDuplicate() const override
     {
+        /// If MV is responsible for deduplication, block is not considered duplicating.
+        if (context->getSettingsRef().deduplicate_blocks_in_dependent_materialized_views)
+            return false;
+
         return last_block_is_duplicate;
     }
 
@@ -62,7 +69,11 @@ private:
     void checkQuorumPrecondition(zkutil::ZooKeeperPtr & zookeeper);
 
     /// Rename temporary part and commit to ZooKeeper.
-    void commitPart(zkutil::ZooKeeperPtr & zookeeper, MergeTreeData::MutableDataPartPtr & part, const String & block_id);
+    void commitPart(
+        zkutil::ZooKeeperPtr & zookeeper,
+        MergeTreeData::MutableDataPartPtr & part,
+        const String & block_id,
+        DataPartStorageBuilderPtr part_builder);
 
     /// Wait for quorum to be satisfied on path (quorum_path) form part (part_name)
     /// Also checks that replica still alive.
@@ -78,13 +89,20 @@ private:
 
     bool is_attach = false;
     bool quorum_parallel = false;
-    bool deduplicate = true;
+    const bool deduplicate = true;
     bool last_block_is_duplicate = false;
 
     using Logger = Poco::Logger;
     Poco::Logger * log;
 
     ContextPtr context;
+    UInt64 chunk_dedup_seqnum = 0; /// input chunk ordinal number in case of dedup token
+
+    /// We can delay processing for previous chunk and start writing a new one.
+    struct DelayedChunk;
+    std::unique_ptr<DelayedChunk> delayed_chunk;
+
+    void finishDelayedChunk(zkutil::ZooKeeperPtr & zookeeper);
 };
 
 }

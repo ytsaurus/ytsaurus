@@ -1,13 +1,13 @@
 #pragma once
 
-#include <common/logger_useful.h>
+#include <Common/logger_useful.h>
 
 #include <Core/Block.h>
 #include <Interpreters/Context.h>
 
 #include <Dictionaries/IDictionarySource.h>
 #include <Dictionaries/DictionaryStructure.h>
-#include <DataStreams/ShellCommandSource.h>
+#include <Processors/Sources/ShellCommandSource.h>
 
 
 namespace DB
@@ -27,36 +27,32 @@ class ExecutablePoolDictionarySource final : public IDictionarySource
 public:
     struct Configuration
     {
-        const String command;
-        const String format;
-        const size_t pool_size;
-        const size_t command_termination_timeout;
-        const size_t max_command_execution_time;
-        /// Implicit key means that the source script will return only values,
-        /// and the correspondence to the requested keys is determined implicitly - by the order of rows in the result.
-        const bool implicit_key;
+        String command;
+        std::vector<String> command_arguments;
+        bool implicit_key;
     };
 
     ExecutablePoolDictionarySource(
         const DictionaryStructure & dict_struct_,
         const Configuration & configuration_,
         Block & sample_block_,
+        std::shared_ptr<ShellCommandSourceCoordinator> coordinator_,
         ContextPtr context_);
 
     ExecutablePoolDictionarySource(const ExecutablePoolDictionarySource & other);
     ExecutablePoolDictionarySource & operator=(const ExecutablePoolDictionarySource &) = delete;
 
-    Pipe loadAll() override;
+    QueryPipeline loadAll() override;
 
     /** The logic of this method is flawed, absolutely incorrect and ignorant.
       * It may lead to skipping some values due to clock sync or timezone changes.
       * The intended usage of "update_field" is totally different.
       */
-    Pipe loadUpdatedAll() override;
+    QueryPipeline loadUpdatedAll() override;
 
-    Pipe loadIds(const std::vector<UInt64> & ids) override;
+    QueryPipeline loadIds(const std::vector<UInt64> & ids) override;
 
-    Pipe loadKeys(const Columns & key_columns, const std::vector<size_t> & requested_rows) override;
+    QueryPipeline loadKeys(const Columns & key_columns, const std::vector<size_t> & requested_rows) override;
 
     bool isModified() const override;
 
@@ -68,15 +64,15 @@ public:
 
     std::string toString() const override;
 
-    Pipe getStreamForBlock(const Block & block);
+    QueryPipeline getStreamForBlock(const Block & block);
 
 private:
     const DictionaryStructure dict_struct;
     const Configuration configuration;
 
     Block sample_block;
+    std::shared_ptr<ShellCommandSourceCoordinator> coordinator;
     ContextPtr context;
-    std::shared_ptr<ProcessPool> process_pool;
     Poco::Logger * log;
 };
 

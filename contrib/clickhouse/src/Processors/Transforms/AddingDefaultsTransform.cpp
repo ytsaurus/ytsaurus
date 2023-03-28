@@ -64,7 +64,7 @@ static void mixNumberColumns(
         if constexpr (!std::is_same_v<DataType, DataTypeString> && !std::is_same_v<DataType, DataTypeFixedString>)
         {
             using FieldType = typename DataType::FieldType;
-            using ColVecType = std::conditional_t<IsDecimalNumber<FieldType>, ColumnDecimal<FieldType>, ColumnVector<FieldType>>;
+            using ColVecType = ColumnVectorOrDecimal<FieldType>;
 
             auto col_read = typeid_cast<ColVecType *>(column_mixed.get());
             if (!col_read)
@@ -187,7 +187,7 @@ void AddingDefaultsTransform::transform(Chunk & chunk)
     {
         const String & column_name = column_def.name;
 
-        if (column_defaults.count(column_name) == 0)
+        if (!column_defaults.contains(column_name) || !res.has(column_name))
             continue;
 
         size_t block_column_position = res.getPositionByName(column_name);

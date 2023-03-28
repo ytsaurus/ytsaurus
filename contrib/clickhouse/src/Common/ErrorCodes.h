@@ -6,7 +6,8 @@
 #include <mutex>
 #include <string_view>
 #include <vector>
-#include <common/types.h>
+#include <base/defines.h>
+#include <base/types.h>
 
 /** Allows to count number of simultaneously happening error codes.
   * See also Exception.cpp for incrementing part.
@@ -57,7 +58,7 @@ namespace ErrorCodes
         void increment(bool remote, const std::string & message, const FramePointers & trace);
 
     private:
-        ErrorPair value;
+        ErrorPair value TSA_GUARDED_BY(mutex);
         std::mutex mutex;
     };
 

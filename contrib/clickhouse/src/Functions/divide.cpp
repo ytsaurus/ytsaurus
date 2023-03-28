@@ -13,6 +13,7 @@ struct DivideFloatingImpl
 {
     using ResultType = typename NumberTraits::ResultOfFloatingPointDivision<A, B>::Type;
     static const constexpr bool allow_fixed_string = false;
+    static const constexpr bool allow_string_integer = false;
 
     template <typename Result = ResultType>
     static inline NO_SANITIZE_UNDEFINED Result apply(A a [[maybe_unused]], B b [[maybe_unused]])
@@ -35,7 +36,7 @@ struct DivideFloatingImpl
 struct NameDivide { static constexpr auto name = "divide"; };
 using FunctionDivide = BinaryArithmeticOverloadResolver<DivideFloatingImpl, NameDivide>;
 
-void registerFunctionDivide(FunctionFactory & factory)
+REGISTER_FUNCTION(Divide)
 {
     factory.registerFunction<FunctionDivide>();
 }

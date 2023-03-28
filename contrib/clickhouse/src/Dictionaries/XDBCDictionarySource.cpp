@@ -1,23 +1,23 @@
 #include "XDBCDictionarySource.h"
 
 #include <Columns/ColumnString.h>
-#include <Processors/Sources/SourceWithProgress.h>
 #include <DataTypes/DataTypeString.h>
-#include <Formats/FormatFactory.h>
-#include <Processors/Formats/InputStreamFromInputFormat.h>
 #include <IO/ReadWriteBufferFromHTTP.h>
 #include <IO/WriteHelpers.h>
 #include <IO/ConnectionTimeoutsContext.h>
 #include <Interpreters/Context.h>
 #include <Poco/Net/HTTPRequest.h>
 #include <Poco/Util/AbstractConfiguration.h>
-#include <common/LocalDateTime.h>
-#include <common/logger_useful.h>
+#include <Common/LocalDateTime.h>
+#include <Common/logger_useful.h>
 #include "DictionarySourceFactory.h"
 #include "DictionaryStructure.h"
 #include "readInvalidateQuery.h"
 #include "registerDictionaries.h"
 #include <Common/escapeForFileName.h>
+#include <QueryPipeline/QueryPipeline.h>
+#include <Processors/Formats/IInputFormat.h>
+#include <Common/config.h>
 
 
 namespace DB
@@ -38,29 +38,22 @@ namespace
                                                   const std::string & where_,
                                                   IXDBCBridgeHelper & bridge_)
     {
-        std::string schema = schema_;
-        std::string table = table_;
+        QualifiedTableName qualified_name{schema_, table_};
 
         if (bridge_.isSchemaAllowed())
         {
-            if (schema.empty())
-            {
-                if (auto pos = table.find('.'); pos != std::string::npos)
-                {
-                    schema = table.substr(0, pos);
-                    table = table.substr(pos + 1);
-                }
-            }
+            if (qualified_name.database.empty())
+                qualified_name = QualifiedTableName::parseFromString(qualified_name.table);
         }
         else
         {
-            if (!schema.empty())
+            if (!qualified_name.database.empty())
                 throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-                    "Dictionary source of type {} specifies a schema but schema is not supported by {}-driver",
+                    "Dictionary source specifies a schema but schema is not supported by {}-driver",
                     bridge_.getName());
         }
 
-        return {dict_struct_, db_, schema, table, query_, where_, bridge_.getIdentifierQuotingStyle()};
+        return {dict_struct_, db_, qualified_name.database, qualified_name.table, query_, where_, bridge_.getIdentifierQuotingStyle()};
     }
 }
 
@@ -125,30 +118,30 @@ std::string XDBCDictionarySource::getUpdateFieldAndDate()
 }
 
 
-Pipe XDBCDictionarySource::loadAll()
+QueryPipeline XDBCDictionarySource::loadAll()
 {
-    LOG_TRACE(log, load_all_query);
+    LOG_TRACE(log, fmt::runtime(load_all_query));
     return loadFromQuery(bridge_url, sample_block, load_all_query);
 }
 
 
-Pipe XDBCDictionarySource::loadUpdatedAll()
+QueryPipeline XDBCDictionarySource::loadUpdatedAll()
 {
     std::string load_query_update = getUpdateFieldAndDate();
 
-    LOG_TRACE(log, load_query_update);
+    LOG_TRACE(log, fmt::runtime(load_query_update));
     return loadFromQuery(bridge_url, sample_block, load_query_update);
 }
 
 
-Pipe XDBCDictionarySource::loadIds(const std::vector<UInt64> & ids)
+QueryPipeline XDBCDictionarySource::loadIds(const std::vector<UInt64> & ids)
 {
     const auto query = query_builder.composeLoadIdsQuery(ids);
     return loadFromQuery(bridge_url, sample_block, query);
 }
 
 
-Pipe XDBCDictionarySource::loadKeys(const Columns & key_columns, const std::vector<size_t> & requested_rows)
+QueryPipeline XDBCDictionarySource::loadKeys(const Columns & key_columns, const std::vector<size_t> & requested_rows)
 {
     const auto query = query_builder.composeLoadKeysQuery(key_columns, requested_rows, ExternalQueryBuilder::AND_OR_CHAIN);
     return loadFromQuery(bridge_url, sample_block, query);
@@ -169,7 +162,7 @@ bool XDBCDictionarySource::hasUpdateField() const
 
 DictionarySourcePtr XDBCDictionarySource::clone() const
 {
-    return std::make_unique<XDBCDictionarySource>(*this);
+    return std::make_shared<XDBCDictionarySource>(*this);
 }
 
 
@@ -206,11 +199,11 @@ std::string XDBCDictionarySource::doInvalidateQuery(const std::string & request)
     for (const auto & [name, value] : url_params)
         invalidate_url.addQueryParameter(name, value);
 
-    return readInvalidateQuery(loadFromQuery(invalidate_url, invalidate_sample_block, request));
+    return readInvalidateQuery(QueryPipeline(loadFromQuery(invalidate_url, invalidate_sample_block, request)));
 }
 
 
-Pipe XDBCDictionarySource::loadFromQuery(const Poco::URI & url, const Block & required_sample_block, const std::string & query) const
+QueryPipeline XDBCDictionarySource::loadFromQuery(const Poco::URI & url, const Block & required_sample_block, const std::string & query) const
 {
     bridge_helper->startBridgeSync();
 
@@ -221,11 +214,12 @@ Pipe XDBCDictionarySource::loadFromQuery(const Poco::URI & url, const Block & re
         os << "query=" << escapeForFileName(query);
     };
 
-    auto read_buf = std::make_unique<ReadWriteBufferFromHTTP>(url, Poco::Net::HTTPRequest::HTTP_POST, write_body_callback, timeouts);
-    auto format = FormatFactory::instance().getInput(IXDBCBridgeHelper::DEFAULT_FORMAT, *read_buf, required_sample_block, getContext(), max_block_size);
+    auto read_buf = std::make_unique<ReadWriteBufferFromHTTP>(
+        url, Poco::Net::HTTPRequest::HTTP_POST, write_body_callback, timeouts, credentials);
+    auto format = getContext()->getInputFormat(IXDBCBridgeHelper::DEFAULT_FORMAT, *read_buf, required_sample_block, max_block_size);
     format->addBuffer(std::move(read_buf));
 
-    return Pipe(std::move(format));
+    return QueryPipeline(std::move(format));
 }
 
 void registerDictionarySourceXDBC(DictionarySourceFactory & factory)
@@ -281,8 +275,6 @@ void registerDictionarySourceJDBC(DictionarySourceFactory & factory)
                                  bool /* created_from_ddl */) -> DictionarySourcePtr {
         throw Exception(ErrorCodes::SUPPORT_IS_DISABLED,
             "Dictionary source of type `jdbc` is disabled until consistent support for nullable fields.");
-        //        BridgeHelperPtr bridge = std::make_shared<XDBCBridgeHelper<JDBCBridgeMixin>>(config, context.getSettings().http_receive_timeout, config.getString(config_prefix + ".connection_string"));
-        //        return std::make_unique<XDBCDictionarySource>(dict_struct, config, config_prefix + ".jdbc", sample_block, context, bridge);
     };
     factory.registerSource("jdbc", create_table_source);
 }

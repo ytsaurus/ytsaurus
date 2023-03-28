@@ -37,7 +37,7 @@ class TestComposite(ClickHouseTestBase):
             ]
             assert clique.make_query("select * from `//tmp/t`") == [
                 {"a": []},
-                {"a": [["k1", "v1"], ["k2", "v2"]]}
+                {"a": [{"key": "k1", "value": "v1"}, {"key": "k2", "value": "v2"}]}
             ]
             assert clique.make_query(
                 "select arrayMap(item -> toTypeName(item), a) as ti from `//tmp/t[#1]` limit 1") == [
@@ -86,7 +86,7 @@ class TestComposite(ClickHouseTestBase):
                 {"ta": "Tuple(s String, i Int64)"}
             ]
             assert clique.make_query("select * from `//tmp/t`") == [
-                {"a": ["foo", 42]}
+                {"a": {"s": "foo", "i": 42}}
             ]
             assert clique.make_query("select a.1 as s, a.2 as i from `//tmp/t`") == [
                 {"s": "foo", "i": 42}

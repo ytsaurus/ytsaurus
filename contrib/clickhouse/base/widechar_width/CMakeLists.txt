@@ -12,7 +12,9 @@ target_compile_options(clickhouse-base-widechar_width PUBLIC
   -DOS_LINUX
 )
 target_compile_options(clickhouse-base-widechar_width PRIVATE
-  -DZ_TLS=__thread
+  -DHAS_RESERVED_IDENTIFIER
+  -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
+  -D__GCC_HAVE_DWARF2_CFI_ASM=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(clickhouse-base-widechar_width PUBLIC

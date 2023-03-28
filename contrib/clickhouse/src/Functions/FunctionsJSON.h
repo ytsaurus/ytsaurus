@@ -1,14 +1,15 @@
-#pragma once
+#include <type_traits>
+#include <boost/tti/has_member_function.hpp>
 
-#include <Functions/IFunction.h>
-#include <Core/AccurateComparison.h>
-#include <Functions/DummyJSONParser.h>
-#include <Functions/SimdJSONParser.h>
-#include <Functions/RapidJSONParser.h>
+#include <base/range.h>
+
 #include <Common/CpuId.h>
 #include <Common/typeid_cast.h>
 #include <Common/assert_cast.h>
+
+#include <Core/AccurateComparison.h>
 #include <Core/Settings.h>
+
 #include <Columns/ColumnConst.h>
 #include <Columns/ColumnLowCardinality.h>
 #include <Columns/ColumnDecimal.h>
@@ -18,6 +19,7 @@
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnArray.h>
 #include <Columns/ColumnTuple.h>
+
 #include <DataTypes/Serializations/SerializationDecimal.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeLowCardinality.h>
@@ -26,28 +28,39 @@
 #include <DataTypes/DataTypeUUID.h>
 #include <DataTypes/DataTypeEnum.h>
 #include <DataTypes/DataTypeFactory.h>
+#include <DataTypes/DataTypeNothing.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypeTuple.h>
-#include <Interpreters/Context.h>
-#include <common/range.h>
-#include <type_traits>
-#include <boost/tti/has_member_function.hpp>
 
-#if !defined(ARCADIA_BUILD)
-#    include "config_functions.h"
-#endif
+#include <Functions/FunctionFactory.h>
+#include <Functions/IFunction.h>
+#include <Common/JSONParsers/DummyJSONParser.h>
+#include <Common/JSONParsers/SimdJSONParser.h>
+#include <Common/JSONParsers/RapidJSONParser.h>
+#include <Functions/FunctionHelpers.h>
+
+#include <Interpreters/Context.h>
+
+
+#include "config_functions.h"
 
 
 namespace DB
 {
+
 namespace ErrorCodes
 {
-    extern const int ILLEGAL_COLUMN;
     extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+    extern const int ILLEGAL_COLUMN;
     extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
 }
 
+template <typename T>
+concept HasIndexOperator = requires (T t)
+{
+    t[0];
+};
 
 /// Functions to parse JSONs and extract values from it.
 /// The first argument of all these functions gets a JSON,
@@ -110,7 +123,7 @@ public:
             bool document_ok = false;
             if (col_json_const)
             {
-                std::string_view json{reinterpret_cast<const char *>(&chars[0]), offsets[0] - 1};
+                std::string_view json{reinterpret_cast<const char *>(chars.data()), offsets[0] - 1};
                 document_ok = parser.parse(json, document);
             }
 
@@ -146,12 +159,6 @@ private:
     BOOST_TTI_HAS_MEMBER_FUNCTION(reserve)
     BOOST_TTI_HAS_MEMBER_FUNCTION(prepare)
 
-    template <class T, class = void>
-    struct has_index_operator : std::false_type {};
-
-    template <class T>
-    struct has_index_operator<T, std::void_t<decltype(std::declval<T>()[0])>> : std::true_type {};
-
     /// Represents a move of a JSON iterator described by a single argument passed to a JSON function.
     /// For example, the call JSONExtractInt('{"a": "hello", "b": [-100, 200.0, 300]}', 'b', 1)
     /// contains two moves: {MoveType::ConstKey, "b"} and {MoveType::ConstIndex, 1}.
@@ -166,14 +173,48 @@ private:
 
     struct Move
     {
-        Move(MoveType type_, size_t index_ = 0) : type(type_), index(index_) {}
+        explicit Move(MoveType type_, size_t index_ = 0) : type(type_), index(index_) {}
         Move(MoveType type_, const String & key_) : type(type_), key(key_) {}
         MoveType type;
         size_t index = 0;
         String key;
     };
 
-    static std::vector<Move> prepareMoves(const char * function_name, const ColumnsWithTypeAndName & columns, size_t first_index_argument, size_t num_index_arguments);
+    static std::vector<FunctionJSONHelpers::Move> prepareMoves(
+        const char * function_name,
+        const ColumnsWithTypeAndName & columns,
+        size_t first_index_argument,
+        size_t num_index_arguments)
+    {
+        std::vector<Move> moves;
+        moves.reserve(num_index_arguments);
+        for (const auto i : collections::range(first_index_argument, first_index_argument + num_index_arguments))
+        {
+            const auto & column = columns[i];
+            if (!isString(column.type) && !isInteger(column.type))
+                throw Exception{"The argument " + std::to_string(i + 1) + " of function " + String(function_name)
+                                    + " should be a string specifying key or an integer specifying index, illegal type: " + column.type->getName(),
+                                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT};
+
+            if (column.column && isColumnConst(*column.column))
+            {
+                const auto & column_const = assert_cast<const ColumnConst &>(*column.column);
+                if (isString(column.type))
+                    moves.emplace_back(MoveType::ConstKey, column_const.getValue<String>());
+                else
+                    moves.emplace_back(MoveType::ConstIndex, column_const.getInt(0));
+            }
+            else
+            {
+                if (isString(column.type))
+                    moves.emplace_back(MoveType::Key, "");
+                else
+                    moves.emplace_back(MoveType::Index, 0);
+            }
+        }
+        return moves;
+    }
+
 
     /// Performs moves of types MoveType::Index and MoveType::ConstIndex.
     template <typename JSONParser>
@@ -210,7 +251,7 @@ private:
                 }
                 case MoveType::Key:
                 {
-                    key = std::string_view{(*arguments[j + 1].column).getDataAt(row)};
+                    key = (*arguments[j + 1].column).getDataAt(row).toView();
                     if (!moveToElementByKey<JSONParser>(res_element, key))
                         return false;
                     break;
@@ -241,7 +282,7 @@ private:
             return true;
         }
 
-        if constexpr (has_index_operator<typename JSONParser::Object>::value)
+        if constexpr (HasIndexOperator<typename JSONParser::Object>)
         {
             if (element.isObject())
             {
@@ -263,7 +304,7 @@ private:
 
     /// Performs moves of types MoveType::Key and MoveType::ConstKey.
     template <typename JSONParser>
-    static bool moveToElementByKey(typename JSONParser::Element & element, const std::string_view & key)
+    static bool moveToElementByKey(typename JSONParser::Element & element, std::string_view key)
     {
         if (!element.isObject())
             return false;
@@ -271,34 +312,56 @@ private:
         return object.find(key, element);
     }
 
-    static size_t calculateMaxSize(const ColumnString::Offsets & offsets);
+    static size_t calculateMaxSize(const ColumnString::Offsets & offsets)
+    {
+        size_t max_size = 0;
+        for (const auto i : collections::range(0, offsets.size()))
+        {
+            size_t size = offsets[i] - offsets[i - 1];
+            if (max_size < size)
+                max_size = size;
+        }
+        if (max_size)
+            --max_size;
+        return max_size;
+    }
+
 };
 
 
 template <typename Name, template<typename> typename Impl>
-class FunctionJSON : public IFunction, WithContext
+class ExecutableFunctionJSON : public IExecutableFunction, WithContext
 {
+
 public:
-    static FunctionPtr create(ContextPtr context_) { return std::make_shared<FunctionJSON>(context_); }
-    FunctionJSON(ContextPtr context_) : WithContext(context_) {}
-
-    static constexpr auto name = Name::name;
-    String getName() const override { return Name::name; }
-    bool isVariadic() const override { return true; }
-    size_t getNumberOfArguments() const override { return 0; }
-    bool useDefaultImplementationForConstants() const override { return true; }
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
-
-    DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName & arguments) const override
+    explicit ExecutableFunctionJSON(const NullPresence & null_presence_, bool allow_simdjson_, const DataTypePtr & json_return_type_)
+        : null_presence(null_presence_), allow_simdjson(allow_simdjson_), json_return_type(json_return_type_)
     {
-        return Impl<DummyJSONParser>::getReturnType(Name::name, arguments);
     }
+
+    String getName() const override { return Name::name; }
+    bool useDefaultImplementationForNulls() const override { return false; }
+    bool useDefaultImplementationForConstants() const override { return true; }
 
     ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr & result_type, size_t input_rows_count) const override
     {
-        /// Choose JSONParser.
+        if (null_presence.has_null_constant)
+            return result_type->createColumnConstWithDefaultValue(input_rows_count);
+
+        ColumnsWithTypeAndName temporary_columns = null_presence.has_nullable ? createBlockWithNestedColumns(arguments) : arguments;
+        ColumnPtr temporary_result = chooseAndRunJSONParser(temporary_columns, json_return_type, input_rows_count);
+        if (null_presence.has_nullable)
+            return wrapInNullable(temporary_result, arguments, result_type, input_rows_count);
+        return temporary_result;
+    }
+
+private:
+
+    ColumnPtr
+    chooseAndRunJSONParser(const ColumnsWithTypeAndName & arguments, const DataTypePtr & result_type, size_t input_rows_count) const
+    {
 #if USE_SIMDJSON
-        if (getContext()->getSettingsRef().allow_simdjson)
+        if (allow_simdjson)
             return FunctionJSONHelpers::Executor<Name, Impl, SimdJSONParser>::run(arguments, result_type, input_rows_count);
 #endif
 
@@ -307,6 +370,108 @@ public:
 #else
         return FunctionJSONHelpers::Executor<Name, Impl, DummyJSONParser>::run(arguments, result_type, input_rows_count);
 #endif
+    }
+
+    NullPresence null_presence;
+    bool allow_simdjson;
+    DataTypePtr json_return_type;
+};
+
+
+template <typename Name, template<typename> typename Impl>
+class FunctionBaseFunctionJSON : public IFunctionBase
+{
+public:
+    explicit FunctionBaseFunctionJSON(
+        const NullPresence & null_presence_,
+        bool allow_simdjson_,
+        DataTypes argument_types_,
+        DataTypePtr return_type_,
+        DataTypePtr json_return_type_)
+        : null_presence(null_presence_)
+        , allow_simdjson(allow_simdjson_)
+        , argument_types(std::move(argument_types_))
+        , return_type(std::move(return_type_))
+        , json_return_type(std::move(json_return_type_))
+    {
+    }
+
+    String getName() const override { return Name::name; }
+
+    const DataTypes & getArgumentTypes() const override
+    {
+        return argument_types;
+    }
+
+    const DataTypePtr & getResultType() const override
+    {
+        return return_type;
+    }
+
+    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
+
+    ExecutableFunctionPtr prepare(const ColumnsWithTypeAndName &) const override
+    {
+        return std::make_unique<ExecutableFunctionJSON<Name, Impl>>(null_presence, allow_simdjson, json_return_type);
+    }
+
+private:
+    NullPresence null_presence;
+    bool allow_simdjson;
+    DataTypes argument_types;
+    DataTypePtr return_type;
+    DataTypePtr json_return_type;
+};
+
+
+/// We use IFunctionOverloadResolver instead of IFunction to handle non-default NULL processing.
+/// Both NULL and JSON NULL should generate NULL value. If any argument is NULL, return NULL.
+template <typename Name, template<typename> typename Impl>
+class JSONOverloadResolver : public IFunctionOverloadResolver, WithContext
+{
+public:
+    static constexpr auto name = Name::name;
+
+    String getName() const override { return name; }
+
+    static FunctionOverloadResolverPtr create(ContextPtr context_)
+    {
+        return std::make_unique<JSONOverloadResolver>(context_);
+    }
+
+    explicit JSONOverloadResolver(ContextPtr context_) : WithContext(context_) {}
+
+    bool isVariadic() const override { return true; }
+    size_t getNumberOfArguments() const override { return 0; }
+    bool useDefaultImplementationForNulls() const override { return false; }
+
+    FunctionBasePtr build(const ColumnsWithTypeAndName & arguments) const override
+    {
+        bool has_nothing_argument = false;
+        for (const auto & arg : arguments)
+            has_nothing_argument |= isNothing(arg.type);
+
+        DataTypePtr json_return_type = Impl<DummyJSONParser>::getReturnType(Name::name, createBlockWithNestedColumns(arguments));
+        NullPresence null_presence = getNullPresense(arguments);
+        DataTypePtr return_type;
+        if (has_nothing_argument)
+            return_type = std::make_shared<DataTypeNothing>();
+        else if (null_presence.has_null_constant)
+            return_type = makeNullable(std::make_shared<DataTypeNothing>());
+        else if (null_presence.has_nullable)
+            return_type = makeNullable(json_return_type);
+        else
+            return_type = json_return_type;
+
+        /// Top-level LowCardinality columns are processed outside JSON parser.
+        json_return_type = removeLowCardinality(json_return_type);
+
+        DataTypes argument_types;
+        argument_types.reserve(arguments.size());
+        for (const auto & argument : arguments)
+            argument_types.emplace_back(argument.type);
+        return std::make_unique<FunctionBaseFunctionJSON<Name, Impl>>(
+                null_presence, getContext()->getSettingsRef().allow_simdjson, argument_types, return_type, json_return_type);
     }
 };
 
@@ -326,6 +491,7 @@ struct NameJSONExtractKeysAndValues { static constexpr auto name{"JSONExtractKey
 struct NameJSONExtractRaw { static constexpr auto name{"JSONExtractRaw"}; };
 struct NameJSONExtractArrayRaw { static constexpr auto name{"JSONExtractArrayRaw"}; };
 struct NameJSONExtractKeysAndValuesRaw { static constexpr auto name{"JSONExtractKeysAndValuesRaw"}; };
+struct NameJSONExtractKeys { static constexpr auto name{"JSONExtractKeys"}; };
 
 
 template <typename JSONParser>
@@ -338,7 +504,7 @@ public:
 
     static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName & arguments) { return arguments.size() - 1; }
 
-    static bool insertResultToColumn(IColumn & dest, const Element &, const std::string_view &)
+    static bool insertResultToColumn(IColumn & dest, const Element &, std::string_view)
     {
         ColumnVector<UInt8> & col_vec = assert_cast<ColumnVector<UInt8> &>(dest);
         col_vec.insertValue(1);
@@ -366,7 +532,7 @@ public:
 
     static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName &) { return 0; }
 
-    static bool insertResultToColumn(IColumn & dest, const Element &, const std::string_view &)
+    static bool insertResultToColumn(IColumn & dest, const Element &, std::string_view)
     {
         /// This function is called only if JSON is valid.
         /// If JSON isn't valid then `FunctionJSON::Executor::run()` adds default value (=zero) to `dest` without calling this function.
@@ -390,7 +556,7 @@ public:
 
     static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName & arguments) { return arguments.size() - 1; }
 
-    static bool insertResultToColumn(IColumn & dest, const Element & element, const std::string_view &)
+    static bool insertResultToColumn(IColumn & dest, const Element & element, std::string_view)
     {
         size_t size;
         if (element.isArray())
@@ -420,7 +586,7 @@ public:
 
     static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName & arguments) { return arguments.size() - 1; }
 
-    static bool insertResultToColumn(IColumn & dest, const Element &, const std::string_view & last_key)
+    static bool insertResultToColumn(IColumn & dest, const Element &, std::string_view last_key)
     {
         if (last_key.empty())
             return false;
@@ -454,7 +620,7 @@ public:
 
     static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName & arguments) { return arguments.size() - 1; }
 
-    static bool insertResultToColumn(IColumn & dest, const Element & element, const std::string_view &)
+    static bool insertResultToColumn(IColumn & dest, const Element & element, std::string_view)
     {
         UInt8 type;
         if (element.isInt64())
@@ -496,7 +662,7 @@ public:
 
     static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName & arguments) { return arguments.size() - 1; }
 
-    static bool insertResultToColumn(IColumn & dest, const Element & element, const std::string_view &)
+    static bool insertResultToColumn(IColumn & dest, const Element & element, std::string_view)
     {
         NumberType value;
 
@@ -522,7 +688,7 @@ public:
             else if (!accurate::convertNumeric(element.getDouble(), value))
                 return false;
         }
-        else if (element.isBool() && is_integer_v<NumberType> && convert_bool_to_integer)
+        else if (element.isBool() && is_integer<NumberType> && convert_bool_to_integer)
         {
             value = static_cast<NumberType>(element.getBool());
         }
@@ -571,7 +737,7 @@ public:
 
     static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName & arguments) { return arguments.size() - 1; }
 
-    static bool insertResultToColumn(IColumn & dest, const Element & element, const std::string_view &)
+    static bool insertResultToColumn(IColumn & dest, const Element & element, std::string_view)
     {
         if (!element.isBool())
             return false;
@@ -582,6 +748,8 @@ public:
     }
 };
 
+template <typename JSONParser>
+class JSONExtractRawImpl;
 
 template <typename JSONParser>
 class JSONExtractStringImpl
@@ -596,10 +764,13 @@ public:
 
     static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName & arguments) { return arguments.size() - 1; }
 
-    static bool insertResultToColumn(IColumn & dest, const Element & element, const std::string_view &)
+    static bool insertResultToColumn(IColumn & dest, const Element & element, std::string_view)
     {
-        if (!element.isString())
+        if (element.isNull())
             return false;
+
+        if (!element.isString())
+            return JSONExtractRawImpl<JSONParser>::insertResultToColumn(dest, element, {});
 
         auto str = element.getString();
         ColumnString & col_str = assert_cast<ColumnString &>(dest);
@@ -607,9 +778,6 @@ public:
         return true;
     }
 };
-
-template <typename JSONParser>
-class JSONExtractRawImpl;
 
 /// Nodes of the extract tree. We need the extract tree to extract from JSON complex values containing array, tuples or nullables.
 template <typename JSONParser>
@@ -674,7 +842,7 @@ struct JSONExtractTree
     class DecimalNode : public Node
     {
     public:
-        DecimalNode(DataTypePtr data_type_) : data_type(data_type_) {}
+        explicit DecimalNode(DataTypePtr data_type_) : data_type(data_type_) {}
         bool insertResultToColumn(IColumn & dest, const Element & element) override
         {
             if (!element.isDouble())
@@ -694,12 +862,7 @@ struct JSONExtractTree
     public:
         bool insertResultToColumn(IColumn & dest, const Element & element) override
         {
-            if (element.isString())
-                return JSONExtractStringImpl<JSONParser>::insertResultToColumn(dest, element, {});
-            else if (element.isNull())
-                return false;
-            else
-                return JSONExtractRawImpl<JSONParser>::insertResultToColumn(dest, element, {});
+            return JSONExtractStringImpl<JSONParser>::insertResultToColumn(dest, element, {});
         }
     };
 
@@ -723,7 +886,7 @@ struct JSONExtractTree
     class EnumNode : public Node
     {
     public:
-        EnumNode(const std::vector<std::pair<String, Type>> & name_value_pairs_) : name_value_pairs(name_value_pairs_)
+        explicit EnumNode(const std::vector<std::pair<String, Type>> & name_value_pairs_) : name_value_pairs(name_value_pairs_)
         {
             for (const auto & name_value_pair : name_value_pairs)
             {
@@ -739,7 +902,7 @@ struct JSONExtractTree
             if (element.isInt64())
             {
                 Type value;
-                if (!accurate::convertNumeric(element.getInt64(), value) || !only_values.count(value))
+                if (!accurate::convertNumeric(element.getInt64(), value) || !only_values.contains(value))
                     return false;
                 col_vec.insertValue(value);
                 return true;
@@ -748,7 +911,7 @@ struct JSONExtractTree
             if (element.isUInt64())
             {
                 Type value;
-                if (!accurate::convertNumeric(element.getUInt64(), value) || !only_values.count(value))
+                if (!accurate::convertNumeric(element.getUInt64(), value) || !only_values.contains(value))
                     return false;
                 col_vec.insertValue(value);
                 return true;
@@ -775,7 +938,7 @@ struct JSONExtractTree
     class NullableNode : public Node
     {
     public:
-        NullableNode(std::unique_ptr<Node> nested_) : nested(std::move(nested_)) {}
+        explicit NullableNode(std::unique_ptr<Node> nested_) : nested(std::move(nested_)) {}
 
         bool insertResultToColumn(IColumn & dest, const Element & element) override
         {
@@ -793,7 +956,7 @@ struct JSONExtractTree
     class ArrayNode : public Node
     {
     public:
-        ArrayNode(std::unique_ptr<Node> nested_) : nested(std::move(nested_)) {}
+        explicit ArrayNode(std::unique_ptr<Node> nested_) : nested(std::move(nested_)) {}
 
         bool insertResultToColumn(IColumn & dest, const Element & element) override
         {
@@ -893,7 +1056,7 @@ struct JSONExtractTree
                 }
                 else
                 {
-                    for (auto [key, value] : object)
+                    for (const auto & [key, value] : object)
                     {
                         auto index = name_to_index_map.find(key);
                         if (index != name_to_index_map.end())
@@ -961,6 +1124,7 @@ struct JSONExtractTree
                 const auto & tuple = static_cast<const DataTypeTuple &>(*type);
                 const auto & tuple_elements = tuple.getElements();
                 std::vector<std::unique_ptr<Node>> elements;
+                elements.reserve(tuple_elements.size());
                 for (const auto & tuple_element : tuple_elements)
                     elements.emplace_back(build(function_name, tuple_element));
                 return std::make_unique<TupleNode>(std::move(elements), tuple.haveExplicitNames() ? tuple.getElementNames() : Strings{});
@@ -984,7 +1148,7 @@ public:
             throw Exception{"Function " + String(function_name) + " requires at least two arguments", ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH};
 
         const auto & col = arguments.back();
-        auto col_type_const = typeid_cast<const ColumnConst *>(col.column.get());
+        const auto * col_type_const = typeid_cast<const ColumnConst *>(col.column.get());
         if (!col_type_const || !isString(col.type))
             throw Exception{"The last argument of function " + String(function_name)
                                 + " should be a constant string specifying the return data type, illegal value: " + col.name,
@@ -1000,7 +1164,7 @@ public:
         extract_tree = JSONExtractTree<JSONParser>::build(function_name, result_type);
     }
 
-    bool insertResultToColumn(IColumn & dest, const Element & element, const std::string_view &)
+    bool insertResultToColumn(IColumn & dest, const Element & element, std::string_view)
     {
         return extract_tree->insertResultToColumn(dest, element);
     }
@@ -1022,7 +1186,7 @@ public:
             throw Exception{"Function " + String(function_name) + " requires at least two arguments", ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH};
 
         const auto & col = arguments.back();
-        auto col_type_const = typeid_cast<const ColumnConst *>(col.column.get());
+        const auto * col_type_const = typeid_cast<const ColumnConst *>(col.column.get());
         if (!col_type_const || !isString(col.type))
             throw Exception{"The last argument of function " + String(function_name)
                                 + " should be a constant string specifying the values' data type, illegal value: " + col.name,
@@ -1043,7 +1207,7 @@ public:
         extract_tree = JSONExtractTree<JSONParser>::build(function_name, value_type);
     }
 
-    bool insertResultToColumn(IColumn & dest, const Element & element, const std::string_view &)
+    bool insertResultToColumn(IColumn & dest, const Element & element, std::string_view)
     {
         if (!element.isObject())
             return false;
@@ -1056,7 +1220,7 @@ public:
         auto & col_key = assert_cast<ColumnString &>(col_tuple.getColumn(0));
         auto & col_value = col_tuple.getColumn(1);
 
-        for (auto [key, value] : object)
+        for (const auto & [key, value] : object)
         {
             if (extract_tree->insertResultToColumn(col_value, value))
                 col_key.insertData(key.data(), key.size());
@@ -1087,11 +1251,11 @@ public:
 
     static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName & arguments) { return arguments.size() - 1; }
 
-    static bool insertResultToColumn(IColumn & dest, const Element & element, const std::string_view &)
+    static bool insertResultToColumn(IColumn & dest, const Element & element, std::string_view)
     {
         ColumnString & col_str = assert_cast<ColumnString &>(dest);
         auto & chars = col_str.getChars();
-        WriteBufferFromVector<ColumnString::Chars> buf(chars, WriteBufferFromVector<ColumnString::Chars>::AppendModeTag());
+        WriteBufferFromVector<ColumnString::Chars> buf(chars, AppendModeTag());
         traverse(element, buf);
         buf.finalize();
         chars.push_back(0);
@@ -1127,7 +1291,7 @@ private:
         }
         if (element.isString())
         {
-            writeJSONString(element.getString(), buf, format_settings());
+            writeJSONString(element.getString(), buf, formatSettings());
             return;
         }
         if (element.isArray())
@@ -1151,7 +1315,7 @@ private:
             {
                 if (std::exchange(need_comma, true))
                     writeChar(',', buf);
-                writeJSONString(key, buf, format_settings());
+                writeJSONString(key, buf, formatSettings());
                 writeChar(':', buf);
                 traverse(value, buf);
             }
@@ -1165,7 +1329,7 @@ private:
         }
     }
 
-    static const FormatSettings & format_settings()
+    static const FormatSettings & formatSettings()
     {
         static const FormatSettings the_instance = []
         {
@@ -1191,7 +1355,7 @@ public:
 
     static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName & arguments) { return arguments.size() - 1; }
 
-    static bool insertResultToColumn(IColumn & dest, const Element & element, const std::string_view &)
+    static bool insertResultToColumn(IColumn & dest, const Element & element, std::string_view)
     {
         if (!element.isArray())
             return false;
@@ -1223,7 +1387,7 @@ public:
 
     static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName & arguments) { return arguments.size() - 1; }
 
-    bool insertResultToColumn(IColumn & dest, const Element & element, const std::string_view &)
+    bool insertResultToColumn(IColumn & dest, const Element & element, std::string_view)
     {
         if (!element.isObject())
             return false;
@@ -1235,13 +1399,46 @@ public:
         auto & col_key = assert_cast<ColumnString &>(col_tuple.getColumn(0));
         auto & col_value = assert_cast<ColumnString &>(col_tuple.getColumn(1));
 
-        for (auto [key, value] : object)
+        for (const auto & [key, value] : object)
         {
             col_key.insertData(key.data(), key.size());
             JSONExtractRawImpl<JSONParser>::insertResultToColumn(col_value, value, {});
         }
 
         col_arr.getOffsets().push_back(col_arr.getOffsets().back() + object.size());
+        return true;
+    }
+};
+
+template <typename JSONParser>
+class JSONExtractKeysImpl
+{
+public:
+    using Element = typename JSONParser::Element;
+
+    static DataTypePtr getReturnType(const char *, const ColumnsWithTypeAndName &)
+    {
+        return std::make_unique<DataTypeArray>(std::make_shared<DataTypeString>());
+    }
+
+    static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName & arguments) { return arguments.size() - 1; }
+
+    bool insertResultToColumn(IColumn & dest, const Element & element, std::string_view)
+    {
+        if (!element.isObject())
+            return false;
+
+        auto object = element.getObject();
+
+        ColumnArray & col_res = assert_cast<ColumnArray &>(dest);
+        auto & col_key = assert_cast<ColumnString &>(col_res.getData());
+
+        for (const auto & [key, value] : object)
+        {
+            col_key.insertData(key.data(), key.size());
+        }
+
+        col_res.getOffsets().push_back(col_res.getOffsets().back() + object.size());
         return true;
     }
 };

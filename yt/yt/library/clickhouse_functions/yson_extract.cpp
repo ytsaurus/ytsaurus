@@ -1,11 +1,9 @@
-#include "yson_extract.h"
-
 #include "yson_parser_adapter.h"
 
 #include <yt/yt/core/ytree/convert.h>
 
-#include <Functions/FunctionsJSON.h>
 #include <Functions/FunctionFactory.h>
+#include <Functions/FunctionsJSON.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -206,10 +204,8 @@ struct TNameYsonExtractKeysAndValuesRaw { static constexpr auto name{"YSONExtrac
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterYsonExtractFunctions()
+REGISTER_FUNCTION(CHYT_Yson)
 {
-    auto& factory = FunctionFactory::instance();
-
     // We parametrize JSON* implementation with TYsonParserAdapter in TFunctionYson,
     // so it works fine with YSON.
     factory.registerFunction<TFunctionYson<TNameYsonHas, JSONHasImpl>>();

@@ -12,17 +12,20 @@ target_compile_options(clickhouse-src-Parsers PUBLIC
   -DOS_LINUX
 )
 target_compile_options(clickhouse-src-Parsers PRIVATE
+  -DBOOST_ASIO_HAS_STD_INVOKE_RESULT=1
   -DBOOST_ASIO_STANDALONE=1
+  -DENABLE_MULTITARGET_CODE=1
+  -DHAS_RESERVED_IDENTIFIER
   -DPOCO_ENABLE_CPP11
   -DPOCO_HAVE_FD_EPOLL
   -DPOCO_OS_FAMILY_UNIX
   -DUNALIGNED_OK
-  -DUSE_REPLXX=0
   -DWITH_COVERAGE=0
   -DWITH_GZFILEOP
   -DX86_64
   -DZLIB_COMPAT
-  -DZ_TLS=__thread
+  -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
+  -D__GCC_HAVE_DWARF2_CFI_ASM=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(clickhouse-src-Parsers PRIVATE
@@ -31,6 +34,8 @@ target_include_directories(clickhouse-src-Parsers PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Core/include
   ${CMAKE_SOURCE_DIR}/contrib/libs/double-conversion
+  ${CMAKE_SOURCE_DIR}/contrib/libs/miniselect/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/pdqsort
   ${CMAKE_SOURCE_DIR}/contrib/libs/re2
   ${CMAKE_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
 )
@@ -40,49 +45,55 @@ target_link_libraries(clickhouse-src-Parsers PUBLIC
   clickhouse-src-Common
   contrib-libs-double-conversion
   contrib-libs-fmt
+  contrib-libs-miniselect
+  contrib-libs-pdqsort
   libs-poco-Foundation
+  libs-poco-JSON
   libs-poco-Net
+  libs-poco-NetSSL_OpenSSL
   libs-poco-Util
   contrib-libs-re2
+  restricted-boost-circular_buffer
   restricted-boost-context
+  restricted-boost-convert
   restricted-boost-dynamic_bitset
   restricted-boost-filesystem
   restricted-boost-geometry
+  restricted-boost-heap
   restricted-boost-multi_index
   restricted-boost-program_options
   restricted-boost-system
   restricted-boost-tti
   contrib-restricted-cityhash-1.0.2
   dragonbox
+  contrib-restricted-magic_enum
 )
 target_sources(clickhouse-src-Parsers PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTAlterQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTAsterisk.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTBackupQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTCollation.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTColumnDeclaration.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTColumnsMatcher.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTColumnsTransformers.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTConstraintDeclaration.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTCreateFunctionQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTCreateIndexQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTCreateQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTCreateQuotaQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTCreateRoleQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTCreateRowPolicyQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTCreateSettingsProfileQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTCreateUserQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTDatabaseOrNone.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTDeleteQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTDictionary.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTDictionaryAttributeDeclaration.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTDropAccessEntityQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTDropFunctionQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTDropIndexQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTDropQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTExpressionList.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTFunction.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTFunctionWithKeyValueArguments.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTGrantQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTIdentifier.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTIndexDeclaration.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTInsertQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTInterpolateElement.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTKillQueryQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTLiteral.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTNameTypePair.cpp
@@ -96,27 +107,53 @@ target_sources(clickhouse-src-Parsers PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTQueryWithOnCluster.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTQueryWithOutput.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTQueryWithTableAndOutput.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTRolesOrUsersSet.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTRowPolicyName.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSampleRatio.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSelectIntersectExceptQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSelectQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSelectWithUnionQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSetQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSetRoleQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSettingsProfileElement.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTShowAccessEntitiesQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTShowCreateAccessEntityQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTShowGrantsQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTShowTablesQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSubquery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTSystemQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTTTLElement.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTTableOverrides.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTTablesInSelectQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTUserNameWithHost.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTTransactionControl.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTWindowDefinition.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTWithAlias.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTWithElement.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTCreateQuotaQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTCreateRoleQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTCreateRowPolicyQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTCreateSettingsProfileQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTCreateUserQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTDropAccessEntityQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTGrantQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTRolesOrUsersSet.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTRowPolicyName.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTSetRoleQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTSettingsProfileElement.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTShowAccessEntitiesQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTShowCreateAccessEntityQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTShowGrantsQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ASTUserNameWithHost.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserCreateQuotaQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserCreateRoleQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserCreateRowPolicyQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserCreateSettingsProfileQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserCreateUserQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserDropAccessEntityQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserGrantQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserRolesOrUsersSet.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserRowPolicyName.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserSetRoleQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserSettingsProfileElement.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserShowAccessEntitiesQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserShowCreateAccessEntityQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserShowGrantsQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserShowPrivilegesQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/ParserUserNameWithHost.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/Access/parseUserName.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/CommonParsers.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ExpressionElementParsers.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ExpressionListParsers.cpp
@@ -138,27 +175,25 @@ target_sources(clickhouse-src-Parsers PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/MySQL/ASTDeclareSubPartition.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/MySQL/ASTDeclareTableOptions.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserAlterQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserAttachAccessEntity.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserBackupQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserCase.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserCheckQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserCreateFunctionQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserCreateIndexQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserCreateQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserCreateQuotaQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserCreateRoleQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserCreateRowPolicyQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserCreateSettingsProfileQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserCreateUserQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserDataType.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserDatabaseOrNone.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserDeleteQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserDescribeCacheQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserDescribeTableQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserDictionary.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserDictionaryAttributeDeclaration.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserDropAccessEntityQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserDropFunctionQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserDropIndexQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserDropQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserExplainQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserExternalDDLQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserGrantQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserInsertQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserKillQueryQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserOptimizeQuery.cpp
@@ -167,25 +202,17 @@ target_sources(clickhouse-src-Parsers PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserQueryWithOutput.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserRenameQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserRolesOrUsersSet.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserRowPolicyName.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserSampleRatio.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserSelectQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserSelectWithUnionQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserSetQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserSetRoleQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserSettingsProfileElement.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserShowAccessEntitiesQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserShowCreateAccessEntityQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserShowGrantsQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserShowPrivilegesQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserShowTablesQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserSystemQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserTablePropertiesQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserTablesInSelectQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserTransactionControl.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserUnionQueryElement.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserUseQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserUserNameWithHost.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserWatchQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ParserWithElement.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/QueryWithOutputSettingsPushDownVisitor.cpp
@@ -200,6 +227,7 @@ target_sources(clickhouse-src-Parsers PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/parseIdentifierOrStringLiteral.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/parseIntervalKind.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/parseQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/parseUserName.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/queryToString.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/toOneLineQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Parsers/wipePasswordFromQuery.cpp
 )

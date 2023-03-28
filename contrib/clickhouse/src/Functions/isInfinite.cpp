@@ -1,6 +1,6 @@
 #include <Functions/FunctionNumericPredicate.h>
 #include <Functions/FunctionFactory.h>
-#include <common/bit_cast.h>
+#include <base/bit_cast.h>
 #include <type_traits>
 
 
@@ -35,7 +35,7 @@ using FunctionIsInfinite = FunctionNumericPredicate<IsInfiniteImpl>;
 
 }
 
-void registerFunctionIsInfinite(FunctionFactory & factory)
+REGISTER_FUNCTION(IsInfinite)
 {
     factory.registerFunction<FunctionIsInfinite>();
 }

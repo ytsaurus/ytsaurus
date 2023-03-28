@@ -88,7 +88,7 @@ EValueType ToValueType(DB::Field::Types::Which which)
         default:
             THROW_ERROR_EXCEPTION(
                 "ClickHouse physical type %Qv is not supported",
-                DB::Field::Types::toString(which));
+                DB::fieldTypeToString(which));
     }
 }
 
@@ -157,17 +157,24 @@ void ToUnversionedValue(const DB::Field& field, TUnversionedValue* value)
 {
     value->Type = ToValueType(field.getType());
     switch (value->Type) {
-        case EValueType::Int64:
-        case EValueType::Uint64:
+        case EValueType::Int64: {
+            value->Data.Int64 = field.get<i64>();
+            break;
+        }
+        case EValueType::Uint64: {
+            value->Data.Uint64 = field.get<ui64>();
+            break;
+        }
         case EValueType::Double: {
-            memcpy(&value->Data, &field.reinterpret<ui64>(), sizeof(value->Data));
+            value->Data.Double = field.get<double>();
             break;
         }
         case EValueType::Boolean: {
-            if (field.get<ui64>() > 1) {
+            ui64 fieldValue = field.get<ui64>();
+            if (fieldValue > 1) {
                 THROW_ERROR_EXCEPTION("Cannot convert value %v to boolean", field.get<ui64>());
             }
-            memcpy(&value->Data, &field.get<ui64>(), sizeof(value->Data));
+            value->Data.Boolean = fieldValue;
             break;
         }
         case EValueType::String: {

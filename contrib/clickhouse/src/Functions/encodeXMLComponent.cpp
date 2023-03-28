@@ -1,7 +1,7 @@
 #include <Columns/ColumnString.h>
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionStringToString.h>
-#include <common/find_symbols.h>
+#include <base/find_symbols.h>
 
 
 namespace DB
@@ -137,7 +137,7 @@ namespace
 
 }
 
-void registerFunctionEncodeXMLComponent(FunctionFactory & factory)
+REGISTER_FUNCTION(EncodeXMLComponent)
 {
     factory.registerFunction<FunctionEncodeXMLComponent>();
 }

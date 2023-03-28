@@ -51,7 +51,7 @@ std::string WindowFrame::toString() const
 
 void WindowFrame::toString(WriteBuffer & buf) const
 {
-    buf << toString(type) << " BETWEEN ";
+    buf << type << " BETWEEN ";
     if (begin_type == BoundaryType::Current)
     {
         buf << "CURRENT ROW";
@@ -90,8 +90,8 @@ void WindowFrame::toString(WriteBuffer & buf) const
 void WindowFrame::checkValid() const
 {
     // Check the validity of offsets.
-    if (type == WindowFrame::FrameType::Rows
-        || type == WindowFrame::FrameType::Groups)
+    if (type == WindowFrame::FrameType::ROWS
+        || type == WindowFrame::FrameType::GROUPS)
     {
         if (begin_type == BoundaryType::Offset
             && !((begin_offset.getType() == Field::Types::UInt64
@@ -101,9 +101,9 @@ void WindowFrame::checkValid() const
         {
             throw Exception(ErrorCodes::BAD_ARGUMENTS,
                 "Frame start offset for '{}' frame must be a nonnegative 32-bit integer, '{}' of type '{}' given",
-                toString(type),
+                type,
                 applyVisitor(FieldVisitorToString(), begin_offset),
-                Field::Types::toString(begin_offset.getType()));
+                begin_offset.getType());
         }
 
         if (end_type == BoundaryType::Offset
@@ -114,9 +114,9 @@ void WindowFrame::checkValid() const
         {
             throw Exception(ErrorCodes::BAD_ARGUMENTS,
                 "Frame end offset for '{}' frame must be a nonnegative 32-bit integer, '{}' of type '{}' given",
-                toString(type),
+                type,
                 applyVisitor(FieldVisitorToString(), end_offset),
-                Field::Types::toString(end_offset.getType()));
+                end_offset.getType());
         }
     }
 
@@ -197,7 +197,7 @@ void WindowDescription::checkValid() const
     frame.checkValid();
 
     // RANGE OFFSET requires exactly one ORDER BY column.
-    if (frame.type == WindowFrame::FrameType::Range
+    if (frame.type == WindowFrame::FrameType::RANGE
         && (frame.begin_type == WindowFrame::BoundaryType::Offset
             || frame.end_type == WindowFrame::BoundaryType::Offset)
         && order_by.size() != 1)

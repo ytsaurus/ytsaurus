@@ -1,6 +1,6 @@
 #include <Functions/FunctionNumericPredicate.h>
 #include <Functions/FunctionFactory.h>
-#include <common/bit_cast.h>
+#include <base/bit_cast.h>
 #include <type_traits>
 
 
@@ -39,7 +39,7 @@ using FunctionIsFinite = FunctionNumericPredicate<IsFiniteImpl>;
 
 }
 
-void registerFunctionIsFinite(FunctionFactory & factory)
+REGISTER_FUNCTION(IsFinite)
 {
     factory.registerFunction<FunctionIsFinite>();
 }

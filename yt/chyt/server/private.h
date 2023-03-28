@@ -240,17 +240,18 @@ extern const int NO_SUCH_COLUMN_IN_TABLE;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class AccessControl;
+class ColumnsDescription;
+class Field;
 class IDatabase;
 class KeyCondition;
-struct SelectQueryInfo;
-class Field;
-class ColumnsDescription;
+class NamesAndTypesList;
 class StorageFactory;
+
+struct ASTTableExpression;
 struct ProcessListForUserInfo;
 struct QueryStatusInfo;
-struct ASTTableExpression;
-class AccessControlManager;
-class NamesAndTypesList;
+struct SelectQueryInfo;
 
 class IDataType;
 using DataTypePtr = std::shared_ptr<const IDataType>;

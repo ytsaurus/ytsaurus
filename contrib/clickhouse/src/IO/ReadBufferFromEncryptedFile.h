@@ -1,8 +1,6 @@
 #pragma once
 
-#if !defined(ARCADIA_BUILD)
 #include <Common/config.h>
-#endif
 
 #if USE_SSL
 #include <IO/ReadBufferFromFileBase.h>
@@ -28,12 +26,19 @@ public:
 
     std::string getFileName() const override { return in->getFileName(); }
 
+    void setReadUntilPosition(size_t position) override { in->setReadUntilPosition(position + FileEncryption::Header::kSize); }
+
+    void setReadUntilEnd() override { in->setReadUntilEnd(); }
+
+    size_t getFileSize() override { return in->getFileSize(); }
+
 private:
     bool nextImpl() override;
 
     std::unique_ptr<ReadBufferFromFileBase> in;
 
     off_t offset = 0;
+
     bool need_seek = false;
 
     Memory<> encrypted_buffer;

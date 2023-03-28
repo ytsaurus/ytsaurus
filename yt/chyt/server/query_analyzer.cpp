@@ -494,17 +494,17 @@ void TQueryAnalyzer::ParseQuery()
         if (tablesElement->table_join) {
             const auto* tableJoin = tablesElement->table_join->as<DB::ASTTableJoin>();
             YT_VERIFY(tableJoin);
-            if (static_cast<int>(tableJoin->locality) == static_cast<int>(DB::ASTTableJoin::Locality::Global)) {
+            if (static_cast<int>(tableJoin->locality) == static_cast<int>(DB::JoinLocality::Global)) {
                 YT_LOG_DEBUG("Table expression is a global join (Index: %v)", index);
                 GlobalJoin_ = true;
             }
-            if (static_cast<int>(tableJoin->kind) == static_cast<int>(DB::ASTTableJoin::Kind::Right) ||
-                static_cast<int>(tableJoin->kind) == static_cast<int>(DB::ASTTableJoin::Kind::Full))
+            if (static_cast<int>(tableJoin->kind) == static_cast<int>(DB::JoinKind::Right) ||
+                static_cast<int>(tableJoin->kind) == static_cast<int>(DB::JoinKind::Full))
             {
                 YT_LOG_DEBUG("Query is a right or full join");
                 RightOrFullJoin_ = true;
             }
-            if (static_cast<int>(tableJoin->kind) == static_cast<int>(DB::ASTTableJoin::Kind::Cross)) {
+            if (static_cast<int>(tableJoin->kind) == static_cast<int>(DB::JoinKind::Cross)) {
                 YT_LOG_DEBUG("Query is a cross join");
                 CrossJoin_ = true;
             }
@@ -716,7 +716,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
                         selectQuery->where(),
                         schema,
                         getContext(),
-                        queryInfoForKeyCondition.sets,
+                        *queryInfoForKeyCondition.prepared_sets,
                         settings,
                         Logger);
                 }

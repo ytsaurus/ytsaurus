@@ -33,10 +33,7 @@
 #include <yt/yt/core/misc/numeric_helpers.h>
 
 #include <Core/QueryProcessingStage.h>
-#include <DataStreams/materializeBlock.h>
-#include <DataStreams/MaterializingBlockInputStream.h>
-#include <DataStreams/RemoteBlockInputStream.h>
-#include <DataStreams/RemoteQueryExecutor.h>
+#include <QueryPipeline/RemoteQueryExecutor.h>
 #include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <Interpreters/getHeaderForProcessingStage.h>
@@ -57,6 +54,8 @@
 #include <Processors/Sources/SinkToOutputStream.h>
 #include <Processors/Sources/SourceFromInputStream.h>
 #include <Storages/StorageFactory.h>
+#include <Parsers/ASTSelectWithUnionQuery.h>
+#include <QueryPipeline/QueryPipelineBuilder.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -121,19 +120,20 @@ DB::ThrottlerPtr CreateNetThrottler(const DB::Settings& settings)
     return throttler;
 }
 
-DB::BlockInputStreamPtr CreateLocalStream(
-    const DB::ASTPtr& queryAst,
-    DB::ContextPtr context,
-    DB::QueryProcessingStage::Enum processingStage)
-{
-    DB::InterpreterSelectQuery interpreter(queryAst, context, DB::SelectQueryOptions(processingStage));
-    DB::BlockInputStreamPtr stream = interpreter.execute().in;
+// TODO(dakovalkov): Restore local stream (local source?).
+// DB::BlockInputStreamPtr CreateLocalStream(
+//     const DB::ASTPtr& queryAst,
+//     DB::ContextPtr context,
+//     DB::QueryProcessingStage::Enum processingStage)
+// {
+//     DB::InterpreterSelectQuery interpreter(queryAst, context, DB::SelectQueryOptions(processingStage));
+//     DB::BlockInputStreamPtr stream = interpreter.execute().in;
 
-    // Materialization is needed, since from remote servers the constants come materialized.
-    // If you do not do this, different types (Const and non-Const) columns will be produced in different threads,
-    // And this is not allowed, since all code is based on the assumption that in the block stream all types are the same.
-    return std::make_shared<DB::MaterializingBlockInputStream>(stream);
-}
+//     // Materialization is needed, since from remote servers the constants come materialized.
+//     // If you do not do this, different types (Const and non-Const) columns will be produced in different threads,
+//     // And this is not allowed, since all code is based on the assumption that in the block stream all types are the same.
+//     return std::make_shared<DB::MaterializingBlockInputStream>(stream);
+// }
 
 DB::Pipe CreateRemoteSource(
     const IClusterNodePtr& remoteNode,
@@ -466,7 +466,7 @@ public:
         return std::move(Pipes_);
     }
 
-    DB::QueryPipelinePtr ExtractPipeline(std::function<void()> commitCallback)
+    DB::QueryPipelineBuilderPtr ExtractPipeline(std::function<void()> commitCallback)
     {
         // We need some sort of async signal indicating that all distributed
         // queries have finished. This may be done by introducing out own sink
@@ -501,17 +501,17 @@ public:
             std::function<void()> CommitCallback_;
         };
 
-        std::vector<DB::QueryPipelinePtr> pipelines;
+        std::vector<DB::QueryPipelineBuilderPtr> pipelines;
         for (size_t index = 0; index < Pipes_.size(); ++index) {
             auto& pipe = Pipes_[index];
-            auto& pipeline = pipelines.emplace_back(std::make_unique<DB::QueryPipeline>());
+            auto& pipeline = pipelines.emplace_back(std::make_unique<DB::QueryPipelineBuilder>());
             pipeline->init(std::move(pipe));
         }
-        auto result = std::make_unique<DB::QueryPipeline>(
-            DB::QueryPipeline::unitePipelines(std::move(pipelines), {}));
+        auto result = std::make_unique<DB::QueryPipelineBuilder>(
+            DB::QueryPipelineBuilder::unitePipelines(std::move(pipelines), {}));
         result->addTransform(std::make_shared<DB::ResizeProcessor>(DB::Block(), Pipes_.size(), 1));
         result->setSinks(
-            [=, this] (const DB::Block & header, DB::QueryPipeline::StreamType) mutable -> DB::ProcessorPtr {
+            [=, this] (const DB::Block & header, DB::QueryPipelineBuilder::StreamType) mutable -> DB::ProcessorPtr {
                 return std::make_shared<TSink>(Logger, header, std::move(commitCallback));
             });
 
@@ -891,7 +891,7 @@ public:
     DB::QueryProcessingStage::Enum getQueryProcessingStage(
         DB::ContextPtr context,
         DB::QueryProcessingStage::Enum toStage,
-        const DB::StorageMetadataPtr& /*inMemoryMetadata*/,
+        const DB::StorageSnapshotPtr& /*storageSnapshot*/,
         DB::SelectQueryInfo& queryInfo) const override
     {
         auto* queryContext = GetQueryContext(context);
@@ -968,7 +968,7 @@ public:
 
     DB::Pipe read(
         const DB::Names& columnNames,
-        const DB::StorageMetadataPtr& metadataSnapshot,
+        const DB::StorageSnapshotPtr& storageSnapshot,
         DB::SelectQueryInfo& queryInfo,
         DB::ContextPtr context,
         DB::QueryProcessingStage::Enum processingStage,
@@ -976,6 +976,8 @@ public:
         unsigned /*numStreams*/) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
+
+        auto metadataSnapshot = storageSnapshot->getMetadataForQuery();
 
         auto preparer = BuildPreparer(
             columnNames,
@@ -1065,7 +1067,7 @@ public:
         return std::make_shared<DB::SinkToOutputStream>(std::move(outputStream));
     }
 
-    DB::QueryPipelinePtr distributedWrite(const DB::ASTInsertQuery& query, DB::ContextPtr context) override
+    std::optional<DB::QueryPipeline> distributedWrite(const DB::ASTInsertQuery& query, DB::ContextPtr context) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
@@ -1078,13 +1080,13 @@ public:
         if (queryContext->QueryKind == EQueryKind::SecondaryQuery) {
             // The query was already distributed.
             // Forbid insert distribution again to avoid lots of requests to the master.
-            return nullptr;
+            return std::nullopt;
         }
 
         if (Tables_.size() != 1) {
             // We are a concatenation; it is impossible to INSERT at all,
             // but let regular write procedure produce proper error.
-            return nullptr;
+            return std::nullopt;
         }
 
         const auto& table = Tables_.back();
@@ -1092,7 +1094,7 @@ public:
         auto* selectWithUnion = query.select->as<DB::ASTSelectWithUnionQuery>();
         if (selectWithUnion->list_of_selects->children.size() != 1) {
             // There is non-trivial union in SELECT part, fall back to non-distributed INSERT SELECT.
-            return nullptr;
+            return std::nullopt;
         }
 
         auto* select = selectWithUnion->list_of_selects->children[0]->as<DB::ASTSelectQuery>();
@@ -1102,20 +1104,20 @@ public:
         auto sourceStorage = std::dynamic_pointer_cast<TStorageDistributor>(joinedTables.getLeftTableStorage());
         if (!sourceStorage) {
             // Source storage is not a distributor; no distributed INSERT for today, sorry.
-            return nullptr;
+            return std::nullopt;
         }
 
         bool overwrite = !table->Path.GetAppend(/*defaultValue*/ true);
 
         if (table->Dynamic && overwrite) {
             // Overwriting dyntables is not supported, let regular write procedure produce proper error.
-            return nullptr;
+            return std::nullopt;
         }
 
         auto distributedStage = executionSettings->DistributedInsertStage;
 
         if (distributedStage == EDistributedInsertStage::None) {
-            return nullptr;
+            return std::nullopt;
         }
 
         // Then, prepare distributed query; we need to interpret SELECT part in order to obtain some additional information
@@ -1135,7 +1137,7 @@ public:
         int queryProcessingStageRank = GetQueryProcessingStageRank(queryProcessingStage);
 
         if (queryProcessingStageRank < distributedInsertStageRank) {
-            return nullptr;
+            return std::nullopt;
         }
 
         queryContext->InitializeQueryWriteTransaction();
@@ -1176,7 +1178,8 @@ public:
         // Finally, build pipeline of all those pipes.
         auto pipeline = preparer.ExtractPipeline(std::move(finalCallback));
 
-        return std::move(pipeline);
+        // TODO(dakovalkov): What is the difference between QueryPipeline and QueryPipelineBuilder?
+        return DB::QueryPipelineBuilder::getPipeline(std::move(*pipeline));
     }
 
     void truncate(

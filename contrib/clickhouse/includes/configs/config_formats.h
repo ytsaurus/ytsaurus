@@ -10,4 +10,3 @@
 #define USE_ARROW 0
 #define USE_PROTOBUF 0
 #define USE_MSGPACK 1
-

@@ -26,7 +26,7 @@ namespace NYT::NClickHouseServer {
 
 TGuid ToGuid(DB::UUID uuid);
 
-void RegisterNewUser(DB::AccessControlManager& accessControlManager, TString userName);
+void RegisterNewUser(DB::AccessControl& accessControl, TString userName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,7 +63,7 @@ TQuerySettingsPtr ParseCustomSettings(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Leaves only some of the "significant" profile counters.
-THashMap<TString, size_t> GetBriefProfileCounters(const ProfileEvents::Counters& profileCounters);
+THashMap<TString, size_t> GetBriefProfileCounters(const ProfileEvents::Counters::Snapshot& profileCounters);
 
 ////////////////////////////////////////////////////////////////////////////////
 

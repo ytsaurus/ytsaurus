@@ -50,7 +50,6 @@ private:
     const NLogging::TLogger Logger;
     const NTableClient::TRowBufferPtr RowBuffer_;
     const DB::PrewhereInfoPtr PrewhereInfo_;
-    DB::ExpressionActionsPtr PrewhereAliasActions_;
     DB::ExpressionActionsPtr PrewhereActions_;
 
     DB::Block InputHeaderBlock_;

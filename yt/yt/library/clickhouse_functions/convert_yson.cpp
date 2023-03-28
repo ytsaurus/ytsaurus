@@ -1,5 +1,3 @@
-#include "ypath.h"
-
 #include "unescaped_yson.h"
 
 #include <yt/yt/core/yson/string.h>
@@ -149,10 +147,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterConvertYsonFunctions()
+REGISTER_FUNCTION(CHYT_ConvertYson)
 {
-    auto& factory = FunctionFactory::instance();
-
     factory.registerFunction<TFunctionConvertYson>();
 }
 

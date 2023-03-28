@@ -9,14 +9,12 @@
 #include <Columns/ColumnNullable.h>
 #include <DataTypes/IDataType.h>
 #include <DataTypes/DataTypesNumber.h>
-#include <common/StringRef.h>
+#include <base/StringRef.h>
 #include <Common/assert_cast.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <AggregateFunctions/IAggregateFunction.h>
 
-#if !defined(ARCADIA_BUILD)
-#    include <Common/config.h>
-#endif
+#include <Common/config.h>
 
 #if USE_EMBEDDED_COMPILER
 #    error #include <llvm/IR/IRBuilder.h>
@@ -31,6 +29,7 @@ namespace ErrorCodes
 {
     extern const int ILLEGAL_TYPE_OF_ARGUMENT;
     extern const int NOT_IMPLEMENTED;
+    extern const int TOO_LARGE_STRING_SIZE;
 }
 
 /** Aggregate functions that store one of passed values.
@@ -44,13 +43,14 @@ struct SingleValueDataFixed
 {
 private:
     using Self = SingleValueDataFixed;
-    using ColVecType = std::conditional_t<IsDecimalNumber<T>, ColumnDecimal<T>, ColumnVector<T>>;
+    using ColVecType = ColumnVectorOrDecimal<T>;
 
     bool has_value = false; /// We need to remember if at least one value has been passed. This is necessary for AggregateFunctionIf.
     T value;
 
 public:
     static constexpr bool is_nullable = false;
+    static constexpr bool is_any = false;
 
     bool has() const
     {
@@ -451,6 +451,34 @@ public:
 
 };
 
+struct Compatibility
+{
+    /// Old versions used to store terminating null-character in SingleValueDataString.
+    /// Then -WithTerminatingZero methods were removed from IColumn interface,
+    /// because these methods are quite dangerous and easy to misuse. It introduced incompatibility.
+    /// See https://github.com/ClickHouse/ClickHouse/pull/41431 and https://github.com/ClickHouse/ClickHouse/issues/42916
+    /// Here we keep these functions for compatibility.
+    /// It's safe because there's no way unsanitized user input (without \0 at the end) can reach these functions.
+
+    static StringRef getDataAtWithTerminatingZero(const ColumnString & column, size_t n)
+    {
+        auto res = column.getDataAt(n);
+        /// ColumnString always reserves extra byte for null-character after string.
+        /// But getDataAt returns StringRef without the null-character. Let's add it.
+        chassert(res.data[res.size] == '\0');
+        ++res.size;
+        return res;
+    }
+
+    static void insertDataWithTerminatingZero(ColumnString & column, const char * pos, size_t length)
+    {
+        /// String already has terminating null-character.
+        /// But insertData will add another one unconditionally. Trim existing null-character to avoid duplication.
+        chassert(0 < length);
+        chassert(pos[length - 1] == '\0');
+        column.insertData(pos, length - 1);
+    }
+};
 
 /** For strings. Short strings are stored in the object itself, and long strings are allocated separately.
   * NOTE It could also be suitable for arrays of numbers.
@@ -473,15 +501,26 @@ private:
 
 public:
     static constexpr bool is_nullable = false;
+    static constexpr bool is_any = false;
 
     bool has() const
     {
         return size >= 0;
     }
 
-    const char * getData() const
+private:
+    char * getDataMutable()
     {
         return size <= MAX_SMALL_STRING_SIZE ? small_data : large_data;
+    }
+
+    const char * getData() const
+    {
+        const char * data_ptr = size <= MAX_SMALL_STRING_SIZE ? small_data : large_data;
+        /// It must always be terminated with null-character
+        chassert(0 < size);
+        chassert(data_ptr[size - 1] == '\0');
+        return data_ptr;
     }
 
     StringRef getStringRef() const
@@ -489,10 +528,11 @@ public:
         return StringRef(getData(), size);
     }
 
+public:
     void insertResultInto(IColumn & to) const
     {
         if (has())
-            assert_cast<ColumnString &>(to).insertDataWithTerminatingZero(getData(), size);
+            Compatibility::insertDataWithTerminatingZero(assert_cast<ColumnString &>(to), getData(), size);
         else
             assert_cast<ColumnString &>(to).insertDefault();
     }
@@ -504,40 +544,76 @@ public:
             buf.write(getData(), size);
     }
 
+    void allocateLargeDataIfNeeded(Int64 size_to_reserve, Arena * arena)
+    {
+        if (capacity < size_to_reserve)
+        {
+            capacity = static_cast<Int32>(roundUpToPowerOfTwoOrZero(size_to_reserve));
+            /// It might happen if the size was too big and the rounded value does not fit a size_t
+            if (unlikely(capacity < size_to_reserve))
+                throw Exception(ErrorCodes::TOO_LARGE_STRING_SIZE, "String size is too big ({})", size_to_reserve);
+
+            /// Don't free large_data here.
+            large_data = arena->alloc(capacity);
+        }
+    }
+
     void read(ReadBuffer & buf, const ISerialization & /*serialization*/, Arena * arena)
     {
         Int32 rhs_size;
         readBinary(rhs_size, buf);
 
-        if (rhs_size >= 0)
-        {
-            if (rhs_size <= MAX_SMALL_STRING_SIZE)
-            {
-                /// Don't free large_data here.
-
-                size = rhs_size;
-
-                if (size > 0)
-                    buf.read(small_data, size);
-            }
-            else
-            {
-                if (capacity < rhs_size)
-                {
-                    capacity = static_cast<UInt32>(roundUpToPowerOfTwoOrZero(rhs_size));
-                    /// Don't free large_data here.
-                    large_data = arena->alloc(capacity);
-                }
-
-                size = rhs_size;
-                buf.read(large_data, size);
-            }
-        }
-        else
+        if (rhs_size < 0)
         {
             /// Don't free large_data here.
             size = rhs_size;
+            return;
         }
+
+        if (rhs_size <= MAX_SMALL_STRING_SIZE)
+        {
+            /// Don't free large_data here.
+
+            size = rhs_size;
+
+            if (size > 0)
+                buf.readStrict(small_data, size);
+        }
+        else
+        {
+            /// Reserve one byte more for null-character
+            Int64 rhs_size_to_reserve = rhs_size;
+            rhs_size_to_reserve += 1; /// Avoid overflow
+            allocateLargeDataIfNeeded(rhs_size_to_reserve, arena);
+            size = rhs_size;
+            buf.readStrict(large_data, size);
+        }
+
+        /// Check if the string we read is null-terminated (getDataMutable does not have the assertion)
+        if (0 < size && getDataMutable()[size - 1] == '\0')
+            return;
+
+        /// It's not null-terminated, but it must be (for historical reasons). There are two variants:
+        /// - The value was serialized by one of the incompatible versions of ClickHouse. We had some range of versions
+        ///   that used to serialize SingleValueDataString without terminating '\0'. Let's just append it.
+        /// - An attacker sent crafted data. Sanitize it and append '\0'.
+        /// In all other cases the string must be already null-terminated.
+
+        /// NOTE We cannot add '\0' unconditionally, because it will be duplicated.
+        /// NOTE It's possible that a string that actually ends with '\0' was written by one of the incompatible versions.
+        ///      Unfortunately, we cannot distinguish it from normal string written by normal version.
+        ///      So such strings will be trimmed.
+
+        if (size == MAX_SMALL_STRING_SIZE)
+        {
+            /// Special case: We have to move value to large_data
+            allocateLargeDataIfNeeded(size + 1, arena);
+            memcpy(large_data, small_data, size);
+        }
+
+        /// We have enough space to append
+        ++size;
+        getDataMutable()[size - 1] = '\0';
     }
 
     /// Assuming to.has()
@@ -555,13 +631,7 @@ public:
         }
         else
         {
-            if (capacity < value_size)
-            {
-                /// Don't free large_data here.
-                capacity = roundUpToPowerOfTwoOrZero(value_size);
-                large_data = arena->alloc(capacity);
-            }
-
+            allocateLargeDataIfNeeded(value_size, arena);
             size = value_size;
             memcpy(large_data, value.data, size);
         }
@@ -569,7 +639,7 @@ public:
 
     void change(const IColumn & column, size_t row_num, Arena * arena)
     {
-        changeImpl(assert_cast<const ColumnString &>(column).getDataAtWithTerminatingZero(row_num), arena);
+        changeImpl(Compatibility::getDataAtWithTerminatingZero(assert_cast<const ColumnString &>(column), row_num), arena);
     }
 
     void change(const Self & to, Arena * arena)
@@ -618,7 +688,7 @@ public:
 
     bool changeIfLess(const IColumn & column, size_t row_num, Arena * arena)
     {
-        if (!has() || assert_cast<const ColumnString &>(column).getDataAtWithTerminatingZero(row_num) < getStringRef())
+        if (!has() || Compatibility::getDataAtWithTerminatingZero(assert_cast<const ColumnString &>(column), row_num) < getStringRef())
         {
             change(column, row_num, arena);
             return true;
@@ -640,7 +710,7 @@ public:
 
     bool changeIfGreater(const IColumn & column, size_t row_num, Arena * arena)
     {
-        if (!has() || assert_cast<const ColumnString &>(column).getDataAtWithTerminatingZero(row_num) > getStringRef())
+        if (!has() || Compatibility::getDataAtWithTerminatingZero(assert_cast<const ColumnString &>(column), row_num) > getStringRef())
         {
             change(column, row_num, arena);
             return true;
@@ -667,7 +737,7 @@ public:
 
     bool isEqualTo(const IColumn & column, size_t row_num) const
     {
-        return has() && assert_cast<const ColumnString &>(column).getDataAtWithTerminatingZero(row_num) == getStringRef();
+        return has() && Compatibility::getDataAtWithTerminatingZero(assert_cast<const ColumnString &>(column), row_num) == getStringRef();
     }
 
     static bool allocatesMemoryInArena()
@@ -698,6 +768,7 @@ private:
 
 public:
     static constexpr bool is_nullable = false;
+    static constexpr bool is_any = false;
 
     bool has() const
     {
@@ -879,8 +950,9 @@ struct AggregateFunctionMinData : Data
 {
     using Self = AggregateFunctionMinData;
 
-    bool changeIfBetter(const IColumn & column, size_t row_num, Arena * arena) { return this->changeIfLess(column, row_num, arena); }
-    bool changeIfBetter(const Self & to, Arena * arena)                        { return this->changeIfLess(to, arena); }
+    bool changeIfBetter(const IColumn & column, size_t row_num, Arena * arena)     { return this->changeIfLess(column, row_num, arena); }
+    bool changeIfBetter(const Self & to, Arena * arena)                            { return this->changeIfLess(to, arena); }
+    void addManyDefaults(const IColumn & column, size_t /*length*/, Arena * arena) { this->changeIfLess(column, 0, arena); }
 
     static const char * name() { return "min"; }
 
@@ -906,8 +978,9 @@ struct AggregateFunctionMaxData : Data
 {
     using Self = AggregateFunctionMaxData;
 
-    bool changeIfBetter(const IColumn & column, size_t row_num, Arena * arena) { return this->changeIfGreater(column, row_num, arena); }
-    bool changeIfBetter(const Self & to, Arena * arena)                        { return this->changeIfGreater(to, arena); }
+    bool changeIfBetter(const IColumn & column, size_t row_num, Arena * arena)     { return this->changeIfGreater(column, row_num, arena); }
+    bool changeIfBetter(const Self & to, Arena * arena)                            { return this->changeIfGreater(to, arena); }
+    void addManyDefaults(const IColumn & column, size_t /*length*/, Arena * arena) { this->changeIfGreater(column, 0, arena); }
 
     static const char * name() { return "max"; }
 
@@ -932,9 +1005,11 @@ template <typename Data>
 struct AggregateFunctionAnyData : Data
 {
     using Self = AggregateFunctionAnyData;
+    static constexpr bool is_any = true;
 
-    bool changeIfBetter(const IColumn & column, size_t row_num, Arena * arena) { return this->changeFirstTime(column, row_num, arena); }
-    bool changeIfBetter(const Self & to, Arena * arena)                        { return this->changeFirstTime(to, arena); }
+    bool changeIfBetter(const IColumn & column, size_t row_num, Arena * arena)     { return this->changeFirstTime(column, row_num, arena); }
+    bool changeIfBetter(const Self & to, Arena * arena)                            { return this->changeFirstTime(to, arena); }
+    void addManyDefaults(const IColumn & column, size_t /*length*/, Arena * arena) { this->changeFirstTime(column, 0, arena); }
 
     static const char * name() { return "any"; }
 
@@ -960,8 +1035,9 @@ struct AggregateFunctionAnyLastData : Data
 {
     using Self = AggregateFunctionAnyLastData;
 
-    bool changeIfBetter(const IColumn & column, size_t row_num, Arena * arena) { return this->changeEveryTime(column, row_num, arena); }
-    bool changeIfBetter(const Self & to, Arena * arena)                        { return this->changeEveryTime(to, arena); }
+    bool changeIfBetter(const IColumn & column, size_t row_num, Arena * arena)     { return this->changeEveryTime(column, row_num, arena); }
+    bool changeIfBetter(const Self & to, Arena * arena)                            { return this->changeEveryTime(to, arena); }
+    void addManyDefaults(const IColumn & column, size_t /*length*/, Arena * arena) { this->changeEveryTime(column, 0, arena); }
 
     static const char * name() { return "anyLast"; }
 
@@ -992,35 +1068,36 @@ struct AggregateFunctionSingleValueOrNullData : Data
     bool first_value = true;
     bool is_null = false;
 
-    bool changeIfBetter(const IColumn & column, size_t row_num, Arena * arena)
+    void changeIfBetter(const IColumn & column, size_t row_num, Arena * arena)
     {
         if (first_value)
         {
             first_value = false;
             this->change(column, row_num, arena);
-            return true;
         }
         else if (!this->isEqualTo(column, row_num))
         {
             is_null = true;
         }
-        return false;
     }
 
-    bool changeIfBetter(const Self & to, Arena * arena)
+    void changeIfBetter(const Self & to, Arena * arena)
     {
+        if (!to.has())
+            return;
+
         if (first_value)
         {
             first_value = false;
             this->change(to, arena);
-            return true;
         }
         else if (!this->isEqualTo(to))
         {
             is_null = true;
         }
-        return false;
     }
+
+    void addManyDefaults(const IColumn & column, size_t /*length*/, Arena * arena) { this->changeIfBetter(column, 0, arena); }
 
     void insertResultInto(IColumn & to) const
     {
@@ -1079,6 +1156,9 @@ struct AggregateFunctionAnyHeavyData : Data
 
     bool changeIfBetter(const Self & to, Arena * arena)
     {
+        if (!to.has())
+            return false;
+
         if (this->isEqualTo(to))
         {
             counter += to.counter;
@@ -1094,6 +1174,12 @@ struct AggregateFunctionAnyHeavyData : Data
                 counter -= to.counter;
         }
         return false;
+    }
+
+    void addManyDefaults(const IColumn & column, size_t length, Arena * arena)
+    {
+        for (size_t i = 0; i < length; ++i)
+            changeIfBetter(column, 0, arena);
     }
 
     void write(WriteBuffer & buf, const ISerialization & serialization) const
@@ -1122,11 +1208,13 @@ struct AggregateFunctionAnyHeavyData : Data
 template <typename Data>
 class AggregateFunctionsSingleValue final : public IAggregateFunctionDataHelper<Data, AggregateFunctionsSingleValue<Data>>
 {
+    static constexpr bool is_any = Data::is_any;
+
 private:
     SerializationPtr serialization;
 
 public:
-    AggregateFunctionsSingleValue(const DataTypePtr & type)
+    explicit AggregateFunctionsSingleValue(const DataTypePtr & type)
         : IAggregateFunctionDataHelper<Data, AggregateFunctionsSingleValue<Data>>({type}, {})
         , serialization(type->getDefaultSerialization())
     {
@@ -1154,17 +1242,101 @@ public:
         this->data(place).changeIfBetter(*columns[0], row_num, arena);
     }
 
+    void addManyDefaults(
+        AggregateDataPtr __restrict place,
+        const IColumn ** columns,
+        size_t length,
+        Arena * arena) const override
+    {
+        this->data(place).addManyDefaults(*columns[0], length, arena);
+    }
+
+    void addBatchSinglePlace(
+        size_t row_begin,
+        size_t row_end,
+        AggregateDataPtr place,
+        const IColumn ** columns,
+        Arena * arena,
+        ssize_t if_argument_pos) const override
+    {
+        if constexpr (is_any)
+            if (this->data(place).has())
+                return;
+        if (if_argument_pos >= 0)
+        {
+            const auto & flags = assert_cast<const ColumnUInt8 &>(*columns[if_argument_pos]).getData();
+            for (size_t i = row_begin; i < row_end; ++i)
+            {
+                if (flags[i])
+                {
+                    this->data(place).changeIfBetter(*columns[0], i, arena);
+                    if constexpr (is_any)
+                        break;
+                }
+            }
+        }
+        else
+        {
+            for (size_t i = row_begin; i < row_end; ++i)
+            {
+                this->data(place).changeIfBetter(*columns[0], i, arena);
+                if constexpr (is_any)
+                    break;
+            }
+        }
+    }
+
+    void addBatchSinglePlaceNotNull( /// NOLINT
+        size_t row_begin,
+        size_t row_end,
+        AggregateDataPtr place,
+        const IColumn ** columns,
+        const UInt8 * null_map,
+        Arena * arena,
+        ssize_t if_argument_pos = -1) const override
+    {
+        if constexpr (is_any)
+            if (this->data(place).has())
+                return;
+
+        if (if_argument_pos >= 0)
+        {
+            const auto & flags = assert_cast<const ColumnUInt8 &>(*columns[if_argument_pos]).getData();
+            for (size_t i = row_begin; i < row_end; ++i)
+            {
+                if (!null_map[i] && flags[i])
+                {
+                    this->data(place).changeIfBetter(*columns[0], i, arena);
+                    if constexpr (is_any)
+                        break;
+                }
+            }
+        }
+        else
+        {
+            for (size_t i = row_begin; i < row_end; ++i)
+            {
+                if (!null_map[i])
+                {
+                    this->data(place).changeIfBetter(*columns[0], i, arena);
+                    if constexpr (is_any)
+                        break;
+                }
+            }
+        }
+    }
+
     void merge(AggregateDataPtr __restrict place, ConstAggregateDataPtr rhs, Arena * arena) const override
     {
         this->data(place).changeIfBetter(this->data(rhs), arena);
     }
 
-    void serialize(ConstAggregateDataPtr __restrict place, WriteBuffer & buf) const override
+    void serialize(ConstAggregateDataPtr __restrict place, WriteBuffer & buf, std::optional<size_t> /* version */) const override
     {
         this->data(place).write(buf, *serialization);
     }
 
-    void deserialize(AggregateDataPtr __restrict place, ReadBuffer & buf, Arena * arena) const override
+    void deserialize(AggregateDataPtr place, ReadBuffer & buf, std::optional<size_t> /* version */, Arena * arena) const override
     {
         this->data(place).read(buf, *serialization, arena);
     }

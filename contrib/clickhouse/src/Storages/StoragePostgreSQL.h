@@ -1,24 +1,23 @@
 #pragma once
 
-#if !defined(ARCADIA_BUILD)
 #include "config_core.h"
-#endif
 
 #if USE_LIBPQXX
-#include <common/shared_ptr_helper.h>
 #include <Interpreters/Context.h>
 #include <Storages/IStorage.h>
-#include <DataStreams/IBlockOutputStream.h>
 #error #include <Core/PostgreSQL/PoolWithFailover.h>
+#include <Storages/ExternalDataSourceConfiguration.h>
 
+namespace Poco
+{
+class Logger;
+}
 
 namespace DB
 {
 
-
-class StoragePostgreSQL final : public shared_ptr_helper<StoragePostgreSQL>, public IStorage
+class StoragePostgreSQL final : public IStorage
 {
-    friend struct shared_ptr_helper<StoragePostgreSQL>;
 public:
     StoragePostgreSQL(
         const StorageID & table_id_,
@@ -34,7 +33,7 @@ public:
 
     Pipe read(
         const Names & column_names,
-        const StorageMetadataPtr & /*metadata_snapshot*/,
+        const StorageSnapshotPtr & storage_snapshot,
         SelectQueryInfo & query_info,
         ContextPtr context,
         QueryProcessingStage::Enum processed_stage,
@@ -43,13 +42,15 @@ public:
 
     SinkToStoragePtr write(const ASTPtr & query, const StorageMetadataPtr & /*metadata_snapshot*/, ContextPtr context) override;
 
-private:
-    friend class PostgreSQLBlockOutputStream;
+    static StoragePostgreSQLConfiguration getConfiguration(ASTs engine_args, ContextPtr context);
 
+private:
     String remote_table_name;
     String remote_table_schema;
     String on_conflict;
     postgres::PoolWithFailoverPtr pool;
+
+    Poco::Logger * log;
 };
 
 }

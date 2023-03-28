@@ -1,12 +1,12 @@
 #include <memory>
 
 #include "CurrentThread.h"
-#include <common/logger_useful.h>
+#include <Common/logger_useful.h>
 #include <Common/ThreadStatus.h>
 #include <Common/TaskStatsInfoGetter.h>
 #include <Interpreters/ProcessList.h>
 #include <Interpreters/Context.h>
-#include <common/getThreadId.h>
+#include <base/getThreadId.h>
 #include <Poco/Logger.h>
 
 
@@ -41,13 +41,6 @@ ThreadStatus & CurrentThread::get()
 ProfileEvents::Counters & CurrentThread::getProfileEvents()
 {
     return current_thread ? current_thread->performance_counters : ProfileEvents::global_counters;
-}
-
-MemoryTracker * CurrentThread::getMemoryTracker()
-{
-    if (unlikely(!current_thread))
-        return nullptr;
-    return &current_thread->memory_tracker;
 }
 
 void CurrentThread::updateProgressIn(const Progress & value)
@@ -89,6 +82,24 @@ std::shared_ptr<InternalTextLogsQueue> CurrentThread::getInternalTextLogsQueue()
         return nullptr;
 
     return current_thread->getInternalTextLogsQueue();
+}
+
+void CurrentThread::attachInternalProfileEventsQueue(const InternalProfileEventsQueuePtr & queue)
+{
+    if (unlikely(!current_thread))
+        return;
+    current_thread->attachInternalProfileEventsQueue(queue);
+}
+
+InternalProfileEventsQueuePtr CurrentThread::getInternalProfileEventsQueue()
+{
+    if (unlikely(!current_thread))
+        return nullptr;
+
+    if (current_thread->getCurrentState() == ThreadStatus::ThreadState::Died)
+        return nullptr;
+
+    return current_thread->getInternalProfileEventsQueue();
 }
 
 ThreadGroupStatusPtr CurrentThread::getGroup()

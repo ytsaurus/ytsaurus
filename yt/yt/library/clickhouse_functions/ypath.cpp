@@ -1,5 +1,3 @@
-#include "ypath.h"
-
 #include "yson_parser_adapter.h"
 #include "unescaped_yson.h"
 
@@ -622,10 +620,8 @@ using TFunctionYPathExtract = TFunctionYPathExtractImpl<false, TNameYPathExtract
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterYPathFunctions()
+REGISTER_FUNCTION(CHYT_YPath)
 {
-    auto& factory = FunctionFactory::instance();
-
     factory.registerFunction<TFunctionYPathInt64Strict>();
     factory.registerFunction<TFunctionYPathUInt64Strict>();
     factory.registerFunction<TFunctionYPathBooleanStrict>();

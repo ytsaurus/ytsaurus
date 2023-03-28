@@ -4,7 +4,7 @@
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionHelpers.h>
 #include <Functions/IFunction.h>
-#include <common/range.h>
+#include <base/range.h>
 
 
 namespace DB
@@ -94,7 +94,7 @@ private:
                 src_offset = src_offsets[i];
                 dst_offset += src_length;
 
-                if (src_length > 1 && dst_data[dst_offset - 2] != UInt8(trailing_char_str.front()))
+                if (src_length > 1 && dst_data[dst_offset - 2] != static_cast<UInt8>(trailing_char_str.front()))
                 {
                     dst_data[dst_offset - 1] = trailing_char_str.front();
                     dst_data[dst_offset] = 0;
@@ -115,7 +115,7 @@ private:
 
 }
 
-void registerFunctionAppendTrailingCharIfAbsent(FunctionFactory & factory)
+REGISTER_FUNCTION(AppendTrailingCharIfAbsent)
 {
     factory.registerFunction<FunctionAppendTrailingCharIfAbsent>();
 }

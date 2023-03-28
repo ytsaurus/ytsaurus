@@ -1,7 +1,7 @@
 #include <Columns/ColumnString.h>
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionStringToString.h>
-#include <common/find_symbols.h>
+#include <base/find_symbols.h>
 
 
 namespace DB
@@ -107,7 +107,7 @@ using FunctionTrimBoth = FunctionStringToString<FunctionTrimImpl<TrimModeBoth>, 
 
 }
 
-void registerFunctionTrim(FunctionFactory & factory)
+REGISTER_FUNCTION(Trim)
 {
     factory.registerFunction<FunctionTrimLeft>();
     factory.registerFunction<FunctionTrimRight>();

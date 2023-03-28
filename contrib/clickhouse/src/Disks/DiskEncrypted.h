@@ -1,13 +1,12 @@
 #pragma once
 
-#if !defined(ARCADIA_BUILD)
 #include <Common/config.h>
-#endif
 
 #if USE_SSL
 #include <Disks/IDisk.h>
 #include <Disks/DiskDecorator.h>
 #include <Common/MultiVersion.h>
+#include <Disks/FakeDiskTransaction.h>
 
 
 namespace DB
@@ -85,7 +84,7 @@ public:
         delegate->moveDirectory(wrapped_from_path, wrapped_to_path);
     }
 
-    DiskDirectoryIteratorPtr iterateDirectory(const String & path) override
+    DirectoryIteratorPtr iterateDirectory(const String & path) const override
     {
         auto wrapped_path = wrappedPath(path);
         return delegate->iterateDirectory(wrapped_path);
@@ -111,7 +110,7 @@ public:
         delegate->replaceFile(wrapped_from_path, wrapped_to_path);
     }
 
-    void listFiles(const String & path, std::vector<String> & file_names) override
+    void listFiles(const String & path, std::vector<String> & file_names) const override
     {
         auto wrapped_path = wrappedPath(path);
         delegate->listFiles(wrapped_path, file_names);
@@ -119,15 +118,19 @@ public:
 
     void copy(const String & from_path, const std::shared_ptr<IDisk> & to_disk, const String & to_path) override;
 
+    void copyDirectoryContent(const String & from_dir, const std::shared_ptr<IDisk> & to_disk, const String & to_dir) override;
+
     std::unique_ptr<ReadBufferFromFileBase> readFile(
         const String & path,
         const ReadSettings & settings,
-        size_t estimated_size) const override;
+        std::optional<size_t> read_hint,
+        std::optional<size_t> file_size) const override;
 
     std::unique_ptr<WriteBufferFromFileBase> writeFile(
         const String & path,
         size_t buf_size,
-        WriteMode mode) override;
+        WriteMode mode,
+        const WriteSettings & settings) override;
 
     void removeFile(const String & path) override
     {
@@ -159,10 +162,23 @@ public:
         delegate->removeSharedFile(wrapped_path, flag);
     }
 
-    void removeSharedRecursive(const String & path, bool flag) override
+    void removeSharedRecursive(const String & path, bool keep_all_batch_data, const NameSet & file_names_remove_metadata_only) override
     {
         auto wrapped_path = wrappedPath(path);
-        delegate->removeSharedRecursive(wrapped_path, flag);
+        delegate->removeSharedRecursive(wrapped_path, keep_all_batch_data, file_names_remove_metadata_only);
+    }
+
+    void removeSharedFiles(const RemoveBatchRequest & files, bool keep_all_batch_data, const NameSet & file_names_remove_metadata_only) override
+    {
+        for (const auto & file : files)
+        {
+            auto wrapped_path = wrappedPath(file.path);
+            bool keep = keep_all_batch_data || file_names_remove_metadata_only.contains(fs::path(file.path).filename());
+            if (file.if_exists)
+                delegate->removeSharedFileIfExists(wrapped_path, keep);
+            else
+                delegate->removeSharedFile(wrapped_path, keep);
+        }
     }
 
     void removeSharedFileIfExists(const String & path, bool flag) override
@@ -177,10 +193,16 @@ public:
         delegate->setLastModified(wrapped_path, timestamp);
     }
 
-    Poco::Timestamp getLastModified(const String & path) override
+    Poco::Timestamp getLastModified(const String & path) const override
     {
         auto wrapped_path = wrappedPath(path);
         return delegate->getLastModified(wrapped_path);
+    }
+
+    time_t getLastChanged(const String & path) const override
+    {
+        auto wrapped_path = wrappedPath(path);
+        return delegate->getLastChanged(wrapped_path);
     }
 
     void setReadOnly(const String & path) override
@@ -216,6 +238,13 @@ public:
     bool isRemote() const override { return delegate->isRemote(); }
 
     SyncGuardPtr getDirectorySyncGuard(const String & path) const override;
+
+    DiskTransactionPtr createTransaction() override
+    {
+        /// Need to overwrite explicetly because this disk change
+        /// a lot of "delegate" methods.
+        return std::make_shared<FakeDiskTransaction>(*this);
+    }
 
 private:
     String wrappedPath(const String & path) const

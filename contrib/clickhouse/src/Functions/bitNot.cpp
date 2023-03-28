@@ -18,6 +18,7 @@ struct BitNotImpl
 {
     using ResultType = typename NumberTraits::ResultOfBitNot<A>::Type;
     static const constexpr bool allow_fixed_string = true;
+    static const constexpr bool allow_string_integer = false;
 
     static inline ResultType apply(A a)
     {
@@ -50,7 +51,7 @@ template <> struct FunctionUnaryArithmeticMonotonicity<NameBitNot>
     }
 };
 
-void registerFunctionBitNot(FunctionFactory & factory)
+REGISTER_FUNCTION(BitNot)
 {
     factory.registerFunction<FunctionBitNot>();
 }

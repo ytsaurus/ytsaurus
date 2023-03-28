@@ -29,6 +29,11 @@ namespace DB
 {
 struct Settings;
 
+namespace ErrorCodes
+{
+    extern const int TOO_LARGE_ARRAY_SIZE;
+}
+
 enum class SequenceDirection
 {
     Forward,
@@ -42,6 +47,9 @@ enum SequenceBase
     FirstMatch,
     LastMatch,
 };
+
+/// This is for security
+static const UInt64 max_node_size_deserialize = 0xFFFFFF;
 
 /// NodeBase used to implement a linked list for storage of SequenceNextNodeImpl
 template <typename Node, size_t MaxEventsSize>
@@ -78,10 +86,12 @@ struct NodeBase
     {
         UInt64 size;
         readVarUInt(size, buf);
+        if unlikely (size > max_node_size_deserialize)
+            throw Exception("Too large node state size", ErrorCodes::TOO_LARGE_ARRAY_SIZE);
 
         Node * node = reinterpret_cast<Node *>(arena->alignedAlloc(sizeof(Node) + size, alignof(Node)));
         node->size = size;
-        buf.read(node->data(), size);
+        buf.readStrict(node->data(), size);
 
         readBinary(node->event_time, buf);
         UInt64 ulong_bitset;
@@ -158,8 +168,8 @@ class SequenceNextNodeImpl final
     using Self = SequenceNextNodeImpl<T, Node>;
 
     using Data = SequenceNextNodeGeneralData<Node>;
-    static Data & data(AggregateDataPtr place) { return *reinterpret_cast<Data *>(place); }
-    static const Data & data(ConstAggregateDataPtr place) { return *reinterpret_cast<const Data *>(place); }
+    static Data & data(AggregateDataPtr __restrict place) { return *reinterpret_cast<Data *>(place); }
+    static const Data & data(ConstAggregateDataPtr __restrict place) { return *reinterpret_cast<const Data *>(place); }
 
     static constexpr size_t base_cond_column_idx = 2;
     static constexpr size_t event_column_idx = 1;
@@ -194,7 +204,7 @@ public:
 
     DataTypePtr getReturnType() const override { return data_type; }
 
-    bool haveSameStateRepresentation(const IAggregateFunction & rhs) const override
+    bool haveSameStateRepresentationImpl(const IAggregateFunction & rhs) const override
     {
         return this->getName() == rhs.getName() && this->haveEqualArgumentTypes(rhs);
     }
@@ -216,7 +226,7 @@ public:
         a.value.push_back(v->clone(arena), arena);
     }
 
-    void create(AggregateDataPtr place) const override
+    void create(AggregateDataPtr __restrict place) const override /// NOLINT
     {
         new (place) Data;
     }
@@ -283,7 +293,7 @@ public:
         data(place).sorted = true;
     }
 
-    void serialize(ConstAggregateDataPtr __restrict place, WriteBuffer & buf) const override
+    void serialize(ConstAggregateDataPtr __restrict place, WriteBuffer & buf, std::optional<size_t> /* version */) const override
     {
         /// Temporarily do a const_cast to sort the values. It helps to reduce the computational burden on the initiator node.
         this->data(const_cast<AggregateDataPtr>(place)).sort();
@@ -316,7 +326,7 @@ public:
         }
     }
 
-    void deserialize(AggregateDataPtr __restrict place, ReadBuffer & buf, Arena * arena) const override
+    void deserialize(AggregateDataPtr __restrict place, ReadBuffer & buf, std::optional<size_t> /* version */, Arena * arena) const override
     {
         readBinary(data(place).sorted, buf);
 

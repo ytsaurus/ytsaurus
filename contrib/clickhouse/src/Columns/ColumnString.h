@@ -42,20 +42,24 @@ private:
     /// Size of i-th element, including terminating zero.
     size_t ALWAYS_INLINE sizeAt(ssize_t i) const { return offsets[i] - offsets[i - 1]; }
 
-    template <bool positive>
-    struct Cmp;
+    struct ComparatorBase;
 
-    template <bool positive>
-    struct CmpWithCollation;
+    using ComparatorAscendingUnstable = ComparatorAscendingUnstableImpl<ComparatorBase>;
+    using ComparatorAscendingStable = ComparatorAscendingStableImpl<ComparatorBase>;
+    using ComparatorDescendingUnstable = ComparatorDescendingUnstableImpl<ComparatorBase>;
+    using ComparatorDescendingStable = ComparatorDescendingStableImpl<ComparatorBase>;
+    using ComparatorEqual = ComparatorEqualImpl<ComparatorBase>;
+
+    struct ComparatorCollationBase;
+
+    using ComparatorCollationAscendingUnstable = ComparatorAscendingUnstableImpl<ComparatorCollationBase>;
+    using ComparatorCollationAscendingStable = ComparatorAscendingStableImpl<ComparatorCollationBase>;
+    using ComparatorCollationDescendingUnstable = ComparatorDescendingUnstableImpl<ComparatorCollationBase>;
+    using ComparatorCollationDescendingStable = ComparatorDescendingStableImpl<ComparatorCollationBase>;
+    using ComparatorCollationEqual = ComparatorEqualImpl<ComparatorCollationBase>;
 
     ColumnString() = default;
     ColumnString(const ColumnString & src);
-
-    template <typename Comparator>
-    void getPermutationImpl(size_t limit, Permutation & res, Comparator cmp) const;
-
-    template <typename Comparator>
-    void updatePermutationImpl(size_t limit, Permutation & res, EqualRanges & equal_ranges, Comparator cmp) const;
 
 public:
     const char * getFamilyName() const override { return "String"; }
@@ -104,10 +108,10 @@ public:
         return StringRef(&chars[offsetAt(n)], sizeAt(n) - 1);
     }
 
-    StringRef getDataAtWithTerminatingZero(size_t n) const override
+    bool isDefaultAt(size_t n) const override
     {
         assert(n < size());
-        return StringRef(&chars[offsetAt(n)], sizeAt(n));
+        return sizeAt(n) == 1;
     }
 
 /// Suppress gcc 7.3.1 warning: '*((void*)&<anonymous> +8)' may be used uninitialized in this function
@@ -164,17 +168,6 @@ public:
         if (length)
             memcpy(chars.data() + old_size, pos, length);
         chars[old_size + length] = 0;
-        offsets.push_back(new_size);
-    }
-
-    /// Like getData, but inserting data should be zero-ending (i.e. length is 1 byte greater than real string size).
-    void insertDataWithTerminatingZero(const char * pos, size_t length)
-    {
-        const size_t old_size = chars.size();
-        const size_t new_size = old_size + length;
-
-        chars.resize(new_size);
-        memcpy(chars.data() + old_size, pos, length);
         offsets.push_back(new_size);
     }
 
@@ -249,14 +242,18 @@ public:
     /// Variant of compareAt for string comparison with respect of collation.
     int compareAtWithCollation(size_t n, size_t m, const IColumn & rhs_, int, const Collator & collator) const override;
 
-    void getPermutation(bool reverse, size_t limit, int nan_direction_hint, Permutation & res) const override;
+    void getPermutation(IColumn::PermutationSortDirection direction, IColumn::PermutationSortStability stability,
+                    size_t limit, int nan_direction_hint, Permutation & res) const override;
 
-    void updatePermutation(bool reverse, size_t limit, int, Permutation & res, EqualRanges & equal_ranges) const override;
+    void updatePermutation(IColumn::PermutationSortDirection direction, IColumn::PermutationSortStability stability,
+                    size_t limit, int, Permutation & res, EqualRanges & equal_ranges) const override;
 
     /// Sorting with respect of collation.
-    void getPermutationWithCollation(const Collator & collator, bool reverse, size_t limit, int, Permutation & res) const override;
+    void getPermutationWithCollation(const Collator & collator, IColumn::PermutationSortDirection direction, IColumn::PermutationSortStability stability,
+                    size_t limit, int, Permutation & res) const override;
 
-    void updatePermutationWithCollation(const Collator & collator, bool reverse, size_t limit, int, Permutation & res, EqualRanges & equal_ranges) const override;
+    void updatePermutationWithCollation(const Collator & collator, IColumn::PermutationSortDirection direction, IColumn::PermutationSortStability stability,
+                    size_t limit, int, Permutation & res, EqualRanges & equal_ranges) const override;
 
     ColumnPtr replicate(const Offsets & replicate_offsets) const override;
 
@@ -279,6 +276,16 @@ public:
     bool structureEquals(const IColumn & rhs) const override
     {
         return typeid(rhs) == typeid(ColumnString);
+    }
+
+    double getRatioOfDefaultRows(double sample_ratio) const override
+    {
+        return getRatioOfDefaultRowsImpl<ColumnString>(sample_ratio);
+    }
+
+    void getIndicesOfNonDefaultRows(Offsets & indices, size_t from, size_t limit) const override
+    {
+        return getIndicesOfNonDefaultRowsImpl<ColumnString>(indices, from, limit);
     }
 
     Chars & getChars() { return chars; }

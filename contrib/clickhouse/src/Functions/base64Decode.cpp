@@ -6,9 +6,9 @@
 
 namespace DB
 {
-void registerFunctionBase64Decode(FunctionFactory & factory)
+REGISTER_FUNCTION(Base64Decode)
 {
-    tb64ini(0, 1);
+    tb64ini(0, 0);
     factory.registerFunction<FunctionBase64Conversion<Base64Decode>>();
 
     /// MysQL compatibility alias.

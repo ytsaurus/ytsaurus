@@ -13,10 +13,10 @@
 #include <yt/yt/core/misc/intrusive_ptr.h>
 
 #include <Core/Types.h>
-#include <DataStreams/IBlockInputStream.h>
 #include <Interpreters/ClientInfo.h>
 #include <Interpreters/executeQuery.h>
 #include <Interpreters/Session.h>
+#include <Processors/Executors/PullingPipelineExecutor.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -64,11 +64,14 @@ DB::ContextMutablePtr PrepareContextForQuery(
 
 void ValidateQueryResult(DB::BlockIO& blockIO)
 {
-    auto stream = blockIO.getInputStream();
     size_t totalRowCount = 0;
-    while (auto block = stream->read()) {
+
+    DB::PullingPipelineExecutor executor(blockIO.pipeline);
+    DB::Block block;
+    while (executor.pull(block)) {
         totalRowCount += block.rows();
     }
+
     YT_LOG_DEBUG("Health checker query result validated (TotalRowCount: %v)", totalRowCount);
 }
 
@@ -100,7 +103,7 @@ THealthChecker::THealthChecker(
         BIND(&THealthChecker::ExecuteQueries, MakeWeak(this)),
         Config_->Period))
 {
-    RegisterNewUser(getContext()->getAccessControlManager(), DatabaseUser_);
+    RegisterNewUser(getContext()->getAccessControl(), DatabaseUser_);
 
     for (int i = 0; i < std::ssize(Config_->Queries); ++i) {
         QueryIndexToStatus_.push_back(ClickHouseYtProfiler

@@ -39,7 +39,8 @@ target_link_libraries(yt-chyt-server PUBLIC
   yt-library-clickhouse_discovery
   yt-library-clickhouse_functions
   contrib-clickhouse-src
-  clickhouse-base-common
+  clickhouse-base-base
+  contrib-deprecated-clickhouse_data_streams_compat
 )
 target_sources(yt-chyt-server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/block_input_stream.cpp
@@ -61,7 +62,6 @@ target_sources(yt-chyt-server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/dictionary_source.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/format.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/function_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/chyt/server/functions_version.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/health_checker.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/host.cpp
@@ -107,4 +107,40 @@ target_sources(yt-chyt-server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/virtual_column.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/yt_ch_converter.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/yt_database.cpp
+)
+
+add_global_library_for(yt-chyt-server.global yt-chyt-server)
+target_compile_options(yt-chyt-server.global PRIVATE
+  -Wdeprecated-this-capture
+)
+target_include_directories(yt-chyt-server.global PRIVATE
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base
+  ${CMAKE_SOURCE_DIR}/contrib/libs/double-conversion
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Net/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Util/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/XML/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
+  ${CMAKE_SOURCE_DIR}/contrib/libs/rapidjson/include
+)
+target_link_libraries(yt-chyt-server.global PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-query-engine
+  yt-chyt-client
+  chyt-client-protos
+  chyt-server-protos
+  ytserver
+  server-lib-chunk_pools
+  yt-yt-ytlib
+  yt-library-clickhouse_discovery
+  yt-library-clickhouse_functions
+  contrib-clickhouse-src
+  clickhouse-base-base
+  contrib-deprecated-clickhouse_data_streams_compat
+)
+target_sources(yt-chyt-server.global PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/chyt/server/functions_version.cpp
 )

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <common/StringRef.h>
+#include <base/StringRef.h>
 #include <DataTypes/IDataType.h>
 #include <AggregateFunctions/IAggregateFunction.h>
 #include <AggregateFunctions/AggregateFunctionMinMaxAny.h> // SingleValueDataString used in embedded compiler
@@ -13,10 +13,11 @@ struct Settings;
 namespace ErrorCodes
 {
     extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+    extern const int CORRUPTED_DATA;
 }
 
 
-/// For possible values for template parameters, see AggregateFunctionMinMaxAny.h
+/// For possible values for template parameters, see 'AggregateFunctionMinMaxAny.h'.
 template <typename ResultData, typename ValueData>
 struct AggregateFunctionArgMinMaxData
 {
@@ -79,16 +80,23 @@ public:
             this->data(place).result.change(this->data(rhs).result, arena);
     }
 
-    void serialize(ConstAggregateDataPtr __restrict place, WriteBuffer & buf) const override
+    void serialize(ConstAggregateDataPtr __restrict place, WriteBuffer & buf, std::optional<size_t> /* version */) const override
     {
         this->data(place).result.write(buf, *serialization_res);
         this->data(place).value.write(buf, *serialization_val);
     }
 
-    void deserialize(AggregateDataPtr __restrict place, ReadBuffer & buf, Arena * arena) const override
+    void deserialize(AggregateDataPtr __restrict place, ReadBuffer & buf, std::optional<size_t> /* version */, Arena * arena) const override
     {
         this->data(place).result.read(buf, *serialization_res, arena);
         this->data(place).value.read(buf, *serialization_val, arena);
+        if (unlikely(this->data(place).value.has() != this->data(place).result.has()))
+            throw Exception(
+                ErrorCodes::CORRUPTED_DATA,
+                "Invalid state of the aggregate function {}: has_value ({}) != has_result ({})",
+                getName(),
+                this->data(place).value.has(),
+                this->data(place).result.has());
     }
 
     bool allocatesMemoryInArena() const override

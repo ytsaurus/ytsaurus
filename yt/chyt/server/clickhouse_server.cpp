@@ -18,9 +18,10 @@
 #include <yt/yt/core/concurrency/coroutine.h>
 
 #include <Server/HTTP/HTTPServer.h>
+#include <Server/TCPServer.h>
 #include <Server/IServer.h>
 
-#include <Access/AccessControlManager.h>
+#include <Access/AccessControl.h>
 #include <Access/MemoryAccessStorage.h>
 #include <Common/ClickHouseRevision.h>
 #include <Common/MemoryTracker.h>
@@ -37,9 +38,9 @@
 #include <Storages/System/StorageSystemMetrics.h>
 #include <Storages/System/StorageSystemProcesses.h>
 #include <Storages/System/attachSystemTables.h>
+#include <Storages/System/attachSystemTablesImpl.h>
 
 #include <Poco/DirectoryIterator.h>
-#include <Poco/Net/TCPServer.h>
 #include <Poco/ThreadPool.h>
 #include <Poco/Util/LayeredConfiguration.h>
 
@@ -149,7 +150,7 @@ private:
     std::unique_ptr<DB::AsynchronousMetrics> AsynchronousMetrics_;
 
     std::unique_ptr<Poco::ThreadPool> ServerPool_;
-    std::vector<std::unique_ptr<Poco::Net::TCPServer>> Servers_;
+    std::vector<std::unique_ptr<DB::TCPServer>> Servers_;
 
     std::atomic<bool> Cancelled_ { false };
 
@@ -176,6 +177,8 @@ private:
         ServerContext_->setConfig(LayeredConfig_);
         ServerContext_->setUsersConfig(ConvertToPocoConfig(ConvertToNode(Config_->Users)));
 
+        Host_->SetContext(ServerContext_);
+
         RegisterClickHouseSingletons();
 
         CurrentMetrics::set(CurrentMetrics::Revision, ClickHouseRevision::getVersionRevision());
@@ -197,8 +200,16 @@ private:
         NFS::MakeDirRecursive(Config_->DataPath);
         ServerContext_->setPath(Config_->DataPath);
 
+        // This function ss used only for thred_count metric per ProtocolServer.
+        auto dummy_protocol_server_metric_func = [] () {
+            return std::vector<DB::ProtocolServerMetrics>{};
+        };
+
         // This object will periodically calculate asynchronous metrics.
-        AsynchronousMetrics_ = std::make_unique<DB::AsynchronousMetrics>(ServerContext_, 60, nullptr, nullptr);
+        AsynchronousMetrics_ = std::make_unique<DB::AsynchronousMetrics>(
+            ServerContext_,
+            60 /*update_period_seconds*/,
+            dummy_protocol_server_metric_func);
 
         YT_LOG_DEBUG("Asynchronous metrics set up");
 
@@ -210,33 +221,12 @@ private:
 
         DB::DatabaseCatalog::instance().attachDatabase(DB::DatabaseCatalog::SYSTEM_DATABASE, SystemDatabase_);
 
-        SystemDatabase_->attachTable(
-            "processes",
-            DB::StorageSystemProcesses::create(
-                DB::StorageID{"system", "processes"}
-            )
-        );
-        SystemDatabase_->attachTable(
-            "metrics",
-            DB::StorageSystemMetrics::create(
-                DB::StorageID{"system", "metrics"}
-            )
-        );
-        SystemDatabase_->attachTable(
-            "dictionaries",
-            DB::StorageSystemDictionaries::create(
-                DB::StorageID{"system", "dictionaries"}
-            )
-        );
-        SystemDatabase_->attachTable(
-            "asynchronous_metrics",
-            DB::StorageSystemAsynchronousMetrics::create(
-                DB::StorageID{"system", "asynchronous_metrics"},
-                *AsynchronousMetrics_
-            )
-        );
+        DB::attach<DB::StorageSystemProcesses>(ServerContext_, *SystemDatabase_, "processes");
+        DB::attach<DB::StorageSystemMetrics>(ServerContext_, *SystemDatabase_, "metrics");
+        DB::attach<DB::StorageSystemDictionaries>(ServerContext_, *SystemDatabase_, "dictionaries");
+        DB::attachSystemTablesLocal(ServerContext_, *SystemDatabase_);
+        DB::attachSystemTablesAsync(ServerContext_, *SystemDatabase_, *AsynchronousMetrics_);
 
-        DB::attachSystemTablesLocal(*SystemDatabase_);
         Host_->PopulateSystemDatabase(SystemDatabase_.get());
 
         DB::DatabaseCatalog::instance().attachDatabase("YT", Host_->CreateYtDatabase());
@@ -260,8 +250,16 @@ private:
 
         YT_LOG_DEBUG("Setting up access manager");
 
-        ServerContext_->getAccessControlManager().addStorage(std::make_unique<DB::MemoryAccessStorage>());
-        RegisterNewUser(ServerContext_->getAccessControlManager(), InternalRemoteUserName);
+        DB::AccessControl & accessControl = ServerContext_->getAccessControl();
+
+        auto accessStorage = std::make_unique<DB::MemoryAccessStorage>(
+            "access" /*storage_name*/,
+            accessControl.getChangesNotifier(),
+            false /*allow_backup*/);
+
+        accessControl.addStorage(std::move(accessStorage));
+
+        RegisterNewUser(accessControl, InternalRemoteUserName);
 
         YT_LOG_DEBUG("Adding external dictionaries from config");
 
@@ -269,7 +267,7 @@ private:
 
         YT_LOG_DEBUG("Setting chyt custom setting prefix");
 
-        ServerContext_->getAccessControlManager().setCustomSettingsPrefixes(std::vector<std::string>{"chyt_", "chyt."});
+        accessControl.setCustomSettingsPrefixes(std::vector<std::string>{"chyt_", "chyt."});
 
         YT_LOG_INFO("Finished setting up context");
     }
@@ -367,11 +365,10 @@ private:
             YT_LOG_INFO("Setting up TCP server");
             auto socket = setupSocket(Config_->TcpPort);
 
-            Servers_.emplace_back(std::make_unique<Poco::Net::TCPServer>(
+            Servers_.emplace_back(std::make_unique<DB::TCPServer>(
                 CreateTcpHandlerFactory(Host_, *this),
                 *ServerPool_,
-                socket,
-                new Poco::Net::TCPServerParams()));
+                socket));
         }
 
         YT_LOG_INFO("Servers set up");

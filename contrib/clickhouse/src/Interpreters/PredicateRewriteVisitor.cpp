@@ -7,6 +7,7 @@
 #include <Parsers/ASTColumnsMatcher.h>
 #include <Parsers/ASTQualifiedAsterisk.h>
 #include <Parsers/ASTSelectIntersectExceptQuery.h>
+#include <Parsers/ASTSelectWithUnionQuery.h>
 #include <Interpreters/IdentifierSemantic.h>
 #include <Interpreters/getTableExpressions.h>
 #include <Interpreters/InterpreterSelectQuery.h>
@@ -95,8 +96,8 @@ void PredicateRewriteVisitorData::visitOtherInternalSelect(ASTSelectQuery & sele
     size_t alias_index = 0;
     for (auto & ref_select : temp_select_query->refSelect()->children)
     {
-        if (!ref_select->as<ASTAsterisk>() && !ref_select->as<ASTQualifiedAsterisk>() && !ref_select->as<ASTColumnsMatcher>() &&
-            !ref_select->as<ASTIdentifier>())
+        if (!ref_select->as<ASTAsterisk>() && !ref_select->as<ASTQualifiedAsterisk>() && !ref_select->as<ASTColumnsListMatcher>()
+            && !ref_select->as<ASTColumnsRegexpMatcher>() && !ref_select->as<ASTIdentifier>())
         {
             if (const auto & alias = ref_select->tryGetAlias(); alias.empty())
                 ref_select->setAlias("--predicate_optimizer_" + toString(alias_index++));
@@ -137,8 +138,9 @@ bool PredicateRewriteVisitorData::rewriteSubquery(ASTSelectQuery & subquery, con
     if ((!optimize_final && subquery.final())
         || (!optimize_with && subquery.with())
         || subquery.withFill()
-        || subquery.limitBy() || subquery.limitLength()
-        || hasNonRewritableFunction(subquery.select(), getContext()))
+        || subquery.limitBy() || subquery.limitLength() || subquery.limitByLength() || subquery.limitByOffset()
+        || hasNonRewritableFunction(subquery.select(), getContext())
+        || (subquery.orderBy() && subquery.limitOffset()))
         return false;
 
     Names outer_columns = table_columns.columns.getNames();

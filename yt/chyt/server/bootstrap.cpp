@@ -36,6 +36,8 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <contrib/clickhouse/src/Common/Exception.h>
+
 namespace NYT::NClickHouseServer {
 
 using namespace NAdmin;
@@ -80,7 +82,7 @@ void TBootstrap::Run()
             .Run()
             .Get()
             .ThrowOnError();
-    } catch (std::exception& ex) {
+    } catch (const std::exception& ex) {
         // Make best-effort check that error is an "Address already in use" error.
         // There is no way to deterministically prevent that in some environments
         // (like dist build or local run), so we just perform graceful exit in this case.
@@ -148,8 +150,7 @@ void TBootstrap::DoRun()
     {
         auto host = New<THost>(GetControlInvoker(), Config_->GetPorts(), Config_->Yt, Config_->ClusterConnection);
         ClickHouseServer_ = CreateClickHouseServer(host.Get(), Config_->ClickHouse);
-
-        host->SetContext(ClickHouseServer_->GetContext());
+        host->InitSingletones();
 
         // NB: Host_ should be set only after it becomes ready to handle crash signals.
         Host_ = std::move(host);

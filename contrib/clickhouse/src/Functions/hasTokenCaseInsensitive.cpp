@@ -15,11 +15,11 @@ struct NameHasTokenCaseInsensitive
 };
 
 using FunctionHasTokenCaseInsensitive
-    = FunctionsStringSearch<HasTokenImpl<VolnitskyCaseInsensitiveToken, false>, NameHasTokenCaseInsensitive>;
+    = FunctionsStringSearch<HasTokenImpl<NameHasTokenCaseInsensitive, VolnitskyCaseInsensitiveToken, false>>;
 
 }
 
-void registerFunctionHasTokenCaseInsensitive(FunctionFactory & factory)
+REGISTER_FUNCTION(HasTokenCaseInsensitive)
 {
     factory.registerFunction<FunctionHasTokenCaseInsensitive>();
 }

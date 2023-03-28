@@ -4,7 +4,7 @@
 #include <Columns/ColumnArray.h>
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionHelpers.h>
-#include <common/map.h>
+#include <base/map.h>
 
 
 namespace DB
@@ -148,7 +148,7 @@ private:
 
 }
 
-void registerFunctionReverse(FunctionFactory & factory)
+REGISTER_FUNCTION(Reverse)
 {
     factory.registerFunction<ReverseOverloadResolver>(FunctionFactory::CaseInsensitive);
 }

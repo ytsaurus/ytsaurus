@@ -1,7 +1,6 @@
 #include <DataTypes/Serializations/SerializationString.h>
 
 #include <Columns/ColumnString.h>
-#include <Columns/ColumnConst.h>
 
 #include <Common/typeid_cast.h>
 #include <Common/assert_cast.h>
@@ -9,8 +8,6 @@
 #include <Core/Field.h>
 
 #include <Formats/FormatSettings.h>
-#include <Formats/ProtobufReader.h>
-#include <Formats/ProtobufWriter.h>
 
 #include <IO/ReadHelpers.h>
 #include <IO/WriteHelpers.h>
@@ -19,6 +16,7 @@
 #ifdef __SSE2__
     #include <emmintrin.h>
 #endif
+
 
 namespace DB
 {
@@ -216,7 +214,7 @@ void SerializationString::serializeText(const IColumn & column, size_t row_num, 
 
 void SerializationString::serializeTextEscaped(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings &) const
 {
-    writeEscapedString(assert_cast<const ColumnString &>(column).getDataAt(row_num), ostr);
+    writeEscapedString(assert_cast<const ColumnString &>(column).getDataAt(row_num).toView(), ostr);
 }
 
 
@@ -245,7 +243,7 @@ static inline void read(IColumn & column, Reader && reader)
 
 void SerializationString::deserializeWholeText(IColumn & column, ReadBuffer & istr, const FormatSettings &) const
 {
-    read(column, [&](ColumnString::Chars & data) { readStringInto(data, istr); });
+    read(column, [&](ColumnString::Chars & data) { readStringUntilEOFInto(data, istr); });
 }
 
 
@@ -269,7 +267,7 @@ void SerializationString::deserializeTextQuoted(IColumn & column, ReadBuffer & i
 
 void SerializationString::serializeTextJSON(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings & settings) const
 {
-    writeJSONString(assert_cast<const ColumnString &>(column).getDataAt(row_num), ostr, settings);
+    writeJSONString(assert_cast<const ColumnString &>(column).getDataAt(row_num).toView(), ostr, settings);
 }
 
 
@@ -281,7 +279,7 @@ void SerializationString::deserializeTextJSON(IColumn & column, ReadBuffer & ist
 
 void SerializationString::serializeTextXML(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings &) const
 {
-    writeXMLStringForTextElement(assert_cast<const ColumnString &>(column).getDataAt(row_num), ostr);
+    writeXMLStringForTextElement(assert_cast<const ColumnString &>(column).getDataAt(row_num).toView(), ostr);
 }
 
 

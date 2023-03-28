@@ -3,7 +3,7 @@
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionStringToString.h>
 #include <Parsers/queryNormalization.h>
-#include <common/find_symbols.h>
+#include <base/find_symbols.h>
 #include <Common/StringUtils/StringUtils.h>
 
 
@@ -51,7 +51,7 @@ struct Impl
 
 }
 
-void registerFunctionNormalizeQuery(FunctionFactory & factory)
+REGISTER_FUNCTION(NormalizeQuery)
 {
     factory.registerFunction<FunctionStringToString<Impl<true>, Impl<true>>>();
     factory.registerFunction<FunctionStringToString<Impl<false>, Impl<false>>>();

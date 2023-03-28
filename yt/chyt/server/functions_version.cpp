@@ -1,4 +1,3 @@
-#include "functions_version.h"
 #include "version.h"
 
 #include <yt/yt/build/build.h>
@@ -90,10 +89,8 @@ using TFunctionYTVersion = TFunctionVersion<TNameFunctionYTVersion>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterFunctionsVersion()
+REGISTER_FUNCTION(CHYT_Version)
 {
-    auto& factory = DB::FunctionFactory::instance();
-
     factory.registerFunction<TFunctionCHYTVersion>();
     factory.registerFunction<TFunctionYTVersion>();
 }

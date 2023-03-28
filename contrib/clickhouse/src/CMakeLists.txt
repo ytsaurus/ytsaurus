@@ -6,7 +6,6 @@
 # original buildsystem will not be accepted.
 
 
-find_package(OpenSSL REQUIRED)
 add_subdirectory(Common)
 add_subdirectory(Parsers)
 
@@ -15,8 +14,10 @@ target_compile_options(contrib-clickhouse-src PUBLIC
   -DOS_LINUX
 )
 target_compile_options(contrib-clickhouse-src PRIVATE
+  -DBOOST_ASIO_HAS_STD_INVOKE_RESULT=1
   -DBOOST_ASIO_STANDALONE=1
   -DENABLE_MULTITARGET_CODE=1
+  -DHAS_RESERVED_IDENTIFIER
   -DHAS_SUGGEST_DESTRUCTOR_OVERRIDE
   -DHAS_SUGGEST_OVERRIDE
   -DLZ4_DISABLE_DEPRECATE_WARNINGS=1
@@ -25,47 +26,48 @@ target_compile_options(contrib-clickhouse-src PRIVATE
   -DPOCO_OS_FAMILY_UNIX
   -DSNAPPY_CODEC_AVAILABLE
   -DUNALIGNED_OK
-  -DUSE_HYPERSCAN=0
-  -DUSE_JEMALLOC=0
-  -DUSE_ODBC=0
-  -DUSE_REPLXX=0
-  -DUSE_XXHASH=1
   -DWITH_COVERAGE=0
   -DWITH_GZFILEOP
+  -DWITH_TEXT_LOG=1
   -DX86_64
   -DZLIB_COMPAT
-  -DZ_TLS=__thread
-  -D__CLANG_SUPPORT_DYN_ANNOTATION__
+  -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
+  -D__GCC_HAVE_DWARF2_CFI_ASM=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-clickhouse-src PUBLIC
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/includes/configs
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Core/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/miniselect/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/wyhash
+  ${CMAKE_SOURCE_DIR}/contrib/libs/xxhash
   ${CMAKE_SOURCE_DIR}/contrib/restricted/murmurhash
 )
 target_include_directories(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/pcg-random
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/contrib/libdivide-cmake
   ${CMAKE_SOURCE_DIR}/contrib/libs/apache/avro
   ${CMAKE_SOURCE_DIR}/contrib/libs/apache/avro/api
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/include/roaring
   ${CMAKE_SOURCE_DIR}/contrib/libs/double-conversion
   ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash
   ${CMAKE_SOURCE_DIR}/contrib/libs/fastops
-  ${CMAKE_SOURCE_DIR}/contrib/libs/h3/h3lib/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/hashidsxx
+  ${CMAKE_SOURCE_DIR}/contrib/libs/libc_compat/include
   ${CMAKE_SOURCE_DIR}/contrib/libs/libdivide
   ${CMAKE_SOURCE_DIR}/contrib/libs/lz4
+  ${CMAKE_SOURCE_DIR}/contrib/libs/miniselect/include
   ${CMAKE_SOURCE_DIR}/contrib/libs/msgpack/include
   ${CMAKE_SOURCE_DIR}/contrib/libs/pdqsort
   ${CMAKE_SOURCE_DIR}/contrib/libs/rapidjson/include
   ${CMAKE_SOURCE_DIR}/contrib/libs/re2
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
-  ${CMAKE_SOURCE_DIR}/contrib/libs/xxhash
   ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/include
   ${CMAKE_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/fast_float/include
   ${CMAKE_SOURCE_DIR}/contrib/restricted/turbo_base64
+  ${CMAKE_SOURCE_DIR}/library/cpp/clickhouse_h3_compat
   ${CMAKE_SOURCE_DIR}/library/cpp/consistent_hashing
 )
 target_link_libraries(contrib-clickhouse-src PUBLIC
@@ -81,15 +83,14 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   contrib-libs-farmhash
   libs-fastops-fastops
   contrib-libs-fmt
-  contrib-libs-h3
+  contrib-libs-hashidsxx
+  contrib-libs-libc_compat
   contrib-libs-libdivide
   contrib-libs-lz4
   contrib-libs-metrohash
   contrib-libs-miniselect
   contrib-libs-msgpack
-  OpenSSL::OpenSSL
   contrib-libs-pdqsort
-  libs-poco-Crypto
   libs-poco-Data
   libs-poco-Foundation
   libs-poco-JSON
@@ -102,31 +103,48 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   contrib-libs-rapidjson
   contrib-libs-re2
   contrib-libs-sparsehash
+  contrib-libs-wyhash
   contrib-libs-xxhash
   contrib-libs-zstd
   abseil-cpp-absl-container
+  restricted-boost-circular_buffer
   restricted-boost-context
+  restricted-boost-convert
   restricted-boost-dynamic_bitset
   restricted-boost-filesystem
   restricted-boost-geometry
+  restricted-boost-heap
   restricted-boost-multi_index
   restricted-boost-program_options
   restricted-boost-system
   restricted-boost-tti
   contrib-restricted-cityhash-1.0.2
   dragonbox
+  contrib-restricted-fast_float
+  contrib-restricted-magic_enum
   contrib-restricted-murmurhash
+  restricted-patched-replxx
   contrib-restricted-turbo_base64
+  clickhouse_h3_compat
   consistent-hashing
   library-cpp-re2_st
 )
 target_sources(contrib-clickhouse-src PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/AccessControlManager.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/AccessBackup.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/AccessChangesNotifier.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/AccessControl.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/AccessEntityIO.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/AccessRights.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/AccessRightsElement.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/AllowedClientHosts.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/Authentication.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/CachedAccessChecking.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/Common/AccessEntityType.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/Common/AccessFlags.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/Common/AccessRightsElement.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/Common/AccessType.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/Common/AllowedClientHosts.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/Common/AuthenticationData.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/Common/QuotaDefs.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/Common/RowPolicyDefs.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/ContextAccess.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/Credentials.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/DiskAccessStorage.cpp
@@ -140,6 +158,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/GrantedRoles.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/IAccessEntity.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/IAccessStorage.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/KerberosInit.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/LDAPAccessStorage.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/LDAPClient.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/MemoryAccessStorage.cpp
@@ -169,11 +188,15 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionBoundingRatio.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionCategoricalInformationValue.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionCombinatorFactory.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionContingencyCoefficient.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionCount.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionCramersV.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionCramersVBiasCorrected.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionDeltaSum.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionDeltaSumTimestamp.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionDistinct.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionEntropy.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionExponentialMovingAverage.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionFactory.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionForEach.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionGroupArray.cpp
@@ -186,10 +209,13 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionIntervalLengthSum.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionMLMethod.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionMannWhitney.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionMap.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionMax.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionMaxIntersections.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionMeanZTest.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionMerge.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionMin.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionNothing.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionNull.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionOrFill.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionQuantile.cpp
@@ -201,6 +227,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionSimpleLinearRegression.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionSimpleState.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionSingleValueOrNull.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionSparkbar.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionState.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionStatistics.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionStatisticsSimple.cpp
@@ -208,6 +235,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionSum.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionSumCount.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionSumMap.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionTheilsU.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionTopK.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionUniq.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionUniqCombined.cpp
@@ -219,28 +247,53 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/UniqVariadicHash.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/parseAggregateFunctionParameters.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/registerAggregateFunctions.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupEntryConcat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationLocal.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationRemote.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationReplicatedAccess.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationReplicatedTables.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationStage.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationStageSync.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupEntriesCollector.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupEntryFromAppendOnlyFile.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupEntryFromImmutableFile.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupEntryFromMemory.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupEntryFromSmallFile.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupFactory.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupInDirectory.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupRenamingConfig.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupIO_Disk.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupIO_File.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupImpl.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupInfo.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupSettings.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupStatus.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupUtils.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/hasCompatibleDataToRestoreTable.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/renameInCreateQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Bridge/IBridgeHelper.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Bridge/LibraryBridgeHelper.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupsWorker.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/DDLAdjustingForBackupVisitor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/IBackupEntriesLazyBatch.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/RestoreCoordinationLocal.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/RestoreCoordinationRemote.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/RestoreSettings.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/RestorerFromBackup.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Backups/registerBackupEnginesFileAndDisk.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/BridgeHelper/ExternalDictionaryLibraryBridgeHelper.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/BridgeHelper/IBridgeHelper.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/BridgeHelper/LibraryBridgeHelper.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/ClientBase.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/ClientBaseHelpers.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/Connection.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/ConnectionEstablisher.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/ConnectionParameters.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/ConnectionPool.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/ConnectionPoolWithFailover.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/HedgedConnections.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/HedgedConnectionsFactory.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/IConnections.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/InternalTextLogs.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/LocalConnection.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/MultiplexedConnections.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/QueryFuzzer.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/Suggest.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/TestHint.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Client/TestTags.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Columns/Collator.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Columns/ColumnAggregateFunction.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Columns/ColumnArray.cpp
@@ -252,6 +305,8 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Columns/ColumnLowCardinality.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Columns/ColumnMap.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Columns/ColumnNullable.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Columns/ColumnObject.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Columns/ColumnSparse.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Columns/ColumnString.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Columns/ColumnTuple.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Columns/ColumnVector.cpp
@@ -266,9 +321,11 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Compression/CompressedReadBufferBase.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Compression/CompressedReadBufferFromFile.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Compression/CompressedWriteBuffer.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Compression/CompressionCodecDeflateQpl.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Compression/CompressionCodecDelta.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Compression/CompressionCodecDoubleDelta.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Compression/CompressionCodecEncrypted.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Compression/CompressionCodecFPC.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Compression/CompressionCodecGorilla.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Compression/CompressionCodecLZ4.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Compression/CompressionCodecMultiple.cpp
@@ -288,6 +345,8 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Core/ExternalResultDescription.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Core/ExternalTable.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Core/Field.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Core/InterpolateDescription.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Core/Joins.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Core/MySQL/Authentication.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Core/MySQL/IMySQLReadPacket.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Core/MySQL/IMySQLWritePacket.cpp
@@ -310,47 +369,9 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Core/SortDescription.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Core/UUID.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Core/iostream_debug_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/AddingDefaultBlockOutputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/AsynchronousBlockInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/BlockIO.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/BlockStreamProfileInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/CheckConstraintsBlockOutputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/ColumnGathererStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/ConnectionCollector.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/ConvertingBlockInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/CountingBlockOutputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/DistinctSortedBlockInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/ExecutionSpeedLimits.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/ExpressionBlockInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/IBlockInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/ITTLAlgorithm.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/InternalTextLogsRowOutputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/MaterializingBlockInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/MongoDBSource.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/NativeBlockInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/NativeBlockOutputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/PostgreSQLSource.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/PushingToViewsBlockOutputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/RemoteBlockInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/RemoteBlockOutputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/RemoteQueryExecutor.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/RemoteQueryExecutorReadContext.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/SQLiteSource.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/SizeLimits.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/SquashingBlockInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/SquashingBlockOutputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/SquashingTransform.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/TTLAggregationAlgorithm.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/TTLBlockInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/TTLCalcInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/TTLColumnAlgorithm.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/TTLDeleteAlgorithm.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/TTLUpdateInfoAlgorithm.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/copyData.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/finalizeBlock.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/formatBlock.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/materializeBlock.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataStreams/narrowBlockInputStreams.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Daemon/BaseDaemon.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Daemon/GraphiteWriter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Daemon/SentryWriter.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeAggregateFunction.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeArray.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeCustomGeo.cpp
@@ -361,6 +382,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeDateTime.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeDateTime64.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeDecimalBase.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeDomainBool.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeEnum.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeFactory.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeFixedString.cpp
@@ -373,6 +395,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeNothing.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeNullable.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeNumberBase.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeObject.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeString.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeTuple.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeUUID.cpp
@@ -382,9 +405,13 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/FieldToDataType.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/IDataType.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/NestedUtils.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/ObjectUtils.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/ISerialization.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/JSONDataParser.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/PathInData.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationAggregateFunction.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationArray.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationBool.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationCustomSimpleText.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationDate.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationDate32.cpp
@@ -395,20 +422,28 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationEnum.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationFixedString.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationIP.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationInfo.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationInfoTuple.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationLowCardinality.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationMap.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationNamed.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationNothing.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationNullable.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationNumber.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationObject.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationSparse.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationString.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationTuple.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationTupleElement.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationUUID.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/SerializationWrapper.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/convertMySQLDataType.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/getLeastSupertype.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/getMostSubtype.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/hasNullable.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/registerDataTypeDateTime.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/transformTypesRecursively.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/DDLDependencyVisitor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/DDLRenamingVisitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/DatabaseAtomic.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/DatabaseDictionary.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/DatabaseFactory.cpp
@@ -417,9 +452,12 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/DatabaseOnDisk.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/DatabaseOrdinary.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/DatabaseReplicated.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/DatabaseReplicatedHelpers.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/DatabaseReplicatedSettings.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/DatabaseReplicatedWorker.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/DatabasesCommon.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/IDatabase.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/LoadingStrictnessLevel.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/ConnectionMySQLSettings.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/DatabaseMaterializedMySQL.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/DatabaseMySQL.cpp
@@ -427,6 +465,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/MaterializeMetadata.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/MaterializedMySQLSettings.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/MaterializedMySQLSyncThread.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Databases/TablesLoader.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/CacheDictionary.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/CacheDictionaryUpdateQueue.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/CassandraDictionarySource.cpp
@@ -436,7 +475,6 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/DictionaryFactory.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/DictionaryHelpers.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/DictionarySource.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/DictionarySourceBase.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/DictionarySourceFactory.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/DictionarySourceHelpers.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/DictionaryStructure.cpp
@@ -455,6 +493,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/FileDictionarySource.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/FlatDictionary.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/HTTPDictionarySource.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/HashedArrayDictionary.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/HashedDictionary.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/HierarchyDictionariesUtils.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/IPAddressDictionary.cpp
@@ -473,75 +512,78 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/readInvalidateQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/registerCacheDictionaries.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/registerDictionaries.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/writeParenthesisedString.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskCacheWrapper.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskDecorator.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskEncrypted.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskFactory.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskLocal.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskLocalCheckThread.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskMemory.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskRestartProxy.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskSelector.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskWebServer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/IDisk.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/IDiskRemote.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/IO/AsynchronousReadIndirectBufferFromRemoteFS.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/IO/CachedOnDiskReadBufferFromFile.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/IO/CachedOnDiskWriteBufferFromFile.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/IO/ReadBufferFromAzureBlobStorage.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/IO/ReadBufferFromRemoteFSGather.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/IO/ReadBufferFromWebServer.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/IO/ReadIndirectBufferFromRemoteFS.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/IO/ThreadPoolReader.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/IO/ThreadPoolRemoteFSReader.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/IO/WriteBufferFromAzureBlobStorage.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/IO/WriteIndirectBufferFromRemoteFS.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/IO/createReadBufferFromFileBase.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/IStoragePolicy.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/IVolume.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/LocalDirectorySyncGuard.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ReadIndirectBufferFromRemoteFS.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ReadIndirectBufferFromWebServer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/SingleDiskVolume.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/Cached/CachedObjectStorage.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/Cached/registerDiskCache.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/DiskObjectStorage.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/DiskObjectStorageCommon.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/DiskObjectStorageMetadata.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/DiskObjectStorageRemoteMetadataRestoreHelper.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/DiskObjectStorageTransaction.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/FakeMetadataStorageFromDisk.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/IObjectStorage.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/LocalObjectStorage.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/MetadataFromDiskTransactionState.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/MetadataStorageFromDisk.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/MetadataStorageFromDiskTransactionOperations.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/StoredObject.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/Web/MetadataStorageFromStaticFilesWebServer.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/Web/WebObjectStorage.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/Web/registerDiskWebServer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/StoragePolicy.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/TemporaryFileOnDisk.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/VolumeJBOD.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/VolumeRAID1.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/WriteIndirectBufferFromRemoteFS.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/createVolume.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/registerDisks.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/CapnProtoUtils.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/ColumnMapping.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/EscapingRuleUtils.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/FormatFactory.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/FormatSchemaInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/JSONEachRowUtils.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/MySQLSource.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/NativeFormat.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/NullFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/IndexForNativeFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/JSONUtils.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/NativeReader.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/NativeWriter.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/ParsedTemplateFormatString.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/ProtobufReader.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/ProtobufSchemas.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/ProtobufSerializer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/ProtobufWriter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/ReadSchemaUtils.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/RowInputMissingColumnsFiller.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/TemporaryFileStream.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/formatBlock.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/registerFormats.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/registerWithNamesAndTypes.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Formats/verbosePrintString.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/CRC.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/CastOverloadResolver.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/DateOrDateTimeFunctionsConvertion.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionChar.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionFQDN.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionFactory.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionFile.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionHelpers.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionJoinGet.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionSQLJSON.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsAES.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsBinaryRepr.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsBitToArray.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsBitmap.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsCodingIP.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsCodingUUID.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsConversion.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsEmbeddedDictionaries.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsExternalDictionaries.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsExternalModels.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsHashing.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsJSON.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsLogical.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsRandom.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsRound.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsStringArray.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsStringHash.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsStringSimilarity.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/concat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/createArraySink.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/createArraySource.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/createValueSource.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/ends_with.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/has_all.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/has_any.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/has_substr.cpp
@@ -552,518 +594,35 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/sliceDynamicOffsetUnbounded.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/sliceFromLeftConstantOffsetBounded.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/sliceFromLeftConstantOffsetUnbounded.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/sliceFromLeftDynamicLength.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/sliceFromRightConstantOffsetBounded.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/sliceFromRightConstantOffsetUnbounded.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GeoHash.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/IFunction.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/sliceFromRightDynamicLength.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/starts_with.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/JSONPath/Parsers/ParserJSONPath.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/JSONPath/Parsers/ParserJSONPathMemberAccess.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/JSONPath/Parsers/ParserJSONPathQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/JSONPath/Parsers/ParserJSONPathRange.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/JSONPath/Parsers/ParserJSONPathRoot.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/JSONPath/Parsers/ParserJSONPathStar.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/TargetSpecific.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/URLHierarchy.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/URLPathHierarchy.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/basename.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/cutFragment.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/cutQueryString.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/cutQueryStringAndFragment.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/cutToFirstSignificantSubdomain.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/cutToFirstSignificantSubdomainCustom.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/cutURLParameter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/cutWWW.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/decodeURLComponent.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/domain.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/domainWithoutWWW.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/extractURLParameter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/extractURLParameterNames.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/extractURLParameters.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/firstSignificantSubdomain.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/firstSignificantSubdomainCustom.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/fragment.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/netloc.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/path.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/pathFull.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/port.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/protocol.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/queryString.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/queryStringAndFragment.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/registerFunctionsURL.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/tldLookup.generated.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/topLevelDomain.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/abs.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/abtesting.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/acos.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/acosh.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addDays.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addHours.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addMinutes.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addMonths.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addQuarters.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addSeconds.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addWeeks.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addYears.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addressToLine.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addressToSymbol.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/aes_decrypt_mysql.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/aes_encrypt_mysql.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/appendTrailingCharIfAbsent.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/array.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayAUC.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayAggregation.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayAll.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayCompact.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayConcat.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayCount.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayCumSum.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayCumSumNonNegative.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayDifference.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayDistinct.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayElement.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayEnumerate.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayEnumerateDense.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayEnumerateDenseRanked.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayEnumerateRanked.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayEnumerateUniq.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayEnumerateUniqRanked.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayExists.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayFill.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayFilter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayFirst.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayFirstIndex.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayFlatten.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayIntersect.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayJoin.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayMap.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayPopBack.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayPopFront.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayPushBack.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayPushFront.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayReduce.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayReduceInRanges.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayResize.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayReverse.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arraySlice.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arraySort.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arraySplit.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayUniq.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayWithConstant.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayZip.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/countEqual.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/emptyArray.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/emptyArrayToSingle.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/has.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/hasAll.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/hasAny.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/hasSubstr.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/indexOf.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/length.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/mapOp.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/mapPopulateSeries.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/range.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/registerFunctionsArray.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/asin.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/asinh.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/assumeNotNull.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/atan.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/atan2.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/atanh.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bar.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/base64Decode.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/base64Encode.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitAnd.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitBoolMaskAnd.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitBoolMaskOr.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitCount.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitHammingDistance.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitNot.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitOr.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitRotateLeft.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitRotateRight.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitShiftLeft.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitShiftRight.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitSwapLastTwo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitTest.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitTestAll.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitTestAny.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitWrapperFunc.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitXor.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/blockNumber.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/blockSerializedSize.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/blockSize.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/buildId.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/byteSize.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/caseWithExpression.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/cbrt.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/coalesce.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/concat.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/connectionId.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/convertCharset.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/cos.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/cosh.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/countDigits.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/countMatches.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/countSubstrings.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/countSubstringsCaseInsensitive.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/countSubstringsCaseInsensitiveUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/currentDatabase.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/currentProfiles.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/currentRoles.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/currentUser.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/dateDiff.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/dateName.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/date_trunc.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/decodeXMLComponent.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/decrypt.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/defaultValueOfArgumentType.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/defaultValueOfTypeName.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/demange.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/divide.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/divide/divide.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/dumpColumnStructure.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/e.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/empty.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/encodeXMLComponent.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/encrypt.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/endsWith.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/equals.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/erf.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/erfc.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/errorCodeToName.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/evalMLMethod.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/exp.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/exp10.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/exp2.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/extract.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/extractAllGroupsHorizontal.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/extractAllGroupsVertical.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/extractGroups.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/extractTextFromHTML.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/extractTimeZoneFromFunctionArguments.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/filesystem.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/finalizeAggregation.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/formatDateTime.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/formatReadableQuantity.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/formatReadableSize.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/formatReadableTimeDelta.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/formatRow.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/formatString.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/fromModifiedJulianDay.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/fromUnixTimestamp64Micro.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/fromUnixTimestamp64Milli.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/fromUnixTimestamp64Nano.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/fuzzBits.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/gcd.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/generateUUIDv4.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/geoToH3.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/geoToS2.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/geohashDecode.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/geohashEncode.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/geohashesInBox.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/getMacro.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/getScalar.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/getServerPort.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/getSetting.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/getSizeOfEnumType.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/globalVariable.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/greatCircleDistance.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/greater.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/greaterOrEquals.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/greatest.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3EdgeAngle.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3EdgeLengthM.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3GetBaseCell.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3GetResolution.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3HexAreaM2.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3IndexesAreNeighbors.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3IsValid.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3ToChildren.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3ToParent.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3ToString.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3kRing.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3toGeo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/hasColumnInTable.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/hasThreadFuzzer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/hasToken.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/hasTokenCaseInsensitive.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/hostName.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/hyperscanRegexpChecker.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/hypot.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/identity.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/if.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/ifNotFinite.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/ifNull.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/ignore.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/ilike.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/in.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/indexHint.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/initialQueryID.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/initializeAggregation.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/intDiv.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/intDivOrZero.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/intExp10.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/intExp2.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isConstant.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isDecimalOverflow.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isFinite.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isIPAddressContainedIn.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isInfinite.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isNaN.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isNotNull.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isNull.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isValidUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isZeroOrNull.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/jumpConsistentHash.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lcm.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/least.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lemmatize.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lengthUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/less.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lessOrEquals.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lgamma.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/like.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/log.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/log10.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/log1p.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/log2.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/logTrace.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lowCardinalityIndices.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lowCardinalityKeys.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lower.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lowerUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/map.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/match.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/materialize.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/minus.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/modulo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/moduloOrZero.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiFuzzyMatchAllIndices.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiFuzzyMatchAny.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiFuzzyMatchAnyIndex.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiIf.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiMatchAllIndices.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiMatchAny.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiMatchAnyIndex.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchAllPositions.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchAllPositionsCaseInsensitive.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchAllPositionsCaseInsensitiveUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchAllPositionsUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchAny.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchAnyCaseInsensitive.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchAnyCaseInsensitiveUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchAnyUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchFirstIndex.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchFirstIndexCaseInsensitive.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchFirstIndexCaseInsensitiveUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchFirstIndexUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchFirstPosition.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchFirstPositionCaseInsensitive.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchFirstPositionCaseInsensitiveUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchFirstPositionUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiply.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/negate.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/neighbor.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/normalizeQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/normalizedQueryHash.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/notEmpty.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/notEquals.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/notILike.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/notLike.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/now.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/now64.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/nullIf.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/padString.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/partitionId.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/pi.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/plus.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/pointInEllipses.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/pointInPolygon.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonArea.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonConvexHull.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonPerimeter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonsDistance.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonsEquals.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonsIntersection.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonsSymDifference.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonsUnion.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonsWithin.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/position.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/positionCaseInsensitive.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/positionCaseInsensitiveUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/positionUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/pow.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/queryID.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/rand.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/rand64.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/randConstant.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/randomFixedString.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/randomPrintableASCII.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/randomString.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/randomStringUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/readWkt.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/regexpQuoteMeta.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctions.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsArithmetic.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsComparison.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsConditional.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsConsistentHashing.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsDateTime.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsFormatting.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsGeo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsHigherOrder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsIntrospection.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsMath.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsMiscellaneous.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsNull.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsRandom.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsReinterpret.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsSnowflake.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsString.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsStringRegexp.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsStringSearch.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsTuple.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsUnixTimestamp64.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctionsVisitParam.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/reinterpretAs.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/repeat.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/replaceAll.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/replaceOne.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/replaceRegexpAll.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/replaceRegexpOne.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/replicate.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/reverse.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/reverseUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/roundAge.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/roundDuration.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/roundToExp2.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/rowNumberInAllBlocks.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/rowNumberInBlock.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/runningAccumulate.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/runningConcurrency.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/runningDifference.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/runningDifferenceStartingWithFirstValue.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2CapContains.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2CapUnion.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2CellsIntersect.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2GetNeighbors.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2RectAdd.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2RectContains.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2RectIntersection.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2RectUnion.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2ToGeo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/serverUUID.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/sigmoid.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/sign.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/sin.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/sinh.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/sleep.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/sleepEachRow.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/snowflake.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/sqrt.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/startsWith.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/stem.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/stringCutToZero.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/stringToH3.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/substring.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/subtractDays.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/subtractHours.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/subtractMinutes.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/subtractMonths.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/subtractQuarters.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/subtractSeconds.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/subtractWeeks.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/subtractYears.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/svg.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/synonyms.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tan.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tanh.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tcpPort.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tgamma.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/throwIf.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tid.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/timeSlot.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/timeSlots.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/timezone.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/timezoneOf.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/timezoneOffset.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toColumnTypeName.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toCustomWeek.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toDayOfMonth.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toDayOfWeek.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toDayOfYear.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toFixedString.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toHour.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toISOWeek.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toISOYear.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toJSONString.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toLowCardinality.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toMinute.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toModifiedJulianDay.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toMonday.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toMonth.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toNullable.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toQuarter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeDayNum.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeHourNum.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeMinuteNum.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeMonthNum.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeQuarterNum.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeSecondNum.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeWeekNum.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeYearNum.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toSecond.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfDay.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfFifteenMinutes.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfFiveMinute.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfHour.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfISOYear.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfInterval.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfMinute.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfMonth.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfQuarter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfSecond.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfTenMinutes.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfYear.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toTime.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toTimezone.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toTypeName.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toUnixTimestamp64Micro.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toUnixTimestamp64Milli.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toUnixTimestamp64Nano.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toValidUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toYYYYMM.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toYYYYMMDD.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toYYYYMMDDhhmmss.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toYear.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/today.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/transform.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/trap.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/trim.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tryBase64Decode.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tuple.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tupleElement.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tupleHammingDistance.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tupleToNameValuePairs.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/upper.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/upperUTF8.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/uptime.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/validateNestedArraySizes.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/version.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/visibleWidth.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/visitParamExtractBool.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/visitParamExtractFloat.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/visitParamExtractInt.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/visitParamExtractRaw.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/visitParamExtractString.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/visitParamExtractUInt.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/visitParamHas.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/wkt.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/yandexConsistentHash.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/yesterday.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterCreateQuotaQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterCreateRoleQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterCreateRowPolicyQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterCreateSettingsProfileQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterCreateUserQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterDropAccessEntityQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterGrantQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterSetRoleQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterShowAccessEntitiesQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterShowAccessQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterShowCreateAccessEntityQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterShowGrantsQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterShowPrivilegesQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ActionLocksManager.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ActionsDAG.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ActionsVisitor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/AddIndexConstraintsOptimizer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/AggregateDescription.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Aggregator.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ApplyWithAliasVisitor.cpp
@@ -1071,17 +630,22 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ApplyWithSubqueryVisitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ArithmeticOperationsInAgrFuncOptimize.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ArrayJoinAction.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/AsynchronousInsertQueue.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/AsynchronousMetricLog.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/AsynchronousMetrics.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/BloomFilter.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/CatBoostModel.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ClientInfo.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Cluster.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ClusterDiscovery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ClusterProxy/SelectStreamFactory.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ClusterProxy/executeQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/CollectJoinOnKeysVisitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ColumnAliasesVisitor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ComparisonGraph.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ConcurrentHashJoin.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Context.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ConvertFunctionOrLikeVisitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ConvertStringsToEnumVisitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/CrashLog.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/CrossToInnerJoinVisitor.cpp
@@ -1090,7 +654,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/DNSCacheUpdater.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/DatabaseAndTableWithAlias.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/DatabaseCatalog.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/DictionaryReader.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/DirectJoin.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/DuplicateOrderByVisitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/EmbeddedDictionaries.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ExecuteScalarSubqueriesVisitor.cpp
@@ -1104,13 +668,19 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ExternalLoaderTempConfigRepository.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ExternalLoaderXMLConfigRepository.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ExternalModelsLoader.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ExternalUserDefinedExecutableFunctionsLoader.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ExtractExpressionInfoVisitor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/FilesystemCacheLog.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/FillingRow.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/FunctionNameNormalizer.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/GatherFunctionQuantileVisitor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/GetAggregatesVisitor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/GroupingSetsRewriterVisitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/HashJoin.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/IExternalLoadable.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/IInterpreter.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/IInterpreterUnionOrSelectQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ITokenExtractor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/IdentifierSemantic.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InJoinSubqueriesPreprocessor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InternalTextLogsQueue.cpp
@@ -1118,21 +688,18 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterBackupQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterCheckQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterCreateFunctionQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterCreateIndexQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterCreateQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterCreateQuotaQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterCreateRoleQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterCreateRowPolicyQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterCreateSettingsProfileQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterCreateUserQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterDeleteQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterDescribeCacheQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterDescribeQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterDropAccessEntityQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterDropFunctionQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterDropIndexQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterDropQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterExistsQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterExplainQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterExternalDDLQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterFactory.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterGrantQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterInsertQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterKillQueryQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterOptimizeQuery.cpp
@@ -1141,16 +708,11 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterSelectQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterSelectWithUnionQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterSetQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterSetRoleQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterShowAccessEntitiesQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterShowAccessQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterShowCreateAccessEntityQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterShowCreateQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterShowGrantsQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterShowPrivilegesQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterShowProcesslistQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterShowTablesQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterSystemQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterTransactionControlQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterUseQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterWatchQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterserverCredentials.cpp
@@ -1160,11 +722,14 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/JIT/compileFunction.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/JoinSwitcher.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/JoinToSubqueryTransformVisitor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/JoinUtils.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/JoinedTables.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Lemmatizers.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/LogicalExpressionsOptimizer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/MarkTableIdentifiersVisitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/MergeJoin.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/MergeTreeTransaction.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/MergeTreeTransactionHolder.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/MetricLog.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/MutationsInterpreter.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/MySQL/InterpretersMySQLDDLQuery.cpp
@@ -1177,7 +742,9 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/PartLog.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/PredicateExpressionsOptimizer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/PredicateRewriteVisitor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/PreparedSets.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ProcessList.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ProcessorsProfileLog.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ProfileEventsExt.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/QueryAliasesVisitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/QueryLog.cpp
@@ -1191,34 +758,48 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/RequiredSourceColumnsData.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/RequiredSourceColumnsVisitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/RewriteAnyFunctionVisitor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/RewriteCountDistinctVisitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/RewriteCountVariantsVisitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/RewriteFunctionToSubcolumnVisitor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/RewriteOrderByVisitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/RewriteSumIfFunctionVisitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/RowRefs.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/SelectIntersectExceptQueryVisitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Session.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/SessionLog.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Set.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/SetVariants.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/SortedBlocksWriter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/SquashingTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/StorageID.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/SubqueryForSet.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/SubstituteColumnOptimizer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/SynonymsExtensions.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/SystemLog.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TableJoin.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TableOverrideUtils.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TablesStatus.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TextLog.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ThreadStatusExt.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TraceCollector.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TraceLog.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TransactionLog.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TransactionVersionMetadata.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TransactionsInfoLog.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TranslateQualifiedNamesVisitor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TreeCNFConverter.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TreeOptimizer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TreeRewriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/UserDefinedFunctionFactory.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/UserDefinedFunctionsVisitor.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/UserDefinedObjectsLoader.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/UserDefinedExecutableFunction.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/UserDefinedExecutableFunctionFactory.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/UserDefinedSQLFunctionFactory.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/UserDefinedSQLFunctionVisitor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/UserDefinedSQLObjectsLoader.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/WhereConstraintsOptimizer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/WindowDescription.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ZooKeeperLog.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/addMissingDefaults.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/addTypeConversionToAST.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/applyTableOverride.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/castColumn.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/convertFieldToType.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/createBlockSelector.cpp
@@ -1226,29 +807,45 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/executeDDLQueryOnCluster.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/executeQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/getClusterName.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/getColumnFromBlock.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/getHeaderForProcessingStage.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/getTableExpressions.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/getTableOverride.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/inplaceBlockConversions.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/interpretSubquery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/join_common.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/loadMetadata.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/parseColumnsListForTableFunction.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/processColumnTransformers.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/replaceAliasColumnsInQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/replaceForPositionalArguments.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/sortBlock.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/threadPoolCallbackRunner.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Loggers/ExtendedLogChannel.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Loggers/Loggers.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Loggers/OwnFormattingChannel.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Loggers/OwnJSONPatternFormatter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Loggers/OwnPatternFormatter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Loggers/OwnSplitChannel.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Chunk.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/ConcatProcessor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/DelayedPortsProcessor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Executors/CompletedPipelineExecutor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Executors/ExecutingGraph.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Executors/PipelineExecutingBlockInputStream.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Executors/ExecutionThreadContext.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Executors/ExecutorTasks.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Executors/PipelineExecutor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Executors/PollingQueue.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Executors/PullingAsyncPipelineExecutor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Executors/PullingPipelineExecutor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Executors/PushingAsyncPipelineExecutor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Executors/PushingPipelineExecutor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Executors/StreamingFormatExecutor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/ForkProcessor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/IInputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/IOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/IRowInputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/IRowOutputFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/ISchemaReader.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/ArrowBlockInputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/ArrowBlockOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/ArrowBufferedStreams.cpp
@@ -1261,8 +858,19 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/CSVRowInputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/CSVRowOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/CapnProtoRowInputFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/CapnProtoRowOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/ConstantExpressionTemplate.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/CustomSeparatedRowInputFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/CustomSeparatedRowOutputFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/HiveTextRowInputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONAsStringRowInputFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONColumnsBlockInputFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONColumnsBlockInputFormatBase.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONColumnsBlockOutputFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONColumnsBlockOutputFormatBase.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONColumnsWithMetadataBlockOutputFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONCompactColumnsBlockInputFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONCompactColumnsBlockOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONCompactEachRowRowInputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONCompactEachRowRowOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONCompactRowOutputFormat.cpp
@@ -1274,7 +882,9 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/MarkdownRowOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/MsgPackRowInputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/MsgPackRowOutputFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/MySQLDumpRowInputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/MySQLOutputFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/NativeFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/NullFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/ODBCDriver2BlockOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/ORCBlockInputFormat.cpp
@@ -1287,11 +897,15 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/PrettyBlockOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/PrettyCompactBlockOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/PrettySpaceBlockOutputFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/PrometheusTextOutputFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/ProtobufListInputFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/ProtobufListOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/ProtobufRowInputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/ProtobufRowOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/RawBLOBRowInputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/RawBLOBRowOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/RegexpRowInputFormat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/SQLInsertRowOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/TSKVRowInputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/TSKVRowOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/TabSeparatedRowInputFormat.cpp
@@ -1303,9 +917,9 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/VerticalRowOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/XMLRowOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/LazyOutputFormat.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/OutputStreamToOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/PullingOutputFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/RowInputFormatWithDiagnosticInfo.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/RowInputFormatWithNamesAndTypes.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/IAccumulatingTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/IInflatingTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/IProcessor.cpp
@@ -1316,6 +930,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/AggregatingSortedAlgorithm.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/CollapsingSortedAlgorithm.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/FinishAggregatingInOrderAlgorithm.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/Graphite.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/GraphiteRollupSortedAlgorithm.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/IMergingAlgorithmWithDelayedChunk.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/IMergingAlgorithmWithSharedChunks.cpp
@@ -1326,20 +941,18 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/IMergingTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/MergingSortedTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/OffsetTransform.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Pipe.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Port.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPipeline.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/AggregatingStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ArrayJoinStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/BuildQueryPipelineSettings.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/CreatingSetsStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/CubeStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/DistinctStep.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/DistributedCreateLocalPlan.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ExpressionStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ExtremesStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/FillingStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/FilterStep.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/FinishSortingStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/IQueryPlanStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ISourceStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ITransformingStep.cpp
@@ -1347,18 +960,19 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/JoinStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/LimitByStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/LimitStep.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/MergeSortingStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/MergingAggregatedStep.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/MergingSortedStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/OffsetStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/QueryPlanOptimizationSettings.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/filterPushDown.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/liftUpArrayJoin.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/liftUpFunctions.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/limitPushDown.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/mergeExpressions.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/optimizePrimaryKeyCondition.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/optimizeTree.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/reuseStorageOrderingForWindowFunctions.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/splitFilter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/PartialSortingStep.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/PartsSplitter.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/QueryIdHolder.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/QueryPlan.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ReadFromMergeTree.cpp
@@ -1366,26 +980,39 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ReadFromRemote.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ReadNothingStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/RollupStep.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/SettingQuotaAndLimitsStep.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/SortingStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/TotalsHavingStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/UnionStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/WindowStep.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/ResizeProcessor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sinks/SinkToStorage.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sources/DelayedSource.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sources/MySQLSource.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sources/RemoteSource.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sources/SinkToOutputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sources/SourceFromInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sources/SourceWithProgress.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sources/SQLiteSource.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sources/ShellCommandSource.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sources/SourceFromSingleChunk.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sources/TemporaryFileLazySource.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/TTL/ITTLAlgorithm.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/TTL/TTLAggregationAlgorithm.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/TTL/TTLColumnAlgorithm.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/TTL/TTLDeleteAlgorithm.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/TTL/TTLUpdateInfoAlgorithm.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/AddingDefaultsTransform.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/AddingSelectorTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/AggregatingInOrderTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/AggregatingTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/ArrayJoinTransform.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/CheckConstraintsTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/CheckSortedTransform.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/ColumnGathererTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/CopyTransform.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/CountingTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/CreatingSetsTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/CubeTransform.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/DistinctSortedChunkTransform.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/DistinctSortedTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/DistinctTransform.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/ExceptionKeepingTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/ExpressionTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/ExtremesTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/FillingTransform.cpp
@@ -1396,18 +1023,42 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/LimitByTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/LimitsCheckingTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/MaterializingTransform.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/MergeJoinTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/MergeSortingTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/MergingAggregatedMemoryEfficientTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/MergingAggregatedTransform.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/MongoDBSource.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/PartialSortingTransform.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/PostgreSQLSource.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/ReverseTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/RollupTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/SortingTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/SquashingChunksTransform.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/TTLCalcTransform.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/TTLTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/TotalsHavingTransform.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/WatermarkTransform.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/WindowTransform.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/getSourceFromFromASTInsertQuery.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/printPipeline.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/buildPushingToViewsChain.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/finalizeChunk.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/getSourceFromASTInsertQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/BlockIO.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/Chain.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/ConnectionCollector.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/ExecutionSpeedLimits.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/Pipe.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/PipelineResourcesHolder.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/ProfileInfo.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/QueryPipeline.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/QueryPipelineBuilder.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/ReadProgressCallback.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/RemoteInserter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/RemoteQueryExecutor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/RemoteQueryExecutorReadContext.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/SizeLimits.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/narrowPipe.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/printPipeline.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Server/CertificateReloader.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Server/GRPCServer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Server/HTTP/HTMLForm.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Server/HTTP/HTTPServer.cpp
@@ -1432,37 +1083,58 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Server/ReplicasStatusHandler.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Server/StaticRequestHandler.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Server/TCPHandler.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Server/TCPServer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Server/WebUIRequestHandler.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/AlterCommands.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/Cache/ExternalDataSourceCache.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/Cache/RemoteCacheController.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/Cache/RemoteFileMetadataFactory.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/Cache/SchemaCache.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/Cache/registerRemoteFileMetadatas.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/ColumnDefault.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/ColumnsDescription.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/ConstraintsDescription.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/Distributed/DirectoryMonitor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/Distributed/DistributedSettings.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/Distributed/DistributedSink.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/ExecutablePoolSettings.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/ExecutableSettings.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/ExternalDataSourceConfiguration.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/Freeze.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/IStorage.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/IndicesDescription.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/JoinSettings.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/KVStorageUtils.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/KeyDescription.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/LightweightDeleteDescription.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/LiveView/StorageLiveView.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/LiveView/TemporaryLiveViewCleaner.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MeiliSearch/MeiliSearchColumnDescriptionFetcher.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MeiliSearch/MeiliSearchConnection.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MeiliSearch/SinkMeiliSearch.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MeiliSearch/SourceMeiliSearch.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MeiliSearch/StorageMeiliSearch.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MemorySettings.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/ActiveDataPartSet.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/AllMergeSelector.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/BackgroundJobsExecutor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/BackgroundJobsAssignee.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/BoolMask.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/DataPartStorageOnDisk.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/DataPartsExchange.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/DropPartsRanges.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/EphemeralLockInZooKeeper.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/FutureMergedMutatedPart.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/IMergeTreeDataPart.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/IMergeTreeDataPartWriter.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/IMergeTreeReader.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/IMergedBlockOutputStream.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/IPartMetadataManager.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/KeyCondition.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/LevelMergeSelector.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeAlgorithm.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MarkRange.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeFromLogEntryTask.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeList.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergePlainMergeTreeTask.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTask.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeBackgroundExecutor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeBaseSelectProcessor.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeBlockReadUtils.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeData.cpp
@@ -1489,11 +1161,14 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexGranularity.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexGranularityInfo.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexGranuleBloomFilter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexHypothesis.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexHypothesisMergedCondition.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexMinMax.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexReader.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexSet.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndices.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeMarksLoader.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeMetadataCache.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeMutationEntry.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeMutationStatus.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreePartInfo.cpp
@@ -1516,10 +1191,17 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeType.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergedBlockOutputStream.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergedColumnOnlyOutputStream.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MutateFromLogEntryTask.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MutatePlainMergeTreeTask.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MutateTask.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/ParallelReplicasReadingCoordinator.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/PartMetadataManagerOrdinary.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/PartMetadataManagerWithCache.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/PartMovesBetweenShardsOrchestrator.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/PartitionPruner.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/PinnedPartUUIDs.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/ReplicatedFetchList.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/ReplicatedMergeMutateTaskBase.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/ReplicatedMergeTreeAddress.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/ReplicatedMergeTreeAltersSequence.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/ReplicatedMergeTreeCleanupThread.cpp
@@ -1532,14 +1214,20 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/ReplicatedMergeTreeRestartingThread.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/ReplicatedMergeTreeSink.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/ReplicatedMergeTreeTableMetadata.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/RequestResponse.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/SimpleMergeSelector.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/TTLMergeSelector.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/TemporaryParts.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/ZeroCopyLock.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/checkDataPart.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/extractZkPathFromCreateQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/localBackup.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/registerStorageMergeTree.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MutationCommands.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MySQL/MySQLHelpers.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/MySQL/MySQLSettings.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/PartitionCommands.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/PartitionedSink.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/ProjectionsDescription.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/ReadFinalForExternalReplicaStorage.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/ReadInOrderOptimizer.cpp
@@ -1574,16 +1262,19 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageS3Settings.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageSQLite.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageSet.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageSnapshot.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageStripeLog.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageTinyLog.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageURL.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageValues.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageView.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageXDBC.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemAggregateFunctionCombinators.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemAsynchronousInserts.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemAsynchronousMetrics.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemBackups.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemBuildOptions.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemBuildOptions.generated.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemCertificates.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemClusters.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemCollations.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemColumns.cpp
@@ -1601,6 +1292,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemEnabledRoles.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemErrors.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemEvents.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemFilesystemCache.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemFormats.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemFunctions.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemGrants.cpp
@@ -1608,6 +1300,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemLicenses.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemLicenses.generated.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemMacros.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemMergeTreeMetadataCache.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemMergeTreeSettings.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemMerges.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemMetrics.cpp
@@ -1627,13 +1320,16 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemQuotaUsage.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemQuotas.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemQuotasUsage.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemRemoteDataPaths.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemReplicas.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemReplicatedFetches.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemReplicationQueue.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemRoleGrants.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemRoles.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemRowPolicies.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemSchemaInferenceCache.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemSettings.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemSettingsChanges.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemSettingsProfileElements.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemSettingsProfiles.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemStackTrace.cpp
@@ -1643,16 +1339,21 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemTables.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemTimeZones.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemTimeZones.generated.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemTransactions.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemUserDirectories.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemUsers.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemWarnings.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemZeros.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemZooKeeper.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/attachInformationSchemaTables.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/attachSystemTables.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/TTLDescription.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/VirtualColumnUtils.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/WindowView/StorageWindowView.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/checkAndGetLiteralArgument.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/extractKeyExpressionList.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/getStructureOfRemoteTable.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/getVirtualsForStorage.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/registerStorages.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/transformQueryForExternalDatabase.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/ITableFunction.cpp
@@ -1662,10 +1363,14 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionExecutable.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionFactory.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionFile.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionFormat.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionGenerateRandom.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionHDFS.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionHDFSCluster.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionInput.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionMeiliSearch.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionMerge.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionMongoDB.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionMySQL.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionNull.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionNumbers.cpp
@@ -1677,9 +1382,15 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionURL.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionValues.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionView.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionViewIfPermitted.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionZeros.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/parseColumnsListForTableFunction.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/registerTableFunctions.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/FileLog/DirectoryWatcherBase.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/FileLog/FileLogDirectoryWatcher.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/FileLog/FileLogSettings.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/FileLog/FileLogSource.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/FileLog/ReadBufferFromFileLog.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Storages/FileLog/StorageFileLog.cpp
 )
 target_sources_custom(contrib-clickhouse-src
   .sse2
@@ -1699,4 +1410,689 @@ target_sources_custom(contrib-clickhouse-src
   -mbmi
   -mbmi2
   -DNAMESPACE=AVX2
+)
+
+add_global_library_for(contrib-clickhouse-src.global contrib-clickhouse-src)
+target_compile_options(contrib-clickhouse-src.global PUBLIC
+  -DOS_LINUX
+)
+target_compile_options(contrib-clickhouse-src.global PRIVATE
+  -DBOOST_ASIO_HAS_STD_INVOKE_RESULT=1
+  -DBOOST_ASIO_STANDALONE=1
+  -DENABLE_MULTITARGET_CODE=1
+  -DHAS_RESERVED_IDENTIFIER
+  -DHAS_SUGGEST_DESTRUCTOR_OVERRIDE
+  -DHAS_SUGGEST_OVERRIDE
+  -DLZ4_DISABLE_DEPRECATE_WARNINGS=1
+  -DPOCO_ENABLE_CPP11
+  -DPOCO_HAVE_FD_EPOLL
+  -DPOCO_OS_FAMILY_UNIX
+  -DSNAPPY_CODEC_AVAILABLE
+  -DUNALIGNED_OK
+  -DWITH_COVERAGE=0
+  -DWITH_GZFILEOP
+  -DWITH_TEXT_LOG=1
+  -DX86_64
+  -DZLIB_COMPAT
+  -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
+  -D__GCC_HAVE_DWARF2_CFI_ASM=1
+  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
+)
+target_include_directories(contrib-clickhouse-src.global PUBLIC
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/includes/configs
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Core/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/wyhash
+  ${CMAKE_SOURCE_DIR}/contrib/libs/xxhash
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/murmurhash
+)
+target_include_directories(contrib-clickhouse-src.global PRIVATE
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/pcg-random
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/contrib/libdivide-cmake
+  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/avro
+  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/avro/api
+  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/include/roaring
+  ${CMAKE_SOURCE_DIR}/contrib/libs/double-conversion
+  ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash
+  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops
+  ${CMAKE_SOURCE_DIR}/contrib/libs/hashidsxx
+  ${CMAKE_SOURCE_DIR}/contrib/libs/libc_compat/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/libdivide
+  ${CMAKE_SOURCE_DIR}/contrib/libs/lz4
+  ${CMAKE_SOURCE_DIR}/contrib/libs/miniselect/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/msgpack/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/pdqsort
+  ${CMAKE_SOURCE_DIR}/contrib/libs/rapidjson/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
+  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/fast_float/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/turbo_base64
+  ${CMAKE_SOURCE_DIR}/library/cpp/clickhouse_h3_compat
+  ${CMAKE_SOURCE_DIR}/library/cpp/consistent_hashing
+)
+target_link_libraries(contrib-clickhouse-src.global PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  clickhouse-src-Common
+  clickhouse-src-Parsers
+  libs-apache-avro
+  contrib-libs-cctz
+  libs-cctz-tzdata
+  contrib-libs-croaring
+  contrib-libs-double-conversion
+  contrib-libs-farmhash
+  libs-fastops-fastops
+  contrib-libs-fmt
+  contrib-libs-hashidsxx
+  contrib-libs-libc_compat
+  contrib-libs-libdivide
+  contrib-libs-lz4
+  contrib-libs-metrohash
+  contrib-libs-miniselect
+  contrib-libs-msgpack
+  contrib-libs-pdqsort
+  libs-poco-Data
+  libs-poco-Foundation
+  libs-poco-JSON
+  libs-poco-MongoDB
+  libs-poco-Net
+  libs-poco-NetSSL_OpenSSL
+  libs-poco-Redis
+  libs-poco-Util
+  libs-poco-XML
+  contrib-libs-rapidjson
+  contrib-libs-re2
+  contrib-libs-sparsehash
+  contrib-libs-wyhash
+  contrib-libs-xxhash
+  contrib-libs-zstd
+  abseil-cpp-absl-container
+  restricted-boost-circular_buffer
+  restricted-boost-context
+  restricted-boost-convert
+  restricted-boost-dynamic_bitset
+  restricted-boost-filesystem
+  restricted-boost-geometry
+  restricted-boost-heap
+  restricted-boost-multi_index
+  restricted-boost-program_options
+  restricted-boost-system
+  restricted-boost-tti
+  contrib-restricted-cityhash-1.0.2
+  dragonbox
+  contrib-restricted-fast_float
+  contrib-restricted-magic_enum
+  contrib-restricted-murmurhash
+  restricted-patched-replxx
+  contrib-restricted-turbo_base64
+  clickhouse_h3_compat
+  consistent-hashing
+  library-cpp-re2_st
+)
+target_sources(contrib-clickhouse-src.global PRIVATE
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/CRC.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/CastOverloadResolver.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionChar.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionFQDN.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionFactory.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionFile.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionHashID.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionHelpers.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionJoinGet.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionSQLJSON.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionShowCertificate.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsAES.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsBase58.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsBinaryRepresentation.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsBitToArray.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsBitmap.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsCharsetClassification.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsCodingIP.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsCodingUUID.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsConversion.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsEmbeddedDictionaries.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsExternalDictionaries.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsHashing.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsJSON.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsLanguageClassification.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsLogical.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsProgrammingClassification.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsRandom.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsRound.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsStringArray.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsStringHash.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsStringSimilarity.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsTimeWindow.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsTonalityClassification.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsTransactionCounters.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/GeoHash.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/IFunction.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/SubtractSubSeconds.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/URLHierarchy.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/URLPathHierarchy.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/basename.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/cutFragment.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/cutQueryString.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/cutQueryStringAndFragment.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/cutToFirstSignificantSubdomain.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/cutToFirstSignificantSubdomainCustom.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/cutURLParameter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/cutWWW.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/decodeURLComponent.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/domain.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/domainWithoutWWW.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/extractURLParameter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/extractURLParameterNames.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/extractURLParameters.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/firstSignificantSubdomain.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/firstSignificantSubdomainCustom.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/fragment.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/netloc.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/path.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/pathFull.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/port.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/protocol.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/queryString.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/queryStringAndFragment.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/tldLookup.generated.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/topLevelDomain.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/abs.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/acos.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/acosh.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addDays.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addHours.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addMinutes.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addMonths.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addQuarters.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addSeconds.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addSubSeconds.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addWeeks.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addYears.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addressToLine.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addressToLineWithInlines.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/addressToSymbol.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/aes_decrypt_mysql.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/aes_encrypt_mysql.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/appendTrailingCharIfAbsent.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/array.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayAUC.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayAggregation.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayAll.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayCompact.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayConcat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayCount.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayCumSum.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayCumSumNonNegative.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayDifference.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayDistance.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayDistinct.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayElement.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayEnumerate.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayEnumerateDense.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayEnumerateDenseRanked.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayEnumerateRanked.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayEnumerateUniq.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayEnumerateUniqRanked.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayExists.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayFill.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayFilter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayFirstLast.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayFirstLastIndex.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayFlatten.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayIntersect.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayJoin.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayMap.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayNorm.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayPopBack.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayPopFront.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayPushBack.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayPushFront.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayReduce.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayReduceInRanges.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayResize.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayReverse.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arraySlice.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arraySort.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arraySplit.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayUniq.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayWithConstant.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayZip.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/countEqual.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/emptyArray.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/emptyArrayToSingle.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/has.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/hasAll.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/hasAny.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/hasSubstr.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/indexOf.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/length.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/mapOp.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/mapPopulateSeries.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/range.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/asin.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/asinh.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/assumeNotNull.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/atan.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/atan2.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/atanh.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bar.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/base64Decode.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/base64Encode.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitAnd.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitBoolMaskAnd.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitBoolMaskOr.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitCount.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitHammingDistance.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitNot.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitOr.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitRotateLeft.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitRotateRight.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitShiftLeft.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitShiftRight.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitSlice.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitSwapLastTwo.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitTest.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitTestAll.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitTestAny.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitWrapperFunc.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/bitXor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/blockNumber.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/blockSerializedSize.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/blockSize.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/byteSize.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/caseWithExpression.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/castOrDefault.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/cbrt.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/checkHyperscanRegexp.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/coalesce.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/concat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/connectionId.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/convertCharset.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/cos.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/cosh.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/countDigits.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/countMatches.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/countSubstrings.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/countSubstringsCaseInsensitive.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/countSubstringsCaseInsensitiveUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/currentDatabase.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/currentProfiles.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/currentRoles.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/currentUser.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/dateDiff.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/dateName.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/date_trunc.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/decodeXMLComponent.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/decrypt.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/defaultValueOfArgumentType.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/defaultValueOfTypeName.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/degrees.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/demange.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/divide.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/dumpColumnStructure.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/empty.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/encodeXMLComponent.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/encrypt.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/endsWith.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/equals.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/erf.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/erfc.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/errorCodeToName.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/evalMLMethod.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/exp.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/exp10.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/exp2.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/extract.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/extractAllGroupsHorizontal.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/extractAllGroupsVertical.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/extractGroups.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/extractTextFromHTML.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/extractTimeZoneFromFunctionArguments.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/filesystem.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/finalizeAggregation.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/flattenTuple.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/formatDateTime.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/formatReadableQuantity.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/formatReadableSize.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/formatReadableTimeDelta.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/formatRow.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/formatString.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/fromModifiedJulianDay.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/fromUnixTimestamp64Micro.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/fromUnixTimestamp64Milli.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/fromUnixTimestamp64Nano.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/fuzzBits.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/gcd.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/generateUUIDv4.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/geoToH3.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/geoToS2.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/geohashDecode.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/geohashEncode.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/geohashesInBox.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/getFuzzerData.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/getMacro.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/getScalar.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/getServerPort.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/getSetting.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/getSizeOfEnumType.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/getTypeSerializationStreams.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/globalVariable.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/greatCircleDistance.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/greater.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/greaterOrEquals.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/greatest.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3CellAreaM2.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3CellAreaRads2.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3Distance.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3EdgeAngle.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3EdgeLengthKm.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3EdgeLengthM.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3ExactEdgeLengthKm.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3ExactEdgeLengthM.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3ExactEdgeLengthRads.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3GetBaseCell.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3GetDestinationIndexFromUnidirectionalEdge.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3GetFaces.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3GetIndexesFromUnidirectionalEdge.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3GetOriginIndexFromUnidirectionalEdge.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3GetPentagonIndexes.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3GetRes0Indexes.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3GetResolution.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3GetUnidirectionalEdge.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3GetUnidirectionalEdgeBoundary.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3GetUnidirectionalEdgesFromHexagon.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3HexAreaKm2.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3HexAreaM2.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3HexRing.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3IndexesAreNeighbors.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3IsPentagon.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3IsResClassIII.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3IsValid.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3Line.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3NumHexagons.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3PointDist.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3ToCenterChild.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3ToChildren.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3ToGeoBoundary.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3ToParent.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3ToString.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3UnidirectionalEdgeIsValid.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3kRing.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/h3toGeo.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/hasColumnInTable.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/hasThreadFuzzer.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/hasToken.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/hasTokenCaseInsensitive.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/hypot.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/identity.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/if.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/ifNotFinite.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/ifNull.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/ignore.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/ilike.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/in.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/indexHint.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/initialQueryID.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/initializeAggregation.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/intDiv.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/intDivOrZero.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/intExp10.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/intExp2.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isConstant.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isDecimalOverflow.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isFinite.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isIPAddressContainedIn.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isInfinite.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isNaN.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isNotNull.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isNull.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isNullable.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isValidUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/isZeroOrNull.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/jumpConsistentHash.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/kostikConsistentHash.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lcm.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/least.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/left.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lemmatize.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lengthUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/less.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lessOrEquals.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lgamma.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/like.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/log.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/log10.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/log1p.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/log2.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/logTrace.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lowCardinalityIndices.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lowCardinalityKeys.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lower.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/lowerUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/makeDate.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/map.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/mapFilter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/match.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/materialize.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/mathConstants.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/max2.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/meiliMatch.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/min2.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/minSampleSize.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/minus.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/modelEvaluate.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/modulo.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/moduloOrZero.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/monthName.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiFuzzyMatchAllIndices.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiFuzzyMatchAny.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiFuzzyMatchAnyIndex.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiIf.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiMatchAllIndices.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiMatchAny.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiMatchAnyIndex.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchAllPositions.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchAllPositionsCaseInsensitive.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchAllPositionsCaseInsensitiveUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchAllPositionsUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchAny.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchAnyCaseInsensitive.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchAnyCaseInsensitiveUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchAnyUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchFirstIndex.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchFirstIndexCaseInsensitive.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchFirstIndexCaseInsensitiveUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchFirstIndexUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchFirstPosition.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchFirstPositionCaseInsensitive.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchFirstPositionCaseInsensitiveUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiSearchFirstPositionUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/multiply.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/negate.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/neighbor.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/normalizeQuery.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/normalizeString.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/normalizedQueryHash.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/notEmpty.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/notEquals.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/notILike.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/notLike.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/now.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/now64.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/nowInBlock.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/nullIf.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/padString.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/parseTimeDelta.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/partitionId.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/plus.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/pointInEllipses.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/pointInPolygon.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonArea.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonConvexHull.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonPerimeter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonsDistance.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonsEquals.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonsIntersection.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonsSymDifference.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonsUnion.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/polygonsWithin.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/position.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/positionCaseInsensitive.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/positionCaseInsensitiveUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/positionUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/pow.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/queryID.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/radians.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/rand.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/rand64.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/randConstant.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/randomFixedString.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/randomPrintableASCII.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/randomString.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/randomStringUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/readWkt.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/regexpQuoteMeta.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/registerFunctions.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/reinterpretAs.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/repeat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/replaceAll.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/replaceOne.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/replaceRegexpAll.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/replaceRegexpOne.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/replicate.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/reverse.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/reverseUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/right.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/roundAge.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/roundDuration.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/roundToExp2.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/rowNumberInAllBlocks.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/rowNumberInBlock.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/runningAccumulate.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/runningConcurrency.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/runningDifference.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/runningDifferenceStartingWithFirstValue.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2CapContains.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2CapUnion.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2CellsIntersect.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2GetNeighbors.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2RectAdd.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2RectContains.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2RectIntersection.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2RectUnion.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/s2ToGeo.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/serverConstants.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/sigmoid.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/sign.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/sin.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/sinh.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/sleep.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/sleepEachRow.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/snowflake.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/sqrt.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/startsWith.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/stem.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/stringCutToZero.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/stringToH3.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/substring.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/subtractDays.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/subtractHours.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/subtractMinutes.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/subtractMonths.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/subtractQuarters.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/subtractSeconds.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/subtractWeeks.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/subtractYears.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/svg.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/synonyms.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tan.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tanh.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tgamma.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/throwIf.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tid.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/timeSlot.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/timeSlots.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/timezoneOf.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/timezoneOffset.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toBool.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toColumnTypeName.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toCustomWeek.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toDayOfMonth.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toDayOfWeek.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toDayOfYear.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toFixedString.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toHour.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toISOWeek.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toISOYear.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toJSONString.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toLastDayOfMonth.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toLowCardinality.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toMinute.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toModifiedJulianDay.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toMonday.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toMonth.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toNullable.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toQuarter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeDayNum.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeHourNum.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeMinuteNum.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeMonthNum.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeQuarterNum.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeSecondNum.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeWeekNum.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeYearNum.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toSecond.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfDay.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfFifteenMinutes.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfFiveMinutes.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfHour.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfISOYear.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfInterval.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfMinute.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfMonth.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfQuarter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfSecond.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfSubsecond.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfTenMinutes.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toStartOfYear.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toTime.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toTimezone.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toTypeName.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toUnixTimestamp64Micro.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toUnixTimestamp64Milli.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toUnixTimestamp64Nano.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toValidUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toYYYYMM.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toYYYYMMDD.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toYYYYMMDDhhmmss.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/toYear.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/today.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tokenExtractors.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/transform.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/translate.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/trap.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/trim.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tryBase64Decode.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tuple.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tupleElement.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tupleHammingDistance.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/tupleToNameValuePairs.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/upper.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/upperUTF8.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/validateNestedArraySizes.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/vectorFunctions.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/visibleWidth.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/visitParamExtractBool.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/visitParamExtractFloat.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/visitParamExtractInt.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/visitParamExtractRaw.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/visitParamExtractString.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/visitParamExtractUInt.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/visitParamHas.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/wkt.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/yesterday.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/ztest.cpp
 )

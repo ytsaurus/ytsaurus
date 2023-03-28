@@ -20,6 +20,7 @@ struct BitSwapLastTwoImpl
 {
     using ResultType = UInt8;
     static constexpr const bool allow_fixed_string = false;
+    static const constexpr bool allow_string_integer = false;
 
     static inline ResultType NO_SANITIZE_UNDEFINED apply([[maybe_unused]] A a)
     {
@@ -61,7 +62,7 @@ template <> struct FunctionUnaryArithmeticMonotonicity<NameBitSwapLastTwo>
     }
 };
 
-void registerFunctionBitSwapLastTwo(FunctionFactory & factory)
+REGISTER_FUNCTION(BitSwapLastTwo)
 {
     factory.registerFunction<FunctionBitSwapLastTwo>();
 }

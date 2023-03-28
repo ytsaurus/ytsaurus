@@ -7,7 +7,7 @@
 #include <Functions/PerformanceAdaptors.h>
 #include <pcg_random.hpp>
 #include <Common/randomSeed.h>
-#include <common/unaligned.h>
+#include <base/unaligned.h>
 
 
 namespace DB
@@ -126,7 +126,7 @@ private:
 
 }
 
-void registerFunctionRandomString(FunctionFactory & factory)
+REGISTER_FUNCTION(RandomString)
 {
     factory.registerFunction<FunctionRandomString>();
 }

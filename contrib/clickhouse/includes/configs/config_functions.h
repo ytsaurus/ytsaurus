@@ -8,3 +8,5 @@
 #define USE_H3 1
 #define USE_S2_GEOMETRY 0
 #define USE_FASTOPS 1
+#define USE_NLP 0
+#define USE_VECTORSCAN 0

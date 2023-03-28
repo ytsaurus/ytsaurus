@@ -5,7 +5,7 @@
 #include <boost/geometry/geometries/point_xy.hpp>
 #include <boost/geometry/geometries/polygon.hpp>
 
-#include <common/logger_useful.h>
+#include <Common/logger_useful.h>
 
 #include <Columns/ColumnArray.h>
 #include <Columns/ColumnTuple.h>
@@ -78,7 +78,7 @@ public:
             {
                 auto geometries = Converter::convert(arguments[0].column->convertToFullColumnIfConst());
 
-                for (size_t i = 0; i < input_rows_count; i++)
+                for (size_t i = 0; i < input_rows_count; ++i)
                     res_data.emplace_back(boost::geometry::area(geometries[i]));
             }
         }
@@ -100,7 +100,7 @@ template <>
 const char * FunctionPolygonArea<SphericalPoint>::name = "polygonAreaSpherical";
 
 
-void registerFunctionPolygonArea(FunctionFactory & factory)
+REGISTER_FUNCTION(PolygonArea)
 {
     factory.registerFunction<FunctionPolygonArea<CartesianPoint>>();
     factory.registerFunction<FunctionPolygonArea<SphericalPoint>>();

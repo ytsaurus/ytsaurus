@@ -7,7 +7,7 @@
 #include <Columns/ColumnArray.h>
 #include <Columns/ColumnConst.h>
 #include <Common/typeid_cast.h>
-#include <common/range.h>
+#include <base/range.h>
 
 
 namespace DB
@@ -98,7 +98,7 @@ public:
 };
 
 
-void registerFunctionArrayConcat(FunctionFactory & factory)
+REGISTER_FUNCTION(ArrayConcat)
 {
     factory.registerFunction<FunctionArrayConcat>();
 }

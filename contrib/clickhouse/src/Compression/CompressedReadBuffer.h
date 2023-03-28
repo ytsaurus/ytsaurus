@@ -16,12 +16,12 @@ private:
     bool nextImpl() override;
 
 public:
-    CompressedReadBuffer(ReadBuffer & in_, bool allow_different_codecs_ = false)
+    explicit CompressedReadBuffer(ReadBuffer & in_, bool allow_different_codecs_ = false)
         : CompressedReadBufferBase(&in_, allow_different_codecs_), BufferWithOwnMemory<ReadBuffer>(0)
     {
     }
 
-    size_t readBig(char * to, size_t n) override;
+    [[nodiscard]] size_t readBig(char * to, size_t n) override;
 
     /// The compressed size of the current block.
     size_t getSizeCompressed() const

@@ -25,6 +25,7 @@
 #include <Dictionaries/DictionarySourceFactory.h>
 #include <Dictionaries/DictionaryStructure.h>
 #include <Processors/Sources/SourceFromInputStream.h>
+#include <QueryPipeline/QueryPipeline.h>
 
 #include <Poco/Util/AbstractConfiguration.h>
 
@@ -55,7 +56,7 @@ public:
         , Logger(ClickHouseYtLogger.WithTag("Path: %v", Path_))
     { }
 
-    DB::Pipe loadAll() override
+    DB::QueryPipeline loadAll() override
     {
         RevisionTracker_.FixCurrentRevision();
 
@@ -91,18 +92,18 @@ public:
         auto blockInputStream = CreateBlockInputStream(
             reader,
             table->Schema,
-            nullptr /* traceContext */,
+            nullptr /*traceContext*/,
             Host_,
             Host_->GetConfig()->QuerySettings,
             Logger,
-            nullptr /* prewhereInfo */);
+            nullptr /*prewhereInfo*/);
 
         auto source = std::make_shared<DB::SourceFromInputStream>(std::move(blockInputStream));
 
-        return DB::Pipe(source);
+        return DB::QueryPipeline(DB::Pipe(source));
     }
 
-    DB::Pipe loadIds(const std::vector<UInt64>& /* ids */) override
+    DB::QueryPipeline loadIds(const std::vector<UInt64>& /*ids*/) override
     {
         THROW_ERROR_EXCEPTION("Method loadIds not supported");
     }
@@ -112,9 +113,9 @@ public:
         return false;
     }
 
-    DB::Pipe loadKeys(
-        const DB::Columns& /* keyColumns */,
-        const std::vector<size_t>& /* requestedRows */) override
+    DB::QueryPipeline loadKeys(
+        const DB::Columns& /*keyColumns*/,
+        const std::vector<size_t>& /*requestedRows*/) override
     {
         THROW_ERROR_EXCEPTION("Method loadKeys not supported");
     }
@@ -139,7 +140,7 @@ public:
         return "YT: " + ToString(Path_);
     }
 
-    DB::Pipe loadUpdatedAll() override
+    DB::QueryPipeline loadUpdatedAll() override
     {
         THROW_ERROR_EXCEPTION("Method loadUpdatedAll not supported");
     }

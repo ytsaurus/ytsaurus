@@ -5,7 +5,6 @@
 #include "config.h"
 #include "data_type_boolean.h"
 #include "dictionary_source.h"
-#include "functions_version.h"
 #include "health_checker.h"
 #include "invoker_liveness_checker.h"
 #include "memory_watchdog.h"
@@ -37,8 +36,6 @@
 #include <yt/yt/library/clickhouse_discovery/discovery_v1.h>
 #include <yt/yt/library/clickhouse_discovery/discovery_v2.h>
 
-#include <yt/yt/library/clickhouse_functions/functions.h>
-
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -52,11 +49,11 @@
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 
 #include <Common/Exception.h>
+#include <Common/DateLUT.h>
 #include <Common/StringUtils/StringUtils.h>
 #include <Interpreters/ProcessList.h>
 #include <IO/HTTPCommon.h>
 
-#include <common/DateLUT.h>
 
 #include <util/system/env.h>
 
@@ -101,7 +98,7 @@ static const TString SysClickHouse = "//sys/clickhouse";
 ///////////////////////////////////////////////////////////////////////////////
 
 class THost::TImpl
-    : public TRefCounted, protected DB::WithContext
+    : public TRefCounted, protected DB::WithMutableContext
 {
 public:
     TImpl(
@@ -193,10 +190,13 @@ public:
     {
         YT_VERIFY(context_ && context.expired());
         context = context_;
+    }
 
+    void InitSingletones()
+    {
         QueryRegistry_ = New<TQueryRegistry>(
             ControlInvoker_,
-            context_,
+            getContext(),
             Config_->QueryRegistry);
         MemoryWatchdog_ = New<TMemoryWatchdog>(
             Config_->MemoryWatchdog,
@@ -205,11 +205,11 @@ public:
         HealthChecker_ = New<THealthChecker>(
             Config_->HealthChecker,
             Config_->User,
-            context_,
+            getContext(),
             Owner_);
     }
 
-    DB::ContextPtr GetContext() const
+    DB::ContextMutablePtr GetContext() const
     {
         return getContext();
     }
@@ -481,7 +481,7 @@ public:
         QueryRegistry_->WriteStateToStderr();
         WriteToStderr("*** Current query id (possible reason of failure): ");
         const auto& queryId = DB::CurrentThread::getQueryId();
-        WriteToStderr(queryId.data, queryId.size);
+        WriteToStderr(queryId.data(), queryId.size());
         WriteToStderr(" ***\n");
 
         if (DB::CurrentThread::isInitialized()) {
@@ -565,7 +565,10 @@ public:
 
     void PopulateSystemDatabase(DB::IDatabase* systemDatabase) const
     {
-        systemDatabase->attachTable("clique", CreateStorageSystemClique(Discovery_, Config_->InstanceId));
+        systemDatabase->attachTable(
+            getContext(),
+            "clique",
+            CreateStorageSystemClique(Discovery_, Config_->InstanceId));
     }
 
     std::shared_ptr<DB::IDatabase> CreateYtDatabase() const
@@ -864,12 +867,10 @@ private:
 
     void RegisterFactories()
     {
-        RegisterFunctions();
         RegisterTableFunctions();
         RegisterTableDictionarySource(Owner_);
         RegisterStorageDistributor();
         RegisterDataTypeBoolean();
-        RegisterFunctionsVersion();
     }
 };
 
@@ -1045,9 +1046,14 @@ void THost::SetContext(DB::ContextMutablePtr context)
     Impl_->SetContext(context);
 }
 
-DB::ContextPtr THost::GetContext() const
+DB::ContextMutablePtr THost::GetContext() const
 {
     return Impl_->GetContext();
+}
+
+void THost::InitSingletones()
+{
+    return Impl_->InitSingletones();
 }
 
 NTableClient::TTableColumnarStatisticsCachePtr THost::GetTableColumnarStatisticsCache() const

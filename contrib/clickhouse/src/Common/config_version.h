@@ -4,19 +4,19 @@
 
 // NOTE: has nothing common with DBMS_TCP_PROTOCOL_VERSION,
 // only DBMS_TCP_PROTOCOL_VERSION should be incremented on protocol changes.
-#define VERSION_REVISION 54455
+#define VERSION_REVISION 54465
 #define VERSION_NAME "ClickHouse"
 #define DBMS_NAME VERSION_NAME
-#define VERSION_MAJOR 21
-#define VERSION_MINOR 10
-#define VERSION_PATCH 6
-#define VERSION_STRING "21.10.6.2"
-#define VERSION_STRING_SHORT "21.10"
+#define VERSION_MAJOR 22
+#define VERSION_MINOR 8
+#define VERSION_PATCH 13
+#define VERSION_STRING "22.8.13.1"
+#define VERSION_STRING_SHORT "22.8"
 /* #undef VERSION_OFFICIAL */
-#define VERSION_FULL "ClickHouse 21.10.6.2"
-#define VERSION_DESCRIBE "v21.10.6.2-stable"
-#define VERSION_GITHASH "35206fa67005be3c744be11dd8cab827c082f2c3"
-#define VERSION_INTEGER 21010006
+#define VERSION_FULL "ClickHouse 22.8.13.1"
+#define VERSION_DESCRIBE "v22.8.13.1-lts"
+#define VERSION_GITHASH "86b0ecd5d513d6f32ad01b7046ab761d4f2f177c"
+#define VERSION_INTEGER 22008013
 /* #undef VERSION_DATE */
 
 #if defined(VERSION_MAJOR)

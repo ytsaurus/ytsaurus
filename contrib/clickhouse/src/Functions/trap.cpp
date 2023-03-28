@@ -7,7 +7,7 @@
 #include <DataTypes/DataTypesNumber.h>
 #include <Columns/ColumnString.h>
 #include <Interpreters/Context.h>
-#include <common/scope_guard.h>
+#include <base/scope_guard.h>
 
 #include <thread>
 #include <memory>
@@ -177,19 +177,11 @@ public:
 };
 
 
-void registerFunctionTrap(FunctionFactory & factory)
+REGISTER_FUNCTION(Trap)
 {
     factory.registerFunction<FunctionTrap>();
 }
 
-}
-
-#else
-
-namespace DB
-{
-    class FunctionFactory;
-    void registerFunctionTrap(FunctionFactory &) {}
 }
 
 #endif

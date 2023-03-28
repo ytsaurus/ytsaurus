@@ -7,7 +7,7 @@
 #include <Common/UTF8Helpers.h>
 #include <Common/randomSeed.h>
 
-#include <common/defines.h>
+#include <base/defines.h>
 
 namespace DB
 {
@@ -148,7 +148,7 @@ public:
 
 }
 
-void registerFunctionRandomStringUTF8(FunctionFactory & factory)
+REGISTER_FUNCTION(RandomStringUTF8)
 {
     factory.registerFunction<FunctionRandomStringUTF8>();
 }

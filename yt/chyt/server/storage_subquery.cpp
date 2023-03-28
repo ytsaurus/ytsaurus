@@ -11,7 +11,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <Processors/Sources/SourceFromInputStream.h>
-#include <Processors/Pipe.h>
+#include <QueryPipeline/Pipe.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -64,7 +64,7 @@ public:
 
     DB::Pipe read(
         const DB::Names& columnNames,
-        const DB::StorageMetadataPtr& metadataSnapshot,
+        const DB::StorageSnapshotPtr& storageSnapshot,
         DB::SelectQueryInfo& queryInfo,
         DB::ContextPtr context,
         DB::QueryProcessingStage::Enum /*processedStage*/,
@@ -77,6 +77,7 @@ public:
 
         QueryContext_->MoveToPhase(EQueryPhase::Execution);
 
+        auto metadataSnapshot = storageSnapshot->getMetadataForQuery();
         auto [realColumnNames, virtualColumnNames] = DecoupleColumns(columnNames, metadataSnapshot);
 
         StorageContext_ = QueryContext_->GetOrRegisterStorageContext(this, context);
@@ -219,7 +220,7 @@ public:
     DB::QueryProcessingStage::Enum getQueryProcessingStage(
         DB::ContextPtr /*context*/,
         DB::QueryProcessingStage::Enum /*toStage*/,
-        const DB::StorageMetadataPtr&,
+        const DB::StorageSnapshotPtr&,
         DB::SelectQueryInfo& /*queryInfo*/) const override
     {
         return DB::QueryProcessingStage::Enum::FetchColumns;

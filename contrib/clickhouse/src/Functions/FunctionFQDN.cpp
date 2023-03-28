@@ -1,7 +1,7 @@
 #include <Functions/IFunction.h>
 #include <Functions/FunctionFactory.h>
 #include <DataTypes/DataTypeString.h>
-#include <common/getFQDNOrHostName.h>
+#include <base/getFQDNOrHostName.h>
 #include <Core/Field.h>
 
 
@@ -44,7 +44,7 @@ public:
 };
 
 
-void registerFunctionFQDN(FunctionFactory & factory)
+REGISTER_FUNCTION(FQDN)
 {
     factory.registerFunction<FunctionFQDN>(FunctionFactory::CaseInsensitive);
     factory.registerFunction<FunctionFQDN>("fullHostName");

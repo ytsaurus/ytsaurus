@@ -1,7 +1,6 @@
 #include "DictionarySourceHelpers.h"
 #include <Columns/ColumnsNumber.h>
 #include <Core/ColumnWithTypeAndName.h>
-#include <DataStreams/IBlockStream_fwd.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <IO/WriteHelpers.h>
 #include "DictionaryStructure.h"
@@ -53,7 +52,7 @@ Block blockForKeys(
 
         auto filtered_column = source_column->filter(filter, requested_rows.size());
 
-        block.insert({std::move(filtered_column), (*dict_struct.key)[i].type, (*dict_struct.key)[i].name});
+        block.insert({filtered_column, (*dict_struct.key)[i].type, (*dict_struct.key)[i].name});
     }
 
     return block;

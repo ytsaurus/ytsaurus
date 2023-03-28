@@ -5,7 +5,7 @@
 #include <Functions/GatherUtils/Algorithms.h>
 #include <Functions/GatherUtils/Sinks.h>
 #include <Functions/GatherUtils/Sources.h>
-#include <common/bit_cast.h>
+#include <base/bit_cast.h>
 
 namespace DB
 {
@@ -307,7 +307,7 @@ namespace
     };
 }
 
-void registerFunctionPadString(FunctionFactory & factory)
+REGISTER_FUNCTION(PadString)
 {
     factory.registerFunction<FunctionPadString<false, false>>(); /// leftPad
     factory.registerFunction<FunctionPadString<false, true>>();  /// leftPadUTF8

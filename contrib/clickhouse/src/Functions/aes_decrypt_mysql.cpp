@@ -1,6 +1,4 @@
-#if !defined(ARCADIA_BUILD)
-#    include <Common/config.h>
-#endif
+#include <Common/config.h>
 
 #if USE_SSL
 
@@ -21,7 +19,7 @@ struct DecryptMySQLModeImpl
 namespace DB
 {
 
-void registerFunctionAESDecryptMysql(FunctionFactory & factory)
+REGISTER_FUNCTION(AESDecryptMysql)
 {
     factory.registerFunction<FunctionDecrypt<DecryptMySQLModeImpl>>();
 }

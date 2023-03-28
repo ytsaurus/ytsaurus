@@ -143,7 +143,7 @@ public:
 
     Monotonicity getMonotonicityForRange(const IDataType &, const Field &, const Field &) const override
     {
-        return { true, true, true };
+        return { .is_monotonic = true, .is_always_monotonic = true };
     }
 
 private:
@@ -153,7 +153,7 @@ private:
 
 }
 
-void registerFunctionDateTrunc(FunctionFactory & factory)
+REGISTER_FUNCTION(DateTrunc)
 {
     factory.registerFunction<FunctionDateTrunc>(FunctionFactory::CaseInsensitive);
 

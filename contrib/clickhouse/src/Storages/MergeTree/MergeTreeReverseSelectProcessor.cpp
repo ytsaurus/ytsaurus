@@ -8,14 +8,11 @@ namespace ErrorCodes
     extern const int MEMORY_LIMIT_EXCEEDED;
 }
 
-bool MergeTreeReverseSelectProcessor::getNewTask()
+bool MergeTreeReverseSelectProcessor::getNewTaskImpl()
 try
 {
     if (chunks.empty() && all_mark_ranges.empty())
-    {
-        finish();
         return false;
-    }
 
     /// We have some blocks to return in buffer.
     /// Return true to continue reading, but actually don't create a task.
@@ -34,8 +31,8 @@ try
 
     task = std::make_unique<MergeTreeReadTask>(
         data_part, mark_ranges_for_task, part_index_in_query, ordered_names, column_name_set,
-        task_columns.columns, task_columns.pre_columns, prewhere_info && prewhere_info->remove_prewhere_column,
-        task_columns.should_reorder, std::move(size_predictor));
+        task_columns, prewhere_info && prewhere_info->remove_prewhere_column,
+        std::move(size_predictor));
 
     return true;
 }
@@ -43,13 +40,13 @@ catch (...)
 {
     /// Suspicion of the broken part. A part is added to the queue for verification.
     if (getCurrentExceptionCode() != ErrorCodes::MEMORY_LIMIT_EXCEEDED)
-        storage.reportBrokenPart(data_part->name);
+        storage.reportBrokenPart(data_part);
     throw;
 }
 
-Chunk MergeTreeReverseSelectProcessor::readFromPart()
+MergeTreeBaseSelectProcessor::BlockAndRowCount MergeTreeReverseSelectProcessor::readFromPart()
 {
-    Chunk res;
+    BlockAndRowCount res;
 
     if (!chunks.empty())
     {
@@ -63,7 +60,7 @@ Chunk MergeTreeReverseSelectProcessor::readFromPart()
 
     while (!task->isFinished())
     {
-        Chunk chunk = readFromPartImpl();
+        auto chunk = readFromPartImpl();
         chunks.push_back(std::move(chunk));
     }
 

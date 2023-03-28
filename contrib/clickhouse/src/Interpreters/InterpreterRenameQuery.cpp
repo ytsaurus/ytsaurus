@@ -5,7 +5,7 @@
 #include <Storages/IStorage.h>
 #include <Interpreters/executeDDLQueryOnCluster.h>
 #include <Interpreters/QueryLog.h>
-#include <Access/AccessRightsElement.h>
+#include <Access/Common/AccessRightsElement.h>
 #include <Common/typeid_cast.h>
 #include <Databases/DatabaseReplicated.h>
 
@@ -29,7 +29,11 @@ BlockIO InterpreterRenameQuery::execute()
     const auto & rename = query_ptr->as<const ASTRenameQuery &>();
 
     if (!rename.cluster.empty())
-        return executeDDLQueryOnCluster(query_ptr, getContext(), getRequiredAccess());
+    {
+        DDLQueryOnClusterParams params;
+        params.access_to_check = getRequiredAccess();
+        return executeDDLQueryOnCluster(query_ptr, getContext(), params);
+    }
 
     getContext()->checkAccess(getRequiredAccess());
 
@@ -78,6 +82,13 @@ BlockIO InterpreterRenameQuery::executeToTables(const ASTRenameQuery & rename, c
 
     for (const auto & elem : descriptions)
     {
+        if (elem.if_exists)
+        {
+            assert(!rename.exchange);
+            if (!database_catalog.isTableExist(StorageID(elem.from_database_name, elem.from_table_name), getContext()))
+                continue;
+        }
+
         bool exchange_tables;
         if (rename.exchange)
         {
@@ -95,21 +106,28 @@ BlockIO InterpreterRenameQuery::executeToTables(const ASTRenameQuery & rename, c
         }
 
         DatabasePtr database = database_catalog.getDatabase(elem.from_database_name);
-        if (typeid_cast<DatabaseReplicated *>(database.get())
-            && !getContext()->getClientInfo().is_replicated_database_internal)
+        if (database->shouldReplicateQuery(getContext(), query_ptr))
         {
             if (1 < descriptions.size())
-                throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Database {} is Replicated, "
-                                "it does not support renaming of multiple tables in single query.", elem.from_database_name);
+                throw Exception(
+                    ErrorCodes::NOT_IMPLEMENTED,
+                    "Database {} is Replicated, "
+                    "it does not support renaming of multiple tables in single query.",
+                    elem.from_database_name);
 
             UniqueTableName from(elem.from_database_name, elem.from_table_name);
             UniqueTableName to(elem.to_database_name, elem.to_table_name);
             ddl_guards[from]->releaseTableLock();
             ddl_guards[to]->releaseTableLock();
-            return typeid_cast<DatabaseReplicated *>(database.get())->tryEnqueueReplicatedDDL(query_ptr, getContext());
+            return database->tryEnqueueReplicatedDDL(query_ptr, getContext());
         }
         else
         {
+            TableNamesSet dependencies;
+            if (!exchange_tables)
+                dependencies = database_catalog.tryRemoveLoadingDependencies(StorageID(elem.from_database_name, elem.from_table_name),
+                                                                             getContext()->getSettingsRef().check_table_dependencies);
+
             database->renameTable(
                 getContext(),
                 elem.from_table_name,
@@ -117,6 +135,9 @@ BlockIO InterpreterRenameQuery::executeToTables(const ASTRenameQuery & rename, c
                 elem.to_table_name,
                 exchange_tables,
                 rename.dictionary);
+
+            if (!dependencies.empty())
+                DatabaseCatalog::instance().addLoadingDependencies(QualifiedTableName{elem.to_database_name, elem.to_table_name}, std::move(dependencies));
         }
     }
 
@@ -133,9 +154,14 @@ BlockIO InterpreterRenameQuery::executeToDatabase(const ASTRenameQuery &, const 
     const auto & new_name = descriptions.back().to_database_name;
     auto & catalog = DatabaseCatalog::instance();
 
-    auto db = catalog.getDatabase(old_name);
-    catalog.assertDatabaseDoesntExist(new_name);
-    db->renameDatabase(new_name);
+    auto db = descriptions.front().if_exists ? catalog.tryGetDatabase(old_name) : catalog.getDatabase(old_name);
+
+    if (db)
+    {
+        catalog.assertDatabaseDoesntExist(new_name);
+        db->renameDatabase(getContext(), new_name);
+    }
+
     return {};
 }
 

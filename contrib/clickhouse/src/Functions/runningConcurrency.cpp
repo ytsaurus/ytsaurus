@@ -10,7 +10,7 @@
 #include <Functions/FunctionFactory.h>
 #include <Functions/IFunction.h>
 #include <IO/WriteBufferFromString.h>
-#include <common/defines.h>
+#include <base/defines.h>
 #include <set>
 
 namespace DB
@@ -220,7 +220,7 @@ namespace DB
         static constexpr auto name = "runningConcurrency";
     };
 
-    void registerFunctionRunningConcurrency(FunctionFactory & factory)
+    REGISTER_FUNCTION(RunningConcurrency)
     {
         factory.registerFunction<RunningConcurrencyOverloadResolver<NameRunningConcurrency, DataTypeUInt32>>();
     }

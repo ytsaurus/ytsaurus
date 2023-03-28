@@ -1,6 +1,4 @@
-#if !defined(ARCADIA_BUILD)
-#    include "config_core.h"
-#endif
+#include "config_core.h"
 
 #if USE_NLP
 
@@ -120,7 +118,7 @@ public:
     }
 };
 
-void registerFunctionSynonyms(FunctionFactory & factory)
+REGISTER_FUNCTION(Synonyms)
 {
     factory.registerFunction<FunctionSynonyms>(FunctionFactory::CaseInsensitive);
 }

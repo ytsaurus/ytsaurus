@@ -39,7 +39,8 @@ public:
     using FinishCounterPtr = std::shared_ptr<FinishCounter>;
 
     JoiningTransform(
-        Block input_header,
+        const Block & input_header,
+        const Block & output_header,
         JoinPtr join_,
         size_t max_block_size_,
         bool on_totals_ = false,
@@ -83,7 +84,7 @@ private:
 
 /// Fills Join with block from right table.
 /// Has single input and single output port.
-/// Output port has empty header. It is closed when al data is inserted in join.
+/// Output port has empty header. It is closed when all data is inserted in join.
 class FillingRightJoinSideTransform : public IProcessor
 {
 public:
