@@ -151,7 +151,7 @@ yt.wrapper.file_commands.md5sum = custom_md5sum
 
 #### **Q: How do I increase the number of Reduce jobs? The job_count option is not working.**
 
-**A:** Most likely, the output table is too small, and the scheduler does not have enough key samples to spawn a larger number of jobs. To get more jobs out of a small table, you will have forcibly to move the table creating more chunks. You can do this with `merge` using the `desired_chnk_size` option. To create 5-MB chunks, for instance, you need to run the command below:
+**A:** Most likely, the output table is too small, and the scheduler does not have enough key samples to spawn a larger number of jobs. To get more jobs out of a small table, you will have forcibly to move the table creating more chunks. You can do this with `merge` using the `desired_chunk_size` option. To create 5-MB chunks, for instance, you need to run the command below:
 
 ```bash
 yt merge --src _table --dst _table --spec '{job_io = {table_writer = {desired_chunk_size = 5000000}}; force_transform = %true}'
@@ -290,4 +290,3 @@ The above recommendations notwithstanding, if you are certain that you would lik
 If you wish to force activate live preview, use the `enable_legacy_live_preview = %true` option in the operation spec.
 
 If you wish to disable this warning, use the `enable_legacy_live_preview = %false` option in the operation spec.
-
