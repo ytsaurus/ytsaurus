@@ -290,6 +290,10 @@ void TBootstrap::OnDynamicConfigChanged(
 {
     ReconfigureNativeSingletons(Config_, newConfig);
 
+    if (QueryTracker_) {
+        QueryTracker_->OnDynamicConfigChanged(newConfig->QueryTracker);
+    }
+
     YT_LOG_DEBUG(
         "Updated query tracker server dynamic config (OldConfig: %v, NewConfig: %v)",
         ConvertToYsonString(oldConfig, EYsonFormat::Text),
