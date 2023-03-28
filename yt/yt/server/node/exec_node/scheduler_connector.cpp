@@ -70,18 +70,13 @@ TSchedulerConnector::TSchedulerConnector(
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 }
 
-void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded(bool force)
+void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     auto scheduleOutOfBandHeartbeat = [&] {
         HeartbeatExecutor_->ScheduleOutOfBand();
     };
-
-    if (force) {
-        scheduleOutOfBandHeartbeat();
-        return;
-    }
 
     const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
     auto resourceLimits = jobResourceManager->GetResourceLimits();
@@ -95,12 +90,19 @@ void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded(bool force)
     }
 }
 
-void TSchedulerConnector::SendOutOfBandHeartbeatIfNeeded(bool force)
+void TSchedulerConnector::SendOutOfBandHeartbeatIfNeeded()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     Bootstrap_->GetJobInvoker()->Invoke(
-        BIND(&TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded, MakeStrong(this), force));
+        BIND(&TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded, MakeStrong(this)));
+}
+
+void TSchedulerConnector::OnJobFinished(const TJobPtr& /*job*/)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    HeartbeatExecutor_->ScheduleOutOfBand();
 }
 
 void TSchedulerConnector::OnResourcesAcquired()
@@ -116,8 +118,13 @@ void TSchedulerConnector::OnResourcesReleased(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    // Scheduler connector is subscribed to JobFinished scheduler job controller signal.
+    if (resourcesConsumerType == EResourcesConsumerType::SchedulerJob && fullyReleased) {
+        return;
+    }
+
     if (SendHeartbeatOnJobFinished_.load(std::memory_order::relaxed)) {
-        SendOutOfBandHeartbeatIfNeeded(/*force*/ resourcesConsumerType == EResourcesConsumerType::SchedulerJob && fullyReleased);
+        SendOutOfBandHeartbeatIfNeeded();
     }
 }
 
@@ -131,8 +138,13 @@ void TSchedulerConnector::SetMinSpareResources(const NScheduler::TJobResources& 
 void TSchedulerConnector::Start()
 {
     const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
-    jobResourceManager->SubscribeResourcesAcquired(BIND(
+    jobResourceManager->SubscribeResourcesAcquired(BIND_NO_PROPAGATE(
         &TSchedulerConnector::OnResourcesAcquired,
+        MakeWeak(this)));
+
+    const auto& jobController = Bootstrap_->GetJobController();
+    jobController->SubscribeJobFinished(BIND_NO_PROPAGATE(
+        &TSchedulerConnector::OnJobFinished,
         MakeWeak(this)));
 
     HeartbeatExecutor_->Start();

@@ -337,9 +337,9 @@ void TJob::Abort(const TError& error)
         JobPhase_,
         timeout);
 
-    auto startAbortion = [&, error{std::move(error)}] () {
-        SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
-        DoSetResult(std::move(error));
+    auto doAbort = [&, error{std::move(error)}] {
+        SetJobPhase(EJobPhase::WaitingAbort);
+        Finalize(std::move(error));
         TDelayedExecutor::Submit(
             BIND(&TJob::OnJobAbortionTimeout, MakeStrong(this))
                 .Via(Invoker_),
@@ -352,7 +352,7 @@ void TJob::Abort(const TError& error)
         case EJobPhase::RunningGpuCheckCommand:
         case EJobPhase::RunningExtraGpuCheckCommand:
         case EJobPhase::Running:
-            startAbortion();
+            doAbort();
             ArtifactsFuture_.Cancel(TError("Job aborted"));
 
             // Do the actual cleanup asynchronously.
@@ -369,7 +369,7 @@ void TJob::Abort(const TError& error)
         case EJobPhase::SpawningJobProxy:
         case EJobPhase::PreparingJob:
             // Wait for the next event handler to complete the abortion.
-            startAbortion();
+            doAbort();
             Slot_->CancelPreparation();
             break;
 
@@ -523,21 +523,26 @@ void TJob::OnJobPrepared()
     });
 }
 
-void TJob::Finalize()
+void TJob::Finalize(TError error)
+{
+    Finalize(std::move(error), /*jobResultExtension*/ std::nullopt, /*byJobProxyCompletion*/ false);
+}
+
+void TJob::Finalize(
+    TError error,
+    std::optional<NScheduler::NProto::TSchedulerJobResultExt> jobResultExtension,
+    bool byJobProxyCompletion)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (std::exchange(Finalized_, true)) {
-        YT_LOG_DEBUG("Job is already finalized");
-
+    if (IsFinished()) {
+        YT_LOG_DEBUG("Job already finalized");
         return;
     }
 
-    if (auto delay = JobTestingOptions_->DelayInFinalize) {
-        TDelayedExecutor::WaitForDuration(*delay);
-    }
-
     TForbidContextSwitchGuard guard;
+
+    DoSetResult(std::move(error), std::move(jobResultExtension), byJobProxyCompletion);
 
     YT_LOG_DEBUG("Finalize job");
 
@@ -550,39 +555,43 @@ void TJob::Finalize()
     FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, statistics, TrafficMeter_);
     StatisticsYson_ = ConvertToYsonString(statistics);
 
-    auto& error = *Error_;
+    auto& currentError = *Error_;
 
-    if (error.IsOK()) {
+    if (currentError.IsOK()) {
         SetJobState(EJobState::Completed);
-    } else if (IsFatalError(error)) {
-        error.MutableAttributes()->Set("fatal", true);
+    } else if (IsFatalError(currentError)) {
+        currentError.MutableAttributes()->Set("fatal", true);
         SetJobState(EJobState::Failed);
     } else {
         auto abortReason = GetAbortReason();
         if (abortReason) {
-            error.MutableAttributes()->Set("abort_reason", abortReason);
+            currentError.MutableAttributes()->Set("abort_reason", abortReason);
             SetJobState(EJobState::Aborted);
         } else {
             SetJobState(EJobState::Failed);
         }
     }
 
-    if (!error.IsOK()) {
+    if (!currentError.IsOK()) {
         // NB: it is required to report error that occurred in some place different
         // from OnJobFinished method.
-        HandleJobReport(MakeDefaultJobReport().Error(error));
+        HandleJobReport(MakeDefaultJobReport().Error(currentError));
     }
 
     // NB: we should disable slot here to give scheduler information about job failure.
-    if (error.FindMatching(EErrorCode::GpuCheckCommandFailed) && !error.FindMatching(EErrorCode::GpuCheckCommandIncorrect)) {
-        Bootstrap_->GetSlotManager()->OnGpuCheckCommandFailed(error);
+    if (currentError.FindMatching(EErrorCode::GpuCheckCommandFailed) &&
+        !currentError.FindMatching(EErrorCode::GpuCheckCommandIncorrect))
+    {
+        Bootstrap_->GetSlotManager()->OnGpuCheckCommandFailed(currentError);
     }
 
     YT_LOG_INFO(
-        error,
+        currentError,
         "Setting final job state (JobState: %v, ResourceUsage: %v)",
         GetState(),
         GetResourceUsage());
+
+    YT_VERIFY(IsFinished());
 
     JobFinished_.Fire();
 }
@@ -599,10 +608,20 @@ void TJob::OnResultReceived(TJobResult jobResult)
             schedulerResultExtension = std::move(
                 *jobResult.ReleaseExtension(NScheduler::NProto::TSchedulerJobResultExt::job_result_ext));
         }
-        DoSetResult(
-            FromProto<TError>(jobResult.error()),
-            std::move(schedulerResultExtension),
-            /*receivedFromJobProxy*/ true);
+
+        if (auto error = FromProto<TError>(jobResult.error());
+            error.IsOK() || !NeedsGpuCheck())
+        {
+            Finalize(
+                std::move(error),
+                std::move(schedulerResultExtension),
+                /*byJobProxyCompletion*/ true);
+        } else {
+            DoSetResult(
+                std::move(error),
+                /*jobResultExtension*/ std::nullopt,
+                /*receivedFromJobProxy*/ true);
+        }
     });
 }
 
@@ -1032,7 +1051,6 @@ std::optional<TString> TJob::GetStderr()
 
     if (JobPhase_ < EJobPhase::Running ||
         JobState_ == EJobState::Aborted ||
-        JobState_ == EJobState::Aborting ||
         JobState_ == EJobState::Failed)
     {
         return std::nullopt;
@@ -1339,7 +1357,14 @@ const std::optional<NScheduler::TPreemptedFor>& TJob::GetPreemptedFor() const no
 
 bool TJob::IsFinished() const noexcept
 {
-    return JobPhase_ == EJobPhase::Finished;
+    switch (JobState_) {
+        case EJobState::Aborted:
+        case EJobState::Completed:
+        case EJobState::Failed:
+            return true;
+        default:
+            return false;
+    }
 }
 
 // Helpers.
@@ -1425,6 +1450,10 @@ void TJob::DoSetResult(
         return;
     }
 
+    YT_VERIFY(!error.IsOK() || jobResultExtension);
+
+    YT_LOG_DEBUG("Setting job result (Error: %v)", error);
+
     if (Config_->TestJobErrorTruncation) {
         if (!error.IsOK()) {
             for (int index = 0; index < 10; ++index) {
@@ -1435,14 +1464,11 @@ void TJob::DoSetResult(
     }
 
     JobResultExtension_ = std::nullopt;
-    if (jobResultExtension)
-    {
+    if (jobResultExtension) {
         JobResultExtension_ = std::move(jobResultExtension);
     }
 
-    {
-        Error_ = error.Truncate();
-    }
+    Error_ = error.Truncate();
 
     JobProxyCompleted_ = receivedFromJobProxy;
 
@@ -1467,7 +1493,6 @@ bool TJob::HandleFinishingPhase()
             return false;
 
         default:
-            YT_VERIFY(JobState_ == EJobState::Running);
             return false;
     }
 }
@@ -1580,7 +1605,7 @@ void TJob::RunWithWorkspaceBuilder()
         .LayerArtifactKeys = LayerArtifactKeys_,
         .SetupCommands = GetSetupCommands(),
 
-        .NeedGpuCheck = UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path(),
+        .NeedGpuCheck = NeedsGpuCheck(),
         .TestExtraGpuCheckCommandFailure = Config_->JobController->GpuManager->TestExtraGpuCheckCommandFailure,
         .GpuCheckBinaryPath = UserJobSpec_
             ? std::make_optional(UserJobSpec_->gpu_check_binary_path())
@@ -1644,12 +1669,16 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
     }
 
     ValidateJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
+
+    YT_VERIFY(Error_ && !Error_->IsOK());
+
+    auto initialError = std::move(*Error_);
+
     if (!error.IsOK()) {
         YT_LOG_FATAL_IF(
             !Error_ || Error_->IsOK(),
             "Job error is not set (Error: %v)", Error_);
 
-        auto initialError = std::move(*Error_);
         // Reset Error_ to set it with checkError
         Error_ = {};
         JobResultExtension_.reset();
@@ -1659,7 +1688,9 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
             << initialError;
 
         YT_LOG_WARNING(checkError, "Extra GPU check command executed after job failure is also failed");
-        DoSetResult(std::move(checkError));
+        Finalize(std::move(checkError));
+    } else {
+        Finalize(std::move(initialError));
     }
 
     Cleanup();
@@ -1731,7 +1762,7 @@ void TJob::OnJobAbortionTimeout()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (JobState_ == EJobState::Aborting) {
+    if (JobPhase_ == EJobPhase::WaitingAbort) {
         auto error = TError("Failed to abort job within timeout")
             << TErrorAttribute("job_id", Id_)
             << TErrorAttribute("operation_id", OperationId_)
@@ -1744,18 +1775,18 @@ void TJob::OnJobProxyFinished(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    YT_LOG_INFO("Job proxy finished");
+
     ResetJobProbe();
 
     if (HandleFinishingPhase()) {
         return;
     }
 
-    YT_LOG_INFO("Job proxy finished");
-
     const auto& currentError = Error_
         ? *Error_
         : TError();
-    if (!currentError.IsOK() && UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path()) {
+    if (!currentError.IsOK() && NeedsGpuCheck()) {
         SetJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
 
         TJobGpuCheckerSettings settings {
@@ -1789,15 +1820,18 @@ void TJob::OnJobProxyFinished(const TError& error)
                 .Via(Invoker_));
     } else {
         if (!error.IsOK()) {
-            DoSetResult(TError(EErrorCode::JobProxyFailed, "Job proxy failed")
+            Finalize(TError(EErrorCode::JobProxyFailed, "Job proxy failed")
                 << BuildJobProxyError(error));
+        } else {
+            YT_VERIFY(IsFinished());
         }
 
         Cleanup();
     }
 }
 
-void TJob::GuardedAction(std::function<void()> action)
+template <class TCallback>
+void TJob::GuardedAction(const TCallback& action)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1811,7 +1845,7 @@ void TJob::GuardedAction(std::function<void()> action)
     } catch (const std::exception& ex) {
         // TODO(pogorelov): This method is called not only in preparation states, do something with log message.
         YT_LOG_WARNING(ex, "Error preparing scheduler job");
-        DoSetResult(ex);
+        Finalize(ex);
         Cleanup();
     }
 }
@@ -1821,7 +1855,7 @@ void TJob::Cleanup()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    Finalize();
+    YT_VERIFY(IsFinished());
 
     if (JobPhase_ == EJobPhase::Cleanup || JobPhase_ == EJobPhase::Finished) {
         return;
@@ -1829,10 +1863,13 @@ void TJob::Cleanup()
 
     YT_LOG_INFO("Cleaning up after scheduler job");
 
-    FinishTime_ = TInstant::Now();
-    SetJobPhase(EJobPhase::Cleanup);
-
     TDelayedExecutor::Cancel(InterruptionTimeoutCookie_);
+
+    if (auto delay = JobTestingOptions_->DelayInCleanup) {
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
+
+    SetJobPhase(EJobPhase::Cleanup);
 
     if (Slot_) {
         try {
@@ -1885,6 +1922,8 @@ void TJob::Cleanup()
     ReleaseResources();
 
     SetJobPhase(EJobPhase::Finished);
+
+    CleanupFinished_.Fire();
 
     YT_LOG_INFO("Job finished (JobState: %v)", GetState());
 }
@@ -2903,6 +2942,11 @@ TFuture<TSharedRef> TJob::DumpSensors()
         .AsyncVia(Invoker_)
         .Run()
         .WithTimeout(Config_->SensorDumpTimeout);
+}
+
+bool TJob::NeedsGpuCheck() const
+{
+    return UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

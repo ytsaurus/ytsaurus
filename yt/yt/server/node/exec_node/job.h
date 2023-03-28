@@ -67,6 +67,7 @@ public:
     DEFINE_SIGNAL(void(const NNodeTrackerClient::NProto::TNodeResources&), ResourcesUpdated);
     DEFINE_SIGNAL(void(), JobPrepared);
     DEFINE_SIGNAL(void(), JobFinished);
+    DEFINE_SIGNAL(void(), CleanupFinished);
 
 public:
     TJob(
@@ -319,8 +320,6 @@ private:
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;
 
-    bool Finalized_ = false;
-
     NJobAgent::TJobEvents JobEvents_;
 
     NScheduler::EInterruptReason InterruptionReason_ = NScheduler::EInterruptReason::None;
@@ -420,7 +419,8 @@ private:
 
     void OnJobProxyFinished(const TError& error);
 
-    void GuardedAction(std::function<void()> action);
+    template <class TCallback>
+    void GuardedAction(const TCallback& action);
 
     void FinishPrepare(const TErrorOr<TJobWorkspaceBuildResult>& resultOrError);
 
@@ -489,7 +489,14 @@ private:
 
     void OnResourcesAcquired() override;
 
-    void Finalize();
+    void Finalize(
+        TError error,
+        std::optional<NScheduler::NProto::TSchedulerJobResultExt> jobResultExtension,
+        bool byJobProxyCompletion);
+
+    void Finalize(TError error);
+
+    bool NeedsGpuCheck() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)

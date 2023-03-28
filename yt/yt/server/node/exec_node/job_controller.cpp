@@ -369,6 +369,32 @@ public:
             });
     }
 
+    void BuildJobControllerInfo(NYTree::TFluentMap fluent) const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto jobsWaitingForCleanupOrError = WaitFor(BIND([this, this_ = MakeStrong(this)] {
+            return std::vector(std::begin(JobsWaitingForCleanup_), std::end(JobsWaitingForCleanup_));
+        })
+            .AsyncVia(Bootstrap_->GetJobInvoker())
+            .Run());
+
+        YT_LOG_FATAL_IF(
+            !jobsWaitingForCleanupOrError.IsOK(),
+            jobsWaitingForCleanupOrError,
+            "Unexpected fail during getting jobs, waiting for cleanup");
+
+        fluent
+            .Item("jobs_waiting_for_cleanup").DoMapFor(
+                jobsWaitingForCleanupOrError.Value(),
+                [] (TFluentMap fluent, const TJobPtr& job) {
+                    fluent
+                        .Item(ToString(job->GetId())).BeginMap()
+                            .Item("phase").Value(job->GetPhase())
+                        .EndMap();
+                });
+    }
+
     void ScheduleStartJobs() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -419,6 +445,8 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobMapLock_);
     THashMap<TJobId, TJobPtr> JobMap_;
     THashMap<TOperationId, THashSet<TJobPtr>> OperationIdToJobs_;
+
+    THashSet<TJobPtr> JobsWaitingForCleanup_;
 
     // Map of jobs to hold after remove. It is used to prolong lifetime of stderrs and job specs.
     struct TRecentlyRemovedJobRecord
@@ -1391,12 +1419,32 @@ private:
             BIND_NO_PROPAGATE(&TJobController::OnJobFinished, MakeWeak(this), MakeWeak(job))
                 .Via(Bootstrap_->GetJobInvoker()));
 
+        job->SubscribeCleanupFinished(
+            BIND_NO_PROPAGATE(&TJobController::OnJobCleanupFinished, MakeWeak(this), MakeWeak(job))
+                .Via(Bootstrap_->GetJobInvoker()));
+
         ScheduleStartJobs();
 
         TDelayedExecutor::Submit(
             BIND(&TJobController::OnWaitingJobTimeout, MakeWeak(this), MakeWeak(job), waitingJobTimeout),
             waitingJobTimeout,
             Bootstrap_->GetJobInvoker());
+    }
+
+    void OnJobCleanupFinished(const TWeakPtr<TJob>& weakJob)
+    {
+        auto job = weakJob.Lock();
+
+        if (!job) {
+            return;
+        }
+
+        YT_VERIFY(job->GetPhase() == EJobPhase::Finished);
+        if (JobsWaitingForCleanup_.erase(job)) {
+            YT_LOG_DEBUG(
+                "Job cleanup finished (JobId: %v)",
+                job->GetId());
+        }
     }
 
     void UnregisterJob(const TJobPtr& job)
@@ -1484,6 +1532,15 @@ private:
         if (shouldSave) {
             YT_LOG_INFO("Job saved to recently finished jobs (JobId: %v)", jobId);
             RecentlyRemovedJobMap_.emplace(jobId, TRecentlyRemovedJobRecord{job, TInstant::Now()});
+        }
+
+        if (job->GetPhase() != EJobPhase::Finished) {
+            YT_LOG_DEBUG(
+                "Job waiting for cleanup (JobId: %v, JobPhase: %v)",
+                jobId,
+                job->GetPhase());
+
+            EmplaceOrCrash(JobsWaitingForCleanup_, job);
         }
 
         UnregisterJob(job);

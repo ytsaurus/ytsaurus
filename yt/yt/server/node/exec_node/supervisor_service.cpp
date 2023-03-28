@@ -254,8 +254,6 @@ private:
 
         auto job = GetSchedulerJobOrThrow(jobId);
 
-        job->OnResultReceived(std::move(result));
-
         auto jobReport = TNodeJobReport().Error(error);
         if (request->has_statistics()) {
             auto ysonStatistics = TYsonString(request->statistics());
@@ -286,6 +284,8 @@ private:
         for (const auto& profile : request->profiles()) {
             job->AddProfile({profile.type(), profile.blob(), profile.profiling_probability()});
         }
+
+        job->OnResultReceived(std::move(result));
 
         context->Reply();
     }

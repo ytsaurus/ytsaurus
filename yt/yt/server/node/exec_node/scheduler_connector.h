@@ -62,13 +62,15 @@ private:
 
     void DoSendHeartbeat();
 
+    void OnJobFinished(const TJobPtr& job);
+
     void OnResourcesAcquired();
     void OnResourcesReleased(
         NJobAgent::EResourcesConsumerType resourcesConsumerType,
         bool fullyReleased);
 
-    void SendOutOfBandHeartbeatIfNeeded(bool force = false);
-    void DoSendOutOfBandHeartbeatIfNeeded(bool force);
+    void SendOutOfBandHeartbeatIfNeeded();
+    void DoSendOutOfBandHeartbeatIfNeeded();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnector)
