@@ -939,6 +939,12 @@ void TUserJobSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("default_base_layer_path", &TThis::DefaultBaseLayerPath)
         .Default();
+    registrar.Parameter("probing_base_layer_path", &TThis::ProbingBaseLayerPath)
+        .Default();
+    registrar.Parameter("max_failed_base_layer_probes", &TThis::MaxFailedBaseLayerProbes)
+        .Default(10);
+    registrar.Parameter("switch_base_layer_on_probe_success", &TThis::SwitchBaseLayerOnProbeSuccess)
+        .Default(true);
 
     registrar.Parameter("profilers", &TThis::Profilers)
         .Default();

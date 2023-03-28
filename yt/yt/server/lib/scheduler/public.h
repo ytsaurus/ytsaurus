@@ -108,6 +108,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((MemoryOverconsumption)                       (27))
     ((InvalidControllerRuntimeData)                (28))
     ((CustomStatisticsLimitExceeded)               (31))
+    ((BaseLayerProbeFailed)                        (33))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,

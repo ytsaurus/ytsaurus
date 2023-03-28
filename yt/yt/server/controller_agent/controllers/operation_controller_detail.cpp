@@ -785,6 +785,19 @@ void TOperationControllerBase::InitializeStructures()
                 : InputTransaction->GetId(),
                 true));
         }
+
+        if (userJobSpec->DefaultBaseLayerPath && userJobSpec->ProbingBaseLayerPath) {
+            auto path = NYPath::TRichYPath(*userJobSpec->ProbingBaseLayerPath);
+            if (path.GetTransactionId()) {
+                THROW_ERROR_EXCEPTION("Transaction id is not supported for \"probing_base_layer_path\"");
+            }
+            if (!BaseLayers_.contains(*userJobSpec->ProbingBaseLayerPath)) {
+                BaseLayers_[*userJobSpec->ProbingBaseLayerPath] = TUserFile(
+                    path,
+                    InputTransaction->GetId(),
+                    true);
+            }
+        }
     }
 
     auto maxInputTableCount = std::min(Config->MaxInputTableCount, Options->MaxInputTableCount);
@@ -2888,6 +2901,10 @@ void TOperationControllerBase::InitializeSecurityTags()
         }
     }
 
+    for (const auto& [_, layer] : BaseLayers_) {
+        addTags(layer.SecurityTags);
+    }
+
     SortUnique(inferredSecurityTags);
 
     for (const auto& table : OutputTables_) {
@@ -3135,6 +3152,15 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
             jobId,
             joblet->NodeDescriptor.Address);
         auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::NodeBanned);
+        OnJobAborted(std::move(abortedJobSummary));
+        return;
+    }
+
+    if (joblet->CompetitionType == EJobCompetitionType::LayerProbing) {
+        YT_LOG_DEBUG("Failed layer probing job is considered aborted "
+            "(JobId: %v)",
+            jobId);
+        auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::LayerProbingFailed);
         OnJobAborted(std::move(abortedJobSummary));
         return;
     }
@@ -6518,31 +6544,42 @@ void TOperationControllerBase::FetchUserFiles()
         },
         Logger);
 
+    auto addFileForFetching = [&userFiles, &chunkSpecFetcher] (TUserFile& file) {
+        int fileIndex = userFiles.size();
+        userFiles.push_back(&file);
+
+        std::vector<TReadRange> readRanges;
+        if (file.Type == EObjectType::Table) {
+            readRanges = file.Path.GetNewRanges(file.Schema->ToComparator(), file.Schema->GetKeyColumnTypes());
+        } else if (file.Type == EObjectType::File) {
+            readRanges = {TReadRange()};
+        } else {
+            YT_ABORT();
+        }
+
+        chunkSpecFetcher->Add(
+            file.ObjectId,
+            file.ExternalCellTag,
+            file.ChunkCount,
+            fileIndex,
+            readRanges);
+    };
+
     for (auto& [userJobSpec, files] : UserJobFiles_) {
         for (auto& file : files) {
-            int fileIndex = userFiles.size();
-            userFiles.push_back(&file);
-
             YT_LOG_INFO("Adding user file for fetch (Path: %v, TaskTitle: %v)",
                 file.Path,
                 userJobSpec->TaskTitle);
 
-            std::vector<TReadRange> readRanges;
-            if (file.Type == EObjectType::Table) {
-                readRanges = file.Path.GetNewRanges(file.Schema->ToComparator(), file.Schema->GetKeyColumnTypes());
-            } else if (file.Type == EObjectType::File) {
-                readRanges = {TReadRange()};
-            } else {
-                YT_ABORT();
-            }
-
-            chunkSpecFetcher->Add(
-                file.ObjectId,
-                file.ExternalCellTag,
-                file.ChunkCount,
-                fileIndex,
-                readRanges);
+            addFileForFetching(file);
         }
+    }
+
+    for (auto& [_, layer] : BaseLayers_) {
+        YT_LOG_INFO("Adding base layer for fetch (Path: %v)",
+            layer.Path);
+
+        addFileForFetching(layer);
     }
 
     YT_LOG_INFO("Fetching user files");
@@ -6653,49 +6690,56 @@ void TOperationControllerBase::ValidateUserFileSizes()
     userFileLimits->MaxTableDataWeight = userFileLimitsPatch->MaxTableDataWeight.value();
     userFileLimits->MaxChunkCount = userFileLimitsPatch->MaxChunkCount.value();
 
+    auto validateFile = [&userFileLimits, this] (const TUserFile& file) {
+        YT_LOG_DEBUG("Validating user file (FileName: %v, Path: %v, Type: %v, HasColumns: %v)",
+            file.FileName,
+            file.Path,
+            file.Type,
+            file.Path.GetColumns().operator bool());
+        auto chunkCount = file.Type == NObjectClient::EObjectType::File ? file.ChunkCount : file.Chunks.size();
+        if (static_cast<i64>(chunkCount) > userFileLimits->MaxChunkCount) {
+            THROW_ERROR_EXCEPTION(
+                "User file %v exceeds chunk count limit: %v > %v",
+                file.Path,
+                chunkCount,
+                userFileLimits->MaxChunkCount);
+        }
+        if (file.Type == NObjectClient::EObjectType::Table) {
+            i64 dataWeight = 0;
+            for (const auto& chunk : file.Chunks) {
+                dataWeight += chunk->GetDataWeight();
+            }
+            if (dataWeight > userFileLimits->MaxTableDataWeight) {
+                THROW_ERROR_EXCEPTION(
+                    "User file table %v exceeds data weight limit: %v > %v",
+                    file.Path,
+                    dataWeight,
+                    userFileLimits->MaxTableDataWeight);
+            }
+        } else {
+            i64 uncompressedSize = 0;
+            for (const auto& chunkSpec : file.ChunkSpecs) {
+                uncompressedSize += GetChunkUncompressedDataSize(chunkSpec);
+            }
+            if (uncompressedSize > userFileLimits->MaxSize) {
+                THROW_ERROR_EXCEPTION(
+                    "User file %v exceeds size limit: %v > %v",
+                    file.Path,
+                    uncompressedSize,
+                    userFileLimits->MaxSize);
+            }
+        }
+    };
+
     for (auto& [_, files] : UserJobFiles_) {
         for (const auto& file : files) {
-            YT_LOG_DEBUG("Validating user file (FileName: %v, Path: %v, Type: %v, HasColumns: %v)",
-                file.FileName,
-                file.Path,
-                file.Type,
-                file.Path.GetColumns().operator bool());
-            auto chunkCount = file.Type == NObjectClient::EObjectType::File ? file.ChunkCount : file.Chunks.size();
-            if (static_cast<i64>(chunkCount) > userFileLimits->MaxChunkCount) {
-                THROW_ERROR_EXCEPTION(
-                    "User file %v exceeds chunk count limit: %v > %v",
-                    file.Path,
-                    chunkCount,
-                    userFileLimits->MaxChunkCount);
-            }
-            if (file.Type == NObjectClient::EObjectType::Table) {
-                i64 dataWeight = 0;
-                for (const auto& chunk : file.Chunks) {
-                    dataWeight += chunk->GetDataWeight();
-                }
-                if (dataWeight > userFileLimits->MaxTableDataWeight) {
-                    THROW_ERROR_EXCEPTION(
-                        "User file table %v exceeds data weight limit: %v > %v",
-                        file.Path,
-                        dataWeight,
-                        userFileLimits->MaxTableDataWeight);
-                }
-            } else {
-                i64 uncompressedSize = 0;
-                for (const auto& chunkSpec : file.ChunkSpecs) {
-                    uncompressedSize += GetChunkUncompressedDataSize(chunkSpec);
-                }
-                if (uncompressedSize > userFileLimits->MaxSize) {
-                    THROW_ERROR_EXCEPTION(
-                        "User file %v exceeds size limit: %v > %v",
-                        file.Path,
-                        uncompressedSize,
-                        userFileLimits->MaxSize);
-                }
-            }
+            validateFile(file);
         }
     }
 
+    for (const auto& [_, layer] : BaseLayers_) {
+        validateFile(layer);
+    }
 }
 
 void TOperationControllerBase::LockUserFiles()
@@ -6705,15 +6749,23 @@ void TOperationControllerBase::LockUserFiles()
     auto proxy = CreateObjectServiceWriteProxy(OutputClient);
     auto batchReq = proxy.ExecuteBatch();
 
+    auto lockFile = [&batchReq] (TUserFile& file) {
+        auto req = TFileYPathProxy::Lock(file.Path.GetPath());
+        req->set_mode(ToProto<int>(ELockMode::Snapshot));
+        GenerateMutationId(req);
+        SetTransactionId(req, *file.TransactionId);
+        req->Tag() = &file;
+        batchReq->AddRequest(req);
+    };
+
     for (auto& [userJobSpec, files] : UserJobFiles_) {
         for (auto& file : files) {
-            auto req = TFileYPathProxy::Lock(file.Path.GetPath());
-            req->set_mode(ToProto<int>(ELockMode::Snapshot));
-            GenerateMutationId(req);
-            SetTransactionId(req, *file.TransactionId);
-            req->Tag() = &file;
-            batchReq->AddRequest(req);
+            lockFile(file);
         }
+    }
+
+    for (auto& [_, layer] : BaseLayers_) {
+        lockFile(layer);
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -6749,6 +6801,24 @@ void TOperationControllerBase::GetUserFilesAttributes()
             });
     }
 
+    if (!BaseLayers_.empty()) {
+        std::vector<TUserObject*> layers;
+        layers.reserve(BaseLayers_.size());
+        for (auto& [_, layer]: BaseLayers_) {
+            layers.push_back(&layer);
+        }
+
+        GetUserObjectBasicAttributes(
+            Client,
+            layers,
+            InputTransaction->GetId(),
+            Logger,
+            EPermission::Read,
+            TGetUserObjectBasicAttributesOptions{
+                .PopulateSecurityTags = true
+            });
+    }
+
     for (const auto& files : GetValues(UserJobFiles_)) {
         for (const auto& file : files) {
             const auto& path = file.Path.GetPath();
@@ -6759,11 +6829,20 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     EObjectType::File,
                     file.Type);
             } else if (file.Layer && file.Type != EObjectType::File) {
-                THROW_ERROR_EXCEPTION("User layer %v has invalid type: expected %Qlv , actual %Qlv",
+                THROW_ERROR_EXCEPTION("User layer %v has invalid type: expected %Qlv, actual %Qlv",
                     path,
                     EObjectType::File,
                     file.Type);
             }
+        }
+    }
+
+    for (auto& [path, layer] : BaseLayers_) {
+        if (layer.Type != EObjectType::File) {
+            THROW_ERROR_EXCEPTION("User layer %v has invalid type: expected %Qlv, actual %Qlv",
+                path,
+                EObjectType::File,
+                layer.Type);
         }
     }
 
@@ -9270,6 +9349,31 @@ void TOperationControllerBase::InitUserJobSpec(
         monitoringConfig->set_enable(true);
         monitoringConfig->set_job_descriptor(*joblet->UserJobMonitoringDescriptor);
     }
+
+    auto jobIsLayerProbing = joblet->CompetitionType == EJobCompetitionType::LayerProbing;
+    if (jobIsLayerProbing || joblet->Task->ShouldUseProbingLayer()) {
+        const auto& userJobSpec = joblet->Task->GetUserJobSpec();
+        YT_VERIFY(userJobSpec->DefaultBaseLayerPath);
+        YT_VERIFY(userJobSpec->ProbingBaseLayerPath);
+
+        YT_LOG_DEBUG("Switching the job to the probing layer (JobId: %v, JobIsLayerProbing: %v, Layer: %v)",
+            joblet->JobId,
+            jobIsLayerProbing,
+            userJobSpec->ProbingBaseLayerPath);
+
+        YT_VERIFY(BaseLayers_.contains(*userJobSpec->ProbingBaseLayerPath));
+        const auto& probingLayer = BaseLayers_.find(*userJobSpec->ProbingBaseLayerPath)->second;
+
+        for (auto& layerSpec : *jobSpec->mutable_layers()) {
+            if (layerSpec.data_source().path() == *userJobSpec->DefaultBaseLayerPath) {
+                BuildFileSpec(
+                    &layerSpec,
+                    probingLayer,
+                    layerSpec.copy_file(),
+                    Config->EnableBypassArtifactCache);
+            }
+        }
+    }
 }
 
 void TOperationControllerBase::AddStderrOutputSpecs(
@@ -9703,6 +9807,11 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     // COMPAT(galtsev)
     if (context.GetVersion() >= ESnapshotVersion::SwitchIntermediateMedium) {
         Persist(context, FastIntermediateMediumLimit_);
+    }
+
+    // COMPAT(galtsev)
+    if (context.GetVersion() >= ESnapshotVersion::ProbingBaseLayer) {
+        Persist(context, BaseLayers_);
     }
 }
 

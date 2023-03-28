@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, link, exists,
     write_file, write_table, get_job, abort_job,
-    run_test_vanilla, map, wait_for_nodes, update_nodes_dynamic_config)
+    read_table, run_test_vanilla, map, wait_for_nodes, update_nodes_dynamic_config)
 
 from yt.common import YtError
 import yt.yson as yson
@@ -14,6 +14,8 @@ import pytest
 
 import os
 import time
+
+from collections import Counter
 
 
 class TestLayers(YTEnvSetup):
@@ -233,6 +235,149 @@ class TestLayers(YTEnvSetup):
         assert len(job_ids) == 1
         for job_id in job_ids:
             assert b"static-bin" in op.read_stderr(job_id)
+
+
+class TestProbingLayer(TestLayers):
+    NUM_TEST_PARTITIONS = 5
+
+    @staticmethod
+    def get_spec(user_slots):
+        return {
+            "max_failed_job_count": 0,
+            "mapper": {
+                "default_base_layer_path": "//tmp/layer2",
+                "probing_base_layer_path": "//tmp/layer1",
+                "format": "json",
+            },
+            "data_weight_per_job": 1,
+            "resource_limits": {
+                "user_slots": user_slots,
+            },
+        }
+
+    @authors("galtsev")
+    def test_probing_layer_success(self):
+        self.setup_files()
+
+        input_table = "//tmp/input_table"
+        output_table = "//tmp/output_table"
+
+        create("table", input_table)
+        create("table", output_table)
+
+        job_count = 7
+
+        for key in range(job_count):
+            write_table(f"<append=%true>{input_table}", [{"k": key, "layer": "LAYER"}])
+
+        command = (
+            "if test -e $YT_ROOT_FS/test; then "
+            "    sed 's/LAYER/default/'; sleep 5; "
+            "else "
+            "    sed 's/LAYER/probing/'; "
+            "fi"
+        )
+
+        op = map(
+            in_=input_table,
+            out=output_table,
+            command=command,
+            spec=self.get_spec(user_slots=1),
+        )
+
+        assert op.get_job_count("aborted") == 1
+        assert op.get_job_count("completed") == job_count
+        assert op.get_job_count("failed") == 0
+
+        assert get(f"{input_table}/@row_count") == get(f"{output_table}/@row_count")
+
+        counter = Counter([row["layer"] for row in read_table(output_table)])
+        assert counter["default"] >= 1
+        assert counter["probing"] >= 3
+
+    @authors("galtsev")
+    def test_probing_layer_failure(self):
+        self.setup_files()
+
+        input_table = "//tmp/input_table"
+        output_table = "//tmp/output_table"
+
+        create("table", input_table)
+        create("table", output_table)
+
+        job_count = 7
+
+        for key in range(job_count):
+            write_table(f"<append=%true>{input_table}", [{"k": key, "layer": "LAYER"}])
+
+        command = (
+            "if test -e $YT_ROOT_FS/test; then "
+            "    sed 's/LAYER/default/g'; sleep 5; "
+            "else "
+            "    sed 's/LAYER/probing/g'; exit 1; "
+            "fi"
+        )
+
+        op = map(
+            in_=input_table,
+            out=output_table,
+            command=command,
+            spec=self.get_spec(user_slots=1),
+        )
+
+        assert op.get_job_count("aborted") >= 2
+        assert op.get_job_count("completed") == job_count
+        assert op.get_job_count("failed") == 0
+
+        assert get(f"{input_table}/@row_count") == get(f"{output_table}/@row_count")
+
+        counter = Counter([row["layer"] for row in read_table(output_table)])
+        assert counter["default"] == job_count
+        assert counter["probing"] == 0
+
+        assert "base_layer_probe_failed" in op.get_alerts()
+
+    @authors("galtsev")
+    @pytest.mark.parametrize(
+        "delay",
+        [{"default": "0", "probing": "0"}, {"default": "0", "probing": "1"}, {"default": "1", "probing": "0"}],
+    )
+    @pytest.mark.timeout(600)
+    def test_probing_layer_races(self, delay):
+        self.setup_files()
+
+        input_table = "//tmp/input_table"
+        output_table = "//tmp/output_table"
+
+        create("table", input_table)
+        create("table", output_table)
+
+        job_count = 10
+
+        for key in range(job_count):
+            write_table(f"<append=%true>{input_table}", [{"k": key, "layer": "LAYER"}])
+
+        command = (
+            f"if test -e $YT_ROOT_FS/test; then "
+            f"    sed 's/LAYER/default/'; sleep {delay['default']}; "
+            f"else "
+            f"    sed 's/LAYER/probing/'; sleep {delay['probing']}; "
+            f"fi"
+        )
+
+        for iterations in range(10):
+            op = map(
+                in_=input_table,
+                out=output_table,
+                command=command,
+                spec=self.get_spec(user_slots=2),
+            )
+
+            assert op.get_job_count("aborted") >= 1
+            assert op.get_job_count("completed") == job_count
+            assert op.get_job_count("failed") == 0
+
+            assert get(f"{input_table}/@row_count") == get(f"{output_table}/@row_count")
 
 
 @authors("psushin")

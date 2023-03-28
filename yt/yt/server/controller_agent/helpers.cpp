@@ -90,6 +90,66 @@ void TUserFile::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void BuildFileSpec(
+    NScheduler::NProto::TFileDescriptor* descriptor,
+    const TUserFile& file,
+    bool copyFiles,
+    bool enableBypassArtifactCache)
+{
+    ToProto(descriptor->mutable_chunk_specs(), file.ChunkSpecs);
+
+    if (file.Type == EObjectType::Table && file.Dynamic && file.Schema->IsSorted()) {
+        auto dataSource = MakeVersionedDataSource(
+            file.Path.GetPath(),
+            file.Schema,
+            file.Path.GetColumns(),
+            file.OmittedInaccessibleColumns,
+            file.Path.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
+            file.Path.GetRetentionTimestamp().value_or(NullTimestamp),
+            file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
+        dataSource.SetObjectId(file.ObjectId);
+        dataSource.SetAccount(file.Account);
+
+        ToProto(descriptor->mutable_data_source(), dataSource);
+    } else {
+        auto dataSource = file.Type == EObjectType::File
+            ? MakeFileDataSource(file.Path.GetPath())
+            : MakeUnversionedDataSource(
+                file.Path.GetPath(),
+                file.Schema,
+                file.Path.GetColumns(),
+                file.OmittedInaccessibleColumns,
+                file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
+        dataSource.SetObjectId(file.ObjectId);
+        dataSource.SetAccount(file.Account);
+
+        ToProto(descriptor->mutable_data_source(), dataSource);
+    }
+
+    if (!file.Layer) {
+        descriptor->set_file_name(file.FileName);
+        if (enableBypassArtifactCache) {
+            descriptor->set_bypass_artifact_cache(file.Path.GetBypassArtifactCache());
+        }
+
+        bool copyFile = file.Path.GetCopyFile().value_or(copyFiles);
+        descriptor->set_copy_file(copyFile);
+
+        switch (file.Type) {
+        case EObjectType::File:
+            descriptor->set_executable(file.Executable);
+            break;
+        case EObjectType::Table:
+            descriptor->set_format(file.Format.ToString());
+            break;
+        default:
+            YT_ABORT();
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void BuildFileSpecs(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     const std::vector<TUserFile>& files,
@@ -101,56 +161,7 @@ void BuildFileSpecs(
             ? jobSpec->add_layers()
             : jobSpec->add_files();
 
-        ToProto(descriptor->mutable_chunk_specs(), file.ChunkSpecs);
-
-        if (file.Type == EObjectType::Table && file.Dynamic && file.Schema->IsSorted()) {
-            auto dataSource = MakeVersionedDataSource(
-                file.Path.GetPath(),
-                file.Schema,
-                file.Path.GetColumns(),
-                file.OmittedInaccessibleColumns,
-                file.Path.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
-                file.Path.GetRetentionTimestamp().value_or(NullTimestamp),
-                file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
-            dataSource.SetObjectId(file.ObjectId);
-            dataSource.SetAccount(file.Account);
-
-            ToProto(descriptor->mutable_data_source(), dataSource);
-        } else {
-            auto dataSource = file.Type == EObjectType::File
-                ? MakeFileDataSource(file.Path.GetPath())
-                : MakeUnversionedDataSource(
-                    file.Path.GetPath(),
-                    file.Schema,
-                    file.Path.GetColumns(),
-                    file.OmittedInaccessibleColumns,
-                    file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
-            dataSource.SetObjectId(file.ObjectId);
-            dataSource.SetAccount(file.Account);
-
-            ToProto(descriptor->mutable_data_source(), dataSource);
-        }
-
-        if (!file.Layer) {
-            descriptor->set_file_name(file.FileName);
-            if (enableBypassArtifactCache) {
-                descriptor->set_bypass_artifact_cache(file.Path.GetBypassArtifactCache());
-            }
-
-            bool copyFile = file.Path.GetCopyFile().value_or(config->CopyFiles);
-            descriptor->set_copy_file(copyFile);
-
-            switch (file.Type) {
-                case EObjectType::File:
-                    descriptor->set_executable(file.Executable);
-                    break;
-                case EObjectType::Table:
-                    descriptor->set_format(file.Format.ToString());
-                    break;
-                default:
-                    YT_ABORT();
-            }
-        }
+        BuildFileSpec(descriptor, file, config->CopyFiles, enableBypassArtifactCache);
     }
 }
 

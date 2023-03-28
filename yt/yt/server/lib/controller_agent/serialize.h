@@ -19,6 +19,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PersistDataStatistics)                (301102))
     ((ChunkFormat)                          (301103))
     ((InputStreamDescriptors)               (301104))
+    ((ProbingBaseLayer)                     (301105))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

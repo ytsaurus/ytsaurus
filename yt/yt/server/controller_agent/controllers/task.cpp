@@ -39,6 +39,8 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
+#include <library/cpp/iterator/zip.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NChunkClient;
@@ -93,6 +95,9 @@ TTask::TTask(
         taskHost->GetSpec()->MaxProbingJobCountPerTask,
         taskHost->GetSpec()->ProbingRatio,
         taskHost->GetSpec()->ProbingPoolTree)
+    , LayerProbingJobManager_(
+        this,
+        Logger)
 { }
 
 const std::vector<TOutputStreamDescriptorPtr>& TTask::GetOutputStreamDescriptors() const
@@ -121,6 +126,8 @@ void TTask::Initialize()
             MaximumUsedTmpfsSizes_.resize(userJobSpec->TmpfsVolumes.size());
         }
     }
+
+    LayerProbingJobManager_.SetUserJobSpec(GetUserJobSpec());
 }
 
 void TTask::Prepare()
@@ -188,7 +195,8 @@ TCompositePendingJobCount TTask::GetPendingJobCount() const
     TCompositePendingJobCount result;
 
     result.DefaultCount = GetChunkPoolOutput()->GetJobCounter()->GetPending() +
-        SpeculativeJobManager_.GetPendingJobCount();
+        SpeculativeJobManager_.GetPendingJobCount() +
+        LayerProbingJobManager_.GetPendingJobCount();
 
     ProbingJobManager_.UpdatePendingJobCount(&result);
 
@@ -227,9 +235,11 @@ int TTask::GetTotalJobCount() const
         return 0;
     }
 
-    return GetChunkPoolOutput()->GetJobCounter()->GetTotal() +
-        SpeculativeJobManager_.GetTotalJobCount() +
-        ProbingJobManager_.GetTotalJobCount();
+    int totalJobCount = GetChunkPoolOutput()->GetJobCounter()->GetTotal();
+    for (const auto* jobManager : JobManagers_) {
+        totalJobCount += jobManager->GetTotalJobCount();
+    }
+    return totalJobCount;
 }
 
 int TTask::GetTotalJobCountDelta()
@@ -406,14 +416,12 @@ void TTask::DoRegisterInGraph()
     TaskHost_->GetDataFlowGraph()
         ->RegisterCounter(GetVertexDescriptor(), progressCounter, GetJobType());
 
-    TaskHost_->GetDataFlowGraph()->RegisterCounter(
-        GetVertexDescriptor(),
-        SpeculativeJobManager_.GetProgressCounter(),
-        GetJobType());
-    TaskHost_->GetDataFlowGraph()->RegisterCounter(
-        GetVertexDescriptor(),
-        ProbingJobManager_.GetProgressCounter(),
-        GetJobType());
+    for (const auto* jobManager : JobManagers_) {
+        TaskHost_->GetDataFlowGraph()->RegisterCounter(
+            GetVertexDescriptor(),
+            jobManager->GetProgressCounter(),
+            GetJobType());
+    }
 }
 
 void TTask::RegisterInGraph(TDataFlowGraph::TVertexDescriptor inputVertex)
@@ -426,8 +434,9 @@ void TTask::RegisterInGraph(TDataFlowGraph::TVertexDescriptor inputVertex)
 void TTask::RegisterCounters(const TProgressCounterPtr& parent)
 {
     GetChunkPoolOutput()->GetJobCounter()->AddParent(parent);
-    SpeculativeJobManager_.GetProgressCounter()->AddParent(parent);
-    ProbingJobManager_.GetProgressCounter()->AddParent(parent);
+    for (const auto* jobManager : JobManagers_) {
+        jobManager->GetProgressCounter()->AddParent(parent);
+    }
 }
 
 void TTask::SwitchIntermediateMedium()
@@ -437,6 +446,11 @@ void TTask::SwitchIntermediateMedium()
             streamDescriptor->TableWriterOptions->MediumName = streamDescriptor->SlowMedium;
         }
     }
+}
+
+bool TTask::ShouldUseProbingLayer() const
+{
+    return LayerProbingJobManager_.ShouldUseProbingLayer();
 }
 
 void TTask::CheckCompleted()
@@ -513,6 +527,9 @@ void TTask::ScheduleJob(
     if (treeIsProbing) {
         joblet->CompetitionType = EJobCompetitionType::Probing;
         joblet->OutputCookie = ProbingJobManager_.PeekJobCandidate();
+    } else if (LayerProbingJobManager_.IsLayerProbingEnabled() && LayerProbingJobManager_.IsLayerProbeReady()) {
+        joblet->CompetitionType = EJobCompetitionType::LayerProbing;
+        joblet->OutputCookie = LayerProbingJobManager_.PeekJobCandidate();
     } else if (speculative) {
         joblet->CompetitionType = EJobCompetitionType::Speculative;
         joblet->OutputCookie = SpeculativeJobManager_.PeekJobCandidate();
@@ -627,8 +644,9 @@ void TTask::ScheduleJob(
 
     joblet->JobId = context->GetJobId();
 
-    SpeculativeJobManager_.OnJobScheduled(joblet);
-    ProbingJobManager_.OnJobScheduled(joblet);
+    for (auto* jobManager : JobManagers_) {
+        jobManager->OnJobScheduled(joblet);
+    }
 
     // Job is restarted if LostJobCookieMap contains at least one entry with this output cookie.
     auto it = LostJobCookieMap.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
@@ -767,13 +785,17 @@ bool TTask::TryRegisterSpeculativeJob(const TJobletPtr& joblet)
 
 void TTask::BuildTaskYson(TFluentMap fluent) const
 {
+    std::array<TString, 3> jobManagerNames = {"speculative", "probing", "layer_probing"};
+    YT_VERIFY(jobManagerNames.size() == JobManagers_.size());
+
     fluent
         .Item("task_name").Value(GetVertexDescriptor())
         .Item("job_type").Value(GetJobType())
         .Item("has_user_job").Value(HasUserJob())
         .Item("job_counter").Value(GetJobCounter())
-        .Item("speculative_job_counter").Value(SpeculativeJobManager_.GetProgressCounter())
-        .Item("probing_job_counter").Value(ProbingJobManager_.GetProgressCounter())
+        .DoFor(Zip(JobManagers_, jobManagerNames), [] (auto fluent, auto jobManager) {
+            fluent.Item(std::get<1>(jobManager) + "_job_counter").Value(std::get<0>(jobManager)->GetProgressCounter());
+        })
         .Item("input_finished").Value(GetChunkPoolInput() && GetChunkPoolInput()->IsFinished())
         .Item("completed").Value(IsCompleted())
         .Item("min_needed_resources").Value(GetMinNeededResources())
@@ -823,18 +845,22 @@ IChunkPoolOutput::TCookie TTask::ExtractCookie(TNodeId nodeId)
 
 std::optional<EAbortReason> TTask::ShouldAbortCompletingJob(const TJobletPtr& joblet)
 {
-    if (auto result = SpeculativeJobManager_.ShouldAbortCompletingJob(joblet)) {
-        return result;
+    for (auto* jobManager : JobManagers_) {
+        if (auto result = jobManager->ShouldAbortCompletingJob(joblet)) {
+            return result;
+        }
     }
-    return ProbingJobManager_.ShouldAbortCompletingJob(joblet);
+    return std::nullopt;
 }
 
 bool TTask::IsCompleted() const
 {
-    return IsActive()
-        && GetChunkPoolOutput()->IsCompleted()
-        && SpeculativeJobManager_.IsFinished()
-        && ProbingJobManager_.IsFinished();
+    for (const auto* jobManager : JobManagers_) {
+        if (!jobManager->IsFinished()) {
+            return false;
+        }
+    }
+    return IsActive() && GetChunkPoolOutput()->IsCompleted();
 }
 
 bool TTask::IsActive() const
@@ -854,9 +880,11 @@ i64 TTask::GetCompletedDataWeight() const
 
 i64 TTask::GetPendingDataWeight() const
 {
-    return GetChunkPoolOutput()->GetDataWeightCounter()->GetPending() +
-        SpeculativeJobManager_.GetPendingCandidatesDataWeight() +
-        ProbingJobManager_.GetPendingCandidatesDataWeight();
+    i64 pendingDataWeight = GetChunkPoolOutput()->GetDataWeightCounter()->GetPending();
+    for (const auto* jobManager : JobManagers_) {
+        pendingDataWeight += jobManager->GetPendingCandidatesDataWeight();
+    }
+    return pendingDataWeight;
 }
 
 i64 TTask::GetInputDataSliceCount() const
@@ -903,6 +931,13 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, SpeculativeJobManager_);
     Persist(context, ProbingJobManager_);
+
+    // COMPAT(galtsev)
+    if (context.GetVersion() >= ESnapshotVersion::ProbingBaseLayer) {
+        Persist(context, LayerProbingJobManager_);
+    } else {
+        LayerProbingJobManager_ = TLayerProbingJobManager(this, Logger);
+    }
 
     Persist(context, StartTime_);
     Persist(context, CompletionTime_);
@@ -1000,8 +1035,9 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
 
     TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTrees);
 
-    SpeculativeJobManager_.OnJobCompleted(joblet);
-    ProbingJobManager_.OnJobCompleted(joblet);
+    for (auto* jobManager : JobManagers_) {
+        jobManager->OnJobCompleted(joblet);
+    }
 
     YT_VERIFY(jobSummary.Statistics);
     const auto& statistics = *jobSummary.Statistics;
@@ -1134,9 +1170,13 @@ TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary
     UpdateMaximumUsedTmpfsSizes(*jobSummary.Statistics);
 
     ReleaseJobletResources(joblet, /* waitForSnapshot */ false);
-    auto mayReturnCookieByCompetitiveManager = SpeculativeJobManager_.OnJobFailed(joblet);
-    auto mayReturnCookieByProbingManager = ProbingJobManager_.OnJobFailed(joblet);
-    if (mayReturnCookieByCompetitiveManager && mayReturnCookieByProbingManager) {
+    auto mayReturnCookie = true;
+    for (auto* jobManager : JobManagers_) {
+        if (!jobManager->OnJobFailed(joblet)) {
+            mayReturnCookie = false;
+        }
+    }
+    if (mayReturnCookie) {
         ReinstallJob([&] { GetChunkPoolOutput()->Failed(joblet->OutputCookie); });
     }
 
@@ -1165,9 +1205,13 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
 
     ReleaseJobletResources(joblet, /* waitForSnapshot */ true);
 
-    auto mayReturnCookieByCompetitiveManager = SpeculativeJobManager_.OnJobAborted(joblet, jobSummary.AbortReason);
-    auto mayReturnCookieByProbingManager = ProbingJobManager_.OnJobAborted(joblet, jobSummary.AbortReason);
-    if (mayReturnCookieByCompetitiveManager && mayReturnCookieByProbingManager) {
+    auto mayReturnCookie = true;
+    for (auto* jobManager : JobManagers_) {
+        if (!jobManager->OnJobAborted(joblet, jobSummary.AbortReason)) {
+            mayReturnCookie = false;
+        }
+    }
+    if (mayReturnCookie) {
         ReinstallJob([&] { GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason); });
     }
 
@@ -1215,8 +1259,9 @@ void TTask::OnJobLost(TCompletedJobPtr completedJob)
     YT_VERIFY(LostJobCookieMap.emplace(
         TCookieAndPool(completedJob->OutputCookie, completedJob->DestinationPool),
         completedJob->InputCookie).second);
-    ProbingJobManager_.OnJobLost(completedJob->OutputCookie);
-    SpeculativeJobManager_.OnJobLost(completedJob->OutputCookie);
+    for (auto* jobManager : JobManagers_) {
+        jobManager->OnJobLost(completedJob->OutputCookie);
+    }
 }
 
 void TTask::OnStripeRegistrationFailed(
@@ -1236,6 +1281,25 @@ void TTask::OnStripeRegistrationFailed(
 void TTask::OnTaskCompleted()
 {
     StopTiming();
+
+    if (GetChunkPoolOutput()->GetJobCounter()->GetFailed() == 0 && LayerProbingJobManager_.FailedJobCount() > 0) {
+        auto userJobSpec = GetUserJobSpec();
+        YT_VERIFY(userJobSpec && userJobSpec->ProbingBaseLayerPath);
+        auto error = TError(
+            "A job with a probing base layer has failed; "
+            "this probably means that your job requires a specific environment "
+            "that must be put into user delta layer, or into explicitly-specified base layer")
+            << TErrorAttribute("task_name", GetVertexDescriptor())
+            << TErrorAttribute("probing_base_layer_path", *userJobSpec->ProbingBaseLayerPath)
+            << TErrorAttribute("failed_layer_probing_job_count", LayerProbingJobManager_.FailedJobCount())
+            << TErrorAttribute("failed_layer_probing_job", LayerProbingJobManager_.GetFailedLayerProbingJob())
+            << TErrorAttribute("failed_non_layer_probing_job_count", GetChunkPoolOutput()->GetJobCounter()->GetFailed());
+        if (GetChunkPoolOutput()->GetJobCounter()->GetFailed() > 0) {
+            error = error << TErrorAttribute("failed_non_layer_probing_job", LayerProbingJobManager_.GetFailedNonLayerProbingJob());
+        }
+        TaskHost_->SetOperationAlert(EOperationAlertType::BaseLayerProbeFailed, error);
+    }
+
     YT_LOG_DEBUG("Task completed");
 }
 

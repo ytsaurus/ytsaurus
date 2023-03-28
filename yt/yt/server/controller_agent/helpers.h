@@ -12,6 +12,7 @@
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 namespace NYT::NControllerAgent {
 
@@ -50,6 +51,14 @@ struct TUserFile
 
     void Persist(const TPersistenceContext& context);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void BuildFileSpec(
+    NScheduler::NProto::TFileDescriptor* descriptor,
+    const TUserFile& file,
+    bool copyFiles,
+    bool enableBypassArtifactCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 

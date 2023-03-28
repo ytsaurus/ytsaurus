@@ -1182,6 +1182,16 @@ public:
     //! Default base layer used if no other layers are requested.
     std::optional<TString> DefaultBaseLayerPath;
 
+    //! The probing base layer used to check if the operation can use it.
+    std::optional<TString> ProbingBaseLayerPath;
+
+    //! Do not run any more base layer probes if the `MaxFailedBaseLayerProbes` of them failed.
+    int MaxFailedBaseLayerProbes;
+
+    //! Use the base layer `ProbingBaseLayerPath` for all subsequent jobs
+    //! if the probing job completed successfully.
+    bool SwitchBaseLayerOnProbeSuccess;
+
     //! If set, overrides |Profilers| from operation spec.
     std::optional<std::vector<TJobProfilerSpecPtr>> Profilers;
 

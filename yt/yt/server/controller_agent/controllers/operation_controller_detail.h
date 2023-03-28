@@ -608,6 +608,8 @@ protected:
     int MonitoredUserJobCount_ = 0;
     int MonitoredUserJobAttemptCount_ = 0;
 
+    THashMap<TString, TUserFile> BaseLayers_;
+
     virtual bool IsTransactionNeeded(ETransactionType type) const;
 
     TFuture<NApi::ITransactionPtr> StartTransaction(

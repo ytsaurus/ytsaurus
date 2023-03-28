@@ -29,7 +29,8 @@ TProbingJobManager::TProbingJobManager(
         host,
         logger,
         maxProbingJobCount,
-        EJobCompetitionType::Probing)
+        EJobCompetitionType::Probing,
+        EAbortReason::ProbingCompetitorResultLost)
     , ProbingRatio_(probingRatio)
     , ProbingPoolTree_(std::move(probingPoolTree))
     , RandomGenerator_(RandomDevice_())
@@ -61,11 +62,6 @@ void TProbingJobManager::OnJobCompleted(const TJobletPtr& joblet)
 
     OnJobFinished(joblet);
     MarkCompetitionAsCompleted(joblet);
-}
-
-void TProbingJobManager::OnJobLost(IChunkPoolOutput::TCookie cookie)
-{
-    TCompetitiveJobManagerBase::OnJobLost(cookie, EAbortReason::ProbingCompetitorResultLost);
 }
 
 bool TProbingJobManager::OnUnsuccessfulJobFinish(
@@ -104,7 +100,7 @@ bool TProbingJobManager::OnUnsuccessfulJobFinish(
     return returnCookieToChunkPool;
 }
 
-std::optional<EAbortReason> TProbingJobManager::ShouldAbortCompletingJob(const TJobletPtr& joblet) const
+std::optional<EAbortReason> TProbingJobManager::ShouldAbortCompletingJob(const TJobletPtr& joblet)
 {
     if (!IsRelevant(joblet)) {
         return std::nullopt;
