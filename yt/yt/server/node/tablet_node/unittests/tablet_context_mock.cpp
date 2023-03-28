@@ -62,11 +62,6 @@ IInvokerPtr TTabletContextMock::GetControlInvoker() const
     YT_ABORT();
 }
 
-IInvokerPtr TTabletContextMock::GetEpochAutomatonInvoker() const
-{
-    return GetCurrentInvoker();
-}
-
 IColumnEvaluatorCachePtr TTabletContextMock::GetColumnEvaluatorCache() const
 {
     return ColumnEvaluatorCache_;

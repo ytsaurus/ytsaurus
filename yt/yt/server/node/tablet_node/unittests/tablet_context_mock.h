@@ -23,7 +23,6 @@ public:
     const TString& GetTabletCellBundleName() const override;
     NHydra::EPeerState GetAutomatonState() const override;
     IInvokerPtr GetControlInvoker() const override;
-    IInvokerPtr GetEpochAutomatonInvoker() const override;
     int GetAutomatonTerm() const override;
     NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const override;
     NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const override;
