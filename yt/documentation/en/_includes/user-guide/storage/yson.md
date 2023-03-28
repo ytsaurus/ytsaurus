@@ -114,7 +114,7 @@ Example: `{a = "hello"; "38 parrots" = [38]}`.
 
 ### Attributes { #attributes }
 
-It is possible to set attributes on any literal in YSON, in the followin format: `<key = value; ...; key = value> value`. Inside angle brackets, syntax is similar to the dict. For example, `<a = 10; b = [7,7,8]>"some-string"` or `<"44" = 44>44`. But most often attributes can be found on literals like `entity`, for example, `<id="aaad6921-b5704588-17990259-7b88bad3">#`.
+It is possible to set attributes on any literal in YSON, in the following format: `<key = value; ...; key = value> value`. Inside angle brackets, syntax is similar to the dict. For example, `<a = 10; b = [7,7,8]>"some-string"` or `<"44" = 44>44`. But most often attributes can be found on literals like `entity`, for example, `<id="aaad6921-b5704588-17990259-7b88bad3">#`.
 
 ## Working with YSON from code { #working_from_code }
 
@@ -123,4 +123,3 @@ Users usually do not have to work directly with YSON. When using one of the offi
 1. **C++**:[`TNode`](https://github.com/ytsaurus/ytsaurus/blob/main/library/cpp/yson/node/node.h) is a class that provides dynamic DOM-like representation of a YSON document.
 2. **Python**: [`YsonType`](https://github.com/ytsaurus/ytsaurus/blob/main/yt/python/yt/yson/yson_types.py): YSON types mimic Python types. You can get YSON attributes of object `x` like this: `x.attributes`, this is a Python dict.
 3. **Java**: [`YTreeNode`](https://github.com/ytsaurus/ytsaurus/blob/main/yt/java/yson-tree/src/main/java/tech/ytsaurus/ysontree/YTreeNode.java) is an interface that provides dynamic DOM-like representation of a YSON document.
-

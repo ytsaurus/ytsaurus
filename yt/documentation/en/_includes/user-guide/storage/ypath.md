@@ -221,7 +221,7 @@ Composite keys are compared lexicographically. First, the first element is compa
 
 {% note info "Note" %}
 
-Rich paths should be in single quotes for proper parsing in baseh. Quotes are omitted below.
+Rich paths should be in single quotes for proper parsing in bash. Quotes are omitted below.
 
 {% endnote %}
 

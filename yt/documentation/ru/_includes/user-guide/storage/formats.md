@@ -239,7 +239,7 @@ yt read --proxy <cluster-name> --format json '//home/tutorial/staff_unsorted_sam
 - **encode_utf8** (`true`) — включить интерпретацию UTF-8 символов в байты с соответствующими номерами.
 - **string_length_limit** — ограничение на длину строки в байтах. При превышении лимита строка будет обрезана, а результат записан в виде `{$incomplete: true, $value:...}`.
 - **stringify** (`false`) — включить преобразование всех скалярных типов в строки.
-- **stringify_nan_and_infinity** (`false`) - включить преобразование `Nan` и `Infitiny` в строки. Не может быть указан вместе с `support_infinity`.
+- **stringify_nan_and_infinity** (`false`) - включить преобразование `Nan` и `Infinity` в строки. Не может быть указан вместе с `support_infinity`.
 - **support_infinity** (`false`) - разрешить значение `Nan` в типе `double`. Не может быть указан вместе с `stringify_nan_and_infinity`.
 - **annotate_with_types** — включить аннотацию типов `{$type: "uint64", $value: 100500}`.
 - **plain** — включить опцию парсера JSON, которая отключает учет логики про специальные ключи `\$attributes`, `\$value`, `\$type` и разбирает JSON как есть. При включенной опции парсер работает существенно быстрее.

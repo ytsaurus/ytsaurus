@@ -27,7 +27,7 @@ Such as the `//tmp` subtree in the home directory:
 
 CLI
 ```bash
-yt link //tmp //home/usernsme/my_own_tmp
+yt link //tmp //home/username/my_own_tmp
 ```
 
 {% note info "Note" %}
@@ -55,4 +55,3 @@ In addition to [attributes](../../../user-guide/storage/attributes.md) common to
 | ------------- | -------- | ------------------------------------------------------------ |
 | `target_path` | `string` | Path to the object referenced by a link. |
 | `broken` | `bool` | `true` if a link references a non-existent object, `false` otherwise. |
-

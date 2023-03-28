@@ -198,7 +198,7 @@ yt remove --force //home/dev/test1
 ```bash
 yt exists <path>
 ```
-### Вызов команды exists над существующим узом
+### Вызов команды exists над существующим узлом
 ```bash
 yt exists //home/dev/test1/test2/test3
 true

@@ -9,7 +9,7 @@ yt create user --attr '{name=oleg}'
 yt set-user-password oleg --new-password cone
 ```
 
-Администратор создаёт пользователя `oleg` и установает ему пароль `cone`.
+Администратор создаёт пользователя `oleg` и устанавливает ему пароль `cone`.
 
 При помощи команды `set-user-password` пользователь может сменить пароль на `cube`.
 

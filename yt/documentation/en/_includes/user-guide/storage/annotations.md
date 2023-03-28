@@ -46,7 +46,7 @@ In other words, the `annotation` attribute is inherited: it always displays the 
 
 To understand which ancestor the displayed annotation belongs to, use the `annotation_path` attribute. It is read-only and contains the full path to the corresponding ancestor or to the node if it is annotated.
 
-## Support in the web interface { #web_iterface }
+## Support in the web interface { #web_interface }
 
 The web interface supports annotations and accepts the Markdown format — the [YFM](https://ydocs.tech/en/) dialect supported by the [@doc-tools/transform](https://www.npmjs.com/package/@doc-tools/transform) package.
 Annotations are displayed in the **Navigation** section, on the **Annotation** tab of the selected node. To edit an annotation, click **Edit metadata** and go to the **Description** tab.
