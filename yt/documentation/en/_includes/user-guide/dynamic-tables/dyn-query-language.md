@@ -338,7 +338,7 @@ Enables the substrings that match the `s` regular expression to be extracted fro
 For example, the result of the `regex_extract("([a-z]*)@(.*)", "email foo@bar.com", "\\1 at \\2")` expression will be `foo at bar.com`.
 
 `regex_escape(p) :: string -> string`
-Shileds special characters of the regular expression language in the `p` string.
+Shields special characters of the regular expression language in the `p` string.
 
 #### Working with dates
 UTC timezone is used when rounding

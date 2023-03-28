@@ -199,7 +199,7 @@ table = "//tmp/table"
 yt.remove(table, force=True)
 yt.create_table(table, attributes={"schema": schema})
 
-# Write rows into table. Computed columns are ommited: {{product-name}} will evaluate them.
+# Write rows into table. Computed columns are omitted {{product-name}} will evaluate them.
 yt.write_table(table, [{"key": 2, "value": "2"}, {"key": 1, "value": "1"}])
 
 # Sort table. Resulting table schema has unique_keys=True.

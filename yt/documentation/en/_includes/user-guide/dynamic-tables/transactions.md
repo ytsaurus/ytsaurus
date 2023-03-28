@@ -159,7 +159,7 @@ It is guaranteed that there cannot be two transactions modifying the same key at
 When modifying data by key, whether reading or writing,, the transaction takes an exclusive-lock by that key at the moment of commit. If the specified lock has already been taken by another modify transaction or by some number of read transactions that have taken shared-locks, a conflict occurs and the transaction is aborted.
 
 It is guaranteed that transactions with overlapping lifetimes cannot write data by the same key.
-Locks on rows are only taken and retained during commit. Until then, the data is on the client. Commit in the system is two-phase and its process starts with the `prepare` timestamp and ends with the `commit` tomestamp.
+Locks on rows are only taken and retained during commit. Until then, the data is on the client. Commit in the system is two-phase and its process starts with the `prepare` timestamp and ends with the `commit` timestamp.
 For example, `A` and `B` transactions were started at about the same time, then `A` performed a write by `k` key and was committed. A `B` transaction could now perform a write by `k` key and be committed, because there is no longer any lock on `k`. But this behavior is contrary to the snapshot isolation level provided by the system.
 
 Therefore, when a `B` transaction modifies a key, in addition to checking a lock on that key, the system also checks:
