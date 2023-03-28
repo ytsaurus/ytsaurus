@@ -74,7 +74,7 @@ if (ValidateSignature("delete", {"path", "columns", "..."}, tokens)) {
 ```java
    public static YtClient createYtClient(BusConnector connector, String user, String token)
     {
-        return new YtClient(connector, "clustr-name", RpcCredentials(user, token));
+        return new YtClient(connector, "cluster-name", RpcCredentials(user, token));
     }
 ```
 
@@ -447,7 +447,7 @@ if __name__ == "__main__":
 client = yt.YtClient("cluster-name", config={"backend": "rpc", "driver_config": {"proxy_role": "my_role"}})
 ```
 
-Мы также советуем включать дебажные логи клиентской библиотеки. Такие логи сильно помогут при возникновении проблем. Помимо обычного способа через переменную окружения `YT_LOG_LEVEL=debug` можно явно настроить логирование внути rpc proxy client. Для этого нужно передать конфиг логирования через параметр `driver_logging_config`:
+Мы также советуем включать дебажные логи клиентской библиотеки. Такие логи сильно помогут при возникновении проблем. Помимо обычного способа через переменную окружения `YT_LOG_LEVEL=debug` можно явно настроить логирование внутри rpc proxy client. Для этого нужно передать конфиг логирования через параметр `driver_logging_config`:
 
 ```python
 logging_config = {

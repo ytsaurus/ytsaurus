@@ -78,4 +78,3 @@ For product processes, keep debug logs enabled all the time, with the appropriat
 **Provide more preceding history to hone performance.**
 
 **Read the documentation, especially the FAQ** located in a separate [section](../../../faq/faq.md).
-

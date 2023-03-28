@@ -74,7 +74,7 @@ Creating a client:
 ```java
    public static YtClient createYtClient(BusConnector connector, String user, String token)
     {
-        return new YtClient(connector, "clustr-name", RpcCredentials(user, token));
+        return new YtClient(connector, "cluster-name", RpcCredentials(user, token));
     }
 ```
 

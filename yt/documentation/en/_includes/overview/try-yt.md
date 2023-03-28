@@ -133,7 +133,7 @@ yt map cat --src //home/t1 --dst //home/t2 --format json
 
 ### Deleting a cluster
 
-To delete a {{product-name}} cluser, run the command:
+To delete a {{product-name}} cluster, run the command:
 ```
 kubectl delete -f cluster_v1_minikube_without_yql.yaml
 ```

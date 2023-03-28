@@ -6,7 +6,7 @@ Pattern for moving data for reading:
 ## How reading is performed.
 
 Table chunks are hosted on node disks in a native format compressed by `compression_codec`.
-From there, they are moved to data proxies where they are unpacked, recoded as requested by the user (as YSON, Protobuff, or Skiff), compressed by the specified network codec as part of the HTTP response, and find their way to the user machine.
+From there, they are moved to data proxies where they are unpacked, recoded as requested by the user (as YSON, Protobuf, or Skiff), compressed by the specified network codec as part of the HTTP response, and find their way to the user machine.
 
 ## Factors affecting read performance
 
