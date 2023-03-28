@@ -115,30 +115,31 @@ void TClusterDirectory::UpdateCluster(const TString& name, INodePtr nativeConnec
         }
     };
 
-    auto nameIt = NameToCluster_.find(name);
-    if (nameIt == NameToCluster_.end()) {
-        auto cluster = CreateCluster(name, nativeConnectionConfig);
+    {
         auto guard = Guard(Lock_);
-        addNewCluster(cluster);
-        YT_LOG_DEBUG("Remote cluster registered (Name: %v, ClusterTag: %v)",
-            name,
-            cluster.Connection->GetClusterTag());
-    } else if (!AreNodesEqual(nameIt->second.NativeConnectionConfig, nativeConnectionConfig)) {
-        auto cluster = CreateCluster(name, nativeConnectionConfig);
-        auto guard = Guard(Lock_);
-        auto oldTvmId = nameIt->second.Connection->GetConfig()->TvmId;
-        nameIt->second.Connection->Terminate();
-        ClusterTagToCluster_.erase(GetClusterTag(nameIt->second));
-        NameToCluster_.erase(nameIt);
-        if (oldTvmId) {
-            auto tvmIdsIt = ClusterTvmIds_.find(*oldTvmId);
-            YT_VERIFY(tvmIdsIt != ClusterTvmIds_.end());
-            ClusterTvmIds_.erase(tvmIdsIt);
+        auto nameIt = NameToCluster_.find(name);
+        if (nameIt == NameToCluster_.end()) {
+            auto cluster = CreateCluster(name, nativeConnectionConfig);
+            addNewCluster(cluster);
+            YT_LOG_DEBUG("Remote cluster registered (Name: %v, ClusterTag: %v)",
+                name,
+                cluster.Connection->GetClusterTag());
+        } else if (!AreNodesEqual(nameIt->second.NativeConnectionConfig, nativeConnectionConfig)) {
+            auto cluster = CreateCluster(name, nativeConnectionConfig);
+            auto oldTvmId = nameIt->second.Connection->GetConfig()->TvmId;
+            nameIt->second.Connection->Terminate();
+            ClusterTagToCluster_.erase(GetClusterTag(nameIt->second));
+            NameToCluster_.erase(nameIt);
+            if (oldTvmId) {
+                auto tvmIdsIt = ClusterTvmIds_.find(*oldTvmId);
+                YT_VERIFY(tvmIdsIt != ClusterTvmIds_.end());
+                ClusterTvmIds_.erase(tvmIdsIt);
+            }
+            addNewCluster(cluster);
+            YT_LOG_DEBUG("Remote cluster updated (Name: %v, ClusterTag: %v)",
+                name,
+                cluster.Connection->GetClusterTag());
         }
-        addNewCluster(cluster);
-        YT_LOG_DEBUG("Remote cluster updated (Name: %v, ClusterTag: %v)",
-            name,
-            cluster.Connection->GetClusterTag());
     }
 
     OnClusterUpdated_.Fire(name, nativeConnectionConfig);
