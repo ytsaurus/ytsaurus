@@ -273,6 +273,10 @@ inline TLogEvent CreateLogEvent(
     return event;
 }
 
+void OnCriticalLogEvent(
+    const TLogger& logger,
+    const TLogEvent& event);
+
 inline void LogEventImpl(
     const TLoggingContext& loggingContext,
     const TLogger& logger,
@@ -287,6 +291,9 @@ inline void LogEventImpl(
     event.SourceFile = sourceLocation.File;
     event.SourceLine = sourceLocation.Line;
     logger.Write(std::move(event));
+    if (Y_UNLIKELY(event.Level >= ELogLevel::Alert)) {
+        OnCriticalLogEvent(logger, event);
+    }
 }
 
 } // namespace NDetail

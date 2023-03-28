@@ -13,6 +13,18 @@ namespace NYT::NLogging {
 
 namespace NDetail {
 
+void OnCriticalLogEvent(
+    const TLogger& logger,
+    const TLogEvent& event)
+{
+    if (event.Level == ELogLevel::Fatal ||
+        event.Level == ELogLevel::Alert && logger.GetAbortOnAlert())
+    {
+        fprintf(stderr, "*** Aborting on critical log event\n%s\n", event.MessageRef.ToStringBuf().data());
+        YT_ABORT();
+    }
+}
+
 TSharedRef TMessageStringBuilder::Flush()
 {
     return Buffer_.Slice(0, GetLength());
