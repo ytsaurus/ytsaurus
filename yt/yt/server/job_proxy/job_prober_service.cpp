@@ -48,22 +48,26 @@ public:
     }
 
 private:
-    TWeakPtr<IJobProbe> JobProxy_;
+    const TWeakPtr<IJobProbe> JobProxy_;
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpInputContext)
     {
-        auto chunkIds = GetJobProxy()->DumpInputContext();
-        context->SetResponseInfo("ChunkIds: %v", chunkIds);
+        context->SetRequestInfo();
 
+        auto chunkIds = GetJobProxy()->DumpInputContext();
         ToProto(response->mutable_chunk_ids(), chunkIds);
+
+        context->SetResponseInfo("ChunkIds: %v", chunkIds);
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GetStderr)
     {
-        auto stderrData = GetJobProxy()->GetStderr();
+        context->SetRequestInfo();
 
+        auto stderrData = GetJobProxy()->GetStderr();
         response->set_stderr_data(stderrData);
+
         context->Reply();
     }
 
@@ -86,12 +90,15 @@ private:
                 "LoggingContext: %v",
                 pollJobShellResponse.LoggingContext);
         }
+
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Interrupt)
     {
         Y_UNUSED(response);
+
+        context->SetRequestInfo();
 
         GetJobProxy()->Interrupt();
 
@@ -102,6 +109,8 @@ private:
     {
         Y_UNUSED(response);
 
+        context->SetRequestInfo();
+
         GetJobProxy()->Fail();
 
         context->Reply();
@@ -109,6 +118,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpSensors)
     {
+        context->SetRequestInfo();
+
         response->Attachments().push_back(GetJobProxy()->DumpSensors());
 
         context->Reply();

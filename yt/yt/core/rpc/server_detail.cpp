@@ -2,6 +2,7 @@
 
 #include "authentication_identity.h"
 #include "config.h"
+#include "dispatcher.h"
 #include "message.h"
 #include "private.h"
 
@@ -54,6 +55,8 @@ void TServiceContextBase::DoFlush()
 
 void TServiceContextBase::Initialize()
 {
+    LogLevelEnabled_ = Logger.IsLevelEnabled(LogLevel_);
+
     RequestId_ = FromProto<TRequestId>(RequestHeader_->request_id());
     RealmId_ = FromProto<TRealmId>(RequestHeader_->realm_id());
     AuthenticationIdentity_.User = RequestHeader_->has_user() ? RequestHeader_->user() : RootUserName;
@@ -73,8 +76,6 @@ void TServiceContextBase::Reply(const TError& error)
     Error_ = error;
 
     ReplyEpilogue();
-
-    RepliedList_.Fire();
 }
 
 void TServiceContextBase::Reply(const TSharedRefArray& responseMessage)
@@ -102,12 +103,22 @@ void TServiceContextBase::Reply(const TSharedRefArray& responseMessage)
     }
 
     ReplyEpilogue();
-
-    RepliedList_.Fire();
 }
 
 void TServiceContextBase::ReplyEpilogue()
 {
+    if (!RequestInfoSet_ &&
+        Error_.IsOK() &&
+        LogLevelEnabled_ &&
+        TDispatcher::Get()->ShouldAlertOnMissingRequestInfo())
+    {
+        static const auto& Logger = RpcServerLogger;
+        YT_LOG_ALERT("Missing request info (RequestId: %v, Method: %v.%v)",
+            RequestId_,
+            RequestHeader_->service(),
+            RequestHeader_->method());
+    }
+
     auto responseMessage = BuildResponseMessage();
 
     TPromise<TSharedRefArray> asyncResponseMessage;
@@ -121,7 +132,7 @@ void TServiceContextBase::ReplyEpilogue()
 
     DoReply();
 
-    if (Logger.IsLevelEnabled(LogLevel_)) {
+    if (LogLevelEnabled_) {
         LogResponse();
     }
 
@@ -130,6 +141,8 @@ void TServiceContextBase::ReplyEpilogue()
     if (asyncResponseMessage) {
         asyncResponseMessage.Set(std::move(responseMessage));
     }
+
+    RepliedList_.Fire();
 }
 
 void TServiceContextBase::SetComplete()
@@ -382,7 +395,9 @@ void TServiceContextBase::SetRawRequestInfo(TString info, bool incremental)
 {
     YT_ASSERT(!Replied_);
 
-    if (!Logger.IsLevelEnabled(LogLevel_)) {
+    RequestInfoSet_ = true;
+
+    if (!LogLevelEnabled_) {
         return;
     }
 
@@ -398,7 +413,7 @@ void TServiceContextBase::SetRawResponseInfo(TString info, bool incremental)
 {
     YT_ASSERT(!Replied_);
 
-    if (!Logger.IsLevelEnabled(LogLevel_)) {
+    if (!LogLevelEnabled_) {
         return;
     }
 

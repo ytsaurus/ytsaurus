@@ -2282,6 +2282,11 @@ private:
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
+        auto keepActions = request->keep_actions();
+
+        context->SetRequestInfo("Path: %v, KeepActions: %v",
+            path,
+            keepActions);
 
         TReshardTableAutomaticOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -2289,7 +2294,7 @@ private:
         if (request->has_tablet_range_options()) {
             FromProto(&options, request->tablet_range_options());
         }
-        options.KeepActions = request->keep_actions();
+        options.KeepActions = keepActions;
 
         ExecuteCall(
             context,
@@ -2299,6 +2304,8 @@ private:
             [] (const auto& context, const auto& tabletActions) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_tablet_actions(), tabletActions);
+                context->SetResponseInfo("TabletActionIds: %v",
+                    tabletActions);
             });
     }
 
@@ -2442,13 +2449,17 @@ private:
 
         const auto& bundle = request->bundle();
         auto tables = FromProto<std::vector<NYPath::TYPath>>(request->movable_tables());
+        bool keepActions = request->keep_actions();
+
+        context->SetRequestInfo("Bundle: %v, TablePaths: %v, KeepActions: %v",
+            bundle,
+            tables,
+            keepActions);
 
         TBalanceTabletCellsOptions options;
         SetTimeoutOptions(&options, context.Get());
         SetMutatingOptions(&options, request, context.Get());
-        options.KeepActions = request->keep_actions();
-
-        TFuture<std::vector<TTabletActionId>> result;
+        options.KeepActions = keepActions;
 
         ExecuteCall(
             context,
@@ -2458,6 +2469,8 @@ private:
             [] (const auto& context, const auto& tabletActions) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_tablet_actions(), tabletActions);
+                context->SetResponseInfo("TabletActionIds: %v",
+                    tabletActions);
             });
     }
 

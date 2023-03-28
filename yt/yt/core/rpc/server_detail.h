@@ -103,6 +103,8 @@ protected:
     const NLogging::TLogger Logger;
     const NLogging::ELogLevel LogLevel_;
 
+    // Set in #Initialize.
+    bool LogLevelEnabled_;
     TRequestId RequestId_;
     TRealmId RealmId_;
 
@@ -117,6 +119,7 @@ protected:
     TSharedRef ResponseBody_;
     std::vector<TSharedRef> ResponseAttachments_;
 
+    bool RequestInfoSet_ = false;
     TCompactVector<TString, 4> RequestInfos_;
     TCompactVector<TString, 4> ResponseInfos_;
 

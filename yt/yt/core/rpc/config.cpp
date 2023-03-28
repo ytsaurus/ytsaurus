@@ -261,13 +261,16 @@ void TDispatcherConfig::Register(TRegistrar registrar)
     registrar.Parameter("compression_pool_size", &TThis::CompressionPoolSize)
         .Default(DefaultCompressionPoolSize)
         .GreaterThan(0);
+    registrar.Parameter("alert_on_missing_request_info", &TThis::AlertOnMissingRequestInfo)
+        .Default(false);
 }
 
 TDispatcherConfigPtr TDispatcherConfig::ApplyDynamic(const TDispatcherDynamicConfigPtr& dynamicConfig) const
 {
     auto mergedConfig = New<TDispatcherConfig>();
-    mergedConfig->HeavyPoolSize = dynamicConfig->HeavyPoolSize.value_or(HeavyPoolSize);
-    mergedConfig->CompressionPoolSize = dynamicConfig->CompressionPoolSize.value_or(CompressionPoolSize);
+    UpdateYsonStructField(mergedConfig->HeavyPoolSize, dynamicConfig->HeavyPoolSize);
+    UpdateYsonStructField(mergedConfig->CompressionPoolSize, dynamicConfig->CompressionPoolSize);
+    UpdateYsonStructField(mergedConfig->AlertOnMissingRequestInfo, dynamicConfig->AlertOnMissingRequestInfo);
     mergedConfig->Postprocess();
     return mergedConfig;
 }
@@ -282,6 +285,8 @@ void TDispatcherDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("compression_pool_size", &TThis::CompressionPoolSize)
         .Optional()
         .GreaterThan(0);
+    registrar.Parameter("alert_on_missing_request_info", &TThis::AlertOnMissingRequestInfo)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

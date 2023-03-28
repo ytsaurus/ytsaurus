@@ -64,6 +64,8 @@ private:
             THROW_ERROR_EXCEPTION("Core dumper is not set up");
         }
 
+        context->SetRequestInfo();
+
         auto path = CoreDumper_->WriteCoreDump({
             "Reason: RPC",
             "RequestId: " + ToString(context->GetRequestId()),
@@ -75,6 +77,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, WriteLogBarrier)
     {
+        context->SetRequestInfo();
+
         // We need to ensure that the barrier isn't reordered with writes that happened before
         // WriteLogBarrier. Logging subsystem doesn't give any guarantees about happens-before
         // relations, so all we can do is to wait for some small amount of time.
@@ -82,7 +86,7 @@ private:
         TDelayedExecutor::WaitForDuration(PendingEventsWaitTime);
 
         NLogging::TLogger logger(request->category());
-        TGuid barrierId = TGuid::Create();
+        auto barrierId = TGuid::Create();
         LogStructuredEventFluently(logger, ELogLevel::Info)
             .Item("barrier_id").Value(ToString(barrierId))
             .Item("system_event_kind").Value("barrier");

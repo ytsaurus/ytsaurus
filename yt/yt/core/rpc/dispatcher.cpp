@@ -31,6 +31,7 @@ public:
         HeavyPool_->Configure(config->HeavyPoolSize);
         CompressionPool_->Configure(config->CompressionPoolSize);
         FairShareCompressionPool_->Configure(config->CompressionPoolSize);
+        AlertOnMissingRequestInfo_.store(config->AlertOnMissingRequestInfo);
     }
 
     const IInvokerPtr& GetLightInvoker()
@@ -51,6 +52,11 @@ public:
     const IFairShareThreadPoolPtr& GetFairShareCompressionThreadPool()
     {
         return FairShareCompressionPool_;
+    }
+
+    bool ShouldAlertOnMissingRequestInfo()
+    {
+        return AlertOnMissingRequestInfo_.load(std::memory_order::relaxed);
     }
 
     const IInvokerPtr& GetCompressionPoolInvoker()
@@ -75,6 +81,8 @@ private:
     const IFairShareThreadPoolPtr FairShareCompressionPool_ = CreateFairShareThreadPool(TDispatcherConfig::DefaultCompressionPoolSize, "FSCompression");
 
     TLazyIntrusivePtr<IPrioritizedInvoker> CompressionPoolInvoker_;
+
+    std::atomic<bool> AlertOnMissingRequestInfo_;
 
     TAtomicObject<IServiceDiscoveryPtr> ServiceDiscovery_;
 };
@@ -122,6 +130,11 @@ const IFairShareThreadPoolPtr& TDispatcher::GetFairShareCompressionThreadPool()
     return Impl_->GetFairShareCompressionThreadPool();
 }
 
+bool TDispatcher::ShouldAlertOnMissingRequestInfo()
+{
+    return Impl_->ShouldAlertOnMissingRequestInfo();
+}
+
 IServiceDiscoveryPtr TDispatcher::GetServiceDiscovery()
 {
     return Impl_->GetServiceDiscovery();
@@ -131,6 +144,7 @@ void TDispatcher::SetServiceDiscovery(IServiceDiscoveryPtr serviceDiscovery)
 {
     Impl_->SetServiceDiscovery(std::move(serviceDiscovery));
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

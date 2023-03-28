@@ -454,6 +454,9 @@ public:
         auto* response = &context->Response();
 
         const auto& agentId = request->agent_id();
+        context->SetRequestInfo("AgentId: %v",
+            agentId);
+
         auto existingAgent = FindAgent(agentId);
         if (existingAgent) {
             auto state = existingAgent->GetState();

@@ -55,6 +55,7 @@ private:
         if (controllerAgentTracker->GetConfig()->EnableResponseKeeper && ResponseKeeper_->TryReplyFrom(context)) {
             return;
         }
+
         controllerAgentTracker->ProcessAgentHandshake(context);
     }
 

@@ -821,13 +821,13 @@ private:
     private:
         DECLARE_RPC_SERVICE_METHOD(NProto, LookupSnapshot)
         {
-            auto owner = GetOwnerOrThrow();
-
             auto maxSnapshotId = request->max_snapshot_id();
             auto exactId = request->exact_id();
             context->SetRequestInfo("MaxSnapshotId: %v, ExactId: %v",
                 maxSnapshotId,
                 exactId);
+
+            auto owner = GetOwnerOrThrow();
 
             auto snapshotId = maxSnapshotId;
             if (!exactId) {
@@ -855,14 +855,12 @@ private:
 
         DECLARE_RPC_SERVICE_METHOD(NProto, ReadSnapshot)
         {
-            auto owner = GetOwnerOrThrow();
-
             auto snapshotId = request->snapshot_id();
-
             context->SetRequestInfo("SnapshotId: %v, ResponseCodec: %v",
                 snapshotId,
                 context->GetResponseCodec());
 
+            auto owner = GetOwnerOrThrow();
             auto reader = owner->SnapshotStore_->CreateReader(snapshotId);
 
             WaitFor(reader->Open())
@@ -892,6 +890,8 @@ private:
 
         DECLARE_RPC_SERVICE_METHOD(NProto, GetLatestChangelogId)
         {
+            context->SetRequestInfo();
+
             auto owner = GetOwnerOrThrow();
             auto [changelogId, term] = owner->GetLatestChangelogId();
 

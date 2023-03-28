@@ -362,6 +362,8 @@ public:
     int HeavyPoolSize;
     int CompressionPoolSize;
 
+    bool AlertOnMissingRequestInfo;
+
     TDispatcherConfigPtr ApplyDynamic(const TDispatcherDynamicConfigPtr& dynamicConfig) const;
 
     REGISTER_YSON_STRUCT(TDispatcherConfig);
@@ -379,6 +381,8 @@ class TDispatcherDynamicConfig
 public:
     std::optional<int> HeavyPoolSize;
     std::optional<int> CompressionPoolSize;
+
+    std::optional<bool> AlertOnMissingRequestInfo;
 
     REGISTER_YSON_STRUCT(TDispatcherDynamicConfig);
 

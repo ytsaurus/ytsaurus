@@ -41,19 +41,22 @@ public:
 
 private:
     const IUserJobSynchronizerClientPtr JobControl_;
-    TPromise<TExecutorInfo> ExecutorPreparedPromise_;
+    const TPromise<TExecutorInfo> ExecutorPreparedPromise_;
 
     DECLARE_RPC_SERVICE_METHOD(NUserJob::NProto, ExecutorPrepared)
     {
         Y_UNUSED(response);
 
+        auto pid = static_cast<pid_t>(request->pid());
+        context->SetRequestInfo("Pid: %v",
+            pid);
+
         // YT-10547: This is a workaround for Porto container resurrection on core command.
-        if (ExecutorPreparedPromise_.IsSet()) {
+        if (!ExecutorPreparedPromise_.TrySet(TExecutorInfo{.ProcessPid = pid})) {
             context->Reply(TError("Executor has already prepared"));
             return;
         }
 
-        ExecutorPreparedPromise_.TrySet(TExecutorInfo{.ProcessPid = static_cast<pid_t>(request->pid())});
         context->Reply();
     }
 };

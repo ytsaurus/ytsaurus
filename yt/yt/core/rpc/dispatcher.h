@@ -38,6 +38,9 @@ public:
     //! NB: this thread pool is different from the underlying thread pool beneath two previous invokers.
     const NConcurrency::IFairShareThreadPoolPtr& GetFairShareCompressionThreadPool();
 
+    //! Returns true if alert must be issued when a request is missing request info.
+    bool ShouldAlertOnMissingRequestInfo();
+
     NServiceDiscovery::IServiceDiscoveryPtr GetServiceDiscovery();
     void SetServiceDiscovery(NServiceDiscovery::IServiceDiscoveryPtr serviceDiscovery);
 

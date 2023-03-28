@@ -278,6 +278,8 @@ public:
     ~TServiceContext()
     {
         if (!Replied_ && !CanceledList_.IsFired()) {
+            // Prevent alerting.
+            RequestInfoSet_ = true;
             Reply(TError(NRpc::EErrorCode::Unavailable, "Service is unable to complete your request"));
         }
 
