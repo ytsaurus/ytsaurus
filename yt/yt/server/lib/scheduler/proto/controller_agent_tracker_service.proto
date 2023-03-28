@@ -101,13 +101,6 @@ message TSchedulerToAgentFinishedJobEvent
     required NYT.NProto.TGuid operation_id = 1;
     required NYT.NProto.TGuid job_id = 2;
     required uint64 finish_time = 3;
-
-    // for Aborted
-    optional NYT.NJobTrackerClient.NProto.TPreemptedFor preempted_for = 5;
-    optional string preemption_reason = 7;
-
-    // for Completed
-    optional int32 interrupt_reason = 9; // EInterruptReason
 }
 
 message TSchedulerToAgentAbortedJobEvent

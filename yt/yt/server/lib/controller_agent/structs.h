@@ -106,7 +106,7 @@ struct TAbortedJobSummary
 {
     TAbortedJobSummary(TJobId id, EAbortReason abortReason);
     TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason);
-    explicit TAbortedJobSummary(NProto::TJobStatus* status);
+    explicit TAbortedJobSummary(NProto::TJobStatus* status, const NLogging::TLogger& Logger);
 
     EAbortReason AbortReason = EAbortReason::None;
     std::optional<NScheduler::TPreemptedFor> PreemptedFor;
@@ -145,11 +145,6 @@ struct TFinishedJobSummary
     TOperationId OperationId;
     TJobId Id;
     TInstant FinishTime;
-
-    // COMPAT(pogorelov)
-    EInterruptReason InterruptReason;
-    std::optional<NScheduler::TPreemptedFor> PreemptedFor;
-    std::optional<TString> PreemptionReason;
 };
 
 struct TAbortedBySchedulerJobSummary

@@ -466,9 +466,6 @@ void TOperationControllerImpl::OnJobFinished(
         .OperationId = OperationId_,
         .Id = job->GetId(),
         .FinishTime = TInstant::Now(),
-        .InterruptReason = job->GetInterruptionReason(),
-        .PreemptedFor = job->GetPreemptedFor(),
-        .PreemptionReason = job->GetPreemptionReason(),
     };
 
     auto result = EnqueueJobEvent(std::move(eventSummary));
