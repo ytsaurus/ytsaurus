@@ -130,7 +130,7 @@ void ToUnversionedValue(TUnversionedValue* unversionedValue, const TError& value
 void FromUnversionedValue(TError* value, TUnversionedValue unversionedValue);
 
 template <class T>
-requires TEnumTraits<T>::IsEnum
+    requires TEnumTraits<T>::IsEnum
 void ToUnversionedValue(
     TUnversionedValue* unversionedValue,
     T value,
@@ -138,7 +138,7 @@ void ToUnversionedValue(
     int id = 0,
     EValueFlags flags = EValueFlags::None);
 template <class T>
-requires TEnumTraits<T>::IsEnum
+    requires TEnumTraits<T>::IsEnum
 void FromUnversionedValue(
     T* value,
     TUnversionedValue unversionedValue);

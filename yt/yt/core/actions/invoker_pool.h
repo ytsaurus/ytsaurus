@@ -33,7 +33,7 @@ public:
     //! Returns reference to the invoker from the underlying storage by the enum #index.
     //! Parameter #index is supposed to take values in the [0, implementation-defined limit) range.
     template <class E>
-    requires TEnumTraits<E>::IsEnum
+        requires TEnumTraits<E>::IsEnum
     const TIntrusivePtr<TInvoker>& GetInvoker(E index) const
     {
         return DoGetInvoker(ToUnderlying(index));
@@ -82,7 +82,7 @@ public:
     //! Returns statistics of the invoker by the integer #index.
     //! Parameter #index is supposed to take values in the [0, implementation-defined limit) range.
     template <class E>
-    requires TEnumTraits<E>::IsEnum
+        requires TEnumTraits<E>::IsEnum
     TInvokerStatistics GetInvokerStatistics(E index) const
     {
         return DoGetInvokerStatistics(ToUnderlying(index));

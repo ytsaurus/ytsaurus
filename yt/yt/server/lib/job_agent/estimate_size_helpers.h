@@ -20,7 +20,7 @@ template <typename T>
 size_t EstimateSize(const std::optional<T>& value);
 
 template <typename E>
-requires TEnumTraits<E>::IsEnum
+    requires TEnumTraits<E>::IsEnum
 size_t EstimateSize(E value);
 
 ////////////////////////////////////////////////////////////////////////////////

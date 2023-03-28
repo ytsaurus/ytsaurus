@@ -101,7 +101,7 @@ void Serialize(IInputStream& input, NYson::IYsonConsumer* consumer);
 
 // Enums
 template <class T>
-requires TEnumTraits<T>::IsEnum
+    requires TEnumTraits<T>::IsEnum
 void Serialize(T value, NYson::IYsonConsumer* consumer);
 
 // std::optional
@@ -194,7 +194,7 @@ void Deserialize(TGuid& value, INodePtr node);
 
 // Enums
 template <class T>
-requires TEnumTraits<T>::IsEnum
+    requires TEnumTraits<T>::IsEnum
 void Deserialize(T& value, INodePtr node);
 
 // std::optional

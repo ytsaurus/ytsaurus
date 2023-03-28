@@ -246,10 +246,10 @@ template <class TBlockReader>
 class TBlockReaderFactory;
 
 template <class TBlockReader>
-requires
-    std::is_same_v<TBlockReader, TSimpleVersionedBlockReader> ||
-    std::is_same_v<TBlockReader, TIndexedVersionedBlockReader> ||
-    std::is_same_v<TBlockReader, TSlimVersionedBlockReader>
+    requires
+        std::is_same_v<TBlockReader, TSimpleVersionedBlockReader> ||
+        std::is_same_v<TBlockReader, TIndexedVersionedBlockReader> ||
+        std::is_same_v<TBlockReader, TSlimVersionedBlockReader>
 class TBlockReaderFactory<TBlockReader>
     : public TCacheBasedVersionedChunkReaderBase
 {

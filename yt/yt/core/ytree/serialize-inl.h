@@ -320,7 +320,7 @@ void Serialize(const TIntrusivePtr<T>& value, NYson::IYsonConsumer* consumer)
 
 // Enums
 template <class T>
-requires TEnumTraits<T>::IsEnum
+    requires TEnumTraits<T>::IsEnum
 void Serialize(T value, NYson::IYsonConsumer* consumer)
 {
     if constexpr (TEnumTraits<T>::IsBitEnum) {
@@ -480,7 +480,7 @@ void Deserialize(std::unique_ptr<T>& value, INodePtr node)
 
 // Enums
 template <class T>
-requires TEnumTraits<T>::IsEnum
+    requires TEnumTraits<T>::IsEnum
 void Deserialize(T& value, INodePtr node)
 {
     if constexpr (TEnumTraits<T>::IsBitEnum) {

@@ -7,6 +7,9 @@
 #include <type_traits>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NMpscFSQueue {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,23 +18,23 @@ using TCookie = uintptr_t;
 
 // For yandex smart pointer types
 template <typename T>
-requires requires(T t) { t.Get(); }
-inline TCookie ToCookie(const T& value)
+    requires requires(T t) { t.Get(); }
+TCookie ToCookie(const T& value)
 {
     return reinterpret_cast<TCookie>(value.Get());
 }
 
 // For std smart pointers
 template <typename T>
-requires requires(T t) { t.get(); }
-inline TCookie ToCookie(const T& value)
+    requires requires(T t) { t.get(); }
+TCookie ToCookie(const T& value)
 {
     return reinterpret_cast<TCookie>(value.get());
 }
 
 // For types that are directly convertible to uintptr_t, like integral and pointer
 template <typename T>
-requires std::is_convertible_v<T, TCookie>
+    requires std::is_convertible_v<T, TCookie>
 TCookie ToCookie(T value)
 {
     return value;

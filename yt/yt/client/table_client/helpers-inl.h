@@ -64,7 +64,7 @@ XX(TGuid)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-requires TEnumTraits<T>::IsEnum
+    requires TEnumTraits<T>::IsEnum
 struct TUnversionedValueConversionTraits<T>
 {
     static constexpr bool Scalar = true;
@@ -121,7 +121,7 @@ struct TRowValueTypesChecker
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-requires TEnumTraits<T>::IsEnum
+    requires TEnumTraits<T>::IsEnum
 void ToUnversionedValue(
     TUnversionedValue* unversionedValue,
     T value,
@@ -139,7 +139,7 @@ void ToUnversionedValue(
 }
 
 template <class T>
-requires TEnumTraits<T>::IsEnum
+    requires TEnumTraits<T>::IsEnum
 void FromUnversionedValue(
     T* value,
     TUnversionedValue unversionedValue)

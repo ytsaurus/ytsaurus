@@ -9,7 +9,7 @@ namespace NYT::NYPath {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class E>
-requires TEnumTraits<E>::IsEnum
+    requires TEnumTraits<E>::IsEnum
 TString ToYPathLiteral(E value)
 {
     return FormatEnum(value);

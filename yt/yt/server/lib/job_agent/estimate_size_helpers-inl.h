@@ -15,7 +15,7 @@ size_t EstimateSize(const std::optional<T>& v)
 }
 
 template <typename E>
-requires TEnumTraits<E>::IsEnum
+    requires TEnumTraits<E>::IsEnum
 size_t EstimateSize(E /*value*/)
 {
     return EstimatedValueSize;
