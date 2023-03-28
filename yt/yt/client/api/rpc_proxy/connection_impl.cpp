@@ -17,6 +17,7 @@
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/http.h>
 #include <yt/yt/core/http/helpers.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/roaming_channel.h>
@@ -29,6 +30,8 @@
 #include <yt/yt/core/service_discovery/service_discovery.h>
 
 #include <yt/yt/build/ya_version.h>
+
+#include <util/system/env.h>
 
 namespace NYT::NApi::NRpcProxy {
 
@@ -43,12 +46,28 @@ using namespace NServiceDiscovery;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
+THashMap<TString, TString> ParseProxyUrlAliasingRules(TString envConfig)
+{
+    if (envConfig.empty()) {
+        return {};
+    }
+    return ConvertTo<THashMap<TString, TString>>(TYsonString(envConfig));
+}
+
+void ApplyProxyUrlAliasingRules(TString& url)
+{
+    static auto rules = ParseProxyUrlAliasingRules(GetEnv("YT_PROXY_URL_ALIASING_CONFIG"));
+    if (auto ruleIt = rules.find(url); ruleIt != rules.end()) {
+        url = ruleIt->second;
+    }
+}
 
 TString NormalizeHttpProxyUrl(TString url)
 {
     const TStringBuf CanonicalPrefix = "http://";
     const TStringBuf CanonicalSuffix = ".yt.yandex.net";
+
+    ApplyProxyUrlAliasingRules(url);
 
     if (url.find('.') == TString::npos &&
         url.find(':') == TString::npos &&
@@ -63,6 +82,8 @@ TString NormalizeHttpProxyUrl(TString url)
 
     return url;
 }
+
+namespace {
 
 TString MakeConnectionLoggingTag(const TConnectionConfigPtr& config, TGuid connectionId)
 {

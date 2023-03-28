@@ -26,4 +26,10 @@ inline const NLogging::TLogger RpcProxyClientLogger("RpcProxyClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashMap<TString, TString> ParseProxyUrlAliasingRules(TString envConfig);
+void ApplyProxyUrlAliasingRules(TString& url);
+TString NormalizeHttpProxyUrl(TString url);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi::NRpcProxy

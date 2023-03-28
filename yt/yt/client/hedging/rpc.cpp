@@ -16,21 +16,6 @@ namespace NYT::NClient::NHedging::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-TString ExpandClusterName(TString cluster)
-{
-    Y_ENSURE(!cluster.empty(), "No cluster name specified!");
-    if (cluster.find('.') == TString::npos && cluster.find(':') == TString::npos && cluster != "localhost") {
-        cluster += ".yt.yandex.net";
-    }
-    return cluster;
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::pair<TStringBuf, TStringBuf> ExtractClusterAndProxyRole(TStringBuf clusterUrl) {
     TStringBuf cluster;
     TStringBuf proxyRole;
@@ -63,7 +48,7 @@ NApi::IClientPtr CreateClient(const TConfig& config, const NApi::TClientOptions&
 {
     auto ytConfig = New<NApi::NRpcProxy::TConnectionConfig>();
     ytConfig->SetDefaults();
-    ytConfig->ClusterUrl = ExpandClusterName(config.GetClusterName());
+    ytConfig->ClusterUrl = config.GetClusterName();
 
     if (!config.GetProxyRole().empty()) {
         ytConfig->ProxyRole = config.GetProxyRole();
