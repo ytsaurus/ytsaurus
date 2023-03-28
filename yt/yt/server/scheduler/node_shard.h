@@ -173,6 +173,18 @@ public:
         TIncarnationId incarnationId);
     void UnregisterAgent(TAgentId id);
 
+    struct TRunningJobTimeStatistics
+    {
+        TDuration PreemptibleProgressTime;
+    };
+
+    struct TRunningJobStatisticsUpdate
+    {
+        TJobId JobId;
+        TRunningJobTimeStatistics TimeStatistics;
+    };
+    void UpdateRunningJobsStatistics(const std::vector<TRunningJobStatisticsUpdate>& updates);
+
 private:
     const int Id_;
     TSchedulerConfigPtr Config_;
@@ -422,6 +434,8 @@ private:
     void AddRegisteredControllerAgentsToResponse(auto* response);
 
     void SetMinSpareResources(TScheduler::TCtxNodeHeartbeat::TTypedResponse* response);
+
+    void UpdateJobTimeStatisticsIfNeeded(const TJobPtr& job, TRunningJobTimeStatistics timeStatistics);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeShard)

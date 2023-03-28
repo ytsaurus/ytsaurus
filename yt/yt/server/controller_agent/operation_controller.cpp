@@ -122,6 +122,17 @@ void ToProto(NProto::TCommitOperationResult* /* resultProto */, const TOperation
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(
+    NScheduler::NProto::TAgentToSchedulerRunningJobStatistics* jobStatisticsProto,
+    const TAgentToSchedulerRunningJobStatistics& jobStatistics)
+{
+    ToProto(jobStatisticsProto->mutable_job_id(), jobStatistics.JobId);
+
+    jobStatisticsProto->set_preemptible_progress_time(ToProto<i64>(jobStatistics.PreemptibleProgressTime));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Ensures that operation controllers are being destroyed in a
 //! dedicated invoker and releases memory tag when controller is destroyed.
 class TOperationControllerWrapper

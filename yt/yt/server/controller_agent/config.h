@@ -1114,6 +1114,10 @@ public:
     //! Enables job profiling.
     bool EnableJobProfiling;
 
+    int MaxRunningJobStatisticsUpdateCountPerHeartbeat;
+
+    TDuration RunningJobTimeStatisticsUpdatesSendPeriod;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig)
 
     static void Register(TRegistrar registrar);

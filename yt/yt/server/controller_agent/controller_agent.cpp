@@ -577,6 +577,7 @@ public:
             Bootstrap_->GetControlInvoker(),
             OperationEventsOutbox_,
             JobEventsOutbox_,
+            RunningJobStatisticsUpdatesOutbox_,
             Bootstrap_);
         operation->SetHost(host);
 
@@ -1119,6 +1120,7 @@ private:
     TAgentToSchedulerOperationEventOutboxPtr OperationEventsOutbox_;
     TAgentToSchedulerJobEventOutboxPtr JobEventsOutbox_;
     TAgentToSchedulerScheduleJobResponseOutboxPtr ScheduleJobResposesOutbox_;
+    TAgentToSchedulerRunningJobStatisticsOutboxPtr RunningJobStatisticsUpdatesOutbox_;
 
     std::unique_ptr<TMessageQueueInbox> JobEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> OperationEventsInbox_;
@@ -1288,6 +1290,13 @@ private:
             Bootstrap_->GetControlInvoker(),
             /*supportTracing*/ true);
 
+        RunningJobStatisticsUpdatesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerRunningJobStatistics>>(
+            ControllerAgentLogger.WithTag(
+                "Kind: AgentToSchedulerRunningJobStatistics, IncarnationId: %v",
+                IncarnationId_),
+            ControllerAgentProfiler.WithTag("queue", "running_job_statistics"),
+            Bootstrap_->GetControlInvoker());
+
         JobEventsInbox_ = std::make_unique<TMessageQueueInbox>(
             ControllerAgentLogger.WithTag("Kind: SchedulerToAgentJobs, IncarnationId: %v",
                 IncarnationId_),
@@ -1376,6 +1385,7 @@ private:
         OperationEventsOutbox_.Reset();
         JobEventsOutbox_.Reset();
         ScheduleJobResposesOutbox_.Reset();
+        RunningJobStatisticsUpdatesOutbox_.Reset();
 
         JobEventsInbox_.reset();
         OperationEventsInbox_.reset();
@@ -1497,6 +1507,13 @@ private:
                 }
             });
 
+        RunningJobStatisticsUpdatesOutbox_->BuildOutcoming(
+            request->mutable_agent_to_scheduler_running_job_statistics_updates(),
+            [] (auto* protoStatistics, const auto& statistics) {
+                ToProto(protoStatistics, statistics);
+            },
+            Config_->MaxRunningJobStatisticsUpdateCountPerHeartbeat);
+
         auto error = WaitFor(BIND([&, request] {
                 JobEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_job_events());
             })
@@ -1609,6 +1626,7 @@ private:
 
         OperationEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_operation_events());
         JobEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_job_events());
+        RunningJobStatisticsUpdatesOutbox_->HandleStatus(rsp->agent_to_scheduler_running_job_statistics_updates());
 
         HandleJobEvents(rsp);
         HandleOperationEvents(rsp);

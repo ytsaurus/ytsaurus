@@ -328,6 +328,10 @@ TOperationControllerBase::TOperationControllerBase(
     , FastIntermediateMediumLimit_(std::min(
         Spec_->FastIntermediateMediumLimit,
         Config->FastIntermediateMediumLimit))
+    , SendRunningJobTimeStatisticsUpdatesExecutor_(New<TPeriodicExecutor>(
+        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::JobEvents),
+        BIND_NO_PROPAGATE(&TThis::SendRunningJobTimeStatisticsUpdates, MakeWeak(this)),
+        Config->RunningJobTimeStatisticsUpdatesSendPeriod))
 {
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
@@ -1210,6 +1214,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         ExecNodesUpdateExecutor->Start();
         CheckTentativeTreeEligibilityExecutor_->Start();
         UpdateAccountResourceUsageLeasesExecutor_->Start();
+        RunningJobStatisticsUpdateExecutor_->Start();
 
         if (auto maybeDelay = Spec_->TestingOperationOptions->DelayInsideMaterialize) {
             TDelayedExecutor::WaitForDuration(*maybeDelay);
@@ -1340,6 +1345,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     ExecNodesUpdateExecutor->Start();
     CheckTentativeTreeEligibilityExecutor_->Start();
     UpdateAccountResourceUsageLeasesExecutor_->Start();
+    RunningJobStatisticsUpdateExecutor_->Start();
 
     for (const auto& [jobId, joblet] : JobletMap) {
         result.RevivedJobs.push_back({
@@ -3469,6 +3475,13 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
     UpdateJobletFromSummary(*jobSummary, joblet);
     joblet->Task->OnJobRunning(joblet, *jobSummary);
 
+    if (const auto& timeStatistics = jobSummary->TimeStatistics; timeStatistics.ExecDuration || timeStatistics.PrepareDuration) {
+        RunningJobTimeStatisticsUpdates_[jobId] = {
+            .PreparationTime = timeStatistics.PrepareDuration.value_or(TDuration{}),
+            .ExecutionTime = timeStatistics.ExecDuration.value_or(TDuration{})
+        };
+    }
+
     if (jobSummary->Statistics) {
         // We actually got fresh running job statistics.
 
@@ -4344,6 +4357,8 @@ void TOperationControllerBase::UpdateConfig(const TControllerAgentConfigPtr& con
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
 
     Config = config;
+
+    RunningJobStatisticsUpdateExecutor_->SetPeriod(config->RunningJobStatisticsUpdatePeriod);
 }
 
 void TOperationControllerBase::CustomizeJoblet(const TJobletPtr& /*joblet*/)
@@ -10242,6 +10257,28 @@ void TOperationControllerBase::ReportJobCookieToArchive(const TJobletPtr& joblet
         .JobCookie(joblet->OutputCookie);
 
     Host->GetJobReporter()->HandleJobReport(std::move(jobReport));
+}
+
+void TOperationControllerBase::SendRunningJobTimeStatisticsUpdates()
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::JobEvents));
+
+    std::vector<TAgentToSchedulerRunningJobStatistics> runningJobTimeStatisticsUpdates;
+    runningJobTimeStatisticsUpdates.reserve(std::size(RunningJobTimeStatisticsUpdates_));
+
+    for (auto [jobId, timeStatistics] : RunningJobTimeStatisticsUpdates_) {
+        runningJobTimeStatisticsUpdates.push_back({jobId, timeStatistics.PreparationTime + timeStatistics.ExecutionTime});
+    }
+
+    if (std::empty(runningJobTimeStatisticsUpdates)) {
+        YT_LOG_DEBUG("No running job statistics received since last sending");
+        return;
+    }
+
+    YT_LOG_DEBUG("Send running job statistics updates (UpdateCount: %v)", std::size(runningJobTimeStatisticsUpdates));
+
+    Host->UpdateRunningJobsStatistics(std::move(runningJobTimeStatisticsUpdates));
+    RunningJobTimeStatisticsUpdates_.clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

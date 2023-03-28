@@ -22,6 +22,8 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/lease_manager.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <yt/yt/core/rpc/response_keeper.h>
 
 #include <yt/yt/core/yson/public.h>
@@ -620,35 +622,56 @@ public:
         scheduler->GetStrategy()->ApplyJobMetricsDelta(std::move(operationIdToOperationJobMetrics));
 
         auto nodeManager = scheduler->GetNodeManager();
-        std::vector<std::vector<const NProto::TAgentToSchedulerJobEvent*>> groupedJobEvents(nodeManager->GetNodeShardCount());
 
-        // TODO(eshcherbin): Capturing by reference is dangerous, should fix this.
-        RunInMessageOffloadInvoker(agent, [&] {
-            agent->GetJobEventsInbox()->HandleIncoming(
-                request->mutable_agent_to_scheduler_job_events(),
-                [&] (auto* protoEvent) {
-                    auto jobId = FromProto<TJobId>(protoEvent->job_id());
-                    auto shardId = nodeManager->GetNodeShardId(NodeIdFromJobId(jobId));
-                    groupedJobEvents[shardId].push_back(protoEvent);
-                });
-            agent->GetJobEventsInbox()->ReportStatus(
-                response->mutable_agent_to_scheduler_job_events());
+        struct TNodeShardJobUpdates
+        {
+            std::vector<const NProto::TAgentToSchedulerJobEvent*> JobEvents;
+            std::vector<const NProto::TAgentToSchedulerRunningJobStatistics*> RunningJobStatisticsUpdates;
+        };
 
-            agent->GetJobEventsOutbox()->HandleStatus(
-                request->scheduler_to_agent_job_events());
-            agent->GetJobEventsOutbox()->BuildOutcoming(
-                response->mutable_scheduler_to_agent_job_events(),
-                Config_->MaxMessageJobEventCount);
+        auto groupedJobUpdates = RunInMessageOffloadInvoker(
+            agent,
+            [agent, nodeManager, request, response, context, config{Config_}] () -> std::vector<TNodeShardJobUpdates> {
+                std::vector<TNodeShardJobUpdates> groupedJobUpdates(nodeManager->GetNodeShardCount());
 
-            agent->GetOperationEventsOutbox()->HandleStatus(
-                request->scheduler_to_agent_operation_events());
-            agent->GetOperationEventsOutbox()->BuildOutcoming(
-                response->mutable_scheduler_to_agent_operation_events(),
-                [] (auto* protoEvent, const auto& event) {
-                    protoEvent->set_event_type(static_cast<int>(event.EventType));
-                    ToProto(protoEvent->mutable_operation_id(), event.OperationId);
-                });
-        });
+                agent->GetJobEventsInbox()->HandleIncoming(
+                    request->mutable_agent_to_scheduler_job_events(),
+                    [&] (auto* protoEvent) {
+                        auto jobId = FromProto<TJobId>(protoEvent->job_id());
+                        auto shardId = nodeManager->GetNodeShardId(NodeIdFromJobId(jobId));
+                        groupedJobUpdates[shardId].JobEvents.push_back(protoEvent);
+                    });
+                agent->GetJobEventsInbox()->ReportStatus(
+                    response->mutable_agent_to_scheduler_job_events());
+
+                agent->GetRunningJobStatisticsUpdatesInbox()->HandleIncoming(
+                    request->mutable_agent_to_scheduler_running_job_statistics_updates(),
+                    [&] (auto* protoStatisticsUpdate) {
+                        auto jobId = FromProto<TJobId>(protoStatisticsUpdate->job_id());
+                        auto shardId = nodeManager->GetNodeShardId(NodeIdFromJobId(jobId));
+                        groupedJobUpdates[shardId].RunningJobStatisticsUpdates.push_back(protoStatisticsUpdate);
+                    });
+                agent->GetRunningJobStatisticsUpdatesInbox()->ReportStatus(
+                    response->mutable_agent_to_scheduler_running_job_statistics_updates());
+
+                agent->GetJobEventsOutbox()->HandleStatus(
+                    request->scheduler_to_agent_job_events());
+                agent->GetJobEventsOutbox()->BuildOutcoming(
+                    response->mutable_scheduler_to_agent_job_events(),
+                    config->MaxMessageJobEventCount);
+
+                agent->GetOperationEventsOutbox()->HandleStatus(
+                    request->scheduler_to_agent_operation_events());
+                agent->GetOperationEventsOutbox()->BuildOutcoming(
+                    response->mutable_scheduler_to_agent_operation_events(),
+                    [] (auto* protoEvent, const auto& event) {
+                        protoEvent->set_event_type(static_cast<int>(event.EventType));
+                        ToProto(protoEvent->mutable_operation_id(), event.OperationId);
+                    });
+
+                return groupedJobUpdates;
+            })
+            .ValueOrThrow();
 
         agent->GetOperationEventsInbox()->HandleIncoming(
             request->mutable_agent_to_scheduler_operation_events(),
@@ -781,82 +804,98 @@ public:
         }
 
         if (request->exec_nodes_requested()) {
-            RunInMessageOffloadInvoker(agent, [&] {
-                const auto Logger = SchedulerLogger
-                    .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), request->agent_id());
-                YT_LOG_DEBUG("Filling exec node descriptors");
-                auto descriptors = scheduler->GetCachedExecNodeDescriptors();
-                for (const auto& [_, descriptor] : *descriptors) {
-                    ToProto(response->mutable_exec_nodes()->add_exec_nodes(), descriptor);
-                }
-                YT_LOG_DEBUG("Exec node descriptors filled");
-            });
+            RunInMessageOffloadInvoker(agent, [scheduler, context, request, response] {
+                    const auto Logger = SchedulerLogger
+                        .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), request->agent_id());
+                    YT_LOG_DEBUG("Filling exec node descriptors");
+                    auto descriptors = scheduler->GetCachedExecNodeDescriptors();
+                    for (const auto& [_, descriptor] : *descriptors) {
+                        ToProto(response->mutable_exec_nodes()->add_exec_nodes(), descriptor);
+                    }
+                    YT_LOG_DEBUG("Exec node descriptors filled");
+                })
+                .ThrowOnError();
         }
 
         RunInMessageOffloadInvoker(agent, [
-            context,
-            nodeShards = nodeManager->GetNodeShards(),
-            nodeShardInvokers = nodeManager->GetNodeShardInvokers(),
-            groupedJobEvents = std::move(groupedJobEvents),
-            dtorInvoker = MessageOffloadThreadPool_->GetInvoker()
-        ] {
-            const auto Logger = SchedulerLogger
-                .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), context->Request().agent_id());
+                context,
+                nodeShards = nodeManager->GetNodeShards(),
+                nodeShardInvokers = nodeManager->GetNodeShardInvokers(),
+                groupedJobUpdates = std::move(groupedJobUpdates),
+                dtorInvoker = MessageOffloadThreadPool_->GetInvoker()
+            ] {
+                const auto Logger = SchedulerLogger
+                    .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), context->Request().agent_id());
 
-            YT_LOG_DEBUG("Processing job events");
+                YT_LOG_DEBUG("Processing job events");
 
-            for (int shardId = 0; shardId < std::ssize(nodeShards); ++shardId) {
-                nodeShardInvokers[shardId]->Invoke(
-                    BIND([
-                        context,
-                        nodeShard = nodeShards[shardId],
-                        protoEvents = std::move(groupedJobEvents[shardId]),
-                        Logger = SchedulerLogger
-                    ] {
-                        for (const auto* protoEvent : protoEvents) {
-                            auto eventType = CheckedEnumCast<EAgentToSchedulerJobEventType>(protoEvent->event_type());
-                            auto jobId = FromProto<TJobId>(protoEvent->job_id());
-                            auto controllerEpoch = protoEvent->controller_epoch();
-                            auto error = FromProto<TError>(protoEvent->error());
-                            auto interruptReason = CheckedEnumCast<EInterruptReason>(protoEvent->interrupt_reason());
+                for (int shardId = 0; shardId < std::ssize(nodeShards); ++shardId) {
+                    nodeShardInvokers[shardId]->Invoke(
+                        BIND([
+                            context,
+                            nodeShard = nodeShards[shardId],
+                            protoUpdates = std::move(groupedJobUpdates[shardId]),
+                            Logger = SchedulerLogger
+                        ] {
+                            for (const auto* protoEvent : protoUpdates.JobEvents) {
+                                auto eventType = CheckedEnumCast<EAgentToSchedulerJobEventType>(protoEvent->event_type());
+                                auto jobId = FromProto<TJobId>(protoEvent->job_id());
+                                auto controllerEpoch = protoEvent->controller_epoch();
+                                auto error = FromProto<TError>(protoEvent->error());
+                                auto interruptReason = CheckedEnumCast<EInterruptReason>(protoEvent->interrupt_reason());
 
-                            auto expectedControllerEpoch = nodeShard->GetJobControllerEpoch(jobId);
+                                auto expectedControllerEpoch = nodeShard->GetJobControllerEpoch(jobId);
 
-                            // NB(gritukan, ignat): If job is released, either it is stored into operation snapshot
-                            // or operation is completed. In both cases controller epoch actually is not important.
-                            bool shouldValidateEpoch = eventType != EAgentToSchedulerJobEventType::Released;
+                                // NB(gritukan, ignat): If job is released, either it is stored into operation snapshot
+                                // or operation is completed. In both cases controller epoch actually is not important.
+                                bool shouldValidateEpoch = eventType != EAgentToSchedulerJobEventType::Released;
 
-                            if (shouldValidateEpoch && (controllerEpoch != expectedControllerEpoch)) {
-                                YT_LOG_DEBUG("Received job event with unexpected controller epoch; ignored "
-                                             "(JobId: %v, EventType: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
-                                    jobId,
-                                    eventType,
-                                    controllerEpoch,
-                                    expectedControllerEpoch);
-                                continue;
+                                if (shouldValidateEpoch && (controllerEpoch != expectedControllerEpoch)) {
+                                    YT_LOG_DEBUG("Received job event with unexpected controller epoch; ignored "
+                                                "(JobId: %v, EventType: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
+                                        jobId,
+                                        eventType,
+                                        controllerEpoch,
+                                        expectedControllerEpoch);
+                                    continue;
+                                }
+
+                                switch (eventType) {
+                                    case EAgentToSchedulerJobEventType::Interrupted:
+                                        nodeShard->InterruptJob(jobId, interruptReason);
+                                        break;
+                                    case EAgentToSchedulerJobEventType::Aborted:
+                                        nodeShard->AbortJob(jobId, error);
+                                        break;
+                                    case EAgentToSchedulerJobEventType::Failed:
+                                        nodeShard->FailJob(jobId);
+                                        break;
+                                    case EAgentToSchedulerJobEventType::Released:
+                                        nodeShard->ReleaseJob(jobId, FromProto<TReleaseJobFlags>(protoEvent->release_job_flags()));
+                                        break;
+                                    default:
+                                        YT_ABORT();
+                                }
                             }
 
-                            switch (eventType) {
-                                case EAgentToSchedulerJobEventType::Interrupted:
-                                    nodeShard->InterruptJob(jobId, interruptReason);
-                                    break;
-                                case EAgentToSchedulerJobEventType::Aborted:
-                                    nodeShard->AbortJob(jobId, error);
-                                    break;
-                                case EAgentToSchedulerJobEventType::Failed:
-                                    nodeShard->FailJob(jobId);
-                                    break;
-                                case EAgentToSchedulerJobEventType::Released:
-                                    nodeShard->ReleaseJob(jobId, FromProto<TReleaseJobFlags>(protoEvent->release_job_flags()));
-                                    break;
-                                default:
-                                    YT_ABORT();
+                            std::vector<TNodeShard::TRunningJobStatisticsUpdate> runningJobStatisticsUpdates;
+                            runningJobStatisticsUpdates.reserve(std::size(protoUpdates.RunningJobStatisticsUpdates));
+                            for (const auto* protoStatisticsUpdate : protoUpdates.RunningJobStatisticsUpdates) {
+                                auto jobId = FromProto<TJobId>(protoStatisticsUpdate->job_id());
+
+                                auto preemptibleProgressTime = NYT::FromProto<TDuration>(protoStatisticsUpdate->preemptible_progress_time());
+
+                                runningJobStatisticsUpdates.push_back({jobId, {preemptibleProgressTime}});
                             }
-                        }
-                    }));
-            }
-            YT_LOG_DEBUG("Job events are processed");
-        });
+
+                            if (!std::empty(runningJobStatisticsUpdates)) {
+                                nodeShard->UpdateRunningJobsStatistics(runningJobStatisticsUpdates);
+                            }
+                        }));
+                }
+                YT_LOG_DEBUG("Job events are processed");
+            })
+            .ThrowOnError();
 
         response->set_operation_archive_version(Bootstrap_->GetScheduler()->GetOperationArchiveVersion());
 
@@ -907,15 +946,16 @@ public:
             nodeShardInvokers = nodeManager->GetNodeShardInvokers(),
             dtorInvoker = MessageOffloadThreadPool_->GetInvoker()
         ] {
-            std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeManager->GetNodeShardCount());
-            ProcessScheduleJobMailboxes(context, agent, nodeManager, groupedScheduleJobResponses);
-            ProcessScheduleJobResponses(
-                context,
-                nodeShards,
-                nodeShardInvokers,
-                std::move(groupedScheduleJobResponses),
-                dtorInvoker);
-        });
+                std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeManager->GetNodeShardCount());
+                ProcessScheduleJobMailboxes(context, agent, nodeManager, groupedScheduleJobResponses);
+                ProcessScheduleJobResponses(
+                    context,
+                    nodeShards,
+                    nodeShardInvokers,
+                    std::move(groupedScheduleJobResponses),
+                    dtorInvoker);
+            })
+            .ThrowOnError();
 
         context->SetResponseInfo("IncarnationId: %v", incarnationId);
 
@@ -938,11 +978,11 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     template <class F>
-    void RunInMessageOffloadInvoker(const TControllerAgentPtr& agent, F func)
+    auto RunInMessageOffloadInvoker(const TControllerAgentPtr& agent, F func) -> TErrorOr<decltype(func())>
     {
-        Y_UNUSED(WaitFor(BIND(func)
+        return WaitFor(BIND(func)
             .AsyncVia(agent->GetMessageOffloadInvoker())
-            .Run()));
+            .Run());
     }
 
     void DoRegisterAgent(TControllerAgentPtr agent)

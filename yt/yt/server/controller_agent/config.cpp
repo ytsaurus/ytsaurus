@@ -983,6 +983,12 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_job_profiling", &TThis::EnableJobProfiling)
         .Default();
 
+    registrar.Parameter("max_running_job_statistics_update_count_per_heartbeat", &TThis::MaxRunningJobStatisticsUpdateCountPerHeartbeat)
+        .Default(std::numeric_limits<int>::max());
+
+    registrar.Parameter("running_job_time_statistics_updates_send_period", &TThis::RunningJobTimeStatisticsUpdatesSendPeriod)
+        .Default(TDuration::Seconds(2));
+
     registrar.Parameter("fast_intermediate_medium", &TThis::FastIntermediateMedium)
         .Default("ssd_blobs");
     registrar.Parameter("fast_intermediate_medium_limit", &TThis::FastIntermediateMediumLimit)

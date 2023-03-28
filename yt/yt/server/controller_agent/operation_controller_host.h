@@ -92,6 +92,7 @@ struct TAgentToSchedulerJobEvent
 
 using TAgentToSchedulerJobEventOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>>;
 using TAgentToSchedulerOperationEventOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>;
+using TAgentToSchedulerRunningJobStatisticsOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerRunningJobStatistics>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,6 +106,7 @@ public:
         IInvokerPtr uncancelableControlInvoker,
         TAgentToSchedulerOperationEventOutboxPtr operationEventsOutbox,
         TAgentToSchedulerJobEventOutboxPtr jobEventsOutbox,
+        TAgentToSchedulerRunningJobStatisticsOutboxPtr runningJobStatisticsUpdatesOutbox,
         TBootstrap* bootstrap);
 
     void Disconnect(const TError& error) override;
@@ -113,6 +115,7 @@ public:
     void AbortJob(TJobId jobId, const TError& error) override;
     void FailJob(TJobId jobId) override;
     void ReleaseJobs(const std::vector<NJobTrackerClient::TJobToRelease>& TJobToRelease) override;
+    void UpdateRunningJobsStatistics(std::vector<TAgentToSchedulerRunningJobStatistics> runningJobStatisticsUpdates) override;
 
     std::optional<TString> RegisterJobForMonitoring(TOperationId operationId, TJobId jobId) override;
     bool UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId) override;
@@ -176,6 +179,7 @@ private:
     const IInvokerPtr UncancelableControlInvoker_;
     const TAgentToSchedulerOperationEventOutboxPtr OperationEventsOutbox_;
     const TAgentToSchedulerJobEventOutboxPtr JobEventsOutbox_;
+    const TAgentToSchedulerRunningJobStatisticsOutboxPtr RunningJobStatisticsUpdatesOutbox_;
     TBootstrap* const Bootstrap_;
     const TIncarnationId IncarnationId_;
     const NScheduler::TControllerEpoch ControllerEpoch_;

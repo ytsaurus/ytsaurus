@@ -190,12 +190,14 @@ TOperationControllerHost::TOperationControllerHost(
     IInvokerPtr uncancelableControlInvoker,
     TAgentToSchedulerOperationEventOutboxPtr operationEventsOutbox,
     TAgentToSchedulerJobEventOutboxPtr jobEventsOutbox,
+    TAgentToSchedulerRunningJobStatisticsOutboxPtr runningJobStatisticsUpdatesOutbox,
     TBootstrap* bootstrap)
     : OperationId_(operation->GetId())
     , CancelableControlInvoker_(std::move(cancelableControlInvoker))
     , UncancelableControlInvoker_(std::move(uncancelableControlInvoker))
     , OperationEventsOutbox_(std::move(operationEventsOutbox))
     , JobEventsOutbox_(std::move(jobEventsOutbox))
+    , RunningJobStatisticsUpdatesOutbox_(std::move(runningJobStatisticsUpdatesOutbox))
     , Bootstrap_(bootstrap)
     , IncarnationId_(Bootstrap_->GetControllerAgent()->GetIncarnationId())
     , ControllerEpoch_(operation->GetControllerEpoch())
@@ -269,6 +271,20 @@ void TOperationControllerHost::ReleaseJobs(const std::vector<TJobToRelease>& job
     YT_LOG_DEBUG("Jobs release request enqueued (OperationId: %v, JobCount: %v)",
         OperationId_,
         jobsToRelease.size());
+}
+
+void TOperationControllerHost::UpdateRunningJobsStatistics(
+    std::vector<TAgentToSchedulerRunningJobStatistics> runningJobStatisticsUpdates)
+{
+    if (std::empty(runningJobStatisticsUpdates)) {
+        return;
+    }
+
+    RunningJobStatisticsUpdatesOutbox_->Enqueue(std::move(runningJobStatisticsUpdates));
+
+    YT_LOG_DEBUG("Jobs statistics update request enqueued (OperationId: %v, JobCount: %v)",
+        OperationId_,
+        runningJobStatisticsUpdates.size());
 }
 
 std::optional<TString> TOperationControllerHost::RegisterJobForMonitoring(TOperationId operationId, TJobId jobId)

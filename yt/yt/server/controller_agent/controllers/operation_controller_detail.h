@@ -1287,6 +1287,15 @@ private:
     //! in the public intermediate account.
     i64 FastIntermediateMediumLimit_ = 0;
 
+    struct TRunningJobTimeStatistics
+    {
+        TDuration PreparationTime;
+        TDuration ExecutionTime;
+    };
+    THashMap<TJobId, TRunningJobTimeStatistics> RunningJobTimeStatisticsUpdates_;
+
+    const NConcurrency::TPeriodicExecutorPtr SendRunningJobTimeStatisticsUpdatesExecutor_;
+
     void AccountExternalScheduleJobFailures() const;
 
     void InitializeOrchid();
@@ -1468,6 +1477,8 @@ private:
     void RegisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
     void UnregisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
     bool NeedEraseOffloadingTrees() const;
+
+    void SendRunningJobTimeStatisticsUpdates();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1546,6 +1546,24 @@ TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor
     return node;
 }
 
+void TNodeShard::UpdateJobTimeStatisticsIfNeeded(const TJobPtr& job, TRunningJobTimeStatistics timeStatistics)
+{
+    if (job->GetPreemptibleProgressTime() < timeStatistics.PreemptibleProgressTime) {
+        job->SetPreemptibleProgressTime(timeStatistics.PreemptibleProgressTime);
+    }
+}
+
+void TNodeShard::UpdateRunningJobsStatistics(const std::vector<TRunningJobStatisticsUpdate>& updates)
+{
+    YT_LOG_DEBUG("Update running job time statistics (UpdateCount: %v)", std::size(updates));
+
+    for (auto [jobId, timeStatistics] : updates) {
+        if (const auto& job = FindJob(jobId)) {
+            UpdateJobTimeStatisticsIfNeeded(job, timeStatistics);
+        }
+    }
+}
+
 void TNodeShard::OnNodeRegistrationLeaseExpired(TNodeId nodeId)
 {
     auto it = IdToNode_.find(nodeId);
@@ -2305,9 +2323,9 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     YT_VERIFY(status);
 
     auto timeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
-    job->SetPreemptibleProgressTime(
+    UpdateJobTimeStatisticsIfNeeded(job, TRunningJobTimeStatistics{
         timeStatistics.ExecDuration.value_or(TDuration{}) +
-        timeStatistics.PrepareDuration.value_or(TDuration{}));
+        timeStatistics.PrepareDuration.value_or(TDuration{})});
 
     auto now = GetCpuInstant();
     if (now < job->GetRunningJobUpdateDeadline()) {

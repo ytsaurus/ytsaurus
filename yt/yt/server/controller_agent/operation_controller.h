@@ -8,6 +8,8 @@
 #include <yt/yt/server/lib/scheduler/structs.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 
+#include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
+
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -148,6 +150,18 @@ struct TOperationSnapshot
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAgentToSchedulerRunningJobStatistics
+{
+    TJobId JobId;
+    TDuration PreemptibleProgressTime;
+};
+
+void ToProto(
+    NScheduler::NProto::TAgentToSchedulerRunningJobStatistics* jobStatisticsProto,
+    const TAgentToSchedulerRunningJobStatistics& jobStatistics);
+
+////////////////////////////////////////////////////////////////////////////////
+
 /*!
  *  \note Thread affinity: Cancelable controller invoker
  */
@@ -160,6 +174,7 @@ struct IOperationControllerHost
     virtual void AbortJob(TJobId jobId, const TError& error) = 0;
     virtual void FailJob(TJobId jobId) = 0;
     virtual void ReleaseJobs(const std::vector<NJobTrackerClient::TJobToRelease>& jobsToRelease) = 0;
+    virtual void UpdateRunningJobsStatistics(std::vector<TAgentToSchedulerRunningJobStatistics> runningJobStatisticsUpdates) = 0;
 
     //! Registers job for monitoring.
     //!

@@ -366,6 +366,8 @@ def get_controller_agent_config():
         };
 
         enable_bulk_insert_for_everyone = %true;
+
+        running_job_time_statistics_updates_send_period = 10;
     };
 }
 """)
