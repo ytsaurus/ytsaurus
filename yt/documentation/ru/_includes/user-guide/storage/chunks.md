@@ -93,7 +93,7 @@ yt merge --mode ordered --src //tmp/table --dst //tmp/table --spec '{force_trans
 | `chunk_list_id`           | `Guid`                  | Идентификатор корневого списка чанков.                       | Да |
 | `chunk_ids`               | `array<Guid>`           | Список идентификаторов всех чанков.                          |
 | `chunk_count`             | `int`                   | Количество чанков.                                           |
-| `compression_statistics`  | `CompressionStatistics` | Статистика по типам использованных [кодеков cжатия](../../../user-guide/storage/compression.md) и размерам данных. | Да |
+| `compression_statistics`  | `CompressionStatistics` | Статистика по типам использованных [кодеков сжатия](../../../user-guide/storage/compression.md) и размерам данных. | Да |
 | `erasure_statistics`      | `ErasureStatistics`     | Статистика по типам использованных [erasure-кодеков](../../../user-guide/storage/replication.md) и размерам данных. | Да |
 | `optimize_for_statistics` | `OptimizeForStatistics` | Статистика по типам использованных [типов чанков](#optimize_for) (`optimize_for`). | Да |
 | `multicell_statistics`    | `MulticellStatistics`   | Статистика распределения чанков по мастер-серверам.          | Да |

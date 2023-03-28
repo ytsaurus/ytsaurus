@@ -8,7 +8,7 @@
 
 * `table_path` — путь к входной таблице. Поддерживается указание диапазонов строк на входной таблице, например, `//path/table[#10:#100]`. Можно удалить не все данные в таблице, а лишь определенный диапазон строк;
 * `combine_chunks` (false) — объединить оставшиеся чанки в таблице, чтобы они были достаточно большими;
-* `schema_inference_mode` (auto) — режим определения схемы. Доступные значения: auto, from_input, from_output. Подробности в разделе [Cхема данных](../../storage/static-schema.md#schema_inference);
+* `schema_inference_mode` (auto) — режим определения схемы. Доступные значения: auto, from_input, from_output. Подробности в разделе [Схема данных](../../storage/static-schema.md#schema_inference);
 
 ## Пример спецификации
 
@@ -18,4 +18,3 @@
   combine_chunks = %true;
 }
 ```
-

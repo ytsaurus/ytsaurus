@@ -46,6 +46,6 @@ Instead of the *Distributed JOIN* logic that uses the identity of the argument *
 
 To use the Sorted JOIN strategy, use the ordinary `lhs JOIN rhs USING/ON ...` construction, but `lhs` and `rhs` are subject to the following additional restrictions:
 - `lhs` and `rhs` must be sorted tables. Let `lhs` be sorted by columns `l1, l2, ..., ln` and `rhs` be sorted by columns `r1, r2, ..., rm`.
-- The JOIN cndition should look like a set of equalities `l1 = r1`, ..., `lk = rk` for a `k` (the equalities themselves can go in any order). This can be expressed as a set of equalities in the ON clause or as a set of common key columns in the USING clause, but not as a condition in the WHERE clause.
+- The JOIN condition should look like a set of equalities `l1 = r1`, ..., `lk = rk` for a `k` (the equalities themselves can go in any order). This can be expressed as a set of equalities in the ON clause or as a set of common key columns in the USING clause, but not as a condition in the WHERE clause.
 
 If these conditions are met, you can reuse the coordination logic from the Sorted reduce operation by forming pairs of appropriate ranges from `lhs` and `rhs` and distributing them to instances in subqueries. If this condition is not met, an error will occur and you will have to use either strategy 2 (use GLOBAL JOIN) or the second version of strategy 2 (place the right-hand side part in a subquery).

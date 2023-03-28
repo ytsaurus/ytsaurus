@@ -1,6 +1,6 @@
 # Типы данных
 
-В ClickHouse доступно большое количество разнообразных [типов данных](https://clickhouse.com/docs/ru/sql-reference/data-types). В {{product-name}} используется своя система типов данных, сильно пересекающаяся с системой типов ClickHouse, но отдельные типы данных {{product-name}} могут отстутствовать в CH и наоборот. Полный список поддерживаемых в системе {{product-name}} типов доступен в разделе [типы данных {{product-name}}](../../../../../user-guide/storage/data-types.md).
+В ClickHouse доступно большое количество разнообразных [типов данных](https://clickhouse.com/docs/ru/sql-reference/data-types). В {{product-name}} используется своя система типов данных, сильно пересекающаяся с системой типов ClickHouse, но отдельные типы данных {{product-name}} могут отсутствовать в CH и наоборот. Полный список поддерживаемых в системе {{product-name}} типов доступен в разделе [типы данных {{product-name}}](../../../../../user-guide/storage/data-types.md).
 
  ## Примитивные типы данных
 

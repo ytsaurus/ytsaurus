@@ -2,7 +2,7 @@
 
 There are several ways to try CHYT.
 
-The simplest way is to run a query via the YQL web interface. You can take a public clique with the `*ch_publiс` alias as a clique. This is the main public clique found on every cluster of CHYT's presence.
+The simplest way is to run a query via the YQL web interface. You can take a public clique with the `*ch_public` alias as a clique. This is the main public clique found on every cluster of CHYT's presence.
 
 {% note warning "Attention!" %}
 

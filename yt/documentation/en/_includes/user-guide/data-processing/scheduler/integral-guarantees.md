@@ -12,7 +12,7 @@ The mechanism of integral guarantees enables you to find a balance between the d
 
 In the {{product-name}} system, you can enable the accumulation of resources for the pool. Such pools receive a certain amount of virtual resources at a constant rate — `accumulated_resource_ratio_volume`. The amount of resource is stored in the cluster share per second — `fair-share*sec`, but for simplicity we can assume that the value is given in cores per second — `cpu*sec`. The pool can consume a virtual resource to start operations and can accumulate it to a certain limit.
 
-Example: let there be `accumulated_resource_ratio_volume = 60 fair-share*sec` in the pool, 1000 cores on the cluster, and the dominant resource of the user process is cpu. This volume can be converted to `cores * seconds` — `60,000 cpu*sec`. An operation that consumes 100 cpus at a time will use that amount in 10 minutes; one that consumes 50 cpus — in 20 minutes. This example does not take into account that the volume of the virtual resource in the pool is replenished over time.
+Example: let there be `accumulated_resource_ratio_volume = 60 fair-share*sec` in the pool, 1000 cores on the cluster, and the dominant resource of the user process is cpu. This volume can be converted to `cores * seconds` — `60,000 cpu*sec`. An operation that consumes 100 cpu cores at a time will use that amount in 10 minutes; one that consumes 50 cpu cores — in 20 minutes. This example does not take into account that the volume of the virtual resource in the pool is replenished over time.
 
 The resource accumulation rate is configured in the `integral-guarantees/resource_flow` pool attribute. The attribute value must specify the resource type and its volume:
 
@@ -20,11 +20,11 @@ The resource accumulation rate is configured in the `integral-guarantees/resourc
 yt set //sys/pools/root-pool/burst/@integral-guarantees/resource_flow "{cpu=100}"
 ```
 
-Since `resource_flow` is  the rate at which `accumulated_resource_ratio_volume` increases, which is the instantaneous amount of resource multiplied by time, `resource_flow/cpu` is measured in cores, simply put, `cpu*sec/sec = cpu`. For example, `resource_flow/cpu = 100` allows an operation consuming 100 cpus at a time to run indefinitely.
+Since `resource_flow` is  the rate at which `accumulated_resource_ratio_volume` increases, which is the instantaneous amount of resource multiplied by time, `resource_flow/cpu` is measured in cores, simply put, `cpu*sec/sec = cpu`. For example, `resource_flow/cpu = 100` allows an operation consuming 100 cpu cores at a time to run indefinitely.
 
 Accumulation of `accumulated_resource_ratio_volume` occurs to a certain limit, which is equal to `k*resource_flow_ratio` where k is a single scheduler parameter for all pools and `resource_flow_ratio` is `resource_flow` as a share of all cluster resources. By default, `k=86400`, which equals the number of seconds in a day. This means that the integral pool without operations will accumulate `accumulated_resource_ratio_volume` at a rate of `resource_flow` before it reaches the limit when resource accumulation stops.
 
-The described idea of accumulating and spending resources is much like the [Token bucket](https://en.wikipedia.org/wiki/Token_bucket) algorithm. Not to be mistaken for [Leacky bucket](https://en.wikipedia.org/wiki/Leaky_bucket).
+The described idea of accumulating and spending resources is much like the [Token bucket](https://en.wikipedia.org/wiki/Token_bucket) algorithm. Not to be mistaken for [Leaky bucket](https://en.wikipedia.org/wiki/Leaky_bucket).
 
 ## Guarantee types
 
@@ -68,7 +68,7 @@ The described pool types complement each other, allowing the use of the same res
 
 Suppose there is a production process that requires 2000 CPUs 12 hours a day and a research process that needs only 1000 CPUs on average. With the mechanism of integral guarantees, burst and relaxed pools can be configured for such processes, and 2000 cores will be needed to provide guarantees. The specified pools must be located in the same pool tree, there are no other restrictions. With the basic mechanism of issuing guarantees (strong guarantee), 3000 cores would have to be ordered to enforce such guarantees.
 
-The figure shows a graph of CPU usage and demand for the burst pool, for which burst_integral guarantee is 500 cpus and resource_flow is 100 cpus.
+The figure shows a graph of CPU usage and demand for the burst pool, for which burst_integral guarantee is 500 cpu cores and resource_flow is 100 cpu cores.
 
 The figure below shows a graph of the volume of accumulated resource for the same pool, you can see how the volume of virtual resource decreases when operations are running in the pool, and then the resource is again accumulated to a specified limit.
 

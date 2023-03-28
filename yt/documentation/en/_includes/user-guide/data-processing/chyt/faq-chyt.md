@@ -83,7 +83,7 @@ yt get //home/dev/test_table/@resource_usage
 
 ------
 
-#### **Q: Is the `SAMPLE` construction of the СlickHouse language supported?**
+#### **Q: Is the `SAMPLE` construction of the ClickHouse language supported?**
 
 **A:** CHYT supports the `Sample` construction. The difference is that CHYT ignores the `OFFSET ...` command, so you cannot get a sample from another part of the selected data.
 
@@ -102,7 +102,3 @@ SELECT count(*) FROM "//tmp/sample_table" SAMPLE 100500;
 #### **Q: How do I get the table name in a query?**
 
 **A:** You can use the `$table_name` and `$table_path` virtual columns. For more information about the virtual columns, see [Working with {{product-name}} tables](../../../../user-guide/data-processing/chyt/yt-tables.md#virtual_columns).
-
-
-
-

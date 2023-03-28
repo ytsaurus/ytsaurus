@@ -29,7 +29,7 @@ pip install ytsaurus-spyt
     - `--pool` – вычислительный пул {{product-name}};
     - `--spyt-version` – директория для служебных данных Spark;
     - `--worker-cores` – количество ядер у [воркера](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#spark-standalone-в-yt--spark-standalone);
-    - `--worker-num` – количество ворверов;
+    - `--worker-num` – количество воркеров;
     - `--worker-memory` – количество памяти у каждого воркера;
     - `--spark-cluster-version` – [версия](../spyt/version.md) кластера (опционально).
 
@@ -97,6 +97,3 @@ pip install ytsaurus-spyt
 ## Дополнительные параметры
 
 О дополнительных параметрах при запуске кластера можно узнать в разделе [Запуск кластера Spark](../../../../user-guide/data-processing/spyt/cluster/cluster-start.md).
-
-
-

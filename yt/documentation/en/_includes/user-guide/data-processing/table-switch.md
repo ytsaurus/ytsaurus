@@ -95,7 +95,7 @@ All lines from the `//path/to/table` table, which was numbered N in the list of 
 
 ### SCHEMAFUL_DSV { #schemaful_dsv }
 
-When installing the `enable_table_index=true` option for tables in [SCHEMAFUL_DSV](../../../user-guide/storage/formats.md#schemaful_dsv) format, the table index will be recorded in all lines of the table with the first field, before the schema colmns.
+When installing the `enable_table_index=true` option for tables in [SCHEMAFUL_DSV](../../../user-guide/storage/formats.md#schemaful_dsv) format, the table index will be recorded in all lines of the table with the first field, before the schema columns.
 
 ## Examples
 

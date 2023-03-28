@@ -60,7 +60,7 @@ spark-submit-yt \
 
 {% code '/yt/spark/spark-over-yt/java-examples/src/main/java/tech/ytsaurus/spyt/example/UdfExample.java' lang='java' %}
 
-1. The job class is inherited from `SpakAppJava` as in the previous example.
+1. The job class is inherited from `SparkAppJava` as in the previous example.
 2. Read a DataFrame from `//sys/spark/examples/example_1`.
 
 3. You need to write a UDF to parse the `uuid` and obtain a substring.
@@ -91,7 +91,7 @@ spark-submit-yt \
 
 {% code '/yt/spark/spark-over-yt/java-examples/src/main/java/tech/ytsaurus/spyt/example/GroupingExample.java' lang='java' %}
 
-1. The job class is inherited from `SpakAppJava` as in the previous example.
+1. The job class is inherited from `SparkAppJava` as in the previous example.
 2. Read a DataFrame from `//sys/spark/examples/example_1`.
 3. Read a DataFrame from `//sys/spark/examples/example_dict`.
 4. Join on the `uuid` column. In this example, Spark will evaluate the size of the right DataFrame and decide that a `map-side join` is feasible. In Spark terminology, this situation is called a `broadcast`.

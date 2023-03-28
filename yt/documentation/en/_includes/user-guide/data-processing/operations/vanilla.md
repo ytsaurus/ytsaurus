@@ -35,7 +35,7 @@ The Vanilla operation supports the following additional options:
 
 {% note info "Note" %}
 
-The options `max_failed_job_count` and `fail_on_job_restart`, which are common across all operations, are useful tools for controling job restarts.
+The options `max_failed_job_count` and `fail_on_job_restart`, which are common across all operations, are useful tools for controlling job restarts.
 
 {% endnote %}
 

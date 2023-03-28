@@ -54,7 +54,7 @@ In this section, in terms of CHYT instances:
 
 - `total`: The total number of instances in a clique.
 - `pending`: The number of instances out of the total number that have not yet been started. A non-zero number in this section means that the clique does not have enough resources to keep all instances running at once — a bad situation for the clique.
-- `running`: The number of running instances out of the total number, i.e. `running + pendnig = total`.
+- `running`: The number of running instances out of the total number, i.e. `running + pending = total`.
 - `completed`: The number of *gracefully preempted* instances. This includes those instances that were subject to preemption and were able to complete all the queries running on them before they were forcibly aborted.
 - `failed`: The number of failed instances. Instances can fail for various reasons and the most common are: OOM (out of memory) or bugs in the CHYT or ClickHouse code.
 - `aborted`: The number of aborted instances. Some aborts are due to insurmountable circumstances (for example, a node failed) and nothing can be done with them. If there are `preemption` aborts among jobs, this is a bad sign that demonstrates a lack of resources.

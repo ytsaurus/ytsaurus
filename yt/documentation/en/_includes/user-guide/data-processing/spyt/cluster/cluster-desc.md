@@ -27,7 +27,7 @@ The executor can perform several tasks simultaneously. Usually, the number of su
 
 {% if audience == "internal" %} {% include [Internal-part](../../../../_includes/user-guide/data-processing/spyt/cluster/cluster-desc.md) %}  {% endif %}
 
-### Number of cores in the exececutor { #number-cores }
+### Number of cores in the executor { #number-cores }
 
 Spark cannot change the characteristics of the executor on the fly, but it can work with a smaller number of executors than was initially intended.
 An executor is a single process, a single JVM.  If the cluster has no workers with 16 free GB of memory, the executor won't be created even if a smaller amount of memory is available in the cluster.  16 GB of memory must be free all at once.
@@ -82,6 +82,3 @@ There is also another start option, called *cluster mode*. In this option, the d
 By default, workers can download driver code in HTTP, FTP, and other APIs. With SPYT, workers can upload the driver code from {{product-name}}.
 
 ![](../../../../../../images/cluster_mode.png){ .center }
-
-
-

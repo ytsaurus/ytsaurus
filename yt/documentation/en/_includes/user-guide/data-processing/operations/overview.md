@@ -88,7 +88,7 @@ Jobs with the `aborted` state contain information on the class of reasons that l
    * `scheduling_other` — the job was interrupted by the scheduler for an unclassified reason.
 
 #### Completed jobs { #completed_jobs }
-Sometimes, the scheduler decides to interrupt a job and stops inputting new data to the job as per the operation's guarantees, giving some time for the job to complete. If the job completes within the allotted time, it switches to the `сompleted` state — not `aborted` despite having been interrupted. Such `completed` jobs have the `interrupt_reason` attribute with a value other than `none`, specifying the reason for the scheduler interrupting the job.
+Sometimes, the scheduler decides to interrupt a job and stops inputting new data to the job as per the operation's guarantees, giving some time for the job to complete. If the job completes within the allotted time, it switches to the `completed` state — not `aborted` despite having been interrupted. Such `completed` jobs have the `interrupt_reason` attribute with a value other than `none`, specifying the reason for the scheduler interrupting the job.
 In cases like this, the values of the job interruption reason can be:
 
 * `none` — the job completed successfully, without interruption.
@@ -139,7 +139,7 @@ Running operations via С~++ or Python Wrapper is associated with a number of pr
 * Uploading files to the [File cache](../../../../user-guide/storage/file-cache.md).
 
    **Note**: Automatic file upload to the cache always takes place outside of the user transaction, which may lead to conflicts on Cypress nodes if the file cache directory was not created in advance.
-* Сreating output tables or clearing them using the `erase` command. When it comes to the system, all output tables should already be there at the start of the operation.
+* Creating output tables or clearing them using the `erase` command. When it comes to the system, all output tables should already be there at the start of the operation.
 * Deleting files after the operation is completed.
 * Setting the `jobcount` and `memorylimit` parameters, if they are specified by the user.
 * Some parameters may have default values that are different from the system ones.
@@ -171,4 +171,3 @@ These transactions can be viewed via operation attributes:
 3. `debug_transaction_id` – transaction within which core and stderr tables are written.
 4. `async_scheduler_transaction_id` – transaction within which temporary data is written under an operation that always interrupts upon completion. For example, this is where intermediate data lives.
 5. `output_completion_transaction_id`, `debug_completion_transaction_id` – transactions serving a technical purpose, used upon successful completion of an operation to atomically commit the operation's result.
-

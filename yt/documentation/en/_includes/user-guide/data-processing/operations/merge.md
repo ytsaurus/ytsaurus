@@ -2,7 +2,7 @@
 
 The Merge operation merges input tables into one. The output is a table whose set of rows is equal to all the rows of the original tables merged together. The `mode` option determines how the merge is performed:
 
-* `mode = unordered` — onlty merge lists of input table chunks. This the default merge mode.
+* `mode = unordered` — only merge lists of input table chunks. This the default merge mode.
 * `mode = sorted` — merges the input tables while maintaining sorting. The columns based on which the output table is sorted are determined by the `merge_by` option.
 * `mode = ordered` — keeps the order of the chunks from the input table list. Meaning if `T1 = (A1, A2), T2 = (B1, B2, B3)`, then `Merge(T1, T2) = (A1, A2, B1, B2, B3)`.
 

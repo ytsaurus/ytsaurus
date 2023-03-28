@@ -65,7 +65,7 @@ The CHYT team is working on efficiency at this point and on reducing the number 
 
 ![](../../../../../../images/chyt_query_datalens_burst.png){ .center }
 
-This is quite typical for cliques under the DataLens deshboards. Short bursts at 11:34, 11:40, 11:44, 11:46, 12:18, and 12:23 show what the single opening of the dashboard living on top of this clique looks like. It's not instantaneous, but quite tolerable — the typical time to open a dashboard is about a minute, because queries digest substantial amounts of data.
+This is quite typical for cliques under the DataLens dashboards. Short bursts at 11:34, 11:40, 11:44, 11:46, 12:18, and 12:23 show what the single opening of the dashboard living on top of this clique looks like. It's not instantaneous, but quite tolerable — the typical time to open a dashboard is about a minute, because queries digest substantial amounts of data.
 
 Next, at 11:47, a trouble happens and the clique starts failing. Most likely, the dashboard was opened by several people at the same time or someone actively started pressing F5. In this situation, the clique starts executing multiple copies of the same queries, they get only a share of the CPU in equal proportions, and the CPU bound query that normally runs for about a minute starts running a dozen minutes. You can see that the number of concurrently executed subqueries was as high as 400 at the peak.
 

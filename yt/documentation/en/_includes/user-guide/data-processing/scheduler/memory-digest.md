@@ -12,7 +12,7 @@ The main aspects of the digest:
 4. The `memory_limit * percentile(digest, P)` (by default, `P` is 0.95) is taken as a reserve for the newly run job.
 5. The digest does not store all points internally, but uses a data structure that allows an approximate calculation of percentiles.
 
-The memory reserve allocated to the job is used by the scheduler to consider consumption the lower limit. If the reserve value is exceeded and there is no free memory on the cluster node, the job may be aborted due to the `resouce_overdraft` reason. If there is extra free memory on the cluster node, the job may exceed its allocated reserve and be completed successfully. If the memory limit specified by the user in the operation specification is exceeded, the job will be aborted with the `Memory limit exceeded` error.
+The memory reserve allocated to the job is used by the scheduler to consider consumption the lower limit. If the reserve value is exceeded and there is no free memory on the cluster node, the job may be aborted due to the `resource_overdraft` reason. If there is extra free memory on the cluster node, the job may exceed its allocated reserve and be completed successfully. If the memory limit specified by the user in the operation specification is exceeded, the job will be aborted with the `Memory limit exceeded` error.
 
 Note that in addition to the user process, there is also a `job_proxy` process, which is a layer between the user process and {{product-name}}. Depending on different circumstances, job proxy can consume a significant amount of RAM for compression, columnar read/write mechanism, erasure, and other needs. The operation controller supports individual digests for the user process (`user_job`) and the `job_proxy` process. In the case of the `job_proxy` process, the controller makes an assumption about the expected memory usage based on the number of input/output tables and their settings. Based on the assumption , the digest selects a reserve (ranging from 0.5 to 2.0 by default).
 
@@ -33,4 +33,3 @@ The following options are available to the user in the operation specification:
 * `user_job_memory-digest_default_value`: Initial assumption for selecting the memory reserve (the default value is 0.5).
 * `user_job_memory-digest_lower_bound`: The limit below which the reserve must not fall (the default value is 0.05). We do not recommend changing the default value.
 * `memory_reserve_factor`: The alias for the `user_job_memory-digest_lower_bound` and `user_job_memory-digest_default_value` options concurrently. Using this option is not recommended.
-

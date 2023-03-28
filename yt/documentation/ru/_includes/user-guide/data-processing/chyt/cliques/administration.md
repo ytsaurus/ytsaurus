@@ -33,7 +33,7 @@ acl = [
 
 Изменить ACL можно при помощи команды `update_op_parameters` (ссылка?), для этого необходимо:
 
-1. Ввести алиас клики в поле **Filter Opertaions**, нажать **Go to operation**. Алиас начинается с символа `\*`, это имя клики.
+1. Ввести алиас клики в поле **Filter Operations**, нажать **Go to operation**. Алиас начинается с символа `\*`, это имя клики.
 
    ![find_operation_by_alias](../../../../../../images/find_op_by_alias.png){ .center }
 
