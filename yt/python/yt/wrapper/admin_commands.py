@@ -1,8 +1,7 @@
 from .batch_response import apply_function_to_result
-from .driver import get_api_version, make_request
+from .common import set_param
+from .driver import get_api_version, make_request, make_formatted_request
 from .errors import YtError
-
-import json
 
 
 def build_snapshot(cell_id=None, client=None):
@@ -66,16 +65,15 @@ def add_maintenance(component, address, type, comment, client=None):
         "comment": comment
     }
 
-    request = make_request("add_maintenance", params=params, client=client)
+    request = make_formatted_request("add_maintenance", params=params, format=None, client=client)
 
-    def _extract_id(result):
+    def _process_result(result):
         try:
-            result = json.loads(result)
             return result["id"] if get_api_version(client) == "v4" else result
         except TypeError:
             return result
 
-    return apply_function_to_result(_extract_id, request)
+    return apply_function_to_result(_process_result, request)
 
 
 def remove_maintenance(component,
@@ -110,29 +108,25 @@ def remove_maintenance(component,
     }
 
     if not (user or mine or all or type or id or ids):
-        raise YtError("At least one of {\"id\", \"all\", \"type_\", \"user\", \"mine\"} must be specified")
+        raise YtError("At least one of {\"id\", \"all\", \"type\", \"user\", \"mine\"} must be specified")
 
     if id and ids:
         raise YtError("At most one of {\"id\", \"ids\"} can be specified")
 
     if id is not None:
-        params["id"] = id
+        set_param(params, "id", id)
     elif ids is not None:
-        params["ids"] = ids
+        set_param(params, "ids", ids)
     if type is not None:
-        params["type"] = type
+        set_param(params, "type", type)
     if mine:
-        params["mine"] = True
+        set_param(params, "mine", True)
     if all:
-        params["all"] = True
+        set_param(params, "all", True)
     if user is not None:
-        params["user"] = user
+        set_param(params, "user", user)
 
-    def _parse_result(result):
-        return json.loads(result)
-
-    request = make_request("remove_maintenance", params=params, client=client)
-    return apply_function_to_result(_parse_result, request)
+    return make_formatted_request("remove_maintenance", params=params, format=None, client=client)
 
 
 def disable_chunk_locations(node_address, location_uuids, client=None):

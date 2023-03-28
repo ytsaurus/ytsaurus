@@ -44,10 +44,6 @@ class TestAdminCommands(object):
 
     @authors("kvk1920")
     def test_maintenance_requests(self):
-        if yt.config["backend"] in ("native", "rpc"):
-            # TODO(kvk1920): Enable this test later.
-            pytest.skip("maintenance requests are not supported in old YT binaries")
-
         node = yt.list("//sys/cluster_nodes")[0]
         path = "//sys/cluster_nodes/" + node
         maintenance_id = yt.add_maintenance("cluster_node", node, "decommission", "1234")
