@@ -45,7 +45,7 @@
 
 #include <yt/yt/client/rpc/helpers.h>
 
-#include <yt/yt/server/lib/rpc/per_workload_category_queue.h>
+#include <yt/yt/server/lib/rpc/per_workload_category_request_queue_provider.h>
 
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -206,17 +206,17 @@ public:
             .SetCancelable(true)
             .SetQueueSizeLimit(5'000)
             .SetConcurrencyLimit(5'000)
-            .SetRequestQueueProvider(GetBlockSetQueue_.GetProvider()));
+            .SetRequestQueueProvider(GetBlockSetQueue_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
             .SetCancelable(true)
             .SetQueueSizeLimit(5'000)
             .SetConcurrencyLimit(5'000)
-            .SetRequestQueueProvider(GetBlockRangeQueue_.GetProvider()));
+            .SetRequestQueueProvider(GetBlockRangeQueue_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkFragmentSet)
             .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
             .SetQueueSizeLimit(100'000)
             .SetConcurrencyLimit(100'000)
-            .SetRequestQueueProvider(GetChunkFragmentSetQueue_.GetProvider()));
+            .SetRequestQueueProvider(GetChunkFragmentSetQueue_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows)
             .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
             .SetCancelable(true)
@@ -227,7 +227,7 @@ public:
             .SetQueueSizeLimit(5'000)
             .SetConcurrencyLimit(5'000)
             .SetHeavy(true)
-            .SetRequestQueueProvider(GetChunkMetaQueue_.GetProvider()));
+            .SetRequestQueueProvider(GetChunkMetaQueue_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSliceDataWeights)
             .SetCancelable(true)
             .SetHeavy(true));
@@ -257,10 +257,10 @@ private:
     const TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     IBootstrap* const Bootstrap_;
 
-    TPerWorkloadCategoryRequestQueue GetBlockSetQueue_;
-    TPerWorkloadCategoryRequestQueue GetBlockRangeQueue_;
-    TPerWorkloadCategoryRequestQueue GetChunkFragmentSetQueue_;
-    TPerWorkloadCategoryRequestQueue GetChunkMetaQueue_;
+    IRequestQueueProviderPtr GetBlockSetQueue_ = CreatePerWorkloadCategoryRequestQueueProvider();
+    IRequestQueueProviderPtr GetBlockRangeQueue_ = CreatePerWorkloadCategoryRequestQueueProvider();
+    IRequestQueueProviderPtr GetChunkFragmentSetQueue_ = CreatePerWorkloadCategoryRequestQueueProvider();
+    IRequestQueueProviderPtr GetChunkMetaQueue_ = CreatePerWorkloadCategoryRequestQueueProvider();
 
     TDataNodeDynamicConfigPtr GetDynamicConfig() const
     {

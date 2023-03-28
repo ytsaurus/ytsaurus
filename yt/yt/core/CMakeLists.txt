@@ -213,6 +213,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/net/socket.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/profiling/timing.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/authentication_identity.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/authenticator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/balancing_channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/caching_channel_factory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/channel_detail.cpp
@@ -220,13 +221,17 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/dispatcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/dynamic_channel_pool.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/hedging_channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/local_channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/local_server.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/message.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/message_format.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/null_channel.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/per_user_queues.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/per_user_request_queue_provider.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/protocol_version.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/public.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/request_queue_provider.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/response_keeper.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/retrying_channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/roaming_channel.cpp
@@ -235,12 +240,8 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/service_detail.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/static_channel_factory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/throttling_channel.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/hedging_channel.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/message_format.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/authenticator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/protocol_version.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/stream.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/throttling_channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/viable_peer_registry.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/bus/server.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/bus/channel.cpp

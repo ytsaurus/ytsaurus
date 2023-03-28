@@ -47,7 +47,7 @@
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/rpc/dispatcher.h>
-#include <yt/yt/core/rpc/per_user_queues.h>
+#include <yt/yt/core/rpc/per_user_request_queue_provider.h>
 
 #include <yt/yt/core/ytree/request_complexity_limiter.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
@@ -182,7 +182,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetQueueSizeLimit(100'000)
             .SetConcurrencyLimit(100'000)
-            .SetRequestQueueProvider(ExecuteRequestQueue_.GetProvider())
+            .SetRequestQueueProvider(ExecuteRequestQueueProvider_)
             .SetCancelable(true)
             .SetInvoker(GetRpcInvoker())
             // NB: Execute request is always replied in heavy RPC invoker, so it should not be
@@ -225,7 +225,7 @@ private:
     class TExecuteSession;
     using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
 
-    TPerUserRequestQueues ExecuteRequestQueue_;
+    IRequestQueueProviderPtr ExecuteRequestQueueProvider_ = New<TPerUserRequestQueueProvider>();
 
     class TSessionScheduler;
 

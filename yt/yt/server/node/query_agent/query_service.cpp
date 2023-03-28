@@ -3,6 +3,7 @@
 #include "public.h"
 #include "private.h"
 #include "helpers.h"
+#include "multiread_request_queue_provider.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -70,7 +71,6 @@
 #include <yt/yt/core/misc/tls_cache.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
-#include <yt/yt/core/rpc/authentication_identity.h>
 
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
@@ -405,7 +405,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Multiread)
             .SetCancelable(true)
             .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker())
-            .SetRequestQueueProvider(BIND(&TQueryService::GetMultireadRequestQueue, Unretained(this))));
+            .SetRequestQueueProvider(MultireadRequestQueueProvider));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullRows)
             .SetCancelable(true)
             .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker()));
@@ -436,7 +436,7 @@ private:
     const IEvaluatorPtr Evaluator_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
     const TMemoryProviderMapByTagPtr MemoryProvider_ = New<TMemoryProviderMapByTag>();
-    const TRequestQueuePtr InMemoryMultireadRequestQueue_ = CreateRequestQueue("in_memory");
+    const IRequestQueueProviderPtr MultireadRequestQueueProvider = CreateMultireadRequestQueueProvider();
 
     std::atomic<bool> RejectUponThrottlerOverdraft_;
 
@@ -461,15 +461,6 @@ private:
         }
 
         return Bootstrap_->GetQueryPoolInvoker(poolName, poolWeight, tag);
-    }
-
-    TRequestQueue* GetMultireadRequestQueue(const NRpc::NProto::TRequestHeader& requestHeader)
-    {
-        const auto& ext = requestHeader.GetExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
-        auto inMemoryMode = FromProto<EInMemoryMode>(ext.in_memory_mode());
-        return inMemoryMode == EInMemoryMode::None
-            ? nullptr
-            : InMemoryMultireadRequestQueue_.Get();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
