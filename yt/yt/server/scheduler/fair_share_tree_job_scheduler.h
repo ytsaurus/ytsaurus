@@ -623,7 +623,7 @@ public:
     void EnableOperation(const TSchedulerOperationElement* element) const;
     void DisableOperation(TSchedulerOperationElement* element, bool markAsNonAlive) const;
 
-    void RegisterJobsFromRevivedOperation(TSchedulerOperationElement* element, const std::vector<TJobPtr>& jobs) const;
+    void RegisterJobsFromRevivedOperation(TSchedulerOperationElement* element, std::vector<TJobPtr> jobs) const;
     void ProcessUpdatedJob(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         TSchedulerOperationElement* element,

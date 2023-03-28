@@ -1007,16 +1007,15 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         THashMap<TString, std::vector<TJobPtr>> jobsByTreeId;
-
         for (const auto& job : jobs) {
             jobsByTreeId[job->GetTreeId()].push_back(job);
         }
 
-        for (const auto& [treeId, jobs] : jobsByTreeId) {
+        for (auto&& [treeId, jobs] : jobsByTreeId) {
             auto tree = FindTree(treeId);
             // NB: operation can be missing in tree since ban.
             if (tree && tree->HasOperation(operationId)) {
-                tree->RegisterJobsFromRevivedOperation(operationId, jobs);
+                tree->RegisterJobsFromRevivedOperation(operationId, std::move(jobs));
             } else {
                 YT_LOG_INFO("Jobs are not registered in tree since operation is missing (OperationId: %v, TreeId: %v)",
                     operationId,

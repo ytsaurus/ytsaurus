@@ -525,12 +525,12 @@ public:
         }
     }
 
-    void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs) override
+    void RegisterJobsFromRevivedOperation(TOperationId operationId, std::vector<TJobPtr> jobs) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto& element = FindOperationElement(operationId);
-        TreeScheduler_->RegisterJobsFromRevivedOperation(element.Get(), jobs);
+        TreeScheduler_->RegisterJobsFromRevivedOperation(element.Get(), std::move(jobs));
     }
 
     void RegisterNode(TNodeId nodeId) override

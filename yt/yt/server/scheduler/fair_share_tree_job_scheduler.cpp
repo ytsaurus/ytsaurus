@@ -2599,9 +2599,13 @@ void TFairShareTreeJobScheduler::DisableOperation(TSchedulerOperationElement* el
     element->ReleaseResources(markAsNonAlive);
 }
 
-void TFairShareTreeJobScheduler::RegisterJobsFromRevivedOperation(TSchedulerOperationElement* element, const std::vector<TJobPtr>& jobs) const
+void TFairShareTreeJobScheduler::RegisterJobsFromRevivedOperation(TSchedulerOperationElement* element, std::vector<TJobPtr> jobs) const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
+    SortBy(jobs, [] (const TJobPtr& job) {
+        return job->GetStartTime();
+    });
 
     const auto& operationSharedState = GetOperationSharedState(element->GetOperationId());
     for (const auto& job : jobs) {
