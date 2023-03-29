@@ -604,6 +604,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_rotator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_service.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/hive/cell_directory_synchronizer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/hive/cluster_directory_synchronizer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/orchid_server/cypress_integration.cpp

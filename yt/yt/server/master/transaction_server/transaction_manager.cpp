@@ -1,4 +1,5 @@
 #include "transaction_manager.h"
+
 #include "private.h"
 #include "config.h"
 #include "boomerang_tracker.h"
@@ -6,6 +7,7 @@
 #include "transaction_replication_session.h"
 #include "transaction.h"
 #include "transaction_proxy.h"
+#include "transaction_type_handler.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -102,69 +104,27 @@ using NTransactionSupervisor::NProto::NTransactionSupervisor::TRspAbortTransacti
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionManager::TTransactionTypeHandler
-    : public TObjectTypeHandlerWithMapBase<TTransaction>
-{
-public:
-    TTransactionTypeHandler(
-        TImpl* owner,
-        EObjectType objectType);
-
-    ETypeFlags GetFlags() const override
-    {
-        return ETypeFlags::None;
-    }
-
-    EObjectType GetType() const override
-    {
-        return ObjectType_;
-    }
-
-private:
-    const EObjectType ObjectType_;
-
-
-    TCellTagList DoGetReplicationCellTags(const TTransaction* transaction) override
-    {
-        return transaction->ReplicatedToCellTags();
-    }
-
-    IObjectProxyPtr DoGetProxy(TTransaction* transaction, TTransaction* /*dummyTransaction*/) override
-    {
-        return CreateTransactionProxy(Bootstrap_, &Metadata_, transaction);
-    }
-
-    TAccessControlDescriptor* DoFindAcd(TTransaction* transaction) override
-    {
-        return &transaction->Acd();
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTransactionManager::TImpl
+class TTransactionManager
     : public TMasterAutomatonPart
+    , public ITransactionManager
     , public TTransactionManagerBase<TTransaction>
 {
 public:
     //! Raised when a new transaction is started.
-    DEFINE_SIGNAL(void(TTransaction*), TransactionStarted);
+    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionStarted);
 
     //! Raised when a transaction is committed.
-    DEFINE_SIGNAL(void(TTransaction*), TransactionCommitted);
+    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionCommitted);
 
     //! Raised when a transaction is aborted.
-    DEFINE_SIGNAL(void(TTransaction*), TransactionAborted);
-
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TTransaction*>, NativeTopmostTransactions);
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TTransaction*>, NativeTransactions);
+    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionAborted);
 
     DEFINE_BYREF_RO_PROPERTY(TTransactionPresenceCachePtr, TransactionPresenceCache);
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Transaction, TTransaction);
 
 public:
-    explicit TImpl(TBootstrap* bootstrap)
+    explicit TTransactionManager(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::TransactionManager)
         , TransactionPresenceCache_(New<TTransactionPresenceCache>(Bootstrap_))
         , BoomerangTracker_(New<TBoomerangTracker>(Bootstrap_))
@@ -180,58 +140,58 @@ public:
 
         Logger = TransactionServerLogger;
 
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartForeignTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActions, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPrepareTransactionCommit, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitCypressTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortCypressTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraReplicateTransactions, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraNoteNoSuchTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraReturnBoomerang, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRemoveStuckBoomerangWaves, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraStartTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraStartForeignTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraRegisterTransactionActions, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraPrepareTransactionCommit, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraCommitTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraAbortTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraCommitCypressTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraAbortCypressTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraReplicateTransactions, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraNoteNoSuchTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraReturnBoomerang, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraRemoveStuckBoomerangWaves, Unretained(this)));
 
         RegisterLoader(
             "TransactionManager.Keys",
-            BIND(&TImpl::LoadKeys, Unretained(this)));
+            BIND(&TTransactionManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TransactionManager.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
+            BIND(&TTransactionManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TransactionManager.Keys",
-            BIND(&TImpl::SaveKeys, Unretained(this)));
+            BIND(&TTransactionManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TransactionManager.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND(&TTransactionManager::SaveValues, Unretained(this)));
     }
 
-    void Initialize()
+    void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND(&TTransactionManager::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::Transaction));
-        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::NestedTransaction));
-        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::ExternalizedTransaction));
-        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::ExternalizedNestedTransaction));
-        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::UploadTransaction));
-        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::UploadNestedTransaction));
-        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::AtomicTabletTransaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(Bootstrap_, EObjectType::Transaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(Bootstrap_, EObjectType::NestedTransaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(Bootstrap_, EObjectType::ExternalizedTransaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(Bootstrap_, EObjectType::ExternalizedNestedTransaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(Bootstrap_, EObjectType::UploadTransaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(Bootstrap_, EObjectType::UploadNestedTransaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(Bootstrap_, EObjectType::AtomicTabletTransaction));
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            BIND(&TTransactionManager::OnProfiling, MakeWeak(this)),
             TDynamicTransactionManagerConfig::DefaultProfilingPeriod);
         ProfilingExecutor_->Start();
     }
 
-    const TTransactionPresenceCachePtr& GetTransactionPresenceCache()
+    const TTransactionPresenceCachePtr& GetTransactionPresenceCache() override
     {
         return TransactionPresenceCache_;
     }
@@ -245,7 +205,7 @@ public:
         const std::optional<TString>& title,
         const IAttributeDictionary& attributes,
         bool isCypressTransaction,
-        TTransactionId hintId = NullTransactionId)
+        TTransactionId hintId = NullTransactionId) override
     {
         ValidateNativeTransactionStart(parent, prerequisiteTransactions);
 
@@ -267,7 +227,7 @@ public:
         const TCellTagList& replicatedToCellTags,
         std::optional<TDuration> timeout,
         const std::optional<TString>& title,
-        TTransactionId hintId)
+        TTransactionId hintId) override
     {
         ValidateUploadTransactionStart(hintId, parent);
 
@@ -490,6 +450,13 @@ public:
         return transaction;
     }
 
+    void CommitMasterTransaction(
+        TTransaction* transaction,
+        const TTransactionCommitOptions& options) override
+    {
+        CommitTransaction(transaction, options);
+    }
+
     void CommitTransaction(
         TTransaction* transaction,
         const TTransactionCommitOptions& options)
@@ -546,7 +513,7 @@ public:
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_commit_timestamp(options.CommitTimestamp);
-            const auto* mutationContext = NHydra::GetCurrentMutationContext();
+            const auto* mutationContext = GetCurrentMutationContext();
             request.set_native_commit_mutation_revision(mutationContext->GetVersion().ToRevision());
             multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
         }
@@ -555,7 +522,7 @@ public:
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
             request.set_commit_timestamp(options.CommitTimestamp);
-            const auto* mutationContext = NHydra::GetCurrentMutationContext();
+            const auto* mutationContext = GetCurrentMutationContext();
             request.set_native_commit_mutation_revision(mutationContext->GetVersion().ToRevision());
             multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
         }
@@ -617,10 +584,29 @@ public:
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
     }
 
+    void AbortMasterTransaction(
+        TTransaction* transaction,
+        const TTransactionAbortOptions& options) override
+    {
+        AbortTransaction(transaction, options);
+    }
+
+    void AbortTransaction(
+        TTransaction* transaction,
+        const TTransactionAbortOptions& options)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        AbortTransaction(
+            transaction,
+            options,
+            /*validatePermissions*/ true);
+    }
+
     void AbortTransaction(
         TTransaction* transaction,
         const TTransactionAbortOptions& options,
-        bool validatePermissions = true)
+        bool validatePermissions)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -723,7 +709,9 @@ public:
         return ExternalizeTransaction(transaction, dstCellTags);
     }
 
-    TTransactionId ExternalizeTransaction(TTransaction* transaction, TCellTagList dstCellTags)
+    TTransactionId ExternalizeTransaction(
+        TTransaction* transaction,
+        TCellTagList dstCellTags) override
     {
         if (!transaction) {
             return {};
@@ -844,7 +832,7 @@ public:
 
     TTransactionId GetNearestExternalizedTransactionAncestor(
         TTransaction* transaction,
-        TCellTag dstCellTag)
+        TCellTag dstCellTag) override
     {
         if (!transaction) {
             return {};
@@ -871,7 +859,7 @@ public:
         return {};
     }
 
-    TTransaction* GetTransactionOrThrow(TTransactionId transactionId)
+    TTransaction* GetTransactionOrThrow(TTransactionId transactionId) override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -882,7 +870,7 @@ public:
         return transaction;
     }
 
-    TFuture<TInstant> GetLastPingTime(const TTransaction* transaction)
+    TFuture<TInstant> GetLastPingTime(const TTransaction* transaction) override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -891,7 +879,7 @@ public:
 
     void SetTransactionTimeout(
         TTransaction* transaction,
-        TDuration timeout)
+        TDuration timeout) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -902,7 +890,7 @@ public:
         }
     }
 
-    void StageObject(TTransaction* transaction, TObject* object)
+    void StageObject(TTransaction* transaction, TObject* object) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -911,7 +899,10 @@ public:
         objectManager->RefObject(object);
     }
 
-    void UnstageObject(TTransaction* transaction, TObject* object, bool recursive)
+    void UnstageObject(
+        TTransaction* transaction,
+        TObject* object,
+        bool recursive) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -925,7 +916,7 @@ public:
         }
     }
 
-    void StageNode(TTransaction* transaction, TCypressNode* trunkNode)
+    void StageNode(TTransaction* transaction, TCypressNode* trunkNode) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
@@ -935,7 +926,7 @@ public:
         objectManager->RefObject(trunkNode);
     }
 
-    void ImportObject(TTransaction* transaction, TObject* object)
+    void ImportObject(TTransaction* transaction, TObject* object) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -945,7 +936,21 @@ public:
         object->ImportRefObject();
     }
 
-    void ExportObject(TTransaction* transaction, TObject* object, TCellTag destinationCellTag)
+    void RegisterTransactionActionHandlers(
+        const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
+        const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
+        const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor) override
+    {
+        TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(
+            prepareActionDescriptor,
+            commitActionDescriptor,
+            abortActionDescriptor);
+    }
+
+    void ExportObject(
+        TTransaction* transaction,
+        TObject* object,
+        TCellTag destinationCellTag) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -960,38 +965,40 @@ public:
 
     std::unique_ptr<TMutation> CreateStartTransactionMutation(
         TCtxStartTransactionPtr context,
-        const NTransactionServer::NProto::TReqStartTransaction& request)
+        const NTransactionServer::NProto::TReqStartTransaction& request) override
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             std::move(context),
             request,
-            &TImpl::HydraStartTransaction,
+            &TTransactionManager::HydraStartTransaction,
             this);
     }
 
-    std::unique_ptr<TMutation> CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context)
+    std::unique_ptr<TMutation> CreateRegisterTransactionActionsMutation(
+        TCtxRegisterTransactionActionsPtr context) override
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             std::move(context),
-            &TImpl::HydraRegisterTransactionActions,
+            &TTransactionManager::HydraRegisterTransactionActions,
             this);
     }
 
-    std::unique_ptr<TMutation> CreateReplicateTransactionsMutation(TCtxReplicateTransactionsPtr context)
+    std::unique_ptr<TMutation> CreateReplicateTransactionsMutation(
+        TCtxReplicateTransactionsPtr context) override
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             std::move(context),
-            &TImpl::HydraReplicateTransactions,
+            &TTransactionManager::HydraReplicateTransactions,
             this);
     }
 
     // ITransactionManager implementation.
     TFuture<void> GetReadyToPrepareTransactionCommit(
         const std::vector<TTransactionId>& prerequisiteTransactionIds,
-        const std::vector<TCellId>& cellIdsToSyncWith)
+        const std::vector<TCellId>& cellIdsToSyncWith) override
     {
         if (prerequisiteTransactionIds.empty() && cellIdsToSyncWith.empty()) {
             return VoidFuture;
@@ -1016,7 +1023,7 @@ public:
 
     void PrepareTransactionCommit(
         TTransactionId transactionId,
-        const TTransactionPrepareOptions& options)
+        const TTransactionPrepareOptions& options) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1075,7 +1082,9 @@ public:
             options.PrepareTimestampClusterTag);
     }
 
-    void PrepareTransactionAbort(TTransactionId transactionId, const TTransactionAbortOptions& options)
+    void PrepareTransactionAbort(
+        TTransactionId transactionId,
+        const TTransactionAbortOptions& options) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1111,7 +1120,7 @@ public:
     void CommitTransaction(
         TTransactionId transactionId,
         const TTransactionCommitOptions& options,
-        NHydra::TRevision nativeCommitMutationRevision)
+        TRevision nativeCommitMutationRevision)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1120,9 +1129,19 @@ public:
         CommitTransaction(transaction, options);
     }
 
+    void CommitTransaction(
+        TTransactionId transactionId,
+        const TTransactionCommitOptions& options) override
+    {
+        CommitTransaction(
+            transactionId,
+            options,
+            /*nativeCommitMutationRevision*/ NullRevision);
+    }
+
     void AbortTransaction(
         TTransactionId transactionId,
-        const TTransactionAbortOptions& options)
+        const TTransactionAbortOptions& options) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1132,14 +1151,14 @@ public:
 
     void PingTransaction(
         TTransactionId transactionId,
-        bool pingAncestors)
+        bool pingAncestors) override
     {
         VERIFY_THREAD_AFFINITY(TrackerThread);
 
         LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
-    bool CommitTransaction(TCtxCommitTransactionPtr context)
+    bool CommitTransaction(TCtxCommitTransactionPtr context) override
     {
         if (GetDynamicConfig()->IgnoreCypressTransactions) {
             return false;
@@ -1190,7 +1209,7 @@ public:
         } else {
             responseFuture = readyEvent.Apply(
                 BIND(
-                    &TTransactionManager::TImpl::DoCommitTransaction,
+                    &TTransactionManager::DoCommitTransaction,
                     MakeStrong(this),
                     transactionId,
                     prerequisiteTransactionIds)
@@ -1216,7 +1235,7 @@ public:
         auto asyncTimestamp = timestampProvider->GenerateTimestamps();
         return asyncTimestamp.Apply(
             BIND(
-                &TTransactionManager::TImpl::OnCommitTimestampGenerated,
+                &TTransactionManager::OnCommitTimestampGenerated,
                 MakeStrong(this),
                 transactionId,
                 prerequisiteTransactionIds)
@@ -1253,7 +1272,7 @@ public:
         }));
     }
 
-    bool AbortTransaction(TCtxAbortTransactionPtr context)
+    bool AbortTransaction(TCtxAbortTransactionPtr context) override
     {
         if (GetDynamicConfig()->IgnoreCypressTransactions) {
             return false;
@@ -1282,7 +1301,7 @@ public:
         return true;
     }
 
-    void CreateOrRefTimestampHolder(TTransactionId transactionId)
+    void CreateOrRefTimestampHolder(TTransactionId transactionId) override
     {
         if (auto it = TimestampHolderMap_.find(transactionId)) {
             ++it->second.RefCount;
@@ -1290,14 +1309,14 @@ public:
         TimestampHolderMap_.emplace(transactionId, TTimestampHolder{});
     }
 
-    void SetTimestampHolderTimestamp(TTransactionId transactionId, TTimestamp timestamp)
+    void SetTimestampHolderTimestamp(TTransactionId transactionId, TTimestamp timestamp) override
     {
         if (auto it = TimestampHolderMap_.find(transactionId)) {
             it->second.Timestamp = timestamp;
         }
     }
 
-    TTimestamp GetTimestampHolderTimestamp(TTransactionId transactionId)
+    TTimestamp GetTimestampHolderTimestamp(TTransactionId transactionId) override
     {
         if (auto it = TimestampHolderMap_.find(transactionId)) {
             return it->second.Timestamp;
@@ -1305,7 +1324,7 @@ public:
         return NullTimestamp;
     }
 
-    void UnrefTimestampHolder(TTransactionId transactionId)
+    void UnrefTimestampHolder(TTransactionId transactionId) override
     {
         if (auto it = TimestampHolderMap_.find(transactionId)) {
             --it->second.RefCount;
@@ -1313,6 +1332,21 @@ public:
                 TimestampHolderMap_.erase(it);
             }
         }
+    }
+
+    TEntityMap<TTransaction>* MutableTransactionMap() override
+    {
+        return &TransactionMap_;
+    }
+
+    const THashSet<TTransaction*>& NativeTransactions() const override
+    {
+        return NativeTransactions_;
+    }
+
+    const THashSet<TTransaction*>& NativeTopmostTransactions() const override
+    {
+        return NativeTopmostTransactions_;
     }
 
 private:
@@ -1348,9 +1382,12 @@ private:
 
     const ITransactionLeaseTrackerPtr LeaseTracker_;
 
-    NHydra::TEntityMap<TTransaction> TransactionMap_;
+    TEntityMap<TTransaction> TransactionMap_;
 
     THashMap<TTransactionId, TTimestampHolder> TimestampHolderMap_;
+
+    THashSet<TTransaction*> NativeTransactions_;
+    THashSet<TTransaction*> NativeTopmostTransactions_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(TrackerThread);
@@ -1810,8 +1847,8 @@ public:
         // Kill the fake reference thus destroying the object.
         objectManager->UnrefObject(transaction);
     }
-private:
 
+private:
     // Cf. TTransactionPresenceCache::GetTransactionPresence
     bool ShouldCacheTransactionPresence(TTransaction* transaction)
     {
@@ -2023,7 +2060,7 @@ private:
             GetObjectId(transaction->GetParent()),
             transaction->GetTimeout(),
             transaction->GetDeadline(),
-            BIND(&TImpl::OnTransactionExpired, MakeStrong(this))
+            BIND(&TTransactionManager::OnTransactionExpired, MakeStrong(this))
                 .Via(hydraFacade->GetEpochAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor)));
     }
 
@@ -2118,264 +2155,14 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager::TImpl, Transaction, TTransaction, TransactionMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TransactionMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactionManager::TTransactionTypeHandler::TTransactionTypeHandler(
-    TImpl* owner,
-    EObjectType objectType)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->TransactionMap_)
-    , ObjectType_(objectType)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTransactionManager::TTransactionManager(TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TTransactionManager::~TTransactionManager()
-{ }
-
-void TTransactionManager::Initialize()
+ITransactionManagerPtr CreateTransactionManager(TBootstrap* bootstrap)
 {
-    Impl_->Initialize();
+    return New<TTransactionManager>(bootstrap);
 }
-
-TTransaction* TTransactionManager::StartTransaction(
-    TTransaction* parent,
-    std::vector<TTransaction*> prerequisiteTransactions,
-    const TCellTagList& replicatedToCellTags,
-    std::optional<TDuration> timeout,
-    std::optional<TInstant> deadline,
-    const std::optional<TString>& title,
-    const IAttributeDictionary& attributes,
-    bool isCypressTransaction,
-    TTransactionId hintId)
-{
-    return Impl_->StartTransaction(
-        parent,
-        std::move(prerequisiteTransactions),
-        replicatedToCellTags,
-        timeout,
-        deadline,
-        title,
-        attributes,
-        isCypressTransaction,
-        hintId);
-}
-
-TTransaction* TTransactionManager::StartUploadTransaction(
-    TTransaction* parent,
-    const TCellTagList& replicatedToCellTags,
-    std::optional<TDuration> timeout,
-    const std::optional<TString>& title,
-    TTransactionId hintId)
-{
-    return Impl_->StartUploadTransaction(
-        parent,
-        replicatedToCellTags,
-        timeout,
-        title,
-        hintId);
-}
-
-void TTransactionManager::CommitTransaction(
-    TTransaction* transaction,
-    const TTransactionCommitOptions& options)
-{
-    Impl_->CommitTransaction(transaction, options);
-}
-
-void TTransactionManager::AbortTransaction(
-    TTransaction* transaction,
-    const TTransactionAbortOptions& options)
-{
-    Impl_->AbortTransaction(transaction, options);
-}
-
-TTransactionId TTransactionManager::ExternalizeTransaction(TTransaction* transaction, TCellTagList dstCellTags)
-{
-    return Impl_->ExternalizeTransaction(transaction, dstCellTags);
-}
-
-TTransactionId TTransactionManager::GetNearestExternalizedTransactionAncestor(
-    TTransaction* transaction,
-    TCellTag dstCellTag)
-{
-    return Impl_->GetNearestExternalizedTransactionAncestor(transaction, dstCellTag);
-}
-
-TTransaction* TTransactionManager::GetTransactionOrThrow(TTransactionId transactionId)
-{
-    return Impl_->GetTransactionOrThrow(transactionId);
-}
-
-TFuture<TInstant> TTransactionManager::GetLastPingTime(const TTransaction* transaction)
-{
-    return Impl_->GetLastPingTime(transaction);
-}
-
-void TTransactionManager::SetTransactionTimeout(
-    TTransaction* transaction,
-    TDuration timeout)
-{
-    Impl_->SetTransactionTimeout(transaction, timeout);
-}
-
-void TTransactionManager::StageObject(
-    TTransaction* transaction,
-    TObject* object)
-{
-    Impl_->StageObject(transaction, object);
-}
-
-void TTransactionManager::UnstageObject(
-    TTransaction* transaction,
-    TObject* object,
-    bool recursive)
-{
-    Impl_->UnstageObject(transaction, object, recursive);
-}
-
-void TTransactionManager::StageNode(
-    TTransaction* transaction,
-    TCypressNode* trunkNode)
-{
-    Impl_->StageNode(transaction, trunkNode);
-}
-
-void TTransactionManager::ExportObject(
-    TTransaction* transaction,
-    TObject* object,
-    TCellTag destinationCellTag)
-{
-    Impl_->ExportObject(transaction, object, destinationCellTag);
-}
-
-void TTransactionManager::ImportObject(
-    TTransaction* transaction,
-    TObject* object)
-{
-    Impl_->ImportObject(transaction, object);
-}
-
-void TTransactionManager::RegisterTransactionActionHandlers(
-    const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-    const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-    const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor)
-{
-    Impl_->RegisterTransactionActionHandlers(
-        prepareActionDescriptor,
-        commitActionDescriptor,
-        abortActionDescriptor);
-}
-
-std::unique_ptr<TMutation> TTransactionManager::CreateStartTransactionMutation(
-    TCtxStartTransactionPtr context,
-    const NProto::TReqStartTransaction& request)
-{
-    return Impl_->CreateStartTransactionMutation(std::move(context), request);
-}
-
-std::unique_ptr<TMutation> TTransactionManager::CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context)
-{
-    return Impl_->CreateRegisterTransactionActionsMutation(std::move(context));
-}
-
-std::unique_ptr<TMutation> TTransactionManager::CreateReplicateTransactionsMutation(TCtxReplicateTransactionsPtr context)
-{
-    return Impl_->CreateReplicateTransactionsMutation(std::move(context));
-}
-
-TFuture<void> TTransactionManager::GetReadyToPrepareTransactionCommit(
-    const std::vector<TTransactionId>& prerequisiteTransactionIds,
-    const std::vector<TCellId>& cellIdsToSyncWith)
-{
-    return Impl_->GetReadyToPrepareTransactionCommit(
-        prerequisiteTransactionIds,
-        cellIdsToSyncWith);
-}
-
-void TTransactionManager::PrepareTransactionCommit(
-    TTransactionId transactionId,
-    const TTransactionPrepareOptions& options)
-{
-    Impl_->PrepareTransactionCommit(transactionId, options);
-}
-
-void TTransactionManager::PrepareTransactionAbort(
-    TTransactionId transactionId,
-    const TTransactionAbortOptions& options)
-{
-    Impl_->PrepareTransactionAbort(transactionId, options);
-}
-
-void TTransactionManager::CommitTransaction(
-    TTransactionId transactionId,
-    const TTransactionCommitOptions& options)
-{
-    Impl_->CommitTransaction(transactionId, options, /*nativeCommitMutationRevision*/ NullRevision);
-}
-
-void TTransactionManager::AbortTransaction(
-    TTransactionId transactionId,
-    const TTransactionAbortOptions& options)
-{
-    Impl_->AbortTransaction(transactionId, options);
-}
-
-void TTransactionManager::PingTransaction(
-    TTransactionId transactionId,
-    bool pingAncestors)
-{
-    Impl_->PingTransaction(transactionId, pingAncestors);
-}
-
-bool TTransactionManager::CommitTransaction(
-    TCtxCommitTransactionPtr context)
-{
-    return Impl_->CommitTransaction(std::move(context));
-}
-
-bool TTransactionManager::AbortTransaction(
-    TCtxAbortTransactionPtr context)
-{
-    return Impl_->AbortTransaction(std::move(context));
-}
-
-void TTransactionManager::CreateOrRefTimestampHolder(TTransactionId transactionId)
-{
-    Impl_->CreateOrRefTimestampHolder(transactionId);
-}
-
-void TTransactionManager::SetTimestampHolderTimestamp(TTransactionId transactionId, TTimestamp timestamp)
-{
-    Impl_->SetTimestampHolderTimestamp(transactionId, timestamp);
-}
-
-TTimestamp TTransactionManager::GetTimestampHolderTimestamp(TTransactionId transactionId)
-{
-    return Impl_->GetTimestampHolderTimestamp(transactionId);
-}
-
-void TTransactionManager::UnrefTimestampHolder(TTransactionId transactionId)
-{
-    Impl_->UnrefTimestampHolder(transactionId);
-}
-
-const TTransactionPresenceCachePtr& TTransactionManager::GetTransactionPresenceCache()
-{
-    return Impl_->GetTransactionPresenceCache();
-}
-
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TTransactionManager, THashSet<TTransaction*>, NativeTopmostTransactions, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TTransactionManager, THashSet<TTransaction*>, NativeTransactions, *Impl_);
-DELEGATE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -28,9 +28,11 @@ struct ICypressNodeVisitor
 
 DEFINE_REFCOUNTED_TYPE(ICypressNodeVisitor)
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TraverseCypress(
     ICypressManagerPtr cypressManager,
-    NTransactionServer::TTransactionManagerPtr transactionManager,
+    NTransactionServer::ITransactionManagerPtr transactionManager,
     NObjectServer::IObjectManagerPtr objectManager,
     NSecurityServer::ISecurityManagerPtr securityManager,
     IInvokerPtr invoker,

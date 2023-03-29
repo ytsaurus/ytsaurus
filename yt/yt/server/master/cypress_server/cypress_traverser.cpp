@@ -37,7 +37,7 @@ class TCypressTraverser
 public:
     TCypressTraverser(
         ICypressManagerPtr cypressManager,
-        TTransactionManagerPtr transactionManager,
+        ITransactionManagerPtr transactionManager,
         IObjectManagerPtr objectManager,
         ISecurityManagerPtr securityManager,
         IInvokerPtr invoker,
@@ -67,7 +67,7 @@ public:
 
 private:
     const ICypressManagerPtr CypressManager_;
-    const TTransactionManagerPtr TransactionManager_;
+    const ITransactionManagerPtr TransactionManager_;
     const IObjectManagerPtr ObjectManager_;
     const ISecurityManagerPtr SecurityManager_;
     const IInvokerPtr Invoker_;
@@ -192,7 +192,7 @@ private:
 
 void TraverseCypress(
     ICypressManagerPtr cypressManager,
-    TTransactionManagerPtr transactionManager,
+    ITransactionManagerPtr transactionManager,
     IObjectManagerPtr objectManager,
     ISecurityManagerPtr securityManager,
     IInvokerPtr invoker,

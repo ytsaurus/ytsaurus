@@ -244,8 +244,7 @@ using namespace NDistributedThrottler;
 using namespace NZookeeperMaster;
 using namespace NZookeeperServer;
 
-using NTransactionServer::TTransactionManager;
-using NTransactionServer::TTransactionManagerPtr;
+using NTransactionServer::ITransactionManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -402,7 +401,7 @@ const ITabletNodeTrackerPtr& TBootstrap::GetTabletNodeTracker() const
     return TabletNodeTracker_;
 }
 
-const TTransactionManagerPtr& TBootstrap::GetTransactionManager() const
+const ITransactionManagerPtr& TBootstrap::GetTransactionManager() const
 {
     return TransactionManager_;
 }
@@ -862,7 +861,7 @@ void TBootstrap::DoInitialize()
 
     SecurityManager_ = CreateSecurityManager(this);
 
-    TransactionManager_ = New<TTransactionManager>(this);
+    TransactionManager_ = CreateTransactionManager(this);
 
     MaintenanceTracker_ = CreateMaintenanceTracker(this);
 

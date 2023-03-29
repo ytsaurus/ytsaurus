@@ -1751,7 +1751,7 @@ private:
                 NTransactionSupervisor::TTransactionAbortOptions options{
                     .Force = true
                 };
-                transactionManager->AbortTransaction(transaction, options);
+                transactionManager->AbortMasterTransaction(transaction, options);
             }
 
             UpdateNodeCounters(node, -1);

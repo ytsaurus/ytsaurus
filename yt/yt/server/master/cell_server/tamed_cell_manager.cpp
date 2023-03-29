@@ -2419,7 +2419,7 @@ private:
             .Force = true
         };
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->AbortTransaction(transaction, options);
+        transactionManager->AbortMasterTransaction(transaction, options);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction aborted (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),
