@@ -1056,7 +1056,7 @@ private:
                 RequestId_);
 
             if (Service_) {
-                Service_->HandleRequestCancelation(RequestId_);
+                Service_->HandleRequestCancellation(RequestId_);
             }
 
             {

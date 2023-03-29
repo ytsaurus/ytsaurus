@@ -336,7 +336,7 @@ private:
 
         void Cancel() override
         {
-            Service_->HandleRequestCancelation(RequestId_);
+            Service_->HandleRequestCancellation(RequestId_);
         }
 
         TFuture<void> SendStreamingPayload(const TStreamingPayload& payload) override

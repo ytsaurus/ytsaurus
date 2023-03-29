@@ -466,7 +466,7 @@ public:
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray message,
         NYT::NBus::IBusPtr replyBus) override;
-    void HandleRequestCancelation(TRequestId requestId) override;
+    void HandleRequestCancellation(TRequestId requestId) override;
     void HandleStreamingPayload(
         TRequestId requestId,
         const TStreamingPayload& payload) override;
@@ -797,7 +797,7 @@ protected:
 
     //! Part of #DoConfigure
     //! #DoConfigure configures already registered methods.
-    //! Configures sensor types for methods which will be registerd after this function call
+    //! Configures sensor types for methods which will be registered after this function call.
     void DoConfigureHistogramTimer(
         const TServiceCommonConfigPtr& configDefaults,
         const TServiceConfigPtr& config);

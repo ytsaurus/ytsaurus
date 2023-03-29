@@ -175,7 +175,7 @@ private:
             realmId,
             requestId);
 
-        service->HandleRequestCancelation(requestId);
+        service->HandleRequestCancellation(requestId);
     }
 
     void OnStreamingPayloadMessage(TSharedRefArray message)
@@ -207,7 +207,7 @@ private:
         if (attachments.empty()) {
             YT_LOG_WARNING("Streaming payload without attachments; canceling request (RequestId: %v)",
                 requestId);
-            service->HandleRequestCancelation(requestId);
+            service->HandleRequestCancellation(requestId);
             return;
         }
 
@@ -217,7 +217,7 @@ private:
             YT_LOG_WARNING("Streaming payload codec is not supported; canceling request (RequestId: %v, Codec: %v)",
                 requestId,
                 intCodec);
-            service->HandleRequestCancelation(requestId);
+            service->HandleRequestCancellation(requestId);
             return;
         }
 

@@ -303,7 +303,7 @@ struct IService
         NYT::NBus::IBusPtr replyBus) = 0;
 
     //! Handles request cancelation.
-    virtual void HandleRequestCancelation(
+    virtual void HandleRequestCancellation(
         TRequestId requestId) = 0;
 
     //! Enables passing streaming data from clients to the service.
@@ -340,4 +340,3 @@ struct THash<NYT::NRpc::TServiceId>
 #define SERVICE_INL_H_
 #include "service-inl.h"
 #undef SERVICE_INL_H_
-

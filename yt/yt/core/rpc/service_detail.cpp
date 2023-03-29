@@ -1738,7 +1738,7 @@ void TServiceBase::ConfigureRequestQueue(
     }
 }
 
-void TServiceBase::HandleRequestCancelation(TRequestId requestId)
+void TServiceBase::HandleRequestCancellation(TRequestId requestId)
 {
     SetActive();
 
