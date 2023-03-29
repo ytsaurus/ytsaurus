@@ -76,7 +76,7 @@ As a result, the `kubectl cluster-info` command should be executed successfully.
 #### Installing the operator
 
 1. Install the [helm utility](https://help.sh/docs/intro/install/).
-2. Download the chart `helm pull oci://docker.io/ytsaurus/top-chart --version 0.1.6 --untar'.
+2. Download the chart `helm pull oci://docker.io/ytsaurus/top-chart --version 0.1.6 --untar`.
 3. Install the `helm install ytsaurus ytop-chart/` operator.
 4. Check the result:
 
