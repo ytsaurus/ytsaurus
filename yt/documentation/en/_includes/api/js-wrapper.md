@@ -24,7 +24,7 @@ The library is written in CommonJS style: you can use it in a node or bundle dep
 
     yt.setup.setGlobalOption('timeout', 15000);
 
-    // Пример 1
+    // Example 1
     yt.v3.get({ path: '//sys/users/user/@' })
 
     yt.v3.get({
