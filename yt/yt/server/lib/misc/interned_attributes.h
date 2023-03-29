@@ -116,6 +116,7 @@
     XX(CurrentCommitRevision, current_commit_revision) \
     XX(CurrentMountTransactionId, current_mount_transaction_id) \
     XX(CustomProfilingTagFilter, custom_profiling_tag_filter) \
+    XX(CypressTransaction, cypress_transaction) \
     XX(DataCenter, data_center) \
     XX(DataWeight, data_weight) \
     XX(Deadline, deadline) \

@@ -91,6 +91,9 @@ public:
         TTransactionId transactionId,
         bool pingAncestors) override;
 
+    bool CommitTransaction(TCtxCommitTransactionPtr context) override;
+    bool AbortTransaction(TCtxAbortTransactionPtr context) override;
+
 public:
     TTransactionManager(
         TTransactionManagerConfigPtr config,

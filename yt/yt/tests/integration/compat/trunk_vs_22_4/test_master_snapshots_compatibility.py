@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (
     authors, create_tablet_cell_bundle, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells,
-    ls, get, set, retry)
+    ls, get, set, retry, start_transaction, commit_transaction, create, exists)
 
 from original_tests.yt.yt.tests.integration.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
@@ -78,6 +78,25 @@ def check_maintenance_flags():
     assert not get(f"//sys/cluster_nodes/{node}/@maintenance_requests")
 
 
+def check_cypress_transactions():
+    old_tx = start_transaction()
+    create("map_node", "//tmp/old", tx=old_tx)
+
+    yield
+
+    new_tx = start_transaction()
+    create("map_node", "//tmp/new", tx=new_tx)
+
+    assert not get(f"//sys/transactions/{old_tx}/@cypress_transaction")
+    assert get(f"//sys/transactions/{new_tx}/@cypress_transaction")
+
+    commit_transaction(old_tx)
+    commit_transaction(new_tx)
+
+    assert exists("//tmp/old")
+    assert exists("//tmp/new")
+
+
 class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
     # COMPAT(gepardo): Remove this after 22.4.
     USE_NATIVE_AUTH = False
@@ -86,7 +105,10 @@ class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
     @authors("gritukan", "kvk1920")
     @pytest.mark.timeout(150)
     def test(self):
-        CHECKER_LIST = [check_maintenance_flags] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
+        CHECKER_LIST = [
+            check_maintenance_flags,
+            check_cypress_transactions,
+        ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]
         for s in checker_state_list:

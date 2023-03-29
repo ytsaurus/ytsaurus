@@ -24,15 +24,16 @@ class TestMasterTransactions(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
 
-    @authors("babenko")
+    @authors("babenko", "gritukan")
     def test_simple1(self):
         tx = start_transaction()
 
-        assert exists("//sys/transactions/" + tx)
+        assert exists(f"//sys/transactions/{tx}")
+        assert get(f"//sys/transactions/{tx}/@cypress_transaction")
 
         commit_transaction(tx)
 
-        assert not exists("//sys/transactions/" + tx)
+        assert not exists(f"//sys/transactions/{tx}")
 
         # cannot commit committed transaction
         with pytest.raises(YtError):

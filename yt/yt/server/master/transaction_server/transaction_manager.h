@@ -57,7 +57,8 @@ public:
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,
         const NYTree::IAttributeDictionary& attributes,
-	    TTransactionId hintId = NullTransactionId);
+        bool isCypressTransaction,
+        TTransactionId hintId = NullTransactionId);
     TTransaction* StartUploadTransaction(
         TTransaction* parent,
         const NObjectClient::TCellTagList& replicatedToCellTags,
@@ -188,6 +189,9 @@ private:
     void PingTransaction(
         TTransactionId transactionId,
         bool pingAncestors) override;
+
+    bool CommitTransaction(TCtxCommitTransactionPtr context) override;
+    bool AbortTransaction(TCtxAbortTransactionPtr context) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransactionManager)

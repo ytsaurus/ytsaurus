@@ -68,6 +68,28 @@ struct ITransactionManager
     virtual void PingTransaction(
         TTransactionId transactionId,
         bool pingAncestors) = 0;
+
+    //! These methods allows to override Commit and Abort RPC calls for some
+    //! of the transactions (for example, Cypress transactions that does not require
+    //! 2PC for commit).
+    //! These methods either return false and default transaction supervisor logic
+    //! is used or return true and then transaction manager is responsible for request
+    //! handling.
+    // TODO(gritukan): Probably this will become obsolete once Cypress Proxy is implemented
+    // and all Cypress transactions are replicated to Sequoia.
+    using TCtxCommitTransaction = NRpc::TTypedServiceContext<
+        NProto::NTransactionSupervisor::TReqCommitTransaction,
+        NProto::NTransactionSupervisor::TRspCommitTransaction>;
+    using TCtxCommitTransactionPtr = TIntrusivePtr<TCtxCommitTransaction>;
+
+    virtual bool CommitTransaction(TCtxCommitTransactionPtr context) = 0;
+
+    using TCtxAbortTransaction = NRpc::TTypedServiceContext<
+        NProto::NTransactionSupervisor::TReqAbortTransaction,
+        NProto::NTransactionSupervisor::TRspAbortTransaction>;
+    using TCtxAbortTransactionPtr = TIntrusivePtr<TCtxAbortTransaction>;
+
+    virtual bool AbortTransaction(TCtxAbortTransactionPtr context) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionManager)

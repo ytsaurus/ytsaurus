@@ -1616,6 +1616,7 @@ void TClient::ExecuteTabletServiceRequest(
     transactionOptions.SuppressStartTimestampGeneration = true,
     transactionOptions.CoordinatorMasterCellTag = nativeCellTag;
     transactionOptions.ReplicateToMasterCellTags = TCellTagList{externalCellTag};
+    transactionOptions.StartCypressTransaction = false;
     auto asyncTransaction = StartNativeTransaction(
         NTransactionClient::ETransactionType::Master,
         transactionOptions);

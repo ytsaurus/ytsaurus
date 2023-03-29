@@ -75,6 +75,7 @@ private:
             /*deadline*/ std::nullopt,
             title,
             *attributes,
+            /*isSequoiaTransaction*/ false,
             transactionId);
         transaction->SetIsSequoiaTransaction(true);
         transaction->SequoiaWriteSet().CopyFrom(request->write_set());

@@ -46,6 +46,11 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
 
+    // COMPAT(gritukan): This is an emergency button to restore old master transactions
+    // behavior.
+    registrar.Parameter("ignore_cypress_transactions", &TThis::IgnoreCypressTransactions)
+        .Default(false);
+
     // COMPAT(shakurov): this is an emergency button for unforeseen circumstances.
     // To be removed once sharded transactions (a.k.a. v. 20.3) are stabilized.
     registrar.Parameter("enable_dedicated_upload_transaction_object_types", &TThis::EnableDedicatedUploadTransactionObjectTypes)

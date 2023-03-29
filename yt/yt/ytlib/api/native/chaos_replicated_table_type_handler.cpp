@@ -95,6 +95,7 @@ private:
         transactionAttributes->Set("title", Format("Creating %v", path));
         options.Attributes = std::move(transactionAttributes);
         options.SuppressStartTimestampGeneration = true;
+        options.StartCypressTransaction = false;
         return WaitFor(Client_->StartNativeTransaction(ETransactionType::Master, options))
             .ValueOrThrow();
     }

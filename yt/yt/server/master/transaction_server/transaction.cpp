@@ -95,6 +95,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, Depth_);
     Save(context, Upload_);
     Save(context, NativeCommitMutationRevision_);
+    Save(context, IsCypressTransaction_);
     Save(context, AccountResourceUsageLeases_);
     Save(context, IsSequoiaTransaction_);
     Save(context, SequoiaWriteSet_);
@@ -131,6 +132,12 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, Depth_);
     Load(context, Upload_);
     Load(context, NativeCommitMutationRevision_);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::CypressTransactions) {
+        Load(context, IsCypressTransaction_);
+    }
+
     Load(context, AccountResourceUsageLeases_);
     Load(context, IsSequoiaTransaction_);
     Load(context, SequoiaWriteSet_);

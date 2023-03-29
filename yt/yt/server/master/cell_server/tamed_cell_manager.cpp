@@ -2310,13 +2310,14 @@ private:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->StartTransaction(
-            nullptr /*parent*/,
-            {} /*prerequisiteTransactions*/,
+            /*parent*/ nullptr,
+            /*prerequisiteTransactions*/ {},
             secondaryCellTags,
-            std::nullopt /*timeout*/,
-            std::nullopt /*deadline*/,
+            /*timeout*/ std::nullopt,
+            /*deadline*/ std::nullopt,
             title,
-            EmptyAttributes());
+            EmptyAttributes(),
+            /*isCypressTransaction*/ false);
 
         YT_VERIFY(!cell->GetPrerequisiteTransaction(peerId));
         EmplaceOrCrash(TransactionToCellMap_, transaction, std::make_pair(cell, peerId));

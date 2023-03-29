@@ -591,6 +591,16 @@ public:
         LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
+    bool CommitTransaction(TCtxCommitTransactionPtr /*context*/)
+    {
+        return false;
+    }
+
+    bool AbortTransaction(TCtxAbortTransactionPtr /*context*/)
+    {
+        return false;
+    }
+
     void IncrementCommitSignature(TTransaction* transaction, TTransactionSignature delta)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1366,6 +1376,16 @@ void TTransactionManager::AbortTransaction(
 void TTransactionManager::PingTransaction(TTransactionId transactionId, bool pingAncestors)
 {
     Impl_->PingTransaction(transactionId, pingAncestors);
+}
+
+bool TTransactionManager::CommitTransaction(TCtxCommitTransactionPtr context)
+{
+    return Impl_->CommitTransaction(std::move(context));
+}
+
+bool TTransactionManager::AbortTransaction(TCtxAbortTransactionPtr context)
+{
+    return Impl_->AbortTransaction(std::move(context));
 }
 
 void TTransactionManager::IncrementCommitSignature(TTransaction* transaction, TTransactionSignature delta)

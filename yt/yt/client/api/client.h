@@ -485,6 +485,11 @@ struct TTransactionStartOptions
     //! Indicates the cells the transaction will be replicated to at the start. None by default,
     //! but usually the transaction will be able to be replicated at a later time on demand.
     std::optional<NObjectClient::TCellTagList> ReplicateToMasterCellTags;
+
+    //! Only for master transactions.
+    //! By default, all master transactions are Cypress expect for some
+    //! system ones (e.g. store flusher transactions).
+    bool StartCypressTransaction = true;
 };
 
 struct TTransactionAttachOptions

@@ -272,6 +272,16 @@ public:
         LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
+    bool CommitTransaction(TCtxCommitTransactionPtr /*context*/) override
+    {
+        return false;
+    }
+
+    bool AbortTransaction(TCtxAbortTransactionPtr /*context*/) override
+    {
+        return false;
+    }
+
     std::unique_ptr<TMutation> CreateRegisterTransactionActionsMutation(
         TCtxRegisterTransactionActionsPtr context) override
     {

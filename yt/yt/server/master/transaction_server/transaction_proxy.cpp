@@ -1,4 +1,5 @@
 #include "transaction_proxy.h"
+
 #include "transaction_manager.h"
 #include "transaction.h"
 
@@ -6,16 +7,17 @@
 
 #include <yt/yt/server/master/cypress_server/node.h>
 
-#include <yt/yt/server/lib/misc/interned_attributes.h>
-
 #include <yt/yt/server/master/security_server/account.h>
 #include <yt/yt/server/master/security_server/account_resource_usage_lease.h>
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
-#include <yt/yt/client/object_client/helpers.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -92,6 +94,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Deadline)
             .SetPresent(transaction->GetDeadline().operator bool()));
         descriptors->push_back(EInternedAttributeKey::Depth);
+        descriptors->push_back(EInternedAttributeKey::CypressTransaction);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -182,6 +185,11 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::CypressTransaction: {
+                BuildYsonFluently(consumer)
+                    .Value(transaction->GetIsCypressTransaction());
+                return true;
+            }
 
             default:
                 break;
@@ -548,7 +556,6 @@ private:
             [] (const TSessionPtr& session) {
                 return ConvertToYsonString(session->Value);
             });
-
     }
 };
 

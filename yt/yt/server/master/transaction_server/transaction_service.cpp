@@ -58,13 +58,17 @@ private:
         auto deadline = request->has_deadline() ? std::make_optional(FromProto<TInstant>(request->deadline())) : std::nullopt;
         auto title = request->has_title() ? std::make_optional(request->title()) : std::nullopt;
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
+        auto isCypressTransaction = request->is_cypress_transaction();
 
-        context->SetRequestInfo("ParentId: %v, PrerequisiteTransactionIds: %v, Timeout: %v, Title: %v, Deadline: %v",
+        context->SetRequestInfo(
+            "ParentId: %v, PrerequisiteTransactionIds: %v, Timeout: %v, "
+            "Title: %v, Deadline: %v, IsCypressTransaction: %v",
             parentId,
             prerequisiteTransactionIds,
             timeout,
             title,
-            deadline);
+            deadline,
+            isCypressTransaction);
 
         NTransactionServer::NProto::TReqStartTransaction hydraRequest;
         hydraRequest.mutable_attributes()->Swap(request->mutable_attributes());
@@ -79,6 +83,7 @@ private:
         if (title) {
             hydraRequest.set_title(*title);
         }
+        hydraRequest.set_is_cypress_transaction(isCypressTransaction);
         NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, context->GetAuthenticationIdentity());
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();

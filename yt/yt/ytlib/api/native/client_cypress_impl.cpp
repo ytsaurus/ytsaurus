@@ -216,6 +216,7 @@ protected:
         TTransactionStartOptions transactionOptions;
         transactionOptions.ParentId = options.TransactionId;
         transactionOptions.Attributes = std::move(transactionAttributes);
+        transactionOptions.StartCypressTransaction = false;
         auto transactionOrError = WaitFor(Client_->StartNativeTransaction(
             ETransactionType::Master,
             transactionOptions));

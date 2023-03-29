@@ -54,6 +54,8 @@ public:
     // There's no strong reason for this field to be persistent, but it may ease future debugging.
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, NativeCommitMutationRevision, NHydra::NullRevision);
 
+    DEFINE_BYVAL_RW_PROPERTY(bool, IsCypressTransaction);
+
     struct TExportEntry
     {
         NObjectServer::TObject* Object;

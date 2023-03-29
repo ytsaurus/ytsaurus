@@ -476,12 +476,15 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
+        // NB: Node lease transaction is not Cypress to avoid chicken and egg problem with
+        // Sequoia in future.
         TTransactionStartOptions options{
             .Timeout = Config_->LeaseTransactionTimeout,
             .PingPeriod = Config_->LeaseTransactionPingPeriod,
             .SuppressStartTimestampGeneration = true,
             .CoordinatorMasterCellTag = connection->GetPrimaryMasterCellTag(),
-            .ReplicateToMasterCellTags = connection->GetSecondaryMasterCellTags()
+            .ReplicateToMasterCellTags = connection->GetSecondaryMasterCellTags(),
+            .StartCypressTransaction = false,
         };
 
         auto attributes = CreateEphemeralAttributes();

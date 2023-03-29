@@ -32,6 +32,7 @@
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.h>
+#include <yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.pb.h>
 
 #include <yt/yt/server/master/object_server/attribute_set.h>
 #include <yt/yt/server/master/object_server/object.h>
@@ -45,10 +46,14 @@
 
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
+#include <yt/yt/client/hive/timestamp_map.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
+
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
 
@@ -59,6 +64,8 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/id_generator.h>
+
+#include <yt/yt/core/rpc/response_keeper.h>
 
 #include <yt/yt/core/ytree/attributes.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
@@ -89,6 +96,9 @@ using namespace NProfiling;
 using namespace NSequoiaClient;
 using namespace NSequoiaServer;
 using namespace NTransactionSupervisor;
+
+using NTransactionSupervisor::NProto::NTransactionSupervisor::TRspCommitTransaction;
+using NTransactionSupervisor::NProto::NTransactionSupervisor::TRspAbortTransaction;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,6 +186,8 @@ public:
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPrepareTransactionCommit, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitCypressTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortCypressTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraReplicateTransactions, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraNoteNoSuchTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraReturnBoomerang, Unretained(this)));
@@ -232,7 +244,8 @@ public:
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,
         const IAttributeDictionary& attributes,
-    TTransactionId hintId = NullTransactionId)
+        bool isCypressTransaction,
+        TTransactionId hintId = NullTransactionId)
     {
         ValidateNativeTransactionStart(parent, prerequisiteTransactions);
 
@@ -245,6 +258,7 @@ public:
             deadline,
             title,
             attributes,
+            isCypressTransaction,
             hintId);
     }
 
@@ -258,14 +272,15 @@ public:
         ValidateUploadTransactionStart(hintId, parent);
 
         return DoStartTransaction(
-            true /*upload*/,
+            /*upload*/ true,
             parent,
-            {} /*prerequisiteTransactions*/,
+            /*prerequisiteTransactions*/ {},
             replicatedToCellTags,
             timeout,
-            std::nullopt /*deadline*/,
+            /*deadline*/ std::nullopt,
             title,
             EmptyAttributes(),
+            /*isCypressTransaction*/ true,
             hintId);
     }
 
@@ -343,6 +358,7 @@ public:
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,
         const IAttributeDictionary& attributes,
+        bool isCypressTransaction,
         TTransactionId hintId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -401,7 +417,6 @@ public:
             prerequisiteTransaction->DependentTransactions().insert(transaction);
         }
 
-
         if (!native) {
             transaction->SetForeign();
         }
@@ -413,6 +428,8 @@ public:
         if (native) {
             transaction->SetDeadline(deadline);
         }
+
+        transaction->SetIsCypressTransaction(isCypressTransaction);
 
         if (IsLeader()) {
             CreateLease(transaction);
@@ -1004,6 +1021,15 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
+        PrepareTransactionCommit(transaction, options);
+    }
+
+    void PrepareTransactionCommit(
+        TTransaction* transaction,
+        const TTransactionPrepareOptions& options)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto persistent = options.Persistent;
 
         // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
@@ -1043,7 +1069,7 @@ public:
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %v@%v)",
-            transactionId,
+            transaction->GetId(),
             persistent,
             options.PrepareTimestamp,
             options.PrepareTimestampClusterTag);
@@ -1054,6 +1080,13 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
+        PrepareTransactionAbort(transaction, options);
+    }
+
+    void PrepareTransactionAbort(TTransaction* transaction, const TTransactionAbortOptions& options)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto force = options.Force;
 
         auto state = transaction->GetTransientState();
@@ -1072,7 +1105,7 @@ public:
         transaction->SetTransientState(ETransactionState::TransientAbortPrepared);
 
         YT_LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
-            transactionId);
+            transaction->GetId());
     }
 
     void CommitTransaction(
@@ -1104,6 +1137,149 @@ public:
         VERIFY_THREAD_AFFINITY(TrackerThread);
 
         LeaseTracker_->PingTransaction(transactionId, pingAncestors);
+    }
+
+    bool CommitTransaction(TCtxCommitTransactionPtr context)
+    {
+        if (GetDynamicConfig()->IgnoreCypressTransactions) {
+            return false;
+        }
+
+        const auto& request = context->Request();
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto* transaction = FindTransaction(transactionId);
+        if (!transaction || !transaction->GetIsCypressTransaction()) {
+            return false;
+        }
+
+        const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+        if (responseKeeper->TryReplyFrom(context)) {
+            return true;
+        }
+
+        auto participantCellIds = FromProto<std::vector<TCellId>>(request.participant_cell_ids());
+        auto force2PC = request.force_2pc();
+        if (request.force_2pc() || !participantCellIds.empty()) {
+            THROW_ERROR_EXCEPTION("Cypress transactions cannot be committed via 2PC")
+                << TErrorAttribute("transaction_id", transactionId)
+                << TErrorAttribute("force_2pc", force2PC)
+                << TErrorAttribute("participant_cell_ids", participantCellIds);
+        }
+
+        std::vector<TTransactionId> prerequisiteTransactionIds;
+        if (context->GetRequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
+            auto* prerequisitesExt = &context->GetRequestHeader().GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+            const auto& preprequisiteTransactions = prerequisitesExt->transactions();
+            prerequisiteTransactionIds.reserve(preprequisiteTransactions.size());
+            for (const auto& prerequisite : preprequisiteTransactions) {
+                prerequisiteTransactionIds.push_back(FromProto<TTransactionId>(prerequisite.transaction_id()));
+            }
+        }
+
+        auto readyEvent = GetReadyToPrepareTransactionCommit(
+            prerequisiteTransactionIds,
+            /*cellIdsToSyncWith*/ {});
+
+        TFuture<TSharedRefArray> responseFuture;
+        // Fast path.
+        if (readyEvent.IsSet() && readyEvent.Get().IsOK()) {
+            responseFuture = DoCommitTransaction(
+                transactionId,
+                prerequisiteTransactionIds,
+                /*prepareError*/ {});
+        } else {
+            responseFuture = readyEvent.Apply(
+                BIND(
+                    &TTransactionManager::TImpl::DoCommitTransaction,
+                    MakeStrong(this),
+                    transactionId,
+                    prerequisiteTransactionIds)
+                    .AsyncVia(EpochAutomatonInvoker_));
+        }
+
+        context->ReplyFrom(responseFuture);
+        return true;
+    }
+
+    TFuture<TSharedRefArray> DoCommitTransaction(
+        TTransactionId transactionId,
+        std::vector<TTransactionId> prerequisiteTransactionIds,
+        const TError& prepareError)
+    {
+        if (!prepareError.IsOK()) {
+            auto error = TError("Failed to get ready for transaction commit")
+                << prepareError;
+            return MakeFuture<TSharedRefArray>(error);
+        }
+
+        const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
+        auto asyncTimestamp = timestampProvider->GenerateTimestamps();
+        return asyncTimestamp.Apply(
+            BIND(
+                &TTransactionManager::TImpl::OnCommitTimestampGenerated,
+                MakeStrong(this),
+                transactionId,
+                prerequisiteTransactionIds)
+                .AsyncVia(EpochAutomatonInvoker_));
+    }
+
+    TFuture<TSharedRefArray> OnCommitTimestampGenerated(
+        TTransactionId transactionId,
+        std::vector<TTransactionId> prerequisiteTransactionIds,
+        const TErrorOr<TTimestamp>& timestampOrError)
+    {
+        if (!timestampOrError.IsOK()) {
+            auto error = TError("Failed to generate commit timestamp")
+                << timestampOrError;
+            return MakeFuture<TSharedRefArray>(TError(timestampOrError));
+        }
+
+        auto commitTimestamp = timestampOrError.Value();
+        YT_LOG_DEBUG("Commit timestamp generated for transaction "
+            "(TransactionId: %v, CommitTimestamp: %v)",
+            transactionId,
+            commitTimestamp);
+
+        NProto::TReqCommitCypressTransaction request;
+        ToProto(request.mutable_transaction_id(), transactionId);
+        request.set_commit_timestamp(commitTimestamp);
+        ToProto(request.mutable_prerequisite_transaction_ids(), prerequisiteTransactionIds);
+        WriteAuthenticationIdentityToProto(&request, NRpc::GetCurrentAuthenticationIdentity());
+
+        auto mutation = CreateMutation(HydraManager_, request);
+        mutation->SetCurrentTraceContext();
+        return mutation->Commit().Apply(BIND([=] (const TMutationResponse& rsp) {
+            return rsp.Data;
+        }));
+    }
+
+    bool AbortTransaction(TCtxAbortTransactionPtr context)
+    {
+        if (GetDynamicConfig()->IgnoreCypressTransactions) {
+            return false;
+        }
+
+        const auto& request = context->Request();
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto* transaction = FindTransaction(transactionId);
+        if (!transaction || !transaction->GetIsCypressTransaction()) {
+            return false;
+        }
+
+        const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+        if (responseKeeper->TryReplyFrom(context)) {
+            return true;
+        }
+
+        NProto::TReqAbortCypressTransaction req;
+        ToProto(req.mutable_transaction_id(), transactionId);
+        req.set_force(request.force());
+        WriteAuthenticationIdentityToProto(&req, NRpc::GetCurrentAuthenticationIdentity());
+
+        auto mutation = CreateMutation(HydraManager_, req);
+        mutation->SetCurrentTraceContext();
+        mutation->CommitAndReply(context);
+        return true;
     }
 
     void CreateOrRefTimestampHolder(TTransactionId transactionId)
@@ -1152,6 +1328,16 @@ private:
             Persist(context, RefCount);
         }
     };
+
+    using TCtxCommitCypressTransaction = NRpc::TTypedServiceContext<
+        NProto::TReqCommitCypressTransaction,
+        TRspCommitTransaction>;
+    using TCtxCommitCypressTransactionPtr = TIntrusivePtr<TCtxCommitCypressTransaction>;
+
+    using TCtxAbortCypressTransaction = NRpc::TTypedServiceContext<
+        NProto::TReqAbortCypressTransaction,
+        TRspCommitTransaction>;
+    using TCtxAbortCypressTransactionPtr = TIntrusivePtr<TCtxAbortCypressTransaction>;
 
     friend class TTransactionTypeHandler;
 
@@ -1233,14 +1419,17 @@ private:
             }
         }
 
-       auto* transaction = StartTransaction(
+        auto isCypressTransaction = request->is_cypress_transaction();
+
+        auto* transaction = StartTransaction(
             parent,
             prerequisiteTransactions,
             replicateToCellTags,
             timeout,
             deadline,
             title,
-            *attributes);
+            *attributes,
+            isCypressTransaction);
 
         auto id = transaction->GetId();
 
@@ -1284,15 +1473,18 @@ private:
             attributes->Set("operation_title", request->operation_title());
         }
 
+        auto isCypressTransaction = request->is_cypress_transaction();
+
         auto* transaction = DoStartTransaction(
             isUpload,
             parent,
-            {} /*prerequisiteTransactions*/,
-            {} /*replicatedToCellTags*/,
-            std::nullopt /*timeout*/,
-            std::nullopt /*deadline*/,
+            /*prerequisiteTransactions*/ {},
+            /*replicatedToCellTags*/ {},
+            /*timeout*/ std::nullopt,
+            /*deadline*/ std::nullopt,
             title,
             *attributes,
+            isCypressTransaction,
             hintId);
         YT_VERIFY(transaction->GetId() == hintId);
     }
@@ -1375,6 +1567,76 @@ private:
             .Force = request->force(),
         };
         AbortTransaction(transactionId, options);
+    }
+
+    void HydraCommitCypressTransaction(
+        const TCtxCommitCypressTransactionPtr& /*context*/,
+        NProto::TReqCommitCypressTransaction* request,
+        TRspCommitTransaction* response)
+    {
+        YT_VERIFY(HasHydraContext());
+
+        auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto* transaction = GetTransactionOrThrow(transactionId);
+
+        auto commitTimestamp = FromProto<TTimestamp>(request->commit_timestamp());
+        auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
+
+        try {
+            TTransactionPrepareOptions prepareOptions{
+                .Persistent = true,
+                .LatePrepare = true, // Technically true.
+                .PrepareTimestamp = commitTimestamp,
+                .PrepareTimestampClusterTag = Bootstrap_->GetPrimaryCellTag(),
+                .PrerequisiteTransactionIds = prerequisiteTransactionIds,
+            };
+            PrepareTransactionCommit(transaction, prepareOptions);
+
+            TTransactionCommitOptions commitOptions{
+                .CommitTimestamp = commitTimestamp,
+                .CommitTimestampClusterTag = Bootstrap_->GetPrimaryCellTag(),
+            };
+            CommitTransaction(transaction, commitOptions);
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Failed to commit transaction, aborting (TransactionId: %v)",
+                transactionId);
+
+            TTransactionAbortOptions abortOptions{
+                .Force = true,
+            };
+            AbortTransaction(transaction, abortOptions);
+
+            throw;
+        }
+
+        TTimestampMap timestampMap;
+        timestampMap.Timestamps.emplace_back(Bootstrap_->GetPrimaryCellTag(), commitTimestamp);
+        ToProto(response->mutable_commit_timestamps(), timestampMap);
+    }
+
+    void HydraAbortCypressTransaction(
+        const TCtxAbortCypressTransactionPtr& /*context*/,
+        NProto::TReqAbortCypressTransaction* request,
+        TRspAbortTransaction* /*response*/)
+    {
+        YT_VERIFY(HasHydraContext());
+
+        auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto* transaction = GetTransactionOrThrow(transactionId);
+
+        auto force = request->force();
+
+        TTransactionAbortOptions abortOptions{
+            .Force = force,
+        };
+        PrepareTransactionAbort(transaction, abortOptions);
+        AbortTransaction(transaction, abortOptions);
     }
 
     void HydraReplicateTransactions(
@@ -1782,8 +2044,36 @@ private:
             return;
         }
 
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        transactionSupervisor->AbortTransaction(transactionId)
+        TFuture<void> abortFuture;
+        if (transaction->GetIsCypressTransaction()) {
+            NProto::TReqAbortCypressTransaction request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_force(false);
+            WriteAuthenticationIdentityToProto(&request, NRpc::GetRootAuthenticationIdentity());
+
+            auto mutation = CreateMutation(HydraManager_, request);
+            abortFuture = mutation->Commit().Apply(BIND([=] (const TErrorOr<TMutationResponse>& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    return MakeFuture<void>(rspOrError);
+                }
+
+                const auto& rsp = rspOrError.Value();
+
+                NRpc::NProto::TResponseHeader header;
+                YT_VERIFY(NRpc::TryParseResponseHeader(rsp.Data, &header));
+                if (header.has_error()) {
+                    auto error = FromProto<TError>(header.error());
+                    return MakeFuture<void>(error);
+                }
+
+                return VoidFuture;
+            }));
+        } else {
+            const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+            abortFuture = transactionSupervisor->AbortTransaction(transactionId);
+        }
+
+        abortFuture
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
                 if (!error.IsOK()) {
                     YT_LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
@@ -1861,6 +2151,7 @@ TTransaction* TTransactionManager::StartTransaction(
     std::optional<TInstant> deadline,
     const std::optional<TString>& title,
     const IAttributeDictionary& attributes,
+    bool isCypressTransaction,
     TTransactionId hintId)
 {
     return Impl_->StartTransaction(
@@ -1871,6 +2162,7 @@ TTransaction* TTransactionManager::StartTransaction(
         deadline,
         title,
         attributes,
+        isCypressTransaction,
         hintId);
 }
 
@@ -2039,6 +2331,18 @@ void TTransactionManager::PingTransaction(
     bool pingAncestors)
 {
     Impl_->PingTransaction(transactionId, pingAncestors);
+}
+
+bool TTransactionManager::CommitTransaction(
+    TCtxCommitTransactionPtr context)
+{
+    return Impl_->CommitTransaction(std::move(context));
+}
+
+bool TTransactionManager::AbortTransaction(
+    TCtxAbortTransactionPtr context)
+{
+    return Impl_->AbortTransaction(std::move(context));
 }
 
 void TTransactionManager::CreateOrRefTimestampHolder(TTransactionId transactionId)

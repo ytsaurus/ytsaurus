@@ -62,6 +62,8 @@ public:
 
     TDuration ProfilingPeriod;
 
+    bool IgnoreCypressTransactions;
+
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 
     static void Register(TRegistrar registrar);

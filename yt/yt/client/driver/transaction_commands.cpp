@@ -52,6 +52,8 @@ TStartTransactionCommand::TStartTransactionCommand()
         .Optional();
     RegisterParameter("replicate_to_master_cell_tags", Options.ReplicateToMasterCellTags)
         .Optional();
+    RegisterParameter("start_cypress_transaction", Options.StartCypressTransaction)
+        .Optional();
 }
 
 void TStartTransactionCommand::DoExecute(ICommandContextPtr context)
