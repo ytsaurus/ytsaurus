@@ -17,13 +17,13 @@ struct TProtobufWriterOptions
     //! are translated into Protobuf unknown fields (each has number UnknownYsonFieldNumber
     //! and is a key-value pair with field name being its key and YSON being the value).
     //!
-    //! Skip: all unknown fields are silently skipped;
+    //! Skip: all unknown fields are silently skipped.
     //!
     //! Fail: an exception is thrown whenever an unknown field is found.
     //!
     //! Forward: current key/index is kept, the children are considered by resolver recursively.
     //! Forward in a scalar leaf is interpreted as a Fail.
-    using TUnknownYsonFieldModeResolver = std::function<EUnknownYsonFieldsMode(const NYPath::TYPath& /*path*/)>;
+    using TUnknownYsonFieldModeResolver = std::function<EUnknownYsonFieldsMode(const NYPath::TYPath&)>;
 
     static TUnknownYsonFieldModeResolver CreateConstantUnknownYsonFieldModeResolver(EUnknownYsonFieldsMode mode);
 

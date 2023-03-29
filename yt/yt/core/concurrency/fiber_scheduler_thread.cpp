@@ -403,7 +403,7 @@ private:
         });
         thread.join();
     #else
-        // Starting threads in exit handlers on Windows causes immidiate calling exit
+        // Starting threads in exit handlers on Windows causes immediate calling exit
         // so the routine will not be executed. Moreover, if we try to join this thread we'll get deadlock
         // because this thread will try to acquire atexit lock which is owned by this thread.
         destroy_fibers_impl();

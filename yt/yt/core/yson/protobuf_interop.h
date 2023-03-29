@@ -151,7 +151,7 @@ struct TProtobufParserOptions
 //! Parses a byte sequence and translates it into IYsonConsumer calls.
 /*!
  *  IMPORTANT! Due to performance reasons the implementation currently assumes
- *  that the byte sequence obeys the following additional condition (not enfored
+ *  that the byte sequence obeys the following additional condition (not enforced
  *  by protobuf wire format as it is): for each repeated field, its occurrences
  *  are sequential. This property is always true for byte sequences produced
  *  from message classes.
