@@ -1964,6 +1964,7 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/replaceRegexpOne.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/replicate.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/reverse.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/reverseDNSQuery.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/reverseUTF8.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/right.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/roundAge.cpp
