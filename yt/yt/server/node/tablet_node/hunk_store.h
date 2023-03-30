@@ -16,9 +16,6 @@ class THunkStore
     , public TRefCounted
 {
 public:
-    // Transient state.
-    DEFINE_BYVAL_RW_PROPERTY(EHunkStoreState, State, EHunkStoreState::Undefined);
-
     DEFINE_BYVAL_RW_PROPERTY(bool, MarkedSealable);
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
@@ -26,6 +23,9 @@ public:
 
 public:
     THunkStore(TStoreId storeId, THunkTablet* tablet);
+
+    EHunkStoreState GetState() const;
+    void SetState(EHunkStoreState newState);
 
     TFuture<std::vector<NJournalClient::TJournalHunkDescriptor>> WriteHunks(
         std::vector<TSharedRef> payloads);
@@ -51,6 +51,9 @@ private:
     const THunkTablet* const Tablet_;
 
     const NLogging::TLogger Logger;
+
+    // Transient state.
+    EHunkStoreState State_;
 
     THashMap<TTabletId, int> TabletIdToLockCount_;
 

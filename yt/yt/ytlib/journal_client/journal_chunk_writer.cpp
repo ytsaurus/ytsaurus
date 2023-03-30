@@ -70,6 +70,15 @@ public:
             .Run();
     }
 
+    TFuture<void> Close() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return BIND(&TJournalChunkWriter::DoClose, MakeStrong(this))
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
     TFuture<void> WriteRecord(TSharedRef record) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -159,6 +168,8 @@ private:
     i64 FirstPendingRecordIndex_ = 0;
 
     i64 NextRecordIndex_ = 0;
+
+    bool Closed_ = false;
 
     void DoOpen()
     {
@@ -386,6 +397,11 @@ private:
             return MakeFuture<void>(Error_);
         }
 
+        if (Closed_) {
+            auto error = TError("Journal chunk writer was closed");
+            return MakeFuture<void>(error);
+        }
+
         auto record = CreateRecord(std::move(data));
         PendingRecords_.push_back(record);
 
@@ -574,6 +590,8 @@ private:
         for (const auto& record : PendingRecords_) {
             record->QuorumFlushedPromise.TrySet(error);
         }
+
+        OnWriterFinished();
     }
 
     void OnCloseDemanded()
@@ -583,6 +601,29 @@ private:
         if (!IsCloseDemanded_.exchange(true)) {
             YT_LOG_DEBUG("Journal chunk writer close demanded");
         }
+    }
+
+    void DoClose()
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        YT_LOG_DEBUG("Closing journal chunk writer");
+
+        OnWriterFinished();
+    }
+
+    void OnWriterFinished()
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        for (auto& node : Nodes_) {
+            if (node->PingExecutor) {
+                Y_UNUSED(node->PingExecutor->Stop());
+                node->PingExecutor.Reset();
+            }
+        }
+
+        YT_LOG_DEBUG("Journal chunk writer finished");
     }
 
     TRecordPtr CreateRecord(TSharedRef data)

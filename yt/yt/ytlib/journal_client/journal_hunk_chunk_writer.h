@@ -45,6 +45,7 @@ struct IJournalHunkChunkWriter
     : public TRefCounted
 {
     virtual TFuture<void> Open() = 0;
+    virtual TFuture<void> Close() = 0;
 
     virtual TFuture<std::vector<TJournalHunkDescriptor>> WriteHunks(
         std::vector<TSharedRef> payloads) = 0;
