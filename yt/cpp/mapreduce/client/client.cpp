@@ -1227,6 +1227,7 @@ TYtPoller& TClient::GetYtPoller()
 {
     auto g = Guard(YtPollerLock_);
     if (!YtPoller_) {
+        CheckShutdown();
         // We don't use current client and create new client because YtPoller_ might use
         // this client during current client shutdown.
         // That might lead to incrementing of current client refcount and double delete of current client object.
