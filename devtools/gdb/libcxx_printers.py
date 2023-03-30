@@ -573,7 +573,7 @@ class StdBitsetPrinter:
         word_index = 0
         result = []
 
-        for word_index in xrange(words_count):
+        for word_index in range(words_count):
             if words_count > 1:
                 word = words[word_index]
 
@@ -602,7 +602,7 @@ class StdSetPrinter:
             return len(self.rbiter)
 
         def __next__(self):
-            item = self.rbiter.next()
+            item = next(self.rbiter)
             item = item.dereference()['__value_']
             result = (('[%d]' % self.count), item)
             self.count += 1
@@ -692,7 +692,7 @@ class StdMapPrinter:
             return len(self.rbiter)
 
         def __next__(self):
-            item = self.rbiter.next()
+            item = next(self.rbiter)
             item = item.dereference()['__value_']
             result = ('[%d] %s' % (self.count, str(item['__cc']['first'])), item['__cc']['second'])
             self.count += 1
@@ -893,7 +893,7 @@ class StdVariantPrinter(object):
         if index < 20000000000000000:
             self.itemtype = val.type.template_argument(index)
             x = impl['__data']
-            for i in xrange(index):
+            for i in range(index):
                 x = x['__tail']
             self.item = x['__head']['__value']
         else:

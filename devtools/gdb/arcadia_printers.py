@@ -117,7 +117,7 @@ class THashMapPrinter(object):
             self.typename, self.val['rep']['num_elements']))
 
     def display_value(self, cnt, val):
-        return (('[%s] %s' % (cnt, val['first'])).encode('utf-8'), val['second'])
+        return ('[%s] %s' % (cnt, val['first']), val['second'])
 
     def children(self):
         return self._iterator(self, self.val['rep']['buckets'])

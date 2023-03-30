@@ -8,7 +8,8 @@ import yatest.common as yc
 
 import re
 
-gdbpath = yc.gdb_path()
+gdbdir = os.path.dirname(os.path.dirname(yc.gdb_path()))
+gdbpath = gdbdir + '/bin/bin_gdb/gdb'
 gdbinit = yc.source_path('devtools/gdb/__init__.py')
 gdbtest = yc.binary_path('devtools/gdb/test/gdbtest/gdbtest')
 
@@ -22,11 +23,11 @@ def gdb(*commands):
         cmd += ['-ex', c]
     cmd += [gdbtest]
     env = os.environ
+    env['PYTHONHOME'] = gdbdir
+    env['PYTHONPATH'] = gdbdir + '/share/gdb/python'
     # strings are not printed correctly in gdb overwise.
     env['LC_ALL'] = 'en_US.UTF-8'
     out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, env=env)
-    # XXX: remove assert, this check does not always pass
-    # assert 'Python Exception' not in out
     return out
 
 

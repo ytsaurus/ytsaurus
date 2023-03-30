@@ -449,7 +449,7 @@ class IpV6(object):
         bytes_value = self.value.cast(self.bytes_type)
         self.addr = ''.join(
             chr(bytes_value[_])
-            for _ in reversed(xrange(16))
+            for _ in reversed(range(16))
         )
 
     def __str__(self):
