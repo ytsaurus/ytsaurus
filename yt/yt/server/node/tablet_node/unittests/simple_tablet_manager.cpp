@@ -25,7 +25,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleTabletManager::TSimpleTabletManager(
-    TTransactionManagerPtr transactionManager,
+    ITransactionManagerPtr transactionManager,
     ISimpleHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
     IInvokerPtr automatonInvoker)
@@ -165,7 +165,7 @@ const NHydra::TReadOnlyEntityMap<TTablet>& TSimpleTabletManager::Tablets() const
     return TabletMap_;
 }
 
-TTransactionManagerPtr TSimpleTabletManager::GetTransactionManager() const
+ITransactionManagerPtr TSimpleTabletManager::GetTransactionManager() const
 {
     return TransactionManager_;
 }

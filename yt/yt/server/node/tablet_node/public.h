@@ -88,7 +88,7 @@ enum class ETabletReign;
 using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext, ETabletReign>;
 
 DECLARE_REFCOUNTED_CLASS(TTabletManager)
-DECLARE_REFCOUNTED_CLASS(TTransactionManager)
+DECLARE_REFCOUNTED_STRUCT(ITransactionManager)
 DECLARE_REFCOUNTED_STRUCT(ITabletCellWriteManager)
 DECLARE_REFCOUNTED_STRUCT(ITabletCellWriteManagerHost)
 DECLARE_REFCOUNTED_STRUCT(ITabletWriteManager)

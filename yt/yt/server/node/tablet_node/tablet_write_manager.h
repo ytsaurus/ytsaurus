@@ -15,7 +15,7 @@ struct ITabletWriteManagerHost
     //! This method is called whenever a (sorted) tablet row is being unlocked.
     virtual void OnTabletRowUnlocked(TTablet* tablet) = 0;
 
-    virtual TTransactionManagerPtr GetTransactionManager() const = 0;
+    virtual ITransactionManagerPtr GetTransactionManager() const = 0;
     virtual TTabletManagerConfigPtr GetConfig() const = 0;
 
     virtual NHydra::ISimpleHydraManagerPtr GetHydraManager() const = 0;

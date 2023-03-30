@@ -41,152 +41,121 @@ DEFINE_REFCOUNTED_TYPE(ITransactionManagerHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionManager
+struct ITransactionManager
     : public NTransactionSupervisor::ITransactionManager
 {
-public:
     //! Raised when a new transaction is started.
-    DECLARE_SIGNAL(void(TTransaction*), TransactionStarted);
+    DECLARE_INTERFACE_SIGNAL(void(TTransaction*), TransactionStarted);
 
     //! Raised when a transaction is prepared.
-    DECLARE_SIGNAL(void(TTransaction*, bool), TransactionPrepared);
+    DECLARE_INTERFACE_SIGNAL(void(TTransaction*, bool), TransactionPrepared);
 
     //! Raised when a transaction is committed.
-    DECLARE_SIGNAL(void(TTransaction*), TransactionCommitted);
+    DECLARE_INTERFACE_SIGNAL(void(TTransaction*), TransactionCommitted);
 
     //! Raised when a transaction is serialized by a barrier.
-    DECLARE_SIGNAL(void(TTransaction*), TransactionSerialized);
+    DECLARE_INTERFACE_SIGNAL(void(TTransaction*), TransactionSerialized);
 
     //! Raised just before TransactionSerialized.
-    DECLARE_SIGNAL(void(TTransaction*), BeforeTransactionSerialized);
+    DECLARE_INTERFACE_SIGNAL(void(TTransaction*), BeforeTransactionSerialized);
 
     //! Raised when a transaction is aborted.
-    DECLARE_SIGNAL(void(TTransaction*), TransactionAborted);
+    DECLARE_INTERFACE_SIGNAL(void(TTransaction*), TransactionAborted);
 
     //! Raised when transaction barrier is promoted.
-    DECLARE_SIGNAL(void(TTimestamp), TransactionBarrierHandled);
+    DECLARE_INTERFACE_SIGNAL(void(TTimestamp), TransactionBarrierHandled);
 
     //! Raised on epoch finish for each transaction (both persistent and transient)
     //! to help all dependent subsystems to reset their transient transaction-related
     //! state.
-    DECLARE_SIGNAL(void(TTransaction*), TransactionTransientReset);
-
-    /// ITransactionManager overrides.
-    TFuture<void> GetReadyToPrepareTransactionCommit(
-        const std::vector<TTransactionId>& prerequisiteTransactionIds,
-        const std::vector<TCellId>& cellIdsToSyncWith) override;
-    void PrepareTransactionCommit(
-        TTransactionId transactionId,
-        const NTransactionSupervisor::TTransactionPrepareOptions& options) override;
-    void PrepareTransactionAbort(
-        TTransactionId transactionId,
-        const NTransactionSupervisor::TTransactionAbortOptions& options) override;
-    void CommitTransaction(
-        TTransactionId transactionId,
-        const NTransactionSupervisor::TTransactionCommitOptions& options) override;
-    void AbortTransaction(
-        TTransactionId transactionId,
-        const NTransactionSupervisor::TTransactionAbortOptions& options) override;
-    void PingTransaction(
-        TTransactionId transactionId,
-        bool pingAncestors) override;
-
-    bool CommitTransaction(TCtxCommitTransactionPtr context) override;
-    bool AbortTransaction(TCtxAbortTransactionPtr context) override;
-
-public:
-    TTransactionManager(
-        TTransactionManagerConfigPtr config,
-        ITransactionManagerHostPtr host,
-        NApi::TClusterTag clockClusterTag,
-        NTransactionSupervisor::ITransactionLeaseTrackerPtr transactionLeaseTracker);
-    ~TTransactionManager();
+    DECLARE_INTERFACE_SIGNAL(void(TTransaction*), TransactionTransientReset);
 
     //! Finds transaction by id.
     //! If it does not exist then creates a new transaction
     //! (either persistent or transient, depending on #transient).
     //! Throws if tablet cell is decommissioned or suspended.
     //! \param fresh An out-param indicating if the transaction was just-created.
-    TTransaction* GetOrCreateTransactionOrThrow(
+    virtual TTransaction* GetOrCreateTransactionOrThrow(
         TTransactionId transactionId,
         TTimestamp startTimestamp,
         TDuration timeout,
         bool transient,
-        bool* fresh = nullptr);
+        bool* fresh = nullptr) = 0;
 
     //! Finds a transaction by id.
     //! If a persistent instance is found, just returns it.
     //! If a transient instance is found or no transaction is found
     //! returns |nullptr|.
-    TTransaction* FindPersistentTransaction(TTransactionId transcationId);
+    virtual TTransaction* FindPersistentTransaction(TTransactionId transcationId) = 0;
 
     //! Finds a transaction by id.
     //! If a persistent instance is found, just returns it.
     //! Fails if a transient instance is found or no transaction is found.
-    TTransaction* GetPersistentTransaction(TTransactionId transactionId);
+    virtual TTransaction* GetPersistentTransaction(TTransactionId transactionId) = 0;
 
     //! Finds a transaction by id.
     //! If a persistent instance is found, just returns it.
     //! If a transient instance is found, makes is persistent and returns it.
     //! Fails if no transaction is found.
     //! Throws if tablet cell is decommissioned or suspended.
-    TTransaction* MakeTransactionPersistentOrThrow(TTransactionId transactionId);
+    virtual TTransaction* MakeTransactionPersistentOrThrow(TTransactionId transactionId) = 0;
 
     //! Removes a given #transaction, which must be transient.
-    void DropTransaction(TTransaction* transaction);
+    virtual void DropTransaction(TTransaction* transaction) = 0;
 
     //! Returns the full list of transactions, including transient and persistent.
-    std::vector<TTransaction*> GetTransactions();
+    virtual std::vector<TTransaction*> GetTransactions() = 0;
 
     //! Schedules a mutation that creates a given transaction (if missing) and
     //! registers a set of actions.
-    TFuture<void> RegisterTransactionActions(
+    virtual TFuture<void> RegisterTransactionActions(
         TTransactionId transactionId,
         TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
         TTransactionSignature signature,
-        ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions);
+        ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions) = 0;
 
-    void RegisterTransactionActionHandlers(
+    virtual void RegisterTransactionActionHandlers(
         const NTransactionSupervisor::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
         const NTransactionSupervisor::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-        const NTransactionSupervisor::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor);
+        const NTransactionSupervisor::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor) = 0;
 
-    void RegisterTransactionActionHandlers(
+    virtual void RegisterTransactionActionHandlers(
         const NTransactionSupervisor::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
         const NTransactionSupervisor::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
         const NTransactionSupervisor::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor,
-        const NTransactionSupervisor::TTransactionSerializeActionHandlerDescriptor<TTransaction>& serializeActionDescriptor);
+        const NTransactionSupervisor::TTransactionSerializeActionHandlerDescriptor<TTransaction>& serializeActionDescriptor) = 0;
 
     //! Increases transaction commit signature.
     // NB: After incrementing transaction may become committed and destroyed.
-    void IncrementCommitSignature(TTransaction* transaction, TTransactionSignature delta);
+    virtual void IncrementCommitSignature(TTransaction* transaction, TTransactionSignature delta) = 0;
 
-    TTimestamp GetMinPrepareTimestamp();
-    TTimestamp GetMinCommitTimestamp();
+    virtual TTimestamp GetMinPrepareTimestamp() const = 0;
+    virtual TTimestamp GetMinCommitTimestamp() const = 0;
 
-    void SetDecommission(bool decommission);
-    bool GetDecommission() const;
-    void SetRemoving();
+    virtual void SetDecommission(bool decommission) = 0;
+    virtual bool GetDecommission() const = 0;
+    virtual void SetRemoving() = 0;
 
     //! Returns true if transaction manager is decommissioned and threre are
     //! no alive transactions in it, so tablet cell can be safely removed.
-    bool IsDecommissioned() const;
-
-    void AddTransientAffectedTablet(TTransaction* transaction, TTablet* tablet);
-    void AddPersistentAffectedTablet(TTransaction* transaction, TTablet* tablet);
+    virtual bool IsDecommissioned() const = 0;
 
     // COMPAT(gritukan)
-    ETabletReign GetSnapshotReign() const;
+    virtual ETabletReign GetSnapshotReign() const = 0;
 
-    NYTree::IYPathServicePtr GetOrchidService();
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTransactionManager)
+DEFINE_REFCOUNTED_TYPE(ITransactionManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITransactionManagerPtr CreateTransactionManager(
+    TTransactionManagerConfigPtr config,
+    ITransactionManagerHostPtr host,
+    NApi::TClusterTag clockClusterTag,
+    NTransactionSupervisor::ITransactionLeaseTrackerPtr transactionLeaseTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

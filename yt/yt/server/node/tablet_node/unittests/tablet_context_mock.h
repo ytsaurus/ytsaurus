@@ -38,7 +38,7 @@ public:
         TTablet* tablet,
         NChunkClient::TChunkId chunkId,
         const NTabletNode::NProto::TAddHunkChunkDescriptor* descriptor) const override;
-    TTransactionManagerPtr GetTransactionManager() const override;
+    ITransactionManagerPtr GetTransactionManager() const override;
     NRpc::IServerPtr GetLocalRpcServer() const override;
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override;
     INodeMemoryTrackerPtr GetMemoryUsageTracker() const override;

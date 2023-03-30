@@ -532,7 +532,7 @@ public:
         return CellLifeStage_;
     }
 
-    TTransactionManagerPtr GetTransactionManager() const override
+    ITransactionManagerPtr GetTransactionManager() const override
     {
         return Slot_->GetTransactionManager();
     }
@@ -688,7 +688,7 @@ private:
             return Owner_->CreateHunkChunk(tablet, chunkId, descriptor);
         }
 
-        TTransactionManagerPtr GetTransactionManager() const override
+        ITransactionManagerPtr GetTransactionManager() const override
         {
             return Owner_->Slot_->GetTransactionManager();
         }

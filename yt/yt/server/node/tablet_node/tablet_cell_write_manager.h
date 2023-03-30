@@ -35,7 +35,7 @@ struct ITabletCellWriteManagerHost
     virtual TTablet* GetTablet(const TTabletId& id) const = 0;
     virtual const NHydra::TReadOnlyEntityMap<TTablet>& Tablets() const = 0;
 
-    virtual TTransactionManagerPtr GetTransactionManager() const = 0;
+    virtual ITransactionManagerPtr GetTransactionManager() const = 0;
     virtual NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() const = 0;
     virtual TTabletManagerConfigPtr GetConfig() const = 0;
 

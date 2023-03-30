@@ -136,7 +136,7 @@ THunkChunkPtr TTabletContextMock::CreateHunkChunk(
     YT_ABORT();
 }
 
-TTransactionManagerPtr TTabletContextMock::GetTransactionManager() const
+ITransactionManagerPtr TTabletContextMock::GetTransactionManager() const
 {
     return nullptr;
 }

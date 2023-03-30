@@ -33,7 +33,7 @@ class TSimpleTabletManager
 {
 public:
     TSimpleTabletManager(
-        TTransactionManagerPtr transactionManager,
+        ITransactionManagerPtr transactionManager,
         NHydra::ISimpleHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton,
         IInvokerPtr automatonInvoker);
@@ -49,7 +49,7 @@ public:
     TTablet* FindTablet(const TTabletId& id) const override;
     TTablet* GetTablet(const TTabletId& id) const override;
     const NHydra::TReadOnlyEntityMap<TTablet>& Tablets() const override;
-    TTransactionManagerPtr GetTransactionManager() const override;
+    ITransactionManagerPtr GetTransactionManager() const override;
     NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() const override;
     TTabletManagerConfigPtr GetConfig() const override;
     void ValidateMemoryLimit(const std::optional<TString>& /*poolTag*/) override;
@@ -83,7 +83,7 @@ private:
 
     // This invoker helps to deal with TabletMap_ thread affinity verifications.
     const IInvokerPtr AutomatonInvoker_;
-    const TTransactionManagerPtr TransactionManager_;
+    const ITransactionManagerPtr TransactionManager_;
 
     NTabletClient::TDynamicTabletCellOptionsPtr DynamicOptions_ = New<NTabletClient::TDynamicTabletCellOptions>();
     TTabletManagerConfigPtr Config_ = New<TTabletManagerConfig>();

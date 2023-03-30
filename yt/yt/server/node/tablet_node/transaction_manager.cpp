@@ -1,4 +1,5 @@
 #include "transaction_manager.h"
+
 #include "bootstrap.h"
 #include "private.h"
 #include "automaton.h"
@@ -73,22 +74,23 @@ static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionManager::TImpl
+class TTransactionManager
     : public TTabletAutomatonPart
+    , public ITransactionManager
     , public TTransactionManagerBase<TTransaction>
 {
 public:
-    DEFINE_SIGNAL(void(TTransaction*), TransactionStarted);
-    DEFINE_SIGNAL(void(TTransaction*, bool), TransactionPrepared);
-    DEFINE_SIGNAL(void(TTransaction*), TransactionCommitted);
-    DEFINE_SIGNAL(void(TTransaction*), TransactionSerialized);
-    DEFINE_SIGNAL(void(TTransaction*), BeforeTransactionSerialized);
-    DEFINE_SIGNAL(void(TTransaction*), TransactionAborted);
-    DEFINE_SIGNAL(void(TTimestamp), TransactionBarrierHandled);
-    DEFINE_SIGNAL(void(TTransaction*), TransactionTransientReset);
+    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionStarted);
+    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*, bool), TransactionPrepared);
+    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionCommitted);
+    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionSerialized);
+    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), BeforeTransactionSerialized);
+    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionAborted);
+    DEFINE_SIGNAL_OVERRIDE(void(TTimestamp), TransactionBarrierHandled);
+    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionTransientReset);
 
 public:
-    TImpl(
+    TTransactionManager(
         TTransactionManagerConfigPtr config,
         ITransactionManagerHostPtr host,
         TClusterTag clockClusterTag,
@@ -118,38 +120,38 @@ public:
 
         RegisterLoader(
             "TransactionManager.Keys",
-            BIND(&TImpl::LoadKeys, Unretained(this)));
+            BIND(&TTransactionManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TransactionManager.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
+            BIND(&TTransactionManager::LoadValues, Unretained(this)));
         // COMPAT(gritukan)
         RegisterLoader(
             "TransactionManager.Async",
-            BIND(&TImpl::LoadAsync, Unretained(this)));
+            BIND(&TTransactionManager::LoadAsync, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TransactionManager.Keys",
-            BIND(&TImpl::SaveKeys, Unretained(this)));
+            BIND(&TTransactionManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TransactionManager.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND(&TTransactionManager::SaveValues, Unretained(this)));
 
         // COMPAT(babenko)
-        RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActions, Unretained(this)), {"NYT.NTabletNode.NProto.TReqRegisterTransactionActions"});
-        RegisterMethod(BIND(&TImpl::HydraHandleTransactionBarrier, Unretained(this)));
+        RegisterMethod(BIND(&TTransactionManager::HydraRegisterTransactionActions, Unretained(this)), {"NYT.NTabletNode.NProto.TReqRegisterTransactionActions"});
+        RegisterMethod(BIND(&TTransactionManager::HydraHandleTransactionBarrier, Unretained(this)));
 
-        OrchidService_ = IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeWeak(this)), TDuration::Seconds(1))
+        OrchidService_ = IYPathService::FromProducer(BIND(&TTransactionManager::BuildOrchidYson, MakeWeak(this)), TDuration::Seconds(1))
             ->Via(Host_->GetGuardedAutomatonInvoker());
     }
 
-    TTransaction* FindPersistentTransaction(TTransactionId transactionId)
+    TTransaction* FindPersistentTransaction(TTransactionId transactionId) override
     {
         return PersistentTransactionMap_.Find(transactionId);
     }
 
-    TTransaction* GetPersistentTransaction(TTransactionId transactionId)
+    TTransaction* GetPersistentTransaction(TTransactionId transactionId) override
     {
         return PersistentTransactionMap_.Get(transactionId);
     }
@@ -187,7 +189,7 @@ public:
         TTimestamp startTimestamp,
         TDuration timeout,
         bool transient,
-        bool* fresh = nullptr)
+        bool* fresh = nullptr) override
     {
         if (fresh) {
             *fresh = false;
@@ -237,7 +239,7 @@ public:
         return transaction;
     }
 
-    TTransaction* MakeTransactionPersistentOrThrow(TTransactionId transactionId)
+    TTransaction* MakeTransactionPersistentOrThrow(TTransactionId transactionId) override
     {
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
             ValidateNotDecommissioned(transaction);
@@ -261,7 +263,7 @@ public:
         YT_ABORT();
     }
 
-    void DropTransaction(TTransaction* transaction)
+    void DropTransaction(TTransaction* transaction) override
     {
         YT_VERIFY(transaction->GetTransient());
 
@@ -278,7 +280,7 @@ public:
             transactionId);
     }
 
-    std::vector<TTransaction*> GetTransactions()
+    std::vector<TTransaction*> GetTransactions() override
     {
         std::vector<TTransaction*> transactions;
         for (auto [transactionId, transaction] : TransientTransactionMap_) {
@@ -295,7 +297,7 @@ public:
         TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
         TTransactionSignature signature,
-        ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions)
+        ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions) override
     {
         NTabletClient::NProto::TReqRegisterTransactionActions request;
         ToProto(request.mutable_transaction_id(), transactionId);
@@ -310,7 +312,7 @@ public:
         return mutation->CommitAndLog(Logger).AsVoid();
     }
 
-    IYPathServicePtr GetOrchidService()
+    IYPathServicePtr GetOrchidService() override
     {
         return OrchidService_;
     }
@@ -320,14 +322,14 @@ public:
 
     TFuture<void> GetReadyToPrepareTransactionCommit(
         const std::vector<TTransactionId>& /*prerequisiteTransactionIds*/,
-        const std::vector<TCellId>& /*cellIdsToSyncWith*/)
+        const std::vector<TCellId>& /*cellIdsToSyncWith*/) override
     {
         return VoidFuture;
     }
 
     void PrepareTransactionCommit(
         TTransactionId transactionId,
-        const TTransactionPrepareOptions& options)
+        const TTransactionPrepareOptions& options) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -400,7 +402,7 @@ public:
 
     void PrepareTransactionAbort(
         TTransactionId transactionId,
-        const NTransactionSupervisor::TTransactionAbortOptions& options)
+        const NTransactionSupervisor::TTransactionAbortOptions& options) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -424,7 +426,7 @@ public:
 
     void CommitTransaction(
         TTransactionId transactionId,
-        const NTransactionSupervisor::TTransactionCommitOptions& options)
+        const NTransactionSupervisor::TTransactionCommitOptions& options) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
@@ -531,7 +533,7 @@ public:
 
     void AbortTransaction(
         TTransactionId transactionId,
-        const NTransactionSupervisor::TTransactionAbortOptions& options)
+        const NTransactionSupervisor::TTransactionAbortOptions& options) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -584,24 +586,24 @@ public:
         }
     }
 
-    void PingTransaction(TTransactionId transactionId, bool pingAncestors)
+    void PingTransaction(TTransactionId transactionId, bool pingAncestors) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
-    bool CommitTransaction(TCtxCommitTransactionPtr /*context*/)
+    bool CommitTransaction(TCtxCommitTransactionPtr /*context*/) override
     {
         return false;
     }
 
-    bool AbortTransaction(TCtxAbortTransactionPtr /*context*/)
+    bool AbortTransaction(TCtxAbortTransactionPtr /*context*/) override
     {
         return false;
     }
 
-    void IncrementCommitSignature(TTransaction* transaction, TTransactionSignature delta)
+    void IncrementCommitSignature(TTransaction* transaction, TTransactionSignature delta) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
@@ -623,7 +625,7 @@ public:
         }
     }
 
-    TTimestamp GetMinPrepareTimestamp() const
+    TTimestamp GetMinPrepareTimestamp() const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -632,14 +634,14 @@ public:
             : PreparedTransactions_.begin()->first;
     }
 
-    TTimestamp GetMinCommitTimestamp() const
+    TTimestamp GetMinCommitTimestamp() const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         return MinCommitTimestamp_.value_or(Host_->GetLatestTimestamp());
     }
 
-    void SetDecommission(bool decommission)
+    void SetDecommission(bool decommission) override
     {
         YT_VERIFY(HasHydraContext());
 
@@ -656,12 +658,12 @@ public:
         Decommission_ = decommission;
     }
 
-    bool GetDecommission()
+    bool GetDecommission() const override
     {
         return Decommission_;
     }
 
-    void SetRemoving()
+    void SetRemoving() override
     {
         YT_VERIFY(HasHydraContext());
 
@@ -670,14 +672,38 @@ public:
         Removing_ = true;
     }
 
-    bool IsDecommissioned() const
+    bool IsDecommissioned() const override
     {
         return Decommission_ && PersistentTransactionMap_.empty();
     }
 
-    ETabletReign GetSnapshotReign() const
+    ETabletReign GetSnapshotReign() const override
     {
         return SnapshotReign_;
+    }
+
+    void RegisterTransactionActionHandlers(
+        const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
+        const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
+        const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor) override
+    {
+        TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(
+            prepareActionDescriptor,
+            commitActionDescriptor,
+            abortActionDescriptor);
+    }
+
+    void RegisterTransactionActionHandlers(
+        const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
+        const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
+        const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor,
+        const TTransactionSerializeActionHandlerDescriptor<TTransaction>& serializeActionDescriptor) override
+    {
+        TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(
+            prepareActionDescriptor,
+            commitActionDescriptor,
+            abortActionDescriptor,
+            serializeActionDescriptor);
     }
 
 private:
@@ -752,8 +778,8 @@ private:
             transaction->GetId(),
             NullTransactionId,
             transaction->GetTimeout(),
-            /* deadline */ std::nullopt,
-            BIND(&TImpl::OnTransactionExpired, MakeStrong(this))
+            /*deadline*/ std::nullopt,
+            BIND(&TTransactionManager::OnTransactionExpired, MakeStrong(this))
                 .Via(invoker));
         transaction->SetHasLease(true);
     }
@@ -847,13 +873,13 @@ private:
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Host_->GetEpochAutomatonInvoker(),
-            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            BIND(&TTransactionManager::OnProfiling, MakeWeak(this)),
             ProfilingPeriod);
         ProfilingExecutor_->Start();
 
         BarrierCheckExecutor_ = New<TPeriodicExecutor>(
             Host_->GetEpochAutomatonInvoker(),
-            BIND(&TImpl::OnPeriodicBarrierCheck, MakeWeak(this)),
+            BIND(&TTransactionManager::OnPeriodicBarrierCheck, MakeWeak(this)),
             Config_->BarrierCheckPeriod);
         BarrierCheckExecutor_->Start();
 
@@ -1240,202 +1266,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactionManager::TTransactionManager(
+ITransactionManagerPtr CreateTransactionManager(
     TTransactionManagerConfigPtr config,
     ITransactionManagerHostPtr host,
     TClusterTag clockClusterTag,
     ITransactionLeaseTrackerPtr transactionLeaseTracker)
-    : Impl_(New<TImpl>(
+{
+    return New<TTransactionManager>(
         std::move(config),
         std::move(host),
         clockClusterTag,
-        std::move(transactionLeaseTracker)))
-{ }
-
-TTransactionManager::~TTransactionManager() = default;
-
-IYPathServicePtr TTransactionManager::GetOrchidService()
-{
-    return Impl_->GetOrchidService();
+        std::move(transactionLeaseTracker));
 }
-
-TTransaction* TTransactionManager::GetOrCreateTransactionOrThrow(
-    TTransactionId transactionId,
-    TTimestamp startTimestamp,
-    TDuration timeout,
-    bool transient,
-    bool* fresh)
-{
-    return Impl_->GetOrCreateTransactionOrThrow(
-        transactionId,
-        startTimestamp,
-        timeout,
-        transient,
-        fresh);
-}
-
-TTransaction* TTransactionManager::FindPersistentTransaction(TTransactionId transactionId)
-{
-    return Impl_->FindPersistentTransaction(transactionId);
-}
-
-TTransaction* TTransactionManager::GetPersistentTransaction(TTransactionId transactionId)
-{
-    return Impl_->GetPersistentTransaction(transactionId);
-}
-
-TTransaction* TTransactionManager::MakeTransactionPersistentOrThrow(TTransactionId transactionId)
-{
-    return Impl_->MakeTransactionPersistentOrThrow(transactionId);
-}
-
-void TTransactionManager::DropTransaction(TTransaction* transaction)
-{
-    Impl_->DropTransaction(transaction);
-}
-
-std::vector<TTransaction*> TTransactionManager::GetTransactions()
-{
-    return Impl_->GetTransactions();
-}
-
-TFuture<void> TTransactionManager::RegisterTransactionActions(
-    TTransactionId transactionId,
-    TTimestamp transactionStartTimestamp,
-    TDuration transactionTimeout,
-    TTransactionSignature signature,
-    ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions)
-{
-    return Impl_->RegisterTransactionActions(
-        transactionId,
-        transactionStartTimestamp,
-        transactionTimeout,
-        signature,
-        std::move(actions));
-}
-
-void TTransactionManager::RegisterTransactionActionHandlers(
-    const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-    const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-    const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor)
-{
-    Impl_->RegisterTransactionActionHandlers(
-        prepareActionDescriptor,
-        commitActionDescriptor,
-        abortActionDescriptor);
-}
-
-void TTransactionManager::RegisterTransactionActionHandlers(
-    const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-    const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-    const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor,
-    const TTransactionSerializeActionHandlerDescriptor<TTransaction>& serializeActionDescriptor)
-{
-    Impl_->RegisterTransactionActionHandlers(
-        prepareActionDescriptor,
-        commitActionDescriptor,
-        abortActionDescriptor,
-        serializeActionDescriptor);
-}
-
-TFuture<void> TTransactionManager::GetReadyToPrepareTransactionCommit(
-    const std::vector<TTransactionId>& prerequisiteTransactionIds,
-    const std::vector<TCellId>& cellIdsToSyncWith)
-{
-    return Impl_->GetReadyToPrepareTransactionCommit(prerequisiteTransactionIds, cellIdsToSyncWith);
-}
-
-void TTransactionManager::PrepareTransactionCommit(
-    TTransactionId transactionId,
-    const TTransactionPrepareOptions& options)
-{
-    Impl_->PrepareTransactionCommit(transactionId, options);
-}
-
-void TTransactionManager::PrepareTransactionAbort(
-    TTransactionId transactionId,
-    const NTransactionSupervisor::TTransactionAbortOptions& options)
-{
-    Impl_->PrepareTransactionAbort(transactionId, options);
-}
-
-void TTransactionManager::CommitTransaction(
-    TTransactionId transactionId,
-    const NTransactionSupervisor::TTransactionCommitOptions& options)
-{
-    Impl_->CommitTransaction(transactionId, options);
-}
-
-void TTransactionManager::AbortTransaction(
-    TTransactionId transactionId,
-    const NTransactionSupervisor::TTransactionAbortOptions& options)
-{
-    Impl_->AbortTransaction(transactionId, options);
-}
-
-void TTransactionManager::PingTransaction(TTransactionId transactionId, bool pingAncestors)
-{
-    Impl_->PingTransaction(transactionId, pingAncestors);
-}
-
-bool TTransactionManager::CommitTransaction(TCtxCommitTransactionPtr context)
-{
-    return Impl_->CommitTransaction(std::move(context));
-}
-
-bool TTransactionManager::AbortTransaction(TCtxAbortTransactionPtr context)
-{
-    return Impl_->AbortTransaction(std::move(context));
-}
-
-void TTransactionManager::IncrementCommitSignature(TTransaction* transaction, TTransactionSignature delta)
-{
-    Impl_->IncrementCommitSignature(transaction, delta);
-}
-
-TTimestamp TTransactionManager::GetMinPrepareTimestamp()
-{
-    return Impl_->GetMinPrepareTimestamp();
-}
-
-TTimestamp TTransactionManager::GetMinCommitTimestamp()
-{
-    return Impl_->GetMinCommitTimestamp();
-}
-
-void TTransactionManager::SetDecommission(bool decommission)
-{
-    Impl_->SetDecommission(decommission);
-}
-
-bool TTransactionManager::GetDecommission() const
-{
-    return Impl_->GetDecommission();
-}
-
-void TTransactionManager::SetRemoving()
-{
-    Impl_->SetRemoving();
-}
-
-bool TTransactionManager::IsDecommissioned() const
-{
-    return Impl_->IsDecommissioned();
-}
-
-ETabletReign TTransactionManager::GetSnapshotReign() const
-{
-    return Impl_->GetSnapshotReign();
-}
-
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*, bool), TransactionPrepared, *Impl_);
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionSerialized, *Impl_);
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), BeforeTransactionSerialized, *Impl_);
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl_);
-DELEGATE_SIGNAL(TTransactionManager, void(TTimestamp), TransactionBarrierHandled, *Impl_);
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionTransientReset, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

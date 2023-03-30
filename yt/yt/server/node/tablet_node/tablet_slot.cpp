@@ -254,7 +254,7 @@ public:
         hiveManager->PostMessage(mailbox, message);
     }
 
-    const TTransactionManagerPtr& GetTransactionManager() override
+    const ITransactionManagerPtr& GetTransactionManager() override
     {
         return TransactionManager_;
     }
@@ -264,7 +264,7 @@ public:
         return DistributedThrottlerManager_;
     }
 
-    ITransactionManagerPtr GetOccupierTransactionManager() override
+    NTransactionSupervisor::ITransactionManagerPtr GetOccupierTransactionManager() override
     {
         return GetTransactionManager();
     }
@@ -375,7 +375,7 @@ public:
             Bootstrap_,
             this);
 
-        TransactionManager_ = New<TTransactionManager>(
+        TransactionManager_ = CreateTransactionManager(
             Config_->TransactionManager,
             this,
             GetOptions()->ClockClusterTag,
@@ -527,7 +527,7 @@ private:
 
     ITabletCellWriteManagerPtr TabletCellWriteManager_;
 
-    TTransactionManagerPtr TransactionManager_;
+    ITransactionManagerPtr TransactionManager_;
 
     IDistributedThrottlerManagerPtr DistributedThrottlerManager_;
 

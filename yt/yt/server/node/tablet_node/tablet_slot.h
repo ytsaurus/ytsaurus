@@ -53,7 +53,7 @@ struct ITabletSlot
 
     virtual const NHydra::TCompositeAutomatonPtr& GetAutomaton() = 0;
 
-    virtual const TTransactionManagerPtr& GetTransactionManager() = 0;
+    virtual const ITransactionManagerPtr& GetTransactionManager() = 0;
 
     virtual const IDistributedThrottlerManagerPtr& GetDistributedThrottlerManager() = 0;
 

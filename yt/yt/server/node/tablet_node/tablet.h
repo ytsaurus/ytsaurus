@@ -326,7 +326,7 @@ struct ITabletContext
         TTablet* tablet,
         NChunkClient::TChunkId chunkId,
         const NTabletNode::NProto::TAddHunkChunkDescriptor* descriptor) const = 0;
-    virtual TTransactionManagerPtr GetTransactionManager() const = 0;
+    virtual ITransactionManagerPtr GetTransactionManager() const = 0;
     virtual NRpc::IServerPtr GetLocalRpcServer() const = 0;
     virtual TString GetLocalHostName() const = 0;
     virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const = 0;

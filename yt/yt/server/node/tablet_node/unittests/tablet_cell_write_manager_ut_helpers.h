@@ -68,7 +68,7 @@ public:
         AutomatonInvoker_ = AutomatonQueue_->GetInvoker();
         Automaton_ = New<TTabletAutomaton>(/*asyncSnapshotInvoker*/ AutomatonInvoker_, CellId);
         HydraManager_ = New<TSimpleHydraManagerMock>(Automaton_, AutomatonInvoker_, NTabletNode::GetCurrentReign());
-        TransactionManager_ = New<TTransactionManager>(New<TTransactionManagerConfig>(), /*transactionManagerHost*/ this, InvalidCellTag, CreateNullTransactionLeaseTracker());
+        TransactionManager_ = CreateTransactionManager(New<TTransactionManagerConfig>(), /*transactionManagerHost*/ this, InvalidCellTag, CreateNullTransactionLeaseTracker());
         TransactionSupervisor_ = New<TSimpleTransactionSupervisor>(TransactionManager_, HydraManager_, Automaton_, AutomatonInvoker_);
         TabletManager_ = New<TSimpleTabletManager>(TransactionManager_, HydraManager_, Automaton_, AutomatonInvoker_);
         TabletCellWriteManager_ = CreateTabletCellWriteManager(TabletManager_, HydraManager_, Automaton_, AutomatonInvoker_);
@@ -168,7 +168,7 @@ public:
         return HydraManager_;
     }
 
-    const TTransactionManagerPtr& TransactionManager()
+    const ITransactionManagerPtr& TransactionManager()
     {
         return TransactionManager_;
     }
@@ -183,7 +183,7 @@ private:
     TActionQueuePtr AutomatonQueue_;
     IInvokerPtr AutomatonInvoker_;
     TCompositeAutomatonPtr Automaton_;
-    TTransactionManagerPtr TransactionManager_;
+    ITransactionManagerPtr TransactionManager_;
     TSimpleTransactionSupervisorPtr TransactionSupervisor_;
     TSimpleTabletManagerPtr TabletManager_;
     ITabletCellWriteManagerPtr TabletCellWriteManager_;
@@ -230,7 +230,7 @@ protected:
         return TabletSlot_->HydraManager();
     }
 
-    TTransactionManagerPtr TransactionManager()
+    ITransactionManagerPtr TransactionManager()
     {
         return TabletSlot_->TransactionManager();
     }
