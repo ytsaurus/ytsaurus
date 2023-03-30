@@ -1481,11 +1481,14 @@ private:
             // Now writing pipe is definitely ready, so we can start blinking.
             InputPipeBlinker_->Start();
             JobStarted_ = true;
-        } else {
+        } else if (!ExecutorInfo_ || ExecutorInfo_->ProcessPid == 0) {
+            // Actually, ExecutorInfo_ must be non-null at this point, since it is
+            // explicitly set a few lines before. We still keep the condition as a
+            // defensive measure from possible future code changes.
             YT_LOG_ERROR(JobErrorPromise_.Get(), "Failed to prepare executor");
             return;
         }
-        YT_LOG_INFO("Start actions finished");
+        YT_LOG_INFO("Start actions finished (UserProcessPid: %v)", ExecutorInfo_->ProcessPid);
         auto inputFutures = runActions(InputActions_, onIOError, PipeIOPool_->GetInvoker());
         auto outputFutures = runActions(OutputActions_, onIOError, PipeIOPool_->GetInvoker());
         auto stderrFutures = runActions(StderrActions_, onIOError, ReadStderrInvoker_);
