@@ -456,10 +456,19 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
             TFile sourceFile(sourcePath, OpenExisting | RdOnly | Seq | CloseOnExec);
 
             auto copyFileStart = TInstant::Now().MicroSeconds();
-            ChunkedCopy(
-                sourceFile,
-                destinationFile,
-                Bootstrap_->GetConfig()->ExecNode->SlotManager->FileCopyChunkSize);
+
+            if (Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableReadWriteCopy) {
+                WaitFor(ReadWriteCopy(
+                    sourceFile,
+                    destinationFile,
+                    Bootstrap_->GetConfig()->ExecNode->SlotManager->FileCopyChunkSize))
+                    .ThrowOnError();
+            } else {
+                SendfileChunkedCopy(
+                    sourceFile,
+                    destinationFile,
+                    Bootstrap_->GetConfig()->ExecNode->SlotManager->FileCopyChunkSize);
+            }
 
             if (Bootstrap_->GetIOTracker()->IsEnabled()) {
                 TString fullArtifactPath = CombinePaths(GetSandboxPath(slotIndex, sandboxKind), artifactName);

@@ -113,6 +113,8 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("file_copy_chunk_size", &TThis::FileCopyChunkSize)
         .GreaterThanOrEqual(1_KB)
         .Default(10_MB);
+    registrar.Parameter("enable_read_write_copy", &TThis::EnableReadWriteCopy)
+        .Default(false);
 
     registrar.Parameter("disk_resources_update_period", &TThis::DiskResourcesUpdatePeriod)
         .Alias("disk_info_update_period")

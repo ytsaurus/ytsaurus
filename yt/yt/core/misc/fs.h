@@ -7,6 +7,8 @@
 
 #include "common.h"
 
+#include <yt/yt/core/actions/bind.h>
+#include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -179,12 +181,35 @@ void WrapIOErrors(std::function<void()> func);
 void Chmod(const TString& path, int mode);
 
 //! Copies file chunk after chunk, releasing thread between chunks.
-void ChunkedCopy(
+void SendfileChunkedCopy(
     const TString& existingPath,
     const TString& newPath,
     i64 chunkSize);
 
-void ChunkedCopy(
+void SendfileChunkedCopy(
+    const TFile& source,
+    const TFile& destination,
+    i64 chunkSize);
+
+TFuture<void> ReadBuffer(
+    int fromFd,
+    int toFd,
+    std::vector<ui8> buffer,
+    int bufferSize);
+
+TFuture<void> WriteBuffer(
+    int fromFd,
+    int toFd,
+    std::vector<ui8> buffer,
+    int bufferSize,
+    int readSize);
+
+TFuture<void> ReadWriteCopy(
+    const TString& existingPath,
+    const TString& newPath,
+    i64 chunkSize);
+
+TFuture<void> ReadWriteCopy(
     const TFile& source,
     const TFile& destination,
     i64 chunkSize);

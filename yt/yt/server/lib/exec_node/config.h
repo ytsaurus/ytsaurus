@@ -183,6 +183,8 @@ public:
     //! Polymorphic job environment configuration.
     NYTree::INodePtr JobEnvironment;
 
+    bool EnableReadWriteCopy;
+
     //! Chunk size used for copying chunks if #copy_chunks is set to %true in operation spec.
     i64 FileCopyChunkSize;
 
