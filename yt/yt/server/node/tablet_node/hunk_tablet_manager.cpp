@@ -388,6 +388,8 @@ private:
             // NB: Cannot throw here since store state is transient.
             YT_VERIFY(store->GetState() == EHunkStoreState::Passive);
 
+            store->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
+
             if (!store->GetMarkedSealable()) {
                 THROW_ERROR_EXCEPTION(
                     "Cannot remove store %v of tablet %v that was not marked as sealable",
@@ -398,7 +400,8 @@ private:
 
         for (const auto& storeToMarkSealable : request->stores_to_mark_sealable()) {
             auto storeId = FromProto<TStoreId>(storeToMarkSealable.store_id());
-            Y_UNUSED(tablet->GetStoreOrThrow(storeId));
+            auto store = tablet->GetStoreOrThrow(storeId);
+            store->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
@@ -458,12 +461,14 @@ private:
         for (const auto& storeToRemove : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(storeToRemove.store_id());
             auto store = tablet->GetStore(storeId);
+            store->Unlock(transaction->GetId(), EObjectLockMode::Exclusive);
             tablet->RemoveStore(std::move(store));
         }
 
         for (const auto& storeToMarkSealable : request->stores_to_mark_sealable()) {
             auto storeId = FromProto<TStoreId>(storeToMarkSealable.store_id());
             auto store = tablet->GetStore(storeId);
+            store->Unlock(transaction->GetId(), EObjectLockMode::Exclusive);
             store->SetMarkedSealable(true);
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
@@ -507,6 +512,20 @@ private:
         auto transactionId = transaction->GetId();
         if (tablet->IsLockedByTransaction()) {
             tablet->UnlockTransaction(transactionId);
+        }
+
+        for (const auto& storeToRemove : request->stores_to_remove()) {
+            auto storeId = FromProto<TStoreId>(storeToRemove.store_id());
+            if (auto store = tablet->FindStore(storeId)) {
+                store->Unlock(transaction->GetId(), EObjectLockMode::Exclusive);
+            }
+        }
+
+        for (const auto& storeToMarkSealable : request->stores_to_mark_sealable()) {
+            auto storeId = FromProto<TStoreId>(storeToMarkSealable.store_id());
+            if (auto store = tablet->FindStore(storeId)) {
+                store->Unlock(transaction->GetId(), EObjectLockMode::Exclusive);
+            }
         }
 
         ScheduleScanTablet(tabletId);
@@ -686,6 +705,10 @@ private:
 
     void DoUnmountTablet(THunkTablet* tablet)
     {
+        if (tablet->GetState() == ETabletState::Unmounted) {
+            return;
+        }
+
         tablet->SetState(ETabletState::Unmounted);
 
         auto tabletId = tablet->GetId();
