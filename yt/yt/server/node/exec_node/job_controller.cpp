@@ -1875,8 +1875,16 @@ private:
         }
 
         const auto& schedulerConnector = Bootstrap_->GetExecNodeBootstrap()->GetSchedulerConnector();
-        schedulerConnector->AddUnconfirmedJobs(unconfirmedJobs);
-        schedulerConnector->EnqueueFinishedJobs(std::move(confirmedJobs));
+
+        Bootstrap_->GetControlInvoker()->Invoke(BIND(
+            [
+                schedulerConnector,
+                confirmedJobs{std::move(confirmedJobs)},
+                unconfirmedJobs{std::move(unconfirmedJobs)}
+            ] {
+                schedulerConnector->AddUnconfirmedJobs(unconfirmedJobs);
+                schedulerConnector->EnqueueFinishedJobs(std::move(confirmedJobs));
+            }));
 
         Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool()->SendOutOfBandHeartbeatsIfNeeded();
     }

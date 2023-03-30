@@ -100,7 +100,7 @@ void TSchedulerConnector::SendOutOfBandHeartbeatIfNeeded()
 
 void TSchedulerConnector::OnJobFinished(const TJobPtr& job)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     EnqueueFinishedJobs({job});
 
@@ -139,7 +139,7 @@ void TSchedulerConnector::SetMinSpareResources(const NScheduler::TJobResources& 
 
 void TSchedulerConnector::EnqueueFinishedJobs(std::vector<TJobPtr> jobs)
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     for (auto& job : jobs) {
         JobsToForcefullySend_.emplace(std::move(job));
@@ -148,6 +148,8 @@ void TSchedulerConnector::EnqueueFinishedJobs(std::vector<TJobPtr> jobs)
 
 void TSchedulerConnector::AddUnconfirmedJobs(const std::vector<TJobId>& unconfirmedJobIds)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     for (auto jobId : unconfirmedJobIds) {
         UnconfirmedJobIds_.emplace(jobId);
     }
@@ -162,8 +164,9 @@ void TSchedulerConnector::Start()
 
     const auto& jobController = Bootstrap_->GetJobController();
     jobController->SubscribeJobFinished(BIND_NO_PROPAGATE(
-        &TSchedulerConnector::OnJobFinished,
-        MakeWeak(this)));
+            &TSchedulerConnector::OnJobFinished,
+            MakeWeak(this))
+        .Via(Bootstrap_->GetControlInvoker()));
 
     HeartbeatExecutor_->Start();
 }
