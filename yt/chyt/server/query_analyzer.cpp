@@ -292,7 +292,7 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
 
     // This condition fails sometimes in multiple join due to a bug in ClickHouse.
     // https://github.com/ClickHouse/ClickHouse/issues/29734
-    // https://st.yandex-team.ru/CHYT-679
+    // CHYT-679
     // Throw an exception instead of YT_VERIFY to avoid a clique crash until the bug is fixed.
     // YT_VERIFY(joinLeftKeys.size() == joinRightKeys.size());
     if (joinLeftKeys.size() != joinRightKeys.size()) {
@@ -337,7 +337,7 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
                 << TErrorAttribute("table_expression", tableExpression)
                 << TErrorAttribute("table_index", tableIndex)
                 << TErrorAttribute("underlying_table_count", underlyingTables.size())
-                << TErrorAttribute("docs", "https://yt.yandex-team.ru/docs/description/chyt/queries/joins");
+                << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/queries/joins");
         }
 
         const auto& path = underlyingTables.front()->Path;
@@ -351,7 +351,7 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
                 errorPrefix,
                 path)
                 << TErrorAttribute("table_index", tableIndex)
-                << TErrorAttribute("docs", "https://yt.yandex-team.ru/docs/description/chyt/queries/joins");
+                << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/queries/joins");
         }
     };
 

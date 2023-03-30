@@ -681,7 +681,7 @@ private:
             THROW_ERROR_EXCEPTION("ClickHouse type %v is not representable as YT type: "
                 "maximum decimal precision in YT is 35",
                 DataType_->getName())
-                << TErrorAttribute("docs", "https://yt.yandex-team.ru/docs/description/storage/data_types#schema_decimal_binary");
+                << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/storage/data-types#schema_decimal");
         }
 
         switch (dataType->getTypeId()) {

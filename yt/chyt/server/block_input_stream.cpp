@@ -214,7 +214,7 @@ void TBlockInputStream::readSuffixImpl()
         if (ConversionSyncWaitTime_ != TDuration::Zero()) {
             TraceContext_->AddTag("chyt.reader.conversion_sync_wait_time", ConversionSyncWaitTime_);
         }
-        // TODO(dakovalkov): https://st.yandex-team.ru/YT-14032
+        // TODO(dakovalkov): YT-14032
         // Delete this statistics when GetTimingStatistics() works properly for TSchemalessMergingMultiChunkReader.
         if (WaitReadyEventTime_ != TDuration::Zero()) {
             TraceContext_->AddTag("chyt.reader.wait_ready_event_time", WaitReadyEventTime_);

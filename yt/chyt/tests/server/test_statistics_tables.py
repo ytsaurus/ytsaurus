@@ -22,7 +22,7 @@ def validate_statistics_row(row, expected):
 
 # ClickHouse can call read() several times, what leads to rubbish in 'select_queries' and 'secondary_query_ids'.
 # Until ClickHouse fixed it, we remove them from query rows manually.
-# https://st.yandex-team.ru/CHYT-565
+# CHYT-565
 def remove_fake_subqueries(distributed_query, secondary_queries):
     real_subquery_ids = [query["query_id"] for query in secondary_queries]
     real_select_query_indexes = [query["select_query_index"] for query in secondary_queries]

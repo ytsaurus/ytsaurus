@@ -803,7 +803,7 @@ public:
         }
         YT_LOG_DEBUG("Distribution seed generated (DistributionSeed: %v)", DistributionSeed_);
 
-        // TODO(dakovalkov): https://st.yandex-team.ru/CHYT-526
+        // TODO(dakovalkov): CHYT-526
         if (Tables_.size() > 1) {
             for (const auto& table : Tables_) {
                 if (table->Dynamic) {

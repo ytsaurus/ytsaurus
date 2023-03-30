@@ -27,7 +27,7 @@ class TestQueryLog(ClickHouseTestBase):
             assert len(clique.make_query("select * from system.query_log")) == 0
 
     @authors("max42")
-    @pytest.skip('Temporary broken because of CH bug: https://st.yandex-team.ru/CHYT-633')
+    @pytest.skip('Temporary broken because of CH bug: CHYT-633')
     def test_query_log_eviction(self):
         period = 3
 
