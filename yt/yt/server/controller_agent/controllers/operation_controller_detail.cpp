@@ -9361,16 +9361,17 @@ void TOperationControllerBase::InitUserJobSpec(
             jobIsLayerProbing,
             userJobSpec->ProbingBaseLayerPath);
 
-        YT_VERIFY(BaseLayers_.contains(*userJobSpec->ProbingBaseLayerPath));
-        const auto& probingLayer = BaseLayers_.find(*userJobSpec->ProbingBaseLayerPath)->second;
+        const auto& probingLayer = BaseLayers_.find(*userJobSpec->ProbingBaseLayerPath);
 
-        for (auto& layerSpec : *jobSpec->mutable_layers()) {
-            if (layerSpec.data_source().path() == *userJobSpec->DefaultBaseLayerPath) {
-                BuildFileSpec(
-                    &layerSpec,
-                    probingLayer,
-                    layerSpec.copy_file(),
-                    Config->EnableBypassArtifactCache);
+        if (probingLayer != BaseLayers_.end()) {
+            for (auto& layerSpec : *jobSpec->mutable_layers()) {
+                if (layerSpec.data_source().path() == *userJobSpec->DefaultBaseLayerPath) {
+                    BuildFileSpec(
+                        &layerSpec,
+                        probingLayer->second,
+                        layerSpec.copy_file(),
+                        Config->EnableBypassArtifactCache);
+                }
             }
         }
     }
