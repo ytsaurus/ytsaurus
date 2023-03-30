@@ -6,6 +6,8 @@
 #include "tablet_manager.h"
 #include "tablet_owner_proxy_base.h"
 
+#include <yt/yt/server/master/chunk_server/helpers.h>
+
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 namespace NYT::NTabletServer {
@@ -37,10 +39,10 @@ private:
     void ValidateRemoval()
     {
         const auto* hunkStorage = GetThisImpl();
-        const auto& usingNodeIds = hunkStorage->UsingNodeIds();
-        if (!usingNodeIds.empty()) {
-            THROW_ERROR_EXCEPTION("Cannot remove a hunk storage that is being used by nodes %Qv",
-                MakeShrunkFormattableView(usingNodeIds, TDefaultFormatter(), 10));
+        const auto& associatedNodeIds = hunkStorage->AssociatedNodeIds();
+        if (!associatedNodeIds.empty()) {
+            THROW_ERROR_EXCEPTION("Cannot remove a hunk storage that is being used by nodes %v",
+                MakeShrunkFormattableView(associatedNodeIds, TDefaultFormatter(), 10));
         }
     }
 
@@ -71,7 +73,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Tablets)
             .SetExternal(isExternal)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UsingNodes)
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AssociatedNodes)
             .SetOpaque(true));
         descriptors->push_back(EInternedAttributeKey::Sealed);
     }
@@ -124,24 +126,46 @@ private:
                     });
                 return true;
 
-            case EInternedAttributeKey::UsingNodes:
-                BuildYsonFluently(consumer)
-                    .DoListFor(node->UsingNodeIds(), [] (TFluentList fluent, const TVersionedNodeId& versionedId) {
-                        fluent.Item().BeginMap()
-                            .Item("node_id").Value(versionedId.ObjectId)
-                            .DoIf(versionedId.TransactionId != NullTransactionId, [&] (TFluentMap fluent) {
-                                fluent.Item("transaction_id").Value(versionedId.TransactionId);
-                            })
-                        .EndMap();
-                    });
-
-                return true;
-
             default:
                 break;
         }
 
         return TBase::DoGetBuiltinAttribute(key, consumer, /*showTabletAttributes*/ true);
+    }
+
+    TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
+    {
+        auto* node = GetThisImpl();
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
+        switch (key) {
+            case EInternedAttributeKey::AssociatedNodes: {
+                const auto& nodeIdsSet = node->AssociatedNodeIds();
+                std::vector nodeIds(nodeIdsSet.begin(), nodeIdsSet.end());
+                return objectManager->ResolveObjectIdsToPaths(nodeIds)
+                    .Apply(BIND([] (const std::vector<TErrorOr<IObjectManager::TVersionedObjectPath>>& pathOrErrors) {
+                        return BuildYsonStringFluently()
+                            .DoListFor(pathOrErrors, [] (TFluentList fluent, const TErrorOr<IObjectManager::TVersionedObjectPath>& pathOrError) {
+                                auto code = pathOrError.GetCode();
+                                if (code == NYTree::EErrorCode::ResolveError || code == NTransactionClient::EErrorCode::NoSuchTransaction) {
+                                    return;
+                                }
+                                const auto& path = pathOrError.ValueOrThrow();
+                                fluent
+                                    .Item()
+                                    .Do([&] (auto fluent) {
+                                        NChunkServer::SerializeNodePath(fluent.GetConsumer(), path.Path, path.TransactionId);
+                                    });
+                            });
+                    }).AsyncVia(GetCurrentInvoker()));
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::GetBuiltinAttributeAsync(key);
     }
 
     bool DoInvoke(const IYPathServiceContextPtr& context) override

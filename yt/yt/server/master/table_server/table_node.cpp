@@ -785,7 +785,7 @@ void TTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
 
     if (DynamicTableAttributes_ && DynamicTableAttributes_->HunkStorageNode) {
         auto id = GetVersionedId();
-        YT_VERIFY(DynamicTableAttributes_->HunkStorageNode->UsingNodeIds().contains(id));
+        YT_VERIFY(DynamicTableAttributes_->HunkStorageNode->AssociatedNodeIds().contains(id));
     }
 
     // NB: Const-cast due to const-correctness rabbit-hole, which led to TTableNode* being stored in the set.
@@ -813,7 +813,7 @@ void TTableNode::ResetHunkStorageNode()
     }
 
     auto id = GetVersionedId();
-    EraseOrCrash(DynamicTableAttributes_->HunkStorageNode->UsingNodeIds(), id);
+    EraseOrCrash(DynamicTableAttributes_->HunkStorageNode->AssociatedNodeIds(), id);
 
     DynamicTableAttributes_->HunkStorageNode.Reset();
 }
@@ -831,7 +831,7 @@ void TTableNode::SetHunkStorageNode(THunkStorageNode* node)
     THunkStorageNodePtr hunkStorageNodePtr(node);
     DynamicTableAttributes_->HunkStorageNode = std::move(hunkStorageNodePtr);
     auto id = GetVersionedId();
-    InsertOrCrash(DynamicTableAttributes_->HunkStorageNode->UsingNodeIds(), id);
+    InsertOrCrash(DynamicTableAttributes_->HunkStorageNode->AssociatedNodeIds(), id);
 }
 
 THunkStorageNode* TTableNode::GetHunkStorageNode() const

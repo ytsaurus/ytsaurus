@@ -514,7 +514,7 @@
     XX(UserAttributes, user_attributes) \
     XX(UserAttributeKeys, user_attribute_keys) \
     XX(UserTags, user_tags) \
-    XX(UsingNodes, using_nodes) \
+    XX(AssociatedNodes, associated_nodes) \
     XX(Value, value) \
     XX(ValueCount, value_count) \
     XX(Version, version) \

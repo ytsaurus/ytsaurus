@@ -241,6 +241,9 @@ public:
         TTransaction* transaction,
         const TResolvePathOptions& options) override;
 
+    TFuture<std::vector<TErrorOr<TVersionedObjectPath>>> ResolveObjectIdsToPaths(
+        const std::vector<TVersionedObjectId>& objectIds) override;
+
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites) override;
 
     TFuture<TSharedRefArray> ForwardObjectRequest(
@@ -1575,6 +1578,50 @@ TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* t
     }
 
     return payload->Object;
+}
+
+auto TObjectManager::ResolveObjectIdsToPaths(const std::vector<TVersionedObjectId>& objectIds)
+    -> TFuture<std::vector<TErrorOr<TVersionedObjectPath>>>
+{
+    // Request object paths from the primary cell.
+    auto proxy = CreateObjectServiceReadProxy(
+        Bootstrap_->GetRootClient(),
+        NApi::EMasterChannelKind::Follower);
+
+    // TODO(babenko): improve
+    auto batchReq = proxy.ExecuteBatch();
+    for (const auto& versionedId : objectIds) {
+        auto req = TCypressYPathProxy::Get(FromObjectId(versionedId.ObjectId) + "/@path");
+        SetTransactionId(req, versionedId.TransactionId);
+        batchReq->AddRequest(req);
+    }
+
+    return
+        batchReq->Invoke()
+        .Apply(BIND([=] (const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& batchRspOrError) -> TErrorOr<std::vector<TErrorOr<TVersionedObjectPath>>> {
+            if (!batchRspOrError.IsOK()) {
+                return TError("Error requesting object paths")
+                    << batchRspOrError;
+            }
+
+            const auto& batchRsp = batchRspOrError.Value();
+            auto rspOrErrors = batchRsp->GetResponses<TCypressYPathProxy::TRspGet>();
+            YT_VERIFY(rspOrErrors.size() == objectIds.size());
+
+            std::vector<TErrorOr<TVersionedObjectPath>> results;
+            results.reserve(rspOrErrors.size());
+            for (int index = 0; index < std::ssize(rspOrErrors); ++index) {
+                const auto& rspOrError = rspOrErrors[index];
+                if (rspOrError.IsOK()) {
+                    const auto& rsp = rspOrError.Value();
+                    results.push_back(TVersionedObjectPath{ConvertTo<TYPath>(TYsonString(rsp->value())), objectIds[index].TransactionId});
+                } else {
+                    results.push_back(TError(rspOrError));
+                }
+            }
+
+            return results;
+        }));
 }
 
 void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
