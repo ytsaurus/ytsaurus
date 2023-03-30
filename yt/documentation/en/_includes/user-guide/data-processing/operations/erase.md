@@ -8,7 +8,7 @@ The Erase operation supports the following options (if set, default values are s
 
 * `table_path` — path to the input table. Enables specifying row ranges on the input table, such as `//path/table[#10:#100]`. You can delete only a range of rows as opposed to all the data in the table.
 * `combine_chunks` (false) — combine the remaining chunks in the table so that they are large enough.
-* `schema_inference_mode` (auto) — schema definition mode. Possible values: auto, from_input, from_output. To learn more, see [Data schema](../../storage/static-schema.md#schema_inference).
+* `schema_inference_mode` (auto) — schema definition mode. Possible values: auto, from_input, from_output. To learn more, see [Data schema](../../../../user-guide/storage/static-schema.md#schema_inference).
 
 ## Example specification
 

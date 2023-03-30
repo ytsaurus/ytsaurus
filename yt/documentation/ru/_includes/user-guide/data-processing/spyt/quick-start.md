@@ -31,7 +31,7 @@ pip install ytsaurus-spyt
     - `--worker-cores` – количество ядер у [воркера](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#spark-standalone-в-yt--spark-standalone);
     - `--worker-num` – количество воркеров;
     - `--worker-memory` – количество памяти у каждого воркера;
-    - `--spark-cluster-version` – [версия](../spyt/version.md) кластера (опционально).
+    - `--spark-cluster-version` – [версия](../../../../user-guide/data-processing/spyt/version.md) кластера (опционально).
 
 
 4. Запустите тестовый джоб на кластере:

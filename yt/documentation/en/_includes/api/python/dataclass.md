@@ -19,7 +19,7 @@ The main method used to represent table rows is to create classes with fields ma
 To work with the `yt.wrapper.schema` module, install the packages:
 
 * `typing_extensions`
-* `ytsaurus-yson-bindings`
+* `ytsaurus-yson`
 * `six`
 
 ## Introduction { #introduction }

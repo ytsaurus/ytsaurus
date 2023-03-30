@@ -17,7 +17,7 @@ SPYT не стоит выбирать, если:
 
 1. Завести кластер Spark.
 2. Использовать кластер Spark несколькими способами:
-    * Писать код в [Jupyter](../spyt/API/spyt-jupyter.md).
-    * Писать код на [Python](../spyt/API/spyt-python.md) и запускать на кластере.
-    * Писать код на [Java](../spyt/API/spyt-java.md) и запускать на кластере.
-    * Писать код на [Scala](../spyt/API/spyt-scala.md) и запускать на кластере.
+    * Писать код в [Jupyter](../../../../user-guide/data-processing/spyt/API/spyt-jupyter.md).
+    * Писать код на [Python](../../../../user-guide/data-processing/spyt/API/spyt-python.md) и запускать на кластере.
+    * Писать код на [Java](../../../../user-guide/data-processing/spyt/API/spyt-java.md) и запускать на кластере.
+    * Писать код на [Scala](../../../../user-guide/data-processing/spyt/API/spyt-scala.md) и запускать на кластере.

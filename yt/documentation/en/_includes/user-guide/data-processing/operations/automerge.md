@@ -4,15 +4,15 @@ This section describes the process of merging chunks automatically at the oper
 
 ## Overview { #overview }
 
-One of the most popular data processing scenarios is filtering of a large table consisting of multiple chunks that uses the [Map](map.md) operation without special flags (Unordered Map) to produce a small result. Because of the underlying mechanism of such operations, filtering of a table of `n` chunks can at worst create `n` resulting chunks in the output, regardless of how small each of these chunks is. Such a behavior might devour the chunk quota on the user account. For more information on quoting, see [Quotas](../../../../user-guide/storage/quotas.md).
+One of the most popular data processing scenarios is filtering of a large table consisting of multiple chunks that uses the [Map](../../../../user-guide/data-processing/operations/map.md) operation without special flags (Unordered Map) to produce a small result. Because of the underlying mechanism of such operations, filtering of a table of `n` chunks can at worst create `n` resulting chunks in the output, regardless of how small each of these chunks is. Such a behavior might devour the chunk quota on the user account. For more information on quoting, see [Quotas](../../../../user-guide/storage/quotas.md).
 
 You can merge the resulting chunks using the [Merge](../../../../user-guide/data-processing/operations/merge.md) operation, but this method is not convenient because it requires an additional operation. Still, however, in this case, you need to create a safety stock of quota for `n` chunks to allow for bursts: this might be as high as hundreds of thousands of chunks for large tables (and the chunk quota is quite an expensive resource). That's why {{product-name}} provides automated chunk merging at operation output. This merging is proactive in the sense that it merges output chunks before they have used up your quota.
 
 Automatic merging has the following constraints:
 
-* It's only available for Unordered [Map](map.md) and [Sorted Reduce](reduce.md) operations.
+* It's only available for Unordered [Map](../../../../user-guide/data-processing/operations/map.md) and [Sorted Reduce](../../../../user-guide/data-processing/operations/reduce.md) operations.
 * It works only with tables that accept **unsorted data**. For the operations with sorted output, the situation is complicated by the fact that you cannot merge output chunks in an arbitrary order.
-* Unavailable if `row_count_limit` is set. To learn more about this parameter, see [Operation options](operations-options.md).
+* Unavailable if `row_count_limit` is set. To learn more about this parameter, see [Operation options](../../../../user-guide/data-processing/operations/operations-options.md).
 
 If the operation goes beyond the constraints, the user has to run the [Merge](../../../../user-guide/data-processing/operations/merge.md) operation manually.
 

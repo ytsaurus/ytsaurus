@@ -34,7 +34,7 @@ The command for installing from pypi:
 # Install the {{product-name}} CLI
 pip install ytsaurus-client
 # Install YSON bindings
-pip install ytsaurus-yson-bindings
+pip install ytsaurus-yson
 ```
 
 ## Autocompletion { #autocompletion }

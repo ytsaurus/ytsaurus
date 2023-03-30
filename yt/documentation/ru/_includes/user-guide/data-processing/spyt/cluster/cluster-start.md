@@ -1,6 +1,6 @@
 # Запуск кластера Spark
 
-В данном разделе приведена расширенная инструкция по запуску кластера Spark. Базовые операции по запуску описаны в разделе [Быстрый старт](../quick-start.md).
+В данном разделе приведена расширенная инструкция по запуску кластера Spark. Базовые операции по запуску описаны в разделе [Быстрый старт](../../../../../user-guide/data-processing/spyt/quick-start.md).
 
 {% note warning "Внимание" %}
 
@@ -48,5 +48,4 @@ spark-launch-yt
 1. Остановить операцию с текущим кластером в {{product-name}}. Ссылку на операцию можно найти с помощью `spark-discovery-yt`.
 2. Запустить кластер с помощью `spark-launch-yt`. Можно указать в аргументе `spark-cluster-version` нужную версию. Если версия не указана, то будет запущена последняя версия.
 
-{% if audience == "internal" %} {% include [Internal-part](../../../../_includes/user-guide/data-processing/spyt/cluster/cluster-start.md) %}  {% endif %}
 

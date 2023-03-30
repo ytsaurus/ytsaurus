@@ -23,7 +23,7 @@ pip install ytsaurus-client
 Для использования YSON формата для работы с таблицами потребуются C++ биндинги, которые устанавливаются отдельным пакетом. Установка [YSON биндингов](../../../api/python/userdoc.md#yson_bindings):
 
    ```bash
-   pip install ytsaurus-yson-bindings
+   pip install ytsaurus-yson
    ```
 
 {% note warning "Внимание" %}

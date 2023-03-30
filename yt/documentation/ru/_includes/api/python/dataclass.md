@@ -19,7 +19,7 @@
 Для работы с модулем `yt.wrapper.schema` установите пакеты:
 
   * `typing_extensions`
-  * `ytsaurus-yson-bindings`
+  * `ytsaurus-yson`
   * `six`
 
 ## Введение { #introduction }

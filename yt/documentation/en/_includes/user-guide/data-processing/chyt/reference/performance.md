@@ -17,7 +17,7 @@ Below are the query execution stages that can be a bottleneck.
 2. Reading data from the disk.
 3. Transmitting data over the network.
 4. Data uncompressing and decoding.
-5. Version merging (for [dynamic](../../../dynamic-tables/overview.md) tables only).
+5. Version merging (for [dynamic](../../../../../user-guide/dynamic-tables/overview.md) tables only).
 6. Converting data from {{product-name}} format into CH format.
 7. Data processing by the ClickHouse engine.
 8. Converting data from CH format into {{product-name}} format (for write operations only).

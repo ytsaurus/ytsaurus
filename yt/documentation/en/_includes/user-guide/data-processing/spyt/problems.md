@@ -13,6 +13,6 @@ A task list for this transaction always includes a master, a worker, and the Spa
 If a task produces an error at startup, you need to:
 - Open the task log via Master Web UI. It has links to the driver and the executor logs.
 - Open Worker UI via Master Web UI and review the application startup sequence.
-- View the [Event Log](logs.md).
+- View the [Event Log](../../../../user-guide/data-processing/spyt/logs.md).
 
 

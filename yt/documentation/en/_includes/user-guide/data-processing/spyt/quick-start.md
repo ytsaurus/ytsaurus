@@ -31,7 +31,7 @@ pip install ytsaurus-spyt
    - `--worker-cores`: Number of [worker](../../../../user-guide/data-processing/spyt/cluster/cluster-desc.md#spark-standalone-в-yt--spark-standalone) cores.
    - `--worker-num`: Number of workers.
    - `--worker-memory`: Amount of each worker's memory.
-   - `--spark-cluster-version`: Cluster [version](../spyt/version.md) (optional).
+   - `--spark-cluster-version`: Cluster [version](../../../../user-guide/data-processing/spyt/version.md) (optional).
 
 
 4. Start a test job on your cluster:

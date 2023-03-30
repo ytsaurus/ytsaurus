@@ -2,7 +2,7 @@
 
 The RemoteCopy operation copies tables from one cluster to another. The RemoteCopy operation's jobs are run on the destination cluster and copy chunks from the source cluster ("pull"). The operation copies the chunks in their original form, without uncompressing them or changing the `erasure` schema. If there is one input table and it is sorted, the output table will also be sorted.
 
-General parameters for all operation types are described in [Operation options](operations-options.md).
+General parameters for all operation types are described in [Operation options](../../../../user-guide/data-processing/operations/operations-options.md).
 
 The RemoteCopy operation supports the following additional options (default values, if set, are specified in brackets):
 

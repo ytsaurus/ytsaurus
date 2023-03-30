@@ -13,6 +13,6 @@ spark-discovery-yt <cluster-name> --discovery-path my_discovery_path
 При ошибке запуска задачи необходимо:
 - зайти в лог задачи через Master Web UI, в нём имеются ссылки на логи драйвера и экзекьютора;
 - зайти в Worker UI через Master Web UI и посмотреть как происходил запуск приложения;
-- посмотреть [Event Log](logs.md).
+- посмотреть [Event Log](../../../../user-guide/data-processing/spyt/logs.md).
 
 

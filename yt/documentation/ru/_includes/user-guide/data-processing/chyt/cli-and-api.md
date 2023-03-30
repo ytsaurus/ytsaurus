@@ -16,7 +16,7 @@ export YT_PROXY=<cluster_name> YT_ALIAS=*ch_public
 
 ## ytsaurus-client { #ytsaurus-client }
 
-Основной способ начать работать с {{product-name}} — установить пакет `ytsaurus-client`. Подробнее об этом можно прочитать в разделе [Python Wrapper](../../../api/python/start.md).
+Основной способ начать работать с {{product-name}} — установить пакет `ytsaurus-client`. Подробнее об этом можно прочитать в разделе [Python Wrapper](../../../../api/python/start.md).
 
 Установка `ytsaurus-client` с помощью [PyPi](https://pypi.org/):
 

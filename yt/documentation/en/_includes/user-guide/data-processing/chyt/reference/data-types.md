@@ -14,7 +14,7 @@ The table below shows the correspondence between the __primitive__ (not composit
 | `double` | `Float64` |                                                              |
 | `date` | `Date` |
 | `datetime` | `DateTime` |
-| `any` | `String` | Any columns are read by the ClickHouse engine as string columns containing data in YSON. See also: [`chyt.composite.default_yson_format`](../reference/settings.md). |
+| `any` | `String` | Any columns are read by the ClickHouse engine as string columns containing data in YSON. See also: [`chyt.composite.default_yson_format`](../../../../../user-guide/data-processing/chyt/reference/settings.md). |
 | `T` with `required = %false` | `Nullable(T)` | If a column of a `T` type is not `required`, it is seen as a Nullable column. |
 
 ## Composite data types

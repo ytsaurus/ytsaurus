@@ -498,9 +498,9 @@ class Row:
     robot: bool = False
 ```
 
-После двоеточия указывается тип поля. Это может быть либо обычный тип Python, либо тип из модуля [typing](https://docs.python.org/3/library/typing.html), либо же специальный тип, например, `OtherColumns`. Подробнее можно прочитать в разделе [Классы данных](dataclass.md#types). Так же, как и в стандартном модуле `dataclasses`, объект можно создавать обычным образом: `row = Row(id=123, name="foo")`. При этом для всех полей, для которых не указаны дефолтные значения (как для `robot: bool = False`), необходимо передать соответствующие поля в конструктор, иначе появится исключение.
+После двоеточия указывается тип поля. Это может быть либо обычный тип Python, либо тип из модуля [typing](https://docs.python.org/3/library/typing.html), либо же специальный тип, например, `OtherColumns`. Подробнее можно прочитать в разделе [Классы данных](../../../api/python/dataclass.md#types). Так же, как и в стандартном модуле `dataclasses`, объект можно создавать обычным образом: `row = Row(id=123, name="foo")`. При этом для всех полей, для которых не указаны дефолтные значения (как для `robot: bool = False`), необходимо передать соответствующие поля в конструктор, иначе появится исключение.
 
-Для классов данных допустимо наследование. Подробнее см. в разделе [Классы данных](dataclass.md). Также смотрите [пример](examples.md#dataclass).
+Для классов данных допустимо наследование. Подробнее см. в разделе [Классы данных](../../../api/python/dataclass.md). Также смотрите [пример](../../../api/python/examples.md#dataclass).
 
 #### Схемы { #table_schema }
 
@@ -1020,7 +1020,7 @@ if __name__ == "__main__":
 
 Так как информация об операции может быть получена из разных источников (которые могут меняться как по составу, так и по своему внутреннему устройству), то существуют следующие методы, которые в любой момент умеют собирать информацию об операции из перечисленных источников.
 
-- [get_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_operation) — получить информацию об операции по ее id. Возвращается `dict` с полями, аналогичными полям ответа [get_operation](../commands.md#get_operation).
+- [get_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_operation) — получить информацию об операции по ее id. Возвращается `dict` с полями, аналогичными полям ответа [get_operation](../../../api/commands.md#get_operation).
 - [list_operations](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.list_operations) — получить информацию про набор операций по фильтрам. Смысл полей аналогичен `get_operation`. Список фильтров см. в разделе [Команды](../../../api/commands.md#list_operations).
 - [iterate_operations](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.iterate_operations) — получить итератор на набор операций. Функция аналогична `list_operations`, но не имеет ограничения на количество запрашиваемых операций.
 
@@ -1175,22 +1175,22 @@ yt.get_attribute("//sys/groups/testers", "members")
 
 Для того, чтобы запустить операцию, необходимо описать специальный класс-наследник `yt.wrapper.TypedJob` и передать объект данного класса в [функцию](#run_operation_commands) запуска операции (либо указать в соответствующем поле [SpecBuilder-а](#spec_builders)).
 
- В классе джоба обязательно должен быть определен метод `__call__(self, row)` (для mapper-а) или `__call__(self, rows)` (для reducer-а). На вход данному методу приходят строки таблицы (в случае reducer-а один вызов `__call__` соответствует набору строк с одинаковым ключом). Он обязан вернуть (**с помощью `yield`**) строки которые нужно записать в выходную таблицу. Если выходных таблиц несколько, нужно использовать класс-обёртку `yt.wrapper.OutputRow`, конструктор которого принимает записываемую строку и `table_index` в виде именованного параметра (смотрите [пример](examples.md#table_switches) в туториале).
+ В классе джоба обязательно должен быть определен метод `__call__(self, row)` (для mapper-а) или `__call__(self, rows)` (для reducer-а). На вход данному методу приходят строки таблицы (в случае reducer-а один вызов `__call__` соответствует набору строк с одинаковым ключом). Он обязан вернуть (**с помощью `yield`**) строки которые нужно записать в выходную таблицу. Если выходных таблиц несколько, нужно использовать класс-обёртку `yt.wrapper.OutputRow`, конструктор которого принимает записываемую строку и `table_index` в виде именованного параметра (смотрите [пример](../../../api/python/examples.md#table_switches) в туториале).
 
-Дополнительно можно определить методы `start(self)` (будет вызван ровно один раз перед обработкой записей джоба) и `finish(self)` (будет вызван один раз после обработки записей джоба), которые, как и `__call__`, могут генерировать (с помощью `yield`) новые записи, что позволяет, например, удобно делать агрегирующие операции. А также метод [`.prepare_operation(self, context, preparer)`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation). Он используется для указания типов строк входных и выходных таблиц, а также для модификации спеки операции. Более подробно смотрите [ниже](#prepare_operation) и примеры в туториале: [раз](examples.md#prepare_operation) и [два](#examples.md#grep).
+Дополнительно можно определить методы `start(self)` (будет вызван ровно один раз перед обработкой записей джоба) и `finish(self)` (будет вызван один раз после обработки записей джоба), которые, как и `__call__`, могут генерировать (с помощью `yield`) новые записи, что позволяет, например, удобно делать агрегирующие операции. А также метод [`.prepare_operation(self, context, preparer)`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation). Он используется для указания типов строк входных и выходных таблиц, а также для модификации спеки операции. Более подробно смотрите [ниже](#prepare_operation) и примеры в туториале: [раз](../../../api/python/examples.md#prepare_operation) и [два](#examples.md#grep).
 
 ### Подготовка операции из джоба { #prepare_operation }
 
-Для указания входных и выходных типов строк в классе джоба можно использовать тайп хинты (смотрите примеры в туториале: [раз](examples.md#simple_map), [два](examples.md#multiple_input_reduce), [три](examples.md#multiple_input_multiple_output_reduce) и [четыре](examples.md#map_reduce_multiple_intermediate_streams)), либо переопределить метод [`.prepare_operation(self, context, preparer)`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation). Указание типов производится через методы объекта `preparer` типа [`OperationPreparer`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer). Полезные методы:
+Для указания входных и выходных типов строк в классе джоба можно использовать тайп хинты (смотрите примеры в туториале: [раз](../../../api/python/examples.md#simple_map), [два](../../../api/python/examples.md#multiple_input_reduce), [три](../../../api/python/examples.md#multiple_input_multiple_output_reduce) и [четыре](../../../api/python/examples.md#map_reduce_multiple_intermediate_streams)), либо переопределить метод [`.prepare_operation(self, context, preparer)`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation). Указание типов производится через методы объекта `preparer` типа [`OperationPreparer`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer). Полезные методы:
    1. [`inputs`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer.inputs): позволяет указать для нескольких входных таблиц тип входной строки (обязан быть классом с декоратором [`@yt.wrapper.yt_dataclass`](#dataclass)), список имён колонок, которые нужны джобу, а также переименования колонок.
    2. [`outputs`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer.outputs): позволяет указать для нескольких выходных таблиц тип выходной строки (обязан быть классом с декоратором [`@yt.wrapper.yt_dataclass`](#dataclass)), а также схему, которую хочется вывести для этих таблиц (по умолчанию схема выводится из класса данных).
    3. `input` и `output` — аналоги соответствующих методов, принимающие единственный индекс.
 
 Объект [`context`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparationContext) позволяет получать информацию о входных и выходных потоках: их количество, схемы и пути к таблицам.
 
-смотрите примеры в туториале: [раз](examples.md#prepare_operation) и [два](#examples.md#grep).
+смотрите примеры в туториале: [раз](../../../api/python/examples.md#prepare_operation) и [два](#examples.md#grep).
 
-Если запускается MapReduce с несколькими промежуточными потоками, то требуется также переопределить метод [.get_intermediate_stream_count(self)](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.get_intermediate_stream_count), вернув из него количество промежуточных потоков. Смотрите [пример](examples.md#map_reduce_multiple_intermediate_streams).
+Если запускается MapReduce с несколькими промежуточными потоками, то требуется также переопределить метод [.get_intermediate_stream_count(self)](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.get_intermediate_stream_count), вернув из него количество промежуточных потоков. Смотрите [пример](../../../api/python/examples.md#map_reduce_multiple_intermediate_streams).
 
 ### Декораторы { #python_decorators }
 
@@ -1204,7 +1204,7 @@ yt.get_attribute("//sys/groups/testers", "members")
 
 Обратите внимание, что декораторы реализованы через простановку атрибута на функции. Поэтому, например, объявить функцию с декоратором, а потом сделать поверх неё `functools.partial` не получится. Если вы хотите прямо при вызове передать какие-то параметры в функцию – стоит завести класс с декоратором (смотрите последний пример ниже).
 
-Примеры можно найти в [туториале](examples.md#job_decorators).
+Примеры можно найти в [туториале](../../../api/python/examples.md#job_decorators).
 
 
 ### Pickling функции и окружения { #pickling }
@@ -1384,7 +1384,7 @@ def reducer(key, rows):
 
 Обратите внимание, что декораторы реализованы через простановку атрибута на функции. Поэтому, например, объявить функцию с декоратором, а потом сделать поверх неё `functools.partial` не получится. Если вы хотите прямо при вызове передать какие-то параметры в функцию – стоит завести класс с декоратором (смотрите последний пример ниже).
 
-Примеры можно найти в [туториале](examples.md#job_decorators_untyped).
+Примеры можно найти в [туториале](../../../api/python/examples.md#job_decorators_untyped).
 
 
 ### Форматы { #python_formats }
@@ -1438,7 +1438,7 @@ def reducer(key, rows):
 - `row_fields` — заказанные контрольные атрибуты будут записаны в качестве полей у каждой записи. Например, если заказан row_index, то у каждой записи будет поле `@row_index`, в котором записан номер данной записи.
 - `none` — никакой специальной обработки контрольных атрибутов производиться не будет, то есть клиенту придет поток записей, в котором будут встречаться записи типа entity с контрольными атрибутами.
 
-Примеры переключения между выходными таблицами с `table_index` при `control_attributes_mode`, равном `iterator` и `row_fields`, а также пример получения индекса текущей строки таблицы в reducer-е с помощью `context`, можно найти [здесь](examples.md#table_switches_untyped)
+Примеры переключения между выходными таблицами с `table_index` при `control_attributes_mode`, равном `iterator` и `row_fields`, а также пример получения индекса текущей строки таблицы в reducer-е с помощью `context`, можно найти [здесь](../../../api/python/examples.md#table_switches_untyped)
 
 #### Другие форматы { #other_formats }
 

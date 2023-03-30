@@ -14,7 +14,7 @@
 | `double`       | `Float64`       |                                                              |
 | `date`         | `Date`          |
 | `datetime`     | `DateTime`      |
-| `any`          | `String`        | Any-колонки читаются движком ClickHouse как строковые колонки, содержащие данные в YSON. Смотрите также: [`chyt.composite.default_yson_format`](../reference/settings.md). |
+| `any`          | `String`        | Any-колонки читаются движком ClickHouse как строковые колонки, содержащие данные в YSON. Смотрите также: [`chyt.composite.default_yson_format`](../../../../user-guide/data-processing/chyt/reference/settings.md). |
 | `T` с `required = %false` | `Nullable(T)` | Если колонка некоторого типа `T` не является `required`, то она видна как Nullable-колонка |
 
 ## Составные типы данных

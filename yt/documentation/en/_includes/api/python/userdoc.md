@@ -498,9 +498,9 @@ class Row:
     robot: bool = False
 ```
 
-The field type comes after the colon. This might be a regular Python type or a type from the [typing](https://docs.python.org/3/library/typing.html) module or a special type such as `OtherColumns`. For more information, see the [Data classes](dataclass.md#types) section. Just as in the standard `dataclasses` module, you can create objects in the usual way: `row = Row(id=123, name="foo")`. In that case, for all the fields without default values (as for `robot: bool = False`), you need to pass relevant fields to the constructor. Otherwise, an exception will arise.
+The field type comes after the colon. This might be a regular Python type or a type from the [typing](https://docs.python.org/3/library/typing.html) module or a special type such as `OtherColumns`. For more information, see the [Data classes](../../../api/python/dataclass.md#types) section. Just as in the standard `dataclasses` module, you can create objects in the usual way: `row = Row(id=123, name="foo")`. In that case, for all the fields without default values (as for `robot: bool = False`), you need to pass relevant fields to the constructor. Otherwise, an exception will arise.
 
-The data classes support inheritance. For more information, see the [Data classes](dataclass.md) section todo. See also the [example](examples.md#dataclass).
+The data classes support inheritance. For more information, see the [Data classes](../../../api/python/dataclass.md) section todo. See also the [example](../../../api/python/examples.md#dataclass).
 
 #### Schemas { #table_schema }
 
@@ -1176,22 +1176,22 @@ The function runs the `map_reduce` operation that sorts the table by the added c
 
 To run the operation, you need to define a special `yt.wrapper.TypedJob` subclass and pass the object of this class to the operation run [function](#run_operation_commands) (or specify it in the applicable field of the [SpecBuilder](#spec_builders)).
 
-Make sure to define, in the job class, the `__call__(self, row)` method (for the mapper) or `__call__(self, rows)` method (for the reducer). As input, this method accepts table rows (in the case of a reducer, a single call (`__call__`) corresponds to a set of rows with the same key). It has to return (**by using `yield`**) the rows that need to be written to the output table. If you have multiple output tables, use the wrapper class `yt.wrapper.OutputRow`, whose constructor accepts the row written and the `table_index` as a named parameter (see the [example](examples.md#table_switches) in the tutorial).
+Make sure to define, in the job class, the `__call__(self, row)` method (for the mapper) or `__call__(self, rows)` method (for the reducer). As input, this method accepts table rows (in the case of a reducer, a single call (`__call__`) corresponds to a set of rows with the same key). It has to return (**by using `yield`**) the rows that need to be written to the output table. If you have multiple output tables, use the wrapper class `yt.wrapper.OutputRow`, whose constructor accepts the row written and the `table_index` as a named parameter (see the [example](../../../api/python/examples.md#table_switches) in the tutorial).
 
-In addition, you can define the methods `start(self)` (it will be called only once before processing the job records) and `finish(self)` (it will be called once after processing the job records) which, just as `__call__`, can generate records (using `yield`). This allows you, for example, to easily run aggregating operations. As well as the [`.prepare_operation(self, context, preparer)`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation) method. It is used to specify row types for input and output table tabs, as well as to modify the operation specification. For more information, see [below](#prepare_operation) and the examples in the tutorial: [one](examples.md#prepare_operation) and [two](#examples.md#grep).
+In addition, you can define the methods `start(self)` (it will be called only once before processing the job records) and `finish(self)` (it will be called once after processing the job records) which, just as `__call__`, can generate records (using `yield`). This allows you, for example, to easily run aggregating operations. As well as the [`.prepare_operation(self, context, preparer)`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation) method. It is used to specify row types for input and output table tabs, as well as to modify the operation specification. For more information, see [below](#prepare_operation) and the examples in the tutorial: [one](../../../api/python/examples.md#prepare_operation) and [two](../../../api/python/examples.md#grep).
 
 ### Preparing an operation from a job { #prepare_operation }
 
-To specify the input and output string types in the job class, you can use the hint type: [one](examples.md#simple_map), [two](examples.md#multiple_input_reduce), [three](examples.md#multiple_input_multiple_output_reduce), and [four](examples.md#map_reduce_multiple_intermediate_streams)) or override the method [`.prepare_operation(self, context, preparer)`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation). The types are specified using the methods of the `preparer` object of the [`OperationPreparer`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer) type. Useful methods:
+To specify the input and output string types in the job class, you can use the hint type: [one](../../../api/python/examples.md#simple_map), [two](../../../api/python/examples.md#multiple_input_reduce), [three](../../../api/python/examples.md#multiple_input_multiple_output_reduce), and [four](../../../api/python/examples.md#map_reduce_multiple_intermediate_streams)) or override the method [`.prepare_operation(self, context, preparer)`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation). The types are specified using the methods of the `preparer` object of the [`OperationPreparer`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer) type. Useful methods:
 1. [`inputs`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer.inputs): Enables you to specify the input row type for multiple input tables (it must be a class with the decorator [`@yt.wrapper.yt_dataclass`](#dataclass)), a list of names for the columns that the job needs, as well as the renamings for the columns.
 2. [`outputs`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer.outputs): Enables you to specify the output row type for multiple output tables (it must be a class with the decorator [`@yt.wrapper.yt_dataclass`](#dataclass)) and the schema that you want to output for these tables (by default, the schema is output from the data class).
 3. `input` and `output` are the counterparts of corresponding methods that accept a single index.
 
 The [`context`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparationContext) object enables you to get information about the input and output streams: their number, schemas, and paths to tables.
 
-See the examples in the tutorial: [one](examples.md#prepare_operation) and [two](#examples.md#grep).
+See the examples in the tutorial: [one](../../../api/python/examples.md#prepare_operation) and [two](../../../api/python/examples.md#grep).
 
-If you run MapReduce with multiple intermediate streams, you also need to override the [.get_intermediate_stream_count(self)](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.get_intermediate_stream_count) method, returning the number of intermediate streams from it. See [example](examples.md#map_reduce_multiple_intermediate_streams).
+If you run MapReduce with multiple intermediate streams, you also need to override the [.get_intermediate_stream_count(self)](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.get_intermediate_stream_count) method, returning the number of intermediate streams from it. See [example](../../../api/python/examples.md#map_reduce_multiple_intermediate_streams).
 
 ### Decorators { #python_decorators }
 
@@ -1205,7 +1205,7 @@ You can mark functions or job classes with special decorators that change the ex
 
 Keep in mind that the decorator is implemented by setting an attribute on a function. That's why, for example, you cannot declare a function with the decorator and then make `functools.partial` on it. If you want to pass certain parameters to a function directly at function call, it makes sense to create a class with a decorator (see the last example below).
 
-You can find examples in the [tutorial](examples.md#job_decorators).
+You can find examples in the [tutorial](../../../api/python/examples.md#job_decorators).
 
 
 ### Pickling functions and environments { #pickling }
@@ -1389,7 +1389,7 @@ In the non-typed API, the meaning of some decorators slightly changes compared t
 
 Keep in mind that the decorator is implemented by setting an attribute on a function. That's why, for example, you cannot declare a function with the decorator and then make `functools.partial` on it. If you want to pass certain parameters to a function directly at function call, it makes sense to create a class with a decorator (see the last example below).
 
-You can find examples in the [tutorial](examples.md#job_decorators_untyped).
+You can find examples in the [tutorial](../../../api/python/examples.md#job_decorators_untyped).
 
 
 ### Formats { #python_formats }
@@ -1443,7 +1443,7 @@ YSON format has several modes for automated processing of control attributes. Se
 - `row_fields`: The requested control attributes will be added as fields to each record. For example, if you request row _index, then each record will have the `@row_index` field with the ID of this record.
 - `none`: No special processing will be done for the control attributes: the client will get a stream of records where the entity-type records will have control attributes.
 
-Examples of switching between output tables with `table_index` at `control_attributes_mode` equal to `iterator` and `row_fields`. [Here](examples.md#table_switches_untyped) you can find an example of how to get an index of the current table in the reducer using `context`.
+Examples of switching between output tables with `table_index` at `control_attributes_mode` equal to `iterator` and `row_fields`. [Here](../../../api/python/examples.md#table_switches_untyped) you can find an example of how to get an index of the current table in the reducer using `context`.
 
 #### Other formats { #other_formats }
 

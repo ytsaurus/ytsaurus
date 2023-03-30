@@ -23,7 +23,7 @@ What becomes available after installing the package:
 To use the YSON format to work with tables, you need C++ bindings installed as a separate package. Installing [YSON bindings](../../../api/python/userdoc.md#yson_bindings):
 
 ```bash
-pip install ytsaurus-yson-bindings
+pip install ytsaurus-yson
 ```
 
 {% note warning "Attention!" %}

@@ -17,9 +17,9 @@ Do not use SPYT if:
 
 1. Start a Spark cluster.
 2. Take advantage of the Spark cluster using several methods:
-   * Code in [Jupyter](../spyt/API/spyt-jupyter.md).
-   * Code in [Python](../spyt/API/spyt-python.md) and run the code on your cluster.
-   * Code in [Java](../spyt/API/spyt-java.md) and run the code on your cluster.
-   * Code in [Scala](../spyt/API/spyt-scala.md) and run the code on your cluster.
+   * Code in [Jupyter](../../../../user-guide/data-processing/spyt/API/spyt-jupyter.md).
+   * Code in [Python](../../../../user-guide/data-processing/spyt/API/spyt-python.md) and run the code on your cluster.
+   * Code in [Java](../../../../user-guide/data-processing/spyt/API/spyt-java.md) and run the code on your cluster.
+   * Code in [Scala](../../../../user-guide/data-processing/spyt/API/spyt-scala.md) and run the code on your cluster.
 
 

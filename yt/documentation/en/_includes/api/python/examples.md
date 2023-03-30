@@ -7,7 +7,7 @@ We recommend running all programs on `Linux`.
 ## Basic level { #base }
 
 The modern method of working with the Python API is typed.
-Data stored in tables and processed by operations is represented in the code by [classes](userdoc.md#dataclass) with typed fields (similar to [dataclasses](https://docs.python.org/3/library/dataclasses.html)). An unrecommended (but sometimes unavoidable, especially when working with old tables) method is untyped when table rows are represented by dicts.
+Data stored in tables and processed by operations is represented in the code by [classes](../../../api/python/userdoc.md#dataclass) with typed fields (similar to [dataclasses](https://docs.python.org/3/library/dataclasses.html)). An unrecommended (but sometimes unavoidable, especially when working with old tables) method is untyped when table rows are represented by dicts.
 This method is much slower, fraught with errors, and inconvenient when working with composite types. Therefore, this section of the documentation provides examples of working with the typed API and the untyped examples can be found in the [corresponding section](#untyped_tutorial).
 
 ### Reading and writing tables { #read_write }
@@ -47,7 +47,7 @@ The example is located at [yt/python/examples/multiple_input_multiple_output_red
 
 ### Table schemas { #table_schema }
 
-All tables in {{product-name}} have a [schema](userdoc.md#table_schema).
+All tables in {{product-name}} have a [schema](../../../api/python/userdoc.md#table_schema).
 The code demonstrates examples of working with the table schema.
 
 The example is located at [yt/python/examples/table_schema_typed](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/table_schema_typed).
@@ -118,7 +118,7 @@ The example is located at [yt/python/examples/prepare_operation_typed](https://g
 
 ### Data classes { #dataclass }
 
-This example demonstrates the features and peculiarities of working with [data classes](userdoc.md#dataclass) in more detail.
+This example demonstrates the features and peculiarities of working with [data classes](../../../api/python/userdoc.md#dataclass) in more detail.
 
 The example is located at [yt/python/examples/dataclass_types](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/dataclass_types).
 
