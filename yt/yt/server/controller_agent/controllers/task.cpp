@@ -1292,6 +1292,7 @@ void TTask::OnTaskCompleted()
             << TErrorAttribute("task_name", GetVertexDescriptor())
             << TErrorAttribute("probing_base_layer_path", *userJobSpec->ProbingBaseLayerPath)
             << TErrorAttribute("failed_layer_probing_job_count", LayerProbingJobManager_.FailedJobCount())
+            << TErrorAttribute("completed_layer_probing_job_count", LayerProbingJobManager_.GetProgressCounter()->GetCompletedTotal())
             << TErrorAttribute("failed_layer_probing_job", LayerProbingJobManager_.GetFailedLayerProbingJob())
             << TErrorAttribute("failed_non_layer_probing_job_count", GetChunkPoolOutput()->GetJobCounter()->GetFailed());
         if (GetChunkPoolOutput()->GetJobCounter()->GetFailed() > 0) {

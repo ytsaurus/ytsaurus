@@ -53,9 +53,9 @@ public:
 private:
     NJobTrackerClient::TJobId FailedLayerProbingJob_;
     NJobTrackerClient::TJobId FailedNonLayerProbingJob_;
+    THashSet<NJobTrackerClient::TJobId> LostJobs_;
     NScheduler::TUserJobSpecPtr UserJobSpec_;
-    int UnsuccessfulJobCount_ = 0;
-    int LayerProbingRunLost_ = 0;
+    int FailedJobCount_ = 0;
     ELayerProbingJobStatus LayerProbingStatus_ = ELayerProbingJobStatus::NoLayerProbingJobResult;
 
     virtual bool OnUnsuccessfulJobFinish(

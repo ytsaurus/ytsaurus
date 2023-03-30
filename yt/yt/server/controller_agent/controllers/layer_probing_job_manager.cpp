@@ -76,11 +76,13 @@ bool TLayerProbingJobManager::OnUnsuccessfulJobFinish(
         }
     }
 
-    if (joblet->CompetitionType == EJobCompetitionType::LayerProbing) {
-        ++UnsuccessfulJobCount_;
-        FailedLayerProbingJob_ = joblet->JobId;
-    } else {
-        FailedNonLayerProbingJob_ = joblet->JobId;
+    if (!LostJobs_.contains(joblet->JobId)) {
+        if (joblet->CompetitionType == EJobCompetitionType::LayerProbing) {
+            ++FailedJobCount_;
+            FailedLayerProbingJob_ = joblet->JobId;
+        } else {
+            FailedNonLayerProbingJob_ = joblet->JobId;
+        }
     }
 
     OnJobFinished(joblet);
@@ -102,12 +104,10 @@ std::optional<EAbortReason> TLayerProbingJobManager::ShouldAbortCompletingJob(co
 
     if (joblet->CompetitionType == EJobCompetitionType::LayerProbing) {
         LayerProbingStatus_ = ELayerProbingJobStatus::LayerProbingJobCompleted;
-        if (competition->Status == ECompetitionStatus::HasCompletedJob) {
-            ++LayerProbingRunLost_;
-        }
     }
 
     if (competition->Status == ECompetitionStatus::HasCompletedJob) {
+        LostJobs_.insert(joblet->JobId);
         return joblet->CompetitionType == EJobCompetitionType::LayerProbing
             ? EAbortReason::LayerProbingRunLost
             : EAbortReason::LayerProbingRunWon;
@@ -142,7 +142,7 @@ bool TLayerProbingJobManager::ShouldUseProbingLayer() const
 
 int TLayerProbingJobManager::FailedJobCount() const
 {
-    return UnsuccessfulJobCount_ - LayerProbingRunLost_;
+    return FailedJobCount_;
 }
 
 NJobTrackerClient::TJobId TLayerProbingJobManager::GetFailedLayerProbingJob() const
@@ -161,9 +161,11 @@ void TLayerProbingJobManager::Persist(const TPersistenceContext& context)
 
     TCompetitiveJobManagerBase::Persist(context);
 
+    Persist(context, FailedLayerProbingJob_);
+    Persist(context, FailedNonLayerProbingJob_);
+    Persist(context, LostJobs_);
     Persist(context, UserJobSpec_);
-    Persist(context, UnsuccessfulJobCount_);
-    Persist(context, LayerProbingRunLost_);
+    Persist(context, FailedJobCount_);
     Persist(context, LayerProbingStatus_);
 }
 
