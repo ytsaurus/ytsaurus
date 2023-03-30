@@ -113,10 +113,10 @@ TEST(TFederatedClientTest, Basic)
 
     // Creation of federated client.
     std::vector<IClientPtr> clients = {mockClientSas, mockClientVla};
-    auto config = New<TFederatedClientConfig>();
+    auto config = New<TFederationConfig>();
     config->CheckClustersHealthPeriod = TDuration::Seconds(5);
     config->ClusterRetryAttempts = 1;
-    auto federatedClient = CreateFederatedClient(clients, config);
+    auto federatedClient = CreateClient(clients, config);
 
     // 1. `vla` client should be used as closest cluster.
     // 2. error from `vla` cluster should be received.
@@ -181,23 +181,23 @@ TEST(TFederatedClientTest, CheckHealth)
     NNet::WriteLocalHostName("a-rpc-proxy.vla.yp-c.yandex.net");
 
     std::vector<IClientPtr> clients = {mockClientSas, mockClientVla};
-    auto config = New<TFederatedClientConfig>();
+    auto config = New<TFederationConfig>();
     config->CheckClustersHealthPeriod = TDuration::Seconds(5);
     config->ClusterRetryAttempts = 1;
     config->BundleName = "my_bundle";
 
-    TCheckClusterLivenessOptions options;
-    options.CheckCypressRoot = true;
-    options.CheckTabletCellBundle = config->BundleName;
-    EXPECT_CALL(*mockClientVla, CheckClusterLiveness(options))
+    TCheckClusterLivenessOptions checkLivenessOptions;
+    checkLivenessOptions.CheckCypressRoot = true;
+    checkLivenessOptions.CheckTabletCellBundle = config->BundleName;
+    EXPECT_CALL(*mockClientVla, CheckClusterLiveness(checkLivenessOptions))
         .WillOnce(Return(VoidFuture))
         .WillOnce(Return(MakeFuture(TError("Failure"))))
         .WillOnce(Return(VoidFuture));
 
-    EXPECT_CALL(*mockClientSas, CheckClusterLiveness(options))
+    EXPECT_CALL(*mockClientSas, CheckClusterLiveness(checkLivenessOptions))
         .WillRepeatedly(Return(VoidFuture));
 
-    auto federatedClient = CreateFederatedClient(clients, config);
+    auto federatedClient = CreateClient(clients, config);
 
     EXPECT_CALL(*mockClientVla, LookupRows(data.Path, _, _, _))
         .WillOnce(Return(MakeFuture(data.LookupResult1)))
@@ -272,10 +272,10 @@ TEST(TFederatedClientTest, Transactions)
 
     // Creation of federated client.
     std::vector<IClientPtr> clients = {mockClientSas, mockClientVla};
-    auto config = New<TFederatedClientConfig>();
+    auto config = New<TFederationConfig>();
     config->CheckClustersHealthPeriod = TDuration::Seconds(5);
     config->ClusterRetryAttempts = 1;
-    auto federatedClient = CreateFederatedClient(clients, config);
+    auto federatedClient = CreateClient(clients, config);
 
     auto mockTransactionVla = New<TStrictMockTransaction>();
 
@@ -358,9 +358,9 @@ TEST(TFederatedClientTest, RetryWithoutTransaction)
 
     // Creation of federated client.
     std::vector<IClientPtr> clients = {mockClientSas, mockClientVla};
-    auto config = New<TFederatedClientConfig>();
+    auto config = New<TFederationConfig>();
     config->CheckClustersHealthPeriod = TDuration::Seconds(5);
-    auto federatedClient = CreateFederatedClient(clients, config);
+    auto federatedClient = CreateClient(clients, config);
 
     // 1. `vla` client should be used as closest cluster.
     // 2. error from `vla` cluster should be received.

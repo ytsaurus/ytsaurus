@@ -206,7 +206,7 @@ class TFederatedClient
     : public virtual IClient
 {
 public:
-    TFederatedClient(const std::vector<IClientPtr>& clients, TFederatedClientConfigPtr config);
+    TFederatedClient(const std::vector<IClientPtr>& clients, TFederationConfigPtr config);
 
     TFuture<IUnversionedRowsetPtr> LookupRows(
         const NYPath::TYPath& path,
@@ -420,7 +420,7 @@ private:
 
     NThreading::TReaderWriterSpinLock Lock_;
 
-    TFederatedClientConfigPtr Config_;
+    TFederationConfigPtr Config_;
     NConcurrency::TPeriodicExecutorPtr Executor_;
 };
 
@@ -496,7 +496,7 @@ DEFINE_REFCOUNTED_TYPE(TFederatedTransaction);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFederatedClient::TFederatedClient(const std::vector<IClientPtr>& clients, TFederatedClientConfigPtr config)
+TFederatedClient::TFederatedClient(const std::vector<IClientPtr>& clients, TFederationConfigPtr config)
     : Config_(std::move(config))
     , Executor_(New<NConcurrency::TPeriodicExecutor>(
         NRpc::TDispatcher::Get()->GetLightInvoker(),
@@ -695,9 +695,9 @@ DEFINE_REFCOUNTED_TYPE(TFederatedClient);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NApi::IClientPtr CreateFederatedClient(const std::vector<NApi::IClientPtr>& clients, TFederatedClientConfigPtr config)
+NApi::IClientPtr CreateClient(const std::vector<NApi::IClientPtr>& clients, TFederationConfigPtr config)
 {
-    return New<TFederatedClient>(clients, config);
+    return New<TFederatedClient>(clients, std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
