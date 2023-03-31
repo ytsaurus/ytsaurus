@@ -23,7 +23,7 @@ double TSimpleGauge::GetValue()
     return Value_.load(std::memory_order::relaxed);
 }
 
-void TSimpleGauge::Record(double /* value */)
+void TSimpleGauge::Record(double /*value*/)
 {
     YT_UNIMPLEMENTED();
 }
@@ -52,7 +52,7 @@ TDuration TSimpleTimeGauge::GetValue()
     return TDuration::FromValue(Value_.load(std::memory_order::relaxed));
 }
 
-void TSimpleTimeGauge::Record(TDuration /* value */)
+void TSimpleTimeGauge::Record(TDuration /*value*/)
 {
     YT_UNIMPLEMENTED();
 }
