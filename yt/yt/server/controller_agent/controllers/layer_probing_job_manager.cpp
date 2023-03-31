@@ -161,11 +161,20 @@ void TLayerProbingJobManager::Persist(const TPersistenceContext& context)
 
     TCompetitiveJobManagerBase::Persist(context);
 
-    Persist(context, FailedLayerProbingJob_);
-    Persist(context, FailedNonLayerProbingJob_);
-    Persist(context, LostJobs_);
     Persist(context, UserJobSpec_);
-    Persist(context, FailedJobCount_);
+    // COMPAT(galtsev)
+    if (context.GetVersion() >= ESnapshotVersion::ProbingBaseLayerPersistLostJobs) {
+        Persist(context, FailedJobCount_);
+        Persist(context, FailedLayerProbingJob_);
+        Persist(context, FailedNonLayerProbingJob_);
+        Persist(context, LostJobs_);
+    } else {
+        int unsuccessfulJobCount = 0;
+        int layerProbingRunLost = 0;
+        Persist(context, unsuccessfulJobCount);
+        Persist(context, layerProbingRunLost);
+        FailedJobCount_ = unsuccessfulJobCount - layerProbingRunLost;
+    }
     Persist(context, LayerProbingStatus_);
 }
 

@@ -19,6 +19,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PersistDataStatistics)                (301102))
     ((ChunkFormat)                          (301103))
     ((ProbingBaseLayer)                     (301105))
+    ((ProbingBaseLayerPersistLostJobs)      (301106))
     // 23.1 starts here
     ((InputStreamDescriptors)               (301200))
 );
