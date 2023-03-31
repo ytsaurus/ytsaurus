@@ -1,7 +1,7 @@
 package tech.ytsaurus.client.operations;
 
 
-import tech.ytsaurus.client.YtClientConfiguration;
+import tech.ytsaurus.client.YTsaurusClientConfig;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
 
@@ -11,13 +11,13 @@ import tech.ytsaurus.lang.NonNullFields;
 @NonNullApi
 @NonNullFields
 public class SpecPreparationContext {
-    private final YtClientConfiguration configuration;
+    private final YTsaurusClientConfig configuration;
 
-    public SpecPreparationContext(YtClientConfiguration configuration) {
+    public SpecPreparationContext(YTsaurusClientConfig configuration) {
         this.configuration = configuration;
     }
 
-    public YtClientConfiguration getConfiguration() {
+    public YTsaurusClientConfig getConfiguration() {
         return configuration;
     }
 }

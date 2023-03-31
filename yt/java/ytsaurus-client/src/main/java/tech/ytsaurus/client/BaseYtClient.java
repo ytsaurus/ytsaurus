@@ -11,7 +11,7 @@ public interface BaseYtClient extends ApiServiceClient, Closeable {
     /**
      * Get a list of client clusters
      */
-    List<YtCluster> getClusters();
+    List<YTsaurusCluster> getClusters();
 
     /**
      * Get a client scheduled executor

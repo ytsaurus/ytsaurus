@@ -60,13 +60,13 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
     private final ScheduledExecutorService executor;
     private final ClientPoolProvider poolProvider;
 
-    private final List<YtCluster> clusters;
+    private final List<YTsaurusCluster> clusters;
 
     public YTsaurusClient(
             BusConnector connector,
-            YtCluster cluster,
+            YTsaurusCluster cluster,
             YTsaurusClientAuth auth,
-            YtClientConfiguration configuration) {
+            YTsaurusClientConfig config) {
         this(new BuilderWithDefaults<>(
                         new Builder()
                                 .setSharedBusConnector(connector)
@@ -74,7 +74,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
                                 .setPreferredClusterName(cluster.getName())
                                 .setAuth(auth)
                                 .setRpcCompression(new RpcCompression())
-                                .setYtClientConfiguration(configuration)
+                                .setConfig(config)
                 ), DefaultSerializationResolver.getInstance()
         );
     }
@@ -83,9 +83,9 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
             BusConnector connector,
             String clusterName,
             YTsaurusClientAuth auth,
-            YtClientConfiguration configuration
+            YTsaurusClientConfig configuration
     ) {
-        this(connector, new YtCluster(clusterName), auth, configuration);
+        this(connector, new YTsaurusCluster(clusterName), auth, configuration);
     }
 
     public YTsaurusClient(BusConnector connector, String clusterName, YTsaurusClientAuth auth) {
@@ -93,13 +93,13 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
                 connector,
                 clusterName,
                 auth,
-                YtClientConfiguration.builder().setRpcOptions(new RpcOptions()).build()
+                YTsaurusClientConfig.builder().setRpcOptions(new RpcOptions()).build()
         );
     }
 
     protected YTsaurusClient(BuilderWithDefaults<?, ?> builder, SerializationResolver serializationResolver) {
         super(
-                builder.busConnector.executorService(), builder.builder.configuration, builder.builder.heavyExecutor,
+                builder.busConnector.executorService(), builder.builder.config, builder.builder.heavyExecutor,
                 serializationResolver
         );
 
@@ -111,7 +111,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
         this.clusters = builder.builder.clusters;
 
         OutageController outageController =
-                builder.builder.configuration.getRpcOptions().getTestingOptions().getOutageController();
+                builder.builder.config.getRpcOptions().getTestingOptions().getOutageController();
 
         final RpcClientFactory rpcClientFactory =
                 outageController != null
@@ -132,7 +132,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
                 builder.builder.proxyRole,
                 builder.auth,
                 rpcClientFactory,
-                builder.builder.configuration.getRpcOptions(),
+                builder.builder.config.getRpcOptions(),
                 builder.builder.heavyExecutor);
     }
 
@@ -143,7 +143,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
         return new Builder();
     }
 
-    public List<YtCluster> getClusters() {
+    public List<YTsaurusCluster> getClusters() {
         return clusters;
     }
 
@@ -263,7 +263,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
         @SuppressWarnings("checkstyle:ParameterNumber")
         ClientPoolProvider(
                 BusConnector connector,
-                List<YtCluster> clusters,
+                List<YTsaurusCluster> clusters,
                 @Nullable String localDataCenterName,
                 @Nullable String proxyRole,
                 YTsaurusClientAuth auth,
@@ -279,7 +279,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
             final EventLoopGroup eventLoopGroup = connector.eventLoopGroup();
             final Random random = new Random();
 
-            for (YtCluster curCluster : clusters) {
+            for (YTsaurusCluster curCluster : clusters) {
                 // 1. Понять http-discovery или rpc
                 if (curCluster.balancerFqdn != null && !curCluster.balancerFqdn.isEmpty() && (
                         options.getPreferableDiscoveryMethod() == DiscoveryMethod.HTTP
@@ -373,7 +373,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
                     for (RpcClient curClient : aliveClients) {
                         clients.add(new ApiServiceClientImpl(
                                 curClient,
-                                YtClientConfiguration.builder().setRpcOptions(options).build(),
+                                YTsaurusClientConfig.builder().setRpcOptions(options).build(),
                                 heavyExecutor,
                                 executorService,
                                 DefaultSerializationResolver.getInstance()
@@ -430,7 +430,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
         @Nullable
         YTsaurusClientAuth auth;
         RpcCompression compression = new RpcCompression();
-        YtClientConfiguration configuration = YtClientConfiguration.builder()
+        YTsaurusClientConfig config = YTsaurusClientConfig.builder()
                 .setRpcOptions(new RpcOptions())
                 .build();
 
@@ -461,11 +461,11 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
          * Set miscellaneous options.
          * Part of YtClientConfiguration.
          *
-         * @deprecated prefer to use {@link #setYtClientConfiguration(YtClientConfiguration)} ()}
+         * @deprecated prefer to use {@link #setConfig(YTsaurusClientConfig)} ()}
          */
         @Deprecated
         public TBuilder setRpcOptions(RpcOptions rpcOptions) {
-            this.configuration = YtClientConfiguration.builder()
+            this.config = YTsaurusClientConfig.builder()
                     .setRpcOptions(rpcOptions)
                     .build();
             return self();
@@ -474,8 +474,8 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
         /**
          * Set settings of YtClient.
          */
-        public TBuilder setYtClientConfiguration(YtClientConfiguration configuration) {
-            this.configuration = configuration;
+        public TBuilder setConfig(YTsaurusClientConfig config) {
+            this.config = config;
             return self();
         }
 
@@ -514,7 +514,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
         String preferredClusterName;
         @Nullable
         String proxyRole;
-        List<YtCluster> clusters = new ArrayList<>();
+        List<YTsaurusCluster> clusters = new ArrayList<>();
 
         boolean enableValidation = true;
         Executor heavyExecutor = ForkJoinPool.commonPool();
@@ -523,34 +523,34 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
         }
 
         /**
-         * Set YT cluster to use.
+         * Set YTsaurus clusters to use.
          *
          * <p>
          * Similar to {@link #setCluster(String)} but allows to create connections to several clusters.
          * YTsaurusClient will choose cluster to send requests based on cluster availability and their ping.
          */
         public TBuilder setClusters(String firstCluster, String... rest) {
-            List<YtCluster> ytClusters = new ArrayList<>();
-            ytClusters.add(new YtCluster(YtCluster.normalizeName(firstCluster)));
+            List<YTsaurusCluster> clustersList = new ArrayList<>();
+            clustersList.add(new YTsaurusCluster(YTsaurusCluster.normalizeName(firstCluster)));
             for (String clusterName : rest) {
-                ytClusters.add(new YtCluster(YtCluster.normalizeName(clusterName)));
+                clustersList.add(new YTsaurusCluster(YTsaurusCluster.normalizeName(clusterName)));
             }
-            return setClusters(ytClusters);
+            return setClusters(clustersList);
         }
 
         /**
-         * Set YT clusters to use.
+         * Set YTsaurus clusters to use.
          *
          * <p>
          * Similar to {@link #setClusters(String, String...)} but allows finer configuration.
          */
-        public TBuilder setClusters(List<YtCluster> clusters) {
+        public TBuilder setClusters(List<YTsaurusCluster> clusters) {
             this.clusters = clusters;
             return self();
         }
 
         /**
-         * Set BusConnector for YT client.
+         * Set BusConnector for YTsaurus client.
          *
          * <p>
          * Connector will be owned by YTsaurusClient.
@@ -624,7 +624,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
          * cluster based on network metrics.
          */
         public TBuilder setPreferredClusterName(@Nullable String preferredClusterName) {
-            this.preferredClusterName = YtCluster.normalizeName(preferredClusterName);
+            this.preferredClusterName = YTsaurusCluster.normalizeName(preferredClusterName);
             return self();
         }
 
@@ -652,7 +652,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
             // Check cluster uniqueness.
             Set<String> clusterNames = new HashSet<>();
             boolean foundPreferredCluster = false;
-            for (YtCluster cluster : clusters) {
+            for (YTsaurusCluster cluster : clusters) {
                 if (clusterNames.contains(cluster.name)) {
                     throw new IllegalArgumentException(
                             String.format("Cluster %s is specified multiple times",

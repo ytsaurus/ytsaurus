@@ -11,7 +11,7 @@ import tech.ytsaurus.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields
-public class YtCluster {
+public class YTsaurusCluster {
     // This option is set to true only in tests.
     static boolean normalizationLowersHostName = false;
     static List<String> httpPrefixes = Arrays.asList("http://", "https://");
@@ -23,7 +23,7 @@ public class YtCluster {
     @Nullable
     final String proxyRole;
 
-    public YtCluster(
+    public YTsaurusCluster(
             String name,
             String balancerFqdn,
             int httpPort,
@@ -37,15 +37,15 @@ public class YtCluster {
         this.proxyRole = proxyRole;
     }
 
-    public YtCluster(String name, String balancerFqdn, int httpPort, List<String> addresses) {
+    public YTsaurusCluster(String name, String balancerFqdn, int httpPort, List<String> addresses) {
         this(name, balancerFqdn, httpPort, addresses, null);
     }
 
-    public YtCluster(String name, String balancerFqdn, int httpPort) {
+    public YTsaurusCluster(String name, String balancerFqdn, int httpPort) {
         this(name, balancerFqdn, httpPort, new ArrayList<>());
     }
 
-    public YtCluster(String name) {
+    public YTsaurusCluster(String name) {
         this(name, getFqdn(name), getPort(name), new ArrayList<>());
     }
 

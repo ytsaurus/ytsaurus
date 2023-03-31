@@ -166,13 +166,13 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     private final ExecutorService prepareSpecExecutor = Executors.newSingleThreadExecutor();
     @Nullable
     private final RpcClient rpcClient;
-    private final YtClientConfiguration configuration;
+    private final YTsaurusClientConfig configuration;
     protected final RpcOptions rpcOptions;
     protected final SerializationResolver serializationResolver;
 
     public ApiServiceClientImpl(
             @Nullable RpcClient client,
-            @Nonnull YtClientConfiguration configuration,
+            @Nonnull YTsaurusClientConfig configuration,
             @Nonnull Executor heavyExecutor,
             @Nonnull ScheduledExecutorService executorService,
             SerializationResolver serializationResolver
@@ -199,7 +199,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     ) {
         this(
                 client,
-                YtClientConfiguration.builder().setRpcOptions(options).build(),
+                YTsaurusClientConfig.builder().setRpcOptions(options).build(),
                 heavyExecutor,
                 executorService,
                 serializationResolver

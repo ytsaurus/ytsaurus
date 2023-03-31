@@ -32,7 +32,7 @@ public class DirectYTsaurusClient extends CompoundClientImpl {
         super(
                 new DefaultRpcBusClient(builder.busConnector, builder.address, builder.address.toString())
                         .withAuthentication(builder.auth),
-                builder.busConnector.executorService(), builder.configuration, builder.heavyExecutor,
+                builder.busConnector.executorService(), builder.config, builder.heavyExecutor,
                 builder.serializationResolver
         );
 
@@ -63,7 +63,7 @@ public class DirectYTsaurusClient extends CompoundClientImpl {
         @Nullable
         YTsaurusClientAuth auth;
         @Nullable
-        YtClientConfiguration configuration;
+        YTsaurusClientConfig config;
         @Nullable
         Executor heavyExecutor;
         @Nullable
@@ -139,8 +139,8 @@ public class DirectYTsaurusClient extends CompoundClientImpl {
         /**
          * Set settings of DirectYTsaurusClient.
          */
-        public Builder setYtClientConfiguration(YtClientConfiguration configuration) {
-            this.configuration = configuration;
+        public Builder setConfig(YTsaurusClientConfig config) {
+            this.config = config;
             return self();
         }
 
@@ -155,8 +155,8 @@ public class DirectYTsaurusClient extends CompoundClientImpl {
             if (auth == null) {
                 auth = YTsaurusClientAuth.loadUserAndTokenFromEnvironment();
             }
-            if (configuration == null) {
-                configuration = YtClientConfiguration.builder().build();
+            if (config == null) {
+                config = YTsaurusClientConfig.builder().build();
             }
             if (heavyExecutor == null) {
                 heavyExecutor = ForkJoinPool.commonPool();

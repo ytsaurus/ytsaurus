@@ -9,7 +9,7 @@ import java.util.Set;
 import org.junit.Assert;
 import org.junit.Test;
 import tech.ytsaurus.client.MockYtClient;
-import tech.ytsaurus.client.YtClientConfiguration;
+import tech.ytsaurus.client.YTsaurusClientConfig;
 import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.operations.OperationContext;
@@ -60,7 +60,7 @@ public class ReducerSpecTest {
         Map<String, YTreeNode> node = spec.prepare(
                 builder,
                 client,
-                new SpecPreparationContext(YtClientConfiguration.builder()
+                new SpecPreparationContext(YTsaurusClientConfig.builder()
                         .setJarsProcessor(new DummyJarsProcessor())
                         .setJavaBinary("java")
                         .build()),

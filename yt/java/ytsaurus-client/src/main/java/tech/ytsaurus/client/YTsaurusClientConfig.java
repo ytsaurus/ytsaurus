@@ -20,7 +20,7 @@ import tech.ytsaurus.ysontree.YTreeNode;
 
 @NonNullApi
 @NonNullFields
-public class YtClientConfiguration {
+public class YTsaurusClientConfig {
     private final RpcOptions rpcOptions;
     @Nullable
     private final YTreeNode specPatch;
@@ -39,7 +39,7 @@ public class YtClientConfiguration {
     private final String version;
     private final Duration operationPingPeriod;
 
-    YtClientConfiguration(Builder builder) {
+    YTsaurusClientConfig(Builder builder) {
         if (builder.rpcOptions == null) {
             throw new IllegalStateException("Expected not null rpcOptions");
         }
@@ -259,7 +259,7 @@ public class YtClientConfiguration {
             return this;
         }
 
-        public YtClientConfiguration build() {
+        public YTsaurusClientConfig build() {
             if (rpcOptions == null) {
                 rpcOptions = new RpcOptions();
             }
@@ -272,7 +272,7 @@ public class YtClientConfiguration {
                         fileCacheReplicationFactor
                 );
             }
-            return new YtClientConfiguration(this);
+            return new YTsaurusClientConfig(this);
         }
     }
 }

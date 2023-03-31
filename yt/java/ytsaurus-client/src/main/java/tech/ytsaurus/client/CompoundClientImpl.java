@@ -33,7 +33,7 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
 
     public CompoundClientImpl(
             ScheduledExecutorService executorService,
-            YtClientConfiguration configuration,
+            YTsaurusClientConfig configuration,
             Executor heavyExecutor,
             SerializationResolver serializationResolver
     ) {
@@ -44,7 +44,7 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
     public CompoundClientImpl(
             RpcClient client,
             ScheduledExecutorService executorService,
-            YtClientConfiguration configuration,
+            YTsaurusClientConfig configuration,
             Executor heavyExecutor,
             SerializationResolver serializationResolver
     ) {
@@ -60,7 +60,7 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
     ) {
         this(
                 executorService,
-                YtClientConfiguration.builder().setRpcOptions(rpcOptions).build(),
+                YTsaurusClientConfig.builder().setRpcOptions(rpcOptions).build(),
                 heavyExecutor,
                 serializationResolver
         );

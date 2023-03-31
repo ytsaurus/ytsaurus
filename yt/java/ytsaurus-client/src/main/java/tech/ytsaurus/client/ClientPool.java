@@ -111,7 +111,7 @@ class MultiDcClientPool implements FilteringRpcClientPool {
         clientPools = builder.clientPools.toArray(new DataCenterRpcClientPool[0]);
         if (builder.localDc != null) {
             localDcPool = builder.clientPools.stream()
-                    .filter((pool) -> builder.localDc.equals(YtCluster.normalizeName(pool.getDataCenterName())))
+                    .filter((pool) -> builder.localDc.equals(YTsaurusCluster.normalizeName(pool.getDataCenterName())))
                     .findFirst().orElse(null);
             if (localDcPool == null) {
                 // N.B. actually we should throw exception
