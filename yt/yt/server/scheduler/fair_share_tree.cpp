@@ -1927,6 +1927,10 @@ private:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
+        if (!Config_->UseUserDefaultParentPoolMap) {
+            return;
+        }
+
         for (const auto& [_, ephemeralPools] : UserToEphemeralPoolsInDefaultPool_) {
             for (const auto& poolName : ephemeralPools) {
                 auto ephemeralPool = GetOrCrash(Pools_, poolName);
