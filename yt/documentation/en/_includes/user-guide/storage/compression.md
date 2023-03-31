@@ -76,8 +76,9 @@ Using algorithms with substantial compression can lead to a significant increase
 
 {% endnote %}
 
+{% if audience == internal %}
+
 ## Deprecated compression algorithms { #deprecated }
-INTERNAL DOCUMENTATION
 
 In version 0.18.2 and higher, some compression algorithms are deprecated:
 
@@ -85,6 +86,8 @@ In version 0.18.2 and higher, some compression algorithms are deprecated:
 - `zlib6` (`gzip_normal` up to 0.17.3): We recommend using `zlib_6`.
 - `zlib9` (`gzip_best_compression` up to 0.17.3): We recommend using `zlib_9`.
 - `zstd`: We recommend using `zstd_[1..21]` with the required compression level.
+
+{% endif %}
 
 ## Comparing compression algorithms { #benchmarks }
 
