@@ -373,7 +373,8 @@ public class EntitySkiffSerializer<T> {
         byteOS.write(bytes);
     }
 
-    private <ObjectType> @Nullable ObjectType deserializeObject(SkiffParser parser,
+    @Nullable
+    private <ObjectType> ObjectType deserializeObject(SkiffParser parser,
                                                                 Class<ObjectType> clazz,
                                                                 TiType tiType,
                                                                 List<Type> genericTypeParameters) {

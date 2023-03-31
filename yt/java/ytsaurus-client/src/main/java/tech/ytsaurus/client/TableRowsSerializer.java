@@ -9,8 +9,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import javax.annotation.Nullable;
-
 import com.google.protobuf.CodedOutputStream;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -28,7 +26,6 @@ import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.rpcproxy.ERowsetFormat;
 import tech.ytsaurus.rpcproxy.TRowsetDescriptor;
-
 
 
 @NonNullApi
@@ -196,29 +193,28 @@ abstract class TableRowsSerializer<T> {
 
     public abstract TableSchema getSchema();
 
-    @Nullable
-    public static <T> TableRowsSerializer<T> createTableRowsSerializer(
+    static <T> Optional<TableRowsSerializer<T>> createTableRowsSerializer(
             SerializationContext<T> context,
             SerializationResolver serializationResolver
     ) {
         if (context.getRowsetFormat() == ERowsetFormat.RF_YT_WIRE) {
             Optional<WireRowSerializer<T>> reqSerializer = context.getWireSerializer();
             if (reqSerializer.isPresent()) {
-                return new TableRowsWireSerializer<>(reqSerializer.get());
+                return Optional.of(new TableRowsWireSerializer<>(reqSerializer.get()));
             }
 
             Optional<YTreeSerializer<T>> ysonSerializer = context.getYtreeSerializer();
             if (ysonSerializer.isPresent()) {
-                return new TableRowsWireSerializer<>(
-                        serializationResolver.createWireRowSerializer(ysonSerializer.get()));
+                return Optional.of(new TableRowsWireSerializer<>(
+                        serializationResolver.createWireRowSerializer(ysonSerializer.get())));
             }
-            return null;
+            return Optional.empty();
         } else if (context.getRowsetFormat() == ERowsetFormat.RF_FORMAT) {
             if (context.getFormat().isEmpty()) {
                 throw new IllegalArgumentException("No format with RF_FORMAT");
             }
             if (context.getSkiffSerializer().isPresent()) {
-                return new TableRowsSkiffSerializer<>(context.getSkiffSerializer().get());
+                return Optional.of(new TableRowsSkiffSerializer<>(context.getSkiffSerializer().get()));
             }
             if (context.getYtreeSerializer().isEmpty()) {
                 throw new IllegalArgumentException("No yson serializer for RF_FORMAT");
@@ -228,7 +224,7 @@ abstract class TableRowsSerializer<T> {
                         "Format " + context.getFormat().get().getType() + " isn't supported");
             }
             YTreeSerializer<T> serializer = context.getYtreeSerializer().get();
-            return new TableRowsYsonSerializer<>(serializer);
+            return Optional.of(new TableRowsYsonSerializer<>(serializer));
         } else {
             throw new IllegalArgumentException("Unsupported rowset format");
         }

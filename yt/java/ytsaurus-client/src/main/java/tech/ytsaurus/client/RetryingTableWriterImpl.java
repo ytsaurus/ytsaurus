@@ -207,7 +207,7 @@ class RetryingTableWriterBaseImpl<T> {
                                 }
 
                                 this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(
-                                        this.req.getSerializationContext(), serializationResolver);
+                                        this.req.getSerializationContext(), serializationResolver).orElse(null);
                                 if (this.tableRowsSerializer == null) {
                                     if (this.req.getSerializationContext().getObjectClass().isEmpty()) {
                                         throw new IllegalStateException("No object clazz");

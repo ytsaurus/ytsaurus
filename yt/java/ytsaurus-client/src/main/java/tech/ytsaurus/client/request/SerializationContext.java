@@ -42,12 +42,11 @@ public class SerializationContext<T> {
 
     public SerializationContext(Class<T> objectClazz) {
         this.objectClass = objectClazz;
-        if (!isEntityAnnotationPresent(objectClazz)) {
-            return;
+        if (isEntityAnnotationPresent(objectClazz)) {
+            this.skiffSerializer = new EntitySkiffSerializer<>(objectClazz);
+            this.rowsetFormat = ERowsetFormat.RF_FORMAT;
+            this.attachmentReader = TableAttachmentReader.skiff(skiffSerializer);
         }
-        this.skiffSerializer = new EntitySkiffSerializer<>(objectClazz);
-        this.rowsetFormat = ERowsetFormat.RF_FORMAT;
-        this.attachmentReader = TableAttachmentReader.skiff(skiffSerializer);
     }
 
     public SerializationContext(YTreeSerializer<T> serializer) {

@@ -34,7 +34,7 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
         this.req = req;
         this.serializationResolver = serializationResolver;
         this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(
-                this.req.getSerializationContext(), serializationResolver);
+                this.req.getSerializationContext(), serializationResolver).orElse(null);
     }
 
     public void setTransaction(ApiServiceTransaction transaction) {

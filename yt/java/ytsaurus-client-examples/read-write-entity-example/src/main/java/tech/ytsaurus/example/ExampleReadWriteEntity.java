@@ -3,11 +3,12 @@ package tech.ytsaurus.example;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
 
 import javax.persistence.Entity;
 
-import tech.ytsaurus.client.TableReader;
-import tech.ytsaurus.client.TableWriter;
+import tech.ytsaurus.client.AsyncReader;
+import tech.ytsaurus.client.AsyncWriter;
 import tech.ytsaurus.client.YTsaurusClient;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.ReadTable;
@@ -25,9 +26,6 @@ public class ExampleReadWriteEntity {
     static class TableRow {
         private String english;
         private String russian;
-
-        TableRow() {
-        }
 
         TableRow(String english, String russian) {
             this.english = english;
@@ -75,57 +73,24 @@ public class ExampleReadWriteEntity {
             // Write a table.
 
             // Create the writer.
-            TableWriter<TableRow> writer = client.writeTable(
-                    new WriteTable<>(table, TableRow.class)
+            AsyncWriter<TableRow> writer = client.writeTableV2(new WriteTable<>(table, TableRow.class)).join();
+
+            writer.write(List.of(
+                    new TableRow("one", "один"),
+                    new TableRow("two", "два"))
             ).join();
 
-            try {
-                while (true) {
-                    // It is necessary to wait for readyEvent before trying to write.
-                    writer.readyEvent().join();
-
-                    // If false is returned, then readyEvent must be waited for before trying again.
-                    boolean accepted = writer.write(List.of(
-                            new TableRow("one", "один"),
-                            new TableRow("two", "два"))
-                    );
-
-                    if (accepted) {
-                        break;
-                    }
-                }
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
-            } finally {
-                // Waiting for completion of writing. An exception might be thrown if something goes wrong.
-                writer.close().join();
-            }
+            writer.finish().join();
 
             // Read a table.
 
             // Create the reader.
-            TableReader<TableRow> reader = client.readTable(
-                    new ReadTable<>(table, TableRow.class)
-            ).join();
+            AsyncReader<TableRow> reader = client.readTableV2(new ReadTable<>(table, TableRow.class)).join();
 
             List<TableRow> rows = new ArrayList<>();
-
-            try {
-                // We will read while we can.
-                while (reader.canRead()) {
-                    // We wait until we can continue reading.
-                    reader.readyEvent().join();
-
-                    List<TableRow> currentRows;
-                    while ((currentRows = reader.read()) != null) {
-                        rows.addAll(currentRows);
-                    }
-                }
-            } catch (Exception ex) {
-                throw new RuntimeException("Failed to read");
-            } finally {
-                reader.close().join();
-            }
+            var executor = Executors.newSingleThreadExecutor();
+            // Read all rows asynchronously.
+            reader.acceptAllAsync(rows::add, executor).join();
 
             for (TableRow row : rows) {
                 System.out.println("russian: " + row.russian + "; english: " + row.english);
