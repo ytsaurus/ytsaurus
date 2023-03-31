@@ -110,7 +110,7 @@ ytsaurus-ui-deployment-67db6cc9b6-nwq25   1/1     Running     0          2m11s
 $ minikube service ytsaurus-ui --url
 http://192.168.49.2:30539
 
-$ minikube service http-proxies --url
+$ minikube service http-proxies-lb --url
 http://192.168.49.2:30228
 ```
 
