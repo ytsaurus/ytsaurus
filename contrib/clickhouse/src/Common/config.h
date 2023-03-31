@@ -4,7 +4,7 @@
 
 #define USE_CPUID 1
 #define USE_BASE64 1
-#define USE_SSL 0
+#define USE_SSL 1
 #define USE_HDFS 0
 #define USE_AWS_S3 0
 #define USE_AZURE_BLOB_STORAGE 0

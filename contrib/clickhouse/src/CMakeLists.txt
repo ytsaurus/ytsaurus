@@ -91,6 +91,7 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   contrib-libs-miniselect
   contrib-libs-msgpack
   contrib-libs-pdqsort
+  libs-poco-Crypto
   libs-poco-Data
   libs-poco-Foundation
   libs-poco-JSON
@@ -1494,6 +1495,7 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   contrib-libs-miniselect
   contrib-libs-msgpack
   contrib-libs-pdqsort
+  libs-poco-Crypto
   libs-poco-Data
   libs-poco-Foundation
   libs-poco-JSON

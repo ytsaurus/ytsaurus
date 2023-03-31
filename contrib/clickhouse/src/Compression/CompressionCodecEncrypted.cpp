@@ -9,7 +9,7 @@
 #include <Common/logger_useful.h>
 
 // This depends on BoringSSL-specific API, notably <openssl/aead.h>.
-#if USE_SSL
+#if 0 /*USE_SSL*/
 #error #include <openssl/digest.h>
 #include <openssl/err.h>
 #include <boost/algorithm/hex.hpp>
@@ -66,7 +66,7 @@ uint8_t getMethodCode(EncryptionMethod Method)
 
 } // end of namespace DB
 
-#if USE_SSL
+#if 0 /*USE_SSL*/
 namespace DB
 {
 

@@ -50,7 +50,6 @@ target_link_libraries(clickhouse-src-Parsers PUBLIC
   libs-poco-Foundation
   libs-poco-JSON
   libs-poco-Net
-  libs-poco-NetSSL_OpenSSL
   libs-poco-Util
   contrib-libs-re2
   restricted-boost-circular_buffer

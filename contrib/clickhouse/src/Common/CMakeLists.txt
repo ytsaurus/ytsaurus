@@ -66,6 +66,7 @@ target_link_libraries(clickhouse-src-Common PUBLIC
   contrib-libs-lzma
   contrib-libs-miniselect
   contrib-libs-pdqsort
+  libs-poco-Crypto
   libs-poco-Foundation
   libs-poco-JSON
   libs-poco-Net
@@ -139,6 +140,7 @@ target_sources(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/MemoryTracker.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/MemoryTrackerBlockerInThread.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/NamePrompter.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/OpenSSLHelpers.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/OptimizedRegularExpression.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/OvercommitTracker.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/PODArray.cpp

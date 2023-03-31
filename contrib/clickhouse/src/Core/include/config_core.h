@@ -8,7 +8,7 @@
 #define USE_AMQPCPP 0
 #define USE_NATSIO 0
 #define USE_EMBEDDED_COMPILER 0
-#define USE_SSL 0
+#define USE_SSL 1
 #define USE_LDAP 0
 #define USE_ROCKSDB 0
 #define USE_LIBPQXX 0

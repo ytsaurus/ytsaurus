@@ -37,7 +37,6 @@ target_link_libraries(clickhouse-base-base PUBLIC
   contrib-libs-fmt
   libs-poco-Foundation
   libs-poco-Net
-  libs-poco-NetSSL_OpenSSL
   libs-poco-Util
   contrib-restricted-cityhash-1.0.2
   restricted-patched-replxx
