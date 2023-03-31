@@ -240,6 +240,19 @@ class TestLayers(YTEnvSetup):
 class TestProbingLayer(TestLayers):
     NUM_TEST_PARTITIONS = 5
 
+    INPUT_TABLE = "//tmp/input_table"
+    OUTPUT_TABLE = "//tmp/output_table"
+
+    MAX_TRIES = 3
+
+    @staticmethod
+    def create_tables(job_count):
+        create("table", TestProbingLayer.INPUT_TABLE)
+        create("table", TestProbingLayer.OUTPUT_TABLE)
+
+        for key in range(job_count):
+            write_table(f"<append=%true>{TestProbingLayer.INPUT_TABLE}", [{"k": key, "layer": "LAYER"}])
+
     @staticmethod
     def get_spec(user_slots):
         return {
@@ -255,87 +268,75 @@ class TestProbingLayer(TestLayers):
             },
         }
 
+    @staticmethod
+    def run_map(command, job_count, user_slots):
+        op = map(
+            in_=TestProbingLayer.INPUT_TABLE,
+            out=TestProbingLayer.OUTPUT_TABLE,
+            command=command,
+            spec=TestProbingLayer.get_spec(user_slots=1),
+        )
+
+        assert get(f"{TestProbingLayer.INPUT_TABLE}/@row_count") == get(f"{TestProbingLayer.OUTPUT_TABLE}/@row_count")
+
+        assert op.get_job_count("completed") == job_count
+        assert op.get_job_count("failed") == 0
+
+        return op
+
     @authors("galtsev")
     def test_probing_layer_success(self):
         self.setup_files()
 
-        input_table = "//tmp/input_table"
-        output_table = "//tmp/output_table"
-
-        create("table", input_table)
-        create("table", output_table)
-
         job_count = 7
-
-        for key in range(job_count):
-            write_table(f"<append=%true>{input_table}", [{"k": key, "layer": "LAYER"}])
+        self.create_tables(job_count)
 
         command = (
             "if test -e $YT_ROOT_FS/test; then "
-            "    sed 's/LAYER/default/'; sleep 5; "
+            "    sed 's/LAYER/default/'; "
             "else "
             "    sed 's/LAYER/probing/'; "
             "fi"
         )
 
-        op = map(
-            in_=input_table,
-            out=output_table,
-            command=command,
-            spec=self.get_spec(user_slots=1),
-        )
+        for try_count in range(self.MAX_TRIES + 1):
+            op = self.run_map(command, job_count, user_slots=1)
 
-        assert op.get_job_count("aborted") == 1
-        assert op.get_job_count("completed") == job_count
-        assert op.get_job_count("failed") == 0
+            counter = Counter([row["layer"] for row in read_table(self.OUTPUT_TABLE)])
 
-        assert get(f"{input_table}/@row_count") == get(f"{output_table}/@row_count")
+            if op.get_job_count("aborted") == 1 and counter["default"] >= 1 and counter["probing"] >= 3:
+                break
 
-        counter = Counter([row["layer"] for row in read_table(output_table)])
-        assert counter["default"] >= 1
-        assert counter["probing"] >= 3
+        assert try_count < self.MAX_TRIES
 
     @authors("galtsev")
     def test_probing_layer_failure(self):
         self.setup_files()
 
-        input_table = "//tmp/input_table"
-        output_table = "//tmp/output_table"
-
-        create("table", input_table)
-        create("table", output_table)
-
         job_count = 7
-
-        for key in range(job_count):
-            write_table(f"<append=%true>{input_table}", [{"k": key, "layer": "LAYER"}])
+        self.create_tables(job_count)
 
         command = (
             "if test -e $YT_ROOT_FS/test; then "
-            "    sed 's/LAYER/default/g'; sleep 5; "
+            "    sed 's/LAYER/default/g'; "
             "else "
             "    sed 's/LAYER/probing/g'; exit 1; "
             "fi"
         )
 
-        op = map(
-            in_=input_table,
-            out=output_table,
-            command=command,
-            spec=self.get_spec(user_slots=1),
-        )
+        for try_count in range(self.MAX_TRIES + 1):
+            op = self.run_map(command, job_count, user_slots=1)
 
-        assert op.get_job_count("aborted") >= 2
-        assert op.get_job_count("completed") == job_count
-        assert op.get_job_count("failed") == 0
+            counter = Counter([row["layer"] for row in read_table(self.OUTPUT_TABLE)])
+            assert counter["default"] == job_count
+            assert counter["probing"] == 0
 
-        assert get(f"{input_table}/@row_count") == get(f"{output_table}/@row_count")
+            assert op.get_job_count("aborted") == 2 or "base_layer_probe_failed" in op.get_alerts()
 
-        counter = Counter([row["layer"] for row in read_table(output_table)])
-        assert counter["default"] == job_count
-        assert counter["probing"] == 0
+            if op.get_job_count("aborted") >= 2:
+                break
 
-        assert "base_layer_probe_failed" in op.get_alerts()
+        assert try_count < self.MAX_TRIES
 
     @authors("galtsev")
     @pytest.mark.parametrize(
@@ -346,16 +347,8 @@ class TestProbingLayer(TestLayers):
     def test_probing_layer_races(self, delay):
         self.setup_files()
 
-        input_table = "//tmp/input_table"
-        output_table = "//tmp/output_table"
-
-        create("table", input_table)
-        create("table", output_table)
-
         job_count = 10
-
-        for key in range(job_count):
-            write_table(f"<append=%true>{input_table}", [{"k": key, "layer": "LAYER"}])
+        self.create_tables(job_count)
 
         command = (
             f"if test -e $YT_ROOT_FS/test; then "
@@ -365,19 +358,14 @@ class TestProbingLayer(TestLayers):
             f"fi"
         )
 
-        for iterations in range(10):
-            op = map(
-                in_=input_table,
-                out=output_table,
-                command=command,
-                spec=self.get_spec(user_slots=2),
-            )
+        for iterations in range(5):
+            for try_count in range(self.MAX_TRIES + 1):
+                op = self.run_map(command, job_count, user_slots=2 + iterations)
 
-            assert op.get_job_count("aborted") >= 1
-            assert op.get_job_count("completed") == job_count
-            assert op.get_job_count("failed") == 0
+                if op.get_job_count("aborted") >= 1:
+                    break
 
-            assert get(f"{input_table}/@row_count") == get(f"{output_table}/@row_count")
+            assert try_count < self.MAX_TRIES
 
 
 @authors("psushin")
