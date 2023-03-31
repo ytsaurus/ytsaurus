@@ -22,6 +22,16 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ECountingFilterType,
+    (PoolTree)
+    (Pool)
+    (User)
+    (OperationState)
+    (OperationType)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 TListOperationsCountingFilter::TListOperationsCountingFilter(const TListOperationsOptions& options)
     : Options_(&options)
 { }
@@ -36,7 +46,58 @@ bool TListOperationsCountingFilter::Filter(
 {
     YT_VERIFY(Options_);
 
-    if (poolTreeToPool) {
+    std::vector<ECountingFilterType> failedFilters;
+    bool poolTreeFailed = [&] {
+        if (!Options_->PoolTree) {
+            return false;
+        }
+        if (!poolTreeToPool) {
+            return true;
+        }
+
+        auto it = poolTreeToPool->find(*Options_->PoolTree);
+        return it == poolTreeToPool->end() ||
+            (Options_->Pool && it->second != Options_->Pool);
+    }();
+
+    if (poolTreeFailed) {
+        failedFilters.push_back(ECountingFilterType::PoolTree);
+    }
+
+    bool poolFailed = [&] {
+        if (!Options_->Pool) {
+            return false;
+        }
+
+        return !pools ||
+            std::find(pools->begin(), pools->end(), *Options_->Pool) == pools->end();
+    }();
+
+    if (poolFailed) {
+        failedFilters.push_back(ECountingFilterType::Pool);
+    }
+
+    if (Options_->UserFilter && *Options_->UserFilter != user) {
+        failedFilters.push_back(ECountingFilterType::User);
+    }
+
+    if (Options_->StateFilter && *Options_->StateFilter != state) {
+        failedFilters.push_back(ECountingFilterType::OperationState);
+    }
+
+    if (Options_->TypeFilter && *Options_->TypeFilter != type) {
+        failedFilters.push_back(ECountingFilterType::OperationType);
+    }
+
+    if (std::ssize(failedFilters) > 1) {
+        return false;
+    }
+
+    auto shouldIncrementFilterCounter = [&] (ECountingFilterType type) {
+        return failedFilters.empty() || failedFilters[0] == type;
+    };
+
+    if (shouldIncrementFilterCounter(ECountingFilterType::PoolTree) && poolTreeToPool) {
         for (const auto& [poolTree, pool] : *poolTreeToPool) {
             if (!Options_->Pool || pool == *Options_->Pool) {
                 PoolTreeCounts[poolTree] += count;
@@ -44,43 +105,25 @@ bool TListOperationsCountingFilter::Filter(
         }
     }
 
-    if (Options_->PoolTree) {
-        if (!poolTreeToPool ||
-            !poolTreeToPool->contains(*Options_->PoolTree) ||
-            (Options_->Pool && poolTreeToPool->at(*Options_->PoolTree) != Options_->Pool)) {
-            return false;
-        }
-    }
-
-    UserCounts[user] += count;
-
-    if (Options_->UserFilter && *Options_->UserFilter != user) {
-        return false;
-    }
-
-    if (pools) {
+    if (shouldIncrementFilterCounter(ECountingFilterType::Pool) && pools) {
         for (const auto& pool : *pools) {
             PoolCounts[pool] += count;
         }
     }
 
-    if (Options_->Pool && (!pools || std::find(pools->begin(), pools->end(), *Options_->Pool) == pools->end())) {
-        return false;
+    if (shouldIncrementFilterCounter(ECountingFilterType::User)) {
+        UserCounts[user] += count;
     }
 
-    StateCounts[state] += count;
-
-    if (Options_->StateFilter && *Options_->StateFilter != state) {
-        return false;
+    if (shouldIncrementFilterCounter(ECountingFilterType::OperationState)) {
+        StateCounts[state] += count;
     }
 
-    TypeCounts[type] += count;
-
-    if (Options_->TypeFilter && *Options_->TypeFilter != type) {
-        return false;
+    if (shouldIncrementFilterCounter(ECountingFilterType::OperationType)) {
+        TypeCounts[type] += count;
     }
 
-    return true;
+    return failedFilters.empty();
 }
 
 bool TListOperationsCountingFilter::FilterByFailedJobs(bool hasFailedJobs, i64 count)
