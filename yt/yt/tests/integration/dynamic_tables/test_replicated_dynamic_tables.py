@@ -468,6 +468,36 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id])
         wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id])
 
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("replica_ordering", ["sorted", "ordered"])
+    def test_incompatible_orderings(self, replica_ordering):
+        self._create_cells()
+        if replica_ordering == "sorted":
+            replicated_table_schema, replica_schema = self.SIMPLE_SCHEMA_ORDERED, self.SIMPLE_SCHEMA_SORTED
+        else:
+            replicated_table_schema, replica_schema = self.SIMPLE_SCHEMA_SORTED, self.SIMPLE_SCHEMA_ORDERED
+
+        self._create_replicated_table("//tmp/t", schema=replicated_table_schema)
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r", replica_id, schema=replica_schema)
+
+        sync_enable_table_replica(replica_id)
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}], require_sync_replica=False)
+
+        def _check():
+            tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+            orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
+            errors = orchid["replication_errors"]
+
+            if len(errors) == 0:
+                return False
+
+            message = list(errors.values())[0]["message"]
+            return message.startswith("Replicated table and replica table should be either both sorted or both ordered")
+
+        wait(_check)
+
     @authors("gridem")
     def test_in_sync_replicas_disabled(self):
         self._create_cells()

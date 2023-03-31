@@ -292,6 +292,19 @@ private:
 
                 auto alienClient = alienConnection->CreateClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
 
+                auto alienTableMountCache = alienClient->GetTableMountCache();
+                auto replicaTableInfo = WaitFor(alienTableMountCache->GetTableInfo(ReplicaPath_))
+                    .ValueOrThrow();
+
+                if (replicaTableInfo->IsSorted() != TableSchema_->IsSorted()) {
+                    THROW_ERROR_EXCEPTION("Replicated table and replica table should be either both sorted or both ordered, got: "
+                        "replicated table: %v and repica table: %v",
+                        TableSchema_->IsSorted() ? "sorted": "ordered",
+                        replicaTableInfo->IsSorted() ? "sorted" :  "ordered")
+                        << HardErrorAttribute;
+                    return;
+                }
+
                 TAlienTransactionStartOptions transactionStartOptions;
                 if (!isVersioned) {
                     transactionStartOptions.Atomicity = replicaRuntimeData->Atomicity;
