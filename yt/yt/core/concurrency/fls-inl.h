@@ -17,6 +17,7 @@ using TFlsSlotCtor = TFls::TCookie(*)();
 using TFlsSlotDtor = void(*)(TFls::TCookie cookie);
 
 int AllocateFlsSlot(TFlsSlotDtor dtor);
+TFls* GetPerThreadFls();
 
 extern thread_local TFls* CurrentFls;
 
@@ -41,7 +42,11 @@ Y_FORCE_INLINE TFls::TCookie TFls::Get(int index) const
 
 inline TFls* GetCurrentFls()
 {
-    return NDetail::CurrentFls;
+    auto* fls = NDetail::CurrentFls;
+    if (Y_UNLIKELY(!fls)) {
+        fls = NDetail::GetPerThreadFls();
+    }
+    return fls;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
