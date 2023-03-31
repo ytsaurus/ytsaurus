@@ -2,7 +2,6 @@ package tech.ytsaurus.client.rpc;
 
 import java.time.Duration;
 import java.util.Objects;
-import java.util.concurrent.ThreadFactory;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
@@ -17,9 +16,6 @@ import tech.ytsaurus.client.RetryPolicy;
  */
 public class RpcOptions {
     private boolean defaultRequestAck = true;
-    private boolean useClientsCache = false; // for backward compatibility
-    private int clientsCacheSize = 10000; // will be used only when useClientsCache is true
-    private Duration clientCacheExpiration = Duration.ofMillis(1); // will be used only when useClientsCache is true
 
     /**
      * @see #setAcknowledgementTimeout
@@ -27,14 +23,12 @@ public class RpcOptions {
     private @Nullable
     Duration acknowledgementTimeout = Duration.ofSeconds(15);
 
-    private Duration globalTimeout = Duration.ofMillis(60000);  // fails request after this timeout
+    // Fails request after this timeout.
+    private Duration globalTimeout = Duration.ofMillis(60000);
 
-    // sends fallback request to other proxy after this timeout
+    // Sends fallback request to other proxy after this timeout.
     private Duration failoverTimeout = Duration.ofMillis(30000);
     private Duration proxyUpdateTimeout = Duration.ofMillis(60000);
-    private Duration pingTimeout = Duration.ofMillis(5000);  // marks proxy as dead/live after this timeout
-    private Duration channelPoolRebalanceInterval = Duration.ofMinutes(10);
-    private Duration rpcClientSelectionTimeout = Duration.ofSeconds(30);
     private int channelPoolSize = 3;
 
     private TestingOptions testingOptions = new TestingOptions();
@@ -42,20 +36,17 @@ public class RpcOptions {
     private Duration minBackoffTime = Duration.ofSeconds(3);
     private Duration maxBackoffTime = Duration.ofSeconds(30);
 
-    // steaming options
+    // Streaming options.
     private Duration readTimeout = Duration.ofMillis(60000);
     private Duration writeTimeout = Duration.ofMillis(60000);
     private int windowSize = 32 * 1024 * 1024;
 
-    private boolean randomizeDcs = false;
     @Nonnull
     private Supplier<RetryPolicy> retryPolicyFactory =
             () -> RetryPolicy.attemptLimited(3, RetryPolicy.fromRpcFailoverPolicy(new DefaultRpcFailoverPolicy()));
 
     private BalancingResponseHandlerMetricsHolder responseMetricsHolder =
             new BalancingResponseHandlerMetricsHolderImpl();
-    private DataCenterMetricsHolder dataCenterMetricsHolder = DataCenterMetricsHolderImpl.INSTANCE;
-    private BalancingDestinationMetricsHolder destinationMetricsHolder = new BalancingDestinationMetricsHolderImpl();
 
     private boolean traceEnabled = false;
     private boolean traceSampled = false;
@@ -63,12 +54,9 @@ public class RpcOptions {
 
     private DiscoveryMethod preferableDiscoveryMethod = DiscoveryMethod.RPC;
 
-    private ThreadFactory discoveryThreadFactory;
-
     private ProxySelector rpcProxySelector = ProxySelector.random();
 
     public RpcOptions() {
-        // nothing
     }
 
     public boolean getTrace() {
@@ -126,31 +114,6 @@ public class RpcOptions {
         return this;
     }
 
-    public boolean getUseClientsCache() {
-        return useClientsCache;
-    }
-
-    public RpcOptions setUseClientsCache(boolean useClientsCache) {
-        this.useClientsCache = useClientsCache;
-        return this;
-    }
-
-    public int getClientsCacheSize() {
-        return clientsCacheSize;
-    }
-
-    public void setClientsCacheSize(int clientsCacheSize) {
-        this.clientsCacheSize = clientsCacheSize;
-    }
-
-    public Duration getClientCacheExpiration() {
-        return clientCacheExpiration;
-    }
-
-    public void setClientCacheExpiration(Duration clientCacheExpiration) {
-        this.clientCacheExpiration = clientCacheExpiration;
-    }
-
     public Duration getFailoverTimeout() {
         return failoverTimeout;
     }
@@ -175,15 +138,6 @@ public class RpcOptions {
 
     public RpcOptions setProxyUpdateTimeout(Duration timeout) {
         this.proxyUpdateTimeout = timeout;
-        return this;
-    }
-
-    public Duration getPingTimeout() {
-        return pingTimeout;
-    }
-
-    public RpcOptions setPingTimeout(Duration timeout) {
-        this.pingTimeout = timeout;
         return this;
     }
 
@@ -215,18 +169,10 @@ public class RpcOptions {
     }
 
     /**
-     * @return randomizeDcs from failover policy
-     */
-    public boolean getRandomizeDcs() {
-        return this.randomizeDcs;
-    }
-
-    /**
      * @deprecated Use {@link #setRetryPolicyFactory(Supplier)} instead.
      */
     @Deprecated
     public RpcOptions setFailoverPolicy(RpcFailoverPolicy failoverPolicy) {
-        this.randomizeDcs = failoverPolicy.randomizeDcs();
         this.retryPolicyFactory = () -> RetryPolicy.attemptLimited(
                 3, RetryPolicy.fromRpcFailoverPolicy(failoverPolicy));
         return this;
@@ -258,33 +204,6 @@ public class RpcOptions {
         return responseMetricsHolder;
     }
 
-    public RpcOptions setDataCenterMetricsHolder(DataCenterMetricsHolder holder) {
-        this.dataCenterMetricsHolder = holder;
-        return this;
-    }
-
-    public DataCenterMetricsHolder getDataCenterMetricsHolder() {
-        return dataCenterMetricsHolder;
-    }
-
-    public RpcOptions setDestinationMetricsHolder(BalancingDestinationMetricsHolder holder) {
-        this.destinationMetricsHolder = holder;
-        return this;
-    }
-
-    public BalancingDestinationMetricsHolder getDestinationMetricsHolder() {
-        return destinationMetricsHolder;
-    }
-
-    public Duration getChannelPoolRebalanceInterval() {
-        return channelPoolRebalanceInterval;
-    }
-
-    public RpcOptions setChannelPoolRebalanceInterval(Duration channelPoolRebalanceInterval) {
-        this.channelPoolRebalanceInterval = channelPoolRebalanceInterval;
-        return this;
-    }
-
     public int getChannelPoolSize() {
         return channelPoolSize;
     }
@@ -292,14 +211,6 @@ public class RpcOptions {
     public RpcOptions setChannelPoolSize(int channelPoolSize) {
         this.channelPoolSize = channelPoolSize;
         return this;
-    }
-
-    public Duration getRpcClientSelectionTimeout() {
-        return rpcClientSelectionTimeout;
-    }
-
-    public void setRpcClientSelectionTimeout(Duration rpcClientSelectionTimeout) {
-        this.rpcClientSelectionTimeout = rpcClientSelectionTimeout;
     }
 
     public DiscoveryMethod getPreferableDiscoveryMethod() {
@@ -372,15 +283,6 @@ public class RpcOptions {
      */
     public Duration getMaxBackoffTime() {
         return maxBackoffTime;
-    }
-
-    public ThreadFactory getDiscoveryThreadFactory() {
-        return discoveryThreadFactory;
-    }
-
-    public RpcOptions setDiscoveryThreadFactory(ThreadFactory discoveryThreadFactory) {
-        this.discoveryThreadFactory = discoveryThreadFactory;
-        return this;
     }
 
     /**
