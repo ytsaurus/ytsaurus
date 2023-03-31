@@ -35,7 +35,12 @@ enum class EWireType
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSkiffSchema;
-using TSkiffSchemaList = std::vector<std::shared_ptr<TSkiffSchema>>;
+using TSkiffSchemaPtr = std::shared_ptr<TSkiffSchema>;
+
+using TSkiffSchemaList = std::vector<TSkiffSchemaPtr>;
+
+class TSimpleTypeSchema;
+using TSimpleTypeSchemaPtr = std::shared_ptr<TSimpleTypeSchema>;
 
 class TSkiffValidator;
 

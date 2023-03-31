@@ -20,6 +20,14 @@ using TVariant16Schema = TComplexSchema<EWireType::Variant16>;
 using TRepeatedVariant8Schema = TComplexSchema<EWireType::RepeatedVariant8>;
 using TRepeatedVariant16Schema = TComplexSchema<EWireType::RepeatedVariant16>;
 
+using TTupleSchemaPtr = std::shared_ptr<TTupleSchema>;
+using TVariant8SchemaPtr = std::shared_ptr<TVariant8Schema>;
+using TVariant16SchemaPtr = std::shared_ptr<TVariant16Schema>;
+using TRepeatedVariant8SchemaPtr = std::shared_ptr<TRepeatedVariant8Schema>;
+using TRepeatedVariant16SchemaPtr = std::shared_ptr<TRepeatedVariant16Schema>;
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSkiffSchema
