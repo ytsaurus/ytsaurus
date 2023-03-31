@@ -34,14 +34,14 @@ public:
     void OnRaw(TStringBuf yson, EYsonType type) override;
     void OnRaw(TFuture<TYsonString> asyncStr) override;
 
+    void Finish();
+
 private:
     IAsyncYsonConsumer* const UnderlyingConsumer_;
     bool HasAttributes_ = false;
+    bool Finished_ = false;
 
-
-    void Begin();
-    void End();
-
+    void Start();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

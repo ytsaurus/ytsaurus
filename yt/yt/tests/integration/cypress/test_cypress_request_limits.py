@@ -101,6 +101,15 @@ class CypressRequestLimitsBase(YTEnvSetup):
             with raises_yt_error("Read complexity limit exceeded"):
                 get("//tmp", node_count_limit=55)
 
+    @authors("kvk1920")
+    def test_overflow_during_attribute_write(self):
+        create("document", "//tmp/d")
+        set("//tmp/d/@my_attr", list(range(1000)))
+
+        with set_sys_config_object_service("/max_read_request_complexity_limits", {"node_count": 100, "result_size": 100}):
+            with raises_yt_error("Read complexity limit exceeded"):
+                ls("//tmp", attributes=["my_attr"])
+
 
 ################################################################################
 

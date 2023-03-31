@@ -167,6 +167,7 @@ void TVirtualMulticellMapBase::GetSelf(
                     attributesConsumer.OnKeyedItem("incomplete");
                     attributesConsumer.OnBooleanScalar(true);
                 }
+                attributesConsumer.Finish();
             }
 
             writer.OnBeginMap();
@@ -227,6 +228,7 @@ void TVirtualMulticellMapBase::ListSelf(
                     attributesConsumer.OnKeyedItem("incomplete");
                     attributesConsumer.OnBooleanScalar(true);
                 }
+                attributesConsumer.Finish();
             }
 
             writer.OnBeginList();

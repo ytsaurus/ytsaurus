@@ -967,6 +967,7 @@ void IYPathService::WriteAttributes(
 {
     TAttributeFragmentConsumer attributesConsumer(consumer);
     WriteAttributesFragment(&attributesConsumer, attributeFilter, stable);
+    attributesConsumer.Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
