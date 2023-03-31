@@ -939,20 +939,20 @@ TFuture<void> ReadBuffer(
 {
     YT_VERIFY(bufferSize);
 
-    auto size = read(fromFd, buffer.data(), bufferSize);
+    auto readSize = read(fromFd, buffer.data(), bufferSize);
 
-    if (size == -1) {
+    if (readSize == -1) {
         THROW_ERROR_EXCEPTION("Error while doing read")
             << TError::FromSystem();
     }
 
-    if (size == 0) {
+    if (readSize == 0) {
         return VoidFuture;
     }
 
     return BIND(&WriteBuffer)
         .AsyncVia(GetCurrentInvoker())
-        .Run(fromFd, toFd, std::move(buffer), size, bufferSize);
+        .Run(fromFd, toFd, std::move(buffer), bufferSize, readSize);
 }
 
 TFuture<void> WriteBuffer(
