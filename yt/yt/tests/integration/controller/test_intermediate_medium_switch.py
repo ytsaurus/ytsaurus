@@ -130,7 +130,7 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
             reduce_by="key",
             sort_by="key",
             mapper_command=with_breakpoint('if [ "$YT_JOB_INDEX" != "0" ]; then BREAKPOINT; fi; cat'),
-            reducer_command=with_breakpoint("BREAKPOINT; cat"),
+            reducer_command=with_breakpoint("cat; BREAKPOINT"),
             spec={
                 "data_weight_per_sort_job": 1,
                 "fast_intermediate_medium_limit": 1,
