@@ -648,6 +648,10 @@ void EnrichKeyRange(
     };
 
     auto prefixRow = buffer->AllocateUnversioned(keySize + 1);
+    for (auto& item : prefixRow) {
+        item = MakeUnversionedNullValue();
+    }
+
     Copy(range.first, prefixRow, prefixSize);
 
     if (canEnumerate && !divisors.empty()) {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "llvm_types.h"
+
 #include <yt/yt/library/query/engine_api/evaluation_helpers.h>
 
 #include <yt/yt/library/query/misc/function_context.h>
@@ -15,10 +17,13 @@ using NYT::NQueryClient::TFunctionContext;
 using NYT::NQueryClient::TExecutionContext;
 using NYT::NQueryClient::TRow;
 using NYT::NQueryClient::TRowRange;
+using NYT::NQueryClient::TPIRowRange;
 using NYT::NQueryClient::TMutableRow;
 using NYT::NQueryClient::TRowHeader;
 using NYT::NQueryClient::TValue;
+using NYT::NQueryClient::TPIValue;
 using NYT::NQueryClient::TValueData;
+using NYT::NQueryClient::TPIValueData;
 using NYT::NQueryClient::TLookupRows;
 using NYT::NQueryClient::TJoinLookup;
 using NYT::NQueryClient::TJoinLookupRows;
@@ -122,6 +127,11 @@ struct TTypeBuilder<TSharedRange<TRowRange>*>
 { };
 
 template <>
+struct TTypeBuilder<TSharedRange<TPIRowRange>*>
+    : public TTypeBuilder<void*>
+{ };
+
+template <>
 struct TTypeBuilder<TMultiJoinParameters*>
     : public TTypeBuilder<void*>
 { };
@@ -133,6 +143,11 @@ struct TTypeBuilder<TMultiJoinClosure*>
 
 template <>
 struct TTypeBuilder<std::unique_ptr<TLookupRows>*>
+    : public TTypeBuilder<void*>
+{ };
+
+template <>
+struct TTypeBuilder<TSharedRange<TRange<TPIValue>>*>
     : public TTypeBuilder<void*>
 { };
 

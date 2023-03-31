@@ -232,6 +232,11 @@ public:
 
         Value* data = builder->CreateLoad(dataPtr, name + ".data");
 
+        if (NTableClient::IsStringLikeType(staticType)) {
+            Value* dataPtrAsInt = builder->CreatePtrToInt(dataPtr, data->getType());
+            data = builder->CreateAdd(data, dataPtrAsInt, name + ".NonPIData");  // Similar to GetStringPosition.
+        }
+
         return Create(builder, isNull, isAggregate, length, data, staticType, name);
     }
 
@@ -320,6 +325,9 @@ public:
         Value* data = nullptr;
         auto targetType = TDataTypeBuilder::Get(builder->getContext());
 
+        Value* dataPtr = builder->CreateConstInBoundsGEP2_32(
+            nullptr, valuePtr, index, TValueTypeBuilder::Data, name + ".dataPtr");
+
         if (Data_->getType()->isPointerTy()) {
             data = builder->CreatePtrToInt(Data_, targetType);
         } else if (Data_->getType()->isFloatingPointTy()) {
@@ -328,10 +336,15 @@ public:
             data = builder->CreateIntCast(Data_, targetType, false);
         }
 
+        if (IsStringLikeType(StaticType_)) {
+            Value* dataPtrAsInt = builder->CreatePtrToInt(dataPtr, data->getType());
+            Value* stringPointer = builder->CreatePtrToInt(Data_, targetType);
+            data = builder->CreateSub(stringPointer, dataPtrAsInt, name + ".PIdata");  // Similar to SetStringPosition.
+        }
+
         builder->CreateStore(
             data,
-            builder->CreateConstInBoundsGEP2_32(
-                nullptr, valuePtr, index, TValueTypeBuilder::Data, name + ".dataPtr"));
+            dataPtr);
     }
 
     void StoreToValues(

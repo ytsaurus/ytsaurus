@@ -49,8 +49,8 @@ TQueryEvaluationContext CreateQueryEvaluationContext(
 
 TValue EvaluateQuery(
     const TQueryEvaluationContext& evaluationContext,
-    const TValue* inputValues,
-    TExpressionContext* expressionContext)
+    TRange<TValue> inputValues,
+    TRowBuffer* expressionContext)
 {
     // Pre-zero value to avoid garbage after evaluator.
     auto outputValue = MakeUnversionedSentinelValue(EValueType::Null);

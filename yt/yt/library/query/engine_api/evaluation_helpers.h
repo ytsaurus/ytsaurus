@@ -1,5 +1,7 @@
 #pragma once
 
+#include "position_independent_value.h"
+
 #include "public.h"
 
 #include <yt/yt/library/query/base/callbacks.h>
@@ -44,9 +46,9 @@ struct TPermanentBufferTag
 
 constexpr const size_t InitialGroupOpHashtableCapacity = 1024;
 
-using THasherFunction = ui64(const TValue*);
-using TComparerFunction = char(const TValue*, const TValue*);
-using TTernaryComparerFunction = i64(const TValue*, const TValue*);
+using THasherFunction = ui64(const TPIValue*);
+using TComparerFunction = char(const TPIValue*, const TPIValue*);
+using TTernaryComparerFunction = i64(const TPIValue*, const TPIValue*);
 
 namespace NDetail {
 
@@ -58,7 +60,7 @@ public:
         : Ptr_(ptr)
     { }
 
-    ui64 operator () (const TValue* row) const
+    ui64 operator () (const TPIValue* row) const
     {
         return Ptr_(row);
     }
@@ -75,7 +77,7 @@ public:
         : Ptr_(ptr)
     { }
 
-    bool operator () (const TValue* a, const TValue* b) const
+    bool operator () (const TPIValue* a, const TPIValue* b) const
     {
         return a == b || a && b && Ptr_(a, b);
     }
@@ -87,18 +89,18 @@ private:
 } // namespace NDetail
 
 using TLookupRows = google::dense_hash_set<
-    const TValue*,
+    const TPIValue*,
     NDetail::TGroupHasher,
     NDetail::TRowComparer>;
 
 using TJoinLookup = google::dense_hash_map<
-    const TValue*,
+    const TPIValue*,
     std::pair<int, bool>,
     NDetail::TGroupHasher,
     NDetail::TRowComparer>;
 
 using TJoinLookupRows = std::unordered_multiset<
-    const TValue*,
+    const TPIValue*,
     NDetail::TGroupHasher,
     NDetail::TRowComparer>;
 
@@ -125,11 +127,11 @@ struct TMultiJoinClosure
     TRowBufferPtr Buffer;
 
     typedef google::dense_hash_set<
-        TValue*,
+        TPIValue*,
         NDetail::TGroupHasher,
         NDetail::TRowComparer> THashJoinLookup;  // + slot after row
 
-    std::vector<TValue*> PrimaryRows;
+    std::vector<TPIValue*> PrimaryRows;
 
     struct TItem
     {
@@ -138,8 +140,8 @@ struct TMultiJoinClosure
         TComparerFunction* PrefixEqComparer;
 
         THashJoinLookup Lookup;
-        std::vector<TValue*> OrderedKeys;  // + slot after row
-        const TValue* LastKey = nullptr;
+        std::vector<TPIValue*> OrderedKeys;  // + slot after row
+        const TPIValue* LastKey = nullptr;
 
         TItem(
             IMemoryChunkProviderPtr chunkProvider,
@@ -162,8 +164,8 @@ struct TGroupByClosure
     TRowBufferPtr Buffer;
     TComparerFunction* PrefixEqComparer;
     TLookupRows Lookup;
-    const TValue* LastKey = nullptr;
-    std::vector<const TValue*> GroupedRows;
+    const TPIValue* LastKey = nullptr;
+    std::vector<const TPIValue*> GroupedRows;
     int KeySize;
     int ValuesCount;
     bool CheckNulls;
@@ -237,9 +239,9 @@ public:
         size_t rowSize,
         IMemoryChunkProviderPtr memoryChunkProvider);
 
-    std::vector<const TValue*> GetRows() const;
+    std::vector<const TPIValue*> GetRows() const;
 
-    void AddRow(const TValue* row);
+    void AddRow(const TPIValue* row);
 
 private:
     // GarbageMemorySize <= AllocatedMemorySize <= TotalMemorySize
@@ -254,12 +256,12 @@ private:
             : Ptr_(ptr)
         { }
 
-        bool operator() (const std::pair<const TValue*, int>& lhs, const std::pair<const TValue*, int>& rhs) const
+        bool operator() (const std::pair<const TPIValue*, int>& lhs, const std::pair<const TPIValue*, int>& rhs) const
         {
             return (*this)(lhs.first, rhs.first);
         }
 
-        bool operator () (const TValue* a, const TValue* b) const
+        bool operator () (const TPIValue* a, const TPIValue* b) const
         {
             return Ptr_(a, b);
         }
@@ -274,11 +276,11 @@ private:
 
     std::vector<TRowBufferPtr> Buffers_;
     std::vector<int> EmptyBufferIds_;
-    std::vector<std::pair<const TValue*, int>> Rows_;
+    std::vector<std::pair<const TPIValue*, int>> Rows_;
 
-    std::pair<const TValue*, int> Capture(const TValue* row);
+    std::pair<const TPIValue*, int> Capture(const TPIValue* row);
 
-    void AccountGarbage(const TValue* row);
+    void AccountGarbage(const TPIValue* row);
 };
 
 class TCGVariables
@@ -287,27 +289,36 @@ public:
     template <class T, class... TArgs>
     int AddOpaque(TArgs&&... args);
 
-    void* const* GetOpaqueData() const;
+    TRange<void*> GetOpaqueData() const;
 
     void Clear();
 
     int AddLiteralValue(TOwningValue value);
 
-    TValue* GetLiteralValues() const;
+    TRange<TPIValue> GetLiteralValues() const;
 
 private:
     TObjectsHolder Holder_;
     std::vector<void*> OpaquePointers_;
     std::vector<TOwningValue> OwningLiteralValues_;
-    mutable std::unique_ptr<TValue[]> LiteralValues_;
+    mutable std::unique_ptr<TPIValue[]> LiteralValues_;
+
+    static void InitLiteralValuesIfNeeded(const TCGVariables* variables);
 };
 
-typedef void (TCGQuerySignature)(const TValue*, void* const*, TExecutionContext*);
-typedef void (TCGExpressionSignature)(const TValue*, void* const*, TValue*, const TValue*, TExpressionContext*);
-typedef void (TCGAggregateInitSignature)(TExpressionContext*, TValue*);
-typedef void (TCGAggregateUpdateSignature)(TExpressionContext*, TValue*, const TValue*);
-typedef void (TCGAggregateMergeSignature)(TExpressionContext*, TValue*, const TValue*);
-typedef void (TCGAggregateFinalizeSignature)(TExpressionContext*, TValue*, const TValue*);
+using TCGPIQuerySignature = void(const TPIValue*, void* const*, TExecutionContext*);
+using TCGPIExpressionSignature = void(const TPIValue*, void* const*, TPIValue*, const TPIValue*, TExpressionContext*);
+using TCGPIAggregateInitSignature = void(TExpressionContext*, TPIValue*);
+using TCGPIAggregateUpdateSignature = void(TExpressionContext*, TPIValue*, const TPIValue*);
+using TCGPIAggregateMergeSignature = void(TExpressionContext*, TPIValue*, const TPIValue*);
+using TCGPIAggregateFinalizeSignature = void(TExpressionContext*, TPIValue*, const TPIValue*);
+
+using TCGQuerySignature = void(TRange<TPIValue>, TRange<void*>, TExecutionContext*);
+using TCGExpressionSignature = void(TRange<TPIValue>, TRange<void*>, TValue*, TRange<TValue>, TRowBuffer*);
+using TCGAggregateInitSignature = void(TExpressionContext*, TValue*);
+using TCGAggregateUpdateSignature = void(TExpressionContext*, TValue*, const TValue*);
+using TCGAggregateMergeSignature = void(TExpressionContext*, TValue*, const TValue*);
+using TCGAggregateFinalizeSignature = void(TExpressionContext*, TValue*, const TValue*);
 
 using TCGQueryCallback = TCallback<TCGQuerySignature>;
 using TCGExpressionCallback = TCallback<TCGExpressionSignature>;

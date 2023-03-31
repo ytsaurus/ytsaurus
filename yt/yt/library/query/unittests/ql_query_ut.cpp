@@ -1347,6 +1347,12 @@ protected:
             bcImplementations,
             ECallingConvention::UnversionedValue);
         builder->RegisterFunction(
+            "string_equals_42_udf",
+            std::vector<TType>{EValueType::String},
+            EValueType::Boolean,
+            bcImplementations,
+            ECallingConvention::UnversionedValue);
+        builder->RegisterFunction(
             "sum_udf",
             std::unordered_map<TTypeArgument, TUnionType>(),
             std::vector<TType>{EValueType::Int64},
@@ -1921,6 +1927,53 @@ TEST_F(TQueryEvaluateTest, MultipleBetweenAnd2)
     )", split, source, ResultMatcher(result));
 }
 
+TEST_F(TQueryEvaluateTest, MultipleBetweenAndString)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String},
+        {"b", EValueType::String}
+    });
+
+    std::vector<TString> source = {
+        R"(a="1";b="10")",
+        R"(a="1";b="30")",
+        R"(a="2";b="20")",
+        R"(a="2";b="30")",
+        R"(a="2";b="40")",
+        R"(a="2";b="50")",
+        R"(a="3";b="30")",
+        R"(a="3";b="50")",
+        R"(a="3";b="60")",
+        R"(a="4";b="5")",
+        R"(a="5";b="5")",
+        R"(a="6";b="5")",
+        R"(a="10";b="11")",
+        R"(a="15";b="11")",
+    };
+
+    auto result = YsonToRows({
+        R"(a="1";b="10")",
+        R"(a="2";b="30")",
+        R"(a="2";b="40")",
+        R"(a="3";b="50")",
+        R"(a="3";b="60")",
+        R"(a="4";b="5")",
+        R"(a="5";b="5")",
+    }, split);
+
+    Evaluate(R"(
+        a, b
+    from [//t]
+    where
+        (a, b) between (
+            ("1") and ("1", "20"),
+            ("2", "30") and ("2", "40"),
+            ("3", "50") and ("3"),
+            "4" and "5"
+        )
+    )", split, source, ResultMatcher(result));
+}
+
 TEST_F(TQueryEvaluateTest, SimpleIn)
 {
     auto split = MakeSplit({
@@ -2334,6 +2387,47 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
     }, resultSplit);
 
     Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, GroupByString)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"s", EValueType::String}
+    });
+
+    std::vector<TString> source = {
+        R"(a=1;s="a")",
+        R"(a=2;s="b")",
+        R"(a=3;s="c")",
+
+        R"(a=4;s="a")",
+        R"(a=5;s="b")",
+        R"(a=6;s="c")",
+
+        R"(a=7;s="a")",
+        R"(a=8;s="b")",
+        R"(a=9;s="c")",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"t", EValueType::Int64},
+        {"s", EValueType::String},
+    });
+
+    auto result = YsonToRows({
+        R"(t=12;s="a")",
+        R"(t=15;s="b")",
+        R"(t=18;s="c")",
+    }, resultSplit);
+
+    Evaluate(
+        "sum(a) as t, s FROM [//t] group by s order by s limit 3",
+        split,
+        source,
+        ResultMatcher(result));
 
     SUCCEED();
 }
@@ -4943,6 +5037,35 @@ TEST_F(TQueryEvaluateTest, UnversionedValueUdf)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, UnversionedValueUdf2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    std::vector<TString> source = {
+        "a=\"Hello\"",
+        "a=\"\"",
+        "a=\"42\"",
+        "",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Boolean}
+    });
+
+    auto result = YsonToRows({
+        "x=%false",
+        "x=%false",
+        "x=%true",
+        "x=%false",
+    }, resultSplit);
+
+    Evaluate("string_equals_42_udf(a) as x FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, YPathTryGetInt64)
 {
     auto split = MakeSplit({
@@ -6303,7 +6426,7 @@ bool operator==(const TIntValue& l, const TIntValue& r)
     return static_cast<const std::optional<int>&>(l) == static_cast<const std::optional<int>&>(r);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TIntValue& value, TStringBuf /*spec*/)
+[[maybe_unused]] void FormatValue(TStringBuilderBase* builder, const TIntValue& value, TStringBuf /*spec*/)
 {
     if (value) {
         builder->AppendFormat("%v", *value);

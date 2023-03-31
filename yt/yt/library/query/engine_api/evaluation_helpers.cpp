@@ -1,5 +1,7 @@
 #include "evaluation_helpers.h"
 
+#include "position_independent_value_transfer.h"
+
 #include <yt/yt/library/query/base/private.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
@@ -34,7 +36,7 @@ TTopCollector::TTopCollector(
     Rows_.reserve(limit);
 }
 
-std::pair<const TValue*, int> TTopCollector::Capture(const TValue* row)
+std::pair<const TPIValue*, int> TTopCollector::Capture(const TPIValue* row)
 {
     if (EmptyBufferIds_.empty()) {
         if (GarbageMemorySize_ > TotalMemorySize_ / 2) {
@@ -56,7 +58,7 @@ std::pair<const TValue*, int> TTopCollector::Capture(const TValue* row)
                     auto& row = Rows_[rowId].first;
 
                     auto savedSize = buffer->GetSize();
-                    row = buffer->CaptureRow(MakeRange(row, RowSize_)).Begin();
+                    row = CapturePIValueRange(buffer.Get(), MakeRange(row, RowSize_)).Begin();
                     AllocatedMemorySize_ += buffer->GetSize() - savedSize;
                 }
 
@@ -84,7 +86,7 @@ std::pair<const TValue*, int> TTopCollector::Capture(const TValue* row)
     auto savedSize = buffer->GetSize();
     auto savedCapacity = buffer->GetCapacity();
 
-    auto capturedRow = buffer->CaptureRow(MakeRange(row, RowSize_)).Begin();
+    TPIValue* capturedRow = CapturePIValueRange(buffer.Get(), MakeRange(row, RowSize_)).Begin();
 
     AllocatedMemorySize_ += buffer->GetSize() - savedSize;
     TotalMemorySize_ += buffer->GetCapacity() - savedCapacity;
@@ -96,7 +98,7 @@ std::pair<const TValue*, int> TTopCollector::Capture(const TValue* row)
     return std::make_pair(capturedRow, bufferId);
 }
 
-void TTopCollector::AccountGarbage(const TValue* row)
+void TTopCollector::AccountGarbage(const TPIValue* row)
 {
     GarbageMemorySize_ += GetUnversionedRowByteSize(RowSize_);
     for (int index = 0; index < static_cast<int>(RowSize_); ++index) {
@@ -108,7 +110,7 @@ void TTopCollector::AccountGarbage(const TValue* row)
     }
 }
 
-void TTopCollector::AddRow(const TValue* row)
+void TTopCollector::AddRow(const TPIValue* row)
 {
     if (Rows_.size() < Rows_.capacity()) {
         auto capturedRow = Capture(row);
@@ -123,9 +125,9 @@ void TTopCollector::AddRow(const TValue* row)
     }
 }
 
-std::vector<const TValue*> TTopCollector::GetRows() const
+std::vector<const TPIValue*> TTopCollector::GetRows() const
 {
-    std::vector<const TValue*> result;
+    std::vector<const TPIValue*> result;
     result.reserve(Rows_.size());
     for (const auto& [value, _] : Rows_) {
         result.push_back(value);
@@ -240,9 +242,9 @@ std::pair<TQueryPtr, TDataSource> GetForeignQuery(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void* const* TCGVariables::GetOpaqueData() const
+TRange<void*> TCGVariables::GetOpaqueData() const
 {
-    return OpaquePointers_.data();
+    return OpaquePointers_;
 }
 
 void TCGVariables::Clear()
@@ -261,16 +263,22 @@ int TCGVariables::AddLiteralValue(TOwningValue value)
     return index;
 }
 
-TValue* TCGVariables::GetLiteralValues() const
+TRange<TPIValue> TCGVariables::GetLiteralValues() const
 {
-    if (!LiteralValues_) {
-        LiteralValues_ = std::make_unique<TValue[]>(OwningLiteralValues_.size());
+    InitLiteralValuesIfNeeded(this);
+    return {LiteralValues_.get(), OwningLiteralValues_.size()};
+}
+
+void TCGVariables::InitLiteralValuesIfNeeded(const TCGVariables* variables)
+{
+    if (!variables->LiteralValues_) {
+        variables->LiteralValues_ = std::make_unique<TPIValue[]>(variables->OwningLiteralValues_.size());
         size_t index = 0;
-        for (const auto& value : OwningLiteralValues_) {
-            LiteralValues_[index++] = TValue(value);
+        for (const auto& value : variables->OwningLiteralValues_) {
+            MakePositionIndependentFromUnversioned(&variables->LiteralValues_[index], value);
+            ++index;
         }
     }
-    return LiteralValues_.get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

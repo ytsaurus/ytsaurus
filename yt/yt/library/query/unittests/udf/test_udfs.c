@@ -69,6 +69,22 @@ void is_null_udf(
     result->Data.Boolean = value->Type == VT_Null;
 }
 
+void string_equals_42_udf(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* value)
+{
+    (void)context;
+
+    ClearValue(result);
+    result->Type = VT_Boolean;
+    result->Data.Boolean =
+        (value->Type == VT_String) &&
+        (value->Length == 2) &&
+        (value->Data.String[0] == '4') &&
+        (value->Data.String[1] == '2');
+}
+
 int64_t abs_udf(
     TExpressionContext* context,
     int64_t n)

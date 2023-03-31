@@ -1,7 +1,9 @@
 #include "cg_fragment_compiler.h"
 #include "cg_ir_builder.h"
 #include "cg_routines.h"
+#include "cg_helpers.h"
 #include "llvm_folding_set.h"
+#include "position_independent_value_caller.h"
 
 #include <yt/yt/library/codegen/module.h>
 #include <yt/yt/library/codegen/public.h>
@@ -35,7 +37,7 @@ using NCodegen::TCGModule;
 Value* CodegenAllocateValues(const TCGIRBuilderPtr& builder, size_t valueCount)
 {
     Value* newValues = builder->CreateAlignedAlloca(
-        TTypeBuilder<TValue>::Get(builder->getContext()),
+        TTypeBuilder<TPIValue>::Get(builder->getContext()),
         8,
         builder->getInt64(valueCount),
         "allocatedValues");
@@ -529,7 +531,7 @@ struct TComparerManager
     void GetUniversalComparer(const TCGModulePtr& module)
     {
         if (!UniversalComparer) {
-            UniversalComparer = MakeFunction<i64(char**, TValue*, TValue*, size_t, size_t)>(
+            UniversalComparer = MakeFunction<i64(char**, TPIValue*, TPIValue*, size_t, size_t)>(
                 module,
                 "UniversalComparerImpl",
             [&] (
@@ -686,7 +688,7 @@ Function* TComparerManager::GetHasher(
     auto emplaced = Hashers.emplace(id, nullptr);
     if (emplaced.second) {
         if (!Hasher) {
-            Hasher = MakeFunction<ui64(char**, TValue*, size_t, size_t)>(module, "HasherImpl", [&] (
+            Hasher = MakeFunction<ui64(char**, TPIValue*, size_t, size_t)>(module, "HasherImpl", [&] (
                 TCGBaseContext& builder,
                 Value* labelsArray,
                 Value* values,
@@ -923,7 +925,7 @@ Function* TComparerManager::CodegenOrderByComparerFunction(
 {
     GetUniversalComparer(module);
 
-    return MakeFunction<char(TValue*, TValue*)>(module, "OrderByComparer", [&] (
+    return MakeFunction<char(TPIValue*, TPIValue*)>(module, "OrderByComparer", [&] (
         TCGBaseContext& builder,
         Value* lhsValues,
         Value* rhsValues
@@ -1098,8 +1100,8 @@ void CodegenFragmentBodies(
                         TTypeBuilder<TExpressionClosure>::Get(
                             module->GetModule()->getContext(),
                             fragmentInfos.Functions.size())),
-                    TTypeBuilder<TValue*>::Get(module->GetModule()->getContext()),
-                    TTypeBuilder<TValue*>::Get(module->GetModule()->getContext())
+                    TTypeBuilder<TPIValue*>::Get(module->GetModule()->getContext()),
+                    TTypeBuilder<TPIValue*>::Get(module->GetModule()->getContext())
                 },
                 true);
 
@@ -1951,7 +1953,7 @@ void CodegenEmptyOp(TCGOperatorContext& /*builder*/)
 
 TLlvmClosure MakeConsumer(TCGOperatorContext& builder, llvm::Twine name, size_t consumerSlot)
 {
-    return MakeClosure<bool(TExpressionContext*, TValue**, i64)>(builder, name,
+    return MakeClosure<bool(TExpressionContext*, TPIValue**, i64)>(builder, name,
         [&] (
             TCGOperatorContext& builder,
             Value* buffer,
@@ -2105,10 +2107,10 @@ size_t MakeCodegenMultiJoinOp(
             Value* /*buffer*/
         ) {
             Value* keyPtrs = builder->CreateAlloca(
-                TTypeBuilder<TValue*>::Get(builder->getContext()),
+                TTypeBuilder<TPIValue*>::Get(builder->getContext()),
                 builder->getInt64(parameters.size()));
 
-            Value* primaryValuesPtr = builder->CreateAlloca(TTypeBuilder<TValue*>::Get(builder->getContext()));
+            Value* primaryValuesPtr = builder->CreateAlloca(TTypeBuilder<TPIValue*>::Get(builder->getContext()));
 
             builder->CreateStore(
                 builder->CreateCall(
@@ -2341,12 +2343,15 @@ size_t MakeCodegenFilterFinalizedOp(
         builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
             Value* finalizedValuesRef = builder->ViaClosure(finalizedValues);
 
-            builder->CreateMemCpy(
-                builder->CreatePointerCast(finalizedValuesRef, builder->getInt8PtrTy()),
-                llvm::Align(8),
-                builder->CreatePointerCast(values, builder->getInt8PtrTy()),
-                llvm::Align(8),
-                keySize * sizeof(TValue));
+            for (size_t index = 0; index < keySize; index++) {
+                auto value = TCGValue::LoadFromRowValues(
+                    builder,
+                    values,
+                    index,
+                    stateTypes[index]);
+
+                value.StoreToValues(builder, finalizedValuesRef, index);
+            }
 
             for (int index = 0; index < std::ssize(codegenAggregates); index++) {
                 auto value = TCGValue::LoadFromRowValues(
@@ -2354,7 +2359,6 @@ size_t MakeCodegenFilterFinalizedOp(
                     values,
                     keySize + index,
                     stateTypes[index]);
-
                 codegenAggregates[index].Finalize(builder, builder.Buffer, value)
                     .StoreToValues(builder, finalizedValuesRef, keySize + index);
             }
@@ -2402,7 +2406,8 @@ size_t MakeCodegenAddStreamOp(
     size_t* slotCount,
     size_t producerSlot,
     size_t rowSize,
-    EStreamTag value)
+    EStreamTag value,
+    const std::vector<EValueType>& stateTypes)
 {
     size_t consumerSlot = (*slotCount)++;
 
@@ -2415,12 +2420,15 @@ size_t MakeCodegenAddStreamOp(
         builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
             Value* newValuesRef = builder->ViaClosure(newValues);
 
-            builder->CreateMemCpy(
-                builder->CreatePointerCast(newValuesRef, builder->getInt8PtrTy()),
-                llvm::Align(8),
-                builder->CreatePointerCast(values, builder->getInt8PtrTy()),
-                llvm::Align(8),
-                rowSize * sizeof(TValue));
+            for (size_t index = 0; index < rowSize; index++) {
+                auto value = TCGValue::LoadFromRowValues(
+                    builder,
+                    values,
+                    index,
+                    stateTypes[index]);
+
+                value.StoreToValues(builder, newValuesRef, index);
+            }
 
             TCGValue::Create(
                 builder,
@@ -2545,7 +2553,7 @@ size_t MakeCodegenOnceOp(
     ] (TCGOperatorContext& builder) {
 
         typedef NCodegen::TTypes::i<1> TBool;
-        auto onceWrapper = MakeClosure<TBool(TExpressionContext*, TValue*)>(builder, "OnceWrapper", [&] (
+        auto onceWrapper = MakeClosure<TBool(TExpressionContext*, TPIValue*)>(builder, "OnceWrapper", [&] (
             TCGOperatorContext& builder,
             Value* buffer,
             Value* values
@@ -2610,7 +2618,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
             Value* groupByClosure,
             Value* buffer
         ) {
-            Value* newValuesPtr = builder->CreateAlloca(TTypeBuilder<TValue*>::Get(builder->getContext()));
+            Value* newValuesPtr = builder->CreateAlloca(TTypeBuilder<TPIValue*>::Get(builder->getContext()));
 
             size_t keySize = keyTypes.size();
             size_t groupRowSize = keySize + stateTypes.size();
@@ -2778,7 +2786,7 @@ size_t MakeCodegenGroupTotalsOp(
             TCGOperatorContext& builder,
             Value* buffer
         ) {
-            Value* newValuesPtr = builder->CreateAlloca(TTypeBuilder<TValue*>::Get(builder->getContext()));
+            Value* newValuesPtr = builder->CreateAlloca(TTypeBuilder<TPIValue*>::Get(builder->getContext()));
 
             auto keySize = std::ssize(keyTypes);
             auto groupRowSize = keySize + std::ssize(stateTypes);
@@ -2936,12 +2944,15 @@ size_t MakeCodegenOrderOp(
                 Value* topCollectorRef = builder->ViaClosure(topCollector);
                 Value* newValuesRef = builder->ViaClosure(newValues);
 
-                builder->CreateMemCpy(
-                    builder->CreatePointerCast(newValuesRef, builder->getInt8PtrTy()),
-                    llvm::Align(8),
-                    builder->CreatePointerCast(values, builder->getInt8PtrTy()),
-                    llvm::Align(8),
-                    schemaSize * sizeof(TValue));
+                for (size_t index = 0; index < schemaSize; index++) {
+                    auto value = TCGValue::LoadFromRowValues(
+                        builder,
+                        values,
+                        index,
+                        sourceSchema[index]);
+
+                    value.StoreToValues(builder, newValuesRef, index);
+                }
 
                 auto innerBuilder = TCGExprContext::Make(
                     builder,
@@ -3109,6 +3120,20 @@ void MakeCodegenWriteOp(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TSignature, typename TPISignature>
+TCallback<TSignature> BuildCGEntrypoint(TCGModulePtr module, const TString& entryFunctionName)
+{
+    auto piFunction = module->GetCompiledFunction<TPISignature>(entryFunctionName);
+    auto caller = New<TCGPICaller<TSignature, TPISignature>>(
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+        FROM_HERE,
+#endif
+        piFunction);
+
+    auto staticInvoke = &TCGPICaller<TSignature, TPISignature>::StaticInvoke;
+    return TCallback<TSignature>(caller, staticInvoke);
+}
+
 TCGQueryCallback CodegenEvaluate(
     const TCodegenSource* codegenSource,
     size_t slotCount)
@@ -3116,7 +3141,7 @@ TCGQueryCallback CodegenEvaluate(
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
     const auto entryFunctionName = TString("EvaluateQuery");
 
-    MakeFunction<TCGQuerySignature>(module, entryFunctionName.c_str(), [&] (
+    MakeFunction<TCGPIQuerySignature>(module, entryFunctionName.c_str(), [&] (
         TCGBaseContext& baseBuilder,
         Value* literals,
         Value* opaqueValuesPtr,
@@ -3135,7 +3160,8 @@ TCGQueryCallback CodegenEvaluate(
     });
 
     module->ExportSymbol(entryFunctionName);
-    return module->GetCompiledFunction<TCGQuerySignature>(entryFunctionName);
+
+    return BuildCGEntrypoint<TCGQuerySignature, TCGPIQuerySignature>(module, entryFunctionName);
 }
 
 TCGExpressionCallback CodegenStandaloneExpression(
@@ -3147,7 +3173,7 @@ TCGExpressionCallback CodegenStandaloneExpression(
 
     CodegenFragmentBodies(module, *fragmentInfos);
 
-    MakeFunction<TCGExpressionSignature>(module, entryFunctionName.c_str(), [&] (
+    MakeFunction<TCGPIExpressionSignature>(module, entryFunctionName.c_str(), [&] (
         TCGBaseContext& baseBuilder,
         Value* literals,
         Value* opaqueValuesPtr,
@@ -3168,7 +3194,7 @@ TCGExpressionCallback CodegenStandaloneExpression(
 
     module->ExportSymbol(entryFunctionName);
 
-    return module->GetCompiledFunction<TCGExpressionSignature>(entryFunctionName);
+    return BuildCGEntrypoint<TCGExpressionSignature, TCGPIExpressionSignature>(module, entryFunctionName);
 }
 
 TCGAggregateCallbacks CodegenAggregate(
@@ -3180,7 +3206,7 @@ TCGAggregateCallbacks CodegenAggregate(
 
     static const auto initName = TString("init");
     {
-        MakeFunction<TCGAggregateInitSignature>(module, initName.c_str(), [&] (
+        MakeFunction<TCGPIAggregateInitSignature>(module, initName.c_str(), [&] (
             TCGBaseContext& builder,
             Value* buffer,
             Value* resultPtr
@@ -3195,7 +3221,7 @@ TCGAggregateCallbacks CodegenAggregate(
 
     static const auto updateName = TString("update");
     {
-        MakeFunction<TCGAggregateUpdateSignature>(module, updateName.c_str(), [&] (
+        MakeFunction<TCGPIAggregateUpdateSignature>(module, updateName.c_str(), [&] (
             TCGBaseContext& builder,
             Value* buffer,
             Value* statePtr,
@@ -3213,7 +3239,7 @@ TCGAggregateCallbacks CodegenAggregate(
 
     static const auto mergeName = TString("merge");
     {
-        MakeFunction<TCGAggregateMergeSignature>(module, mergeName.c_str(), [&] (
+        MakeFunction<TCGPIAggregateMergeSignature>(module, mergeName.c_str(), [&] (
             TCGBaseContext& builder,
             Value* buffer,
             Value* dstStatePtr,
@@ -3232,7 +3258,7 @@ TCGAggregateCallbacks CodegenAggregate(
 
     static const auto finalizeName = TString("finalize");
     {
-        MakeFunction<TCGAggregateFinalizeSignature>(module, finalizeName.c_str(), [&] (
+        MakeFunction<TCGPIAggregateFinalizeSignature>(module, finalizeName.c_str(), [&] (
             TCGBaseContext& builder,
             Value* buffer,
             Value* resultPtr,
@@ -3250,10 +3276,10 @@ TCGAggregateCallbacks CodegenAggregate(
     }
 
     return TCGAggregateCallbacks{
-        module->GetCompiledFunction<TCGAggregateInitSignature>(initName),
-        module->GetCompiledFunction<TCGAggregateUpdateSignature>(updateName),
-        module->GetCompiledFunction<TCGAggregateMergeSignature>(mergeName),
-        module->GetCompiledFunction<TCGAggregateFinalizeSignature>(finalizeName)};
+        BuildCGEntrypoint<TCGAggregateInitSignature, TCGPIAggregateInitSignature>(module, initName),
+        BuildCGEntrypoint<TCGAggregateUpdateSignature, TCGPIAggregateUpdateSignature>(module, updateName),
+        BuildCGEntrypoint<TCGAggregateMergeSignature, TCGPIAggregateMergeSignature>(module, mergeName),
+        BuildCGEntrypoint<TCGAggregateFinalizeSignature, TCGPIAggregateFinalizeSignature>(module, finalizeName)};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

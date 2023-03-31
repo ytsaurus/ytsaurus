@@ -510,7 +510,7 @@ bool TFunctionImplKey::operator == (const TFunctionImplKey& other) const
     return true;
 }
 
-TString ToString(const TFunctionImplKey& key)
+[[maybe_unused]] TString ToString(const TFunctionImplKey& key)
 {
     return Format("{%v}", JoinToString(key.ChunkSpecs, [] (
         TStringBuilderBase* builder,
