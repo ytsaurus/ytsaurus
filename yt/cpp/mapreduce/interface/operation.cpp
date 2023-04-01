@@ -648,4 +648,16 @@ IOperationPtr IOperationClient::Sort(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRawTableReaderPtr IStructuredJob::CreateCustomRawJobReader(int) const
+{
+    return nullptr;
+}
+
+THolder<IProxyOutput> IStructuredJob::CreateCustomRawJobWriter(size_t) const
+{
+    return nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "proxy_output.h"
+#include <yt/cpp/mapreduce/interface/io.h>
 
 #include <util/generic/vector.h>
 #include <util/generic/ptr.h>
@@ -12,7 +12,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobWriter
-    : public TProxyOutput
+    : public IProxyOutput
 {
 public:
     explicit TJobWriter(size_t outputTableCount);

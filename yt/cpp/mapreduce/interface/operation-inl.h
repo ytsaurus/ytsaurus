@@ -143,74 +143,74 @@ const TVector<TRichYPath>& TRawMapReduceOperationIoSpec<TDerived>::GetMapOutputs
 
 ////////////////////////////////////////////////////////////////////////////////
 
-::TIntrusivePtr<INodeReaderImpl> CreateJobNodeReader();
-::TIntrusivePtr<IYaMRReaderImpl> CreateJobYaMRReader();
-::TIntrusivePtr<IProtoReaderImpl> CreateJobProtoReader();
+::TIntrusivePtr<INodeReaderImpl> CreateJobNodeReader(TRawTableReaderPtr rawTableReader);
+::TIntrusivePtr<IYaMRReaderImpl> CreateJobYaMRReader(TRawTableReaderPtr rawTableReader);
+::TIntrusivePtr<IProtoReaderImpl> CreateJobProtoReader(TRawTableReaderPtr rawTableReader);
 
-::TIntrusivePtr<INodeWriterImpl> CreateJobNodeWriter(size_t outputTableCount);
-::TIntrusivePtr<IYaMRWriterImpl> CreateJobYaMRWriter(size_t outputTableCount);
-::TIntrusivePtr<IProtoWriterImpl> CreateJobProtoWriter(size_t outputTableCount);
+::TIntrusivePtr<INodeWriterImpl> CreateJobNodeWriter(THolder<IProxyOutput> rawTableWriter);
+::TIntrusivePtr<IYaMRWriterImpl> CreateJobYaMRWriter(THolder<IProxyOutput> rawTableWriter);
+::TIntrusivePtr<IProtoWriterImpl> CreateJobProtoWriter(THolder<IProxyOutput> rawTableWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-inline ::TIntrusivePtr<typename TRowTraits<T>::IReaderImpl> CreateJobReaderImpl();
+inline ::TIntrusivePtr<typename TRowTraits<T>::IReaderImpl> CreateJobReaderImpl(TRawTableReaderPtr rawTableReader);
 
 template <>
-inline ::TIntrusivePtr<INodeReaderImpl> CreateJobReaderImpl<TNode>()
+inline ::TIntrusivePtr<INodeReaderImpl> CreateJobReaderImpl<TNode>(TRawTableReaderPtr rawTableReader)
 {
-    return CreateJobNodeReader();
+    return CreateJobNodeReader(rawTableReader);
 }
 
 template <>
-inline ::TIntrusivePtr<IYaMRReaderImpl> CreateJobReaderImpl<TYaMRRow>()
+inline ::TIntrusivePtr<IYaMRReaderImpl> CreateJobReaderImpl<TYaMRRow>(TRawTableReaderPtr rawTableReader)
 {
-    return CreateJobYaMRReader();
+    return CreateJobYaMRReader(rawTableReader);
 }
 
 template <>
-inline ::TIntrusivePtr<IProtoReaderImpl> CreateJobReaderImpl<Message>()
+inline ::TIntrusivePtr<IProtoReaderImpl> CreateJobReaderImpl<Message>(TRawTableReaderPtr rawTableReader)
 {
-    return CreateJobProtoReader();
+    return CreateJobProtoReader(rawTableReader);
 }
 
 template <class T>
-inline ::TIntrusivePtr<typename TRowTraits<T>::IReaderImpl> CreateJobReaderImpl()
+inline ::TIntrusivePtr<typename TRowTraits<T>::IReaderImpl> CreateJobReaderImpl(TRawTableReaderPtr rawTableReader)
 {
     if constexpr (TIsBaseOf<Message, T>::Value || NDetail::TIsProtoOneOf<T>::value) {
-        return CreateJobProtoReader();
+        return CreateJobProtoReader(rawTableReader);
     } else {
         static_assert(TDependentFalse<T>, "Unknown row type");
     }
 }
 
 template <class T>
-inline TTableReaderPtr<T> CreateJobReader()
+inline TTableReaderPtr<T> CreateJobReader(TRawTableReaderPtr rawTableReader)
 {
-    return new TTableReader<T>(CreateJobReaderImpl<T>());
+    return new TTableReader<T>(CreateJobReaderImpl<T>(rawTableReader));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TTableWriterPtr<T> CreateJobWriter(size_t outputTableCount);
+TTableWriterPtr<T> CreateJobWriter(THolder<IProxyOutput> rawJobWriter);
 
 template <>
-inline TTableWriterPtr<TNode> CreateJobWriter<TNode>(size_t outputTableCount)
+inline TTableWriterPtr<TNode> CreateJobWriter<TNode>(THolder<IProxyOutput> rawJobWriter)
 {
-    return new TTableWriter<TNode>(CreateJobNodeWriter(outputTableCount));
+    return new TTableWriter<TNode>(CreateJobNodeWriter(std::move(rawJobWriter)));
 }
 
 template <>
-inline TTableWriterPtr<TYaMRRow> CreateJobWriter<TYaMRRow>(size_t outputTableCount)
+inline TTableWriterPtr<TYaMRRow> CreateJobWriter<TYaMRRow>(THolder<IProxyOutput> rawJobWriter)
 {
-    return new TTableWriter<TYaMRRow>(CreateJobYaMRWriter(outputTableCount));
+    return new TTableWriter<TYaMRRow>(CreateJobYaMRWriter(std::move(rawJobWriter)));
 }
 
 template <>
-inline TTableWriterPtr<Message> CreateJobWriter<Message>(size_t outputTableCount)
+inline TTableWriterPtr<Message> CreateJobWriter<Message>(THolder<IProxyOutput> rawJobWriter)
 {
-    return new TTableWriter<Message>(CreateJobProtoWriter(outputTableCount));
+    return new TTableWriter<Message>(CreateJobProtoWriter(std::move(rawJobWriter)));
 }
 
 template <class T, class = void>
@@ -226,10 +226,10 @@ struct TProtoWriterCreator<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
 };
 
 template <class T>
-inline TTableWriterPtr<T> CreateJobWriter(size_t outputTableCount)
+inline TTableWriterPtr<T> CreateJobWriter(THolder<IProxyOutput> rawJobWriter)
 {
     if constexpr (TIsBaseOf<Message, T>::Value) {
-        return TProtoWriterCreator<T>::Create(CreateJobProtoWriter(outputTableCount));
+        return TProtoWriterCreator<T>::Create(CreateJobProtoWriter(std::move(rawJobWriter)));
     } else {
         static_assert(TDependentFalse<T>, "Unknown row type");
     }
@@ -579,7 +579,13 @@ int RunVanillaJob(size_t outputTableCount, IInputStream& jobStateStream)
         Y_VERIFY(outputTableCount, "Vanilla job with table writer expects nonzero 'outputTableCount'");
         using TOutputRow = typename TVanillaJob::TWriter::TRowType;
 
-        auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
+        THolder<IProxyOutput> rawJobWriter;
+        if (auto customWriter = job.CreateCustomRawJobWriter(outputTableCount)) {
+            rawJobWriter = std::move(customWriter);
+        } else {
+            rawJobWriter = CreateRawJobWriter(outputTableCount);
+        }
+        auto writer = CreateJobWriter<TOutputRow>(std::move(rawJobWriter));
 
         job.Start(writer.Get());
         job.Do(writer.Get());
@@ -597,21 +603,35 @@ inline int RunVanillaJob<TCommandVanillaJob>(size_t /* outputTableCount */, IInp
 }
 
 template <class TJob>
+    requires TIsBaseOf<IStructuredJob, TJob>::Value
 int RunJob(size_t outputTableCount, IInputStream& jobStateStream)
 {
     using TInputRow = typename TJob::TReader::TRowType;
     using TOutputRow = typename TJob::TWriter::TRowType;
 
-    auto readerImpl = CreateJobReaderImpl<TInputRow>();
+    auto job = MakeIntrusive<TJob>();
+
+    TRawTableReaderPtr rawJobReader;
+    if (auto customReader = job->CreateCustomRawJobReader(/*fd*/ 0)) {
+        rawJobReader = customReader;
+    } else {
+        rawJobReader = CreateRawJobReader(/*fd*/ 0);
+    }
+    auto readerImpl = CreateJobReaderImpl<TInputRow>(rawJobReader);
 
     // Many users don't expect to have jobs with empty input so we skip such jobs.
     if (!readerImpl->IsValid()) {
         return 0;
     }
 
-    auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
+    THolder<IProxyOutput> rawJobWriter;
+    if (auto customWriter = job->CreateCustomRawJobWriter(outputTableCount)) {
+        rawJobWriter = std::move(customWriter);
+    } else {
+        rawJobWriter = CreateRawJobWriter(outputTableCount);
+    }
+    auto writer = CreateJobWriter<TOutputRow>(std::move(rawJobWriter));
 
-    auto job = MakeIntrusive<TJob>();
     job->Load(jobStateStream);
 
     job->Start(writer.Get());
@@ -851,48 +871,56 @@ REGISTER_NAMED_VANILLA_JOB((NYT::YtRegistryTypeName(TypeName<__VA_ARGS__>()).dat
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TReader, typename TWriter>
-TStructuredRowStreamDescription IMapper<TReader, TWriter>::GetInputRowStreamDescription() const {
+TStructuredRowStreamDescription IMapper<TReader, TWriter>::GetInputRowStreamDescription() const
+{
     return NYT::NDetail::GetStructuredRowStreamDescription<typename TReader::TRowType>();
 }
 
 template <typename TReader, typename TWriter>
-TStructuredRowStreamDescription IMapper<TReader, TWriter>::GetOutputRowStreamDescription() const {
+TStructuredRowStreamDescription IMapper<TReader, TWriter>::GetOutputRowStreamDescription() const
+{
     return NYT::NDetail::GetStructuredRowStreamDescription<typename TWriter::TRowType>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TReader, typename TWriter>
-TStructuredRowStreamDescription IReducer<TReader, TWriter>::GetInputRowStreamDescription() const {
+TStructuredRowStreamDescription IReducer<TReader, TWriter>::GetInputRowStreamDescription() const
+{
     return NYT::NDetail::GetStructuredRowStreamDescription<typename TReader::TRowType>();
 }
 
 template <typename TReader, typename TWriter>
-TStructuredRowStreamDescription IReducer<TReader, TWriter>::GetOutputRowStreamDescription() const {
+TStructuredRowStreamDescription IReducer<TReader, TWriter>::GetOutputRowStreamDescription() const
+{
     return NYT::NDetail::GetStructuredRowStreamDescription<typename TWriter::TRowType>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TReader, typename TWriter>
-TStructuredRowStreamDescription IAggregatorReducer<TReader, TWriter>::GetInputRowStreamDescription() const {
+TStructuredRowStreamDescription IAggregatorReducer<TReader, TWriter>::GetInputRowStreamDescription() const
+{
     return NYT::NDetail::GetStructuredRowStreamDescription<typename TReader::TRowType>();
 }
 
 template <typename TReader, typename TWriter>
-TStructuredRowStreamDescription IAggregatorReducer<TReader, TWriter>::GetOutputRowStreamDescription() const {
+TStructuredRowStreamDescription IAggregatorReducer<TReader, TWriter>::GetOutputRowStreamDescription() const
+{
     return NYT::NDetail::GetStructuredRowStreamDescription<typename TWriter::TRowType>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TWriter>
-TStructuredRowStreamDescription IVanillaJob<TWriter>::GetInputRowStreamDescription() const {
+TStructuredRowStreamDescription IVanillaJob<TWriter>::GetInputRowStreamDescription() const
+{
     return TVoidStructuredRowStream();
 }
 
 template <typename TWriter>
-TStructuredRowStreamDescription IVanillaJob<TWriter>::GetOutputRowStreamDescription() const {
+TStructuredRowStreamDescription IVanillaJob<TWriter>::GetOutputRowStreamDescription() const
+{
     return NYT::NDetail::GetStructuredRowStreamDescription<typename TWriter::TRowType>();
 }
 

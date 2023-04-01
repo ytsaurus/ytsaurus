@@ -1,10 +1,11 @@
 #include "proto_table_writer.h"
 
 #include "node_table_writer.h"
-#include "proxy_output.h"
 #include "proto_helpers.h"
 
 #include <yt/cpp/mapreduce/common/node_builder.h>
+
+#include <yt/cpp/mapreduce/interface/io.h>
 
 #include <yt/yt_proto/yt/formats/extension.pb.h>
 
@@ -95,7 +96,7 @@ TNode MakeNodeFromMessage(const Message& row)
 ////////////////////////////////////////////////////////////////////////////////
 
 TProtoTableWriter::TProtoTableWriter(
-    THolder<TProxyOutput> output,
+    THolder<IProxyOutput> output,
     TVector<const Descriptor*>&& descriptors)
     : NodeWriter_(new TNodeTableWriter(std::move(output)))
     , Descriptors_(std::move(descriptors))
@@ -133,7 +134,7 @@ void TProtoTableWriter::Abort()
 ////////////////////////////////////////////////////////////////////////////////
 
 TLenvalProtoTableWriter::TLenvalProtoTableWriter(
-    THolder<TProxyOutput> output,
+    THolder<IProxyOutput> output,
     TVector<const Descriptor*>&& descriptors)
     : Output_(std::move(output))
     , Descriptors_(std::move(descriptors))

@@ -170,6 +170,29 @@ public:
     { }
 };
 
+/// @brief Interface to deal with multiple raw output streams.
+class IProxyOutput
+{
+public:
+    virtual ~IProxyOutput()
+    { }
+
+    /// Get amount of managed streams.
+    virtual size_t GetStreamCount() const = 0;
+
+    /// Get stream corresponding to the specified table index.
+    virtual IOutputStream* GetStream(size_t tableIndex) const = 0;
+
+    /// This handler must be called right after the next row has been written.
+    virtual void OnRowFinished(size_t tableIndex) = 0;
+
+    /// @brief Try to abort writing process as soon as possible (makes sense for multi-threaded writers).
+    ///
+    /// By default it does nothing, but implementations are welcome to override this method.
+    virtual void Abort()
+    { }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 /// @brief Class template to read typed rows from YT tables.

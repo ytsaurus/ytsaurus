@@ -1,12 +1,12 @@
 #include "yamr_table_writer.h"
 
-#include "proxy_output.h"
+#include <yt/cpp/mapreduce/interface/io.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYaMRTableWriter::TYaMRTableWriter(THolder<TProxyOutput> output)
+TYaMRTableWriter::TYaMRTableWriter(THolder<IProxyOutput> output)
     : Output_(std::move(output))
 { }
 

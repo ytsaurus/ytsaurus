@@ -4,7 +4,7 @@
 
 namespace NYT {
 
-class TProxyOutput;
+class IProxyOutput;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,7 +12,7 @@ class TYaMRTableWriter
     : public IYaMRWriterImpl
 {
 public:
-    explicit TYaMRTableWriter(THolder<TProxyOutput> output);
+    explicit TYaMRTableWriter(THolder<IProxyOutput> output);
     ~TYaMRTableWriter() override;
 
     void AddRow(const TYaMRRow& row, size_t tableIndex) override;
@@ -23,7 +23,7 @@ public:
     void Abort() override;
 
 private:
-    THolder<TProxyOutput> Output_;
+    THolder<IProxyOutput> Output_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,8 +2,6 @@
 
 #include <yt/cpp/mapreduce/common/fwd.h>
 
-#include <yt/cpp/mapreduce/io/proxy_output.h>
-
 #include <yt/cpp/mapreduce/http/requests.h>
 #include <yt/cpp/mapreduce/interface/io.h>
 
@@ -15,7 +13,7 @@ class TRetryfulWriter;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClientWriter
-    : public TProxyOutput
+    : public IProxyOutput
 {
 public:
     TClientWriter(

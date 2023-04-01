@@ -1872,12 +1872,28 @@ class IStructuredJob
     : public IJob
 {
 public:
+    ///
+    /// @brief This methods are called when creating table reader and writer for the job.
+    ///
+    /// Override them if you want to implement custom input logic. (e.g. addtitional bufferization)
+    virtual TRawTableReaderPtr CreateCustomRawJobReader(int fd) const;
+    virtual THolder<IProxyOutput> CreateCustomRawJobWriter(size_t outputTableCount) const;
+
     virtual TStructuredRowStreamDescription GetInputRowStreamDescription() const = 0;
     virtual TStructuredRowStreamDescription GetOutputRowStreamDescription() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Create default raw job reader.
+TRawTableReaderPtr CreateRawJobReader(int fd = 0);
+
+///
+/// @brief Create default raw job writer.
+THolder<IProxyOutput> CreateRawJobWriter(size_t outputTableCount);
+
+////////////////////////////////////////////////////////////////////////////////
 
 ///
 /// @brief Base interface for structured (typed) map jobs.
@@ -2133,6 +2149,7 @@ class IVanillaJob
 public:
     using TWriter = TW;
 
+public:
     ///
     /// @brief This method is called before `Do` method.
     virtual void Start(TWriter* /* writer */)

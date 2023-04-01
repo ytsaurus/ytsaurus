@@ -1,8 +1,8 @@
 #include "node_table_writer.h"
 
-#include "proxy_output.h"
-
 #include <yt/cpp/mapreduce/common/node_visitor.h>
+
+#include <yt/cpp/mapreduce/interface/io.h>
 
 #include <yt/cpp/mapreduce/interface/logging/yt_log.h>
 
@@ -12,7 +12,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeTableWriter::TNodeTableWriter(THolder<TProxyOutput> output, NYson::EYsonFormat format)
+TNodeTableWriter::TNodeTableWriter(THolder<IProxyOutput> output, NYson::EYsonFormat format)
     : Output_(std::move(output))
 {
     for (size_t i = 0; i < Output_->GetStreamCount(); ++i) {

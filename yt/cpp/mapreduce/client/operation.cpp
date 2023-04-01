@@ -2860,52 +2860,52 @@ void ResetUseClientProtobuf(const char* methodName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-::TIntrusivePtr<INodeReaderImpl> CreateJobNodeReader()
+::TIntrusivePtr<INodeReaderImpl> CreateJobNodeReader(TRawTableReaderPtr rawTableReader)
 {
     if (auto schema = NDetail::GetJobInputSkiffSchema()) {
-        return new NDetail::TSkiffTableReader(::MakeIntrusive<TJobReader>(0), schema);
+        return new NDetail::TSkiffTableReader(rawTableReader, schema);
     } else {
-        return new TNodeTableReader(::MakeIntrusive<TJobReader>(0));
+        return new TNodeTableReader(rawTableReader);
     }
 }
 
-::TIntrusivePtr<IYaMRReaderImpl> CreateJobYaMRReader()
+::TIntrusivePtr<IYaMRReaderImpl> CreateJobYaMRReader(TRawTableReaderPtr rawTableReader)
 {
-    return new TYaMRTableReader(::MakeIntrusive<TJobReader>(0));
+    return new TYaMRTableReader(rawTableReader);
 }
 
-::TIntrusivePtr<IProtoReaderImpl> CreateJobProtoReader()
+::TIntrusivePtr<IProtoReaderImpl> CreateJobProtoReader(TRawTableReaderPtr rawTableReader)
 {
     if (TConfig::Get()->UseClientProtobuf) {
         return new TProtoTableReader(
-            ::MakeIntrusive<TJobReader>(0),
+            rawTableReader,
             GetJobInputDescriptors());
     } else {
         return new TLenvalProtoTableReader(
-            ::MakeIntrusive<TJobReader>(0),
+            rawTableReader,
             GetJobInputDescriptors());
     }
 }
 
-::TIntrusivePtr<INodeWriterImpl> CreateJobNodeWriter(size_t outputTableCount)
+::TIntrusivePtr<INodeWriterImpl> CreateJobNodeWriter(THolder<IProxyOutput> rawJobWriter)
 {
-    return new TNodeTableWriter(MakeHolder<TJobWriter>(outputTableCount));
+    return new TNodeTableWriter(std::move(rawJobWriter));
 }
 
-::TIntrusivePtr<IYaMRWriterImpl> CreateJobYaMRWriter(size_t outputTableCount)
+::TIntrusivePtr<IYaMRWriterImpl> CreateJobYaMRWriter(THolder<IProxyOutput> rawJobWriter)
 {
-    return new TYaMRTableWriter(MakeHolder<TJobWriter>(outputTableCount));
+    return new TYaMRTableWriter(std::move(rawJobWriter));
 }
 
-::TIntrusivePtr<IProtoWriterImpl> CreateJobProtoWriter(size_t outputTableCount)
+::TIntrusivePtr<IProtoWriterImpl> CreateJobProtoWriter(THolder<IProxyOutput> rawJobWriter)
 {
     if (TConfig::Get()->UseClientProtobuf) {
         return new TProtoTableWriter(
-            MakeHolder<TJobWriter>(outputTableCount),
+            std::move(rawJobWriter),
             GetJobOutputDescriptors());
     } else {
         return new TLenvalProtoTableWriter(
-            MakeHolder<TJobWriter>(outputTableCount),
+            std::move(rawJobWriter),
             GetJobOutputDescriptors());
     }
 }

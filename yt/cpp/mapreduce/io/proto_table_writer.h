@@ -4,7 +4,7 @@
 
 namespace NYT {
 
-class TProxyOutput;
+class IProxyOutput;
 class TNodeTableWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,7 +14,7 @@ class TProtoTableWriter
 {
 public:
     TProtoTableWriter(
-        THolder<TProxyOutput> output,
+        THolder<IProxyOutput> output,
         TVector<const ::google::protobuf::Descriptor*>&& descriptors);
     ~TProtoTableWriter() override;
 
@@ -37,7 +37,7 @@ class TLenvalProtoTableWriter
 {
 public:
     TLenvalProtoTableWriter(
-        THolder<TProxyOutput> output,
+        THolder<IProxyOutput> output,
         TVector<const ::google::protobuf::Descriptor*>&& descriptors);
     ~TLenvalProtoTableWriter() override;
 
@@ -49,7 +49,7 @@ public:
     void Abort() override;
 
 private:
-    THolder<TProxyOutput> Output_;
+    THolder<IProxyOutput> Output_;
     TVector<const ::google::protobuf::Descriptor*> Descriptors_;
 };
 

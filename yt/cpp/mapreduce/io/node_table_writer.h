@@ -5,7 +5,7 @@
 
 namespace NYT {
 
-class TProxyOutput;
+class IProxyOutput;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,7 +13,7 @@ class TNodeTableWriter
     : public INodeWriterImpl
 {
 public:
-    explicit TNodeTableWriter(THolder<TProxyOutput> output, ::NYson::EYsonFormat format = ::NYson::EYsonFormat::Binary);
+    explicit TNodeTableWriter(THolder<IProxyOutput> output, ::NYson::EYsonFormat format = ::NYson::EYsonFormat::Binary);
     ~TNodeTableWriter() override;
 
     void AddRow(const TNode& row, size_t tableIndex) override;
@@ -24,7 +24,7 @@ public:
     void Abort() override;
 
 private:
-    THolder<TProxyOutput> Output_;
+    THolder<IProxyOutput> Output_;
     TVector<THolder<::NYson::TYsonWriter>> Writers_;
 };
 
