@@ -89,13 +89,13 @@ import tech.ytsaurus.rpcproxy.ETableReplicaMode;
 import tech.ytsaurus.rpcproxy.TCheckPermissionResult;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-public class MockYtClient implements BaseYtClient {
+public class MockYTsaurusClient implements BaseYTsaurusClient {
     private final Map<String, Deque<Callable<CompletableFuture<?>>>> mocks = new HashMap<>();
     private Map<String, Long> timesCalled = new HashMap<>();
     private final YTsaurusCluster cluster;
     private final ScheduledExecutorService executor = new NioEventLoopGroup(1);
 
-    public MockYtClient(String clusterName) {
+    public MockYTsaurusClient(String clusterName) {
         this.cluster = new YTsaurusCluster(YTsaurusCluster.normalizeName(clusterName));
     }
 

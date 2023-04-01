@@ -7,7 +7,7 @@ import java.util.Set;
 
 import org.junit.Assert;
 import org.junit.Test;
-import tech.ytsaurus.client.MockYtClient;
+import tech.ytsaurus.client.MockYTsaurusClient;
 import tech.ytsaurus.client.YTsaurusClientConfig;
 import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.core.cypress.YPath;
@@ -20,7 +20,7 @@ import tech.ytsaurus.ysontree.YTreeNode;
 
 
 public class MapperSpecTest {
-    private final MockYtClient client = new MockYtClient("test");
+    private final MockYTsaurusClient client = new MockYTsaurusClient("test");
 
     @Test
     public void testBasic() {

@@ -54,7 +54,7 @@ import tech.ytsaurus.rpc.TStreamingPayloadHeader;
  * When all internal threads of YTsaurusClient are blocked by such callbacks
  * YTsaurusClient becomes unable to send requests and receive responses.
  */
-public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
+public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusClient {
     private final BusConnector busConnector;
     private final boolean isBusConnectorOwner;
     private final ScheduledExecutorService executor;

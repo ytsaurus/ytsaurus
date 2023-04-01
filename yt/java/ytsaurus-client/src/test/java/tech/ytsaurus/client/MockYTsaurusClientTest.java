@@ -18,7 +18,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class MockYtClientTest {
+public class MockYTsaurusClientTest {
     String path = "//home/test-path";
     TableSchema schema = new TableSchema.Builder()
             .addKey("key", ColumnValueType.STRING)
@@ -26,7 +26,7 @@ public class MockYtClientTest {
 
     @Test
     public void testOk() {
-        MockYtClient mockClient = new MockYtClient("tmp");
+        MockYTsaurusClient mockClient = new MockYTsaurusClient("tmp");
         List<YTreeNode> firstExpectedResult = List.of(
                 YTree.mapBuilder().key("key").value("1").buildMap(),
                 YTree.mapBuilder().key("key").value("2").buildMap(),
@@ -73,7 +73,7 @@ public class MockYtClientTest {
 
     @Test
     public void testNoMockedValue() {
-        MockYtClient mockClient = new MockYtClient("tmp");
+        MockYTsaurusClient mockClient = new MockYTsaurusClient("tmp");
 
         List<YTreeMapNode> expectedResult = List.of(
                 YTree.mapBuilder().key("key").value("1").buildMap(),
@@ -94,13 +94,13 @@ public class MockYtClientTest {
         }
     }
 
-    private CompletableFuture<List<YTreeMapNode>> doLookup(MockYtClient mockClient) {
+    private CompletableFuture<List<YTreeMapNode>> doLookup(MockYTsaurusClient mockClient) {
         return mockClient.lookupRows(
                 new LookupRowsRequest(path, schema.toLookup()),
                 new YTreeMapNodeSerializer());
     }
 
-    private CompletableFuture<List<YTreeMapNode>> doSelect(MockYtClient mockClient) {
+    private CompletableFuture<List<YTreeMapNode>> doSelect(MockYTsaurusClient mockClient) {
         return mockClient.selectRows(
                 SelectRowsRequest.of("select something"),
                 new YTreeMapNodeSerializer());
