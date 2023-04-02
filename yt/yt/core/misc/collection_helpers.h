@@ -113,6 +113,9 @@ typename TMap::mapped_type GetOrDefault(
     const TKey& key,
     const typename TMap::mapped_type& defaultValue = {});
 
+template <class TMap, class TKey, class TCtor>
+auto& GetOrInsert(TMap&& map, const TKey& key, TCtor&& ctor);
+
 template <class TVector, class... TArgs>
 TVector ConcatVectors(TVector first, TArgs&&... rest);
 

@@ -219,6 +219,16 @@ typename TMap::mapped_type GetOrDefault(
     return it == map.end() ? defaultValue : it->second;
 }
 
+template <class TMap, class TKey, class TCtor>
+auto& GetOrInsert(TMap&& map, const TKey& key, TCtor&& ctor)
+{
+    auto it = map.find(key);
+    if (it == map.end()) {
+        it = map.emplace(key, ctor()).first;
+    }
+    return it->second;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // See https://stackoverflow.com/questions/23439221/variadic-template-function-to-concatenate-stdvector-containers.
