@@ -1023,7 +1023,7 @@ class TestChaos(ChaosTestBase):
 
         assert not exists("//sys/chaos_cell_bundles/c1/@metadata_cell_id")
 
-        with pytest.raises(YtError, match="No cell with id .* is known"):
+        with pytest.raises(YtError, match="No chaos cell with id .* is known"):
             set("//sys/chaos_cell_bundles/c1/@metadata_cell_id", "1-2-3-4")
 
         cell_id1 = self._sync_create_chaos_cell(name="c1")
@@ -1038,7 +1038,7 @@ class TestChaos(ChaosTestBase):
         assert not exists("//sys/chaos_cell_bundles/c1/@metadata_cell_id")
 
         cell_id3 = self._sync_create_chaos_cell(name="c2")
-        with pytest.raises(YtError, match="Cell .* belongs to a different bundle .*"):
+        with pytest.raises(YtError, match="Cell .* belongs to a different bundle"):
             set("//sys/chaos_cell_bundles/c1/@metadata_cell_id", cell_id3)
 
     @authors("babenko")
@@ -3195,6 +3195,57 @@ class TestChaosMetaCluster(ChaosTestBase):
         assert card["type"] == "replication_card"
         assert card["id"] == card_id
         assert len(card["replicas"]) == 3
+
+    @authors("ponasenko-rs")
+    def test_metadata_cell_ids_rotate(self):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+        beta_driver = get_driver(cluster="remote_2")
+
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", alpha_cell)
+        assert get("//sys/chaos_cell_bundles/c/@metadata_cell_id") == alpha_cell
+        assert get("//sys/chaos_cell_bundles/c/@metadata_cell_ids") == [alpha_cell]
+
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", [beta_cell, alpha_cell])
+        assert get("//sys/chaos_cell_bundles/c/@metadata_cell_id") == beta_cell
+        assert get("//sys/chaos_cell_bundles/c/@metadata_cell_ids") == [beta_cell, alpha_cell]
+
+        set("//sys/@config/chaos_manager/enable_metadata_cells", False, driver=beta_driver)
+        wait(lambda: get("//sys/chaos_cell_bundles/c/@metadata_cell_id") == alpha_cell)
+        assert get("//sys/chaos_cell_bundles/c/@metadata_cell_ids") == [beta_cell, alpha_cell]
+
+        set("//sys/@config/chaos_manager/enable_metadata_cells", True, driver=beta_driver)
+        wait(lambda: get("//sys/chaos_cell_bundles/c/@metadata_cell_id") == beta_cell)
+        assert get("//sys/chaos_cell_bundles/c/@metadata_cell_ids") == [beta_cell, alpha_cell]
+
+    @authors("ponasenko-rs")
+    def test_metadata_cell_ids_use(self):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+
+        with pytest.raises(YtError):
+            set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", ["surely not guid"])
+
+        with pytest.raises(YtError):
+            set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", ["1-2-3-4"])
+
+        with pytest.raises(YtError):
+            set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", [alpha_cell, beta_cell, alpha_cell])
+
+        # use the same bundle and area as were created in _create_dedicated_areas_and_cells
+        cluster_names = self.get_cluster_names()
+        alpha_meta_cluster_names = cluster_names[:-2] + cluster_names[-1:]
+        alpha_peer_cluster_names = cluster_names[-2:-1]
+
+        another_alpha_cell = self._sync_create_chaos_cell(
+            meta_cluster_names=alpha_meta_cluster_names,
+            peer_cluster_names=alpha_peer_cluster_names
+        )
+
+        with pytest.raises(YtError):
+            set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", [beta_cell, another_alpha_cell])
+
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", [alpha_cell])
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", [beta_cell])
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", [alpha_cell, beta_cell])
 
     @authors("savrus")
     def test_dedicated_areas(self):

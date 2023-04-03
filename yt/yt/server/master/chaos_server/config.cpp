@@ -33,6 +33,8 @@ void TDynamicChaosManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("alien_cell_synchronizer", &TThis::AlienCellSynchronizer)
         .DefaultNew();
+    registrar.Parameter("enable_metadata_cells", &TThis::EnableMetadataCells)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

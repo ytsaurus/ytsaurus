@@ -674,9 +674,7 @@ public:
         if (cell->GetType() == EObjectType::ChaosCell) {
             auto* chaosCell = cell->As<TChaosCell>();
             auto* chaosCellBundle = cellBundle->As<TChaosCellBundle>();
-            if (chaosCellBundle->GetMetadataCell() == chaosCell) {
-                chaosCellBundle->SetMetadataCell(nullptr);
-            }
+            chaosCellBundle->RemoveMetadataCell(chaosCell);
         }
 
         auto* area = cell->GetArea();

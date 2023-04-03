@@ -30,6 +30,7 @@ class TDynamicChaosManagerConfig
 {
 public:
     TAlienCellSynchronizerConfigPtr AlienCellSynchronizer;
+    bool EnableMetadataCells;
 
     REGISTER_YSON_STRUCT(TDynamicChaosManagerConfig);
 

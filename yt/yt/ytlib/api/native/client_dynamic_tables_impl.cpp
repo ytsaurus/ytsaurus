@@ -2426,7 +2426,7 @@ std::vector<TListQueueConsumerRegistrationsResult> TClient::DoListQueueConsumerR
     return result;
 }
 
-std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(
+TSyncAlienCellsResult TClient::DoSyncAlienCells(
     const std::vector<TAlienCellDescriptorLite>& alienCellDescriptors,
     const TSyncAlienCellOptions& options)
 {
@@ -2441,7 +2441,10 @@ std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
 
-    return FromProto<std::vector<TAlienCellDescriptor>>(rsp->cell_descriptors());
+    return {
+        FromProto<std::vector<TAlienCellDescriptor>>(rsp->cell_descriptors()),
+        rsp->enable_metadata_cells()
+    };
 }
 
 class TTabletPullRowsSession

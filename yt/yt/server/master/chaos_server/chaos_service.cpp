@@ -7,9 +7,13 @@
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
 
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
+
+#include <yt/yt/server/master/chaos_server/config.h>
 
 #include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
 
@@ -95,8 +99,12 @@ private:
 
         ToProto(response->mutable_cell_descriptors(), responseDescriptors);
 
-        context->SetResponseInfo("CellCount: %v",
-            response->cell_descriptors_size());
+        const auto& chaosConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChaosManager;
+        response->set_enable_metadata_cells(chaosConfig->EnableMetadataCells);
+
+        context->SetResponseInfo("CellCount: %v EnableMetadataCells: %v",
+            response->cell_descriptors_size(),
+            response->enable_metadata_cells());
 
         context->Reply();
     }

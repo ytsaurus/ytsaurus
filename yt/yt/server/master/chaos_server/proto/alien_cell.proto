@@ -29,6 +29,7 @@ message TAlienCellConstellation
     required int32 alien_cluster_index = 1;
     repeated TAlienCellDescriptor alien_cells = 2;
     repeated NYT.NProto.TGuid lost_alien_cell_ids = 3;
+    optional bool enable_metadata_cells = 4 [default = true];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

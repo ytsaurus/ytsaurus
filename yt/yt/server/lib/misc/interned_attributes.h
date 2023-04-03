@@ -287,6 +287,7 @@
     XX(MemoryUsage, memory_usage) \
     XX(MergeJobRateLimit, merge_job_rate_limit) \
     XX(MetadataCellId, metadata_cell_id) \
+    XX(MetadataCellIds, metadata_cell_ids) \
     XX(MetaSize, meta_size) \
     XX(MeteringTags, metering_tags) \
     XX(MinChildHeapSize, min_child_heap_size) \

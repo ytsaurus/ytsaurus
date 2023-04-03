@@ -678,7 +678,7 @@ public:
         (component, address, target, options))
 
 
-    IMPLEMENT_METHOD(std::vector<NChaosClient::TAlienCellDescriptor>, SyncAlienCells, (
+    IMPLEMENT_METHOD(TSyncAlienCellsResult, SyncAlienCells, (
         const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
         const TSyncAlienCellOptions& options),
         (alienCellDescriptors, options))
@@ -1600,7 +1600,7 @@ private:
         const TGetClusterMetaOptions& options);
     void DoCheckClusterLiveness(
         const TCheckClusterLivenessOptions& options);
-    std::vector<NChaosClient::TAlienCellDescriptor> DoSyncAlienCells(
+    TSyncAlienCellsResult DoSyncAlienCells(
         const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
         const TSyncAlienCellOptions& options);
 

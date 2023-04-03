@@ -131,6 +131,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReadRequestComplexityLimits)                                  (2316))  // kvk1920
     ((DropChunkExpirationTracker)                                   (2317))  // shakurov
     ((CypressTransactions)                                          (2318))  // gritukan
+    ((UseMetadataCellIds)                                           (2319))  // ponasenko-rs
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -77,7 +77,7 @@
 // To change this behavior, we introduce a set of argument wrappers
 // (e.g., #Unretained(), and #ConstRef()). These are simple container templates
 // that are passed by value, and wrap a pointer to an argument.
-// See the file-level comment in "bind_helpers.h" for more information.
+// See the file-level comment in "bind.h" for more information.
 //
 // These types are passed to #Unwrap() functions, and #TMaybeRefCountHelper()
 // functions respectively to modify the behavior of #Bind(). #Unwrap()

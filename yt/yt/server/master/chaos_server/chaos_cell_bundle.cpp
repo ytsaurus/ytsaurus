@@ -19,13 +19,18 @@ TChaosCellBundle::TChaosCellBundle(TChaosCellBundleId id)
     , ChaosOptions_(New<TChaosHydraConfig>())
 { }
 
+void TChaosCellBundle::RemoveMetadataCell(TChaosCell* cell)
+{
+    std::erase(MetadataCells_, cell);
+}
+
 void TChaosCellBundle::Save(TSaveContext& context) const
 {
     TCellBundle::Save(context);
 
     using NYT::Save;
     Save(context, *ChaosOptions_);
-    Save(context, MetadataCell_);
+    Save(context, MetadataCells_);
 }
 
 void TChaosCellBundle::Load(TLoadContext& context)
@@ -34,7 +39,13 @@ void TChaosCellBundle::Load(TLoadContext& context)
 
     using NYT::Load;
     Load(context, *ChaosOptions_);
-    Load(context, MetadataCell_);
+
+    // COMPAT(ponasenko-rs)
+    if (context.GetVersion() >= EMasterReign::UseMetadataCellIds) {
+        Load(context, MetadataCells_);
+    } else {
+        MetadataCells_ = {Load<TChaosCell*>(context)};
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
