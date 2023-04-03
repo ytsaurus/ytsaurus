@@ -13,6 +13,12 @@ cd yt/docker/local
 ./run_local_cluster.sh
 ```
 
+You can connect to the local cluster using the following credentials:
+```
+user_name="root"
+token=""
+```
+
 ## Demo Stand
 
 A stand is available to demonstrate the capabilities of the {{product-name}} system.
