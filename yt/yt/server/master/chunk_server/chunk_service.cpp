@@ -195,7 +195,7 @@ private:
         bool shouldReconfigureQueues = false;
 
         if (oldConfig == Bootstrap_->GetConfigManager()->GetConfig()->ChunkService) {
-            // Either an epoch change or and irrelevant modification to the config.
+            // Either an epoch change or irrelevant modification to the config.
 
             ExecuteBatchRequestQueueProvider_->UpdateDefaultConfigs({
                 config->DefaultPerUserRequestWeightThrottlerConfig,
@@ -217,7 +217,7 @@ private:
             {
                 ExecuteBatchRequestQueueProvider_->UpdateThrottlingEnabledFlags(
                     config->EnablePerUserRequestWeightThrottling,
-                    config->EnablePerUserRequestWeightThrottling);
+                    config->EnablePerUserRequestBytesThrottling);
                 shouldReconfigureQueues = true;
             }
         }
