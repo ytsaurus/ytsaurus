@@ -65,6 +65,8 @@ public:
     TError CheckOverdraught() const noexcept;
     void ThrowIfOverdraught() const;
 
+    TReadRequestComplexity GetUsage() const noexcept;
+
 private:
     TReadRequestComplexityUsage Usage_;
     TReadRequestComplexityLimits Limits_;

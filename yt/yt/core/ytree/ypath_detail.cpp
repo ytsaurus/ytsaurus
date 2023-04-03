@@ -1729,6 +1729,13 @@ protected:
             delimitedBuilder->AppendFormat("User: %v", RequestHeader_->user());
         }
 
+        if (auto limiter = GetReadRequestComplexityLimiter()) {
+            auto usage = limiter->GetUsage();
+            delimitedBuilder->AppendFormat("ResponseNodeCount: %v, ResponseSize: %v",
+                usage.NodeCount,
+                usage.ResultSize);
+        }
+
         for (const auto& info : ResponseInfos_) {
             delimitedBuilder->AppendString(info);
         }

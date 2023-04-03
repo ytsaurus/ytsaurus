@@ -144,6 +144,11 @@ void TReadRequestComplexityLimiter::ThrowIfOverdraught() const
     }
 }
 
+TReadRequestComplexity TReadRequestComplexityLimiter::GetUsage() const noexcept
+{
+    return Usage_.AsComplexity();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TLimitedAsyncYsonWriter::TLimitedAsyncYsonWriter(TReadRequestComplexityLimiterPtr complexityLimiter)
