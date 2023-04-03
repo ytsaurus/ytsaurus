@@ -97,6 +97,9 @@ TEST(TDiscoveryTest, Enter)
     auto MockClient = New<TStrictMockClient>();
     auto MockTransaction = New<TStrictMockTransaction>();
 
+    EXPECT_CALL(*MockTransaction, GetId())
+        .WillRepeatedly(Return(TGuid(0, 0, 0, 0)));
+
     NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {};
 
@@ -179,6 +182,9 @@ TEST(TDiscoveryTest, Leave) {
     bool locked = false;
     bool created = false;
 
+    EXPECT_CALL(*MockTransaction, GetId())
+        .WillRepeatedly(Return(TGuid(0, 0, 0, 0)));
+
     EXPECT_CALL(*MockClient, ListNode(path, _))
         .WillRepeatedly(InvokeWithoutArgs([&] {
                 return MakeFuture(GetLockYson(created, locked));
@@ -241,6 +247,9 @@ TEST(TDiscoveryTest, Ban)
     auto MockClient = New<TStrictMockClient>();
     auto MockTransaction = New<TStrictMockTransaction>();
 
+    EXPECT_CALL(*MockTransaction, GetId())
+        .WillRepeatedly(Return(TGuid(0, 0, 0, 0)));
+
     NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {};
 
@@ -292,6 +301,9 @@ TEST(TDiscoveryTest, Attributes)
     auto MockClient = New<TStrictMockClient>();
     auto MockTransaction = New<TStrictMockTransaction>();
 
+    EXPECT_CALL(*MockTransaction, GetId())
+        .WillRepeatedly(Return(TGuid(0, 0, 0, 0)));
+
     NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {"a1", "a2"};
 
@@ -339,6 +351,9 @@ TEST(TDiscoveryTest, CreationRace)
 {
     auto MockClient = New<TStrictMockClient>();
     auto MockTransaction = New<TStrictMockTransaction>();
+
+    EXPECT_CALL(*MockTransaction, GetId())
+        .WillRepeatedly(Return(TGuid(0, 0, 0, 0)));
 
     NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {};

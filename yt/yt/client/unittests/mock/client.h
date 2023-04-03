@@ -27,13 +27,7 @@ class TMockClient
     : public IClient
 {
 public:
-    // IClientBase
-    IConnectionPtr Connection;
-
-    IConnectionPtr GetConnection() override
-    {
-        return Connection;
-    }
+    MOCK_METHOD(IConnectionPtr, GetConnection, (), (override));
 
     MOCK_METHOD(std::optional<TStringBuf>, GetClusterName, (bool fetchIfNull), (override));
 

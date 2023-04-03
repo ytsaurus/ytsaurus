@@ -20,6 +20,8 @@ void TConnectionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cluster_url", &TThis::ClusterUrl)
         .Default();
+    registrar.Parameter("cluster_tag", &TThis::ClusterTag)
+        .Optional();
     registrar.Parameter("proxy_role", &TThis::ProxyRole)
         .Optional();
     registrar.Parameter("proxy_address_type", &TThis::ProxyAddressType)

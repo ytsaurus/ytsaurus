@@ -22,6 +22,7 @@ class TConnectionConfig
 {
 public:
     std::optional<TString> ClusterUrl;
+    std::optional<TClusterTag> ClusterTag;
     std::optional<TString> ProxyRole;
     std::optional<EAddressType> ProxyAddressType;
     std::optional<TString> ProxyNetworkName;

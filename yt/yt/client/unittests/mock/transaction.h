@@ -15,13 +15,7 @@ class TMockTransaction
     : public ITransaction
 {
 public:
-    // IClientBase
-    IConnectionPtr Connection;
-
-    IConnectionPtr GetConnection() override
-    {
-        return Connection;
-    }
+    MOCK_METHOD(IConnectionPtr, GetConnection, (), (override));
 
     MOCK_METHOD(TFuture<ITransactionPtr>, StartTransaction, (
         NTransactionClient::ETransactionType type,
@@ -169,10 +163,8 @@ public:
     {
         return Type;
     }
-    NTransactionClient::TTransactionId GetId() const override
-    {
-        return Id;
-    }
+    MOCK_METHOD(NTransactionClient::TTransactionId, GetId, (), (const, override));
+
     NTransactionClient::TTimestamp GetStartTimestamp() const override
     {
         return StartTimestamp;

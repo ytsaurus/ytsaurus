@@ -1,6 +1,7 @@
 #include "client.h"
 
 #include "config.h"
+#include "private.h"
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
@@ -23,6 +24,8 @@ namespace NYT::NClient::NFederated {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NYT::NApi;
+
+static const auto& Logger = FederatedClientLogger;
 
 DECLARE_REFCOUNTED_CLASS(TFederatedClient);
 
@@ -236,6 +239,14 @@ public:
 
     TFuture<bool> NodeExists(const NYPath::TYPath&, const TNodeExistsOptions&) override;
 
+    const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
+
+    TFuture<std::vector<TTabletInfo>> GetTabletInfos(const NYPath::TYPath&, const std::vector<int>&, const TGetTabletInfosOptions&) override;
+
+    const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
+
+    ITransactionPtr AttachTransaction(NTransactionClient::TTransactionId, const TTransactionAttachOptions&) override;
+
     IConnectionPtr GetConnection() override
     {
         auto [client, clientId] = GetActiveClient();
@@ -273,10 +284,7 @@ public:
     UNIMPLEMENTED_METHOD(TFuture<std::vector<TListQueueConsumerRegistrationsResult>>, ListQueueConsumerRegistrations, (const std::optional<NYPath::TRichYPath>&, const std::optional<NYPath::TRichYPath>&, const TListQueueConsumerRegistrationsOptions&));
     UNIMPLEMENTED_METHOD(TFuture<NQueueClient::IQueueRowsetPtr>, PullQueue, (const NYPath::TRichYPath&, i64, int, const NQueueClient::TQueueRowBatchReadOptions&, const TPullQueueOptions&));
     UNIMPLEMENTED_METHOD(TFuture<NQueueClient::IQueueRowsetPtr>, PullConsumer, (const NYPath::TRichYPath&, const NYPath::TRichYPath&, i64, int, const NQueueClient::TQueueRowBatchReadOptions&, const TPullConsumerOptions&));
-    UNIMPLEMENTED_METHOD(const NTabletClient::ITableMountCachePtr&, GetTableMountCache, ());
     UNIMPLEMENTED_METHOD(const NChaosClient::IReplicationCardCachePtr&, GetReplicationCardCache, ());
-    UNIMPLEMENTED_METHOD(const NTransactionClient::ITimestampProviderPtr&, GetTimestampProvider, ());
-    UNIMPLEMENTED_METHOD(ITransactionPtr, AttachTransaction, (NTransactionClient::TTransactionId, const TTransactionAttachOptions&));
     UNIMPLEMENTED_METHOD(TFuture<void>, MountTable, (const NYPath::TYPath&, const TMountTableOptions&));
     UNIMPLEMENTED_METHOD(TFuture<void>, UnmountTable, (const NYPath::TYPath&, const TUnmountTableOptions&));
     UNIMPLEMENTED_METHOD(TFuture<void>, RemountTable, (const NYPath::TYPath&, const TRemountTableOptions&));
@@ -291,7 +299,6 @@ public:
     UNIMPLEMENTED_METHOD(TFuture<void>, AlterReplicationCard, (NChaosClient::TReplicationCardId, const TAlterReplicationCardOptions&));
     UNIMPLEMENTED_METHOD(TFuture<std::vector<NTabletClient::TTableReplicaId>>, GetInSyncReplicas, (const NYPath::TYPath&, const NTableClient::TNameTablePtr&, const TSharedRange<NTableClient::TUnversionedRow>&, const TGetInSyncReplicasOptions&));
     UNIMPLEMENTED_METHOD(TFuture<std::vector<NTabletClient::TTableReplicaId>>, GetInSyncReplicas, (const NYPath::TYPath&, const TGetInSyncReplicasOptions&));
-    UNIMPLEMENTED_METHOD(TFuture<std::vector<TTabletInfo>>, GetTabletInfos, (const NYPath::TYPath&, const std::vector<int>&, const TGetTabletInfosOptions&));
     UNIMPLEMENTED_METHOD(TFuture<TGetTabletErrorsResult>, GetTabletErrors, (const NYPath::TYPath&, const TGetTabletErrorsOptions&));
     UNIMPLEMENTED_METHOD(TFuture<std::vector<NTabletClient::TTabletActionId>>, BalanceTabletCells, (const TString&, const std::vector<NYPath::TYPath>&, const TBalanceTabletCellsOptions&));
     UNIMPLEMENTED_METHOD(TFuture<TSkynetSharePartsLocationsPtr>, LocateSkynetShare, (const NYPath::TRichYPath&, const TLocateSkynetShareOptions&));
@@ -408,6 +415,7 @@ private:
     TFuture<NYson::TYsonString> DoGetNode(int retryAttemptsCount, const NYPath::TYPath&, const TGetNodeOptions&);
     TFuture<NYson::TYsonString> DoListNode(int retryAttemptsCount, const NYPath::TYPath&, const TListNodeOptions&);
     TFuture<bool> DoNodeExists(int retryAttemptsCount, const NYPath::TYPath&, const TNodeExistsOptions&);
+    TFuture<std::vector<TTabletInfo>> DoGetTabletInfos(int retryAttemptsCount, const NYPath::TYPath&, const std::vector<int>&, const TGetTabletInfosOptions&);
     TFuture<ITransactionPtr> DoStartTransaction(
         int retryAttemptsCount,
         NTransactionClient::ETransactionType type,
@@ -653,6 +661,34 @@ CLIENT_METHOD_IMPL(NYson::TYsonString, ExplainQuery, (const TString&, const TExp
 CLIENT_METHOD_IMPL(NYson::TYsonString, GetNode, (const NYPath::TYPath&, const TGetNodeOptions&), (&a1, &a2));
 CLIENT_METHOD_IMPL(NYson::TYsonString, ListNode, (const NYPath::TYPath&, const TListNodeOptions&), (&a1, &a2));
 CLIENT_METHOD_IMPL(bool, NodeExists, (const NYPath::TYPath&, const TNodeExistsOptions&), (&a1, &a2));
+CLIENT_METHOD_IMPL(std::vector<TTabletInfo>, GetTabletInfos, (const NYPath::TYPath&, const std::vector<int>&, const TGetTabletInfosOptions&), (&a1, &a2, &a3));
+
+const NTabletClient::ITableMountCachePtr& TFederatedClient::GetTableMountCache()
+{
+    auto [client, _] = GetActiveClient();
+    return client->GetTableMountCache();
+}
+
+const NTransactionClient::ITimestampProviderPtr& TFederatedClient::GetTimestampProvider()
+{
+    auto [client, _] = GetActiveClient();
+    return client->GetTimestampProvider();
+}
+
+ITransactionPtr TFederatedClient::AttachTransaction(
+    NTransactionClient::TTransactionId transactionId,
+    const TTransactionAttachOptions& options)
+{
+    auto transactionClusterTag = NObjectClient::CellTagFromId(transactionId);
+    for (const auto& clientDescr : Clients_) {
+        const auto& client = clientDescr->Client;
+        auto clientClusterTag = client->GetConnection()->GetClusterTag();
+        if (clientClusterTag == transactionClusterTag) {
+            return client->AttachTransaction(transactionId, options);
+        }
+    }
+    THROW_ERROR_EXCEPTION("There is no corresponding client for the transaction (TransactionId: %v)", transactionId);
+}
 
 void TFederatedClient::HandleError(const TErrorOr<void>& /*error*/, size_t clientId)
 {
@@ -675,10 +711,18 @@ void TFederatedClient::UpdateActiveClient()
 {
     VERIFY_WRITER_SPINLOCK_AFFINITY(Lock_);
 
+    auto activeClientId = ActiveClientId_.load();
+
     for (size_t id = 0; id < Clients_.size(); ++id) {
-        const auto& client = Clients_[id];
-        if (!client->HasErrors) {
-            ActiveClient_ = client->Client;
+        const auto& clientDescr = Clients_[id];
+        if (!clientDescr->HasErrors) {
+            if (activeClientId != id) {
+                YT_LOG_DEBUG("Active client was changed (PreviousClientId: %v, NewClientId: %v)",
+                    activeClientId,
+                    id);
+            }
+
+            ActiveClient_ = clientDescr->Client;
             ActiveClientId_ = id;
             break;
         }
@@ -688,6 +732,8 @@ void TFederatedClient::UpdateActiveClient()
 TFederatedClient::TActiveClientInfo TFederatedClient::GetActiveClient()
 {
     auto guard = ReaderGuard(Lock_);
+    YT_LOG_DEBUG("Request will be send to the active client (ClientId: %v)",
+        ActiveClientId_.load());
     return {ActiveClient_, ActiveClientId_.load()};
 }
 

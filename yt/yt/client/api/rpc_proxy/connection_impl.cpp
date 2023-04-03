@@ -278,7 +278,8 @@ IChannelPtr TConnection::CreateChannelByAddress(const TString& address)
 
 TClusterTag TConnection::GetClusterTag() const
 {
-    YT_ABORT();
+    THROW_ERROR_EXCEPTION_UNLESS(Config_->ClusterTag, "ClusterTag is unknown, need to set it in the connection config");
+    return *Config_->ClusterTag;
 }
 
 const TString& TConnection::GetLoggingTag() const
