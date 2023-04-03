@@ -375,8 +375,7 @@ void TTabletSlot::Register(TRegistrar registrar)
 }
 
 void TCmsMaintenanceRequest::Register(TRegistrar /*registrar*/)
-{
-}
+{ }
 
 void TMemoryCategory::Register(TRegistrar registrar)
 {
@@ -440,8 +439,7 @@ void TBundleDynamicConfig::Register(TRegistrar registrar)
 }
 
 void TRpcProxyAlive::Register(TRegistrar /*registrar*/)
-{
-}
+{ }
 
 void TRpcProxyInfo::Register(TRegistrar registrar)
 {

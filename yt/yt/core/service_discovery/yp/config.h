@@ -6,8 +6,6 @@
 
 #include <yt/yt/core/rpc/config.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
-
 namespace NYT::NServiceDiscovery::NYP {
 
 ////////////////////////////////////////////////////////////////////////////////
