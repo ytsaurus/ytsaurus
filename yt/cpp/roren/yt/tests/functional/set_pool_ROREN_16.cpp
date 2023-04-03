@@ -21,8 +21,8 @@ static TString GetTestProxy()
     return GetEnv("YT_PROXY");
 }
 
-Y_UNIT_TEST_SUITE(AttachTransactionROREN16) {
-    Y_UNIT_TEST(AttachTransactionROREN16)
+Y_UNIT_TEST_SUITE(SetPool_ROREN16) {
+    Y_UNIT_TEST(SetPool_ROREN16)
     {
         TTestFixture f;
         const auto& ytClient = f.GetClient();
@@ -33,21 +33,17 @@ Y_UNIT_TEST_SUITE(AttachTransactionROREN16) {
             TNode()("value", "bar"),
         };
 
-        auto tx = ytClient->StartTransaction();
-
-        {
-            auto writer = tx->CreateTableWriter<TNode>(inTablePath);
-            for (const auto& row : data) {
-                writer->AddRow(row);
-            }
-            writer->Finish();
+        auto writer = ytClient->CreateTableWriter<TNode>(inTablePath);
+        for (const auto& row : data) {
+            writer->AddRow(row);
         }
+        writer->Finish();
 
         TYtPipelineConfig config;
         config.SetCluster(GetTestProxy());
         config.SetWorkingDir("//tmp");
+        config.SetPool("UniqueNameForYtPool");
         // If transaction doesn't attached then in-table invisible for roren and test fail
-        config.SetTransactionId(GetGuidAsString(tx->GetId()));
         auto pipeline = MakeYtPipeline(config);
         auto inTable = pipeline | YtRead<TNode>(inTablePath);
         inTable | YtWrite<TNode>(
@@ -59,13 +55,13 @@ Y_UNIT_TEST_SUITE(AttachTransactionROREN16) {
         pipeline.Run();
 
         std::vector<TNode> readData;
-        {
-            auto reader = tx->CreateTableReader<TNode>(outTablePath);
-            for (auto& cursor : *reader) {
-                readData.emplace_back(cursor.MoveRow());
-            }
+        auto reader = ytClient->CreateTableReader<TNode>(outTablePath);
+        for (auto& cursor : *reader) {
+            readData.emplace_back(cursor.MoveRow());
         }
-
         UNIT_ASSERT_VALUES_EQUAL(data, readData);
+
+        auto result = ytClient->ListOperations(NYT::TListOperationsOptions());
+        UNIT_ASSERT_VALUES_EQUAL(result.PoolCounts->at("UniqueNameForYtPool"), 1);
     }
 }
