@@ -150,6 +150,34 @@ bool AreScalarAttributesEqualByPath(
     }
 }
 
+template <class T>
+bool AreScalarAttributesEqualByPath(
+    const std::vector<T>& lhs,
+    const std::vector<T>& rhs,
+    const NYPath::TYPath& path)
+{
+    if (path.empty()) {
+        return AreScalarAttributesEqual(lhs, rhs);
+    }
+
+    if (!path.StartsWith("/*")) {
+        return AreScalarAttributesEqualByPath<std::vector<T>>(lhs, rhs, path);
+    }
+
+    if (lhs.size() != rhs.size()) {
+        return false;
+    }
+
+    auto suffix = path.substr(2);
+    for (size_t i = 0; i < lhs.size(); ++i) {
+        if (!AreScalarAttributesEqualByPath(lhs[i], rhs[i], suffix)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 /////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NAttributes

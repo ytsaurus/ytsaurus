@@ -813,6 +813,32 @@ TEST_F(TScalarAttributesEqualitySuite, RepeatedFieldNested)
     EXPECT_TRUE(AreEqual("/repeated_nested_message"));
 }
 
+TEST_F(TScalarAttributesEqualitySuite, MessageInsideRepeated)
+{
+    auto& mappedField1 = *Message1.mutable_repeated_nested_message();
+    auto& mappedField2 = *Message2.mutable_repeated_nested_message();
+
+    mappedField1.Add();
+    mappedField1.at(0).set_int32_field(5);
+    EXPECT_FALSE(AreEqual("/repeated_nested_message/*/int32_field"));
+    mappedField2.Add();
+    EXPECT_FALSE(AreEqual("/repeated_nested_message/*/int32_field"));
+    mappedField2.at(0).set_int32_field(5);
+    EXPECT_TRUE(AreEqual("/repeated_nested_message/*/int32_field"));
+    mappedField2.at(0).mutable_nested_message()->set_int32_field(3);
+    EXPECT_TRUE(AreEqual("/repeated_nested_message/*/int32_field"));
+}
+
+TEST_F(TScalarAttributesEqualitySuite, IntInsideRepeated)
+{
+    Message1.add_repeated_int32_field(5);
+    EXPECT_FALSE(AreEqual("/repeated_int32_field/*"));
+    Message2.add_repeated_int32_field(3);
+    EXPECT_FALSE(AreEqual("/repeated_int32_field/*"));
+    Message2.mutable_repeated_int32_field()->at(0) = 5;
+    EXPECT_TRUE(AreEqual("/repeated_int32_field/*"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

@@ -30,6 +30,7 @@ namespace {
 using ::google::protobuf::FieldDescriptor;
 using ::google::protobuf::UnknownField;
 using ::google::protobuf::UnknownFieldSet;
+using ::google::protobuf::Reflection;
 using ::google::protobuf::internal::WireFormatLite;
 using ::google::protobuf::io::CodedOutputStream;
 using ::google::protobuf::io::StringOutputStream;
@@ -341,6 +342,12 @@ public:
         TParseIndexResult parseIndexResult,
         TStringBuf path) const = 0;
 
+    virtual void HandleListExpansion(
+        TGenericMessage* message,
+        const FieldDescriptor* field,
+        TStringBuf prefixPath,
+        TStringBuf suffixPath) const = 0;
+
     //! Handle map item.
     virtual void HandleMapItem(
         TGenericMessage* message,
@@ -426,7 +433,12 @@ void Traverse(
             }
         } else if (field->is_repeated()) {
             tokenizer.Expect(NYPath::ETokenType::Slash);
+            auto prefix = tokenizer.GetPrefix();
             tokenizer.Advance();
+            if (tokenizer.GetType() == NYPath::ETokenType::Asterisk) {
+                handler.HandleListExpansion(root, field, prefix, tokenizer.GetSuffix());
+                break;
+            }
             tokenizer.ExpectListIndex();
 
             TString indexToken = tokenizer.GetLiteralValue();
@@ -509,6 +521,15 @@ public:
             reflection->SwapElements(message, field, index - 1, index);
         }
         reflection->RemoveLast(message, field);
+    }
+
+    void HandleListExpansion(
+        TGenericMessage* /*message*/,
+        const FieldDescriptor* /*field*/,
+        TStringBuf /*prefixPath*/,
+        TStringBuf /*suffixPath*/) const final
+    {
+        THROW_ERROR_EXCEPTION("Clear field does not support list expansions");
     }
 
     void HandleMapItem(
@@ -635,6 +656,15 @@ public:
                 break;
             }
         }
+    }
+
+    void HandleListExpansion(
+        TGenericMessage* /*message*/,
+        const FieldDescriptor* /*field*/,
+        TStringBuf /*prefixPath*/,
+        TStringBuf /*suffixPath*/) const final
+    {
+        THROW_ERROR_EXCEPTION("Set field does not support list expansions");
     }
 
     void HandleMapItem(
@@ -954,6 +984,22 @@ public:
         });
     }
 
+    void HandleListExpansion(
+        TGenericMessage* message,
+        const FieldDescriptor* field,
+        TStringBuf prefixPath,
+        TStringBuf suffixPath) const final
+    {
+        YT_VERIFY(State_.index() == 0);
+        YT_VERIFY(field->is_repeated());
+        State_.emplace<TRepeatedFieldSubpath>(TRepeatedFieldSubpath{
+            .ParentMessage = message,
+            .Field = field,
+            .Prefix = NYPath::TYPath{prefixPath},
+            .Path = NYPath::TYPath{suffixPath},
+        });
+    }
+
     void HandleMapItem(
         TGenericMessage* message,
         const FieldDescriptor* field,
@@ -1097,7 +1143,92 @@ private:
         }
     };
 
-    mutable std::variant<std::monostate, TExistingField, TMissingField, TRepeatedFieldElement> State_;
+    struct TRepeatedFieldSubpath
+    {
+        TGenericMessage* ParentMessage;
+        const FieldDescriptor* Field;
+        NYPath::TYPath Prefix;
+        NYPath::TYPath Path;
+
+        bool AreRepeatedFieldsEqualAtIndex(
+            TGenericMessage& lhsMessage,
+            TGenericMessage& rhsMessage,
+            const Reflection* reflection,
+            const FieldDescriptor* field,
+            int index) const
+        {
+            switch(field->type()) {
+                case FieldDescriptor::TYPE_INT32:
+                case FieldDescriptor::TYPE_SINT32:
+                case FieldDescriptor::TYPE_SFIXED32:
+                    return reflection->GetRepeatedInt32(lhsMessage, field, index) == reflection->GetRepeatedInt32(rhsMessage, field, index);
+                case FieldDescriptor::TYPE_INT64:
+                case FieldDescriptor::TYPE_SINT64:
+                case FieldDescriptor::TYPE_SFIXED64:
+                    return reflection->GetRepeatedInt64(lhsMessage, field, index) == reflection->GetRepeatedInt64(rhsMessage, field, index);
+                case FieldDescriptor::TYPE_UINT32:
+                case FieldDescriptor::TYPE_FIXED32:
+                    return reflection->GetRepeatedUInt32(lhsMessage, field, index) == reflection->GetRepeatedUInt32(rhsMessage, field, index);
+                case FieldDescriptor::TYPE_UINT64:
+                case FieldDescriptor::TYPE_FIXED64:
+                    return reflection->GetRepeatedUInt64(lhsMessage, field, index) == reflection->GetRepeatedUInt64(rhsMessage, field, index);
+                case FieldDescriptor::TYPE_FLOAT:
+                    return reflection->GetRepeatedFloat(lhsMessage, field, index) == reflection->GetRepeatedFloat(rhsMessage, field, index);
+                case FieldDescriptor::TYPE_DOUBLE:
+                    return reflection->GetRepeatedDouble(lhsMessage, field, index) == reflection->GetRepeatedDouble(rhsMessage, field, index);
+                case FieldDescriptor::TYPE_BOOL:
+                    return reflection->GetRepeatedBool(lhsMessage, field, index) == reflection->GetRepeatedBool(rhsMessage, field, index);
+                case FieldDescriptor::TYPE_STRING:
+                case FieldDescriptor::TYPE_BYTES: {
+                    TProtoStringType s1, s2;
+                    return reflection->GetRepeatedStringReference(lhsMessage, field, index, &s1) == reflection->GetRepeatedStringReference(rhsMessage, field, index, &s2);
+                }
+                case FieldDescriptor::TYPE_ENUM:
+                    return reflection->GetRepeatedEnumValue(lhsMessage, field, index) == reflection->GetRepeatedEnumValue(rhsMessage, field, index);
+                case FieldDescriptor::TYPE_MESSAGE:
+                    return NDetail::AreProtoMessagesEqualByPath(
+                        reflection->GetRepeatedMessage(lhsMessage, field, index),
+                        reflection->GetRepeatedMessage(rhsMessage, field, index),
+                        Path);
+                default:
+                    return false;
+            }
+        }
+
+        bool operator==(const TRepeatedFieldSubpath& rhs) const
+        {
+            YT_VERIFY(Field == rhs.Field);
+            YT_VERIFY(Prefix == rhs.Prefix);
+            YT_VERIFY(Path == rhs.Path);
+            THROW_ERROR_EXCEPTION_UNLESS(Field->type() == FieldDescriptor::TYPE_MESSAGE || Path.empty(),
+                "Cannot compare subpaths %Qv of primitive type values at %Qv", Prefix, Path);
+            auto* lhsMessage = ParentMessage;
+            auto* rhsMessage = rhs.ParentMessage;
+            const auto* reflection = lhsMessage->GetReflection();
+            YT_VERIFY(reflection == rhsMessage->GetReflection());
+
+            if (reflection->FieldSize(*lhsMessage, Field) != reflection->FieldSize(*rhsMessage, Field)) {
+                return false;
+            }
+
+            int size = reflection->FieldSize(*lhsMessage, Field);
+            for (int i = 0; i < size; i++) {
+                if (!AreRepeatedFieldsEqualAtIndex(*lhsMessage, *rhsMessage, reflection, Field, i)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    };
+
+    mutable std::variant<
+        std::monostate,
+        TExistingField,
+        TMissingField,
+        TRepeatedFieldElement,
+        TRepeatedFieldSubpath
+    > State_;
 };
 
 } // namespace
