@@ -19,7 +19,7 @@ TFuture<void> RepairErasedParts(
     const NErasure::TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderAllowingRepairPtr>& readers,
     const std::vector<IChunkWriterPtr>& writers,
-    const TClientChunkReadOptions& options);
+    const IChunkReader::TReadBlocksOptions& options);
 
 IChunkReaderPtr CreateRepairingErasureReader(
     TChunkId chunkId,
@@ -28,7 +28,6 @@ IChunkReaderPtr CreateRepairingErasureReader(
     // This list must consist of readers for all data parts and repair parts sorted by part index.
     const std::vector<IChunkReaderAllowingRepairPtr>& readers,
     const NLogging::TLogger& logger = {});
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +40,7 @@ TFuture<void> AdaptiveRepairErasedParts(
     const NErasure::TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderAllowingRepairPtr>& readers,
     TPartWriterFactory writerFactory,
-    const TClientChunkReadOptions& options,
+    const IChunkReader::TReadBlocksOptions& options,
     const NLogging::TLogger& logger = {},
     NProfiling::TCounter adaptivelyRepairedCounter = {});
 

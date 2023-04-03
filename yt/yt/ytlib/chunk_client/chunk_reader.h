@@ -1,6 +1,7 @@
 #pragma once
 
 #include "block.h"
+#include "chunk_reader_options.h"
 
 #include <yt/yt/core/actions/future.h>
 
@@ -12,22 +13,26 @@ namespace NYT::NChunkClient {
 struct IChunkReader
     : public virtual TRefCounted
 {
+    struct TReadBlocksOptions
+    {
+        TClientChunkReadOptions ClientOptions;
+        std::optional<i64> EstimatedSize;
+        IInvokerPtr SessionInvoker;
+    };
+
     //! Asynchronously reads a given set of blocks.
     //! Returns a collection of blocks, each corresponding to a single given index.
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
-        const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize = {},
-        IInvokerPtr sessionInvoker = {}) = 0;
+        const TReadBlocksOptions& options,
+        const std::vector<int>& blockIndexes) = 0;
 
     //! Asynchronously reads a given range of blocks.
     //! The call may return less blocks than requested.
     //! If an empty list of blocks is returned then there are no blocks in the given range.
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
+        const TReadBlocksOptions& options,
         int firstBlockIndex,
-        int blockCount,
-        std::optional<i64> estimatedSize = {}) = 0;
+        int blockCount) = 0;
 
     //! Asynchronously obtains a meta, possibly filtered by #partitionTag and #extensionTags.
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(

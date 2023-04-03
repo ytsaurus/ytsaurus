@@ -104,9 +104,10 @@ public:
             }
         }
 
-        ChunkReadOptions_.WorkloadDescriptor = ReaderConfig_->WorkloadDescriptor;
-        ChunkReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-        ChunkReadOptions_.ReadSessionId = TReadSessionId::Create();
+        ReadBlocksOptions_.ClientOptions.WorkloadDescriptor = ReaderConfig_->WorkloadDescriptor;
+        ReadBlocksOptions_.ClientOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        ReadBlocksOptions_.ClientOptions.ReadSessionId = TReadSessionId::Create();
+
         // We are not ready for reordering here.
         WriterConfig_->EnableBlockReordering = false;
     }
@@ -272,7 +273,7 @@ public:
     TStatistics GetStatistics() const override
     {
         return {
-            .ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics,
+            .ChunkReaderStatistics = ReadBlocksOptions_.ClientOptions.ChunkReaderStatistics,
             .TotalInputStatistics = {
                 .DataStatistics = DataStatistics_,
             },
@@ -311,7 +312,7 @@ private:
     const TActionQueuePtr RemoteCopyQueue_;
     const TAsyncSemaphorePtr CopySemaphore_;
 
-    TClientChunkReadOptions ChunkReadOptions_;
+    IChunkReader::TReadBlocksOptions ReadBlocksOptions_;
 
     std::vector<TFuture<void>> ChunkFinalizationResults_;
 
@@ -679,7 +680,7 @@ private:
             erasedPartIndicies,
             repairPartReaders,
             erasedPartWriters,
-            TClientChunkReadOptions()))
+            /*options*/ {}))
             .ThrowOnError();
 
         for (int index = 0; index < std::ssize(erasedPartIndicies); ++index) {
@@ -895,7 +896,7 @@ private:
             std::vector<int> blockIndices(endBlockIndex - beginBlockIndex);
             std::iota(blockIndices.begin(), blockIndices.end(), beginBlockIndex);
             auto asyncResult = reader->ReadBlocks(
-                ChunkReadOptions_,
+                ReadBlocksOptions_,
                 blockIndices);
 
             auto result = WaitFor(asyncResult);
@@ -937,7 +938,7 @@ private:
         asyncResults.reserve(readers.size());
         for (const auto& reader : readers) {
             if (reader) {
-                asyncResults.push_back(reader->GetMeta(ChunkReadOptions_));
+                asyncResults.push_back(reader->GetMeta(ReadBlocksOptions_.ClientOptions));
             }
         }
 

@@ -56,7 +56,7 @@ public:
         const std::optional<std::vector<int>>& /*extensionTags*/) override
     {
         if (FailMetaRequests_ && TryFail()) {
-            return MakeFuture(MakeMetaError());
+            return MakeFuture<TRefCountedChunkMetaPtr>(TError("Failed to read meta"));
         }
         return Underlying_->GetMeta(options, partitionTag);
     }
@@ -67,27 +67,24 @@ public:
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
-        const std::vector<int>& blockIndexes,
-        std::optional<i64> /*estimatedSize*/,
-        IInvokerPtr /*sessionInvoker*/) override
+        const TReadBlocksOptions& options,
+        const std::vector<int>& blockIndexes) override
     {
         if (TryFail()) {
-            return MakeFuture(MakeError());
+            return MakeFuture<std::vector<TBlock>>(TError("Failed to read blocks"));
         }
-        return Underlying_->ReadBlocks(options, blockIndexes);
+        return Underlying_->ReadBlocks(options.ClientOptions, blockIndexes);
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
+        const TReadBlocksOptions& options,
         int firstBlockIndex,
-        int blockCount,
-        std::optional<i64> /*estimatedSize*/) override
+        int blockCount) override
     {
         if (TryFail()) {
-            return MakeFuture(MakeError());
+            return MakeFuture<std::vector<TBlock>>(TError("Failed to read blocks"));
         }
-        return Underlying_->ReadBlocks(options, firstBlockIndex, blockCount);
+        return Underlying_->ReadBlocks(options.ClientOptions, firstBlockIndex, blockCount);
     }
 
     TInstant GetLastFailureTime() const override
@@ -113,16 +110,6 @@ private:
             LastFailureTime_ = TInstant::Now();
         }
         return LastFailureTime_.load() != TInstant();
-    }
-
-    static TErrorOr<std::vector<TBlock>> MakeError()
-    {
-        return TError("Shit happens");
-    }
-
-    static TErrorOr<TRefCountedChunkMetaPtr> MakeMetaError()
-    {
-        return TError("Meta shit happens");
     }
 };
 
@@ -415,7 +402,9 @@ public:
     {
         auto check = [&] (std::vector<int> indexes) {
             Shuffle(indexes.begin(), indexes.end());
-            auto result = WaitFor(reparingReader->ReadBlocks(/* chunkReadOptions */ {}, indexes))
+            auto result = WaitFor(reparingReader->ReadBlocks(
+                /*options*/ {},
+                indexes))
                 .ValueOrThrow();
             EXPECT_EQ(result.size(), indexes.size());
             for (int i = 0; i < std::ssize(indexes); ++i) {
@@ -468,7 +457,7 @@ public:
         int index = 0;
         for (const auto& ref : dataRefs) {
             auto result = erasureReader->ReadBlocks(
-                /* chunkReadOptions */ {},
+                /*options*/ {},
                 std::vector<int>(1, index++))
                 .Get();
             EXPECT_TRUE(result.IsOK());
@@ -636,7 +625,7 @@ TEST_P(TErasureMixtureTest, Reader)
         int index = 0;
         for (const auto& ref : dataRefs) {
             auto result = erasureReader->ReadBlocks(
-                /* chunkReadOptions */ {},
+                /*options*/ {},
                 std::vector<int>(1, index++))
                 .Get();
             EXPECT_TRUE(result.IsOK());
@@ -652,7 +641,7 @@ TEST_P(TErasureMixtureTest, Reader)
         indices.push_back(1);
         indices.push_back(3);
         auto result = erasureReader->ReadBlocks(
-            /* chunkReadOptions */ {},
+            /*options*/ {},
             indices)
             .Get();
         EXPECT_TRUE(result.IsOK());
@@ -694,7 +683,7 @@ TEST_P(TErasureMixtureTest, ReaderStriped)
         int index = 0;
         for (const auto& ref : dataRefs) {
             auto result = erasureReader->ReadBlocks(
-                /* chunkReadOptions */ {},
+                /*options*/ {},
                 std::vector<int>(1, index++))
                 .Get();
             EXPECT_TRUE(result.IsOK());
@@ -711,7 +700,7 @@ TEST_P(TErasureMixtureTest, ReaderStriped)
         indices.push_back(3);
         indices.push_back(5);
         auto result = erasureReader->ReadBlocks(
-            /* chunkReadOptions */ {},
+            /*options*/ {},
             indices)
             .Get();
         EXPECT_TRUE(result.IsOK());
@@ -748,7 +737,7 @@ TEST_F(TErasureMixtureTest, Repair1)
     auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, std::nullopt);
 
-    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, /* chunkReadOptions */ {}).Get();
+    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, /*options*/ {}).Get();
     EXPECT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
@@ -789,7 +778,7 @@ TEST_P(TErasureMixtureTest, Repair2)
     auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, std::nullopt);
 
-    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, /* chunkReadOptions */ {}).Get();
+    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, /*options*/ {}).Get();
     ASSERT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
@@ -832,7 +821,7 @@ TEST_P(TErasureMixtureTest, Repair3)
     auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, 100);
 
-    RepairErasedParts(codec, erasedIndices, readers, writers, /* chunkReadOptions */ {}).Get();
+    RepairErasedParts(codec, erasedIndices, readers, writers, /*options*/ {}).Get();
     {
         auto erasureReader = CreateErasureReader(codec);
         CheckRepairResult(erasureReader, dataRefs);
@@ -871,7 +860,7 @@ TEST_P(TErasureMixtureTest, Repair4)
     auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, 100);
 
-    RepairErasedParts(codec, erasedIndices, readers, writers, /* chunkReadOptions */ {}).Get();
+    RepairErasedParts(codec, erasedIndices, readers, writers, /*options*/ {}).Get();
     {
         auto erasureReader = CreateErasureReader(codec);
         CheckRepairResult(erasureReader, dataRefs);
@@ -913,7 +902,7 @@ TEST_P(TErasureMixtureTest, Repair5)
     auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, 40);
 
-    RepairErasedParts(codec, erasedIndices, readers, writers, /* chunkReadOptions */ {}).Get();
+    RepairErasedParts(codec, erasedIndices, readers, writers, /*options*/ {}).Get();
     {
         auto erasureReader = CreateErasureReader(codec);
         CheckRepairResult(erasureReader, dataRefs);
@@ -955,7 +944,7 @@ TEST_P(TErasureMixtureTest, Repair6)
     auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, 40);
 
-    RepairErasedParts(codec, erasedIndices, readers, writers, /* chunkReadOptions */ {}).Get();
+    RepairErasedParts(codec, erasedIndices, readers, writers, /*options*/ {}).Get();
     {
         auto erasureReader = CreateErasureReader(codec);
         CheckRepairResult(erasureReader, dataRefs);
@@ -1037,7 +1026,7 @@ TEST_P(TErasureMixtureTest, RepairStriped1)
     auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, std::nullopt);
 
-    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, /* chunkReadOptions */ {}).Get();
+    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, /*options*/ {}).Get();
     ASSERT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
@@ -1079,7 +1068,7 @@ TEST_P(TErasureMixtureTest, RepairStriped2)
     auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, 40);
 
-    RepairErasedParts(codec, erasedIndices, readers, writers, /* chunkReadOptions */ {}).Get();
+    RepairErasedParts(codec, erasedIndices, readers, writers, /*options*/ {}).Get();
 
     {
         auto erasureReader = CreateErasureReader(codec);
@@ -1176,7 +1165,7 @@ TEST_P(TErasureMixtureTest, RepairingReaderUnrecoverable)
     std::vector<int> indexes(dataRefs.size());
     std::iota(indexes.begin(), indexes.end(), 0);
 
-    auto result = reader->ReadBlocks(/* chunkReadOptions */ {}, indexes).Get();
+    auto result = reader->ReadBlocks(/*options*/ {}, indexes).Get();
     ASSERT_FALSE(result.IsOK());
 
     Cleanup(codec);

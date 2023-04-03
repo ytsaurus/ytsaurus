@@ -448,15 +448,17 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     YT_LOG_INFO("Store preload started");
 
-    TClientChunkReadOptions chunkReadOptions{
-        .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload),
-        .ReadSessionId = readSessionId
+    IChunkReader::TReadBlocksOptions readBlocksOptions{
+        .ClientOptions = TClientChunkReadOptions{
+            .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload),
+            .ReadSessionId = readSessionId,
+        },
     };
 
-    readerProfiler->SetChunkReaderStatistics(chunkReadOptions.ChunkReaderStatistics);
+    readerProfiler->SetChunkReaderStatistics(readBlocksOptions.ClientOptions.ChunkReaderStatistics);
 
     auto reader = store->GetBackendReaders(EWorkloadCategory::SystemTabletPreload).ChunkReader;
-    auto meta = WaitFor(reader->GetMeta(chunkReadOptions))
+    auto meta = WaitFor(reader->GetMeta(readBlocksOptions.ClientOptions))
         .ValueOrThrow();
 
     auto miscExt = GetProtoExtension<TMiscExt>(meta->extensions());
@@ -486,7 +488,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         /*memoryTracker*/ nullptr,
         meta);
 
-    auto blockCount = versionedChunkMeta->DataBlockMeta()->data_blocks_size();
+    auto dataBlockCount = versionedChunkMeta->DataBlockMeta()->data_blocks_size();
 
     int commonKeyPrefix = GetCommonKeyPrefix(
         versionedChunkMeta->GetChunkSchema()->GetKeyColumns(),
@@ -512,27 +514,27 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
         const auto& blockLastKeys = versionedChunkMeta->BlockLastKeys();
 
-        YT_VERIFY(blockCount == std::ssize(blockLastKeys));
+        YT_VERIFY(dataBlockCount == std::ssize(blockLastKeys));
 
-        startBlockIndex = BinarySearch(0, blockCount, [&] (int index) {
+        startBlockIndex = BinarySearch(0, dataBlockCount, [&] (int index) {
             return !TestKeyWithWidening(
                 ToKeyRef(blockLastKeys[index], commonKeyPrefix),
                 ToKeyBoundRef(lowerBound, /*upper*/ false, sortOrders.size()),
                 sortOrders);
         });
 
-        endBlockIndex = BinarySearch(0, blockCount, [&] (int index) {
+        endBlockIndex = BinarySearch(0, dataBlockCount, [&] (int index) {
             return TestKeyWithWidening(
                 ToKeyRef(blockLastKeys[index], commonKeyPrefix),
                 ToKeyBoundRef(upperBound, /*upper*/ true, sortOrders.size()),
                 sortOrders);
         });
-        if (endBlockIndex < blockCount) {
+        if (endBlockIndex < dataBlockCount) {
             ++endBlockIndex;
         }
     } else {
         startBlockIndex = 0;
-        endBlockIndex = blockCount;
+        endBlockIndex = dataBlockCount;
     }
 
     i64 preallocatedMemory = 0;
@@ -542,7 +544,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     if (erasureCodecId == NErasure::ECodec::None) {
         auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions());
-        YT_VERIFY(blockCount <= blocksExt.blocks_size());
+        YT_VERIFY(dataBlockCount <= blocksExt.blocks_size());
         for (int i = startBlockIndex; i < endBlockIndex; ++i) {
             preallocatedMemory += blocksExt.blocks(i).size();
         }
@@ -581,8 +583,9 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         YT_LOG_DEBUG("Started reading chunk blocks (FirstBlock: %v)",
             blockIndex);
 
+        YT_VERIFY(blockIndex < dataBlockCount);
         auto compressedBlocks = WaitFor(reader->ReadBlocks(
-            chunkReadOptions,
+            readBlocksOptions,
             blockIndex,
             endBlockIndex - blockIndex))
             .ValueOrThrow();
@@ -737,11 +740,11 @@ public:
         i64 remoteSendBatchSize,
         const TDuration controlRpcTimeout,
         const TDuration heavyRpcTimeout)
-        : Nodes_(std::move(nodes))
-        , InMemoryMode_(inMemoryMode)
+        : InMemoryMode_(inMemoryMode)
         , RemoteSendBatchSize_(remoteSendBatchSize)
         , ControlRpcTimeout_(controlRpcTimeout)
         , HeavyRpcTimeout_(heavyRpcTimeout)
+        , Nodes_(std::move(nodes))
     { }
 
     void PutBlock(
@@ -777,15 +780,15 @@ public:
     }
 
     TCachedBlock FindBlock(
-        const TBlockId& /* id */,
-        EBlockType /* type */) override
+        const TBlockId& /*id*/,
+        EBlockType /*type*/) override
     {
         return TCachedBlock();
     }
 
     std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
-        const TBlockId& /* id */,
-        EBlockType /* type */) override
+        const TBlockId& /*id*/,
+        EBlockType /*type*/) override
     {
         return CreateActiveCachedBlockCookie();
     }
@@ -810,6 +813,22 @@ public:
     }
 
 private:
+    const EInMemoryMode InMemoryMode_;
+    const i64 RemoteSendBatchSize_;
+    const TDuration ControlRpcTimeout_;
+    const TDuration HeavyRpcTimeout_;
+
+    std::vector<TNodePtr> Nodes_;
+
+    TFuture<void> ReadyEvent_ = VoidFuture;
+    std::atomic<bool> Sending_ = false;
+    std::atomic<bool> Dropped_ = false;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    std::deque<std::pair<TBlockId, TSharedRef>> Blocks_;
+    i64 CurrentSize_ = 0;
+
+
     TFuture<void> SendNextBatch()
     {
         auto guard = Guard(SpinLock_);
@@ -921,21 +940,6 @@ private:
 
         return AllSucceeded(asyncResults);
     }
-
-private:
-    std::vector<TNodePtr> Nodes_;
-    const EInMemoryMode InMemoryMode_;
-    const i64 RemoteSendBatchSize_;
-    const TDuration ControlRpcTimeout_;
-    const TDuration HeavyRpcTimeout_;
-
-    TFuture<void> ReadyEvent_ = VoidFuture;
-    std::atomic<bool> Sending_ = false;
-    std::atomic<bool> Dropped_ = false;
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    std::deque<std::pair<TBlockId, TSharedRef>> Blocks_;
-    i64 CurrentSize_ = 0;
 };
 
 class TDummyInMemoryBlockCache
@@ -949,8 +953,8 @@ public:
     { }
 
     TCachedBlock FindBlock(
-        const TBlockId& /* id */,
-        EBlockType /* type */) override
+        const TBlockId& /*id*/,
+        EBlockType /*type*/) override
     {
         return TCachedBlock();
     }

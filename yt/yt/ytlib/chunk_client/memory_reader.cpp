@@ -25,12 +25,11 @@ public:
     { }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& /*options*/,
-        const std::vector<int>& blockIndexes,
-        std::optional<i64> /* estimatedSize */,
-        IInvokerPtr /*sessionInvoker*/) override
+        const TReadBlocksOptions& /*options*/,
+        const std::vector<int>& blockIndexes) override
     {
         std::vector<TBlock> blocks;
+        blocks.reserve(blockIndexes.size());
         for (auto index : blockIndexes) {
             YT_VERIFY(index < std::ssize(Blocks_));
             blocks.push_back(Blocks_[index]);
@@ -45,10 +44,9 @@ public:
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& /*options*/,
+        const TReadBlocksOptions& /*options*/,
         int firstBlockIndex,
-        int blockCount,
-        std::optional<i64> /* estimatedSize */) override
+        int blockCount) override
     {
         if (firstBlockIndex >= std::ssize(Blocks_)) {
             return MakeFuture(std::vector<TBlock>());
@@ -88,7 +86,6 @@ public:
 private:
     const TRefCountedChunkMetaPtr Meta_;
     const std::vector<TBlock> Blocks_;
-
 };
 
 IChunkReaderPtr CreateMemoryReader(

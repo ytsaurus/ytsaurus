@@ -41,8 +41,12 @@ TBlockFetcher::TBlockFetcher(
     , BlockInfos_(std::move(blockInfos))
     , BlockCache_(std::move(blockCache))
     , SessionInvoker_(std::move(sessionInvoker))
-    , CompressionInvoker_(SessionInvoker_ ? SessionInvoker_ : GetCompressionInvoker(chunkReadOptions.WorkloadDescriptor))
-    , ReaderInvoker_(CreateSerializedInvoker(SessionInvoker_ ? SessionInvoker_ : TDispatcher::Get()->GetReaderInvoker()))
+    , CompressionInvoker_(SessionInvoker_
+        ? SessionInvoker_
+        : GetCompressionInvoker(chunkReadOptions.WorkloadDescriptor))
+    , ReaderInvoker_(CreateSerializedInvoker(SessionInvoker_
+        ? SessionInvoker_
+        : TDispatcher::Get()->GetReaderInvoker()))
     , CompressionRatio_(compressionRatio)
     , MemoryManager_(std::move(memoryManager))
     , Codec_(NCompression::GetCodec(codecId))
@@ -59,7 +63,8 @@ TBlockFetcher::TBlockFetcher(
     }
 
     if (ChunkReadOptions_.ReadSessionId) {
-        Logger.AddTag("ReadSessionId: %v", ChunkReadOptions_.ReadSessionId);
+        Logger.AddTag("ReadSessionId: %v",
+            ChunkReadOptions_.ReadSessionId);
     }
 
     auto getBlockDescriptor = [&] (const TBlockInfo& blockInfo) {
@@ -550,10 +555,12 @@ void TBlockFetcher::RequestBlocks(
             }
 
             return chunkReader->ReadBlocks(
-                ChunkReadOptions_,
-                blockIndices,
-                static_cast<i64>(uncompressedSize * CompressionRatio_),
-                SessionInvoker_);
+                IChunkReader::TReadBlocksOptions{
+                    .ClientOptions = ChunkReadOptions_,
+                    .EstimatedSize = static_cast<i64>(uncompressedSize * CompressionRatio_),
+                    .SessionInvoker = SessionInvoker_,
+                },
+                blockIndices);
         }();
 
         // NB: Handling |OnGotBlocks| in an arbitrary thread seems OK.
@@ -636,7 +643,7 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
     NCompression::ECodec codecId,
     double compressionRatio,
     const TClientChunkReadOptions& chunkReadOptions,
-    IInvokerPtr sessionnInvoker)
+    IInvokerPtr sessionInvoker)
     : TBlockFetcher(
         std::move(config),
         blockInfos,
@@ -646,7 +653,7 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
         codecId,
         compressionRatio,
         chunkReadOptions,
-        std::move(sessionnInvoker))
+        std::move(sessionInvoker))
     , OriginalOrderBlockInfos_(std::move(blockInfos))
 { }
 

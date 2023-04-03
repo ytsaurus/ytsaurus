@@ -49,13 +49,11 @@ public:
     { }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
-        const std::vector<int>& blockIndexes,
-        std::optional<i64> /*estimatedSize*/,
-        IInvokerPtr /*sessionInvoker*/) override
+        const TReadBlocksOptions& options,
+        const std::vector<int>& blockIndexes) override
     {
         auto session = New<TReadBlockSetSession>();
-        static_cast<TClientChunkReadOptions&>(session->Options) = options;
+        static_cast<TClientChunkReadOptions&>(session->Options) = options.ClientOptions;
         session->Options.BlockCache = BlockCache_;
         session->Options.PopulateCache = Config_->PopulateCache;
         session->BlockIndexes = blockIndexes;
@@ -67,27 +65,29 @@ public:
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& clientOptions,
+        const TReadBlocksOptions& options,
         int firstBlockIndex,
-        int blockCount,
-        std::optional<i64> /*estimatedSize*/) override
+        int blockCount) override
     {
-        TChunkReadOptions options;
-        static_cast<TClientChunkReadOptions&>(options) = clientOptions;
-        options.BlockCache = BlockCache_;
-        options.PopulateCache = Config_->PopulateCache;
+        TChunkReadOptions chunkReadOptions;
+        static_cast<TClientChunkReadOptions&>(chunkReadOptions) = options.ClientOptions;
+        chunkReadOptions.BlockCache = BlockCache_;
+        chunkReadOptions.PopulateCache = Config_->PopulateCache;
 
         auto asyncResult = Chunk_->ReadBlockRange(
             firstBlockIndex,
             blockCount,
-            options);
+            chunkReadOptions);
 
-        return asyncResult.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TBlock>>& blocksOrError) {
-            if (!blocksOrError.IsOK()) {
-                ThrowError(blocksOrError);
-            }
-            return blocksOrError.Value();
-        }));
+        return asyncResult.ApplyUnique(BIND(
+            [=, this, this_ = MakeStrong(this)]
+            (TErrorOr<std::vector<TBlock>>&& blocksOrError)
+            {
+                if (!blocksOrError.IsOK()) {
+                    ThrowError(blocksOrError);
+                }
+                return std::move(blocksOrError.Value());
+            }));
     }
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
@@ -149,6 +149,7 @@ private:
         std::vector<TBlock> Blocks;
         const TPromise<std::vector<TBlock>> Promise = NewPromise<std::vector<TBlock>>();
     };
+
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
 
     void RequestBlockSet(const TReadBlockSetSessionPtr& session)
@@ -290,6 +291,7 @@ public:
             GetRefCountedTypeCookie<TChunkFragmentBufferTag>(),
             options.ReadSessionId)
             .ApplyUnique(BIND([
+                // NB: Keep Guard_ alive.
                 this_ = MakeStrong(this),
                 options = std::move(options)
             ] (IIOEngine::TReadResponse&& response) {

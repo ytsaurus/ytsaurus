@@ -153,7 +153,7 @@ private:
 
     void DoRunVersioned()
     {
-        auto cachedVersionedChunkMeta = WaitFor(ChunkReader_->GetMeta(/* chunkReadOptions */ {})
+        auto cachedVersionedChunkMeta = WaitFor(ChunkReader_->GetMeta(/*chunkReadOptions*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,

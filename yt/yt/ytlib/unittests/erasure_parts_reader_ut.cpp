@@ -70,19 +70,16 @@ struct TMockChunkReader
     { }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions&,
-        const std::vector<int>&,
-        std::optional<i64>,
-        IInvokerPtr /*sessionInvoker*/) override
+        const TReadBlocksOptions& /*options*/,
+        const std::vector<int>& /*blockIndexes*/) override
     {
         YT_ABORT();
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions&,
+        const TReadBlocksOptions& /*options*/,
         int firstBlockIndex,
-        int blockCount,
-        std::optional<i64>) override
+        int blockCount) override
     {
         if (Plot_.ReadBlocksBehavior == TPlot::FailImmediate) {
             return MakeFuture<std::vector<TBlock>>(TError("Failed Inline"));
@@ -94,9 +91,9 @@ struct TMockChunkReader
     }
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientChunkReadOptions&,
-        std::optional<int>,
-        const std::optional<std::vector<int>>&) override
+        const TClientChunkReadOptions& /*options*/,
+        std::optional<int> /*partitionTag*/,
+        const std::optional<std::vector<int>>& /*extensionTags*/) override
     {
         if (Plot_.GetMetaBehavior == TPlot::FailImmediate) {
             return MakeFuture<TRefCountedChunkMetaPtr>(TError("Failed Inline"));
@@ -118,6 +115,13 @@ struct TMockChunkReader
     }
 
 private:
+    const TChunkId ChunkId_;
+    const std::vector<TSharedRef> Blocks_;
+    const NConcurrency::TActionQueuePtr ActionQueue_;
+    const IInvokerPtr Invoker_;
+    const TPlot Plot_;
+
+
     std::vector<TBlock> DoReadBlocks(int firstBlockIndex, int blockCount)
     {
         ExecBehavior(Plot_.ReadBlocksBehavior);
@@ -172,13 +176,6 @@ private:
                 YT_ABORT();
         }
     }
-
-private:
-    const TChunkId ChunkId_;
-    const std::vector<TSharedRef> Blocks_;
-    const NConcurrency::TActionQueuePtr ActionQueue_;
-    const IInvokerPtr Invoker_;
-    const TPlot Plot_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

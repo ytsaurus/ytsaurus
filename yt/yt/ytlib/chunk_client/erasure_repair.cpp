@@ -43,10 +43,10 @@ class TSequentialCachingBlocksReader
 public:
     TSequentialCachingBlocksReader(
         IChunkReaderPtr reader,
-        const TClientChunkReadOptions& options,
+        const IChunkReader::TReadBlocksOptions& options,
         const std::vector<int>& blocksToSave = {})
         : UnderlyingReader_(reader)
-        , ChunkReadOptions_(options)
+        , ReadBlocksOptions_(options)
         , BlocksToSave_(blocksToSave)
         , SavedBlocks_(blocksToSave.size())
     {
@@ -77,7 +77,9 @@ public:
 
         if (index < std::ssize(blockIndexes)) {
             auto blockIndexesToRequest = std::vector<int>(blockIndexes.begin() + index, blockIndexes.end());
-            auto blocksFuture = UnderlyingReader_->ReadBlocks(ChunkReadOptions_, blockIndexesToRequest);
+            auto blocksFuture = UnderlyingReader_->ReadBlocks(
+                ReadBlocksOptions_,
+                blockIndexesToRequest);
             return blocksFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) mutable {
                 for (int index = 0; index < std::ssize(blockIndexesToRequest); ++index) {
                     auto blockIndex = blockIndexesToRequest[index];
@@ -107,7 +109,9 @@ public:
                 blockIndexToSavedBlocksIndex[counter++] = index;
             }
         }
-        auto blocksFuture = UnderlyingReader_->ReadBlocks(ChunkReadOptions_, indexesToRead);
+        auto blocksFuture = UnderlyingReader_->ReadBlocks(
+            ReadBlocksOptions_,
+            indexesToRead);
         return blocksFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) mutable {
             for (int index = 0; index < std::ssize(blocks); ++index) {
                 int savedBlocksIndex = GetOrCrash(blockIndexToSavedBlocksIndex, index);
@@ -128,7 +132,7 @@ public:
 
 private:
     const IChunkReaderPtr UnderlyingReader_;
-    const TClientChunkReadOptions ChunkReadOptions_;
+    const IChunkReader::TReadBlocksOptions ReadBlocksOptions_;
     const std::vector<int> BlocksToSave_;
     THashMap<int, int> BlockIndexToBlocksToSaveIndex_;
 
@@ -150,12 +154,12 @@ public:
         const TPartIndexList& erasedIndices,
         const std::vector<IChunkReaderAllowingRepairPtr>& readers,
         const std::vector<IChunkWriterPtr>& writers,
-        const TClientChunkReadOptions& options)
+        const IChunkReader::TReadBlocksOptions& options)
         : Codec_(codec)
         , Readers_(readers)
         , Writers_(writers)
         , ErasedIndices_(erasedIndices)
-        , ChunkReadOptions_(options)
+        , ReadBlocksOptions_(options)
     {
         YT_VERIFY(erasedIndices.size() == writers.size());
     }
@@ -176,7 +180,7 @@ private:
     const std::vector<IChunkReaderAllowingRepairPtr> Readers_;
     const std::vector<IChunkWriterPtr> Writers_;
     const TPartIndexList ErasedIndices_;
-    const TClientChunkReadOptions ChunkReadOptions_;
+    const IChunkReader::TReadBlocksOptions ReadBlocksOptions_;
 
     TParityPartSplitInfo ParityPartSplitInfo_;
 
@@ -201,7 +205,7 @@ private:
         // Get placement extension.
         auto placementExt = WaitFor(GetPlacementMeta(
             Readers_.front(),
-            ChunkReadOptions_))
+            ReadBlocksOptions_.ClientOptions))
             .ValueOrThrow();
         ProcessPlacementExt(placementExt);
 
@@ -210,7 +214,7 @@ private:
         for (int index = 0; index < std::ssize(Readers_); ++index) {
             auto monotonicReader = New<TSequentialCachingBlocksReader>(
                 Readers_[index],
-                ChunkReadOptions_);
+                ReadBlocksOptions_);
             blockProducers.push_back(New<TPartReader>(
                 monotonicReader,
                 RepairPartBlockRanges_[index]));
@@ -221,10 +225,10 @@ private:
         std::vector<IPartBlockConsumerPtr> blockConsumers;
         for (int index = 0; index < std::ssize(Writers_); ++index) {
             writerConsumers.push_back(New<TPartWriter>(
-                ChunkReadOptions_.WorkloadDescriptor,
+                ReadBlocksOptions_.ClientOptions.WorkloadDescriptor,
                 Writers_[index],
                 ErasedPartBlockRanges_[index],
-                /* computeChecksums */ true));
+                /*computeChecksums*/ true));
             blockConsumers.push_back(writerConsumers.back());
         }
 
@@ -241,7 +245,7 @@ private:
 
         // Fetch chunk meta.
         const auto& reader = Readers_[RandomNumber(Readers_.size())];
-        auto meta = WaitFor(reader->GetMeta(ChunkReadOptions_))
+        auto meta = WaitFor(reader->GetMeta(ReadBlocksOptions_.ClientOptions))
             .ValueOrThrow();
         auto deferredMeta = New<TDeferredChunkMeta>();
         deferredMeta->CopyFrom(*meta);
@@ -263,7 +267,7 @@ private:
         {
             std::vector<TFuture<void>> asyncResults;
             for (auto writer : Writers_) {
-                asyncResults.push_back(writer->Close(ChunkReadOptions_.WorkloadDescriptor, deferredMeta));
+                asyncResults.push_back(writer->Close(ReadBlocksOptions_.ClientOptions.WorkloadDescriptor, deferredMeta));
             }
             WaitFor(AllSucceeded(asyncResults))
                 .ThrowOnError();
@@ -384,7 +388,7 @@ public:
         const std::vector<IChunkReaderAllowingRepairPtr>& readers,
         const TErasurePlacementExt& placementExt,
         const std::vector<int>& blockIndexes,
-        const TClientChunkReadOptions& options,
+        const IChunkReader::TReadBlocksOptions& options,
         const IInvokerPtr& readerInvoker,
         const TLogger& logger)
         : ChunkId_(chunkId)
@@ -393,7 +397,7 @@ public:
         , Readers_(readers)
         , PlacementExt_(placementExt)
         , BlockIndexes_(blockIndexes)
-        , ChunkReadOptions_(options)
+        , ReadBlocksOptions_(options)
         , Logger(logger)
         , ParityPartSplitInfo_(GetParityPartSplitInfo(PlacementExt_))
         , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, PlacementExt_, ParityPartSplitInfo_))
@@ -431,7 +435,7 @@ public:
             } else {
                 auto partReader = New<TSequentialCachingBlocksReader>(
                     Readers_[readerIndex++],
-                    ChunkReadOptions_,
+                    ReadBlocksOptions_,
                     blocksPlacementInPart.IndexesInPart);
                 AllPartReaders_.push_back(partReader);
                 if (std::binary_search(repairIndices.begin(), repairIndices.end(), partIndex)) {
@@ -445,7 +449,7 @@ public:
             if (partIndex >= dataPartCount) {
                 RepairPartReaders_.push_back(New<TSequentialCachingBlocksReader>(
                     Readers_[readerIndex++],
-                    ChunkReadOptions_));
+                    ReadBlocksOptions_));
             }
         }
 
@@ -484,7 +488,7 @@ private:
     const std::vector<IChunkReaderAllowingRepairPtr> Readers_;
     const TErasurePlacementExt PlacementExt_;
     const std::vector<int> BlockIndexes_;
-    const TClientChunkReadOptions ChunkReadOptions_;
+    const IChunkReader::TReadBlocksOptions ReadBlocksOptions_;
     const TLogger Logger;
 
     TParityPartSplitInfo ParityPartSplitInfo_;
@@ -568,7 +572,6 @@ private:
         }
         return result;
     }
-
 };
 
 class TRepairReader
@@ -588,14 +591,12 @@ public:
     { }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
-        const std::vector<int>& blockIndexes,
-        std::optional<i64> /* estimatedSize */,
-        IInvokerPtr /*sessionInvoker*/ = {}) override
+        const IChunkReader::TReadBlocksOptions& options,
+        const std::vector<int>& blockIndexes) override
     {
         // NB(psushin): do not use estimated size for throttling here, repair requires much more traffic than estimated.
         // When reading erasure chunks we fallback to post-throttling.
-        return PreparePlacementMeta(options).Apply(
+        return PreparePlacementMeta(options.ClientOptions).Apply(
             BIND([=, this, this_ = MakeStrong(this)] {
                 auto session = New<TRepairingErasureReaderSession>(
                     GetChunkId(),
@@ -612,14 +613,13 @@ public:
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
+        const IChunkReader::TReadBlocksOptions& options,
         int firstBlockIndex,
-        int blockCount,
-        std::optional<i64> estimatedSize) override
+        int blockCount) override
     {
         std::vector<int> blockIndices(blockCount);
         std::iota(blockIndices.begin(), blockIndices.end(), firstBlockIndex);
-        return ReadBlocks(options, blockIndices, estimatedSize);
+        return ReadBlocks(options, blockIndices);
     }
 
     TInstant GetLastFailureTime() const override
@@ -633,7 +633,7 @@ public:
 
 private:
     const TPartIndexList ErasedIndices_;
-    IInvokerPtr ReaderInvoker_;
+    const IInvokerPtr ReaderInvoker_;
     const TLogger Logger;
 };
 
@@ -659,7 +659,7 @@ TFuture<void> RepairErasedParts(
     const NErasure::TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderAllowingRepairPtr>& readers,
     const std::vector<IChunkWriterPtr>& writers,
-    const TClientChunkReadOptions& options)
+    const IChunkReader::TReadBlocksOptions& options)
 {
     auto session = New<TRepairAllPartsSession>(
         codec,
@@ -789,7 +789,7 @@ TFuture<void> AdaptiveRepairErasedParts(
     const TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderAllowingRepairPtr>& allReaders,
     TPartWriterFactory writerFactory,
-    const TClientChunkReadOptions& options,
+    const IChunkReader::TReadBlocksOptions& options,
     const NLogging::TLogger& logger,
     NProfiling::TCounter adaptivelyRepairedCounter)
 {

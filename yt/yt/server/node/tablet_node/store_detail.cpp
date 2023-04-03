@@ -702,8 +702,8 @@ public:
         TInMemoryChunkDataPtr chunkData,
         TChunkId chunkId,
         IBlockCachePtr underlyingCache)
-        : Owner_(owner)
-        , ChunkData_(chunkData)
+        : Owner_(std::move(owner))
+        , ChunkData_(std::move(chunkData))
         , ChunkId_(chunkId)
         , UnderlyingCache_(std::move(underlyingCache))
     { }

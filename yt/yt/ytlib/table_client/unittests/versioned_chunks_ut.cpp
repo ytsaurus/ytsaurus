@@ -108,10 +108,10 @@ public:
         TReadFragmentsResponse response;
         for (const auto& request : requests) {
             auto block = WaitForFast(ChunkReader_->ReadBlocks(
-                options,
-                {request.BlockIndex},
-                /*estimatedSize*/ std::nullopt,
-                /*sessionInvoker*/ nullptr))
+                IChunkReader::TReadBlocksOptions{
+                    .ClientOptions = options,
+                },
+                {request.BlockIndex}))
                 .ValueOrThrow()[0].Data;
 
             response.Fragments.push_back(block.Slice(

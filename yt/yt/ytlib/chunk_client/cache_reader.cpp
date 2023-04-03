@@ -22,10 +22,8 @@ public:
     {  }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& /*options*/,
-        const std::vector<int>& blockIndexes,
-        std::optional<i64> /* estimatedSize */,
-        IInvokerPtr /*sessionInvoker*/) override
+        const TReadBlocksOptions& /*options*/,
+        const std::vector<int>& blockIndexes) override
     {
         // NB: Cache-based readers shouldn't report chunk reader statistics.
 
@@ -34,19 +32,19 @@ public:
             TBlockId blockId(ChunkId_, index);
             auto block = BlockCache_->FindBlock(blockId, EBlockType::CompressedData).Block;
             if (!block) {
-                return MakeFuture<std::vector<TBlock>>(TError("Block %v is not found in the compressed data cache", blockId));
+                return MakeFuture<std::vector<TBlock>>(TError("Block %v is not found in the compressed data cache",
+                    blockId));
             }
 
-            blocks.push_back(block);
+            blocks.push_back(std::move(block));
         }
         return MakeFuture(std::move(blocks));
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& /*options*/,
+        const TReadBlocksOptions& /*options*/,
         int firstBlockIndex,
-        int blockCount,
-        std::optional<i64> /* estimatedSize */) override
+        int blockCount) override
     {
         // NB: Cache-based readers shouldn't report chunk reader statistics.
 
@@ -55,10 +53,11 @@ public:
             TBlockId blockId(ChunkId_, firstBlockIndex + index);
             auto block = BlockCache_->FindBlock(blockId, EBlockType::CompressedData).Block;
             if (!block) {
-                return MakeFuture<std::vector<TBlock>>(TError("Block %v is not found in the compressed data cache", blockId));
+                return MakeFuture<std::vector<TBlock>>(TError("Block %v is not found in the compressed data cache",
+                    blockId));
             }
 
-            blocks.push_back(block);
+            blocks.push_back(std::move(block));
         }
 
         return MakeFuture(std::move(blocks));
