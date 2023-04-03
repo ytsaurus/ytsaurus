@@ -16,6 +16,7 @@ target_link_libraries(yt-library-oom PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  yt-yt-core
   yt-library-ytprof
   cpp-yt-logging
 )
