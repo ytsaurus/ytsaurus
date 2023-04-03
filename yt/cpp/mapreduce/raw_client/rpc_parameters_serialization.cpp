@@ -340,7 +340,7 @@ TNode SerializeParamsForPingTx(
 TNode SerializeParamsForListOperations(
     const TListOperationsOptions& options)
 {
-    TNode result;
+    TNode result = TNode::CreateMap();
     if (options.FromTime_) {
         result["from_time"] = ToString(*options.FromTime_);
     }
