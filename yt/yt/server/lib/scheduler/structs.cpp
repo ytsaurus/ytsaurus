@@ -173,9 +173,13 @@ void Serialize(const TCompositePendingJobCount& jobCount, NYson::IYsonConsumer* 
 
 void FormatValue(TStringBuilderBase* builder, const TCompositePendingJobCount& jobCount, TStringBuf /* format */)
 {
-    builder->AppendFormat("{DefaultCount: %v, CountByPoolTree: %v}",
-        jobCount.DefaultCount,
-        jobCount.CountByPoolTree);
+    if (jobCount.CountByPoolTree.empty()) {
+        builder->AppendFormat("%v", jobCount.DefaultCount);
+    } else {
+        builder->AppendFormat("{DefaultCount: %v, CountByPoolTree: %v}",
+            jobCount.DefaultCount,
+            jobCount.CountByPoolTree);
+    }
 }
 
 bool operator == (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
