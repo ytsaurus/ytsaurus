@@ -45,7 +45,6 @@ namespace NYT::NYTree {
  * while TYsonStruct builds meta only once just before construction of the first instance.
  */
 class TYsonStructBase
-//    : private TMoveOnly
 {
 public:
     using TPostprocessor = std::function<void()>;
