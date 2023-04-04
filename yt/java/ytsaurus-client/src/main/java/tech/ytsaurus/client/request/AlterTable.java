@@ -16,6 +16,15 @@ import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
+/**
+ * Immutable alter table request.
+ * <p>
+ *
+ * @see tech.ytsaurus.client.ApiServiceClient#alterTable(AlterTable)
+ * @see <a href="https://ytsaurus.tech/docs/en/api/commands#alter_table">
+ * alter_table documentation
+ * </a>
+ */
 public class AlterTable
         extends TableReq<AlterTable.Builder, AlterTable>
         implements HighLevelRequest<TReqAlterTable.Builder> {
@@ -28,7 +37,7 @@ public class AlterTable
     @Nullable
     private final TransactionalOptions transactionalOptions;
 
-    public AlterTable(BuilderBase<?> builder) {
+    AlterTable(BuilderBase<?> builder) {
         super(builder);
         this.schemaNode = builder.schemaNode;
         this.dynamic = builder.dynamic;
@@ -36,10 +45,16 @@ public class AlterTable
         this.transactionalOptions = builder.transactionalOptions;
     }
 
+    /**
+     * Constructs alter table request from path with other options set to default.
+     */
     public AlterTable(YPath path) {
         this(builder().setPath(path));
     }
 
+    /**
+     * Construct empty builder for alter table request.
+     */
     public static Builder builder() {
         return new Builder();
     }
@@ -108,6 +123,9 @@ public class AlterTable
                 .setAdditionalData(additionalData);
     }
 
+    /**
+     * Builder for {@link AlterTable}
+     */
     public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
@@ -142,6 +160,10 @@ public class AlterTable
             }
         }
 
+        /**
+         * If specified, it sets a new schema for the table
+         * @return self
+         */
         public TBuilder setSchema(@Nullable TableSchema schema) {
             if (schema != null) {
                 this.schemaNode = schema.toYTree();
@@ -150,10 +172,8 @@ public class AlterTable
         }
 
         /**
-         * Альтернативный способ задания схемы - по аналогии с {@link CreateNode}
-         *
-         * @param schema схема
-         * @return текущий объект
+         * If specified, it sets a new schema for the table
+         * @return self
          */
         public TBuilder setSchema(@Nullable YTreeNode schema) {
             if (schema != null) {
@@ -162,16 +182,32 @@ public class AlterTable
             return self();
         }
 
+        /**
+         * If specified, it changes a static table to a dynamic table.
+         * This setting can only be changed outside a transaction.
+         * @return self
+         */
         public TBuilder setDynamic(@Nullable Boolean dynamic) {
             this.dynamic = dynamic;
             return self();
         }
 
+        /**
+         * If specified, it changes the ID of the replica object on the metacluster.
+         * For more information, see <a href="https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/replicated-dynamic-tables"
+         * Replicated dynamic tables
+         * </a>
+         * @return self
+         */
         public TBuilder setUpstreamReplicaId(@Nullable GUID upstreamReplicaId) {
             this.upstreamReplicaId = upstreamReplicaId;
             return self();
         }
 
+        /**
+         * Set transactional options of the request.
+         * @return self
+         */
         public TBuilder setTransactionalOptions(@Nullable TransactionalOptions transactionalOptions) {
             this.transactionalOptions = transactionalOptions;
             return self();
@@ -198,6 +234,9 @@ public class AlterTable
                     );
         }
 
+        /**
+         * Construct {@link AlterTable} instance.
+         */
         @Override
         public AlterTable build() {
             return new AlterTable(this);

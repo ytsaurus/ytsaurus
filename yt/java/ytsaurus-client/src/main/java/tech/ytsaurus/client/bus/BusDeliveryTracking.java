@@ -1,21 +1,21 @@
 package tech.ytsaurus.client.bus;
 
 /**
- * Необходимый уровень подтверждения о доставке сообщения
+ * Required acknowledgment level for message delivery.
  */
 public enum BusDeliveryTracking {
     /**
-     * Не следить за отправной пакета
+     * Do not follow the sending package.
      */
     NONE,
 
     /**
-     * Уведомлять о статусе записи пакета в соединение
+     * Notify about the status of a packet being written to a connection.
      */
     SENT,
 
     /**
-     * Уведомлять о статусе доставки после получения подтверждения от другой стороны
+     * Notify about the delivery status after receiving confirmation from the other side.
      */
     FULL
 }

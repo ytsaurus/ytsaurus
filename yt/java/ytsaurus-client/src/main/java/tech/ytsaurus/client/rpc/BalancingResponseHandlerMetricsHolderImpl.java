@@ -5,9 +5,6 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
 import tech.ytsaurus.client.YTsaurusClient;
 
-/**
- * @author dkondra
- */
 public class BalancingResponseHandlerMetricsHolderImpl implements BalancingResponseHandlerMetricsHolder {
     public static final BalancingResponseHandlerMetricsHolderImpl INSTANCE =
             new BalancingResponseHandlerMetricsHolderImpl();

@@ -7,24 +7,36 @@ import java.util.concurrent.CompletableFuture;
 
 import tech.ytsaurus.core.tables.TableSchema;
 
+/**
+ * Prefer to use {@link AsyncWriter} instead of it. See {@link ApiServiceClient#writeTableV2}.
+ * @param <T> row type.
+ */
 public interface TableWriter<T> {
     TableSchema getSchema();
 
-    //! Attempts to write a bunch of #rows. If false is returned then the rows
-    //! are not accepted and the client must invoke #GetReadyEvent and wait.
+    /**
+     * Attempts to write a bunch of #rows. If false is returned then the rows
+     * are not accepted and the client must invoke {@link #readyEvent} and wait.
+     */
     boolean write(List<T> rows, TableSchema schema) throws IOException;
 
     default boolean write(List<T> rows) throws IOException {
         return write(rows, getSchema());
     }
 
-    //! Returns an asynchronous flag enabling to wait until data is written.
+    /**
+     * Returns an asynchronous flag enabling to wait until data is written.
+     */
     CompletableFuture<Void> readyEvent();
 
-    //! Closes the writer. Must be the last call to the writer.
+    /**
+     * Closes the writer. Must be the last call to the writer.
+     */
     CompletableFuture<?> close();
 
-    //! Returns the schema to be used for constructing rows.
+    /**
+     * Returns the schema to be used for constructing rows.
+     */
     CompletableFuture<TableSchema> getTableSchema();
 
     void cancel();

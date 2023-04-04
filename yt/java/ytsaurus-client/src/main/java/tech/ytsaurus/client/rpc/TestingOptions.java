@@ -22,8 +22,7 @@ public class TestingOptions {
     }
 
     /**
-     * Allows to simulate rpc errors using controller.
-     *
+     * Allows simulating rpc errors using controller.
      * @return self
      */
     public TestingOptions setOutageController(@Nonnull OutageController controller) {

@@ -10,6 +10,16 @@ import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.rpcproxy.TReqAlterTableReplica;
 
+/**
+ * Immutable alter table replica request.
+ * Changes the replica's properties: enables/disables it or changes its mode.
+ * <p>
+ *
+ * @see tech.ytsaurus.client.ApiServiceClient#alterTableReplica(AlterTableReplica)
+ * @see <a href="https://ytsaurus.tech/docs/en/api/commands#alter_table_replica">
+ * alter_table_replica documentation
+ * </a>
+ */
 public class AlterTableReplica
         extends RequestBase<AlterTableReplica.Builder, AlterTableReplica>
         implements HighLevelRequest<TReqAlterTableReplica.Builder> {
@@ -32,10 +42,17 @@ public class AlterTableReplica
         this.atomicity = builder.atomicity;
     }
 
+    /**
+     * Constructs alter table replica request from replica id with other options set to default.
+     * @param replicaId
+     */
     public AlterTableReplica(GUID replicaId) {
         this(builder().setReplicaId(replicaId));
     }
 
+    /**
+     * Construct empty builder for alter table replica request.
+     */
     public static Builder builder() {
         return new Builder();
     }
@@ -118,16 +135,30 @@ public class AlterTableReplica
             this.atomicity = builder.atomicity;
         }
 
+        /**
+         * Set replica id.
+         * @return self
+         */
         public Builder setReplicaId(GUID replicaId) {
             this.replicaId = replicaId;
             return self();
         }
 
+        /**
+         * If set to true, enables the table. If set to false, disables the table.
+         * By default, doesn't change the enabled/disabled status of the replica.
+         * @return self
+         */
         public Builder setEnabled(@Nullable Boolean enabled) {
             this.enabled = enabled;
             return self();
         }
 
+        /**
+         * Changes the replica sync/async mode.
+         * @see TableReplicaMode
+         * @return self
+         */
         public Builder setMode(@Nullable TableReplicaMode mode) {
             this.mode = mode;
             return self();
@@ -143,6 +174,9 @@ public class AlterTableReplica
             return self();
         }
 
+        /**
+         * Construct {@link AlterTableReplica} instance.
+         */
         public AlterTableReplica build() {
             return new AlterTableReplica(this);
         }

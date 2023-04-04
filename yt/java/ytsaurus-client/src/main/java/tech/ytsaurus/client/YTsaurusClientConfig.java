@@ -18,24 +18,24 @@ import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 
+/**
+ * Config for {@link YTsaurusClient}.
+ */
 @NonNullApi
 @NonNullFields
 public class YTsaurusClientConfig {
     private final RpcOptions rpcOptions;
+
     @Nullable
     private final YTreeNode specPatch;
     @Nullable
     private final YTreeNode jobSpecPatch;
 
     private final YPath tmpDir;
-    @Nullable
-    private final YPath cacheDir;
     private final JarsProcessor jarsProcessor;
     private final boolean isLocalMode;
     private final String javaBinary;
     private final JavaOptions javaOptions;
-    private final Duration jarsUploadTimeout;
-    private final int fileCacheReplicationFactor;
     private final String version;
     private final Duration operationPingPeriod;
 
@@ -51,12 +51,9 @@ public class YTsaurusClientConfig {
         this.jarsProcessor = builder.jarsProcessor;
 
         this.tmpDir = builder.tmpDir;
-        this.cacheDir = builder.cacheDir;
         this.isLocalMode = builder.isLocalMode;
         this.javaBinary = builder.javaBinary;
         this.javaOptions = builder.javaOptions;
-        this.jarsUploadTimeout = builder.jarsUploadTimeout;
-        this.fileCacheReplicationFactor = builder.fileCacheReplicationFactor;
         this.version = builder.version;
         this.specPatch = builder.specPatch;
         this.jobSpecPatch = builder.jobSpecPatch;
@@ -130,7 +127,7 @@ public class YTsaurusClientConfig {
                 return 0;
             }
         }
-        // we don't want to raise exception on invalid local Java configuration
+        // We don't want to raise exception on invalid local Java configuration.
         return 0;
     }
 

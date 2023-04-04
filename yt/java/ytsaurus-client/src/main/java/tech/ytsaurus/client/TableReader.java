@@ -6,17 +6,29 @@ import java.util.concurrent.CompletableFuture;
 import NYT.NChunkClient.NProto.DataStatistics;
 import tech.ytsaurus.core.tables.TableSchema;
 
+/**
+ * Prefer to use {@link AsyncReader} instead of it. See {@link ApiServiceClient#readTableV2}.
+ * @param <T> row type.
+ */
 public interface TableReader<T> {
-    //! Returns the starting row index within the table.
+    /**
+     * Returns the starting row index within the table.
+     */
     long getStartRowIndex();
 
-    //! Returns the total (approximate) number of rows readable.
+    /**
+     * Returns the total (approximate) number of rows readable.
+     */
     long getTotalRowCount();
 
-    //! Returns various data statistics.
+    /**
+     * Returns various data statistics.
+     */
     DataStatistics.TDataStatistics getDataStatistics();
 
-    //! Returns schema of the table.
+    /**
+     * Returns schema of the table.
+     */
     TableSchema getTableSchema();
 
     TableSchema getCurrentReadSchema();

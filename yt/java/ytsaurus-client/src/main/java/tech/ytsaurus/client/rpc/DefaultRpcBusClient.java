@@ -448,7 +448,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 });
 
                 Duration timeout = RpcRequest.getTimeout(requestHeader);
-                Duration acknowledgementTimeout = options.getAcknowledgementTimeout();
+                Duration acknowledgementTimeout = options.getAcknowledgementTimeout().orElse(null);
                 // Регистрируем таймаут после того как положили запрос в очередь
                 lock.lock();
                 try {
@@ -665,8 +665,8 @@ public class DefaultRpcBusClient implements RpcClient {
         ) {
             super(sender, session, request, options, stat);
             this.consumer = consumer;
-            this.readTimeout = options.getStreamingReadTimeout();
-            this.writeTimeout = options.getStreamingWriteTimeout();
+            this.readTimeout = options.getStreamingReadTimeout().orElse(null);
+            this.writeTimeout = options.getStreamingWriteTimeout().orElse(null);
             this.resetWriteTimeout();
             this.resetReadTimeout();
             setStreamingOptions();

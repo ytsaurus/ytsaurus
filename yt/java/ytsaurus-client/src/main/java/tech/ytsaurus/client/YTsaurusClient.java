@@ -280,13 +280,13 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
             final Random random = new Random();
 
             for (YTsaurusCluster curCluster : clusters) {
-                // 1. Понять http-discovery или rpc
+                // Find out if we use http or rpc discovery.
                 if (curCluster.balancerFqdn != null && !curCluster.balancerFqdn.isEmpty() && (
                         options.getPreferableDiscoveryMethod() == DiscoveryMethod.HTTP
                                 || curCluster.addresses == null
                                 || curCluster.addresses.isEmpty())
                 ) {
-                    // Use http
+                    // Use HTTP.
                     dataCenterList.add(
                             ClientPoolService.httpBuilder()
                                     .setDataCenterName(curCluster.getName())
@@ -304,7 +304,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                                 options.getPreferableDiscoveryMethod() == DiscoveryMethod.RPC
                                         || curCluster.balancerFqdn == null || curCluster.balancerFqdn.isEmpty())
                 ) {
-                    // use rpc
+                    // Use RPC.
                     List<HostPort> initialProxyList =
                             curCluster.addresses.stream().map(HostPort::parse).collect(Collectors.toList());
                     dataCenterList.add(

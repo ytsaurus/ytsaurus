@@ -21,14 +21,14 @@ public class AbortOperation extends OperationReq<AbortOperation.Builder, AbortOp
     private final String message;
 
     /**
-     * Construct abort job request from operation id with other options set to defaults.
+     * Construct abort job request from operation id with other options set to default.
      */
     public AbortOperation(GUID id) {
         this(builder().setOperationId(id));
     }
 
     /**
-     * Construct abort job request from operation alias with other options set to defaults.
+     * Construct abort job request from operation alias with other options set to default.
      */
     public AbortOperation(String alias) {
         this(builder().setOperationAlias(alias));
