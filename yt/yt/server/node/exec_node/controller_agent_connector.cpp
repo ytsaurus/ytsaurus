@@ -38,7 +38,7 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
     , ControllerAgentDescriptor_(std::move(controllerAgentDescriptor))
     , Channel_(ControllerAgentConnectorPool_->CreateChannel(ControllerAgentDescriptor_))
     , HeartbeatExecutor_(New<TPeriodicExecutor>(
-        ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(),
+        ControllerAgentConnectorPool_->Bootstrap_->GetControlInvoker(),
         BIND_NO_PROPAGATE(&TControllerAgentConnector::SendHeartbeat, MakeWeak(this)),
         TPeriodicExecutorOptions{
             .Period = ControllerAgentConnectorPool_->CurrentConfig_->HeartbeatPeriod,
@@ -57,6 +57,8 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
 
 void TControllerAgentConnectorPool::Start()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     const auto& jobController = Bootstrap_->GetJobController();
     jobController->SubscribeJobFinished(BIND_NO_PROPAGATE(
         &TControllerAgentConnectorPool::OnJobFinished,
@@ -65,12 +67,14 @@ void TControllerAgentConnectorPool::Start()
 
 NRpc::IChannelPtr TControllerAgentConnectorPool::TControllerAgentConnector::GetChannel() const noexcept
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Channel_;
 }
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::SendOutOfBandHeartbeatIfNeeded()
 {
-    VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
+    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
     if (ShouldSendOutOfBand_) {
         HeartbeatExecutor_->ScheduleOutOfBand();
@@ -80,7 +84,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendOutOfBandHear
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::EnqueueFinishedJob(const TJobPtr& job)
 {
-    VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
+    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
     EnqueuedFinishedJobs_.insert(job);
     ShouldSendOutOfBand_ = true;
@@ -88,7 +92,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::EnqueueFinishedJo
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated()
 {
-    VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
+    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
     const auto& currentConfig = *ControllerAgentConnectorPool_->CurrentConfig_;
 
@@ -99,8 +103,6 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated()
 
 TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConnector()
 {
-    VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
-
     YT_LOG_DEBUG("Controller agent connector destroyed (AgentAddress: %v, IncarnationId: %v)",
         ControllerAgentDescriptor_.Address,
         ControllerAgentDescriptor_.IncarnationId);
@@ -110,7 +112,7 @@ TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConne
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
 {
-    VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
+    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetControlInvoker());
 
     if (!ControllerAgentConnectorPool_->Bootstrap_->IsConnected()) {
         return;
@@ -129,15 +131,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
 
     auto context = New<TAgentHeartbeatContext>();
 
-    context->AgentDescriptor = ControllerAgentDescriptor_;
-    context->StatisticsThrottler = StatisticsThrottler_;
-    context->RunningJobStatisticsSendingBackoff = RunningJobStatisticsSendingBackoff_;
-    context->LastTotalConfirmationTime = LastTotalConfirmationTime_;
-    context->SentEnqueuedJobs = std::move(EnqueuedFinishedJobs_);
-
-    const auto& jobController = ControllerAgentConnectorPool_->Bootstrap_->GetJobController();
-
-    jobController->PrepareAgentHeartbeatRequest(request, context);
+    PrepareHeartbeatRequest(request, context);
 
     HeartbeatInfo_.LastSentHeartbeatTime = TInstant::Now();
 
@@ -166,14 +160,15 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
             HeartbeatInfo_.FailedHeartbeatBackoffTime);
 
         if (responseOrError.GetCode() == NControllerAgent::EErrorCode::IncarnationMismatch) {
-            OnAgentIncarnationOutdated();
+            ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker()->Invoke(BIND(
+                &TControllerAgentConnector::OnAgentIncarnationOutdated,
+                MakeStrong(this)));
         }
         return;
     }
 
-    jobController->ProcessAgentHeartbeatResponse(responseOrError.Value(), context);
-
-    LastTotalConfirmationTime_ = context->LastTotalConfirmationTime;
+    auto& response = responseOrError.Value();
+    ProcessHeartbeatResponse(response, context);
 
     YT_LOG_INFO(
         "Successfully reported heartbeat to agent (AgentAddress: %v, IncarnationId: %v)",
@@ -186,14 +181,82 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
 // This method will be called in control thread when controller agent controls job lifetime.
 void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
 {
-    VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
+    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetControlInvoker());
 
     DoSendHeartbeat();
 }
 
+void TControllerAgentConnectorPool::TControllerAgentConnector::PrepareHeartbeatRequest(
+    const TReqHeartbeatPtr& request,
+    const TAgentHeartbeatContextPtr& context)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto error = WaitFor(BIND(
+            &TControllerAgentConnector::DoPrepareHeartbeatRequest,
+            MakeStrong(this),
+            request,
+            context)
+        .AsyncVia(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker())
+        .Run());
+
+    YT_LOG_FATAL_IF(
+        !error.IsOK(),
+        error,
+        "Failed to prepare agent heartbeat request");
+}
+
+void TControllerAgentConnectorPool::TControllerAgentConnector::ProcessHeartbeatResponse(
+    const TRspHeartbeatPtr& response,
+    const TAgentHeartbeatContextPtr& context)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto error = WaitFor(BIND(
+            &TControllerAgentConnector::DoProcessHeartbeatResponse,
+            MakeStrong(this),
+            response,
+            context)
+        .AsyncVia(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker())
+        .Run());
+
+    YT_LOG_FATAL_IF(
+        !error.IsOK(),
+        error,
+        "Failed to process agent heartbeat response");
+}
+
+void TControllerAgentConnectorPool::TControllerAgentConnector::DoPrepareHeartbeatRequest(
+    const TReqHeartbeatPtr& request,
+    const TAgentHeartbeatContextPtr& context)
+{
+    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
+
+    context->AgentDescriptor = ControllerAgentDescriptor_;
+    context->StatisticsThrottler = StatisticsThrottler_;
+    context->RunningJobStatisticsSendingBackoff = RunningJobStatisticsSendingBackoff_;
+    context->LastTotalConfirmationTime = LastTotalConfirmationTime_;
+    context->SentEnqueuedJobs = std::move(EnqueuedFinishedJobs_);
+
+    const auto& jobController = ControllerAgentConnectorPool_->Bootstrap_->GetJobController();
+    jobController->PrepareAgentHeartbeatRequest(request, context);
+}
+
+void TControllerAgentConnectorPool::TControllerAgentConnector::DoProcessHeartbeatResponse(
+    const TRspHeartbeatPtr& response,
+    const TAgentHeartbeatContextPtr& context)
+{
+    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
+
+    LastTotalConfirmationTime_ = context->LastTotalConfirmationTime;
+
+    const auto& jobController = ControllerAgentConnectorPool_->Bootstrap_->GetJobController();
+    jobController->ProcessAgentHeartbeatResponse(response, context);
+}
+
 void TControllerAgentConnectorPool::TControllerAgentConnector::OnAgentIncarnationOutdated() noexcept
 {
-    VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
+    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
     YT_LOG_DEBUG(
         "Controller agent incarnation is outdated, stop connector (ControllerAgentDescriptor: %v)",

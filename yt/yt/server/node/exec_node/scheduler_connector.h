@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
@@ -44,6 +44,14 @@ public:
     void EnqueueFinishedJobs(std::vector<TJobPtr> jobs);
 
     void AddUnconfirmedJobs(const std::vector<TJobId>& unconfirmedJobIds);
+
+    using TRspHeartbeat = NRpc::TTypedClientResponse<
+        NScheduler::NProto::NNode::TRspHeartbeat>;
+    using TReqHeartbeat = NRpc::TTypedClientRequest<
+        NScheduler::NProto::NNode::TReqHeartbeat,
+        TRspHeartbeat>;
+    using TRspHeartbeatPtr = TIntrusivePtr<TRspHeartbeat>;
+    using TReqHeartbeatPtr = TIntrusivePtr<TReqHeartbeat>;
 
 private:
     const TSchedulerConnectorConfigPtr StaticConfig_;
@@ -89,6 +97,20 @@ private:
 
     void SendOutOfBandHeartbeatIfNeeded();
     void DoSendOutOfBandHeartbeatIfNeeded();
+
+    void PrepareHeartbeatRequest(
+        const TReqHeartbeatPtr& request,
+        const TSchedulerHeartbeatContextPtr& context);
+    void ProcessHeartbeatResponse(
+        const TRspHeartbeatPtr& response,
+        const TSchedulerHeartbeatContextPtr& context);
+
+    void DoPrepareHeartbeatRequest(
+        const TReqHeartbeatPtr& request,
+        const TSchedulerHeartbeatContextPtr& context);
+    void DoProcessHeartbeatResponse(
+        const TRspHeartbeatPtr& response,
+        const TSchedulerHeartbeatContextPtr& context);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnector)

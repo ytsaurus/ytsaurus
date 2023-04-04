@@ -50,6 +50,14 @@ public:
 
         ~TControllerAgentConnector();
 
+        using TRspHeartbeat = NRpc::TTypedClientResponse<
+            NControllerAgent::NProto::TRspHeartbeat>;
+        using TReqHeartbeat = NRpc::TTypedClientRequest<
+            NControllerAgent::NProto::TReqHeartbeat,
+            TRspHeartbeat>;
+        using TRspHeartbeatPtr = TIntrusivePtr<TRspHeartbeat>;
+        using TReqHeartbeatPtr = TIntrusivePtr<TReqHeartbeat>;
+
     private:
         struct THeartbeatInfo
         {
@@ -59,10 +67,10 @@ public:
         };
         THeartbeatInfo HeartbeatInfo_;
 
-        TControllerAgentConnectorPoolPtr ControllerAgentConnectorPool_;
-        TControllerAgentDescriptor ControllerAgentDescriptor_;
+        const TControllerAgentConnectorPoolPtr ControllerAgentConnectorPool_;
+        const TControllerAgentDescriptor ControllerAgentDescriptor_;
 
-        NRpc::IChannelPtr Channel_;
+        const NRpc::IChannelPtr Channel_;
 
         const NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
 
@@ -75,12 +83,24 @@ public:
         THashSet<TJobPtr> EnqueuedFinishedJobs_;
         bool ShouldSendOutOfBand_ = false;
 
-        DECLARE_THREAD_AFFINITY_SLOT(JobThread);
-
         void SendHeartbeat();
         void OnAgentIncarnationOutdated() noexcept;
 
         void DoSendHeartbeat();
+
+        void PrepareHeartbeatRequest(
+            const TReqHeartbeatPtr& request,
+            const TAgentHeartbeatContextPtr& context);
+        void ProcessHeartbeatResponse(
+            const TRspHeartbeatPtr& response,
+            const TAgentHeartbeatContextPtr& context);
+
+        void DoPrepareHeartbeatRequest(
+            const TReqHeartbeatPtr& request,
+            const TAgentHeartbeatContextPtr& context);
+        void DoProcessHeartbeatResponse(
+            const TRspHeartbeatPtr& response,
+            const TAgentHeartbeatContextPtr& context);
     };
 
     using TControllerAgentConnectorPtr = TIntrusivePtr<TControllerAgentConnector>;

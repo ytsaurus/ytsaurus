@@ -100,7 +100,7 @@ void TSchedulerConnector::SendOutOfBandHeartbeatIfNeeded()
 
 void TSchedulerConnector::OnJobFinished(const TJobPtr& job)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     EnqueueFinishedJobs({job});
 
@@ -139,7 +139,7 @@ void TSchedulerConnector::SetMinSpareResources(const NScheduler::TJobResources& 
 
 void TSchedulerConnector::EnqueueFinishedJobs(std::vector<TJobPtr> jobs)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     for (auto& job : jobs) {
         JobsToForcefullySend_.emplace(std::move(job));
@@ -148,7 +148,7 @@ void TSchedulerConnector::EnqueueFinishedJobs(std::vector<TJobPtr> jobs)
 
 void TSchedulerConnector::AddUnconfirmedJobs(const std::vector<TJobId>& unconfirmedJobIds)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     for (auto jobId : unconfirmedJobIds) {
         UnconfirmedJobIds_.emplace(jobId);
@@ -166,7 +166,7 @@ void TSchedulerConnector::Start()
     jobController->SubscribeJobFinished(BIND_NO_PROPAGATE(
             &TSchedulerConnector::OnJobFinished,
             MakeWeak(this))
-        .Via(Bootstrap_->GetControlInvoker()));
+        .Via(Bootstrap_->GetJobInvoker()));
 
     HeartbeatExecutor_->Start();
 }
@@ -205,17 +205,7 @@ void TSchedulerConnector::DoSendHeartbeat()
     req->SetRequestCodec(NCompression::ECodec::Lz4);
 
     auto heartbeatContext = New<TSchedulerHeartbeatContext>();
-    heartbeatContext->JobsToForcefullySend = std::move(JobsToForcefullySend_);
-    heartbeatContext->UnconfirmedJobIds = std::move(UnconfirmedJobIds_);
-
-    const auto& jobController = Bootstrap_->GetJobController();
-    {
-        auto error = WaitFor(jobController->PrepareSchedulerHeartbeatRequest(req, heartbeatContext));
-        YT_LOG_FATAL_IF(
-            !error.IsOK(),
-            error,
-            "Failed to prepare scheduler heartbeat");
-    }
+    PrepareHeartbeatRequest(req, heartbeatContext);
 
     auto profileInterval = [&] (TInstant lastTime, NProfiling::TEventTimer& counter) {
         if (lastTime != TInstant::Zero()) {
@@ -263,14 +253,7 @@ void TSchedulerConnector::DoSendHeartbeat()
         HeartbeatInfo_.LastFullyProcessedHeartbeatTime = TInstant::Now();
     }
 
-    if (rsp->has_operation_archive_version()) {
-        Bootstrap_->GetJobReporter()->SetOperationArchiveVersion(rsp->operation_archive_version());
-    }
-
-    {
-        auto error = WaitFor(jobController->ProcessSchedulerHeartbeatResponse(rsp, heartbeatContext));
-        YT_LOG_FATAL_IF(!error.IsOK(), error, "Error while processing scheduler heartbeat response");
-    }
+    ProcessHeartbeatResponse(rsp, heartbeatContext);
 }
 
 void TSchedulerConnector::SendHeartbeat()
@@ -295,6 +278,73 @@ void TSchedulerConnector::SendHeartbeat()
     }
 
     DoSendHeartbeat();
+}
+
+void TSchedulerConnector::PrepareHeartbeatRequest(
+    const TReqHeartbeatPtr& request,
+    const TSchedulerHeartbeatContextPtr& context)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto error = WaitFor(BIND(
+            &TSchedulerConnector::DoPrepareHeartbeatRequest,
+            MakeStrong(this),
+            request,
+            context)
+        .AsyncVia(Bootstrap_->GetJobInvoker())
+        .Run());
+
+    YT_LOG_FATAL_IF(
+        !error.IsOK(),
+        error,
+        "Failed to prepare scheduler heartbeat request");
+}
+
+void TSchedulerConnector::ProcessHeartbeatResponse(
+    const TRspHeartbeatPtr& response,
+    const TSchedulerHeartbeatContextPtr& context)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto error = WaitFor(BIND(
+            &TSchedulerConnector::DoProcessHeartbeatResponse,
+            MakeStrong(this),
+            response,
+            context)
+        .AsyncVia(Bootstrap_->GetJobInvoker())
+        .Run());
+
+    YT_LOG_FATAL_IF(
+        !error.IsOK(),
+        error,
+        "Error while processing scheduler heartbeat response");
+}
+
+void TSchedulerConnector::DoPrepareHeartbeatRequest(
+    const TReqHeartbeatPtr& request,
+    const TSchedulerHeartbeatContextPtr& context)
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    context->JobsToForcefullySend = std::move(JobsToForcefullySend_);
+    context->UnconfirmedJobIds = std::move(UnconfirmedJobIds_);
+
+    const auto& jobController = Bootstrap_->GetJobController();
+    jobController->PrepareSchedulerHeartbeatRequest(request, context);
+}
+
+void TSchedulerConnector::DoProcessHeartbeatResponse(
+    const TRspHeartbeatPtr& response,
+    const TSchedulerHeartbeatContextPtr& context)
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    if (response->has_operation_archive_version()) {
+        Bootstrap_->GetJobReporter()->SetOperationArchiveVersion(response->operation_archive_version());
+    }
+
+    const auto& jobController = Bootstrap_->GetJobController();
+    jobController->ProcessSchedulerHeartbeatResponse(response, context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,9 @@
 
 #include "job.h"
 
+#include "controller_agent_connector.h"
+#include "scheduler_connector.h"
+
 #include <yt/yt/server/job_proxy/public.h>
 
 #include <yt/yt/server/node/cluster_node/public.h>
@@ -64,37 +67,21 @@ public:
 
     virtual bool AreSchedulerJobsDisabled() const noexcept = 0;
 
-    using TRspAgentHeartbeat = NRpc::TTypedClientResponse<
-        NControllerAgent::NProto::TRspHeartbeat>;
-    using TReqAgentHeartbeat = NRpc::TTypedClientRequest<
-        NControllerAgent::NProto::TReqHeartbeat,
-        TRspAgentHeartbeat>;
-    using TRspAgentHeartbeatPtr = TIntrusivePtr<TRspAgentHeartbeat>;
-    using TReqAgentHeartbeatPtr = TIntrusivePtr<TReqAgentHeartbeat>;
-
-    using TRspSchedulerHeartbeat = NRpc::TTypedClientResponse<
-        NScheduler::NProto::NNode::TRspHeartbeat>;
-    using TReqSchedulerHeartbeat = NRpc::TTypedClientRequest<
-        NScheduler::NProto::NNode::TReqHeartbeat,
-        TRspSchedulerHeartbeat>;
-    using TRspSchedulerHeartbeatPtr = TIntrusivePtr<TRspSchedulerHeartbeat>;
-    using TReqSchedulerHeartbeatPtr = TIntrusivePtr<TReqSchedulerHeartbeat>;
-
     virtual void PrepareAgentHeartbeatRequest(
-        const TReqAgentHeartbeatPtr& request,
+        const TControllerAgentConnectorPool::TControllerAgentConnector::TReqHeartbeatPtr& request,
         const TAgentHeartbeatContextPtr& context) = 0;
     virtual void ProcessAgentHeartbeatResponse(
-        const TRspAgentHeartbeatPtr& response,
+        const TControllerAgentConnectorPool::TControllerAgentConnector::TRspHeartbeatPtr& response,
         const TAgentHeartbeatContextPtr& context) = 0;
 
     //! Prepares a scheduler heartbeat request.
-    virtual TFuture<void> PrepareSchedulerHeartbeatRequest(
-        const TReqSchedulerHeartbeatPtr& request,
+    virtual void PrepareSchedulerHeartbeatRequest(
+        const TSchedulerConnector::TReqHeartbeatPtr& request,
         const TSchedulerHeartbeatContextPtr& context) = 0;
 
     //! Handles scheduler heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
-    virtual TFuture<void> ProcessSchedulerHeartbeatResponse(
-        const TRspSchedulerHeartbeatPtr& response,
+    virtual void ProcessSchedulerHeartbeatResponse(
+        const TSchedulerConnector::TRspHeartbeatPtr& response,
         const TSchedulerHeartbeatContextPtr& context) = 0;
 
     virtual TBuildInfoPtr GetBuildInfo() const = 0;

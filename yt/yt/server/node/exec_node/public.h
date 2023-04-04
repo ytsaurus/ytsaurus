@@ -4,11 +4,17 @@
 
 #include <yt/yt/server/lib/job_agent/public.h>
 
+#include <yt/yt/server/lib/scheduler/public.h>
+
 #include <yt/yt/core/actions/callback.h>
 
 #include <optional>
 
 namespace NYT::NExecNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NScheduler::TAllocationId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

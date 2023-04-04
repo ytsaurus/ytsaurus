@@ -246,7 +246,7 @@ public:
     }
 
     void PrepareAgentHeartbeatRequest(
-        const TReqAgentHeartbeatPtr& request,
+        const TControllerAgentConnectorPool::TControllerAgentConnector::TReqHeartbeatPtr& request,
         const TAgentHeartbeatContextPtr& context) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -255,7 +255,7 @@ public:
     }
 
     void ProcessAgentHeartbeatResponse(
-        const TRspAgentHeartbeatPtr& response,
+        const TControllerAgentConnectorPool::TControllerAgentConnector::TRspHeartbeatPtr& response,
         const TAgentHeartbeatContextPtr& context) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -263,28 +263,22 @@ public:
         DoProcessAgentHeartbeatResponse(response, context);
     }
 
-    TFuture<void> PrepareSchedulerHeartbeatRequest(
-        const TReqSchedulerHeartbeatPtr& request,
+    void PrepareSchedulerHeartbeatRequest(
+        const TSchedulerConnector::TReqHeartbeatPtr& request,
         const TSchedulerHeartbeatContextPtr& context) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(JobThread);
 
-        return
-            BIND(&TJobController::DoPrepareSchedulerHeartbeatRequest, MakeStrong(this))
-                .AsyncVia(Bootstrap_->GetJobInvoker())
-                .Run(request, context);
+        DoPrepareSchedulerHeartbeatRequest(request, context);
     }
 
-    TFuture<void> ProcessSchedulerHeartbeatResponse(
-        const TRspSchedulerHeartbeatPtr& response,
+    void ProcessSchedulerHeartbeatResponse(
+        const TSchedulerConnector::TRspHeartbeatPtr& response,
         const TSchedulerHeartbeatContextPtr& context) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(JobThread);
 
-        return
-            BIND(&TJobController::DoProcessSchedulerHeartbeatResponse, MakeStrong(this))
-                .AsyncVia(Bootstrap_->GetJobInvoker())
-                .Run(response, context);
+        DoProcessSchedulerHeartbeatResponse(response, context);
     }
 
     bool IsJobProxyProfilingDisabled() const override
@@ -506,7 +500,7 @@ private:
 
     TFuture<void> RequestJobSpecsAndStartJobs(std::vector<TAllocationStartInfo> jobStartInfos)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(JobThread);
 
         THashMap<TControllerAgentDescriptor, std::vector<TAllocationStartInfo>> groupedStartInfos;
 
@@ -831,8 +825,8 @@ private:
     }
 
     void DoPrepareAgentHeartbeatRequest(
-        TReqAgentHeartbeatPtr request,
-        TAgentHeartbeatContextPtr context)
+        const TControllerAgentConnectorPool::TControllerAgentConnector::TReqHeartbeatPtr& request,
+        const TAgentHeartbeatContextPtr& context)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -979,15 +973,15 @@ private:
     }
 
     void DoProcessAgentHeartbeatResponse(
-        TRspAgentHeartbeatPtr /*response*/,
-        TAgentHeartbeatContextPtr /*context*/)
+        const TControllerAgentConnectorPool::TControllerAgentConnector::TRspHeartbeatPtr& /*response*/,
+        const TAgentHeartbeatContextPtr& /*context*/)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
     }
 
     void DoProcessSchedulerHeartbeatResponse(
-        TRspSchedulerHeartbeatPtr response,
-        TSchedulerHeartbeatContextPtr /*context*/)
+        const TSchedulerConnector::TRspHeartbeatPtr& response,
+        const TSchedulerHeartbeatContextPtr& /*context*/)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1171,8 +1165,8 @@ private:
     }
 
     void DoPrepareSchedulerHeartbeatRequest(
-        TReqSchedulerHeartbeatPtr request,
-        TSchedulerHeartbeatContextPtr context)
+        const TSchedulerConnector::TReqHeartbeatPtr& request,
+        const TSchedulerHeartbeatContextPtr& context)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1867,16 +1861,8 @@ private:
         }
 
         const auto& schedulerConnector = Bootstrap_->GetExecNodeBootstrap()->GetSchedulerConnector();
-
-        Bootstrap_->GetControlInvoker()->Invoke(BIND(
-            [
-                schedulerConnector,
-                confirmedJobs{std::move(confirmedJobs)},
-                unconfirmedJobs{std::move(unconfirmedJobs)}
-            ] {
-                schedulerConnector->AddUnconfirmedJobs(unconfirmedJobs);
-                schedulerConnector->EnqueueFinishedJobs(std::move(confirmedJobs));
-            }));
+        schedulerConnector->AddUnconfirmedJobs(unconfirmedJobs);
+        schedulerConnector->EnqueueFinishedJobs(std::move(confirmedJobs));
 
         Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool()->SendOutOfBandHeartbeatsIfNeeded();
     }
