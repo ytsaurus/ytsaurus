@@ -994,9 +994,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("schedule_job_entry_check_period", &TThis::ScheduleJobEntryCheckPeriod)
         .Default(TDuration::Minutes(1));
 
-    registrar.Parameter("check_nodes_with_unsupported_interruption_period", &TThis::CheckNodesWithUnsupportedInterruptionPeriod)
-        .Default(TDuration::Minutes(1));
-
     registrar.Parameter("wait_for_agent_heartbeat_during_operation_unregistration_at_controller", &TThis::WaitForAgentHeartbeatDuringOperationUnregistrationAtController)
         .Default(true);
 

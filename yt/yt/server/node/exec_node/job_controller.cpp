@@ -79,15 +79,15 @@ NScheduler::TAllocationToAbort ParseAllocationToAbort(const NScheduler::NProto::
     return result;
 }
 
-// AllcationId is currently equal to JobId.
-TJobId ParseAllocationIdAsJobId(auto& protoAllocationId)
-{
-    return FromProto<TJobId>(protoAllocationId);
-}
-
+// AllocationId is currently equal to JobId.
 TAllocationId ToAllocationId(TJobId jobId)
 {
     return jobId;
+}
+
+TJobId FromAllocationId(TAllocationId allocationId)
+{
+    return allocationId;
 }
 
 } // namespace
@@ -506,7 +506,7 @@ private:
 
         for (auto& startInfo : jobStartInfos) {
             auto operationId = FromProto<TOperationId>(startInfo.operation_id());
-            auto jobId = ParseAllocationIdAsJobId(startInfo.allocation_id());
+            auto jobId = FromAllocationId(FromProto<TAllocationId>(startInfo.allocation_id()));
 
             auto agentDescriptorOrError = TryParseControllerAgentDescriptor(startInfo.controller_agent_descriptor());
 
@@ -575,7 +575,7 @@ private:
             YT_LOG_DEBUG(rspOrError, "Error getting job specs (SpecServiceAddress: %v)",
                 controllerAgentDescriptor.Address);
             for (const auto& startInfo : startInfos) {
-                auto jobId = ParseAllocationIdAsJobId(startInfo.allocation_id());
+                auto jobId = FromAllocationId(FromProto<TAllocationId>(startInfo.allocation_id()));
                 auto operationId = FromProto<TOperationId>(startInfo.operation_id());
                 EmplaceOrCrash(SpecFetchFailedAllocationIds_, ToAllocationId(jobId), operationId);
             }
@@ -590,7 +590,7 @@ private:
         for (size_t index = 0; index < startInfos.size(); ++index) {
             auto& startInfo = startInfos[index];
             auto operationId = FromProto<TOperationId>(startInfo.operation_id());
-            auto jobId = ParseAllocationIdAsJobId(startInfo.allocation_id());
+            auto jobId = FromAllocationId(FromProto<TAllocationId>(startInfo.allocation_id()));
 
             const auto& subresponse = rsp->mutable_responses(index);
             auto error = FromProto<TError>(subresponse->error());
@@ -1031,7 +1031,7 @@ private:
 
         for (const auto& jobToInterrupt : response->allocations_to_interrupt()) {
             auto timeout = FromProto<TDuration>(jobToInterrupt.timeout());
-            auto jobId = ParseAllocationIdAsJobId(jobToInterrupt.allocation_id());
+            auto jobId = FromAllocationId(FromProto<TAllocationId>(jobToInterrupt.allocation_id()));
 
             YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
 

@@ -70,7 +70,7 @@ protected:
     class TResourceAcquiringContext
     {
     public:
-        TResourceAcquiringContext(IJobResourceManager* resourceManagerImpl);
+        explicit TResourceAcquiringContext(IJobResourceManager* resourceManagerImpl);
         TResourceAcquiringContext(const TResourceAcquiringContext&) = delete;
         ~TResourceAcquiringContext();
 
