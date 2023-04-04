@@ -158,7 +158,8 @@ public:
         NDistributedThrottler::TDistributedThrottlerConfigPtr config,
         IInvokerPtr invoker,
         const TString& groupIdPrefix,
-        NLogging::TLogger logger) const;
+        NLogging::TLogger logger,
+        NProfiling::TProfiler profiler) const;
 
     void Initialize();
     void Run();

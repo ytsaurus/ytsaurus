@@ -26,6 +26,7 @@ using namespace NRpc;
 using namespace NDiscoveryClient;
 using namespace NConcurrency;
 using namespace NApi::NNative;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,13 +46,19 @@ public:
         TString throttlerId,
         TDistributedThrottlerConfigPtr config,
         TThroughputThrottlerConfigPtr throttlerConfig,
-        TDuration throttleRpcTimeout)
+        TDuration throttleRpcTimeout,
+        TProfiler profiler)
         : Underlying_(CreateReconfigurableThroughputThrottler(throttlerConfig))
         , ThrottlerId_(std::move(throttlerId))
         , Config_(std::move(config))
         , ThrottlerConfig_(std::move(throttlerConfig))
         , ThrottleRpcTimeout_(throttleRpcTimeout)
+        , Profiler_(profiler.WithTag("throttler_id", ThrottlerId_))
+        , Limit_(Profiler_.Gauge("/limit"))
+        , Usage_(Profiler_.Gauge("/usage"))
     {
+        Limit_.Update(ThrottlerConfig_.Load()->Limit.value_or(-1));
+
         HistoricUsageAggregator_.UpdateParameters(THistoricUsageAggregationParameters(
             EHistoricUsageAggregationMode::ExponentialMovingAverage,
             Config_.Load()->EmaAlpha
@@ -71,7 +78,10 @@ public:
     double GetUsageRate()
     {
         auto guard = Guard(HistoricUsageAggregatorLock_);
-        return HistoricUsageAggregator_.GetHistoricUsage();
+
+        auto usage = HistoricUsageAggregator_.GetHistoricUsage();
+        Usage_.Update(usage);
+        return usage;
     }
 
     TThroughputThrottlerConfigPtr GetConfig()
@@ -166,6 +176,7 @@ public:
 
     void SetLimit(std::optional<double> limit) override
     {
+        Limit_.Update(limit.value_or(-1));
         Underlying_->SetLimit(limit);
     }
 
@@ -190,6 +201,10 @@ private:
 
     TAtomicObject<IChannelPtr> LeaderChannel_;
 
+    TProfiler Profiler_;
+    TGauge Limit_;
+    TGauge Usage_;
+
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistoricUsageAggregatorLock_);
     THistoricUsageAggregator HistoricUsageAggregator_;
 
@@ -197,6 +212,8 @@ private:
     {
         auto guard = Guard(HistoricUsageAggregatorLock_);
         HistoricUsageAggregator_.UpdateAt(TInstant::Now(), amount);
+
+        Usage_.Update(HistoricUsageAggregator_.GetHistoricUsage());
     }
 };
 
@@ -300,6 +317,10 @@ public:
         auto* shard = GetThrottlerShard(throttlerId);
 
         auto guard = WriterGuard(shard->TotalLimitsLock);
+
+        YT_LOG_DEBUG("Changing throttler total limit (ThrottlerId: %v, Limit: %v)",
+            throttlerId,
+            limit);
         shard->ThrottlerIdToTotalLimit[throttlerId] = limit;
     }
 
@@ -737,7 +758,8 @@ public:
         IServerPtr rpcServer,
         TString address,
         const NLogging::TLogger& logger,
-        IAuthenticatorPtr authenticator)
+        IAuthenticatorPtr authenticator,
+        TProfiler profiler)
         : ChannelFactory_(std::move(channelFactory))
         , Connection_(std::move(connection))
         , GroupId_(std::move(groupId))
@@ -764,6 +786,7 @@ public:
             MemberId_,
             GroupId_,
             RealmId_))
+        , Profiler_(std::move(profiler))
         , Config_(std::move(config))
         , DistributedThrottlerService_(New<TDistributedThrottlerService>(
             std::move(rpcServer),
@@ -801,10 +824,12 @@ public:
             if (it == Throttlers_->Throttlers.end()) {
                 return nullptr;
             }
+
             auto throttler = it->second.Lock();
             if (!throttler) {
                 return nullptr;
             }
+
             throttler->Reconfigure(std::move(throttlerConfig));
             return throttler;
         };
@@ -830,7 +855,8 @@ public:
                 throttlerId,
                 Config_.Load(),
                 std::move(throttlerConfig),
-                throttleRpcTimeout);
+                throttleRpcTimeout,
+                Profiler_);
             {
                 auto readerGuard = ReaderGuard(Lock_);
                 // NB: Could be null.
@@ -842,11 +868,13 @@ public:
             if (wasEmpty) {
                 Start();
             }
+
             YT_LOG_DEBUG("Distributed throttler created (ThrottlerId: %v)", throttlerId);
         }
 
         {
             auto queueGuard = Guard(UpdateQueueLock_);
+            YT_VERIFY(wrappedThrottler);
             UpdateQueue_.emplace(throttlerId, MakeWeak(wrappedThrottler));
             UnreportedThrottlers_.insert(throttlerId);
         }
@@ -896,6 +924,8 @@ private:
     const TRealmId RealmId_;
 
     const NLogging::TLogger Logger;
+    TProfiler Profiler_;
+
     TAtomicObject<TDistributedThrottlerConfigPtr> Config_;
 
     const TThrottlersPtr Throttlers_ = New<TThrottlers>();
@@ -1190,7 +1220,8 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     IServerPtr rpcServer,
     TString address,
     NLogging::TLogger logger,
-    IAuthenticatorPtr authenticator)
+    IAuthenticatorPtr authenticator,
+    TProfiler profiler)
 {
     return New<TDistributedThrottlerFactory>(
         CloneYsonStruct(std::move(config)),
@@ -1202,7 +1233,8 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         std::move(rpcServer),
         std::move(address),
         std::move(logger),
-        std::move(authenticator));
+        std::move(authenticator),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 
 from yt_commands import (
     authors, wait, create, ls, get, set, exists, remove,
@@ -8,6 +8,8 @@ from yt_commands import (
     remove_network_project, start_transaction, raises_yt_error,
     set_user_password, issue_token, revoke_token, list_user_tokens,
 )
+
+from yt_helpers import profiler_factory
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -507,7 +509,7 @@ class TestUsers(YTEnvSetup):
             )
 
     @authors("aleksandra-zh")
-    def test_distributed_throttler(self):
+    def test_distributed_throttler_simple(self):
         create_user("u")
 
         set("//sys/@config/security_manager/enable_distributed_throttler", True)
@@ -515,6 +517,36 @@ class TestUsers(YTEnvSetup):
 
         set("//sys/@config/security_manager/enable_distributed_throttler", False)
         get("//tmp", authenticated_user="u")
+
+    @authors("aleksandra-zh")
+    def test_distributed_throttler_profiler(self):
+        create_user("u")
+
+        set("//sys/@config/security_manager/enable_distributed_throttler", True)
+        get("//tmp", authenticated_user="u")
+
+        master_address = ls("//sys/primary_masters")[0]
+        profiler = profiler_factory().at_primary_master(master_address)
+
+        def get_throttler_gauge(name):
+            # Provoke limits update
+            get("//tmp", authenticated_user="u")
+
+            path = "security/distributed_throttler/{}".format(name)
+            gauge = profiler.gauge(name=path, fixed_tags={"throttler_id": "u:request_count:Read"}).get()
+            if gauge is None:
+                return 0
+            return gauge
+
+        wait(lambda: get_throttler_gauge("usage") > 0)
+        wait(lambda: get_throttler_gauge("limit") > 0)
+
+        for _ in range(5):
+            with Restarter(self.Env, MASTERS_SERVICE):
+                pass
+
+            wait(lambda: get_throttler_gauge("usage") > 0)
+            wait(lambda: get_throttler_gauge("limit") > 0)
 
     @authors("gritukan")
     def test_recomute_membership_closure_on_group_destruction(self):

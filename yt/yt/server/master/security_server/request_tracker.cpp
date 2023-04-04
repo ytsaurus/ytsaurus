@@ -46,7 +46,8 @@ TRequestTracker::TRequestTracker(
         userThrottlerConfig,
         NRpc::TDispatcher::Get()->GetHeavyInvoker(),
         "/security/master_cells",
-        SecurityServerLogger))
+        SecurityServerLogger,
+        SecurityProfiler.WithPrefix("/distributed_throttler")))
 { }
 
 void TRequestTracker::Start()

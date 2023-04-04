@@ -560,7 +560,8 @@ NDistributedThrottler::IDistributedThrottlerFactoryPtr TBootstrap::CreateDistrib
     TDistributedThrottlerConfigPtr config,
     IInvokerPtr invoker,
     const TString& groupIdPrefix,
-    NLogging::TLogger logger) const
+    NLogging::TLogger logger,
+    NProfiling::TProfiler profiler) const
 {
     return NDistributedThrottler::CreateDistributedThrottlerFactory(
         std::move(config),
@@ -572,7 +573,8 @@ NDistributedThrottler::IDistributedThrottlerFactoryPtr TBootstrap::CreateDistrib
         RpcServer_,
         BuildServiceAddress(GetLocalHostName(), Config_->RpcPort),
         std::move(logger),
-        NativeAuthenticator_);
+        NativeAuthenticator_,
+        profiler);
 }
 
 void TBootstrap::Initialize()
