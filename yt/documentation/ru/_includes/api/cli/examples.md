@@ -121,4 +121,3 @@ yt map "cat" --spec "{pool=example_pool; weight=10.0}" --src //tmp/yt_cli_exampl
 yt vanilla --tasks '{task={job_count=10; command="sleep 60"; cpu_limit=2};}' --spec '{resource_limits={user_slots=2}}'
 ...
 ```
-

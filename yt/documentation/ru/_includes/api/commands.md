@@ -1153,7 +1153,7 @@ OUTPUT { "key" = 2; "value" = "world; };
 | `path`       | Да    |                           | Путь до динамической таблицы.                                |
 | `update`     | Нет    | `false`                   | Если выставлено `false`, колонки, которые отсутствуют во входных данных, будут записаны со значением `Null` (перезаписывая текущее значение в таблице). Если выставлено `true`, такие колонки сохранят своё предыдущее значение в таблице. |
 | `aggregate`  | Нет    | `false`                   | Если выставлено `false`, [агрегирующие колонки](../../user-guide/dynamic-tables/sorted-dynamic-tables.md#aggr_columns) перезатерты новым значением. Если выставлено `true`, такие колонки применят дельту из входных данных. |
-| `atomicity`  | Нет    | `full`                    | Поддерживаются значения `none` и `full`, [подробнее](../../user-guide/dynamic-tables/sorted-dynamic-tables.md) |
+| `atomicity`  | Нет    | `full`                    | Поддерживаются значения `none` и `full`. Если выставлено `none`, запись будет происходить на каждом таблете, независимо от других. Если выставлено`full`, будут записаны либо все переданные строки, либо ничего. [Подробнее](../../user-guide/dynamic-tables/sorted-dynamic-tables.md). |
 
 Входные данные:
 
@@ -2423,7 +2423,7 @@ PARAMETERS {"`operation_id`" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "parameters"
 | `pool`             | `string`          | Название [пула](../../user-guide/data-processing/scheduler/scheduler-and-pools.md), в котором был запущен джоб.         |
 | `pool_tree`        | `string`          | Название [дерева пулов](../../user-guide/data-processing/scheduler/scheduler-and-pools.md), в котором был запущен джоб. |
 | `progress`         | `float in [0,1]`  | Оценка доли работы, выполненной джобом к текущему моменту.                                                                   |
-| `stderr_size`      | `integer`         | Размер сохранённого stderr джоба (сам stderr можно получить с помощью команды `get_job_stderr`              |
+| `stderr_size`      | `integer`         | Размер сохранённого stderr джоба (сам stderr можно получить с помощью команды [`get_job_stderr`]((#get_job_stderr))              |
 | `error`            | `map`             | Словарь с описанием ошибки (для неуспешно завершившегося джоба).                                                                |
 | `statistics`       | `map`             | Словарь со статистиками джоба                                                            |
 | `brief_statistics` | `map`             | Словарь с краткими статистиками.                                                                                                |

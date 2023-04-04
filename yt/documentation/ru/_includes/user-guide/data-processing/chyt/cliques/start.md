@@ -30,7 +30,7 @@
 Для поднятия клики с `N` инстансами на кластере `<cluster_name>` необходимо:
 - `<cluster_name> <pool_tree_name> <running_operations> ` — `1` (клика – это одна {{product-name}} операция, которая запущена всегда);
 - `<cluster_name> <pool_tree_name> <total_operations>` — `1` (должен быть больше либо равен лимиту на кол-во выполняющихся операций);
-- `<cluster_name> <pool_tree_name> <CPU strong guarantee>` — `N * 16` (по умолчанию в 1 инстансе 16 ядер).
+- `<cluster_name> <pool_tree_name> <CPU strong guarantee>` — `N * 16` (по умолчанию в 1 инстансе 16 ядер CPU).
 
 
 {% endnote %}
@@ -91,5 +91,5 @@ yt clickhouse execute --proxy <cluster_name> --alias *example 'select avg(a) fro
 224.30769230769232
 ```
 
-Если клика остается недоступной более 10 минут, обратитесь за помощью в {% if audience == "internal" %}
+Если клика остается недоступной более 10 минут, попытайтесь понять, что с кликой не так самостоятельно, перейдя по ссылке `operation_url` из команды `status` в веб-интерфейсе операции. Или обратитесь за помощью в {% if audience == "internal" %}
 [чат CHYT](https://nda.ya.ru/t/Dqb57xyQ5psK3X){% else %}[чат {{product-name}}](https://t.me/ytsaurus_ru){% endif %}.

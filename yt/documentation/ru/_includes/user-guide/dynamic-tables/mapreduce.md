@@ -103,7 +103,7 @@ Row index и tablet index также можно указывать в диапа
 
 В отличие от timestamp, корректность индексов для упорядоченных таблиц __не валидирируется__: если указать индексы за пределами указанных ограничений, операция просто прочитает меньше данных, чем ожидалось.
 
-##  Конвертация статической таблицы в динамическую
+##  Конвертация статической таблицы в динамическую { #convert_table }
 
 Для конвертации статической таблицы в динамическую необходимо выполнить команду `alter-table`:
 
@@ -166,13 +166,71 @@ Row index и tablet index также можно указывать в диапа
 
 Если динамическую таблицу предполагается использовать только для чтения, стоит примонтировать её в «замороженном» состоянии (управляется флагом `--freeze` команды `mount-table`). Это запретит запись, отключит компактификацию и снизит накладные расходы на обслуживание таблицы. Стоит делать это лишь в случае, когда размеры чанков и блоков соответствуют рекомендованным.
 
+### Пример
+
+Ниже приведён пример скрипта, демонстрирующий, как можно сохранить сортированную динамическую таблицу в статическую и вспоследствии восстановить обратно. Данную операцию можно осуществлять для создания резервных копий динамических таблиц.
+
+Обратите внимание, что скрипт не является production-ready и приведён только для ознакомления. В частности, он сохраняет только некоторые атрибуты таблиц и никак не обратабывает ошибки.
+
+{% cut "Преобразование динамической таблицы в статическую и обратно" %}
+
+```python
+#!/usr/bin/python3
+import yt.wrapper as yt
+import argparse
+
+def dump(src, dst):
+    with yt.Transaction():
+        # Take snapshot lock for source table.
+        node_id = yt.lock(src, mode="snapshot")["node_id"]
+        # Get timestamp of flushed data
+        # (not required if @enable_dynamic_store_read is set).
+        ts = yt.get(f"#{node_id}/@unflushed_timestamp") - 1
+        # Create table and save vital attributes.
+        yt.create("table", dst, attributes={
+            "optimize_for": yt.get(f"#{node_id}/@optimize_for"),
+            "schema": yt.get(f"#{node_id}/@schema"),
+            "_yt_dump_restore_pivot_keys": yt.get(f"#{node_id}/@pivot_keys"),
+        })
+        # Dump table contents.
+        yt.run_merge(yt.TablePath(f"#{node_id}", attributes={"timestamp": ts}), dst, mode="ordered")
+
+def restore(src, dst):
+    # Create destination table.
+    yt.create("table", dst, attributes={
+        "optimize_for": yt.get(f"{src}/@optimize_for"),
+        "schema": yt.get(f"{src}/@schema"),
+    })
+    # Make blocks smaller (required for real-time lookups).
+    yt.run_merge(src, dst, mode="ordered", spec={
+        "job_io": {"table_writer": {"block_size": 256 * 2**10, "desired_chunk_size": 100 * 2**20}},
+        "force_transform": True,
+    })
+    # Make table dynamic.
+    yt.alter_table(dst, dynamic=True)
+    # Restore tablet structure.
+    yt.reshard_table(dst, yt.get(f"{src}/@_yt_dump_restore_pivot_keys"), sync=True)
+
+if __name__ ==  "__main__":
+    parser = argparse.ArgumentParser(description="Dynamic tables dump-restore tool")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--dump", nargs=2, metavar=("SOURCE", "DESTINATION"), help="Dump dynamic table to static")
+    mode.add_argument("--restore", nargs=2, metavar=("SOURCE", "DESTINATION"), help="Restore dynamic table from static")
+    args = parser.parse_args()
+    if args.dump:
+        dump(*args.dump)
+    if args.restore:
+        restore(*args.restore)
+```
+{% endcut %}
+
 ##  Использование вычисляемых колонок
 
 Для более равномерного распределения нагрузки по кластеру, динамические таблицы необходимо шардировать (разбивать на таблеты).  Для равномерного распределения нагрузки между таблетами может оказаться удобным добавить перед всеми ключевыми колонками дополнительную колонку, в которую записывать хеш от той части ключа, по которой логично выполнять шардирование, например, хеш от первой колонки. В результате получится таблица, ключи которой равномерно распределены в диапазоне `[0, 2^64-1]`.
 
 Добавленная таким образом колонка является вычисляемой. Формулу для вычисления необходимо указывать в схеме колонки в поле `expression`. Поддержка вычисляемых колонок добавлена во все операции кроме Sort. При записи в таблицу значение таких колонок будет вычисляться. Чтобы подготовить статическую таблицу для конвертации в динамическую, необходимо в первую очередь сделать таблицу в несортированной схеме (но с вычисляемыми колонками), затем отсортировать её с помощью операции Sort.
 
-Ниже приведён пример создания динамической таблицы с вычисляемыми колонками из статической. Вместо `write_rows` запись в таблицу могла бы быть осуществлена с помощью операций Map, Reduce, MapReduce или Merge. В последнем случае в спецификации необходимо указать `{'schema_inference_mode': 'from_output'}`, чтобы данные валидировались по схеме выходной таблицы.
+Ниже приведён пример создания динамической таблицы с вычисляемыми колонками из статической. Вместо `write_rows` запись в таблицу могла бы быть осуществлена с помощью операций Map, Reduce, MapReduce или Merge. В последнем случае в спецификации необходимо указать `{'schema_inference_mode': 'from_output'}`, чтобы данные валидировались по схеме выходной таблицы. Также при указании `schema_inference_mode` необходимо создавать выходную таблицу операции вручную, явно указывая требуемую схему. Если этого не сделать, используемое API попробует самостоятельно создать выходную таблицу, используя схему, выведенную из входной таблицы, что в данном случае приведёт к ошибкам.
 
 {% cut "Создание динамической таблицы с вычисляемыми колонками" %}
 
@@ -221,78 +279,14 @@ Row index и tablet index также можно указывать в диапа
 
 {% endcut %}
 
-##  Преобразование динамической таблицы в статическую и обратно { #convert_table }
-
-Ниже приведён пример скрипта, демонстрирующий как можно сохранить динамическую таблицу в статическую и после восстановить динамическую таблицу обратно из статической. Данную операцию можно осуществлять для создания резервных копий динамических таблиц.
-
-{% cut "Преобразование таблиц" %}
-
-  ```python
-  #!/usr/bin/python
-  import yt.wrapper as yt
-  import argparse
-
-  def dump(src, dst):
-      with yt.Transaction():
-          # Take snapshot lock for source table.
-          yt.lock(src, mode="snapshot")
-          # Get timestamp of flushed data.
-          ts = yt.get_attribute(src, "unflushed_timestamp") - 1
-          # Create table and save vital attributes.
-          yt.create("table", dst, attributes={
-              "optimize_for": yt.get_attribute(src, "optimize_for", default="lookup"),
-              "schema": yt.get_attribute(src, "schema"),
-              "_yt_dump_restore_pivot_keys": yt.get_attribute(src, "pivot_keys")
-          })
-          # Dump table contents.
-          yt.run_merge(yt.TablePath(src, attributes={"timestamp": ts}), dst, mode="ordered")
-
-  def restore(src, dst):
-      # Create destination table.
-      yt.create("table", dst, attributes={
-          "optimize_for": yt.get_attribute(src, "optimize_for", default="lookup"),
-          "schema": yt.get_attribute(src, "schema")
-      })
-      # Make blocks smaller (required for real-time lookups).
-      yt.run_merge(src, dst, mode="ordered", spec={
-          "job_io": {"table_writer": {"block_size": 256 * 2**10, "desired_chunk_size": 100 * 2**20}},
-          "force_transform": True
-      })
-      # Make table dynamic.
-      yt.alter_table(dst, dynamic=True)
-      # Restore tablet structure.
-      yt.reshard_table(dst, yt.get_attribute(src, "_yt_dump_restore_pivot_keys"), sync=True)
-
-  # Compact table to make reported size closer to expected (not necessary step, really).
-  def force_compact(table):
-      yt.mount_table(table, sync=True)
-      yt.set(table + "/@forced_compaction_revision", 1)
-      yt.remount_table(table)
-
-  if __name__ ==  "__main__":
-      parser = argparse.ArgumentParser(description="Dynamic tables dump-restore tool (require {{product-name}} 19.4 or larger).")
-      mode = parser.add_mutually_exclusive_group(required=True)
-      mode.add_argument("--dump", nargs=2, metavar=("SOURCE", "DESTINATION"), help="Dump dynamic table to static")
-      mode.add_argument("--restore", nargs=2, metavar=("SOURCE", "DESTINATION"), help="Restore dynamic table from static")
-      args = parser.parse_args()
-      if args.dump:
-          dump(*args.dump)
-      if args.restore:
-          restore(*args.restore)
-          force_compact(args.restore[1])
-  ```
-
-{% endcut %}
-
-
 ## Примеры запуска операций
 
-
+Запуск Map операции:
 ```bash
 yt map 'grep some_value' --src //path/to/dynamic/table --dst //tmp/output --spec '{pool = "project-pool"; job_count = 100; }'
 ```
 
-
+Запуск Reduce операции:
 ```bash
 yt reduce 'python my_reducer.py' --src //path/to/dynamic/table --dst '<sorted_by = ["key"]>'//tmp/output
 ```

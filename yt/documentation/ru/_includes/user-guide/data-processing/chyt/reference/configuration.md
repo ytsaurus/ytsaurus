@@ -125,7 +125,7 @@ YT-часть конфигурации инстанса живет в опции
   - `structure` — [схема данных](https://clickhouse.com/docs/en/sql-reference/dictionaries/external-dictionaries/external-dicts-dict-structure/), хранящихся в словаре;
   - `lifetime` — [время жизни](https://clickhouse.com/docs/en/sql-reference/dictionaries/external-dictionaries/external-dicts-dict-lifetime/) словаря.
 
-### Внешние словари { #external-dict }
+## Внешние словари { #external-dict }
 
 CHYT поддерживает все настройки `layout`, `structure` и `lifetime` обычного ClickHouse.
 

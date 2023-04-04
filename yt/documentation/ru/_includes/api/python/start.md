@@ -34,7 +34,7 @@ pip install ytsaurus-client
 
 {% note info "Для пользователей платформы Apple M1" %}
 
-В настоящий момент нет YSON биндингов собранных под платформу Apple. В качестве временного решения можно воспользоваться [Rosetta 2](https://ru.wikipedia.org/wiki/Rosetta_(программное_обеспечение)), и установить версию Python для архитектуры x86_64.
+В настоящий момент нет YSON биндингов собранных под платформу Apple. В качестве временного решения можно воспользоваться [Rosetta 2](https://ru.wikipedia.org/wiki/Rosetta_(программное_обеспечение)) и установить версию Python для архитектуры x86_64.
 
 Подробнее об этом можно прочитать по [ссылке](https://stackoverflow.com/questions/71691598/how-to-run-python-as-x86-with-rosetta2-on-arm-macos-machine).
 

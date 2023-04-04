@@ -4,7 +4,7 @@
 
 ## Типы данных { #data_types }
 
-В системе {{product-name}} хранятся данные следующих типов: 
+В системе {{product-name}} хранятся данные следующих типов:
 
 - [Структурированные данные](#structured_data)
 - [Табличные данные](#table_data)
@@ -35,7 +35,7 @@
 
 Поддерживаемые форматы: задать формат нельзя. Представление только в виде массива байтов.
 
-Примеры: входные данные команды `upload` и выходные данные команды `download`. 
+Примеры: входные данные команды `upload` и выходные данные команды `download`.
 
 ## Форматы представления табличных данных { #table_formats }
 
@@ -141,10 +141,17 @@ yt read --proxy <cluster-name> --format '<format=pretty>yson' '//home/tutorial/s
 - **enable_integral_type_conversion** (`true`) — включить приведение `uint64` к `int64` и наоборот. Обратите внимание, эта опция включена по умолчанию. Если при преобразовании происходит переполнение, то возникает соответствующая ошибка.
 - **enable_integral_to_double_conversion** (`false`) — включить приведение `uint64` и `int64` к `double`. Например, целое число `42` превратится в дробное число `42.0`.
 - **enable_type_conversion** (`false`) — включить все опции выше. В большинстве случаев достаточно пользоваться только этой опцией.
+- **complex_type_mode** (`named`) — режим представления композитных типов, структур и вариантов,
+  возможные значения `named` или `positional`, подробнее в [разделе](../../../user-guide/storage/data_types#yson).
+- **string_keyed_dict_mode** (`positional`) - режим представления словей со строковыми ключами, возможные значения `named` или `positional`, подробнее в [специальном разделе](../../../user-guide/storage/data_types#yson).
+- **decimal_mode** (`binary`) — режим представления типа `decimal`,
+  возможные значения `text`, `binary`, подробнее в [разделе](../../../user-guide/storage/data_types#yson).
+- **time_mode** (`binary`) — режим представления типов `date`, `datetime`, `timestamp`, возможные значения `text` или `binary`, подробнее в [разделе](../../../user-guide/storage/data_types#yson).
+- **uuid_mode** (`binary`) — режим представления типа `uuid`, возможные значения `binary`, `text_yql` или `text_yt` подробнее в [разделе](../../../user-guide/storage/data_types#yson).
 
 ## JSON { #json }
 
-[JSON](https://en.wikipedia.org/wiki/JSON) — широко распространенный формат для отображения структурированных данных. 
+[JSON](https://en.wikipedia.org/wiki/JSON) — широко распространенный формат для отображения структурированных данных.
 
 Работать с JSON удобно, используя популярные инструменты, например [jq](https://stedolan.github.io/jq/). Кроме того, нет необходимости устанавливать дополнительные библиотеки для поддержки YSON.
 Подробная спецификация [JSON](https://www.json.org/json-en.html).
@@ -152,7 +159,7 @@ yt read --proxy <cluster-name> --format '<format=pretty>yson' '//home/tutorial/s
 Основным форматом {{product-name}} является YSON. В отличие от JSON он имеет атрибуты. Поэтому для преобразования данных из YSON в JSON необходимо закодировать атрибуты в JSON. 
 Для этого конвертируйте узел с атрибутами в map-node c двумя ключами: 
 - `\$value` — его значением становится весь текущий узел без атрибутов;
-- `\$attributes` — его значением становится `map` атрибутов. 
+- `\$attributes` — его значением становится `map` атрибутов.
 
 Например, `<attr=10>{x=y}` представляется в виде `{"$value": {"x": "y"}, "$attributes": {"attr": 10}}`.
 
@@ -183,7 +190,7 @@ yt read --proxy <cluster-name> --format '<format=pretty>yson' '//home/tutorial/s
 
 {% endnote %}
 
-Запись UTF-8 строки: 
+Запись UTF-8 строки:
 
 {% list tabs %}
 - Python
@@ -195,7 +202,7 @@ yt read --proxy <cluster-name> --format '<format=pretty>yson' '//home/tutorial/s
 - CLI
 
    ```bash
-   echo "'{"key": "Иван"}{"key":"Иванов"}'" | YT_PROXY=cluster-name yt write --table "//path/to/table" --format="<encode_utf8=%false>json"
+   echo '{"key": "Иван"}{"key":"Иванов"}' | YT_PROXY=cluster-name yt write --table "//path/to/table" --format="<encode_utf8=%false>json"
    ```
 {% endlist %}
 
@@ -265,7 +272,7 @@ JSON имеет некомпактное представление байтов
 Поля в записи разделяются символом табуляции `\t`. 
 Подробнее можно прочитать ниже.
 
-Пример записи: `time=10\tday=monday\n`. 
+Пример записи: `time=10\tday=monday\n`.
 
 {% note warning "Внимание" %}
 
