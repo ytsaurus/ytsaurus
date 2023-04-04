@@ -46,4 +46,5 @@ message TMessage
     repeated TNestedMessage repeated_nested_message = 14;
     map<string, TNestedMessage> nested_message_map = 15 [(NYT.NYson.NProto.yson_map) = true];
     map<string, int32> string_to_int32_map = 23 [(NYT.NYson.NProto.yson_map) = true];
+    map<int32, int32> int32_to_int32_map = 35 [(NYT.NYson.NProto.yson_map) = true];
 }

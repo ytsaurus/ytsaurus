@@ -16,6 +16,20 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<typename TProtoMessage>
+NYTree::INodePtr MessageToNode(const TProtoMessage& message)
+{
+    TString newYsonString;
+    TStringOutput newYsonOutputStream(newYsonString);
+    NYson::TYsonWriter ysonWriter(&newYsonOutputStream, NYson::EYsonFormat::Pretty);
+    TString protobufString = message.SerializeAsString();
+    google::protobuf::io::ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
+    NYson::ParseProtobuf(&ysonWriter, &protobufInput, NYson::ReflectProtobufMessageType<TProtoMessage>());
+    return NYTree::ConvertToNode(NYson::TYsonString(newYsonString));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(ClearAttribute, EmptyPath)
 {
     NProto::TMessage message;
@@ -172,13 +186,7 @@ TEST(ClearAttribute, UnknownYsonField)
     EXPECT_EQ(1, message.int64_field());
     EXPECT_EQ(4, message.nested_message().int32_field());
 
-    TString newYsonString;
-    TStringOutput newYsonOutputStream(newYsonString);
-    NYson::TYsonWriter ysonWriter(&newYsonOutputStream, NYson::EYsonFormat::Pretty);
-    ASSERT_TRUE(message.SerializeToString(&protobufString));
-    google::protobuf::io::ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
-    NYson::ParseProtobuf(&ysonWriter, &protobufInput, NYson::ReflectProtobufMessageType<NProto::TMessage>());
-    auto node = NYTree::ConvertToNode(NYson::TYsonString(newYsonString));
+    auto node = MessageToNode(message);
     EXPECT_FALSE(node->AsMap()->FindChild("unknown_int1"));
     auto int2 = node->AsMap()->FindChild("unknown_int2");
     ASSERT_TRUE(int2);
@@ -227,13 +235,7 @@ TEST(ClearAttribute, UnknownYsonNestedField)
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/nested_message/unknown_map/key1", true));
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/nested_message/unknown_map1/key1", true));
 
-    TString newYsonString;
-    TStringOutput newYsonOutputStream(newYsonString);
-    NYson::TYsonWriter ysonWriter(&newYsonOutputStream, NYson::EYsonFormat::Pretty);
-    ASSERT_TRUE(message.SerializeToString(&protobufString));
-    google::protobuf::io::ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
-    NYson::ParseProtobuf(&ysonWriter, &protobufInput, NYson::ReflectProtobufMessageType<NProto::TMessage>());
-    auto root = NYTree::ConvertToNode(NYson::TYsonString(newYsonString));
+    auto root = MessageToNode(message);
     auto nested = root->AsMap()->FindChild("nested_message");
     ASSERT_TRUE(nested);
     auto map = nested->AsMap()->FindChild("unknown_map");
@@ -570,13 +572,7 @@ TEST(SetAttribute, UnknownYsonFields)
         SetProtobufFieldByPath(message, "/unknown_int2", NYTree::ConvertToNode(3), {}),
         "\"/unknown_int2\" is unknown");
 
-    TString newYsonString;
-    TStringOutput newYsonOutputStream(newYsonString);
-    NYson::TYsonWriter ysonWriter(&newYsonOutputStream, NYson::EYsonFormat::Pretty);
-    TString protobufString = message.SerializeAsString();
-    google::protobuf::io::ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
-    NYson::ParseProtobuf(&ysonWriter, &protobufInput, NYson::ReflectProtobufMessageType<NProto::TMessage>());
-    auto node = NYTree::ConvertToNode(NYson::TYsonString(newYsonString));
+    auto node = MessageToNode(message);
     auto int1 = node->AsMap()->FindChild("unknown_int1");
     EXPECT_EQ(2, int1->AsInt64()->GetValue());
     EXPECT_FALSE(node->AsMap()->FindChild("unknown_string"));
@@ -609,13 +605,7 @@ TEST(SetAttribute, UnknownYsonFieldsByPath)
     EXPECT_THROW_WITH_SUBSTRING(SetProtobufFieldByPath(message, "/nested_message", node2, options), "unknown_int");
     EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/nested_message", node1, options));
 
-    TString newYsonString;
-    TStringOutput newYsonOutputStream(newYsonString);
-    NYson::TYsonWriter ysonWriter(&newYsonOutputStream, NYson::EYsonFormat::Pretty);
-    TString protobufString = message.SerializeAsString();
-    google::protobuf::io::ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
-    NYson::ParseProtobuf(&ysonWriter, &protobufInput, NYson::ReflectProtobufMessageType<NProto::TMessage>());
-    auto node = NYTree::ConvertToNode(NYson::TYsonString(newYsonString));
+    auto node = MessageToNode(message);
     auto nested = node->AsMap()->FindChild("nested_message");
     ASSERT_TRUE(nested);
 
@@ -648,13 +638,7 @@ TEST(SetAttribute, UnknownYsonNestedFieldsByPath)
     EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/unknown_map/nested/key_list", node2, options, true));
     EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/unknown_map/nested/key_list/0", node1, options));
 
-    TString newYsonString;
-    TStringOutput newYsonOutputStream(newYsonString);
-    NYson::TYsonWriter ysonWriter(&newYsonOutputStream, NYson::EYsonFormat::Pretty);
-    TString protobufString = message.SerializeAsString();
-    google::protobuf::io::ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
-    NYson::ParseProtobuf(&ysonWriter, &protobufInput, NYson::ReflectProtobufMessageType<NProto::TMessage>());
-    auto root = NYTree::ConvertToNode(NYson::TYsonString(newYsonString));
+    auto root = MessageToNode(message);
     auto map = root->AsMap()->FindChild("unknown_map");
     ASSERT_TRUE(map);
     auto nested = map->AsMap()->FindChild("nested");
@@ -663,6 +647,26 @@ TEST(SetAttribute, UnknownYsonNestedFieldsByPath)
     ASSERT_EQ(1, child->AsInt64()->GetValue());
     auto list = nested->AsMap()->FindChild("key_list");
     ASSERT_EQ(1, list->AsList()->FindChild(0)->AsInt64()->GetValue());
+}
+
+TEST(SetAttribute, MapWithNonStringKey)
+{
+    NProto::TMessage message;
+    auto node = NYTree::BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("1").Value(1)
+            .Item("-1").Value(2)
+            .Item("170").Value(2)
+        .EndMap();
+    EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/int32_to_int32_map", node));
+    auto root = MessageToNode(message);
+    auto map = root->AsMap()->FindChild("int32_to_int32_map");
+    auto e1 = map->AsMap()->FindChild("1");
+    ASSERT_TRUE(e1);
+    auto e2 = map->AsMap()->FindChild("-1");
+    ASSERT_TRUE(e2);
+    auto e3 = map->AsMap()->FindChild("170");
+    ASSERT_TRUE(e3);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

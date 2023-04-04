@@ -98,6 +98,70 @@ struct TMutabilityTraits</*IsMutable*/ false>
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TString& GetKey(
+    const NProtoBuf::Message& message,
+    const FieldDescriptor* field,
+    TString& scratch)
+{
+    const auto* reflection = message.GetReflection();
+    switch (field->cpp_type()) {
+        case FieldDescriptor::CPPTYPE_INT32:
+            scratch = ToString(reflection->GetInt32(message, field));
+            return scratch;
+        case FieldDescriptor::CPPTYPE_INT64:
+            scratch = ToString(reflection->GetInt64(message, field));
+            return scratch;
+        case FieldDescriptor::CPPTYPE_UINT32:
+            scratch = ToString(reflection->GetUInt32(message, field));
+            return scratch;
+        case FieldDescriptor::CPPTYPE_UINT64:
+            scratch = ToString(reflection->GetUInt64(message, field));
+            return scratch;
+        case FieldDescriptor::CPPTYPE_BOOL:
+            scratch = ToString(reflection->GetBool(message, field));
+            return scratch;
+        case FieldDescriptor::CPPTYPE_STRING:
+            return reflection->GetStringReference(message, field, &scratch);
+        default:
+            break;
+    }
+    THROW_ERROR_EXCEPTION("Unexpected map key type %v",
+        static_cast<int>(field->cpp_type()));
+}
+
+
+void SetKey(
+    NProtoBuf::Message* message,
+    const FieldDescriptor* field,
+    const TString& key)
+{
+    const auto* reflection = message->GetReflection();
+    switch (field->cpp_type()) {
+        case FieldDescriptor::CPPTYPE_INT32:
+            reflection->SetInt32(message, field, FromString<i32>(key));
+            return;
+        case FieldDescriptor::CPPTYPE_INT64:
+            reflection->SetInt64(message, field, FromString<i64>(key));
+            return;
+        case FieldDescriptor::CPPTYPE_UINT32:
+            reflection->SetUInt32(message, field, FromString<ui32>(key));
+            return;
+        case FieldDescriptor::CPPTYPE_UINT64:
+            reflection->SetUInt64(message, field, FromString<ui64>(key));
+            return;
+        case FieldDescriptor::CPPTYPE_BOOL:
+            reflection->SetBool(message, field, FromString<bool>(key));
+            return;
+        case FieldDescriptor::CPPTYPE_STRING:
+            reflection->SetString(message, field, key);
+            return;
+        default:
+            break;
+    }
+    THROW_ERROR_EXCEPTION("Unexpected map key type %v",
+        static_cast<int>(field->cpp_type()));
+}
+
 template <bool IsMutable>
 struct TLookupMapItemResult
 {
@@ -113,7 +177,6 @@ std::optional<TLookupMapItemResult<IsMutable>> LookupMapItem(
 {
     YT_VERIFY(field->is_map());
     const auto* keyType = field->message_type()->map_key();
-    YT_ASSERT(keyType->cpp_type() == FieldDescriptor::CPPTYPE_STRING);
 
     const auto* reflection = message->GetReflection();
     int count = reflection->FieldSize(*message, field);
@@ -121,7 +184,7 @@ std::optional<TLookupMapItemResult<IsMutable>> LookupMapItem(
     TString tmp;
     for (int index = 0; index < count; ++index) {
         auto* item = TMutabilityTraits<IsMutable>::GetRepeatedMessage(message, field, index);
-        const TString& mapKey = item->GetReflection()->GetStringReference(*item, keyType, /*scratch*/ &tmp);
+        const TString& mapKey = GetKey(*item, keyType, tmp);
         if (mapKey == key) {
             return TLookupMapItemResult<IsMutable>{item, index};
         }
@@ -133,12 +196,11 @@ NProtoBuf::Message* AddMapItem(NProtoBuf::Message* message, const FieldDescripto
 {
     YT_VERIFY(field->is_map());
     const auto* keyType = field->message_type()->map_key();
-    YT_ASSERT(keyType->cpp_type() == FieldDescriptor::CPPTYPE_STRING);
 
     auto* item = message->GetReflection()->AddMessage(message, field);
     YT_VERIFY(item);
 
-    item->GetReflection()->SetString(item, keyType, TString{key});
+    SetKey(item, keyType, key);
     return item;
 }
 
@@ -390,12 +452,6 @@ void Traverse(
         }
         if (field->is_map()) {
             const auto* mapType = field->message_type();
-            THROW_ERROR_EXCEPTION_UNLESS(
-                mapType->map_key()->cpp_type() == FieldDescriptor::CPPTYPE_STRING,
-                "Unexpected type %v for map key at %Qv",
-                mapType->map_key()->type_name(),
-                tokenizer.GetPrefixPlusToken());
-
             tokenizer.Expect(NYPath::ETokenType::Slash);
             tokenizer.Advance();
             tokenizer.Expect(NYPath::ETokenType::Literal);
@@ -540,21 +596,16 @@ public:
     {
         YT_VERIFY(field->is_map());
         TString tmp;
-        const auto* keyType = field->message_type()->map_key();
         const auto* reflection = message->GetReflection();
         int count = reflection->FieldSize(*message, field);
-        for (int index = 0; index < count; ++index) {
-            auto* map = TMutabilityTraits<IsMutable>::GetRepeatedMessage(message, field, index);
-            const TString& mapKey = map->GetReflection()->GetStringReference(*map, keyType, &tmp);
-            if (mapKey == key) {
-                if (index != count - 1) {
-                    reflection->SwapElements(message, field, index, count - 1);
-                }
-                reflection->RemoveLast(message, field);
-                return;
-            }
+        auto item = LookupMapItem<IsMutable>(message, field, key);
+        if (!item) {
+            THROW_ERROR_EXCEPTION_UNLESS(SkipMissing_, "Attribute %Qv is missing", path);
+            return;
         }
-        THROW_ERROR_EXCEPTION_UNLESS(SkipMissing_, "Attribute %Qv is missing", path);
+
+        reflection->SwapElements(message, field, item->Index, count - 1);
+        reflection->RemoveLast(message, field);
     }
 
     void HandleUnknown(TGenericMessage* message, NYPath::TTokenizer& tokenizer) const final
@@ -735,7 +786,7 @@ private:
         for (const auto& [key, value] : Value_->AsMap()->GetChildren()) {
             TString fullPath = Format("%v/%v", path, key);
             auto* item = reflection->AddMessage(message, field);
-            item->GetReflection()->SetString(item, field->message_type()->map_key(), key);
+            SetKey(item, field->message_type()->map_key(), key);
             SetValue(item, field->message_type()->map_value(), fullPath, value);
         }
     }
