@@ -191,7 +191,6 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateControllerAgentService(this));
     RpcServer_->RegisterService(CreateJobProberService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
-    RpcServer_->RegisterService(CreateOldJobTrackerService(this));
 
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();

@@ -692,6 +692,7 @@ class YTEnvSetup(object):
             # COMPAT(pogorelov)
             if "node" in cls.ARTIFACT_COMPONENTS.get("22_4", []):
                 config["exec_agent"]["controller_agent_connector"]["running_job_sending_backoff"] = 0
+                config["exec_agent"]["controller_agent_connector"]["use_new_job_tracker_service"] = True
                 config["exec_agent"]["scheduler_connector"]["use_allocation_tracker_service"] = True
 
             config["exec_agent"]["job_proxy_upload_debug_artifact_chunks"] = cls.UPLOAD_DEBUG_ARTIFACT_CHUNKS

@@ -10,16 +10,6 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// COMPAT(pogorelov): Remove when all nodes will be 23.1.
-class TOldJobTrackerServiceProxy
-    : public NRpc::TProxyBase
-{
-public:
-    DEFINE_RPC_PROXY(TOldJobTrackerServiceProxy, ControllerAgentConnectorService);
-
-    DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);
-};
-
 class TJobTrackerServiceProxy
     : public NRpc::TProxyBase
 {

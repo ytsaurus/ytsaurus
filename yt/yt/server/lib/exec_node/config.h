@@ -267,8 +267,6 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     std::optional<TDuration> RunningJobStatisticsSendingBackoff;
 
-    bool UseNewJobTrackerService;
-
     REGISTER_YSON_STRUCT(TControllerAgentConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);

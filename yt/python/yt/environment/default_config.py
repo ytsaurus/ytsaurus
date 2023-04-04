@@ -489,7 +489,6 @@ def get_node_config():
 
         controller_agent_connector = {
             running_job_statistics_sending_backoff = 0;
-            use_new_job_tracker_service = %true;
         };
 
         job_proxy_heartbeat_period = 200;

@@ -108,7 +108,6 @@ TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConne
     YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
 }
 
-template <class TJobTrackerServiceProxy>
 void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
 {
     VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
@@ -189,11 +188,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
 {
     VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
 
-    if (ControllerAgentConnectorPool_->UseNewJobTrackerService_) {
-        DoSendHeartbeat<TJobTrackerServiceProxy>();
-    } else {
-        DoSendHeartbeat<TOldJobTrackerServiceProxy>();
-    }
+    DoSendHeartbeat();
 }
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::OnAgentIncarnationOutdated() noexcept
@@ -266,11 +261,9 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
     }
 
     TDuration testHeartbeatDelay;
-    bool useNewJobTrackerService = false;
     TControllerAgentConnectorConfigPtr newCurrentConfig;
     if (newConfig->ControllerAgentConnector) {
         testHeartbeatDelay = newConfig->ControllerAgentConnector->TestHeartbeatDelay;
-        useNewJobTrackerService = newConfig->ControllerAgentConnector->UseNewJobTrackerService;
 
         newCurrentConfig = StaticConfig_->ApplyDynamic(newConfig->ControllerAgentConnector);
     }
@@ -281,11 +274,9 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
             this_{MakeStrong(this)},
             newConfig{std::move(newConfig)},
             testHeartbeatDelay,
-            useNewJobTrackerService,
             newCurrentConfig{std::move(newCurrentConfig)}]
         {
             TestHeartbeatDelay_ = testHeartbeatDelay;
-            UseNewJobTrackerService_ = useNewJobTrackerService;
             CurrentConfig_ = newCurrentConfig ? newCurrentConfig : StaticConfig_;
             OnConfigUpdated();
         }));
