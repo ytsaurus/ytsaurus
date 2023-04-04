@@ -2171,6 +2171,7 @@ public:
         const TString& name,
         std::optional<bool> transient,
         std::optional<int> priority,
+        std::optional<int> hintIndex,
         TObjectId hintId) override
     {
         ValidateMediumName(name);
@@ -2189,7 +2190,7 @@ public:
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Medium, hintId);
-        auto mediumIndex = GetFreeMediumIndex();
+        auto mediumIndex = hintIndex ? *hintIndex : GetFreeMediumIndex();
         return DoCreateMedium(
             id,
             mediumIndex,

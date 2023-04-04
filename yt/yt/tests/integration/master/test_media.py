@@ -146,7 +146,7 @@ class TestMedia(YTEnvSetup):
         assert get("//sys/media/default/@index") == 0
 
     @authors("shakurov")
-    def test_create(self):
+    def test_create_simple(self):
         assert get("//sys/media/hdd4/@name") == "hdd4"
         assert get("//sys/media/hdd4/@index") > 0
 

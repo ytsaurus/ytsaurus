@@ -351,6 +351,7 @@ private:
         const TString& name,
         std::optional<bool> transient,
         std::optional<int> priority,
+        std::optional<int> hintIndex,
         NObjectClient::TObjectId hintId) = 0;
     virtual void DestroyMedium(TMedium* medium) = 0;
 };
