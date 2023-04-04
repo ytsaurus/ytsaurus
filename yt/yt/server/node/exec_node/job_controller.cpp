@@ -1122,36 +1122,33 @@ private:
 
         ConfirmJobs(jobIdsToConfirm);
 
-        // COMPAT(pogorelov)
-        if constexpr (std::is_same_v<TRspSchedulerHeartbeatPtr, IJobController::TRspSchedulerHeartbeatPtr>) {
-            for (const auto& protoOperationInfo : response->operation_infos()) {
-                auto operationId = FromProto<TOperationId>(protoOperationInfo.operation_id());
-                if (!protoOperationInfo.running()) {
-                    HandleJobsOfNonRunningOperation(operationId);
-                    continue;
-                }
-
-                if (!protoOperationInfo.has_controller_agent_descriptor()) {
-                    UpdateOperationControllerAgent(operationId, TControllerAgentDescriptor{});
-                    continue;
-                }
-
-                auto descriptorOrError = TryParseControllerAgentDescriptor(protoOperationInfo.controller_agent_descriptor());
-                YT_LOG_FATAL_IF(
-                    !descriptorOrError.IsOK(),
-                    descriptorOrError,
-                    "Failed to parse new controller agent descriptor for operation (OperationId: %v)",
-                    operationId);
-
-                UpdateOperationControllerAgent(operationId, std::move(descriptorOrError.Value()));
+        for (const auto& protoOperationInfo : response->operation_infos()) {
+            auto operationId = FromProto<TOperationId>(protoOperationInfo.operation_id());
+            if (!protoOperationInfo.running()) {
+                HandleJobsOfNonRunningOperation(operationId);
+                continue;
             }
 
-            {
-                auto minSpareResources = FromProto<NScheduler::TJobResources>(response->min_spare_resources());
-
-                const auto& schedulerConnector = Bootstrap_->GetExecNodeBootstrap()->GetSchedulerConnector();
-                schedulerConnector->SetMinSpareResources(minSpareResources);
+            if (!protoOperationInfo.has_controller_agent_descriptor()) {
+                UpdateOperationControllerAgent(operationId, TControllerAgentDescriptor{});
+                continue;
             }
+
+            auto descriptorOrError = TryParseControllerAgentDescriptor(protoOperationInfo.controller_agent_descriptor());
+            YT_LOG_FATAL_IF(
+                !descriptorOrError.IsOK(),
+                descriptorOrError,
+                "Failed to parse new controller agent descriptor for operation (OperationId: %v)",
+                operationId);
+
+            UpdateOperationControllerAgent(operationId, std::move(descriptorOrError.Value()));
+        }
+
+        {
+            auto minSpareResources = FromProto<NScheduler::TJobResources>(response->min_spare_resources());
+
+            const auto& schedulerConnector = Bootstrap_->GetExecNodeBootstrap()->GetSchedulerConnector();
+            schedulerConnector->SetMinSpareResources(minSpareResources);
         }
 
         YT_VERIFY(response->Attachments().empty());
@@ -1294,17 +1291,12 @@ private:
             ToProto(request->mutable_unconfirmed_allocations(), context->UnconfirmedJobIds);
         }
 
-        // COMPAT(pogorelov)
-        if constexpr (std::is_same_v<TReqSchedulerHeartbeatPtr, IJobController::TReqSchedulerHeartbeatPtr>) {
-            if (requestOperationInfosForStoredJobs) {
-                YT_LOG_DEBUG("Adding operation info requests for stored jobs (Count: %v)", std::size(operationIdsToRequestInfo));
+        if (requestOperationInfosForStoredJobs) {
+            YT_LOG_DEBUG("Adding operation info requests for stored jobs (Count: %v)", std::size(operationIdsToRequestInfo));
 
-                for (auto operationId : operationIdsToRequestInfo) {
-                    ToProto(request->add_operations_ids_to_request_info(), operationId);
-                }
+            ToProto(request->mutable_operations_ids_to_request_info(), operationIdsToRequestInfo);
 
-                LastOperationInfosRequestTime_ = TInstant::Now();
-            }
+            LastOperationInfosRequestTime_ = TInstant::Now();
         }
 
         YT_LOG_DEBUG("Scheduler heartbeat request prepared");
