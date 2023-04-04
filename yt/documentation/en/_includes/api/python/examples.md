@@ -75,7 +75,7 @@ The example is located at [yt/python/examples/job_decorators_typed](https://gith
 For more information, see the [documentation](../../../api/python/userdoc.md#file_commands).
 For more information about files in Cypress, see the [section](../../../user-guide/storage/files.md).
 
-The example is located at [yt/python/examples/files_types](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/files_types).
+The example is located at [yt/python/examples/files_typed](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/files_typed).
 
 ### Grep { #grep }
 The typed API enables you to work with fairly arbitrary data using a single data class and a single operation class. As an example, let's consider the job of filtering a table based on a regular expression matching a given row field.
@@ -120,7 +120,7 @@ The example is located at [yt/python/examples/prepare_operation_typed](https://g
 
 This example demonstrates the features and peculiarities of working with [data classes](../../../api/python/userdoc.md#dataclass) in more detail.
 
-The example is located at [yt/python/examples/dataclass_types](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/dataclass_types).
+The example is located at [yt/python/examples/dataclass_typed](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/dataclass_typed).
 
 ### Context and managing writes to output tables { #table_switches }
 

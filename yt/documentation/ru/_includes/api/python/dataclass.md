@@ -6,7 +6,7 @@
 
 {% endnote %}
 
-Основной способ представления строк таблицы — это классы с полями, которые размечены типами (аналог [dataclasses](https://docs.python.org/3/library/dataclasses.html)). См. также [пример](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/dataclass_types).
+Основной способ представления строк таблицы — это классы с полями, которые размечены типами (аналог [dataclasses](https://docs.python.org/3/library/dataclasses.html)). См. также [пример](https://github.com/ytsaurus/ytsaurus/tree/main/yt/python/examples/dataclass_typed).
 
 ## Мотивация { #motivation }
 
@@ -48,7 +48,7 @@ class Row:
 
   1. Создать таблицу с соответствующей схемой (можно просто начать писать в пустую или несуществующую таблицу или использовать функцию `TableSchema.from_row_type()`).
   2. Писать и читать [таблицы](../../../api/python/userdoc.md#table_commands), [пример](../../../api/python/examples.md#read_write).
-  3. Запускать [операции](../../../api/python/userdoc.md#python_operations), [пример](./../../api/python/examples.md#simple_map).
+  3. Запускать [операции](../../../api/python/userdoc.md#python_operations), [пример](../../../api/python/examples.md#simple_map).
 
 
 ## Специальные типы { #types }
