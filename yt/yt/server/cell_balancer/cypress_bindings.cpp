@@ -490,6 +490,10 @@ void TBundleSystemOptions::Register(TRegistrar registrar)
 
     registrar.Parameter("snapshot_primary_medium", &TThis::SnapshotPrimaryMedium)
         .Default();
+
+    registrar.Parameter("peer_count", &TThis::PeerCount)
+        .GreaterThan(0)
+        .Default(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

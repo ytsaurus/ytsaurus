@@ -740,6 +740,8 @@ struct TBundleSystemOptions
     TString SnapshotAccount;
     TString SnapshotPrimaryMedium;
 
+    int PeerCount;
+
     REGISTER_YSON_STRUCT(TBundleSystemOptions);
 
     static void Register(TRegistrar registrar);
