@@ -14,11 +14,19 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSpecFetchFailedAllocationInfo
+{
+    TOperationId OperationId;
+    TError Error;
+};
+
 struct TSchedulerHeartbeatContext
     : public TRefCounted
 {
     THashSet<TJobPtr> JobsToForcefullySend;
     THashSet<TJobId> UnconfirmedJobIds;
+
+    THashMap<TAllocationId, TSpecFetchFailedAllocationInfo> SpecFetchFailedAllocations;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerHeartbeatContext)
@@ -42,8 +50,10 @@ public:
     void SetMinSpareResources(const NScheduler::TJobResources& minSpareResources);
 
     void EnqueueFinishedJobs(std::vector<TJobPtr> jobs);
-
     void AddUnconfirmedJobs(const std::vector<TJobId>& unconfirmedJobIds);
+
+    void EnqueueSpecFetchFailedAllocation(TAllocationId allocationId, TSpecFetchFailedAllocationInfo info);
+    void RemoveSpecFetchFailedAllocations(THashMap<TAllocationId, TSpecFetchFailedAllocationInfo> allocations);
 
     using TRspHeartbeat = NRpc::TTypedClientResponse<
         NScheduler::NProto::NNode::TRspHeartbeat>;
@@ -81,6 +91,8 @@ private:
 
     THashSet<TJobPtr> JobsToForcefullySend_;
     THashSet<TJobId> UnconfirmedJobIds_;
+
+    THashMap<TAllocationId, TSpecFetchFailedAllocationInfo> SpecFetchFailedAllocations_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

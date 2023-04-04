@@ -79,7 +79,7 @@ NScheduler::TAllocationToAbort ParseAllocationToAbort(const NScheduler::NProto::
     return result;
 }
 
-// AllocationId is currently equal to JobId.
+// COMPAT(pogorelov): AllcationId is currently equal to JobId.
 TAllocationId ToAllocationId(TJobId jobId)
 {
     return jobId;
@@ -450,12 +450,6 @@ private:
     };
     THashMap<TJobId, TRecentlyRemovedJobRecord> RecentlyRemovedJobMap_;
 
-    //! Allocations that did not succeed in fetching spec are not getting
-    //! their TJob structure, so we have to store job id alongside
-    //! with the operation id to fill the TJobStatus proto message
-    //! properly.
-    THashMap<TAllocationId, TOperationId> SpecFetchFailedAllocationIds_;
-
     bool StartJobsScheduled_ = false;
 
     std::atomic<bool> DisableJobs_ = false;
@@ -508,9 +502,9 @@ private:
             auto operationId = FromProto<TOperationId>(startInfo.operation_id());
             auto jobId = FromAllocationId(FromProto<TAllocationId>(startInfo.allocation_id()));
 
-            auto agentDescriptorOrError = TryParseControllerAgentDescriptor(startInfo.controller_agent_descriptor());
-
-            if (agentDescriptorOrError.IsOK()) {
+            if (auto agentDescriptorOrError = TryParseControllerAgentDescriptor(startInfo.controller_agent_descriptor());
+                agentDescriptorOrError.IsOK())
+            {
                 auto& agentDescriptor = agentDescriptorOrError.Value();
                 YT_LOG_DEBUG("Job spec will be requested (OperationId: %v, JobId: %v, SpecServiceAddress: %v)",
                     operationId,
@@ -521,7 +515,11 @@ private:
                 YT_LOG_DEBUG(agentDescriptorOrError, "Job spec cannot be requested (OperationId: %v, JobId: %v)",
                     operationId,
                     jobId);
-                EmplaceOrCrash(SpecFetchFailedAllocationIds_, ToAllocationId(jobId), operationId);
+
+                const auto& schedulerConnector = Bootstrap_->GetExecNodeBootstrap()->GetSchedulerConnector();
+                schedulerConnector->EnqueueSpecFetchFailedAllocation(
+                    ToAllocationId(jobId),
+                    TSpecFetchFailedAllocationInfo{operationId, std::move(agentDescriptorOrError)});
             }
         }
 
@@ -575,9 +573,13 @@ private:
             YT_LOG_DEBUG(rspOrError, "Error getting job specs (SpecServiceAddress: %v)",
                 controllerAgentDescriptor.Address);
             for (const auto& startInfo : startInfos) {
-                auto jobId = FromAllocationId(FromProto<TAllocationId>(startInfo.allocation_id()));
+                auto allocationId = FromProto<TAllocationId>(startInfo.allocation_id());
                 auto operationId = FromProto<TOperationId>(startInfo.operation_id());
-                EmplaceOrCrash(SpecFetchFailedAllocationIds_, ToAllocationId(jobId), operationId);
+
+                const auto& schedulerConnector = Bootstrap_->GetExecNodeBootstrap()->GetSchedulerConnector();
+                schedulerConnector->EnqueueSpecFetchFailedAllocation(
+                    allocationId,
+                    TSpecFetchFailedAllocationInfo{operationId, rspOrError});
             }
             return;
         }
@@ -589,16 +591,19 @@ private:
         YT_VERIFY(rsp->responses_size() == std::ssize(startInfos));
         for (size_t index = 0; index < startInfos.size(); ++index) {
             auto& startInfo = startInfos[index];
+
             auto operationId = FromProto<TOperationId>(startInfo.operation_id());
-            auto jobId = FromAllocationId(FromProto<TAllocationId>(startInfo.allocation_id()));
+            auto allocationId = FromProto<TAllocationId>(startInfo.allocation_id());
 
             const auto& subresponse = rsp->mutable_responses(index);
-            auto error = FromProto<TError>(subresponse->error());
-            if (!error.IsOK()) {
-                EmplaceOrCrash(SpecFetchFailedAllocationIds_, ToAllocationId(jobId), operationId);
-                YT_LOG_DEBUG(error, "No spec is available for job (OperationId: %v, JobId: %v)",
+            if (auto error = FromProto<TError>(subresponse->error()); !error.IsOK()) {
+                const auto& schedulerConnector = Bootstrap_->GetExecNodeBootstrap()->GetSchedulerConnector();
+                schedulerConnector->EnqueueSpecFetchFailedAllocation(
+                    allocationId,
+                    TSpecFetchFailedAllocationInfo{operationId, std::move(error)});
+                YT_LOG_DEBUG(error, "No spec is available for allocation (OperationId: %v, AllocationId: %v)",
                     operationId,
-                    jobId);
+                    allocationId);
                 continue;
             }
 
@@ -612,7 +617,8 @@ private:
                     startInfo.resource_limits().cpu() * JobResourceManager_->GetCpuToVCpuFactor())));
 
             CreateJob(
-                jobId,
+                // TODO(pogorelov): Send jobId with spec.
+                FromAllocationId(allocationId),
                 operationId,
                 startInfo.resource_limits(),
                 std::move(spec),
@@ -1005,9 +1011,6 @@ private:
         for (const auto& protoJobToRemove : response->jobs_to_remove()) {
             auto jobToRemove = FromProto<TJobToRelease>(protoJobToRemove);
             auto jobId = jobToRemove.JobId;
-            if (SpecFetchFailedAllocationIds_.erase(jobId) == 1) {
-                continue;
-            }
 
             if (auto job = FindJob(jobId)) {
                 RemoveJob(job, jobToRemove.ReleaseFlags);
@@ -1266,19 +1269,27 @@ private:
 
         request->set_confirmed_job_count(confirmedJobCount);
 
-        for (auto [allocationId, operationId] : GetSpecFetchFailedAllocationIds()) {
+        for (const auto& [allocationId, info] : context->SpecFetchFailedAllocations) {
             auto* jobStatus = request->add_allocations();
             ToProto(jobStatus->mutable_allocation_id(), allocationId);
-            ToProto(jobStatus->mutable_operation_id(), operationId);
+            ToProto(jobStatus->mutable_operation_id(), info.OperationId);
             jobStatus->set_state(static_cast<int>(JobStateToAllocationState(EJobState::Aborted)));
 
             jobStatus->mutable_time_statistics();
 
             TAllocationResult jobResult;
-            auto error = TError("Failed to get job spec")
-                << TErrorAttribute("abort_reason", EAbortReason::GetSpecFailed);
+            auto error = (TError("Failed to get job spec")
+                << TErrorAttribute("abort_reason", EAbortReason::GetSpecFailed))
+                << info.Error;
             ToProto(jobResult.mutable_error(), error);
             *jobStatus->mutable_result() = jobResult;
+        }
+
+        for (const auto& [allocationId, info] : context->SpecFetchFailedAllocations) {
+            auto* specFetchFailedAllocationInfoProto = request->add_spec_fetch_failed_allocations();
+            ToProto(specFetchFailedAllocationInfoProto->mutable_allocation_id(), allocationId);
+            ToProto(specFetchFailedAllocationInfoProto->mutable_operation_id(), info.OperationId);
+            ToProto(specFetchFailedAllocationInfoProto->mutable_error(), info.Error);
         }
 
         if (!std::empty(context->UnconfirmedJobIds)) {
@@ -1747,13 +1758,6 @@ private:
         jobFinalStateCounter->Increment();
 
         JobFinished_.Fire(job);
-    }
-
-    const THashMap<TJobId, TOperationId>& GetSpecFetchFailedAllocationIds() const noexcept
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        return SpecFetchFailedAllocationIds_;
     }
 
     void UpdateJobProxyBuildInfo()

@@ -1850,10 +1850,41 @@ void TNodeShard::ProcessHeartbeatJobs(
         }
     }
 
+    // COMPAT(pogorelov)
+    THashSet<TAllocationId> specFetchFailedAllocations;
+
+    for (const auto& specFetchFailedAllocationProto : request->spec_fetch_failed_allocations()) {
+        auto allocationId = NYT::FromProto<TAllocationId>(specFetchFailedAllocationProto.allocation_id());
+        auto operationId = NYT::FromProto<TOperationId>(specFetchFailedAllocationProto.operation_id());
+        auto specFetchError = NYT::FromProto<TError>(specFetchFailedAllocationProto.error());
+
+        YT_LOG_DEBUG(
+            "Node has failed to get job spec, abort job (JobId: %v, OperationId: %v, Error: %v)",
+            allocationId,
+            operationId,
+            specFetchError);
+
+        if (auto job = FindJob(allocationId)) {
+            auto error = (TError("Failed to get job spec")
+                << TErrorAttribute("abort_reason", EAbortReason::GetSpecFailed))
+                << specFetchError;
+            OnJobAborted(job, error, EAbortReason::GetSpecFailed);
+        }
+
+        specFetchFailedAllocations.emplace(allocationId);
+    }
+
     // Used for debug logging.
     TAllocationStateToJobList ongoingJobsByAllocationState;
     std::vector<TJobId> recentlyFinishedJobIdsToLog;
     for (auto& jobStatus : *MutableJobs(request)) {
+        auto jobId = GetJobId(&jobStatus);
+
+        // COMPAT(pogorelov)
+        if (specFetchFailedAllocations.contains(jobId)) {
+            continue;
+        }
+
         TJobPtr job;
         try {
             job = ProcessJobHeartbeat(

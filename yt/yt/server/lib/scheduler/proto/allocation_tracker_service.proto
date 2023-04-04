@@ -9,9 +9,18 @@ import "yt/ytlib/scheduler/proto/job.proto";
 
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
+import "yt_proto/yt/core/misc/proto/error.proto";
+
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TSpecFetchFailedAllocationInfo
+{
+    required NYT.NProto.TGuid allocation_id = 1;
+    required NYT.NProto.TGuid operation_id = 2;
+    required NYT.NProto.TError error = 3;
+};
 
 // Informs Allocation Tracker about node status and requests orders.
 message TReqHeartbeat
@@ -27,6 +36,8 @@ message TReqHeartbeat
     optional bool job_reporter_queue_is_too_large = 8;
 
     repeated NYT.NProto.TGuid operations_ids_to_request_info = 11;
+
+    repeated TSpecFetchFailedAllocationInfo spec_fetch_failed_allocations = 12;
 
     // COMPAT(pogorelov)
     repeated NYT.NProto.TGuid unconfirmed_allocations = 9;

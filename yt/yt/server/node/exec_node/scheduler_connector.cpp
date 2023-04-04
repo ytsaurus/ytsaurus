@@ -155,6 +155,22 @@ void TSchedulerConnector::AddUnconfirmedJobs(const std::vector<TJobId>& unconfir
     }
 }
 
+void TSchedulerConnector::EnqueueSpecFetchFailedAllocation(TAllocationId allocationId, TSpecFetchFailedAllocationInfo info)
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    EmplaceOrCrash(SpecFetchFailedAllocations_, allocationId, std::move(info));
+}
+
+void TSchedulerConnector::RemoveSpecFetchFailedAllocations(THashMap<TAllocationId, TSpecFetchFailedAllocationInfo> allocations)
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    for (auto [allocationId, _] : allocations) {
+        EraseOrCrash(SpecFetchFailedAllocations_, allocationId);
+    }
+}
+
 void TSchedulerConnector::Start()
 {
     const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
@@ -328,6 +344,7 @@ void TSchedulerConnector::DoPrepareHeartbeatRequest(
 
     context->JobsToForcefullySend = std::move(JobsToForcefullySend_);
     context->UnconfirmedJobIds = std::move(UnconfirmedJobIds_);
+    context->SpecFetchFailedAllocations = SpecFetchFailedAllocations_;
 
     const auto& jobController = Bootstrap_->GetJobController();
     jobController->PrepareSchedulerHeartbeatRequest(request, context);
@@ -345,6 +362,8 @@ void TSchedulerConnector::DoProcessHeartbeatResponse(
 
     const auto& jobController = Bootstrap_->GetJobController();
     jobController->ProcessSchedulerHeartbeatResponse(response, context);
+
+    RemoveSpecFetchFailedAllocations(std::move(context->SpecFetchFailedAllocations));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
