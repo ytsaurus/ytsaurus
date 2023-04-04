@@ -69,6 +69,8 @@ void TSingletonsConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("resource_tracker_vcpu_factor", &TThis::ResourceTrackerVCpuFactor)
         .Optional();
+    registrar.Parameter("pod_spec", &TThis::PodSpec)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->ResourceTrackerVCpuFactor && !config->EnableResourceTracker) {

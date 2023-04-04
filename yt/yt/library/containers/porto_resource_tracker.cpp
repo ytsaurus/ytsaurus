@@ -21,9 +21,9 @@ namespace NYT::NContainers {
 
 using namespace NProfiling;
 
-#ifdef _linux_
-
 static const auto& Logger = ContainersLogger;
+
+#ifdef _linux_
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,6 +144,8 @@ TMemoryStatistics TPortoResourceTracker::ExtractMemoryStatistics(const TResource
         .MemoryGuarantee = GetFieldOrError(resourceUsage, EStatField::MemoryGuarantee),
         .MemoryLimit = GetFieldOrError(resourceUsage, EStatField::MemoryLimit),
         .MaxMemoryUsage = GetFieldOrError(resourceUsage, EStatField::MaxMemoryUsage),
+        .OomKills = GetFieldOrError(resourceUsage, EStatField::OomKills),
+        .OomKillsTotal = GetFieldOrError(resourceUsage, EStatField::OomKillsTotal)
     };
 }
 
@@ -307,6 +309,8 @@ static bool IsCumulativeStatistics(EStatField statistic)
 
         statistic == EStatField::MinorPageFaults ||
         statistic == EStatField::MajorPageFaults ||
+        statistic == EStatField::OomKills ||
+        statistic == EStatField::OomKillsTotal ||
 
         statistic == EStatField::IOReadByte ||
         statistic == EStatField::IOWriteByte ||
@@ -385,8 +389,10 @@ void TPortoResourceTracker::DoUpdateResourceUsage() const
 
 TPortoResourceProfiler::TPortoResourceProfiler(
     TPortoResourceTrackerPtr tracker,
+    TPodSpecConfigPtr podSpec,
     const TProfiler& profiler)
-    : ResourceTracker_(tracker)
+    : ResourceTracker_(std::move(tracker))
+    , PodSpec_(std::move(podSpec))
 {
     profiler.AddProducer("", MakeStrong(this));
 }
@@ -426,46 +432,96 @@ void TPortoResourceProfiler::WriteCpuMetrics(
     TTotalStatistics& totalStatistics,
     i64 timeDeltaUsec)
 {
-    if (totalStatistics.CpuStatistics.UserUsageTime.IsOK()) {
-        i64 userUsageTimeUs = totalStatistics.CpuStatistics.UserUsageTime.Value().MicroSeconds();
-        double userUsagePercent = std::max<double>(0.0, 100. * userUsageTimeUs / timeDeltaUsec);
-        writer->AddGauge("/cpu/user", userUsagePercent);
+    {
+        if (totalStatistics.CpuStatistics.UserUsageTime.IsOK()) {
+            i64 userUsageTimeUs = totalStatistics.CpuStatistics.UserUsageTime.Value().MicroSeconds();
+            double userUsagePercent = std::max<double>(0.0, 100. * userUsageTimeUs / timeDeltaUsec);
+            writer->AddGauge("/cpu/user", userUsagePercent);
+        }
+
+        if (totalStatistics.CpuStatistics.SystemUsageTime.IsOK()) {
+            i64 systemUsageTimeUs = totalStatistics.CpuStatistics.SystemUsageTime.Value().MicroSeconds();
+            double systemUsagePercent = std::max<double>(0.0, 100. * systemUsageTimeUs / timeDeltaUsec);
+            writer->AddGauge("/cpu/system", systemUsagePercent);
+        }
+
+        if (totalStatistics.CpuStatistics.WaitTime.IsOK()) {
+            i64 waitTimeUs = totalStatistics.CpuStatistics.WaitTime.Value().MicroSeconds();
+            double waitPercent = std::max<double>(0.0, 100. * waitTimeUs / timeDeltaUsec);
+            writer->AddGauge("/cpu/wait", waitPercent);
+        }
+
+        if (totalStatistics.CpuStatistics.ThrottledTime.IsOK()) {
+            i64 throttledTimeUs = totalStatistics.CpuStatistics.ThrottledTime.Value().MicroSeconds();
+            double throttledPercent = std::max<double>(0.0, 100. * throttledTimeUs / timeDeltaUsec);
+            writer->AddGauge("/cpu/throttled", throttledPercent);
+        }
+
+        if (totalStatistics.CpuStatistics.TotalUsageTime.IsOK()) {
+            i64 totalUsageTimeUs = totalStatistics.CpuStatistics.TotalUsageTime.Value().MicroSeconds();
+            double totalUsagePercent = std::max<double>(0.0, 100. * totalUsageTimeUs / timeDeltaUsec);
+            writer->AddGauge("/cpu/total", totalUsagePercent);
+        }
+
+        if (totalStatistics.CpuStatistics.GuaranteeTime.IsOK()) {
+            i64 guaranteeTimeUs = totalStatistics.CpuStatistics.GuaranteeTime.Value().MicroSeconds();
+            double guaranteePercent = std::max<double>(0.0, (100. * guaranteeTimeUs) / (1'000'000L));
+            writer->AddGauge("/cpu/guarantee", guaranteePercent);
+        }
+
+        if (totalStatistics.CpuStatistics.LimitTime.IsOK()) {
+            i64 limitTimeUs = totalStatistics.CpuStatistics.LimitTime.Value().MicroSeconds();
+            double limitPercent = std::max<double>(0.0, (100. * limitTimeUs) / (1'000'000L));
+            writer->AddGauge("/cpu/limit", limitPercent);
+        }
     }
 
-    if (totalStatistics.CpuStatistics.SystemUsageTime.IsOK()) {
-        i64 systemUsageTimeUs = totalStatistics.CpuStatistics.SystemUsageTime.Value().MicroSeconds();
-        double systemUsagePercent = std::max<double>(0.0, 100. * systemUsageTimeUs / timeDeltaUsec);
-        writer->AddGauge("/cpu/system", systemUsagePercent);
-    }
+    if (PodSpec_->CpuToVCpuFactor) {
+        auto factor = *PodSpec_->CpuToVCpuFactor;
 
-    if (totalStatistics.CpuStatistics.WaitTime.IsOK()) {
-        i64 waitTimeUs = totalStatistics.CpuStatistics.WaitTime.Value().MicroSeconds();
-        double waitPercent = std::max<double>(0.0, 100. * waitTimeUs / timeDeltaUsec);
-        writer->AddGauge("/cpu/wait", waitPercent);
-    }
+        writer->AddGauge("/cpu_to_vcpu_factor", factor);
 
-    if (totalStatistics.CpuStatistics.ThrottledTime.IsOK()) {
-        i64 throttledTimeUs = totalStatistics.CpuStatistics.ThrottledTime.Value().MicroSeconds();
-        double throttledPercent = std::max<double>(0.0, 100. * throttledTimeUs / timeDeltaUsec);
-        writer->AddGauge("/cpu/throttled", throttledPercent);
-    }
+        if (totalStatistics.CpuStatistics.UserUsageTime.IsOK()) {
+            i64 userUsageTimeUs = totalStatistics.CpuStatistics.UserUsageTime.Value().MicroSeconds();
+            double userUsagePercent = std::max<double>(0.0, 100. * userUsageTimeUs * factor / timeDeltaUsec);
+            writer->AddGauge("/vcpu/user", userUsagePercent);
+        }
 
-    if (totalStatistics.CpuStatistics.TotalUsageTime.IsOK()) {
-        i64 totalUsageTimeUs = totalStatistics.CpuStatistics.TotalUsageTime.Value().MicroSeconds();
-        double totalUsagePercent = std::max<double>(0.0, 100. * totalUsageTimeUs / timeDeltaUsec);
-        writer->AddGauge("/cpu/total", totalUsagePercent);
-    }
+        if (totalStatistics.CpuStatistics.SystemUsageTime.IsOK()) {
+            i64 systemUsageTimeUs = totalStatistics.CpuStatistics.SystemUsageTime.Value().MicroSeconds();
+            double systemUsagePercent = std::max<double>(0.0, 100. * systemUsageTimeUs * factor / timeDeltaUsec);
+            writer->AddGauge("/vcpu/system", systemUsagePercent);
+        }
 
-    if (totalStatistics.CpuStatistics.GuaranteeTime.IsOK()) {
-        i64 guaranteeTimeUs = totalStatistics.CpuStatistics.GuaranteeTime.Value().MicroSeconds();
-        double guaranteePercent = std::max<double>(0.0, (100. * guaranteeTimeUs) / (1'000'000L));
-        writer->AddGauge("/cpu/guarantee", guaranteePercent);
-    }
+        if (totalStatistics.CpuStatistics.WaitTime.IsOK()) {
+            i64 waitTimeUs = totalStatistics.CpuStatistics.WaitTime.Value().MicroSeconds();
+            double waitPercent = std::max<double>(0.0, 100. * waitTimeUs * factor / timeDeltaUsec);
+            writer->AddGauge("/vcpu/wait", waitPercent);
+        }
 
-    if (totalStatistics.CpuStatistics.LimitTime.IsOK()) {
-        i64 limitTimeUs = totalStatistics.CpuStatistics.LimitTime.Value().MicroSeconds();
-        double limitPercent = std::max<double>(0.0, (100. * limitTimeUs) / (1'000'000L));
-        writer->AddGauge("/cpu/limit", limitPercent);
+        if (totalStatistics.CpuStatistics.ThrottledTime.IsOK()) {
+            i64 throttledTimeUs = totalStatistics.CpuStatistics.ThrottledTime.Value().MicroSeconds();
+            double throttledPercent = std::max<double>(0.0, 100. * throttledTimeUs * factor / timeDeltaUsec);
+            writer->AddGauge("/vcpu/throttled", throttledPercent);
+        }
+
+        if (totalStatistics.CpuStatistics.TotalUsageTime.IsOK()) {
+            i64 totalUsageTimeUs = totalStatistics.CpuStatistics.TotalUsageTime.Value().MicroSeconds();
+            double totalUsagePercent = std::max<double>(0.0, 100. * totalUsageTimeUs * factor / timeDeltaUsec);
+            writer->AddGauge("/vcpu/total", totalUsagePercent);
+        }
+
+        if (totalStatistics.CpuStatistics.GuaranteeTime.IsOK()) {
+            i64 guaranteeTimeUs = totalStatistics.CpuStatistics.GuaranteeTime.Value().MicroSeconds();
+            double guaranteePercent = std::max<double>(0.0, 100. * guaranteeTimeUs * factor / 1'000'000L);
+            writer->AddGauge("/vcpu/guarantee", guaranteePercent);
+        }
+
+        if (totalStatistics.CpuStatistics.LimitTime.IsOK()) {
+            i64 limitTimeUs = totalStatistics.CpuStatistics.LimitTime.Value().MicroSeconds();
+            double limitPercent = std::max<double>(0.0, 100. * limitTimeUs * factor / 1'000'000L);
+            writer->AddGauge("/vcpu/limit", limitPercent);
+        }
     }
 
     WriteGaugeIfOk(writer, "/cpu/thread_count", totalStatistics.CpuStatistics.ThreadCount);
@@ -485,6 +541,9 @@ void TPortoResourceProfiler::WriteMemoryMetrics(
         "/memory/major_page_faults",
         totalStatistics.MemoryStatistics.MajorPageFaults,
         timeDeltaUsec);
+
+    WriteGaugeIfOk(writer, "/memory/oom_kills", totalStatistics.MemoryStatistics.OomKills);
+    WriteGaugeIfOk(writer, "/memory/oom_kills_total", totalStatistics.MemoryStatistics.OomKillsTotal);
 
     WriteGaugeIfOk(writer, "/memory/file_cache_usage", totalStatistics.MemoryStatistics.FileCacheUsage);
     WriteGaugeIfOk(writer, "/memory/anon_usage", totalStatistics.MemoryStatistics.AnonUsage);
@@ -601,7 +660,10 @@ void TPortoResourceProfiler::CollectSensors(ISensorWriter* writer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPortoResourceProfilerPtr CreatePortoProfilerWithTags(IInstancePtr instance, const TString containerCategory)
+TPortoResourceProfilerPtr CreatePortoProfilerWithTags(
+    const IInstancePtr& instance,
+    const TString containerCategory,
+    const TPodSpecConfigPtr& podSpec)
 {
     auto portoResourceTracker = New<TPortoResourceTracker>(
         instance,
@@ -611,6 +673,7 @@ TPortoResourceProfilerPtr CreatePortoProfilerWithTags(IInstancePtr instance, con
 
     return New<TPortoResourceProfiler>(
         portoResourceTracker,
+        podSpec,
         TProfiler("/porto")
             .WithTag("container_category", containerCategory));
 }
@@ -619,10 +682,9 @@ TPortoResourceProfilerPtr CreatePortoProfilerWithTags(IInstancePtr instance, con
 
 #endif
 
-void EnablePortoResourceTracker()
-{
 #ifdef __linux__
-
+void EnablePortoResourceTracker(const TPodSpecConfigPtr& podSpec)
+{
     try {
         auto executor = CreatePortoExecutor(New<TPortoExecutorConfig>(), "porto-tracker");
 
@@ -631,14 +693,18 @@ void EnablePortoResourceTracker()
         }));
 
         LeakyRefCountedSingleton<TPortoProfilers>(
-            CreatePortoProfilerWithTags(GetSelfPortoInstance(executor), "daemon"),
-            CreatePortoProfilerWithTags(GetRootPortoInstance(executor), "pod"));
+            CreatePortoProfilerWithTags(GetSelfPortoInstance(executor), "daemon", podSpec),
+            CreatePortoProfilerWithTags(GetRootPortoInstance(executor), "pod", podSpec));
     } catch(const std::exception& exception) {
         YT_LOG_ERROR(exception, "Failed to enable porto profiler");
     }
-
-#endif
 }
+#else
+void EnablePortoResourceTracker(const TPodSpecConfigPtr& /*podSpec*/)
+{
+    YT_LOG_WARNING("Porto resource tracker not supported");
+}
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -37,6 +37,8 @@ DEFINE_ENUM(EStatField,
     (MemoryGuarantee)
     (MemoryLimit)
     (MaxMemoryUsage)
+    (OomKills)
+    (OomKillsTotal)
 
     // IO
     (IOReadByte)
@@ -95,6 +97,7 @@ DECLARE_REFCOUNTED_CLASS(TInstanceLimitsTracker)
 DECLARE_REFCOUNTED_CLASS(TPortoProcess)
 DECLARE_REFCOUNTED_CLASS(TPortoResourceTracker)
 DECLARE_REFCOUNTED_CLASS(TPortoExecutorConfig)
+DECLARE_REFCOUNTED_CLASS(TPodSpecConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -35,6 +35,8 @@ const std::vector<EStatField> InstanceStatFields{
     EStatField::MemoryGuarantee,
     EStatField::MemoryLimit,
     EStatField::MaxMemoryUsage,
+    EStatField::OomKills,
+    EStatField::OomKillsTotal,
 
     EStatField::IOReadByte,
     EStatField::IOWriteByte,

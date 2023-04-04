@@ -135,6 +135,8 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
     {EStatField::MemoryGuarantee, {"memory_guarantee", LongExtractor}},
     {EStatField::MemoryLimit, {"memory_limit_total", LongExtractor}},
     {EStatField::MaxMemoryUsage, {"memory.max_usage_in_bytes", LongExtractor}},
+    {EStatField::OomKills, {"oom_kills", LongExtractor}},
+    {EStatField::OomKillsTotal, {"oom_kills_total", LongExtractor}},
 
     {EStatField::IOReadByte, {"io_read", GetIOStatExtractor()}},
     {EStatField::IOWriteByte, {"io_write", GetIOStatExtractor()}},

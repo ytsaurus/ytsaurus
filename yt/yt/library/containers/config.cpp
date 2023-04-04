@@ -4,6 +4,14 @@ namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPodSpecConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cpu_to_vcpu_factor", &TThis::CpuToVCpuFactor)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool TCGroupConfig::IsCGroupSupported(const TString& cgroupType) const
 {
     auto it = std::find_if(

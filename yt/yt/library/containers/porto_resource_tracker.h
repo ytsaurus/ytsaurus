@@ -116,12 +116,14 @@ class TPortoResourceProfiler
 public:
     TPortoResourceProfiler(
         TPortoResourceTrackerPtr tracker,
+        TPodSpecConfigPtr podSpec,
         const TProfiler& profiler = TProfiler{"/porto"});
 
     void CollectSensors(ISensorWriter* writer) override;
 
 private:
     const TPortoResourceTrackerPtr ResourceTracker_;
+    const TPodSpecConfigPtr PodSpec_;
 
     void WriteCpuMetrics(
         ISensorWriter* writer,
@@ -151,6 +153,6 @@ DEFINE_REFCOUNTED_TYPE(TPortoResourceProfiler)
 
 #endif
 
-void EnablePortoResourceTracker();
+void EnablePortoResourceTracker(const TPodSpecConfigPtr& podSpec);
 
 } // namespace NYT::NContainers

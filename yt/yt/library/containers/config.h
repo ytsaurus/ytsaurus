@@ -8,6 +8,21 @@ namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPodSpecConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    std::optional<double> CpuToVCpuFactor;
+
+    REGISTER_YSON_STRUCT(TPodSpecConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPodSpecConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCGroupConfig
     : public virtual NYTree::TYsonStruct
 {
