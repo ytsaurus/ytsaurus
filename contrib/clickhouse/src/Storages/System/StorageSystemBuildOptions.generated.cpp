@@ -11,7 +11,7 @@ const char * auto_config_build[]
     "VERSION_DATE", "",
     "BUILD_TYPE", "MinSizeRel",
     "SYSTEM_PROCESSOR", "x86_64",
-    "CMAKE_VERSION", "3.22.3",
+    "CMAKE_VERSION", "3.24.3",
     "C_COMPILER", "/var/empty/clang-wrapper-13.0.1/bin/clang",
     "C_COMPILER_VERSION", "13.0.1",
     "CXX_COMPILER", "/var/empty/clang-wrapper-13.0.1/bin/clang++",
