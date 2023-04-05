@@ -84,12 +84,10 @@ struct TClickHouseKeys
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Converts chunk keys from YT format to CH format.
-//! Since CH does not support Nullable types in primary key, there are some tricks
-//! to eliminate Null values. These tricks can lead to key bounds expansion.
-//! (more detailed explanation of the tricks is given in comments near implementation)
-//! dataTypes - actual data types of the columns. Can be nullable.
+//! schema - schema with actual data types of the columns for proper conversion.
+//! dataTypes - actual ClickHouse data types of the columns. Can be nullable.
 //! usedKeyColumnCount - hint about how many columns are used in KeyCondition.
-//! Returned CH-keys always have usedKeyColumnCount columns fro non-empty key.
+//! Returned CH-keys always have usedKeyColumnCount columns.
 //! tryMakeBoundsInclusive - try to convert exclusive bounds to inclusive.
 TClickHouseKeys ToClickHouseKeys(
     const NTableClient::TKeyBound& ytLowerBound,

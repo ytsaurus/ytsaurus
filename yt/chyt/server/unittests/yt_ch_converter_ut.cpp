@@ -1196,6 +1196,7 @@ TEST(TTestKeyConversion, TestBasic)
         std::make_shared<DB::DataTypeInt64>(),
         std::make_shared<DB::DataTypeString>(),
         std::make_shared<DB::DataTypeUInt64>(),
+        std::make_shared<DB::DataTypeInt64>(),
     };
     auto schema = MakeDummySchema(dataTypes);
 
@@ -1225,6 +1226,15 @@ TEST(TTestKeyConversion, TestBasic)
     chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 1, true);
     EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({DB::FieldRef(1)}));
     EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({DB::FieldRef(10)}));
+
+    // Extending key.
+    chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 4, true);
+    EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({1, "test", 2u, std::numeric_limits<DB::Int64>::min()}));
+    EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({10, "test2", 0u, std::numeric_limits<DB::Int64>::max()}));
+
+    chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 4, false);
+    EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({1, "test", 2u, std::numeric_limits<DB::Int64>::min()}));
+    EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({10, "test2", 1u, std::numeric_limits<DB::Int64>::min()}));
 }
 
 TEST(TTestKeyConversion, TestNulls)
@@ -1250,11 +1260,11 @@ TEST(TTestKeyConversion, TestNulls)
         auto chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 3, true);
         EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({
             1,
-            std::numeric_limits<DB::Int64>::min(),
-            std::numeric_limits<DB::UInt64>::min()}));
+            DB::NEGATIVE_INFINITY,
+            10u}));
         EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({
             10,
-            std::numeric_limits<DB::Int64>::min(),
+            DB::NEGATIVE_INFINITY,
             21u}));
     }
     // Same prefix
@@ -1271,11 +1281,11 @@ TEST(TTestKeyConversion, TestNulls)
         auto chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 3, true);
         EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({
             1,
-            std::numeric_limits<DB::Int64>::min(),
+            DB::NEGATIVE_INFINITY,
             10u}));
         EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({
             1,
-            std::numeric_limits<DB::Int64>::min(),
+            DB::NEGATIVE_INFINITY,
             21u}));
     }
     // Minimum value
@@ -1297,7 +1307,7 @@ TEST(TTestKeyConversion, TestNulls)
         EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({
             10,
             std::numeric_limits<DB::Int64>::min(),
-            std::numeric_limits<DB::UInt64>::max()}));
+            21u}));
     }
 }
 

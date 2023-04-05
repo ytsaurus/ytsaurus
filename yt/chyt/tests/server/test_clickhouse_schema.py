@@ -345,7 +345,6 @@ class TestClickHouseSchema(ClickHouseTestBase):
             assert clique.make_query(query, settings=settings) == expected_data
 
     @authors("max42")
-    @pytest.mark.skipif(True, reason="temporarily broken after CH sync")
     def test_nulls_in_primary_key(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
 

@@ -344,7 +344,7 @@ public:
 
     ui32 GetCount() const
     {
-        return Header_->Count;
+        return Header_ ? Header_->Count : 0u;
     }
 
     // STL interop.
