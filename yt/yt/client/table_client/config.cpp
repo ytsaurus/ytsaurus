@@ -281,6 +281,9 @@ void TChunkWriterOptions::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("cast_any_to_composite", &TThis::CastAnyToCompositeNode)
         .Default();
+    registrar.Parameter("single_column_group_by_default", &TThis::SingleColumnGroupByDefault)
+        .Default();
+
     registrar.Parameter("schema_modification", &TThis::SchemaModification)
         .Default(ETableSchemaModification::None);
     registrar.Parameter("max_heavy_columns", &TThis::MaxHeavyColumns)

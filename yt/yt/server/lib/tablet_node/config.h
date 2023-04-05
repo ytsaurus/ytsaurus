@@ -236,6 +236,8 @@ public:
     bool EnableNewScanReaderForLookup;
     bool EnableNewScanReaderForSelect;
 
+    bool SingleColumnGroupByDefault;
+
     bool EnableHunkColumnarProfiling;
 
     double MaxHunkCompactionGarbageRatio;

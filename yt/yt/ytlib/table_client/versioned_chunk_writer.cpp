@@ -683,6 +683,8 @@ public:
                 }
 
                 blockWriter = it->second;
+            } else if (Options_->SingleColumnGroupByDefault) {
+                blockWriter = mainBlockWriter;
             } else {
                 blockWriter = createBlockWriter();
             }
