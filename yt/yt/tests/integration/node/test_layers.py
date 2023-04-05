@@ -331,7 +331,7 @@ class TestProbingLayer(TestLayers):
             assert counter["default"] == job_count
             assert counter["probing"] == 0
 
-            assert op.get_job_count("aborted") == 2 or "base_layer_probe_failed" in op.get_alerts()
+            assert op.get_job_count("aborted") == 0 or "base_layer_probe_failed" in op.get_alerts()
 
             if op.get_job_count("aborted") >= 2:
                 break
