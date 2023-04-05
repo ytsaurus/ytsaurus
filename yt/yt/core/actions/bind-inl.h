@@ -485,12 +485,12 @@ public:
     template <class... TAs>
     static auto Run(TCallArg<TAs>... args, NDetail::TBindStateBase* base)
     {
-        auto* state = static_cast<TBindState*>(base);
+        auto* volatile state = static_cast<TBindState*>(base);
 
-        // Prevent variable optimization for gdb printer
-        // devtools/gdb/yt_fibers_printer.py: find_trace_context()
-        auto* volatile uninlined_state = state;
-        Y_UNUSED(uninlined_state);
+        // Prevent optimizing |state| away for GDB printer.
+        // See devtools/gdb/yt_fibers_printer.py.
+        auto* volatile unoptimizedState = state;
+        Y_UNUSED(unoptimizedState);
 
         auto propagatingStorageGuard = state->MakePropagatingStorageGuard();
         Y_UNUSED(propagatingStorageGuard);

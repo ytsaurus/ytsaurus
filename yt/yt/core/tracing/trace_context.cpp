@@ -158,7 +158,7 @@ void OnContextSwitchOut()
 
 void OnContextSwitchIn()
 {
-    if (auto* context = GetTraceContextFromPropagatingStorage(GetCurrentPropagatingStorage())) {
+    if (auto* context = TryGetTraceContextFromPropagatingStorage(GetCurrentPropagatingStorage())) {
         SetCurrentTraceContext(context);
         TraceContextTimingCheckpoint = GetApproximateCpuInstant();
     } else {
@@ -174,13 +174,13 @@ void OnPropagatingStorageSwitch(
     TCpuInstant now = 0;
 
     if (auto* oldContext = TryGetCurrentTraceContext()) {
-        YT_ASSERT(oldContext == GetTraceContextFromPropagatingStorage(oldStorage));
+        YT_ASSERT(oldContext == TryGetTraceContextFromPropagatingStorage(oldStorage));
         YT_ASSERT(TraceContextTimingCheckpoint != 0);
         now = GetApproximateCpuInstant();
         oldContext->IncrementElapsedCpuTime(now - TraceContextTimingCheckpoint);
     }
 
-    if (auto* newContext = GetTraceContextFromPropagatingStorage(newStorage)) {
+    if (auto* newContext = TryGetTraceContextFromPropagatingStorage(newStorage)) {
         SetCurrentTraceContext(newContext);
         if (now == 0) {
             now = GetApproximateCpuInstant();
@@ -665,15 +665,11 @@ void FlushCurrentTraceContextElapsedTime()
     NDetail::TraceContextTimingCheckpoint = now;
 }
 
-TTraceContext* GetTraceContextFromPropagatingStorage(const NConcurrency::TPropagatingStorage& storage)
+//! Do not rename, change the signature, or drop Y_NO_INLINE.
+//! Used in devtools/gdb/yt_fibers_printer.py.
+Y_NO_INLINE TTraceContext* TryGetTraceContextFromPropagatingStorage(const NConcurrency::TPropagatingStorage& storage)
 {
     auto result = storage.Find<TTraceContextPtr>();
-    return result ? result->Get() : nullptr;
-}
-
-TTraceContext* RetrieveTraceContextFromPropStorage(NConcurrency::TPropagatingStorage* storage)
-{
-    auto result = storage->Find<TTraceContextPtr>();
     return result ? result->Get() : nullptr;
 }
 

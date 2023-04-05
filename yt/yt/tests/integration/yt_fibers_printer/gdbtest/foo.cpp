@@ -1,6 +1,7 @@
 #include "foobar.h"
 
-void Foo(NYT::NConcurrency::IThreadPoolPtr& threadPool, int x) {
+void Foo(const NYT::NConcurrency::IThreadPoolPtr& threadPool, int x)
+{
     if (x > 0) {
         Bar(threadPool, x - 1);
     }

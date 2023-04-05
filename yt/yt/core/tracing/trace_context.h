@@ -258,10 +258,8 @@ TTraceContext* GetCurrentTraceContext();
 //! Flushes the elapsed time of the current trace context (if any).
 void FlushCurrentTraceContextElapsedTime();
 
-//! Used in fibers trace context printer.
-//! Do not rename or change its signature.
-//! See devtools/gdb/yt_fibers_printer.py.
-TTraceContext* GetTraceContextFromPropagatingStorage(const NConcurrency::TPropagatingStorage& storage);
+//!
+TTraceContext* TryGetTraceContextFromPropagatingStorage(const NConcurrency::TPropagatingStorage& storage);
 
 //! Creates a new trace context. If the current trace context exists, it becomes the parent of the
 //! created trace context.

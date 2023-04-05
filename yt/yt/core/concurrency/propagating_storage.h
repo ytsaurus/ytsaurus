@@ -111,6 +111,8 @@ public:
     TPropagatingStorageGuard& operator=(const TPropagatingStorageGuard& other) = delete;
     TPropagatingStorageGuard& operator=(TPropagatingStorageGuard&& other) = delete;
 
+    const TPropagatingStorage& GetOldStorage() const;
+
 private:
     TPropagatingStorage OldStorage_;
 };

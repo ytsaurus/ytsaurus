@@ -48,8 +48,8 @@ def select_frame(arg):
 
 
 def retrieve_fiber_context_regs(fiber):
-    t = gdb.lookup_type('TContMachineContext')
-    result = fiber['Context_'].cast(t)['Buf_']
+    context_type = gdb.lookup_type('TContMachineContext')
+    result = fiber['MachineContext_'].cast(context_type)['Buf_']
     return result
 
 
@@ -67,9 +67,9 @@ class FiberContextSwitcher():
         self.fiber_regs = retrieve_fiber_context_regs(fiber)
 
     def switch(self):
-        # Ensure that selected frame is stack top to prevent registers corruption
+        # Ensure that selected frame is stack top to prevent registers corruption.
         gdb.execute('select-frame 0')
-        # Switch to fiber context
+        # Switch to fiber context.
         for i in range(MJB_SIZE):
             set_reg(REG_NAMES[i], self.fiber_regs[i])
         return self
@@ -100,35 +100,45 @@ def search_stack_for_symbol(eval_func, depth=10):
         return eval_func()
     except gdb.error:
         prev_frame = gdb.selected_frame().older()
-        # May be syscall frame, where some symbols are unavailable
+        # Could be syscall frame, where some symbols are unavailable.
         if not prev_frame is None:
             with select_frame(prev_frame):
                 return search_stack_for_symbol(eval_func, depth - 1)
     return None
 
 
-def get_fiber_registry():
+def get_registered_fiber_addresses():
     def eval_func():
-        return gdb.parse_and_eval('NYT::NConcurrency::GetFiberRegistry()->Fibers_')
-    return search_stack_for_symbol(eval_func)
+        return gdb.parse_and_eval('NYT::NConcurrency::TFiberRegistry::Get()->Fibers_')
+    fibers = search_stack_for_symbol(eval_func)
+    if not fibers:
+        gdb.write('Could not find fiber registry\n')
+        return []
+    addresses = []
+    for line in format_string_multiline(fibers).split('\n'):
+        if line.find('[') == -1:
+            continue
+        address = line.split(' ')[-1].replace(',', '')
+        addresses.append(address)
+    return addresses
 
 
-def get_running_fibers():
+def get_running_fiber_addresses():
     inferior = gdb.selected_inferior()
     selected_thread = gdb.selected_thread()
-    running_fibers = []
+    addresses = []
     for thread in inferior.threads():
         thread.switch()
         def eval_func():
-            return str(gdb.parse_and_eval('NYT::NConcurrency::FiberContext->CurrentFiber.T_'))
-        fiber = search_stack_for_symbol(eval_func)
-        if not fiber is None:
-            running_fibers.append(fiber)
+            return str(gdb.parse_and_eval('NYT::NConcurrency::NDetail::FiberContext->CurrentFiber.T_'))
+        address = search_stack_for_symbol(eval_func)
+        if not address is None:
+            addresses.append(address)
     selected_thread.switch()
-    return running_fibers
+    return addresses
 
 
-fibers_list = None
+cached_waiting_fibers = None
 
 def format_string_multiline(value):
     if get_gdb_version() >= [11, 2]:
@@ -139,36 +149,38 @@ def format_string_multiline(value):
         return str(value)
 
 
-def retrieve_fibers_list():
-    global fibers_list
-    if not fibers_list is None:
-        return fibers_list
-    registry = get_fiber_registry()
-    if registry is None:
-        gdb.write('Couldn\'t find fiber registry\n')
-        return None
+def get_fiber_from_address(address):
+    def eval_func():
+        return gdb.parse_and_eval('{{NYT::NConcurrency::TFiber}} {}'.format(address))
+    return search_stack_for_symbol(eval_func)
+
+
+def get_waiting_fibers():
+    global cached_waiting_fibers
+    if not cached_waiting_fibers is None:
+        return cached_waiting_fibers
+    registered_fiber_addresses = get_registered_fiber_addresses()
+    running_fibers_addresses = set(get_running_fiber_addresses())
     fibers = []
-    running = get_running_fibers()
     n_filtered = 0
-    for i in format_string_multiline(registry).split('\n'):
-        if i.find('[') == -1:
-            continue
-        address = i.split(' ')[-1].replace(',', '')
-        if not address in running:
-            def eval_func():
-                return gdb.parse_and_eval('{{NYT::NConcurrency::TFiber}} {}'.format(address))
-            fiber = search_stack_for_symbol(eval_func)
-            fibers.append(fiber)
+    for address in registered_fiber_addresses:
+        if address not in running_fibers_addresses:
+            fiber = get_fiber_from_address(address)
+            if fiber is None:
+                gdb.write('Failed to obtain instance for fiber {}\n'.format(address))
+            else:
+                fibers.append(fiber)
         else:
             n_filtered += 1
-    gdb.write('Filtered {} running fibers\n'.format(n_filtered))
-    fibers_list = fibers
+    gdb.write('Filtered out {} running fiber(s)\n'.format(n_filtered))
+    cached_waiting_fibers = fibers
     return fibers
 
 
-def get_compact_elements(compact_vector):
+def get_compact_vector_elements(compact_vector):
     if compact_vector is None:
         return None
+
     result = []
     inline_size = int(compact_vector['InlineMeta_']['SizePlusOne'])
     if inline_size > 0:
@@ -194,25 +206,35 @@ def find_trace_context():
     frame = gdb.selected_frame()
     thread = gdb.selected_thread()
     try:
-        # For some reason it's faster to get full backtrace and check if frame present by hand,
-        # than check output of select-frame
+        # For some reason it's faster to get full backtrace and check if frame present by hand
+        # than checking output of select-frame.
         frames = gdb.execute('where', to_string=True)
-        if frames.find('NYT::NConcurrency::RunInFiberContext') == -1:
+        if frames.find('NYT::NConcurrency::NDetail::RunInFiberContext') == -1:
             return None
-        gdb.execute('select-frame function NYT::NConcurrency::RunInFiberContext(NYT::TCallback<void ()>)')
-        target_frame = gdb.selected_frame().newer()
-        if not target_frame is None:
-            target_frame.select()
-            # gdb can create dummy thread here
-            is_null = int(gdb.parse_and_eval('uninlined_state->Storage_.IsNull()'))
-            if not is_null:
-                thread.switch()
-                target_frame.select()
-                return gdb.parse_and_eval('{NYT::NTracing::TTraceContext} NYT::NTracing::RetrieveTraceContextFromPropStorage(&uninlined_state->Storage_)')
-            else:
-                gdb.write('Trace context is NULL\n')
+        gdb.execute('select-frame function NYT::NConcurrency::NDetail::RunInFiberContext(NYT::NConcurrency::TFiber*, NYT::TCallback<void ()>)')
+        # Try locating TBindState::Run frame above.
+        # In release build it's likely to be right on top of RunInFiberContext due to inlining.
+        # In debug build we need to skip TCallback::operator().
+        frame = gdb.selected_frame().newer()
+        for _ in range(2):
+            if frame is None:
+                break
+            frame.select()
+            try:
+                is_null = int(gdb.parse_and_eval('unoptimizedState->Storage_.IsNull()'))
+                if not is_null:
+                    thread.switch()
+                    frame.select()
+                    return gdb.parse_and_eval('{NYT::NTracing::TTraceContext} NYT::NTracing::TryGetTraceContextFromPropagatingStorage(unoptimizedState->Storage_)')
+                else:
+                    gdb.write('Trace context is null\n')
+                    return None
+            except gdb.error:
+                pass
+            frame = frame.newer()
         return None
-    except gdb.error:
+    except gdb.error as e:
+        gdb.write('GDB error: {}\n'.format(e))
         pass
     finally:
         thread.switch()
@@ -228,16 +250,15 @@ class PrintFibersCommand(gdb.Command):
         argv = gdb.string_to_argv(argument)
         if len(argv) > 0:
             gdb.write('No arguments required\n')
-        else:
-            fibers = retrieve_fibers_list()
-            if fibers is None:
-                return
-            gdb.write('Total {} fibers\n'.format(len(fibers)))
-            for i, fiber in enumerate(fibers):
-                with switch_to_fiber_context(fiber):
-                    gdb.write('Fiber #{}\n'.format(i))
-                    gdb.execute('where')
-                    gdb.write('\n')
+            return
+
+        fibers = get_waiting_fibers()
+        gdb.write('Found {} waiting fiber(s)\n'.format(len(fibers)))
+        for i, fiber in enumerate(fibers):
+            with switch_to_fiber_context(fiber):
+                gdb.write('Fiber #{}\n'.format(i))
+                gdb.execute('where')
+                gdb.write('\n')
 
 
 class PrintFibersWithTraceTagsCommand(gdb.Command):
@@ -248,30 +269,29 @@ class PrintFibersWithTraceTagsCommand(gdb.Command):
         argv = gdb.string_to_argv(argument)
         if len(argv) > 0:
             gdb.write('No arguments required\n')
-        else:
-            fibers = retrieve_fibers_list()
-            if fibers is None:
-                return
-            gdb.write('Total {} fibers\n'.format(len(fibers)))
-            for i, fiber in enumerate(fibers):
-                with switch_to_fiber_context(fiber):
-                    gdb.write('{}\n'.format('Fiber #{}'.format(i)))
-                    trace_context = find_trace_context()
-                    if not trace_context is None:
-                        try:
-                            gdb.write('logging tag: {}\n'.format(trace_context['LoggingTag_']))
-                        except:
-                            pass
-                        try:
-                            gdb.write('tags: {}\n'.format(', '.join(
-                                '{} = {}'.format(tag['first'], tag['second']) for tag in get_compact_elements(trace_context['Tags_'])
-                            )))
-                        except:
-                            pass
-                    else:
-                        gdb.write('Trace context not found\n')
-                    gdb.execute('where')
-                    gdb.write('\n')
+            return
+
+        fibers = get_waiting_fibers()
+        gdb.write('Total {} fibers\n'.format(len(fibers)))
+        for i, fiber in enumerate(fibers):
+            with switch_to_fiber_context(fiber):
+                gdb.write('{}\n'.format('Fiber #{}'.format(i)))
+                trace_context = find_trace_context()
+                if not trace_context is None:
+                    try:
+                        gdb.write('Logging tag: {}\n'.format(trace_context['LoggingTag_']))
+                    except:
+                        pass
+                    try:
+                        gdb.write('Tags: {}\n'.format(', '.join(
+                            '{} = {}'.format(tag['first'], tag['second']) for tag in get_compact_vector_elements(trace_context['Tags_'])
+                        )))
+                    except:
+                        pass
+                else:
+                    gdb.write('Trace context not found\n')
+                gdb.execute('where')
+                gdb.write('\n')
 
 
 class SelectFiberCommand(gdb.Command):
@@ -283,27 +303,31 @@ class SelectFiberCommand(gdb.Command):
         argv = gdb.string_to_argv(argument)
         if len(argv) > 1:
             gdb.write('Too many arguments\n')
-        elif len(argv) == 0:
+            return
+
+        if len(argv) == 0:
             if self.fiber_switcher is None:
                 gdb.write('No fiber context selected\n')
                 return
             self.fiber_switcher.switch_back()
             self.fiber_switcher = None
-        else:
-            if not self.fiber_switcher is None:
-                gdb.write('You must switch back to original context first\n')
+            return
+
+        if not self.fiber_switcher is None:
+            gdb.write('You must switch back to original context first\n')
+            return
+
+        try:
+            ind = int(argv[0])
+            fibers = get_waiting_fibers()
+            if not (0 <= ind < len(fibers)):
+                gdb.write('Fiber index must be in [0; {})\n'.format(len(fibers)))
                 return
-            try:
-                ind = int(argv[0])
-                fibers = retrieve_fibers_list()
-                if not (0 <= ind < len(fibers)):
-                    gdb.write('ind must be in [0; {})\n'.format(len(fibers)))
-                    return
-                self.fiber_switcher = FiberContextSwitcher(fibers[ind])
-                self.fiber_switcher.switch()
-            except:
-                gdb.write('Failed\n')
-                raise
+            self.fiber_switcher = FiberContextSwitcher(fibers[ind])
+            self.fiber_switcher.switch()
+        except:
+            gdb.write('Failed to select fiber\n')
+            raise
 
 
 def register_fibers_printer():

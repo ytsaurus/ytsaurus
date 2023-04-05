@@ -6,8 +6,6 @@
 #include <yt/yt/core/misc/shutdown.h>
 #include <yt/yt/core/misc/finally.h>
 
-#include <yt/yt/core/concurrency/scheduler_api.h>
-
 #include <library/cpp/yt/threading/at_fork.h>
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 

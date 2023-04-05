@@ -62,20 +62,24 @@ def print_fibers(command):
 
 
 def check_backtraces(actual_output):
-    fibers_count = 0
+    fiber_count = 0
+    filtered_running_fibers = False
     foo_count = 0
     bar_count = 0
     async_stop_count = 0
     for line in actual_output.split("\n"):
         if line.find("0x0000000000000000 in ?? ()") != -1:
-            fibers_count += 1
+            fiber_count += 1
+        if line.find("Filtered out 1 running fiber(s)"):
+            filtered_running_fibers = True
         if line.find("Foo") != -1:
             foo_count += 1
         if line.find("Bar") != -1:
             bar_count += 1
         if line.find("AsyncStop") != -1:
             async_stop_count += 1
-    assert fibers_count > 0
+    assert fiber_count > 0
+    assert filtered_running_fibers
     assert foo_count == 6
     assert bar_count == 5
     assert async_stop_count > 0
@@ -85,14 +89,14 @@ def check_tags(actual_output):
     tags = None
     logging_tag = None
     for line in actual_output.split("\n"):
-        if line.find("tags: ") != -1:
+        if line.find("Tags: ") != -1:
             assert tags is None
             tags = line
-        if line.find("logging tag") != -1:
+        if line.find("Logging tag: ") != -1:
             assert logging_tag is None
             logging_tag = line
-    assert tags == "tags: tag = value, tag0 = value0"
-    assert logging_tag == "logging tag: LoggingTag"
+    assert tags == "Tags: tag = value, tag0 = value0"
+    assert logging_tag == "Logging tag: LoggingTag"
 
 
 @authors("shishmak")

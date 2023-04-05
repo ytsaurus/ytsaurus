@@ -34,7 +34,7 @@ struct THazardPtrReclaimGuard
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Relcaims hazard pointers on destruction and also on context switch.
-struct  THazardPtrReclaimOnContextSwitchGuard
+struct THazardPtrReclaimOnContextSwitchGuard
     : public THazardPtrReclaimGuard
     , public NConcurrency::TContextSwitchGuard
 {

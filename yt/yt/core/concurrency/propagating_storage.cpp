@@ -254,6 +254,11 @@ TPropagatingStorageGuard::~TPropagatingStorageGuard()
     TPropagatingStorageManager::Get()->SwitchPropagatingStorage(std::move(OldStorage_));
 }
 
+const TPropagatingStorage& TPropagatingStorageGuard::GetOldStorage() const
+{
+    return OldStorage_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNullPropagatingStorageGuard::TNullPropagatingStorageGuard()
