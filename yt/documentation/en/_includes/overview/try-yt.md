@@ -117,7 +117,7 @@ Configure network access to the web interface and proxy
 $ minikube service ytsaurus-ui --url
 http://192.168.49.2:30539
 
-$ minikube service http-proxies --url
+$ minikube service http-proxies-lb --url
 http://192.168.49.2:30228
 ```
 
