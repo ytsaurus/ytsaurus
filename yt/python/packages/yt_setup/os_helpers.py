@@ -3,11 +3,10 @@
 import logging
 import os
 import shutil
+from contextlib import contextmanager
 
 
-logger = logging.getLogger("prepare_source_tree")
-logger.addHandler(logging.StreamHandler())
-logger.setLevel(logging.INFO)
+logger = logging.getLogger("os_helpers")
 
 
 def chown_r(path, uid, gid):
@@ -43,18 +42,18 @@ def cp(source_path, destination_path):
     shutil.copy(source_path, destination_path)
 
 
-def cp_r(path, dest_dir):
+def cp_r(path, dest_dir, permissions=None):
     """copy recursive"""
     logger.info("Copy %s to %s", path, dest_dir)
     assert os.path.isdir(dest_dir)
     if os.path.isdir(path):
         shutil.copytree(path, os.path.join(dest_dir, os.path.basename(path)), symlinks=True)
-        # We explicitely chmod subtree to overcome readonly files problem in distbuild.
-        chmod_r(os.path.join(dest_dir, os.path.basename(path)), 0o755)
+        if permissions is not None:
+            chmod_r(os.path.join(dest_dir, os.path.basename(path)), permissions)
     else:
         shutil.copy2(path, dest_dir)
-        # We explicitely chmod subtree to overcome readonly files problem in distbuild.
-        os.chmod(os.path.join(dest_dir, os.path.basename(path)), 0o755)
+        if permissions is not None:
+            os.chmod(os.path.join(dest_dir, os.path.basename(path)), permissions)
 
 
 def replace(path, dest_dir):
@@ -81,3 +80,13 @@ def apply_multiple(times, func, argument):
 def touch(path):
     with open(path, "a"):
         pass
+
+
+@contextmanager
+def cd(dir):
+    current_dir = os.getcwd()
+    os.chdir(dir)
+    try:
+        yield
+    finally:
+        os.chdir(current_dir)

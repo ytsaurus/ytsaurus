@@ -1,10 +1,8 @@
 import os
 import sys
-import shutil
 import logging
 import importlib
 
-from contextlib import contextmanager
 from setuptools import find_packages
 
 try:
@@ -69,27 +67,6 @@ def prepare_files(files, add_major_version_suffix=False):
         else:
             scripts.append(file)
     return scripts, data_files
-
-
-def copy_tree(src, dst):
-    for path in os.listdir(src):
-        full_path = os.path.join(src, path)
-        if os.path.isfile(full_path):
-            logging.debug("Copy file: '{}' -> '{}'".format(full_path, dst))
-            shutil.copy(full_path, dst)
-        else:
-            logging.debug("Copy tree: '{}' -> '{}'".format(full_path, os.path.join(dst, path)))
-            shutil.copytree(full_path, os.path.join(dst, path))
-
-
-@contextmanager
-def change_cwd(dir):
-    current_dir = os.getcwd()
-    os.chdir(dir)
-    try:
-        yield
-    finally:
-        os.chdir(current_dir)
 
 
 def import_file(module_name, path):

@@ -8,7 +8,7 @@ setup(
     packages=find_packages("yt_setup"),
     entry_points={
         "console_scripts": [
-            "prepare_source_tree = yt_setup.prepare_source_tree:main",
+            "prepare_python_modules = yt_setup.prepare_python_modules:main",
             "generate_python_proto = yt_setup.generate_python_proto:main",
         ],
     },

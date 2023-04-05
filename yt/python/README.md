@@ -15,7 +15,7 @@ To work with python libraries from you should prepare environment and modules la
   3. Install `yt_setup` in editable mode `pip install -e yt/python/packages`, this library provide instruments to prepare modules layout
   4. Create directory `<ytsaurus_python>` to store prepared modules
   5. Run `generate_python_proto --source-root <checkout_directory> --output <ytsaurus_python>` to build proto modules (it requires protoc to be installed)
-  6. Run `prepare_source_tree --source-root <checkout_directory> --build-root <build_root> --output-path <ytsaurus_python> --prepare-bindings-libraries` to prepare all python modules
+  6. Run `prepare_python_modules --source-root <checkout_directory> --build-root <build_root> --output-path <ytsaurus_python> --prepare-bindings-libraries` to prepare all python modules
 
 After that you can add `<ytsaurus_python>` to PYTHONPATH and ytsaurus python libraries.
 
