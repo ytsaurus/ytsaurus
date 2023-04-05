@@ -16,42 +16,6 @@ class TMockConnection
     : public IConnection
 {
 public:
-    TClusterTag ClusterTag;
-    TString LoggingTag;
-    TString ClusterId;
-    std::optional<TString> ClusterName;
-    IInvokerPtr Invoker;
-
-    void SetClusterTag(TClusterTag clusterTag)
-    {
-        ClusterTag = std::move(clusterTag);
-        ON_CALL(*this, GetClusterTag()).WillByDefault(::testing::Return(ClusterTag));
-    }
-
-    void SetLoggingTag(TString loggingTag)
-    {
-        LoggingTag = std::move(loggingTag);
-        ON_CALL(*this, GetLoggingTag()).WillByDefault(::testing::ReturnRef(LoggingTag));
-    }
-
-    void SetClusterId(TString clusterId)
-    {
-        ClusterId = std::move(clusterId);
-        ON_CALL(*this, GetClusterId()).WillByDefault(::testing::ReturnRef(ClusterId));
-    }
-
-    void SetClusterName(TString clusterName)
-    {
-        ClusterName = std::move(clusterName);
-        ON_CALL(*this, GetClusterName()).WillByDefault(::testing::ReturnRef(ClusterName));
-    }
-
-    void SetInvoker(IInvokerPtr invoker)
-    {
-        Invoker = std::move(invoker);
-        ON_CALL(*this, GetInvoker()).WillByDefault(::testing::Return(Invoker));
-    }
-
     MOCK_METHOD(TClusterTag, GetClusterTag, (), (const, override));
     MOCK_METHOD(const TString&, GetLoggingTag, (), (const, override));
     MOCK_METHOD(const TString&, GetClusterId, (), (const, override));

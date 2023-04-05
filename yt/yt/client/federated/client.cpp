@@ -25,17 +25,17 @@ namespace NYT::NClient::NFederated {
 
 using namespace NYT::NApi;
 
-static const auto& Logger = FederatedClientLogger;
+const auto& Logger = FederatedClientLogger;
 
-DECLARE_REFCOUNTED_CLASS(TFederatedClient);
+DECLARE_REFCOUNTED_CLASS(TClient)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFederatedTransaction
-    : public virtual ITransaction
+class TTransaction
+    : public ITransaction
 {
 public:
-    TFederatedTransaction(TFederatedClientPtr federatedClient, size_t clientId, ITransactionPtr underlying);
+    TTransaction(TClientPtr client, size_t clientId, ITransactionPtr underlying);
 
     TFuture<ITransactionPtr> StartTransaction(
         NTransactionClient::ETransactionType type,
@@ -178,12 +178,12 @@ private:
     template <typename TResultType>
     auto CreateResultHandler();
 
-    TFederatedClientPtr FederatedClient_;
+    TClientPtr Client_;
     size_t ClientId_;
     ITransactionPtr Underlying_;
 };
 
-DECLARE_REFCOUNTED_TYPE(TFederatedTransaction);
+DECLARE_REFCOUNTED_TYPE(TTransaction);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -198,33 +198,34 @@ struct TClientDescription final
 
     IClientPtr Client;
     int Priority;
-    std::atomic<int> HasErrors{false};
+    std::atomic<bool> HasErrors{false};
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientDescription);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFederatedClient
-    : public virtual IClient
+class TClient
+    : public IClient
 {
 public:
-    TFederatedClient(const std::vector<IClientPtr>& clients, TFederationConfigPtr config);
+    TClient(const std::vector<IClientPtr>& underlyingClients, TFederationConfigPtr config);
 
     TFuture<IUnversionedRowsetPtr> LookupRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TLookupRowsOptions& options = {}) override;
-
     TFuture<TSelectRowsResult> SelectRows(
         const TString& query,
         const TSelectRowsOptions& options = {}) override;
-
-    TFuture<std::vector<IUnversionedRowsetPtr>> MultiLookup(const std::vector<TMultiLookupSubrequest>&, const TMultiLookupOptions&) override;
-
-    TFuture<IVersionedRowsetPtr> VersionedLookupRows(const NYPath::TYPath&, NTableClient::TNameTablePtr, const TSharedRange<NTableClient::TUnversionedRow>&, const TVersionedLookupRowsOptions&) override;
-
+    TFuture<std::vector<IUnversionedRowsetPtr>> MultiLookup(
+        const std::vector<TMultiLookupSubrequest>&,
+        const TMultiLookupOptions&) override;
+    TFuture<IVersionedRowsetPtr> VersionedLookupRows(
+        const NYPath::TYPath&, NTableClient::TNameTablePtr,
+        const TSharedRange<NTableClient::TUnversionedRow>&,
+        const TVersionedLookupRowsOptions&) override;
     TFuture<TPullRowsResult> PullRows(const NYPath::TYPath&, const TPullRowsOptions&) override;
 
     TFuture<ITransactionPtr> StartTransaction(
@@ -234,13 +235,10 @@ public:
     TFuture<NYson::TYsonString> ExplainQuery(const TString&, const TExplainQueryOptions&) override;
 
     TFuture<NYson::TYsonString> GetNode(const NYPath::TYPath&, const TGetNodeOptions&) override;
-
     TFuture<NYson::TYsonString> ListNode(const NYPath::TYPath&, const TListNodeOptions&) override;
-
     TFuture<bool> NodeExists(const NYPath::TYPath&, const TNodeExistsOptions&) override;
 
     const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
-
     TFuture<std::vector<TTabletInfo>> GetTabletInfos(const NYPath::TYPath&, const std::vector<int>&, const TGetTabletInfosOptions&) override;
 
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
@@ -379,10 +377,11 @@ public:
     UNIMPLEMENTED_METHOD(IJournalReaderPtr, CreateJournalReader, (const NYPath::TYPath&, const TJournalReaderOptions&));
     UNIMPLEMENTED_METHOD(IJournalWriterPtr, CreateJournalWriter, (const NYPath::TYPath&, const TJournalWriterOptions&));
 
-    friend class TFederatedTransaction;
+    friend class TTransaction;
 
 private:
-    struct TActiveClientInfo {
+    struct TActiveClientInfo
+    {
         IClientPtr Client;
         size_t Id;
     };
@@ -408,53 +407,66 @@ private:
         int retryAttemptsCount,
         const TString& query,
         const TSelectRowsOptions& options);
-    TFuture<std::vector<IUnversionedRowsetPtr>> DoMultiLookup(int retryAttemptsCount, const std::vector<TMultiLookupSubrequest>&, const TMultiLookupOptions&);
-    TFuture<IVersionedRowsetPtr> DoVersionedLookupRows(int retryAttemptsCount, const NYPath::TYPath&, NTableClient::TNameTablePtr, const TSharedRange<NTableClient::TUnversionedRow>&, const TVersionedLookupRowsOptions&);
+    TFuture<std::vector<IUnversionedRowsetPtr>> DoMultiLookup(
+        int retryAttemptsCount,
+        const std::vector<TMultiLookupSubrequest>&,
+        const TMultiLookupOptions&);
+    TFuture<IVersionedRowsetPtr> DoVersionedLookupRows(
+        int retryAttemptsCount,
+        const NYPath::TYPath&, NTableClient::TNameTablePtr,
+        const TSharedRange<NTableClient::TUnversionedRow>&,
+        const TVersionedLookupRowsOptions&);
     TFuture<TPullRowsResult> DoPullRows(int retryAttemptsCount, const NYPath::TYPath&, const TPullRowsOptions&);
+
     TFuture<NYson::TYsonString> DoExplainQuery(int retryAttemptsCount, const TString&, const TExplainQueryOptions&);
+
     TFuture<NYson::TYsonString> DoGetNode(int retryAttemptsCount, const NYPath::TYPath&, const TGetNodeOptions&);
     TFuture<NYson::TYsonString> DoListNode(int retryAttemptsCount, const NYPath::TYPath&, const TListNodeOptions&);
     TFuture<bool> DoNodeExists(int retryAttemptsCount, const NYPath::TYPath&, const TNodeExistsOptions&);
-    TFuture<std::vector<TTabletInfo>> DoGetTabletInfos(int retryAttemptsCount, const NYPath::TYPath&, const std::vector<int>&, const TGetTabletInfosOptions&);
+    TFuture<std::vector<TTabletInfo>> DoGetTabletInfos(
+        int retryAttemptsCount,
+        const NYPath::TYPath&,
+        const std::vector<int>&,
+        const TGetTabletInfosOptions&);
     TFuture<ITransactionPtr> DoStartTransaction(
         int retryAttemptsCount,
         NTransactionClient::ETransactionType type,
         const NApi::TTransactionStartOptions& options);
 
 private:
-    std::vector<TClientDescriptionPtr> Clients_;
+    const TFederationConfigPtr Config_;
+    const NConcurrency::TPeriodicExecutorPtr Executor_;
+
+    std::vector<TClientDescriptionPtr> UnderlyingClients_;
     IClientPtr ActiveClient_;
     std::atomic<size_t> ActiveClientId_;
 
-    NThreading::TReaderWriterSpinLock Lock_;
-
-    TFederationConfigPtr Config_;
-    NConcurrency::TPeriodicExecutorPtr Executor_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 };
 
-DECLARE_REFCOUNTED_TYPE(TFederatedTransaction);
+DECLARE_REFCOUNTED_TYPE(TTransaction);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFederatedTransaction::TFederatedTransaction(TFederatedClientPtr federatedClient, size_t clientId, ITransactionPtr underlying)
-    : FederatedClient_(std::move(federatedClient))
+TTransaction::TTransaction(TClientPtr client, size_t clientId, ITransactionPtr underlying)
+    : Client_(std::move(client))
     , ClientId_(clientId)
     , Underlying_(std::move(underlying))
 { }
 
 template <typename TResultType>
-auto TFederatedTransaction::CreateResultHandler()
+auto TTransaction::CreateResultHandler()
 {
     return [this, this_ = MakeStrong(this)] (const TErrorOr<TResultType>& result) {
         if (!result.IsOK()) {
-            FederatedClient_->HandleError(result, ClientId_);
+            Client_->HandleError(result, ClientId_);
         }
         return result;
     };
 }
 
 #define TRANSACTION_METHOD_IMPL(ResultType, MethodName, Args)                                                           \
-TFuture<ResultType> TFederatedTransaction::MethodName(Y_METHOD_USED_ARGS_DECLARATION(Args))                             \
+TFuture<ResultType> TTransaction::MethodName(Y_METHOD_USED_ARGS_DECLARATION(Args))                                  \
 {                                                                                                                       \
     return Underlying_->MethodName(Y_PASS_METHOD_USED_ARGS(Args)).Apply(BIND(CreateResultHandler<ResultType>()));       \
 } Y_SEMICOLON_GUARD
@@ -472,7 +484,7 @@ TRANSACTION_METHOD_IMPL(NYson::TYsonString, GetNode, (const NYPath::TYPath&, con
 TRANSACTION_METHOD_IMPL(NYson::TYsonString, ListNode, (const NYPath::TYPath&, const TListNodeOptions&));
 TRANSACTION_METHOD_IMPL(bool, NodeExists, (const NYPath::TYPath&, const TNodeExistsOptions&));
 
-void TFederatedTransaction::ModifyRows(
+void TTransaction::ModifyRows(
     const NYPath::TYPath& path,
     NTableClient::TNameTablePtr nameTable,
     TSharedRange<TRowModification> modifications,
@@ -481,57 +493,59 @@ void TFederatedTransaction::ModifyRows(
     Underlying_->ModifyRows(path, nameTable, modifications, options);
 }
 
-TFuture<TTransactionFlushResult> TFederatedTransaction::Flush()
+TFuture<TTransactionFlushResult> TTransaction::Flush()
 {
     return Underlying_->Flush().Apply(BIND(CreateResultHandler<TTransactionFlushResult>()));
 }
 
-TFuture<ITransactionPtr> TFederatedTransaction::StartTransaction(
+TFuture<ITransactionPtr> TTransaction::StartTransaction(
     NTransactionClient::ETransactionType type,
     const TTransactionStartOptions& options)
 {
     return Underlying_->StartTransaction(type, options).Apply(BIND(
         [this, this_ = MakeStrong(this)] (const TErrorOr<ITransactionPtr>& result) -> ITransactionPtr {
             if (!result.IsOK()) {
-                FederatedClient_->HandleError(result, ClientId_);
+                Client_->HandleError(result, ClientId_);
             }
-            return New<TFederatedTransaction>(FederatedClient_, ClientId_, result.ValueOrThrow());
+            return New<TTransaction>(Client_, ClientId_, result.ValueOrThrow());
         }
     ));
 }
 
-DEFINE_REFCOUNTED_TYPE(TFederatedTransaction);
+DEFINE_REFCOUNTED_TYPE(TTransaction);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFederatedClient::TFederatedClient(const std::vector<IClientPtr>& clients, TFederationConfigPtr config)
+TClient::TClient(const std::vector<IClientPtr>& underlyingClients, TFederationConfigPtr config)
     : Config_(std::move(config))
     , Executor_(New<NConcurrency::TPeriodicExecutor>(
         NRpc::TDispatcher::Get()->GetLightInvoker(),
-        BIND(&TFederatedClient::CheckClustersHealth, MakeWeak(this)),
+        BIND(&TClient::CheckClustersHealth, MakeWeak(this)),
         Config_->CheckClustersHealthPeriod))
 {
-    // TODO: check that Clients_ is not empty
+    YT_VERIFY(!underlyingClients.empty());
 
-    for (const auto& client : clients) {
+    UnderlyingClients_.reserve(underlyingClients.size());
+    const auto& localDatacenter = NNet::GetLocalYPCluster();
+    for (const auto& client : underlyingClients) {
         auto dataCenter = GetDataCenter(client);
         if (!dataCenter) {
             continue;
         }
-        int priority = *dataCenter == NNet::GetLocalYPCluster() ? 1 : 0;
-        Clients_.push_back(New<TClientDescription>(client, priority));
+        int priority = *dataCenter ==  localDatacenter ? 1 : 0;
+        UnderlyingClients_.push_back(NYT::New<TClientDescription>(client, priority));
     }
-    std::sort(Clients_.begin(), Clients_.end(), [](const auto& lhs, const auto& rhs) {
+    std::sort(UnderlyingClients_.begin(), UnderlyingClients_.end(), [](const auto& lhs, const auto& rhs) {
         return lhs->Priority > rhs->Priority;
     });
 
-    ActiveClient_ = Clients_.front()->Client;
     ActiveClientId_ = 0;
+    ActiveClient_ = UnderlyingClients_[ActiveClientId_]->Client;
 
     Executor_->Start();
 }
 
-void TFederatedClient::CheckClustersHealth()
+void TClient::CheckClustersHealth()
 {
     TCheckClusterLivenessOptions options;
     options.CheckCypressRoot = true;
@@ -541,16 +555,16 @@ void TFederatedClient::CheckClustersHealth()
     std::optional<size_t> betterClientId;
 
     std::vector<TFuture<void>> checks;
-    checks.reserve(Clients_.size());
+    checks.reserve(UnderlyingClients_.size());
 
-    for (const auto& clientDescr : Clients_) {
-        checks.emplace_back(clientDescr->Client->CheckClusterLiveness(options));
+    for (const auto& clientDescription : UnderlyingClients_) {
+        checks.emplace_back(clientDescription->Client->CheckClusterLiveness(options));
     }
 
     for (size_t id = 0; id < checks.size(); ++id) {
         const auto& check = checks[id];
-        auto hasErrors = !NConcurrency::WaitFor(check).IsOK();
-        Clients_[id]->HasErrors = hasErrors;
+        bool hasErrors = !NConcurrency::WaitFor(check).IsOK();
+        UnderlyingClients_[id]->HasErrors = hasErrors;
         if (!betterClientId && !hasErrors && id < activeClientId) {
             betterClientId = id;
         }
@@ -559,22 +573,22 @@ void TFederatedClient::CheckClustersHealth()
     if (betterClientId.has_value() && ActiveClientId_ == activeClientId) {
         auto newClientId = *betterClientId;
         auto guard = NThreading::WriterGuard(Lock_);
-        ActiveClient_ = Clients_[newClientId]->Client;
+        ActiveClient_ = UnderlyingClients_[newClientId]->Client;
         ActiveClientId_ = newClientId;
         return;
     }
 
     // If active cluster is not healthy, try changing it.
-    if (Clients_[activeClientId]->HasErrors) {
+    if (UnderlyingClients_[activeClientId]->HasErrors) {
         auto guard = NThreading::WriterGuard(Lock_);
         // Check that active client wasn't changed.
-        if (ActiveClientId_ == activeClientId && Clients_[activeClientId]->HasErrors) {
+        if (ActiveClientId_ == activeClientId && UnderlyingClients_[activeClientId]->HasErrors) {
             UpdateActiveClient();
         }
     }
 }
 
-std::optional<TString> TFederatedClient::GetDataCenter(const IClientPtr& client)
+std::optional<TString> TClient::GetDataCenter(const IClientPtr& client)
 {
     TListNodeOptions options;
     options.MaxSize = 1;
@@ -590,9 +604,16 @@ std::optional<TString> TFederatedClient::GetDataCenter(const IClientPtr& client)
 }
 
 template <typename TResultType, typename TRetryCallback>
-auto TFederatedClient::CreateResultHandler(int clientId, int retryAttemptsCount, TRetryCallback callback)
+auto TClient::CreateResultHandler(int clientId, int retryAttemptsCount, TRetryCallback callback)
 {
-    return [this, this_ = MakeStrong(this), clientId, retryAttemptsCount, callback=std::move(callback)] (const TErrorOr<TResultType>& resultOrError) {
+    return [
+        this,
+        this_ = MakeStrong(this),
+        clientId,
+        retryAttemptsCount,
+        callback=std::move(callback)
+    ] (const TErrorOr<TResultType>& resultOrError)
+    {
         if (!resultOrError.IsOK()) {
             HandleError(resultOrError, clientId);
             if (retryAttemptsCount > 1) {
@@ -603,14 +624,14 @@ auto TFederatedClient::CreateResultHandler(int clientId, int retryAttemptsCount,
     };
 }
 
-TFuture<ITransactionPtr> TFederatedClient::StartTransaction(
+TFuture<ITransactionPtr> TClient::StartTransaction(
     NTransactionClient::ETransactionType type,
     const NApi::TTransactionStartOptions& options)
 {
     return DoStartTransaction(Config_->ClusterRetryAttempts, type, options);
 }
 
-TFuture<ITransactionPtr> TFederatedClient::DoStartTransaction(
+TFuture<ITransactionPtr> TClient::DoStartTransaction(
     int retryAttemptsCount,
     NTransactionClient::ETransactionType type,
     const NApi::TTransactionStartOptions& options)
@@ -629,19 +650,19 @@ TFuture<ITransactionPtr> TFederatedClient::DoStartTransaction(
                 return MakeFuture(transactionOrError);
             }
             return MakeFuture(ITransactionPtr{
-                New<TFederatedTransaction>(std::move(this_), clientId, transactionOrError.Value())
+                New<TTransaction>(std::move(this_), clientId, transactionOrError.Value())
             });
         }
     ));
 }
 
 #define CLIENT_METHOD_IMPL(ResultType, MethodName, Args, CaptureList)                                                   \
-TFuture<ResultType> TFederatedClient::MethodName(Y_METHOD_USED_ARGS_DECLARATION(Args))                                  \
+TFuture<ResultType> TClient::MethodName(Y_METHOD_USED_ARGS_DECLARATION(Args))                                       \
 {                                                                                                                       \
     return Do##MethodName(Config_->ClusterRetryAttempts, Y_PASS_METHOD_USED_ARGS(Args));                                \
 }                                                                                                                       \
                                                                                                                         \
-TFuture<ResultType> TFederatedClient::Do##MethodName(int retryAttempsCount, Y_METHOD_USED_ARGS_DECLARATION(Args))       \
+TFuture<ResultType> TClient::Do##MethodName(int retryAttempsCount, Y_METHOD_USED_ARGS_DECLARATION(Args))            \
 {                                                                                                                       \
     auto [client, clientId] = GetActiveClient();                                                                        \
                                                                                                                         \
@@ -663,25 +684,25 @@ CLIENT_METHOD_IMPL(NYson::TYsonString, ListNode, (const NYPath::TYPath&, const T
 CLIENT_METHOD_IMPL(bool, NodeExists, (const NYPath::TYPath&, const TNodeExistsOptions&), (&a1, &a2));
 CLIENT_METHOD_IMPL(std::vector<TTabletInfo>, GetTabletInfos, (const NYPath::TYPath&, const std::vector<int>&, const TGetTabletInfosOptions&), (&a1, &a2, &a3));
 
-const NTabletClient::ITableMountCachePtr& TFederatedClient::GetTableMountCache()
+const NTabletClient::ITableMountCachePtr& TClient::GetTableMountCache()
 {
     auto [client, _] = GetActiveClient();
     return client->GetTableMountCache();
 }
 
-const NTransactionClient::ITimestampProviderPtr& TFederatedClient::GetTimestampProvider()
+const NTransactionClient::ITimestampProviderPtr& TClient::GetTimestampProvider()
 {
     auto [client, _] = GetActiveClient();
     return client->GetTimestampProvider();
 }
 
-ITransactionPtr TFederatedClient::AttachTransaction(
+ITransactionPtr TClient::AttachTransaction(
     NTransactionClient::TTransactionId transactionId,
     const TTransactionAttachOptions& options)
 {
     auto transactionClusterTag = NObjectClient::CellTagFromId(transactionId);
-    for (const auto& clientDescr : Clients_) {
-        const auto& client = clientDescr->Client;
+    for (const auto& clientDescription : UnderlyingClients_) {
+        const auto& client = clientDescription->Client;
         auto clientClusterTag = client->GetConnection()->GetClusterTag();
         if (clientClusterTag == transactionClusterTag) {
             return client->AttachTransaction(transactionId, options);
@@ -690,11 +711,11 @@ ITransactionPtr TFederatedClient::AttachTransaction(
     THROW_ERROR_EXCEPTION("There is no corresponding client for the transaction (TransactionId: %v)", transactionId);
 }
 
-void TFederatedClient::HandleError(const TErrorOr<void>& /*error*/, size_t clientId)
+void TClient::HandleError(const TErrorOr<void>& /*error*/, size_t clientId)
 {
     // TODO(nadya73): check error and do nothing if it's not fatal error
 
-    Clients_[clientId]->HasErrors = true;
+    UnderlyingClients_[clientId]->HasErrors = true;
     if (ActiveClientId_ != clientId) {
         return;
     }
@@ -707,29 +728,29 @@ void TFederatedClient::HandleError(const TErrorOr<void>& /*error*/, size_t clien
     UpdateActiveClient();
 }
 
-void TFederatedClient::UpdateActiveClient()
+void TClient::UpdateActiveClient()
 {
     VERIFY_WRITER_SPINLOCK_AFFINITY(Lock_);
 
     auto activeClientId = ActiveClientId_.load();
 
-    for (size_t id = 0; id < Clients_.size(); ++id) {
-        const auto& clientDescr = Clients_[id];
-        if (!clientDescr->HasErrors) {
+    for (size_t id = 0; id < UnderlyingClients_.size(); ++id) {
+        const auto& clientDescription = UnderlyingClients_[id];
+        if (!clientDescription->HasErrors) {
             if (activeClientId != id) {
                 YT_LOG_DEBUG("Active client was changed (PreviousClientId: %v, NewClientId: %v)",
                     activeClientId,
                     id);
             }
 
-            ActiveClient_ = clientDescr->Client;
+            ActiveClient_ = clientDescription->Client;
             ActiveClientId_ = id;
             break;
         }
     }
 }
 
-TFederatedClient::TActiveClientInfo TFederatedClient::GetActiveClient()
+TClient::TActiveClientInfo TClient::GetActiveClient()
 {
     auto guard = ReaderGuard(Lock_);
     YT_LOG_DEBUG("Request will be send to the active client (ClientId: %v)",
@@ -737,13 +758,13 @@ TFederatedClient::TActiveClientInfo TFederatedClient::GetActiveClient()
     return {ActiveClient_, ActiveClientId_.load()};
 }
 
-DEFINE_REFCOUNTED_TYPE(TFederatedClient);
+DEFINE_REFCOUNTED_TYPE(TClient)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NApi::IClientPtr CreateClient(const std::vector<NApi::IClientPtr>& clients, TFederationConfigPtr config)
 {
-    return New<TFederatedClient>(clients, std::move(config));
+    return New<TClient>(clients, std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
