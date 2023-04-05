@@ -15,11 +15,6 @@
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 
-#include <yt/yt/server/master/cell_master/config.h>
-#include <yt/yt/server/master/cell_master/config_manager.h>
-
-#include <yt/yt/server/master/chunk_server/chunk_manager.h>
-
 #include <yt/yt/server/master/object_server/helpers.h>
 #include <yt/yt/server/master/object_server/object_detail.h>
 
@@ -31,8 +26,6 @@
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
 #include <yt/yt/server/master/table_server/public.h>
-
-#include <yt/yt/server/master/security_server/config.h>
 
 #include <yt/yt/ytlib/object_client/config.h>
 
@@ -107,10 +100,6 @@ private:
             .SetReplicated(true)
             .SetRemovable(true)
             .SetPresent(cellBundle->GetFolderId().has_value()));
-        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ChangelogAccountViolatedResourceLimits)
-            .SetOpaque(true));
-        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::SnapshotAccountViolatedResourceLimits)
-            .SetOpaque(true));
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -181,36 +170,6 @@ private:
                 } else {
                     return false;
                 }
-            }
-
-            case EInternedAttributeKey::ChangelogAccountViolatedResourceLimits: {
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
-                const auto& securityManager = Bootstrap_->GetSecurityManager();
-
-                auto bundleOptions = cellBundle->GetOptions();
-                auto* account = securityManager->GetAccountByNameOrThrow(
-                    bundleOptions->ChangelogAccount,
-                    /*activeLifeStageOnly*/ true);
-                auto* medium = chunkManager->GetMediumByNameOrThrow(bundleOptions->ChangelogPrimaryMedium);
-
-                DoSerializeAccountViolatedResourceLimits(account, medium, consumer);
-
-                return true;
-            }
-
-            case EInternedAttributeKey::SnapshotAccountViolatedResourceLimits: {
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
-                const auto& securityManager = Bootstrap_->GetSecurityManager();
-
-                auto bundleOptions = cellBundle->GetOptions();
-                auto* account = securityManager->GetAccountByNameOrThrow(
-                    bundleOptions->SnapshotAccount,
-                    /*activeLifeStageOnly*/ true);
-                auto* medium = chunkManager->GetMediumByNameOrThrow(bundleOptions->SnapshotPrimaryMedium);
-
-                DoSerializeAccountViolatedResourceLimits(account, medium, consumer);
-
-                return true;
             }
 
             default:
@@ -394,27 +353,6 @@ private:
         ToProto(response->mutable_tablet_actions(), tabletActionIds);
 
         context->Reply();
-    }
-
-    void DoSerializeAccountViolatedResourceLimits(TAccount* account, TMedium* medium, IYsonConsumer* consumer)
-    {
-        auto enableTabletResourceValidation =
-            Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->EnableTabletResourceValidation;
-        auto violatedResourceLimits = account->GetViolatedResourceLimits(
-            Bootstrap_,
-            enableTabletResourceValidation);
-
-        // NB: Filter out master memory and irrelevant media violations.
-        violatedResourceLimits.SetMasterMemory({});
-        auto mediumViolatedDiskSpace = GetOrDefault(violatedResourceLimits.DiskSpace(), medium->GetIndex());
-        violatedResourceLimits.DiskSpace().clear();
-        violatedResourceLimits.SetMediumDiskSpace(medium->GetIndex(), mediumViolatedDiskSpace);
-
-        SerializeViolatedClusterResourceLimitsInBooleanFormat(
-            violatedResourceLimits,
-            consumer,
-            Bootstrap_,
-            /*serializeDiskSpace*/ false);
     }
 };
 
