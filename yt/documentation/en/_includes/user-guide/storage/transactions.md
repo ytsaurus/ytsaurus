@@ -24,7 +24,7 @@ A transaction can have another transaction as a parent. Transactions form a tree
 
 When you perform most actions in the system, you can specify which transaction those actions should be performed under. Even if no transaction is explicitly specified, the actions are atomic. {{product-name}} starts a special system transaction and completes it at the end of the command execution.
 
-Transactions are divided into **master transactions** and **tablet transactions**. Master transactions enable you to perform operations on master metainformation and write data to dynamic tables.
+Transactions are divided into **master transactions** and **tablet transactions**. Master transactions enable you to perform operations on master metainformation.
 Tablet transactions enable you only to write data to dynamic tables. For more information about tablet transactions, see [Dynamic tables](../../../user-guide/dynamic-tables/overview.md).
 
 ## Master transactions { #master_transactions }
@@ -36,6 +36,7 @@ Transactional processing within master servers applies to versionable objects. E
 To create a transaction, run the `start_tx` command.
 You can specify a parent transaction in the `parent_id` attribute and a transaction lifetime in the `timeout` attribute.
 The upper transaction lifetime limit in the system is one hour. If you specify a `timeout` of more than one hour, it will be equal to the limit.
+The reference point for transaction lifetime is the latter of `start_tx` moment or last `ping_tx` moment.
 
 ### Extending a transaction lifetime { #ping }
 
