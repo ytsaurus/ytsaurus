@@ -238,7 +238,7 @@ class TestLayers(YTEnvSetup):
 
 
 class TestProbingLayer(TestLayers):
-    NUM_TEST_PARTITIONS = 5
+    NUM_TEST_PARTITIONS = 10
 
     INPUT_TABLE = "//tmp/input_table"
     OUTPUT_TABLE = "//tmp/output_table"
