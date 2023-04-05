@@ -194,7 +194,7 @@ public class AlterTable
 
         /**
          * If specified, it changes the ID of the replica object on the metacluster.
-         * For more information, see <a href="https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/replicated-dynamic-tables"
+         * For more information, @see <a href="https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/replicated-dynamic-tables">
          * Replicated dynamic tables
          * </a>
          * @return self
