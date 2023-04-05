@@ -10,7 +10,7 @@ Detailed documentation can be found [here](https://ytsaurus.tech/docs/ru/api/pyt
 ### Preparation
 
 To work with python libraries from you should prepare environment and modules layout:
-  1. [Build](BUILD.md) native libraries presented by cmake targets `yson_lib`, `driver_lib`, `driver_rpc_lib` 
+  1. [Build](https://github.com/ytsaurus/ytsaurus/blob/main/BUILD.md) native libraries presented by cmake targets `yson_lib`, `driver_lib`, `driver_rpc_lib` 
   2. Install [virtualenv](https://virtualenv.pypa.io/en/latest/) and [protoc](https://github.com/protocolbuffers/protobuf/releases)
   3. Install `yt_setup` in editable mode `pip install -e yt/python/packages`, this library provide instruments to prepare modules layout
   4. Create directory `<ytsaurus_python>` to store prepared modules
