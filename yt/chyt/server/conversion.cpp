@@ -347,90 +347,17 @@ TSharedRange<TUnversionedRow> ToRowRange(
 /*
  * How does it work?
  *
- * If types are not Nullable, then conversion is trivial.
- * Just convert every TUnversiondValue to DB::Field.
+ * Not-null values in bounds are simply converted via ToField function.
+ * Null values are replaced with DB::NEGATIVE_INFINITY, because in YT nulls are less than any other values.
+ *
+ * Only first usedKeyColumnCount columns are converted, other values are discarded.
  *
  * If a key is shorter than provided usedKeyColumnCount, the rest of the key is
  * filled with min (lower) or max (upper) possible value of the coresponding column.
  *
- * If a column has a Nullable (optional) type, then we have a problem, because
- * ClickHouse does not support Nullable columns in primary key.
+ * If provided bounds are excplusive and tryMakeBoundsInclusive is |true|,
+ * this functions will try to convert them to inclusive using some heuristics.
  *
- * To overcome this limitation, we use the following trick:
- * Imagine that we have a sorted table and following key bounds:
- *
- * Bound-1: >= [#; 2]
- * Bound-2: <= [0; 1]
- *
- * [#; 0], [#; 2], [#; 4], [0; 1], [0; 3], [0, 5], [1, 0]
- * [-----------------------Sorted-----------------------]
- *         [-------------------Bound-1------------------]
- * [-----------Bound-2----------]
- *
- * We replace all Null (#) values with the minimum possible type value (in the mind).
- * After it, the table contains following values:
- *
- * [0; 0], [0; 2], [0; 4], [0; 1], [0; 3], [0, 5], [1, 0]
- * [-------Sorted-------]  [-----------Sorted-----------]
- * [---------------------Not-Sorted---------------------]
- *
- * The table is not sorted any more. Instead, we have two sorted segments.
- * But it's still possible to efficiently filter some chunks.
- *
- * Unfortunately, replacing all Null values with minimum breaks key bounds:
- *
- * Bound-1': >= [0; 2]
- * Bound-1': <= [0; 1]
- *
- * [0; 0],         [0; 2],         [0; 4]
- *         [0; 1],         [0; 3],         [0; 5], [1; 0]
- *                 [--------------Bound-1'--------------]
- * [--Bound-2'--]
- *
- * Now both Bound-1 and Bound-2 cover less values.
- *
- * It's because before replacing Bound-1 included all rows starting with 0
- * and Bound-2 included all rows starting with #.
- * Now some of these values are missing.
- *
- * We need to adjust key bounds a little bit, so they include all previous values:
- *
- * Adjusted-Bound-1: >= [0; std::numeric_limits<Uint64>::min()]
- * Adjusted-Bound-2: <= [0; std::numeric_limits<Uint64>::max()]
- *
- * [0; 0],         [0; 2],         [0; 4]
- *         [0; 1],         [0; 3],         [0; 5], [1; 0]
- * [------------------Adjusted-Bound-1------------------]
- * [--------------Adjusted-Bound-2--------------]
- *
- * Now key bounds do not contain Null values and cover all original rows.
- * They also may cover some 'extra' rows (range became wider). But it does not
- * affect correctness, it can only affect performance a little bit.
- *
- * We need to adjust lower key bound only when it contains Null,
- * and adjust upper key bound only when it contains minimum type value.
- *
- * One more optimization:
- * If the common prefix of lowerBound and upperBound contains Null or minumum type value,
- * then we do not need to adjust bounds. They already include all values from the range:
- *
- * Bound-1: >= [#; 1]
- * Bound-2: <= [#; 2]
- *
- * [#; 0], [#; 2], [#; 4], [0; 1], [0; 3], [0, 5], [1, 0]
- * [-----------------------Sorted-----------------------]
- *         [------------------Bound-1-------------------]
- * [---Bound-2--]
- *
- * After replacing:
- *
- * Bound-1': >= [0; 1]
- * Bound-2': <= [0; 2]
- *
- * [0; 0],         [0; 2],         [0; 4]
- *         [0; 1],         [0; 3],         [0; 5], [1; 0]
- *         [------------------Bound-1'------------------]
- * [------Bound-2'------]
  */
 TClickHouseKeys ToClickHouseKeys(
     const TKeyBound& lowerBound,
@@ -442,67 +369,56 @@ TClickHouseKeys ToClickHouseKeys(
 {
     YT_VERIFY(usedKeyColumnCount <= std::ssize(dataTypes));
 
-    int commonPrefixSize = 0;
-    if (lowerBound && upperBound) {
-        while (commonPrefixSize < static_cast<int>(lowerBound.Prefix.GetCount())
-            && commonPrefixSize < static_cast<int>(upperBound.Prefix.GetCount())
-            && lowerBound.Prefix[commonPrefixSize] == upperBound.Prefix[commonPrefixSize])
-        {
-            ++commonPrefixSize;
-        }
-    }
-
     auto convertToClickHouseKey = [&] (const TKeyBound& ytBound) {
         std::vector<DB::FieldRef> chKey(usedKeyColumnCount);
-        // See explanation above.
-        bool adjusted = false;
 
         int ytBoundSize = ytBound.Prefix.GetCount();
+        int prefixSizeToConvert = std::min(usedKeyColumnCount, ytBoundSize);
 
-        for (int index = 0; index < usedKeyColumnCount; ++index) {
-            const auto& dataType = DB::removeNullable(dataTypes[index]);
-            bool isNullable = dataTypes[index]->isNullable();
+        // Convert prefix values as is.
+        for (int index = 0; index < prefixSizeToConvert; ++index) {
+            const auto& value = ytBound.Prefix[index];
+            auto logicalType = schema.Columns()[index].LogicalType();
 
-            if (index < ytBoundSize && !adjusted) {
-                if (ytBound.Prefix[index].Type == EValueType::Null) {
-                    chKey[index] = GetMinimumTypeValue(dataType);
-
-                    adjusted = !ytBound.IsUpper && index >= commonPrefixSize;
-                } else {
-                    chKey[index] = ToField(ytBound.Prefix[index], schema.Columns()[index].LogicalType());
-
-                    adjusted = ytBound.IsUpper
-                        && index >= commonPrefixSize
-                        && isNullable
-                        && chKey[index] == GetMinimumTypeValue(dataType);
-                }
+            if (value.Type == EValueType::Null) {
+                // NOTE(dakovalkov): In YT nulls are less than any other value, so replace them with DB::NEGATIVE_INFINITY.
+                // It is a special null value which is treated appropriatly in KeyCondition.
+                chKey[index] = DB::NEGATIVE_INFINITY;
             } else {
-                if (ytBound.IsUpper) {
-                    chKey[index] = GetMaximumTypeValue(dataType);
-                } else {
-                    chKey[index] = GetMinimumTypeValue(dataType);
-                }
+                chKey[index] = ToField(value, logicalType);
             }
         }
 
-        bool isInclusive = ytBound.IsInclusive;
-        // Adjusted key is always inclusive.
-        isInclusive |= adjusted;
-        // Truncated key also loses its exclusiveness.
-        isInclusive |= (ytBoundSize > usedKeyColumnCount);
+        // Key shortening always makes it inclusive.
+        bool isInclusive = ytBound.IsInclusive || ytBoundSize > usedKeyColumnCount;
 
-        if (!isInclusive && tryMakeBoundsInclusive && ytBoundSize > 0) {
-            int index = ytBoundSize - 1;
-            const auto& dataType = DB::removeNullable(dataTypes[index]);
+        if (!isInclusive && tryMakeBoundsInclusive && prefixSizeToConvert > 0) {
+            int lastConvertedIndex = prefixSizeToConvert - 1;
 
-            std::optional<DB::Field> value;
+            std::optional<DB::Field> adjustedValue;
             if (ytBound.IsUpper) {
-                value = TryDecrementFieldValue(chKey[index], dataType);
+                adjustedValue = TryDecrementFieldValue(chKey[lastConvertedIndex], dataTypes[lastConvertedIndex]);
             } else {
-                value = TryIncrementFieldValue(chKey[index], dataType);
+                adjustedValue = TryIncrementFieldValue(chKey[lastConvertedIndex], dataTypes[lastConvertedIndex]);
             }
-            if (value) {
-                chKey[index] = *value;
+            if (adjustedValue) {
+                chKey[lastConvertedIndex] = std::move(*adjustedValue);
+                // We successfully converted an exclusive bound to inclusive one.
+                isInclusive = true;
+            }
+        }
+
+        // Fill remaining suffix with min/max values.
+        for (int index = prefixSizeToConvert; index < usedKeyColumnCount; ++index) {
+            // For an inclusive bound we should set a value which will not shorten our range.
+            // Such value is the maximum type value for upper bound the minimum type value for an lower bound.
+            // For an exclusive bound we can set any value, because it will only extend our range.
+            // But to keep our keys as accurate as possible, we need to set a value which will extend our range the least.
+            // Such value is an opposite to a value we chose for an inclusive bound.
+            if (ytBound.IsUpper ^ isInclusive) {
+                chKey[index] = GetMinimumTypeValue(dataTypes[index]);
+            } else {
+                chKey[index] = GetMaximumTypeValue(dataTypes[index]);
             }
         }
 
@@ -510,13 +426,8 @@ TClickHouseKeys ToClickHouseKeys(
     };
 
     TClickHouseKeys result;
-
-    if (lowerBound) {
-        result.MinKey = convertToClickHouseKey(lowerBound);
-    }
-    if (upperBound) {
-        result.MaxKey = convertToClickHouseKey(upperBound);
-    }
+    result.MinKey = convertToClickHouseKey(lowerBound);
+    result.MaxKey = convertToClickHouseKey(upperBound);
 
     return result;
 }

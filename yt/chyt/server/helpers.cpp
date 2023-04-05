@@ -81,7 +81,9 @@ DB::Field GetMinimumTypeValue(const DB::DataTypePtr& dataType)
 {
     switch (dataType->getTypeId()) {
         case DB::TypeIndex::Nullable:
-            return DB::Field();
+            // NOTE(dakovalkov): DB::NEGATIVE_INFINITY is a special null value,
+            // which is less that any other value in key condition (NULLS FIRST).
+            return DB::Field(DB::NEGATIVE_INFINITY);
 
         case DB::TypeIndex::Int8:
             return DB::Field(std::numeric_limits<DB::Int8>::min());
