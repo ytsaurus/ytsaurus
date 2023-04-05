@@ -11,7 +11,7 @@
  - lldb-12
  - conan 1.57.0
  - git 2.20+
- - python3.8
+ - python 3.8+
  - pip3
  - ninja 1.10+
  - m4
