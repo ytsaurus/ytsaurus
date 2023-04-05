@@ -127,7 +127,6 @@ struct IBootstrapBase
 
     // Common node caches.
     virtual const NChunkClient::IBlockCachePtr& GetBlockCache() const = 0;
-    virtual const NChunkClient::IClientBlockCachePtr& GetClientBlockCache() const = 0;
     virtual const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const = 0;
     virtual const NTabletNode::IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const = 0;
     virtual const NDataNode::TChunkReaderSweeperPtr& GetChunkReaderSweeper() const = 0;
@@ -269,7 +268,6 @@ public:
     const INodeMemoryReferenceTrackerPtr& GetNodeMemoryReferenceTracker() const override;
 
     const NChunkClient::IBlockCachePtr& GetBlockCache() const override;
-    const NChunkClient::IClientBlockCachePtr& GetClientBlockCache() const override;
     const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const override;
     const NTabletNode::IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const override;
     const NDataNode::TChunkReaderSweeperPtr& GetChunkReaderSweeper() const override;

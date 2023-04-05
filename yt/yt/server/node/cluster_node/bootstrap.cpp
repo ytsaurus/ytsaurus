@@ -511,11 +511,6 @@ public:
         return NodeMemoryReferenceTracker_;
     }
 
-    const IClientBlockCachePtr& GetClientBlockCache() const override
-    {
-        return ClientBlockCache_;
-    }
-
     const IChunkMetaManagerPtr& GetChunkMetaManager() const override
     {
         return ChunkMetaManager_;
@@ -1588,11 +1583,6 @@ const IBlockCachePtr& TBootstrapBase::GetBlockCache() const
 const INodeMemoryReferenceTrackerPtr& TBootstrapBase::GetNodeMemoryReferenceTracker() const
 {
     return Bootstrap_->GetNodeMemoryReferenceTracker();
-}
-
-const IClientBlockCachePtr& TBootstrapBase::GetClientBlockCache() const
-{
-    return Bootstrap_->GetClientBlockCache();
 }
 
 const IChunkMetaManagerPtr& TBootstrapBase::GetChunkMetaManager() const

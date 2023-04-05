@@ -655,7 +655,7 @@ private:
         if (type == NObjectClient::EObjectType::Chunk || type == NObjectClient::EObjectType::ErasureChunk) {
             for (int blockIndex : blockIndexes) {
                 auto blockId = TBlockId(chunkId, blockIndex);
-                auto block = blockCache->FindBlock(blockId, EBlockType::CompressedData).Block;
+                auto block = blockCache->FindBlock(blockId, EBlockType::CompressedData);
                 blocks.push_back(block);
                 chunkReaderStatistics->DataBytesReadFromCache.fetch_add(
                     block.Size(),

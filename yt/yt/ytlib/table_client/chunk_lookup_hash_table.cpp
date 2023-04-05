@@ -211,7 +211,7 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
     for (int blockIndex = startBlockIndex; blockIndex <= lastBlockIndex; ++blockIndex) {
         auto blockId = TBlockId(chunkId, blockIndex);
-        auto uncompressedBlock = blockCache->FindBlock(blockId, EBlockType::UncompressedData).Block;
+        auto uncompressedBlock = blockCache->FindBlock(blockId, EBlockType::UncompressedData);
         if (!uncompressedBlock) {
             YT_LOG_INFO("Cannot create lookup hash table because chunk data is missing in the cache "
                 "(ChunkId: %v, BlockIndex: %v)",

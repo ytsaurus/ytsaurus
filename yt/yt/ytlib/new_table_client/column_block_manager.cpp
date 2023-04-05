@@ -448,12 +448,11 @@ private:
     {
         NChunkClient::TBlockId blockId(ChunkId_, blockIndex);
 
-        auto cachedBlock = BlockCache_->FindBlock(blockId, EBlockType::UncompressedData);
-        if (cachedBlock.Block) {
-            return std::move(cachedBlock.Block.Data);
+        if (auto block = BlockCache_->FindBlock(blockId, EBlockType::UncompressedData)) {
+            return std::move(block.Data);
         }
 
-        auto compressedBlock = BlockCache_->FindBlock(blockId, EBlockType::CompressedData).Block;
+        auto compressedBlock = BlockCache_->FindBlock(blockId, EBlockType::CompressedData);
         if (compressedBlock) {
             auto* codec = NCompression::GetCodec(CodecId_);
 
@@ -467,7 +466,8 @@ private:
             return uncompressedBlock;
         }
 
-        YT_LOG_FATAL("Cached block is missing (BlockId: %v)", blockId);
+        YT_LOG_FATAL("Cached block is missing (BlockId: %v)",
+            blockId);
     }
 };
 

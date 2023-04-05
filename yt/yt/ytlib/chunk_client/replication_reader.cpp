@@ -1725,8 +1725,7 @@ private:
                         cachedBlocks.push_back(TBlockWithCookie(blockIndex, std::move(cookie)));
                     }
                 } else {
-                    auto block = blockCache->FindBlock(blockId, EBlockType::CompressedData);
-                    if (block.Block) {
+                    if (auto block = blockCache->FindBlock(blockId, EBlockType::CompressedData)) {
                         cachedBlocks.push_back(TBlockWithCookie(blockIndex, CreatePresetCachedBlockCookie(block)));
                     } else {
                         uncachedBlocks.push_back(TBlockWithCookie(blockIndex, /*cookie*/ nullptr));
@@ -1976,18 +1975,16 @@ private:
                 ? std::optional<TNodeDescriptor>(GetPeerDescriptor(respondedPeer.Address))
                 : std::optional<TNodeDescriptor>(std::nullopt);
 
-            auto& cookie = blocks[index].Cookie;
-            if (cookie) {
-                TCachedBlock cachedBlock(block);
-                cookie->SetBlock(cachedBlock);
+            if (auto& cookie = blocks[index].Cookie) {
+                cookie->SetBlock(block);
             } else if (reader->Config_->UseBlockCache) {
                 reader->BlockCache_->PutBlock(blockId, EBlockType::CompressedData, block);
             }
 
-            YT_VERIFY(Blocks_.emplace(blockIndex, block).second);
             bytesReceived += block.Size();
             TotalBytesReceived_ += block.Size();
             receivedBlockIndexes.push_back(blockIndex);
+            EmplaceOrCrash(Blocks_, blockIndex, std::move(block));
         }
 
         if (invalidBlockCount > 0) {
@@ -2063,29 +2060,30 @@ private:
 
     void FetchBlocksFromCache(const std::vector<TBlockWithCookie>& blocks)
     {
-        std::vector<TFuture<TCachedBlock>> cachedBlockFutures;
+        std::vector<TFuture<void>> cachedBlockFutures;
         cachedBlockFutures.reserve(blocks.size());
         for (const auto& block : blocks) {
             cachedBlockFutures.push_back(block.Cookie->GetBlockFuture());
         }
-        auto cachedBlocks = WaitForFast(AllSet(cachedBlockFutures))
+        WaitForFast(AllSet(cachedBlockFutures))
             .ValueOrThrow();
-        YT_VERIFY(cachedBlocks.size() == blocks.size());
 
+        std::vector<int> fetchedBlockIndexes;
         for (int index = 0; index < std::ssize(blocks); ++index) {
-            int blockIndex = blocks[index].BlockIndex;
-            const auto& blockOrError = cachedBlocks[index];
-            if (blockOrError.IsOK()) {
-                YT_LOG_DEBUG("Fetched block from block cache (BlockIndex: %v)",
-                    blockIndex);
-
-                const auto& block = blockOrError.Value().Block;
-                YT_VERIFY(Blocks_.emplace(blockIndex, block).second);
-                SessionOptions_.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
-                    block.Size(),
-                    std::memory_order::relaxed);
+            if (!cachedBlockFutures[index].Get().IsOK()) {
+                continue;
             }
+
+            auto it = EmplaceOrCrash(Blocks_, blocks[index].BlockIndex, blocks[index].Cookie->GetBlock());
+            fetchedBlockIndexes.push_back(it->first);
+            SessionOptions_.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
+                it->second.Size(),
+                std::memory_order::relaxed);
         }
+
+        YT_LOG_DEBUG("Fetched blocks from block cache (Count: %v, BlockIndexes: %v)",
+            fetchedBlockIndexes.size(),
+            fetchedBlockIndexes);
     }
 
     void OnSessionSucceeded()

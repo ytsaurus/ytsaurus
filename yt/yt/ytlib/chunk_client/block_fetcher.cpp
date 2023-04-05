@@ -253,8 +253,8 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
         TBlockId blockId(chunkId, blockIndex);
 
         auto cachedBlock = Config_->UseUncompressedBlockCache
-            ? BlockCache_->FindBlock(blockId, EBlockType::UncompressedData).Block
-            : TBlock();
+            ? BlockCache_->FindBlock(blockId, EBlockType::UncompressedData)
+            : TCachedBlock();
         if (cachedBlock) {
             ChunkReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
                 cachedBlock.Size(),
@@ -427,8 +427,8 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
 
             TBlockId blockId(chunkId, blockIndex);
             auto cachedBlock = Config_->UseUncompressedBlockCache
-                ? BlockCache_->FindBlock(blockId, EBlockType::UncompressedData).Block
-                : TBlock();
+                ? BlockCache_->FindBlock(blockId, EBlockType::UncompressedData)
+                : TCachedBlock();
             if (cachedBlock) {
                 ChunkReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
                     cachedBlock.Size(),

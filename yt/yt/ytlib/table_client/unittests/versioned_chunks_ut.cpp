@@ -140,7 +140,7 @@ struct TBlockProvider
     const char* GetBlock(ui32 blockIndex) override
     {
         NChunkClient::TBlockId blockId(ChunkId, blockIndex);
-        auto cachedBlock = BlockCache->FindBlock(blockId, EBlockType::UncompressedData).Block;
+        auto cachedBlock = BlockCache->FindBlock(blockId, EBlockType::UncompressedData);
 
         if (!cachedBlock) {
             THROW_ERROR_EXCEPTION("Using lookup hash table with compressed in memory mode is not supported");
@@ -173,7 +173,7 @@ public:
     {
         auto cachedBlock = Underlying_->FindBlock(id, type);
 
-        UsedBlocks_.push_back(TSharedMutableRef::MakeCopy<TSentinelCookie>(cachedBlock.Block.Data));
+        UsedBlocks_.push_back(TSharedMutableRef::MakeCopy<TSentinelCookie>(cachedBlock.Data));
 
         struct TDamagingMemoryHolder
             : public TSharedRangeHolder
@@ -192,7 +192,7 @@ public:
             }
         };
 
-        cachedBlock.Block.Data = TSharedRef(UsedBlocks_.back(), New<TDamagingMemoryHolder>(UsedBlocks_.back()));
+        cachedBlock.Data = TSharedRef(UsedBlocks_.back(), New<TDamagingMemoryHolder>(UsedBlocks_.back()));
 
         return cachedBlock;
     }

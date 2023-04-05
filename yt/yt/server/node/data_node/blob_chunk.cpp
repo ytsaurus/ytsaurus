@@ -333,15 +333,12 @@ void TBlobChunkBase::OnBlocksExtLoaded(
             auto blockId = TBlockId(Id_, entry.BlockIndex);
             entry.Cookie = blockCache->GetBlockCookie(blockId, EBlockType::CompressedData);
 
-            // Note that if the same block (currently not present in cache) is requested multiple times,
-            // first occurrence getc Cached = false and is fetched from disk, while the rest gets
-            // Cached = true and shares soon-to-be fetched block with first occurrence by async
-            // block cache means.
             if (!entry.Cookie->IsActive()) {
                 entry.Cached = true;
                 session->Futures.push_back(entry.Cookie->GetBlockFuture().Apply(
-                    BIND([session, entryIndex] (const TCachedBlock& cachedBlock) {
-                        auto block = cachedBlock.Block;
+                    BIND([session, entryIndex] {
+                        const auto& entry = session->Entries[entryIndex];
+                        auto block = entry.Cookie->GetBlock();
                         session->Options.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
                             block.Size(),
                             std::memory_order::relaxed);
@@ -699,7 +696,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
         for (int entryIndex = 0; entryIndex < std::ssize(blockIndexes); ++entryIndex) {
             auto& entry = session->Entries[entryIndex];
             auto blockId = TBlockId(Id_, entry.BlockIndex);
-            auto block = options.BlockCache->FindBlock(blockId, EBlockType::CompressedData).Block;
+            auto block = options.BlockCache->FindBlock(blockId, EBlockType::CompressedData);
             if (block) {
                 session->Options.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
                     block.Size(),
