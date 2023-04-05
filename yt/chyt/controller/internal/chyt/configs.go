@@ -269,8 +269,16 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		"cpu_limit":          r.InstanceCPU,
 		"memory":             r.InstanceMemory.memoryConfig(),
 		"cluster_connection": c.clusterConnection,
+		// TODO(dakovalkov): "profile_manager" is a compat for older CHYT versions.
+		// Remove it when all cliques are 2.09+
 		"profile_manager": map[string]any{
 			"global_tags": map[string]any{
+				"operation_alias": oplet.Alias(),
+				"cookie":          "$YT_JOB_COOKIE",
+			},
+		},
+		"solomon_exporter": map[string]any{
+			"instance_tags": map[string]any{
 				"operation_alias": oplet.Alias(),
 				"cookie":          "$YT_JOB_COOKIE",
 			},
@@ -340,8 +348,16 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		return
 	}
 	logTailerConfig := map[string]any{
+		// TODO(dakovalkov): "profile_manager" is a compat for older CHYT versions.
+		// Remove it after updating log tailer to new version.
 		"profile_manager": map[string]any{
 			"global_tags": map[string]any{
+				"operation_alias": oplet.Alias(),
+				"cookie":          "$YT_JOB_COOKIE",
+			},
+		},
+		"solomon_exporter": map[string]any{
+			"instance_tags": map[string]any{
 				"operation_alias": oplet.Alias(),
 				"cookie":          "$YT_JOB_COOKIE",
 			},
