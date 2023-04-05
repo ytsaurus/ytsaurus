@@ -900,7 +900,7 @@ void TClient::DoListOperationsFromCypress(
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 return;
             }
-            lightOperation.SetYson(rspOrError.ValueOrThrow()->value());
+            lightOperation.Yson() = rspOrError.ValueOrThrow()->value();
         });
     }
 
@@ -1134,7 +1134,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
                 // NB: "any_to_yson_string" returns a string; cf. YT-12047.
                 pools = ConvertTo<std::vector<TString>>(TYsonString(FromUnversionedValue<TString>(row[poolsIndex])));
             }
-            auto user = FromUnversionedValue<TStringBuf>(row[authenticatedUserIndex]);
+            auto user = FromUnversionedValue<TString>(row[authenticatedUserIndex]);
             auto state = ParseEnum<EOperationState>(FromUnversionedValue<TStringBuf>(row[stateIndex]));
             auto type = ParseEnum<EOperationType>(FromUnversionedValue<TStringBuf>(row[operationTypeIndex]));
             if (row[poolIndex].Type != EValueType::Null) {
@@ -1144,15 +1144,19 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
                 pools->push_back(FromUnversionedValue<TString>(row[poolIndex]));
             }
             auto count = FromUnversionedValue<i64>(row[countIndex]);
-            if (!countingFilter.Filter(poolTreeToPool, pools, user, state, type, count)) {
-                continue;
-            }
-
             bool hasFailedJobs = false;
             if (row[hasFailedJobsIndex].Type != EValueType::Null) {
                 hasFailedJobs = FromUnversionedValue<bool>(row[hasFailedJobsIndex]);
             }
-            countingFilter.FilterByFailedJobs(hasFailedJobs, count);
+            auto countingFilterAttributes = TCountingFilterAttributes{
+                .PoolTreeToPool = std::move(poolTreeToPool),
+                .Pools = std::move(pools),
+                .User = std::move(user),
+                .State = state,
+                .Type = type,
+                .HasFailedJobs = hasFailedJobs,
+            };
+            countingFilter.Filter(countingFilterAttributes, count);
         }
 
         YT_LOG_DEBUG("Counters calculated");
@@ -1434,12 +1438,12 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
     }
 
     if (options.IncludeCounters) {
-        result.PoolCounts = std::move(countingFilter.PoolCounts);
-        result.UserCounts = std::move(countingFilter.UserCounts);
-        result.StateCounts = std::move(countingFilter.StateCounts);
-        result.TypeCounts = std::move(countingFilter.TypeCounts);
-        result.FailedJobsCount = countingFilter.FailedJobsCount;
-        result.PoolTreeCounts = std::move(countingFilter.PoolTreeCounts);
+        result.PoolCounts = std::move(countingFilter.PoolCounts());
+        result.UserCounts = std::move(countingFilter.UserCounts());
+        result.StateCounts = std::move(countingFilter.StateCounts());
+        result.TypeCounts = std::move(countingFilter.TypeCounts());
+        result.FailedJobsCount = countingFilter.GetFailedJobsCount();
+        result.PoolTreeCounts = std::move(countingFilter.PoolTreeCounts());
     }
 
     // COMPAT(gepardo): this must be preserved until the operations without provided_spec (i.e. started before mid-2022)

@@ -572,10 +572,10 @@ class _TestListOperationsBase(ListOperationsSetup):
             with_failed_jobs=True,
             read_from=read_from,
         )
-        assert res["pool_counts"] == {"user3": 1, "user1": 1, "user2": 1}
-        assert res["user_counts"] == {"user3": 1, "user1": 1, "user2": 1}
-        assert res["state_counts"] == {"failed": 1, "completed": 2}
-        assert res["type_counts"] == {"map_reduce": 1, "map": 2}
+        assert res["user_counts"] == {"user3": 1}
+        assert res["pool_counts"] == {"user3": 1}
+        assert res["state_counts"] == {"failed": 1}
+        assert res["type_counts"] == {"map_reduce": 1}
         if self.check_failed_jobs_count:
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op3.id]
@@ -1027,28 +1027,10 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
             with_failed_jobs=True,
             read_from=read_from,
         )
-        assert res["pool_counts"] == {
-            "user1": 1,
-            "user2": 1,
-            "user3": 2,
-            "user4": 1,
-            "some_pool": 1,
-            "pool_no_running": 1,
-        }
-        assert res["user_counts"] == {
-            "user1": 1,
-            "user2": 1,
-            "user3": 2,
-            "user4": 1,
-            "user5": 1,
-        }
-        assert res["state_counts"] == {
-            "completed": 3,
-            "failed": 1,
-            "aborted": 1,
-            "pending": 1,
-        }
-        assert res["type_counts"] == {"map": 2, "map_reduce": 1, "reduce": 1, "sort": 2}
+        assert res["user_counts"] == {"user3": 1}
+        assert res["pool_counts"] == {"user3": 1}
+        assert res["state_counts"] == {"failed": 1}
+        assert res["type_counts"] == {"map_reduce": 1}
         if self.check_failed_jobs_count:
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op3.id]
