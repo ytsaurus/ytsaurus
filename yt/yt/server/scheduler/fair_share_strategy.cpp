@@ -642,27 +642,33 @@ public:
 
         for (const auto& [treeName, options] : runtimeParameters->SchedulingOptionsPerPoolTree) {
             auto offloadingSettings = GetTree(treeName)->GetOffloadingSettingsFor(options->Pool.GetSpecifiedPoolName());
-            for (const auto& [offloadingPoolTreeName, offloadingPoolSettings] : offloadingSettings) {
-                if (runtimeParameters->SchedulingOptionsPerPoolTree.contains(offloadingPoolTreeName)) {
-                    YT_LOG_DEBUG("Ignoring offloading pool since offloading pool tree is already used (OffloadingPoolTree: %v, OffloadingPool: %v, OperationId: %v)",
-                        offloadingPoolTreeName,
-                        offloadingPoolSettings->Pool,
-                        operationId);
-                } else {
-                    auto tree = FindTree(offloadingPoolTreeName);
-                    if (!tree) {
-                        YT_LOG_DEBUG("Ignoring offloading pool since offloading pool tree does not exist (OffloadingPoolTree: %v, OffloadingPool: %v, OperationId: %v)",
+            if (!offloadingSettings.empty() && !spec->SchedulingTagFilter.IsEmpty()) {
+                YT_LOG_DEBUG("Ignoring offloading since operation has scheduling tag filter (SchedulingTagFilter: %v, OperationId: %v)",
+                    spec->SchedulingTagFilter.GetFormula(),
+                    operationId);
+            } else {
+                for (const auto& [offloadingPoolTreeName, offloadingPoolSettings] : offloadingSettings) {
+                    if (runtimeParameters->SchedulingOptionsPerPoolTree.contains(offloadingPoolTreeName)) {
+                        YT_LOG_DEBUG("Ignoring offloading pool since offloading pool tree is already used (OffloadingPoolTree: %v, OffloadingPool: %v, OperationId: %v)",
                             offloadingPoolTreeName,
                             offloadingPoolSettings->Pool,
                             operationId);
                     } else {
-                        auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
-                        treeParams->Weight = offloadingPoolSettings->Weight;
-                        treeParams->Pool = tree->CreatePoolName(offloadingPoolSettings->Pool, user);
-                        treeParams->Tentative = offloadingPoolSettings->Tentative;
-                        treeParams->ResourceLimits = offloadingPoolSettings->ResourceLimits;
-                        treeParams->Offloading = true;
-                        EmplaceOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, offloadingPoolTreeName, std::move(treeParams));
+                        auto tree = FindTree(offloadingPoolTreeName);
+                        if (!tree) {
+                            YT_LOG_DEBUG("Ignoring offloading pool since offloading pool tree does not exist (OffloadingPoolTree: %v, OffloadingPool: %v, OperationId: %v)",
+                                offloadingPoolTreeName,
+                                offloadingPoolSettings->Pool,
+                                operationId);
+                        } else {
+                            auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
+                            treeParams->Weight = offloadingPoolSettings->Weight;
+                            treeParams->Pool = tree->CreatePoolName(offloadingPoolSettings->Pool, user);
+                            treeParams->Tentative = offloadingPoolSettings->Tentative;
+                            treeParams->ResourceLimits = offloadingPoolSettings->ResourceLimits;
+                            treeParams->Offloading = true;
+                            EmplaceOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, offloadingPoolTreeName, std::move(treeParams));
+                        }
                     }
                 }
             }

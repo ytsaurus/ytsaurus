@@ -1994,6 +1994,32 @@ class TestMultiTreeOperations(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    @authors("renadeen")
+    def test_offloading_disabled_for_operations_with_scheduling_tag_filter(self):
+        create_pool("primary_pool", pool_tree="default")
+        set("//sys/pools/primary_pool/@offloading_settings", {
+            "offload_tree": {"pool": "offload_pool"}
+        })
+
+        offload_node = create_custom_pool_tree_with_one_node("offload_tree")
+        create_pool("offload_pool", pool_tree="offload_tree")
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            spec={"pool": "primary_pool", "scheduling_tag_filter": "!x"},
+            job_count=2)
+
+        wait_breakpoint(job_count=2)
+
+        wait(lambda: exists(scheduler_orchid_operation_path(op.id, "default")))
+        wait(lambda: not exists(scheduler_orchid_operation_path(op.id, "offload_tree")))
+
+        for job in op.get_running_jobs().values():
+            assert job["address"] != offload_node
+
+        release_breakpoint()
+        op.track()
+
 
 ##################################################################
 
