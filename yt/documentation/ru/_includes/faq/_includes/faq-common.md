@@ -10,6 +10,8 @@
 yt alter-table //home/maps-nmaps/testing/pedestrian/address_tasks --schema '<"unique_keys"=%false;"strict"=%true;>[{"name"="timestamp";"required"=%false;"type"="uint64";"sort_order"="ascending";};{"name"="lon";"required"=%false;"type"="double";};{"name"="lat";"required"=%false;"type"="double";};{"name"="buildingId";"required"=%false;"type"="string";};{"name"="taskId";"required"=%false;"type"="string";};{"name"="pedestrianType";"required"=%false;"type"="string";};{"name"="buildingPerimeter";"required"=%false;"type"="double";};{"name"="buildingShape";"required"=%false;"type"="string";};]'
 ```
 
+В YQL можно использовать выражение `UNION ALL` для объединения новых данных с новой колонкой и старых данных из таблицы.
+
 ------
 #### **Q: Получаю ошибку при попытке изменить схему таблицы - Changing «strict» from «false» to «true» is not allowed. Что делать?**
 

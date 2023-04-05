@@ -11,7 +11,7 @@
 Формат вызова:
 
 ```bash
-~/ytbuild/bin/rpc_proxy_sample --config config.yson --user <user> --token $(cat ~/.yt/token) 2> /dev/null
+./rpc_proxy_sample --config config.yson --user <user> --token $(cat ~/.yt/token) 2> /dev/null
 ```
 
 Работа с Кипарисом:
