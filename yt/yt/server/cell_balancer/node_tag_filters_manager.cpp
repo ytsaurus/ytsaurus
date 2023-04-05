@@ -24,6 +24,25 @@ std::vector<TString> GetBundlesByTag(
     return result;
 }
 
+int GetReadyNodesCount(
+    const TBundleInfoPtr& bundleInfo,
+    const THashSet<TString>& aliveBundleNodes,
+    const TSchedulerInputState& input)
+{
+    const auto& nodeTagFilter = bundleInfo->NodeTagFilter;
+
+    int readyNodesCount = 0;
+
+    for (const auto& nodeName : aliveBundleNodes) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        if (nodeInfo->UserTags.count(nodeTagFilter) != 0) {
+            ++readyNodesCount;
+        }
+    }
+
+    return readyNodesCount;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSpareNodesInfo GetSpareNodesInfo(
@@ -455,7 +474,8 @@ void SetNodeTagFilter(
         return 0;
     };
 
-    int actualSlotCount = perNodeSlotCount * std::ssize(aliveNodes);
+    int readyBundleNodes = GetReadyNodesCount(bundleInfo, aliveNodes, input);
+    int actualSlotCount = perNodeSlotCount * readyBundleNodes;
     int usedSpareSlotCount = getSpareSlotCount(spareNodesInfo.UsedByBundle);
 
     int slotsBallance = usedSpareSlotCount  + actualSlotCount - requiredSlotCount;

@@ -1247,10 +1247,52 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
 
     // Add new node to bundle
-    auto newNodes = GenerateNodesForBundle(input, "bigd", 1, SetNodeFilterTag, SlotCount);
+    auto newNodes = GenerateNodesForBundle(input, "bigd", 1, false, SlotCount);
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+
+    EXPECT_EQ(1, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeAssignments));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeReleasements));
+
+
+    for (const auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->UserTags = tags;
+        EXPECT_EQ(1u, newNodes.count(nodeName));
+        nodeInfo->Decommissioned = mutations.ChangedDecommissionedFlag.at(nodeName);
+
+        nodeInfo->Statistics->Memory->TabletStatic->Limit = *bundleInfo->TargetConfig->MemoryLimits->TabletStatic;
+        nodeInfo->TabletSlots.resize(bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize);
+    }
+
+
+    ApplyChangedStates(&input, mutations);
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    CheckEmptyAlerts(mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+
+    for (const auto& [nodeName, decommissioned] : mutations.ChangedDecommissionedFlag) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->Decommissioned = decommissioned;
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeAssignments));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeReleasements));
+
 
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(1, std::ssize(mutations.ChangedDecommissionedFlag));
