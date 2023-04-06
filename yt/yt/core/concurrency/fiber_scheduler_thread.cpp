@@ -86,6 +86,18 @@ struct TFiberContext
 
 static thread_local TFiberContext* FiberContext;
 
+// Forbid inlining these accessors to prevent the compiler from
+// mis-optimizing TLS access in presence of fiber context switches.
+Y_NO_INLINE TFiberContext* TryGetFiberContext()
+{
+    return FiberContext;
+}
+
+Y_NO_INLINE void SetFiberContext(TFiberContext* context)
+{
+    FiberContext = context;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFiberContextGuard
@@ -93,12 +105,12 @@ class TFiberContextGuard
 public:
     explicit TFiberContextGuard(TFiberContext* context)
     {
-        FiberContext = context;
+        SetFiberContext(context);
     }
 
     ~TFiberContextGuard()
     {
-        FiberContext = nullptr;
+        SetFiberContext(nullptr);
     }
 
     TFiberContextGuard(const TFiberContextGuard&) = delete;
@@ -123,61 +135,65 @@ Y_FORCE_INLINE TFiberId SwapCurrentFiberId(TFiberId fiberId)
 
 Y_FORCE_INLINE TExceptionSafeContext* GetMachineContext()
 {
-    return &FiberContext->MachineContext;
+    return &TryGetFiberContext()->MachineContext;
 }
 
 Y_FORCE_INLINE void SetAfterSwitch(TClosure&& closure)
 {
-    YT_VERIFY(!FiberContext->AfterSwitch);
-    FiberContext->AfterSwitch = std::move(closure);
+    auto* context = TryGetFiberContext();
+    YT_VERIFY(!context->AfterSwitch);
+    context->AfterSwitch = std::move(closure);
 }
 
 Y_FORCE_INLINE TClosure ExtractAfterSwitch()
 {
-    return std::move(FiberContext->AfterSwitch);
+    auto* context = TryGetFiberContext();
+    return std::move(context->AfterSwitch);
 }
 
 Y_FORCE_INLINE void SetResumerFiber(TFiberPtr fiber)
 {
-    YT_VERIFY(!FiberContext->ResumerFiber);
-    FiberContext->ResumerFiber = std::move(fiber);
+    auto* context = TryGetFiberContext();
+    YT_VERIFY(!context->ResumerFiber);
+    context->ResumerFiber = std::move(fiber);
 }
 
 Y_FORCE_INLINE TFiberPtr ExtractResumerFiber()
 {
-    return std::move(FiberContext->ResumerFiber);
+    return std::move(TryGetFiberContext()->ResumerFiber);
 }
 
 Y_FORCE_INLINE TFiber* TryGetResumerFiber()
 {
-    return FiberContext->ResumerFiber.Get();
+    return TryGetFiberContext()->ResumerFiber.Get();
 }
 
 Y_FORCE_INLINE TFiberPtr SwapCurrentFiber(TFiberPtr fiber)
 {
-    return std::exchange(FiberContext->CurrentFiber, std::move(fiber));
+    return std::exchange(TryGetFiberContext()->CurrentFiber, std::move(fiber));
 }
 
 Y_FORCE_INLINE TFiber* TryGetCurrentFiber()
 {
-    return FiberContext ? FiberContext->CurrentFiber.Get() : nullptr;
+    auto* context = TryGetFiberContext();
+    return context ? context->CurrentFiber.Get() : nullptr;
 }
 
 Y_FORCE_INLINE TFiber* GetCurrentFiber()
 {
-    auto* fiber = FiberContext->CurrentFiber.Get();
+    auto* fiber = TryGetFiberContext()->CurrentFiber.Get();
     YT_VERIFY(fiber);
     return fiber;
 }
 
 Y_FORCE_INLINE TFiberSchedulerThread* TryGetFiberThread()
 {
-    return FiberContext->FiberThread;
+    return TryGetFiberContext()->FiberThread;
 }
 
 Y_FORCE_INLINE TRefCountedGaugePtr GetWaitingFibersCounter()
 {
-    return FiberContext->WaitingFibersCounter;
+    return TryGetFiberContext()->WaitingFibersCounter;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
