@@ -22,7 +22,6 @@ get_built_tool_path(
 add_library(server-lib-hydra2)
 target_compile_options(server-lib-hydra2 PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(server-lib-hydra2 PRIVATE
   ${CMAKE_BINARY_DIR}/yt

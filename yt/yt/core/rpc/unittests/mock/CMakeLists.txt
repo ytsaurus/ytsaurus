@@ -10,7 +10,6 @@
 add_library(rpc-unittests-mock)
 target_compile_options(rpc-unittests-mock PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(rpc-unittests-mock PUBLIC
   contrib-libs-linux-headers

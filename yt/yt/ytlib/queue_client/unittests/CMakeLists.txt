@@ -10,7 +10,6 @@
 add_executable(unittester-queue-client)
 target_compile_options(unittester-queue-client PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-queue-client PUBLIC
   contrib-libs-linux-headers

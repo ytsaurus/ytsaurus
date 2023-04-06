@@ -10,7 +10,6 @@
 add_library(server-lib-zookeeper_proxy)
 target_compile_options(server-lib-zookeeper_proxy PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(server-lib-zookeeper_proxy PRIVATE
   ${CMAKE_BINARY_DIR}/yt

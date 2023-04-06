@@ -10,7 +10,6 @@
 add_executable(unittester-library-clickhouse-discovery)
 target_compile_options(unittester-library-clickhouse-discovery PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-library-clickhouse-discovery PUBLIC
   contrib-libs-linux-headers

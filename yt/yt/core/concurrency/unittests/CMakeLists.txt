@@ -10,7 +10,6 @@
 add_executable(unittester-core-concurrency)
 target_compile_options(unittester-core-concurrency PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(unittester-core-concurrency PRIVATE
   ${CMAKE_BINARY_DIR}/yt

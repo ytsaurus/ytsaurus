@@ -11,7 +11,6 @@ add_subdirectory(impl)
 add_library(yt-library-erasure)
 target_compile_options(yt-library-erasure PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-erasure PUBLIC
   contrib-libs-linux-headers

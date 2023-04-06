@@ -11,7 +11,6 @@ add_subdirectory(unittests)
 add_library(yt-server-scheduler)
 target_compile_options(yt-server-scheduler PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-server-scheduler PUBLIC
   contrib-libs-linux-headers

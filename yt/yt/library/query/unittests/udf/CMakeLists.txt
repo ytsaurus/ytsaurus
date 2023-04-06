@@ -42,7 +42,6 @@ target_link_libraries(query-unittests-udf INTERFACE
 add_global_library_for(query-unittests-udf.global query-unittests-udf)
 target_compile_options(query-unittests-udf.global PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(query-unittests-udf.global PRIVATE
   ${CMAKE_SOURCE_DIR}/yt

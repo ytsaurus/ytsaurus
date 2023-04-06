@@ -10,7 +10,6 @@
 add_executable(unittester-core-profiling)
 target_compile_options(unittester-core-profiling PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(unittester-core-profiling PRIVATE
   ${CMAKE_BINARY_DIR}/yt

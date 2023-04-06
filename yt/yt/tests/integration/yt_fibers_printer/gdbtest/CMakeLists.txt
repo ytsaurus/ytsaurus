@@ -11,7 +11,6 @@ add_executable(gdbtest)
 target_compile_options(gdbtest PRIVATE
   -g
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(gdbtest PUBLIC
   contrib-libs-linux-headers

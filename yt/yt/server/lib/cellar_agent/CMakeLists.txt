@@ -10,7 +10,6 @@
 add_library(server-lib-cellar_agent)
 target_compile_options(server-lib-cellar_agent PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(server-lib-cellar_agent PRIVATE
   ${CMAKE_BINARY_DIR}/yt

@@ -10,7 +10,6 @@
 add_library(yt-server-clock_server)
 target_compile_options(yt-server-clock_server PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-server-clock_server PUBLIC
   contrib-libs-linux-headers

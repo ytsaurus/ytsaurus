@@ -215,7 +215,6 @@ get_built_tool_path(
 add_library(yt-server-master)
 target_compile_options(yt-server-master PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(yt-server-master PRIVATE
   ${CMAKE_BINARY_DIR}/yt

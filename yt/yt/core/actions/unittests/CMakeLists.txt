@@ -10,7 +10,6 @@
 add_executable(unittester-core-actions)
 target_compile_options(unittester-core-actions PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(unittester-core-actions PRIVATE
   ${CMAKE_BINARY_DIR}/yt

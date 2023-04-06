@@ -10,7 +10,6 @@
 add_executable(yt-yt-library-undumpable-unittests)
 target_compile_options(yt-yt-library-undumpable-unittests PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-yt-library-undumpable-unittests PUBLIC
   contrib-libs-linux-headers

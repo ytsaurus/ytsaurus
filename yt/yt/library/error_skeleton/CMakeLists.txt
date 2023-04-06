@@ -20,7 +20,6 @@ target_link_libraries(yt-library-error_skeleton INTERFACE
 add_global_library_for(yt-library-error_skeleton.global yt-library-error_skeleton)
 target_compile_options(yt-library-error_skeleton.global PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-error_skeleton.global PUBLIC
   contrib-libs-linux-headers

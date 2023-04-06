@@ -11,7 +11,6 @@ find_package(Python3 REQUIRED)
 add_library(yt-ytlib-query_tracker_client)
 target_compile_options(yt-ytlib-query_tracker_client PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-ytlib-query_tracker_client PUBLIC
   contrib-libs-linux-headers

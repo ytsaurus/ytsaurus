@@ -10,7 +10,6 @@
 add_library(library-profiling-perf)
 target_compile_options(library-profiling-perf PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(library-profiling-perf PUBLIC
   contrib-libs-linux-headers

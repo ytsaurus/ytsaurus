@@ -34,7 +34,6 @@ get_built_tool_path(
 add_library(server-lib-controller_agent)
 target_compile_options(server-lib-controller_agent PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(server-lib-controller_agent PRIVATE
   ${CMAKE_BINARY_DIR}/yt

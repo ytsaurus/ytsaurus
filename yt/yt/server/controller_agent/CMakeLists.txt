@@ -12,7 +12,6 @@ add_subdirectory(unittests)
 add_library(yt-server-controller_agent)
 target_compile_options(yt-server-controller_agent PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-server-controller_agent PUBLIC
   contrib-libs-linux-headers

@@ -25,7 +25,6 @@ get_built_tool_path(
 add_library(yt-library-ytprof)
 target_compile_options(yt-library-ytprof PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
   -DYTPROF_BUILD_TYPE="RELEASE"
 )
 target_link_libraries(yt-library-ytprof PUBLIC

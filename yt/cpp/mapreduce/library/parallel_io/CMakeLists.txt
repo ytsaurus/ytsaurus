@@ -10,7 +10,6 @@
 add_library(mapreduce-library-parallel_io)
 target_compile_options(mapreduce-library-parallel_io PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(mapreduce-library-parallel_io PUBLIC
   contrib-libs-linux-headers

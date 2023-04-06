@@ -11,7 +11,6 @@ add_subdirectory(unittests)
 add_library(yt-library-oom)
 target_compile_options(yt-library-oom PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-oom PUBLIC
   contrib-libs-linux-headers

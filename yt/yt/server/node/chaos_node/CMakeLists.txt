@@ -22,7 +22,6 @@ get_built_tool_path(
 add_library(server-node-chaos_node)
 target_compile_options(server-node-chaos_node PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-node-chaos_node PUBLIC
   contrib-libs-linux-headers

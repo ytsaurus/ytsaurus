@@ -10,7 +10,6 @@
 add_executable(unittester-library-numeric)
 target_compile_options(unittester-library-numeric PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(unittester-library-numeric PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric

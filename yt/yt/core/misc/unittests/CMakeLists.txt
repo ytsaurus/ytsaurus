@@ -22,7 +22,6 @@ get_built_tool_path(
 add_executable(unittester-core-misc)
 target_compile_options(unittester-core-misc PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(unittester-core-misc PRIVATE
   ${CMAKE_BINARY_DIR}/yt

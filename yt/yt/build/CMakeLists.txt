@@ -70,7 +70,6 @@ set(
 add_library(yt-yt-build)
 target_compile_options(yt-yt-build PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(yt-yt-build PUBLIC
   ${CMAKE_BINARY_DIR}/yt/yt/build

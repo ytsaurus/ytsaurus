@@ -10,7 +10,6 @@
 add_library(server-lib-lsm)
 target_compile_options(server-lib-lsm PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-lib-lsm PUBLIC
   contrib-libs-linux-headers

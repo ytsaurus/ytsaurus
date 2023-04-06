@@ -10,7 +10,6 @@
 add_library(library-profiling-tcmalloc)
 target_compile_options(library-profiling-tcmalloc PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(library-profiling-tcmalloc PUBLIC
   contrib-libs-linux-headers

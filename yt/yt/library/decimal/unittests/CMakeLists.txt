@@ -10,7 +10,6 @@
 add_executable(unittester-library-decimal)
 target_compile_options(unittester-library-decimal PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-library-decimal PUBLIC
   contrib-libs-linux-headers

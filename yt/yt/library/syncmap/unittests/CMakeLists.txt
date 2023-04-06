@@ -10,7 +10,6 @@
 add_executable(yt-yt-library-syncmap-unittests)
 target_compile_options(yt-yt-library-syncmap-unittests PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-yt-library-syncmap-unittests PUBLIC
   contrib-libs-linux-headers

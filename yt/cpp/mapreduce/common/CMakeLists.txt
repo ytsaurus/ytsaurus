@@ -10,7 +10,6 @@
 add_library(cpp-mapreduce-common)
 target_compile_options(cpp-mapreduce-common PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(cpp-mapreduce-common PUBLIC
   contrib-libs-linux-headers

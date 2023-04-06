@@ -22,7 +22,6 @@ get_built_tool_path(
 add_library(yt-ytlib-discovery_client)
 target_compile_options(yt-ytlib-discovery_client PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(yt-ytlib-discovery_client PRIVATE
   ${CMAKE_BINARY_DIR}/yt

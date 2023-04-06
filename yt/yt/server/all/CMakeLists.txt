@@ -11,7 +11,6 @@ add_subdirectory(unittests)
 add_executable(ytserver-all)
 target_compile_options(ytserver-all PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(ytserver-all PUBLIC
   contrib-libs-linux-headers

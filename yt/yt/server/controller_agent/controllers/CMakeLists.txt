@@ -10,7 +10,6 @@
 add_library(server-controller_agent-controllers)
 target_compile_options(server-controller_agent-controllers PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-controller_agent-controllers PUBLIC
   contrib-libs-linux-headers

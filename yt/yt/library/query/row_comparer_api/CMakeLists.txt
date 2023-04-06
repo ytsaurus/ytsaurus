@@ -10,7 +10,6 @@
 add_library(library-query-row_comparer_api)
 target_compile_options(library-query-row_comparer_api PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(library-query-row_comparer_api PUBLIC
   contrib-libs-linux-headers

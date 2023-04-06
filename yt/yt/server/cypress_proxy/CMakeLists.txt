@@ -11,7 +11,6 @@ add_subdirectory(bin)
 add_library(yt-server-cypress_proxy)
 target_compile_options(yt-server-cypress_proxy PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-server-cypress_proxy PUBLIC
   contrib-libs-linux-headers

@@ -11,7 +11,6 @@ add_subdirectory(unittests)
 add_library(yt-server-tools)
 target_compile_options(yt-server-tools PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-server-tools PUBLIC
   contrib-libs-linux-headers

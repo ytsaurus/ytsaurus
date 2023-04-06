@@ -10,7 +10,6 @@
 add_library(yt-library-random)
 target_compile_options(yt-library-random PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-random PUBLIC
   contrib-libs-linux-headers

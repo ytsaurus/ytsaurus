@@ -10,7 +10,6 @@
 add_executable(cpp-integration-test-rpc-api)
 target_compile_options(cpp-integration-test-rpc-api PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(cpp-integration-test-rpc-api PUBLIC
   contrib-libs-linux-headers

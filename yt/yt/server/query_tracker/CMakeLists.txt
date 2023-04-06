@@ -10,7 +10,6 @@
 add_library(yt-server-query_tracker)
 target_compile_options(yt-server-query_tracker PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-server-query_tracker PUBLIC
   contrib-libs-linux-headers

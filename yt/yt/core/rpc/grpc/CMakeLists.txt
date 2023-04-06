@@ -22,7 +22,6 @@ get_built_tool_path(
 add_library(core-rpc-grpc)
 target_compile_options(core-rpc-grpc PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(core-rpc-grpc PRIVATE
   ${CMAKE_BINARY_DIR}/yt

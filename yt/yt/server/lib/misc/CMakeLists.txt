@@ -11,7 +11,6 @@ add_subdirectory(unittests)
 add_library(server-lib-misc)
 target_compile_options(server-lib-misc PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-lib-misc PUBLIC
   contrib-libs-linux-headers
@@ -38,7 +37,6 @@ target_sources(server-lib-misc PRIVATE
 add_global_library_for(server-lib-misc.global server-lib-misc)
 target_compile_options(server-lib-misc.global PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-lib-misc.global PUBLIC
   contrib-libs-linux-headers

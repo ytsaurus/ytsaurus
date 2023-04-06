@@ -22,7 +22,6 @@ get_built_tool_path(
 add_executable(unittester-tablet-node)
 target_compile_options(unittester-tablet-node PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-tablet-node PUBLIC
   contrib-libs-linux-headers

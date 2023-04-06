@@ -62,7 +62,6 @@ get_built_tool_path(
 add_library(yt-server-node)
 target_compile_options(yt-server-node PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src

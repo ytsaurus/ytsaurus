@@ -11,7 +11,6 @@ add_subdirectory(unittests)
 add_library(yt-server-cell_balancer)
 target_compile_options(yt-server-cell_balancer PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(yt-server-cell_balancer PRIVATE
   ${CMAKE_BINARY_DIR}/yt

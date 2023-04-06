@@ -10,7 +10,6 @@
 add_library(library-profiling-resource_tracker)
 target_compile_options(library-profiling-resource_tracker PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(library-profiling-resource_tracker PUBLIC
   contrib-libs-linux-headers

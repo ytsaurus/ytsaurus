@@ -11,7 +11,6 @@ add_subdirectory(unittests)
 add_library(yt-server-http_proxy)
 target_compile_options(yt-server-http_proxy PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-server-http_proxy PUBLIC
   contrib-libs-linux-headers

@@ -10,7 +10,6 @@
 add_executable(unittester-http-proxy)
 target_compile_options(unittester-http-proxy PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(unittester-http-proxy PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src

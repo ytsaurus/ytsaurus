@@ -10,7 +10,6 @@
 add_library(yt-client-query_tracker_client)
 target_compile_options(yt-client-query_tracker_client PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-client-query_tracker_client PUBLIC
   contrib-libs-linux-headers

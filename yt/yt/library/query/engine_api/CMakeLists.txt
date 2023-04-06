@@ -10,7 +10,6 @@
 add_library(library-query-engine_api)
 target_compile_options(library-query-engine_api PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(library-query-engine_api PRIVATE
   ${CMAKE_BINARY_DIR}/yt

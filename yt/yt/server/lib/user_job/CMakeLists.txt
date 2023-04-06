@@ -22,7 +22,6 @@ get_built_tool_path(
 add_library(server-lib-user_job)
 target_compile_options(server-lib-user_job PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(server-lib-user_job PRIVATE
   ${CMAKE_BINARY_DIR}/yt

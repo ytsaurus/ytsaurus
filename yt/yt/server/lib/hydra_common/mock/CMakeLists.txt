@@ -10,7 +10,6 @@
 add_library(lib-hydra_common-mock)
 target_compile_options(lib-hydra_common-mock PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(lib-hydra_common-mock PUBLIC
   contrib-libs-linux-headers

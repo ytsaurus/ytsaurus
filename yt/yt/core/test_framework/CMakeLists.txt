@@ -10,7 +10,6 @@
 add_library(yt-core-test_framework)
 target_compile_options(yt-core-test_framework PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-core-test_framework PUBLIC
   contrib-libs-linux-headers
@@ -31,7 +30,6 @@ target_sources(yt-core-test_framework PRIVATE
 add_global_library_for(yt-core-test_framework.global yt-core-test_framework)
 target_compile_options(yt-core-test_framework.global PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-core-test_framework.global PUBLIC
   contrib-libs-linux-headers

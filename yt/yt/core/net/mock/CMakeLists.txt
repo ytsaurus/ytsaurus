@@ -10,7 +10,6 @@
 add_library(core-net-mock)
 target_compile_options(core-net-mock PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(core-net-mock PUBLIC
   contrib-libs-linux-headers

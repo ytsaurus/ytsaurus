@@ -10,7 +10,6 @@
 add_executable(unittester-data-node)
 target_compile_options(unittester-data-node PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-data-node PUBLIC
   contrib-libs-linux-headers

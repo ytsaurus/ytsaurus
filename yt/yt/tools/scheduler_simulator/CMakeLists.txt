@@ -12,7 +12,6 @@ add_subdirectory(unittests)
 add_library(yt-tools-scheduler_simulator)
 target_compile_options(yt-tools-scheduler_simulator PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-tools-scheduler_simulator PUBLIC
   contrib-libs-linux-headers

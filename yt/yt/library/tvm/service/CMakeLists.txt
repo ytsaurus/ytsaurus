@@ -11,7 +11,6 @@ add_subdirectory(mock)
 add_library(library-tvm-service)
 target_compile_options(library-tvm-service PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(library-tvm-service PUBLIC
   contrib-libs-linux-headers

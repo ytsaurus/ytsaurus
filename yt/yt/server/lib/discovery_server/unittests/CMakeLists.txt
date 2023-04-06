@@ -11,7 +11,6 @@ add_subdirectory(mock)
 add_executable(unittester-discovery-server)
 target_compile_options(unittester-discovery-server PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-discovery-server PUBLIC
   contrib-libs-linux-headers

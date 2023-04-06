@@ -10,7 +10,6 @@
 add_library(lib-chunk_pools-mock)
 target_compile_options(lib-chunk_pools-mock PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(lib-chunk_pools-mock PUBLIC
   contrib-libs-linux-headers

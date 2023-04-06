@@ -16,7 +16,6 @@ get_built_tool_path(
 add_library(cpp-mapreduce-client)
 target_compile_options(cpp-mapreduce-client PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(cpp-mapreduce-client PUBLIC
   contrib-libs-linux-headers

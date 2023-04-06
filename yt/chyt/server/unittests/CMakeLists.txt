@@ -10,7 +10,6 @@
 add_executable(unittester-clickhouse-server)
 target_compile_options(unittester-clickhouse-server PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-clickhouse-server PUBLIC
   contrib-libs-linux-headers

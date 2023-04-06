@@ -10,7 +10,6 @@
 add_executable(yt-sudo-fixup)
 target_compile_options(yt-sudo-fixup PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-sudo-fixup PUBLIC
   contrib-libs-linux-headers

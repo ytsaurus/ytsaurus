@@ -10,7 +10,6 @@
 add_executable(unittester-ytlib-memory-trackers)
 target_compile_options(unittester-ytlib-memory-trackers PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-ytlib-memory-trackers PUBLIC
   contrib-libs-linux-headers

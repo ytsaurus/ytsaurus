@@ -10,7 +10,6 @@
 add_executable(cpp-integration-test-native-api)
 target_compile_options(cpp-integration-test-native-api PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(cpp-integration-test-native-api PUBLIC
   contrib-libs-linux-headers

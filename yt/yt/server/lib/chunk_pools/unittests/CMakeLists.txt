@@ -10,7 +10,6 @@
 add_executable(unittester-chunk-pools)
 target_compile_options(unittester-chunk-pools PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-chunk-pools PUBLIC
   contrib-libs-linux-headers

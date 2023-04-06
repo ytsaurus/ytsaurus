@@ -10,7 +10,6 @@
 add_executable(unittester-library-error-skeleton)
 target_compile_options(unittester-library-error-skeleton PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-library-error-skeleton PUBLIC
   contrib-libs-linux-headers

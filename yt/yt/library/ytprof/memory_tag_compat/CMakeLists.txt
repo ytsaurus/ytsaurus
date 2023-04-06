@@ -18,7 +18,6 @@ target_link_libraries(library-ytprof-memory_tag_compat INTERFACE
 add_global_library_for(library-ytprof-memory_tag_compat.global library-ytprof-memory_tag_compat)
 target_compile_options(library-ytprof-memory_tag_compat.global PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(library-ytprof-memory_tag_compat.global PUBLIC
   contrib-libs-linux-headers

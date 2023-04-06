@@ -34,7 +34,6 @@ get_built_tool_path(
 add_library(rpc-unittests-lib)
 target_compile_options(rpc-unittests-lib PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(rpc-unittests-lib PUBLIC
   contrib-libs-linux-headers

@@ -11,7 +11,6 @@ add_subdirectory(unittests)
 add_library(yt-library-process)
 target_compile_options(yt-library-process PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-process PUBLIC
   contrib-libs-linux-headers

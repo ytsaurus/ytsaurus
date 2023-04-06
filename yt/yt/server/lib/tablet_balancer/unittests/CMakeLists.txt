@@ -10,7 +10,6 @@
 add_executable(unittester-tablet-balancer-lib)
 target_compile_options(unittester-tablet-balancer-lib PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-tablet-balancer-lib PUBLIC
   contrib-libs-linux-headers

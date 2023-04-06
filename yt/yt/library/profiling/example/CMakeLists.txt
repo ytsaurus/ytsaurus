@@ -10,7 +10,6 @@
 add_executable(profiling-example)
 target_compile_options(profiling-example PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(profiling-example PUBLIC
   contrib-libs-linux-headers

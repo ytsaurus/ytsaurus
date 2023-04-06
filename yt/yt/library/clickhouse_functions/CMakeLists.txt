@@ -10,7 +10,6 @@
 add_library(yt-library-clickhouse_functions)
 target_compile_options(yt-library-clickhouse_functions PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(yt-library-clickhouse_functions PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src
@@ -37,7 +36,6 @@ target_sources(yt-library-clickhouse_functions PRIVATE
 add_global_library_for(yt-library-clickhouse_functions.global yt-library-clickhouse_functions)
 target_compile_options(yt-library-clickhouse_functions.global PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_include_directories(yt-library-clickhouse_functions.global PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src

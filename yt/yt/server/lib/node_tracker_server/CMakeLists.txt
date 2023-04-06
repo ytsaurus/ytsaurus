@@ -10,7 +10,6 @@
 add_library(server-lib-node_tracker_server)
 target_compile_options(server-lib-node_tracker_server PRIVATE
   -Wdeprecated-this-capture
-  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-lib-node_tracker_server PUBLIC
   contrib-libs-linux-headers
