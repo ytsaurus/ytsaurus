@@ -10,6 +10,7 @@
 add_library(library-ytprof-http)
 target_compile_options(library-ytprof-http PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(library-ytprof-http PUBLIC
   contrib-libs-linux-headers

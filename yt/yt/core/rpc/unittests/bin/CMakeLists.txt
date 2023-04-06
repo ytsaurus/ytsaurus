@@ -10,6 +10,7 @@
 add_executable(bin)
 target_compile_options(bin PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(bin PUBLIC
   contrib-libs-linux-headers

@@ -11,6 +11,7 @@ add_subdirectory(unittests)
 add_library(server-lib-election)
 target_compile_options(server-lib-election PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-lib-election PUBLIC
   contrib-libs-linux-headers

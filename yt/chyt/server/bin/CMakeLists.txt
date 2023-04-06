@@ -10,6 +10,7 @@
 add_executable(ytserver-clickhouse)
 target_compile_options(ytserver-clickhouse PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
   -fno-inline
 )
 target_link_libraries(ytserver-clickhouse PUBLIC

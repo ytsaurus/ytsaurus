@@ -34,6 +34,7 @@ get_built_tool_path(
 add_executable(unittester-core-yson)
 target_compile_options(unittester-core-yson PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(unittester-core-yson PRIVATE
   ${CMAKE_BINARY_DIR}/yt

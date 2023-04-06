@@ -10,6 +10,7 @@
 add_executable(unittester-rpc-proxy)
 target_compile_options(unittester-rpc-proxy PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-rpc-proxy PUBLIC
   contrib-libs-linux-headers

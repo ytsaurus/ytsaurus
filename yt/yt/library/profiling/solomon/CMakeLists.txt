@@ -22,6 +22,7 @@ get_built_tool_path(
 add_library(library-profiling-solomon)
 target_compile_options(library-profiling-solomon PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(library-profiling-solomon PUBLIC
   contrib-libs-linux-headers

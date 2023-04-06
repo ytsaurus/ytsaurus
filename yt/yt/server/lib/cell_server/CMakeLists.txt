@@ -22,6 +22,7 @@ get_built_tool_path(
 add_library(server-lib-cell_server)
 target_compile_options(server-lib-cell_server PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(server-lib-cell_server PRIVATE
   ${CMAKE_BINARY_DIR}/yt

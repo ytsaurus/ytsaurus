@@ -11,6 +11,7 @@ add_subdirectory(unittests)
 add_library(server-lib-tablet_balancer)
 target_compile_options(server-lib-tablet_balancer PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-lib-tablet_balancer PUBLIC
   contrib-libs-linux-headers

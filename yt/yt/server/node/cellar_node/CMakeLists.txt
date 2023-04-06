@@ -10,6 +10,7 @@
 add_library(server-node-cellar_node)
 target_compile_options(server-node-cellar_node PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-node-cellar_node PUBLIC
   contrib-libs-linux-headers

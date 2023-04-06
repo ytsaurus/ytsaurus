@@ -18,6 +18,7 @@ target_link_libraries(yt-library-safe_assert INTERFACE
 add_global_library_for(yt-library-safe_assert.global yt-library-safe_assert)
 target_compile_options(yt-library-safe_assert.global PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-safe_assert.global PUBLIC
   contrib-libs-linux-headers

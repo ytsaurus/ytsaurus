@@ -34,6 +34,7 @@ get_built_tool_path(
 add_library(yt-client-arrow)
 target_compile_options(yt-client-arrow PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-client-arrow PUBLIC
   contrib-libs-linux-headers

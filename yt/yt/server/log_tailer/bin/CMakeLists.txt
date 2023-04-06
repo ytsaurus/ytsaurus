@@ -10,6 +10,7 @@
 add_executable(ytserver-log-tailer)
 target_compile_options(ytserver-log-tailer PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(ytserver-log-tailer PUBLIC
   contrib-libs-linux-headers

@@ -10,6 +10,7 @@
 add_library(mapreduce-tests-yt_unittest_lib)
 target_compile_options(mapreduce-tests-yt_unittest_lib PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(mapreduce-tests-yt_unittest_lib PUBLIC
   contrib-libs-linux-headers

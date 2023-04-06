@@ -46,6 +46,7 @@ get_built_tool_path(
 add_library(library-query-proto)
 target_compile_options(library-query-proto PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(library-query-proto PRIVATE
   ${CMAKE_BINARY_DIR}/yt

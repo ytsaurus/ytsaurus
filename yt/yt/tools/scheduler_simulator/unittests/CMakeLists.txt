@@ -10,6 +10,7 @@
 add_executable(unittester-scheduler-simulator)
 target_compile_options(unittester-scheduler-simulator PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(unittester-scheduler-simulator PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator

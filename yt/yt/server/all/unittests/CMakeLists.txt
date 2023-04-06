@@ -16,6 +16,7 @@ get_built_tool_path(
 add_executable(unittester-all)
 target_compile_options(unittester-all PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-all PUBLIC
   contrib-libs-linux-headers

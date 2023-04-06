@@ -10,6 +10,7 @@
 add_executable(cpp-integration-test-cypress-election)
 target_compile_options(cpp-integration-test-cypress-election PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(cpp-integration-test-cypress-election PUBLIC
   contrib-libs-linux-headers

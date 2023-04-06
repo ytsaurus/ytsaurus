@@ -21,6 +21,7 @@ target_link_libraries(mapreduce-tests-yt_initialize_hook INTERFACE
 add_global_library_for(mapreduce-tests-yt_initialize_hook.global mapreduce-tests-yt_initialize_hook)
 target_compile_options(mapreduce-tests-yt_initialize_hook.global PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(mapreduce-tests-yt_initialize_hook.global PUBLIC
   contrib-libs-linux-headers

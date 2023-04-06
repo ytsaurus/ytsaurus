@@ -10,6 +10,7 @@
 add_executable(unittester-ytlib-table-client)
 target_compile_options(unittester-ytlib-table-client PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-ytlib-table-client PUBLIC
   contrib-libs-linux-headers

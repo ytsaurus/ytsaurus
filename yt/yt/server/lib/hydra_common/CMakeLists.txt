@@ -12,6 +12,7 @@ add_subdirectory(unittests)
 add_library(server-lib-hydra_common)
 target_compile_options(server-lib-hydra_common PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(server-lib-hydra_common PRIVATE
   ${CMAKE_BINARY_DIR}/yt

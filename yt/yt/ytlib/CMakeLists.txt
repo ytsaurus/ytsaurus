@@ -871,6 +871,7 @@ get_built_tool_path(
 add_library(yt-yt-ytlib)
 target_compile_options(yt-yt-ytlib PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(yt-yt-ytlib PRIVATE
   ${CMAKE_BINARY_DIR}/yt
@@ -1477,6 +1478,7 @@ target_proto_outs(yt-yt-ytlib
 add_global_library_for(yt-yt-ytlib.global yt-yt-ytlib)
 target_compile_options(yt-yt-ytlib.global PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(yt-yt-ytlib.global PRIVATE
   ${CMAKE_BINARY_DIR}/yt

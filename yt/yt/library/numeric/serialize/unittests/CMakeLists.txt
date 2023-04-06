@@ -10,6 +10,7 @@
 add_executable(unittester-yt-library-numeric)
 target_compile_options(unittester-yt-library-numeric PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(unittester-yt-library-numeric PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric/serialize

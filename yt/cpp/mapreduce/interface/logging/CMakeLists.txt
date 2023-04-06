@@ -16,6 +16,7 @@ get_built_tool_path(
 add_library(mapreduce-interface-logging)
 target_compile_options(mapreduce-interface-logging PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(mapreduce-interface-logging PUBLIC
   contrib-libs-linux-headers

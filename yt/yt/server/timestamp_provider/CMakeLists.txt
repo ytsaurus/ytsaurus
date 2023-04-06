@@ -10,6 +10,7 @@
 add_library(yt-server-timestamp_provider)
 target_compile_options(yt-server-timestamp_provider PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(yt-server-timestamp_provider PRIVATE
   ${CMAKE_BINARY_DIR}/yt

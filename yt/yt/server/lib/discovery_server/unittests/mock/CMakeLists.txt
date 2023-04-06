@@ -10,6 +10,7 @@
 add_library(discovery_server-unittests-mock)
 target_compile_options(discovery_server-unittests-mock PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(discovery_server-unittests-mock PUBLIC
   contrib-libs-linux-headers

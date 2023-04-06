@@ -10,6 +10,7 @@
 add_executable(recode-table-chunk)
 target_compile_options(recode-table-chunk PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(recode-table-chunk PUBLIC
   contrib-libs-linux-headers

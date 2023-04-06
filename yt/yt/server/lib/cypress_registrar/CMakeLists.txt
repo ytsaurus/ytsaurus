@@ -10,6 +10,7 @@
 add_library(server-lib-cypress_registrar)
 target_compile_options(server-lib-cypress_registrar PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-lib-cypress_registrar PUBLIC
   contrib-libs-linux-headers

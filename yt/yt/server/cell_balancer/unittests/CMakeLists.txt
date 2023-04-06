@@ -10,6 +10,7 @@
 add_executable(cell-balancer-unittests)
 target_compile_options(cell-balancer-unittests PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(cell-balancer-unittests PUBLIC
   contrib-libs-linux-headers

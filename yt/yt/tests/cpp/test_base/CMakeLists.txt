@@ -10,6 +10,7 @@
 add_library(tests-cpp-test_base)
 target_compile_options(tests-cpp-test_base PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(tests-cpp-test_base PUBLIC
   contrib-libs-linux-headers

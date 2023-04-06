@@ -10,6 +10,7 @@
 add_library(yt-library-named_value)
 target_compile_options(yt-library-named_value PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-named_value PUBLIC
   contrib-libs-linux-headers

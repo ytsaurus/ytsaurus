@@ -22,6 +22,7 @@ get_built_tool_path(
 add_library(server-lib-exec_node)
 target_compile_options(server-lib-exec_node PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-lib-exec_node PUBLIC
   contrib-libs-linux-headers

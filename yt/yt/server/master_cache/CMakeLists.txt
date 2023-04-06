@@ -10,6 +10,7 @@
 add_library(yt-server-master_cache)
 target_compile_options(yt-server-master_cache PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(yt-server-master_cache PRIVATE
   ${CMAKE_BINARY_DIR}/yt

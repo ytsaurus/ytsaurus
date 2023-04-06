@@ -22,6 +22,7 @@ get_built_tool_path(
 add_library(library-tracing-jaeger)
 target_compile_options(library-tracing-jaeger PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(library-tracing-jaeger PUBLIC
   contrib-libs-linux-headers
@@ -55,6 +56,7 @@ target_proto_outs(library-tracing-jaeger
 add_global_library_for(library-tracing-jaeger.global library-tracing-jaeger)
 target_compile_options(library-tracing-jaeger.global PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(library-tracing-jaeger.global PUBLIC
   contrib-libs-linux-headers

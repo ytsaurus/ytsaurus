@@ -10,6 +10,7 @@
 add_library(tvm-service-mock)
 target_compile_options(tvm-service-mock PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(tvm-service-mock PUBLIC
   contrib-libs-linux-headers

@@ -11,6 +11,7 @@ add_subdirectory(unittests)
 add_library(yt-library-undumpable)
 target_compile_options(yt-library-undumpable PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-undumpable PUBLIC
   contrib-libs-linux-headers

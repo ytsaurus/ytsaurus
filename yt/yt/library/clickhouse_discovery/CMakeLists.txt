@@ -11,6 +11,7 @@ add_subdirectory(unittests)
 add_library(yt-library-clickhouse_discovery)
 target_compile_options(yt-library-clickhouse_discovery PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-clickhouse_discovery PUBLIC
   contrib-libs-linux-headers

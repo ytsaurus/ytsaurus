@@ -10,6 +10,7 @@
 add_library(mapreduce-library-table_schema)
 target_compile_options(mapreduce-library-table_schema PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(mapreduce-library-table_schema PUBLIC
   contrib-libs-linux-headers

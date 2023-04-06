@@ -10,6 +10,7 @@
 add_library(yt-library-re2)
 target_compile_options(yt-library-re2 PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-re2 PUBLIC
   contrib-libs-linux-headers

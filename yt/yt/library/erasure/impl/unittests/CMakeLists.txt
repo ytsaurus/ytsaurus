@@ -10,6 +10,7 @@
 add_executable(unittester-library-erasure)
 target_compile_options(unittester-library-erasure PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-library-erasure PUBLIC
   contrib-libs-linux-headers

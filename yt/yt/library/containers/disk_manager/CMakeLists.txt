@@ -10,6 +10,7 @@
 add_library(library-containers-disk_manager)
 target_compile_options(library-containers-disk_manager PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(library-containers-disk_manager PUBLIC
   contrib-libs-linux-headers

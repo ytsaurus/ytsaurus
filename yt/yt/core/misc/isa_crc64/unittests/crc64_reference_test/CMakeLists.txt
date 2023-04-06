@@ -10,6 +10,7 @@
 add_executable(crc64_reference_test)
 target_compile_options(crc64_reference_test PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_link_libraries(crc64_reference_test PUBLIC

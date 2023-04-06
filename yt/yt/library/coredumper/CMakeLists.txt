@@ -10,6 +10,7 @@
 add_library(yt-library-coredumper)
 target_compile_options(yt-library-coredumper PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-coredumper PUBLIC
   contrib-libs-linux-headers

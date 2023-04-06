@@ -10,6 +10,7 @@
 add_executable(cuda_core_dump_simulator)
 target_compile_options(cuda_core_dump_simulator PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(cuda_core_dump_simulator PUBLIC
   contrib-libs-linux-headers

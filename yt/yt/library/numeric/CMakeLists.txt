@@ -12,6 +12,7 @@ add_subdirectory(unittests)
 add_library(yt-library-numeric)
 target_compile_options(yt-library-numeric PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-numeric PUBLIC
   contrib-libs-linux-headers

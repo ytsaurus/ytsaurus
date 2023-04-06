@@ -10,6 +10,7 @@
 add_executable(dump-chunk-meta)
 target_compile_options(dump-chunk-meta PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(dump-chunk-meta PUBLIC
   contrib-libs-linux-headers

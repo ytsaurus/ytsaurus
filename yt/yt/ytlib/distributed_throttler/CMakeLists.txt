@@ -22,6 +22,7 @@ get_built_tool_path(
 add_library(yt-ytlib-distributed_throttler)
 target_compile_options(yt-ytlib-distributed_throttler PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(yt-ytlib-distributed_throttler PRIVATE
   ${CMAKE_BINARY_DIR}/yt

@@ -10,6 +10,7 @@
 add_library(yt-library-skiff_ext)
 target_compile_options(yt-library-skiff_ext PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-skiff_ext PUBLIC
   contrib-libs-linux-headers

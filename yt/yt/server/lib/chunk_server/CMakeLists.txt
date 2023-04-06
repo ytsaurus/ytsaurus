@@ -23,6 +23,7 @@ get_built_tool_path(
 add_library(server-lib-chunk_server)
 target_compile_options(server-lib-chunk_server PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-lib-chunk_server PUBLIC
   contrib-libs-linux-headers

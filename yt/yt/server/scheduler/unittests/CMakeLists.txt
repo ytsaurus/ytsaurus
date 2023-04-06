@@ -10,6 +10,7 @@
 add_executable(unittester-scheduler)
 target_compile_options(unittester-scheduler PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-scheduler PUBLIC
   contrib-libs-linux-headers

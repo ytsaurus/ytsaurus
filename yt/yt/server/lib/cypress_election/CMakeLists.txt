@@ -10,6 +10,7 @@
 add_library(server-lib-cypress_election)
 target_compile_options(server-lib-cypress_election PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-lib-cypress_election PUBLIC
   contrib-libs-linux-headers

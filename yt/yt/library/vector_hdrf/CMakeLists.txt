@@ -11,6 +11,7 @@ add_subdirectory(unittests)
 add_library(yt-library-vector_hdrf)
 target_compile_options(yt-library-vector_hdrf PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-vector_hdrf PUBLIC
   contrib-libs-linux-headers

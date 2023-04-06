@@ -10,6 +10,7 @@
 add_executable(unpack-local-snapshot)
 target_compile_options(unpack-local-snapshot PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unpack-local-snapshot PUBLIC
   contrib-libs-linux-headers

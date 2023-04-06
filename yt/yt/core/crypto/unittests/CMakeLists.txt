@@ -10,6 +10,7 @@
 add_executable(unittester-core-crypto)
 target_compile_options(unittester-core-crypto PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(unittester-core-crypto PRIVATE
   ${CMAKE_BINARY_DIR}/yt

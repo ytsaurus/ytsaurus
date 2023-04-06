@@ -31,6 +31,7 @@ add_library(yt-yt-core)
 target_compile_options(yt-yt-core PRIVATE
   -mpclmul
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-yt-core PUBLIC
   contrib-libs-linux-headers
@@ -321,6 +322,7 @@ add_global_library_for(yt-yt-core.global yt-yt-core)
 target_compile_options(yt-yt-core.global PRIVATE
   -mpclmul
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-yt-core.global PUBLIC
   contrib-libs-linux-headers

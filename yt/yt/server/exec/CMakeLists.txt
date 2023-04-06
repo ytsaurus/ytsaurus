@@ -10,6 +10,7 @@
 add_library(yt-server-exec)
 target_compile_options(yt-server-exec PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-server-exec PUBLIC
   contrib-libs-linux-headers

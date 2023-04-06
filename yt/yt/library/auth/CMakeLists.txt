@@ -11,6 +11,7 @@ add_subdirectory(unittests)
 add_library(yt-library-auth)
 target_compile_options(yt-library-auth PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-auth PUBLIC
   contrib-libs-linux-headers

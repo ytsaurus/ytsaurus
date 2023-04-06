@@ -154,6 +154,7 @@ get_built_tool_path(
 add_library(library-query-engine)
 target_compile_options(library-query-engine PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(library-query-engine PRIVATE
   ${CMAKE_BINARY_DIR}/yt
@@ -195,6 +196,7 @@ target_sources(library-query-engine PRIVATE
 add_global_library_for(library-query-engine.global library-query-engine)
 target_compile_options(library-query-engine.global PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(library-query-engine.global PRIVATE
   ${CMAKE_BINARY_DIR}/yt

@@ -10,6 +10,7 @@
 add_executable(unittester-ytlib)
 target_compile_options(unittester-ytlib PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(unittester-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src

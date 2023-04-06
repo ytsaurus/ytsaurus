@@ -10,6 +10,7 @@
 add_library(server-lib-shell)
 target_compile_options(server-lib-shell PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-lib-shell PUBLIC
   contrib-libs-linux-headers

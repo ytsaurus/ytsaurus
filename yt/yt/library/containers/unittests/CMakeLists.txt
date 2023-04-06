@@ -10,6 +10,7 @@
 add_executable(unittester-containers)
 target_compile_options(unittester-containers PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-containers PUBLIC
   contrib-libs-linux-headers

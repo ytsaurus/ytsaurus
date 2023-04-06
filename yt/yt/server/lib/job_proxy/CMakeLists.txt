@@ -10,6 +10,7 @@
 add_library(server-lib-job_proxy)
 target_compile_options(server-lib-job_proxy PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-lib-job_proxy PUBLIC
   contrib-libs-linux-headers

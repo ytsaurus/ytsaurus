@@ -11,6 +11,7 @@ add_subdirectory(unittests)
 add_library(library-erasure-impl)
 target_compile_options(library-erasure-impl PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(library-erasure-impl PUBLIC
   contrib-libs-linux-headers

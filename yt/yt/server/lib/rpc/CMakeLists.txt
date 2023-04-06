@@ -10,6 +10,7 @@
 add_library(server-lib-rpc)
 target_compile_options(server-lib-rpc PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-lib-rpc PUBLIC
   contrib-libs-linux-headers

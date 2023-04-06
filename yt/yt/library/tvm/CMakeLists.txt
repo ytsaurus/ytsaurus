@@ -11,6 +11,7 @@ add_subdirectory(service)
 add_library(yt-library-tvm)
 target_compile_options(yt-library-tvm PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-tvm PUBLIC
   contrib-libs-linux-headers

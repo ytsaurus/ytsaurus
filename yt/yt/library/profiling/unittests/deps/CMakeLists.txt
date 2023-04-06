@@ -10,6 +10,7 @@
 add_executable(deps)
 target_compile_options(deps PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(deps PUBLIC
   contrib-libs-linux-headers

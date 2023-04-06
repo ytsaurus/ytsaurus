@@ -10,6 +10,7 @@
 add_library(yt-client-driver)
 target_compile_options(yt-client-driver PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-client-driver PUBLIC
   contrib-libs-linux-headers

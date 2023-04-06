@@ -10,6 +10,7 @@
 add_library(yt-library-dynamic_config)
 target_compile_options(yt-library-dynamic_config PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-dynamic_config PUBLIC
   contrib-libs-linux-headers

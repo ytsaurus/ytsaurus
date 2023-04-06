@@ -10,6 +10,7 @@
 add_library(orm-library-attributes)
 target_compile_options(orm-library-attributes PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(orm-library-attributes PUBLIC
   contrib-libs-linux-headers

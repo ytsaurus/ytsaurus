@@ -10,6 +10,7 @@
 add_executable(unittester-controller-agent)
 target_compile_options(unittester-controller-agent PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-controller-agent PUBLIC
   contrib-libs-linux-headers

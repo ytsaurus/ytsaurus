@@ -20,6 +20,7 @@ target_link_libraries(yt-library-dwarf_stack_trace INTERFACE
 add_global_library_for(yt-library-dwarf_stack_trace.global yt-library-dwarf_stack_trace)
 target_compile_options(yt-library-dwarf_stack_trace.global PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-dwarf_stack_trace.global PUBLIC
   contrib-libs-linux-headers

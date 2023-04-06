@@ -12,6 +12,7 @@ add_subdirectory(unittests)
 add_library(server-lib-chunk_pools)
 target_compile_options(server-lib-chunk_pools PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-lib-chunk_pools PUBLIC
   contrib-libs-linux-headers
@@ -48,6 +49,7 @@ target_sources(server-lib-chunk_pools PRIVATE
 add_global_library_for(server-lib-chunk_pools.global server-lib-chunk_pools)
 target_compile_options(server-lib-chunk_pools.global PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(server-lib-chunk_pools.global PUBLIC
   contrib-libs-linux-headers

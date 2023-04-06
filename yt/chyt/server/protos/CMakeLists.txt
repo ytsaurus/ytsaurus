@@ -34,6 +34,7 @@ get_built_tool_path(
 add_library(chyt-server-protos)
 target_compile_options(chyt-server-protos PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(chyt-server-protos PRIVATE
   ${CMAKE_BINARY_DIR}/yt

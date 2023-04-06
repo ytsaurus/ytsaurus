@@ -10,6 +10,7 @@
 add_executable(cpp-integration-test-hydra)
 target_compile_options(cpp-integration-test-hydra PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(cpp-integration-test-hydra PUBLIC
   contrib-libs-linux-headers

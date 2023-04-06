@@ -11,6 +11,7 @@ add_subdirectory(bin)
 add_library(yt-server-log_tailer)
 target_compile_options(yt-server-log_tailer PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-server-log_tailer PUBLIC
   contrib-libs-linux-headers

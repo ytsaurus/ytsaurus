@@ -10,6 +10,7 @@
 add_executable(unittester-server-lib-misc)
 target_compile_options(unittester-server-lib-misc PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-server-lib-misc PUBLIC
   contrib-libs-linux-headers

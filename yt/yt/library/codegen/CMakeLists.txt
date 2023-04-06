@@ -10,6 +10,7 @@
 add_library(yt-library-codegen)
 target_compile_options(yt-library-codegen PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-codegen PUBLIC
   contrib-libs-linux-headers

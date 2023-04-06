@@ -10,6 +10,7 @@
 add_executable(unittester-library-auth)
 target_compile_options(unittester-library-auth PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(unittester-library-auth PUBLIC
   contrib-libs-linux-headers

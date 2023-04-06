@@ -32,6 +32,7 @@ set(
 add_library(yt-yt-client)
 target_compile_options(yt-yt-client PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(yt-yt-client PUBLIC
   ${CMAKE_BINARY_DIR}/yt/yt/client/_/api/rpc_proxy

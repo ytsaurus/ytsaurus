@@ -10,6 +10,7 @@
 add_library(library-query-base)
 target_compile_options(library-query-base PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(library-query-base PUBLIC
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/base

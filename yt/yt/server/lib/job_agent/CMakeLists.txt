@@ -10,6 +10,7 @@
 add_library(server-lib-job_agent)
 target_compile_options(server-lib-job_agent PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(server-lib-job_agent PRIVATE
   ${CMAKE_BINARY_DIR}/yt

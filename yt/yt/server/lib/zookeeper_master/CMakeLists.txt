@@ -10,6 +10,7 @@
 add_library(server-lib-zookeeper_master)
 target_compile_options(server-lib-zookeeper_master PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(server-lib-zookeeper_master PRIVATE
   ${CMAKE_BINARY_DIR}/yt

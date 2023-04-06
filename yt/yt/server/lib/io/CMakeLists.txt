@@ -11,6 +11,7 @@ add_subdirectory(unittests)
 add_library(server-lib-io)
 target_compile_options(server-lib-io PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(server-lib-io PRIVATE
   ${CMAKE_BINARY_DIR}/yt

@@ -11,6 +11,7 @@ add_subdirectory(unittests)
 add_library(yt-library-sparse_coredump)
 target_compile_options(yt-library-sparse_coredump PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-library-sparse_coredump PUBLIC
   contrib-libs-linux-headers

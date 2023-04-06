@@ -11,6 +11,7 @@ add_subdirectory(deps)
 add_executable(yt-yt-library-profiling-unittests)
 target_compile_options(yt-yt-library-profiling-unittests PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_link_libraries(yt-yt-library-profiling-unittests PUBLIC
   contrib-libs-linux-headers

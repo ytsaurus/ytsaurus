@@ -11,6 +11,7 @@ add_subdirectory(udf)
 add_executable(unittester-query)
 target_compile_options(unittester-query PRIVATE
   -Wdeprecated-this-capture
+  -Werror-inconsistent-missing-override
 )
 target_include_directories(unittester-query PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
