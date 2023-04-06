@@ -3268,8 +3268,8 @@ class TestChaosMetaCluster(ChaosTestBase):
             peer = get("//sys/chaos_cells/{0}/@peers/0/address".format(cell), driver=driver)
             return get("//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}/chaos_manager/coordinators".format(peer, cell), driver=driver)
 
-        assert len(_get_coordinators(cells[0], drivers[-2])) == 2
-        assert len(_get_coordinators(cells[1], drivers[-1])) == 2
+        wait(lambda: len(_get_coordinators(cells[0], drivers[-2])) == 2)
+        wait(lambda: len(_get_coordinators(cells[1], drivers[-1])) == 2)
 
     @authors("savrus")
     def test_dedicated_chaos_table(self):
