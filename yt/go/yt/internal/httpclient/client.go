@@ -399,7 +399,9 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 		defer close(errChan)
 		closeErr := func(err error) {
 			errChan <- err
-			_ = pr.CloseWithError(err)
+			if pr != nil {
+				_ = pr.CloseWithError(err)
+			}
 		}
 
 		rsp, err := c.roundTrip(req.WithContext(ctx))
