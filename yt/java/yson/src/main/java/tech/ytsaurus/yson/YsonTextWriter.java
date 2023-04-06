@@ -5,6 +5,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
@@ -13,9 +14,11 @@ import java.util.Arrays;
  * All underlying writer exceptions are transformed to UncheckedIOException.
  */
 public class YsonTextWriter implements ClosableYsonConsumer {
+    private static final int BUFFER_SIZE = 256;
     private final Writer writer;
     private boolean firstItem = false;
     private int depth = 0;
+    private final char[] buffer = new char[BUFFER_SIZE];
     public YsonTextWriter(StringBuilder builder) {
         this(new StringBuilderWriterAdapter(builder));
     }
@@ -96,6 +99,14 @@ public class YsonTextWriter implements ClosableYsonConsumer {
     }
 
     @Override
+    public void onString(String str) {
+        write('"');
+        appendQuotedBytes(str.getBytes(StandardCharsets.UTF_8));
+        write('"');
+        endNode();
+    }
+
+    @Override
     public void onEntity() {
         write(YsonTags.ENTITY);
         endNode();
@@ -162,8 +173,28 @@ public class YsonTextWriter implements ClosableYsonConsumer {
     }
 
     private void appendQuotedBytes(byte[] bytes) {
+        int offset = 0;
         for (byte b : bytes) {
-            appendQuotedByte(b);
+            if (b > 31 && b < 127 && b != 34 && b != 92 && offset < BUFFER_SIZE) {
+                this.buffer[offset++] = (char) b;
+            } else {
+                if (offset > 0) {
+                    writeBuff(offset);
+                }
+                offset = 0;
+                appendQuotedByte(b);
+            }
+        }
+        if (offset > 0) {
+            writeBuff(offset);
+        }
+    }
+
+    private void writeBuff(int offset) {
+        try {
+            writer.write(this.buffer, 0, offset);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -193,6 +224,28 @@ public class YsonTextWriter implements ClosableYsonConsumer {
         @Override
         public void write(char[] chars, int i, int i1) {
             builder.append(chars, i, i1);
+        }
+
+        @Override
+        public void write(String str) throws IOException {
+            builder.append(str);
+        }
+
+        @Override
+        public Writer append(char c) throws IOException {
+            builder.append(c);
+            return this;
+        }
+
+        @Override
+        public Writer append(CharSequence csq) throws IOException {
+            builder.append(csq);
+            return this;
+        }
+
+        @Override
+        public void write(int c) throws IOException {
+            builder.append((char) c);
         }
 
         @Override
