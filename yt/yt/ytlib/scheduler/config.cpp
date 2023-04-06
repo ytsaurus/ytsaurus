@@ -1021,10 +1021,6 @@ void TUserJobSpec::Register(TRegistrar registrar)
             ValidateEnvironmentVariableName(variableName);
         }
 
-        for (auto& path : spec->FilePaths) {
-            path = path.Normalize();
-        }
-
         if (!spec->DiskSpaceLimit && spec->InodeLimit) {
             THROW_ERROR_EXCEPTION("Option \"inode_limit\" can be specified only with \"disk_space_limit\"");
         }
@@ -1097,10 +1093,6 @@ void TVanillaTaskSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("restart_completed_jobs", &TThis::RestartCompletedJobs)
         .Default(false);
-
-    registrar.Postprocessor([] (TVanillaTaskSpec* spec) {
-        spec->OutputTablePaths = NYT::NYPath::Normalize(spec->OutputTablePaths);
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1183,10 +1175,6 @@ void TOperationWithInputSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("input_table_paths", &TThis::InputTablePaths)
         .NonEmpty();
-
-    registrar.Preprocessor([] (TOperationWithInputSpec* spec) {
-        spec->InputTablePaths = NYPath::Normalize(spec->InputTablePaths);
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1210,8 +1198,6 @@ void TMapOperationSpec::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Postprocessor([] (TMapOperationSpec* spec) {
-        spec->OutputTablePaths = NYT::NYPath::Normalize(spec->OutputTablePaths);
-
         spec->Mapper->InitEnableInputTableIndex(spec->InputTablePaths.size(), spec->JobIO);
         spec->Mapper->TaskTitle = "Mapper";
 
@@ -1232,10 +1218,6 @@ void TMergeOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("schema_inference_mode", &TThis::SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
-
-    registrar.Postprocessor([] (TMergeOperationSpec* spec) {
-        spec->OutputTablePath = spec->OutputTablePath.Normalize();
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1247,10 +1229,6 @@ void TEraseOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("schema_inference_mode", &TThis::SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
-
-    registrar.Postprocessor([&] (TEraseOperationSpec* spec) {
-        spec->TablePath = spec->TablePath.Normalize();
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1303,9 +1281,6 @@ void TReduceOperationSpec::Register(TRegistrar registrar)
         NTableClient::ValidateSortColumns(spec->JoinBy);
         NTableClient::ValidateSortColumns(spec->ReduceBy);
         NTableClient::ValidateSortColumns(spec->SortBy);
-
-        spec->InputTablePaths = NYT::NYPath::Normalize(spec->InputTablePaths);
-        spec->OutputTablePaths = NYT::NYPath::Normalize(spec->OutputTablePaths);
 
         bool hasPrimary = false;
         for (const auto& path : spec->InputTablePaths) {
@@ -1395,8 +1370,6 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TSortOperationSpecBase* spec) {
         NTableClient::ValidateSortColumns(spec->SortBy);
-
-        spec->InputTablePaths = NYT::NYPath::Normalize(spec->InputTablePaths);
 
         // Validate pivot_keys.
         for (const auto& pivotKey : spec->PivotKeys) {
@@ -1489,8 +1462,6 @@ void TSortOperationSpec::Register(TRegistrar registrar)
     });
 
     registrar.Postprocessor([&] (TSortOperationSpec* spec) {
-        spec->OutputTablePath = spec->OutputTablePath.Normalize();
-
         if (spec->SortBy.empty()) {
             THROW_ERROR_EXCEPTION("\"sort_by\" option should be set in Sort operations");
         }
@@ -1647,9 +1618,6 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
             }
         }
 
-        spec->InputTablePaths = NYT::NYPath::Normalize(spec->InputTablePaths);
-        spec->OutputTablePaths = NYT::NYPath::Normalize(spec->OutputTablePaths);
-
         if (!spec->HasNontrivialMapper() && spec->EnableTableIndexIfHasTrivialMapper) {
             spec->Reducer->EnableInputTableIndex = true;
             if (spec->HasNontrivialReduceCombiner()) {
@@ -1778,9 +1746,6 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         if (spec->InputTablePaths.size() > 1) {
             THROW_ERROR_EXCEPTION("Multiple tables in remote copy are not supported");
         }
-
-        spec->InputTablePaths = NYPath::Normalize(spec->InputTablePaths);
-        spec->OutputTablePath = spec->OutputTablePath.Normalize();
 
         if (spec->NetworkName) {
             if (spec->Networks) {

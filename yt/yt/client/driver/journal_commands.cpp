@@ -34,10 +34,6 @@ TReadJournalCommand::TReadJournalCommand()
     RegisterParameter("path", Path);
     RegisterParameter("journal_reader", JournalReader)
         .Default();
-
-    RegisterPostprocessor([&] {
-        Path = Path.Normalize();
-    });
 }
 
 void TReadJournalCommand::DoExecute(ICommandContextPtr context)

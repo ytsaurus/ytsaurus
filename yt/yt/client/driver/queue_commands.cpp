@@ -16,11 +16,6 @@ TRegisterQueueConsumerCommand::TRegisterQueueConsumerCommand()
     RegisterParameter("queue_path", QueuePath);
     RegisterParameter("consumer_path", ConsumerPath);
     RegisterParameter("vital", Vital);
-
-    RegisterPostprocessor([&] {
-        QueuePath = QueuePath.Normalize();
-        ConsumerPath = ConsumerPath.Normalize();
-    });
 }
 
 void TRegisterQueueConsumerCommand::DoExecute(ICommandContextPtr context)
@@ -43,11 +38,6 @@ TUnregisterQueueConsumerCommand::TUnregisterQueueConsumerCommand()
 {
     RegisterParameter("queue_path", QueuePath);
     RegisterParameter("consumer_path", ConsumerPath);
-
-    RegisterPostprocessor([&] {
-        QueuePath = QueuePath.Normalize();
-        ConsumerPath = ConsumerPath.Normalize();
-    });
 }
 
 void TUnregisterQueueConsumerCommand::DoExecute(ICommandContextPtr context)
