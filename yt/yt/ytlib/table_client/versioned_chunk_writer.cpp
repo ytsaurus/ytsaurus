@@ -8,6 +8,7 @@
 #include "row_merger.h"
 #include "versioned_block_writer.h"
 #include "versioned_row_digest.h"
+#include "key_filter.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -93,6 +94,9 @@ public:
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
         , SamplingRowMerger_(New<TRowBuffer>(TVersionedChunkWriterBaseTag()), Schema_)
         , RowDigestBuilder_(CreateVersionedRowDigestBuilder(Config_->VersionedRowDigest))
+        , KeyFilterBuilder_(Config_->KeyFilter->Enable
+            ? CreateXorFilterBuilder(Config_->KeyFilter)
+            : nullptr)
         , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
         , FinishGuard_(TraceContext_)
     {
@@ -141,9 +145,19 @@ public:
             }
         }
 
+        if (KeyFilterBuilder_) {
+            for (auto row : rows) {
+                KeyFilterBuilder_->AddKey(GetFarmFingerprint(row.Keys()));
+            }
+        }
+
         DoWriteRows(rows);
 
         LastKey_ = TLegacyOwningKey(rows.Back().Keys());
+
+        if (KeyFilterBuilder_) {
+            KeyFilterBuilder_->FlushBlock(LastKey_, /*force*/ false);
+        }
 
         return EncodingChunkWriter_->IsReady();
     }
@@ -235,6 +249,7 @@ protected:
     NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
 
     IVersionedRowDigestBuilderPtr RowDigestBuilder_;
+    IKeyFilterBuilderPtr KeyFilterBuilder_;
 
     const TTraceContextPtr TraceContext_;
     const TTraceContextFinishGuard FinishGuard_;
@@ -597,6 +612,15 @@ private:
         }
 
         OnDataBlocksWritten(LastKey_.Elements(), &SystemBlockMetaExt_, EncodingChunkWriter_);
+
+        if (KeyFilterBuilder_) {
+            KeyFilterBuilder_->FlushBlock(LastKey_, /*force*/ true);
+
+            auto blocks = KeyFilterBuilder_->SerializeBlocks(&SystemBlockMetaExt_);
+            for (auto& block : blocks) {
+                EncodingChunkWriter_->WriteBlock(std::move(block));
+            }
+        }
 
         PrepareChunkMeta();
 

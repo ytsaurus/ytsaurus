@@ -50,7 +50,7 @@ inline void WriteRef(char*& ptr, TRef ref)
 template <class TOutput, class T>
 void WritePod(TOutput& output, const T& obj)
 {
-    static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
+    static_assert(TTypeTraits<T>::IsPod || std::is_trivial_v<T>, "T must be a pod-type.");
     static_assert(
         std::has_unique_object_representations_v<T> ||
         std::is_same_v<T, float> ||
@@ -63,7 +63,7 @@ void WritePod(TOutput& output, const T& obj)
 template <class T>
 void WritePod(char*& ptr, const T& obj)
 {
-    static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
+    static_assert(TTypeTraits<T>::IsPod || std::is_trivial_v<T>, "T must be a pod-type.");
     memcpy(ptr, &obj, sizeof(obj));
     ptr += sizeof(obj);
 }
@@ -120,14 +120,14 @@ inline void ReadPadding(const char*& ptr, size_t sizeToPad)
 template <class TInput, class T>
 void ReadPod(TInput& input, T& obj)
 {
-    static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
+    static_assert(TTypeTraits<T>::IsPod || std::is_trivial_v<T>, "T must be a pod-type.");
     ReadRef(input, TMutableRef::FromPod(obj));
 }
 
 template <class T>
 void ReadPod(char*& ptr, T& obj)
 {
-    static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
+    static_assert(TTypeTraits<T>::IsPod || std::is_trivial_v<T>, "T must be a pod-type.");
     memcpy(&obj, ptr, sizeof(obj));
     ptr += sizeof(obj);
 }

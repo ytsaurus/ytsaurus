@@ -162,6 +162,53 @@ void TChunkWriterConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("testing_options", &TThis::TestingOptions)
         .DefaultNew();
+
+    registrar.Parameter("key_filter", &TThis::KeyFilter)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TKeyFilterWriterConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("block_size", &TThis::BlockSize)
+        .GreaterThan(0)
+        .Default(64_KB);
+
+    registrar.Parameter("trial_count", &TThis::TrialCount)
+        .GreaterThan(0)
+        .Default(100);
+
+    registrar.Parameter("bits_per_key", &TThis::BitsPerKey)
+        .InRange(0, 62)
+        .Optional();
+
+    registrar.Parameter("false_positive_rate", &TThis::FalsePositiveRate)
+        .InRange(0, 1.0 / (1ll << 62))
+        .Default()
+        .Optional();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->BitsPerKey && config->FalsePositiveRate) {
+            THROW_ERROR_EXCEPTION("At most one of \"bits_per_key\" and "
+                "\"false_positive_rate\" can be specified");
+        }
+
+        if (config->FalsePositiveRate) {
+            int bitsPerKey = 1;
+
+            while ((1ll << bitsPerKey) * *config->FalsePositiveRate < 1) {
+                ++bitsPerKey;
+            }
+
+            config->EffectiveBitsPerKey = bitsPerKey;
+        } else {
+            config->EffectiveBitsPerKey = config->BitsPerKey.value_or(DefaultBitsPerKey);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

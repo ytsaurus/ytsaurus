@@ -705,6 +705,29 @@ class TestLookup(TestSortedDynamicTablesBase):
         # Node shall not be suspicious anymore.
         assert lookup_rows("//tmp/t", [{"key": 1}]) == row
 
+    @authors("ifsmirnov")
+    def test_key_filter(self):
+        sync_create_cells(1)
+        self._create_simple_table(
+            "//tmp/t",
+            chunk_writer={
+                "key_filter" : {
+                    "block_size": 100,
+                    "enable": True,
+                },
+            },
+            mount_config={
+                "testing_only_use_key_filter": True,
+            })
+        sync_mount_table("//tmp/t")
+
+        keys = [{"key": i} for i in range(10000)]
+        rows = [{"key": i, "value": str(i)} for i in range(0, 10000, 2)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", keys, verbose=False) == rows
+
 
 class TestDataNodeLookup(TestSortedDynamicTablesBase):
     NUM_TEST_PARTITIONS = 2

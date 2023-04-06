@@ -29,6 +29,7 @@
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/key_filter.h>
 #include <yt/yt/ytlib/table_client/versioned_offloading_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_reader_adapter.h>
@@ -54,6 +55,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <library/cpp/iterator/enumerate.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
@@ -71,8 +74,6 @@ using namespace NApi;
 using namespace NDataNode;
 using namespace NClusterNode;
 using namespace NQueryAgent;
-
-using NChunkClient::TLegacyReadLimit;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -178,6 +179,181 @@ private:
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows)));
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
+class TKeyFilteringReader
+    : public IVersionedReader
+{
+public:
+    TKeyFilteringReader(
+        IVersionedReaderPtr underlyingReader,
+        std::vector<ui8> missingKeyMask)
+        : UnderlyingReader_(std::move(underlyingReader))
+        , MissingKeyMask_(std::move(missingKeyMask))
+        , ReadRowCount_(0)
+    { }
+
+    TDataStatistics GetDataStatistics() const override
+    {
+        return UnderlyingReader_->GetDataStatistics();
+    }
+
+    TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return UnderlyingReader_->GetDecompressionStatistics();
+    }
+
+    TFuture<void> Open() override
+    {
+        return UnderlyingReader_->Open();
+    }
+
+    TFuture<void> GetReadyEvent() const override
+    {
+        return UnderlyingReader_->GetReadyEvent();
+    }
+
+    bool IsFetchingCompleted() const override
+    {
+        return UnderlyingReader_->IsFetchingCompleted();
+    }
+
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    {
+        return UnderlyingReader_->GetFailedChunkIds();
+    }
+
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    {
+        if (ReadRowCount_ == ssize(MissingKeyMask_)) {
+            return nullptr;
+        }
+
+        int batchEndIndex = ReadRowCount_ + std::min(options.MaxRowsPerRead, ssize(MissingKeyMask_) - ReadRowCount_);
+        int neededUnderlyingRowCount = std::count(
+            MissingKeyMask_.begin() + ReadRowCount_,
+            MissingKeyMask_.begin() + batchEndIndex,
+            0);
+
+        auto underlyingOptions = options;
+        underlyingOptions.MaxRowsPerRead = neededUnderlyingRowCount;
+
+        auto underlyingBatch = neededUnderlyingRowCount > 0
+            ? UnderlyingReader_->Read(underlyingOptions)
+            : nullptr;
+
+        auto underlyingRows = underlyingBatch
+            ? underlyingBatch->MaterializeRows()
+            : TSharedRange<TVersionedRow>();
+
+        int underlyingRowIndex = 0;
+        std::vector<TVersionedRow> result;
+
+        while (ReadRowCount_ < batchEndIndex) {
+            if (MissingKeyMask_[ReadRowCount_]) {
+                result.emplace_back();
+                ++ReadRowCount_;
+            } else if (underlyingRows && underlyingRowIndex < std::ssize(underlyingRows)) {
+                result.push_back(underlyingRows[underlyingRowIndex++]);
+                ++ReadRowCount_;
+            } else {
+                break;
+            }
+        }
+
+        return CreateBatchFromVersionedRows(MakeSharedRange(std::move(result)));
+    }
+
+private:
+    const IVersionedReaderPtr UnderlyingReader_;
+    const std::vector<ui8> MissingKeyMask_;
+
+    i64 ReadRowCount_ = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
+bool PrepareKeyFilteringReader(
+    const TTablet* tablet,
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
+    const IChunkReaderPtr& chunkReader,
+    const TClientChunkReadOptions& chunkReadOptions,
+    TSharedRange<TLegacyKey>* keys,
+    std::vector<ui8> *missingKeyMask)
+{
+    if (!tablet->GetSettings().MountConfig->TestingOnlyUseKeyFilter) {
+        return false;
+    }
+
+    std::vector<IKeyFilterPtr> keyFilters;
+
+    auto systemBlockMeta = chunkMeta->SystemBlockMeta();
+    if (!systemBlockMeta) {
+        return false;
+    }
+
+    int dataBlockCount = chunkMeta->DataBlockMeta()->data_blocks_size();
+
+    IChunkReader::TReadBlocksOptions readBlocksOptions{
+        .ClientOptions = chunkReadOptions,
+    };
+
+    for (const auto& [index, blockMeta] : Enumerate(systemBlockMeta->system_blocks())) {
+        if (!blockMeta.HasExtension(TXorFilterSystemBlockMeta::xor_filter_system_block_meta_ext)) {
+            continue;
+        }
+
+        auto xorFilterBlockMeta = blockMeta.GetExtension(
+            TXorFilterSystemBlockMeta::xor_filter_system_block_meta_ext);
+
+        auto blocks = WaitFor(chunkReader->ReadBlocks(
+            readBlocksOptions,
+            dataBlockCount + index,
+            1))
+            .ValueOrThrow();
+        YT_VERIFY(ssize(blocks) == 1);
+
+        auto compressedBlock = TBlock::Unwrap(blocks)[0];
+
+        auto codecName = static_cast<NCompression::ECodec>(chunkMeta->Misc().compression_codec());
+        auto codec = NCompression::GetCodec(codecName);
+        auto decompressedBlock = codec->Decompress(compressedBlock);
+
+        keyFilters.push_back(CreateXorFilter(xorFilterBlockMeta, std::move(decompressedBlock)));
+    }
+
+    if (keyFilters.empty()) {
+        return false;
+    }
+
+    missingKeyMask->clear();
+    missingKeyMask->reserve(keys->size());
+
+    std::vector<TLegacyKey> filteredKeys;
+
+    int filterIndex = 0;
+
+    for (auto key : *keys) {
+        // NB: This is probably incorrect, should use WidenKey or something.
+        while (filterIndex < ssize(keyFilters) && keyFilters[filterIndex]->GetLastKey() < key) {
+            ++filterIndex;
+        }
+
+        if (filterIndex < ssize(keyFilters) && keyFilters[filterIndex]->Contains(key)) {
+            filteredKeys.push_back(std::move(key));
+            missingKeyMask->push_back(0);
+        } else {
+            missingKeyMask->push_back(1);
+        }
+    }
+
+    *keys = MakeSharedRange(std::move(filteredKeys));
+
+    return true;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -478,10 +654,19 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         return CreateEmptyVersionedReader(keys.Size());
     }
 
+    // TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
+    bool needKeyFilteringReader = false;
+    std::vector<ui8> missingKeyMask;
+
     auto wrapReader = [&] (
         IVersionedReaderPtr underlyingReader,
         bool needSetTimestamp) -> IVersionedReaderPtr
     {
+        if (needKeyFilteringReader) {
+            underlyingReader = New<TKeyFilteringReader>(
+                std::move(underlyingReader),
+                missingKeyMask);
+        }
         if (skippedBefore > 0 || skippedAfter > 0) {
             underlyingReader = New<TFilteringReader>(
                 std::move(underlyingReader),
@@ -551,6 +736,19 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         chunkReadOptions,
         enableNewScanReader);
     const auto& chunkMeta = chunkState->ChunkMeta;
+
+    // TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
+    needKeyFilteringReader = PrepareKeyFilteringReader(
+        Tablet_,
+        chunkMeta,
+        backendReaders.ChunkReader,
+        chunkReadOptions,
+        &filteredKeys,
+        &missingKeyMask);
+
+    if (needKeyFilteringReader && std::count(missingKeyMask.begin(), missingKeyMask.end(), 0) == 0) {
+        return CreateEmptyVersionedReader(keys.Size());
+    }
 
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
 

@@ -73,6 +73,16 @@ void ToProto(
     ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
     const std::vector<TOriginal>& originalArray);
 
+template <class TSerialized, class TOriginal, size_t N>
+void ToProto(
+    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
+    const std::array<TOriginal, N>& originalArray);
+
+template <class TSerialized, class TOriginal, size_t N>
+void ToProto(
+    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
+    const std::array<TOriginal, N>& originalArray);
+
 template <class TSerialized, class TOriginal, size_t Size>
 void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,

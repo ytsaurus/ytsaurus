@@ -898,6 +898,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-library-heavy_schema_validation
   yt-library-quantile_digest
   library-tvm-service
+  yt-library-xor_filter
   yt-client-formats
   library-query-engine
   library-query-row_comparer_api
@@ -1254,6 +1255,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/column_filter_dictionary.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/hunks.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/key_filter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/key_set.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/overlapping_reader.cpp
@@ -1504,6 +1506,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-library-heavy_schema_validation
   yt-library-quantile_digest
   library-tvm-service
+  yt-library-xor_filter
   yt-client-formats
   library-query-engine
   library-query-row_comparer_api

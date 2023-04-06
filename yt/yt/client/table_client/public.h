@@ -48,6 +48,8 @@ class TVersionedRowDigestExt;
 
 using TRefCountedDataBlockMeta = TRefCountedProto<NProto::TDataBlockMetaExt>;
 using TRefCountedDataBlockMetaPtr = TIntrusivePtr<TRefCountedDataBlockMeta>;
+using TRefCountedSystemBlockMeta = TRefCountedProto<NProto::TSystemBlockMetaExt>;
+using TRefCountedSystemBlockMetaPtr = TIntrusivePtr<TRefCountedSystemBlockMeta>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -320,6 +322,8 @@ DECLARE_REFCOUNTED_CLASS(TChunkWriterTestingOptions)
 
 DECLARE_REFCOUNTED_CLASS(TChunkReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkWriterConfig)
+
+DECLARE_REFCOUNTED_CLASS(TKeyFilterWriterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTableReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
