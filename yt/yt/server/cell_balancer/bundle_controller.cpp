@@ -75,6 +75,25 @@ struct TBundleSensors final
     TGauge AssigningTabletNodes;
     TGauge AssigningSpareNodes;
     TGauge ReleasingSpareNodes;
+
+    TGauge OfflineNodeCount;
+    TGauge DecommissionedNodeCount;
+    TGauge OfflineProxyCount;
+    TGauge MaintenanceRequestedNodeCount;
+
+    TGauge InflightNodeAllocationCount;
+    TGauge InflightNodeDeallocationCount;
+    TGauge InflightCellRemovalCount;
+
+    TGauge InflightProxyAllocationCounter;
+    TGauge InflightProxyDeallocationCounter;
+
+    TTimeGauge NodeAllocationRequestAge;
+    TTimeGauge NodeDeallocationRequestAge;
+    TTimeGauge RemovingCellsAge;
+
+    TTimeGauge ProxyAllocationRequestAge;
+    TTimeGauge ProxyDeallocationRequestAge;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,21 +145,11 @@ public:
         , ChangedDecommissionedFlagCounter_(Profiler.Counter("/changed_decommissioned_flag_counter"))
         , ChangedEnableBundleBalancerFlagCounter_(Profiler.Counter("/changed_enable_bundle_balancer_flag_counter"))
         , ChangedNodeAnnotationCounter_(Profiler.Counter("/changed_node_annotation_counter"))
-        , InflightNodeAllocationCount_(Profiler.Gauge("/inflight_node_allocations_count"))
-        , InflightNodeDeallocationCount_(Profiler.Gauge("/inflight_node_deallocations_count"))
-        , InflightCellRemovalCount_(Profiler.Gauge("/inflight_cell_removal_count"))
-        , NodeAllocationRequestAge_(Profiler.TimeGauge("/node_allocation_request_age"))
-        , NodeDeallocationRequestAge_(Profiler.TimeGauge("/node_deallocation_request_age"))
-        , RemovingCellsAge_(Profiler.TimeGauge("/removing_cells_age"))
-        , InflightProxyAllocationCounter_(Profiler.Gauge("/inflight_proxy_allocation_counter"))
-        , InflightProxyDeallocationCounter_(Profiler.Gauge("/inflight_proxy_deallocation_counter"))
         , ChangedBundleShortNameCounter_(Profiler.Counter("/changed_bundle_short_name_counter"))
         , ChangedProxyRoleCounter_(Profiler.Counter("/changed_proxy_role_counter"))
         , InitializedNodeTagFiltersCounter_(Profiler.Counter("/initialized_node_tag_filters_counter"))
         , InitializedBundleTargetConfigCounter_(Profiler.Counter("/initialized_bundle_target_config_counter"))
         , ChangedProxyAnnotationCounter_(Profiler.Counter("/changed_proxy_annotation_counter"))
-        , ProxyAllocationRequestAge_(Profiler.TimeGauge("/proxy_allocation_request_age"))
-        , ProxyDeallocationRequestAge_(Profiler.TimeGauge("/proxy_deallocation_request_age"))
         , ChangedSystemAccountLimitCounter_(Profiler.Counter("/changed_system_account_limit_counter"))
         , ChangedResourceLimitsCounter_(Profiler.Counter("/changed_resource_limits_counter"))
     { }
@@ -184,25 +193,12 @@ private:
     TCounter ChangedEnableBundleBalancerFlagCounter_;
     TCounter ChangedNodeAnnotationCounter_;
 
-    TGauge InflightNodeAllocationCount_;
-    TGauge InflightNodeDeallocationCount_;
-    TGauge InflightCellRemovalCount_;
-
-    TTimeGauge NodeAllocationRequestAge_;
-    TTimeGauge NodeDeallocationRequestAge_;
-    TTimeGauge RemovingCellsAge_;
-
-    TGauge InflightProxyAllocationCounter_;
-    TGauge InflightProxyDeallocationCounter_;
-
     TCounter ChangedBundleShortNameCounter_;
     TCounter ChangedProxyRoleCounter_;
     TCounter InitializedNodeTagFiltersCounter_;
     TCounter InitializedBundleTargetConfigCounter_;
 
     TCounter ChangedProxyAnnotationCounter_;
-    TTimeGauge ProxyAllocationRequestAge_;
-    TTimeGauge ProxyDeallocationRequestAge_;
     TCounter ChangedSystemAccountLimitCounter_;
     TCounter ChangedResourceLimitsCounter_;
 
@@ -217,7 +213,8 @@ private:
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         if (!IsLeader()) {
-            OrchidBundlesInfo_.clear();
+            ClearState();
+
             YT_LOG_DEBUG("Bundle Controller is not leading");
             return;
         }
@@ -232,6 +229,14 @@ private:
             YT_LOG_ERROR(ex, "Scanning bundles failed");
             FailedScanBundleCounter_.Increment();
         }
+    }
+
+    void ClearState() const
+    {
+        OrchidBundlesInfo_.clear();
+        BundleAlerts_.clear();
+        ZoneSensors_.clear();
+        BundleSensors_.clear();
     }
 
     void LinkOrchidService() const
@@ -452,28 +457,23 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        int nodeAllocationCount = 0;
-        int nodeDeallocationCount = 0;
-        int proxyAllocationCount = 0;
-        int proxyDeallocationCount = 0;
-        int removingCellCount = 0;
-
         auto now = TInstant::Now();
-        TDuration nodeAllocationRequestAge;
-        TDuration nodeDeallocationRequestAge;
-        TDuration removingCellsAge;
-        TDuration proxyAllocationRequestAge;
-        TDuration proxyDeallocationRequestAge;
-
         auto mergedBundlesState = MergeBundleStates(input, mutations);
-        // TODO(capone212): think about per-bundle sensors.
-        for (const auto& [_, state] : mergedBundlesState) {
-            nodeAllocationCount += state->NodeAllocations.size();
-            nodeDeallocationCount += state->NodeDeallocations.size();
-            removingCellCount += state->RemovingCells.size();
 
-            proxyAllocationCount += state->ProxyAllocations.size();
-            proxyDeallocationCount += state->ProxyDeallocations.size();
+        for (const auto& [bundleName, state] : mergedBundlesState) {
+            auto sensors = GetBundleSensors(bundleName);
+
+            sensors->InflightNodeAllocationCount.Update(state->NodeAllocations.size());
+            sensors->InflightNodeDeallocationCount.Update(state->NodeDeallocations.size());
+            sensors->InflightCellRemovalCount.Update(state->RemovingCells.size());
+            sensors->InflightProxyAllocationCounter.Update(state->ProxyAllocations.size());
+            sensors->InflightProxyDeallocationCounter.Update(state->ProxyDeallocations.size());
+
+            TDuration nodeAllocationRequestAge;
+            TDuration nodeDeallocationRequestAge;
+            TDuration removingCellsAge;
+            TDuration proxyAllocationRequestAge;
+            TDuration proxyDeallocationRequestAge;
 
             for (const auto& [_, allocation] : state->NodeAllocations) {
                 nodeAllocationRequestAge = std::max(nodeAllocationRequestAge, now - allocation->CreationTime);
@@ -494,19 +494,13 @@ private:
             for (const auto& [_, deallocation] : state->ProxyDeallocations) {
                 proxyDeallocationRequestAge = std::max(proxyDeallocationRequestAge, now - deallocation->CreationTime);
             }
+
+            sensors->NodeAllocationRequestAge.Update(nodeAllocationRequestAge);
+            sensors->NodeDeallocationRequestAge.Update(nodeDeallocationRequestAge);
+            sensors->RemovingCellsAge.Update(removingCellsAge);
+            sensors->ProxyAllocationRequestAge.Update(proxyAllocationRequestAge);
+            sensors->ProxyDeallocationRequestAge.Update(proxyAllocationRequestAge);
         }
-
-        InflightNodeAllocationCount_.Update(nodeAllocationCount);
-        InflightNodeDeallocationCount_.Update(nodeDeallocationCount);
-        InflightCellRemovalCount_.Update(removingCellCount);
-        InflightProxyAllocationCounter_.Update(proxyAllocationCount);
-        InflightProxyDeallocationCounter_.Update(proxyDeallocationCount);
-
-        NodeAllocationRequestAge_.Update(nodeAllocationRequestAge);
-        NodeDeallocationRequestAge_.Update(nodeDeallocationRequestAge);
-        RemovingCellsAge_.Update(removingCellsAge);
-        ProxyAllocationRequestAge_.Update(proxyAllocationRequestAge);
-        ProxyDeallocationRequestAge_.Update(proxyAllocationRequestAge);
     }
 
     void ReportResourceUsage(TSchedulerInputState& input) const
@@ -594,14 +588,14 @@ private:
             auto sensors = GetBundleSensors(bundleName);
 
             ReportTargetInstanceCount(
-                targetConfig->TabletNodeResourceGuarantee->Type,
+                GetInstanceSize(targetConfig->TabletNodeResourceGuarantee),
                 "/target_tablet_node_count",
                 targetConfig->TabletNodeCount,
                 sensors->Profiler,
                 sensors->TargetTabletNodeSize);
 
             ReportTargetInstanceCount(
-                targetConfig->RpcProxyResourceGuarantee->Type,
+                GetInstanceSize(targetConfig->RpcProxyResourceGuarantee),
                 "/target_rpc_proxy_count",
                 targetConfig->RpcProxyCount,
                 sensors->Profiler,
@@ -616,6 +610,51 @@ private:
             sensors->ReleasingSpareNodes.Update(std::ssize(bundleState->SpareNodeReleasements));
         }
 
+        for (const auto& [bundleName, nodes] : input.BundleNodes) {
+            int offlineNodeCount = 0;
+            int decommissionedNodeCount = 0;
+            int maintenanceRequestedNodeCount = 0;
+
+            for (const auto& nodeName : nodes) {
+                const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+
+                if (nodeInfo->State != InstanceStateOnline) {
+                    ++offlineNodeCount;
+                    continue;
+                }
+
+                if (!nodeInfo->CmsMaintenanceRequests.empty()) {
+                    ++maintenanceRequestedNodeCount;
+                    continue;
+                }
+
+                if (nodeInfo->Decommissioned) {
+                    ++decommissionedNodeCount;
+                    continue;
+                }
+            }
+
+            auto sensors = GetBundleSensors(bundleName);
+            sensors->OfflineNodeCount.Update(offlineNodeCount);
+            sensors->MaintenanceRequestedNodeCount.Update(maintenanceRequestedNodeCount);
+            sensors->DecommissionedNodeCount.Update(decommissionedNodeCount);
+        }
+
+        for (const auto& [bundleName, proxies] : input.BundleProxies) {
+            int offlineProxyCount = 0;
+
+            for (const auto& proxyName : proxies) {
+                const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+
+                if (!proxyInfo->Alive) {
+                    ++offlineProxyCount;
+                }
+            }
+
+            auto sensors = GetBundleSensors(bundleName);
+            sensors->OfflineProxyCount.Update(offlineProxyCount);
+        }
+
         for (const auto& [zoneName, zoneDisrupted] : input.ZonesDisrupted) {
             auto sensor = GetZoneSensors(zoneName);
             sensor->OfflineNodeCount.Update(zoneDisrupted.OfflineNodeCount);
@@ -625,13 +664,23 @@ private:
         }
 
         for (const auto& [zoneName, spareInfo] : input.ZoneToSpareNodes) {
-            auto sensor = GetZoneSensors(zoneName);
-            sensor->FreeSpareNodeCount.Update(std::ssize(spareInfo.FreeNodes));
+            auto zoneSensor = GetZoneSensors(zoneName);
+            zoneSensor->FreeSpareNodeCount.Update(std::ssize(spareInfo.FreeNodes));
+
+            for (const auto& [bundleName, instancies] : spareInfo.UsedByBundle) {
+                auto bundleSensors = GetBundleSensors(bundleName);
+                bundleSensors->UsingSpareNodeCount.Update(std::ssize(instancies));
+            }
         }
 
         for (const auto& [zoneName, spareInfo] : input.ZoneToSpareProxies) {
-            auto sensor = GetZoneSensors(zoneName);
-            sensor->FreeSpareProxyCount.Update(std::ssize(spareInfo.FreeProxies));
+            auto zoneSensor = GetZoneSensors(zoneName);
+            zoneSensor->FreeSpareProxyCount.Update(std::ssize(spareInfo.FreeProxies));
+
+            for (const auto& [bundleName, instancies] : spareInfo.UsedByBundle) {
+                auto bundleSensors = GetBundleSensors(bundleName);
+                bundleSensors->UsingSpareProxyCount.Update(std::ssize(instancies));
+            }
         }
     }
 
@@ -639,14 +688,16 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        auto bundleName = alert.BundleName.value_or(TString());
+        static const TString DefaultBundleName = "all";
+
+        auto bundleName = alert.BundleName.value_or(DefaultBundleName);
 
         auto& bundle = BundleAlerts_[bundleName];
         auto it = bundle.IdToCounter.find(alert.Id);
 
         if (it == bundle.IdToCounter.end()) {
             auto counter = Profiler
-                .WithTag("bundle", bundleName)
+                .WithTag("tablet_cell_bundle", bundleName)
                 .WithTag("alarm_id", alert.Id)
                 .Counter("/scan_bundles_alarms_count");
             it = bundle.IdToCounter.insert({bundleName, std::move(counter)}).first;
@@ -663,7 +714,7 @@ private:
         }
 
         auto sensors = New<TBundleSensors>();
-        sensors->Profiler = Profiler.WithPrefix("/resource").WithTag("bundle", bundleName);
+        sensors->Profiler = Profiler.WithPrefix("/resource").WithTag("tablet_cell_bundle", bundleName);
         auto& bundleProfiler = sensors->Profiler;
 
         sensors->CpuAllocated = bundleProfiler.Gauge("/cpu_allocated");
@@ -687,6 +738,25 @@ private:
         sensors->AssigningTabletNodes = bundleProfiler.Gauge("/assigning_tablet_nodes");
         sensors->AssigningSpareNodes = bundleProfiler.Gauge("/assigning_spare_nodes");
         sensors->ReleasingSpareNodes = bundleProfiler.Gauge("/releasing_spare_nodes");
+
+        sensors->InflightNodeAllocationCount = bundleProfiler.Gauge("/inflight_node_allocations_count");
+        sensors->InflightNodeDeallocationCount = bundleProfiler.Gauge("/inflight_node_deallocations_count");
+        sensors->InflightCellRemovalCount = bundleProfiler.Gauge("/inflight_cell_removal_count");
+
+        sensors->InflightProxyAllocationCounter = bundleProfiler.Gauge("/inflight_proxy_allocation_counter");
+        sensors->InflightProxyDeallocationCounter = bundleProfiler.Gauge("/inflight_proxy_deallocation_counter");
+
+        sensors->OfflineNodeCount = bundleProfiler.Gauge("/offline_node_count");
+        sensors->OfflineProxyCount = bundleProfiler.Gauge("/offline_proxy_count");
+        sensors->DecommissionedNodeCount = bundleProfiler.Gauge("/decommissioned_node_count");
+        sensors->MaintenanceRequestedNodeCount = bundleProfiler.Gauge("/maintenance_requested_node_count");
+
+        sensors->NodeAllocationRequestAge = bundleProfiler.TimeGauge("/node_allocation_request_age");
+        sensors->NodeDeallocationRequestAge = bundleProfiler.TimeGauge("/node_deallocation_request_age");
+        sensors->RemovingCellsAge = bundleProfiler.TimeGauge("/removing_cells_age");
+
+        sensors->ProxyAllocationRequestAge = bundleProfiler.TimeGauge("/proxy_allocation_request_age");
+        sensors->ProxyDeallocationRequestAge = bundleProfiler.TimeGauge("/proxy_deallocation_request_age");
 
         BundleSensors_[bundleName] = sensors;
         return sensors;
