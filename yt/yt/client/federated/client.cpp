@@ -23,6 +23,8 @@ namespace NYT::NClient::NFederated {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 using namespace NYT::NApi;
 
 const auto& Logger = FederatedClientLogger;
@@ -30,6 +32,21 @@ const auto& Logger = FederatedClientLogger;
 DECLARE_REFCOUNTED_CLASS(TClient)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+std::optional<TString> GetDataCenterByClient(const IClientPtr& client)
+{
+    TListNodeOptions options;
+    options.MaxSize = 1;
+
+    auto items = NConcurrency::WaitFor(client->ListNode("//sys/rpc_proxies", options))
+        .ValueOrThrow();
+    auto itemsList = NYTree::ConvertTo<NYTree::IListNodePtr>(items);
+    if (!itemsList->GetChildCount()) {
+        return std::nullopt;
+    }
+    auto host = itemsList->GetChildren()[0];
+    return NNet::InferYPClusterFromHostName(host->GetValue<TString>());
+}
 
 class TTransaction
     : public ITransaction
@@ -119,7 +136,8 @@ public:
         return Underlying_->GetTimeout();
     }
 
-    void Detach() override {
+    void Detach() override
+    {
         return Underlying_->Detach();
     }
 
@@ -393,8 +411,6 @@ private:
     template <typename TReturnType, typename TRetryCallback>
     auto CreateResultHandler(int clientId, int retryAttemptsCount, TRetryCallback callback);
 
-    std::optional<TString> GetDataCenter(const IClientPtr& client);
-
     void CheckClustersHealth();
 
     TFuture<IUnversionedRowsetPtr> DoLookupRows(
@@ -528,14 +544,10 @@ TClient::TClient(const std::vector<IClientPtr>& underlyingClients, TFederationCo
     UnderlyingClients_.reserve(underlyingClients.size());
     const auto& localDatacenter = NNet::GetLocalYPCluster();
     for (const auto& client : underlyingClients) {
-        auto dataCenter = GetDataCenter(client);
-        if (!dataCenter) {
-            continue;
-        }
-        int priority = *dataCenter ==  localDatacenter ? 1 : 0;
+        int priority = GetDataCenterByClient(client) == localDatacenter ? 1 : 0;
         UnderlyingClients_.push_back(NYT::New<TClientDescription>(client, priority));
     }
-    std::sort(UnderlyingClients_.begin(), UnderlyingClients_.end(), [](const auto& lhs, const auto& rhs) {
+    std::stable_sort(UnderlyingClients_.begin(), UnderlyingClients_.end(), [](const auto& lhs, const auto& rhs) {
         return lhs->Priority > rhs->Priority;
     });
 
@@ -588,21 +600,6 @@ void TClient::CheckClustersHealth()
     }
 }
 
-std::optional<TString> TClient::GetDataCenter(const IClientPtr& client)
-{
-    TListNodeOptions options;
-    options.MaxSize = 1;
-
-    auto items = NConcurrency::WaitFor(client->ListNode("//sys/rpc_proxies", options))
-        .ValueOrThrow();
-    auto itemsList = NYTree::ConvertTo<NYTree::IListNodePtr>(items);
-    if (itemsList->GetChildCount() < 1) {
-        return std::nullopt;
-    }
-    auto host = itemsList->GetChildren()[0];
-    return NNet::InferYPClusterFromHostName(host->GetValue<TString>());
-}
-
 template <typename TResultType, typename TRetryCallback>
 auto TClient::CreateResultHandler(int clientId, int retryAttemptsCount, TRetryCallback callback)
 {
@@ -611,7 +608,7 @@ auto TClient::CreateResultHandler(int clientId, int retryAttemptsCount, TRetryCa
         this_ = MakeStrong(this),
         clientId,
         retryAttemptsCount,
-        callback=std::move(callback)
+        callback = std::move(callback)
     ] (const TErrorOr<TResultType>& resultOrError)
     {
         if (!resultOrError.IsOK()) {
@@ -761,6 +758,8 @@ TClient::TActiveClientInfo TClient::GetActiveClient()
 DEFINE_REFCOUNTED_TYPE(TClient)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 NApi::IClientPtr CreateClient(const std::vector<NApi::IClientPtr>& clients, TFederationConfigPtr config)
 {
