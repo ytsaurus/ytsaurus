@@ -4379,7 +4379,7 @@ private:
 
                 ++it;
                 ++jt;
-            } else if (jt == jtEnd || it == itEnd || it->first < jt->first) {
+            } else if (jt == jtEnd || (it != itEnd && it->first < jt->first)) {
                 // Previously matching experiment is now gone.
                 return scheduleUpdate();
             } else {
