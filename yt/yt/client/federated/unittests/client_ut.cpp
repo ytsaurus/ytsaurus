@@ -15,7 +15,6 @@
 
 
 namespace NYT::NClient::NFederated {
-
 namespace {
 
 using namespace NYT::NApi;
@@ -27,6 +26,8 @@ using ::testing::StrictMock;
 using TStrictMockClient = StrictMock<NApi::TMockClient>;
 using TStrictMockConnection = StrictMock<NApi::TMockConnection>;
 using TStrictMockTransaction = StrictMock<NApi::TMockTransaction>;
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TTestDataStorage
 {
@@ -472,6 +473,8 @@ TEST(TFederatedClientTest, AttachTransaction)
     auto transaction = federatedClient->AttachTransaction(transactionId);
     ASSERT_EQ(transaction->GetId(), transactionId);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT::NClient::NFederated

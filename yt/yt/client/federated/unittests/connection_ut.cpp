@@ -7,7 +7,6 @@
 #include <yt/yt/core/net/local_address.h>
 
 namespace NYT::NClient::NFederated {
-
 namespace {
 
 using ::testing::_;
@@ -18,6 +17,7 @@ using ::testing::StrictMock;
 using TStrictMockClient = StrictMock<NApi::TMockClient>;
 using TStrictMockConnection = StrictMock<NApi::TMockConnection>;
 
+////////////////////////////////////////////////////////////////////////////////
 
 TEST(TFederatedConnectionTest, CreateClient)
 {
@@ -68,6 +68,8 @@ TEST(TFederatedConnectionTest, CreateClient)
     auto nodes = client->ListNode("//sys/rpc_proxies").Get().ValueOrThrow();
     EXPECT_EQ(nodesYsonSas, nodes);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT::NClient::NFederated
