@@ -278,6 +278,8 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 			},
 		},
 		"solomon_exporter": map[string]any{
+			// NOTE(dakovalkov): override host, otherwise metric count will bloat.
+			"host": "",
 			"instance_tags": map[string]any{
 				"operation_alias": oplet.Alias(),
 				"cookie":          "$YT_JOB_COOKIE",
@@ -357,6 +359,8 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 			},
 		},
 		"solomon_exporter": map[string]any{
+			// NOTE(dakovalkov): override host, otherwise metric count will bloat.
+			"host": "",
 			"instance_tags": map[string]any{
 				"operation_alias": oplet.Alias(),
 				"cookie":          "$YT_JOB_COOKIE",
