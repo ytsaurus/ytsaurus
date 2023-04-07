@@ -17,6 +17,7 @@
  - m4
  - libidn11-dev
  - protoc
+ - unzip
 
 #### How to Build
 
@@ -45,7 +46,7 @@
  1. Install dependencies.
 
     ```
-    sudo apt-get install -y python3-pip ninja-build libidn11-dev m4 clang-12 lld-12 cmake
+    sudo apt-get install -y python3-pip ninja-build libidn11-dev m4 clang-12 lld-12 cmake unzip
     sudo python3 -m pip install PyYAML==6.0 conan==1.57.0 dacite
     ```
  1. Install protoc.
