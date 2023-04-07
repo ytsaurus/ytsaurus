@@ -13,6 +13,7 @@ target_link_libraries(python-driver-native INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  library-query-engine
   python-driver-lib
   yt-yt-ytlib
   server-lib-chunk_pools
@@ -30,6 +31,7 @@ target_link_libraries(python-driver-native.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  library-query-engine
   python-driver-lib
   yt-yt-ytlib
   server-lib-chunk_pools

@@ -1,6 +1,6 @@
 #include "functions_cache.h"
 
-#include <yt/yt/library/query/engine/functions_cg.h>
+#include <yt/yt/library/query/engine_api/append_function_implementation.h>
 
 #include <yt/yt/library/query/base/private.h>
 
@@ -667,28 +667,18 @@ void AppendFunctionImplementation(
     const TExternalFunctionImpl& function,
     const TSharedRef& impl)
 {
-    YT_VERIFY(!impl.Empty());
-
-    const auto& name = function.Name;
-
-    if (function.IsAggregate) {
-        aggregateProfilers->emplace(name, New<TExternalAggregateCodegen>(
-            name,
-            impl,
-            function.CallingConvention,
-            false,
-            GetImplFingerprint(function.ChunkSpecs)));
-    } else {
-        functionProfilers->emplace(name, New<TExternalFunctionCodegen>(
-            name,
-            function.SymbolName,
-            impl,
-            function.CallingConvention,
-            function.RepeatedArgType,
-            function.RepeatedArgIndex,
-            function.UseFunctionContext,
-            GetImplFingerprint(function.ChunkSpecs)));
-    }
+    AppendFunctionImplementation(
+        functionProfilers,
+        aggregateProfilers,
+        function.IsAggregate,
+        function.Name,
+        function.SymbolName,
+        function.CallingConvention,
+        GetImplFingerprint(function.ChunkSpecs),
+        function.RepeatedArgType,
+        function.RepeatedArgIndex,
+        function.UseFunctionContext,
+        impl);
 }
 
 } // namespace

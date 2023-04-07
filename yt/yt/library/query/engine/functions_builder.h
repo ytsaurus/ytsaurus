@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/yt/library/query/base/functions_builtin_types.h>
+#include <yt/yt/library/query/base/builtin_function_types.h>
 
-#include <yt/yt/library/query/engine/functions_builtin_profilers.h>
+#include <yt/yt/library/query/engine_api/builtin_function_profiler.h>
 
 namespace NYT::NQueryClient {
 

@@ -71,6 +71,8 @@ target_link_libraries(yt-server-node PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  library-query-engine
+  library-query-row_comparer
   server-node-cellar_node
   server-node-chaos_node
   yt-server-tools

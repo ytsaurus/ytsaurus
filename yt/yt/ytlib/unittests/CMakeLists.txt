@@ -22,6 +22,8 @@ target_link_libraries(unittester-ytlib PUBLIC
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
+  library-query-engine
+  library-query-row_comparer
   yt-yt-build
   yt-yt-core
   yt-core-test_framework

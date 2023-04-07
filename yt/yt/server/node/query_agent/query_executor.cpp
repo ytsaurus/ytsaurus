@@ -419,8 +419,8 @@ private:
 
         auto functionGenerators = New<TFunctionProfilerMap>();
         auto aggregateGenerators = New<TAggregateProfilerMap>();
-        MergeFrom(functionGenerators.Get(), *BuiltinFunctionProfilers);
-        MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateProfilers);
+        MergeFrom(functionGenerators.Get(), *GetBuiltinFunctionProfilers());
+        MergeFrom(aggregateGenerators.Get(), *GetBuiltinAggregateProfilers());
 
         FetchFunctionImplementationsFromCypress(
             functionGenerators,

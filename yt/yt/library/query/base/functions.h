@@ -122,31 +122,6 @@ struct TTypeInferrerMap
 
 DEFINE_REFCOUNTED_TYPE(TTypeInferrerMap)
 
-struct TRangeExtractorMap
-    : public TRefCounted
-    , public std::unordered_map<TString, TRangeExtractor>
-{ };
-
-DEFINE_REFCOUNTED_TYPE(TRangeExtractorMap)
-
-struct TFunctionProfilerMap
-    : public TRefCounted
-    , public std::unordered_map<TString, IFunctionCodegenPtr>
-{
-    const IFunctionCodegenPtr& GetFunction(const TString& functionName) const;
-};
-
-DEFINE_REFCOUNTED_TYPE(TFunctionProfilerMap)
-
-struct TAggregateProfilerMap
-    : public TRefCounted
-    , public std::unordered_map<TString, IAggregateCodegenPtr>
-{
-    const IAggregateCodegenPtr& GetAggregate(const TString& functionName) const;
-};
-
-DEFINE_REFCOUNTED_TYPE(TAggregateProfilerMap)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsUserCastFunction(const TString& name);

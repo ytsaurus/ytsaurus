@@ -25,15 +25,15 @@ TCGExpressionCallbackGenerator Profile(
     const TTableSchemaPtr& schema,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    const TConstFunctionProfilerMapPtr& functionProfilers = BuiltinFunctionProfilers.Get());
+    const TConstFunctionProfilerMapPtr& functionProfilers = GetBuiltinFunctionProfilers().Get());
 
 TCGQueryCallbackGenerator Profile(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     TJoinSubqueryProfiler joinProfiler,
-    const TConstFunctionProfilerMapPtr& functionProfilers = BuiltinFunctionProfilers.Get(),
-    const TConstAggregateProfilerMapPtr& aggregateProfilers = BuiltinAggregateProfilers.Get());
+    const TConstFunctionProfilerMapPtr& functionProfilers = GetBuiltinFunctionProfilers().Get(),
+    const TConstAggregateProfilerMapPtr& aggregateProfilers = GetBuiltinAggregateProfilers().Get());
 
 ////////////////////////////////////////////////////////////////////////////////
 

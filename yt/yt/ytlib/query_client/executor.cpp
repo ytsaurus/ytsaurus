@@ -234,8 +234,8 @@ private:
 
         auto functionGenerators = New<TFunctionProfilerMap>();
         auto aggregateGenerators = New<TAggregateProfilerMap>();
-        MergeFrom(functionGenerators.Get(), *BuiltinFunctionProfilers);
-        MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateProfilers);
+        MergeFrom(functionGenerators.Get(), *GetBuiltinFunctionProfilers());
+        MergeFrom(aggregateGenerators.Get(), *GetBuiltinAggregateProfilers());
 
         TClientChunkReadOptions chunkReadOptions{
             .WorkloadDescriptor = options.WorkloadDescriptor,
@@ -529,7 +529,7 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
             ranges,
             rowBuffer,
             connection->GetColumnEvaluatorCache(),
-            BuiltinRangeExtractorMap,
+            GetBuiltinRangeExtractor(),
             options);
 
         YT_LOG_DEBUG("Ranges are refined (PrunedRangeCount: %v, OriginalRangeCount: %v, TableId: %v)",

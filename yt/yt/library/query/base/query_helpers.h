@@ -12,15 +12,6 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Descends down to conjuncts and disjuncts and extract all constraints.
-TKeyTriePtr ExtractMultipleConstraints(
-    TConstExpressionPtr expr,
-    const TKeyColumns& keyColumns,
-    const TRowBufferPtr& rowBuffer,
-    const TConstRangeExtractorMapPtr& rangeExtractors = BuiltinRangeExtractorMap);
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Returns a minimal key range that cover both inputs.
 TKeyRange Unite(const TKeyRange& first, const TKeyRange& second);
 TRowRange Unite(const TRowRange& first, const TRowRange& second);

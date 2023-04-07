@@ -29,7 +29,7 @@ TQueryEvaluationContext CreateQueryEvaluationContext(
     context.Expression = PrepareExpression(
         parsedSource,
         *schema,
-        BuiltinTypeInferrersMap,
+        GetBuiltinTypeInferrers(),
         nullptr);
 
     context.ExpressionCallback = Profile(
@@ -37,7 +37,7 @@ TQueryEvaluationContext CreateQueryEvaluationContext(
         schema,
         nullptr,
         &context.Variables,
-        BuiltinFunctionProfilers)();
+        GetBuiltinFunctionProfilers())();
 
     // YTORM-553 Initialize variables.
     context.Variables.GetLiteralValues();

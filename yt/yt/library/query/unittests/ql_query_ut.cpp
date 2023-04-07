@@ -9,10 +9,12 @@
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/functions.h>
 
+#include <yt/yt/library/query/engine_api/builtin_function_profiler.h>
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/config.h>
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
+#include <yt/yt/library/query/engine_api/range_inferrer.h>
 
 #include <yt/yt/library/query/engine/folding_profiler.h>
 #include <yt/yt/library/query/engine/functions_cg.h>
@@ -832,9 +834,9 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
     TFunctionProfilerMapPtr FunctionProfilers_ = New<TFunctionProfilerMap>();
     TAggregateProfilerMapPtr AggregateProfilers_ = New<TAggregateProfilerMap>();
 
-    MergeFrom(TypeInferrers_.Get(), *BuiltinTypeInferrersMap);
-    MergeFrom(FunctionProfilers_.Get(), *BuiltinFunctionProfilers);
-    MergeFrom(AggregateProfilers_.Get(), *BuiltinAggregateProfilers);
+    MergeFrom(TypeInferrers_.Get(), *GetBuiltinTypeInferrers());
+    MergeFrom(FunctionProfilers_.Get(), *GetBuiltinFunctionProfilers());
+    MergeFrom(AggregateProfilers_.Get(), *GetBuiltinAggregateProfilers());
 
     auto builder = CreateFunctionRegistryBuilder(
         TypeInferrers_.Get(),
@@ -1014,7 +1016,7 @@ protected:
         auto config = New<TColumnEvaluatorCacheConfig>();
         ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(config);
 
-        MergeFrom(RangeExtractorMap.Get(), *BuiltinRangeExtractorMap);
+        MergeFrom(RangeExtractorMap.Get(), *GetBuiltinRangeExtractor());
     }
 
     void Coordinate(const TString& source, const TDataSplits& dataSplits, size_t subqueriesCount)
@@ -1307,9 +1309,9 @@ protected:
 
         auto bcImplementations = "test_udfs";
 
-        MergeFrom(TypeInferrers_.Get(), *BuiltinTypeInferrersMap);
-        MergeFrom(FunctionProfilers_.Get(), *BuiltinFunctionProfilers);
-        MergeFrom(AggregateProfilers_.Get(), *BuiltinAggregateProfilers);
+        MergeFrom(TypeInferrers_.Get(), *GetBuiltinTypeInferrers());
+        MergeFrom(FunctionProfilers_.Get(), *GetBuiltinFunctionProfilers());
+        MergeFrom(AggregateProfilers_.Get(), *GetBuiltinAggregateProfilers());
 
         auto builder = CreateFunctionRegistryBuilder(
             TypeInferrers_.Get(),

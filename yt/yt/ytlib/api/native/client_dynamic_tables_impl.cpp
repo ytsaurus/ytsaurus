@@ -1352,7 +1352,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     auto externalCGInfo = New<TExternalCGInfo>();
     auto fetchFunctions = [&] (const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers) {
-        MergeFrom(typeInferrers.Get(), *BuiltinTypeInferrersMap);
+        MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 
         std::vector<TString> externalNames;
         for (const auto& name : names) {
@@ -1513,7 +1513,7 @@ NYson::TYsonString TClient::DoExplainQuery(
 
     auto externalCGInfo = New<TExternalCGInfo>();
     auto fetchFunctions = [&] (const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers) {
-        MergeFrom(typeInferrers.Get(), *BuiltinTypeInferrersMap);
+        MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 
         std::vector<TString> externalNames;
         for (const auto& name : names) {

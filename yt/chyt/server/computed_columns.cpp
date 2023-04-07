@@ -513,7 +513,7 @@ DB::ASTPtr PopulatePredicateWithComputedColumns(
     for (const auto& columnSchema : schema->Columns()) {
         if (columnSchema.Expression() && columnSchema.SortOrder()) {
             THashSet<TString> referenceSet;
-            auto expr = PrepareExpression(*columnSchema.Expression(), *schema, BuiltinTypeInferrersMap, &referenceSet);
+            auto expr = PrepareExpression(*columnSchema.Expression(), *schema, GetBuiltinTypeInferrers(), &referenceSet);
             std::vector<TString> references(referenceSet.begin(), referenceSet.end());
             entries.emplace_back(TComputedColumnEntry{references, expr, columnSchema.Name(), columnSchema.LogicalType()});
             YT_LOG_DEBUG(

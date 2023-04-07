@@ -3,9 +3,31 @@
 #include "public.h"
 #include "column_evaluator.h"
 
+#include <yt/yt/library/query/base/functions.h>
+#include <yt/yt/library/query/base/key_trie.h>
+#include <yt/yt/library/query/base/query.h>
+
 #include <functional>
 
 namespace NYT::NQueryClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRangeExtractorMap
+    : public TRefCounted
+    , public std::unordered_map<TString, TRangeExtractor>
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TRangeExtractorMap)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Descends down to conjuncts and disjuncts and extract all constraints.
+TKeyTriePtr ExtractMultipleConstraints(
+    TConstExpressionPtr expr,
+    const TKeyColumns& keyColumns,
+    const TRowBufferPtr& rowBuffer,
+    const TConstRangeExtractorMapPtr& rangeExtractors = GetBuiltinRangeExtractor());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,4 +46,3 @@ TRangeInferrer CreateRangeInferrer(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient
-

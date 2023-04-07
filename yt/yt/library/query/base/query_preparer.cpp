@@ -2536,7 +2536,7 @@ NAst::TAstHead MakeAstHead(EParseMode mode)
 
 void DefaultFetchFunctions(const std::vector<TString>& /*names*/, const TTypeInferrerMapPtr& typeInferrers)
 {
-    MergeFrom(typeInferrers.Get(), *BuiltinTypeInferrersMap);
+    MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

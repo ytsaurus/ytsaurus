@@ -120,26 +120,6 @@ const ITypeInferrerPtr& TTypeInferrerMap::GetFunction(const TString& functionNam
     return found->second;
 }
 
-const IFunctionCodegenPtr& TFunctionProfilerMap::GetFunction(const TString& functionName) const
-{
-    auto found = this->find(functionName);
-    if (found == this->end()) {
-        THROW_ERROR_EXCEPTION("Code generator not found for regular function %Qv",
-            functionName);
-    }
-    return found->second;
-}
-
-const IAggregateCodegenPtr& TAggregateProfilerMap::GetAggregate(const TString& functionName) const
-{
-    auto found = this->find(functionName);
-    if (found == this->end()) {
-        THROW_ERROR_EXCEPTION("Code generator not found for aggregate function %Qv",
-            functionName);
-    }
-    return found->second;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsUserCastFunction(const TString& name)

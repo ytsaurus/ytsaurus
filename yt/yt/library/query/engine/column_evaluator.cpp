@@ -7,6 +7,7 @@
 #include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/private.h>
 
+#include <yt/yt/library/query/engine_api/builtin_function_profiler.h>
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/config.h>
 
@@ -24,13 +25,6 @@ using namespace NYTree;
 static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TColumnEvaluator::TColumnEvaluator(
-    std::vector<TColumn> columns,
-    std::vector<bool> isAggregate)
-    : Columns_(std::move(columns))
-    , IsAggregate_(std::move(isAggregate))
-{ }
 
 TColumnEvaluatorPtr TColumnEvaluator::Create(
     const TTableSchemaPtr& schema,
@@ -68,107 +62,13 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
             const auto& aggregateName = *schema->Columns()[index].Aggregate();
             auto type = schema->Columns()[index].GetWireType();
             column.Aggregate = CodegenAggregate(
-                BuiltinAggregateProfilers->GetAggregate(aggregateName)->Profile(type, type, type, aggregateName),
+                GetBuiltinAggregateProfilers()->GetAggregate(aggregateName)->Profile(type, type, type, aggregateName),
                 type, type);
             isAggregate[index] = true;
         }
     }
 
     return New<TColumnEvaluator>(std::move(columns), std::move(isAggregate));
-}
-
-void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buffer, int index) const
-{
-    YT_VERIFY(index < static_cast<int>(fullRow.GetCount()));
-    YT_VERIFY(index < std::ssize(Columns_));
-
-    const auto& column = Columns_[index];
-    const auto& evaluator = column.Evaluator;
-    YT_VERIFY(evaluator);
-
-    // Zero row to avoid garbage after evaluator.
-    fullRow[index] = MakeUnversionedSentinelValue(EValueType::Null);
-
-    evaluator(
-        column.Variables.GetLiteralValues(),
-        column.Variables.GetOpaqueData(),
-        &fullRow[index],
-        fullRow.GetRange(),
-        buffer.Get());
-
-    fullRow[index].Id = index;
-}
-
-void TColumnEvaluator::EvaluateKeys(TMutableRow fullRow, const TRowBufferPtr& buffer) const
-{
-    for (int index = 0; index < std::ssize(Columns_); ++index) {
-        if (Columns_[index].Evaluator) {
-            EvaluateKey(fullRow, buffer, index);
-        }
-    }
-}
-
-void TColumnEvaluator::EvaluateKeys(
-    TMutableVersionedRow fullRow,
-    const TRowBufferPtr& buffer) const
-{
-    auto row = buffer->CaptureRow(MakeRange(fullRow.BeginKeys(), fullRow.GetKeyCount()), false);
-    EvaluateKeys(row, buffer);
-
-    for (int index = 0; index < fullRow.GetKeyCount(); ++index) {
-        if (Columns_[index].Evaluator) {
-            fullRow.BeginKeys()[index] = row[index];
-        }
-    }
-}
-
-const std::vector<int>& TColumnEvaluator::GetReferenceIds(int index) const
-{
-    return Columns_[index].ReferenceIds;
-}
-
-TConstExpressionPtr TColumnEvaluator::GetExpression(int index) const
-{
-    return Columns_[index].Expression;
-}
-
-void TColumnEvaluator::InitAggregate(
-    int index,
-    TUnversionedValue* state,
-    const TRowBufferPtr& buffer) const
-{
-    Columns_[index].Aggregate.Init(buffer.Get(), state);
-    state->Id = index;
-}
-
-void TColumnEvaluator::UpdateAggregate(
-    int index,
-    TUnversionedValue* state,
-    const TUnversionedValue& update,
-    const TRowBufferPtr& buffer) const
-{
-    Columns_[index].Aggregate.Update(buffer.Get(), state, &update);
-    state->Id = index;
-}
-
-void TColumnEvaluator::MergeAggregate(
-    int index,
-    TUnversionedValue* state,
-    const TUnversionedValue& mergeeState,
-    const TRowBufferPtr& buffer) const
-{
-    Columns_[index].Aggregate.Merge(buffer.Get(), state, &mergeeState);
-    state->Id = index;
-}
-
-void TColumnEvaluator::FinalizeAggregate(
-    int index,
-    TUnversionedValue* result,
-    const TUnversionedValue& state,
-    const TRowBufferPtr& buffer) const
-{
-    Columns_[index].Aggregate.Finalize(buffer.Get(), result, &state);
-    result->Id = index;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

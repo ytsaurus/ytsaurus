@@ -1,6 +1,8 @@
 #pragma once
 
-#include <yt/yt/library/query/base/public.h>
+#include <yt/yt/library/query/engine_api/public.h>
+
+#include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/functions.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
