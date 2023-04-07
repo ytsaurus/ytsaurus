@@ -27,10 +27,10 @@ func (c *APIConfig) ValidatePoolAccessOrDefault() bool {
 }
 
 type HTTPAPIConfig struct {
-	APIConfig
+	BaseAPIConfig APIConfig
 
-	Clusters    []string
-	Token       string
-	DisableAuth bool
-	Endpoint    string
+	ClusterInfos []strawberry.AgentInfo
+	Token        string
+	DisableAuth  bool
+	Endpoint     string
 }

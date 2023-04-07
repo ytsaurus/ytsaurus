@@ -151,6 +151,7 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 
 	app.locations = make([]*Location, 0)
 
+	var agentInfos []strawberry.AgentInfo
 	healthers := make(map[string]monitoring.Healther)
 	for _, proxy := range config.LocationProxies {
 		l.Debug("initializing location", log.String("location_proxy", proxy))
@@ -174,21 +175,21 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 		healthers[proxy] = loc.a
 
 		app.locations = append(app.locations, loc)
+		agentInfos = append(agentInfos, loc.a.GetAgentInfo())
 		l.Debug("location ready")
 	}
 
 	var apiConfig = api.HTTPAPIConfig{
-		APIConfig: api.APIConfig{
+		BaseAPIConfig: api.APIConfig{
 			ControllerFactory: cf,
 			ControllerConfig:  config.Controller,
-			AgentInfo:         app.locations[0].a.GetAgentInfo(),
 			BaseACL:           config.BaseACL,
 			RobotUsername:     config.Strawberry.RobotUsername,
 		},
-		Clusters:    config.LocationProxies,
-		Token:       config.Token,
-		Endpoint:    config.HTTPAPIEndpointOrDefault(),
-		DisableAuth: config.DisableAPIAuth,
+		ClusterInfos: agentInfos,
+		Token:        config.Token,
+		Endpoint:     config.HTTPAPIEndpointOrDefault(),
+		DisableAuth:  config.DisableAPIAuth,
 	}
 	app.HTTPAPIServer = api.NewServer(apiConfig, l)
 

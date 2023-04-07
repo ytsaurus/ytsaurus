@@ -338,32 +338,38 @@ func (a HTTPAPI) HandleStop(w http.ResponseWriter, r *http.Request) {
 }
 
 func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
+	var clusters []string
+	for _, clusterInfo := range cfg.ClusterInfos {
+		clusters = append(clusters, clusterInfo.Proxy)
+	}
+
 	r := chi.NewRouter()
 	r.Get("/ping", HandlePing)
 	r.Get("/describe", func(w http.ResponseWriter, r *http.Request) {
-		HandleDescribe(w, r, cfg.Clusters)
+		HandleDescribe(w, r, clusters)
 	})
 
-	for _, cluster := range cfg.Clusters {
+	for _, clusterInfo := range cfg.ClusterInfos {
 		ytc, err := ythttp.NewClient(&yt.Config{
 			Token:  cfg.Token,
-			Proxy:  cluster,
+			Proxy:  clusterInfo.Proxy,
 			Logger: l.Structured(),
 		})
 		if err != nil {
-			l.Fatal("failed to create yt client", log.Error(err), log.String("cluster", cluster))
+			l.Fatal("failed to create yt client", log.Error(err), log.String("cluster", clusterInfo.Proxy))
 		}
-		ctl := cfg.ControllerFactory(l, ytc, cfg.AgentInfo.StrawberryRoot, cluster, cfg.ControllerConfig)
 
-		apiCfg := cfg.APIConfig
-		apiCfg.AgentInfo.Proxy = cluster
+		apiCfg := cfg.BaseAPIConfig
+		apiCfg.AgentInfo = clusterInfo
+
+		ctl := apiCfg.ControllerFactory(l, ytc, clusterInfo.StrawberryRoot, clusterInfo.Proxy, apiCfg.ControllerConfig)
 
 		api := NewHTTPAPI(ytc, apiCfg, ctl, l)
 
-		r.Route("/"+cluster, func(r chi.Router) {
+		r.Route("/"+clusterInfo.Proxy, func(r chi.Router) {
 			// TODO(dakovalkov): Enable CORS when cookie authentication is supported.
 			// r.Use(ythttputil.CORS())
-			r.Use(auth.Auth(cluster, cfg.DisableAuth, l.Structured()))
+			r.Use(auth.Auth(clusterInfo.Proxy, cfg.DisableAuth, l.Structured()))
 			r.Post("/"+ListCmdDescriptor.Name, api.HandleList)
 			r.Post("/"+CreateCmdDescriptor.Name, api.HandleCreate)
 			r.Post("/"+RemoveCmdDescriptor.Name, api.HandleRemove)
