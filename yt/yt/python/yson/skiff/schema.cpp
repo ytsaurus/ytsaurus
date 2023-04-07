@@ -1,4 +1,6 @@
 #include "schema.h"
+
+#include "error.h"
 #include "record.h"
 #include "../serialize.h"
 
@@ -93,45 +95,49 @@ TIntrusivePtr<TSkiffRecord> TSkiffSchema::CreateNewRecord()
 TSkiffSchemaPython::TSkiffSchemaPython(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwargs)
     : Py::PythonClass<TSkiffSchemaPython>::PythonClass(self, args, kwargs)
 {
-    // Copy constructor.
-    if (args.length() >= 1 && TSkiffSchemaPython::check(args.front())) {
-        Py::PythonClassObject<TSkiffSchemaPython> skiffSchemaPythonObject(args.front());
-        Schema_ = skiffSchemaPythonObject.getCxxObject()->GetSchemaObject();
-        args = args.getSlice(1, args.length());
+    try {
+        // Copy constructor.
+        if (args.length() >= 1 && TSkiffSchemaPython::check(args.front())) {
+            Py::PythonClassObject<TSkiffSchemaPython> skiffSchemaPythonObject(args.front());
+            Schema_ = skiffSchemaPythonObject.getCxxObject()->GetSchemaObject();
+            args = args.getSlice(1, args.length());
+            ValidateArgumentsEmpty(args, kwargs);
+            return;
+        }
+
+        auto schemaNode = ConvertToNode(ExtractArgument(args, kwargs, "table_skiff_schema"))->AsList();
+
+        IMapNodePtr schemaRegistryNode;
+        if (HasArgument(args, kwargs, "skiff_schema_registry")) {
+            auto schemaRegistryArg = ExtractArgument(args, kwargs, "skiff_schema_registry");
+            schemaRegistryNode = ConvertToNode(schemaRegistryArg)->AsMap();
+        } else {
+            schemaRegistryNode = BuildYsonNodeFluently()
+                .BeginMap()
+                .EndMap()
+                ->AsMap();
+        }
+
+        auto skiffSchemas = ParseSkiffSchemas(schemaRegistryNode, schemaNode);
+        if (skiffSchemas.size() != 1) {
+            throw Py::ValueError("\"table_skiff_schema\" list should contain exactly one element");
+        }
+
+        TString rangeIndexColumnName = "@range_index";
+        if (HasArgument(args, kwargs, "range_index_column_name")) {
+            rangeIndexColumnName = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "range_index_column_name"));
+        }
+        TString rowIndexColumnName = "@row_index";
+        if (HasArgument(args, kwargs, "row_index_column_name")) {
+            rowIndexColumnName = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "row_index_column_name"));
+        }
+
         ValidateArgumentsEmpty(args, kwargs);
-        return;
+
+        Schema_ = New<TSkiffSchema>(skiffSchemas[0], rangeIndexColumnName, rowIndexColumnName);
+    } catch (const TErrorException& ex) {
+        throw CreateSkiffError("Cannot create SkiffFormat", ex.Error());
     }
-
-    auto schemaNode = ConvertToNode(ExtractArgument(args, kwargs, "table_skiff_schema"))->AsList();
-
-    IMapNodePtr schemaRegistryNode;
-    if (HasArgument(args, kwargs, "skiff_schema_registry")) {
-        auto schemaRegistryArg = ExtractArgument(args, kwargs, "skiff_schema_registry");
-        schemaRegistryNode = ConvertToNode(schemaRegistryArg)->AsMap();
-    } else {
-        schemaRegistryNode = BuildYsonNodeFluently()
-            .BeginMap()
-            .EndMap()
-            ->AsMap();
-    }
-
-    auto skiffSchemas = ParseSkiffSchemas(schemaRegistryNode, schemaNode);
-    if (skiffSchemas.size() != 1) {
-        throw Py::ValueError("\"table_skiff_schema\" list should contain exactly one element");
-    }
-
-    TString rangeIndexColumnName = "@range_index";
-    if (HasArgument(args, kwargs, "range_index_column_name")) {
-        rangeIndexColumnName = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "range_index_column_name"));
-    }
-    TString rowIndexColumnName = "@row_index";
-    if (HasArgument(args, kwargs, "row_index_column_name")) {
-        rowIndexColumnName = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "row_index_column_name"));
-    }
-
-    ValidateArgumentsEmpty(args, kwargs);
-
-    Schema_ = New<TSkiffSchema>(skiffSchemas[0], rangeIndexColumnName, rowIndexColumnName);
 }
 
 TSkiffSchemaPython::~TSkiffSchemaPython() = default;

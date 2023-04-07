@@ -15,6 +15,7 @@ from yt.wrapper.retries import run_with_retries, Retrier
 from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split, YPath
 from yt.wrapper.stream import _ChunkStream
 from yt.wrapper.default_config import retries_config as get_default_retries_config
+from yt.wrapper.format import SkiffFormat
 
 import yt.environment.arcadia_interop as arcadia_interop
 
@@ -1342,3 +1343,12 @@ class TestRunCommandWithLock(object):
         finally:
             if procA is not None:
                 procA.kill()
+
+
+@pytest.mark.usefixtures("yt_env")
+class TestSkiffFormat(object):
+    @authors("ermolovd")
+    def test_bad_arguments(self):
+        # YT-14559
+        with pytest.raises(yt.YtError, match="Cannot resolve type reference"):
+            SkiffFormat(schema_registry={}, schemas=['$0'])
