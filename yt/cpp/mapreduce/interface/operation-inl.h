@@ -610,6 +610,7 @@ int RunJob(size_t outputTableCount, IInputStream& jobStateStream)
     using TOutputRow = typename TJob::TWriter::TRowType;
 
     auto job = MakeIntrusive<TJob>();
+    job->Load(jobStateStream);
 
     TRawTableReaderPtr rawJobReader;
     if (auto customReader = job->CreateCustomRawJobReader(/*fd*/ 0)) {
@@ -631,8 +632,6 @@ int RunJob(size_t outputTableCount, IInputStream& jobStateStream)
         rawJobWriter = CreateRawJobWriter(outputTableCount);
     }
     auto writer = CreateJobWriter<TOutputRow>(std::move(rawJobWriter));
-
-    job->Load(jobStateStream);
 
     job->Start(writer.Get());
     FeedJobInput(job.Get(), readerImpl.Get(), writer.Get());
