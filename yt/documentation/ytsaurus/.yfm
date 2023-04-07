@@ -17,7 +17,9 @@ docs-viewer:
       default: https://ytsaurus.tech/{lang}
     src: https://ytsaurus.tech/assets/logo-light.svg
     src-dark: https://ytsaurus.tech/assets/logo-dark.svg
-    preview: https://ytsaurus.tech/assets/logo-light.svg
+    src-preview:
+      ru: https://ytsaurus.tech/assets/ru/docs/sharing.png
+      default: https://ytsaurus.tech/assets/en/docs/sharing.png
     img-has:
       offset: true
       height: 34px
