@@ -278,7 +278,8 @@ IChannelPtr TConnection::CreateChannelByAddress(const TString& address)
 
 TClusterTag TConnection::GetClusterTag() const
 {
-    THROW_ERROR_EXCEPTION_UNLESS(Config_->ClusterTag, "ClusterTag is unknown, need to set it in the connection config");
+    THROW_ERROR_EXCEPTION_UNLESS(Config_->ClusterTag,
+        "Cluster tag is not specified in connection config; please set \"cluster_tag\"");
     return *Config_->ClusterTag;
 }
 
