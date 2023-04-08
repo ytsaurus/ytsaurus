@@ -43,7 +43,9 @@ public:
     bool IsLayerProbeReady() const;
 
     bool ShouldUseProbingLayer() const;
-    int FailedJobCount() const;
+    int FailedNonLayerProbingJobCount() const;
+    int FailedLayerProbingJobCount() const;
+    int SucceededLayerProbingJobCount() const;
 
     NJobTrackerClient::TJobId GetFailedLayerProbingJob() const;
     NJobTrackerClient::TJobId GetFailedNonLayerProbingJob() const;
@@ -55,12 +57,15 @@ private:
     NJobTrackerClient::TJobId FailedNonLayerProbingJob_;
     THashSet<NJobTrackerClient::TJobId> LostJobs_;
     NScheduler::TUserJobSpecPtr UserJobSpec_;
-    int FailedJobCount_ = 0;
+    int FailedNonLayerProbingJobCount_ = 0;
+    int FailedLayerProbingJobCount_ = 0;
+    int SucceededLayerProbingJobCount_ = 0;
     ELayerProbingJobStatus LayerProbingStatus_ = ELayerProbingJobStatus::NoLayerProbingJobResult;
 
     virtual bool OnUnsuccessfulJobFinish(
         const TJobletPtr& joblet,
-        const std::function<void(TProgressCounterGuard*)>& updateJobCounter) override;
+        const std::function<void(TProgressCounterGuard*)>& updateJobCounter,
+        const NJobTrackerClient::EJobState state) override;
 
     bool IsLayerProbeRequired() const;
 };

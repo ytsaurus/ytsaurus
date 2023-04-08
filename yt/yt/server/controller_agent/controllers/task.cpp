@@ -1282,7 +1282,7 @@ void TTask::OnTaskCompleted()
 {
     StopTiming();
 
-    if (GetChunkPoolOutput()->GetJobCounter()->GetFailed() == 0 && LayerProbingJobManager_.FailedJobCount() > 0) {
+    if (LayerProbingJobManager_.FailedLayerProbingJobCount() > 0) {
         auto userJobSpec = GetUserJobSpec();
         YT_VERIFY(userJobSpec && userJobSpec->ProbingBaseLayerPath);
         auto error = TError(
@@ -1291,11 +1291,11 @@ void TTask::OnTaskCompleted()
             "that must be put into user delta layer, or into explicitly-specified base layer")
             << TErrorAttribute("task_name", GetVertexDescriptor())
             << TErrorAttribute("probing_base_layer_path", *userJobSpec->ProbingBaseLayerPath)
-            << TErrorAttribute("failed_layer_probing_job_count", LayerProbingJobManager_.FailedJobCount())
-            << TErrorAttribute("completed_layer_probing_job_count", LayerProbingJobManager_.GetProgressCounter()->GetCompletedTotal())
+            << TErrorAttribute("failed_layer_probing_job_count", LayerProbingJobManager_.FailedLayerProbingJobCount())
+            << TErrorAttribute("succeeded_layer_probing_job_count", LayerProbingJobManager_.SucceededLayerProbingJobCount())
             << TErrorAttribute("failed_layer_probing_job", LayerProbingJobManager_.GetFailedLayerProbingJob())
-            << TErrorAttribute("failed_non_layer_probing_job_count", GetChunkPoolOutput()->GetJobCounter()->GetFailed());
-        if (GetChunkPoolOutput()->GetJobCounter()->GetFailed() > 0) {
+            << TErrorAttribute("failed_non_layer_probing_job_count", LayerProbingJobManager_.FailedNonLayerProbingJobCount());
+        if (LayerProbingJobManager_.GetFailedNonLayerProbingJob()) {
             error = error << TErrorAttribute("failed_non_layer_probing_job", LayerProbingJobManager_.GetFailedNonLayerProbingJob());
         }
         TaskHost_->SetOperationAlert(EOperationAlertType::BaseLayerProbeFailed, error);

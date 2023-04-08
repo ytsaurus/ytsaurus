@@ -4,6 +4,7 @@
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NChunkPools;
+using namespace NJobTrackerClient;
 using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,11 +54,17 @@ void TLayerProbingJobManager::OnJobCompleted(const TJobletPtr& joblet)
 
 bool TLayerProbingJobManager::OnUnsuccessfulJobFinish(
     const TJobletPtr& joblet,
-    const std::function<void(TProgressCounterGuard*)>& updateJobCounter)
+    const std::function<void(TProgressCounterGuard*)>& updateJobCounter,
+    const EJobState state)
 {
     auto competition = FindCompetition(joblet);
     if (!IsRelevant(joblet) || !competition) {
-        FailedNonLayerProbingJob_ = joblet->JobId;
+        if (state == EJobState::Failed) {
+            if (!FailedNonLayerProbingJob_) {
+                FailedNonLayerProbingJob_ = joblet->JobId;
+            }
+            ++FailedNonLayerProbingJobCount_;
+        }
         return true;
     }
 
@@ -67,7 +74,9 @@ bool TLayerProbingJobManager::OnUnsuccessfulJobFinish(
         if (competition->Status == ECompetitionStatus::TwoCompetitiveJobs) {
             returnCookieToChunkPool = false;
             if (!joblet->CompetitionType) {
-                Host_->AbortJobViaScheduler(competition->GetCompetitorFor(joblet->JobId), EAbortReason::LayerProbingToUnsuccessfulJob);
+                auto competitor = competition->GetCompetitorFor(joblet->JobId);
+                Host_->AbortJobViaScheduler(competitor, EAbortReason::LayerProbingToUnsuccessfulJob);
+                LostJobs_.insert(competitor);
             }
         } else if (competition->Status == ECompetitionStatus::HasCompletedJob) {
             returnCookieToChunkPool = false;
@@ -76,13 +85,14 @@ bool TLayerProbingJobManager::OnUnsuccessfulJobFinish(
         }
     }
 
-    if (!LostJobs_.contains(joblet->JobId)) {
-        if (joblet->CompetitionType == EJobCompetitionType::LayerProbing) {
-            ++FailedJobCount_;
+    if (joblet->CompetitionType == EJobCompetitionType::LayerProbing) {
+        if (!LostJobs_.contains(joblet->JobId)) {
+            ++FailedLayerProbingJobCount_;
             FailedLayerProbingJob_ = joblet->JobId;
-        } else {
-            FailedNonLayerProbingJob_ = joblet->JobId;
         }
+    } else if (state == EJobState::Failed) {
+        ++FailedNonLayerProbingJobCount_;
+        FailedNonLayerProbingJob_ = joblet->JobId;
     }
 
     OnJobFinished(joblet);
@@ -103,6 +113,7 @@ std::optional<EAbortReason> TLayerProbingJobManager::ShouldAbortCompletingJob(co
     }
 
     if (joblet->CompetitionType == EJobCompetitionType::LayerProbing) {
+        ++SucceededLayerProbingJobCount_;
         LayerProbingStatus_ = ELayerProbingJobStatus::LayerProbingJobCompleted;
     }
 
@@ -130,7 +141,7 @@ bool TLayerProbingJobManager::IsLayerProbeRequired() const
 {
     return IsLayerProbingEnabled() &&
         LayerProbingStatus_ == ELayerProbingJobStatus::NoLayerProbingJobResult &&
-        FailedJobCount() < UserJobSpec_->MaxFailedBaseLayerProbes &&
+        FailedLayerProbingJobCount() < UserJobSpec_->MaxFailedBaseLayerProbes &&
         GetTotalJobCount() == 0;
 }
 
@@ -140,17 +151,27 @@ bool TLayerProbingJobManager::ShouldUseProbingLayer() const
         UserJobSpec_->SwitchBaseLayerOnProbeSuccess;
 }
 
-int TLayerProbingJobManager::FailedJobCount() const
+int TLayerProbingJobManager::FailedNonLayerProbingJobCount() const
 {
-    return FailedJobCount_;
+    return FailedNonLayerProbingJobCount_;
 }
 
-NJobTrackerClient::TJobId TLayerProbingJobManager::GetFailedLayerProbingJob() const
+int TLayerProbingJobManager::FailedLayerProbingJobCount() const
+{
+    return FailedLayerProbingJobCount_;
+}
+
+int TLayerProbingJobManager::SucceededLayerProbingJobCount() const
+{
+    return SucceededLayerProbingJobCount_;
+}
+
+TJobId TLayerProbingJobManager::GetFailedLayerProbingJob() const
 {
     return FailedLayerProbingJob_;
 }
 
-NJobTrackerClient::TJobId TLayerProbingJobManager::GetFailedNonLayerProbingJob() const
+TJobId TLayerProbingJobManager::GetFailedNonLayerProbingJob() const
 {
     return FailedNonLayerProbingJob_;
 }
@@ -162,9 +183,19 @@ void TLayerProbingJobManager::Persist(const TPersistenceContext& context)
     TCompetitiveJobManagerBase::Persist(context);
 
     Persist(context, UserJobSpec_);
+
+    // COMPAT(galtsev)
+    if (context.GetVersion() >= ESnapshotVersion::ProbingBaseLayerPersistAlertCounts) {
+        Persist(context, FailedNonLayerProbingJobCount_);
+        Persist(context, SucceededLayerProbingJobCount_);
+    } else {
+        FailedNonLayerProbingJobCount_ = 0;
+        SucceededLayerProbingJobCount_ = 0;
+    }
+
     // COMPAT(galtsev)
     if (context.GetVersion() >= ESnapshotVersion::ProbingBaseLayerPersistLostJobs) {
-        Persist(context, FailedJobCount_);
+        Persist(context, FailedLayerProbingJobCount_);
         Persist(context, FailedLayerProbingJob_);
         Persist(context, FailedNonLayerProbingJob_);
         Persist(context, LostJobs_);
@@ -173,8 +204,9 @@ void TLayerProbingJobManager::Persist(const TPersistenceContext& context)
         int layerProbingRunLost = 0;
         Persist(context, unsuccessfulJobCount);
         Persist(context, layerProbingRunLost);
-        FailedJobCount_ = unsuccessfulJobCount - layerProbingRunLost;
+        FailedLayerProbingJobCount_ = unsuccessfulJobCount - layerProbingRunLost;
     }
+
     Persist(context, LayerProbingStatus_);
 }
 

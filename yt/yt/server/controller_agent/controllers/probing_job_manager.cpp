@@ -66,7 +66,8 @@ void TProbingJobManager::OnJobCompleted(const TJobletPtr& joblet)
 
 bool TProbingJobManager::OnUnsuccessfulJobFinish(
     const TJobletPtr& joblet,
-    const std::function<void(TProgressCounterGuard*)>& updateJobCounter)
+    const std::function<void(TProgressCounterGuard*)>& updateJobCounter,
+    const NJobTrackerClient::EJobState /*state*/)
 {
     if (!IsRelevant(joblet)) {
         // By default after unsuccessful finish of job a cookie is returned to chunk pool.

@@ -32,7 +32,8 @@ public:
 private:
     virtual bool OnUnsuccessfulJobFinish(
         const TJobletPtr& joblet,
-        const std::function<void(TProgressCounterGuard*)>& updateJobCounter) override;
+        const std::function<void(TProgressCounterGuard*)>& updateJobCounter,
+        const NJobTrackerClient::EJobState state) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

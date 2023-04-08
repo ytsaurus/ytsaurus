@@ -254,9 +254,9 @@ class TestProbingLayer(TestLayers):
             write_table(f"<append=%true>{TestProbingLayer.INPUT_TABLE}", [{"k": key, "layer": "LAYER"}])
 
     @staticmethod
-    def get_spec(user_slots):
+    def get_spec(user_slots, max_failed_job_count):
         return {
-            "max_failed_job_count": 0,
+            "max_failed_job_count": max_failed_job_count,
             "mapper": {
                 "default_base_layer_path": "//tmp/layer2",
                 "probing_base_layer_path": "//tmp/layer1",
@@ -269,18 +269,17 @@ class TestProbingLayer(TestLayers):
         }
 
     @staticmethod
-    def run_map(command, job_count, user_slots):
+    def run_map(command, job_count, user_slots, max_failed_job_count=0):
         op = map(
             in_=TestProbingLayer.INPUT_TABLE,
             out=TestProbingLayer.OUTPUT_TABLE,
             command=command,
-            spec=TestProbingLayer.get_spec(user_slots=1),
+            spec=TestProbingLayer.get_spec(user_slots, max_failed_job_count),
         )
 
         assert get(f"{TestProbingLayer.INPUT_TABLE}/@row_count") == get(f"{TestProbingLayer.OUTPUT_TABLE}/@row_count")
 
         assert op.get_job_count("completed") == job_count
-        assert op.get_job_count("failed") == 0
 
         return op
 
@@ -301,6 +300,8 @@ class TestProbingLayer(TestLayers):
 
         for try_count in range(self.MAX_TRIES + 1):
             op = self.run_map(command, job_count, user_slots=1)
+
+            assert op.get_job_count("failed") == 0
 
             counter = Counter([row["layer"] for row in read_table(self.OUTPUT_TABLE)])
 
@@ -326,6 +327,8 @@ class TestProbingLayer(TestLayers):
 
         for try_count in range(self.MAX_TRIES + 1):
             op = self.run_map(command, job_count, user_slots=1)
+
+            assert op.get_job_count("failed") == 0
 
             counter = Counter([row["layer"] for row in read_table(self.OUTPUT_TABLE)])
             assert counter["default"] == job_count
@@ -362,10 +365,50 @@ class TestProbingLayer(TestLayers):
             for try_count in range(self.MAX_TRIES + 1):
                 op = self.run_map(command, job_count, user_slots=2 + iterations)
 
+                assert op.get_job_count("failed") == 0
+
                 if op.get_job_count("aborted") >= 1:
                     break
 
             assert try_count < self.MAX_TRIES
+
+    @authors("galtsev")
+    @pytest.mark.timeout(600)
+    def test_alert(self):
+        self.setup_files()
+
+        job_count = 10
+        self.create_tables(job_count)
+        alert_count = 0
+
+        for default_failure_rate in range(2, 6):
+            for probing_failure_rate in range(2, 6):
+
+                command = (
+                    f"if test -e $YT_ROOT_FS/test; then "
+                    f"    if [ $(($RANDOM % {default_failure_rate})) -eq 0 ]; then "
+                    f"        exit 1; "
+                    f"    fi; "
+                    f"    sed 's/LAYER/default/g'; "
+                    f"else "
+                    f"    if [ $(($RANDOM % {probing_failure_rate})) -eq 0 ]; then "
+                    f"        exit 1; "
+                    f"    fi; "
+                    f"    sed 's/LAYER/probing/g'; "
+                    f"fi"
+                )
+
+                op = self.run_map(command, job_count, user_slots=5, max_failed_job_count=1000)
+
+                counter = Counter([row["layer"] for row in read_table(self.OUTPUT_TABLE)])
+
+                if "base_layer_probe_failed" in op.get_alerts():
+                    attributes = op.get_alerts()["base_layer_probe_failed"]["attributes"]
+                    assert attributes["failed_non_layer_probing_job_count"] == op.get_job_count("failed")
+                    assert attributes["succeeded_layer_probing_job_count"] > 0 or counter["probing"] == 0
+                    alert_count += 1
+
+        assert alert_count > 1
 
 
 @authors("psushin")

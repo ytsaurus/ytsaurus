@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
+#include <yt/yt/client/job_tracker_client/public.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,7 +118,8 @@ private:
     //! Return value indicates whether an appropriate cookie must be returned to chunk pool.
     virtual bool OnUnsuccessfulJobFinish(
         const TJobletPtr& joblet,
-        const std::function<void(TProgressCounterGuard*)>& updateJobCounter) = 0;
+        const std::function<void(TProgressCounterGuard*)>& updateJobCounter,
+        const NJobTrackerClient::EJobState state) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
