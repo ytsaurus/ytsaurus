@@ -516,6 +516,9 @@ public:
     // Testing option that enables sleeping after node state checking.
     TDelayConfigPtr NodeHeartbeatProcessingDelay;
 
+    // Testing option that enables sleeping after creation of operation node, but before creation of secure vault node.
+    TDelayConfigPtr SecureVaultCreationDelay;
+
     REGISTER_YSON_STRUCT(TTestingOptions);
 
     static void Register(TRegistrar registrar);

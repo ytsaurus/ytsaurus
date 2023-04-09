@@ -594,6 +594,8 @@ void TTestingOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("node_heartbeat_processing_delay", &TThis::NodeHeartbeatProcessingDelay)
         .Default();
+    registrar.Parameter("secure_vault_creation_delay", &TThis::SecureVaultCreationDelay)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

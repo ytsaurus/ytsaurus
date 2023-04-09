@@ -13,7 +13,7 @@ from yt_commands import (
     sync_create_cells, get_singular_chunk_id,
     update_nodes_dynamic_config, set_node_banned, check_all_stderrs, assert_statistics,
     heal_exec_node, ban_node,
-    make_random_string, raises_yt_error, update_controller_agent_config)
+    make_random_string, raises_yt_error, update_controller_agent_config, update_scheduler_config)
 
 
 import yt_error_codes
@@ -25,6 +25,8 @@ import yt.yson as yson
 from yt.test_helpers import are_almost_equal
 from yt.common import update, YtError
 
+from yt.wrapper.common import generate_uuid
+
 from flaky import flaky
 
 import pytest
@@ -32,6 +34,17 @@ import time
 import datetime
 import os
 import shutil
+
+##################################################################
+
+
+def find_operation_by_mutation_id(mutation_id):
+    for bucket in ls("//sys/operations"):
+        for operation_id, item in get("//sys/operations/{}".format(bucket), attributes=["mutation_id"]).items():
+            if item.attributes.get("mutation_id", "") == mutation_id:
+                return operation_id
+    return None
+
 
 ##################################################################
 
@@ -1878,6 +1891,53 @@ class TestSecureVault(YTEnvSetup):
             spec={"secure_vault": self.secure_vault},
             command="cat",
         )
+
+    @authors("ignat")
+    def test_cypress_missing_secure_vault(self):
+        update_scheduler_config("testing_options/secure_vault_creation_delay", {
+            "duration": 3000,
+            "type": "async",
+        })
+
+        update_scheduler_config("operations_cleaner", {
+            "enable": True,
+            "hard_retained_operation_count": 0,
+            "clean_delay": 0,
+        })
+
+        mutation_id = generate_uuid()
+
+        op_response = run_test_vanilla(
+            spec={"secure_vault": self.secure_vault},
+            command="sleep 5",
+            return_response=True,
+            mutation_id=mutation_id,
+        )
+
+        wait(lambda: find_operation_by_mutation_id(mutation_id))
+
+        op_id = find_operation_by_mutation_id(mutation_id)
+        op_path = "//sys/operations/{}/{}".format(op_id[-2:], op_id)
+        assert get(op_path + "/@has_secure_vault")
+        assert not exists(op_path + "/secure_vault")
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            time.sleep(2)
+
+        op_response.wait()
+        assert not op_response.is_ok()
+
+        wait(lambda: not exists(op_path))
+
+        op = run_test_vanilla(
+            spec={"secure_vault": self.secure_vault},
+            command="sleep 5",
+            mutation_id=mutation_id,
+        )
+
+        assert op.id != op_id
+
+        op.track()
 
 
 ##################################################################

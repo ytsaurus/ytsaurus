@@ -794,6 +794,17 @@ public:
             }).Via(GetInvoker()));
     }
 
+    void SubmitForRemoval(std::vector<TOperationId> operationIds)
+    {
+        if (!IsEnabled()) {
+            return;
+        }
+
+        for (auto operationId : operationIds) {
+            EnqueueForRemoval(operationId);
+        }
+    }
+
     void SetArchiveVersion(int version)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1716,6 +1727,11 @@ void TOperationsCleaner::SubmitForArchivation(TArchiveOperationRequest request)
 void TOperationsCleaner::SubmitForArchivation(std::vector<TOperationId> operationIds)
 {
     Impl_->SubmitForArchivation(std::move(operationIds));
+}
+
+void TOperationsCleaner::SubmitForRemoval(std::vector<TOperationId> operationIds)
+{
+    Impl_->SubmitForRemoval(std::move(operationIds));
 }
 
 void TOperationsCleaner::UpdateConfig(const TOperationsCleanerConfigPtr& config)

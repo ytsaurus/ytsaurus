@@ -213,6 +213,7 @@ public:
                                 });
                         })
                         .Item("acl").Value(MakeOperationArtifactAcl(operation->GetRuntimeParameters()->Acl))
+                        .Item("has_secure_vault").Value(static_cast<bool>(operation->GetSecureVault()))
                     .EndAttributes()
                     .BeginMap()
                         .Item("jobs").BeginAttributes()
@@ -237,6 +238,8 @@ public:
 
 
             if (operation->GetSecureVault()) {
+                MaybeDelay(Config_->TestingOptions->SecureVaultCreationDelay);
+
                 auto batchReq = StartObjectBatchRequest();
 
                 // Create secure vault.
@@ -944,15 +947,21 @@ private:
             TOperationId OperationId;
         };
 
-        std::vector<TOperationPtr> ParseOperationsBatch(
+        struct TProcessedOperationsBatch final
+        {
+            std::vector<TOperationPtr> Operations;
+            std::vector<TOperationId> IncompleteOperationIds;
+        };
+
+        TProcessedOperationsBatch ProcessOperationsBatch(
             const std::vector<TOperationDataToParse>& rspValuesChunk,
             const int parseOperationAttributesBatchSize,
             const bool skipOperationsWithMalformedSpecDuringRevival,
             const TSerializableAccessControlList& operationBaseAcl,
             const IInvokerPtr& cancelableOperationInvoker)
         {
-            std::vector<TOperationPtr> result;
-            result.reserve(parseOperationAttributesBatchSize);
+            TProcessedOperationsBatch result;
+            result.Operations.reserve(parseOperationAttributesBatchSize);
 
             for (const auto& rspValues : rspValuesChunk) {
                 auto attributesNode = ConvertToAttributes(rspValues.AttributesYson);
@@ -972,6 +981,10 @@ private:
                             secureVaultNode->GetType(),
                             ENodeType::Map);
                     }
+                } else if (attributesNode->Get<bool>("has_secure_vault", false)) {
+                    YT_LOG_INFO("Operation secure vault is missing; operation skipped (OperationId: %v)", rspValues.OperationId);
+                    result.IncompleteOperationIds.push_back(rspValues.OperationId);
+                    continue;
                 }
 
                 try {
@@ -985,7 +998,7 @@ private:
                         secureVault,
                         operationBaseAcl,
                         cancelableOperationInvoker);
-                    result.push_back(operation);
+                    result.Operations.push_back(operation);
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex, "Error creating operation from Cypress node (OperationId: %v)",
                         rspValues.OperationId);
@@ -1024,8 +1037,11 @@ private:
                 "registration_index",
                 "alerts",
                 "provided_spec",
+                "has_secure_vault",
             };
             const int operationsCount = static_cast<int>(OperationIds_.size());
+
+            std::vector<TOperationId> operationIdsToRemove;
 
             YT_LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
                 operationsCount);
@@ -1077,13 +1093,13 @@ private:
             {
                 const auto chunkSize = Owner_->Config_->ParseOperationAttributesBatchSize;
 
-                std::vector<TFuture<std::vector<TOperationPtr>>> futures;
+                std::vector<TFuture<TProcessedOperationsBatch>> futures;
                 futures.reserve(RoundUp(operationsCount, chunkSize));
 
                 for (auto startIndex = 0; startIndex < operationsCount; startIndex += chunkSize) {
-                    std::vector<TOperationDataToParse> operationsDataToParseBatch;
+                    std::vector<TOperationDataToParse> operationsDataToProcessBatch;
 
-                    operationsDataToParseBatch.reserve(chunkSize);
+                    operationsDataToProcessBatch.reserve(chunkSize);
                     for (auto index = startIndex; index < std::min(startIndex + chunkSize, operationsCount); ++index) {
                         const auto& operationId = OperationIds_[index];
 
@@ -1110,13 +1126,13 @@ private:
                             secureVaultYson = TYsonString(secureVaultRspOrError.Value()->value());
                         }
 
-                        operationsDataToParseBatch.push_back({std::move(atttibutesNodeStr), std::move(secureVaultYson), operationId});
+                        operationsDataToProcessBatch.push_back({std::move(atttibutesNodeStr), std::move(secureVaultYson), operationId});
                     }
 
                     futures.push_back(BIND(
-                            &TRegistrationPipeline::ParseOperationsBatch,
+                            &TRegistrationPipeline::ProcessOperationsBatch,
                             MakeStrong(this),
-                            std::move(operationsDataToParseBatch),
+                            std::move(operationsDataToProcessBatch),
                             chunkSize,
                             Owner_->Config_->SkipOperationsWithMalformedSpecDuringRevival,
                             Owner_->Bootstrap_->GetScheduler()->GetOperationBaseAcl(),
@@ -1131,9 +1147,12 @@ private:
                 Result_.Operations.reserve(OperationIds_.size());
                 auto result = WaitFor(AllSucceeded(futures)).ValueOrThrow();
 
-                for (auto& chunk : result) {
-                    for (auto& operation : chunk) {
+                for (auto& processedBatch : result) {
+                    for (auto& operation : processedBatch.Operations) {
                         Result_.Operations.push_back(std::move(operation));
+                    }
+                    for (auto operationId : processedBatch.IncompleteOperationIds) {
+                        operationIdsToRemove.push_back(operationId);
                     }
                 }
             }
@@ -1157,6 +1176,9 @@ private:
                     // We should sort operation by start time to respect pending operation queues.
                     return lhs->GetStartTime() < rhs->GetStartTime();
                 });
+
+            auto operationsCleaner = Owner_->Bootstrap_->GetScheduler()->GetOperationsCleaner();
+            operationsCleaner->SubmitForRemoval(std::move(operationIdsToRemove));
 
             YT_LOG_INFO("Operation objects created from attributes");
         }
@@ -1358,7 +1380,7 @@ private:
         }
     };
 
-    void GetTransactionsAndRevivalDiscriptor(const TOperationPtr& operation, IAttributeDictionaryPtr attributes)
+    void GetTransactionsAndRevivalDescriptor(const TOperationPtr& operation, IAttributeDictionaryPtr attributes)
     {
         auto operationId = operation->GetId();
         auto attachTransaction = [&] (TTransactionId transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
@@ -1509,7 +1531,7 @@ private:
                         << ex;
                 }
                 futures.push_back(
-                    BIND(&TImpl::GetTransactionsAndRevivalDiscriptor, MakeStrong(this))
+                    BIND(&TImpl::GetTransactionsAndRevivalDescriptor, MakeStrong(this))
                         .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
                         .Run(operation, attributes)
                 );

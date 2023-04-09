@@ -176,6 +176,21 @@ def sorted_dicts(list_of_dicts):
     return sorted(list_of_dicts, key=lambda dict: sorted(dict.items()))
 
 
+def is_subdict(lhs, rhs):
+    if isinstance(lhs, dict) != isinstance(rhs, dict):
+        return False
+
+    if isinstance(lhs, dict):
+        for key in lhs:
+            if key not in rhs:
+                return False
+            if not is_subdict(lhs[key], rhs[key]):
+                return False
+        return True
+    else:
+        return lhs == rhs
+
+
 def wait_assert(check_fn, *args, **kwargs):
     last_exception = []
     last_exc_info = []
@@ -3075,14 +3090,14 @@ def update_scheduler_config(path, value, wait_for_orchid=True):
 
     orchid_path = "{}/{}".format("//sys/scheduler/orchid/scheduler/config", path)
     if wait_for_orchid:
-        wait(lambda: get(orchid_path, default=None) == value)
+        wait(lambda: is_subdict(value, get(orchid_path, default=None)))
 
 
 def update_pool_tree_config_option(tree, option, value, wait_for_orchid=True):
     set("//sys/pool_trees/{}/@config/{}".format(tree, option), value)
     if wait_for_orchid:
         path = yt_scheduler_helpers.scheduler_orchid_pool_tree_config_path(tree) + "/{}".format(option)
-        wait(lambda: get(path, default=None) == value)
+        wait(lambda: is_subdict(value, get(path, default=None)))
 
 
 def update_pool_tree_config(tree, config, wait_for_orchid=True):
