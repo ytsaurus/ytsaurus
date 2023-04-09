@@ -365,6 +365,57 @@ TEST_P(TYsonStructParseTest, UnrecognizedSimple)
     EXPECT_TRUE(AreNodesEqual(ConvertToNode(config), ConvertToNode(deserializedConfig)));
 }
 
+template <EUnrecognizedStrategy strategy>
+class TThrowOnUnrecognized
+    : public TYsonStruct
+{
+public:
+    int IntValue;
+
+    TIntrusivePtr<TSimpleYsonStruct> Nested;
+
+    REGISTER_YSON_STRUCT(TThrowOnUnrecognized);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.UnrecognizedStrategy(strategy);
+
+        registrar.Parameter("int_value", &TThrowOnUnrecognized::IntValue)
+            .Default(1);
+
+        registrar.Parameter("nested", &TThrowOnUnrecognized::Nested)
+            .DefaultNew();
+    }
+};
+
+TEST_P(TYsonStructParseTest, UnrecognizedThrow)
+{
+    auto configNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("unrecognized").Value(1)
+        .EndMap();
+
+    Load<TThrowOnUnrecognized<EUnrecognizedStrategy::Drop>>(configNode->AsMap());
+    EXPECT_THROW_WITH_SUBSTRING(
+        Load<TThrowOnUnrecognized<EUnrecognizedStrategy::Throw>>(configNode->AsMap()),
+        "Unrecognized field \"/unrecognized\" has been encountered");
+}
+
+TEST_P(TYsonStructParseTest, UnrecognizedThrowRecursive)
+{
+    auto configNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("nested").BeginMap()
+                .Item("unrecognized").Value(1)
+            .EndMap()
+        .EndMap();
+
+    Load<TThrowOnUnrecognized<EUnrecognizedStrategy::Drop>>(configNode->AsMap());
+    EXPECT_THROW_WITH_SUBSTRING(
+        Load<TThrowOnUnrecognized<EUnrecognizedStrategy::ThrowRecursive>>(configNode->AsMap()),
+        "Unrecognized field \"/nested/unrecognized\" has been encountered");
+}
+
 TEST_P(TYsonStructParseTest, UnrecognizedRecursive)
 {
     auto configNode = BuildYsonNodeFluently()

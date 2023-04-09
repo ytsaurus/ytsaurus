@@ -43,7 +43,7 @@ void LoadFromNode(
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
     EMergeStrategy /*mergeStrategy*/,
-    bool /*keepUnrecognizedRecursively*/)
+    std::optional<EUnrecognizedStrategy> /*recursiveUnrecognizedStrategy*/)
 {
     try {
         Deserialize(parameter, node);
@@ -60,7 +60,7 @@ inline void LoadFromNode(
     NYTree::INodePtr node,
     const NYPath::TYPath& /*path*/,
     EMergeStrategy mergeStrategy,
-    bool /*keepUnrecognizedRecursively*/)
+    std::optional<EUnrecognizedStrategy> /*recursiveUnrecognizedStrategy*/)
 {
     switch (mergeStrategy) {
         case EMergeStrategy::Default:
@@ -90,14 +90,14 @@ void LoadFromNode(
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy,
-    bool keepUnrecognizedRecursively)
+    std::optional<EUnrecognizedStrategy> recursiveUnrecognizedStrategy)
 {
     if (!parameterValue || mergeStrategy == EMergeStrategy::Overwrite) {
         parameterValue = New<T>();
     }
 
-    if (keepUnrecognizedRecursively) {
-        parameterValue->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
+    if (recursiveUnrecognizedStrategy) {
+        parameterValue->SetUnrecognizedStrategy(*recursiveUnrecognizedStrategy);
     }
 
     switch (mergeStrategy) {
@@ -120,7 +120,7 @@ void LoadFromNode(
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy,
-    bool keepUnrecognizedRecursively)
+    std::optional<EUnrecognizedStrategy> recursiveUnrecognizedStrategy)
 {
     switch (mergeStrategy) {
         case EMergeStrategy::Default:
@@ -129,7 +129,7 @@ void LoadFromNode(
                 parameter = std::nullopt;
             } else {
                 T value;
-                LoadFromNode(value, node, path, EMergeStrategy::Overwrite, keepUnrecognizedRecursively);
+                LoadFromNode(value, node, path, EMergeStrategy::Overwrite, recursiveUnrecognizedStrategy);
                 parameter = std::move(value);
             }
             break;
@@ -147,7 +147,7 @@ void LoadFromNode(
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy,
-    bool keepUnrecognizedRecursively)
+    std::optional<EUnrecognizedStrategy> recursiveUnrecognizedStrategy)
 {
     switch (mergeStrategy) {
         case EMergeStrategy::Default:
@@ -161,7 +161,7 @@ void LoadFromNode(
                     listNode->GetChildOrThrow(i),
                     path + "/" + NYPath::ToYPathLiteral(i),
                     EMergeStrategy::Overwrite,
-                    keepUnrecognizedRecursively);
+                    recursiveUnrecognizedStrategy);
             }
             break;
         }
@@ -190,7 +190,7 @@ void LoadFromNode(
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy,
-    bool keepUnrecognizedRecursively)
+    std::optional<EUnrecognizedStrategy> recursiveUnrecognizedStrategy)
 {
     switch (mergeStrategy) {
         case EMergeStrategy::Default:
@@ -204,7 +204,7 @@ void LoadFromNode(
                     child,
                     path + "/" + NYPath::ToYPathLiteral(key),
                     EMergeStrategy::Overwrite,
-                    keepUnrecognizedRecursively);
+                    recursiveUnrecognizedStrategy);
                 parameter.emplace(DeserializeMapKey<typename Map<T...>::key_type>(key), std::move(value));
             }
             break;
@@ -218,7 +218,7 @@ void LoadFromNode(
                     child,
                     path + "/" + NYPath::ToYPathLiteral(key),
                     EMergeStrategy::Combine,
-                    keepUnrecognizedRecursively);
+                    recursiveUnrecognizedStrategy);
                 parameter[DeserializeMapKey<typename Map<T...>::key_type>(key)] = std::move(value);
             }
             break;
@@ -237,7 +237,7 @@ void LoadFromCursor(
     NYson::TYsonPullParserCursor* cursor,
     const NYPath::TYPath& path,
     EMergeStrategy /*mergeStrategy*/,
-    bool /*keepUnrecognizedRecursively*/)
+    std::optional<EUnrecognizedStrategy> /*recursiveUnrecognizedStrategy*/)
 {
     try {
         Deserialize(parameter, cursor);
@@ -255,7 +255,7 @@ void LoadFromCursor(
     NYson::TYsonPullParserCursor* cursor,
     const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy,
-    bool keepUnrecognizedRecursively);
+    std::optional<EUnrecognizedStrategy> recursiveUnrecognizedStrategy);
 
 template <class... T>
 void LoadFromCursor(
@@ -263,7 +263,7 @@ void LoadFromCursor(
     NYson::TYsonPullParserCursor* cursor,
     const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy,
-    bool keepUnrecognizedRecursively);
+    std::optional<EUnrecognizedStrategy> recursiveUnrecognizedStrategy);
 
 // std::optional
 template <class T>
@@ -272,7 +272,7 @@ void LoadFromCursor(
     NYson::TYsonPullParserCursor* cursor,
     const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy,
-    bool keepUnrecognizedRecursively);
+    std::optional<EUnrecognizedStrategy> recursiveUnrecognizedStrategy);
 
 template <template <typename...> class Map, class... T, class M = typename Map<T...>::mapped_type>
 void LoadFromCursor(
@@ -280,7 +280,7 @@ void LoadFromCursor(
     NYson::TYsonPullParserCursor* cursor,
     const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy,
-    bool keepUnrecognizedRecursively);
+    std::optional<EUnrecognizedStrategy> recursiveUnrecognizedStrategy);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -291,11 +291,11 @@ inline void LoadFromCursor(
     NYson::TYsonPullParserCursor* cursor,
     const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy,
-    bool keepUnrecognizedRecursively)
+    std::optional<EUnrecognizedStrategy> recursiveUnrecognizedStrategy)
 {
     try {
         auto node = NYson::ExtractTo<INodePtr>(cursor);
-        LoadFromNode(parameter, std::move(node), path, mergeStrategy, keepUnrecognizedRecursively);
+        LoadFromNode(parameter, std::move(node), path, mergeStrategy, recursiveUnrecognizedStrategy);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error loading parameter %v", path)
             << ex;
@@ -309,14 +309,14 @@ void LoadFromCursor(
     NYson::TYsonPullParserCursor* cursor,
     const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy,
-    bool keepUnrecognizedRecursively)
+    std::optional<EUnrecognizedStrategy> recursiveUnrecognizedStrategy)
 {
     if (!parameterValue || mergeStrategy == EMergeStrategy::Overwrite) {
         parameterValue = New<T>();
     }
 
-    if (keepUnrecognizedRecursively) {
-        parameterValue->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
+    if (recursiveUnrecognizedStrategy) {
+        parameterValue->SetUnrecognizedStrategy(*recursiveUnrecognizedStrategy);
     }
 
     switch (mergeStrategy) {
@@ -339,7 +339,7 @@ void LoadFromCursor(
     NYson::TYsonPullParserCursor* cursor,
     const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy,
-    bool keepUnrecognizedRecursively)
+    std::optional<EUnrecognizedStrategy> recursiveUnrecognizedStrategy)
 {
     try {
         switch (mergeStrategy) {
@@ -350,7 +350,7 @@ void LoadFromCursor(
                     cursor->Next();
                 } else {
                     T value;
-                    LoadFromCursor(value, cursor, path, EMergeStrategy::Overwrite, keepUnrecognizedRecursively);
+                    LoadFromCursor(value, cursor, path, EMergeStrategy::Overwrite, recursiveUnrecognizedStrategy);
                     parameter = std::move(value);
                 }
                 break;
@@ -372,7 +372,7 @@ void LoadFromCursor(
     NYson::TYsonPullParserCursor* cursor,
     const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy,
-    bool keepUnrecognizedRecursively)
+    std::optional<EUnrecognizedStrategy> recursiveUnrecognizedStrategy)
 {
     try {
         switch (mergeStrategy) {
@@ -386,7 +386,7 @@ void LoadFromCursor(
                         cursor,
                         path + "/" + NYPath::ToYPathLiteral(index),
                         EMergeStrategy::Overwrite,
-                        keepUnrecognizedRecursively);
+                        recursiveUnrecognizedStrategy);
                     ++index;
                 });
                 break;
@@ -408,7 +408,7 @@ void LoadFromCursor(
     NYson::TYsonPullParserCursor* cursor,
     const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy,
-    bool keepUnrecognizedRecursively)
+    std::optional<EUnrecognizedStrategy> recursiveUnrecognizedStrategy)
 {
     try {
         auto doParse = [&] (const auto& setterOrEmplacer, EMergeStrategy mergeStrategy) {
@@ -420,7 +420,7 @@ void LoadFromCursor(
                     cursor,
                     path + "/" + NYPath::ToYPathLiteral(key),
                     mergeStrategy,
-                    keepUnrecognizedRecursively);
+                    recursiveUnrecognizedStrategy);
                 setterOrEmplacer(key, std::move(value));
             });
         };
@@ -613,7 +613,7 @@ void TYsonStructParameter<TValue>::Load(
             std::move(node),
             options.Path,
             options.MergeStrategy.value_or(MergeStrategy_),
-            options.KeepUnrecognizedRecursively);
+            options.RecursiveUnrecognizedRecursively);
     } else if (!DefaultCtor_) {
         THROW_ERROR_EXCEPTION("Missing required parameter %v",
             options.Path);
@@ -630,7 +630,12 @@ void TYsonStructParameter<TValue>::SafeLoad(
     if (node) {
         TValue oldValue = FieldAccessor_->GetValue(self);
         try {
-            NPrivate::LoadFromNode(FieldAccessor_->GetValue(self), node, options.Path, options.MergeStrategy.value_or(MergeStrategy_), false);
+            NPrivate::LoadFromNode(
+                FieldAccessor_->GetValue(self),
+                node,
+                options.Path,
+                options.MergeStrategy.value_or(MergeStrategy_),
+                /*recursivelyUnrecoginizedStrategy*/ std::nullopt);
             validate();
         } catch (const std::exception ex) {
             FieldAccessor_->GetValue(self) = oldValue;
@@ -651,7 +656,7 @@ void TYsonStructParameter<TValue>::Load(
             cursor,
             options.Path,
             options.MergeStrategy.value_or(MergeStrategy_),
-            options.KeepUnrecognizedRecursively);
+            options.RecursiveUnrecognizedRecursively);
     } else if (!DefaultCtor_) {
         THROW_ERROR_EXCEPTION("Missing required parameter %v",
             options.Path);
@@ -673,7 +678,7 @@ void TYsonStructParameter<TValue>::SafeLoad(
                 cursor,
                 options.Path,
                 options.MergeStrategy.value_or(MergeStrategy_),
-                /*keepUnrecoginizedRecursively*/ false);
+                /*recursivelyUnrecoginizedStrategy*/ std::nullopt);
             validate();
         } catch (const std::exception ex) {
             FieldAccessor_->GetValue(self) = oldValue;

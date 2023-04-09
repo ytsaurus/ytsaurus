@@ -18,6 +18,8 @@ DEFINE_ENUM(EUnrecognizedStrategy,
     (Drop)
     (Keep)
     (KeepRecursive)
+    (Throw)
+    (ThrowRecursive)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

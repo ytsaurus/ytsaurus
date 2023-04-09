@@ -4,6 +4,25 @@ namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<EUnrecognizedStrategy> GetRecursiveUnrecognizedStrategy(EUnrecognizedStrategy strategy)
+{
+    return strategy == EUnrecognizedStrategy::KeepRecursive || strategy == EUnrecognizedStrategy::ThrowRecursive
+        ? std::make_optional(strategy)
+        : std::nullopt;
+}
+
+bool ShouldKeep(EUnrecognizedStrategy strategy)
+{
+    return strategy == EUnrecognizedStrategy::Keep || strategy == EUnrecognizedStrategy::KeepRecursive;
+}
+
+bool ShouldThrow(EUnrecognizedStrategy strategy)
+{
+    return strategy == EUnrecognizedStrategy::Throw || strategy == EUnrecognizedStrategy::ThrowRecursive;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TYsonStructMeta::SetDefaultsOfInitializedStruct(TYsonStructBase* target) const
 {
     for (const auto& [_, parameter] : Parameters_) {
@@ -120,18 +139,23 @@ void TYsonStructMeta::LoadStruct(
         }
         auto loadOptions = TLoadParameterOptions{
             .Path = path + "/" + key,
-            .KeepUnrecognizedRecursively = unrecognizedStrategy == EUnrecognizedStrategy::KeepRecursive
+            .RecursiveUnrecognizedRecursively = GetRecursiveUnrecognizedStrategy(unrecognizedStrategy),
         };
         parameter->Load(target, child, loadOptions);
     }
 
     if (unrecognizedStrategy != EUnrecognizedStrategy::Drop) {
         const auto& registeredKeys = GetRegisteredKeys();
-        if (!target->LocalUnrecognized_) {
+        if (!target->LocalUnrecognized_ && ShouldKeep(unrecognizedStrategy)) {
             target->LocalUnrecognized_ = GetEphemeralNodeFactory()->CreateMap();
         }
         for (const auto& [key, child] : mapNode->GetChildren()) {
             if (!registeredKeys.contains(key)) {
+                if (ShouldThrow(unrecognizedStrategy)) {
+                    THROW_ERROR_EXCEPTION("Unrecognized field %Qv has been encountered", path + "/" + key)
+                        << TErrorAttribute("key", key)
+                        << TErrorAttribute("path", path);
+                }
                 target->LocalUnrecognized_->RemoveChild(key);
                 YT_VERIFY(target->LocalUnrecognized_->AddChild(key, ConvertToNode(child)));
             }
@@ -162,7 +186,7 @@ void TYsonStructMeta::LoadStruct(
     auto createLoadOptions = [&] (TStringBuf key) {
         return TLoadParameterOptions{
             .Path = path + "/" + key,
-            .KeepUnrecognizedRecursively = unrecognizedStrategy == EUnrecognizedStrategy::KeepRecursive,
+            .RecursiveUnrecognizedRecursively = GetRecursiveUnrecognizedStrategy(unrecognizedStrategy),
         };
     };
 
@@ -214,6 +238,11 @@ void TYsonStructMeta::LoadStruct(
         if (unrecognizedStrategy == EUnrecognizedStrategy::Drop) {
             cursor->SkipComplexValue();
             return;
+        }
+        if (ShouldThrow(unrecognizedStrategy)) {
+            THROW_ERROR_EXCEPTION("Unrecognized field %Qv has been encountered", path + "/" + key)
+                << TErrorAttribute("key", key)
+                << TErrorAttribute("path", path);
         }
         if (!target->LocalUnrecognized_) {
             target->LocalUnrecognized_ = GetEphemeralNodeFactory()->CreateMap();

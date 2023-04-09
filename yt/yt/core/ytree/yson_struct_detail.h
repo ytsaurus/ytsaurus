@@ -17,8 +17,8 @@ using TYsonStructField = TValue(TStruct::*);
 struct TLoadParameterOptions
 {
     NYPath::TYPath Path;
-    bool KeepUnrecognizedRecursively = false;
-    std::optional<EMergeStrategy> MergeStrategy = std::nullopt;
+    std::optional<EUnrecognizedStrategy> RecursiveUnrecognizedRecursively;
+    std::optional<EMergeStrategy> MergeStrategy;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
