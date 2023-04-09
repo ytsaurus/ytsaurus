@@ -173,7 +173,9 @@ def init_drivers(clusters):
 
 
 def sorted_dicts(list_of_dicts):
-    return sorted(list_of_dicts, key=lambda dict: sorted(dict.items()))
+    sorted_items_list = [(sorted(list(dict.items())), index) for index, dict in enumerate(list_of_dicts)]
+    sorted_items_list.sort()
+    return [list_of_dicts[i] for _, i in sorted_items_list]
 
 
 def is_subdict(lhs, rhs):
