@@ -1566,7 +1566,7 @@ private:
     // since no commits are possible before this point.
     void OnLeaderActive() override
     {
-        TCompositeAutomatonPart::OnLeaderRecoveryComplete();
+        TCompositeAutomatonPart::OnLeaderActive();
         ReconnectMailboxes();
         PrepareLeaderMailboxes();
     }

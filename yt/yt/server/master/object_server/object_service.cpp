@@ -1596,7 +1596,7 @@ private:
             return !EnableLocalReadExecutor_ || subrequest->Type != EExecutionSessionSubrequestType::LocalRead;
         };
 
-        GuardedProcessSessions(&CurrentAutomatonSubrequestIndex_, subrequestFilter);
+        GuardedProcessSubrequests(&CurrentAutomatonSubrequestIndex_, subrequestFilter);
     }
 
     void GuardedRunRead()
@@ -1607,10 +1607,10 @@ private:
             return EnableLocalReadExecutor_ && subrequest->Type == EExecutionSessionSubrequestType::LocalRead;
         };
 
-        GuardedProcessSessions(&CurrentLocalReadSubrequestIndex_, subrequestFilter);
+        GuardedProcessSubrequests(&CurrentLocalReadSubrequestIndex_, subrequestFilter);
     }
 
-    void GuardedProcessSessions(
+    void GuardedProcessSubrequests(
         int* currentSubrequestIndex,
         std::function<bool(TSubrequest*)> filter)
     {

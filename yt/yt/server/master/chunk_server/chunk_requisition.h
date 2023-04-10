@@ -295,7 +295,8 @@ struct TRequisitionEntry
 {
     // NB: the requisition registry only weak-refs accounts. This means that
     // #IsObjectAlive() checks are a must. Entries with dead accounts may be
-    // safely ignored as accounting resources for deleted accounts is pointless.
+    // safely ignored for accounting purposes but not for the purposes of
+    // hashing and comparisons.
     NSecurityServer::TAccount* Account = nullptr;
     int MediumIndex = NChunkClient::GenericMediumIndex;
     TReplicationPolicy ReplicationPolicy;
