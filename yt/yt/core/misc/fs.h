@@ -204,12 +204,22 @@ TFuture<void> WriteBuffer(
     int bufferSize,
     int readSize);
 
-TFuture<void> ReadWriteCopy(
+TFuture<void> ReadWriteCopyAsync(
     const TString& existingPath,
     const TString& newPath,
     i64 chunkSize);
 
-TFuture<void> ReadWriteCopy(
+TFuture<void> ReadWriteCopyAsync(
+    const TFile& source,
+    const TFile& destination,
+    i64 chunkSize);
+
+void ReadWriteCopySync(
+    const TString& existingPath,
+    const TString& newPath,
+    i64 chunkSize);
+
+void ReadWriteCopySync(
     const TFile& source,
     const TFile& destination,
     i64 chunkSize);

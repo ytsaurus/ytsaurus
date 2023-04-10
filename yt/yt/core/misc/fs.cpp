@@ -977,7 +977,7 @@ TFuture<void> WriteBuffer(
         .Run(fromFd, toFd, std::move(buffer), bufferSize);
 }
 
-TFuture<void> ReadWriteCopy(
+TFuture<void> ReadWriteCopyAsync(
     const TString& existingPath,
     const TString& newPath,
     i64 chunkSize)
@@ -987,7 +987,7 @@ TFuture<void> ReadWriteCopy(
         TFile src(existingPath, OpenExisting | RdOnly | Seq | CloseOnExec);
         TFile dst(newPath, CreateAlways | WrOnly | Seq | CloseOnExec);
         dst.Flock(LOCK_EX);
-        return ReadWriteCopy(src, dst, chunkSize);
+        return ReadWriteCopyAsync(src, dst, chunkSize);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to copy %v to %v",
             existingPath,
@@ -1001,7 +1001,7 @@ TFuture<void> ReadWriteCopy(
 #endif
 }
 
-TFuture<void> ReadWriteCopy(
+TFuture<void> ReadWriteCopyAsync(
     const TFile& source,
     const TFile& destination,
     i64 chunkSize)
@@ -1022,6 +1022,64 @@ TFuture<void> ReadWriteCopy(
     Y_UNUSED(source, destination, chunkSize);
     ThrowNotSupported();
     return VoidFuture;
+#endif
+}
+
+void ReadWriteCopySync(
+    const TString& existingPath,
+    const TString& newPath,
+    i64 chunkSize)
+{
+#ifdef _linux_
+    try {
+        TFile src(existingPath, OpenExisting | RdOnly | Seq | CloseOnExec);
+        TFile dst(newPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+        dst.Flock(LOCK_EX);
+        ReadWriteCopySync(src, dst, chunkSize);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to copy %v to %v",
+            existingPath,
+            newPath)
+            << ex;
+    }
+#else
+    Y_UNUSED(existingPath, newPath, chunkSize);
+    ThrowNotSupported();
+#endif
+}
+
+void ReadWriteCopySync(
+    const TFile& source,
+    const TFile& destination,
+    i64 chunkSize)
+{
+#ifdef _linux_
+    int srcFd = source.GetHandle();
+    int dstFd = destination.GetHandle();
+    std::vector<ui8> buffer(chunkSize);
+
+    while (true) {
+        auto readSize = read(srcFd, buffer.data(), chunkSize);
+
+        if (readSize == -1) {
+            THROW_ERROR_EXCEPTION("Error while doing read")
+                << TError::FromSystem();
+        }
+
+        if (readSize == 0) {
+            return;
+        }
+
+        auto size = write(dstFd, buffer.data(), readSize);
+
+        if (size == -1) {
+            THROW_ERROR_EXCEPTION("Error while doing write")
+                << TError::FromSystem();
+        }
+    }
+#else
+    Y_UNUSED(source, destination, chunkSize);
+    ThrowNotSupported();
 #endif
 }
 

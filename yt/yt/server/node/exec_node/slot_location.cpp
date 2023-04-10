@@ -458,11 +458,10 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
             auto copyFileStart = TInstant::Now().MicroSeconds();
 
             if (Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableReadWriteCopy) {
-                WaitFor(ReadWriteCopy(
+                ReadWriteCopySync(
                     sourceFile,
                     destinationFile,
-                    Bootstrap_->GetConfig()->ExecNode->SlotManager->FileCopyChunkSize))
-                    .ThrowOnError();
+                    Bootstrap_->GetConfig()->ExecNode->SlotManager->FileCopyChunkSize);
             } else {
                 SendfileChunkedCopy(
                     sourceFile,
