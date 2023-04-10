@@ -54,7 +54,7 @@ class GrepMapper(yt.wrapper.TypedJob):
             yield row
 
 
-if __name__ == "__main__":
+def main():
     # You need to set up cluster address in YT_PROXY environment variable.
     cluster = os.getenv("YT_PROXY")
     if cluster is None or cluster == "":
@@ -72,3 +72,7 @@ if __name__ == "__main__":
 
     ui_url = os.getenv("YT_UI_URL")
     print(f"Output table: {ui_url}/#page=navigation&offsetMode=row&path={output_table}")
+
+
+if __name__ == "__main__":
+    main()

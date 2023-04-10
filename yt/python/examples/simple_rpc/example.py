@@ -2,7 +2,8 @@ import os
 
 import yt.wrapper as yt
 
-if __name__ == "__main__":
+
+def main():
     # Создаём RPC-клиента.
     # You need to set up cluster address in YT_PROXY environment variable.
     cluster = os.getenv("YT_PROXY")
@@ -12,3 +13,7 @@ if __name__ == "__main__":
 
     # Работаем как с обычным клиентом.
     print(client.list("/"))
+
+
+if __name__ == "__main__":
+    main()

@@ -35,7 +35,7 @@ class Reducer(yt.wrapper.TypedJob):
         yield SumRow(key=key, sum=s)
 
 
-if __name__ == "__main__":
+def main():
     # You need to set up cluster address in YT_PROXY environment variable.
     cluster = os.getenv("YT_PROXY")
     if cluster is None or cluster == "":
@@ -91,3 +91,7 @@ if __name__ == "__main__":
     print("\n*** After map_reduce operation ***")
     for row in client.read_table_structured(map_reduce_output_table, SumRow):
         print("  {}".format(row))
+
+
+if __name__ == "__main__":
+    main()

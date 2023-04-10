@@ -25,7 +25,7 @@ class StaffEntry:
     meetings: typing.List[Meeting]
 
 
-if __name__ == "__main__":
+def main():
     # You need to set up cluster address in YT_PROXY environment variable.
     cluster = os.getenv("YT_PROXY")
     if cluster is None or cluster == "":
@@ -80,3 +80,7 @@ if __name__ == "__main__":
     assert handmade_schema == schema
     print("***** Hand-made schema *****")
     print(handmade_schema)
+
+
+if __name__ == "__main__":
+    main()

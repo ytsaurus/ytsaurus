@@ -5,7 +5,8 @@ import os
 
 import yt.wrapper
 
-if __name__ == "__main__":
+
+def main():
     # You need to set up cluster address in YT_PROXY environment variable.
     cluster = os.getenv("YT_PROXY")
     if cluster is None or cluster == "":
@@ -64,3 +65,7 @@ if __name__ == "__main__":
         print("english:", row["english"], "; russian:", row["russian"])
     print("*****************")
     print("")
+
+
+if __name__ == "__main__":
+    main()

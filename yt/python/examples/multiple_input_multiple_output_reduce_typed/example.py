@@ -50,7 +50,7 @@ class FilterRobotsReducer(yt.wrapper.TypedJob):
         yield yt.wrapper.OutputRow(login_row, table_index=output_table_index)
 
 
-if __name__ == "__main__":
+def main():
     # You need to set up cluster address in YT_PROXY environment variable.
     cluster = os.getenv("YT_PROXY")
     if cluster is None or cluster == "":
@@ -86,3 +86,7 @@ if __name__ == "__main__":
     ui_url = os.getenv("YT_UI_URL")
     print(f"Robot table: {ui_url}/#page=navigation&offsetMode=row&path={robot_table}")
     print(f"Human table: {ui_url}/#page=navigation&offsetMode=row&path={human_table}")
+
+
+if __name__ == "__main__":
+    main()

@@ -44,7 +44,7 @@ class TaxiRide(Ride):
     info: typing.Optional[schema.YsonBytes] = None
 
 
-if __name__ == "__main__":
+def main():
     # You need to set up cluster address in YT_PROXY environment variable.
     cluster = os.getenv("YT_PROXY")
     if cluster is None or cluster == "":
@@ -96,3 +96,7 @@ if __name__ == "__main__":
     print("\n*** Second read ***")
     for taxi_ride in client.read_table_structured(table, TaxiRide):
         print("  {}".format(taxi_ride))
+
+
+if __name__ == "__main__":
+    main()

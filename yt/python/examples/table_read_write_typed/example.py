@@ -12,7 +12,7 @@ class TranslationRow:
     russian: str
 
 
-if __name__ == "__main__":
+def main():
     # You need to set up cluster address in YT_PROXY environment variable.
     cluster = os.getenv("YT_PROXY")
     if cluster is None or cluster == "":
@@ -79,3 +79,7 @@ if __name__ == "__main__":
     ):
         print("english: {}; russian: {}".format(row.english, row.russian))
     print("*****************\n")
+
+
+if __name__ == "__main__":
+    main()

@@ -54,7 +54,7 @@ class Reducer(yt.wrapper.TypedJob):
             yield RowIndexRow(row_index=context.get_row_index())
 
 
-if __name__ == "__main__":
+def main():
     # You need to set up cluster address in YT_PROXY environment variable.
     cluster = os.getenv("YT_PROXY")
     if cluster is None or cluster == "":
@@ -103,3 +103,7 @@ if __name__ == "__main__":
         RowIndexRow(row_index=1),
         RowIndexRow(row_index=2),
     ]
+
+
+if __name__ == "__main__":
+    main()
