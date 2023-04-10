@@ -38,7 +38,7 @@ std::optional<TString> GetDataCenterByClient(const IClientPtr& client)
     TListNodeOptions options;
     options.MaxSize = 1;
 
-    auto items = NConcurrency::WaitFor(client->ListNode("//sys/rpc_proxies", options))
+    auto items = NConcurrency::WaitFor(client->ListNode(RpcProxiesPath, options))
         .ValueOrThrow();
     auto itemsList = NYTree::ConvertTo<NYTree::IListNodePtr>(items);
     if (!itemsList->GetChildCount()) {
@@ -52,7 +52,7 @@ class TTransaction
     : public ITransaction
 {
 public:
-    TTransaction(TClientPtr client, size_t clientId, ITransactionPtr underlying);
+    TTransaction(TClientPtr client, int clientIndex, ITransactionPtr underlying);
 
     TFuture<ITransactionPtr> StartTransaction(
         NTransactionClient::ETransactionType type,
@@ -197,7 +197,7 @@ private:
     auto CreateResultHandler();
 
     TClientPtr Client_;
-    size_t ClientId_;
+    int ClientIndex_;
     ITransactionPtr Underlying_;
 };
 
@@ -265,13 +265,13 @@ public:
 
     IConnectionPtr GetConnection() override
     {
-        auto [client, clientId] = GetActiveClient();
+        auto [client, _] = GetActiveClient();
         return client->GetConnection();
     }
 
     std::optional<TStringBuf> GetClusterName(bool fetchIfNull) override
     {
-        auto [client, clientId] = GetActiveClient();
+        auto [client, _] = GetActiveClient();
         return client->GetClusterName(fetchIfNull);
     }
 
@@ -401,15 +401,15 @@ private:
     struct TActiveClientInfo
     {
         IClientPtr Client;
-        size_t Id;
+        int ClientIndex;
     };
 
-    void HandleError(const TErrorOr<void>& error, size_t clientId);
+    void HandleError(const TErrorOr<void>& error, int clientIndex);
     void UpdateActiveClient();
     TActiveClientInfo GetActiveClient();
 
     template <typename TReturnType, typename TRetryCallback>
-    auto CreateResultHandler(int clientId, int retryAttemptsCount, TRetryCallback callback);
+    auto CreateResultHandler(int clientIndex, int retryAttemptsCount, TRetryCallback callback);
 
     void CheckClustersHealth();
 
@@ -455,7 +455,7 @@ private:
 
     std::vector<TClientDescriptionPtr> UnderlyingClients_;
     IClientPtr ActiveClient_;
-    std::atomic<size_t> ActiveClientId_;
+    std::atomic<int> ActiveClientIndex_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 };
@@ -464,9 +464,9 @@ DECLARE_REFCOUNTED_TYPE(TTransaction);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransaction::TTransaction(TClientPtr client, size_t clientId, ITransactionPtr underlying)
+TTransaction::TTransaction(TClientPtr client, int clientIndex, ITransactionPtr underlying)
     : Client_(std::move(client))
-    , ClientId_(clientId)
+    , ClientIndex_(clientIndex)
     , Underlying_(std::move(underlying))
 { }
 
@@ -475,7 +475,7 @@ auto TTransaction::CreateResultHandler()
 {
     return [this, this_ = MakeStrong(this)] (const TErrorOr<TResultType>& result) {
         if (!result.IsOK()) {
-            Client_->HandleError(result, ClientId_);
+            Client_->HandleError(result, ClientIndex_);
         }
         return result;
     };
@@ -521,9 +521,9 @@ TFuture<ITransactionPtr> TTransaction::StartTransaction(
     return Underlying_->StartTransaction(type, options).Apply(BIND(
         [this, this_ = MakeStrong(this)] (const TErrorOr<ITransactionPtr>& result) -> ITransactionPtr {
             if (!result.IsOK()) {
-                Client_->HandleError(result, ClientId_);
+                Client_->HandleError(result, ClientIndex_);
             }
-            return New<TTransaction>(Client_, ClientId_, result.ValueOrThrow());
+            return New<TTransaction>(Client_, ClientIndex_, result.ValueOrThrow());
         }
     ));
 }
@@ -551,8 +551,8 @@ TClient::TClient(const std::vector<IClientPtr>& underlyingClients, TFederationCo
         return lhs->Priority > rhs->Priority;
     });
 
-    ActiveClientId_ = 0;
-    ActiveClient_ = UnderlyingClients_[ActiveClientId_]->Client;
+    ActiveClient_ = UnderlyingClients_[0]->Client;
+    ActiveClientIndex_ = 0;
 
     Executor_->Start();
 }
@@ -563,8 +563,8 @@ void TClient::CheckClustersHealth()
     options.CheckCypressRoot = true;
     options.CheckTabletCellBundle = Config_->BundleName;
 
-    auto activeClientId = ActiveClientId_.load();
-    std::optional<size_t> betterClientId;
+    int activeClientIndex = ActiveClientIndex_.load();
+    std::optional<int> betterClientIndex;
 
     std::vector<TFuture<void>> checks;
     checks.reserve(UnderlyingClients_.size());
@@ -573,46 +573,46 @@ void TClient::CheckClustersHealth()
         checks.emplace_back(clientDescription->Client->CheckClusterLiveness(options));
     }
 
-    for (size_t id = 0; id < checks.size(); ++id) {
-        const auto& check = checks[id];
+    for (int index = 0; index < std::ssize(checks); ++index) {
+        const auto& check = checks[index];
         bool hasErrors = !NConcurrency::WaitFor(check).IsOK();
-        UnderlyingClients_[id]->HasErrors = hasErrors;
-        if (!betterClientId && !hasErrors && id < activeClientId) {
-            betterClientId = id;
+        UnderlyingClients_[index]->HasErrors = hasErrors;
+        if (!betterClientIndex && !hasErrors && index < activeClientIndex) {
+            betterClientIndex = index;
         }
     }
 
-    if (betterClientId.has_value() && ActiveClientId_ == activeClientId) {
-        auto newClientId = *betterClientId;
+    if (betterClientIndex && ActiveClientIndex_ == activeClientIndex) {
+        int newClientIndex = *betterClientIndex;
         auto guard = NThreading::WriterGuard(Lock_);
-        ActiveClient_ = UnderlyingClients_[newClientId]->Client;
-        ActiveClientId_ = newClientId;
+        ActiveClient_ = UnderlyingClients_[newClientIndex]->Client;
+        ActiveClientIndex_ = newClientIndex;
         return;
     }
 
     // If active cluster is not healthy, try changing it.
-    if (UnderlyingClients_[activeClientId]->HasErrors) {
+    if (UnderlyingClients_[activeClientIndex]->HasErrors) {
         auto guard = NThreading::WriterGuard(Lock_);
         // Check that active client wasn't changed.
-        if (ActiveClientId_ == activeClientId && UnderlyingClients_[activeClientId]->HasErrors) {
+        if (ActiveClientIndex_ == activeClientIndex && UnderlyingClients_[activeClientIndex]->HasErrors) {
             UpdateActiveClient();
         }
     }
 }
 
 template <typename TResultType, typename TRetryCallback>
-auto TClient::CreateResultHandler(int clientId, int retryAttemptsCount, TRetryCallback callback)
+auto TClient::CreateResultHandler(int clientIndex, int retryAttemptsCount, TRetryCallback callback)
 {
     return [
         this,
         this_ = MakeStrong(this),
-        clientId,
+        clientIndex,
         retryAttemptsCount,
         callback = std::move(callback)
     ] (const TErrorOr<TResultType>& resultOrError)
     {
         if (!resultOrError.IsOK()) {
-            HandleError(resultOrError, clientId);
+            HandleError(resultOrError, clientIndex);
             if (retryAttemptsCount > 1) {
                 return callback(retryAttemptsCount - 1);
             }
@@ -633,53 +633,53 @@ TFuture<ITransactionPtr> TClient::DoStartTransaction(
     NTransactionClient::ETransactionType type,
     const NApi::TTransactionStartOptions& options)
 {
-    auto [client, clientId] = GetActiveClient();
+    auto [client, clientIndex] = GetActiveClient();
 
     return client->StartTransaction(type, options)
-        .Apply(BIND([this, this_ = MakeStrong(this), clientId = clientId, retryAttemptsCount, type, &options]
+        .Apply(BIND([=, this, this_ = MakeStrong(this), clientIndex = clientIndex]
             (const TErrorOr<ITransactionPtr>& transactionOrError)
         {
             if (!transactionOrError.IsOK()) {
-                HandleError(transactionOrError, clientId);
+                HandleError(transactionOrError, clientIndex);
                 if (retryAttemptsCount > 1) {
                     return DoStartTransaction(retryAttemptsCount - 1, type, options);
                 }
                 return MakeFuture(transactionOrError);
             }
             return MakeFuture(ITransactionPtr{
-                New<TTransaction>(std::move(this_), clientId, transactionOrError.Value())
+                New<TTransaction>(std::move(this_), clientIndex, transactionOrError.Value())
             });
         }
     ));
 }
 
-#define CLIENT_METHOD_IMPL(ResultType, MethodName, Args, CaptureList)                                                   \
-TFuture<ResultType> TClient::MethodName(Y_METHOD_USED_ARGS_DECLARATION(Args))                                       \
+#define CLIENT_METHOD_IMPL(ResultType, MethodName, Args)                                                                \
+TFuture<ResultType> TClient::MethodName(Y_METHOD_USED_ARGS_DECLARATION(Args))                                           \
 {                                                                                                                       \
     return Do##MethodName(Config_->ClusterRetryAttempts, Y_PASS_METHOD_USED_ARGS(Args));                                \
 }                                                                                                                       \
                                                                                                                         \
-TFuture<ResultType> TClient::Do##MethodName(int retryAttempsCount, Y_METHOD_USED_ARGS_DECLARATION(Args))            \
+TFuture<ResultType> TClient::Do##MethodName(int retryAttempsCount, Y_METHOD_USED_ARGS_DECLARATION(Args))                \
 {                                                                                                                       \
-    auto [client, clientId] = GetActiveClient();                                                                        \
+    auto [client, clientIndex] = GetActiveClient();                                                                     \
                                                                                                                         \
     return client->MethodName(Y_PASS_METHOD_USED_ARGS(Args)).Apply(BIND(CreateResultHandler<ResultType>(                \
-        clientId, retryAttempsCount, [this, Y_METHOD_UNUSED_ARGS_DECLARATION(CaptureList)] (int attemptsCount) {        \
+        clientIndex, retryAttempsCount, [=, this] (int attemptsCount) {                                                 \
             return Do##MethodName(attemptsCount, Y_PASS_METHOD_USED_ARGS(Args));                                        \
         }                                                                                                               \
     )));                                                                                                                \
 } Y_SEMICOLON_GUARD
 
-CLIENT_METHOD_IMPL(IUnversionedRowsetPtr, LookupRows, (const NYPath::TYPath&, NTableClient::TNameTablePtr, const TSharedRange<NTableClient::TLegacyKey>&, const TLookupRowsOptions&), (&a1, a2, &a3, &a4));
-CLIENT_METHOD_IMPL(TSelectRowsResult, SelectRows, (const TString&, const TSelectRowsOptions&), (&a1, &a2));
-CLIENT_METHOD_IMPL(std::vector<IUnversionedRowsetPtr>, MultiLookup, (const std::vector<TMultiLookupSubrequest>&, const TMultiLookupOptions&), (&a1, &a2));
-CLIENT_METHOD_IMPL(IVersionedRowsetPtr, VersionedLookupRows, (const NYPath::TYPath&, NTableClient::TNameTablePtr, const TSharedRange<NTableClient::TUnversionedRow>&, const TVersionedLookupRowsOptions&), (&a1, a2, &a3, &a4));
-CLIENT_METHOD_IMPL(TPullRowsResult, PullRows, (const NYPath::TYPath&, const TPullRowsOptions&), (&a1, &a2));
-CLIENT_METHOD_IMPL(NYson::TYsonString, ExplainQuery, (const TString&, const TExplainQueryOptions&), (&a1, &a2));
-CLIENT_METHOD_IMPL(NYson::TYsonString, GetNode, (const NYPath::TYPath&, const TGetNodeOptions&), (&a1, &a2));
-CLIENT_METHOD_IMPL(NYson::TYsonString, ListNode, (const NYPath::TYPath&, const TListNodeOptions&), (&a1, &a2));
-CLIENT_METHOD_IMPL(bool, NodeExists, (const NYPath::TYPath&, const TNodeExistsOptions&), (&a1, &a2));
-CLIENT_METHOD_IMPL(std::vector<TTabletInfo>, GetTabletInfos, (const NYPath::TYPath&, const std::vector<int>&, const TGetTabletInfosOptions&), (&a1, &a2, &a3));
+CLIENT_METHOD_IMPL(IUnversionedRowsetPtr, LookupRows, (const NYPath::TYPath&, NTableClient::TNameTablePtr, const TSharedRange<NTableClient::TLegacyKey>&, const TLookupRowsOptions&));
+CLIENT_METHOD_IMPL(TSelectRowsResult, SelectRows, (const TString&, const TSelectRowsOptions&));
+CLIENT_METHOD_IMPL(std::vector<IUnversionedRowsetPtr>, MultiLookup, (const std::vector<TMultiLookupSubrequest>&, const TMultiLookupOptions&));
+CLIENT_METHOD_IMPL(IVersionedRowsetPtr, VersionedLookupRows, (const NYPath::TYPath&, NTableClient::TNameTablePtr, const TSharedRange<NTableClient::TUnversionedRow>&, const TVersionedLookupRowsOptions&));
+CLIENT_METHOD_IMPL(TPullRowsResult, PullRows, (const NYPath::TYPath&, const TPullRowsOptions&));
+CLIENT_METHOD_IMPL(NYson::TYsonString, ExplainQuery, (const TString&, const TExplainQueryOptions&));
+CLIENT_METHOD_IMPL(NYson::TYsonString, GetNode, (const NYPath::TYPath&, const TGetNodeOptions&));
+CLIENT_METHOD_IMPL(NYson::TYsonString, ListNode, (const NYPath::TYPath&, const TListNodeOptions&));
+CLIENT_METHOD_IMPL(bool, NodeExists, (const NYPath::TYPath&, const TNodeExistsOptions&));
+CLIENT_METHOD_IMPL(std::vector<TTabletInfo>, GetTabletInfos, (const NYPath::TYPath&, const std::vector<int>&, const TGetTabletInfosOptions&));
 
 const NTabletClient::ITableMountCachePtr& TClient::GetTableMountCache()
 {
@@ -705,20 +705,20 @@ ITransactionPtr TClient::AttachTransaction(
             return client->AttachTransaction(transactionId, options);
         }
     }
-    THROW_ERROR_EXCEPTION("There is no corresponding client for the transaction (TransactionId: %v)", transactionId);
+    THROW_ERROR_EXCEPTION("No client is known for transaction %v", transactionId);
 }
 
-void TClient::HandleError(const TErrorOr<void>& /*error*/, size_t clientId)
+void TClient::HandleError(const TErrorOr<void>& /*error*/, int clientIndex)
 {
     // TODO(nadya73): check error and do nothing if it's not fatal error
 
-    UnderlyingClients_[clientId]->HasErrors = true;
-    if (ActiveClientId_ != clientId) {
+    UnderlyingClients_[clientIndex]->HasErrors = true;
+    if (ActiveClientIndex_ != clientIndex) {
         return;
     }
 
     auto guard = WriterGuard(Lock_);
-    if (ActiveClientId_ != clientId) {
+    if (ActiveClientIndex_ != clientIndex) {
         return;
     }
 
@@ -729,19 +729,19 @@ void TClient::UpdateActiveClient()
 {
     VERIFY_WRITER_SPINLOCK_AFFINITY(Lock_);
 
-    auto activeClientId = ActiveClientId_.load();
+    int activeClientIndex = ActiveClientIndex_.load();
 
-    for (size_t id = 0; id < UnderlyingClients_.size(); ++id) {
-        const auto& clientDescription = UnderlyingClients_[id];
+    for (int index = 0; index < std::ssize(UnderlyingClients_); ++index) {
+        const auto& clientDescription = UnderlyingClients_[index];
         if (!clientDescription->HasErrors) {
-            if (activeClientId != id) {
-                YT_LOG_DEBUG("Active client was changed (PreviousClientId: %v, NewClientId: %v)",
-                    activeClientId,
-                    id);
+            if (activeClientIndex != index) {
+                YT_LOG_DEBUG("Active client was changed (PreviousClientIndex: %v, NewClientIndex: %v)",
+                    activeClientIndex,
+                    index);
             }
 
             ActiveClient_ = clientDescription->Client;
-            ActiveClientId_ = id;
+            ActiveClientIndex_ = index;
             break;
         }
     }
@@ -750,9 +750,9 @@ void TClient::UpdateActiveClient()
 TClient::TActiveClientInfo TClient::GetActiveClient()
 {
     auto guard = ReaderGuard(Lock_);
-    YT_LOG_DEBUG("Request will be send to the active client (ClientId: %v)",
-        ActiveClientId_.load());
-    return {ActiveClient_, ActiveClientId_.load()};
+    YT_LOG_TRACE("Request will be send to the active client (ClientIndex: %v)",
+        ActiveClientIndex_.load());
+    return {ActiveClient_, ActiveClientIndex_.load()};
 }
 
 DEFINE_REFCOUNTED_TYPE(TClient)
