@@ -358,11 +358,6 @@ public:
         return End();
     }
 
-    TRange<TUnversionedValue> GetRange() const
-    {
-        return TRange(Begin(), GetCount());
-    }
-
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 
@@ -653,11 +648,6 @@ public:
         return Begin()[index];
     }
 
-    TRange<TUnversionedValue> GetRange()
-    {
-        return TRange(Begin(), GetCount());
-    }
-
     // STL interop.
     TUnversionedValue* begin()
     {
@@ -791,11 +781,6 @@ public:
         RowData_ = std::move(other.RowData_);
         StringData_ = std::move(other.StringData_);
         return *this;
-    }
-
-    TRange<TUnversionedValue> GetRange() const
-    {
-        return TRange(Begin(), static_cast<size_t>(GetCount()));
     }
 
     // STL interop.

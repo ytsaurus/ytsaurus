@@ -965,7 +965,7 @@ TEST_F(TExpressionTest, FunctionNullArgument)
 
         auto callback = Profile(expr, schema, nullptr, &variables)();
 
-        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
+        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
 
         EXPECT_EQ(result, MakeNull());
     }
@@ -990,7 +990,7 @@ TEST_F(TExpressionTest, FunctionNullArgument)
         TCGVariables variables;
 
         auto callback = Profile(expr, schema, nullptr, &variables)();
-        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
+        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
 
         EXPECT_EQ(result, MakeNull());
     }
@@ -1003,7 +1003,7 @@ TEST_F(TExpressionTest, FunctionNullArgument)
         TCGVariables variables;
 
         auto callback = Profile(expr, schema, nullptr, &variables)();
-        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
+        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
 
         EXPECT_EQ(result, MakeNull());
     }
@@ -1034,7 +1034,7 @@ TEST_P(TExpressionTest, Evaluate)
 
     auto buffer = New<TRowBuffer>();
 
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
+    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -1065,7 +1065,7 @@ TEST_P(TExpressionTest, EvaluateLhsValueRhsLiteral)
 
     auto buffer = New<TRowBuffer>();
 
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
+    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -1096,7 +1096,7 @@ TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
 
     auto buffer = New<TRowBuffer>();
 
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
+    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -1205,12 +1205,12 @@ TEST_P(TTernaryLogicTest, Evaluate)
 
     TCGVariables variables1;
     auto compiledExpr1 = Profile(expr1, New<TTableSchema>(), nullptr, &variables1)();
-    compiledExpr1(variables1.GetLiteralValues(), variables1.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
+    compiledExpr1(variables1.GetLiteralValues(), variables1.GetOpaqueData(), &result, row.Elements(), buffer.Get());
     EXPECT_TRUE(CompareRowValues(result, expected) == 0);
 
     TCGVariables variables2;
     auto compiledExpr2 = Profile(expr2, New<TTableSchema>(), nullptr, &variables2)();
-    compiledExpr2(variables2.GetLiteralValues(), variables2.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
+    compiledExpr2(variables2.GetLiteralValues(), variables2.GetOpaqueData(), &result, row.Elements(), buffer.Get());
     EXPECT_TRUE(CompareRowValues(result, expected) == 0);
 }
 
@@ -1312,7 +1312,7 @@ TEST_P(TCompareWithNullTest, Simple)
 
     auto buffer = New<TRowBuffer>();
 
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
+    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(rowString) << std::endl
@@ -1520,7 +1520,7 @@ void EvaluateExpression(
 
     auto row = YsonToSchemafulRow(rowString, *schema, true);
 
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), result, row.GetRange(), buffer.Get());
+    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), result, row.Elements(), buffer.Get());
 }
 
 class TEvaluateExpressionTest
