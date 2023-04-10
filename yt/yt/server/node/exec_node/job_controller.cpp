@@ -79,7 +79,7 @@ NScheduler::TAllocationToAbort ParseAllocationToAbort(const NScheduler::NProto::
     return result;
 }
 
-// COMPAT(pogorelov): AllcationId is currently equal to JobId.
+// COMPAT(pogorelov): AllocationId is currently equal to JobId.
 TAllocationId ToAllocationId(TJobId jobId)
 {
     return jobId;

@@ -20,7 +20,7 @@ message TSpecFetchFailedAllocationInfo
     required NYT.NProto.TGuid allocation_id = 1;
     required NYT.NProto.TGuid operation_id = 2;
     required NYT.NProto.TError error = 3;
-};
+}
 
 // Informs Allocation Tracker about node status and requests orders.
 message TReqHeartbeat

@@ -166,7 +166,7 @@ void TSchedulerConnector::RemoveSpecFetchFailedAllocations(THashMap<TAllocationI
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
-    for (auto [allocationId, _] : allocations) {
+    for (const auto& [allocationId, _] : allocations) {
         EraseOrCrash(SpecFetchFailedAllocations_, allocationId);
     }
 }
