@@ -259,7 +259,7 @@ public:
             ControllerAgentProfiler.WithPrefix("/job_spec_slice_throttler")))
         , JobSpecSliceThrottler_(ReconfigurableJobSpecSliceThrottler_)
         , CoreSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSafeCoreDumps))
-        , EventLogWriter_(New<TEventLogWriter>(
+        , EventLogWriter_(CreateStaticTableEventLogWriter(
             Config_->EventLog,
             Bootstrap_->GetClient(),
             Bootstrap_->GetControlInvoker()))

@@ -15,7 +15,7 @@ NEventLog::IEventLogWriterPtr CreateRemoteEventLogWriter(const TRemoteEventLogCo
     auto clientOptions = NApi::TClientOptions::FromUser(config->User);
     auto client = connection->CreateNativeClient(clientOptions);
 
-    return New<NEventLog::TEventLogWriter>(
+    return CreateStaticTableEventLogWriter(
         config->EventLogManager,
         client,
         invoker);

@@ -89,9 +89,9 @@ class TEventLogWriter
 {
 public:
     TEventLogWriter(
-        const TEventLogManagerConfigPtr& config,
-        const NApi::NNative::IClientPtr& client,
-        const IInvokerPtr& invoker);
+        TEventLogManagerConfigPtr config,
+        IInvokerPtr invoker,
+        NTableClient::IUnversionedWriterPtr writer);
 
     ~TEventLogWriter();
 
@@ -105,6 +105,15 @@ private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
 };
+
+using TEventLogWriterPtr = TIntrusivePtr<TEventLogWriter>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEventLogWriterPtr CreateStaticTableEventLogWriter(
+    TEventLogManagerConfigPtr config,
+    NApi::NNative::IClientPtr client,
+    IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -262,7 +262,7 @@ public:
             Config_->ProfilingUpdatePeriod);
         ProfilingExecutor_->Start();
 
-        EventLogWriter_ = New<TEventLogWriter>(
+        EventLogWriter_ = CreateStaticTableEventLogWriter(
             Config_->EventLog,
             GetClient(),
             Bootstrap_->GetControlInvoker(EControlQueue::EventLog));

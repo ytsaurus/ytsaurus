@@ -136,27 +136,19 @@ class TEventLogWriter::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(const TEventLogManagerConfigPtr& config, const NNative::IClientPtr& client, const IInvokerPtr& invoker)
-        : Config_(config)
-        , Client_(client)
+    TImpl(
+        TEventLogManagerConfigPtr config,
+        IInvokerPtr invoker,
+        NTableClient::IUnversionedWriterPtr writer)
+        : Config_(std::move(config))
+        , EventLogWriter_(std::move(writer))
     {
-        YT_VERIFY(Config_->Path);
+        YT_VERIFY(EventLogWriter_.Get());
 
         Enabled_.store(Config_->Enable);
 
-        auto nameTable = New<TNameTable>();
-        auto options = New<NTableClient::TTableWriterOptions>();
-        options->EnableValidationOptions();
-
-        EventLogWriter_ = CreateSchemalessBufferedTableWriter(
-            Config_,
-            options,
-            Client_,
-            nameTable,
-            Config_->Path);
-
         PendingRowsFlushExecutor_ = New<TPeriodicExecutor>(
-            invoker,
+            std::move(invoker),
             BIND(&TImpl::OnPendingEventLogRowsFlush, Unretained(this)),
             Config_->PendingRowsFlushPeriod);
         PendingRowsFlushExecutor_->Start();
@@ -186,7 +178,6 @@ public:
 
 private:
     TEventLogManagerConfigPtr Config_;
-    NApi::NNative::IClientPtr Client_;
 
     NTableClient::IUnversionedWriterPtr EventLogWriter_;
 
@@ -228,10 +219,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TEventLogWriter::TEventLogWriter(
-    const TEventLogManagerConfigPtr& config,
-    const NApi::NNative::IClientPtr& client,
-    const IInvokerPtr& invoker)
-    : Impl_(New<TImpl>(config, client, invoker))
+    TEventLogManagerConfigPtr config,
+    IInvokerPtr invoker,
+    NTableClient::IUnversionedWriterPtr writer)
+    : Impl_(New<TImpl>(std::move(config), std::move(invoker), std::move(writer)))
 { }
 
 TEventLogWriter::~TEventLogWriter()
@@ -250,6 +241,27 @@ void TEventLogWriter::UpdateConfig(const TEventLogManagerConfigPtr& config)
 TFuture<void> TEventLogWriter::Close()
 {
     return Impl_->Close();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEventLogWriterPtr CreateStaticTableEventLogWriter(
+    TEventLogManagerConfigPtr config,
+    NApi::NNative::IClientPtr client,
+    IInvokerPtr invoker)
+{
+    auto nameTable = New<TNameTable>();
+    auto options = New<NTableClient::TTableWriterOptions>();
+    options->EnableValidationOptions();
+
+    auto eventLogWriter = CreateSchemalessBufferedTableWriter(
+        config,
+        options,
+        client,
+        nameTable,
+        config->Path);
+
+    return New<TEventLogWriter>(std::move(config), std::move(invoker), std::move(eventLogWriter));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
