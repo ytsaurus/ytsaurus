@@ -312,7 +312,7 @@ INITIAL_TABLE_INFOS = {
             ("transient_state", "string"),
             ("update_time", "int64"),
         ],
-        get_pivot_keys=get_default_pivots,
+        get_pivot_keys=get_job_table_pivots,
         attributes={
             "atomicity": "none",
             "tablet_cell_bundle": SYS_BUNDLE_NAME,
@@ -923,7 +923,6 @@ TRANSFORMS[38] = [
                 ("brief_statistics", "any"),
                 ("pool_tree", "string"),
             ],
-            get_pivot_keys=get_job_table_pivots,
             attributes={"atomicity": "none"})),
     Conversion(
         "operation_ids",
@@ -936,7 +935,6 @@ TRANSFORMS[38] = [
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
             ],
-            get_pivot_keys=get_default_pivots,
             attributes={
                 "atomicity": "none",
                 "tablet_cell_bundle": SYS_BUNDLE_NAME,
@@ -982,7 +980,6 @@ TRANSFORMS[39] = [
                 ("pool_tree", "string"),
                 ("monitoring_descriptor", "string"),
             ],
-            get_pivot_keys=get_job_table_pivots,
             attributes={"atomicity": "none"})),
 ]
 
@@ -1037,7 +1034,6 @@ TRANSFORMS[41] = [
                 ("profile_blob", "string"),
                 ("profiling_probability", "double"),
             ],
-            get_pivot_keys=get_default_pivots,
             attributes={
                 "atomicity": "none",
                 "tablet_cell_bundle": SYS_BUNDLE_NAME,
@@ -1180,7 +1176,6 @@ TRANSFORMS[45] = [
                 ("probing_job_competition_id", "string"),
                 ("has_probing_competitors", "boolean"),
             ],
-            get_pivot_keys=get_job_table_pivots,
             attributes={"atomicity": "none"})),
 ]
 
@@ -1263,7 +1258,6 @@ TRANSFORMS[47] = [
                 ("has_probing_competitors", "boolean"),
                 ("job_cookie", "int64"),
             ],
-            get_pivot_keys=get_job_table_pivots,
             attributes={"atomicity": "none"})),
 ]
 
