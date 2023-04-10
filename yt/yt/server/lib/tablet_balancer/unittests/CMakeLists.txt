@@ -15,7 +15,6 @@ target_link_libraries(unittester-tablet-balancer-lib PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-ytalloc-impl
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
@@ -55,5 +54,8 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-tablet-balancer-lib
+  cpp-ytalloc-impl
 )
 vcs_info(unittester-tablet-balancer-lib)

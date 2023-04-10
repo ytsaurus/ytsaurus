@@ -12,8 +12,6 @@ target_link_libraries(yt-yt-library-xor_filter-unittests PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
@@ -52,5 +50,9 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(yt-yt-library-xor_filter-unittests
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(yt-yt-library-xor_filter-unittests)

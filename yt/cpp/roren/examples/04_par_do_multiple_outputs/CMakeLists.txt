@@ -12,8 +12,6 @@ target_link_libraries(04_par_do_multiple_outputs PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
   library-cpp-cpuid_check
   cpp-roren-interface
   cpp-roren-yt
@@ -31,5 +29,9 @@ target_link_options(04_par_do_multiple_outputs PRIVATE
 )
 target_sources(04_par_do_multiple_outputs PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/examples/04_par_do_multiple_outputs/main.cpp
+)
+target_allocator(04_par_do_multiple_outputs
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(04_par_do_multiple_outputs)

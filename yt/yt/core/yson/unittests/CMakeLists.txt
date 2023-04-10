@@ -42,7 +42,6 @@ target_link_libraries(unittester-core-yson PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-ytalloc-impl
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
@@ -95,6 +94,9 @@ set_property(
   PROPERTY
   PROCESSORS
   4
+)
+target_allocator(unittester-core-yson
+  cpp-ytalloc-impl
 )
 target_proto_addincls(unittester-core-yson
   ./yt

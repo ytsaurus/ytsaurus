@@ -15,8 +15,6 @@ target_link_libraries(cuda_core_dump_simulator PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
   library-cpp-cpuid_check
 )
 target_link_options(cuda_core_dump_simulator PRIVATE
@@ -31,5 +29,9 @@ target_link_options(cuda_core_dump_simulator PRIVATE
 )
 target_sources(cuda_core_dump_simulator PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/tests/cuda_core_dump_simulator/main.c
+)
+target_allocator(cuda_core_dump_simulator
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(cuda_core_dump_simulator)

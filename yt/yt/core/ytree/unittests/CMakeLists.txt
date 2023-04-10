@@ -36,7 +36,6 @@ target_link_libraries(unittester-core-ytree PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-ytalloc-impl
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
@@ -96,6 +95,9 @@ generate_enum_serilization(unittester-core-ytree
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/serialize_ut.h
   INCLUDE_HEADERS
   yt/yt/core/ytree/unittests/serialize_ut.h
+)
+target_allocator(unittester-core-ytree
+  cpp-ytalloc-impl
 )
 target_proto_addincls(unittester-core-ytree
   ./yt

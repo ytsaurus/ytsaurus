@@ -15,8 +15,6 @@ target_link_libraries(deps PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
   library-cpp-cpuid_check
   yt-library-profiling
 )
@@ -32,5 +30,9 @@ target_link_options(deps PRIVATE
 )
 target_sources(deps PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/deps/main.cpp
+)
+target_allocator(deps
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(deps)

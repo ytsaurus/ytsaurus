@@ -15,8 +15,6 @@ target_link_libraries(yt-yt-library-tracing-unittests PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
@@ -55,5 +53,9 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(yt-yt-library-tracing-unittests
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(yt-yt-library-tracing-unittests)

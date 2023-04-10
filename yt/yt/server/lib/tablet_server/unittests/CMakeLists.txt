@@ -12,7 +12,6 @@ target_link_libraries(unittester-server-lib-tablet_server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-ytalloc-impl
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
@@ -55,5 +54,8 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-server-lib-tablet_server
+  cpp-ytalloc-impl
 )
 vcs_info(unittester-server-lib-tablet_server)

@@ -15,8 +15,6 @@ target_link_libraries(tracing-example PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
   library-cpp-cpuid_check
   library-tracing-jaeger
 )
@@ -33,5 +31,9 @@ target_link_options(tracing-example PRIVATE
 )
 target_sources(tracing-example PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/tracing/example/main.cpp
+)
+target_allocator(tracing-example
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(tracing-example)

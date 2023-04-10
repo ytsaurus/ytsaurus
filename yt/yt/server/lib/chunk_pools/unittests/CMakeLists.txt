@@ -15,8 +15,6 @@ target_link_libraries(unittester-chunk-pools PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
@@ -66,5 +64,9 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-chunk-pools
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 vcs_info(unittester-chunk-pools)

@@ -12,7 +12,6 @@ target_link_libraries(run_codec PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-lfalloc-yt
   library-cpp-cpuid_check
   yt-yt-core
 )
@@ -29,5 +28,8 @@ target_link_options(run_codec PRIVATE
 )
 target_sources(run_codec PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/run_codec/main.cpp
+)
+target_allocator(run_codec
+  cpp-lfalloc-yt
 )
 vcs_info(run_codec)

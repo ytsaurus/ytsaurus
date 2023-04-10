@@ -15,8 +15,6 @@ target_link_libraries(ytserver-cypress-proxy PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
   library-cpp-cpuid_check
   yt-server-cypress_proxy
 )
@@ -33,5 +31,9 @@ target_link_options(ytserver-cypress-proxy PRIVATE
 )
 target_sources(ytserver-cypress-proxy PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/bin/main.cpp
+)
+target_allocator(ytserver-cypress-proxy
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 vcs_info(ytserver-cypress-proxy)

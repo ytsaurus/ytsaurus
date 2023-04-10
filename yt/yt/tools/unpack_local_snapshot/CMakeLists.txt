@@ -15,8 +15,6 @@ target_link_libraries(unpack-local-snapshot PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
   library-cpp-cpuid_check
   yt-yt-core
   yt-library-program
@@ -36,5 +34,9 @@ target_link_options(unpack-local-snapshot PRIVATE
 )
 target_sources(unpack-local-snapshot PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/unpack_local_snapshot/main.cpp
+)
+target_allocator(unpack-local-snapshot
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 vcs_info(unpack-local-snapshot)

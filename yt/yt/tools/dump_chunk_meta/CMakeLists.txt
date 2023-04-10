@@ -15,8 +15,6 @@ target_link_libraries(dump-chunk-meta PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
   library-cpp-cpuid_check
   server-lib-io
   yt-yt-ytlib
@@ -37,5 +35,9 @@ target_link_options(dump-chunk-meta PRIVATE
 )
 target_sources(dump-chunk-meta PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/dump_chunk_meta/main.cpp
+)
+target_allocator(dump-chunk-meta
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 vcs_info(dump-chunk-meta)

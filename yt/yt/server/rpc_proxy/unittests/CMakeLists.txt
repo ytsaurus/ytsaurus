@@ -15,8 +15,6 @@ target_link_libraries(unittester-rpc-proxy PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
@@ -55,5 +53,9 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-rpc-proxy
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 vcs_info(unittester-rpc-proxy)

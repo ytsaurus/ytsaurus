@@ -15,8 +15,6 @@ target_link_libraries(recode-table-chunk PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
   library-cpp-cpuid_check
   yt-yt-core
   yt-yt-ytlib
@@ -37,5 +35,9 @@ target_link_options(recode-table-chunk PRIVATE
 )
 target_sources(recode-table-chunk PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/recode_table_chunk/main.cpp
+)
+target_allocator(recode-table-chunk
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 vcs_info(recode-table-chunk)

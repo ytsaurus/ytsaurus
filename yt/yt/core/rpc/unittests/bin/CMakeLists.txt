@@ -15,8 +15,6 @@ target_link_libraries(bin PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
   library-cpp-cpuid_check
   rpc-unittests-lib
 )
@@ -33,5 +31,9 @@ target_link_options(bin PRIVATE
 )
 target_sources(bin PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/bin/main.cpp
+)
+target_allocator(bin
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(bin)

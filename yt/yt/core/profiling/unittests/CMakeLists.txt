@@ -18,7 +18,6 @@ target_link_libraries(unittester-core-profiling PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-ytalloc-impl
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
@@ -60,5 +59,8 @@ set_property(
   PROPERTY
   PROCESSORS
   4
+)
+target_allocator(unittester-core-profiling
+  cpp-ytalloc-impl
 )
 vcs_info(unittester-core-profiling)

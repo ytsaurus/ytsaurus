@@ -12,7 +12,6 @@ target_link_libraries(rpc_proxy_example PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-ytalloc-impl
   library-cpp-cpuid_check
   yt-yt-core
   yt-yt-client
@@ -32,5 +31,8 @@ target_link_options(rpc_proxy_example PRIVATE
 )
 target_sources(rpc_proxy_example PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/examples/rpc_proxy_sample/main.cpp
+)
+target_allocator(rpc_proxy_example
+  cpp-ytalloc-impl
 )
 vcs_info(rpc_proxy_example)

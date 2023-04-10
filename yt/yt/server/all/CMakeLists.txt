@@ -16,8 +16,6 @@ target_link_libraries(ytserver-all PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
   library-cpp-cpuid_check
   library-query-engine
   library-query-row_comparer
@@ -56,5 +54,9 @@ target_link_options(ytserver-all PRIVATE
 )
 target_sources(ytserver-all PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/all/main.cpp
+)
+target_allocator(ytserver-all
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 vcs_info(ytserver-all)

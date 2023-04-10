@@ -16,8 +16,6 @@ target_link_libraries(yt-yt-library-profiling-unittests PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  contrib-libs-tcmalloc
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
@@ -68,5 +66,9 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(yt-yt-library-profiling-unittests
+  cpp-malloc-tcmalloc
+  contrib-libs-tcmalloc
 )
 vcs_info(yt-yt-library-profiling-unittests)

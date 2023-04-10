@@ -18,8 +18,6 @@ target_link_libraries(unittester-yt-library-numeric PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
@@ -58,5 +56,9 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-yt-library-numeric
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 vcs_info(unittester-yt-library-numeric)

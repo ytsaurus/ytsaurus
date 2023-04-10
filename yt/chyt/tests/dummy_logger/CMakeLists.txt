@@ -15,7 +15,6 @@ target_link_libraries(dummy-logger PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-ytalloc-impl
   library-cpp-cpuid_check
 )
 target_link_options(dummy-logger PRIVATE
@@ -30,5 +29,8 @@ target_link_options(dummy-logger PRIVATE
 )
 target_sources(dummy-logger PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/chyt/tests/dummy_logger/main.cpp
+)
+target_allocator(dummy-logger
+  cpp-ytalloc-impl
 )
 vcs_info(dummy-logger)

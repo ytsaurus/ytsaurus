@@ -15,8 +15,6 @@ target_link_libraries(unittester-server-lib-misc PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
@@ -56,5 +54,9 @@ set_property(
   PROPERTY
   PROCESSORS
   1
+)
+target_allocator(unittester-server-lib-misc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 vcs_info(unittester-server-lib-misc)

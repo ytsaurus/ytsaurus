@@ -15,7 +15,6 @@ target_link_libraries(scheduler_simulator PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-ytalloc-impl
   library-cpp-cpuid_check
   yt-tools-scheduler_simulator
   cpp-yt-phdr_cache
@@ -34,5 +33,8 @@ target_link_options(scheduler_simulator PRIVATE
 )
 target_sources(scheduler_simulator PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/bin/simulator/main.cpp
+)
+target_allocator(scheduler_simulator
+  cpp-ytalloc-impl
 )
 vcs_info(scheduler_simulator)
