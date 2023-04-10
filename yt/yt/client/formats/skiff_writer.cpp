@@ -1010,7 +1010,13 @@ private:
             SkiffWriter_->Flush();
             TryFlushBuffer(false);
         }
-        TryFlushBuffer(true);
+        Flush();
+    }
+
+    void Flush() override
+    {
+        SkiffWriter_->Flush();
+        TSchemalessFormatWriterBase::Flush();
     }
 
     TFuture<void> Close() override
