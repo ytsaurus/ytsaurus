@@ -53,7 +53,7 @@ private:
     const NLogging::TLogger Logger;
 
     // Transient state.
-    EHunkStoreState State_;
+    EHunkStoreState State_ = EHunkStoreState::Undefined;
 
     THashMap<TTabletId, int> TabletIdToLockCount_;
 
