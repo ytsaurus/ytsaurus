@@ -9904,7 +9904,7 @@ TOutputStreamDescriptorPtr TOperationControllerBase::GetIntermediateStreamDescri
     descriptor->TableWriterConfig = BuildYsonStringFluently()
         .BeginMap()
             .Item("upload_replication_factor").Value(Spec_->IntermediateDataReplicationFactor)
-            .Item("min_upload_replication_factor").Value(1)
+            .Item("min_upload_replication_factor").Value(Spec_->IntermediateMinDataReplicationFactor)
             .Item("populate_cache").Value(true)
             .Item("sync_on_close").Value(Spec_->IntermediateDataSyncOnClose)
             .DoIf(Spec_->IntermediateDataReplicationFactor > 1, [&] (TFluentMap fluent) {

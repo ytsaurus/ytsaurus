@@ -530,6 +530,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(NCompression::ECodec::Lz4);
     registrar.Parameter("intermediate_data_replication_factor", &TThis::IntermediateDataReplicationFactor)
         .Default(2);
+    registrar.Parameter("intermediate_min_data_replication_factor", &TThis::IntermediateMinDataReplicationFactor)
+        .Default(1);
     registrar.Parameter("intermediate_data_sync_on_close", &TThis::IntermediateDataSyncOnClose)
         .Default(false);
     registrar.Parameter("intermediate_data_medium", &TThis::IntermediateDataMediumName)
