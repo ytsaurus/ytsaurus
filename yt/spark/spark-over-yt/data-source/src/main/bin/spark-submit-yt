@@ -4,6 +4,9 @@ import sys
 import os
 import subprocess
 
+from spyt.dependency_utils import require_yt_client
+require_yt_client()
+
 from yt.wrapper import YtClient
 from spyt.standalone import raw_submit
 from spyt import utils as spark_utils

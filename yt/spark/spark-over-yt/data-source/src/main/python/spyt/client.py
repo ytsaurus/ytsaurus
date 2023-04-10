@@ -4,6 +4,10 @@ import sys
 from contextlib import contextmanager
 
 from py4j.protocol import Py4JError
+
+from spyt.dependency_utils import require_yt_client
+require_yt_client()
+
 from yt.wrapper import YtClient, get
 from yt.wrapper.http_helpers import get_token, get_user_name
 

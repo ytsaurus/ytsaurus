@@ -1,5 +1,8 @@
 import logging
 
+from spyt.dependency_utils import require_yt_client
+require_yt_client()
+
 from yt.wrapper import get, YPath, list as yt_list, exists
 from yt.wrapper.common import update_inplace
 from .version import __scala_version__

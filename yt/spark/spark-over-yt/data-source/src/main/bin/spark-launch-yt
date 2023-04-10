@@ -4,6 +4,9 @@ import sys
 import os
 import subprocess
 
+from spyt.dependency_utils import require_yt_client
+require_yt_client()
+
 from yt.wrapper import YtClient
 from yt.wrapper.cli_helpers import ParseStructuredArgument
 from yt.wrapper.http_helpers import get_user_name

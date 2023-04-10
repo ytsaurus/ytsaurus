@@ -6,6 +6,9 @@ import re
 import subprocess
 import uuid
 
+from spyt.dependency_utils import require_yt_client
+require_yt_client()
+
 from yt.wrapper.common import update_inplace, update
 from yt.wrapper.cypress_commands import exists, move
 from yt.wrapper.acl_commands import check_permission

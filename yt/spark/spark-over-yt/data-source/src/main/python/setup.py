@@ -23,7 +23,6 @@ setuptools.setup(
     ],
     install_requires=[
         'ytsaurus-pyspark=={}'.format(__spark_version__),
-        'ytsaurus-client',
         'pyarrow',
         'pyyaml'
     ],

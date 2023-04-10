@@ -5,6 +5,9 @@ import os
 import re
 import subprocess
 
+from spyt.dependency_utils import require_yt_client
+require_yt_client()
+
 from yt.wrapper import YPath
 from yt.wrapper.cypress_commands import list as yt_list, create, exists
 from yt.wrapper.errors import YtHttpResponseError
