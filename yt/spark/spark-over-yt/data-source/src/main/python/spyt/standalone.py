@@ -4,10 +4,12 @@ import logging
 import os
 import re
 import subprocess
+import uuid
 
 from yt.wrapper.common import update_inplace, update
-from yt.wrapper.cypress_commands import exists
+from yt.wrapper.cypress_commands import exists, move
 from yt.wrapper.acl_commands import check_permission
+from yt.wrapper.file_commands import upload_file_to_cache
 from yt.wrapper.http_helpers import get_token, get_user_name, get_proxy_url
 from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state, \
     abort_operation, get_operation_state
@@ -186,7 +188,8 @@ def submit_python(discovery_path, spark_home, deploy_mode, spark_conf, main_py_p
                client=client)
 
 
-def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None, python_version=None, client=None):
+def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None,
+               python_version=None, local_files=True, client=None):
     spark_submit_path = "{}/bin/spark-submit".format(spark_home)
     spark_base_args = [spark_submit_path]
     permission_status = check_permission(user=client.get_user_name(),
@@ -207,6 +210,24 @@ def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None, python
     _add_python_version(python_version, spark_base_args, client)
     _add_dedicated_driver_op_conf(spark_base_args, dedicated_driver_op)
     spark_env = _create_spark_env(client, spark_home)
+
+    if local_files:
+        remote_paths = {}
+        new_spark_args = []
+        for spark_arg in spark_args:
+            if spark_arg.startswith('local:/'):
+                if spark_arg not in remote_paths:
+                    file_path = spark_arg[7:] # Drops prefix
+                    _, file_extension = os.path.splitext(file_path)
+                    destination = upload_file_to_cache(file_path, client=client)
+                    destination_ext = "{}{}".format(destination, file_extension)
+                    move(destination, destination_ext, client=client) # Extension is necessary
+                    logger.info("%s has been uploaded to YT as %s", file_path, destination_ext)
+                    remote_paths[spark_arg] = "yt:/{}".format(destination_ext)
+                new_spark_args.append(remote_paths[spark_arg])
+            else:
+                new_spark_args.append(spark_arg)
+        spark_args = new_spark_args
 
     # replace stdin to avoid https://bugs.openjdk.java.net/browse/JDK-8211842
     return subprocess.call(spark_base_args + spark_args, env=spark_env, stdin=subprocess.PIPE)

@@ -14,6 +14,10 @@ def main():
     parser.add_argument("--spyt-version", required=False)
     parser.add_argument("--python-version", required=False)
 
+    parser.add_argument('--no-local-files',
+                        dest='local_files', action='store_false')
+    parser.set_defaults(local_source=True)
+
     args, unknown_args = spark_utils.parse_args(parser)
 
     yt_client = YtClient(proxy=args.proxy, token=spark_utils.default_token())
@@ -23,6 +27,7 @@ def main():
                              spark_args=unknown_args,
                              spyt_version=args.spyt_version,
                              python_version=args.python_version,
+                             local_files=args.local_files,
                              client=yt_client)
     exit(return_code)
 
