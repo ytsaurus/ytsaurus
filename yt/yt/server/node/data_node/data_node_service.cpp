@@ -623,48 +623,6 @@ private:
         }
     }
 
-    std::vector<NChunkClient::TBlock> ReadBlocksFromP2P(
-        const TChunkId chunkId,
-        const std::vector<int>& blockIndexes,
-        const TChunkReaderStatisticsPtr& chunkReaderStatistics)
-    {
-        const auto& p2pBlockCache = Bootstrap_->GetP2PBlockCache();
-
-        // New P2P implementation stores blocks in separate block cache.
-        auto blocks = p2pBlockCache->LookupBlocks(chunkId, blockIndexes);
-
-        size_t bytesRead = 0;
-        for (const auto& block : blocks) {
-            if (block) {
-                bytesRead += block.Size();
-            }
-        }
-        if (bytesRead > 0) {
-            chunkReaderStatistics->DataBytesReadFromCache.fetch_add(
-                bytesRead,
-                std::memory_order::relaxed);
-            return blocks;
-        }
-
-        blocks = {};
-
-        auto blockCache = Bootstrap_->GetBlockCache();
-
-        // Old P2P implementation stores blocks in shared block cache.
-        auto type = NObjectClient::TypeFromId(chunkId);
-        if (type == NObjectClient::EObjectType::Chunk || type == NObjectClient::EObjectType::ErasureChunk) {
-            for (int blockIndex : blockIndexes) {
-                auto blockId = TBlockId(chunkId, blockIndex);
-                auto block = blockCache->FindBlock(blockId, EBlockType::CompressedData);
-                blocks.push_back(block);
-                chunkReaderStatistics->DataBytesReadFromCache.fetch_add(
-                    block.Size(),
-                    std::memory_order::relaxed);
-            }
-        }
-        return blocks;
-    }
-
     void AddBlockPeers(
         google::protobuf::RepeatedPtrField<TPeerDescriptor>* peers,
         const std::vector<TP2PSuggestion>& blockPeers)
@@ -878,8 +836,12 @@ private:
             }
 
             if (!chunk && options.FetchFromCache) {
-                blocks = ReadBlocksFromP2P(chunkId, blockIndexes, chunkReaderStatistics);
                 readFromP2P = true;
+
+                blocks = Bootstrap_->GetP2PBlockCache()->LookupBlocks(chunkId, blockIndexes);
+                chunkReaderStatistics->DataBytesReadFromCache.fetch_add(
+                    GetByteSize(blocks),
+                    std::memory_order::relaxed);
             } else if (chunk) {
                 auto blocksFuture = chunk->ReadBlockSet(
                     blockIndexes,
