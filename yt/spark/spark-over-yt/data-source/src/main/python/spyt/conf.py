@@ -117,7 +117,7 @@ def read_remote_conf(global_conf, cluster_version, client=None):
     version_conf_path = _get_version_conf_path(cluster_version)
     version_conf = get(version_conf_path, client=client)
     version_conf["cluster_version"] = cluster_version
-    return update_inplace(global_conf, version_conf)
+    return update_inplace(global_conf, version_conf) # TODO(alex-shishkin): Might cause undefined behaviour
 
 
 def read_cluster_conf(path=None, client=None):

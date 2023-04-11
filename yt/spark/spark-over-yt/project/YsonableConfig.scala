@@ -52,7 +52,6 @@ object YsonableConfig {
 
 case class SparkGlobalConfig(spark_conf: Map[String, String],
                              latest_spark_cluster_version: String,
-                             layer_paths: Seq[String] = SparkLaunchConfig.defaultLayers,
                              python_cluster_paths: Map[String, String] = Map(
                                "3.11" -> "/opt/python3.11/bin/python3.11",
                                "3.8" -> "/opt/python3.8/bin/python3.8",
