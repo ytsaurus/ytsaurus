@@ -61,8 +61,7 @@ struct TQueueTableRow
 
     static std::vector<TQueueTableRow> ParseRowRange(
         TRange<NTableClient::TUnversionedRow> rows,
-        const NTableClient::TNameTablePtr& nameTable,
-        const NTableClient::TTableSchemaPtr& schema);
+        const NTableClient::TNameTablePtr& nameTable);
 
     static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TQueueTableRow> rows);
     static NApi::IUnversionedRowsetPtr DeleteRowRange(TRange<TQueueTableRow> keys);
@@ -107,8 +106,7 @@ struct TConsumerTableRow
 
     static std::vector<TConsumerTableRow> ParseRowRange(
         TRange<NTableClient::TUnversionedRow> rows,
-        const NTableClient::TNameTablePtr& nameTable,
-        const NTableClient::TTableSchemaPtr& schema);
+        const NTableClient::TNameTablePtr& nameTable);
 
     static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TConsumerTableRow> rows);
     static NApi::IUnversionedRowsetPtr DeleteRowRange(TRange<TConsumerTableRow> keys);
@@ -145,8 +143,7 @@ struct TQueueAgentObjectMappingTableRow
 
     static std::vector<TQueueAgentObjectMappingTableRow> ParseRowRange(
         TRange<NTableClient::TUnversionedRow> rows,
-        const NTableClient::TNameTablePtr& nameTable,
-        const NTableClient::TTableSchemaPtr& schema);
+        const NTableClient::TNameTablePtr& nameTable);
 
     static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TQueueAgentObjectMappingTableRow> rows);
     static NApi::IUnversionedRowsetPtr DeleteRowRange(TRange<TQueueAgentObjectMappingTableRow> keys);
@@ -175,8 +172,7 @@ struct TConsumerRegistrationTableRow
 
     static std::vector<TConsumerRegistrationTableRow> ParseRowRange(
         TRange<NTableClient::TUnversionedRow> rows,
-        const NTableClient::TNameTablePtr& nameTable,
-        const NTableClient::TTableSchemaPtr& schema);
+        const NTableClient::TNameTablePtr& nameTable);
 
     static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TConsumerRegistrationTableRow> rows);
     static NApi::IUnversionedRowsetPtr DeleteRowRange(TRange<TConsumerRegistrationTableRow> keys);

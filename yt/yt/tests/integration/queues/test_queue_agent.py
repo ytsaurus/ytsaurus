@@ -492,13 +492,13 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
         wrong_schema = copy.deepcopy(init_queue_agent_state.QUEUE_TABLE_SCHEMA)
         for i in range(len(wrong_schema)):
-            if wrong_schema[i]["name"] == "object_type":
-                wrong_schema[i]["type"] = "int64"
+            if wrong_schema[i]["name"] == "cluster":
+                wrong_schema.pop(i)
                 break
         self._prepare_tables(queue_table_schema=wrong_schema)
 
         orchid.wait_fresh_pass()
-        assert_yt_error(orchid.get_pass_error(), "Row range schema is incompatible with queue table row schema")
+        assert_yt_error(orchid.get_pass_error(), "No such column")
 
         self._prepare_tables(force=True)
         orchid.wait_fresh_pass()

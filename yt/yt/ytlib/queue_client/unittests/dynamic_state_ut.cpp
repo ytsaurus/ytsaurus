@@ -44,7 +44,7 @@ void CheckConversions(
 {
     auto row0 = TRow::FromAttributeDictionary(object, rowRevision, cypressAttributes);
     auto rowset = TRow::InsertRowRange({row0});
-    auto row1 = TRow::ParseRowRange(rowset->GetRows(), rowset->GetNameTable(), rowset->GetSchema())[0];
+    auto row1 = TRow::ParseRowRange(rowset->GetRows(), rowset->GetNameTable())[0];
     EXPECT_EQ(row0, expectedRow);
     EXPECT_EQ(row1, expectedRow);
 }
