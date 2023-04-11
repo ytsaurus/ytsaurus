@@ -530,12 +530,7 @@ private:
             channelKind,
             cellTag,
             /*stickyGroupSizeCache*/ nullptr);
-        auto batchReq = proxy.ExecuteBatch();
-
-        auto* prerequisitesExt = batchReq->Header().MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
-        ToProto(prerequisitesExt->add_transactions()->mutable_transaction_id(), Bootstrap_->GetControllerAgent()->GetIncarnationId());
-
-        return batchReq;
+        return proxy.ExecuteBatch();
     }
 
     TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequestWithPrerequisites(
