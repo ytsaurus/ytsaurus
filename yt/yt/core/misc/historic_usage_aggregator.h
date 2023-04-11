@@ -53,4 +53,28 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAverageHistoricUsageAggregator
+{
+public:
+    explicit TAverageHistoricUsageAggregator(TDuration period = TDuration::Seconds(1));
+
+    void UpdateParameters(THistoricUsageAggregationParameters params);
+
+    double GetHistoricUsage();
+
+    void UpdateAt(TInstant now, double value);
+
+private:
+    const TDuration Period_;
+
+    TInstant IntervalStart_ = TInstant::Zero();
+    double CurrentUsage_ = 0;
+
+    THistoricUsageAggregator HistoricUsageAggregator_;
+
+    void MaybeFlush(TInstant now);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

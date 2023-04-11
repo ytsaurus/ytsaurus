@@ -206,7 +206,7 @@ private:
     TGauge Usage_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistoricUsageAggregatorLock_);
-    THistoricUsageAggregator HistoricUsageAggregator_;
+    TAverageHistoricUsageAggregator HistoricUsageAggregator_;
 
     void UpdateHistoricUsage(i64 amount)
     {

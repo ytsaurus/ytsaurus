@@ -1,5 +1,7 @@
 #include "historic_usage_aggregator.h"
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include <library/cpp/yt/assert/assert.h>
 
 #include <util/generic/ymath.h>
@@ -70,6 +72,52 @@ void THistoricUsageAggregator::UpdateAt(TInstant now, double value)
 double THistoricUsageAggregator::GetHistoricUsage() const
 {
     return ExponentialMovingAverage_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAverageHistoricUsageAggregator::TAverageHistoricUsageAggregator(TDuration period)
+    : Period_(period)
+{ }
+
+void TAverageHistoricUsageAggregator::UpdateParameters(THistoricUsageAggregationParameters params)
+{
+    HistoricUsageAggregator_.UpdateParameters(params);
+}
+
+double TAverageHistoricUsageAggregator::GetHistoricUsage()
+{
+    auto now = NProfiling::GetInstant();
+    MaybeFlush(now);
+    return HistoricUsageAggregator_.GetHistoricUsage();
+}
+
+void TAverageHistoricUsageAggregator::UpdateAt(TInstant now, double value)
+{
+    MaybeFlush(now);
+    CurrentUsage_ += value;
+}
+
+void TAverageHistoricUsageAggregator::MaybeFlush(TInstant now)
+{
+    if (!IntervalStart_) {
+        IntervalStart_ = now;
+        return;
+    }
+
+    YT_VERIFY(now >= IntervalStart_);
+    auto diff = now - IntervalStart_;
+    if (diff < Period_) {
+        return;
+    }
+
+    auto ratio = diff / Period_;
+    auto usagePerPeriod = CurrentUsage_ / ratio;
+
+    HistoricUsageAggregator_.UpdateAt(now, usagePerPeriod);
+
+    IntervalStart_ = now;
+    CurrentUsage_ = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
