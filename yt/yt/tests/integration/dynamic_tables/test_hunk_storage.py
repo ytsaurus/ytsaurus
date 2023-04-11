@@ -227,7 +227,7 @@ class TestHunkStorage(YTEnvSetup):
         sync_create_cells(1)
         self._create_hunk_storage("//tmp/h")
 
-        set("//tmp/h/@hunk_store_writer", {"desired_chunk_size": 10})
+        set("//tmp/h/@hunk_store_writer", {"desired_chunk_size": 500})
         set("//tmp/h/@store_rotation_period", 1000)
         set("//tmp/h/@store_removal_grace_period", 1000)
 
