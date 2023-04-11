@@ -63,6 +63,7 @@
 
 // Language tokens.
 
+%token KwSelect "keyword `SELECT`"
 %token KwFrom "keyword `FROM`"
 %token KwWhere "keyword `WHERE`"
 %token KwHaving "keyword `HAVING`"
@@ -200,7 +201,13 @@ select-clause
         {
             std::get<TQuery>(head->Ast).SelectExprs = $projections;
         }
+    | KwSelect comma-expr[projections]
+        {
+            std::get<TQuery>(head->Ast).SelectExprs = $projections;
+        }
     | Asterisk
+        { }
+    | KwSelect Asterisk
         { }
 ;
 
