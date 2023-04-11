@@ -359,7 +359,7 @@ void FiberTrampoline()
             // We wrap fiberThread->OnExecute() into a propagating storage guard to ensure
             // that the propagating storage created there won't spill into the fiber callbacks.
             TNullPropagatingStorageGuard guard;
-            //YT_VERIFY(!guard.GetOldStorage().IsNull());
+            YT_VERIFY(guard.GetOldStorage().IsNull());
             callback = fiberThread->OnExecute();
         }
 
