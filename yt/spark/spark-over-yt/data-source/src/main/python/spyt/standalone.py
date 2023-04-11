@@ -10,7 +10,7 @@ from spyt.dependency_utils import require_yt_client
 require_yt_client()
 
 from yt.wrapper.common import update_inplace, update
-from yt.wrapper.cypress_commands import exists, copy
+from yt.wrapper.cypress_commands import exists, copy as cypress_copy
 from yt.wrapper.acl_commands import check_permission
 from yt.wrapper.file_commands import upload_file_to_cache
 from yt.wrapper.http_helpers import get_token, get_user_name, get_proxy_url
@@ -224,7 +224,7 @@ def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None,
                     _, file_extension = os.path.splitext(file_path)
                     destination = upload_file_to_cache(file_path, client=client)
                     destination_ext = "{}{}".format(destination, file_extension)
-                    copy(destination, destination_ext, ignore_existing=True, client=client) # Extension is necessary
+                    cypress_copy(destination, destination_ext, ignore_existing=True, client=client) # Extension is necessary
                     logger.info("%s has been uploaded to YT as %s", file_path, destination_ext)
                     remote_paths[spark_arg] = "yt:/{}".format(destination_ext)
                 new_spark_args.append(remote_paths[spark_arg])
