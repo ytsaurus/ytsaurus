@@ -994,6 +994,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("fast_intermediate_medium_limit", &TThis::FastIntermediateMediumLimit)
         .Default(0);
 
+    registrar.Parameter("release_failed_job_in_case_of_exception", &TThis::ReleaseFailedJobInCaseOfException)
+        .Default(true);
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;
         if (!config->EventLog->Path) {

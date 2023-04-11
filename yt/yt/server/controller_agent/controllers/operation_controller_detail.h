@@ -1481,6 +1481,8 @@ private:
     bool NeedEraseOffloadingTrees() const;
 
     void SendRunningJobTimeStatisticsUpdates();
+
+    void RemoveRemainingJobsOnOperationFinished();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

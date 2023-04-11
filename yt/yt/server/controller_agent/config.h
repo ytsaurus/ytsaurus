@@ -1118,6 +1118,8 @@ public:
 
     TDuration RunningJobTimeStatisticsUpdatesSendPeriod;
 
+    bool ReleaseFailedJobInCaseOfException;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig)
 
     static void Register(TRegistrar registrar);

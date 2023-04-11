@@ -1388,6 +1388,8 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 
 void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason)
 {
+    YT_LOG_DEBUG("Aborting all joblets (AbortReason: %v)", abortReason);
+
     auto now = TInstant::Now();
     for (const auto& [jobId, joblet] : JobletMap) {
         auto jobSummary = TAbortedJobSummary(jobId, abortReason);
@@ -2242,6 +2244,10 @@ void TOperationControllerBase::FinalizeFeatures()
 void TOperationControllerBase::SafeCommit()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+
+    YT_LOG_INFO("Commiting results");
+
+    RemoveRemainingJobsOnOperationFinished();
 
     FinalizeFeatures();
 
@@ -3204,9 +3210,9 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
 
     auto finally = Finally(
         [&] () {
-            if (std::uncaught_exceptions() == 0) {
-                ReleaseJobs({jobId});
-            }
+            // TODO(pogorelov): Remove current exception checking.
+            if (std::uncaught_exceptions() == 0 || Config->ReleaseFailedJobInCaseOfException)
+            ReleaseJobs({jobId});
         }
     );
 
@@ -4029,6 +4035,8 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
 
     YT_LOG_INFO("Terminating operation controller");
+
+    RemoveRemainingJobsOnOperationFinished();
 
     if (Spec_->TestingOperationOptions->ThrowExceptionDuringOperationAbort) {
         THROW_ERROR_EXCEPTION("Test exception");
@@ -8182,12 +8190,6 @@ void TOperationControllerBase::Dispose()
             State.load(),
             TotalTimePerTree_);
     }
-
-    auto headCookie = CompletedJobIdsReleaseQueue_.Checkpoint();
-    YT_LOG_INFO("Releasing jobs on controller disposal (HeadCookie: %v)",
-        headCookie);
-    auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release();
-    ReleaseJobs(jobIdsToRelease);
 }
 
 void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update)
@@ -8884,6 +8886,16 @@ void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
 
 void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    YT_LOG_DEBUG(
+        "Releasing jobs (JobCount: %v)",
+        std::size(jobIds));
+
+    if (std::empty(jobIds)) {
+        return;
+    }
+
     std::vector<TJobToRelease> jobsToRelease;
     jobsToRelease.reserve(jobIds.size());
 
@@ -10396,6 +10408,19 @@ void TOperationControllerBase::SendRunningJobTimeStatisticsUpdates()
 
     Host->UpdateRunningJobsStatistics(std::move(runningJobTimeStatisticsUpdates));
     RunningJobTimeStatisticsUpdates_.clear();
+}
+
+void TOperationControllerBase::RemoveRemainingJobsOnOperationFinished()
+{
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+
+    AbortAllJoblets(EAbortReason::OperationFinished);
+
+    auto headCookie = CompletedJobIdsReleaseQueue_.Checkpoint();
+    YT_LOG_INFO("Releasing jobs on controller finished (HeadCookie: %v)",
+        headCookie);
+    auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release();
+    ReleaseJobs(jobIdsToRelease);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
