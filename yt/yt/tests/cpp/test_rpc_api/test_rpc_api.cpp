@@ -16,6 +16,7 @@
 #include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/api/table_writer.h>
 
+#include <yt/yt/client/api/rpc_proxy/client_impl.h>
 #include <yt/yt/client/api/rpc_proxy/helpers.h>
 #include <yt/yt/client/api/rpc_proxy/public.h>
 
@@ -26,7 +27,6 @@
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
-#include <yt/yt/client/api/rpc_proxy/client_impl.h>
 
 #include <yt/yt/client/ypath/rich.h>
 
@@ -784,27 +784,27 @@ TEST_F(TClearTmpTestBase, TestEmptyTableSkiffReading_YT18817)
 
         req->set_desired_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_FORMAT);
         auto format = BuildYsonStringFluently()
-        .BeginAttributes()
-            .Item("table_skiff_schemas")
-            .BeginList()
-                .Item()
-                .BeginMap()
-                    .Item("wire_type")
-                    .Value("tuple")
-                    .Item("children")
-                    .BeginList()
-                        .Item()
-                        .BeginMap()
-                            .Item("wire_type")
-                            .Value("int64")
-                            .Item("name")
-                            .Value("a")
-                        .EndMap()
-                    .EndList()
-                .EndMap()
-            .EndList()
-        .EndAttributes()
-        .Value("skiff");
+            .BeginAttributes()
+                .Item("table_skiff_schemas")
+                .BeginList()
+                    .Item()
+                    .BeginMap()
+                        .Item("wire_type")
+                        .Value("tuple")
+                        .Item("children")
+                        .BeginList()
+                            .Item()
+                            .BeginMap()
+                                .Item("wire_type")
+                                .Value("int64")
+                                .Item("name")
+                                .Value("a")
+                            .EndMap()
+                        .EndList()
+                    .EndMap()
+                .EndList()
+            .EndAttributes()
+            .Value("skiff");
 
         req->set_format(format.ToString());
 
