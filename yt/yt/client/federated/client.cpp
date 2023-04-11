@@ -196,9 +196,9 @@ private:
     template <typename TResultType>
     auto CreateResultHandler();
 
-    TClientPtr Client_;
-    int ClientIndex_;
-    ITransactionPtr Underlying_;
+    const TClientPtr Client_;
+    const int ClientIndex_;
+    const ITransactionPtr Underlying_;
 };
 
 DECLARE_REFCOUNTED_TYPE(TTransaction);
@@ -537,7 +537,7 @@ TClient::TClient(const std::vector<IClientPtr>& underlyingClients, TFederationCo
     , Executor_(New<NConcurrency::TPeriodicExecutor>(
         NRpc::TDispatcher::Get()->GetLightInvoker(),
         BIND(&TClient::CheckClustersHealth, MakeWeak(this)),
-        Config_->CheckClustersHealthPeriod))
+        Config_->ClusterHealthCheckPeriod))
 {
     YT_VERIFY(!underlyingClients.empty());
 

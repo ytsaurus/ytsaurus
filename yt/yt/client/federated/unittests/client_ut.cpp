@@ -117,7 +117,7 @@ TEST(TFederatedClientTest, Basic)
     // Creation of federated client.
     std::vector<IClientPtr> clients = {mockClientSas, mockClientVla};
     auto config = New<TFederationConfig>();
-    config->CheckClustersHealthPeriod = TDuration::Seconds(5);
+    config->ClusterHealthCheckPeriod = TDuration::Seconds(5);
     config->ClusterRetryAttempts = 1;
     auto federatedClient = CreateClient(clients, config);
 
@@ -185,7 +185,7 @@ TEST(TFederatedClientTest, CheckHealth)
 
     std::vector<IClientPtr> clients = {mockClientSas, mockClientVla};
     auto config = New<TFederationConfig>();
-    config->CheckClustersHealthPeriod = TDuration::Seconds(5);
+    config->ClusterHealthCheckPeriod = TDuration::Seconds(5);
     config->ClusterRetryAttempts = 1;
     config->BundleName = "my_bundle";
 
@@ -276,7 +276,7 @@ TEST(TFederatedClientTest, Transactions)
     // Creation of federated client.
     std::vector<IClientPtr> clients = {mockClientSas, mockClientVla};
     auto config = New<TFederationConfig>();
-    config->CheckClustersHealthPeriod = TDuration::Seconds(5);
+    config->ClusterHealthCheckPeriod = TDuration::Seconds(5);
     config->ClusterRetryAttempts = 1;
     auto federatedClient = CreateClient(clients, config);
 
@@ -362,7 +362,7 @@ TEST(TFederatedClientTest, RetryWithoutTransaction)
     // Creation of federated client.
     std::vector<IClientPtr> clients = {mockClientSas, mockClientVla};
     auto config = New<TFederationConfig>();
-    config->CheckClustersHealthPeriod = TDuration::Seconds(5);
+    config->ClusterHealthCheckPeriod = TDuration::Seconds(5);
     auto federatedClient = CreateClient(clients, config);
 
     // 1. `vla` client should be used as closest cluster.
@@ -459,7 +459,7 @@ TEST(TFederatedClientTest, AttachTransaction)
     // Creation of federated client.
     std::vector<IClientPtr> clients = {mockClientSas, mockClientVla};
     auto config = New<TFederationConfig>();
-    config->CheckClustersHealthPeriod = TDuration::Seconds(5);
+    config->ClusterHealthCheckPeriod = TDuration::Seconds(5);
     auto federatedClient = CreateClient(clients, config);
 
     auto mockTransactionSas = New<TStrictMockTransaction>();

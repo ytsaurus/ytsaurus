@@ -11,7 +11,7 @@ void TFederationConfig::Register(TRegistrar registrar)
     registrar.Parameter("bundle_name", &TThis::BundleName)
         .Default();
 
-    registrar.Parameter("check_clusters_health_period", &TThis::CheckClustersHealthPeriod)
+    registrar.Parameter("cluster_health_check_period", &TThis::ClusterHealthCheckPeriod)
         .GreaterThan(TDuration::Zero())
         .Default(TDuration::Seconds(60));
 

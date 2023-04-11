@@ -8,14 +8,14 @@ namespace NYT::NClient::NFederated {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Method for creating federated connection with given underlying |connections|.
+//! Creates federated connection with given underlying |connections|.
 //! Federated connection is a wrapper for several connections with ability
 //! to create federated client with clients created by |connections| with the same |TAuthenticationOptions|.
 NApi::IConnectionPtr CreateConnection(
     std::vector<NApi::IConnectionPtr> connections,
     TFederationConfigPtr config);
 
-//! Method for creating federated connection with given |config| and |options|.
+//! Creates federated connection with given |config| and |options|.
 NApi::IConnectionPtr CreateConnection(
     TConnectionConfigPtr config,
     NApi::NRpcProxy::TConnectionOptions options);

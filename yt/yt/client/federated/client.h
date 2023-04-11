@@ -14,13 +14,13 @@
 //!
 //! Client in the same datacenter is more prior than other.
 //!
-//! Federated client implements IClient interface, but doesn't support
+//! Federated client implements IClient interface, but does not support
 //! the most of mutable methods (except modifications inside transactions).
 namespace NYT::NClient::NFederated {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Method for creating federated client with given underlying clients.
+//! Creates federated client with given underlying clients.
 NApi::IClientPtr CreateClient(const std::vector<NApi::IClientPtr>& clients, TFederationConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////

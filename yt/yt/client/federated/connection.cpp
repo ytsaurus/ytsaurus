@@ -3,14 +3,16 @@
 #include "config.h"
 #include "client.h"
 
-#include <library/cpp/yt/string/guid.h>
-#include <library/cpp/yt/string/string_builder.h>
-
 #include <yt/yt/client/api/rpc_proxy/config.h>
+
 #include <yt/yt/client/misc/method_helpers.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+
 #include <yt/yt/core/ytree/convert.h>
+
+#include <library/cpp/yt/string/guid.h>
+#include <library/cpp/yt/string/string_builder.h>
 
 namespace NYT::NClient::NFederated {
 
@@ -109,10 +111,9 @@ private:
 
 } // namespace
 
-
 NApi::IConnectionPtr CreateConnection(std::vector<NApi::IConnectionPtr> connections, TFederationConfigPtr config)
 {
-    return NYT::New<TConnection>(std::move(connections), nullptr, std::move(config));
+    return New<TConnection>(std::move(connections), nullptr, std::move(config));
 }
 
 NApi::IConnectionPtr CreateConnection(TConnectionConfigPtr config, NApi::NRpcProxy::TConnectionOptions options)
@@ -124,11 +125,11 @@ NApi::IConnectionPtr CreateConnection(TConnectionConfigPtr config, NApi::NRpcPro
     }
     std::vector<NApi::IConnectionPtr> connections;
     connections.reserve(config->RpcProxyConnections.size());
-    for (auto& rpcProxyConfig : config->RpcProxyConnections) {
+    for (const auto& rpcProxyConfig : config->RpcProxyConnections) {
         connections.push_back(NApi::NRpcProxy::CreateConnection(rpcProxyConfig, options));
     }
 
-    return NYT::New<TConnection>(std::move(connections), std::move(actionQueue), std::move(config));
+    return New<TConnection>(std::move(connections), std::move(actionQueue), std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

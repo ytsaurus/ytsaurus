@@ -20,7 +20,7 @@ public:
     std::optional<TString> BundleName;
 
     //! How often cluster liveness should be checked on the background.
-    TDuration CheckClustersHealthPeriod;
+    TDuration ClusterHealthCheckPeriod;
 
     //! Maximum number of retry attempts to make.
     int ClusterRetryAttempts;
@@ -36,7 +36,7 @@ class TConnectionConfig
     : public TFederationConfig
 {
 public:
-    //! The rpc connection config for participants clusters.
+    //! The RPC connection config for participants clusters.
     std::vector<NApi::NRpcProxy::TConnectionConfigPtr> RpcProxyConnections;
 
     REGISTER_YSON_STRUCT(TConnectionConfig);
