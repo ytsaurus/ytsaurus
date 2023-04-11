@@ -819,7 +819,14 @@ public:
         TThroughputThrottlerConfigPtr throttlerConfig,
         TDuration throttleRpcTimeout) override
     {
-        auto findThrottler = [&] (const TString& throttlerId) -> IReconfigurableThroughputThrottlerPtr {
+        auto updateUpdateQueue = [&, this] (const TWrappedThrottlerPtr& throttler) {
+            auto queueGuard = Guard(UpdateQueueLock_);
+            YT_VERIFY(throttler);
+            UpdateQueue_.emplace(throttlerId, MakeWeak(throttler));
+            UnreportedThrottlers_.insert(throttlerId);
+        };
+
+        auto findThrottler = [&] (const TString& throttlerId) -> TWrappedThrottlerPtr {
             auto it = Throttlers_->Throttlers.find(throttlerId);
             if (it == Throttlers_->Throttlers.end()) {
                 return nullptr;
@@ -829,39 +836,53 @@ public:
             if (!throttler) {
                 return nullptr;
             }
-
-            throttler->Reconfigure(std::move(throttlerConfig));
             return throttler;
         };
 
-        {
-            auto guard = ReaderGuard(Throttlers_->Lock);
-            if (auto throttler = findThrottler(throttlerId)) {
-                return throttler;
-            }
-        }
+        auto onThrottlerFound = [&] (const TWrappedThrottlerPtr& throttler) {
+            DistributedThrottlerService_->SetTotalLimit(throttlerId, throttlerConfig->Limit);
+            throttler->Reconfigure(std::move(throttlerConfig));
+            updateUpdateQueue(throttler);
+        };
 
         TWrappedThrottlerPtr wrappedThrottler;
 
+        // Fast path.
+        {
+            auto guard = ReaderGuard(Throttlers_->Lock);
+            wrappedThrottler = findThrottler(throttlerId);
+        }
+        if (wrappedThrottler) {
+            onThrottlerFound(wrappedThrottler);
+            return wrappedThrottler;
+        }
+
+        // Slow path.
+        IChannelPtr leaderChannel;
+        {
+            auto readerGuard = ReaderGuard(Lock_);
+            // NB: Could be null.
+            leaderChannel = LeaderChannel_;
+        }
+
         {
             auto guard = WriterGuard(Throttlers_->Lock);
-            if (auto throttler = findThrottler(throttlerId)) {
-                return throttler;
+            wrappedThrottler = findThrottler(throttlerId);
+            if (wrappedThrottler) {
+                guard.Release();
+                onThrottlerFound(wrappedThrottler);
+                return wrappedThrottler;
             }
 
             DistributedThrottlerService_->SetTotalLimit(throttlerId, throttlerConfig->Limit);
-
             wrappedThrottler = New<TWrappedThrottler>(
                 throttlerId,
                 Config_.Load(),
                 std::move(throttlerConfig),
                 throttleRpcTimeout,
                 Profiler_);
-            {
-                auto readerGuard = ReaderGuard(Lock_);
-                // NB: Could be null.
-                wrappedThrottler->SetLeaderChannel(LeaderChannel_);
-            }
+            wrappedThrottler->SetLeaderChannel(leaderChannel);
+
             auto wasEmpty = Throttlers_->Throttlers.empty();
             Throttlers_->Throttlers[throttlerId] = std::move(wrappedThrottler);
 
@@ -872,13 +893,7 @@ public:
             YT_LOG_DEBUG("Distributed throttler created (ThrottlerId: %v)", throttlerId);
         }
 
-        {
-            auto queueGuard = Guard(UpdateQueueLock_);
-            YT_VERIFY(wrappedThrottler);
-            UpdateQueue_.emplace(throttlerId, MakeWeak(wrappedThrottler));
-            UnreportedThrottlers_.insert(throttlerId);
-        }
-
+        updateUpdateQueue(wrappedThrottler);
         return wrappedThrottler;
     }
 
