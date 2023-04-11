@@ -23,6 +23,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ProbingBaseLayerPersistAlertCounts)   (301107))
     // 23.1 starts here
     ((InputStreamDescriptors)               (301200))
+    ((DoNotPersistJobReleaseFlags)          (301201))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

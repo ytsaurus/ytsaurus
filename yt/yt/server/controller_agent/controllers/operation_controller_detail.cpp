@@ -8890,6 +8890,7 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
     for (auto jobId : jobIds) {
         if (auto it = ReleaseJobFlags_.find(jobId); it != ReleaseJobFlags_.end()) {
             jobsToRelease.emplace_back(TJobToRelease{jobId, it->second});
+            ReleaseJobFlags_.erase(it);
         }
     }
     Host->ReleaseJobs(jobsToRelease);
@@ -9768,7 +9769,13 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, RetainedJobWithStderrCount_);
     Persist(context, RetainedJobsCoreInfoCount_);
     Persist(context, RetainedJobCount_);
-    Persist(context, ReleaseJobFlags_);
+
+    // COMPAT(pogorelov)
+    if (context.GetVersion() < ESnapshotVersion::DoNotPersistJobReleaseFlags) {
+        THashMap<TJobId, NJobTrackerClient::TReleaseJobFlags> releaseJobFlags;
+        Persist(context, releaseJobFlags);
+    }
+
     Persist(context, JobSpecCompletedArchiveCount_);
     Persist(context, FailedJobCount_);
     Persist(context, Sink_);
