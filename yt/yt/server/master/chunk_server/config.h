@@ -133,6 +133,9 @@ public:
     // COMPAT(aleksandra-zh)
     bool EnableQueueSizeLimitChanges;
 
+    // COMPAT(aleksandra-zh)
+    bool RespectAccountSpecificToggle;
+
     int MaxNodesBeingMerged;
 
     // For testing purposes.
