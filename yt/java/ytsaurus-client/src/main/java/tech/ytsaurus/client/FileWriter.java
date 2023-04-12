@@ -9,8 +9,10 @@ public interface FileWriter {
     CompletableFuture<Void> readyEvent();
 
     /**
-     * Attempts to write a bunch of #rows. If false is returned then the rows
-     * are not accepted and the client must invoke #GetReadyEvent and wait.
+     * Attempts to write a bunch of {@code data}.
+     * <p>
+     * If false is returned then the rows
+     * are not accepted and the client must invoke {@link #readyEvent} and wait.
      */
     boolean write(byte[] data, int offset, int len);
 

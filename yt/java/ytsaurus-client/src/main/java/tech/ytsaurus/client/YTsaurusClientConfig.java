@@ -25,12 +25,10 @@ import tech.ytsaurus.ysontree.YTreeNode;
 @NonNullFields
 public class YTsaurusClientConfig {
     private final RpcOptions rpcOptions;
-
     @Nullable
     private final YTreeNode specPatch;
     @Nullable
     private final YTreeNode jobSpecPatch;
-
     private final YPath tmpDir;
     private final JarsProcessor jarsProcessor;
     private final boolean isLocalMode;
@@ -62,6 +60,20 @@ public class YTsaurusClientConfig {
 
     public static Builder builder() {
         return new Builder().withPorto();
+    }
+
+    public Builder toBuilder() {
+        return builder()
+                .setRpcOptions(rpcOptions)
+                .setSpecPatch(specPatch)
+                .setJobSpecPatch(jobSpecPatch)
+                .setTmpDir(tmpDir)
+                .setJarsProcessor(jarsProcessor)
+                .setIsLocalMode(isLocalMode)
+                .setJavaBinary(javaBinary)
+                .setJavaOptions(javaOptions)
+                .setVersion(version)
+                .setOperationPingPeriod(operationPingPeriod);
     }
 
     public RpcOptions getRpcOptions() {

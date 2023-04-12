@@ -12,7 +12,7 @@ public interface AsyncReader<T> extends Closeable {
      *
      * @return future that is completed once all data is read or error occurred
      */
-    CompletableFuture<Void> acceptAllAsync(Consumer<T> consumer, Executor executor);
+    CompletableFuture<Void> acceptAllAsync(Consumer<? super T> consumer, Executor executor);
 
     /**
      * Low level interface: read next batch of data.

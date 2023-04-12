@@ -139,7 +139,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
     /**
      * Create builder for YTsaurusClient.
      */
-    public static ClientBuilder<?, ?> builder() {
+    public static ClientBuilder<? extends YTsaurusClient, ?> builder() {
         return new Builder();
     }
 
@@ -504,7 +504,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
     @NonNullFields
     @NonNullApi
     public abstract static class ClientBuilder<
-            TClient extends YTsaurusClient,
+            TClient,
             TBuilder extends ClientBuilder<TClient, TBuilder>>
             extends BaseBuilder<TClient, TBuilder> {
         @Nullable
@@ -515,11 +515,10 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
         @Nullable
         String proxyRole;
         List<YTsaurusCluster> clusters = new ArrayList<>();
-
         boolean enableValidation = true;
         Executor heavyExecutor = ForkJoinPool.commonPool();
 
-        ClientBuilder() {
+        protected ClientBuilder() {
         }
 
         /**
@@ -640,6 +639,22 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
             return self();
         }
 
+        protected <C, B extends ClientBuilder<C, B>> ClientBuilder<C, B> copyTo(ClientBuilder<C, B> builder) {
+            builder.auth = auth;
+            builder.compression = compression;
+            builder.config = config;
+
+            builder.busConnector = busConnector;
+            builder.isBusConnectorOwner = isBusConnectorOwner;
+            builder.preferredClusterName = preferredClusterName;
+            builder.proxyRole = proxyRole;
+            builder.clusters = clusters;
+            builder.enableValidation = enableValidation;
+            builder.heavyExecutor = heavyExecutor;
+
+            return builder;
+        }
+
         void validate() {
             if (!enableValidation) {
                 return;
@@ -686,7 +701,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
     //   user to initialize another YTsaurusClient.
     @NonNullFields
     public static class BuilderWithDefaults<
-            TClient extends YTsaurusClient,
+            TClient,
             TBuilder extends ClientBuilder<TClient, TBuilder>> {
         final ClientBuilder<TClient, TBuilder> builder;
         final BusConnector busConnector;

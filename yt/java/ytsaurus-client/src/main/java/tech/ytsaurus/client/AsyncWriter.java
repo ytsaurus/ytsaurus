@@ -19,7 +19,7 @@ public interface AsyncWriter<T> {
     CompletableFuture<?> finish();
 
     /**
-     * Start a process of cancellation
+     * Starts a process of cancellation
      */
     void cancel();
 }

@@ -167,7 +167,7 @@ class AsyncTableReaderImpl<T> extends TableReaderBaseImpl<T> implements AsyncRea
     }
 
     @Override
-    public CompletableFuture<Void> acceptAllAsync(Consumer<T> consumer, Executor executor) {
+    public CompletableFuture<Void> acceptAllAsync(Consumer<? super T> consumer, Executor executor) {
         return next().thenComposeAsync(rows -> {
             if (rows == null) {
                 return CompletableFuture.completedFuture(null);

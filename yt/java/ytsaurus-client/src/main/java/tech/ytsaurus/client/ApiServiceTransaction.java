@@ -327,6 +327,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
         return client.versionedLookupRows(request.toBuilder().setTimestamp(startTimestamp).build());
     }
 
+    @Override
     public CompletableFuture<UnversionedRowset> selectRows(String query) {
         return selectRows(SelectRowsRequest.of(query));
     }
@@ -398,6 +399,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
         return client.setNode(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
+    @Override
     public CompletableFuture<LockNodeResult> lockNode(LockNode req) {
         return client.lockNode(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }

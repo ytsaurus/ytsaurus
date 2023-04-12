@@ -37,6 +37,12 @@ public interface CompoundClient extends ApiServiceClient, Closeable {
             RetryPolicy retryPolicy
     );
 
+    /**
+     * Mount table and wait until all tablets become mounted.
+     *
+     * @see ApiServiceClient#mountTable(MountTable)
+     * @see MountTable
+     */
     CompletableFuture<Void> mountTableAndWaitTablets(MountTable req);
 
     default CompletableFuture<Void> mountTableAndWaitTablets(MountTable.BuilderBase<?> req) {

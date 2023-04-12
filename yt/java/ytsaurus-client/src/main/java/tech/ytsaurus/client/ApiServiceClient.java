@@ -137,6 +137,14 @@ public interface ApiServiceClient extends TransactionalClient {
         return gcCollect(new GcCollect(cellId));
     }
 
+    /**
+     * Mount table.
+     * <p>
+     * This method doesn't wait until tablets become mounted.
+     *
+     * @see MountTable
+     * @see CompoundClient#mountTableAndWaitTablets(MountTable)
+     */
     CompletableFuture<Void> mountTable(MountTable req);
 
     /**
