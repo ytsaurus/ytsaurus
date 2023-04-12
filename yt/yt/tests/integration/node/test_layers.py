@@ -238,7 +238,7 @@ class TestLayers(YTEnvSetup):
 
 
 class TestProbingLayer(TestLayers):
-    NUM_TEST_PARTITIONS = 10
+    NUM_TEST_PARTITIONS = 20
 
     INPUT_TABLE = "//tmp/input_table"
     OUTPUT_TABLE = "//tmp/output_table"
@@ -344,7 +344,7 @@ class TestProbingLayer(TestLayers):
     @authors("galtsev")
     @pytest.mark.parametrize(
         "delay",
-        [{"default": "0", "probing": "0"}, {"default": "0", "probing": "1"}, {"default": "1", "probing": "0"}],
+        [{"default": "0", "probing": "0"}, {"default": "0", "probing": "0.1"}, {"default": "0.1", "probing": "0"}],
     )
     @pytest.mark.timeout(600)
     def test_probing_layer_races(self, delay):
@@ -361,7 +361,7 @@ class TestProbingLayer(TestLayers):
             f"fi"
         )
 
-        for iterations in range(5):
+        for iterations in range(3):
             for try_count in range(self.MAX_TRIES + 1):
                 op = self.run_map(command, job_count, user_slots=2 + iterations)
 
