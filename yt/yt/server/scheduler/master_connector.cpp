@@ -1818,6 +1818,13 @@ private:
                 req->set_value(ConvertToYsonStringNestingLimited(operation->BuildAlertsString()).ToString());
             }
 
+            // Set slot index per pool tree.
+            {
+                auto req = multisetReq->add_subrequests();
+                req->set_attribute("slot_index_per_pool_tree");
+                req->set_value(ConvertToYsonStringNestingLimited(operation->GetSlotIndices()).ToString());
+            }
+
             // Set runtime parameters.
             {
                 bool enableHeavyRuntimeParameters = Config_->EnableHeavyRuntimeParameters;
