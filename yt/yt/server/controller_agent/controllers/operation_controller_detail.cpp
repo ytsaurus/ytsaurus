@@ -2245,7 +2245,7 @@ void TOperationControllerBase::SafeCommit()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
 
-    YT_LOG_INFO("Commiting results");
+    YT_LOG_INFO("Committing results");
 
     RemoveRemainingJobsOnOperationFinished();
 
@@ -3211,7 +3211,7 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
     auto finally = Finally(
         [&] () {
             // TODO(pogorelov): Remove current exception checking.
-            if (std::uncaught_exceptions() == 0 || Config->ReleaseFailedJobInCaseOfException)
+            if (std::uncaught_exceptions() == 0 || Config->ReleaseFailedJobOnException)
             ReleaseJobs({jobId});
         }
     );
@@ -10417,7 +10417,8 @@ void TOperationControllerBase::RemoveRemainingJobsOnOperationFinished()
     AbortAllJoblets(EAbortReason::OperationFinished);
 
     auto headCookie = CompletedJobIdsReleaseQueue_.Checkpoint();
-    YT_LOG_INFO("Releasing jobs on controller finished (HeadCookie: %v)",
+    YT_LOG_INFO(
+        "Releasing jobs on controller finish (HeadCookie: %v)",
         headCookie);
     auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release();
     ReleaseJobs(jobIdsToRelease);

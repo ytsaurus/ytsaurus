@@ -1258,7 +1258,10 @@ private:
         }
 
         for (const auto& job : context->JobsToForcefullySend) {
-            YT_LOG_DEBUG("Forcefully send already removed job (JobId: %v, JobState: %v)", job->GetId(), job->GetState());
+            YT_LOG_DEBUG(
+                "Forcefully send already removed job (JobId: %v, JobState: %v)",
+                job->GetId(),
+                job->GetState());
 
             YT_VERIFY(job->IsFinished());
 
@@ -1835,16 +1838,16 @@ private:
         }
     }
 
-    void ConfirmJobs(const std::vector<TJobId>& jobs)
+    void ConfirmJobs(const std::vector<TJobId>& jobIds)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         std::vector<TJobPtr> confirmedJobs;
         std::vector<TJobId> unconfirmedJobs;
 
-        confirmedJobs.reserve(std::size(jobs));
+        confirmedJobs.reserve(std::size(jobIds));
 
-        for (auto jobId : jobs) {
+        for (auto jobId : jobIds) {
             YT_LOG_DEBUG("Requested to confirm job (JobId: %v)", jobId);
 
             if (auto job = FindJob(jobId)) {
@@ -1860,7 +1863,7 @@ private:
 
                 confirmedJobs.push_back(std::move(job));
             } else {
-                YT_LOG_DEBUG("Job unconfimed (JobId: %v)", jobId);
+                YT_LOG_DEBUG("Job unconfirmed (JobId: %v)", jobId);
             }
         }
 
