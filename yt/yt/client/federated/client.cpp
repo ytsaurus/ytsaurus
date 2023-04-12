@@ -193,12 +193,11 @@ public:
     UNIMPLEMENTED_METHOD(IJournalWriterPtr, CreateJournalWriter, (const NYPath::TYPath&, const TJournalWriterOptions&));
 
 private:
-    template <typename TResultType>
-    auto CreateResultHandler();
-
     const TClientPtr Client_;
     const int ClientIndex_;
     const ITransactionPtr Underlying_;
+
+    void OnResult(const NYT::TErrorOr<void>& error);
 };
 
 DECLARE_REFCOUNTED_TYPE(TTransaction);
@@ -404,50 +403,14 @@ private:
         int ClientIndex;
     };
 
+    template <class T>
+    TFuture<T> DoCall(int retryAttemptsCount, const TCallback<TFuture<T>(const IClientPtr&, int)>& callee);
     void HandleError(const TErrorOr<void>& error, int clientIndex);
+
     void UpdateActiveClient();
     TActiveClientInfo GetActiveClient();
 
-    template <typename TReturnType, typename TRetryCallback>
-    auto CreateResultHandler(int clientIndex, int retryAttemptsCount, TRetryCallback callback);
-
     void CheckClustersHealth();
-
-    TFuture<IUnversionedRowsetPtr> DoLookupRows(
-        int retryAttemptsCount,
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TLegacyKey>& keys,
-        const TLookupRowsOptions& options);
-    TFuture<TSelectRowsResult> DoSelectRows(
-        int retryAttemptsCount,
-        const TString& query,
-        const TSelectRowsOptions& options);
-    TFuture<std::vector<IUnversionedRowsetPtr>> DoMultiLookup(
-        int retryAttemptsCount,
-        const std::vector<TMultiLookupSubrequest>&,
-        const TMultiLookupOptions&);
-    TFuture<IVersionedRowsetPtr> DoVersionedLookupRows(
-        int retryAttemptsCount,
-        const NYPath::TYPath&, NTableClient::TNameTablePtr,
-        const TSharedRange<NTableClient::TUnversionedRow>&,
-        const TVersionedLookupRowsOptions&);
-    TFuture<TPullRowsResult> DoPullRows(int retryAttemptsCount, const NYPath::TYPath&, const TPullRowsOptions&);
-
-    TFuture<NYson::TYsonString> DoExplainQuery(int retryAttemptsCount, const TString&, const TExplainQueryOptions&);
-
-    TFuture<NYson::TYsonString> DoGetNode(int retryAttemptsCount, const NYPath::TYPath&, const TGetNodeOptions&);
-    TFuture<NYson::TYsonString> DoListNode(int retryAttemptsCount, const NYPath::TYPath&, const TListNodeOptions&);
-    TFuture<bool> DoNodeExists(int retryAttemptsCount, const NYPath::TYPath&, const TNodeExistsOptions&);
-    TFuture<std::vector<TTabletInfo>> DoGetTabletInfos(
-        int retryAttemptsCount,
-        const NYPath::TYPath&,
-        const std::vector<int>&,
-        const TGetTabletInfosOptions&);
-    TFuture<ITransactionPtr> DoStartTransaction(
-        int retryAttemptsCount,
-        NTransactionClient::ETransactionType type,
-        const NApi::TTransactionStartOptions& options);
 
 private:
     const TFederationConfigPtr Config_;
@@ -470,21 +433,19 @@ TTransaction::TTransaction(TClientPtr client, int clientIndex, ITransactionPtr u
     , Underlying_(std::move(underlying))
 { }
 
-template <typename TResultType>
-auto TTransaction::CreateResultHandler()
+void TTransaction::OnResult(const NYT::TErrorOr<void>& error)
 {
-    return [this, this_ = MakeStrong(this)] (const TErrorOr<TResultType>& result) {
-        if (!result.IsOK()) {
-            Client_->HandleError(result, ClientIndex_);
-        }
-        return result;
-    };
+    if (!error.IsOK()) {
+        Client_->HandleError(error, ClientIndex_);
+    }
 }
 
 #define TRANSACTION_METHOD_IMPL(ResultType, MethodName, Args)                                                           \
-TFuture<ResultType> TTransaction::MethodName(Y_METHOD_USED_ARGS_DECLARATION(Args))                                  \
+TFuture<ResultType> TTransaction::MethodName(Y_METHOD_USED_ARGS_DECLARATION(Args))                                      \
 {                                                                                                                       \
-    return Underlying_->MethodName(Y_PASS_METHOD_USED_ARGS(Args)).Apply(BIND(CreateResultHandler<ResultType>()));       \
+    auto future = Underlying_->MethodName(Y_PASS_METHOD_USED_ARGS(Args));                                               \
+    future.Subscribe(BIND(&TTransaction::OnResult, MakeStrong(this)));                                                  \
+    return future;                                                                                                      \
 } Y_SEMICOLON_GUARD
 
 TRANSACTION_METHOD_IMPL(IUnversionedRowsetPtr, LookupRows, (const NYPath::TYPath&, NTableClient::TNameTablePtr, const TSharedRange<NTableClient::TUnversionedRow>&, const TLookupRowsOptions&));
@@ -511,19 +472,23 @@ void TTransaction::ModifyRows(
 
 TFuture<TTransactionFlushResult> TTransaction::Flush()
 {
-    return Underlying_->Flush().Apply(BIND(CreateResultHandler<TTransactionFlushResult>()));
+    auto future = Underlying_->Flush();
+    future.Subscribe(BIND(&TTransaction::OnResult, MakeStrong(this)));
+    return future;
 }
 
 TFuture<ITransactionPtr> TTransaction::StartTransaction(
     NTransactionClient::ETransactionType type,
     const TTransactionStartOptions& options)
 {
-    return Underlying_->StartTransaction(type, options).Apply(BIND(
-        [this, this_ = MakeStrong(this)] (const TErrorOr<ITransactionPtr>& result) -> ITransactionPtr {
+    return Underlying_->StartTransaction(type, options).ApplyUnique(BIND(
+        [this, this_ = MakeStrong(this)] (TErrorOr<ITransactionPtr>&& result) -> TErrorOr<ITransactionPtr> {
             if (!result.IsOK()) {
                 Client_->HandleError(result, ClientIndex_);
+                return std::move(result);
+            } else {
+                return {New<TTransaction>(Client_, ClientIndex_, result.Value())};
             }
-            return New<TTransaction>(Client_, ClientIndex_, result.ValueOrThrow());
         }
     ));
 }
@@ -600,74 +565,49 @@ void TClient::CheckClustersHealth()
     }
 }
 
-template <typename TResultType, typename TRetryCallback>
-auto TClient::CreateResultHandler(int clientIndex, int retryAttemptsCount, TRetryCallback callback)
+template <class T>
+TFuture<T> TClient::DoCall(int retryAttemptsCount, const TCallback<TFuture<T>(const IClientPtr&, int)>& callee)
 {
-    return [
-        this,
-        this_ = MakeStrong(this),
-        clientIndex,
-        retryAttemptsCount,
-        callback = std::move(callback)
-    ] (const TErrorOr<TResultType>& resultOrError)
-    {
-        if (!resultOrError.IsOK()) {
-            HandleError(resultOrError, clientIndex);
-            if (retryAttemptsCount > 1) {
-                return callback(retryAttemptsCount - 1);
+    auto [client, clientIndex] = GetActiveClient();
+    return callee(client, clientIndex).ApplyUnique(BIND(
+        [
+            this,
+            this_ = MakeStrong(this),
+            retryAttemptsCount,
+            callee,
+            clientIndex = clientIndex
+        ] (TErrorOr<T>&& result) {
+            if (!result.IsOK()) {
+                HandleError(result, clientIndex);
+                if (retryAttemptsCount > 1) {
+                    return DoCall<T>(retryAttemptsCount - 1, callee);
+                }
             }
-        }
-        return MakeFuture(resultOrError);
-    };
+            return MakeFuture(std::move(result));
+        }));
 }
 
 TFuture<ITransactionPtr> TClient::StartTransaction(
     NTransactionClient::ETransactionType type,
     const NApi::TTransactionStartOptions& options)
 {
-    return DoStartTransaction(Config_->ClusterRetryAttempts, type, options);
-}
+    auto callee = BIND([this_ = MakeStrong(this), type, options] (const IClientPtr& client, int clientIndex) {
+        return client->StartTransaction(type, options).ApplyUnique(BIND(
+            [this_, clientIndex] (ITransactionPtr&& transaction) -> ITransactionPtr {
+                return New<TTransaction>(std::move(this_), clientIndex, std::move(transaction));
+            }));
+    });
 
-TFuture<ITransactionPtr> TClient::DoStartTransaction(
-    int retryAttemptsCount,
-    NTransactionClient::ETransactionType type,
-    const NApi::TTransactionStartOptions& options)
-{
-    auto [client, clientIndex] = GetActiveClient();
-
-    return client->StartTransaction(type, options)
-        .Apply(BIND([=, this, this_ = MakeStrong(this), clientIndex = clientIndex]
-            (const TErrorOr<ITransactionPtr>& transactionOrError)
-        {
-            if (!transactionOrError.IsOK()) {
-                HandleError(transactionOrError, clientIndex);
-                if (retryAttemptsCount > 1) {
-                    return DoStartTransaction(retryAttemptsCount - 1, type, options);
-                }
-                return MakeFuture(transactionOrError);
-            }
-            return MakeFuture(ITransactionPtr{
-                New<TTransaction>(std::move(this_), clientIndex, transactionOrError.Value())
-            });
-        }
-    ));
+    return DoCall<ITransactionPtr>(Config_->ClusterRetryAttempts, callee);
 }
 
 #define CLIENT_METHOD_IMPL(ResultType, MethodName, Args)                                                                \
 TFuture<ResultType> TClient::MethodName(Y_METHOD_USED_ARGS_DECLARATION(Args))                                           \
 {                                                                                                                       \
-    return Do##MethodName(Config_->ClusterRetryAttempts, Y_PASS_METHOD_USED_ARGS(Args));                                \
-}                                                                                                                       \
-                                                                                                                        \
-TFuture<ResultType> TClient::Do##MethodName(int retryAttempsCount, Y_METHOD_USED_ARGS_DECLARATION(Args))                \
-{                                                                                                                       \
-    auto [client, clientIndex] = GetActiveClient();                                                                     \
-                                                                                                                        \
-    return client->MethodName(Y_PASS_METHOD_USED_ARGS(Args)).Apply(BIND(CreateResultHandler<ResultType>(                \
-        clientIndex, retryAttempsCount, [=, this] (int attemptsCount) {                                                 \
-            return Do##MethodName(attemptsCount, Y_PASS_METHOD_USED_ARGS(Args));                                        \
-        }                                                                                                               \
-    )));                                                                                                                \
+    auto callee = BIND([Y_PASS_METHOD_USED_ARGS(Args)] (const IClientPtr& client, int /*clientIndex*/) {                \
+        return client->MethodName(Y_PASS_METHOD_USED_ARGS(Args));                                                       \
+    });                                                                                                                  \
+    return DoCall<ResultType>(Config_->ClusterRetryAttempts, callee);                                                   \
 } Y_SEMICOLON_GUARD
 
 CLIENT_METHOD_IMPL(IUnversionedRowsetPtr, LookupRows, (const NYPath::TYPath&, NTableClient::TNameTablePtr, const TSharedRange<NTableClient::TLegacyKey>&, const TLookupRowsOptions&));
