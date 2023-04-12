@@ -775,6 +775,7 @@ void TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpd
             YT_VERIFY(child->IsOperation());
             sortedChildren.push_back(dynamic_cast<TSchedulerOperationElement*>(child.Get()));
         }
+
         std::sort(
             sortedChildren.begin(),
             sortedChildren.end(),
@@ -784,18 +785,21 @@ void TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpd
 
         for (auto* child : sortedChildren) {
             child->BuildSchedulableChildrenLists(context);
-            PostUpdateAttributes_.UnschedulableOperationsResourceUsage += child->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
-            if (SchedulableElementCount_ >= *maxSchedulableElementCount &&
-                Dominates(TResourceVector::SmallEpsilon(), child->Attributes().FairShare.Total))
-            {
-                child->OnFifoSchedulableElementCountLimitReached(context);
-            }
             if (child->IsSchedulable()) {
-                SchedulableChildren_.push_back(child);
-                updateSchedulableCounters(child);
+                bool shouldSkip = SchedulableElementCount_ >= *maxSchedulableElementCount &&
+                    Dominates(TResourceVector::SmallEpsilon(), child->Attributes().FairShare.Total);
+                if (shouldSkip) {
+                    child->OnFifoSchedulableElementCountLimitReached(context);
+                } else {
+                    SchedulableChildren_.push_back(child);
+                    updateSchedulableCounters(child);
+                }
             }
+
+            PostUpdateAttributes_.UnschedulableOperationsResourceUsage += child->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
         }
     }
+
     if (IsRoot() || IsSchedulable()) {
         ++SchedulableElementCount_;
         ++SchedulablePoolCount_;
