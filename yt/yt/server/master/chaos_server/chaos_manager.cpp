@@ -244,7 +244,7 @@ private:
 
         const auto& alienCluster = chaosCell->GetDescriptor().Peers[0].GetAlienCluster();
 
-        if (!alienCluster.has_value()) {
+        if (!alienCluster) {
             return true;
         }
 

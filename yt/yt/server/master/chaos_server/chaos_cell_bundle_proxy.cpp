@@ -59,7 +59,7 @@ private:
             .SetWritable(true)
             .SetRemovable(true)
             .SetReplicated(true)
-            .SetPresent(IsObjectAlive(chaosManager->GetBundleMetadataCell(cellBundle))));
+            .SetPresent(chaosManager->GetBundleMetadataCell(cellBundle)));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MetadataCellIds)
             .SetWritable(true)
             .SetRemovable(true)
@@ -97,10 +97,8 @@ private:
 
                 BuildYsonFluently(consumer)
                     .DoListFor(cellBundle->MetadataCells(), [] (TFluentList fluent, const TChaosCell* cell) {
-                        if (IsObjectAlive(cell)) {
-                            fluent
-                                .Item().Value(cell->GetId());
-                        }
+                        fluent
+                            .Item().Value(cell->GetId());
                     });
                 return true;
 

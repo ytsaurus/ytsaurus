@@ -29,10 +29,10 @@ public:
     using TMetadataCells = std::vector<TChaosCell*>;
     DEFINE_BYREF_RW_PROPERTY(TMetadataCells, MetadataCells);
 
-    void RemoveMetadataCell(TChaosCell* cell);
-
 public:
     explicit TChaosCellBundle(TChaosCellBundleId id);
+
+    void RemoveMetadataCell(TChaosCell* cell);
 
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;
