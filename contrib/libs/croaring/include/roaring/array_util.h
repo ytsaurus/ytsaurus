@@ -125,6 +125,9 @@ int32_t intersect_vector16(const uint16_t *__restrict__ A, size_t s_a,
                            const uint16_t *__restrict__ B, size_t s_b,
                            uint16_t *C);
 
+int32_t intersect_vector16_inplace(uint16_t *__restrict__ A, size_t s_a,
+                           const uint16_t *__restrict__ B, size_t s_b);
+
 /**
  * Compute the cardinality of the intersection using SSE4 instructions
  */

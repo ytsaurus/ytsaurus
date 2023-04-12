@@ -361,7 +361,6 @@ bool array_container_intersect(const array_container_t *array1,
  * */
 void array_container_intersection_inplace(array_container_t *src_1,
                                           const array_container_t *src_2) {
-    // todo: can any of this be vectorized?
     int32_t card_1 = src_1->cardinality, card_2 = src_2->cardinality;
     const int threshold = 64;  // subject to tuning
     if (card_1 * threshold < card_2) {
@@ -371,8 +370,18 @@ void array_container_intersection_inplace(array_container_t *src_1,
         src_1->cardinality = intersect_skewed_uint16(
             src_2->array, card_2, src_1->array, card_1, src_1->array);
     } else {
+#ifdef CROARING_IS_X64
+        if (croaring_avx2()) {
+            src_1->cardinality = intersect_vector16_inplace(
+                src_1->array, card_1, src_2->array, card_2);
+        } else {
+            src_1->cardinality = intersect_uint16(
+                src_1->array, card_1, src_2->array, card_2, src_1->array);
+        }
+#else
         src_1->cardinality = intersect_uint16(
-            src_1->array, card_1, src_2->array, card_2, src_1->array);
+                        src_1->array, card_1, src_2->array, card_2, src_1->array);
+#endif
     }
 }
 

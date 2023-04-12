@@ -444,6 +444,98 @@ int32_t intersect_vector16(const uint16_t *__restrict__ A, size_t s_a,
     }
     return (int32_t)count;
 }
+
+int32_t intersect_vector16_inplace(uint16_t *__restrict__ A, size_t s_a,
+                           const uint16_t *__restrict__ B, size_t s_b) {
+    size_t count = 0;
+    size_t i_a = 0, i_b = 0;
+    const int vectorlength = sizeof(__m128i) / sizeof(uint16_t);
+    const size_t st_a = (s_a / vectorlength) * vectorlength;
+    const size_t st_b = (s_b / vectorlength) * vectorlength;
+    __m128i v_a, v_b;
+    if ((i_a < st_a) && (i_b < st_b)) {
+        v_a = _mm_lddqu_si128((__m128i *)&A[i_a]);
+        v_b = _mm_lddqu_si128((__m128i *)&B[i_b]);
+        __m128i tmp[2] = {_mm_setzero_si128()};
+        size_t tmp_count = 0;
+        while ((A[i_a] == 0) || (B[i_b] == 0)) {
+            const __m128i res_v = _mm_cmpestrm(
+                v_b, vectorlength, v_a, vectorlength,
+                _SIDD_UWORD_OPS | _SIDD_CMP_EQUAL_ANY | _SIDD_BIT_MASK);
+            const int r = _mm_extract_epi32(res_v, 0);
+            __m128i sm16 = _mm_loadu_si128((const __m128i *)shuffle_mask16 + r);
+            __m128i p = _mm_shuffle_epi8(v_a, sm16);
+            _mm_storeu_si128((__m128i*)&((uint16_t*)tmp)[tmp_count], p);
+            tmp_count += _mm_popcnt_u32(r);
+            const uint16_t a_max = A[i_a + vectorlength - 1];
+            const uint16_t b_max = B[i_b + vectorlength - 1];
+            if (a_max <= b_max) {
+                _mm_storeu_si128((__m128i *)&A[count], tmp[0]);
+                _mm_storeu_si128(tmp, _mm_setzero_si128());
+                count += tmp_count;
+                tmp_count = 0;           
+                i_a += vectorlength;
+                if (i_a == st_a) break;
+                v_a = _mm_lddqu_si128((__m128i *)&A[i_a]);
+            }
+            if (b_max <= a_max) {
+                i_b += vectorlength;
+                if (i_b == st_b) break;
+                v_b = _mm_lddqu_si128((__m128i *)&B[i_b]);
+            }
+        }
+        if ((i_a < st_a) && (i_b < st_b)) {
+            while (true) {
+                const __m128i res_v = _mm_cmpistrm(
+                    v_b, v_a,
+                    _SIDD_UWORD_OPS | _SIDD_CMP_EQUAL_ANY | _SIDD_BIT_MASK);
+                const int r = _mm_extract_epi32(res_v, 0);
+                __m128i sm16 = _mm_loadu_si128((const __m128i *)shuffle_mask16 + r);
+                __m128i p = _mm_shuffle_epi8(v_a, sm16);
+                _mm_storeu_si128((__m128i*)&((uint16_t*)tmp)[tmp_count], p);
+                tmp_count += _mm_popcnt_u32(r);
+                const uint16_t a_max = A[i_a + vectorlength - 1];
+                const uint16_t b_max = B[i_b + vectorlength - 1];
+                if (a_max <= b_max) {
+                    _mm_storeu_si128((__m128i *)&A[count], tmp[0]);
+                    _mm_storeu_si128(tmp, _mm_setzero_si128());
+                    count += tmp_count;
+                    tmp_count = 0;  
+                    i_a += vectorlength;
+                    if (i_a == st_a) break;
+                    v_a = _mm_lddqu_si128((__m128i *)&A[i_a]);
+                }
+                if (b_max <= a_max) {
+                    i_b += vectorlength;
+                    if (i_b == st_b) break;
+                    v_b = _mm_lddqu_si128((__m128i *)&B[i_b]);
+                }
+            }
+        }
+        // tmp_count <= 8, so this does not affect efficiency so much
+        for (size_t i = 0; i < tmp_count; i++) {
+            A[count] = ((uint16_t*)tmp)[i];
+            count++;
+        }
+        i_a += tmp_count;  // We can at least jump pass $tmp_count elements in A
+    }
+    // intersect the tail using scalar intersection
+    while (i_a < s_a && i_b < s_b) {
+        uint16_t a = A[i_a];
+        uint16_t b = B[i_b];
+        if (a < b) {
+            i_a++;
+        } else if (b < a) {
+            i_b++;
+        } else {
+            A[count] = a;  //==b;
+            count++;
+            i_a++;
+            i_b++;
+        }
+    }
+    return (int32_t)count;
+}
 CROARING_UNTARGET_REGION
 
 CROARING_TARGET_AVX2
@@ -1892,6 +1984,66 @@ size_t fast_union_uint16(const uint16_t *set_1, size_t size_1, const uint16_t *s
 #endif
 }
 #ifdef CROARING_IS_X64
+#if CROARING_COMPILER_SUPPORTS_AVX512
+CROARING_TARGET_AVX512
+static inline bool _avx512_memequals(const void *s1, const void *s2, size_t n) {
+    const uint8_t *ptr1 = (const uint8_t *)s1;
+    const uint8_t *ptr2 = (const uint8_t *)s2;
+    const uint8_t *end1 = ptr1 + n;
+    const uint8_t *end8 = ptr1 + ((n >> 3) << 3);
+    const uint8_t *end32 = ptr1 + ((n >> 5) << 5);
+    const uint8_t *end64 = ptr1 + ((n >> 6) << 6);
+    
+    while (ptr1 < end64){
+        __m512i r1 = _mm512_loadu_si512((const __m512i*)ptr1);
+        __m512i r2 = _mm512_loadu_si512((const __m512i*)ptr2);
+
+        uint64_t mask = _mm512_cmpeq_epi8_mask(r1, r2);
+        
+        if (mask != UINT64_MAX) {
+           return false;
+        }
+
+        ptr1 += 64;
+        ptr2 += 64;
+
+    }
+
+    while (ptr1 < end32) {
+        __m256i r1 = _mm256_loadu_si256((const __m256i*)ptr1);
+        __m256i r2 = _mm256_loadu_si256((const __m256i*)ptr2);
+        int mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(r1, r2));
+        if ((uint32_t)mask != UINT32_MAX) {
+            return false;
+        }
+        ptr1 += 32;
+        ptr2 += 32;
+    }
+
+    while (ptr1 < end8) {
+	uint64_t v1, v2;
+        memcpy(&v1,ptr1,sizeof(uint64_t));
+        memcpy(&v2,ptr2,sizeof(uint64_t));
+        if (v1 != v2) {
+            return false;
+        }
+        ptr1 += 8;
+        ptr2 += 8;
+    }
+
+    while (ptr1 < end1) {
+        if (*ptr1 != *ptr2) {
+            return false;
+        }
+        ptr1++;
+        ptr2++;
+    }
+
+    return true;
+}
+CROARING_UNTARGET_REGION
+#endif // CROARING_COMPILER_SUPPORTS_AVX512
+
 CROARING_TARGET_AVX2
 static inline bool _avx2_memequals(const void *s1, const void *s2, size_t n) {
     const uint8_t *ptr1 = (const uint8_t *)s1;
@@ -1940,6 +2092,11 @@ bool memequals(const void *s1, const void *s2, size_t n) {
         return true;
     }
 #ifdef CROARING_IS_X64
+#if CROARING_COMPILER_SUPPORTS_AVX512
+    if( croaring_avx512() ) {
+      return _avx512_memequals(s1, s2, n);
+    } else
+#endif // CROARING_COMPILER_SUPPORTS_AVX512
     if( croaring_avx2() ) {
       return _avx2_memequals(s1, s2, n);
     } else {

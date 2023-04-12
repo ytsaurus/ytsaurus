@@ -52,6 +52,22 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <stdbool.h>
 #include <stdlib.h>
 
+
+#ifdef __has_include
+// We want to make sure that the AVX-512 functions are only built on compilers
+// fully supporting AVX-512.
+#if __has_include(<avx512vbmi2intrin.h>)
+#define CROARING_COMPILER_SUPPORTS_AVX512 1
+#endif
+#endif
+
+// Visual Studio 2019 and up support AVX-512
+#ifdef _MSC_VER
+#if _MSC_VER >= 1920
+#define CROARING_COMPILER_SUPPORTS_AVX512 1
+#endif
+#endif
+
 // We need portability.h to be included first, see
 // https://github.com/RoaringBitmap/CRoaring/issues/394
 #include <roaring/portability.h>
@@ -71,34 +87,19 @@ enum croaring_instruction_set {
   CROARING_BMI1 = 0x20,
   CROARING_BMI2 = 0x40,
   CROARING_ALTIVEC = 0x80,
+  CROARING_AVX512F = 0x100,
+  CROARING_AVX512DQ = 0x200,
+  CROARING_AVX512BW = 0x400,
+  CROARING_AVX512VBMI2 = 0x800,
+  CROARING_AVX512BITALG = 0x1000,
+  CROARING_AVX512VPOPCNTDQ = 0x2000,
   CROARING_UNINITIALIZED = 0x8000
 };
 
-#if defined(__PPC64__)
-
-//static inline uint32_t dynamic_croaring_detect_supported_architectures() {
-//  return CROARING_ALTIVEC;
-//}
-
-#elif defined(__arm__) || defined(__aarch64__) // incl. armel, armhf, arm64
-
-#if defined(__ARM_NEON)
-
-//static inline uint32_t dynamic_croaring_detect_supported_architectures() {
-//  return CROARING_NEON;
-//}
-
-#else // ARM without NEON
-
-//static inline uint32_t dynamic_croaring_detect_supported_architectures() {
-//  return CROARING_DEFAULT;
-//}
-
-#endif
-
-#elif defined(__x86_64__) || defined(_M_AMD64) // x64
+static unsigned int CROARING_AVX512_REQUIRED = (CROARING_AVX512F | CROARING_AVX512DQ | CROARING_AVX512BW | CROARING_AVX512VBMI2 | CROARING_AVX512BITALG | CROARING_AVX512VPOPCNTDQ);
 
 
+#if defined(__x86_64__) || defined(_M_AMD64) // x64
 
 
 static inline void cpuid(uint32_t *eax, uint32_t *ebx, uint32_t *ecx,
@@ -124,6 +125,11 @@ static inline void cpuid(uint32_t *eax, uint32_t *ebx, uint32_t *ecx,
 #endif
 }
 
+/**
+ * This is a relatively expensive function but it will get called at most
+ * *once* per compilation units. Normally, the CRoaring library is built
+ * as one compilation unit.
+ */
 static inline uint32_t dynamic_croaring_detect_supported_architectures() {
   uint32_t eax, ebx, ecx, edx;
   uint32_t host_isa = 0x0;
@@ -131,6 +137,12 @@ static inline uint32_t dynamic_croaring_detect_supported_architectures() {
   static uint32_t cpuid_avx2_bit = 1 << 5;      ///< @private Bit 5 of EBX for EAX=0x7
   static uint32_t cpuid_bmi1_bit = 1 << 3;      ///< @private bit 3 of EBX for EAX=0x7
   static uint32_t cpuid_bmi2_bit = 1 << 8;      ///< @private bit 8 of EBX for EAX=0x7
+  static uint32_t cpuid_avx512f_bit = 1 << 16;  ///< @private bit 16 of EBX for EAX=0x7
+  static uint32_t cpuid_avx512dq_bit = 1 << 17; ///< @private bit 17 of EBX for EAX=0x7
+  static uint32_t cpuid_avx512bw_bit = 1 << 30; ///< @private bit 30 of EBX for EAX=0x7
+  static uint32_t cpuid_avx512vbmi2_bit = 1 << 6; ///< @private bit 6 of ECX for EAX=0x7
+  static uint32_t cpuid_avx512bitalg_bit = 1 << 12; ///< @private bit 12 of ECX for EAX=0x7
+  static uint32_t cpuid_avx512vpopcntdq_bit = 1 << 14; ///< @private bit 14 of ECX for EAX=0x7
   static uint32_t cpuid_sse42_bit = 1 << 20;    ///< @private bit 20 of ECX for EAX=0x1
   static uint32_t cpuid_pclmulqdq_bit = 1 << 1; ///< @private bit  1 of ECX for EAX=0x1
   // ECX for EAX=0x7
@@ -147,7 +159,31 @@ static inline uint32_t dynamic_croaring_detect_supported_architectures() {
   if (ebx & cpuid_bmi2_bit) {
     host_isa |= CROARING_BMI2;
   }
-
+  
+  if (ebx & cpuid_avx512f_bit) {
+    host_isa |= CROARING_AVX512F;
+  }
+  
+  if (ebx & cpuid_avx512bw_bit) {
+    host_isa |= CROARING_AVX512BW;
+  }
+  
+  if (ebx & cpuid_avx512dq_bit) {
+    host_isa |= CROARING_AVX512DQ;
+  }
+  
+  if (ecx & cpuid_avx512vbmi2_bit) {
+    host_isa |= CROARING_AVX512VBMI2;
+  }
+  
+  if (ecx & cpuid_avx512bitalg_bit) {
+    host_isa |= CROARING_AVX512BITALG;
+  }
+  
+  if (ecx & cpuid_avx512vpopcntdq_bit) {
+    host_isa |= CROARING_AVX512VPOPCNTDQ;
+  }
+  
   // EBX for EAX=0x1
   eax = 0x1;
   cpuid(&eax, &ebx, &ecx, &edx);
@@ -162,13 +198,6 @@ static inline uint32_t dynamic_croaring_detect_supported_architectures() {
 
   return host_isa;
 }
-#else // fallback
-
-
-//static inline uint32_t dynamic_croaring_detect_supported_architectures() {
-//  return CROARING_DEFAULT;
-//}
-
 
 #endif // end SIMD extension detection code
 
@@ -207,27 +236,56 @@ static inline uint32_t croaring_detect_supported_architectures() {
 static inline bool croaring_avx2() {
   return false;
 }
+static inline bool croaring_avx512() {
+  return false;
+}
+#elif defined(__AVX512F__) && defined(__AVX512DQ__) && defined(__AVX512BW__) && defined(__AVX512VBMI2__) && defined(__AVX512BITALG__) && defined(__AVX512VPOPCNTDQ__)
+static inline bool croaring_avx2() {
+  return true;
+}
+static inline bool croaring_avx512() {
+  return true;
+}
 #elif defined(__AVX2__)
 static inline bool croaring_avx2() {
   return true;
+}
+static inline bool croaring_avx512() {
+#if CROARING_COMPILER_SUPPORTS_AVX512
+  // Even though we have set __AVX2__ at compile-time, it is still possible for the hardware
+  // to support AVX-512. By setting __AVX2__, all we are saying is that croaring_avx2() must be true!
+  static bool avx512_support = false;
+
+  if( !avx512_support )
+  {
+      avx512_support = ( (croaring_detect_supported_architectures() & CROARING_AVX512_REQUIRED)
+	                        == CROARING_AVX512_REQUIRED);
+  }
+  return avx512_support;
+#else
+  return false;
+#endif
 }
 #else
 static inline bool croaring_avx2() {
   return  (croaring_detect_supported_architectures() & CROARING_AVX2) == CROARING_AVX2;
 }
+static inline bool croaring_avx512() {
+#if CROARING_COMPILER_SUPPORTS_AVX512
+  static bool avx512_support = false;
+
+  if( !avx512_support )
+  {
+      avx512_support = ( (croaring_detect_supported_architectures() & CROARING_AVX512_REQUIRED)
+	                        == CROARING_AVX512_REQUIRED);
+  }
+  return avx512_support;
+#else
+  return false;
+#endif
+}
 #endif
 
-
-#else // defined(__x86_64__) || defined(_M_AMD64) // x64
-
-//static inline bool croaring_avx2() {
-//  return false;
-//}
-
-//static inline uint32_t croaring_detect_supported_architectures() {
-//    // no runtime dispatch
-//    return dynamic_croaring_detect_supported_architectures();
-//}
 #endif // defined(__x86_64__) || defined(_M_AMD64) // x64
 
 #endif // ROARING_ISADETECTION_H

@@ -419,7 +419,7 @@ void roaring_bitmap_statistics(const roaring_bitmap_t *r,
                 break;
             default:
                 assert(false);
-                __builtin_unreachable();
+                roaring_unreachable;
         }
     }
 }
@@ -454,6 +454,7 @@ bool roaring_bitmap_overwrite(roaring_bitmap_t *dest,
 }
 
 void roaring_bitmap_free(const roaring_bitmap_t *r) {
+    if(r == NULL) { return; }
     if (!is_frozen(r)) {
       ra_clear((roaring_array_t*)&r->high_low_container);
     }
@@ -1558,7 +1559,7 @@ static bool loadfirstvalue(roaring_uint32_iterator_t *newit) {
                 wordindex++;  // advance
             }
             // here "word" is non-zero
-            newit->in_container_index = wordindex * 64 + __builtin_ctzll(word);
+            newit->in_container_index = wordindex * 64 + roaring_trailing_zeroes(word);
             newit->current_value = newit->highbits | newit->in_container_index;
             break; }
 
@@ -1591,7 +1592,7 @@ static bool loadlastvalue(roaring_uint32_iterator_t* newit) {
             while ((word = bitset_container->words[wordindex]) == 0)
                 --wordindex;
 
-            int num_leading_zeros = __builtin_clzll(word);
+            int num_leading_zeros = roaring_leading_zeroes(word);
             newit->in_container_index = (wordindex * 64) + (63 - num_leading_zeros);
             newit->current_value = newit->highbits | newit->in_container_index;
             break;
@@ -1650,7 +1651,7 @@ static bool loadfirstvalue_largeorequal(roaring_uint32_iterator_t *newit, uint32
             break; }
 
         default:
-            __builtin_unreachable();
+            roaring_unreachable;
     }
 
     return true;
@@ -1734,7 +1735,7 @@ bool roaring_advance_uint32_iterator(roaring_uint32_iterator_t *it) {
                 word = bc->words[wordindex];
             }
             if (word != 0) {
-                it->in_container_index = wordindex * 64 + __builtin_ctzll(word);
+                it->in_container_index = wordindex * 64 + roaring_trailing_zeroes(word);
                 it->current_value = it->highbits | it->in_container_index;
                 return (it->has_value = true);
             }
@@ -1771,7 +1772,7 @@ bool roaring_advance_uint32_iterator(roaring_uint32_iterator_t *it) {
         }
 
         default:
-            __builtin_unreachable();
+            roaring_unreachable;
     }
 
     // moving to next container
@@ -1803,7 +1804,7 @@ bool roaring_previous_uint32_iterator(roaring_uint32_iterator_t *it) {
             if (word == 0)
                 break;
 
-            int num_leading_zeros = __builtin_clzll(word);
+            int num_leading_zeros = roaring_leading_zeroes(word);
             it->in_container_index = (wordindex * 64) + (63 - num_leading_zeros);
             it->current_value = it->highbits | it->in_container_index;
             return (it->has_value = true);
@@ -1859,7 +1860,7 @@ uint32_t roaring_read_uint32_iterator(roaring_uint32_iterator_t *it, uint32_t* b
         word = bcont->words[wordindex] & (UINT64_MAX << (it->in_container_index % 64));
         do {
           while (word != 0 && ret < count) {
-            buf[0] = it->highbits | (wordindex * 64 + __builtin_ctzll(word));
+            buf[0] = it->highbits | (wordindex * 64 + roaring_trailing_zeroes(word));
             word = word & (word - 1);
             buf++;
             ret++;
@@ -1871,7 +1872,7 @@ uint32_t roaring_read_uint32_iterator(roaring_uint32_iterator_t *it, uint32_t* b
         } while (word != 0 && ret < count);
         it->has_value = (word != 0);
         if (it->has_value) {
-          it->in_container_index = wordindex * 64 + __builtin_ctzll(word);
+          it->in_container_index = wordindex * 64 + roaring_trailing_zeroes(word);
           it->current_value = it->highbits | it->in_container_index;
         }
         break;
@@ -2965,7 +2966,7 @@ size_t roaring_bitmap_frozen_size_in_bytes(const roaring_bitmap_t *rb) {
                 break;
             }
             default:
-                __builtin_unreachable();
+                roaring_unreachable;
         }
     }
     num_bytes += (2 + 2 + 1) * ra->size; // keys, counts, typecodes
@@ -3009,7 +3010,7 @@ void roaring_bitmap_frozen_serialize(const roaring_bitmap_t *rb, char *buf) {
                 break;
             }
             default:
-                __builtin_unreachable();
+                roaring_unreachable;
         }
     }
 
@@ -3055,7 +3056,7 @@ void roaring_bitmap_frozen_serialize(const roaring_bitmap_t *rb, char *buf) {
                 break;
             }
             default:
-                __builtin_unreachable();
+                roaring_unreachable;
         }
         memcpy(&count_zone[i], &count, 2);
     }
@@ -3347,6 +3348,49 @@ roaring_bitmap_t *roaring_bitmap_portable_deserialize_frozen(const char *buf) {
     return rb;
 }
 
+bool roaring_bitmap_to_bitset(const roaring_bitmap_t *r, bitset_t * bitset) {
+    uint32_t max_value = roaring_bitmap_maximum(r);
+    size_t new_array_size = (size_t)(((uint64_t)max_value + 63)/64);
+    bool resize_ok = bitset_resize(bitset, new_array_size, true);
+    if(!resize_ok) { return false; }
+    const roaring_array_t *ra = &r->high_low_container;
+    for (int i = 0; i < ra->size; ++i) {
+        uint64_t* words = bitset->array + (ra->keys[i]<<10);
+        uint8_t type = ra->typecodes[i];
+        const container_t *c = ra->containers[i];
+        if(type == SHARED_CONTAINER_TYPE) {
+            c = container_unwrap_shared(c, &type);
+        }
+        switch (type) {
+          case BITSET_CONTAINER_TYPE:
+          {
+            size_t max_word_index = new_array_size - (ra->keys[i]<<10);
+            if(max_word_index > 1024) { max_word_index = 1024; }
+            const bitset_container_t *src = const_CAST_bitset(c);
+            memcpy(words, src->words, max_word_index * sizeof(uint64_t));
+          }
+          break;
+          case ARRAY_CONTAINER_TYPE:
+          {
+            const array_container_t *src = const_CAST_array(c);
+            bitset_set_list(words, src->array, src->cardinality);
+          }
+          break;
+          case RUN_CONTAINER_TYPE:
+          {
+            const run_container_t *src = const_CAST_run(c);
+            for (int32_t rlepos = 0; rlepos < src->n_runs; ++rlepos) {
+                rle16_t rle = src->runs[rlepos];
+                bitset_set_lenrange(words, rle.value, rle.length);
+            }
+          }
+          break;
+          default:
+          roaring_unreachable;
+        }
+    }
+    return true;
+}
 
 #ifdef __cplusplus
 } } }  // extern "C" { namespace roaring {

@@ -70,7 +70,8 @@ public:
     }
 
     /**
-     * Copy constructor
+     * Copy constructor.
+     * It may throw std::runtime_error if there is insufficient memory.
      */
     Roaring(const Roaring &r) : Roaring() {
         if (!api::roaring_bitmap_overwrite(&roaring, &r.roaring)) {
@@ -133,87 +134,87 @@ public:
     /**
      * Add value x
      */
-    void add(uint32_t x) { api::roaring_bitmap_add(&roaring, x); }
+    void add(uint32_t x) noexcept { api::roaring_bitmap_add(&roaring, x); }
 
     /**
      * Add value x
      * Returns true if a new value was added, false if the value was already
      * existing.
      */
-    bool addChecked(uint32_t x) {
+    bool addChecked(uint32_t x) noexcept {
         return api::roaring_bitmap_add_checked(&roaring, x);
     }
 
     /**
      * Add all values in range [min, max)
      */
-    void addRange(const uint64_t min, const uint64_t max)  {
+    void addRange(const uint64_t min, const uint64_t max) noexcept {
         return api::roaring_bitmap_add_range(&roaring, min, max);
     }
 
     /**
      * Add all values in range [min, max]
      */
-    void addRangeClosed(const uint32_t min, const uint32_t max)  {
+    void addRangeClosed(const uint32_t min, const uint32_t max) noexcept {
         return api::roaring_bitmap_add_range_closed(&roaring, min, max);
     }
 
     /**
      * Add value n_args from pointer vals
      */
-    void addMany(size_t n_args, const uint32_t *vals) {
+    void addMany(size_t n_args, const uint32_t *vals) noexcept {
         api::roaring_bitmap_add_many(&roaring, n_args, vals);
     }
 
     /**
      * Remove value x
      */
-    void remove(uint32_t x) { api::roaring_bitmap_remove(&roaring, x); }
+    void remove(uint32_t x) noexcept { api::roaring_bitmap_remove(&roaring, x); }
 
     /**
      * Remove value x
      * Returns true if a new value was removed, false if the value was not
      * existing.
      */
-    bool removeChecked(uint32_t x) {
+    bool removeChecked(uint32_t x) noexcept {
         return api::roaring_bitmap_remove_checked(&roaring, x);
     }
 
     /**
      * Remove all values in range [min, max)
      */
-    void removeRange(uint64_t min, uint64_t max) {
+    void removeRange(uint64_t min, uint64_t max) noexcept {
         return api::roaring_bitmap_remove_range(&roaring, min, max);
     }
 
     /**
      * Remove all values in range [min, max]
      */
-    void removeRangeClosed(uint32_t min, uint32_t max) {
+    void removeRangeClosed(uint32_t min, uint32_t max) noexcept {
         return api::roaring_bitmap_remove_range_closed(&roaring, min, max);
     }
 
     /**
      * Return the largest value (if not empty)
      */
-    uint32_t maximum() const { return api::roaring_bitmap_maximum(&roaring); }
+    uint32_t maximum() const noexcept { return api::roaring_bitmap_maximum(&roaring); }
 
     /**
      * Return the smallest value (if not empty)
      */
-    uint32_t minimum() const { return api::roaring_bitmap_minimum(&roaring); }
+    uint32_t minimum() const noexcept { return api::roaring_bitmap_minimum(&roaring); }
 
     /**
      * Check if value x is present
      */
-    bool contains(uint32_t x) const {
+    bool contains(uint32_t x) const noexcept {
         return api::roaring_bitmap_contains(&roaring, x);
     }
 
     /**
      * Check if all values from x (included) to y (excluded) are present
      */
-    bool containsRange(const uint64_t x, const uint64_t y) const {
+    bool containsRange(const uint64_t x, const uint64_t y) const noexcept {
         return api::roaring_bitmap_contains_range(&roaring, x, y);
     }
 
@@ -241,6 +242,7 @@ public:
     /**
      * Copies the content of the provided bitmap, and
      * discard the current content.
+     * It may throw std::runtime_error if there is insufficient memory.
      */
     Roaring &operator=(const Roaring &r) {
         if (!api::roaring_bitmap_overwrite(&roaring, &r.roaring)) {
@@ -284,7 +286,7 @@ public:
      * Performance hint: if you are computing the intersection between several
      * bitmaps, two-by-two, it is best to start with the smallest bitmap.
      */
-    Roaring &operator&=(const Roaring &r) {
+    Roaring &operator&=(const Roaring &r) noexcept {
         api::roaring_bitmap_and_inplace(&roaring, &r.roaring);
         return *this;
     }
@@ -294,7 +296,7 @@ public:
      * bitmap, writing the result in the current bitmap. The provided bitmap
      * is not modified.
      */
-    Roaring &operator-=(const Roaring &r) {
+    Roaring &operator-=(const Roaring &r) noexcept {
         api::roaring_bitmap_andnot_inplace(&roaring, &r.roaring);
         return *this;
     }
@@ -306,7 +308,7 @@ public:
      *
      * See also the fastunion function to aggregate many bitmaps more quickly.
      */
-    Roaring &operator|=(const Roaring &r) {
+    Roaring &operator|=(const Roaring &r) noexcept {
         api::roaring_bitmap_or_inplace(&roaring, &r.roaring);
         return *this;
     }
@@ -316,7 +318,7 @@ public:
      * bitmap, writing the result in the current bitmap. The provided bitmap
      * is not modified.
      */
-    Roaring &operator^=(const Roaring &r) {
+    Roaring &operator^=(const Roaring &r) noexcept {
         api::roaring_bitmap_xor_inplace(&roaring, &r.roaring);
         return *this;
     }
@@ -324,31 +326,31 @@ public:
     /**
      * Exchange the content of this bitmap with another.
      */
-    void swap(Roaring &r) { std::swap(r.roaring, roaring); }
+    void swap(Roaring &r) noexcept { std::swap(r.roaring, roaring); }
 
     /**
      * Get the cardinality of the bitmap (number of elements).
      */
-    uint64_t cardinality() const {
+    uint64_t cardinality() const noexcept {
         return api::roaring_bitmap_get_cardinality(&roaring);
     }
 
     /**
      * Returns true if the bitmap is empty (cardinality is zero).
      */
-    bool isEmpty() const { return api::roaring_bitmap_is_empty(&roaring); }
+    bool isEmpty() const noexcept { return api::roaring_bitmap_is_empty(&roaring); }
 
     /**
      * Returns true if the bitmap is subset of the other.
      */
-    bool isSubset(const Roaring &r) const {
+    bool isSubset(const Roaring &r) const noexcept {
         return api::roaring_bitmap_is_subset(&roaring, &r.roaring);
     }
 
     /**
      * Returns true if the bitmap is strict subset of the other.
      */
-    bool isStrictSubset(const Roaring &r) const {
+    bool isStrictSubset(const Roaring &r) const noexcept {
         return api::roaring_bitmap_is_strict_subset(&roaring, &r.roaring);
     }
 
@@ -357,20 +359,20 @@ public:
      * responsible to ensure that there is enough memory allocated
      * (e.g., ans = new uint32[mybitmap.cardinality()];)
      */
-    void toUint32Array(uint32_t *ans) const {
+    void toUint32Array(uint32_t *ans) const noexcept {
         api::roaring_bitmap_to_uint32_array(&roaring, ans);
     }
     /**
      * To int array with pagination
      */
-    void rangeUint32Array(uint32_t *ans, size_t offset, size_t limit) const {
+    void rangeUint32Array(uint32_t *ans, size_t offset, size_t limit) const noexcept {
         api::roaring_bitmap_range_uint32_array(&roaring, offset, limit, ans);
     }
 
     /**
      * Return true if the two bitmaps contain the same elements.
      */
-    bool operator==(const Roaring &r) const {
+    bool operator==(const Roaring &r) const noexcept {
         return api::roaring_bitmap_equals(&roaring, &r.roaring);
     }
 
@@ -378,7 +380,7 @@ public:
      * Compute the negation of the roaring bitmap within the half-open interval
      * [range_start, range_end). Areas outside the interval are unchanged.
      */
-    void flip(uint64_t range_start, uint64_t range_end) {
+    void flip(uint64_t range_start, uint64_t range_end) noexcept {
         api::roaring_bitmap_flip_inplace(&roaring, range_start, range_end);
     }
 
@@ -386,7 +388,7 @@ public:
      * Compute the negation of the roaring bitmap within the closed interval
      * [range_start, range_end]. Areas outside the interval are unchanged.
      */
-    void flipClosed(uint32_t range_start, uint32_t range_end) {
+    void flipClosed(uint32_t range_start, uint32_t range_end) noexcept {
         api::roaring_bitmap_flip_inplace(
             &roaring, range_start, uint64_t(range_end) + 1);
     }
@@ -395,7 +397,7 @@ public:
      * Remove run-length encoding even when it is more space efficient.
      * Return whether a change was applied.
      */
-    bool removeRunCompression() {
+    bool removeRunCompression() noexcept {
         return api::roaring_bitmap_remove_run_compression(&roaring);
     }
 
@@ -405,13 +407,13 @@ public:
      * Returns true if the result has at least one run container.  Additional
      * savings might be possible by calling shrinkToFit().
      */
-    bool runOptimize() { return api::roaring_bitmap_run_optimize(&roaring); }
+    bool runOptimize() noexcept { return api::roaring_bitmap_run_optimize(&roaring); }
 
     /**
      * If needed, reallocate memory to shrink the memory usage. Returns
      * the number of bytes saved.
      */
-    size_t shrinkToFit() { return api::roaring_bitmap_shrink_to_fit(&roaring); }
+    size_t shrinkToFit() noexcept { return api::roaring_bitmap_shrink_to_fit(&roaring); }
 
     /**
      * Iterate over the bitmap elements. The function iterator is called once
@@ -434,21 +436,21 @@ public:
      * this function returns true and sets element to the element of given rank.
      * Otherwise, it returns false.
      */
-    bool select(uint32_t rnk, uint32_t *element) const {
+    bool select(uint32_t rnk, uint32_t *element) const noexcept {
         return api::roaring_bitmap_select(&roaring, rnk, element);
     }
 
     /**
      * Computes the size of the intersection between two bitmaps.
      */
-    uint64_t and_cardinality(const Roaring &r) const {
+    uint64_t and_cardinality(const Roaring &r) const noexcept {
         return api::roaring_bitmap_and_cardinality(&roaring, &r.roaring);
     }
 
     /**
      * Check whether the two bitmaps intersect.
      */
-    bool intersect(const Roaring &r) const {
+    bool intersect(const Roaring &r) const noexcept {
         return api::roaring_bitmap_intersect(&roaring, &r.roaring);
     }
 
@@ -459,21 +461,21 @@ public:
      *
      * The Jaccard index is undefined if both bitmaps are empty.
      */
-    double jaccard_index(const Roaring &r) const {
+    double jaccard_index(const Roaring &r) const noexcept {
         return api::roaring_bitmap_jaccard_index(&roaring, &r.roaring);
     }
 
     /**
      * Computes the size of the union between two bitmaps.
      */
-    uint64_t or_cardinality(const Roaring &r) const {
+    uint64_t or_cardinality(const Roaring &r) const noexcept {
         return api::roaring_bitmap_or_cardinality(&roaring, &r.roaring);
     }
 
     /**
      * Computes the size of the difference (andnot) between two bitmaps.
      */
-    uint64_t andnot_cardinality(const Roaring &r) const {
+    uint64_t andnot_cardinality(const Roaring &r) const noexcept {
         return api::roaring_bitmap_andnot_cardinality(&roaring, &r.roaring);
     }
 
@@ -481,7 +483,7 @@ public:
      * Computes the size of the symmetric difference (andnot) between two
      * bitmaps.
      */
-    uint64_t xor_cardinality(const Roaring &r) const {
+    uint64_t xor_cardinality(const Roaring &r) const noexcept {
         return api::roaring_bitmap_xor_cardinality(&roaring, &r.roaring);
     }
 
@@ -493,7 +495,7 @@ public:
      * 1 when ranking the smallest value, but the select function returns the
      * smallest value when using index 0.
      */
-    uint64_t rank(uint32_t x) const {
+    uint64_t rank(uint32_t x) const noexcept {
         return api::roaring_bitmap_rank(&roaring, x);
     }
 
@@ -536,11 +538,12 @@ public:
      *      }  // namespace serialization
      *      }  // namespace boost
      */
-    size_t write(char *buf, bool portable = true) const {
-        if (portable)
+    size_t write(char *buf, bool portable = true) const noexcept {
+        if (portable) {
             return api::roaring_bitmap_portable_serialize(&roaring, buf);
-        else
+        } else {
             return api::roaring_bitmap_serialize(&roaring, buf);
+        }
     }
 
     /**
@@ -553,6 +556,11 @@ public:
      *
      * This function is unsafe in the sense that if you provide bad data,
      * many, many bytes could be read. See also readSafe.
+     *
+     * The function may throw std::runtime_error if a bitmap could not be read. Not that even
+     * if it does not throw, the bitmap could still be unusable if the loaded
+     * data does not match the portable Roaring specification: you should
+     * ensure that the data you load come from a serialized bitmap.
      */
     static Roaring read(const char *buf, bool portable = true) {
         roaring_bitmap_t * r = portable
@@ -567,7 +575,23 @@ public:
     /**
      * Read a bitmap from a serialized version, reading no more than maxbytes
      * bytes.  This is meant to be compatible with the Java and Go versions.
+     * The function itself is safe in the sense that it will not cause buffer overflows.
+     * However, for correct operations, it is assumed that the bitmap read was once
+     * serialized from a valid bitmap. If you provided an incorrect input (garbage), then the
+     * bitmap read may not be in a valid state and following operations may not lead
+     * to sensible results. It is your responsability to ensure that the input bytes
+     * follow the format specification if you want a usable bitmap:
+     * https://github.com/RoaringBitmap/RoaringFormatSpec
+     * In particular, the serialized array containers need to be in sorted order, and the
+     * run containers should be in sorted non-overlapping order. This is is guaranteed to
+     * happen when serializing an existing bitmap, but not for random inputs.
+     * Note that this function assumes that your bitmap was serialized in *portable* mode
+     * (which is the default with the 'write' method).
      *
+     * The function may throw std::runtime_error if a bitmap could not be read. Not that even
+     * if it does not throw, the bitmap could still be unusable if the loaded
+     * data does not match the portable Roaring specification: you should
+     * ensure that the data you load come from a serialized bitmap.
      */
     static Roaring readSafe(const char *buf, size_t maxbytes) {
         roaring_bitmap_t * r =
@@ -586,13 +610,18 @@ public:
      * can save space compared to the portable format (e.g., for very
      * sparse bitmaps).
      */
-    size_t getSizeInBytes(bool portable = true) const {
-        if (portable)
+    size_t getSizeInBytes(bool portable = true) const noexcept {
+        if (portable) {
             return api::roaring_bitmap_portable_size_in_bytes(&roaring);
-        else
+        } else {
             return api::roaring_bitmap_size_in_bytes(&roaring);
+        }
     }
 
+    /**
+     * For advanced users.
+     * This function may throw std::runtime_error.
+     */
     static const Roaring frozenView(const char *buf, size_t length) {
         const roaring_bitmap_t *s =
             api::roaring_bitmap_frozen_view(buf, length);
@@ -604,11 +633,17 @@ public:
         return r;
     }
 
-    void writeFrozen(char *buf) const {
+    /**
+     * For advanced users.
+     */
+    void writeFrozen(char *buf) const noexcept {
         roaring_bitmap_frozen_serialize(&roaring, buf);
     }
 
-    size_t getFrozenSizeInBytes() const {
+    /**
+     * For advanced users.
+     */
+    size_t getFrozenSizeInBytes() const noexcept {
         return roaring_bitmap_frozen_size_in_bytes(&roaring);
     }
 
@@ -620,6 +655,7 @@ public:
      * bitmaps, two-by-two, it is best to start with the smallest bitmap.
      * Consider also using the operator &= to avoid needlessly creating
      * many temporary bitmaps.
+     * This function may throw std::runtime_error.
      */
     Roaring operator&(const Roaring &o) const {
         roaring_bitmap_t *r = api::roaring_bitmap_and(&roaring, &o.roaring);
@@ -632,6 +668,7 @@ public:
     /**
      * Computes the difference between two bitmaps and returns new bitmap.
      * The current bitmap and the provided bitmap are unchanged.
+     * This function may throw std::runtime_error.
      */
     Roaring operator-(const Roaring &o) const {
         roaring_bitmap_t *r = api::roaring_bitmap_andnot(&roaring, &o.roaring);
@@ -644,6 +681,7 @@ public:
     /**
      * Computes the union between two bitmaps and returns new bitmap.
      * The current bitmap and the provided bitmap are unchanged.
+     * This function may throw std::runtime_error.
      */
     Roaring operator|(const Roaring &o) const {
         roaring_bitmap_t *r = api::roaring_bitmap_or(&roaring, &o.roaring);
@@ -656,6 +694,7 @@ public:
     /**
      * Computes the symmetric union between two bitmaps and returns new bitmap.
      * The current bitmap and the provided bitmap are unchanged.
+     * This function may throw std::runtime_error.
      */
     Roaring operator^(const Roaring &o) const {
         roaring_bitmap_t *r = api::roaring_bitmap_xor(&roaring, &o.roaring);
@@ -668,19 +707,19 @@ public:
     /**
      * Whether or not we apply copy and write.
      */
-    void setCopyOnWrite(bool val) {
+    void setCopyOnWrite(bool val) noexcept {
         api::roaring_bitmap_set_copy_on_write(&roaring, val);
     }
 
     /**
      * Print the content of the bitmap
      */
-    void printf() const { api::roaring_bitmap_printf(&roaring); }
+    void printf() const noexcept { api::roaring_bitmap_printf(&roaring); }
 
     /**
      * Print the content of the bitmap into a string
      */
-    std::string toString() const {
+    std::string toString() const noexcept {
         struct iter_data {
             std::string str{}; // The empty constructor silences warnings from pedantic static analyzers.
             char first_char = '{';
@@ -705,13 +744,14 @@ public:
     /**
      * Whether or not copy and write is active.
      */
-    bool getCopyOnWrite() const {
+    bool getCopyOnWrite() const noexcept {
         return api::roaring_bitmap_get_copy_on_write(&roaring);
     }
 
     /**
      * Computes the logical or (union) between "n" bitmaps (referenced by a
      * pointer).
+     * This function may throw std::runtime_error.
      */
     static Roaring fastunion(size_t n, const Roaring **inputs) {
         const roaring_bitmap_t **x =

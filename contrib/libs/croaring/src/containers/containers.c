@@ -51,7 +51,7 @@ void container_free(container_t *c, uint8_t type) {
             break;
         default:
             assert(false);
-            __builtin_unreachable();
+            roaring_unreachable;
     }
 }
 
@@ -68,7 +68,7 @@ void container_printf(const container_t *c, uint8_t type) {
             run_container_printf(const_CAST_run(c));
             return;
         default:
-            __builtin_unreachable();
+            roaring_unreachable;
     }
 }
 
@@ -91,7 +91,7 @@ void container_printf_as_uint32_array(
                 const_CAST_run(c), base);
             return;
         default:
-            __builtin_unreachable();
+            roaring_unreachable;
     }
 }
 
@@ -180,7 +180,7 @@ container_t *container_clone(const container_t *c, uint8_t typecode) {
             return NULL;
         default:
             assert(false);
-            __builtin_unreachable();
+            roaring_unreachable;
             return NULL;
     }
 }

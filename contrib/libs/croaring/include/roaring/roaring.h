@@ -12,6 +12,7 @@
 #include <roaring/memory.h>
 #include <roaring/roaring_types.h>
 #include <roaring/roaring_version.h>
+#include <roaring/bitset/bitset.h>
 
 #ifdef __cplusplus
 extern "C" { namespace roaring { namespace api {
@@ -435,6 +436,23 @@ void roaring_bitmap_clear(roaring_bitmap_t *r);
  */
 void roaring_bitmap_to_uint32_array(const roaring_bitmap_t *r, uint32_t *ans);
 
+/**
+ * Store the bitmap to a bitset. This can be useful for people
+ * who need the performance and simplicity of a standard bitset.
+ * We assume that the input bitset is originally empty (does not
+ * have any set bit).
+ *
+ *   bitset_t * out = bitset_create();
+ *   // if the bitset has content in it, call "bitset_clear(out)"
+ *   bool success = roaring_bitmap_to_bitset(mybitmap, out); 
+ *   // on failure, success will be false.
+ *   // You can then query the bitset:
+ *   bool is_present = bitset_get(out,  10011 );
+ *   // you must free the memory:
+ *   bitset_free(out);
+ *
+ */
+bool roaring_bitmap_to_bitset(const roaring_bitmap_t *r, bitset_t * bitset);
 
 /**
  * Convert the bitmap to a sorted array from `offset` by `limit`, output in `ans`.
@@ -524,6 +542,15 @@ roaring_bitmap_t *roaring_bitmap_portable_deserialize(const char *buf);
  *
  * This is meant to be compatible with the Java and Go versions:
  * https://github.com/RoaringBitmap/RoaringFormatSpec
+ *
+ * The function itself is safe in the sense that it will not cause buffer overflows.
+ * However, for correct operations, it is assumed that the bitmap read was once
+ * serialized from a valid bitmap (i.e., it follows the format specification).
+ * If you provided an incorrect input (garbage), then the bitmap read may not be in
+ * a valid state and following operations may not lead to sensible results.
+ * In particular, the serialized array containers need to be in sorted order, and the
+ * run containers should be in sorted non-overlapping order. This is is guaranteed to
+ * happen when serializing an existing bitmap, but not for random inputs.
  *
  * This function is endian-sensitive. If you have a big-endian system (e.g., a mainframe IBM s390x),
  * the data format is going to be big-endian and not compatible with little-endian systems.

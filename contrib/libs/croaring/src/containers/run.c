@@ -831,7 +831,49 @@ int run_container_rank(const run_container_t *container, uint16_t x) {
     return sum;
 }
 
-#ifdef CROARING_IS_X64
+#if defined(CROARING_IS_X64) && CROARING_COMPILER_SUPPORTS_AVX512
+
+CROARING_TARGET_AVX512
+ALLOW_UNALIGNED
+/* Get the cardinality of `run'. Requires an actual computation. */
+static inline int _avx512_run_container_cardinality(const run_container_t *run) {
+    const int32_t n_runs = run->n_runs;
+    const rle16_t *runs = run->runs;
+
+    /* by initializing with n_runs, we omit counting the +1 for each pair. */
+    int sum = n_runs;
+    int32_t k = 0;
+    const int32_t step = sizeof(__m512i) / sizeof(rle16_t);
+    if (n_runs > step) {
+        __m512i total = _mm512_setzero_si512();
+        for (; k + step <= n_runs; k += step) {
+            __m512i ymm1 = _mm512_loadu_si512((const __m512i *)(runs + k));
+            __m512i justlengths = _mm512_srli_epi32(ymm1, 16);
+            total = _mm512_add_epi32(total, justlengths);
+        }
+
+        __m256i lo = _mm512_extracti32x8_epi32(total, 0);
+        __m256i hi = _mm512_extracti32x8_epi32(total, 1);
+
+        // a store might be faster than extract?
+        uint32_t buffer[sizeof(__m256i) / sizeof(rle16_t)];
+        _mm256_storeu_si256((__m256i *)buffer, lo);
+        sum += (buffer[0] + buffer[1]) + (buffer[2] + buffer[3]) +
+               (buffer[4] + buffer[5]) + (buffer[6] + buffer[7]);
+
+        _mm256_storeu_si256((__m256i *)buffer, hi);
+        sum += (buffer[0] + buffer[1]) + (buffer[2] + buffer[3]) +
+               (buffer[4] + buffer[5]) + (buffer[6] + buffer[7]);
+
+    }
+    for (; k < n_runs; ++k) {
+        sum += runs[k].length;
+    }
+
+    return sum;
+}
+
+CROARING_UNTARGET_REGION
 
 CROARING_TARGET_AVX2
 ALLOW_UNALIGNED
@@ -881,6 +923,12 @@ static inline int _scalar_run_container_cardinality(const run_container_t *run) 
 }
 
 int run_container_cardinality(const run_container_t *run) {
+#if CROARING_COMPILER_SUPPORTS_AVX512
+  if( croaring_avx512() ) {
+    return _avx512_run_container_cardinality(run);
+  }
+  else
+#endif
   if( croaring_avx2() ) {
     return _avx2_run_container_cardinality(run);
   } else {

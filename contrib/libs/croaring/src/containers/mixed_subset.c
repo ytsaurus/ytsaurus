@@ -108,7 +108,7 @@ bool bitset_container_is_subset_run(const bitset_container_t* container1,
             uint32_t start = container2->runs[i_run].value;
             uint32_t stop = start + container2->runs[i_run].length;
             uint64_t t = w & (~w + 1);
-            uint16_t r = i_bitset * 64 + __builtin_ctzll(w);
+            uint16_t r = i_bitset * 64 + roaring_trailing_zeroes(w);
             if (r < start) {
                 return false;
             } else if (r > stop) {

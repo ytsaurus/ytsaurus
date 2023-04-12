@@ -22,6 +22,7 @@ target_link_libraries(contrib-libs-croaring PUBLIC
 )
 target_sources(contrib-libs-croaring PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/array_util.c
+  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/bitset.c
   ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/bitset_util.c
   ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/array.c
   ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/bitset.c

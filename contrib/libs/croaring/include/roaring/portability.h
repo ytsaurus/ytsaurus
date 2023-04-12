@@ -71,7 +71,9 @@ extern "C" {  // portability definitions are in global scope, not a namespace
 #endif
 
 #if CROARING_REGULAR_VISUAL_STUDIO
+#ifndef __restrict__
 #define __restrict__ __restrict
+#endif // __restrict__
 #endif // CROARING_REGULAR_VISUAL_STUDIO
 
 
@@ -126,6 +128,15 @@ extern "C" {  // portability definitions are in global scope, not a namespace
 #include <avxintrin.h>
 #include <avx2intrin.h>
 #include <wmmintrin.h>
+// Important: we need the AVX-512 headers:
+#include <avx512fintrin.h>
+#include <avx512dqintrin.h>
+#include <avx512cdintrin.h>
+#include <avx512bwintrin.h>
+#include <avx512vlintrin.h>
+#include <avx512vbmiintrin.h>
+#include <avx512vbmi2intrin.h>
+#include <avx512vpopcntdqintrin.h>
 // unfortunately, we may not get _blsr_u64, but, thankfully, clang
 // has it as a macro.
 #ifndef _blsr_u64
@@ -138,10 +149,10 @@ extern "C" {  // portability definitions are in global scope, not a namespace
 #endif // CROARING_REGULAR_VISUAL_STUDIO
 #endif // defined(__x86_64__) || defined(_M_X64)
 
-#if !defined(USENEON) && !defined(DISABLENEON) && defined(__ARM_NEON)
-#  define USENEON
+#if !defined(CROARING_USENEON) && !defined(DISABLENEON) && defined(__ARM_NEON)
+#  define CROARING_USENEON
 #endif
-#if defined(USENEON)
+#if defined(CROARING_USENEON)
 #  include <arm_neon.h>
 #endif
 
@@ -157,12 +168,13 @@ extern "C" {  // portability definitions are in global scope, not a namespace
 
 #ifndef __clang__  // if one compiles with MSVC *with* clang, then these
                    // intrinsics are defined!!!
+#define CROARING_INTRINSICS 1
 // sadly there is no way to check whether we are missing these intrinsics
 // specifically.
 
-/* wrappers for Visual Studio built-ins that look like gcc built-ins */
+/* wrappers for Visual Studio built-ins that look like gcc built-ins __builtin_ctzll */
 /* result might be undefined when input_num is zero */
-inline int __builtin_ctzll(unsigned long long input_num) {
+static inline int roaring_trailing_zeroes(unsigned long long input_num) {
     unsigned long index;
 #ifdef _WIN64  // highly recommended!!!
     _BitScanForward64(&index, input_num);
@@ -173,12 +185,13 @@ inline int __builtin_ctzll(unsigned long long input_num) {
         _BitScanForward(&index, (uint32_t)(input_num >> 32));
         index += 32;
     }
-#endif
+#endif // _WIN64
     return index;
 }
 
+/* wrappers for Visual Studio built-ins that look like gcc built-ins __builtin_clzll */
 /* result might be undefined when input_num is zero */
-inline int __builtin_clzll(unsigned long long input_num) {
+inline int roaring_leading_zeroes(unsigned long long input_num) {
     unsigned long index;
 #ifdef _WIN64  // highly recommended!!!
     _BitScanReverse64(&index, input_num);
@@ -189,28 +202,21 @@ inline int __builtin_clzll(unsigned long long input_num) {
     } else {
         _BitScanReverse(&index, (uint32_t)(input_num));
     }
-#endif
+#endif // _WIN64
     return 63 - index;
 }
 
-
-/* software implementation avoids POPCNT */
-/*static inline int __builtin_popcountll(unsigned long long input_num) {
-  const uint64_t m1 = 0x5555555555555555; //binary: 0101...
-  const uint64_t m2 = 0x3333333333333333; //binary: 00110011..
-  const uint64_t m4 = 0x0f0f0f0f0f0f0f0f; //binary:  4 zeros,  4 ones ...
-  const uint64_t h01 = 0x0101010101010101; //the sum of 256 to the power of 0,1,2,3...
-
-  input_num -= (input_num >> 1) & m1;
-  input_num = (input_num & m2) + ((input_num >> 2) & m2);
-  input_num = (input_num + (input_num >> 4)) & m4;
-  return (input_num * h01) >> 56;
-}*/
-
 /* Use #define so this is effective even under /Ob0 (no inline) */
-#define __builtin_unreachable() __assume(0)
-#endif
+#define roaring_unreachable __assume(0)
+#endif // __clang__
 
+#endif // CROARING_REGULAR_VISUAL_STUDIO
+
+#ifndef CROARING_INTRINSICS
+#define CROARING_INTRINSICS 1
+#define roaring_unreachable __builtin_unreachable()
+static inline int roaring_trailing_zeroes(unsigned long long input_num) { return __builtin_ctzll(input_num); }
+static inline int roaring_leading_zeroes(unsigned long long input_num) { return __builtin_clzll(input_num); }
 #endif
 
 #if CROARING_REGULAR_VISUAL_STUDIO
@@ -230,11 +236,11 @@ inline int __builtin_clzll(unsigned long long input_num) {
 
 #define IS_BIG_ENDIAN (*(uint16_t *)"\0\xff" < 0x100)
 
-#ifdef USENEON
+#ifdef CROARING_USENEON
 // we can always compute the popcount fast.
 #elif (defined(_M_ARM) || defined(_M_ARM64)) && ((defined(_WIN64) || defined(_WIN32)) && defined(CROARING_REGULAR_VISUAL_STUDIO) && CROARING_REGULAR_VISUAL_STUDIO)
 // we will need this function:
-static inline int hammingbackup(uint64_t x) {
+static inline int roaring_hamming_backup(uint64_t x) {
   uint64_t c1 = UINT64_C(0x5555555555555555);
   uint64_t c2 = UINT64_C(0x3333333333333333);
   uint64_t c4 = UINT64_C(0x0F0F0F0F0F0F0F0F);
@@ -246,19 +252,19 @@ static inline int hammingbackup(uint64_t x) {
 #endif
 
 
-static inline int hamming(uint64_t x) {
+static inline int roaring_hamming(uint64_t x) {
 #if defined(_WIN64) && defined(CROARING_REGULAR_VISUAL_STUDIO) && CROARING_REGULAR_VISUAL_STUDIO
-#ifdef USENEON
+#ifdef CROARING_USENEON
    return vaddv_u8(vcnt_u8(vcreate_u8(input_num)));
 #elif defined(_M_ARM64)
-  return hammingbackup(x);
+  return roaring_hamming_backup(x);
   // (int) _CountOneBits64(x); is unavailable
 #else  // _M_ARM64
   return (int) __popcnt64(x);
 #endif // _M_ARM64
 #elif defined(_WIN32) && defined(CROARING_REGULAR_VISUAL_STUDIO) && CROARING_REGULAR_VISUAL_STUDIO
 #ifdef _M_ARM
-  return hammingbackup(x);
+  return roaring_hamming_backup(x);
   // _CountOneBits is unavailable
 #else // _M_ARM
     return (int) __popcnt(( unsigned int)x) + (int)  __popcnt(( unsigned int)(x>>32));
@@ -328,12 +334,22 @@ static inline int hamming(uint64_t x) {
 #endif
 
 #define CROARING_TARGET_AVX2 CROARING_TARGET_REGION("avx2,bmi,pclmul,lzcnt")
+#define CROARING_TARGET_AVX512 CROARING_TARGET_REGION("bmi2,avx512f,avx512dq,avx512bw,avx512vbmi2,avx512bitalg,avx512vpopcntdq")
 
 #ifdef __AVX2__
 // No need for runtime dispatching.
 // It is unnecessary and harmful to old clang to tag regions.
 #undef CROARING_TARGET_AVX2
 #define CROARING_TARGET_AVX2
+#undef CROARING_UNTARGET_REGION
+#define CROARING_UNTARGET_REGION
+#endif
+
+#if defined(__AVX512F__) && defined(__AVX512DQ__) && defined(__AVX512BW__) && defined(__AVX512VBMI2__) && defined(__AVX512BITALG__) && defined(__AVX512VPOPCNTDQ__)
+// No need for runtime dispatching.
+// It is unnecessary and harmful to old clang to tag regions.
+#undef CROARING_TARGET_AVX512
+#define CROARING_TARGET_AVX512
 #undef CROARING_UNTARGET_REGION
 #define CROARING_UNTARGET_REGION
 #endif
