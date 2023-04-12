@@ -6454,7 +6454,7 @@ bool MergeTreeData::movePartsToSpace(const DataPartsVector & parts, SpacePtr spa
     if (moving_tagger->parts_to_move.empty())
         return false;
 
-    return moveParts(moving_tagger, true);
+    return moveParts(moving_tagger);
 }
 
 MergeTreeData::CurrentlyMovingPartsTaggerPtr MergeTreeData::selectPartsForMove()
@@ -6511,7 +6511,7 @@ MergeTreeData::CurrentlyMovingPartsTaggerPtr MergeTreeData::checkPartsForMove(co
     return std::make_shared<CurrentlyMovingPartsTagger>(std::move(parts_to_move), *this);
 }
 
-bool MergeTreeData::moveParts(const CurrentlyMovingPartsTaggerPtr & moving_tagger, bool wait_for_move_if_zero_copy)
+bool MergeTreeData::moveParts(const CurrentlyMovingPartsTaggerPtr & moving_tagger)
 {
     LOG_INFO(log, "Got {} parts to move.", moving_tagger->parts_to_move.size());
 
@@ -6550,41 +6550,21 @@ bool MergeTreeData::moveParts(const CurrentlyMovingPartsTaggerPtr & moving_tagge
             auto disk = moving_part.reserved_space->getDisk();
             if (supportsReplication() && disk->supportZeroCopyReplication() && settings->allow_remote_fs_zero_copy_replication)
             {
-                /// This loop is not endless, if shutdown called/connection failed/replica became readonly
-                /// we will return true from waitZeroCopyLock and createZeroCopyLock will return nullopt.
-                while (true)
+                /// If we acuqired lock than let's try to move. After one
+                /// replica will actually move the part from disk to some
+                /// zero-copy storage other replicas will just fetch
+                /// metainformation.
+                if (auto lock = tryCreateZeroCopyExclusiveLock(moving_part.part->name, disk); lock)
                 {
-                    /// If we acquired lock than let's try to move. After one
-                    /// replica will actually move the part from disk to some
-                    /// zero-copy storage other replicas will just fetch
-                    /// metainformation.
-                    if (auto lock = tryCreateZeroCopyExclusiveLock(moving_part.part->name, disk); lock)
-                    {
-                        if (lock->isLocked())
-                        {
-                            cloned_part = parts_mover.clonePart(moving_part);
-                            parts_mover.swapClonedPart(cloned_part);
-                            break;
-                        }
-                        else if (wait_for_move_if_zero_copy)
-                        {
-                            LOG_DEBUG(log, "Other replica is working on move of {}, will wait until lock disappear", moving_part.part->name);
-                            /// Wait and checks not only for timeout but also for shutdown and so on.
-                            while (!waitZeroCopyLockToDisappear(*lock, 3000))
-                            {
-                                LOG_DEBUG(log, "Waiting until some replica will move {} and zero copy lock disappear", moving_part.part->name);
-                            }
-                        }
-                        else
-                            break;
-                    }
-                    else
-                    {
-                        /// Move will be retried but with backoff.
-                        LOG_DEBUG(log, "Move of part {} postponed, because zero copy mode enabled and someone other moving this part right now", moving_part.part->name);
-                        result = false;
-                        break;
-                    }
+                    cloned_part = parts_mover.clonePart(moving_part);
+                    parts_mover.swapClonedPart(cloned_part);
+                }
+                else
+                {
+                    /// Move will be retried but with backoff.
+                    LOG_DEBUG(log, "Move of part {} postponed, because zero copy mode enabled and someone other moving this part right now", moving_part.part->name);
+                    result = false;
+                    continue;
                 }
             }
             else /// Ordinary move as it should be

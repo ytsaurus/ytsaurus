@@ -838,13 +838,8 @@ private:
     std::optional<String> getZeroCopyPartPath(const String & part_name, const DiskPtr & disk);
 
     /// Create ephemeral lock in zookeeper for part and disk which support zero copy replication.
-    /// If no connection to zookeeper, shutdown, readonly -- return std::nullopt.
-    /// If somebody already holding the lock -- return unlocked ZeroCopyLock object (not std::nullopt).
+    /// If somebody already holding the lock -- return std::nullopt.
     std::optional<ZeroCopyLock> tryCreateZeroCopyExclusiveLock(const String & part_name, const DiskPtr & disk) override;
-
-    /// Wait for ephemral lock to disappear. Return true if table shutdown/readonly/timeout exceeded, etc.
-    /// Or if node actually disappeared.
-    bool waitZeroCopyLockToDisappear(const ZeroCopyLock & lock, size_t milliseconds_to_wait) override;
 };
 
 String getPartNamePossiblyFake(MergeTreeDataFormatVersion format_version, const MergeTreePartInfo & part_info);
