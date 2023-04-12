@@ -77,7 +77,7 @@ void GetQueryInfo(
         })
         .DoIf(!keyColumns.empty(), [&] (auto fluent) {
             auto buffer = New<TRowBuffer>();
-            auto trie = ExtractMultipleConstraints(expression, keyColumns, buffer, GetBuiltinRangeExtractor().Get());
+            auto trie = ExtractMultipleConstraints(expression, keyColumns, buffer, GetBuiltinRangeExtractors().Get());
             fluent.Item("key_trie").Value(ToString(trie));
 
             auto ranges = GetRangesFromTrieWithinRange(TRowRange(MinKey(), MaxKey()), trie, buffer);

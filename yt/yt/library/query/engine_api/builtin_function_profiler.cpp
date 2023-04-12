@@ -42,7 +42,7 @@ Y_WEAK const TConstAggregateProfilerMapPtr GetBuiltinAggregateProfilers()
     YT_ABORT();
 }
 
-Y_WEAK const TConstRangeExtractorMapPtr GetBuiltinRangeExtractor()
+Y_WEAK const TConstRangeExtractorMapPtr GetBuiltinRangeExtractors()
 {
     // Proper implementation resides in yt/yt/library/query/engine/builtin_function_profiler.cpp.
     YT_ABORT();

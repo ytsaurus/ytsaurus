@@ -745,21 +745,17 @@ std::unique_ptr<IFunctionRegistryBuilder> CreateProfilerFunctionRegistryBuilder(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConstRangeExtractorMapPtr CreateBuiltinRangeExtractorMap()
+TConstRangeExtractorMapPtr CreateBuiltinRangeExtractors()
 {
     auto result = New<TRangeExtractorMap>();
     result->emplace("is_prefix", NBuiltins::IsPrefixRangeExtractor);
     return result;
 }
 
-const TConstRangeExtractorMapPtr GetBuiltinRangeExtractor()
+const TConstRangeExtractorMapPtr GetBuiltinRangeExtractors()
 {
-    static TConstRangeExtractorMapPtr builtinRangeExtractorMap  ;
-    static std::once_flag onceFlag;
-    std::call_once(onceFlag, [&] {
-        builtinRangeExtractorMap = CreateBuiltinRangeExtractorMap();
-    });
-    return builtinRangeExtractorMap;
+    static const auto builtinRangeExtractors = CreateBuiltinRangeExtractors();
+    return builtinRangeExtractors;
 }
 
 TConstFunctionProfilerMapPtr CreateBuiltinFunctionProfilers()
@@ -792,11 +788,7 @@ TConstFunctionProfilerMapPtr CreateBuiltinFunctionProfilers()
 
 const TConstFunctionProfilerMapPtr GetBuiltinFunctionProfilers()
 {
-    static TConstFunctionProfilerMapPtr builtinFunctionProfilers;
-    static std::once_flag onceFlag;
-    std::call_once(onceFlag, [&] {
-        builtinFunctionProfilers = CreateBuiltinFunctionProfilers();
-    });
+    static const auto builtinFunctionProfilers = CreateBuiltinFunctionProfilers();
     return builtinFunctionProfilers;
 }
 
@@ -818,11 +810,7 @@ TConstAggregateProfilerMapPtr CreateBuiltinAggregateProfilers()
 
 const TConstAggregateProfilerMapPtr GetBuiltinAggregateProfilers()
 {
-    static TConstAggregateProfilerMapPtr builtinAggregateProfilers;
-    static std::once_flag onceFlag;
-    std::call_once(onceFlag, [&] {
-        builtinAggregateProfilers = CreateBuiltinAggregateProfilers();
-    });
+    static const auto builtinAggregateProfilers = CreateBuiltinAggregateProfilers();
     return builtinAggregateProfilers;
 }
 

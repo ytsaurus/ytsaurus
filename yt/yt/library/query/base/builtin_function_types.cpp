@@ -191,12 +191,8 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
 
 const TConstTypeInferrerMapPtr GetBuiltinTypeInferrers()
 {
-    static TConstTypeInferrerMapPtr builtinTypeInferrersMap ;
-    static std::once_flag onceFlag;
-    std::call_once(onceFlag, [&] {
-        builtinTypeInferrersMap = CreateBuiltinTypeInferrers();
-    });
-    return builtinTypeInferrersMap;
+    static const auto builtinTypeInferrers = CreateBuiltinTypeInferrers();
+    return builtinTypeInferrers;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

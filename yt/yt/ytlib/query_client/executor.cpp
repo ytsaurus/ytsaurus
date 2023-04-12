@@ -529,7 +529,7 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
             ranges,
             rowBuffer,
             connection->GetColumnEvaluatorCache(),
-            GetBuiltinRangeExtractor(),
+            GetBuiltinRangeExtractors(),
             options);
 
         YT_LOG_DEBUG("Ranges are refined (PrunedRangeCount: %v, OriginalRangeCount: %v, TableId: %v)",

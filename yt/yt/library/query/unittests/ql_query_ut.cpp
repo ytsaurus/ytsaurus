@@ -1016,7 +1016,7 @@ protected:
         auto config = New<TColumnEvaluatorCacheConfig>();
         ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(config);
 
-        MergeFrom(RangeExtractorMap.Get(), *GetBuiltinRangeExtractor());
+        MergeFrom(RangeExtractorMap.Get(), *GetBuiltinRangeExtractors());
     }
 
     void Coordinate(const TString& source, const TDataSplits& dataSplits, size_t subqueriesCount)
