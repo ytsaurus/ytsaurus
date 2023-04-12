@@ -100,12 +100,11 @@ void TAverageHistoricUsageAggregator::UpdateAt(TInstant now, double value)
 
 void TAverageHistoricUsageAggregator::MaybeFlush(TInstant now)
 {
-    if (!IntervalStart_) {
+    if (!IntervalStart_ || now < IntervalStart_) {
         IntervalStart_ = now;
         return;
     }
 
-    YT_VERIFY(now >= IntervalStart_);
     auto diff = now - IntervalStart_;
     if (diff < Period_) {
         return;
