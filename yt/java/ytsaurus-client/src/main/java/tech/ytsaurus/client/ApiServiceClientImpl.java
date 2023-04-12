@@ -166,26 +166,26 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     private final ExecutorService prepareSpecExecutor = Executors.newSingleThreadExecutor();
     @Nullable
     private final RpcClient rpcClient;
-    private final YTsaurusClientConfig configuration;
+    private final YTsaurusClientConfig config;
     protected final RpcOptions rpcOptions;
     protected final SerializationResolver serializationResolver;
 
     public ApiServiceClientImpl(
             @Nullable RpcClient client,
-            @Nonnull YTsaurusClientConfig configuration,
+            @Nonnull YTsaurusClientConfig config,
             @Nonnull Executor heavyExecutor,
             @Nonnull ScheduledExecutorService executorService,
             SerializationResolver serializationResolver
     ) {
-        OutageController outageController = configuration.getRpcOptions().getTestingOptions().getOutageController();
+        OutageController outageController = config.getRpcOptions().getTestingOptions().getOutageController();
         if (client != null && outageController != null) {
             this.rpcClient = new OutageRpcClient(client, outageController);
         } else {
             this.rpcClient = client;
         }
         this.heavyExecutor = Objects.requireNonNull(heavyExecutor);
-        this.configuration = configuration;
-        this.rpcOptions = configuration.getRpcOptions();
+        this.config = config;
+        this.rpcOptions = config.getRpcOptions();
         this.executorService = executorService;
         this.serializationResolver = serializationResolver;
     }
@@ -216,6 +216,14 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return this;
     }
 
+    YTsaurusClientConfig getConfig() {
+        return config;
+    }
+
+    ExecutorService getPrepareSpecExecutor() {
+        return prepareSpecExecutor;
+    }
+
     /**
      * Start new master or tablet transaction.
      *
@@ -235,7 +243,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                 logger.trace("Create sticky transaction with new client to proxy {}", sender.getAddressString());
                 result = new ApiServiceTransaction(
                         new ApiServiceClientImpl(
-                                Objects.requireNonNull(sender), configuration, heavyExecutor,
+                                Objects.requireNonNull(sender), config, heavyExecutor,
                                 executorService, serializationResolver),
                         id,
                         startTimestamp,
@@ -804,14 +812,14 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                 response -> RpcUtil.fromProto(response.body().getOperationId()));
     }
 
-    private YTreeMapNode patchSpec(YTreeMapNode spec) {
+    YTreeMapNode patchSpec(YTreeMapNode spec) {
         YTreeMapNode resultingSpec = spec;
 
         for (String op : JOB_TYPES) {
-            if (resultingSpec.containsKey(op) && configuration.getJobSpecPatch().isPresent()) {
+            if (resultingSpec.containsKey(op) && config.getJobSpecPatch().isPresent()) {
                 YTreeNode patch = YTree.builder()
                         .beginMap()
-                        .key(op).value(configuration.getJobSpecPatch().get())
+                        .key(op).value(config.getJobSpecPatch().get())
                         .endMap()
                         .build();
                 YTreeBuilder b = YTree.builder();
@@ -820,7 +828,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             }
         }
 
-        if (resultingSpec.containsKey("tasks") && configuration.getJobSpecPatch().isPresent()) {
+        if (resultingSpec.containsKey("tasks") && config.getJobSpecPatch().isPresent()) {
             for (Map.Entry<String, YTreeNode> entry
                     : resultingSpec.getOrThrow("tasks").asMap().entrySet()
             ) {
@@ -828,7 +836,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                         .beginMap()
                         .key("tasks")
                         .beginMap()
-                        .key(entry.getKey()).value(configuration.getJobSpecPatch().get())
+                        .key(entry.getKey()).value(config.getJobSpecPatch().get())
                         .endMap()
                         .endMap()
                         .build();
@@ -839,9 +847,9 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             }
         }
 
-        if (configuration.getSpecPatch().isPresent()) {
+        if (config.getSpecPatch().isPresent()) {
             YTreeBuilder b = YTree.builder();
-            YTreeNodeUtils.merge(resultingSpec, configuration.getSpecPatch().get(), b, true);
+            YTreeNodeUtils.merge(resultingSpec, config.getSpecPatch().get(), b, true);
             resultingSpec = b.build().mapNode();
         }
         return resultingSpec;
@@ -851,10 +859,26 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return CompletableFuture.supplyAsync(
                 () -> {
                     YTreeBuilder builder = YTree.builder();
-                    spec.prepare(builder, this, new SpecPreparationContext(configuration));
+                    spec.prepare(builder, this, new SpecPreparationContext(config));
                     return patchSpec(builder.build().mapNode());
                 },
                 prepareSpecExecutor);
+    }
+
+    <T extends Spec> CompletableFuture<Operation> startPreparedOperation(
+            YTreeNode preparedSpec,
+            BaseOperation<T> req,
+            EOperationType type
+    ) {
+        return startOperation(
+                StartOperation.builder()
+                        .setType(type)
+                        .setSpec(preparedSpec)
+                        .setTransactionalOptions(req.getTransactionalOptions().orElse(null))
+                        .setMutatingOptions(req.getMutatingOptions())
+                        .build()
+        ).thenApply(operationId ->
+                new OperationImpl(operationId, this, executorService, config.getOperationPingPeriod()));
     }
 
     private <T extends Spec> CompletableFuture<Operation> startOperationImpl(
@@ -862,15 +886,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             EOperationType type
     ) {
         return prepareSpec(req.getSpec()).thenCompose(
-                preparedSpec -> startOperation(
-                        StartOperation.builder()
-                                .setType(type)
-                                .setSpec(preparedSpec)
-                                .setTransactionalOptions(req.getTransactionalOptions().orElse(null))
-                                .setMutatingOptions(req.getMutatingOptions())
-                                .build()
-                ).thenApply(operationId ->
-                        new OperationImpl(operationId, this, executorService, configuration.getOperationPingPeriod()))
+                preparedSpec -> startPreparedOperation(preparedSpec, req, type)
         );
     }
 
@@ -919,7 +935,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     @Override
     public Operation attachOperation(GUID operationId) {
-        return new OperationImpl(operationId, this, executorService, configuration.getOperationPingPeriod());
+        return new OperationImpl(operationId, this, executorService, config.getOperationPingPeriod());
     }
 
     @Override
@@ -1320,14 +1336,14 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         if (req instanceof RequestBase) {
             req = (RequestType) ((RequestBase<?, ?>) req)
                     .toBuilder()
-                    .setUserAgent(configuration.getVersion())
+                    .setUserAgent(config.getVersion())
                     .build();
         }
 
         logger.debug("Starting request {}; {}; User-Agent: {}",
                 builder,
                 req.getArgumentsLogString(),
-                configuration.getVersion());
+                config.getVersion());
         req.writeHeaderTo(builder.header());
         req.writeTo(builder);
         return invoke(builder);

@@ -17,6 +17,8 @@ import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.operations.Operation;
+import tech.ytsaurus.client.operations.Spec;
+import tech.ytsaurus.client.operations.SpecPreparationContext;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
 import tech.ytsaurus.client.request.CheckPermission;
@@ -60,7 +62,10 @@ import tech.ytsaurus.client.rpc.RpcErrorCode;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
+import tech.ytsaurus.rpcproxy.EOperationType;
 import tech.ytsaurus.rpcproxy.TCheckPermissionResult;
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 public class ApiServiceTransaction implements TransactionalClient, AutoCloseable, Abortable {
@@ -457,39 +462,72 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
         return client.startOperation(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
     }
 
+    private CompletableFuture<YTreeNode> prepareSpec(Spec spec) {
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    YTreeBuilder builder = YTree.builder();
+                    spec.prepare(builder, this, new SpecPreparationContext(client.getConfig()));
+                    return client.patchSpec(builder.build().mapNode());
+                },
+                client.getPrepareSpecExecutor());
+    }
+
     @Override
     public CompletableFuture<Operation> startMap(MapOperation req) {
-        return client.startMap(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
+        var transactionalReq = req.toBuilder().setTransactionalOptions(transactionalOptions).build();
+        return prepareSpec(transactionalReq.getSpec()).thenCompose(
+                preparedSpec -> client.startPreparedOperation(preparedSpec, transactionalReq, EOperationType.OT_MAP)
+        );
     }
 
     @Override
     public CompletableFuture<Operation> startReduce(ReduceOperation req) {
-        return client.startReduce(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
+        var transactionalReq = req.toBuilder().setTransactionalOptions(transactionalOptions).build();
+        return prepareSpec(transactionalReq.getSpec()).thenCompose(
+                preparedSpec -> client.startPreparedOperation(preparedSpec, transactionalReq, EOperationType.OT_REDUCE)
+        );
     }
 
     @Override
     public CompletableFuture<Operation> startSort(SortOperation req) {
-        return client.startSort(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
+        var transactionalReq = req.toBuilder().setTransactionalOptions(transactionalOptions).build();
+        return prepareSpec(transactionalReq.getSpec()).thenCompose(
+                preparedSpec -> client.startPreparedOperation(preparedSpec, transactionalReq, EOperationType.OT_SORT)
+        );
     }
 
     @Override
     public CompletableFuture<Operation> startMapReduce(MapReduceOperation req) {
-        return client.startMapReduce(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
+        var transactionalReq = req.toBuilder().setTransactionalOptions(transactionalOptions).build();
+        return prepareSpec(transactionalReq.getSpec()).thenCompose(
+                preparedSpec -> client.startPreparedOperation(
+                        preparedSpec, transactionalReq, EOperationType.OT_MAP_REDUCE)
+        );
     }
 
     @Override
     public CompletableFuture<Operation> startMerge(MergeOperation req) {
-        return client.startMerge(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
+        var transactionalReq = req.toBuilder().setTransactionalOptions(transactionalOptions).build();
+        return prepareSpec(transactionalReq.getSpec()).thenCompose(
+                preparedSpec -> client.startPreparedOperation(preparedSpec, transactionalReq, EOperationType.OT_MERGE)
+        );
     }
 
     @Override
     public CompletableFuture<Operation> startRemoteCopy(RemoteCopyOperation req) {
-        return client.startRemoteCopy(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
+        var transactionalReq = req.toBuilder().setTransactionalOptions(transactionalOptions).build();
+        return prepareSpec(transactionalReq.getSpec()).thenCompose(
+                preparedSpec -> client.startPreparedOperation(
+                        preparedSpec, transactionalReq, EOperationType.OT_REMOTE_COPY)
+        );
     }
 
     @Override
     public CompletableFuture<Operation> startVanilla(VanillaOperation req) {
-        return client.startVanilla(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
+        var transactionalReq = req.toBuilder().setTransactionalOptions(transactionalOptions).build();
+        return prepareSpec(transactionalReq.getSpec()).thenCompose(
+                preparedSpec -> client.startPreparedOperation(preparedSpec, transactionalReq, EOperationType.OT_VANILLA)
+        );
     }
 
     @Override
