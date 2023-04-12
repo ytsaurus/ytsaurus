@@ -297,8 +297,8 @@ private:
                     .ValueOrThrow();
 
                 if (replicaTableInfo->IsSorted() != TableSchema_->IsSorted()) {
-                    THROW_ERROR_EXCEPTION("Replicated table and replica table should be either both sorted or both ordered, got: "
-                        "replicated table: %v and repica table: %v",
+                    THROW_ERROR_EXCEPTION("Replicated table and replica table should be either both sorted or both ordered, "
+                        "but replicated table is %v and replica table is %v",
                         TableSchema_->IsSorted() ? "sorted": "ordered",
                         replicaTableInfo->IsSorted() ? "sorted" :  "ordered")
                         << HardErrorAttribute;
