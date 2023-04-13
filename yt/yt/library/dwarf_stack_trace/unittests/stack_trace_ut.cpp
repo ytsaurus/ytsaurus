@@ -1,8 +1,11 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/core/libunwind/libunwind.h>
 #include <yt/yt/core/misc/raw_formatter.h>
 #include <yt/yt/core/misc/stack_trace.h>
+
+#include <library/cpp/yt/backtrace/helpers.h>
+
+#include <library/cpp/yt/backtrace/cursors/libunwind/libunwind_cursor.h>
 
 namespace NYT {
 namespace {
@@ -11,27 +14,24 @@ namespace {
 
 using ::testing::ContainsRegex;
 
-TString GetStackTrace(int limit)
+TString GetStackTrace()
 {
-    std::array<void*, 2> frames;
-    NLibunwind::GetStackTrace(frames.data(), frames.size(), 0);
-    return FormatStackTrace(frames.data(), limit);
+    std::array<const void*, 1> buffer;
+    NBacktrace::TLibunwindCursor cursor;
+    auto frames = NBacktrace::GetBacktraceFromCursor(
+        &cursor,
+        MakeMutableRange(buffer),
+        /*framesToSkip*/ 0);
+    return FormatStackTrace(frames.begin(), frames.size());
 }
 
 TEST(TStackTrace, Format)
 {
-    const auto stack = GetStackTrace(2);
-    ASSERT_THAT(stack,
-        ContainsRegex("^ 1\\. 0x[0-9a-f]+ in NYT::\\(anonymous namespace\\)::GetStackTrace.* "
-                      "at .+/yt/yt/library/dwarf_stack_trace/unittests/stack_trace_ut.cpp:[0-9]+\\n 2. "));
-}
-
-TEST(TStackTrace, LinesCountLimit)
-{
-    const auto stack = GetStackTrace(1);
-    ASSERT_THAT(stack,
-        ContainsRegex("^ 1\\. 0x[0-9a-f]+ in NYT::\\(anonymous namespace\\)::GetStackTrace.* "
-                      "at .+/yt/yt/library/dwarf_stack_trace/unittests/stack_trace_ut.cpp:[0-9]+\\n$"));
+    ASSERT_THAT(
+        GetStackTrace(),
+        ContainsRegex(
+            "^ 1\\. 0x[0-9a-f]+ in NYT::\\(anonymous namespace\\)::GetStackTrace.* "
+            "at .+/yt/yt/library/dwarf_stack_trace/unittests/stack_trace_ut.cpp:[0-9]+\\n"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -20,6 +20,15 @@ TBuildInfo TBuildInfo::GetDefault()
     return buildInfo;
 }
 
+bool IsProfileBuild()
+{
+#ifdef YTPROF_PROFILE_BUILD
+    return true;
+#else
+    return false;
+#endif
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTProf

@@ -115,7 +115,6 @@ target_sources(unittester-core-misc PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/yverify_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/zerocopy_output_writer_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/hedging_manager_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/safe_memory_reader_ut.cpp
 )
 add_test(
   NAME

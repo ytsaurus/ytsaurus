@@ -33,6 +33,8 @@ target_link_libraries(yt-library-ytprof PUBLIC
   yutil
   cpp-yt-memory
   cpp-yt-threading
+  backtrace-cursors-frame_pointer
+  backtrace-cursors-libunwind
   library-ytprof-api
   contrib-libs-libunwind
   libs-tcmalloc-malloc_extension
@@ -44,7 +46,6 @@ target_proto_messages(yt-library-ytprof PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/profile.proto
 )
 target_sources(yt-library-ytprof PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/backtrace.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/signal_safe_profiler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/cpu_profiler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/heap_profiler.cpp

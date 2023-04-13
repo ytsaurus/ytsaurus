@@ -14,6 +14,14 @@
 
 #include <library/cpp/yt/assert/assert.h>
 
+#include <library/cpp/yt/backtrace/helpers.h>
+
+#ifdef _unix_
+#include <library/cpp/yt/backtrace/cursors/libunwind/libunwind_cursor.h>
+#else
+#include <library/cpp/yt/backtrace/cursors/dummy/dummy_cursor.h>
+#endif
+
 #include <util/system/defaults.h>
 
 #include <signal.h>
@@ -62,7 +70,20 @@ void WriteToStderr(const char* buffer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
+namespace NDetail {
+
+Y_NO_INLINE TStackTrace GetStackTrace(TStackTraceBuffer* buffer)
+{
+#ifdef _unix_
+    NBacktrace::TLibunwindCursor cursor;
+#else
+    NBacktrace::TDummyCursor cursor;
+#endif
+    return NBacktrace::GetBacktraceFromCursor(
+        &cursor,
+        MakeMutableRange(*buffer),
+        /*framesToSkip*/ 2);
+}
 
 using NYT::WriteToStderr;
 
@@ -471,7 +492,7 @@ void DumpUndumpableBlocksInfo()
 
 #endif
 
-} // namespace
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -483,33 +504,33 @@ void CrashSignalHandler(int /*signal*/, siginfo_t* si, void* uc)
     // All code here _MUST_ be async signal safe unless specified otherwise.
 
     // When did the crash happen?
-    DumpTimeInfo();
+    NDetail::DumpTimeInfo();
 
     // Dump codicils.
-    DumpCodicils();
+    NDetail::DumpCodicils();
 
     // Where did the crash happen?
     {
-        const void* frames[] = {GetPC(uc)};
+        const void* frames[] = {NDetail::GetPC(uc)};
         FormatStackTrace(frames, 1, [] (TStringBuf info) {
             info.SkipPrefix(" 1. ");
             WriteToStderr(info);
         });
     }
 
-    DumpSignalInfo(si);
+    NDetail::DumpSignalInfo(si);
 
-    DumpSigcontext(uc);
+    NDetail::DumpSigcontext(uc);
 
     // The easiest way to choose proper overload...
     DumpStackTrace([] (TStringBuf str) { WriteToStderr(str); });
 
-    DumpUndumpableBlocksInfo();
+    NDetail::DumpUndumpableBlocksInfo();
 
     WriteToStderr("*** Waiting for logger to shut down ***\n");
 
     // Actually, it is not okay to hang.
-    ::signal(SIGALRM, CrashTimeoutHandler);
+    ::signal(SIGALRM, NDetail::CrashTimeoutHandler);
     ::alarm(5);
 
     NLogging::TLogManager::Get()->Shutdown();
@@ -529,7 +550,7 @@ void CrashSignalHandler(int /*signal*/)
 void PushCodicil(const TString& data)
 {
 #ifdef _unix_
-    CodicilStackSlot()->push_back(data);
+    NDetail::CodicilStackSlot()->push_back(data);
 #else
     Y_UNUSED(data);
 #endif
@@ -538,15 +559,15 @@ void PushCodicil(const TString& data)
 void PopCodicil()
 {
 #ifdef _unix_
-    YT_VERIFY(!CodicilStackSlot()->empty());
-    CodicilStackSlot()->pop_back();
+    YT_VERIFY(!NDetail::CodicilStackSlot()->empty());
+    NDetail::CodicilStackSlot()->pop_back();
 #endif
 }
 
 std::vector<TString> GetCodicils()
 {
 #ifdef _unix_
-    return *CodicilStackSlot();
+    return *NDetail::CodicilStackSlot();
 #else
     return {};
 #endif

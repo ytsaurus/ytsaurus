@@ -16,7 +16,6 @@
 #include <yt/yt/library/ytprof/cpu_profiler.h>
 #include <yt/yt/library/ytprof/symbolize.h>
 #include <yt/yt/library/ytprof/profile.h>
-#include <yt/yt/library/ytprof/backtrace.h>
 #include <yt/yt/library/ytprof/external_pprof.h>
 
 #include <util/string/cast.h>

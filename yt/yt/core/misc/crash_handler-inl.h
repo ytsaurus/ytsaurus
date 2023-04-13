@@ -6,7 +6,7 @@
 
 #include "stack_trace.h"
 
-#include <yt/yt/core/libunwind/libunwind.h>
+#include <library/cpp/yt/memory/range.h>
 
 #include <array>
 
@@ -14,28 +14,25 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _unix_
+namespace NDetail {
+
+using TStackTrace = TRange<const void*>;
+using TStackTraceBuffer = std::array<const void*, 99>; // 99 is to keep formatting :)
+TStackTrace GetStackTrace(TStackTraceBuffer* buffer);
+
+} // namespace NDetail
 
 template <class TCallback>
-void DumpStackTrace(TCallback writeCallback)
+Y_NO_INLINE void DumpStackTrace(TCallback writeCallback)
 {
-    // Get the stack trace (without current frame hence +1).
-    std::array<void*, 99> frames; // 99 is to keep formatting. :)
-    int frameCount = NLibunwind::GetStackTrace(frames.data(), frames.size(), 1);
-    FormatStackTrace(frames.begin(), frameCount, writeCallback);
+    NDetail::TStackTraceBuffer buffer;
+    auto frames = NDetail::GetStackTrace(&buffer);
+    if (frames.empty()) {
+        writeCallback(TStringBuf("<stack trace is not available>"));
+    } else {
+        FormatStackTrace(frames.begin(), frames.size(), writeCallback);
+    }
 }
-
-#else
-
-template <class TCallback>
-void DumpStackTrace(TCallback writeCallback)
-{
-    TRawFormatter<256> formatter;
-    formatter.AppendString("(stack trace is not available for this platform)");
-    writeCallback(TStringBuf(formatter.GetData(), formatter.GetBytesWritten()));
-}
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

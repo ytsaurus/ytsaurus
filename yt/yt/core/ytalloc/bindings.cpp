@@ -10,11 +10,9 @@
 #include <yt/yt/core/misc/string_builder.h>
 #include <yt/yt/core/misc/stack_trace.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
-
 #include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/yt/core/libunwind/libunwind.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <util/system/env.h>
 
@@ -338,8 +336,7 @@ bool IsConfiguredFromEnv()
 
 void InitializeLibunwindInterop()
 {
-    SetBacktraceProvider(NLibunwind::GetStackTrace);
-    SetBacktraceFormatter(FormatStackTrace);
+    // COMPAT(babenko): intentionally empty, this code will die anyway.
 }
 
 TString FormatAllocationCounters()

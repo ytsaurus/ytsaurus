@@ -7,7 +7,6 @@
 #include <yt/yt/library/ytprof/spinlock_profiler.h>
 #include <yt/yt/library/ytprof/symbolize.h>
 #include <yt/yt/library/ytprof/profile.h>
-#include <yt/yt/library/ytprof/backtrace.h>
 #include <yt/yt/library/ytprof/external_pprof.h>
 
 #include <tcmalloc/malloc_extension.h>

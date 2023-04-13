@@ -7,6 +7,7 @@
 
 
 add_subdirectory(assert)
+add_subdirectory(backtrace)
 add_subdirectory(coding)
 add_subdirectory(containers)
 add_subdirectory(cpu_clock)

@@ -70,7 +70,7 @@ target_link_libraries(yt-yt-core PUBLIC
   yt-library-profiling
   library-profiling-resource_tracker
   yt-library-tracing
-  contrib-libs-libunwind
+  backtrace-cursors-libunwind
 )
 target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/actions/cancelable_context.cpp
@@ -191,7 +191,6 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/ref_counted_tracker.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/ref_counted_tracker_statistics_producer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/ref_counted_tracker_profiler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/safe_memory_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/serialize.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/shutdown.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/signal_registry.cpp
@@ -314,7 +313,6 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytalloc/bindings.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytalloc/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytalloc/statistics_producer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/libunwind/libunwind.cpp
 )
 
 add_global_library_for(yt-yt-core.global yt-yt-core)
@@ -360,7 +358,7 @@ target_link_libraries(yt-yt-core.global PUBLIC
   yt-library-profiling
   library-profiling-resource_tracker
   yt-library-tracing
-  contrib-libs-libunwind
+  backtrace-cursors-libunwind
 )
 target_sources(yt-yt-core.global PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/log.cpp

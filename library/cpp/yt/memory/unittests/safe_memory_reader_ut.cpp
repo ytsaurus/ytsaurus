@@ -1,7 +1,7 @@
 
-#include <gtest/gtest.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
-#include <yt/yt/core/misc/safe_memory_reader.h>
+#include <library/cpp/yt/memory/safe_memory_reader.h>
 
 namespace NYT {
 namespace {

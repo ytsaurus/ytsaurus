@@ -23,6 +23,8 @@ struct TBuildInfo
     static TBuildInfo GetDefault();
 };
 
+bool IsProfileBuild();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTProf

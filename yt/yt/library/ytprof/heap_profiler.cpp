@@ -1,16 +1,17 @@
 #include "heap_profiler.h"
 
 #include "symbolize.h"
-#include "backtrace.h"
+
+#include <library/cpp/yt/memory/leaky_singleton.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
+
+#include <library/cpp/yt/backtrace/cursors/libunwind/libunwind_cursor.h>
 
 #include <util/generic/hash_set.h>
 #include <util/string/join.h>
 
 #include <tcmalloc/malloc_extension.h>
-
-#include <library/cpp/yt/memory/leaky_singleton.h>
-
-#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT {
 
@@ -205,15 +206,18 @@ i64 GetEstimatedMemoryUsage(TMemoryTag tag)
     return 0;
 }
 
-int AbslStackUnwinder(void** frames, int*,
-                      int maxFrames, int skipFrames,
-                      const void*,
-                      int*)
+int AbslStackUnwinder(
+    void** frames,
+    int*,
+    int maxFrames,
+    int skipFrames,
+    const void*,
+    int*)
 {
-    TUWCursor cursor;
+    NBacktrace::TLibunwindCursor cursor;
 
     for (int i = 0; i < skipFrames + 1; ++i) {
-        cursor.Next();
+        cursor.MoveNext();
     }
 
     if (maxFrames > 0) {
@@ -222,15 +226,15 @@ int AbslStackUnwinder(void** frames, int*,
 
     int count = 1;
     for (int i = 1; i < maxFrames; ++i) {
-        if (cursor.IsEnd()) {
+        if (cursor.IsFinished()) {
             return count;
         }
 
         // IP point's to return address. Substract 1 to get accurate line information for profiler.
-        frames[i] = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(cursor.GetIP()) - 1);
+        frames[i] = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(cursor.GetCurrentIP()) - 1);
         count++;
 
-        cursor.Next();
+        cursor.MoveNext();
     }
     return count;
 }

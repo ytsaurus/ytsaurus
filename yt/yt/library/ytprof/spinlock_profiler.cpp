@@ -5,6 +5,8 @@
 
 #include <util/system/yield.h>
 
+#include <contrib/libs/libunwind/include/libunwind.h>
+
 #include <mutex>
 
 namespace NYT::NYTProf {
@@ -53,31 +55,31 @@ void TSpinlockProfiler::RecordEvent(const void *lock, int64_t waitCycles)
 {
     Y_UNUSED(lock);
 
-    unw_context_t context;
-    YT_VERIFY(unw_getcontext(&context) == 0);
+    unw_context_t uwContext;
+    YT_VERIFY(unw_getcontext(&uwContext) == 0);
 
-    unw_cursor_t cursor;
-    YT_VERIFY(unw_init_local(&cursor, &context) == 0);
+    unw_cursor_t uwCursor;
+    YT_VERIFY(unw_init_local(&uwCursor, &uwContext) == 0);
 
-    unw_word_t ip = 0;
-    YT_VERIFY(unw_get_reg(&cursor, UNW_REG_IP, &ip) == 0);
+    unw_word_t rip;
+    YT_VERIFY(unw_get_reg(&uwCursor, UNW_REG_IP, &rip) == 0);
 
-    unw_word_t rsp = 0;
-    YT_VERIFY(unw_get_reg(&cursor, UNW_X86_64_RSP, &rsp) == 0);
+    unw_word_t rsp;
+    YT_VERIFY(unw_get_reg(&uwCursor, UNW_X86_64_RSP, &rsp) == 0);
 
-    unw_word_t rbp = 0;
-    YT_VERIFY(unw_get_reg(&cursor, UNW_X86_64_RBP, &rbp) == 0);
+    unw_word_t rbp;
+    YT_VERIFY(unw_get_reg(&uwCursor, UNW_X86_64_RBP, &rbp) == 0);
 
-    TFramePointerCursor fpCursor(
-        &Mem_,
-        reinterpret_cast<void*>(ip),
-        reinterpret_cast<void*>(rsp),
-        reinterpret_cast<void*>(rbp));
+    NBacktrace::TFramePointerCursor fpCursor(
+        &Reader_,
+        rip,
+        rsp,
+        rbp);
 
     RecordSample(&fpCursor, waitCycles);
 }
 
-static thread_local int SpinlockEventCount = 0;
+static thread_local int SpinlockEventCount;
 
 void TSpinlockProfiler::OnEvent(const void *lock, int64_t waitCycles)
 {
@@ -168,36 +170,33 @@ void TBlockingProfiler::DisableProfiler()
 
 void TBlockingProfiler::RecordEvent(
     TCpuDuration cpuDelay,
-    const ::TSourceLocation& location,
-    NThreading::ESpinLockActivityKind activityKind)
+    const ::TSourceLocation& /*location*/,
+    NThreading::ESpinLockActivityKind /*activityKind*/)
 {
-    Y_UNUSED(location, activityKind);
+    unw_context_t unwContext;
+    YT_VERIFY(unw_getcontext(&unwContext) == 0);
 
-    unw_context_t context;
-    YT_VERIFY(unw_getcontext(&context) == 0);
+    unw_cursor_t unwCursor;
+    YT_VERIFY(unw_init_local(&unwCursor, &unwContext) == 0);
 
-    unw_cursor_t cursor;
-    YT_VERIFY(unw_init_local(&cursor, &context) == 0);
+    unw_word_t rip;
+    YT_VERIFY(unw_get_reg(&unwCursor, UNW_REG_IP, &rip) == 0);
 
-    unw_word_t ip = 0;
-    YT_VERIFY(unw_get_reg(&cursor, UNW_REG_IP, &ip) == 0);
+    unw_word_t rsp;
+    YT_VERIFY(unw_get_reg(&unwCursor, UNW_X86_64_RSP, &rsp) == 0);
 
-    unw_word_t rsp = 0;
-    YT_VERIFY(unw_get_reg(&cursor, UNW_X86_64_RSP, &rsp) == 0);
+    unw_word_t rbp;
+    YT_VERIFY(unw_get_reg(&unwCursor, UNW_X86_64_RBP, &rbp) == 0);
 
-    unw_word_t rbp = 0;
-    YT_VERIFY(unw_get_reg(&cursor, UNW_X86_64_RBP, &rbp) == 0);
-
-    TFramePointerCursor fpCursor(
-        &Mem_,
-        reinterpret_cast<void*>(ip),
-        reinterpret_cast<void*>(rsp),
-        reinterpret_cast<void*>(rbp));
-
+    NBacktrace::TFramePointerCursor fpCursor(
+        &Reader_,
+        rip,
+        rsp,
+        rbp);
     RecordSample(&fpCursor, cpuDelay);
 }
 
-static thread_local int YTSpinlockEventCount = 0;
+static thread_local int YTSpinlockEventCount;
 
 void TBlockingProfiler::OnEvent(
     TCpuDuration cpuDelay,

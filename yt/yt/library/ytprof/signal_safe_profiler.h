@@ -1,21 +1,22 @@
 #pragma once
 
-#include <thread>
-#include <array>
-#include <variant>
-
-#include <yt/yt/core/misc/safe_memory_reader.h>
+#include "queue.h"
 
 #include <yt/yt/library/ytprof/profile.pb.h>
 #include <yt/yt/library/ytprof/api/api.h>
 
 #include <library/cpp/yt/memory/intrusive_ptr.h>
+#include <library/cpp/yt/memory/safe_memory_reader.h>
+
+#include <library/cpp/yt/backtrace/cursors/frame_pointer/frame_pointer_cursor.h>
 
 #include <util/generic/hash.h>
+
 #include <util/datetime/base.h>
 
-#include "queue.h"
-#include "backtrace.h"
+#include <thread>
+#include <array>
+#include <variant>
 
 namespace NYT::NYTProf {
 
@@ -48,7 +49,7 @@ public:
 class TSignalSafeProfiler
 {
 public:
-    TSignalSafeProfiler(TSignalSafeProfilerOptions options = {});
+    explicit TSignalSafeProfiler(TSignalSafeProfilerOptions options = {});
     virtual ~TSignalSafeProfiler();
 
     void Start();
@@ -62,10 +63,11 @@ public:
 
 protected:
     const TSignalSafeProfilerOptions Options_;
-    TSafeMemoryReader Mem_;
 
-    std::atomic<bool> Stop_{true};
-    std::atomic<i64> QueueOverflows_{0};
+    TSafeMemoryReader Reader_;
+
+    std::atomic<bool> Stop_ = true;
+    std::atomic<i64> QueueOverflows_ = 0;
 
     TStaticQueue Queue_;
     std::thread BackgroundThread_;
@@ -83,7 +85,7 @@ protected:
     virtual void AnnotateProfile(NProto::Profile* profile, const std::function<i64(const TString&)>& stringify) = 0;
     virtual i64 EncodeValue(i64 value) = 0;
 
-    void RecordSample(TFramePointerCursor* cursor, i64 value);
+    void RecordSample(NBacktrace::TFramePointerCursor* cursor, i64 value);
 
     void DequeueSamples();
 };

@@ -1,12 +1,17 @@
 #pragma once
 
-namespace NYT::NLibunwind {
-
-////////////////////////////////////////////////////////////////////////////////
-// Thin wrapper around libunwind.
-
-int GetStackTrace(void** frames, int maxFrames, int skipFrames);
+namespace NYT::NBacktrace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NLibunwind
+class TDummyCursor
+{
+public:
+    bool IsFinished() const;
+    const void* GetCurrentIP() const;
+    void MoveNext();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NBacktrace

@@ -105,7 +105,6 @@ void DumpStackFrameInfo(TBaseFormatter* formatter, const void* pc)
 
 } // namespace
 
-
 Y_WEAK void FormatStackTrace(const void* const* frames, int frameCount, std::function<void(TStringBuf)> callback)
 {
     TRawFormatter<1024> formatter;

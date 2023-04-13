@@ -1,6 +1,5 @@
 #include "signal_safe_profiler.h"
 #include "symbolize.h"
-#include "backtrace.h"
 
 #if defined(_linux_)
 #include <link.h>
@@ -14,6 +13,8 @@
 
 #include <util/generic/yexception.h>
 #endif
+
+#include <yt/yt/core/misc/proc.h>
 
 #include <library/cpp/yt/cpu_clock/clock.h>
 
@@ -75,7 +76,7 @@ NProto::Profile TSignalSafeProfiler::ReadProfile()
     return {};
 }
 
-void TSignalSafeProfiler::RecordSample(TFramePointerCursor* /*cursor*/, i64 /*value*/)
+void TSignalSafeProfiler::RecordSample(NBacktrace::TFramePointerCursor* /*cursor*/, i64 /*value*/)
 { }
 
 void TSignalSafeProfiler::DequeueSamples()
@@ -96,11 +97,6 @@ TSignalSafeProfiler::~TSignalSafeProfiler()
 }
 
 #if defined(_linux_)
-
-size_t GetTid()
-{
-    return static_cast<size_t>(::syscall(SYS_gettid));
-}
 
 void TSignalSafeProfiler::Start()
 {
@@ -136,7 +132,7 @@ TCpuDuration GetActionRunTime()
     return GetCpuInstant() - fiberStartTime;
 }
 
-void TSignalSafeProfiler::RecordSample(TFramePointerCursor* cursor, i64 value)
+void TSignalSafeProfiler::RecordSample(NBacktrace::TFramePointerCursor* cursor, i64 value)
 {
     int count = 0;
     bool pushTid = false;
@@ -151,24 +147,24 @@ void TSignalSafeProfiler::RecordSample(TFramePointerCursor* cursor, i64 value)
     prctl(PR_GET_NAME, (unsigned long)threadName, 0UL, 0UL, 0UL);
     int namePushed = 0;
 
-    auto ok = Queue_.TryPush([&] () -> std::pair<void*, bool> {
+    auto ok = Queue_.TryPush([&] () -> std::pair<const void*, bool> {
         if (!pushValue) {
             pushValue = true;
-            return {reinterpret_cast<void*>(value), true};
+            return {reinterpret_cast<const void*>(value), true};
         }
 
         if (!pushTid) {
             pushTid = true;
-            return {reinterpret_cast<void*>(GetTid()), true};
+            return {reinterpret_cast<void*>(GetCurrentThreadId()), true};
         }
 
         if (Options_.RecordActionRunTime && !pushActionRunTime) {
             pushActionRunTime = true;
-            return {reinterpret_cast<void*>(GetActionRunTime()), true};
+            return {reinterpret_cast<const void*>(GetActionRunTime()), true};
         }
 
         if (namePushed < 2) {
-            return {reinterpret_cast<void*>(threadName[namePushed++]), true};
+            return {reinterpret_cast<const void*>(threadName[namePushed++]), true};
         }
 
         if (!pushFiberStorage) {
@@ -180,7 +176,7 @@ void TSignalSafeProfiler::RecordSample(TFramePointerCursor* cursor, i64 value)
             if (tagsPtr) {
                 auto tag = (*tagsPtr)[tagIndex].GetFromSignal();
                 tagIndex++;
-                return {reinterpret_cast<void*>(tag.Release()), true};
+                return {reinterpret_cast<const void*>(tag.Release()), true};
             } else {
                 tagIndex++;
                 return {nullptr, true};
@@ -191,19 +187,19 @@ void TSignalSafeProfiler::RecordSample(TFramePointerCursor* cursor, i64 value)
             return {nullptr, false};
         }
 
-        if (cursor->IsEnd()) {
+        if (cursor->IsFinished()) {
             return {nullptr, false};
         }
 
-        auto ip = cursor->GetIP();
+        auto ip = cursor->GetCurrentIP();
         if (count != 0) {
             // First IP points to next executing instruction.
             // All other IP's are return addresses.
             // Substract 1 to get accurate line information for profiler.
-            ip = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(ip) - 1);
+            ip = reinterpret_cast<const void*>(reinterpret_cast<uintptr_t>(ip) - 1);
         }
 
-        cursor->Next();
+        cursor->MoveNext();
         count++;
         return {ip, true};
     });

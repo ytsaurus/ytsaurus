@@ -1,6 +1,5 @@
 #include "cpu_profiler.h"
 #include "symbolize.h"
-#include "backtrace.h"
 
 #if defined(_linux_)
 #include <link.h>
@@ -8,6 +7,8 @@
 #include <sys/prctl.h>
 
 #include <library/cpp/yt/cpu_clock/clock.h>
+
+#include <library/cpp/yt/backtrace/cursors/frame_pointer/frame_pointer_cursor.h>
 
 #include <util/system/yield.h>
 
@@ -170,11 +171,11 @@ void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
         }
     }
 
-    void* rip = reinterpret_cast<void *>(ucontext->uc_mcontext.gregs[REG_RIP]);
-    void* rsp = reinterpret_cast<void *>(ucontext->uc_mcontext.gregs[REG_RSP]);
-    void* rbp = reinterpret_cast<void *>(ucontext->uc_mcontext.gregs[REG_RBP]);
+    auto rip = ucontext->uc_mcontext.gregs[REG_RIP];
+    auto rsp = ucontext->uc_mcontext.gregs[REG_RSP];
+    auto rbp = ucontext->uc_mcontext.gregs[REG_RBP];
+    NBacktrace::TFramePointerCursor cursor(&Reader_, rip, rsp, rbp);
 
-    TFramePointerCursor cursor(&Mem_, rip, rsp, rbp);
     RecordSample(&cursor, ProfilePeriod_);
 }
 

@@ -2,7 +2,6 @@
 
 #include <yt/yt/library/ytprof/symbolize.h>
 #include <yt/yt/library/ytprof/build_info.h>
-#include <yt/yt/library/ytprof/backtrace.h>
 
 namespace NYT::NYTProf {
 namespace {
