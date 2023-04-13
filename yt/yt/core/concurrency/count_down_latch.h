@@ -16,7 +16,7 @@ namespace NYT::NConcurrency {
 /*!
  *  See https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/CountDownLatch.html
  */
-class TCountDownLatch
+class TCountDownLatch final
 {
 public:
     explicit TCountDownLatch(size_t count);
