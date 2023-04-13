@@ -519,7 +519,8 @@ public:
             clusterConnection = DynamicPointerCast<TConnection>(ClusterDirectory_->GetConnectionOrThrow(cluster));
             YT_VERIFY(clusterConnection);
         }
-        const auto& stages = clusterConnection->Config_.Acquire()->YqlAgent->Stages;
+        auto config = clusterConnection->Config_.Acquire();
+        const auto& stages = config->YqlAgent->Stages;
         if (auto iter = stages.find(clusterStage); iter != stages.end()) {
             return CreateYqlAgentChannel(iter->second->Channel);
         } else {
@@ -1006,7 +1007,8 @@ private:
             clusterConnection = DynamicPointerCast<TConnection>(ClusterDirectory_->GetConnectionOrThrow(cluster));
             YT_VERIFY(clusterConnection);
         }
-        const auto& stages = clusterConnection->Config_.Acquire()->QueryTracker->Stages;
+        auto config = clusterConnection->Config_.Acquire();
+        const auto& stages = config->QueryTracker->Stages;
         if (auto iter = stages.find(clusterStage); iter != stages.end()) {
             const auto& stage = iter->second;
             auto client = DynamicPointerCast<IClient>(clusterConnection->CreateClient(TClientOptions::FromUser(stage->User)));
