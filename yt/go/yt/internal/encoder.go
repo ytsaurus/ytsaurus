@@ -642,6 +642,42 @@ func (e *Encoder) DeleteRows(
 	return e.writeRows(w, keys)
 }
 
+func (e *Encoder) DisableChunkLocations(
+	ctx context.Context,
+	nodeAddress string,
+	locationUuids []guid.GUID,
+) (response *yt.DisableChunkLocationsResponse, err error) {
+	call := e.newCall(NewDisableChunkLocationsParams(nodeAddress, locationUuids))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decode(&response)
+	})
+	return
+}
+
+func (e *Encoder) DestroyChunkLocations(
+	ctx context.Context,
+	nodeAddress string,
+	locationUuids []guid.GUID,
+) (response *yt.DestroyChunkLocationsResponse, err error) {
+	call := e.newCall(NewDestroyChunkLocationsParams(nodeAddress, locationUuids))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decode(&response)
+	})
+	return
+}
+
+func (e *Encoder) ResurrectChunkLocations(
+	ctx context.Context,
+	nodeAddress string,
+	locationUuids []guid.GUID,
+) (response *yt.ResurrectChunkLocationsResponse, err error) {
+	call := e.newCall(NewResurrectChunkLocationsParams(nodeAddress, locationUuids))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decode(&response)
+	})
+	return
+}
+
 func (e *Encoder) MountTable(
 	ctx context.Context,
 	path ypath.Path,

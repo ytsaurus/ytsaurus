@@ -1280,6 +1280,84 @@ func (e *Encoder) CheckPermission(
 	return
 }
 
+func (e *Encoder) DisableChunkLocations(
+	ctx context.Context,
+	nodeAddress string,
+	locationUuids []guid.GUID,
+) (response *yt.DisableChunkLocationsResponse, err error) {
+	req := &rpc_proxy.TReqDisableChunkLocations{
+		NodeAddress:   &nodeAddress,
+		LocationUuids: convertGUIDs(locationUuids),
+	}
+
+	call := e.newCall(MethodDisableChunkLocations, NewDisableChunkLocationsRequest(req), nil)
+
+	var rsp rpc_proxy.TRspDisableChunkLocations
+	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	response, err = makeDisableChunkLocationsResponse(&rsp)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to deserializer response: %w", err)
+	}
+
+	return
+}
+
+func (e *Encoder) DestroyChunkLocations(
+	ctx context.Context,
+	nodeAddress string,
+	locationUuids []guid.GUID,
+) (response *yt.DestroyChunkLocationsResponse, err error) {
+	req := &rpc_proxy.TReqDestroyChunkLocations{
+		NodeAddress:   &nodeAddress,
+		LocationUuids: convertGUIDs(locationUuids),
+	}
+
+	call := e.newCall(MethodDestroyChunkLocations, NewDestroyChunkLocationsRequest(req), nil)
+
+	var rsp rpc_proxy.TRspDestroyChunkLocations
+	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	response, err = makeDestroyChunkLocationsResponse(&rsp)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to deserializer response: %w", err)
+	}
+
+	return
+}
+
+func (e *Encoder) ResurrectChunkLocations(
+	ctx context.Context,
+	nodeAddress string,
+	locationUuids []guid.GUID,
+) (response *yt.ResurrectChunkLocationsResponse, err error) {
+	req := &rpc_proxy.TReqResurrectChunkLocations{
+		NodeAddress:   &nodeAddress,
+		LocationUuids: convertGUIDs(locationUuids),
+	}
+
+	call := e.newCall(MethodResurrectChunkLocations, NewResurrectChunkLocationsRequest(req), nil)
+
+	var rsp rpc_proxy.TRspResurrectChunkLocations
+	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	response, err = makeResurrectChunkLocationsResponse(&rsp)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to deserializer response: %w", err)
+	}
+
+	return
+}
+
 func (e *Encoder) StartOperation(
 	ctx context.Context,
 	opType yt.OperationType,

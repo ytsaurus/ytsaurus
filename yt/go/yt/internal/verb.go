@@ -36,6 +36,10 @@ const (
 	VerbAddMember    Verb = "add_member"
 	VerbRemoveMember Verb = "remove_member"
 
+	VerbDisableChunkLocations   Verb = "disable_chunk_locations"
+	VerbDestroyChunkLocations   Verb = "destroy_chunk_locations"
+	VerbResurrectChunkLocations Verb = "resurrect_chunk_locations"
+
 	VerbTransferAccountResources Verb = "transfer_account_resources"
 	VerbTransferPoolResources    Verb = "transfer_pool_resources"
 
