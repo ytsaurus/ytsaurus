@@ -82,6 +82,11 @@
     ninja
     ```
 
+    If you need to build concrete target you can run:
+    ```
+    ninja <target>
+    ```
+
     A YTsaurus server binary can be found at:
     ```
     yt/yt/server/all/ytserver-all
