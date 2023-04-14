@@ -12,6 +12,7 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
+#include <yt/yt/core/concurrency/new_fair_share_thread_pool.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -1360,7 +1361,7 @@ TDuration DoSleep(TDuration duration)
     return timer.GetElapsedTime();
 }
 
-TEST_P(TFairShareSchedulerTest, Fairness)
+TEST_P(TFairShareSchedulerTest, TwoLevelFairness)
 {
     size_t numThreads = std::get<0>(GetParam());
     size_t numWorkers = std::get<1>(GetParam());
@@ -1374,7 +1375,7 @@ TEST_P(TFairShareSchedulerTest, Fairness)
     YT_VERIFY(numWorkers > numPools);
     YT_VERIFY(numThreads <= numWorkers);
 
-    auto threadPool = CreateTwoLevelFairShareThreadPool(numThreads, "MyFairSharePool");
+    auto threadPool = CreateNewTwoLevelFairShareThreadPool(numThreads, "MyFairSharePool");
 
     std::vector<TDuration> progresses(numWorkers);
     std::vector<TDuration> pools(numPools);
@@ -1388,7 +1389,7 @@ TEST_P(TFairShareSchedulerTest, Fairness)
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, lock);
 
     for (size_t id = 0; id < numWorkers; ++id) {
-        auto invoker = threadPool->GetInvoker(Format("pool%v", id % numPools), 1.0, Format("worker%v", id));
+        auto invoker = threadPool->GetInvoker(Format("pool%v", id % numPools), Format("worker%v", id));
         auto worker = [&, id] () mutable {
             auto poolId = id % numPools;
 
@@ -1484,7 +1485,7 @@ TEST_P(TFairShareSchedulerTest, Fairness)
         .ThrowOnError();
 }
 
-TEST_P(TFairShareSchedulerTest, TwoLevelFairness)
+TEST_P(TFairShareSchedulerTest, Fairness)
 {
     size_t numThreads = std::get<0>(GetParam());
     size_t numWorkers = std::get<1>(GetParam());

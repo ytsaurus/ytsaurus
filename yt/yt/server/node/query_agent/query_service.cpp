@@ -62,6 +62,7 @@
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
 
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -96,16 +97,11 @@ using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = QueryAgentLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 // COMPAT(ifsmirnov)
 static constexpr i64 MaxRowsPerRemoteDynamicStoreRead = 1024;
 
 static const TString DefaultQLExecutionPoolName = "default";
 static const TString DefaultQLExecutionTag = "default";
-static constexpr double DefaultQLExecutionPoolWeight = 1.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,72 +149,6 @@ void ValidateColumnFilterContainsAllKeyColumns(
         }
     }
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TPoolWeightCache)
-
-class TPoolWeightCache
-    : public TAsyncExpiringCache<TString, double>
-{
-public:
-    TPoolWeightCache(
-        TAsyncExpiringCacheConfigPtr config,
-        TWeakPtr<NApi::NNative::IClient> client,
-        IInvokerPtr invoker)
-        : TAsyncExpiringCache(
-            std::move(config),
-            QueryAgentLogger.WithTag("Cache: PoolWeight"))
-        , Client_(std::move(client))
-        , Invoker_(std::move(invoker))
-    { }
-
-private:
-    const TWeakPtr<NApi::NNative::IClient> Client_;
-    const IInvokerPtr Invoker_;
-
-    TFuture<double> DoGet(
-        const TString& poolName,
-        bool /*isPeriodicUpdate*/) noexcept override
-    {
-        auto client = Client_.Lock();
-        if (!client) {
-            return MakeFuture<double>(TError(NYT::EErrorCode::Canceled, "Client destroyed"));
-        }
-        return BIND(GetPoolWeight, std::move(client), poolName)
-            .AsyncVia(Invoker_)
-            .Run();
-    }
-
-    static double GetPoolWeight(const NApi::NNative::IClientPtr& client, const TString& poolName)
-    {
-        auto path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(poolName);
-
-        NApi::TGetNodeOptions options;
-        options.ReadFrom = NApi::EMasterChannelKind::Cache;
-        auto rspOrError = WaitFor(client->GetNode(path + "/@weight", options));
-
-        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return DefaultQLExecutionPoolWeight;
-        }
-
-        if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Failed to get pool info from Cypress, assuming defaults (Pool: %v)",
-                poolName);
-            return DefaultQLExecutionPoolWeight;
-        }
-
-        try {
-            return ConvertTo<double>(rspOrError.Value());
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error parsing pool weight retrieved from Cypress, assuming default (Pool: %v)",
-                poolName);
-            return DefaultQLExecutionPoolWeight;
-        }
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TPoolWeightCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -377,7 +307,6 @@ public:
         : TServiceBase(
             bootstrap->GetQueryPoolInvoker(
                 DefaultQLExecutionPoolName,
-                DefaultQLExecutionPoolWeight,
                 DefaultQLExecutionTag),
             TQueryServiceProxy::GetDescriptor(),
             QueryAgentLogger,
@@ -385,10 +314,6 @@ public:
             bootstrap->GetNativeAuthenticator())
         , Config_(config)
         , Bootstrap_(bootstrap)
-        , PoolWeightCache_(New<TPoolWeightCache>(
-            config->PoolWeightCache,
-            Bootstrap_->GetClient(),
-            GetDefaultInvoker()))
         , FunctionImplCache_(CreateFunctionImplCache(
             config->FunctionImplCache,
             bootstrap->GetClient()))
@@ -431,7 +356,6 @@ private:
     const TQueryAgentConfigPtr Config_;
     NTabletNode::IBootstrap* const Bootstrap_;
 
-    const TPoolWeightCachePtr PoolWeightCache_;
     const TFunctionImplCachePtr FunctionImplCache_;
     const IEvaluatorPtr Evaluator_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
@@ -454,13 +378,7 @@ private:
         const auto& poolName = ext.execution_pool();
         const auto& tag = ext.execution_tag();
 
-        auto poolWeight = DefaultQLExecutionPoolWeight;
-        auto weightFuture = PoolWeightCache_->Get(poolName);
-        if (auto optionalWeightOrError = weightFuture.TryGet()) {
-            poolWeight = optionalWeightOrError->ValueOrThrow();
-        }
-
-        return Bootstrap_->GetQueryPoolInvoker(poolName, poolWeight, tag);
+        return Bootstrap_->GetQueryPoolInvoker(poolName, tag);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)

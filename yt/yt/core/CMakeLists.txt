@@ -116,6 +116,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/fiber_scheduler_thread.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/finalizer_thread.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/fls.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/new_fair_share_thread_pool.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/notify_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/invoker_alarm.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/invoker_queue.cpp

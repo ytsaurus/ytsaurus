@@ -6,6 +6,7 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
+#include <yt/yt/core/concurrency/new_fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/thread.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/notification_handle.h>
@@ -174,6 +175,30 @@ private:
     const IPrioritizedInvokerPtr WriteInvoker_;
 };
 
+class TPoolWeightProvider
+    : public IPoolWeightProvider
+{
+public:
+    TPoolWeightProvider(double defaultPoolWeight, double userInteractivePoolWeight)
+        : DefaultPoolWeight_(defaultPoolWeight)
+        , UserInteractivePoolWeight_(userInteractivePoolWeight)
+    { }
+
+    double GetWeight(const TString& poolName) override {
+        if (poolName == "Default") {
+            return DefaultPoolWeight_;
+        } else if (poolName == "UserInteractive") {
+            return UserInteractivePoolWeight_;
+        } else {
+            return 1.0;
+        }
+    }
+
+private:
+    const double DefaultPoolWeight_;
+    const double UserInteractivePoolWeight_;
+};
+
 class TFairShareThreadPool
 {
 public:
@@ -181,7 +206,10 @@ public:
         TThreadPoolIOEngineConfigPtr config,
         const TString& locationId,
         NLogging::TLogger logger)
-        : ReadThreadPool_(CreateTwoLevelFairShareThreadPool(config->ReadThreadCount, Format("FSH:%v", locationId)))
+        : ReadThreadPool_(CreateNewTwoLevelFairShareThreadPool(
+            config->ReadThreadCount,
+            Format("FSH:%v", locationId),
+            New<TPoolWeightProvider>(config->DefaultPoolWeight, config->UserInteractivePoolWeight)))
         , WriteThreadPool_(CreateThreadPool(config->WriteThreadCount, Format("IOW:%v", locationId)))
         , WriteInvoker_(CreatePrioritizedInvoker(WriteThreadPool_->GetInvoker()))
         , Logger(logger)
@@ -196,7 +224,7 @@ public:
     IInvokerPtr GetReadInvoker(EWorkloadCategory category, TIOEngineBase::TSessionId client)
     {
         const auto& pool = GetPoolByCategory(category);
-        return ReadThreadPool_->GetInvoker(pool.Name, pool.Weight, ToString(client));
+        return ReadThreadPool_->GetInvoker(pool.Name, ToString(client));
     }
 
     IInvokerPtr GetWriteInvoker(EWorkloadCategory category, TIOEngineBase::TSessionId)

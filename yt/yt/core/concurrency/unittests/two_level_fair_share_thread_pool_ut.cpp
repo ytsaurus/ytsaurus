@@ -1,6 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
+#include <yt/yt/core/concurrency/new_fair_share_thread_pool.h>
 
 #include <yt/yt/core/actions/invoker.h>
 #include <yt/yt/core/actions/future.h>
@@ -14,7 +15,7 @@ namespace {
 
 TEST(TTwoLevelFairShareThreadPoolTest, Configure)
 {
-    auto threadPool = CreateTwoLevelFairShareThreadPool(1, "Test");
+    auto threadPool = CreateNewTwoLevelFairShareThreadPool(1, "Test");
     auto counter = std::make_shared<std::atomic<int>>();
     auto callback = BIND([=] { ++*counter; });
     std::vector<TFuture<void>> futures;
@@ -23,7 +24,6 @@ TEST(TTwoLevelFairShareThreadPoolTest, Configure)
     for (int i = 0; i < N; ++i) {
         auto invoker = threadPool->GetInvoker(
             ToString(RandomNumber<size_t>(10)),
-            1.0,
             ToString(RandomNumber<size_t>(10)));
         futures.push_back(callback.AsyncVia(invoker).Run());
         if (i % 100 == 0) {
@@ -33,6 +33,7 @@ TEST(TTwoLevelFairShareThreadPoolTest, Configure)
 
     AllSucceeded(std::move(futures))
         .Get();
+
     threadPool->Shutdown();
     EXPECT_EQ(N, counter->load());
 }

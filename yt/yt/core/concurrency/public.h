@@ -109,6 +109,8 @@ DEFINE_ENUM(EThreadPriority,
 
 using TFairShareThreadPoolTag = TString;
 
+DECLARE_REFCOUNTED_STRUCT(IPoolWeightProvider)
+
 DECLARE_REFCOUNTED_STRUCT(ITwoLevelFairShareThreadPool)
 
 DECLARE_REFCOUNTED_CLASS(TFiber)

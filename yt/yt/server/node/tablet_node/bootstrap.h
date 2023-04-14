@@ -47,7 +47,6 @@ struct IBootstrap
 
     virtual IInvokerPtr GetQueryPoolInvoker(
         const TString& poolName,
-        double weight,
         const NConcurrency::TFairShareThreadPoolTag& tag) const = 0;
 
     // Throttlers.
