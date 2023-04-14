@@ -215,11 +215,7 @@ public:
         , Logger(logger)
         , DefaultPool_{"Default", config->DefaultPoolWeight}
         , UserInteractivePool_{"UserInteractive", config->UserInteractivePoolWeight}
-    {
-        YT_LOG_INFO("Creating FairShare thread pool for location %v read thread count %v",
-            locationId,
-            config->ReadThreadCount);
-    }
+    { }
 
     IInvokerPtr GetReadInvoker(EWorkloadCategory category, TIOEngineBase::TSessionId client)
     {
