@@ -439,8 +439,8 @@ void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatistics
 
 void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, TVersionedRow row)
 {
-    UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.BeginKeys(), row.EndKeys()));
-    UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.BeginValues(), row.EndValues()));
+    UpdateColumnarStatistics(columnarStatisticsExt, row.Keys());
+    UpdateColumnarStatistics(columnarStatisticsExt, row.Values());
     columnarStatisticsExt.set_timestamp_weight(
         columnarStatisticsExt.timestamp_weight() +
         (row.GetWriteTimestampCount() + row.GetDeleteTimestampCount()) * sizeof(TTimestamp));

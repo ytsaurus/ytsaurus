@@ -141,8 +141,8 @@ void TVersionedColumnTestBase::Validate(
         ASSERT_EQ(expectedRow.GetValueCount(), actualRow.GetValueCount()) << Format("Row index - %v", rowIndex);
         for (int valueIndex = 0; valueIndex < expectedRow.GetValueCount(); ++valueIndex) {
             ValidateValues(
-                expectedRow.BeginValues()[valueIndex],
-                actualRow.BeginValues()[valueIndex],
+                expectedRow.Values()[valueIndex],
+                actualRow.Values()[valueIndex],
                 rowIndex);
         }
     }
@@ -170,21 +170,21 @@ std::vector<TVersionedRow> TVersionedColumnTestBase::GetExpectedRows(
     std::vector<TVersionedRow> expected;
     for (auto row : rows) {
         // Find delete timestamp.
-        TTimestamp deleteTimestamp = NullTimestamp;
-        for (auto deleteIt = row.BeginDeleteTimestamps(); deleteIt != row.EndDeleteTimestamps(); ++deleteIt) {
-            if (*deleteIt <= timestamp) {
-                deleteTimestamp = std::max(*deleteIt, deleteTimestamp);
+        auto deleteTimestamp = NullTimestamp;
+        for (auto currentTimestamp : row.DeleteTimestamps()) {
+            if (currentTimestamp <= timestamp) {
+                deleteTimestamp = std::max(currentTimestamp, deleteTimestamp);
             }
         }
 
         // Find values.
         std::vector<TVersionedValue> values;
-        for (auto valueIt = row.BeginValues(); valueIt != row.EndValues(); ++valueIt) {
-            if (valueIt->Id == ColumnId &&
-                valueIt->Timestamp <= timestamp &&
-                valueIt->Timestamp > deleteTimestamp)
+        for (const auto& value : row.Values()) {
+            if (value.Id == ColumnId &&
+                value.Timestamp <= timestamp &&
+                value.Timestamp > deleteTimestamp)
             {
-                values.push_back(*valueIt);
+                values.push_back(value);
             }
         }
 
@@ -199,10 +199,10 @@ std::vector<TVersionedRow> TVersionedColumnTestBase::GetExpectedRows(
         auto expectedRow = builder.FinishRow();
 
         // Replace timestamps with indexes.
-        for (const auto* valueIt = expectedRow.BeginValues(); valueIt != expectedRow.EndValues(); ++valueIt) {
+        for (auto& value : expectedRow.Values()) {
             for (int timestampIndex = 0; timestampIndex < row.GetWriteTimestampCount(); ++timestampIndex) {
-                if (valueIt->Timestamp == row.BeginWriteTimestamps()[timestampIndex]) {
-                    const_cast<TVersionedValue*>(valueIt)->Timestamp = timestampIndex;
+                if (value.Timestamp == row.WriteTimestamps()[timestampIndex]) {
+                    value.Timestamp = timestampIndex;
                 }
             }
         }

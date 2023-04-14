@@ -127,7 +127,7 @@ protected:
                 auto expectedRange = expectedRanges[lowerRowIndex + i];
                 TTimestamp expectedWriteTimestamp = expectedRange.first == expectedRange.second
                     ? NullTimestamp
-                    : originalRows[lowerRowIndex + i].BeginWriteTimestamps()[expectedRange.first];
+                    : originalRows[lowerRowIndex + i].WriteTimestamps()[expectedRange.first];
 
                 EXPECT_EQ(
                     expectedWriteTimestamp,
@@ -135,7 +135,7 @@ protected:
 
                 for (ui32 index = expectedRange.first; index < expectedRange.second; ++index) {
                     EXPECT_EQ(
-                        originalRows[lowerRowIndex + i].BeginWriteTimestamps()[index],
+                        originalRows[lowerRowIndex + i].WriteTimestamps()[index],
                         reader.GetValueTimestamp(lowerRowIndex + i, index)) << Format("Row index - %v", lowerRowIndex + i);
                 }
             }
@@ -168,14 +168,14 @@ protected:
 
             int lowerTimestampIndex = 0;
             while (lowerTimestampIndex < row.GetWriteTimestampCount() &&
-                   row.BeginWriteTimestamps()[lowerTimestampIndex] > timestamp)
+                   row.WriteTimestamps()[lowerTimestampIndex] > timestamp)
             {
                 ++lowerTimestampIndex;
             }
 
             int upperTimestampIndex = lowerTimestampIndex;
             while (upperTimestampIndex < row.GetWriteTimestampCount() &&
-                   row.BeginWriteTimestamps()[upperTimestampIndex] > deleteTimestamp)
+                   row.WriteTimestamps()[upperTimestampIndex] > deleteTimestamp)
             {
                 ++upperTimestampIndex;
             }
@@ -191,10 +191,10 @@ protected:
         std::vector<TTimestamp> expected;
         for (auto row : CreateOriginalRows()) {
             // Find delete timestamp.
-            TTimestamp deleteTimestamp = NullTimestamp;
-            for (auto deleteIt = row.BeginDeleteTimestamps(); deleteIt != row.EndDeleteTimestamps(); ++deleteIt) {
-                if (*deleteIt <= timestamp) {
-                    deleteTimestamp = std::max(*deleteIt, deleteTimestamp);
+            auto deleteTimestamp = NullTimestamp;
+            for (auto currentTimestamp : row.DeleteTimestamps()) {
+                if (currentTimestamp <= timestamp) {
+                    deleteTimestamp = std::max(currentTimestamp, deleteTimestamp);
                 }
             }
             expected.push_back(deleteTimestamp);

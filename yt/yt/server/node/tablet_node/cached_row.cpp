@@ -8,19 +8,19 @@ namespace NYT::NTabletNode {
 char* CaptureStringLikeValues(NTableClient::TMutableVersionedRow versionedRow)
 {
     char* blobDataDest = const_cast<char*>(versionedRow.EndMemory());
-    for (auto it = versionedRow.BeginKeys(); it != versionedRow.EndKeys(); ++it) {
-        if (IsStringLikeType(it->Type)) {
-            memcpy(blobDataDest, it->Data.String, it->Length);
-            it->Data.String = blobDataDest;
-            blobDataDest += it->Length;
+    for (auto& value : versionedRow.Keys()) {
+        if (IsStringLikeType(value.Type)) {
+            memcpy(blobDataDest, value.Data.String, value.Length);
+            value.Data.String = blobDataDest;
+            blobDataDest += value.Length;
         }
     }
 
-    for (auto it = versionedRow.BeginValues(); it != versionedRow.EndValues(); ++it) {
-        if (IsStringLikeType(it->Type)) {
-            memcpy(blobDataDest, it->Data.String, it->Length);
-            it->Data.String = blobDataDest;
-            blobDataDest += it->Length;
+    for (auto& value : versionedRow.Values()) {
+        if (IsStringLikeType(value.Type)) {
+            memcpy(blobDataDest, value.Data.String, value.Length);
+            value.Data.String = blobDataDest;
+            blobDataDest += value.Length;
         }
     }
 

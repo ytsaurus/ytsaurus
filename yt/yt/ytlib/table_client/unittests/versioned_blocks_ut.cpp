@@ -148,24 +148,24 @@ protected:
         auto blockWriter = TMockBlockFormatAdapter::CreateBlockWriter();
 
         Row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 5, 3, 1);
-        Row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
-        Row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
-        Row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
+        Row.Keys()[0] = MakeUnversionedStringValue("a", 0);
+        Row.Keys()[1] = MakeUnversionedInt64Value(1, 1);
+        Row.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
 
         // v1
-        Row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
-        Row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 3);
+        Row.Values()[0] = MakeVersionedInt64Value(8, 11, 3);
+        Row.Values()[1] = MakeVersionedInt64Value(7, 3, 3);
         // v2
-        Row.BeginValues()[2] = MakeVersionedBooleanValue(true, 5, 4);
-        Row.BeginValues()[3] = MakeVersionedBooleanValue(false, 3, 4);
+        Row.Values()[2] = MakeVersionedBooleanValue(true, 5, 4);
+        Row.Values()[3] = MakeVersionedBooleanValue(false, 3, 4);
         // v3
-        Row.BeginValues()[4] = MakeVersionedSentinelValue(EValueType::Null, 5, 5);
+        Row.Values()[4] = MakeVersionedSentinelValue(EValueType::Null, 5, 5);
 
-        Row.BeginWriteTimestamps()[2] = 3;
-        Row.BeginWriteTimestamps()[1] = 5;
-        Row.BeginWriteTimestamps()[0] = 11;
+        Row.WriteTimestamps()[2] = 3;
+        Row.WriteTimestamps()[1] = 5;
+        Row.WriteTimestamps()[0] = 11;
 
-        Row.BeginDeleteTimestamps()[0] = 9;
+        Row.DeleteTimestamps()[0] = 9;
 
         blockWriter->WriteRow(Row);
 
@@ -368,15 +368,15 @@ TYPED_TEST_SUITE(TVersionedBlocksTestOneRow, TVersionedBlockTestOneRowImpls);
 TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp1)
 {
     auto row = TMutableVersionedRow::Allocate(&this->MemoryPool, 5, 3, 1, 0);
-    row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
-    row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
-    row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
-    row.BeginKeys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
-    row.BeginKeys()[4] = MakeUnversionedSentinelValue(EValueType::Null, 4);
-    row.BeginValues()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 5);
-    row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 6);
-    row.BeginValues()[2] = MakeVersionedBooleanValue(true, 5, 7);
-    row.BeginWriteTimestamps()[0] = 5;
+    row.Keys()[0] = MakeUnversionedStringValue("a", 0);
+    row.Keys()[1] = MakeUnversionedInt64Value(1, 1);
+    row.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
+    row.Keys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
+    row.Keys()[4] = MakeUnversionedSentinelValue(EValueType::Null, 4);
+    row.Values()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 5);
+    row.Values()[1] = MakeVersionedInt64Value(7, 3, 6);
+    row.Values()[2] = MakeVersionedBooleanValue(true, 5, 7);
+    row.WriteTimestamps()[0] = 5;
 
     std::vector<TVersionedRow> rows;
     rows.push_back(row);
@@ -395,10 +395,10 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp1)
 TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp2)
 {
     auto row = TMutableVersionedRow::Allocate(&this->MemoryPool, 3, 0, 0, 1);
-    row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
-    row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
-    row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
-    row.BeginDeleteTimestamps()[0] = 9;
+    row.Keys()[0] = MakeUnversionedStringValue("a", 0);
+    row.Keys()[1] = MakeUnversionedInt64Value(1, 1);
+    row.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
+    row.DeleteTimestamps()[0] = 9;
 
     std::vector<TVersionedRow> rows;
     rows.push_back(row);
@@ -416,11 +416,11 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp2)
 TYPED_TEST(TVersionedBlocksTestOneRow, ReadLastCommitted)
 {
     auto row = TMutableVersionedRow::Allocate(&this->MemoryPool, 3, 0, 1, 1);
-    row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
-    row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
-    row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
-    row.BeginWriteTimestamps()[0] = 11;
-    row.BeginDeleteTimestamps()[0] = 9;
+    row.Keys()[0] = MakeUnversionedStringValue("a", 0);
+    row.Keys()[1] = MakeUnversionedInt64Value(1, 1);
+    row.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
+    row.WriteTimestamps()[0] = 11;
+    row.DeleteTimestamps()[0] = 9;
 
     std::vector<TVersionedRow> rows;
     rows.push_back(row);
@@ -438,18 +438,18 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadLastCommitted)
 TYPED_TEST(TVersionedBlocksTestOneRow, ReadAllCommitted)
 {
     auto row = TMutableVersionedRow::Allocate(&this->MemoryPool, 3, 1, 3, 1);
-    row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
-    row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
-    row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
+    row.Keys()[0] = MakeUnversionedStringValue("a", 0);
+    row.Keys()[1] = MakeUnversionedInt64Value(1, 1);
+    row.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
 
     // v2
-    row.BeginValues()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 3);
+    row.Values()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 3);
 
-    row.BeginWriteTimestamps()[2] = 3;
-    row.BeginWriteTimestamps()[1] = 5;
-    row.BeginWriteTimestamps()[0] = 11;
+    row.WriteTimestamps()[2] = 3;
+    row.WriteTimestamps()[1] = 5;
+    row.WriteTimestamps()[0] = 11;
 
-    row.BeginDeleteTimestamps()[0] = 9;
+    row.DeleteTimestamps()[0] = 9;
 
     std::vector<TVersionedRow> rows;
     rows.push_back(row);

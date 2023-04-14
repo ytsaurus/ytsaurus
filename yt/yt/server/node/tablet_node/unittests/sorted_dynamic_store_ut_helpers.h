@@ -61,7 +61,7 @@ public:
         EXPECT_EQ(1, batch->GetRowCount());
         auto row = batch->MaterializeRows().Front();
         if (!row) {
-            return TUnversionedOwningRow();
+            return {};
         }
 
         EXPECT_LE(row.GetWriteTimestampCount(), 1);
@@ -77,16 +77,15 @@ public:
         int schemaColumnCount = schema->GetColumnCount();
 
         // Keys
-        const auto* keys = row.BeginKeys();
         for (int id = 0; id < keyCount; ++id) {
-            builder.AddValue(keys[id]);
+            builder.AddValue(row.Keys()[id]);
         }
 
         // Fixed values
         int versionedIndex = 0;
         for (int id = keyCount; id < schemaColumnCount; ++id) {
-            if (versionedIndex < row.GetValueCount() && row.BeginValues()[versionedIndex].Id == id) {
-                builder.AddValue(row.BeginValues()[versionedIndex++]);
+            if (versionedIndex < row.GetValueCount() && row.Values()[versionedIndex].Id == id) {
+                builder.AddValue(row.Values()[versionedIndex++]);
             } else {
                 builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
             }

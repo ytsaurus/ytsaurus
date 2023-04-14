@@ -178,11 +178,11 @@ void TRowBuffer::CaptureValues(TMutableVersionedRow row)
         return;
     }
 
-    for (int index = 0; index < row.GetKeyCount(); ++index) {
-        CaptureValue(row.BeginKeys() + index);
+    for (auto& value : row.Keys()) {
+        CaptureValue(&value);
     }
-    for (int index = 0; index < row.GetValueCount(); ++index) {
-        CaptureValue(row.BeginValues() + index);
+    for (auto& value : row.Values()) {
+        CaptureValue(&value);
     }
 }
 
@@ -204,8 +204,8 @@ TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
     int deleteTimestampCount = row.GetDeleteTimestampCount();
 
     TCompactVector<TTimestamp, 64> writeTimestamps;
-    for (const auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
-        ui16 originalId = value->Id;
+    for (const auto& value : row.Values()) {
+        ui16 originalId = value.Id;
         YT_VERIFY(originalId < idMapping.size());
         int mappedId = idMapping[originalId];
         if (mappedId < 0) {
@@ -213,7 +213,7 @@ TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
         }
         YT_VERIFY(mappedId < std::ssize(tableSchema.Columns()));
         ++valueCount;
-        writeTimestamps.push_back(value->Timestamp);
+        writeTimestamps.push_back(value.Timestamp);
     }
 
     std::sort(writeTimestamps.begin(), writeTimestamps.end(), std::greater<TTimestamp>());
@@ -249,29 +249,29 @@ TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
         }
     } else {
         for (int index = 0; index < keyColumnCount; ++index) {
-            capturedRow.BeginKeys()[index] = MakeUnversionedNullValue(index);
+            capturedRow.Keys()[index] = MakeUnversionedNullValue(index);
         }
-        for (const auto* srcValue = row.BeginKeys(); srcValue != row.EndKeys(); ++srcValue) {
-            ui16 originalId = srcValue->Id;
+        for (const auto& srcValue : row.Keys()) {
+            ui16 originalId = srcValue.Id;
             int mappedId = idMapping[originalId];
             if (mappedId < 0) {
                 continue;
             }
-            auto *dstValue = &capturedRow.BeginKeys()[mappedId];
-            *dstValue = *srcValue;
+            auto* dstValue = &capturedRow.Keys()[mappedId];
+            *dstValue = srcValue;
             dstValue->Id = mappedId;
         }
     }
 
     {
         auto* dstValue = capturedRow.BeginValues();
-        for (const auto* srcValue = row.BeginValues(); srcValue != row.EndValues(); ++srcValue) {
-            ui16 originalId = srcValue->Id;
+        for (const auto& srcValue : row.Values()) {
+            ui16 originalId = srcValue.Id;
             int mappedId = idMapping[originalId];
             if (mappedId < 0) {
                 continue;
             }
-            *dstValue = *srcValue;
+            *dstValue = srcValue;
             dstValue->Id = mappedId;
             ++dstValue;
         }

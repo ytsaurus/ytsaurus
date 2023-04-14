@@ -71,26 +71,25 @@ bool TVersionedWriter::Write(TRange<TVersionedRow> rows)
         {
             Consumer_->OnKeyedItem("write_timestamps");
             Consumer_->OnBeginList();
-            for (auto it = row.BeginWriteTimestamps(), jt = row.EndWriteTimestamps(); it != jt; ++it) {
+            for (auto timestamp : row.WriteTimestamps()) {
                 Consumer_->OnListItem();
-                Consumer_->OnUint64Scalar(*it);
+                Consumer_->OnUint64Scalar(timestamp);
             }
             Consumer_->OnEndList();
         }
         {
             Consumer_->OnKeyedItem("delete_timestamps");
             Consumer_->OnBeginList();
-            for (auto it = row.BeginDeleteTimestamps(), jt = row.EndDeleteTimestamps(); it != jt; ++it) {
+            for (auto timestamp : row.DeleteTimestamps()) {
                 Consumer_->OnListItem();
-                Consumer_->OnUint64Scalar(*it);
+                Consumer_->OnUint64Scalar(timestamp);
             }
             Consumer_->OnEndList();
         }
         Consumer_->OnEndAttributes();
 
         Consumer_->OnBeginMap();
-        for (auto keyBeginIt = row.BeginKeys(), keyEndIt = row.EndKeys(); keyBeginIt != keyEndIt; ++keyBeginIt) {
-            const auto& value = *keyBeginIt;
+        for (const auto& value : row.Keys()) {
             const auto& column = Schema_->Columns()[value.Id];
             Consumer_->OnKeyedItem(column.Name());
             consumeUnversionedData(value);

@@ -137,11 +137,11 @@ public:
             TTimestamp offsetTimestamp = 0;
             // If the key doesn't exist, or the offset value is null, the offset is -1 in BigRT terms and 0 in ours.
             if (!rows.empty()) {
-                auto offsetValue = rows[0].BeginValues();
-                YT_VERIFY(offsetValue->Id == offsetRowsetColumnId);
-                offsetTimestamp = offsetValue->Timestamp;
-                if (offsetValue->Type == EValueType::Uint64) {
-                    currentOffset = FromUnversionedValue<i64>(*offsetValue);
+                const auto& offsetValue = rows[0].Values()[0];
+                YT_VERIFY(offsetValue.Id == offsetRowsetColumnId);
+                offsetTimestamp = offsetValue.Timestamp;
+                if (offsetValue.Type == EValueType::Uint64) {
+                    currentOffset = FromUnversionedValue<i64>(offsetValue);
                     if (DecrementOffset_) {
                         // We need to add 1, since BigRT stores the offset of the last read row.
                         ++currentOffset;
@@ -435,7 +435,7 @@ private:
             if (versionedRow.GetWriteTimestampCount() < 1) {
                 THROW_ERROR_EXCEPTION("Partition set changed during collection");
             }
-            auto timestamp = versionedRow.BeginWriteTimestamps()[0];
+            auto timestamp = versionedRow.WriteTimestamps()[0];
             result[index].LastConsumeTime = TimestampToInstant(timestamp).first;
         }
 

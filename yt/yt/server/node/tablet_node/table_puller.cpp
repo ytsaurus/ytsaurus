@@ -547,8 +547,8 @@ private:
             for (auto row : versionedRows) {
                 YT_VERIFY(row.GetWriteTimestampCount() + row.GetDeleteTimestampCount() == 1);
                 auto rowTimestamp = row.GetWriteTimestampCount() > 0
-                    ? row.BeginWriteTimestamps()[0]
-                    : row.BeginDeleteTimestamps()[0];
+                    ? row.WriteTimestamps()[0]
+                    : row.DeleteTimestamps()[0];
                 auto progressTimestamp = FindReplicationProgressTimestampForKey(*replicationProgress, row.Keys());
                 if (!progressTimestamp || progressTimestamp >= rowTimestamp) {
                     YT_LOG_ALERT("Received inaproppriate row timestamp in pull rows response (RowTimestamp: %v, ProgressTimestamp: %v, Row: %v, Progress: %v)",

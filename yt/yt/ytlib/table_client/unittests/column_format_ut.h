@@ -161,7 +161,7 @@ protected:
         std::vector<TVersionedRow> rows;
         for (const auto& value : values) {
             auto row = TMutableVersionedRow::Allocate(&Pool_, 1, 0, 0, 0);
-            *row.BeginKeys() = MakeValue(value);
+            row.Keys()[0] = MakeValue(value);
             rows.push_back(row);
         }
         return rows;
@@ -192,8 +192,8 @@ protected:
 
         for (int i = 0; i < std::ssize(expected); ++i) {
             TVersionedRow row = actual[i];
-            const auto& actualValue = *row.BeginKeys();
-            const auto& expectedValue = *expected[i].BeginKeys();
+            const auto& actualValue = row.Keys()[0];
+            const auto& expectedValue = expected[i].Keys()[0];
 
             EXPECT_EQ(expectedValue, actualValue) << "Row index " << i;
         }

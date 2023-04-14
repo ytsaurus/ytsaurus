@@ -357,7 +357,7 @@ protected:
                 CacheRowMerger_.AddPartialRow(partialRow, MinTimestamp);
 
                 if (partialRow) {
-                    for (const auto& value : MakeRange(partialRow.BeginValues(), partialRow.EndValues())) {
+                    for (const auto& value : partialRow.Values()) {
                         YT_VERIFY(None(value.Flags & EValueFlags::Hunk));
                     }
                 }
@@ -496,16 +496,16 @@ private:
                 YT_VERIFY(std::ssize(Keys_) == row.GetKeyCount());
             }
 
-            for (auto it = row.BeginValues(); it != row.EndValues(); ++it) {
-                Values_.push_back(*it);
+            for (const auto& value : row.Values()) {
+                Values_.push_back(value);
             }
 
-            for (auto it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
-                DeleteTimestamps_.push_back(*it);
+            for (auto timestamp : row.DeleteTimestamps()) {
+                DeleteTimestamps_.push_back(timestamp);
             }
 
-            for (auto it = row.BeginWriteTimestamps(); it != row.EndWriteTimestamps(); ++it) {
-                WriteTimestamps_.push_back(*it);
+            for (auto timestamp : row.WriteTimestamps()) {
+                WriteTimestamps_.push_back(timestamp);
             }
         }
 

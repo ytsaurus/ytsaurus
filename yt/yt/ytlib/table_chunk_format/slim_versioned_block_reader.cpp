@@ -231,15 +231,15 @@ TMutableVersionedRow TSlimVersionedBlockReader::ReadRowSingleVersion(TChunkedMem
     if (deleteTimestamp > writeTimestamp) {
         // Row has been deleted at given timestamp.
         row.SetWriteTimestampCount(0);
-        row.BeginDeleteTimestamps()[0] = deleteTimestamp;
+        row.DeleteTimestamps()[0] = deleteTimestamp;
         TrimRow(row, row.BeginValues(), memoryPool);
         FillKey(row);
         return row;
     }
 
-    row.BeginWriteTimestamps()[0] = writeTimestamp;
+    row.WriteTimestamps()[0] = writeTimestamp;
     if (deleteTimestamp != NullTimestamp) {
-        row.BeginDeleteTimestamps()[0] = deleteTimestamp;
+        row.DeleteTimestamps()[0] = deleteTimestamp;
     }
 
     TrimRow(row, value, memoryPool);

@@ -331,10 +331,10 @@ protected:
 
         // Timestamps.
         if (writeTimestampCount > 0) {
-            versionedRow.BeginWriteTimestamps()[0] = latestWriteTimestamp;
+            versionedRow.WriteTimestamps()[0] = latestWriteTimestamp;
         }
         if (deleteTimestampCount > 0) {
-            versionedRow.BeginDeleteTimestamps()[0] = latestDeleteTimestamp;
+            versionedRow.DeleteTimestamps()[0] = latestDeleteTimestamp;
         }
 
         // Values.
@@ -1088,14 +1088,14 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
     Rows_->Insert(ToKeyRef(row), newKeyProvider, existingKeyConsumer);
 
     WriteRevisions_.clear();
-    for (const auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
-        auto revision = CaptureTimestamp(value->Timestamp, timestampToRevision);
+    for (const auto& value : row.Values()) {
+        auto revision = CaptureTimestamp(value.Timestamp, timestampToRevision);
         WriteRevisions_.push_back(revision);
 
         TDynamicValue dynamicValue;
-        CaptureUnversionedValue(&dynamicValue, *value);
+        CaptureUnversionedValue(&dynamicValue, value);
         dynamicValue.Revision = revision;
-        AddValue(result, value->Id, std::move(dynamicValue));
+        AddValue(result, value.Id, std::move(dynamicValue));
     }
 
     std::sort(
@@ -1711,7 +1711,7 @@ void TSortedDynamicStore::LoadRow(
     }
 
     // Delete timestamps are also in descending order.
-    if (row.BeginDeleteTimestamps() != row.EndDeleteTimestamps()) {
+    if (row.GetDeleteTimestampCount() > 0) {
         for (const auto* currentTimestamp = row.EndDeleteTimestamps() - 1;
              currentTimestamp >= row.BeginDeleteTimestamps();
              --currentTimestamp)
@@ -1967,7 +1967,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
             rowCount += batch->GetRowCount();
             auto rows = batch->MaterializeRows();
             for (auto row : rows) {
-                auto key = MakeRange(row.BeginKeys(), row.EndKeys());
+                auto key = row.Keys();
                 auto dynamicRow = rowIt.GetCurrent();
                 while (RowKeyComparer_(dynamicRow, key) < 0) {
                     rowIt.MoveNext();

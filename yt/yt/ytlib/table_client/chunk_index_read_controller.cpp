@@ -430,7 +430,7 @@ private:
 
         if (row &&
             CompareKeys(
-                TRange(row.BeginKeys(), row.GetKeyCount()),
+                row.Keys(),
                 ToKeyRef(Keys_[requestIndex]),
                 KeyComparer_) == 0)
         {

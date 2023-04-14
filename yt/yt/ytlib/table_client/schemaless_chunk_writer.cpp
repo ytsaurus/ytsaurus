@@ -1861,7 +1861,7 @@ private:
 
                 ::memcpy(versionedRow.BeginKeys(), row.Begin(), sizeof(TUnversionedValue) * keyColumnCount);
 
-                TVersionedValue* currentValue = versionedRow.BeginValues();
+                auto* currentValue = versionedRow.BeginValues();
                 for (int index = keyColumnCount + 1; index < static_cast<int>(row.GetCount()); index += 2) {
                     auto flags = FlagsFromValue(row[index + 1]);
 
@@ -1878,7 +1878,7 @@ private:
                     ++currentValue;
                 }
 
-                versionedRow.BeginWriteTimestamps()[0] = MinTimestamp;
+                versionedRow.WriteTimestamps()[0] = MinTimestamp;
                 return versionedRow;
             }
 
@@ -1892,7 +1892,7 @@ private:
 
                 ::memcpy(versionedRow.BeginKeys(), row.Begin(), sizeof(TUnversionedValue) * keyColumnCount);
 
-                versionedRow.BeginDeleteTimestamps()[0] = MinTimestamp;
+                versionedRow.DeleteTimestamps()[0] = MinTimestamp;
 
                 return versionedRow;
             }

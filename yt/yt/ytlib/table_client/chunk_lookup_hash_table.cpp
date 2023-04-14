@@ -140,7 +140,7 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTableForColumnarFormat(
                 .ThrowOnError();
         } else {
             for (const auto& row : rows) {
-                YT_VERIFY(hashTable->Insert(GetFarmFingerprint(MakeRange(row.BeginKeys(), row.EndKeys())), rowIndex));
+                YT_VERIFY(hashTable->Insert(GetFarmFingerprint(row.Keys()), rowIndex));
                 ++rowIndex;
             }
         }

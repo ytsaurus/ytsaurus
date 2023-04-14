@@ -248,13 +248,13 @@ protected:
         std::optional<i64> k2,
         std::optional<double> k3)
     {
-        row.BeginKeys()[0] = k1
+        row.Keys()[0] = k1
             ? MakeUnversionedStringValue(*k1, 0)
             : MakeUnversionedSentinelValue(EValueType::Null, 0);
-        row.BeginKeys()[1] = k2
+        row.Keys()[1] = k2
             ? MakeUnversionedInt64Value(*k2, 1)
             : MakeUnversionedSentinelValue(EValueType::Null, 1);
-        row.BeginKeys()[2] = k3
+        row.Keys()[2] = k3
             ? MakeUnversionedDoubleValue(*k3, 2)
             : MakeUnversionedSentinelValue(EValueType::Null, 2);
     }
@@ -265,16 +265,16 @@ protected:
         FillKey(row, AOpt, std::make_optional(index), std::nullopt);
 
         // v1
-        row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
-        row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 3);
+        row.Values()[0] = MakeVersionedInt64Value(8, 11, 3);
+        row.Values()[1] = MakeVersionedInt64Value(7, 3, 3);
         // v2
-        row.BeginValues()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
+        row.Values()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
 
-        row.BeginWriteTimestamps()[2] = 3;
-        row.BeginWriteTimestamps()[1] = 5;
-        row.BeginWriteTimestamps()[0] = 11;
+        row.WriteTimestamps()[2] = 3;
+        row.WriteTimestamps()[1] = 5;
+        row.WriteTimestamps()[0] = 11;
 
-        row.BeginDeleteTimestamps()[0] = 9;
+        row.DeleteTimestamps()[0] = 9;
         return row;
     }
 
@@ -364,9 +364,9 @@ protected:
 
             auto row = TMutableVersionedRow::Allocate(&pool, 3, 1, 1, 1);
             FillKey(row, AOpt, std::make_optional(0), std::nullopt);
-            row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
-            row.BeginWriteTimestamps()[0] = 11;
-            row.BeginDeleteTimestamps()[0] = 9;
+            row.Values()[0] = MakeVersionedInt64Value(8, 11, 3);
+            row.WriteTimestamps()[0] = 11;
+            row.DeleteTimestamps()[0] = 9;
             expectedRows.push_back(row);
 
             // Somewhere in the middle.
@@ -377,9 +377,9 @@ protected:
 
             row = TMutableVersionedRow::Allocate(&pool, 3, 1, 1, 1);
             FillKey(row, AOpt, std::make_optional(150000), std::nullopt);
-            row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
-            row.BeginWriteTimestamps()[0] = 11;
-            row.BeginDeleteTimestamps()[0] = 9;
+            row.Values()[0] = MakeVersionedInt64Value(8, 11, 3);
+            row.WriteTimestamps()[0] = 11;
+            row.DeleteTimestamps()[0] = 9;
             expectedRows.push_back(row);
 
             // After the last key.
@@ -1121,23 +1121,22 @@ protected:
         TRange<TColumnSchema> readSchemaColumns)
     {
         if (timestamp == AllCommittedTimestamp) {
-            for (auto deleteIt = row.BeginDeleteTimestamps(); deleteIt != row.EndDeleteTimestamps(); ++deleteIt) {
-                builder->AddDeleteTimestamp(*deleteIt);
+            for (auto timestamp : row.DeleteTimestamps()) {
+                builder->AddDeleteTimestamp(timestamp);
             }
 
-            for (auto valueIt = row.BeginValues(); valueIt != row.EndValues(); ++valueIt) {
-                if (idMapping[valueIt->Id] > 0) {
-                    auto value = *valueIt;
-                    value.Id = idMapping[valueIt->Id];
+            for (auto value : row.Values()) {
+                if (idMapping[value.Id] > 0) {
+                    value.Id = idMapping[value.Id];
                     builder->AddValue(value);
                 }
             }
         } else {
             // Find delete timestamp.
             auto deleteTimestamp = NullTimestamp;
-            for (auto deleteIt = row.BeginDeleteTimestamps(); deleteIt != row.EndDeleteTimestamps(); ++deleteIt) {
-                if (*deleteIt <= timestamp) {
-                    deleteTimestamp = std::max(*deleteIt, deleteTimestamp);
+            for (auto currentTimestamp : row.DeleteTimestamps()) {
+                if (currentTimestamp <= timestamp) {
+                    deleteTimestamp = std::max(currentTimestamp, deleteTimestamp);
                 }
             }
             if (deleteTimestamp != NullTimestamp) {
@@ -1145,10 +1144,10 @@ protected:
             }
 
             auto writeTimestamp = NullTimestamp;
-            for (auto writeIt = row.BeginWriteTimestamps(); writeIt != row.EndWriteTimestamps(); ++writeIt) {
-                if (*writeIt <= timestamp && *writeIt > deleteTimestamp) {
-                    writeTimestamp = std::max(*writeIt, writeTimestamp);
-                    builder->AddWriteTimestamp(*writeIt);
+            for (auto currentTimestamp : row.WriteTimestamps()) {
+                if (currentTimestamp <= timestamp && currentTimestamp > deleteTimestamp) {
+                    writeTimestamp = std::max(currentTimestamp, writeTimestamp);
+                    builder->AddWriteTimestamp(currentTimestamp);
                 }
             }
 
@@ -1159,12 +1158,10 @@ protected:
 
             // Assume that equal ids are adjacent.
             int lastUsedId = -1;
-            for (auto valueIt = row.BeginValues(); valueIt != row.EndValues(); ++valueIt) {
-                if (idMapping[valueIt->Id] > 0 && valueIt->Timestamp <= timestamp && valueIt->Timestamp > deleteTimestamp) {
-                    auto targetId = idMapping[valueIt->Id];
-
+            for (auto value : row.Values()) {
+                if (idMapping[value.Id] > 0 && value.Timestamp <= timestamp && value.Timestamp > deleteTimestamp) {
+                    auto targetId = idMapping[value.Id];
                     if (targetId != lastUsedId || readSchemaColumns[targetId].Aggregate()) {
-                        auto value = *valueIt;
                         value.Id = targetId;
                         builder->AddValue(value);
                         lastUsedId = targetId;
@@ -1213,10 +1210,10 @@ protected:
         for (auto row : rows) {
             YT_VERIFY(row.GetKeyCount() <= readSchema->GetKeyColumnCount());
             for (int i = 0; i < row.GetKeyCount() && i < readSchema->GetKeyColumnCount(); ++i) {
-                auto actualType = row.BeginKeys()[i].Type;
+                auto actualType = row.Keys()[i].Type;
                 YT_VERIFY(actualType == columnWireTypes[i] || actualType == EValueType::Null);
 
-                key[i] = row.BeginKeys()[i];
+                key[i] = row.Keys()[i];
             }
 
             while (CompareValueRanges(MakeRange(key), currentRange->second.Elements()) >= 0) {
@@ -1361,15 +1358,15 @@ protected:
         auto readSchema = New<TTableSchema>(columnSchemas);
 
         TUnversionedOwningRowBuilder lowerKeyBuilder;
-        for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
-            lowerKeyBuilder.AddValue(*it);
+        for (const auto& value : InitialRows_[1].Keys()) {
+            lowerKeyBuilder.AddValue(value);
         }
         lowerKeyBuilder.AddValue(MakeUnversionedBooleanValue(false));
         auto lowerKey = lowerKeyBuilder.FinishRow();
 
         TUnversionedOwningRowBuilder upperKeyBuilder;
-        for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
-            upperKeyBuilder.AddValue(*it);
+        for (const auto& value : InitialRows_[1].Keys()) {
+            upperKeyBuilder.AddValue(value);
         }
         upperKeyBuilder.AddValue(MakeUnversionedBooleanValue(true));
         auto upperKey = upperKeyBuilder.FinishRow();
@@ -1515,15 +1512,15 @@ public:
         auto readSchema = New<TTableSchema>(columnSchemas);
 
         TUnversionedOwningRowBuilder lowerKeyBuilder;
-        for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
-            lowerKeyBuilder.AddValue(*it);
+        for (const auto& value : InitialRows_[1].Keys()) {
+            lowerKeyBuilder.AddValue(value);
         }
         lowerKeyBuilder.AddValue(lowerBound);
         auto lowerKey = lowerKeyBuilder.FinishRow();
 
         TUnversionedOwningRowBuilder upperKeyBuilder;
-        for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
-            upperKeyBuilder.AddValue(*it);
+        for (const auto& value : InitialRows_[1].Keys()) {
+            upperKeyBuilder.AddValue(value);
         }
         upperKeyBuilder.AddValue(upperBound);
         auto upperKey = upperKeyBuilder.FinishRow();

@@ -169,13 +169,13 @@ private:
         TTimestamp maxTimestamp;
         i64 dataWeight = 0;
         for (const auto& row : rows) {
-            for (auto* it = row.BeginWriteTimestamps(); it != row.EndWriteTimestamps(); ++it) {
-                minTimestamp = std::min(minTimestamp, *it);
-                maxTimestamp = std::max(maxTimestamp, *it);
+            for (auto timestamp : row.WriteTimestamps()) {
+                minTimestamp = std::min(minTimestamp, timestamp);
+                maxTimestamp = std::max(maxTimestamp, timestamp);
             }
-            for (auto* it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
-                minTimestamp = std::min(minTimestamp, *it);
-                maxTimestamp = std::max(maxTimestamp, *it);
+            for (auto timestamp : row.DeleteTimestamps()) {
+                minTimestamp = std::min(minTimestamp, timestamp);
+                maxTimestamp = std::max(maxTimestamp, timestamp);
             }
             dataWeight += GetDataWeight(row);
         }

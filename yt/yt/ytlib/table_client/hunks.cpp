@@ -155,9 +155,9 @@ public:
         if (!row) {
             return;
         }
-        for (auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
-            if (Any(value->Flags & EValueFlags::Hunk)) {
-                func(value);
+        for (auto& value : row.Values()) {
+            if (Any(value.Flags & EValueFlags::Hunk)) {
+                func(&value);
             }
         }
     }
@@ -470,8 +470,7 @@ void GlobalizeHunkValues(
 
     const auto& hunkChunkRefsExt = chunkMeta->HunkChunkRefsExt();
     const auto& hunkChunkMetasExt = chunkMeta->HunkChunkMetasExt();
-    for (int index = 0; index < row.GetValueCount(); ++index) {
-        auto& value = row.BeginValues()[index];
+    for (auto& value : row.Values()) {
         if (None(value.Flags & EValueFlags::Hunk)) {
             continue;
         }
@@ -537,9 +536,7 @@ void GlobalizeHunkValuesAndSetHunkFlag(
     const auto& hunkChunkRefsExt = chunkMeta->HunkChunkRefsExt();
     const auto& hunkChunkMetasExt = chunkMeta->HunkChunkMetasExt();
 
-    for (int index = 0; index < row.GetValueCount(); ++index) {
-        auto& value = row.BeginValues()[index];
-
+    for (auto& value : row.Values()) {
         if (!columnHunkFlags[value.Id]) {
             continue;
         }
@@ -927,8 +924,7 @@ public:
             auto scratchRow = ScratchRowBuffer_->CaptureRow(row, false);
             ScratchRows_.push_back(scratchRow);
 
-            for (int index = 0; index < scratchRow.GetValueCount(); ++index) {
-                auto& value = scratchRow.BeginValues()[index];
+            for (auto& value : scratchRow.Values()) {
                 if (value.Type == EValueType::Null) {
                     continue;
                 }

@@ -69,7 +69,7 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
             MergedRow_ = RowBuffer_->AllocateUnversioned(ColumnIds_.size());
         }
 
-        const auto* keyBegin = row.BeginKeys();
+        const auto* keyBegin = row.Keys().begin();
         for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
             int id = ColumnIds_[index];
             auto& mergedValue = MergedRow_[index];
@@ -86,14 +86,14 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
     }
 
     if (row.GetDeleteTimestampCount() > 0) {
-        auto deleteTimestamp = row.BeginDeleteTimestamps()[0];
+        auto deleteTimestamp = row.DeleteTimestamps()[0];
         if (deleteTimestamp >= RetentionTimestamp_) {
             LatestDelete_ = std::max(LatestDelete_, deleteTimestamp);
         }
     }
 
     if (row.GetWriteTimestampCount() > 0) {
-        auto writeTimestamp = row.BeginWriteTimestamps()[0];
+        auto writeTimestamp = row.WriteTimestamps()[0];
 
         if (writeTimestamp < LatestDelete_ || writeTimestamp < RetentionTimestamp_) {
             return;
@@ -130,15 +130,15 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
         return;
     }
 
-    Y_ASSERT(row.GetKeyCount() == KeyColumnCount_);
+    YT_ASSERT(row.GetKeyCount() == KeyColumnCount_);
 
     if (!Started_) {
         if (!MergedRow_) {
             MergedRow_ = RowBuffer_->AllocateUnversioned(ColumnIds_.size());
         }
 
-        const auto* keyBegin = row.BeginKeys();
-        for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
+        const auto* keyBegin = row.Keys().begin();
+        for (int index = 0; index < std::ssize(ColumnIds_); ++index) {
             int id = ColumnIds_[index];
             auto* mergedValue = &MergedRow_[index];
             if (id < KeyColumnCount_) {
@@ -153,22 +153,21 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
         Started_ = true;
     }
 
-    for (auto it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
-        if (*it < upperTimestampLimit && *it >= RetentionTimestamp_) {
-            LatestDelete_ = std::max(LatestDelete_, *it);
+    for (auto timestamp : row.DeleteTimestamps()) {
+        if (timestamp < upperTimestampLimit && timestamp >= RetentionTimestamp_) {
+            LatestDelete_ = std::max(LatestDelete_, timestamp);
             break;
         }
     }
 
-    for (auto it = row.BeginWriteTimestamps(); it != row.EndWriteTimestamps(); ++it) {
-        if (*it < upperTimestampLimit && *it >= RetentionTimestamp_) {
-            LatestWrite_ = std::max(LatestWrite_, *it);
+    for (auto timestamp : row.WriteTimestamps()) {
+        if (timestamp < upperTimestampLimit && timestamp >= RetentionTimestamp_) {
+            LatestWrite_ = std::max(LatestWrite_, timestamp);
             break;
         }
     }
 
-    for (auto it = row.BeginValues(); it != row.EndValues(); ++it) {
-        const auto& partialValue = *it;
+    for (const auto& partialValue : row.Values()) {
         if (partialValue.Timestamp >= upperTimestampLimit) {
             continue;
         }
@@ -460,20 +459,20 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
             int id = ColumnIds_[index];
             if (id < KeyColumnCount_) {
                 YT_ASSERT(index < std::ssize(Keys_));
-                Keys_.data()[index] = row.BeginKeys()[id];
+                Keys_.data()[index] = row.Keys()[id];
             }
         }
     }
 
-    for (auto it = row.BeginValues(); it != row.EndValues(); ++it) {
-        if (it->Timestamp < upperTimestampLimit) {
-            PartialValues_.push_back(*it);
+    for (const auto& value : row.Values()) {
+        if (value.Timestamp < upperTimestampLimit) {
+            PartialValues_.push_back(value);
         }
     }
 
-    for (auto it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
-        if (*it < upperTimestampLimit) {
-            DeleteTimestamps_.push_back(*it);
+    for (auto timestamp : row.DeleteTimestamps()) {
+        if (timestamp < upperTimestampLimit) {
+            DeleteTimestamps_.push_back(timestamp);
         }
     }
 }
@@ -782,7 +781,7 @@ TMutableUnversionedRow TSamplingRowMerger::MergeRow(TVersionedRow row)
 
     YT_VERIFY(row.GetKeyCount() == KeyColumnCount_);
     for (int index = 0; index < row.GetKeyCount(); ++index) {
-        mergedRow[index] = row.BeginKeys()[index];
+        mergedRow[index] = row.Keys()[index];
     }
 
     for (int index = row.GetKeyCount(); index < SampledColumnCount_; ++index) {
@@ -790,12 +789,10 @@ TMutableUnversionedRow TSamplingRowMerger::MergeRow(TVersionedRow row)
     }
 
     auto deleteTimestamp = row.GetDeleteTimestampCount() > 0
-        ? row.BeginDeleteTimestamps()[0]
+        ? row.DeleteTimestamps()[0]
         : NullTimestamp;
 
-    for (int index = 0; index < row.GetValueCount(); ++index) {
-        const auto& value = row.BeginValues()[index];
-
+    for (const auto& value : row.Values()) {
         if (value.Timestamp < deleteTimestamp || value.Timestamp < LatestTimestamps_[value.Id]) {
             continue;
         }

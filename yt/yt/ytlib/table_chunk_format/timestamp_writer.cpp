@@ -34,16 +34,16 @@ public:
                 ? 0
                 : WriteTimestampCounts_.back()) + row.GetWriteTimestampCount());
 
-            for (int i = 0; i < row.GetWriteTimestampCount(); ++i) {
-                WriteTimestampIds_.push_back(RegisterTimestamp(row.BeginWriteTimestamps()[i]));
+            for (auto timestamp : row.WriteTimestamps()) {
+                WriteTimestampIds_.push_back(RegisterTimestamp(timestamp));
             }
 
             DeleteTimestampCounts_.push_back((DeleteTimestampCounts_.empty()
                 ? 0
                 : DeleteTimestampCounts_.back()) + row.GetDeleteTimestampCount());
 
-            for (int i = 0; i < row.GetDeleteTimestampCount(); ++i) {
-                DeleteTimestampIds_.push_back(RegisterTimestamp(row.BeginDeleteTimestamps()[i]));
+            for (auto timestamp : row.DeleteTimestamps()) {
+                DeleteTimestampIds_.push_back(RegisterTimestamp(timestamp));
             }
         }
 

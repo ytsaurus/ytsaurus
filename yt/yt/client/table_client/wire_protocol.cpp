@@ -636,31 +636,31 @@ public:
     {
         union
         {
-            ui64 parts[2];
-            TVersionedRowHeader value;
+            ui64 Parts[2];
+            TVersionedRowHeader Value;
         } header;
 
-        header.parts[0] = ReadUint64();
-        if (header.parts[0] == MinusOne) {
+        header.Parts[0] = ReadUint64();
+        if (header.Parts[0] == MinusOne) {
             return TVersionedRow();
         }
-        header.parts[1] = ReadUint64();
+        header.Parts[1] = ReadUint64();
 
-        ValidateKeyColumnCount(header.value.KeyCount);
-        ValidateVersionedRowTimestampCount(header.value);
+        ValidateKeyColumnCount(header.Value.KeyCount);
+        ValidateVersionedRowTimestampCount(header.Value);
 
         auto row = TMutableVersionedRow::Allocate(
             RowBuffer_->GetPool(),
-            header.value.KeyCount,
-            header.value.ValueCount,
-            header.value.WriteTimestampCount,
-            header.value.DeleteTimestampCount);
+            header.Value.KeyCount,
+            header.Value.ValueCount,
+            header.Value.WriteTimestampCount,
+            header.Value.DeleteTimestampCount);
 
         ReadRaw(row.BeginWriteTimestamps(), sizeof(TTimestamp) * row.GetWriteTimestampCount());
         ReadRaw(row.BeginDeleteTimestamps(), sizeof(TTimestamp) * row.GetDeleteTimestampCount());
 
-        DoReadSchemafulValueRange(schemaData, captureValues, row.BeginKeys(), header.value.KeyCount);
-        DoReadVersionedValueRange(captureValues, row.BeginValues(), header.value.ValueCount, valueIdMapping);
+        DoReadSchemafulValueRange(schemaData, captureValues, row.BeginKeys(), header.Value.KeyCount);
+        DoReadVersionedValueRange(captureValues, row.BeginValues(), header.Value.ValueCount, valueIdMapping);
 
         ValidateVersionedRowDataWeight(row);
 

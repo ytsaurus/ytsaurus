@@ -128,8 +128,8 @@ void ValidateClientDataRow(
                     expectedName,
                     actualName);
             }
-            ValidateValueType(row.BeginKeys()[index], schema, index, /*typeAnyAcceptsAllValues*/ false);
-            ValidateKeyValue(row.BeginKeys()[index]);
+            ValidateValueType(row.Keys()[index], schema, index, /*typeAnyAcceptsAllValues*/ false);
+            ValidateKeyValue(row.Keys()[index]);
         }
     } else {
         for (int index = 0; index < keyCount; ++index) {
@@ -139,8 +139,8 @@ void ValidateClientDataRow(
                 THROW_ERROR_EXCEPTION("Invalid key column %Qv: appears as a key column in row but actually is a data column in table",
                     name);
             }
-            ValidateValueType(row.BeginKeys()[index], schema, columnIndex, /*typeAnyAcceptsAllValues*/ false);
-            ValidateKeyValue(row.BeginKeys()[index]);
+            ValidateValueType(row.Keys()[index], schema, columnIndex, /*typeAnyAcceptsAllValues*/ false);
+            ValidateKeyValue(row.Keys()[index]);
         }
     }
 
@@ -289,8 +289,8 @@ void ValidateDuplicateAndRequiredValueColumns(
 TLegacyOwningKey ToOwningKey(TVersionedRow row)
 {
     TUnversionedOwningRowBuilder builder;
-    for (int index = 0; index < row.GetKeyCount(); ++index) {
-        builder.AddValue(row.BeginKeys()[index]);
+    for (const auto& value : row.Keys()) {
+        builder.AddValue(value);
     }
     return builder.FinishRow();
 }
@@ -404,11 +404,11 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
         }
     };
 
-    for (int index = 0; index < other.GetKeyCount(); ++index) {
-        adjustVariableSize(other.BeginKeys()[index]);
+    for (const auto& value : other.Keys()) {
+        adjustVariableSize(value);
     }
-    for (int index = 0; index < other.GetValueCount(); ++index) {
-        adjustVariableSize(other.BeginValues()[index]);
+    for (const auto& value : other.Values()) {
+        adjustVariableSize(value);
     }
 
     Data_ = TSharedMutableRef::Allocate(fixedSize + variableSize, {.InitializeStorage = false});
@@ -559,7 +559,7 @@ bool TBitwiseVersionedRowEqual::operator()(TVersionedRow lhs, TVersionedRow rhs)
     }
 
     for (int index = 0; index < lhs.GetKeyCount(); ++index) {
-        if (!TBitwiseUnversionedValueEqual()(lhs.BeginKeys()[index], lhs.BeginKeys()[index])) {
+        if (!TBitwiseUnversionedValueEqual()(lhs.Keys()[index], lhs.Keys()[index])) {
             return false;
         }
     }
@@ -569,7 +569,7 @@ bool TBitwiseVersionedRowEqual::operator()(TVersionedRow lhs, TVersionedRow rhs)
     }
 
     for (int i = 0; i < lhs.GetValueCount(); ++i) {
-        if (!TBitwiseVersionedValueEqual()(lhs.BeginValues()[i], rhs.BeginValues()[i])) {
+        if (!TBitwiseVersionedValueEqual()(lhs.Values()[i], rhs.Values()[i])) {
             return false;
         }
     }
@@ -579,7 +579,7 @@ bool TBitwiseVersionedRowEqual::operator()(TVersionedRow lhs, TVersionedRow rhs)
     }
 
     for (int i = 0; i < lhs.GetWriteTimestampCount(); ++i) {
-        if (lhs.BeginWriteTimestamps()[i] != rhs.BeginWriteTimestamps()[i]) {
+        if (lhs.WriteTimestamps()[i] != rhs.WriteTimestamps()[i]) {
             return false;
         }
     }
@@ -589,7 +589,7 @@ bool TBitwiseVersionedRowEqual::operator()(TVersionedRow lhs, TVersionedRow rhs)
     }
 
     for (int i = 0; i < lhs.GetDeleteTimestampCount(); ++i) {
-        if (lhs.BeginDeleteTimestamps()[i] != rhs.BeginDeleteTimestamps()[i]) {
+        if (lhs.DeleteTimestamps()[i] != rhs.DeleteTimestamps()[i]) {
             return false;
         }
     }

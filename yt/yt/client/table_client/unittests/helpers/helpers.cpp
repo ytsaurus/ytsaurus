@@ -107,25 +107,25 @@ void ExpectSchemafulRowsEqual(TVersionedRow expected, TVersionedRow actual)
     ASSERT_EQ(expected.GetWriteTimestampCount(), actual.GetWriteTimestampCount());
     for (int i = 0; i < expected.GetWriteTimestampCount(); ++i) {
         SCOPED_TRACE(Format("Write Timestamp %v", i));
-        ASSERT_EQ(expected.BeginWriteTimestamps()[i], actual.BeginWriteTimestamps()[i]);
+        ASSERT_EQ(expected.WriteTimestamps()[i], actual.WriteTimestamps()[i]);
     }
 
     ASSERT_EQ(expected.GetDeleteTimestampCount(), actual.GetDeleteTimestampCount());
     for (int i = 0; i < expected.GetDeleteTimestampCount(); ++i) {
         SCOPED_TRACE(Format("Delete Timestamp %v", i));
-        ASSERT_EQ(expected.BeginDeleteTimestamps()[i], actual.BeginDeleteTimestamps()[i]);
+        ASSERT_EQ(expected.DeleteTimestamps()[i], actual.DeleteTimestamps()[i]);
     }
 
     ASSERT_EQ(expected.GetKeyCount(), actual.GetKeyCount());
     for (int index = 0; index < expected.GetKeyCount(); ++index) {
         SCOPED_TRACE(Format("Key index %v", index));
-        CheckEqual(expected.BeginKeys()[index], actual.BeginKeys()[index]);
+        CheckEqual(expected.Keys()[index], actual.Keys()[index]);
     }
 
     ASSERT_EQ(expected.GetValueCount(), actual.GetValueCount());
     for (int index = 0; index < expected.GetValueCount(); ++index) {
         SCOPED_TRACE(Format("Value index %v", index));
-        CheckEqual(expected.BeginValues()[index], actual.BeginValues()[index]);
+        CheckEqual(expected.Values()[index], actual.Values()[index]);
     }
 }
 
@@ -172,22 +172,22 @@ std::vector<std::pair<ui32, ui32>> GetTimestampIndexRanges(
     for (auto row : rows) {
         // Find delete timestamp.
         auto deleteTimestamp = NTableClient::NullTimestamp;
-        for (auto deleteIt = row.BeginDeleteTimestamps(); deleteIt != row.EndDeleteTimestamps(); ++deleteIt) {
-            if (*deleteIt <= timestamp) {
-                deleteTimestamp = std::max(*deleteIt, deleteTimestamp);
+        for (auto currentTimestamp : row.DeleteTimestamps()) {
+            if (currentTimestamp <= timestamp) {
+                deleteTimestamp = std::max(currentTimestamp, deleteTimestamp);
             }
         }
 
         int lowerTimestampIndex = 0;
         while (lowerTimestampIndex < row.GetWriteTimestampCount() &&
-               row.BeginWriteTimestamps()[lowerTimestampIndex] > timestamp)
+               row.WriteTimestamps()[lowerTimestampIndex] > timestamp)
         {
             ++lowerTimestampIndex;
         }
 
         int upperTimestampIndex = lowerTimestampIndex;
         while (upperTimestampIndex < row.GetWriteTimestampCount() &&
-               row.BeginWriteTimestamps()[upperTimestampIndex] > deleteTimestamp)
+               row.WriteTimestamps()[upperTimestampIndex] > deleteTimestamp)
         {
             ++upperTimestampIndex;
         }

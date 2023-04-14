@@ -726,7 +726,7 @@ protected:
                 return;
             }
 
-            auto* value = row.BeginValues() + row.GetValueCount();
+            auto* value = row.EndValues();
             row.SetValueCount(row.GetValueCount() + 1);
             value->Timestamp = timestampIndex;
 
@@ -745,9 +745,8 @@ protected:
         ui32 valueIndex = valueIndexRange.first;
         ui32 upperValueIndex = valueIndexRange.second;
         for (; valueIndex < upperValueIndex; ++valueIndex) {
-            auto* value = row.BeginValues() + row.GetValueCount();
+            auto* value = row.EndValues();
             row.SetValueCount(row.GetValueCount() + 1);
-
             value->Timestamp = ValueExtractor_.GetTimestampIndex(valueIndex);
 
             DoExtractValue(value, valueIndex);

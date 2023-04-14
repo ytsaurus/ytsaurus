@@ -165,7 +165,7 @@ TMutableVersionedRow TVersionedRowReader<TRowParser>::ReadRowSingleVersion(TChun
             /*valueCount*/ 0,
             /*writeTimestampCount*/ 0,
             /*deleteTimestampCount*/ 1);
-        row.BeginDeleteTimestamps()[0] = deleteTimestamp;
+        row.DeleteTimestamps()[0] = deleteTimestamp;
         std::copy(RowMetadata_.Key.Begin(), RowMetadata_.Key.End(), row.BeginKeys());
         return row;
     }
@@ -181,9 +181,9 @@ TMutableVersionedRow TVersionedRowReader<TRowParser>::ReadRowSingleVersion(TChun
         /*deleteTimestampCount*/ hasDeleteTimestamp ? 1 : 0);
 
     // Write, delete timestamps.
-    row.BeginWriteTimestamps()[0] = writeTimestamp;
+    row.WriteTimestamps()[0] = writeTimestamp;
     if (hasDeleteTimestamp) {
-        row.BeginDeleteTimestamps()[0] = deleteTimestamp;
+        row.DeleteTimestamps()[0] = deleteTimestamp;
     }
 
     // Keys.

@@ -62,7 +62,7 @@ public:
             }
             Digest_.EarliestNthTimestamp[logIndex] = std::min(
                 Digest_.EarliestNthTimestamp[logIndex],
-                TimestampToSecond(row.BeginDeleteTimestamps()[(1 << logIndex) - 1]));
+                TimestampToSecond(row.DeleteTimestamps()[(1 << logIndex) - 1]));
         }
     }
 

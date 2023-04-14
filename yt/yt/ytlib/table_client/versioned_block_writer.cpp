@@ -107,8 +107,7 @@ void TSimpleVersionedBlockWriter::WriteRow(TVersionedRow row)
 
     std::optional<TBitmapOutput> nullAggregateFlags;
     int keyOffset = KeyStream_.GetSize();
-    for (const auto* it = row.BeginKeys(); it != row.EndKeys(); ++it) {
-        const auto& value = *it;
+    for (const auto& value : row.Keys()) {
         YT_ASSERT(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetWireType());
         WriteValue(KeyStream_, KeyNullFlags_, nullAggregateFlags, value);
     }
@@ -119,15 +118,13 @@ void TSimpleVersionedBlockWriter::WriteRow(TVersionedRow row)
     WritePod(KeyStream_, static_cast<ui16>(row.GetDeleteTimestampCount()));
 
     TimestampCount_ += row.GetWriteTimestampCount();
-    for (const auto* it = row.BeginWriteTimestamps(); it != row.EndWriteTimestamps(); ++it) {
-        auto timestamp = *it;
+    for (auto timestamp : row.WriteTimestamps()) {
         WritePod(TimestampStream_, timestamp);
         UpdateMinMaxTimestamp(timestamp);
     }
 
     TimestampCount_ += row.GetDeleteTimestampCount();
-    for (const auto* it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
-        auto timestamp = *it;
+    for (auto timestamp : row.DeleteTimestamps()) {
         WritePod(TimestampStream_, timestamp);
         UpdateMinMaxTimestamp(timestamp);
     }
@@ -135,9 +132,9 @@ void TSimpleVersionedBlockWriter::WriteRow(TVersionedRow row)
     ValueCount_ += row.GetValueCount();
 
     int lastId = KeyColumnCount_;
-    ui32 valueCount = 0;
-    while (static_cast<int>(valueCount) < row.GetValueCount()) {
-        const auto& value = row.BeginValues()[valueCount];
+    int valueCount = 0;
+    while (valueCount < row.GetValueCount()) {
+        const auto& value = row.Values()[valueCount];
         YT_ASSERT(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetWireType());
         YT_ASSERT(lastId <= value.Id);
         if (lastId < value.Id) {
@@ -426,8 +423,7 @@ void TIndexedVersionedBlockWriter::ResetKeyData()
     auto& stringDataSize = RowData_.KeyData.StringDataSize;
 
     stringDataSize = 0;
-    for (const auto* it = RowData_.Row.BeginKeys(); it != RowData_.Row.EndKeys(); ++it) {
-        const auto& value = *it;
+    for (const auto& value : RowData_.Row.Keys()) {
         YT_ASSERT(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetWireType());
 
         if (IsStringLikeType(value.Type)) {
@@ -467,7 +463,7 @@ void TIndexedVersionedBlockWriter::ResetValueData()
     };
 
     for (int valueIndex = 0; valueIndex < row.GetValueCount(); ++valueIndex) {
-        const auto& value = row.BeginValues()[valueIndex];
+        const auto& value = row.Values()[valueIndex];
 
         YT_ASSERT(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetWireType());
         YT_ASSERT(currentId <= value.Id);
@@ -601,7 +597,7 @@ char* TIndexedVersionedBlockWriter::EncodeKeyData(char* buffer) const
     auto* stringDataBuffer = buffer;
     std::optional<TMutableBitmap> nullAggregateFlagsBitmap;
     for (int keyColumnIndex = 0; keyColumnIndex < KeyColumnCount_; ++keyColumnIndex) {
-        const auto& value = RowData_.Row.BeginKeys()[keyColumnIndex];
+        const auto& value = RowData_.Row.Keys()[keyColumnIndex];
         DoWriteValue(
             valuesBuffer,
             stringDataBuffer,
@@ -630,15 +626,14 @@ char* TIndexedVersionedBlockWriter::EncodeTimestampData(char* buffer)
     WritePod(buffer, writeTimestampCount);
     WritePod(buffer, deleteTimestampCount);
 
-    auto writeTimestamps = [&] (const TTimestamp* begin, const TTimestamp* end) {
-        for (const auto* it = begin; it != end; ++it) {
-            TTimestamp timestamp = *it;
+    auto writeTimestamps = [&] (const auto& range) {
+        for (auto timestamp : range) {
             WritePod(buffer, timestamp);
             UpdateMinMaxTimestamp(timestamp);
         }
     };
-    writeTimestamps(row.BeginWriteTimestamps(), row.EndWriteTimestamps());
-    writeTimestamps(row.BeginDeleteTimestamps(), row.EndDeleteTimestamps());
+    writeTimestamps(row.WriteTimestamps());
+    writeTimestamps(row.DeleteTimestamps());
 
     YT_ASSERT(buffer - bufferStart == GetTimestampDataByteSize());
 
@@ -700,7 +695,7 @@ char* TIndexedVersionedBlockWriter::EncodeValueGroupData(char* buffer, int group
         WritePod(columnOffsetsBuffer, valueIndexInGroup);
 
         for (int index = beginIndex; index < endIndex; ++index) {
-            const auto& value = row.BeginValues()[index];
+            const auto& value = row.Values()[index];
             DoWriteValue(
                 buffer,
                 stringDataBuffer,

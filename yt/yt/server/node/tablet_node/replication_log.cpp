@@ -114,7 +114,7 @@ TUnversionedRow BuildSortedLogRow(
         return rowBuilder->GetRow();
     }
 
-    rowBuilder->AddValue(MakeUnversionedUint64Value(row.BeginWriteTimestamps()[0], 0));
+    rowBuilder->AddValue(MakeUnversionedUint64Value(row.WriteTimestamps()[0], 0));
     rowBuilder->AddValue(MakeUnversionedInt64Value(static_cast<int>(ERowModificationType::Write), 1));
 
     int keyColumnCount = tableSchema->GetKeyColumnCount();
@@ -122,7 +122,7 @@ TUnversionedRow BuildSortedLogRow(
 
     YT_VERIFY(static_cast<int>(row.GetKeyCount()) >= keyColumnCount);
     for (int index = 0; index < keyColumnCount; ++index) {
-        auto value = row.BeginKeys()[index];
+        auto value = row.Keys()[index];
         value.Id += 2;
         rowBuilder->AddValue(value);
     }
@@ -138,8 +138,8 @@ TUnversionedRow BuildSortedLogRow(
 
     auto logRow = rowBuilder->GetRow();
 
-    for (int index = 0; index < static_cast<int>(row.GetValueCount()); ++index) {
-        auto value = row.BeginValues()[index];
+    for (int index = 0; index < row.GetValueCount(); ++index) {
+        auto value = row.Values()[index];
         value.Id = (value.Id - keyColumnCount) * 2 + keyColumnCount + 2;
         logRow[value.Id] = static_cast<TUnversionedValue>(value);
         auto& flags = logRow[value.Id + 1].Data.Uint64;
@@ -404,7 +404,7 @@ private:
                     1,  // writeTimestampCount
                     0); // deleteTimestampCount
                 for (int keyIndex = 0; keyIndex < keyColumnCount; ++keyIndex) {
-                    mutableReplicationRow.BeginKeys()[keyIndex] = rowBuffer->CaptureValue(logRow[keyIndex + 4]);
+                    mutableReplicationRow.Keys()[keyIndex] = rowBuffer->CaptureValue(logRow[keyIndex + 4]);
                 }
                 int replicationValueIndex = 0;
                 for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
@@ -417,11 +417,11 @@ private:
                             value.Flags |= EValueFlags::Aggregate;
                         }
                         value.Timestamp = timestamp;
-                        mutableReplicationRow.BeginValues()[replicationValueIndex++] = value;
+                        mutableReplicationRow.Values()[replicationValueIndex++] = value;
                     }
                 }
                 YT_VERIFY(replicationValueIndex == replicationValueCount);
-                mutableReplicationRow.BeginWriteTimestamps()[0] = timestamp;
+                mutableReplicationRow.WriteTimestamps()[0] = timestamp;
                 replicationRow = mutableReplicationRow;
                 YT_LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating write (Row: %v)", replicationRow);
                 break;
@@ -434,9 +434,9 @@ private:
                     0,  // writeTimestampCount
                     1); // deleteTimestampCount
                 for (int index = 0; index < keyColumnCount; ++index) {
-                    mutableReplicationRow.BeginKeys()[index] = rowBuffer->CaptureValue(logRow[index + 4]);
+                    mutableReplicationRow.Keys()[index] = rowBuffer->CaptureValue(logRow[index + 4]);
                 }
-                mutableReplicationRow.BeginDeleteTimestamps()[0] = timestamp;
+                mutableReplicationRow.DeleteTimestamps()[0] = timestamp;
                 replicationRow = mutableReplicationRow;
                 YT_LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating delete (Row: %v)", replicationRow);
                 break;

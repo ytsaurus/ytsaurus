@@ -94,9 +94,9 @@ TCachedRowPtr BuildCachedRow(TAlloc* allocator, TRange<NTableClient::TVersionedR
         writeTimestampCount += row.GetWriteTimestampCount();
         deleteTimestampCount += row.GetDeleteTimestampCount();
         valueCount += row.GetValueCount();
-        for (auto it = row.BeginValues(); it != row.EndValues(); ++it) {
-            if (IsStringLikeType(it->Type)) {
-                blobDataSize += it->Length;
+        for (const auto& value : row.Values()) {
+            if (IsStringLikeType(value.Type)) {
+                blobDataSize += value.Length;
             }
         }
     }
@@ -106,13 +106,13 @@ TCachedRowPtr BuildCachedRow(TAlloc* allocator, TRange<NTableClient::TVersionedR
     }
 
     int keyCount = nonSentinelRow.GetKeyCount();
-    for (auto it = nonSentinelRow.BeginKeys(); it != nonSentinelRow.EndKeys(); ++it) {
-        if (IsStringLikeType(it->Type)) {
-            blobDataSize += it->Length;
+    for (const auto& value : nonSentinelRow.Keys()) {
+        if (IsStringLikeType(value.Type)) {
+            blobDataSize += value.Length;
         }
     }
 
-    size_t rowSize = NTableClient::GetVersionedRowByteSize(
+    auto rowSize = NTableClient::GetVersionedRowByteSize(
         keyCount,
         valueCount,
         writeTimestampCount,
@@ -133,9 +133,9 @@ TCachedRowPtr BuildCachedRow(TAlloc* allocator, TRange<NTableClient::TVersionedR
 
     std::copy(nonSentinelRow.BeginKeys(), nonSentinelRow.EndKeys(), versionedRow.BeginKeys());
 
-    auto writeTimestampsDest = versionedRow.BeginWriteTimestamps();
-    auto deleteTimestampsDest = versionedRow.BeginDeleteTimestamps();
-    auto valuesDest = versionedRow.BeginValues();
+    auto* writeTimestampsDest = versionedRow.BeginWriteTimestamps();
+    auto* deleteTimestampsDest = versionedRow.BeginDeleteTimestamps();
+    auto* valuesDest = versionedRow.BeginValues();
 
     for (auto row : rows) {
         if (!row) {

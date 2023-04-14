@@ -1098,11 +1098,11 @@ public:
                 deleteTimestamp != NullTimestamp ? 1 : 0);
 
             if (lowerWriteIt != upperWriteIt) {
-                row.BeginWriteTimestamps()[0] = *lowerWriteIt;
+                row.WriteTimestamps()[0] = *lowerWriteIt;
             }
 
             if (deleteTimestamp != NullTimestamp) {
-                row.BeginDeleteTimestamps()[0] = deleteTimestamp;
+                row.DeleteTimestamps()[0] = deleteTimestamp;
             }
 
             *valueOutput = {row.BeginValues(), writeTimestamps.Begin(), timestampIdRange};
@@ -1579,9 +1579,7 @@ public:
             }
         }
 
-        auto valuesIt = row.BeginValues();
-        auto valuesEnd = valueOutput.Ptr;
-        row.SetValueCount(valuesEnd - valuesIt);
+        row.SetValueCount(valueOutput.Ptr - row.BeginValues());
 
         *dataWeight += row.GetWriteTimestampCount() * sizeof(TTimestamp);
         *dataWeight += row.GetDeleteTimestampCount() * sizeof(TTimestamp);
@@ -1596,7 +1594,7 @@ public:
         if (row) {
             TCpuDurationIncrementingGuard timingGuard(&readerStatistics->DoReadKeysTime);
             ui16 columnId = 0;
-            TUnversionedValue* rowKey = row.BeginKeys();
+            auto* rowKey = row.Keys().begin();
             for (const auto& column : KeyColumns_) {
                 *dataWeight += column->ReadKey(rowKey + columnId, rowIndex, columnId);
                 ++columnId;
@@ -1750,11 +1748,9 @@ private:
                 Timestamp_ != NTableClient::AllCommittedTimestamp)
             {
                 // Key is present in chunk but no values corresponding to requested timestamp.
-                *rows = TMutableVersionedRow();
+                *rows = {};
             } else {
-                auto valuesIt = rows->BeginValues();
-                auto valuesEnd = valueOutput->Ptr;
-                rows->SetValueCount(valuesEnd - valuesIt);
+                rows->SetValueCount(valueOutput->Ptr - rows->BeginValues());
             }
 
             ++valueOutput;
@@ -2348,7 +2344,7 @@ public:
 
                 if (row) {
                     TCpuDurationIncrementingGuard timingGuard(&readerStatistics->DoReadKeysTime);
-                    TUnversionedValue* rowKey = row.BeginKeys();
+                    auto* rowKey = row.BeginKeys();
                     for (int columnId = 0; columnId < std::ssize(keyRef); ++columnId) {
                         rowKey[columnId] = keyRef[columnId];
                     }

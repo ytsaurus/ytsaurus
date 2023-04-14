@@ -125,14 +125,14 @@ private:
 
         ::memcpy(versionedRow.BeginKeys(), row.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
 
-        TVersionedValue* currentValue = versionedRow.BeginValues();
+        auto* currentValue = versionedRow.BeginValues();
         for (int index = KeyColumnCount_; index < static_cast<int>(row.GetCount()); ++index) {
             YT_VERIFY(row[index].Id >= KeyColumnCount_);
             *currentValue = MakeVersionedValue(row[index], Timestamp_);
             ++currentValue;
         }
 
-        versionedRow.BeginWriteTimestamps()[0] = Timestamp_;
+        versionedRow.WriteTimestamps()[0] = Timestamp_;
 
         return versionedRow;
     }
@@ -215,16 +215,16 @@ private:
             versionedRow.BeginValues(),
             row.BeginValues(),
             sizeof(TVersionedValue) * row.GetValueCount());
-        for (auto* value = versionedRow.BeginValues(); value != versionedRow.EndValues(); ++value) {
-            value->Timestamp = Timestamp_;
+        for (auto& value : versionedRow.Values()) {
+            value.Timestamp = Timestamp_;
         }
 
         // Write/delete timestamps.
         if (row.GetWriteTimestampCount() > 0) {
-            *versionedRow.BeginWriteTimestamps() = Timestamp_;
+            versionedRow.WriteTimestamps()[0] = Timestamp_;
         }
         if (row.GetDeleteTimestampCount() > 0) {
-            *versionedRow.BeginDeleteTimestamps() = Timestamp_;
+            versionedRow.DeleteTimestamps()[0] = Timestamp_;
         }
 
         return versionedRow;

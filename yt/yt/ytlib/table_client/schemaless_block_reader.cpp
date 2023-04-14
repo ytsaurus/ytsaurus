@@ -235,10 +235,10 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
         0);
 
     for (int index = 0; index < GetKeyColumnCount(); ++index) {
-        versionedRow.BeginKeys()[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
+        versionedRow.Keys()[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
     }
 
-    TVersionedValue* currentValue = versionedRow.BeginValues();
+    auto* currentValue = versionedRow.BeginValues();
     for (int i = 0; i < static_cast<int>(ValueCount_); ++i) {
         TUnversionedValue value;
         CurrentPointer_ += ReadRowValue(CurrentPointer_, &value);
@@ -250,11 +250,11 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
             *currentValue = MakeVersionedValue(value, timestamp);
             ++currentValue;
         } else if (id >= 0) {
-            versionedRow.BeginKeys()[id] = value;
+            versionedRow.Keys()[id] = value;
         }
     }
 
-    versionedRow.BeginWriteTimestamps()[0] = timestamp;
+    versionedRow.WriteTimestamps()[0] = timestamp;
 
     return versionedRow;
 }

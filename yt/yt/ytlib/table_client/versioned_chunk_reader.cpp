@@ -936,11 +936,11 @@ public:
                 rows->push_back(row);
 
                 if (hasDeleteTimestamp) {
-                    *row.BeginDeleteTimestamps() = deleteTimestamp;
+                    row.DeleteTimestamps()[0] = deleteTimestamp;
                 }
 
                 if (hasWriteTimestamp) {
-                    *row.BeginWriteTimestamps() = TimestampReader_->GetWriteTimestamp(rowIndex);
+                    row.WriteTimestamps()[0] = TimestampReader_->GetWriteTimestamp(rowIndex);
 
                     // Value count is increased inside value column readers.
                     row.SetValueCount(0);
@@ -975,12 +975,12 @@ public:
                 continue;
             }
 
-            for (auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
-                value->Timestamp = TimestampReader_->GetValueTimestamp(
+            for (auto& value : row.Values()) {
+                value.Timestamp = TimestampReader_->GetValueTimestamp(
                     currentRowIndex + index,
-                    static_cast<ui32>(value->Timestamp));
-                if (ColumnHunkFlags_[value->Id] && value->Type != EValueType::Null) {
-                    value->Flags |= EValueFlags::Hunk;
+                    static_cast<ui32>(value.Timestamp));
+                if (ColumnHunkFlags_[value.Id] && value.Type != EValueType::Null) {
+                    value.Flags |= EValueFlags::Hunk;
                 }
             }
         }
@@ -1046,7 +1046,7 @@ public:
                 timestampIndex < TimestampReader_->GetWriteTimestampCount(rowIndex);
                 ++timestampIndex)
             {
-                row.BeginWriteTimestamps()[timestampIndex] = TimestampReader_->GetValueTimestamp(rowIndex, timestampIndex);
+                row.WriteTimestamps()[timestampIndex] = TimestampReader_->GetValueTimestamp(rowIndex, timestampIndex);
             }
 
             for (
@@ -1054,7 +1054,7 @@ public:
                 timestampIndex < TimestampReader_->GetDeleteTimestampCount(rowIndex);
                 ++timestampIndex)
             {
-                row.BeginDeleteTimestamps()[timestampIndex] = TimestampReader_->GetDeleteTimestamp(rowIndex, timestampIndex);
+                row.DeleteTimestamps()[timestampIndex] = TimestampReader_->GetDeleteTimestamp(rowIndex, timestampIndex);
             }
         }
 
@@ -1323,7 +1323,7 @@ public:
         }
 
         if (hasDeleteTimestamp) {
-            *row.BeginDeleteTimestamps() = deleteTimestamp;
+            row.DeleteTimestamps()[0] = deleteTimestamp;
         }
 
         if (!hasWriteTimestamp) {
@@ -1341,14 +1341,14 @@ public:
                 false);
         }
 
-        for (auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
-            value->Timestamp = TimestampReader_->GetTimestamp(static_cast<ui32>(value->Timestamp));
-            if (ColumnHunkFlags_[value->Id] && value->Type != EValueType::Null) {
-                value->Flags |= EValueFlags::Hunk;
+        for (auto& value : row.Values()) {
+            value.Timestamp = TimestampReader_->GetTimestamp(static_cast<ui32>(value.Timestamp));
+            if (ColumnHunkFlags_[value.Id] && value.Type != EValueType::Null) {
+                value.Flags |= EValueFlags::Hunk;
             }
         }
 
-        *row.BeginWriteTimestamps() = TimestampReader_->GetWriteTimestamp();
+        row.WriteTimestamps()[0] = TimestampReader_->GetWriteTimestamp();
 
         return row;
     }
@@ -1407,7 +1407,7 @@ public:
 
         // Read delete timestamps.
         for (ui32 timestampIndex = 0; timestampIndex < deleteTimestampCount; ++timestampIndex) {
-            row.BeginDeleteTimestamps()[timestampIndex] = TimestampReader_->GetDeleteTimestamp(timestampIndex);
+            row.DeleteTimestamps()[timestampIndex] = TimestampReader_->GetDeleteTimestamp(timestampIndex);
         }
 
         if (writeTimestampCount == 0) {
@@ -1416,7 +1416,7 @@ public:
 
         // Read write timestamps.
         for (ui32 timestampIndex = 0; timestampIndex < writeTimestampCount; ++timestampIndex) {
-            row.BeginWriteTimestamps()[timestampIndex] = TimestampReader_->GetValueTimestamp(timestampIndex);
+            row.WriteTimestamps()[timestampIndex] = TimestampReader_->GetValueTimestamp(timestampIndex);
         }
 
         // Value count is increased inside value column readers.
@@ -1432,9 +1432,9 @@ public:
                 true);
         }
 
-        for (int i = 0; i < row.GetValueCount(); ++i) {
-            row.BeginValues()[i].Timestamp = TimestampReader_->GetValueTimestamp(
-                static_cast<i32>(row.BeginValues()[i].Timestamp) - writeTimestampIndexRange.first);
+        for (auto& value : row.Values()) {
+            value.Timestamp = TimestampReader_->GetValueTimestamp(
+                static_cast<i32>(value.Timestamp) - writeTimestampIndexRange.first);
         }
 
         auto* memoryFrom = const_cast<char*>(row.EndMemory());

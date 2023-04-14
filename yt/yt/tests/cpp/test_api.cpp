@@ -185,14 +185,14 @@ protected:
             extraWriteTimestamps);
         auto row = TMutableVersionedRow(const_cast<TVersionedRowHeader*>(immutableRow.GetHeader()));
 
-        for (auto* value = row.BeginValues(); value < row.EndValues(); ++value) {
-            value->Timestamp = CommitTimestamps_.at(value->Timestamp);
+        for (auto& value : row.Values()) {
+            value.Timestamp = GetOrCrash(CommitTimestamps_, value.Timestamp);
         }
-        for (auto* timestamp = row.BeginWriteTimestamps(); timestamp < row.EndWriteTimestamps(); ++timestamp) {
-            *timestamp = CommitTimestamps_.at(*timestamp);
+        for (auto& timestamp : row.WriteTimestamps()) {
+            timestamp = GetOrCrash(CommitTimestamps_, timestamp);
         }
-        for (auto* timestamp = row.BeginDeleteTimestamps(); timestamp < row.EndDeleteTimestamps(); ++timestamp) {
-            *timestamp = CommitTimestamps_.at(*timestamp);
+        for (auto& timestamp : row.DeleteTimestamps()) {
+            timestamp = GetOrCrash(CommitTimestamps_, timestamp);
         }
 
         return row;

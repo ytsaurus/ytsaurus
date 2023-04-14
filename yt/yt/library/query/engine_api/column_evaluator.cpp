@@ -63,12 +63,12 @@ void TColumnEvaluator::EvaluateKeys(
     TMutableVersionedRow fullRow,
     const TRowBufferPtr& buffer) const
 {
-    auto row = buffer->CaptureRow(MakeRange(fullRow.BeginKeys(), fullRow.GetKeyCount()), false);
+    auto row = buffer->CaptureRow(fullRow.Keys(), /*captureValues*/ false);
     EvaluateKeys(row, buffer);
 
     for (int index = 0; index < fullRow.GetKeyCount(); ++index) {
         if (Columns_[index].Evaluator) {
-            fullRow.BeginKeys()[index] = row[index];
+            fullRow.Keys()[index] = row[index];
         }
     }
 }

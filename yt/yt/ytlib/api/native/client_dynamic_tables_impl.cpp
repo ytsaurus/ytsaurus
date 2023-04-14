@@ -197,18 +197,17 @@ void RemapValueIds(
         if (!row) {
             continue;
         }
-        for (int index = 0; index < row.GetKeyCount(); ++index) {
-            auto id = row.BeginKeys()[index].Id;
+        for (auto& value : row.Keys()) {
+            auto id = value.Id;
             YT_VERIFY(id < mapping.size() && mapping[id] != -1);
-            row.BeginKeys()[index].Id = mapping[id];
+            value.Id = mapping[id];
         }
-        for (int index = 0; index < row.GetValueCount(); ++index) {
-            auto id = row.BeginValues()[index].Id;
+        for (auto& value : row.Values()) {
+            auto id = value.Id;
             YT_VERIFY(id < mapping.size() && mapping[id] != -1);
-            row.BeginValues()[index].Id = mapping[id];
+            value.Id = mapping[id];
         }
     }
-
 }
 
 void RemapValueIds(
@@ -239,7 +238,6 @@ std::vector<int> BuildResponseIdMapping(const TColumnFilter& remappedColumnFilte
         }
         mapping[id] = index;
     }
-
     return mapping;
 }
 
@@ -256,8 +254,8 @@ TTimestamp ExtractTimestampFromPulledRow(TVersionedRow row)
     }
 
     if (writeTimestampCount > 0 && deleteTimestampCount > 0) {
-        auto writeTimestamp = row.BeginWriteTimestamps()[0];
-        auto deleteTimestamp = row.BeginDeleteTimestamps()[0];
+        auto writeTimestamp = row.WriteTimestamps()[0];
+        auto deleteTimestamp = row.DeleteTimestamps()[0];
         if (writeTimestamp != deleteTimestamp) {
             THROW_ERROR_EXCEPTION("Timestamps mismatch in pulled row")
                 << TErrorAttribute("write_timestamp", writeTimestamp)
@@ -269,10 +267,10 @@ TTimestamp ExtractTimestampFromPulledRow(TVersionedRow row)
     }
 
     if (writeTimestampCount > 0) {
-        return row.BeginWriteTimestamps()[0];
+        return row.WriteTimestamps()[0];
     }
     if (deleteTimestampCount > 0) {
-        return row.BeginDeleteTimestamps()[0];
+        return row.DeleteTimestamps()[0];
     }
 
     THROW_ERROR_EXCEPTION("Pulled a row without timestamps")

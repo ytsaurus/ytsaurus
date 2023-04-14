@@ -246,7 +246,7 @@ TEST_P(TUnversionedFloatingPointSegmentTest, ReadValues)
     reader->ReadValues(TMutableRange<TMutableVersionedRow>(actual.data(), actual.size()));
 
     for (int i = 0; i < 3; ++i) {
-        EXPECT_EQ(0, CompareRowValues(MakeValue(3.0 + i), *actual[i].BeginKeys()));
+        EXPECT_EQ(0, CompareRowValues(MakeValue(3.0 + i), actual[i].Keys()[0]));
     }
 }
 
@@ -255,7 +255,7 @@ TEST_P(TUnversionedFloatingPointSegmentTest, ReadNull)
     auto reader = CreateColumnReader();
     auto rows = AllocateRows(3);
     reader->ReadValues(TMutableRange<TMutableVersionedRow>(rows.data(), rows.size()));
-    EXPECT_EQ(MakeValue(std::nullopt), *rows.front().BeginKeys());
+    EXPECT_EQ(MakeValue(std::nullopt), rows.front().Keys()[0]);
 }
 
 INSTANTIATE_TEST_SUITE_P(

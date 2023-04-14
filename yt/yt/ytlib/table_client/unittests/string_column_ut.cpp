@@ -165,7 +165,7 @@ TEST_F(TUnversionedStringColumnTest, ReadLast)
 
     auto actual = AllocateRows(1);
     reader->ReadValues(TMutableRange<TMutableVersionedRow>(actual.data(), actual.size()));
-    EXPECT_EQ(MakeValue(std::nullopt), *actual.front().BeginKeys());
+    EXPECT_EQ(MakeValue(std::nullopt), actual.front().Keys()[0]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

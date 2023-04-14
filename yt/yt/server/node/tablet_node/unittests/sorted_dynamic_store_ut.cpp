@@ -1889,8 +1889,8 @@ TEST_F(TMultiLockSortedDynamicStoreTest, OutOfOrderWrites)
         EXPECT_EQ(1, row.GetKeyCount());
         EXPECT_EQ(2, row.GetValueCount());
         EXPECT_EQ(2, row.GetWriteTimestampCount());
-        EXPECT_EQ(ts1, row.BeginWriteTimestamps()[0]);
-        EXPECT_EQ(ts2, row.BeginWriteTimestamps()[1]);
+        EXPECT_EQ(ts1, row.WriteTimestamps()[0]);
+        EXPECT_EQ(ts2, row.WriteTimestamps()[1]);
         EXPECT_EQ(0, row.GetDeleteTimestampCount());
 
         EXPECT_FALSE(reader->Read(options));
@@ -2116,9 +2116,9 @@ TEST_F(TAtomicSortedDynamicStoreTest, ReadAllCommitedWriteVersioned)
 
     EXPECT_TRUE(result);
 
-    EXPECT_EQ(result.BeginKeys()[0], row[0]);
+    EXPECT_EQ(result.Keys()[0], row[0]);
     for (int i = 1; i < 8; ++i) {
-        EXPECT_EQ(static_cast<const TUnversionedValue&>(result.BeginValues()[i - 1]), row[i]);
+        EXPECT_EQ(static_cast<const TUnversionedValue&>(result.Values()[i - 1]), row[i]);
     }
 }
 
