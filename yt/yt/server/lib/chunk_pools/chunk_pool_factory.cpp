@@ -69,7 +69,7 @@ IChunkPoolPtr CreateChunkPool(
         case ETablePartitionMode::Unordered:
             return CreateUnorderedChunkPool(
                 TUnorderedChunkPoolOptions{
-                    .JobSizeConstraints = CreateJobSizeConstraints(dataWeightPerPartition, maxPartitionCount),
+                    .JobSizeConstraints = jobSizeConstraints,
                     .RowBuffer = New<TRowBuffer>(),
                     .Logger = std::move(logger),
                 },
