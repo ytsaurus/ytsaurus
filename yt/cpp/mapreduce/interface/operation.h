@@ -631,6 +631,53 @@ struct TAddLocalFileOptions
     FLUENT_FIELD_OPTION(bool, BypassArtifactCache);
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+/// @brief Binary to run job profiler on.
+enum class EProfilingBinary
+{
+    /// Profile job proxy.
+    JobProxy       /* "job_proxy" */,
+
+    /// Profile user job.
+    UserJob        /* "user_job" */,
+};
+
+/// @brief Type of job profiler.
+enum class EProfilerType
+{
+    /// Profile CPU usage.
+    Cpu            /* "cpu" */,
+
+    /// Profile memory usage.
+    Memory         /* "memory" */,
+
+    /// Profiler peak memory usage.
+    PeakMemory     /* "peak_memory" */,
+};
+
+/// @brief Specifies a job profiler.
+struct TJobProfilerSpec
+{
+    /// @cond Doxygen_Suppress
+    using TSelf = TJobProfilerSpec;
+    /// @endcond
+
+    /// @brief Binary to profile.
+    FLUENT_FIELD_OPTION(EProfilingBinary, ProfilingBinary);
+
+    /// @brief Type of the profiler.
+    FLUENT_FIELD_OPTION(EProfilerType, ProfilerType);
+
+    /// @brief Probabiliy of the job being selected for profiling.
+    FLUENT_FIELD_OPTION(double, ProfilingProbability);
+
+    /// @brief For sampling profilers, sets the number of samples per second.
+    FLUENT_FIELD_OPTION(int, SamplingFrequency);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 ///
 /// @brief Spec of user job.
 ///
@@ -756,6 +803,10 @@ struct TUserJobSpec
     ///
     /// @brief Get job binary config.
     const TJobBinaryConfig& GetJobBinary() const;
+
+    ///
+    /// @brief List of profilers to run.
+    FLUENT_VECTOR_FIELD(TJobProfilerSpec, JobProfiler);
 
 private:
     TVector<std::tuple<TLocalFilePath, TAddLocalFileOptions>> LocalFiles_;

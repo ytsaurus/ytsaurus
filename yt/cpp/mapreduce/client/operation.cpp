@@ -629,6 +629,25 @@ TNode BuildAutoMergeSpec(const TAutoMergeSpec& options)
     return result;
 }
 
+TNode BuildJobProfilerSpec(const TJobProfilerSpec& profilerSpec)
+{
+    TNode result;
+    if (profilerSpec.ProfilingBinary_) {
+        result["binary"] = ToString(*profilerSpec.ProfilingBinary_);
+    }
+    if (profilerSpec.ProfilerType_) {
+        result["type"] = ToString(*profilerSpec.ProfilerType_);
+    }
+    if (profilerSpec.ProfilingProbability_) {
+        result["profiling_probability"] = *profilerSpec.ProfilingProbability_;
+    }
+    if (profilerSpec.SamplingFrequency_) {
+        result["sampling_frequency"] = *profilerSpec.SamplingFrequency_;
+    }
+
+    return result;
+}
+
 void BuildUserJobFluently(
     const TJobPreparer& preparer,
     const TMaybe<TFormat>& inputFormat,
@@ -695,7 +714,13 @@ void BuildUserJobFluently(
             fluentMap.Item("tmpfs_path").Value(".");
             fluentMap.Item("tmpfs_size").Value(tmpfsSize);
             fluentMap.Item("copy_files").Value(true);
-        });
+        })
+        .Item("profilers")
+            .BeginList()
+            .DoFor(userJobSpec.JobProfilers_, [&] (TFluentList list, const auto& jobProfiler) {
+                list.Item().Value(BuildJobProfilerSpec(jobProfiler));
+            })
+            .EndList();
 }
 
 template <typename T>
