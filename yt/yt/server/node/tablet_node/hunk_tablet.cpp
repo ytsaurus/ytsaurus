@@ -60,6 +60,7 @@ void THunkTablet::Load(TLoadContext& context)
             auto storeId = Load<TStoreId>(context);
             auto store = New<THunkStore>(storeId, this);
             store->Load(context);
+            EmplaceOrCrash(IdToStore_, storeId, std::move(store));
         }
     }
 }
