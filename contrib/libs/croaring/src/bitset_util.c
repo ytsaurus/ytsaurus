@@ -661,7 +661,7 @@ size_t bitset_extract_setbits_avx512_uint16(const uint64_t *array, size_t length
 
     return out - initout;
 }
-CROARING_UNTARGET_REGION
+CROARING_UNTARGET_AVX512
 #endif
 
 CROARING_TARGET_AVX2
@@ -716,7 +716,7 @@ size_t bitset_extract_setbits_avx2(const uint64_t *words, size_t length,
     }
     return out - initout;
 }
-CROARING_UNTARGET_REGION
+CROARING_UNTARGET_AVX2
 #endif  // CROARING_IS_X64
 
 size_t bitset_extract_setbits(const uint64_t *words, size_t length,
@@ -820,7 +820,7 @@ size_t bitset_extract_setbits_sse_uint16(const uint64_t *words, size_t length,
     }
     return out - initout;
 }
-CROARING_UNTARGET_REGION
+CROARING_UNTARGET_AVX2
 #endif
 
 /*

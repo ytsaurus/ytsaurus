@@ -333,16 +333,19 @@ static inline int roaring_hamming(uint64_t x) {
 #define CROARING_UNTARGET_REGION
 #endif
 
+
 #define CROARING_TARGET_AVX2 CROARING_TARGET_REGION("avx2,bmi,pclmul,lzcnt")
 #define CROARING_TARGET_AVX512 CROARING_TARGET_REGION("bmi2,avx512f,avx512dq,avx512bw,avx512vbmi2,avx512bitalg,avx512vpopcntdq")
+#define CROARING_UNTARGET_AVX2 CROARING_UNTARGET_REGION
+#define CROARING_UNTARGET_AVX512 CROARING_UNTARGET_REGION
 
 #ifdef __AVX2__
 // No need for runtime dispatching.
 // It is unnecessary and harmful to old clang to tag regions.
 #undef CROARING_TARGET_AVX2
 #define CROARING_TARGET_AVX2
-#undef CROARING_UNTARGET_REGION
-#define CROARING_UNTARGET_REGION
+#undef CROARING_UNTARGET_AVX2
+#define CROARING_UNTARGET_AVX2
 #endif
 
 #if defined(__AVX512F__) && defined(__AVX512DQ__) && defined(__AVX512BW__) && defined(__AVX512VBMI2__) && defined(__AVX512BITALG__) && defined(__AVX512VPOPCNTDQ__)
@@ -350,8 +353,8 @@ static inline int roaring_hamming(uint64_t x) {
 // It is unnecessary and harmful to old clang to tag regions.
 #undef CROARING_TARGET_AVX512
 #define CROARING_TARGET_AVX512
-#undef CROARING_UNTARGET_REGION
-#define CROARING_UNTARGET_REGION
+#undef CROARING_UNTARGET_AVX512
+#define CROARING_UNTARGET_AVX512
 #endif
 
 // Allow unaligned memory access

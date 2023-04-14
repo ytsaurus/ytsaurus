@@ -131,7 +131,7 @@ void run_container_offset(const run_container_t *c,
         lo_cap = c->n_runs;
         hi_cap = 0;
     } else {
-        split = c->runs[pivot].value <= top;
+        split = c->runs[pivot].value < top;
         lo_cap = pivot + (split ? 1 : 0);
         hi_cap = c->n_runs - pivot;
     }
@@ -873,7 +873,7 @@ static inline int _avx512_run_container_cardinality(const run_container_t *run) 
     return sum;
 }
 
-CROARING_UNTARGET_REGION
+CROARING_UNTARGET_AVX512
 
 CROARING_TARGET_AVX2
 ALLOW_UNALIGNED
@@ -906,7 +906,7 @@ static inline int _avx2_run_container_cardinality(const run_container_t *run) {
     return sum;
 }
 
-CROARING_UNTARGET_REGION
+CROARING_UNTARGET_AVX2
 
 /* Get the cardinality of `run'. Requires an actual computation. */
 static inline int _scalar_run_container_cardinality(const run_container_t *run) {

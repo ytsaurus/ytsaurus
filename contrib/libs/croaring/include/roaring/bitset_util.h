@@ -294,7 +294,7 @@ static inline __m256i popcount256(__m256i v) {
     const __m256i popcnt2 = _mm256_shuffle_epi8(lookupneg, hi);
     return _mm256_sad_epu8(popcnt1, popcnt2);
 }
-CROARING_UNTARGET_REGION
+CROARING_UNTARGET_AVX2
 
 CROARING_TARGET_AVX2
 /**
@@ -306,7 +306,7 @@ static inline void CSA(__m256i *h, __m256i *l, __m256i a, __m256i b,
     *h = _mm256_or_si256(_mm256_and_si256(a, b), _mm256_and_si256(u, c));
     *l = _mm256_xor_si256(u, c);
 }
-CROARING_UNTARGET_REGION
+CROARING_UNTARGET_AVX2
 
 CROARING_TARGET_AVX2
 /**
@@ -370,7 +370,7 @@ inline static uint64_t avx2_harley_seal_popcount256(const __m256i *data,
            (uint64_t)(_mm256_extract_epi64(total, 2)) +
            (uint64_t)(_mm256_extract_epi64(total, 3));
 }
-CROARING_UNTARGET_REGION
+CROARING_UNTARGET_AVX2
 
 #define AVXPOPCNTFNC(opname, avx_intrinsic)                                    \
     static inline uint64_t avx2_harley_seal_popcount256_##opname(              \
@@ -554,27 +554,27 @@ CROARING_UNTARGET_REGION
 
 CROARING_TARGET_AVX2
 AVXPOPCNTFNC(or, _mm256_or_si256)
-CROARING_UNTARGET_REGION
+CROARING_UNTARGET_AVX2
 
 CROARING_TARGET_AVX2
 AVXPOPCNTFNC(union, _mm256_or_si256)
-CROARING_UNTARGET_REGION
+CROARING_UNTARGET_AVX2
 
 CROARING_TARGET_AVX2
 AVXPOPCNTFNC(and, _mm256_and_si256)
-CROARING_UNTARGET_REGION
+CROARING_UNTARGET_AVX2
 
 CROARING_TARGET_AVX2
 AVXPOPCNTFNC(intersection, _mm256_and_si256)
-CROARING_UNTARGET_REGION
+CROARING_UNTARGET_AVX2
 
 CROARING_TARGET_AVX2
 AVXPOPCNTFNC (xor, _mm256_xor_si256)
-CROARING_UNTARGET_REGION
+CROARING_UNTARGET_AVX2
 
 CROARING_TARGET_AVX2
 AVXPOPCNTFNC(andnot, _mm256_andnot_si256)
-CROARING_UNTARGET_REGION
+CROARING_UNTARGET_AVX2
 
 
 #define VPOPCNT_AND_ADD(ptr, i, accu)   \
@@ -622,7 +622,7 @@ static inline uint64_t avx512_vpopcount(const __m512i* data, const uint64_t size
         
     return simd_sum_epu64(total);
 }
-CROARING_UNTARGET_REGION
+CROARING_UNTARGET_AVX512
 #endif
 
 #define AVXPOPCNTFNC512(opname, avx_intrinsic)                                 \
@@ -693,7 +693,7 @@ AVXPOPCNTFNC512(and, _mm512_and_si512)
 AVXPOPCNTFNC512(intersection, _mm512_and_si512)
 AVXPOPCNTFNC512(xor, _mm512_xor_si512)
 AVXPOPCNTFNC512(andnot, _mm512_andnot_si512)
-CROARING_UNTARGET_REGION
+CROARING_UNTARGET_AVX512
 #endif
 /***
  * END Harley-Seal popcount functions.
