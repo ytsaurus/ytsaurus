@@ -34,7 +34,7 @@ TMutableVersionedRow TRowBuffer::AllocateVersioned(
 
 void TRowBuffer::CaptureValue(TUnversionedValue* value)
 {
-    if (IsStringLikeType(value->Type)) {
+    if (IsStringLikeType(value->Type) && value->Data.String != nullptr) {
         char* dst = Pool_.AllocateUnaligned(value->Length);
         memcpy(dst, value->Data.String, value->Length);
         value->Data.String = dst;
