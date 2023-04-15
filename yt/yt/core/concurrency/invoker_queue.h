@@ -38,11 +38,11 @@ struct TEnqueuedAction
 class TMpmcQueueImpl
 {
 public:
-    using TConsumerToken = moodycamel::ConsumerToken;
+    using TConsumerToken = std::array<moodycamel::ConsumerToken, 2>;
 
-    void Enqueue(TEnqueuedAction action);
+    void Enqueue(TEnqueuedAction&& action);
     void Enqueue(TMutableRange<TEnqueuedAction> actions);
-    bool TryDequeue(TEnqueuedAction *action, TConsumerToken* token = nullptr);
+    bool TryDequeue(TEnqueuedAction* action, TConsumerToken* token = nullptr);
 
     void DrainProducer();
     void DrainConsumer();
@@ -54,8 +54,44 @@ public:
     bool HasSingleConsumer() const;
 
 private:
-    moodycamel::ConcurrentQueue<TEnqueuedAction> Queue_;
-    std::atomic<int> Size_ = 0;
+    using TBucket = moodycamel::ConcurrentQueue<TEnqueuedAction>;
+    std::array<TBucket, 2> Buckets_;
+
+    alignas(CacheLineSize) std::atomic<int> Size_ = 0;
+
+    // Bit 0: producer bucket index
+    // Bit 1: consumer bucket index
+    // Bits 2..63: epoch
+    //
+    // Transitions:
+    //              *---------------------------*
+    //              |                           |
+    //             \|/                          |
+    // 0=00 (produce to B0, consume from B0)<---*---*
+    //              |                           |   |
+    //              | epoch changes             |   |
+    //             \|/                          |   |
+    // 1=01 (produce to B1, consume from B0)    |   | dequeue spin limit exceeded
+    //              |                           |   |
+    //              | B0 is exhausted           |   |
+    //             \|/                          |   |
+    // 3=11 (produce to B1, consume from B1)<---*---*
+    //              |                           |
+    //              | epoch changes             |
+    //             \|/                          |
+    // 2=10 (produce to B0, consume from B1)    |
+    //              |                           |
+    //              | B1 is exhausted           |
+    //              |                           |
+    //              *---------------------------*
+    alignas(CacheLineSize) std::atomic<ui64> BucketSelector_ = 0;
+
+    template <class T>
+    void DoEnqueue(TCpuInstant instant, T&& func);
+    void EnqueueTo(TBucket* bucket, TEnqueuedAction&& action);
+    void EnqueueTo(TBucket* bucket, TMutableRange<TEnqueuedAction> actions);
+
+    static ui64 EpochFromInstant(TCpuInstant instant);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,7 +101,7 @@ class TMpscQueueImpl
 public:
     using TConsumerToken = std::monostate;
 
-    void Enqueue(TEnqueuedAction action);
+    void Enqueue(TEnqueuedAction&& action);
     void Enqueue(TMutableRange<TEnqueuedAction> actions);
     bool TryDequeue(TEnqueuedAction* action, TConsumerToken* token = nullptr);
 
