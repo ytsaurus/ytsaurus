@@ -219,7 +219,7 @@ class YtError(Exception):
         return self.contains_code(500)
 
     def is_already_exists(self):
-        """Aleady exists."""
+        """Already exists."""
         return self.contains_code(501)
 
     def is_access_denied(self):

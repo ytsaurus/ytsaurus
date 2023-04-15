@@ -113,7 +113,7 @@ def dump(object, stream, yson_format=None, yson_type=None, indent=None,
 
     :param str yson_format: format of YSON, one of ["binary", "text", "pretty"].
     :param str yson_type: type of YSON, one of ["node", "list_fragment", "map_fragment"].
-    :param int indent: number of identation spaces in pretty format.
+    :param int indent: number of indentation spaces in pretty format.
     :param bool ignore_inner_attributes: skip attributes of non-top-level values.
     :param str encoding: encoding that uses to encode unicode strings.
     :param bool sort_keys: if True, mapping items are printed in sorted order.

@@ -193,7 +193,7 @@ class YsonLexer(object):
                 self.get_position_info())
         if read_ch != expected_ch:
             raise_yson_error(
-                'Found "{0}" while expecting "{1}" in Yson'.foramt(read_ch, expected_ch),
+                'Found "{0}" while expecting "{1}" in Yson'.format(read_ch, expected_ch),
                 self.get_position_info())
 
     def _skip_whitespaces(self):

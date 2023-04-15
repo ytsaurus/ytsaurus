@@ -6,7 +6,7 @@ except ImportError:
 try:
     from simplejson import load, dump, loads, dumps, JSONDecodeError  # noqa
 except ImportError:
-    # This version of simplejson has no compliled speedup module.
+    # This version of simplejson has no compiled speedup module.
     from yt.packages.simplejson import load, dump, loads, dumps, JSONDecodeError  # noqa
 
 

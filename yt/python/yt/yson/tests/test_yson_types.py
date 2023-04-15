@@ -73,7 +73,7 @@ def test_string_proxy():
     assert d["b"] == b
 
     # We want to test f-strings that were introduced in Python3.6
-    # So we use `eval` here to aviod SyntaxError on Python2.
+    # So we use `eval` here to avoid SyntaxError on Python2.
     assert eval(""" f"{b}" """) == "<YsonStringProxy>b'\\xfb'"
 
     with pytest.raises(NotUnicodeError):

@@ -254,7 +254,7 @@ class YsonBoolean(int, YsonType):
 
     # NB: do not change this representation, because
     # this type required to be JSON serializable.
-    # JSON encoder thinks that it is interger and calls str.
+    # JSON encoder thinks that it is integer and calls str.
     def __repr__(self):
         return "true" if self else "false"
 
