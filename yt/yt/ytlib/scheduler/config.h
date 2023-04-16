@@ -1195,6 +1195,10 @@ public:
     //! if the probing job completed successfully.
     bool SwitchBaseLayerOnProbeSuccess;
 
+    //! If true the alert is set even if some of non-probing jobs have failed too.
+    //! To reduce the false positive rate by default the alert is set only when all failed jobs are probing.
+    bool AlertOnAnyProbingFailure;
+
     //! If set, overrides |Profilers| from operation spec.
     std::optional<std::vector<TJobProfilerSpecPtr>> Profilers;
 

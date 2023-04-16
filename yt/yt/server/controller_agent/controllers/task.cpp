@@ -1282,8 +1282,11 @@ void TTask::OnTaskCompleted()
 {
     StopTiming();
 
-    if (LayerProbingJobManager_.FailedLayerProbingJobCount() > 0) {
-        auto userJobSpec = GetUserJobSpec();
+    auto userJobSpec = GetUserJobSpec();
+
+    if (LayerProbingJobManager_.FailedLayerProbingJobCount() > 0 &&
+        (userJobSpec->AlertOnAnyProbingFailure || LayerProbingJobManager_.FailedNonLayerProbingJobCount() == 0))
+    {
         YT_VERIFY(userJobSpec && userJobSpec->ProbingBaseLayerPath);
         auto error = TError(
             "A job with a probing base layer has failed; "

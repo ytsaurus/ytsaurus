@@ -947,6 +947,8 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default(10);
     registrar.Parameter("switch_base_layer_on_probe_success", &TThis::SwitchBaseLayerOnProbeSuccess)
         .Default(true);
+    registrar.Parameter("alert_on_any_probing_failure", &TThis::AlertOnAnyProbingFailure)
+        .Default(false);
 
     registrar.Parameter("profilers", &TThis::Profilers)
         .Default();

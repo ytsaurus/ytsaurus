@@ -260,6 +260,7 @@ class TestProbingLayer(TestLayers):
             "mapper": {
                 "default_base_layer_path": "//tmp/layer2",
                 "probing_base_layer_path": "//tmp/layer1",
+                "alert_on_any_probing_failure": True,
                 "format": "json",
             },
             "data_weight_per_job": 1,
