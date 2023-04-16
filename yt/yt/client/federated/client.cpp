@@ -197,7 +197,7 @@ private:
     const int ClientIndex_;
     const ITransactionPtr Underlying_;
 
-    void OnResult(const NYT::TErrorOr<void>& error);
+    void OnResult(const TErrorOr<void>& error);
 };
 
 DECLARE_REFCOUNTED_TYPE(TTransaction);
@@ -404,7 +404,7 @@ private:
     };
 
     template <class T>
-    TFuture<T> DoCall(int retryAttemptsCount, const TCallback<TFuture<T>(const IClientPtr&, int)>& callee);
+    TFuture<T> DoCall(int retryAttemptCount, const TCallback<TFuture<T>(const IClientPtr&, int)>& callee);
     void HandleError(const TErrorOr<void>& error, int clientIndex);
 
     void UpdateActiveClient();
@@ -433,7 +433,7 @@ TTransaction::TTransaction(TClientPtr client, int clientIndex, ITransactionPtr u
     , Underlying_(std::move(underlying))
 { }
 
-void TTransaction::OnResult(const NYT::TErrorOr<void>& error)
+void TTransaction::OnResult(const TErrorOr<void>& error)
 {
     if (!error.IsOK()) {
         Client_->HandleError(error, ClientIndex_);
@@ -485,7 +485,7 @@ TFuture<ITransactionPtr> TTransaction::StartTransaction(
         [this, this_ = MakeStrong(this)] (TErrorOr<ITransactionPtr>&& result) -> TErrorOr<ITransactionPtr> {
             if (!result.IsOK()) {
                 Client_->HandleError(result, ClientIndex_);
-                return std::move(result);
+                return result;
             } else {
                 return {New<TTransaction>(Client_, ClientIndex_, result.Value())};
             }
@@ -510,7 +510,7 @@ TClient::TClient(const std::vector<IClientPtr>& underlyingClients, TFederationCo
     const auto& localDatacenter = NNet::GetLocalYPCluster();
     for (const auto& client : underlyingClients) {
         int priority = GetDataCenterByClient(client) == localDatacenter ? 1 : 0;
-        UnderlyingClients_.push_back(NYT::New<TClientDescription>(client, priority));
+        UnderlyingClients_.push_back(New<TClientDescription>(client, priority));
     }
     std::stable_sort(UnderlyingClients_.begin(), UnderlyingClients_.end(), [](const auto& lhs, const auto& rhs) {
         return lhs->Priority > rhs->Priority;
@@ -566,21 +566,21 @@ void TClient::CheckClustersHealth()
 }
 
 template <class T>
-TFuture<T> TClient::DoCall(int retryAttemptsCount, const TCallback<TFuture<T>(const IClientPtr&, int)>& callee)
+TFuture<T> TClient::DoCall(int retryAttemptCount, const TCallback<TFuture<T>(const IClientPtr&, int)>& callee)
 {
     auto [client, clientIndex] = GetActiveClient();
     return callee(client, clientIndex).ApplyUnique(BIND(
         [
             this,
             this_ = MakeStrong(this),
-            retryAttemptsCount,
+            retryAttemptCount,
             callee,
             clientIndex = clientIndex
         ] (TErrorOr<T>&& result) {
             if (!result.IsOK()) {
                 HandleError(result, clientIndex);
-                if (retryAttemptsCount > 1) {
-                    return DoCall<T>(retryAttemptsCount - 1, callee);
+                if (retryAttemptCount > 1) {
+                    return DoCall<T>(retryAttemptCount - 1, callee);
                 }
             }
             return MakeFuture(std::move(result));
