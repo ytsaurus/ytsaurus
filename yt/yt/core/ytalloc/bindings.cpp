@@ -8,7 +8,6 @@
 
 #include <yt/yt/core/misc/singleton.h>
 #include <yt/yt/core/misc/string_builder.h>
-#include <yt/yt/core/misc/stack_trace.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 

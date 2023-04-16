@@ -886,6 +886,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   contrib-libs-yajl
   library-cpp-erasure
   library-cpp-iterator
+  backtrace-symbolizers-dwarf
   library-erasure-impl
   yt-library-containers
   yt-library-process
@@ -907,7 +908,6 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-ytlib-discovery_client
   yt-ytlib-query_tracker_client
   yt_proto-yt-client
-  yt-library-dwarf_stack_trace
 )
 target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/admin/proto/admin_service.proto
@@ -1494,6 +1494,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   contrib-libs-yajl
   library-cpp-erasure
   library-cpp-iterator
+  backtrace-symbolizers-dwarf
   library-erasure-impl
   yt-library-containers
   yt-library-process
@@ -1515,7 +1516,6 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-ytlib-discovery_client
   yt-ytlib-query_tracker_client
   yt_proto-yt-client
-  yt-library-dwarf_stack_trace
 )
 target_sources(yt-yt-ytlib.global PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_meta_extensions.cpp

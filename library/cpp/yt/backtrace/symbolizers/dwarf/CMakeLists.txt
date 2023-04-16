@@ -6,28 +6,24 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(unittests)
 
-add_library(yt-library-dwarf_stack_trace INTERFACE)
-target_link_libraries(yt-library-dwarf_stack_trace INTERFACE
+add_library(backtrace-symbolizers-dwarf INTERFACE)
+target_link_libraries(backtrace-symbolizers-dwarf INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-cpp-dwarf_backtrace
-  yt-yt-core
+  cpp-yt-backtrace
 )
 
-add_global_library_for(yt-library-dwarf_stack_trace.global yt-library-dwarf_stack_trace)
-target_compile_options(yt-library-dwarf_stack_trace.global PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(yt-library-dwarf_stack_trace.global PUBLIC
+add_global_library_for(backtrace-symbolizers-dwarf.global backtrace-symbolizers-dwarf)
+target_link_libraries(backtrace-symbolizers-dwarf.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-cpp-dwarf_backtrace
-  yt-yt-core
+  cpp-yt-backtrace
 )
-target_sources(yt-library-dwarf_stack_trace.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/dwarf_stack_trace/stack_trace.cpp
+target_sources(backtrace-symbolizers-dwarf.global PRIVATE
+  ${CMAKE_SOURCE_DIR}/library/cpp/yt/backtrace/symbolizers/dwarf/dwarf_symbolizer.cpp
 )

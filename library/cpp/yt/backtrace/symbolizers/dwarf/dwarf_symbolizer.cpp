@@ -1,17 +1,19 @@
+#include <library/cpp/yt/backtrace/backtrace.h>
+
 #include <library/cpp/dwarf_backtrace/backtrace.h>
 
-#include <yt/yt/core/misc/raw_formatter.h>
+#include <library/cpp/yt/string/raw_formatter.h>
 
-namespace NYT {
+namespace NYT::NBacktrace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Alternative implementation for `FormatStackTrace` via library `library/cpp/dwarf_backtrace`.
-void FormatStackTrace(const void* const* frames, int frameCount, std::function<void(TStringBuf)> callback)
+void SymbolizeBacktrace(
+    TBacktrace backtrace,
+    const std::function<void(TStringBuf)>& frameCallback)
 {
-    TRawFormatter<1024> formatter;
-    auto error = NDwarf::ResolveBacktrace({frames, static_cast<size_t>(frameCount)}, [&] (const NDwarf::TLineInfo& info) {
-        formatter.Reset();
+    auto error = NDwarf::ResolveBacktrace({backtrace.begin(), backtrace.size()}, [&] (const NDwarf::TLineInfo& info) {
+        TRawFormatter<1024> formatter;
         formatter.AppendNumber(info.Index + 1, 10, 2);
         formatter.AppendString(". ");
         formatter.AppendString("0x");
@@ -25,26 +27,28 @@ void FormatStackTrace(const void* const* frames, int frameCount, std::function<v
         formatter.AppendChar(':');
         formatter.AppendNumber(info.Line);
         formatter.AppendString("\n");
-        callback(formatter.GetBuffer());
+        frameCallback(formatter.GetBuffer());
         // Call the callback exactly `frameCount` times,
         // even if there are inline functions and one frame resolved to several lines.
         // It needs for case when caller uses `frameCount` less than 100 for pretty formatting.
-        if (info.Index + 1 == frameCount) {
+        if (info.Index + 1 == std::ssize(backtrace)) {
             return NDwarf::EResolving::Break;
         }
         return NDwarf::EResolving::Continue;
     });
     if (error) {
-        formatter.Reset();
-        formatter.AppendString("***Cannot get backtrace (code=");
+        TRawFormatter<1024> formatter;
+        formatter.AppendString("*** Error symbolizing backtrace via Dwarf\n");
+        formatter.AppendString("***   Code: ");
         formatter.AppendNumber(error->Code);
-        formatter.AppendString(", message=");
+        formatter.AppendString("\n");
+        formatter.AppendString("***   Message: ");
         formatter.AppendString(error->Message);
-        formatter.AppendString(")***");
-        callback(formatter.GetBuffer());
+        formatter.AppendString("\n");
+        frameCallback(formatter.GetBuffer());
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NBacktrace

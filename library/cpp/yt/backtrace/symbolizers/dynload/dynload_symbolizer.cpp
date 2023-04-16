@@ -1,20 +1,15 @@
-#include "stack_trace.h"
-#include "raw_formatter.h"
-#include "string_builder.h"
+#include <library/cpp/yt/backtrace/backtrace.h>
 
-#include <yt/yt/build/config.h>
+#include <library/cpp/yt/string/raw_formatter.h>
 
-#ifdef HAVE_DLFCN_H
-#   include <dlfcn.h>
-#endif
+#include <util/system/compiler.h>
 
-#ifdef HAVE_CXXABI_H
-#   include <cxxabi.h>
-#endif
+#include <dlfcn.h>
+#include <cxxabi.h>
 
-namespace NYT {
+namespace NYT::NBacktrace {
 
-//////////////////////////////////////s//////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
@@ -22,7 +17,6 @@ int GetSymbolInfo(const void* pc, char* buffer, int length)
 {
     TBaseFormatter formatter(buffer, length);
 
-#if defined(HAVE_DLFCN_H)
     // See http://www.codesourcery.com/cxx-abi/abi.html#mangling
     // And, yes, dladdr() is not async signal safe. We can substitute it
     // with hand-written symbolization code from google-glog in case of any trouble.
@@ -48,7 +42,6 @@ int GetSymbolInfo(const void* pc, char* buffer, int length)
 
     if (info.dli_sname && info.dli_saddr) {
         formatter.AppendString("<");
-#if defined(HAVE_CXXABI_H)
         int demangleStatus = 0;
 
         if (info.dli_sname[0] == '_' && info.dli_sname[1] == 'Z') {
@@ -64,9 +57,6 @@ int GetSymbolInfo(const void* pc, char* buffer, int length)
         } else {
             formatter.AppendString(info.dli_sname);
         }
-#else
-        formatter.AppendString(info.dli_sname);
-#endif
         formatter.AppendString("+");
         formatter.AppendNumber((char*)pc - (char*)info.dli_saddr);
         formatter.AppendString(">");
@@ -80,10 +70,6 @@ int GetSymbolInfo(const void* pc, char* buffer, int length)
         formatter.AppendNumber((char*)pc - (char*)info.dli_fbase);
         formatter.AppendString(")");
     }
-#else
-    formatter.AppendString("0x");
-    formatter.AppendNumber((uintptr_t)pc, 16);
-#endif
     return formatter.GetBytesWritten();
 }
 
@@ -105,30 +91,20 @@ void DumpStackFrameInfo(TBaseFormatter* formatter, const void* pc)
 
 } // namespace
 
-Y_WEAK void FormatStackTrace(const void* const* frames, int frameCount, std::function<void(TStringBuf)> callback)
+Y_WEAK void SymbolizeBacktrace(
+    TBacktrace backtrace,
+    const std::function<void(TStringBuf)>& frameCallback)
 {
-    TRawFormatter<1024> formatter;
-
-    // Dump the stack trace.
-    for (int i = 0; i < frameCount; ++i) {
+    for (int i = 0; i < std::ssize(backtrace); ++i) {
+        TRawFormatter<1024> formatter;
         formatter.Reset();
         formatter.AppendNumber(i + 1, 10, 2);
         formatter.AppendString(". ");
-        DumpStackFrameInfo(&formatter, frames[i]);
-        callback(formatter.GetBuffer());
+        DumpStackFrameInfo(&formatter, backtrace[i]);
+        frameCallback(formatter.GetBuffer());
     }
-}
-
-TString FormatStackTrace(const void* const* frames, int frameCount)
-{
-    TStringBuilder builder;
-    FormatStackTrace(
-        frames,
-        frameCount,
-        [&] (TStringBuf str) { builder.AppendString(str); });
-    return builder.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NBacktrace

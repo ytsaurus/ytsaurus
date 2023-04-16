@@ -1,11 +1,12 @@
 #include "assert.h"
 
-#include "raw_formatter.h"
 #include "proc.h"
 
 #include <yt/yt/core/logging/log_manager.h>
 
 #include <library/cpp/yt/assert/assert.h>
+
+#include <library/cpp/yt/string/raw_formatter.h>
 
 #ifdef _win_
     #include <io.h>

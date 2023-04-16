@@ -7,3 +7,19 @@
 
 
 add_subdirectory(cursors)
+add_subdirectory(symbolizers)
+
+add_library(cpp-yt-backtrace)
+target_compile_options(cpp-yt-backtrace PRIVATE
+  -Wdeprecated-this-capture
+)
+target_link_libraries(cpp-yt-backtrace PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  cpp-yt-string
+)
+target_sources(cpp-yt-backtrace PRIVATE
+  ${CMAKE_SOURCE_DIR}/library/cpp/yt/backtrace/backtrace.cpp
+  ${CMAKE_SOURCE_DIR}/library/cpp/yt/backtrace/symbolizers/dynload/dynload_symbolizer.cpp
+)

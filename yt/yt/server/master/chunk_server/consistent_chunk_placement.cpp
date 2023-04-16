@@ -12,7 +12,7 @@
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/rack.h>
 
-#include <yt/yt/core/misc/raw_formatter.h>
+#include <library/cpp/yt/string/raw_formatter.h>
 
 #include <util/generic/algorithm.h>
 

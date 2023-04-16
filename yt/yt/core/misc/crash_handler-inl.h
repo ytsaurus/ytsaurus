@@ -4,11 +4,7 @@
 #include "crash_handler-inl.h"
 #endif
 
-#include "stack_trace.h"
-
-#include <library/cpp/yt/memory/range.h>
-
-#include <array>
+#include <library/cpp/yt/backtrace/backtrace.h>
 
 namespace NYT {
 
@@ -30,7 +26,7 @@ Y_NO_INLINE void DumpStackTrace(TCallback writeCallback)
     if (frames.empty()) {
         writeCallback(TStringBuf("<stack trace is not available>"));
     } else {
-        FormatStackTrace(frames.begin(), frames.size(), writeCallback);
+        NBacktrace::SymbolizeBacktrace(frames, writeCallback);
     }
 }
 

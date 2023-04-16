@@ -9,8 +9,6 @@
 #include <yt/yt/core/logging/public.h>
 #include <yt/yt/core/logging/fluent_log.h>
 
-#include <yt/yt/core/misc/raw_formatter.h>
-
 #include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -18,6 +16,8 @@
 #include <yt/yt/server/master/cell_master/config.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
+
+#include <library/cpp/yt/string/raw_formatter.h>
 
 namespace NYT::NSecurityServer {
 

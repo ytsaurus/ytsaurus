@@ -1,10 +1,8 @@
 #include "crash_handler.h"
-#include "stack_trace.h"
 #include "signal_registry.h"
 
 #include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/yt/core/misc/raw_formatter.h>
 #include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/concurrency/fls.h>
@@ -14,7 +12,9 @@
 
 #include <library/cpp/yt/assert/assert.h>
 
-#include <library/cpp/yt/backtrace/helpers.h>
+#include <library/cpp/yt/string/raw_formatter.h>
+
+#include <library/cpp/yt/backtrace/backtrace.h>
 
 #ifdef _unix_
 #include <library/cpp/yt/backtrace/cursors/libunwind/libunwind_cursor.h>
@@ -79,7 +79,7 @@ Y_NO_INLINE TStackTrace GetStackTrace(TStackTraceBuffer* buffer)
 #else
     NBacktrace::TDummyCursor cursor;
 #endif
-    return NBacktrace::GetBacktraceFromCursor(
+    return NBacktrace::GetBacktrace(
         &cursor,
         MakeMutableRange(*buffer),
         /*framesToSkip*/ 2);
@@ -511,11 +511,13 @@ void CrashSignalHandler(int /*signal*/, siginfo_t* si, void* uc)
 
     // Where did the crash happen?
     {
-        const void* frames[] = {NDetail::GetPC(uc)};
-        FormatStackTrace(frames, 1, [] (TStringBuf info) {
-            info.SkipPrefix(" 1. ");
-            WriteToStderr(info);
-        });
+        std::array<const void*, 1> frames{NDetail::GetPC(uc)};
+        NBacktrace::SymbolizeBacktrace(
+            MakeRange(frames),
+            [] (TStringBuf info) {
+                info.SkipPrefix(" 1. ");
+                WriteToStderr(info);
+            });
     }
 
     NDetail::DumpSignalInfo(si);
