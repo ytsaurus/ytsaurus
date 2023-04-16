@@ -390,7 +390,7 @@ private:
         AccountCurrentlyExecutingBuckets(tscp);
 
         #ifdef YT_ENABLE_TRACE_LOGGING
-        {
+        if (Logger.IsLevelEnabled(NLogging::ELogLevel::Trace)) {
             auto guard = Guard(TagMappingSpinLock_);
             YT_LOG_TRACE("Buckets: [%v]",
                 MakeFormattableView(
