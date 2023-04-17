@@ -217,9 +217,6 @@ public:
     //! Period between consequent lease transaction pings.
     std::optional<TDuration> LeaseTransactionPingPeriod;
 
-    //! Splay for the first node registration.
-    std::optional<TDuration> FirstRegisterSplay;
-
     //! Period between consequent registration attempts.
     std::optional<TDuration> RegisterRetryPeriod;
 

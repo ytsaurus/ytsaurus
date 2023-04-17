@@ -374,10 +374,6 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
         if (!config->MasterConnector->LeaseTransactionPingPeriod) {
             config->MasterConnector->LeaseTransactionPingPeriod = config->DataNode->LeaseTransactionPingPeriod;
         }
-        if (!config->MasterConnector->FirstRegisterSplay) {
-            // This is not a mistake!
-            config->MasterConnector->FirstRegisterSplay = config->DataNode->IncrementalHeartbeatPeriod;
-        }
         if (!config->MasterConnector->RegisterRetryPeriod) {
             config->MasterConnector->RegisterRetryPeriod = config->DataNode->RegisterRetryPeriod;
         }

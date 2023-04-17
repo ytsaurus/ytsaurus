@@ -225,7 +225,7 @@ public:
         Reset();
 
         auto delay = firstTime
-            ? RandomDuration(*Config_->FirstRegisterSplay)
+            ? TDuration::Zero()
             : *Config_->RegisterRetryPeriod + RandomDuration(*Config_->RegisterRetrySplay);
 
         TDelayedExecutor::Submit(
@@ -236,7 +236,7 @@ public:
 
     NRpc::IChannelPtr GetMasterChannel(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto cellId = Bootstrap_->GetCellId(cellTag);
         const auto& client = Bootstrap_->GetClient();
