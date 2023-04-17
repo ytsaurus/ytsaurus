@@ -20,7 +20,7 @@ def _get_availability_error(py3=True, skiff=True):
             errors.append(error)
     if len(errors) > 0:
         return YtError(
-            '"yt.wrapper.schema" module is not available',
+            "System does not meet requirements",
             inner_errors=errors,
         )
     else:
