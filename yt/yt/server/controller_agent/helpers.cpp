@@ -136,14 +136,14 @@ void BuildFileSpec(
         descriptor->set_copy_file(copyFile);
 
         switch (file.Type) {
-        case EObjectType::File:
-            descriptor->set_executable(file.Executable);
-            break;
-        case EObjectType::Table:
-            descriptor->set_format(file.Format.ToString());
-            break;
-        default:
-            YT_ABORT();
+            case EObjectType::File:
+                descriptor->set_executable(file.Executable);
+                break;
+            case EObjectType::Table:
+                descriptor->set_format(file.Format.ToString());
+                break;
+            default:
+                YT_ABORT();
         }
     }
 }

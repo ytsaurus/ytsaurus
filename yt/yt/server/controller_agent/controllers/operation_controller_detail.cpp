@@ -6579,12 +6579,15 @@ void TOperationControllerBase::FetchUserFiles()
         userFiles.push_back(&file);
 
         std::vector<TReadRange> readRanges;
-        if (file.Type == EObjectType::Table) {
-            readRanges = file.Path.GetNewRanges(file.Schema->ToComparator(), file.Schema->GetKeyColumnTypes());
-        } else if (file.Type == EObjectType::File) {
-            readRanges = {TReadRange()};
-        } else {
-            YT_ABORT();
+        switch (file.Type) {
+            case EObjectType::Table:
+                readRanges = file.Path.GetNewRanges(file.Schema->ToComparator(), file.Schema->GetKeyColumnTypes());
+                break;
+            case EObjectType::File:
+                readRanges = {TReadRange()};
+                break;
+            default:
+                YT_ABORT();
         }
 
         chunkSpecFetcher->Add(

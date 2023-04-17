@@ -785,7 +785,7 @@ bool TTask::TryRegisterSpeculativeJob(const TJobletPtr& joblet)
 
 void TTask::BuildTaskYson(TFluentMap fluent) const
 {
-    std::array<TString, 3> jobManagerNames = {"speculative", "probing", "layer_probing"};
+    static const std::vector<TString> jobManagerNames = {"speculative", "probing", "layer_probing"};
     YT_VERIFY(jobManagerNames.size() == JobManagers_.size());
 
     fluent
