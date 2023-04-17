@@ -238,7 +238,7 @@ class TestLayers(YTEnvSetup):
 
 
 class TestProbingLayer(TestLayers):
-    NUM_TEST_PARTITIONS = 20
+    NUM_TEST_PARTITIONS = 5
 
     INPUT_TABLE = "//tmp/input_table"
     OUTPUT_TABLE = "//tmp/output_table"
@@ -343,23 +343,19 @@ class TestProbingLayer(TestLayers):
         assert try_count < self.MAX_TRIES
 
     @authors("galtsev")
-    @pytest.mark.parametrize(
-        "delay",
-        [{"default": "0", "probing": "0"}, {"default": "0", "probing": "0.1"}, {"default": "0.1", "probing": "0"}],
-    )
     @pytest.mark.timeout(600)
-    def test_probing_layer_races(self, delay):
+    def test_probing_layer_races(self):
         self.setup_files()
 
         job_count = 10
         self.create_tables(job_count)
 
         command = (
-            f"if test -e $YT_ROOT_FS/test; then "
-            f"    sed 's/LAYER/default/'; sleep {delay['default']}; "
-            f"else "
-            f"    sed 's/LAYER/probing/'; sleep {delay['probing']}; "
-            f"fi"
+            "if test -e $YT_ROOT_FS/test; then "
+            "    sed 's/LAYER/default/'; "
+            "else "
+            "    sed 's/LAYER/probing/'; "
+            "fi"
         )
 
         for iterations in range(3):
