@@ -1,9 +1,9 @@
 from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
 
 from yt_commands import (
-    authors, wait, create, get, set, remove, exists,
+    authors, wait, create, create_table, get, set, remove, exists,
     lookup_rows, write_table,
-    map, list_operations, get_operation_cypress_path, sync_create_cells)
+    map, list_operations, get_operation_cypress_path, sync_create_cells, clean_operations)
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -80,6 +80,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
                 "max_operation_count_per_user": 3,
                 "fetch_batch_size": 1,
                 "max_removal_sleep_delay": 100,
+                "max_operation_age": 5000,
             },
             "static_orchid_cache_update_period": 100,
             "alerts_update_period": 100,
@@ -248,3 +249,28 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         )
         assert res["failed_jobs_count"] == 3
         assert len(res["operations"]) == 3
+
+    @authors("omgronny")
+    def test_get_original_path(self):
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+        input_table_name = "//tmp/input"
+        input_table_id = create_table(input_table_name)
+        write_table(input_table_name, [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+        output_table_name = "//tmp/output"
+        output_table_id = create_table(output_table_name)
+        op = map(
+            in_="<original_path=\"{}\">#{}".format(input_table_name, input_table_id),
+            out="<original_path=\"{}\">#{}".format(output_table_name, output_table_id),
+            command="cat",
+        )
+
+        clean_operations()
+
+        row = self._lookup_ordered_by_id_row(op.id)
+        assert row["state"] == "completed"
+        assert op.id in row["filter_factors"]
+        assert input_table_name in row["filter_factors"]
+        assert output_table_name in row["filter_factors"]

@@ -2961,7 +2961,7 @@ def create_table(path, force=None, dynamic=None, schema=None):
         kwargs.setdefault("attributes", {})["dynamic"] = dynamic
     if schema is not None:
         kwargs.setdefault("attributes", {})["schema"] = schema
-    create("table", path, **kwargs)
+    return create("table", path, **kwargs)
 
 
 def create_dynamic_table(path, schema=None, driver=None, **attributes):

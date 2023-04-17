@@ -293,16 +293,14 @@ struct TFilteredSpecAttributes
 
 TString GetFilterFactors(const TArchiveOperationRequest& request)
 {
-    auto getOriginalPath = [] (const TString& path) -> TString {
+    auto getOriginalPath = [] (const INodePtr& node) -> std::optional<TString> {
         try {
-            auto parsedPath = NYPath::TRichYPath::Parse(path);
-            auto originalPath = parsedPath.Attributes().Find<TString>("original_path");
-            if (originalPath) {
+            if (auto originalPath = node->Attributes().Find<TString>("original_path")) {
                 return *originalPath;
             }
-            return parsedPath.GetPath();
+            return NYPath::TRichYPath::Parse(node->AsString()->GetValue()).GetPath();
         } catch (const std::exception& ex) {
-            return "";
+            return {};
         }
     };
 
@@ -334,9 +332,8 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
         if (node && node->GetType() == ENodeType::List) {
             auto child = node->AsList()->FindChild(0);
             if (child && child->GetType() == ENodeType::String) {
-                auto path = getOriginalPath(child->AsString()->GetValue());
-                if (!path.empty()) {
-                    parts.push_back(path);
+                if (auto path = getOriginalPath(child)) {
+                    parts.push_back(*path);
                 }
             }
         }
@@ -344,9 +341,8 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
 
     for (const auto& node : {filteredSpec.OutputTablePath, filteredSpec.TablePath}) {
         if (node && node->GetType() == ENodeType::String) {
-            auto path = getOriginalPath(node->AsString()->GetValue());
-            if (!path.empty()) {
-                parts.push_back(path);
+            if (auto path = getOriginalPath(node)) {
+                parts.push_back(*path);
             }
         }
     }
