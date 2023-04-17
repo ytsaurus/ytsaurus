@@ -57,7 +57,7 @@ private:
     using TBucket = moodycamel::ConcurrentQueue<TEnqueuedAction>;
     std::array<TBucket, 2> Buckets_;
 
-    alignas(CacheLineSize) std::atomic<int> Size_ = 0;
+    alignas(NThreading::CacheLineSize) std::atomic<int> Size_ = 0;
 
     // Bit 0: producer bucket index
     // Bit 1: consumer bucket index
@@ -84,7 +84,7 @@ private:
     //              | B1 is exhausted           |
     //              |                           |
     //              *---------------------------*
-    alignas(CacheLineSize) std::atomic<ui64> BucketSelector_ = 0;
+    alignas(NThreading::CacheLineSize) std::atomic<ui64> BucketSelector_ = 0;
 
     template <class T>
     void DoEnqueue(TCpuInstant instant, T&& func);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "free_list.h"
 #include "error.h"
 #include "memory_usage_tracker.h"
 
@@ -57,3 +58,4 @@ bool IsReallocationNeeded(const void* ptr);
 /////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+

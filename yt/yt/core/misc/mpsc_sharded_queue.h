@@ -43,7 +43,7 @@ public:
     int GetShardSize();
 
 private:
-    struct alignas(2 * CacheLineSize) TShard
+    struct alignas(2 * NThreading::CacheLineSize) TShard
     {
         TSimpleMpscSpinLockQueue<TItem> Queue;
     };

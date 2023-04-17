@@ -534,7 +534,7 @@ private:
         TDuration TimeFromEnqueue;
     };
 
-    static_assert(sizeof(TThreadState) >= CacheLineSize);
+    static_assert(sizeof(TThreadState) >= NThreading::CacheLineSize);
 
     const TString ThreadNamePrefix_;
     const TProfiler Profiler_;
@@ -547,11 +547,11 @@ private:
 
     std::atomic<bool> Stopped_ = false;
     TMpscStack<TAction> InvokeQueue_;
-    char Padding0_[CacheLineSize - sizeof(TMpscStack<TAction>)];
+    char Padding0_[NThreading::CacheLineSize - sizeof(TMpscStack<TAction>)];
 
     // Use simple non adaptive spinlock without complex wait strategies.
     ::TSpinLock MainLock_;
-    char Padding1_[CacheLineSize - sizeof(::TSpinLock)];
+    char Padding1_[NThreading::CacheLineSize - sizeof(::TSpinLock)];
 
     std::array<TThreadState, TThreadPoolBase::MaxThreadCount> ThreadStates_;
 

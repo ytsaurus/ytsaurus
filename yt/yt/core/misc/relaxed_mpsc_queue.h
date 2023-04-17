@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/misc/public.h>
 
-#include <library/cpp/yt/memory/public.h>
+#include <library/cpp/yt/threading/public.h>
 
 namespace NYT {
 
@@ -35,13 +35,13 @@ protected:
     TRelaxedMpscQueueHook* TryDequeueImpl() noexcept;
 
 private:
-    alignas(CacheLineSize) TRelaxedMpscQueueHook Stub_;
+    alignas(NThreading::CacheLineSize) TRelaxedMpscQueueHook Stub_;
 
     //! Producer-side.
-    alignas(CacheLineSize) std::atomic<TRelaxedMpscQueueHook*> Head_;
+    alignas(NThreading::CacheLineSize) std::atomic<TRelaxedMpscQueueHook*> Head_;
 
     //! Consumer-side.
-    alignas(CacheLineSize) TRelaxedMpscQueueHook* Tail_;
+    alignas(NThreading::CacheLineSize) TRelaxedMpscQueueHook* Tail_;
 };
 
 template <class T, TRelaxedMpscQueueHook T::*Hook>
@@ -93,3 +93,4 @@ private:
 #define RELAXED_MPSC_QUEUE_INL_H_
 #include "relaxed_mpsc_queue-inl.h"
 #undef RELAXED_MPSC_QUEUE_INL_H_
+

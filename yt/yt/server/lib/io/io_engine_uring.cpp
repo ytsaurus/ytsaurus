@@ -1278,7 +1278,7 @@ public:
 private:
     using TRequestQueue = TMpscFairShareQueue<EWorkloadCategory, TUringRequestPtr, TIOEngineBase::TSessionId>;
 
-    struct alignas(2 * CacheLineSize) TQueueShard
+    struct alignas(2 * NThreading::CacheLineSize) TQueueShard
     {
         TRequestQueue Queue;
         TNotificationHandle RequestNotificationHandle{true};
