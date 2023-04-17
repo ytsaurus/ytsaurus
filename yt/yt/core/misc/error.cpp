@@ -843,7 +843,7 @@ void AppendError(TStringBuilderBase* builder, const TError& error, int indent)
         AppendAttribute(
             builder,
             "origin",
-            Format("%v (pid %v, tid %x, fid %x)",
+            Format("%v (pid %v, tid %v, fid %x)",
                 error.GetHost(),
                 error.GetPid(),
                 error.GetTid(),
