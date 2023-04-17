@@ -277,14 +277,18 @@ public:
     IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
 
     NScheduler::TCompositePendingJobCount GetPendingJobCount() const override;
+    i64 GetFailedJobCount() const override;
     NScheduler::TCompositeNeededResources GetNeededResources() const override;
+
+    bool ShouldUpdateLightOperationAttributes() const override;
+    void SetLightOperationAttributesUpdated() override;
 
     NScheduler::TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
 
     bool IsRunning() const override;
 
-    void SetProgressUpdated() override;
-    bool ShouldUpdateProgress() const override;
+    void SetProgressAttributesUpdated() override;
+    bool ShouldUpdateProgressAttributes() const override;
 
     bool HasProgress() const override;
 
@@ -1166,7 +1170,7 @@ private:
     const NProfiling::TCpuDuration LogProgressBackoff;
     NProfiling::TCpuInstant NextLogProgressDeadline = 0;
 
-    std::atomic<bool> ShouldUpdateProgressInCypress_ = {true};
+    std::atomic<bool> ShouldUpdateProgressAttributesInCypress_ = true;
     NYson::TYsonString ProgressString_;
     NYson::TYsonString BriefProgressString_;
 
@@ -1184,7 +1188,8 @@ private:
     int RetainedJobCount_ = 0;
     int JobSpecCompletedArchiveCount_ = 0;
 
-    int FailedJobCount_ = 0;
+    std::atomic<i64> FailedJobCount_ = 0;
+    std::atomic<bool> ShouldUpdateLightOperationAttributes_ = false;
 
     // Release job flags to be sent to scheduler in EAgentToSchedulerJobEventType::Released.
     THashMap<TJobId, NJobTrackerClient::TReleaseJobFlags> ReleaseJobFlags_;

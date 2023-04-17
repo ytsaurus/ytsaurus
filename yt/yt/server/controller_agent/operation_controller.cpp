@@ -305,6 +305,21 @@ public:
         return Underlying_->GetPendingJobCount();
     }
 
+    i64 GetFailedJobCount() const override
+    {
+        return Underlying_->GetFailedJobCount();
+    }
+
+    bool ShouldUpdateLightOperationAttributes() const override
+    {
+        return Underlying_->ShouldUpdateLightOperationAttributes();
+    }
+
+    void SetLightOperationAttributesUpdated() override
+    {
+        Underlying_->SetLightOperationAttributesUpdated();
+    }
+
     bool IsRunning() const override
     {
         return Underlying_->IsRunning();
@@ -363,14 +378,14 @@ public:
         Underlying_->UpdateConfig(config);
     }
 
-    bool ShouldUpdateProgress() const override
+    bool ShouldUpdateProgressAttributes() const override
     {
-        return Underlying_->ShouldUpdateProgress();
+        return Underlying_->ShouldUpdateProgressAttributes();
     }
 
-    void SetProgressUpdated() override
+    void SetProgressAttributesUpdated() override
     {
-        Underlying_->SetProgressUpdated();
+        Underlying_->SetProgressAttributesUpdated();
     }
 
     bool HasProgress() const override

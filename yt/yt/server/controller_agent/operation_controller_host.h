@@ -124,7 +124,7 @@ public:
     TFuture<void> RemoveSnapshot() override;
 
     TFuture<void> FlushOperationNode() override;
-    TFuture<void> UpdateInitializedOperationNode() override;
+    TFuture<void> UpdateInitializedOperationNode(bool isCleanOperationStart) override;
 
     TFuture<void> AttachChunkTreesToLivePreview(
         NTransactionClient::TTransactionId transactionId,

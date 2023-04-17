@@ -191,7 +191,7 @@ struct IOperationControllerHost
     virtual TFuture<void> RemoveSnapshot() = 0;
 
     virtual TFuture<void> FlushOperationNode() = 0;
-    virtual TFuture<void> UpdateInitializedOperationNode() = 0;
+    virtual TFuture<void> UpdateInitializedOperationNode(bool isCleanOperationStart) = 0;
 
     virtual TFuture<void> AttachChunkTreesToLivePreview(
         NTransactionClient::TTransactionId transactionId,
@@ -504,6 +504,10 @@ struct IOperationController
      *  \note Thread affinity: any
      */
     virtual NScheduler::TCompositePendingJobCount GetPendingJobCount() const = 0;
+    virtual i64 GetFailedJobCount() const = 0;
+
+    virtual bool ShouldUpdateLightOperationAttributes() const = 0;
+    virtual void SetLightOperationAttributesUpdated() = 0;
 
     //! Invokes controller finalization due to aborted or expired transaction.
     virtual void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) = 0;
@@ -514,17 +518,17 @@ struct IOperationController
      */
     virtual void Cancel() = 0;
 
-    //! Marks that progress was dumped to Cypress.
+    //! Marks that progress attributes were dumped to Cypress.
     /*!
      *  \note Invoker affinity: any.
      */
-    virtual void SetProgressUpdated() = 0;
+    virtual void SetProgressAttributesUpdated() = 0;
 
-    //! Check that progress has changed and should be dumped to the Cypress.
+    //! Check that progress attributes have changed and should be dumped to the Cypress.
     /*!
      *  \note Invoker affinity: any.
      */
-    virtual bool ShouldUpdateProgress() const = 0;
+    virtual bool ShouldUpdateProgressAttributes() const = 0;
 
     //! Provides a string describing operation status and statistics.
     /*!

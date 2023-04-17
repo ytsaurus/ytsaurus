@@ -78,6 +78,7 @@ static const THashSet<TString> SupportedOperationAttributes = {
     "task_names",
     "controller_features",
     "alert_events",
+    "has_failed_jobs",
 };
 
 static const THashSet<TString> ArchiveOnlyAttributes = {
@@ -358,12 +359,11 @@ std::optional<TOperation> TClient::DoGetOperationFromArchive(
     THashMap<TOperationId, TOperation> operations;
 
     try {
-        THashSet<TString> ignoredAttributes = {"suspended", "memory_usage"};
+        THashSet<TString> ignoredAttributes = {"suspended", "memory_usage", "has_failed_jobs"};
 
         if (DoGetOperationsArchiveVersion() < 46) {
             ignoredAttributes.insert("provided_spec");
         }
-
         auto attributes = DeduceActualAttributes(
             options.Attributes,
             /* requiredAttributes */ {},
@@ -742,6 +742,7 @@ void TClient::DoListOperationsFromCypress(
         "start_time",
         "state",
         "suspended",
+        "has_failed_jobs",
     };
 
     const THashSet<TString> RequiredAttributes = {"id", "start_time"};
@@ -824,49 +825,6 @@ void TClient::DoListOperationsFromCypress(
 
     filter->ParseResponses(std::move(operationsYson));
 
-    // Lookup all operations with currently filtered ids, add their brief progress.
-    if (DoesOperationsArchiveExist()) {
-        TOrderedByIdTableDescriptor tableDescriptor;
-        std::vector<TOperationId> ids;
-        ids.reserve(filter->GetCount());
-        filter->ForEachOperationImmutable([&] (int /*index*/, const TListOperationsFilter::TLightOperation& lightOperation) {
-            ids.push_back(lightOperation.GetId());
-        });
-
-        auto columnFilter = NTableClient::TColumnFilter({tableDescriptor.Index.BriefProgress});
-        auto rowsetOrError = LookupOperationsInArchive(
-            this,
-            ids,
-            columnFilter,
-            options.ArchiveFetchingTimeout);
-
-        if (!rowsetOrError.IsOK()) {
-            YT_LOG_DEBUG(rowsetOrError, "Failed to get information about operations' brief_progress from Archive");
-        } else {
-            auto rows = rowsetOrError.ValueOrThrow()->GetRows();
-            YT_VERIFY(std::ssize(rows) == filter->GetCount());
-
-            auto position = columnFilter.FindPosition(tableDescriptor.Index.BriefProgress);
-            filter->ForEachOperationMutable([&] (int index, TListOperationsFilter::TLightOperation& lightOperation) {
-                auto row = rows[index];
-                if (!row) {
-                    return;
-                }
-                if (!position) {
-                    return;
-                }
-                auto value = row[*position];
-                if (value.Type == EValueType::Null) {
-                    return;
-                }
-                YT_VERIFY(value.Type == EValueType::Any);
-                lightOperation.UpdateBriefProgress(value.AsStringBuf());
-            });
-        }
-    }
-
-    filter->OnBriefProgressFinished();
-
     auto areAllRequestedAttributesReady = std::all_of(
         requestedAttributes.begin(),
         requestedAttributes.end(),
@@ -886,7 +844,7 @@ void TClient::DoListOperationsFromCypress(
             requestedAttributes,
             /* needHeavyRuntimeParameters */ requestedAttributes.contains("runtime_parameters"));
         filter->ForEachOperationImmutable([&] (int /*index*/, const TListOperationsFilter::TLightOperation& lightOperation) {
-            auto req = TYPathProxy::Get(GetOperationPath(lightOperation.GetId()));
+            auto req = TYPathProxy::Get(GetOperationPath(lightOperation.Id));
             SetCachingHeader(req, options);
             ToProto(req->mutable_attributes()->mutable_keys(), cypressRequestedAttributes);
             getBatchReq->AddRequest(req);
@@ -900,7 +858,7 @@ void TClient::DoListOperationsFromCypress(
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 return;
             }
-            lightOperation.Yson() = rspOrError.ValueOrThrow()->value();
+            lightOperation.Yson = rspOrError.ValueOrThrow()->value();
         });
     }
 
@@ -1442,7 +1400,7 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
         result.UserCounts = std::move(countingFilter.UserCounts());
         result.StateCounts = std::move(countingFilter.StateCounts());
         result.TypeCounts = std::move(countingFilter.TypeCounts());
-        result.FailedJobsCount = countingFilter.GetFailedJobsCount();
+        result.FailedJobsCount = countingFilter.GetWithFailedJobsCount();
         result.PoolTreeCounts = std::move(countingFilter.PoolTreeCounts());
     }
 

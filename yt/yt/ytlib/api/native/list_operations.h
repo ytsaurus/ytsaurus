@@ -26,19 +26,14 @@ DEFINE_ENUM(EListOperationsCountingFilterType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCountingFilterAttributes {
+struct TCountingFilterAttributes
+{
     std::optional<THashMap<TString, TString>> PoolTreeToPool;
     std::optional<std::vector<TString>> Pools;
     TString User;
     NScheduler::EOperationState State = {};
     NScheduler::EOperationType Type = {};
     bool HasFailedJobs = false;
-};
-
-struct TPreliminaryCountingFilterResult {
-    bool Passed = false;
-    bool UseInCounter = false;
-    std::optional<EListOperationsCountingFilterType> FailedFilterType;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,20 +54,14 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TCountByUser, UserCounts);
     DEFINE_BYREF_RW_PROPERTY(TCountByState, StateCounts);
     DEFINE_BYREF_RW_PROPERTY(TCountByType, TypeCounts);
-    DEFINE_BYVAL_RW_PROPERTY(i64, FailedJobsCount);
+    DEFINE_BYVAL_RW_PROPERTY(i64, WithFailedJobsCount);
 
 public:
     TListOperationsCountingFilter() = default;
 
     explicit TListOperationsCountingFilter(const TListOperationsOptions& options);
 
-    TPreliminaryCountingFilterResult PreliminaryFilter(const TCountingFilterAttributes& countingFilterAttributes);
     bool Filter(const TCountingFilterAttributes& countingFilterAttributes, i64 count);
-    bool Filter(
-        const TCountingFilterAttributes& countingFilterAttributes,
-        const TPreliminaryCountingFilterResult& preliminaryCountingFilterResult,
-        i64 count);
-
     void MergeFrom(const TListOperationsCountingFilter& otherFilter);
 
 private:
@@ -87,25 +76,17 @@ class TListOperationsFilter
 public:
     struct TBriefProgress
     {
-        bool HasFailedJobs;
+        bool HasFailedJobs = false;
         TInstant BuildTime;
     };
 
-    class TLightOperation
+    struct TLightOperation
     {
-    public:
-        DEFINE_BYREF_RW_PROPERTY(TCountingFilterAttributes, FilterAttributes);
-        DEFINE_BYREF_RW_PROPERTY(TPreliminaryCountingFilterResult, PreFilterResult);
-        DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TOperationId, Id);
-        DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
-        DEFINE_BYREF_RW_PROPERTY(TString, Yson);
-        DEFINE_BYREF_RW_PROPERTY(TBriefProgress, BriefProgress);
-
-    public:
-        void UpdateBriefProgress(TStringBuf briefProgressYson);
-
-    private:
-        friend class TFilteringConsumer;
+        TCountingFilterAttributes FilterAttributes;
+        bool FilterPassed;
+        NObjectClient::TOperationId Id;
+        TInstant StartTime;
+        TString Yson;
     };
 
 public:
@@ -128,9 +109,6 @@ public:
     [[nodiscard]] std::vector<TOperation> BuildOperations(const THashSet<TString>& attributes) const;
 
     [[nodiscard]] i64 GetCount() const;
-
-    // Confirms that |brief_progress| field is relevant and filtration by it can be applied.
-    void OnBriefProgressFinished();
 
     const TListOperationsCountingFilter& GetCountingFilter() const;
 

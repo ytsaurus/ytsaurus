@@ -605,7 +605,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
 
     InitUnrecognizedSpec();
 
-    WaitFor(Host->UpdateInitializedOperationNode())
+    WaitFor(Host->UpdateInitializedOperationNode(CleanStart))
         .ThrowOnError();
 
     SleepInInitialize();
@@ -655,7 +655,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 
     InitUnrecognizedSpec();
 
-    WaitFor(Host->UpdateInitializedOperationNode())
+    WaitFor(Host->UpdateInitializedOperationNode(/*isCleanOperationStart*/ true))
         .ThrowOnError();
 
     YT_LOG_INFO("Operation initialized");
@@ -1347,6 +1347,9 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 
         AbortAllJoblets(EAbortReason::JobRevivalDisabled);
     }
+
+    ShouldUpdateProgressAttributesInCypress_ = true;
+    ShouldUpdateLightOperationAttributes_ = true;
 
     CheckTimeLimitExecutor->Start();
     ProgressBuildExecutor_->Start();
@@ -3183,6 +3186,10 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
         TForbidContextSwitchGuard guard;
 
         ++FailedJobCount_;
+        if (FailedJobCount_ == 1) {
+            ShouldUpdateLightOperationAttributes_ = true;
+            ShouldUpdateProgressAttributesInCypress_ = true;
+        }
 
         error = FromProto<TError>(result.error());
 
@@ -4710,6 +4717,21 @@ TCompositePendingJobCount TOperationControllerBase::GetPendingJobCount() const
     }
 
     return CachedPendingJobCount.Load();
+}
+
+i64 TOperationControllerBase::GetFailedJobCount() const
+{
+    return FailedJobCount_;
+}
+
+bool TOperationControllerBase::ShouldUpdateLightOperationAttributes() const
+{
+    return ShouldUpdateLightOperationAttributes_;
+}
+
+void TOperationControllerBase::SetLightOperationAttributesUpdated()
+{
+    ShouldUpdateLightOperationAttributes_ = false;
 }
 
 void TOperationControllerBase::IncreaseNeededResources(const TCompositeNeededResources& resourcesDelta)
@@ -8409,14 +8431,14 @@ std::vector<TJobId> TOperationControllerBase::GetJobIdsByTreeId(const TString& t
     return jobIds;
 }
 
-void TOperationControllerBase::SetProgressUpdated()
+void TOperationControllerBase::SetProgressAttributesUpdated()
 {
-    ShouldUpdateProgressInCypress_.store(false);
+    ShouldUpdateProgressAttributesInCypress_ = false;
 }
 
-bool TOperationControllerBase::ShouldUpdateProgress() const
+bool TOperationControllerBase::ShouldUpdateProgressAttributes() const
 {
-    return HasProgress() && ShouldUpdateProgressInCypress_;
+    return ShouldUpdateProgressAttributesInCypress_;
 }
 
 bool TOperationControllerBase::HasProgress() const
@@ -8601,7 +8623,7 @@ void TOperationControllerBase::BuildAndSaveProgress()
         if (!ProgressString_ || ProgressString_ != progressString ||
             !BriefProgressString_ || BriefProgressString_ != briefProgressString)
         {
-            ShouldUpdateProgressInCypress_.store(true);
+            ShouldUpdateProgressAttributesInCypress_ = true;
             YT_LOG_DEBUG("New progress is different from previous one, should update progress");
         }
         ProgressString_ = progressString;

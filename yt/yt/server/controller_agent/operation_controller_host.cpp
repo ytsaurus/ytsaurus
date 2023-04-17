@@ -318,11 +318,11 @@ TFuture<void> TOperationControllerHost::FlushOperationNode()
         .Run(OperationId_);
 }
 
-TFuture<void> TOperationControllerHost::UpdateInitializedOperationNode()
+TFuture<void> TOperationControllerHost::UpdateInitializedOperationNode(bool isClean)
 {
     return BIND(&NControllerAgent::TMasterConnector::UpdateInitializedOperationNode, Bootstrap_->GetControllerAgent()->GetMasterConnector())
         .AsyncVia(CancelableControlInvoker_)
-        .Run(OperationId_);
+        .Run(OperationId_, isClean);
 }
 
 TFuture<void> TOperationControllerHost::AttachChunkTreesToLivePreview(

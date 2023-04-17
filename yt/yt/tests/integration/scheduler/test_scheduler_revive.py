@@ -12,7 +12,7 @@ from yt_commands import (
     get, set, remove, exists, create_user, create_pool, create_pool_tree, abort_transaction, read_table,
     write_table, map, vanilla, run_test_vanilla, suspend_op,
     get_operation, get_operation_cypress_path, PrepareTables, sorted_dicts,
-    update_scheduler_config)
+    update_scheduler_config, update_controller_agent_config)
 
 from yt_helpers import get_current_time, parse_yt_time
 
@@ -1342,6 +1342,72 @@ class TestJobRevival(TestJobRevivalBase):
             pass
 
         wait(lambda: concurrent_op.get_state() == "running")
+
+
+##################################################################
+
+class TestHasFailedJobsOnRevive(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+            "operations_update_period": 100,
+            "static_orchid_cache_update_period": 100,
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_time_limit_check_period": 100,
+            "snapshot_period": 500,
+            "operations_update_period": 100,
+        }
+    }
+
+    @authors("omgronny")
+    @pytest.mark.parametrize("revive_from_snapshot", [True, False])
+    def test_has_failed_jobs_after_revive(self, revive_from_snapshot):
+        if not revive_from_snapshot:
+            update_controller_agent_config("snapshot_period", 1000000000)
+
+        failed_job_cmd = events_on_fs().wait_event_cmd("second_iteration_started", timeout=timedelta(seconds=1))
+        op = vanilla(
+            track=False,
+            spec={
+                "max_failed_job_count": 100,
+                "tasks": {
+                    "failed_task": {
+                        "job_count": 1,
+                        "command": failed_job_cmd
+                    },
+                    "task": {
+                        "job_count": 1,
+                        "command": "sleep 1000"
+                    }
+                }
+            }
+        )
+
+        def get_has_failed_jobs(op):
+            return get(op.get_path() + "/@has_failed_jobs", default=False)
+
+        wait(lambda: get_has_failed_jobs(op))
+        events_on_fs().notify_event("second_iteration_started")
+
+        if revive_from_snapshot:
+            op.wait_for_fresh_snapshot()
+
+        assert get_has_failed_jobs(op)
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        op.wait_for_state("running")
+        wait(lambda: get_has_failed_jobs(op) == revive_from_snapshot)
 
 
 ##################################################################
