@@ -55,7 +55,7 @@ void TLayerProbingJobManager::OnJobCompleted(const TJobletPtr& joblet)
 bool TLayerProbingJobManager::OnUnsuccessfulJobFinish(
     const TJobletPtr& joblet,
     const std::function<void(TProgressCounterGuard*)>& updateJobCounter,
-    const EJobState state)
+    EJobState state)
 {
     auto competition = FindCompetition(joblet);
     if (!IsRelevant(joblet) || !competition) {
@@ -141,7 +141,7 @@ bool TLayerProbingJobManager::IsLayerProbeRequired() const
 {
     return IsLayerProbingEnabled() &&
         LayerProbingStatus_ == ELayerProbingJobStatus::NoLayerProbingJobResult &&
-        FailedLayerProbingJobCount() < UserJobSpec_->MaxFailedBaseLayerProbes &&
+        GetFailedLayerProbingJobCount() < UserJobSpec_->MaxFailedBaseLayerProbes &&
         GetTotalJobCount() == 0;
 }
 
@@ -151,17 +151,17 @@ bool TLayerProbingJobManager::ShouldUseProbingLayer() const
         UserJobSpec_->SwitchBaseLayerOnProbeSuccess;
 }
 
-int TLayerProbingJobManager::FailedNonLayerProbingJobCount() const
+int TLayerProbingJobManager::GetFailedNonLayerProbingJobCount() const
 {
     return FailedNonLayerProbingJobCount_;
 }
 
-int TLayerProbingJobManager::FailedLayerProbingJobCount() const
+int TLayerProbingJobManager::GetFailedLayerProbingJobCount() const
 {
     return FailedLayerProbingJobCount_;
 }
 
-int TLayerProbingJobManager::SucceededLayerProbingJobCount() const
+int TLayerProbingJobManager::GetSucceededLayerProbingJobCount() const
 {
     return SucceededLayerProbingJobCount_;
 }

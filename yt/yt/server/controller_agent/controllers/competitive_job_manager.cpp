@@ -119,7 +119,7 @@ bool TCompetitiveJobManagerBase::OnJobAborted(const TJobletPtr& joblet, EAbortRe
 {
     return OnUnsuccessfulJobFinish(
         joblet,
-        [=] (TProgressCounterGuard* guard) { guard->OnAborted(reason); },
+        [reason] (TProgressCounterGuard* guard) { guard->OnAborted(reason); },
         NJobTrackerClient::EJobState::Aborted);
 }
 
@@ -127,7 +127,7 @@ bool TCompetitiveJobManagerBase::OnJobFailed(const TJobletPtr& joblet)
 {
     return OnUnsuccessfulJobFinish(
         joblet,
-        [=] (TProgressCounterGuard* guard) { guard->OnFailed(); },
+        [] (TProgressCounterGuard* guard) { guard->OnFailed(); },
         NJobTrackerClient::EJobState::Failed);
 }
 
