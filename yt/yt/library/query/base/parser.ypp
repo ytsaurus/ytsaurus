@@ -197,18 +197,17 @@ parse-expression
 ;
 
 select-clause
-    : comma-expr[projections]
+    : optional-select-keyword comma-expr[projections]
         {
             std::get<TQuery>(head->Ast).SelectExprs = $projections;
         }
-    | KwSelect comma-expr[projections]
-        {
-            std::get<TQuery>(head->Ast).SelectExprs = $projections;
-        }
-    | Asterisk
+    | optional-select-keyword Asterisk
         { }
-    | KwSelect Asterisk
-        { }
+;
+
+optional-select-keyword
+    : KwSelect
+    |
 ;
 
 table-descriptor
