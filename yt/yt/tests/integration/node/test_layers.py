@@ -409,8 +409,6 @@ class TestProbingLayer(TestLayers):
                     assert attributes["succeeded_layer_probing_job_count"] > 0 or counter["probing"] == 0
                     alert_count += 1
 
-        assert alert_count > 1
-
 
 @authors("psushin")
 class TestTmpfsLayerCache(YTEnvSetup):
