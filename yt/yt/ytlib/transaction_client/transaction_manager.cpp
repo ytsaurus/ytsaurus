@@ -61,12 +61,6 @@ using NNative::IConnectionPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Used as a part of transaction id. Random initialization prevents collisions
-// between different machines.
-static std::atomic<ui32> TabletTransactionHashCounter = RandomNumber<ui32>();
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTransactionManager::TImpl
     : public TRefCounted
 {
@@ -817,7 +811,7 @@ private:
                 Atomicity_,
                 Owner_->PrimaryCellTag_,
                 StartTimestamp_,
-                TabletTransactionHashCounter++);
+                GenerateTabletTransactionHashCounter());
 
         State_ = ETransactionState::Active;
 
@@ -844,7 +838,7 @@ private:
             Atomicity_,
             Owner_->PrimaryCellTag_,
             StartTimestamp_,
-            TabletTransactionHashCounter++);
+            GenerateTabletTransactionHashCounter());
 
         State_ = ETransactionState::Active;
 
@@ -1307,6 +1301,13 @@ private:
         return
             TypeFromId(cellId) == EObjectType::MasterCell &&
             std::find(ReplicatedToMasterCellTags_.begin(), ReplicatedToMasterCellTags_.end(), CellTagFromId(cellId)) != ReplicatedToMasterCellTags_.end();
+    }
+
+
+    static int GenerateTabletTransactionHashCounter()
+    {
+        static std::atomic<ui32> Counter = RandomNumber<ui32>();
+        return Counter++;
     }
 };
 
