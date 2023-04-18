@@ -222,11 +222,20 @@ typename TMap::mapped_type GetOrDefault(
 template <class TMap, class TKey, class TCtor>
 auto& GetOrInsert(TMap&& map, const TKey& key, TCtor&& ctor)
 {
-    auto it = map.find(key);
-    if (it == map.end()) {
-        it = map.emplace(key, ctor()).first;
+    if constexpr (requires {typename TMap::insert_ctx;}) {
+        typename TMap::insert_ctx context;
+        auto it = map.find(key, context);
+        if (it == map.end()) {
+            it = map.emplace_direct(context, key, ctor()).first;
+        }
+        return it->second;
+    } else {
+        auto it = map.find(key);
+        if (it == map.end()) {
+            it = map.emplace(key, ctor()).first;
+        }
+        return it->second;
     }
-    return it->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
