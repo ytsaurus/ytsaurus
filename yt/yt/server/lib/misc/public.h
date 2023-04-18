@@ -39,6 +39,8 @@ extern const TString ConfigAttributeName;
 DECLARE_REFCOUNTED_CLASS(TArchiveReporterConfig)
 DECLARE_REFCOUNTED_CLASS(TArchiveHandlerConfig)
 DECLARE_REFCOUNTED_CLASS(TArchiveVersionHolder)
+DECLARE_REFCOUNTED_CLASS(TRebootManager)
+
 DECLARE_REFCOUNTED_STRUCT(IArchiveReporter)
 
 struct IArchiveRowlet;

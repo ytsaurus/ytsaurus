@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait,
     ls, get, create, set, make_ace,
-    create_user,
+    create_user, exists,
     update_nodes_dynamic_config,
     write_table, disable_chunk_locations,
     resurrect_chunk_locations)
@@ -95,6 +95,8 @@ class TestHotSwap(YTEnvSetup):
                 return False
 
         for node in nodes:
+            wait(lambda: exists("//sys/cluster_nodes/{0}/orchid/reboot_manager".format(node)))
+            wait(lambda: not get("//sys/cluster_nodes/{0}/orchid/reboot_manager/is_waiting_reboot".format(node)))
             wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) > 0)
         wait(lambda: can_write())
 

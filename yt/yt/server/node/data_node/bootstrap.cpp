@@ -26,6 +26,8 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
+#include <yt/yt/server/lib/misc/reboot_manager.h>
+
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
@@ -107,6 +109,8 @@ public:
         MediumUpdater_ = New<TMediumUpdater>(
             this,
             MediumDirectoryManager_);
+
+        RebootManager_ = New<TRebootManager>(GetControlInvoker());
 
         ChunkStore_->Initialize();
 
@@ -297,6 +301,11 @@ public:
             "/ally_replica_manager",
             CreateVirtualNode(AllyReplicaManager_->GetOrchidService()));
 
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/reboot_manager",
+            CreateVirtualNode(RebootManager_->GetOrchidService()));
+
         MasterConnector_->Initialize();
 
         P2PDistributor_->Start();
@@ -448,6 +457,8 @@ private:
     IMasterConnectorPtr MasterConnector_;
     TMediumDirectoryManagerPtr MediumDirectoryManager_;
     TMediumUpdaterPtr MediumUpdater_;
+
+    TRebootManagerPtr RebootManager_;
 
     TEnumIndexedVector<EDataNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> LegacyRawThrottlers_;
     TEnumIndexedVector<EDataNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
