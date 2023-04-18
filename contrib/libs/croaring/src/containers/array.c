@@ -9,6 +9,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#if CROARING_IS_X64
+#ifndef CROARING_COMPILER_SUPPORTS_AVX512
+#error "CROARING_COMPILER_SUPPORTS_AVX512 needs to be defined."
+#endif // CROARING_COMPILER_SUPPORTS_AVX512
+#endif
+
 #ifdef __cplusplus
 extern "C" { namespace roaring { namespace internal {
 #endif
@@ -216,8 +222,8 @@ void array_container_andnot(const array_container_t *array_1,
                             array_container_t *out) {
     if (out->capacity < array_1->cardinality)
         array_container_grow(out, array_1->cardinality, false);
-#ifdef CROARING_IS_X64
-    if(( croaring_avx2() ) && (out != array_1) && (out != array_2)) {
+#if CROARING_IS_X64
+    if(( croaring_hardware_support() & ROARING_SUPPORTS_AVX2 ) && (out != array_1) && (out != array_2)) {
       out->cardinality =
           difference_vector16(array_1->array, array_1->cardinality,
                             array_2->array, array_2->cardinality, out->array);
@@ -247,8 +253,8 @@ void array_container_xor(const array_container_t *array_1,
         array_container_grow(out, max_cardinality, false);
     }
 
-#ifdef CROARING_IS_X64
-    if( croaring_avx2() ) {
+#if CROARING_IS_X64
+    if( croaring_hardware_support() & ROARING_SUPPORTS_AVX2 ) {
       out->cardinality =
         xor_vector16(array_1->array, array_1->cardinality, array_2->array,
                      array_2->cardinality, out->array);
@@ -278,7 +284,7 @@ void array_container_intersection(const array_container_t *array1,
     int32_t card_1 = array1->cardinality, card_2 = array2->cardinality,
             min_card = minimum_int32(card_1, card_2);
     const int threshold = 64;  // subject to tuning
-#ifdef CROARING_IS_X64
+#if CROARING_IS_X64
     if (out->capacity < min_card) {
       array_container_grow(out, min_card + sizeof(__m128i) / sizeof(uint16_t),
         false);
@@ -296,8 +302,8 @@ void array_container_intersection(const array_container_t *array1,
         out->cardinality = intersect_skewed_uint16(
             array2->array, card_2, array1->array, card_1, out->array);
     } else {
-#ifdef CROARING_IS_X64
-       if( croaring_avx2() ) {
+#if CROARING_IS_X64
+       if( croaring_hardware_support() & ROARING_SUPPORTS_AVX2 ) {
         out->cardinality = intersect_vector16(
             array1->array, card_1, array2->array, card_2, out->array);
        } else {
@@ -324,8 +330,8 @@ int array_container_intersection_cardinality(const array_container_t *array1,
         return intersect_skewed_uint16_cardinality(array2->array, card_2,
                                                    array1->array, card_1);
     } else {
-#ifdef CROARING_IS_X64
-    if( croaring_avx2() ) {
+#if CROARING_IS_X64
+    if( croaring_hardware_support() & ROARING_SUPPORTS_AVX2 ) {
         return intersect_vector16_cardinality(array1->array, card_1,
                                               array2->array, card_2);
     } else {
@@ -370,8 +376,8 @@ void array_container_intersection_inplace(array_container_t *src_1,
         src_1->cardinality = intersect_skewed_uint16(
             src_2->array, card_2, src_1->array, card_1, src_1->array);
     } else {
-#ifdef CROARING_IS_X64
-        if (croaring_avx2()) {
+#if CROARING_IS_X64
+        if (croaring_hardware_support() & ROARING_SUPPORTS_AVX2) {
             src_1->cardinality = intersect_vector16_inplace(
                 src_1->array, card_1, src_2->array, card_2);
         } else {
@@ -388,9 +394,22 @@ void array_container_intersection_inplace(array_container_t *src_1,
 ALLOW_UNALIGNED
 int array_container_to_uint32_array(void *vout, const array_container_t *cont,
                                     uint32_t base) {
+
+#if CROARING_IS_X64
+    int support = croaring_hardware_support();
+#if CROARING_COMPILER_SUPPORTS_AVX512
+    if (support & ROARING_SUPPORTS_AVX512) {
+        return avx512_array_container_to_uint32_array(vout, cont->array, cont->cardinality, base);
+    }
+#endif
+    if (support & ROARING_SUPPORTS_AVX2) {
+        return array_container_to_uint32_array_vector16(vout, cont->array, cont->cardinality, base);
+    }
+#endif // CROARING_IS_X64
     int outpos = 0;
     uint32_t *out = (uint32_t *)vout;
-    for (int i = 0; i < cont->cardinality; ++i) {
+    size_t i = 0;
+    for ( ; i < (size_t)cont->cardinality; ++i) {
         const uint32_t val = base + cont->array[i];
         memcpy(out + outpos, &val,
                sizeof(uint32_t));  // should be compiled as a MOV on x64

@@ -16,6 +16,12 @@
 #include <roaring/memory.h>
 #include <roaring/utilasm.h>
 
+#if CROARING_IS_X64
+#ifndef CROARING_COMPILER_SUPPORTS_AVX512
+#error "CROARING_COMPILER_SUPPORTS_AVX512 needs to be defined."
+#endif // CROARING_COMPILER_SUPPORTS_AVX512
+#endif
+
 #ifdef __cplusplus
 extern "C" { namespace roaring { namespace internal {
 #endif
@@ -55,8 +61,9 @@ bitset_container_t *bitset_container_create(void) {
     }
 
     size_t align_size = 32;
-#ifdef CROARING_IS_X64
-    if ( croaring_avx512() ) {
+#if CROARING_IS_X64
+    int support = croaring_hardware_support();
+    if ( support & ROARING_SUPPORTS_AVX512 ) {
 	    // sizeof(__m512i) == 64
 	    align_size = 64;
     }
@@ -130,8 +137,8 @@ bitset_container_t *bitset_container_clone(const bitset_container_t *src) {
     }
 
     size_t align_size = 32;
-#ifdef CROARING_IS_X64
-    if ( croaring_avx512() ) {
+#if CROARING_IS_X64
+    if ( croaring_hardware_support() & ROARING_SUPPORTS_AVX512 ) {
 	    // sizeof(__m512i) == 64
 	    align_size = 64;
     }
@@ -236,7 +243,7 @@ bool bitset_container_intersect(const bitset_container_t *src_1,
 }
 
 
-#ifdef CROARING_IS_X64
+#if CROARING_IS_X64
 #ifndef WORDS_IN_AVX2_REG
 #define WORDS_IN_AVX2_REG sizeof(__m256i) / sizeof(uint64_t)
 #endif
@@ -257,14 +264,15 @@ static inline int _scalar_bitset_container_compute_cardinality(const bitset_cont
 }
 /* Get the number of bits set (force computation) */
 int bitset_container_compute_cardinality(const bitset_container_t *bitset) {
+    int support = croaring_hardware_support();
 #if CROARING_COMPILER_SUPPORTS_AVX512
-    if( croaring_avx512() ) {
+    if( support & ROARING_SUPPORTS_AVX512 ) {
       return (int) avx512_vpopcount(
         (const __m512i *)bitset->words,
         BITSET_CONTAINER_SIZE_IN_WORDS / (WORDS_IN_AVX512_REG));
     } else
 #endif // CROARING_COMPILER_SUPPORTS_AVX512
-    if( croaring_avx2() ) {
+    if( support & ROARING_SUPPORTS_AVX2 ) {
       return (int) avx2_harley_seal_popcount256(
         (const __m256i *)bitset->words,
         BITSET_CONTAINER_SIZE_IN_WORDS / (WORDS_IN_AVX2_REG));
@@ -315,16 +323,13 @@ int bitset_container_compute_cardinality(const bitset_container_t *bitset) {
 
 #endif // CROARING_IS_X64
 
-#ifdef CROARING_IS_X64
+#if CROARING_IS_X64
 
 #define BITSET_CONTAINER_FN_REPEAT 8
 #ifndef WORDS_IN_AVX512_REG
 #define WORDS_IN_AVX512_REG sizeof(__m512i) / sizeof(uint64_t)
 #endif // WORDS_IN_AVX512_REG
-/*#define LOOP_SIZE                    \
-    BITSET_CONTAINER_SIZE_IN_WORDS / \
-        ((WORDS_IN_AVX512_REG)*BITSET_CONTAINER_FN_REPEAT)
-*/
+
 /* Computes a binary operation (eg union) on bitset1 and bitset2 and write the
    result to bitsetout */
 // clang-format off
@@ -698,15 +703,15 @@ SCALAR_BITSET_CONTAINER_FN(xor,    ^,  _mm256_xor_si256,    veorq_u64)
 SCALAR_BITSET_CONTAINER_FN(andnot, &~, _mm256_andnot_si256, vbicq_u64)
 
 #if CROARING_COMPILER_SUPPORTS_AVX512
-
 #define BITSET_CONTAINER_FN(opname, opsymbol, avx_intrinsic, neon_intrinsic)   \
   int bitset_container_##opname(const bitset_container_t *src_1,               \
                                 const bitset_container_t *src_2,               \
                                 bitset_container_t *dst) {                     \
-    if ( croaring_avx512() ) {                                                 \
+    int support = croaring_hardware_support();                                 \
+    if ( support & ROARING_SUPPORTS_AVX512 ) {                                 \
       return _avx512_bitset_container_##opname(src_1, src_2, dst);             \
     }                                                                          \
-    else if ( croaring_avx2() ) {                                              \
+    else if ( support & ROARING_SUPPORTS_AVX2 ) {                              \
       return _avx2_bitset_container_##opname(src_1, src_2, dst);               \
     } else {                                                                   \
       return _scalar_bitset_container_##opname(src_1, src_2, dst);             \
@@ -715,10 +720,11 @@ SCALAR_BITSET_CONTAINER_FN(andnot, &~, _mm256_andnot_si256, vbicq_u64)
   int bitset_container_##opname##_nocard(const bitset_container_t *src_1,      \
                                          const bitset_container_t *src_2,      \
                                          bitset_container_t *dst) {            \
-    if ( croaring_avx512() ) {                                                 \
+    int support = croaring_hardware_support();                                 \
+    if ( support & ROARING_SUPPORTS_AVX512 ) {                                 \
       return _avx512_bitset_container_##opname##_nocard(src_1, src_2, dst);    \
     }                                                                          \
-    else if ( croaring_avx2() ) {                                              \
+    else if ( support & ROARING_SUPPORTS_AVX2 ) {                              \
       return _avx2_bitset_container_##opname##_nocard(src_1, src_2, dst);      \
     } else {                                                                   \
       return _scalar_bitset_container_##opname##_nocard(src_1, src_2, dst);    \
@@ -726,11 +732,11 @@ SCALAR_BITSET_CONTAINER_FN(andnot, &~, _mm256_andnot_si256, vbicq_u64)
   }                                                                            \
   int bitset_container_##opname##_justcard(const bitset_container_t *src_1,    \
                                            const bitset_container_t *src_2) {  \
-    if ( croaring_avx512() ) {                                                 \
+     int support = croaring_hardware_support();                                \
+    if ( support & ROARING_SUPPORTS_AVX512 ) {                                 \
       return _avx512_bitset_container_##opname##_justcard(src_1, src_2);       \
     }                                                                          \
-    else if ((croaring_detect_supported_architectures() & CROARING_AVX2) ==    \
-        CROARING_AVX2) {                                                       \
+    else if ( support & ROARING_SUPPORTS_AVX2 ) {                              \
       return _avx2_bitset_container_##opname##_justcard(src_1, src_2);         \
     } else {                                                                   \
       return _scalar_bitset_container_##opname##_justcard(src_1, src_2);       \
@@ -744,7 +750,7 @@ SCALAR_BITSET_CONTAINER_FN(andnot, &~, _mm256_andnot_si256, vbicq_u64)
   int bitset_container_##opname(const bitset_container_t *src_1,               \
                                 const bitset_container_t *src_2,               \
                                 bitset_container_t *dst) {                     \
-    if ( croaring_avx2() ) {                                                   \
+    if ( croaring_hardware_support() & ROARING_SUPPORTS_AVX2 ) {               \
       return _avx2_bitset_container_##opname(src_1, src_2, dst);               \
     } else {                                                                   \
       return _scalar_bitset_container_##opname(src_1, src_2, dst);             \
@@ -753,7 +759,7 @@ SCALAR_BITSET_CONTAINER_FN(andnot, &~, _mm256_andnot_si256, vbicq_u64)
   int bitset_container_##opname##_nocard(const bitset_container_t *src_1,      \
                                          const bitset_container_t *src_2,      \
                                          bitset_container_t *dst) {            \
-    if ( croaring_avx2() ) {                                                   \
+    if ( croaring_hardware_support() & ROARING_SUPPORTS_AVX2 ) {               \
       return _avx2_bitset_container_##opname##_nocard(src_1, src_2, dst);      \
     } else {                                                                   \
       return _scalar_bitset_container_##opname##_nocard(src_1, src_2, dst);    \
@@ -761,7 +767,7 @@ SCALAR_BITSET_CONTAINER_FN(andnot, &~, _mm256_andnot_si256, vbicq_u64)
   }                                                                            \
   int bitset_container_##opname##_justcard(const bitset_container_t *src_1,    \
                                            const bitset_container_t *src_2) {  \
-    if ( croaring_avx2() ) {                                                   \
+    if ( croaring_hardware_support() & ROARING_SUPPORTS_AVX2 ) {               \
       return _avx2_bitset_container_##opname##_justcard(src_1, src_2);         \
     } else {                                                                   \
       return _scalar_bitset_container_##opname##_justcard(src_1, src_2);       \
@@ -893,7 +899,7 @@ int bitset_container_##opname##_nocard(const bitset_container_t *src_1,   \
 }                                                                         \
 int bitset_container_##opname##_justcard(const bitset_container_t *src_1, \
                               const bitset_container_t *src_2) {          \
-    const uint64_t * __restrict__ words_1 = src_1->words;                 \
+   printf("A1\n"); const uint64_t * __restrict__ words_1 = src_1->words;                 \
     const uint64_t * __restrict__ words_2 = src_2->words;                 \
     int32_t sum = 0;                                                      \
     for (size_t i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS; i += 2) {      \
@@ -926,14 +932,15 @@ int bitset_container_to_uint32_array(
     const bitset_container_t *bc,
     uint32_t base
 ){
-#ifdef CROARING_IS_X64
+#if CROARING_IS_X64
+   int support = croaring_hardware_support();
 #if CROARING_COMPILER_SUPPORTS_AVX512
-   if(( croaring_avx512() ) &&  (bc->cardinality >= 8192))  // heuristic
+   if(( support & ROARING_SUPPORTS_AVX512 ) &&  (bc->cardinality >= 8192))  // heuristic
 		return (int) bitset_extract_setbits_avx512(bc->words,
                 BITSET_CONTAINER_SIZE_IN_WORDS, out, bc->cardinality, base);
    else
 #endif
-   if(( croaring_avx2() ) &&  (bc->cardinality >= 8192))  // heuristic
+   if(( support & ROARING_SUPPORTS_AVX2 ) &&  (bc->cardinality >= 8192))  // heuristic
 		return (int) bitset_extract_setbits_avx2(bc->words,
                 BITSET_CONTAINER_SIZE_IN_WORDS, out, bc->cardinality, base);
 	else
@@ -1055,7 +1062,7 @@ bool bitset_container_iterate64(const bitset_container_t *cont, uint32_t base, r
   return true;
 }
 
-#ifdef CROARING_IS_X64
+#if CROARING_IS_X64
 #if CROARING_COMPILER_SUPPORTS_AVX512
 CROARING_TARGET_AVX512
 ALLOW_UNALIGNED
@@ -1102,14 +1109,15 @@ bool bitset_container_equals(const bitset_container_t *container1, const bitset_
       return true;
     }
   }
-#ifdef CROARING_IS_X64
+#if CROARING_IS_X64
+  int support = croaring_hardware_support();
 #if CROARING_COMPILER_SUPPORTS_AVX512
-  if( croaring_avx512() ) {
+  if( support & ROARING_SUPPORTS_AVX512 ) {
     return _avx512_bitset_container_equals(container1, container2);
   }
   else
 #endif
-  if( croaring_avx2() ) {
+  if( support & ROARING_SUPPORTS_AVX2 ) {
     return _avx2_bitset_container_equals(container1, container2);
   }
 #endif

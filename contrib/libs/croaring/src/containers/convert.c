@@ -5,6 +5,12 @@
 #include <roaring/containers/convert.h>
 #include <roaring/containers/perfparameters.h>
 
+#if CROARING_IS_X64
+#ifndef CROARING_COMPILER_SUPPORTS_AVX512
+#error "CROARING_COMPILER_SUPPORTS_AVX512 needs to be defined."
+#endif // CROARING_COMPILER_SUPPORTS_AVX512
+#endif
+
 #ifdef __cplusplus
 extern "C" { namespace roaring { namespace internal {
 #endif
@@ -50,7 +56,7 @@ array_container_t *array_container_from_bitset(const bitset_container_t *bits) {
     result->cardinality = bits->cardinality;
 #if CROARING_IS_X64
 #if CROARING_COMPILER_SUPPORTS_AVX512
-    if( croaring_avx512() ) {
+    if( croaring_hardware_support() & ROARING_SUPPORTS_AVX512 ) {
         bitset_extract_setbits_avx512_uint16(bits->words, BITSET_CONTAINER_SIZE_IN_WORDS,
                                   result->array, bits->cardinality , 0);
     } else

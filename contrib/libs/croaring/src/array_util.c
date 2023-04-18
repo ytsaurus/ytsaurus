@@ -9,14 +9,21 @@
 #include <roaring/portability.h>
 #include <roaring/utilasm.h>
 
+#if CROARING_IS_X64
+#ifndef CROARING_COMPILER_SUPPORTS_AVX512
+#error "CROARING_COMPILER_SUPPORTS_AVX512 needs to be defined."
+#endif // CROARING_COMPILER_SUPPORTS_AVX512
+#endif
+
 #ifdef __cplusplus
+using namespace ::roaring::internal;
 extern "C" { namespace roaring { namespace internal {
 #endif
 
 extern inline int32_t binarySearch(const uint16_t *array, int32_t lenarray,
                                    uint16_t ikey);
 
-#ifdef CROARING_IS_X64
+#if CROARING_IS_X64
 // used by intersect_vector16
 ALIGNED(0x1000)
 static const uint8_t shuffle_mask16[] = {
@@ -443,6 +450,27 @@ int32_t intersect_vector16(const uint16_t *__restrict__ A, size_t s_a,
         }
     }
     return (int32_t)count;
+}
+
+ALLOW_UNALIGNED
+int array_container_to_uint32_array_vector16(void *vout, const uint16_t* array, size_t cardinality,
+                                    uint32_t base) {
+    int outpos = 0;
+    uint32_t *out = (uint32_t *)vout;
+    size_t i = 0;
+    for ( ;i + sizeof(__m128i)/sizeof(uint16_t) <= cardinality; i += sizeof(__m128i)/sizeof(uint16_t)) {
+        __m128i vinput = _mm_loadu_si128((const __m128i*) (array + i));
+        __m256i voutput = _mm256_add_epi32(_mm256_cvtepu16_epi32(vinput), _mm256_set1_epi32(base));
+        _mm256_storeu_si256((__m256i*)(out + outpos), voutput);
+        outpos += sizeof(__m256i)/sizeof(uint32_t);
+    }
+    for ( ; i < cardinality; ++i) {
+        const uint32_t val = base + array[i];
+        memcpy(out + outpos, &val,
+               sizeof(uint32_t));  // should be compiled as a MOV on x64
+        outpos++;
+    }
+    return outpos;
 }
 
 int32_t intersect_vector16_inplace(uint16_t *__restrict__ A, size_t s_a,
@@ -1199,7 +1227,7 @@ int32_t xor_uint16(const uint16_t *array_1, int32_t card_1,
     return pos_out;
 }
 
-#ifdef CROARING_IS_X64
+#if CROARING_IS_X64
 
 /***
  * start of the SIMD 16-bit union code
@@ -1952,8 +1980,8 @@ size_t union_uint32_card(const uint32_t *set_1, size_t size_1,
 
 size_t fast_union_uint16(const uint16_t *set_1, size_t size_1, const uint16_t *set_2,
                     size_t size_2, uint16_t *buffer) {
-#ifdef CROARING_IS_X64
-    if( croaring_avx2() ) {
+#if CROARING_IS_X64
+    if( croaring_hardware_support() & ROARING_SUPPORTS_AVX2 ) {
         // compute union with smallest array first
       if (size_1 < size_2) {
         return union_vector16(set_1, (uint32_t)size_1,
@@ -1983,7 +2011,7 @@ size_t fast_union_uint16(const uint16_t *set_1, size_t size_1, const uint16_t *s
     }
 #endif
 }
-#ifdef CROARING_IS_X64
+#if CROARING_IS_X64
 #if CROARING_COMPILER_SUPPORTS_AVX512
 CROARING_TARGET_AVX512
 static inline bool _avx512_memequals(const void *s1, const void *s2, size_t n) {
@@ -2091,13 +2119,14 @@ bool memequals(const void *s1, const void *s2, size_t n) {
     if (n == 0) {
         return true;
     }
-#ifdef CROARING_IS_X64
+#if CROARING_IS_X64
+    int support = croaring_hardware_support();
 #if CROARING_COMPILER_SUPPORTS_AVX512
-    if( croaring_avx512() ) {
+    if( support & ROARING_SUPPORTS_AVX512 ) {
       return _avx512_memequals(s1, s2, n);
     } else
 #endif // CROARING_COMPILER_SUPPORTS_AVX512
-    if( croaring_avx2() ) {
+    if( support & ROARING_SUPPORTS_AVX2 ) {
       return _avx2_memequals(s1, s2, n);
     } else {
       return memcmp(s1, s2, n) == 0;
@@ -2106,6 +2135,35 @@ bool memequals(const void *s1, const void *s2, size_t n) {
     return memcmp(s1, s2, n) == 0;
 #endif
 }
+
+
+#if CROARING_IS_X64
+#if CROARING_COMPILER_SUPPORTS_AVX512
+CROARING_TARGET_AVX512
+ALLOW_UNALIGNED
+int avx512_array_container_to_uint32_array(void *vout, const uint16_t* array, size_t cardinality,
+                                    uint32_t base) {
+    int outpos = 0;
+    uint32_t *out = (uint32_t *)vout;
+    size_t i = 0;
+    for ( ;i + sizeof(__m256i)/sizeof(uint16_t) <= cardinality; i += sizeof(__m256i)/sizeof(uint16_t)) {
+        __m256i vinput = _mm256_loadu_si256((const __m256i*) (array + i));
+        __m512i voutput = _mm512_add_epi32(_mm512_cvtepu16_epi32(vinput), _mm512_set1_epi32(base));
+        _mm512_storeu_si512((__m512i*)(out + outpos), voutput);
+        outpos += sizeof(__m512i)/sizeof(uint32_t);
+    }
+    for ( ; i < cardinality; ++i) {
+        const uint32_t val = base + array[i];
+        memcpy(out + outpos, &val,
+               sizeof(uint32_t));  // should be compiled as a MOV on x64
+        outpos++;
+    }
+    return outpos;
+}
+CROARING_UNTARGET_AVX512
+#endif // #if CROARING_COMPILER_SUPPORTS_AVX512
+#endif // #if CROARING_IS_X64
+
 
 #ifdef __cplusplus
 } } }  // extern "C" { namespace roaring { namespace internal {

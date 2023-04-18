@@ -2790,7 +2790,6 @@ uint64_t roaring_bitmap_and_cardinality(const roaring_bitmap_t *x1,
               length2 = x2->high_low_container.size;
     uint64_t answer = 0;
     int pos1 = 0, pos2 = 0;
-
     while (pos1 < length1 && pos2 < length2) {
         const uint16_t s1 = ra_get_key_at_index(&x1->high_low_container, pos1);
         const uint16_t s2 = ra_get_key_at_index(&x2->high_low_container, pos2);

@@ -308,7 +308,7 @@ static inline int roaring_hamming(uint64_t x) {
 //
 
 // We are going to use runtime dispatch.
-#ifdef CROARING_IS_X64
+#if CROARING_IS_X64
 #ifdef __clang__
 // clang does not have GCC push pop
 // warning: clang attribute push can't be used within a namespace in clang up

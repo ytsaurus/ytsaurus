@@ -6,6 +6,12 @@
 
 #include <roaring/portability.h>
 
+#if CROARING_IS_X64
+#ifndef CROARING_COMPILER_SUPPORTS_AVX512
+#error "CROARING_COMPILER_SUPPORTS_AVX512 needs to be defined."
+#endif // CROARING_COMPILER_SUPPORTS_AVX512
+#endif
+
 #ifdef __cplusplus
 extern "C" { namespace roaring { namespace internal {
 #endif
@@ -128,6 +134,16 @@ int32_t intersect_vector16(const uint16_t *__restrict__ A, size_t s_a,
 int32_t intersect_vector16_inplace(uint16_t *__restrict__ A, size_t s_a,
                            const uint16_t *__restrict__ B, size_t s_b);
 
+/**
+ * Take an array container and write it out to a 32-bit array, using base
+ * as the offset.
+ */
+int array_container_to_uint32_array_vector16(void *vout, const uint16_t* array, size_t cardinality,
+                                    uint32_t base);
+#if CROARING_COMPILER_SUPPORTS_AVX512
+int avx512_array_container_to_uint32_array(void *vout, const uint16_t* array, size_t cardinality,
+                                    uint32_t base);
+#endif
 /**
  * Compute the cardinality of the intersection using SSE4 instructions
  */

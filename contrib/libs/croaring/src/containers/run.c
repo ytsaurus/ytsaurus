@@ -5,6 +5,12 @@
 #include <roaring/portability.h>
 #include <roaring/memory.h>
 
+#if CROARING_IS_X64
+#ifndef CROARING_COMPILER_SUPPORTS_AVX512
+#error "CROARING_COMPILER_SUPPORTS_AVX512 needs to be defined."
+#endif // CROARING_COMPILER_SUPPORTS_AVX512
+#endif
+
 #ifdef __cplusplus
 extern "C" { namespace roaring { namespace internal {
 #endif
@@ -924,12 +930,12 @@ static inline int _scalar_run_container_cardinality(const run_container_t *run) 
 
 int run_container_cardinality(const run_container_t *run) {
 #if CROARING_COMPILER_SUPPORTS_AVX512
-  if( croaring_avx512() ) {
+  if( croaring_hardware_support() & ROARING_SUPPORTS_AVX512 ) {
     return _avx512_run_container_cardinality(run);
   }
   else
 #endif
-  if( croaring_avx2() ) {
+  if( croaring_hardware_support() & ROARING_SUPPORTS_AVX2 ) {
     return _avx2_run_container_cardinality(run);
   } else {
     return _scalar_run_container_cardinality(run);

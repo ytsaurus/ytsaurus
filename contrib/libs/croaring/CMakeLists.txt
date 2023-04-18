@@ -36,6 +36,7 @@ target_sources(contrib-libs-croaring PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/mixed_union.c
   ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/mixed_xor.c
   ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/containers/run.c
+  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/isadetection.c
   ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/memory.c
   ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/roaring.c
   ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/src/roaring_array.c

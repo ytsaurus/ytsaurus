@@ -179,6 +179,43 @@ The C interface is found in the file ``include/roaring/roaring.h``. We have C++ 
 
 Some users have to deal with large volumes of data. It  may be important for these users to be aware of the `addMany` (C++) `roaring_bitmap_or_many` (C) functions as it is much faster and economical to add values in batches when possible. Furthermore, calling periodically the `runOptimize` (C++) or `roaring_bitmap_run_optimize` (C) functions may help.
 
+
+# Running microbenchmarks
+
+We have microbenchmarks constructed with the Google Benchmarks.
+Under Linux or macOS, you may run them as follows:
+
+```
+cmake -B build
+cmake --build build
+./build/microbenchmarks/bench
+```
+
+By default, the benchmark tools picks one data set (e.g., `CRoaring/benchmarks/realdata/census1881`).
+We have several data sets and you may pick others:
+
+```
+./build/microbenchmarks/bench benchmarks/realdata/wikileaks-noquotes 
+```
+
+You may disable some functionality for the purpose of benchmarking. For example, assuming you
+have an x64 processor, you could benchmark the code without AVX-512 even if both your processor 
+and compiler supports it:
+
+```
+cmake -B buildnoavx512 -D ROARING_DISABLE_AVX512=ON
+cmake --build buildnoavx512
+./buildnoavx512/microbenchmarks/bench
+```
+
+You can benchmark without AVX or AVX-512 as well:
+
+```
+cmake -B buildnoavx -D ROARING_DISABLE_AVX=ON
+cmake --build buildnoavx
+./buildnoavx/microbenchmarks/bench
+```
+
 # Custom memory allocators
 For general users, CRoaring would apply default allocator without extra codes. But global memory hook is also provided for those who want a custom memory allocator. Here is an example:
 ```C
@@ -573,14 +610,6 @@ cd debug
 cmake -DCMAKE_BUILD_TYPE=Debug -DROARING_SANITIZE=ON ..
 ctest
 ```
-
-
-To run real-data benchmark
-
-```
-./real_bitmaps_benchmark ../benchmarks/realdata/census1881
-```
-where you must adjust the path "../benchmarks/realdata/census1881" so that it points to one of the directories in the benchmarks/realdata directory.
 
 
 To check that your code abides by the style convention (make sure that ``clang-format`` is installed):
