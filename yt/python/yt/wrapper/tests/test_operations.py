@@ -1,9 +1,9 @@
 from __future__ import print_function
 
-from .conftest import authors, ASAN_USER_JOB_MEMORY_LIMIT
-from .helpers import (TEST_DIR, get_test_file_path, check_rows_equality, set_config_option, get_tests_sandbox,
-                      dumps_yt_config, get_python, wait, get_operation_path, random_string,
-                      yatest_common)
+from yt.testlib import authors, ASAN_USER_JOB_MEMORY_LIMIT
+from yt.wrapper.testlib.helpers import (TEST_DIR, get_test_file_path, check_rows_equality,
+                                        set_config_option, get_tests_sandbox, dumps_yt_config, get_python,
+                                        wait, get_operation_path, random_string, yatest_common)
 
 # Necessary for tests.
 try:
@@ -943,6 +943,32 @@ class TestOperationCommands(object):
         op = yt.run_map("sleep 15; cat", table, table, sync=False)
         op.abort()
         assert op.get_state() == "aborted"
+
+    @authors("denvr")
+    def test_operation_stderr_output(self, caplog):
+        input_table = TEST_DIR + "/input"
+        output_table = TEST_DIR + "/output"
+        yt.write_table(input_table, [{"x": 0}, {"x": 1}, {"x": 2}])
+
+        op = yt.run_map("echo -e -n 'someerrout' >&2; cat", input_table, output_table, sync=False, job_count=1)
+        caplog.clear()
+        op.wait()
+        assert op.get_state() == "completed"
+        assert all("someerrout" not in rec.message for rec in caplog.records)
+
+        op = yt.run_map("echo -e -n 'someerrout' >&2; cat", input_table, output_table, sync=False, job_count=1)
+        with set_config_option("operation_tracker/always_show_job_stderr", True):
+            caplog.clear()
+            op.wait()
+        assert op.get_state() == "completed"
+        assert any("someerrout" in rec.message for rec in caplog.records)
+
+        op = yt.run_map("cat; echo 'someerrout' >&2; exit 1", input_table, output_table, sync=False, job_count=1)
+        with pytest.raises(yt.errors.YtOperationFailedError):
+            caplog.clear()
+            op.wait()
+        assert op.get_state() == "failed"
+        assert any("someerrout" in rec.message for rec in caplog.records)
 
     @authors("ignat")
     def test_complete_operation(self):

@@ -419,6 +419,8 @@ default_config = {
         "enable_logging_failed_operation": True,
         # Stderr encoding.
         "stderr_encoding": "utf-8",
+        # Collect operation's stderr from all jobs (not just failed)
+        "always_show_job_stderr": False,
     },
 
     "read_parallel": {

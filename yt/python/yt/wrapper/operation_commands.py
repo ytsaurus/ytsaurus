@@ -756,6 +756,6 @@ class Operation(object):
 
         stderr_level = logging.getLevelName(get_config(self.client)["operation_tracker"]["stderr_logging_level"])
         if logger.LOGGER.isEnabledFor(stderr_level):
-            stderrs = get_jobs_with_error_or_stderr(self.id, only_failed_jobs=False, client=self.client)
+            stderrs = get_jobs_with_error_or_stderr(self.id, only_failed_jobs=not get_config(self.client)["operation_tracker"]["always_show_job_stderr"], client=self.client)
             if stderrs:
                 logger.log(stderr_level, "\n" + format_operation_stderrs(stderrs))
