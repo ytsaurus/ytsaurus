@@ -312,6 +312,11 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("out_throttlers", &TThis::OutThrottlers)
         .Default();
 
+    registrar.Parameter("porto_executor", &TThis::PortoExecutor)
+        .DefaultNew();
+    registrar.Parameter("enable_job_environment_resurrect", &TThis::EnableJobEnvironmentResurrect)
+        .Default(false);
+
     registrar.Postprocessor([] (TThis* config) {
         NNodeTrackerClient::ValidateNodeTags(config->Tags);
 
@@ -438,6 +443,10 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("throttler_free_bandwidth_ratio", &TThis::ThrottlerFreeBandwidthRatio)
         .InRange(0.0, 1.0)
         .Optional();
+    registrar.Parameter("porto_executor", &TThis::PortoExecutor)
+        .DefaultNew();
+    registrar.Parameter("enable_job_environment_resurrect", &TThis::EnableJobEnvironmentResurrect)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

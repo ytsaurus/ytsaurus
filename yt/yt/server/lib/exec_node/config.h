@@ -452,6 +452,7 @@ public:
     i64 MinRequiredDiskSpace;
 
     TDuration JobAbortionTimeout;
+    TDuration SlotsFreeTimeout;
 
     std::optional<TDuration> JobPrepareTimeLimit;
 
@@ -579,6 +580,7 @@ public:
     TControllerAgentConnectorDynamicConfigPtr ControllerAgentConnector;
 
     std::optional<TDuration> JobAbortionTimeout;
+    std::optional<TDuration> SlotsFreeTimeout;
 
     bool AbortOnJobsDisabled;
 

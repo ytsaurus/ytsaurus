@@ -419,6 +419,7 @@ private:
     std::atomic<int> LayerImportsInProgress_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+
     THashMap<TLayerId, TLayerMeta> Layers_;
     THashMap<TVolumeId, TVolumeMeta> Volumes_;
 
@@ -567,11 +568,11 @@ private:
             meta.Id = id;
             meta.Path = GetLayerPath(id);
 
-            UsedSpace_ += meta.size();
-
             {
                 auto guard = Guard(SpinLock_);
                 YT_VERIFY(Layers_.emplace(id, meta).second);
+
+                UsedSpace_ += meta.size();
             }
         }
     }
@@ -690,19 +691,25 @@ private:
 
         NFS::Rename(temporaryLayerMetaFileName, layerMetaFileName);
 
-        AvailableSpace_ -= layerMeta.size();
-        UsedSpace_ += layerMeta.size();
+        i64 usedSpace;
+        i64 availableSpace;
 
         {
             auto guard = Guard(SpinLock_);
             Layers_[layerMeta.Id] = layerMeta;
+
+            AvailableSpace_ -= layerMeta.size();
+            UsedSpace_ += layerMeta.size();
+
+            usedSpace = UsedSpace_;
+            availableSpace = AvailableSpace_;
         }
 
         YT_LOG_INFO("Finished layer import (LayerId: %v, LayerPath: %v, UsedSpace: %v, AvailableSpace: %v, Tag: %v)",
             layerMeta.Id,
             layerMeta.Path,
-            UsedSpace_,
-            AvailableSpace_,
+            usedSpace,
+            availableSpace,
             tag);
     }
 
@@ -813,6 +820,17 @@ private:
         auto layerPath = GetLayerPath(layerId);
         auto layerMetaPath = GetLayerMetaPath(layerId);
 
+        {
+            auto guard = Guard(SpinLock_);
+
+            if (Layers_.find(layerId) == Layers_.end()) {
+                YT_LOG_FATAL("Layer already removed (LayerId: %v, LayerPath: %v, IsSquashfs: %v)",
+                    layerId,
+                    layerPath,
+                    isSquashfsLayer);
+            }
+        }
+
         try {
             YT_LOG_INFO("Removing layer (LayerId: %v, LayerPath: %v, IsSquashfs: %v)",
                 layerId,
@@ -831,6 +849,17 @@ private:
             }
 
             NFS::Remove(layerMetaPath);
+
+            i64 layerSize = -1;
+
+            {
+                auto guard = Guard(SpinLock_);
+                layerSize = Layers_[layerId].size();
+                YT_VERIFY(Layers_.erase(layerId));
+
+                UsedSpace_ -= layerSize;
+                AvailableSpace_ += layerSize;
+            }
         } catch (const std::exception& ex) {
             auto error = TError("Failed to remove layer %v",
                 layerId)
@@ -838,17 +867,6 @@ private:
             Disable(error);
             YT_ABORT();
         }
-
-        i64 layerSize = -1;
-
-        {
-            auto guard = Guard(SpinLock_);
-            layerSize = Layers_[layerId].size();
-            Layers_.erase(layerId);
-        }
-
-        UsedSpace_ -= layerSize;
-        AvailableSpace_ += layerSize;
     }
 
     TVolumeMeta DoCreateVolume(
@@ -956,14 +974,20 @@ private:
     {
         ValidateEnabled();
 
-        {
-            auto guard = Guard(SpinLock_);
-            YT_VERIFY(Volumes_.contains(volumeId));
-        }
-
         auto volumePath = GetVolumePath(volumeId);
         auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
         auto volumeMetaPath = GetVolumeMetaPath(volumeId);
+
+        {
+            auto guard = Guard(SpinLock_);
+
+            if (Volumes_.find(volumeId) == Volumes_.end()) {
+                YT_LOG_FATAL("Volume already removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
+                    volumeId,
+                    volumePath,
+                    volumeMetaPath);
+            }
+        }
 
         try {
             YT_LOG_DEBUG("Removing volume (VolumeId: %v)",
@@ -985,7 +1009,7 @@ private:
 
             {
                 auto guard = Guard(SpinLock_);
-                YT_VERIFY(Volumes_.erase(volumeId) == 1);
+                YT_VERIFY(Volumes_.erase(volumeId));
             }
         } catch (const std::exception& ex) {
             auto error = TError("Failed to remove volume %v", volumeId)
@@ -1550,6 +1574,9 @@ public:
             for (const auto& layerMeta : location->GetAllLayers()) {
                 TArtifactKey key;
                 key.MergeFrom(layerMeta.artifact_key());
+
+                YT_LOG_DEBUG("Porto cached layer initialization (LayerId: %v)", layerMeta.Id);
+
                 auto layer = New<TLayer>(layerMeta, key, location);
                 auto cookie = BeginInsert(layer->GetKey());
                 if (cookie.IsActive()) {
@@ -1787,6 +1814,7 @@ private:
                     auto layerMeta = WaitFor(location->MountSquashfsLayer(artifactKey, artifactChunk->GetFileName(), tag))
                         .ValueOrThrow();
 
+                    YT_LOG_DEBUG("Porto layer initialization (LayerId: %v, Tag: %v)", layerMeta.Id, tag);
                     auto layer = New<TLayer>(layerMeta, artifactKey, location);
                     layer->SetUnderlyingArtifact(artifactChunk);
                     return layer;

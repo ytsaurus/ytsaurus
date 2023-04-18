@@ -29,4 +29,5 @@ target_sources(yt-library-containers PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/process.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/porto_executor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/porto_resource_tracker.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/porto_health_checker.cpp
 )

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "porto_executor.h"
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -47,6 +48,9 @@ public:
     TDuration ApiTimeout;
     TDuration ApiDiskTimeout;
     bool EnableNetworkIsolation;
+    bool EnableTestPortoFailures;
+
+    EPortoErrorCode StubErrorCode;
 
     REGISTER_YSON_STRUCT(TPortoExecutorConfig);
 
@@ -54,6 +58,22 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TPortoExecutorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPortoExecutorDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<bool> EnableTestPortoFailures;
+    std::optional<EPortoErrorCode> StubErrorCode;
+
+    REGISTER_YSON_STRUCT(TPortoExecutorDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPortoExecutorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

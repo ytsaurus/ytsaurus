@@ -293,7 +293,7 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
     }
 
     for (const auto& diskId : diskWithDestroyingLocations) {
-        TErrorOr<void> resultOrError;
+        TError resultOrError;
 
         if (diskWithLivenessLocations.contains(diskId)) {
             resultOrError = TError("Disk cannot be repaired, because it contains alive locations");

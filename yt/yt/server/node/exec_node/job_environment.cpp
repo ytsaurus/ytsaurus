@@ -70,6 +70,8 @@ public:
 
     void Init(int slotCount, double cpuLimit, double idleCpuFraction) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         Bootstrap_->SubscribePopulateAlerts(
             BIND(&TProcessJobEnvironmentBase::PopulateAlerts, MakeWeak(this)));
         // Shutdown all possible processes.
@@ -207,6 +209,8 @@ protected:
     bool Enabled_ = true;
 
     TAtomicObject<TError> Alert_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     virtual void DoInit(int slotCount, double /*cpuLimit*/, double /*idleCpuFraction*/)
     {
@@ -573,6 +577,8 @@ private:
 
     void DoInit(int slotCount, double cpuLimit, double idleCpuFraction) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         auto portoFatalErrorHandler = BIND([weakThis_ = MakeWeak(this)](const TError& error) {
             // We use weak ptr to avoid cyclic references between container manager and job environment.
             auto this_ = weakThis_.Lock();
@@ -771,6 +777,12 @@ private:
 
     i64 GetMajorPageFaultCount() const override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        if (!SelfInstance_) {
+            THROW_ERROR_EXCEPTION("Job environment disabled");
+        }
+
         return SelfInstance_->GetMajorPageFaultCount();
     }
 

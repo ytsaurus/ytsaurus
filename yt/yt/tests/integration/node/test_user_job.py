@@ -7,7 +7,7 @@ from yt_commands import (
     ls, get, set, remove, link, exists, create_network_project, create_tmpdir,
     create_user, make_ace, start_transaction, lock,
     write_file, read_table,
-    write_table, map,
+    write_table, map, abort_op,
     vanilla, run_test_vanilla, abort_job,
     list_jobs, get_job, get_job_stderr,
     sync_create_cells, get_singular_chunk_id,
@@ -2860,3 +2860,230 @@ class TestCpuSet(YTEnvSetup):
         op.track()
 
         assert self._get_actual_cpu_set(op, job_id)[:2] == "0-"
+
+
+class TestSlotManagerResurrect(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    USE_PORTO = True
+
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "enable_job_environment_resurrect": True,
+        "exec_agent": {
+            "test_root_fs": True,
+            "abort_on_jobs_disabled": False,
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto"
+                }
+            }
+        },
+        "porto_executor": {
+            "api_timeout": 1000
+        }
+    }
+
+    def setup_files(self):
+        create("file", "//tmp/layer", attributes={"replication_factor": 1})
+        file_name = "layers/test.tar.gz"
+        write_file(
+            "//tmp/layer",
+            open(file_name, "rb").read(),
+            file_writer={"upload_replication_factor": 1},
+        )
+
+    @classmethod
+    def modify_node_config(cls, config):
+        if not os.path.exists(cls.default_disk_path):
+            os.makedirs(cls.default_disk_path)
+        config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
+
+    @authors("don-dron")
+    def test_simple_job_env_resurrect(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        ##################################################################
+
+        def run_op():
+            return map(
+                command="cat; echo 'content' > tmpfs/file; ls tmpfs/ >&2; cat tmpfs/file >&2;",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "tmpfs_size": 1024 * 1024,
+                        "tmpfs_path": "tmpfs",
+                    },
+                    "max_failed_job_count": 1,
+                },
+            )
+
+        op = run_op()
+
+        wait(lambda: get(op.get_path() + "/@state") == "completed")
+
+        ##################################################################
+
+        update_nodes_dynamic_config({
+            "porto_executor": {
+                "enable_test_porto_failures": True
+            }
+        })
+
+        def check_disable():
+            node = ls("//sys/cluster_nodes")[0]
+            alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+
+            if len(alerts) == 0:
+                return False
+            else:
+                for alert in alerts:
+                    if alert['message'] == "Scheduler jobs disabled":
+                        return True
+
+                return False
+
+        wait(lambda: check_disable())
+
+        ##################################################################
+
+        update_nodes_dynamic_config({
+            "porto_executor": {
+                "enable_test_porto_failures": False
+            }
+        })
+
+        def check_resurrect():
+            node = ls("//sys/cluster_nodes")[0]
+            alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+
+            return len(alerts) == 0
+
+        wait(lambda: check_resurrect())
+
+        ##################################################################
+
+        op = run_op()
+
+        wait(lambda: get(op.get_path() + "/@state") == "completed")
+
+    @authors("don-dron")
+    def test_job_env_resurrect_with_volume_and_container_leak(self):
+        self.setup_files()
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        ##################################################################
+
+        def run_op(time=30):
+            return run_test_vanilla(
+                command="sleep {}".format(time),
+                task_patch={
+                    "max_failed_job_count": 1,
+                    "layer_paths": ["//tmp/layer"]
+                }
+            )
+
+        op = run_op(1)
+
+        wait(lambda: get(op.get_path() + "/@state") == "completed")
+
+        op = run_op()
+
+        wait(lambda: get(op.get_path() + "/@state") == "running")
+
+        wait(lambda: len(op.list_jobs()) == 1)
+
+        job = op.list_jobs()[0]
+        wait(lambda: get_job(op.id, job)["state"] == "running")
+
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "slot_manager": {
+                    "job_environment": {
+                        "porto_executor": {
+                            "enable_test_porto_failures": True
+                        }
+                    },
+                    "abort_on_jobs_disabled": False
+                }
+            },
+            "data_node": {
+                "volume_manager": {
+                    "porto_executor": {
+                        "enable_test_porto_failures": True
+                    }
+                }
+            },
+            "porto_executor": {
+                "enable_test_porto_failures": True
+            }
+        })
+
+        def check_disable():
+            node = ls("//sys/cluster_nodes")[0]
+            alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+
+            if len(alerts) == 0:
+                return False
+            else:
+                for alert in alerts:
+                    if alert['message'] == "Scheduler jobs disabled":
+                        return True
+
+                return False
+
+        wait(lambda: check_disable())
+
+        abort_op(op.id)
+        wait(lambda: get(op.get_path() + "/@state") == "failed" or get(op.get_path() + "/@state") == "aborted")
+
+        ##################################################################
+
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "slot_manager": {
+                    "job_environment": {
+                        "porto_executor": {
+                            "enable_test_porto_failures": False
+                        }
+                    },
+                    "abort_on_jobs_disabled": False
+                }
+            },
+            "data_node": {
+                "volume_manager": {
+                    "porto_executor": {
+                        "enable_test_porto_failures": False
+                    }
+                }
+            },
+            "porto_executor": {
+                "enable_test_porto_failures": False
+            }
+        })
+
+        def check_resurrect():
+            node = ls("//sys/cluster_nodes")[0]
+            alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+
+            return len(alerts) == 0
+
+        wait(lambda: check_resurrect())
+
+        ##################################################################
+
+        op = run_op(0)
+
+        wait(lambda: get(op.get_path() + "/@state") == "completed")

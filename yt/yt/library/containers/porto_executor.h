@@ -102,6 +102,8 @@ struct TRunnableContainerSpec
 struct IPortoExecutor
     : public TRefCounted
 {
+    virtual void OnDynamicConfigChanged(const TPortoExecutorDynamicConfigPtr& newConfig) = 0;
+
     virtual TFuture<void> CreateContainer(const TString& container) = 0;
 
     virtual TFuture<void> CreateContainer(const TRunnableContainerSpec& containerSpec, bool start) = 0;

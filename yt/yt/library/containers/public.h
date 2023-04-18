@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <yt/yt/core/misc/public.h>
+
 #include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NContainers {
@@ -93,10 +95,12 @@ DECLARE_REFCOUNTED_STRUCT(IInstanceLauncher)
 DECLARE_REFCOUNTED_STRUCT(IInstance)
 DECLARE_REFCOUNTED_STRUCT(IPortoExecutor)
 
+DECLARE_REFCOUNTED_CLASS(TPortoHealthChecker)
 DECLARE_REFCOUNTED_CLASS(TInstanceLimitsTracker)
 DECLARE_REFCOUNTED_CLASS(TPortoProcess)
 DECLARE_REFCOUNTED_CLASS(TPortoResourceTracker)
 DECLARE_REFCOUNTED_CLASS(TPortoExecutorConfig)
+DECLARE_REFCOUNTED_CLASS(TPortoExecutorDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TPodSpecConfig)
 
 ////////////////////////////////////////////////////////////////////////////////

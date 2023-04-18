@@ -261,7 +261,7 @@ public:
 
             // TSlotManager::ReleaseSlot is async, so TSlotManager::GetUsedSlotCount() may be greater than ResourceUsage_.user_slots().
             YT_LOG_FATAL_IF(
-                userSlotCount < ResourceUsage_.user_slots(),
+                ResourceUsage_.user_slots() > userSlotCount,
                 "Unexpected user slot count (JobResourcesManagerValue: %v, SlotManagerValue: %v, SlotManagerEnabled: %v)",
                 ResourceUsage_.user_slots(),
                 userSlotCount,

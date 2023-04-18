@@ -1924,6 +1924,10 @@ void TJob::Cleanup()
 
     SetJobPhase(EJobPhase::Finished);
 
+    if (Bootstrap_->GetExecNodeBootstrap()->GetSlotManager()->IsEnabledJobEnvironmentResurrect()) {
+        RootVolume_.Reset();
+    }
+
     CleanupFinished_.Fire();
 
     YT_LOG_INFO("Job finished (JobState: %v)", GetState());

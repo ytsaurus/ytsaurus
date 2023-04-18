@@ -423,6 +423,28 @@ public:
         }
     }
 
+    void RemoveSchedulerJobsOnFatalAlert() override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        YT_LOG_INFO("Remove scheduler jobs on fatal alert");
+
+        std::vector<TJobPtr> jobsToRemove;
+        jobsToRemove.reserve(std::size(JobMap_));
+        for (const auto& [jobId, job] : JobMap_) {
+            YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
+
+            YT_LOG_INFO("Removing job %v due to fatal alert", jobId);
+            job->Abort(TError("Job aborted due to fatal alert"));
+
+            jobsToRemove.push_back(job);
+        }
+
+        for (const auto& job : jobsToRemove) {
+            UnregisterJob(job);
+        }
+    }
+
 private:
     const TIntrusivePtr<const TJobControllerConfig> Config_;
     NClusterNode::IBootstrapBase* const Bootstrap_;
@@ -1193,7 +1215,9 @@ private:
         ReplaceCpuWithVCpu(*request->mutable_resource_usage());
 
         auto* execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
-        if (execNodeBootstrap->GetSlotManager()->HasFatalAlert()) {
+        auto slotManager = execNodeBootstrap->GetSlotManager();
+
+        if (slotManager->HasFatalAlert()) {
             // NB(psushin): if slot manager is disabled with fatal alert we might have experienced an unrecoverable failure (e.g. hanging Porto)
             // and to avoid inconsistent state with scheduler we decide not to report to it any jobs at all.
             // We also drop all scheduler jobs from |JobMap_|.
@@ -1650,26 +1674,6 @@ private:
 
             UserMemoryOverdraftInstant_ = std::nullopt;
             CpuOverdraftInstant_ = std::nullopt;
-        }
-    }
-
-    void RemoveSchedulerJobsOnFatalAlert()
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        std::vector<TJobPtr> jobsToRemove;
-        jobsToRemove.reserve(std::size(JobMap_));
-        for (const auto& [jobId, job] : JobMap_) {
-            YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
-
-            YT_LOG_INFO("Removing job %v due to fatal alert", jobId);
-            job->Abort(TError("Job aborted due to fatal alert"));
-
-            jobsToRemove.push_back(job);
-        }
-
-        for (const auto& job : jobsToRemove) {
-            UnregisterJob(job);
         }
     }
 

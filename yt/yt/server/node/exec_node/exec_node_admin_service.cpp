@@ -66,7 +66,7 @@ private:
         for (const auto& location : locations) {
             locationIds.insert(location->GetId());
         }
-        
+
         THashSet<TString> requestLocationIds(
             request->locations().begin(),
             request->locations().end());
@@ -97,10 +97,14 @@ private:
         WaitFor(AllSucceeded(repairFutures))
             .ThrowOnError();
 
+        std::vector<ESlotManagerAlertType> alertTypes;
+        alertTypes.reserve(alertTypesToReset.size());
+
         for (const auto& alertTypeString : alertTypesToReset) {
-            auto alertType = ParseEnum<ESlotManagerAlertType>(alertTypeString);
-            slotManager->ResetAlert(alertType);
+            alertTypes.push_back(ParseEnum<ESlotManagerAlertType>(alertTypeString));
         }
+
+        slotManager->ResetAlerts(alertTypes);
 
         context->Reply();
     }

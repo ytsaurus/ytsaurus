@@ -229,7 +229,7 @@ private:
                     .InodeLimit = Settings_.UserSandboxOptions.InodeLimit,
                     .UserId = Settings_.UserSandboxOptions.UserId
                 })
-                .Apply(BIND([=] (const TErrorOr<void>& volumeOrError) {
+                .Apply(BIND([=] (const TError& volumeOrError) {
                     if (!volumeOrError.IsOK()) {
                         THROW_ERROR_EXCEPTION(TError(EErrorCode::RootVolumePreparationFailed, "Failed to set quotas")
                             << volumeOrError);
@@ -419,7 +419,7 @@ private:
                     .InodeLimit = Settings_.UserSandboxOptions.InodeLimit,
                     .UserId = Settings_.UserSandboxOptions.UserId
                 })
-                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<void>& volumeOrError) {
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& volumeOrError) {
                     if (!volumeOrError.IsOK()) {
                         THROW_ERROR_EXCEPTION(TError(EErrorCode::RootVolumePreparationFailed, "Failed to set quotas")
                             << volumeOrError);
@@ -501,7 +501,7 @@ private:
             return BIND(&TJobGpuChecker::RunGpuCheck, checker)
                 .AsyncVia(Invoker_)
                 .Run()
-                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<void>& result) {
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
                     ValidateJobPhase(EJobPhase::RunningGpuCheckCommand);
                     if (!result.IsOK()) {
                         auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "Preliminary GPU check command failed")

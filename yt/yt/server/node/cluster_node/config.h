@@ -33,6 +33,8 @@
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
+#include <yt/yt/library/containers/public.h>
+
 #include <yt/yt/core/rpc/config.h>
 
 #include <yt/yt/core/concurrency/config.h>
@@ -332,6 +334,11 @@ public:
 
     NConcurrency::TFairThrottlerConfigPtr OutThrottler;
 
+    //! Porto executor config.
+    NContainers::TPortoExecutorConfigPtr PortoExecutor;
+
+    bool EnableJobEnvironmentResurrect;
+
     //! Bucket configuration for in network throttlers.
     THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
 
@@ -390,6 +397,11 @@ public:
 
     //! IO tracker config.
     NIO::TIOTrackerConfigPtr IOTracker;
+
+    //! Porto executor config.
+    NContainers::TPortoExecutorDynamicConfigPtr PortoExecutor;
+
+    std::optional<bool> EnableJobEnvironmentResurrect;
 
     bool EnableMemoryReferenceTracker;
 
