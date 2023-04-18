@@ -256,7 +256,11 @@ xd3_decode_section (xd3_stream *stream,
   XD3_ASSERT (section->pos == section->size);
 
   stream->dec_state = nstate;
-  section->buf_max  = section->buf + section->size;
+  if (section->buf) {
+    section->buf_max  = section->buf + section->size;
+  } else {
+    section->buf_max  = NULL;
+  }
   section->pos      = 0;
   return 0;
 }

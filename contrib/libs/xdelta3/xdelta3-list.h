@@ -21,7 +21,9 @@
 static inline ETYPE*                                                    \
 LTYPE ## _entry (LTYPE* l)                                              \
 {                                                                       \
-  return (ETYPE*) ((char*) l - (ptrdiff_t) &((ETYPE*) 0)->LNAME);       \
+  ETYPE obj;                                                            \
+  ptrdiff_t offs = (char*) &obj.LNAME - (char*) &obj;                   \
+  return (ETYPE*) ((char*) l - offs);                                   \
 }                                                                       \
                                                                         \
 static inline void                                                      \

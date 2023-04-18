@@ -3863,14 +3863,14 @@ xd3_forward_match(const uint8_t *s1c, const uint8_t *s2c, usize_t n)
       usize_t nint_8 = nint - 8;
 
       while (i <= nint_8 &&
-	     s1[i++] == s2[j++] &&
-	     s1[i++] == s2[j++] &&
-	     s1[i++] == s2[j++] &&
-	     s1[i++] == s2[j++] &&
-	     s1[i++] == s2[j++] &&
-	     s1[i++] == s2[j++] &&
-	     s1[i++] == s2[j++] &&
-	     s1[i++] == s2[j++]) { }
+	     0 == memcmp(&s1[i++], &s2[j++], sizeof(int)) &&
+	     0 == memcmp(&s1[i++], &s2[j++], sizeof(int)) &&
+	     0 == memcmp(&s1[i++], &s2[j++], sizeof(int)) &&
+	     0 == memcmp(&s1[i++], &s2[j++], sizeof(int)) &&
+	     0 == memcmp(&s1[i++], &s2[j++], sizeof(int)) &&
+	     0 == memcmp(&s1[i++], &s2[j++], sizeof(int)) &&
+	     0 == memcmp(&s1[i++], &s2[j++], sizeof(int)) &&
+	     0 == memcmp(&s1[i++], &s2[j++], sizeof(int))) { }
 
       i = (i - 1) * sizeof(int);
     }
