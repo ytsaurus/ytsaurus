@@ -140,7 +140,7 @@ public:
                 const auto& offsetValue = rows[0].Values()[0];
                 YT_VERIFY(offsetValue.Id == offsetRowsetColumnId);
                 offsetTimestamp = offsetValue.Timestamp;
-                if (offsetValue.Type == EValueType::Uint64) {
+                if (offsetValue.Type != EValueType::Null) {
                     currentOffset = FromUnversionedValue<i64>(offsetValue);
                     if (DecrementOffset_) {
                         // We need to add 1, since BigRT stores the offset of the last read row.
@@ -329,6 +329,8 @@ private:
     const int OffsetColumnId_;
     //! A column filter consisting of PartitionIndexColumnName_ and OffsetColumnName_.
     const TColumnFilter SubConsumerColumnFilter_;
+
+    // COMPAT(achulkov2): Remove this once we drop support for legacy BigRT consumers.
     //! Controls whether the offset is decremented before being written to the offset table.
     //! BigRT stores the offset of the last read row, so for legacy BigRT consumers this option
     //! should be set to true.

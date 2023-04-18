@@ -1000,6 +1000,7 @@ struct TTableWriterOptions
 struct TPullQueueOptions
     : public TSelectRowsOptions
 {
+    // COMPAT(achulkov2): Remove this once we drop support for legacy PullQueue via SelectRows.
     bool UseNativeTabletNodeApi = true;
 };
 
