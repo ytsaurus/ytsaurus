@@ -42,6 +42,8 @@ public:
     const TPropagatingStorage& GetPropagatingStorage() const;
     TFls* GetFls() const;
 
+    static std::vector<TFiberPtr> List();
+
 private:
     const std::shared_ptr<TExecutionStack> Stack_;
     const TCookie RegistryCookie_;

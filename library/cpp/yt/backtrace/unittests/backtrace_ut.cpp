@@ -6,6 +6,8 @@
 
 #include <library/cpp/yt/backtrace/cursors/frame_pointer/frame_pointer_cursor.h>
 
+#include <library/cpp/yt/backtrace/cursors/interop/interop.h>
+
 #include <util/system/compiler.h>
 
 #include <contrib/libs/libunwind/include/libunwind.h>
@@ -34,27 +36,15 @@ TEST(TFramePointerCursor, FramePointerCursor)
 {
     std::vector<const void*> backtrace;
     RunInDeepStack<64>([&] {
-        unw_context_t context;
-        ASSERT_TRUE(unw_getcontext(&context) == 0);
+        unw_context_t unwContext;
+        ASSERT_TRUE(unw_getcontext(&unwContext) == 0);
 
-        unw_cursor_t cursor;
-        ASSERT_TRUE(unw_init_local(&cursor, &context) == 0);
-
-        unw_word_t rip;
-        ASSERT_TRUE(unw_get_reg(&cursor, UNW_REG_IP, &rip) == 0);
-
-        unw_word_t rsp;
-        ASSERT_TRUE(unw_get_reg(&cursor, UNW_X86_64_RSP, &rsp) == 0);
-
-        unw_word_t rbp;
-        ASSERT_TRUE(unw_get_reg(&cursor, UNW_X86_64_RBP, &rbp) == 0);
+        unw_cursor_t unwCursor;
+        ASSERT_TRUE(unw_init_local(&unwCursor, &unwContext) == 0);
 
         TSafeMemoryReader reader;
-        NBacktrace::TFramePointerCursor fpCursor(
-            &reader,
-            rip,
-            rsp,
-            rbp);
+        auto fpCursorContext = NBacktrace::FramePointerCursorContextFromLibunwindCursor(unwCursor);
+        NBacktrace::TFramePointerCursor fpCursor(&reader, fpCursorContext);
 
         while (!fpCursor.IsFinished()) {
             backtrace.push_back(fpCursor.GetCurrentIP());

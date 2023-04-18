@@ -6,25 +6,22 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(http)
+add_subdirectory(unittests)
 
-add_library(yt-library-monitoring)
-target_compile_options(yt-library-monitoring PRIVATE
+add_library(yt-library-backtrace_introspector)
+target_compile_options(yt-library-backtrace_introspector PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(yt-library-monitoring PUBLIC
+target_link_libraries(yt-library-backtrace_introspector PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
-  yt-yt-build
-  yt-library-profiling
-  library-profiling-solomon
-  library-cpp-cgiparam
-  yt-library-ytprof
-  library-ytprof-http
-  library-backtrace_introspector-http
+  backtrace-cursors-interop
+  backtrace-cursors-libunwind
+  backtrace-cursors-frame_pointer
 )
-target_sources(yt-library-monitoring PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/monitoring/http_integration.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/monitoring/monitoring_manager.cpp
+target_sources(yt-library-backtrace_introspector PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/backtrace_introspector/introspect.cpp
 )

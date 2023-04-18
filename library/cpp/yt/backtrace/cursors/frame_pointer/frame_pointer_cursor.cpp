@@ -10,13 +10,11 @@ namespace NYT::NBacktrace {
 
 TFramePointerCursor::TFramePointerCursor(
     TSafeMemoryReader* memoryReader,
-    ui64 rip,
-    ui64 rsp,
-    ui64 rbp)
+    const TFramePointerCursorContext& context)
     : MemoryReader_(memoryReader)
-    , Rip_(reinterpret_cast<const void *>(rip))
-    , Rbp_(reinterpret_cast<const void *>(rbp))
-    , StartRsp_(reinterpret_cast<const void *>(rsp))
+    , Rip_(reinterpret_cast<const void*>(context.Rip))
+    , Rbp_(reinterpret_cast<const void*>(context.Rbp))
+    , StartRsp_(reinterpret_cast<const void*>(context.Rsp))
 { }
 
 bool TFramePointerCursor::IsFinished() const
@@ -84,8 +82,7 @@ void TFramePointerCursor::MoveNext()
             }
 
             // Detect garbage pointer.
-            ui8 data;
-            if (!MemoryReader_->Read(savedRip, &data)) {
+            if (!checkPtr(savedRip)) {
                 Finished_ = true;
                 return;
             }

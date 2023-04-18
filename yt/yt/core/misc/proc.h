@@ -107,10 +107,9 @@ TCgroupMemoryStat GetCgroupMemoryStat(
 THashMap<TString, i64> GetVmstat();
 
 ui64 GetProcessCumulativeMajorPageFaults(int pid = -1);
-
 size_t GetCurrentProcessId();
-
 size_t GetCurrentThreadId();
+std::vector<size_t> GetCurrentProcessThreadIds();
 
 void ChownChmodDirectory(
     const TString& path,

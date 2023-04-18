@@ -33,6 +33,7 @@ target_link_libraries(yt-library-ytprof PUBLIC
   yutil
   cpp-yt-memory
   cpp-yt-threading
+  backtrace-cursors-interop
   backtrace-cursors-frame_pointer
   backtrace-cursors-libunwind
   library-ytprof-api

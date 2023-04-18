@@ -10,6 +10,8 @@
 
 #include <library/cpp/yt/backtrace/cursors/frame_pointer/frame_pointer_cursor.h>
 
+#include <library/cpp/yt/backtrace/cursors/interop/interop.h>
+
 #include <util/system/yield.h>
 
 #include <csignal>
@@ -171,10 +173,8 @@ void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
         }
     }
 
-    auto rip = ucontext->uc_mcontext.gregs[REG_RIP];
-    auto rsp = ucontext->uc_mcontext.gregs[REG_RSP];
-    auto rbp = ucontext->uc_mcontext.gregs[REG_RBP];
-    NBacktrace::TFramePointerCursor cursor(&Reader_, rip, rsp, rbp);
+    auto cursorContext = NBacktrace::FramePointerCursorContextFromUcontext(*ucontext);
+    NBacktrace::TFramePointerCursor cursor(&Reader_, cursorContext);
 
     RecordSample(&cursor, ProfilePeriod_);
 }

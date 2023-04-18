@@ -30,6 +30,8 @@
 #ifdef _linux_
 #include <yt/yt/library/ytprof/http/handler.h>
 #include <yt/yt/library/ytprof/build_info.h>
+
+#include <yt/yt/library/backtrace_introspector/http/handler.h>
 #endif
 
 #include <library/cpp/cgiparam/cgiparam.h>
@@ -88,11 +90,14 @@ void Initialize(
             CreateVirtualNode(exporter->GetSensorService()));
 
 #ifdef _linux_
-        auto buildInfo = NYTProf::TBuildInfo::GetDefault();
-        buildInfo.BinaryVersion = GetVersion();
-        NYTProf::Register(monitoringServer, "/ytprof", buildInfo);
-#endif
+        {
+            auto buildInfo = NYTProf::TBuildInfo::GetDefault();
+            buildInfo.BinaryVersion = GetVersion();
+            NYTProf::Register(monitoringServer, "/ytprof", buildInfo);
+        }
 
+        NBacktraceIntrospector::Register(monitoringServer);
+#endif
         monitoringServer->AddHandler(
             "/orchid/",
             GetOrchidYPathHttpHandler(*orchidRoot));

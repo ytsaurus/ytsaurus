@@ -8,6 +8,7 @@
 
 add_subdirectory(auth)
 add_subdirectory(auth_server)
+add_subdirectory(backtrace_introspector)
 add_subdirectory(clickhouse_discovery)
 add_subdirectory(clickhouse_functions)
 add_subdirectory(codegen)

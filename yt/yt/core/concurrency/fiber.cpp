@@ -277,6 +277,11 @@ void TFiber::Clear()
     Fls_.reset();
 }
 
+std::vector<TFiberPtr> TFiber::List()
+{
+    return TFiberRegistry::Get()->List();
+}
+
 namespace NDetail {
 
 void FiberTrampoline();

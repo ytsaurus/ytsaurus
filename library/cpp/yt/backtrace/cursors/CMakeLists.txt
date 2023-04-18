@@ -7,4 +7,5 @@
 
 
 add_subdirectory(frame_pointer)
+add_subdirectory(interop)
 add_subdirectory(libunwind)

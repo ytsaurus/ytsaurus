@@ -7,24 +7,18 @@
 
 
 
-add_library(yt-library-monitoring)
-target_compile_options(yt-library-monitoring PRIVATE
+add_library(library-backtrace_introspector-http)
+target_compile_options(library-backtrace_introspector-http PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(yt-library-monitoring PUBLIC
+target_link_libraries(library-backtrace_introspector-http PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
-  yt-yt-build
-  yt-library-profiling
-  library-profiling-solomon
-  library-cpp-cgiparam
-  yt-library-ytprof
-  library-ytprof-http
-  library-backtrace_introspector-http
+  yt-core-http
+  yt-library-backtrace_introspector
 )
-target_sources(yt-library-monitoring PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/monitoring/http_integration.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/monitoring/monitoring_manager.cpp
+target_sources(library-backtrace_introspector-http PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/backtrace_introspector/http/handler.cpp
 )

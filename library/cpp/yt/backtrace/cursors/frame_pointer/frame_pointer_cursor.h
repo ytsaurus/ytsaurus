@@ -6,14 +6,19 @@ namespace NYT::NBacktrace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFramePointerCursorContext
+{
+    ui64 Rip;
+    ui64 Rsp;
+    ui64 Rbp;
+};
+
 class TFramePointerCursor
 {
 public:
     TFramePointerCursor(
         TSafeMemoryReader* memoryReader,
-        ui64 rip,
-        ui64 rsp,
-        ui64 rbp);
+        const TFramePointerCursorContext& context);
 
     bool IsFinished() const;
     const void* GetCurrentIP() const;
@@ -24,9 +29,9 @@ private:
     bool Finished_ = false;
     bool First_ = true;
 
-    const void *Rip_ = nullptr;
-    const void *Rbp_ = nullptr;
-    const void *StartRsp_ = nullptr;
+    const void* Rip_ = nullptr;
+    const void* Rbp_ = nullptr;
+    const void* StartRsp_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

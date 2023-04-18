@@ -1,11 +1,11 @@
 #include "spinlock_profiler.h"
 
+#include <library/cpp/yt/backtrace/cursors/interop/interop.h>
+
 #include <absl/base/internal/spinlock.h>
 #include <absl/base/internal/cycleclock.h>
 
 #include <util/system/yield.h>
-
-#include <contrib/libs/libunwind/include/libunwind.h>
 
 #include <mutex>
 
@@ -51,37 +51,22 @@ void TSpinlockProfiler::DisableProfiler()
     }
 }
 
-void TSpinlockProfiler::RecordEvent(const void *lock, int64_t waitCycles)
+void TSpinlockProfiler::RecordEvent(const void* /*lock*/, int64_t waitCycles)
 {
-    Y_UNUSED(lock);
-
     unw_context_t uwContext;
     YT_VERIFY(unw_getcontext(&uwContext) == 0);
 
-    unw_cursor_t uwCursor;
-    YT_VERIFY(unw_init_local(&uwCursor, &uwContext) == 0);
+    unw_cursor_t unwCursor;
+    YT_VERIFY(unw_init_local(&unwCursor, &uwContext) == 0);
 
-    unw_word_t rip;
-    YT_VERIFY(unw_get_reg(&uwCursor, UNW_REG_IP, &rip) == 0);
-
-    unw_word_t rsp;
-    YT_VERIFY(unw_get_reg(&uwCursor, UNW_X86_64_RSP, &rsp) == 0);
-
-    unw_word_t rbp;
-    YT_VERIFY(unw_get_reg(&uwCursor, UNW_X86_64_RBP, &rbp) == 0);
-
-    NBacktrace::TFramePointerCursor fpCursor(
-        &Reader_,
-        rip,
-        rsp,
-        rbp);
-
+    auto fpCursorContext = NBacktrace::FramePointerCursorContextFromLibunwindCursor(unwCursor);
+    NBacktrace::TFramePointerCursor fpCursor(&Reader_, fpCursorContext);
     RecordSample(&fpCursor, waitCycles);
 }
 
 static thread_local int SpinlockEventCount;
 
-void TSpinlockProfiler::OnEvent(const void *lock, int64_t waitCycles)
+void TSpinlockProfiler::OnEvent(const void* lock, int64_t waitCycles)
 {
     auto samplingRate = SamplingRate_.load(std::memory_order::relaxed);
     if (samplingRate == 0) {
@@ -179,20 +164,8 @@ void TBlockingProfiler::RecordEvent(
     unw_cursor_t unwCursor;
     YT_VERIFY(unw_init_local(&unwCursor, &unwContext) == 0);
 
-    unw_word_t rip;
-    YT_VERIFY(unw_get_reg(&unwCursor, UNW_REG_IP, &rip) == 0);
-
-    unw_word_t rsp;
-    YT_VERIFY(unw_get_reg(&unwCursor, UNW_X86_64_RSP, &rsp) == 0);
-
-    unw_word_t rbp;
-    YT_VERIFY(unw_get_reg(&unwCursor, UNW_X86_64_RBP, &rbp) == 0);
-
-    NBacktrace::TFramePointerCursor fpCursor(
-        &Reader_,
-        rip,
-        rsp,
-        rbp);
+    auto fpCursorContext = NBacktrace::FramePointerCursorContextFromLibunwindCursor(unwCursor);
+    NBacktrace::TFramePointerCursor fpCursor(&Reader_, fpCursorContext);
     RecordSample(&fpCursor, cpuDelay);
 }
 

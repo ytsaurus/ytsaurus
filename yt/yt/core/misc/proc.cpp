@@ -289,6 +289,28 @@ size_t GetCurrentThreadId()
 #endif
 }
 
+std::vector<size_t> GetCurrentProcessThreadIds()
+{
+#ifdef __linux__
+    std::vector<size_t> result;
+    TFileEntitiesList fileList(TFileEntitiesList::EM_DIRS);
+    try {
+        fileList.Fill("/proc/self/task");
+        while (const char* name = fileList.Next()) {
+            if (auto optionalId = TryFromString<size_t>(name)) {
+                result.push_back(*optionalId);
+            }
+        }
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Error listing /proc/self/task");
+        return {};
+    }
+    return result;
+#else
+    return {};
+#endif
+}
+
 void ChownChmodDirectory(const TString& path, const std::optional<uid_t>& userId, const std::optional<int>& permissions)
 {
 #ifdef _unix_
