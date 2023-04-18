@@ -89,7 +89,7 @@ void WaitUntilSet(
 //! The fiber is rescheduled to #invoker.
 template <class T>
 [[nodiscard]] TErrorOr<T> WaitFor(
-    const TFuture<T>& future,
+    TFuture<T> future,
     IInvokerPtr invoker = GetCurrentInvoker());
 
 //! Similar to #WaitFor but if #future is already set then the fiber
@@ -97,7 +97,7 @@ template <class T>
 //! the current invoker.
 template <class T>
 [[nodiscard]] TErrorOr<T> WaitForFast(
-    const TFuture<T>& future);
+    TFuture<T> future);
 
 //! Similar to #WaitFor but extracts the value from #future via |GetUnique|.
 template <class T>
@@ -113,7 +113,7 @@ template <class T>
 //! A possibly blocking version of #WaitFor.
 template <class T>
 TErrorOr<T> WaitForWithStrategy(
-    const TFuture<T>& future,
+    TFuture<T> future,
     EWaitForStrategy strategy);
 
 //! Reschedules the current fiber to the current invoker.

@@ -10,7 +10,7 @@ namespace NYT::NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-[[nodiscard]] TErrorOr<T> WaitFor(const TFuture<T>& future, IInvokerPtr invoker)
+[[nodiscard]] TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
 {
     YT_ASSERT(future);
     YT_ASSERT(invoker);
@@ -21,7 +21,7 @@ template <class T>
 }
 
 template <class T>
-[[nodiscard]] TErrorOr<T> WaitForFast(const TFuture<T>& future)
+[[nodiscard]] TErrorOr<T> WaitForFast(TFuture<T> future)
 {
     YT_ASSERT(future);
 
@@ -57,7 +57,7 @@ template <class T>
 
 template <class T>
 TErrorOr<T> WaitForWithStrategy(
-    const TFuture<T>& future,
+    TFuture<T> future,
     EWaitForStrategy strategy)
 {
     switch (strategy) {

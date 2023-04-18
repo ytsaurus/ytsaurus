@@ -1105,6 +1105,41 @@ TEST_W(TSchedulerTest, WaitForFast2)
     EXPECT_TRUE(*switched);
 }
 
+TEST_W(TSchedulerTest, FutureUpdatedRaceInWaitFor_YT_18899)
+{
+    auto threadPool = CreateThreadPool(1, "TestThreads");
+    auto threadPoolInvoker = threadPool->GetInvoker();
+    auto serializedInvoker = CreateSerializedInvoker(threadPoolInvoker);
+
+    // N.B. We are testing race, so make a bunch of reps here.
+    for (int i = 0; i != 1'000; ++i) {
+        auto promise = NewPromise<void>();
+        auto modifiedFuture = promise.ToFuture();
+
+        modifiedFuture.Apply(
+            BIND([&] {
+                modifiedFuture = MakeFuture(TError{"error that should not be seen"});
+            })
+                .AsyncVia(serializedInvoker)
+        );
+
+        auto testResultFuture = BIND([&] {
+            // N.B. `future` object will be modified after we enter `WaitFor` function.
+            // We expect to get result of original future that will succeed.
+            WaitFor(modifiedFuture)
+                .ThrowOnError();
+        })
+            .AsyncVia(serializedInvoker)
+            .Run();
+
+        promise.Set();
+
+        ASSERT_NO_THROW(testResultFuture
+            .Get()
+            .ThrowOnError());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSuspendableInvokerTest
