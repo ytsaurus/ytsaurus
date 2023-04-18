@@ -19,7 +19,7 @@ from yt_commands import (
     align_chaos_cell_tag, migrate_replication_cards, alter_replication_card,
     get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error,
     create_table_replica, sync_enable_table_replica, get_tablet_infos, ban_node,
-    suspend_chaos_cells, resume_chaos_cells, merge)
+    suspend_chaos_cells, resume_chaos_cells, merge, add_maintenance, remove_maintenance)
 
 from yt_type_helpers import make_schema
 
@@ -2019,12 +2019,23 @@ class TestChaos(ChaosTestBase):
         wait(lambda: len(ls("//sys/chaos_cells/{}/2/snapshots".format(cell_id), driver=remote_driver1)) != 0)
 
         assert get("//sys/chaos_cells/{}/@health".format(cell_id)) == "good"
+
+        def get_alive_non_alien_peer_count():
+            peers = get("//sys/chaos_cells/{}/@peers".format(cell_id), driver=remote_driver1)
+            return len([peer for peer in peers if not peer.get("alien", False) and peer["state"] != "none"])
+
+        chaos_nodes = ls("//sys/chaos_nodes", driver=remote_driver1)
+        assert len(chaos_nodes) == 1
+        maintenance_id = add_maintenance("cluster_node", chaos_nodes[0], "ban", comment="", driver=remote_driver1)
+
         set("//sys/chaos_cell_bundles/chaos_bundle/@node_tag_filter", "empty_set_of_nodes", driver=remote_driver1)
         wait(lambda: get("//sys/chaos_cells/{}/@local_health".format(cell_id), driver=remote_driver1) != "good")
+        wait(lambda: get_alive_non_alien_peer_count() == 0)
 
         remove("//sys/chaos_cells/{}/2/snapshots/*".format(cell_id), driver=remote_driver1)
 
         set("//sys/chaos_cell_bundles/chaos_bundle/@node_tag_filter", "", driver=remote_driver1)
+        remove_maintenance("cluster_node", chaos_nodes[0], id=maintenance_id, driver=remote_driver1)
         wait(lambda: get("//sys/chaos_cells/{}/@local_health".format(cell_id), driver=remote_driver1) == "good")
         wait(lambda: get("//sys/chaos_cells/{}/@health".format(cell_id)) == "good")
         assert len(ls("//sys/chaos_cells/{}/2/snapshots".format(cell_id), driver=remote_driver1)) != 0
