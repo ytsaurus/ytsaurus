@@ -12,7 +12,6 @@ namespace NYT::NCompression::NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CompressionLogger;
-static constexpr size_t MaxZstdBlockSize = 1_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,25 +20,10 @@ struct TZstdCompressBufferTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-size_t EstimateOutputSize(size_t totalInputSize)
-{
-    size_t headerSize = ZSTD_compressBound(0);
-    size_t fullBlocksNumber = totalInputSize / MaxZstdBlockSize;
-    size_t lastBlockSize = totalInputSize % MaxZstdBlockSize;
-    return
-        headerSize +
-        fullBlocksNumber * ZSTD_compressBound(MaxZstdBlockSize) +
-        ZSTD_compressBound(lastBlockSize);
-}
-
-} // namespace
-
 void ZstdCompress(int level, TSource* source, TBlob* output)
 {
     ui64 totalInputSize = source->Available();
-    output->Resize(EstimateOutputSize(totalInputSize) + sizeof(totalInputSize), /*initializeStorage*/ false);
+    output->Resize(ZSTD_compressBound(totalInputSize) + sizeof(totalInputSize), /*initializeStorage*/ false);
     size_t curOutputPos = 0;
 
     // Write input size that will be used during decompression.
@@ -49,93 +33,107 @@ void ZstdCompress(int level, TSource* source, TBlob* output)
         curOutputPos += sizeof(totalInputSize);
     }
 
-    auto context = ZSTD_createCCtx();
-    auto contextGuard = Finally([&] () {
-       ZSTD_freeCCtx(context);
-    });
-
     auto checkError = [] (size_t result) {
         YT_LOG_FATAL_IF(ZSTD_isError(result), "Zstd compression failed (Error: %v)",
             ZSTD_getErrorName(result));
     };
 
-    // Write header.
+    auto context = ZSTD_createCCtx();
+    auto contextGuard = Finally([&] () {
+       ZSTD_freeCCtx(context);
+    });
+
     {
-        size_t headerSize = ZSTD_compressBegin(context, level);
-        checkError(headerSize);
-        curOutputPos += headerSize;
+        auto result = ZSTD_CCtx_setParameter(context, ZSTD_c_compressionLevel, level);
+        checkError(result);
     }
 
-    auto compressAndAppendBuffer = [&] (const void* buffer, size_t size) {
-        if (size == 0) {
-            return;
-        }
-
-        void* outputPtr = output->Begin() + curOutputPos;
-        size_t compressedSize = ZSTD_compressContinue(
-            context,
-            outputPtr,
-            output->Size() - curOutputPos,
-            buffer,
-            size);
-        checkError(compressedSize);
-        curOutputPos += compressedSize;
+    struct CompressResult
+    {
+        size_t Result;
+        size_t ProcessedBytes;
     };
 
-    TBlob block(GetRefCountedTypeCookie<TZstdCompressBufferTag>(), MaxZstdBlockSize, false);
+    auto compressToOutput = [&] (const char* buffer, size_t size, bool isLastBlock) -> CompressResult {
+        ZSTD_EndDirective mode = isLastBlock ? ZSTD_e_end : ZSTD_e_continue;
+
+        ZSTD_inBuffer zstdInput = {buffer, size, 0};
+        ZSTD_outBuffer zstdOutput = {output->Begin(), output->Size(), curOutputPos};
+
+        size_t result = ZSTD_compressStream2(context, &zstdOutput, &zstdInput, mode);
+        checkError(result);
+        curOutputPos = zstdOutput.pos;
+
+        return CompressResult{
+            .Result = result,
+            .ProcessedBytes = zstdInput.pos,
+        };
+    };
+
+    auto recommendedInputSize = ZSTD_CStreamInSize();
+
+    auto block = TBlob(GetRefCountedTypeCookie<TZstdCompressBufferTag>());
     size_t blockSize = 0;
-    auto flushGuard = [&] {
-        compressAndAppendBuffer(block.Begin(), blockSize);
+
+    auto compressDataFromBlock = [&] (bool isLastBlock) {
+        size_t remainingSize = blockSize;
+        while (remainingSize > 0) {
+            auto compressResult = compressToOutput(
+                block.Begin() + (blockSize - remainingSize),
+                remainingSize,
+                isLastBlock);
+            remainingSize -= compressResult.ProcessedBytes;
+            if (isLastBlock ? compressResult.Result == 0 : remainingSize == 0) {
+                break;
+            }
+        }
         blockSize = 0;
     };
 
-    while (source->Available()) {
+    while (source->Available() > 0) {
         size_t inputSize;
-        const void* inputPtr = source->Peek(&inputSize);
+        const char* inputPtr = source->Peek(&inputSize);
+
+        bool shouldFlushBlock = false;
+        if (inputSize < recommendedInputSize) {
+            if (block.IsEmpty()) {
+                block.Resize(recommendedInputSize, /*initializeStorage*/ false);
+            }
+            if (blockSize + inputSize <= block.Size()) {
+                // Append to block.
+                memcpy(block.Begin() + blockSize, inputPtr, inputSize);
+                blockSize += inputSize;
+                source->Skip(inputSize);
+                continue;
+            } else {
+                shouldFlushBlock = true;
+            }
+        } else {
+            shouldFlushBlock = blockSize > 0;
+        }
+
+        if (shouldFlushBlock) {
+            compressDataFromBlock(/*isLastBlock*/ false);
+        }
+
         size_t remainingSize = inputSize;
 
-        auto fillBlock = [&] (size_t size) {
-            memcpy(block.Begin() + blockSize, inputPtr, size);
-            blockSize += size;
-            source->Skip(size);
-            inputPtr = source->Peek(&inputSize);
-            remainingSize -= size;
-        };
-
-        if (blockSize != 0) {
-            size_t takeSize = std::min(remainingSize, MaxZstdBlockSize - blockSize);
-            fillBlock(takeSize);
-            if (blockSize == MaxZstdBlockSize) {
-                flushGuard();
+        bool isLastBlock = source->Available() == remainingSize;
+        while (true) {
+            auto compressResult = compressToOutput(
+                inputPtr + (inputSize - remainingSize),
+                remainingSize,
+                isLastBlock);
+            source->Skip(compressResult.ProcessedBytes);
+            remainingSize -= compressResult.ProcessedBytes;
+            if (isLastBlock ? compressResult.Result == 0 : remainingSize == 0) {
+                break;
             }
         }
-
-        while (remainingSize >= MaxZstdBlockSize) {
-            compressAndAppendBuffer(inputPtr, MaxZstdBlockSize);
-            source->Skip(MaxZstdBlockSize);
-            inputPtr = source->Peek(&inputSize);
-            remainingSize -= MaxZstdBlockSize;
-        }
-
-        if (remainingSize > 0) {
-            fillBlock(remainingSize);
-        }
-
-        YT_VERIFY(remainingSize == 0);
     }
-    flushGuard();
 
-    // Write footer.
-    {
-        void* outputPtr = output->Begin() + curOutputPos;
-        size_t compressedSize = ZSTD_compressEnd(
-            context,
-            outputPtr,
-            output->Size() - curOutputPos,
-            nullptr,
-            0);
-        checkError(compressedSize);
-        curOutputPos += compressedSize;
+    if (blockSize > 0) {
+        compressDataFromBlock(/*isLastBlock*/ true);
     }
 
     output->Resize(curOutputPos);
