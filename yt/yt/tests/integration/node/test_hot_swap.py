@@ -96,7 +96,7 @@ class TestHotSwap(YTEnvSetup):
 
         for node in nodes:
             wait(lambda: exists("//sys/cluster_nodes/{0}/orchid/reboot_manager".format(node)))
-            wait(lambda: not get("//sys/cluster_nodes/{0}/orchid/reboot_manager/is_waiting_reboot".format(node)))
+            wait(lambda: not get("//sys/cluster_nodes/{0}/orchid/reboot_manager/need_reboot".format(node)))
             wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) > 0)
         wait(lambda: can_write())
 

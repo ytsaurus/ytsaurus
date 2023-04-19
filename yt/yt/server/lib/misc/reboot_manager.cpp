@@ -1,5 +1,3 @@
-#include "public.h"
-
 #include "reboot_manager.h"
 
 #include <yt/yt/core/ytree/fluent.h>
