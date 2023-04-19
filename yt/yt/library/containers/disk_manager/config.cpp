@@ -50,4 +50,14 @@ void TDiskManagerProxyDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TActiveDiskCheckerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("check_period", &TThis::CheckPeriod)
+        .Default(TDuration::Minutes(1));
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NContainers

@@ -913,6 +913,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("testing_options", &TThis::TestingOptions)
         .DefaultNew();
 
+    registrar.Parameter("active_disk_checker", &TThis::ActiveDiskChecker)
+        .DefaultNew();
+
     registrar.Postprocessor([] (TThis* config) {
         if (!config->AdaptiveChunkRepairJob) {
             config->AdaptiveChunkRepairJob = New<NChunkClient::TErasureReaderConfig>();

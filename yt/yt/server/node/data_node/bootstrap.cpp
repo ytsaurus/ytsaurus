@@ -30,6 +30,7 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/yt/library/containers/disk_manager/active_disk_checker.h>
 #include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
 #include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
 
@@ -271,16 +272,21 @@ public:
 
         DiskManagerProxy_ = CreateDiskManagerProxy(
             GetConfig()->DataNode->DiskManagerProxy);
+        DiskInfoProvider_ = New<TDiskInfoProvider>(DiskManagerProxy_);
         LocationManager_ = New<TLocationManager>(
             ChunkStore_,
             GetControlInvoker(),
-            New<TDiskInfoProvider>(DiskManagerProxy_));
+            DiskInfoProvider_);
         LocationHealthChecker_ = New<TLocationHealthChecker>(
             ChunkStore_,
             LocationManager_,
             GetControlInvoker(),
             GetConfig()->DataNode->LocationHealthChecker);
         LocationHealthChecker_->Initialize();
+        ActiveDiskChecker_ = New<TActiveDiskChecker>(
+            DiskInfoProvider_,
+            RebootManager_,
+            GetControlInvoker());
     }
 
     void Run() override
@@ -315,6 +321,8 @@ public:
         AllyReplicaManager_->Start();
 
         LocationHealthChecker_->Start();
+
+        ActiveDiskChecker_->Start();
     }
 
     const TChunkStorePtr& GetChunkStore() const override
@@ -482,8 +490,10 @@ private:
     IIOThroughputMeterPtr IOThroughputMeter_;
 
     IDiskManagerProxyPtr DiskManagerProxy_;
+    TDiskInfoProviderPtr DiskInfoProvider_;
     TLocationManagerPtr LocationManager_;
     TLocationHealthCheckerPtr LocationHealthChecker_;
+    TActiveDiskCheckerPtr ActiveDiskChecker_;
 
     TMasterJobSensors MasterJobSensors_;
 
@@ -519,6 +529,7 @@ private:
 
         DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DataNode->DiskManagerProxy);
         LocationHealthChecker_->OnDynamicConfigChanged(newConfig->DataNode->LocationHealthChecker);
+        ActiveDiskChecker_->OnDynamicConfigChanged(newConfig->DataNode->ActiveDiskChecker);
     }
 };
 

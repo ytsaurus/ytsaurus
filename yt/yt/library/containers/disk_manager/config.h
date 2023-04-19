@@ -62,4 +62,19 @@ DEFINE_REFCOUNTED_TYPE(TDiskManagerProxyDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TActiveDiskCheckerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<bool> Enabled;
+    std::optional<TDuration> CheckPeriod;
+
+    REGISTER_YSON_STRUCT(TActiveDiskCheckerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TActiveDiskCheckerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NContainers

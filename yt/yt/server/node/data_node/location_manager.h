@@ -89,6 +89,7 @@ private:
 
     const TChunkStorePtr ChunkStore_;
     const TLocationManagerPtr LocationManager_;
+
     NConcurrency::TPeriodicExecutorPtr HealthCheckerExecutor_;
 
     void OnLocationsHealthCheck();

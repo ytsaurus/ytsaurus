@@ -932,6 +932,8 @@ public:
     //! Publish disabled locations to master.
     std::optional<bool> PublishDisabledLocations;
 
+    NContainers::TActiveDiskCheckerDynamicConfigPtr ActiveDiskChecker;
+
     TP2PConfigPtr P2P;
 
     TChunkAutotomizerConfigPtr ChunkAutotomizer;

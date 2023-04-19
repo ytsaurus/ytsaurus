@@ -38,9 +38,11 @@ struct TDiskInfo
 DECLARE_REFCOUNTED_STRUCT(TMockedDiskConfig)
 DECLARE_REFCOUNTED_STRUCT(TDiskManagerProxyConfig)
 DECLARE_REFCOUNTED_STRUCT(TDiskManagerProxyDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TActiveDiskCheckerDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IDiskManagerProxy)
 DECLARE_REFCOUNTED_CLASS(TDiskInfoProvider)
+DECLARE_REFCOUNTED_CLASS(TActiveDiskChecker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
