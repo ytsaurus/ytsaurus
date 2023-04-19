@@ -70,11 +70,18 @@ private:
 };
 
 void Register(
+    const IRequestPathMatcherPtr& handlers,
+    const TString& prefix)
+{
+    handlers->Add(prefix + "/threads", New<TThreadsHandler>());
+    handlers->Add(prefix + "/fibers", New<TFibersHandler>());
+}
+
+void Register(
     const IServerPtr& server,
     const TString& prefix)
 {
-    server->AddHandler(prefix + "/threads", New<TThreadsHandler>());
-    server->AddHandler(prefix + "/fibers", New<TFibersHandler>());
+    Register(server->GetPathMatcher(), prefix);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
