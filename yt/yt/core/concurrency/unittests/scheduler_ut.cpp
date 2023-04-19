@@ -1123,7 +1123,10 @@ TEST_W(TSchedulerTest, FutureUpdatedRaceInWaitFor_YT_18899)
                 .AsyncVia(serializedInvoker)
         );
 
+        std::atomic<bool> enteredWaitingAction{false};
+
         auto testResultFuture = BIND([&] {
+            enteredWaitingAction = true;
             // N.B. `future` object will be modified after we enter `WaitFor` function.
             // We expect to get result of original future that will succeed.
             WaitFor(modifiedFuture)
@@ -1132,7 +1135,17 @@ TEST_W(TSchedulerTest, FutureUpdatedRaceInWaitFor_YT_18899)
             .AsyncVia(serializedInvoker)
             .Run();
 
-        promise.Set();
+        // Wait until serialized executor starts executing action.
+        while (!enteredWaitingAction) {}
+
+        BIND([&] {
+            // N.B. wating action is inside WairFor now, because:
+            //   - we know that waiting action had started exectution before this action was scheduled
+            //   - this action is executed inside the same serialized invoker.
+            promise.Set();
+        })
+            .AsyncVia(serializedInvoker)
+            .Run();
 
         ASSERT_NO_THROW(testResultFuture
             .Get()
