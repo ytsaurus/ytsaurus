@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.rpc.RpcClient;
-import tech.ytsaurus.client.rpc.RpcError;
+import tech.ytsaurus.core.common.YTsaurusError;
 
 class RpcClientSlot implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(RpcClientSlot.class);
@@ -64,7 +64,7 @@ class RpcClientSlot implements AutoCloseable {
     void setClient(RpcClient client, HostPort address) {
         RpcClient failureDetectingClient = new FailureDetectingRpcClient(
                 client,
-                RpcError::isUnrecoverable,
+                YTsaurusError::isUnrecoverable,
                 (e) -> setSeemsBroken()
         );
         this.address = address;

@@ -1,6 +1,6 @@
-package tech.ytsaurus.client.rpc;
+package tech.ytsaurus.core.common;
 
-public enum RpcErrorCode {
+public enum YTsaurusErrorCode {
     Ok(0),
     Generic(1),
     Canceled(2),
@@ -52,7 +52,7 @@ public enum RpcErrorCode {
     @SuppressWarnings("checkstyle:VisibilityModifier")
     public final int code;
 
-    RpcErrorCode(int code) {
+    YTsaurusErrorCode(int code) {
         this.code = code;
     }
 

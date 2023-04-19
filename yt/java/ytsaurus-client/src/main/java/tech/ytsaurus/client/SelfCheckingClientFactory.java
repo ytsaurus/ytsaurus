@@ -12,9 +12,9 @@ import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcClient;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcClientResponse;
-import tech.ytsaurus.client.rpc.RpcError;
-import tech.ytsaurus.client.rpc.RpcErrorCode;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.core.common.YTsaurusError;
+import tech.ytsaurus.core.common.YTsaurusErrorCode;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.rpc.TReqDiscover;
@@ -62,11 +62,12 @@ class SelfCheckingClient extends FailureDetectingRpcClient implements RpcClient 
         this.statusFuture = statusFuture;
         setHandlers(
                 e -> {
-                    if (e instanceof RpcError && ((RpcError) e).matches(RpcErrorCode.TableMountInfoNotReady.code)) {
+                    if (e instanceof YTsaurusError &&
+                            ((YTsaurusError) e).matches(YTsaurusErrorCode.TableMountInfoNotReady.code)) {
                         // Workaround: we want to treat such errors as recoverable.
                         return false;
                     }
-                    return RpcError.isUnrecoverable(e);
+                    return YTsaurusError.isUnrecoverable(e);
                 },
                 e -> {
                     logger.debug("Self checking client {} detected fatal error:", this, e);

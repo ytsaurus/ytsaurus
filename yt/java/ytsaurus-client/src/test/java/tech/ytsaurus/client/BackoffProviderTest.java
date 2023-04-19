@@ -5,13 +5,13 @@ import java.time.Duration;
 import org.junit.Assert;
 import org.junit.Test;
 import tech.ytsaurus.TError;
-import tech.ytsaurus.client.rpc.RpcError;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.core.common.YTsaurusError;
 
 public class BackoffProviderTest {
     static final int REQUEST_QUEUE_SIZE_LIMIT_EXCEEDED = 904;
 
-    static RpcError rpcErrorWithCodes(int... codes) {
+    static YTsaurusError rpcErrorWithCodes(int... codes) {
         TError error = null;
         if (codes.length == 0) {
             error = TError.newBuilder()
@@ -30,7 +30,7 @@ public class BackoffProviderTest {
             error = outerError.build();
         }
 
-        return new RpcError(error);
+        return new YTsaurusError(error);
     }
 
     @Test

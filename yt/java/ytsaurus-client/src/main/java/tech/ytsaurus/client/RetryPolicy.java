@@ -14,10 +14,10 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
-import tech.ytsaurus.client.rpc.RpcError;
-import tech.ytsaurus.client.rpc.RpcErrorCode;
 import tech.ytsaurus.client.rpc.RpcFailoverPolicy;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.core.common.YTsaurusError;
+import tech.ytsaurus.core.common.YTsaurusErrorCode;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
 
@@ -139,32 +139,32 @@ public abstract class RetryPolicy {
     @NonNullFields
     static class DefaultRetryPolicy extends RetryPolicy {
         private static final HashSet CODES_FOR_RETRY = new HashSet<>(Arrays.asList(
-                RpcErrorCode.TransactionLockConflict.getCode(),
-                RpcErrorCode.AllWritesDisabled.getCode(),
-                RpcErrorCode.TableMountInfoNotReady.getCode(),
-                RpcErrorCode.TooManyRequests.getCode(),
-                RpcErrorCode.RequestQueueSizeLimitExceeded.getCode(),
-                RpcErrorCode.RpcRequestQueueSizeLimitExceeded.getCode(),
-                RpcErrorCode.TooManyOperations.getCode(),
-                RpcErrorCode.TransportError.getCode(),
-                RpcErrorCode.OperationProgressOutdated.getCode(),
-                RpcErrorCode.Canceled.getCode()
+                YTsaurusErrorCode.TransactionLockConflict.getCode(),
+                YTsaurusErrorCode.AllWritesDisabled.getCode(),
+                YTsaurusErrorCode.TableMountInfoNotReady.getCode(),
+                YTsaurusErrorCode.TooManyRequests.getCode(),
+                YTsaurusErrorCode.RequestQueueSizeLimitExceeded.getCode(),
+                YTsaurusErrorCode.RpcRequestQueueSizeLimitExceeded.getCode(),
+                YTsaurusErrorCode.TooManyOperations.getCode(),
+                YTsaurusErrorCode.TransportError.getCode(),
+                YTsaurusErrorCode.OperationProgressOutdated.getCode(),
+                YTsaurusErrorCode.Canceled.getCode()
         ));
 
         private static final HashSet CHUNK_NOT_RETRIABLE_CODES = new HashSet<>(Arrays.asList(
-                RpcErrorCode.SessionAlreadyExists.getCode(),
-                RpcErrorCode.ChunkAlreadyExists.getCode(),
-                RpcErrorCode.WindowError.getCode(),
-                RpcErrorCode.BlockContentMismatch.getCode(),
-                RpcErrorCode.InvalidBlockChecksum.getCode(),
-                RpcErrorCode.BlockOutOfRange.getCode(),
-                RpcErrorCode.MissingExtension.getCode(),
-                RpcErrorCode.NoSuchBlock.getCode(),
-                RpcErrorCode.NoSuchChunk.getCode(),
-                RpcErrorCode.NoSuchChunkList.getCode(),
-                RpcErrorCode.NoSuchChunkTree.getCode(),
-                RpcErrorCode.NoSuchChunkView.getCode(),
-                RpcErrorCode.NoSuchMedium.getCode()
+                YTsaurusErrorCode.SessionAlreadyExists.getCode(),
+                YTsaurusErrorCode.ChunkAlreadyExists.getCode(),
+                YTsaurusErrorCode.WindowError.getCode(),
+                YTsaurusErrorCode.BlockContentMismatch.getCode(),
+                YTsaurusErrorCode.InvalidBlockChecksum.getCode(),
+                YTsaurusErrorCode.BlockOutOfRange.getCode(),
+                YTsaurusErrorCode.MissingExtension.getCode(),
+                YTsaurusErrorCode.NoSuchBlock.getCode(),
+                YTsaurusErrorCode.NoSuchChunk.getCode(),
+                YTsaurusErrorCode.NoSuchChunkList.getCode(),
+                YTsaurusErrorCode.NoSuchChunkTree.getCode(),
+                YTsaurusErrorCode.NoSuchChunkView.getCode(),
+                YTsaurusErrorCode.NoSuchMedium.getCode()
         ));
 
         private final RetryPolicy inner = attemptLimited(3, RetryPolicy.forCodes(
@@ -213,14 +213,14 @@ public abstract class RetryPolicy {
         public Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options) {
             TimeoutException timeoutException = null;
             IOException ioException = null;
-            RpcError rpcError = null;
+            YTsaurusError rpcError = null;
             while (error != null) {
                 if (error instanceof TimeoutException) {
                     timeoutException = (TimeoutException) error;
                 } else if (error instanceof IOException) {
                     ioException = (IOException) error;
-                } else if (error instanceof RpcError) {
-                    rpcError = (RpcError) error;
+                } else if (error instanceof YTsaurusError) {
+                    rpcError = (YTsaurusError) error;
                 }
                 error = error.getCause();
             }
@@ -321,7 +321,7 @@ class BackoffProvider {
     private @Nullable
     Duration currentExponentialBackoff = null;
 
-    Duration getBackoffTime(RpcError error, RpcOptions options) {
+    Duration getBackoffTime(YTsaurusError error, RpcOptions options) {
         Set<Integer> errorCodes = error.getErrorCodes();
         if (errorCodes.stream().anyMatch(BackoffProvider::isExponentialBackoffError)) {
             if (currentExponentialBackoff == null) {
@@ -345,7 +345,7 @@ class BackoffProvider {
     }
 
     private static boolean isExponentialBackoffError(int errorCode) {
-        return errorCode == RpcErrorCode.RequestQueueSizeLimitExceeded.code ||
+        return errorCode == YTsaurusErrorCode.RequestQueueSizeLimitExceeded.code ||
                 errorCode == 904; // NSecurityClient.RequestQueueSizeLimitExceeded
     }
 }

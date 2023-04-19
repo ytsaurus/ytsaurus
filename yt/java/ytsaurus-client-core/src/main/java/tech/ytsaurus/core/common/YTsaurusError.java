@@ -1,4 +1,4 @@
-package tech.ytsaurus.client.rpc;
+package tech.ytsaurus.core.common;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -17,10 +17,10 @@ import tech.ytsaurus.ytree.TAttribute;
 
 
 @NonNullApi
-public class RpcError extends RuntimeException {
+public class YTsaurusError extends RuntimeException {
     private final TError error;
 
-    public RpcError(TError error) {
+    public YTsaurusError(TError error) {
         super(createFullErrorDescription(error));
         this.error = error;
     }
@@ -75,7 +75,7 @@ public class RpcError extends RuntimeException {
      */
     @Nullable
     @Deprecated
-    public RpcError findMatching(int code) {
+    public YTsaurusError findMatching(int code) {
         if (error.getCode() == code) {
             return this;
         }
@@ -83,24 +83,24 @@ public class RpcError extends RuntimeException {
         if (matching == null) {
             return null;
         }
-        return new RpcError(matching);
+        return new YTsaurusError(matching);
     }
 
     public boolean isUnrecoverable() {
         int code = error.getCode();
-        return code == RpcErrorCode.Timeout.code ||
+        return code == YTsaurusErrorCode.Timeout.code ||
                 // COMPAT(babenko): drop ProxyBanned in favor of PeerBanned
-                code == RpcErrorCode.ProxyBanned.code ||
-                code == RpcErrorCode.PeerBanned.code ||
-                code == RpcErrorCode.TransportError.code ||
-                code == RpcErrorCode.Unavailable.code ||
-                code == RpcErrorCode.NoSuchService.code ||
-                code == RpcErrorCode.NoSuchMethod.code ||
-                code == RpcErrorCode.ProtocolError.code;
+                code == YTsaurusErrorCode.ProxyBanned.code ||
+                code == YTsaurusErrorCode.PeerBanned.code ||
+                code == YTsaurusErrorCode.TransportError.code ||
+                code == YTsaurusErrorCode.Unavailable.code ||
+                code == YTsaurusErrorCode.NoSuchService.code ||
+                code == YTsaurusErrorCode.NoSuchMethod.code ||
+                code == YTsaurusErrorCode.ProtocolError.code;
     }
 
     public static boolean isUnrecoverable(Throwable e) {
-        return !(e instanceof RpcError) || ((RpcError) e).isUnrecoverable();
+        return !(e instanceof YTsaurusError) || ((YTsaurusError) e).isUnrecoverable();
     }
 
     public static String createFullErrorDescription(TError error) {

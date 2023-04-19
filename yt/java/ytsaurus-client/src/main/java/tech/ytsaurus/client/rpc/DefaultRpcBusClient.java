@@ -33,6 +33,7 @@ import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.bus.BusDeliveryTracking;
 import tech.ytsaurus.client.bus.BusListener;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.core.common.YTsaurusError;
 import tech.ytsaurus.rpc.TRequestCancelationHeader;
 import tech.ytsaurus.rpc.TRequestHeader;
 import tech.ytsaurus.rpc.TResponseHeader;
@@ -181,7 +182,7 @@ public class DefaultRpcBusClient implements RpcClient {
                     }
 
                     if (header.hasError() && header.getError().getCode() != 0) {
-                        request.error(new RpcError(header.getError()));
+                        request.error(new YTsaurusError(header.getError()));
                         return;
                     }
 

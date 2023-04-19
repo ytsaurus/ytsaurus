@@ -57,10 +57,10 @@ import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.VersionedRowset;
-import tech.ytsaurus.client.rpc.RpcError;
-import tech.ytsaurus.client.rpc.RpcErrorCode;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
+import tech.ytsaurus.core.common.YTsaurusError;
+import tech.ytsaurus.core.common.YTsaurusErrorCode;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
 import tech.ytsaurus.rpcproxy.EOperationType;
 import tech.ytsaurus.rpcproxy.TCheckPermissionResult;
@@ -215,8 +215,8 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
                 if (onPingFailed != null) {
                     onPingFailed.accept(ex instanceof Exception ? (Exception) ex : new RuntimeException(ex));
                 }
-                if (ex instanceof RpcError) {
-                    if (((RpcError) ex).matches(RpcErrorCode.NoSuchTransaction.getCode())) {
+                if (ex instanceof YTsaurusError) {
+                    if (((YTsaurusError) ex).matches(YTsaurusErrorCode.NoSuchTransaction.getCode())) {
                         return;
                     }
                 }
