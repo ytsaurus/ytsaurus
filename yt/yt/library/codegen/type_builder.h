@@ -147,6 +147,13 @@ struct TTypeBuilder<T[]>
     }
 };
 
+// Enums
+template <class Enum>
+    requires std::is_enum_v<Enum>
+struct TTypeBuilder<Enum>
+    : public TTypeBuilder<std::underlying_type_t<Enum>>
+{ };
+
 // Define the ctx integral types only for TTypeBuilder<T>.
 //
 // ctx integral types do not have a defined size. It would be nice to use the

@@ -30,6 +30,7 @@ target_link_libraries(yt-library-codegen PUBLIC
   yt-yt-core
 )
 target_sources(yt-library-codegen PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/codegen/builder_base.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/codegen/init.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/codegen/module.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/codegen/routine_registry.cpp
