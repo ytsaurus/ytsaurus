@@ -135,7 +135,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
     THROW_ERROR_EXCEPTION_IF(!incarnationId, EErrorCode::AgentDisconnected, "Controller agent disconnected");
 
     auto Logger = NControllerAgent::Logger.WithTag(
-        "NodeId: %v, NodeAddress: %v)",
+        "NodeId: %v, NodeAddress: %v",
         nodeId,
         nodeDescriptor.GetDefaultAddress());
 
@@ -249,7 +249,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
             continue;
         }
 
-        auto operationInfo = operationIt->second;
+        const auto& operationInfo = operationIt->second;
         if (!operationInfo.JobsReady) {
             YT_LOG_DEBUG("Operation jobs are not ready yet, skip handling job infos from node");
 
@@ -972,7 +972,7 @@ void TJobTracker::AbortUnconfirmedJobs(TOperationId operationId, std::vector<TJo
     for (auto jobId : jobs) {
         auto nodeId = NodeIdFromJobId(jobId);
 
-        auto nodeInfo = FindNodeInfo(nodeId);
+        auto* nodeInfo = FindNodeInfo(nodeId);
         if (!nodeInfo) {
             YT_LOG_DEBUG(
                 "Node is already disconnected, skip unconfirmed jobs abortion (JobId: %v, NodeId: %v, NodeAddress: %v)",

@@ -55,8 +55,6 @@ private:
 
     TJobTrackerConfigPtr Config_;
 
-    bool Connected_ = false;
-
     NProfiling::TCounter HeartbeatStatisticsBytes_;
     NProfiling::TCounter HeartbeatDataStatisticsBytes_;
     NProfiling::TCounter HeartbeatJobResultBytes_;
