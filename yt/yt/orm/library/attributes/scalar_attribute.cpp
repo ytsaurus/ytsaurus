@@ -585,7 +585,7 @@ public:
         TStringBuf /*prefixPath*/,
         TStringBuf /*suffixPath*/) const final
     {
-        THROW_ERROR_EXCEPTION("Clear field does not support list expansions");
+        THROW_ERROR_EXCEPTION("Clear handler does not support list expansions");
     }
 
     void HandleMapItem(
@@ -715,7 +715,7 @@ public:
         TStringBuf /*prefixPath*/,
         TStringBuf /*suffixPath*/) const final
     {
-        THROW_ERROR_EXCEPTION("Set field does not support list expansions");
+        THROW_ERROR_EXCEPTION("Set handler does not support list expansions");
     }
 
     void HandleMapItem(
@@ -1252,7 +1252,9 @@ private:
             YT_VERIFY(Prefix == rhs.Prefix);
             YT_VERIFY(Path == rhs.Path);
             THROW_ERROR_EXCEPTION_UNLESS(Field->type() == FieldDescriptor::TYPE_MESSAGE || Path.empty(),
-                "Cannot compare subpaths %Qv of primitive type values at %Qv", Prefix, Path);
+                "Cannot compare subpaths %Qv of primitive type values at %Qv",
+                Prefix,
+                Path);
             auto* lhsMessage = ParentMessage;
             auto* rhsMessage = rhs.ParentMessage;
             const auto* reflection = lhsMessage->GetReflection();
