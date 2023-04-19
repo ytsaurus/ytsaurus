@@ -84,6 +84,7 @@ TJobSummary::TJobSummary(TJobId id, EJobState state)
 TJobSummary::TJobSummary(NProto::TJobStatus* status)
     : Id(FromProto<TJobId>(status->job_id()))
     , State(CheckedEnumCast<EJobState>(status->state()))
+    , FinishedOnNode(true)
 {
     Result = std::move(*status->mutable_result());
     TimeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
@@ -232,6 +233,7 @@ std::unique_ptr<TCompletedJobSummary> CreateAbandonedJobSummary(TJobId jobId)
 TAbortedJobSummary::TAbortedJobSummary(TJobId id, EAbortReason abortReason)
     : TJobSummary(id, EJobState::Aborted)
     , AbortReason(abortReason)
+    , AbortInitiator(EJobAbortInitiator::ControllerAgent)
 {
     FinishTime = TInstant::Now();
 }
@@ -239,6 +241,7 @@ TAbortedJobSummary::TAbortedJobSummary(TJobId id, EAbortReason abortReason)
 TAbortedJobSummary::TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason)
     : TJobSummary(other)
     , AbortReason(abortReason)
+    , AbortInitiator(EJobAbortInitiator::ControllerAgent)
 {
     State = EJobState::Aborted;
     FinishTime = TInstant::Now();
@@ -275,7 +278,7 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(TAbortedBySchedulerJ
     ToProto(summary.Result.emplace().mutable_error(), eventSummary.Error);
 
     summary.Scheduled = eventSummary.Scheduled;
-    summary.AbortedByScheduler = true;
+    summary.AbortInitiator = EJobAbortInitiator::Scheduler;
 
     return std::make_unique<TAbortedJobSummary>(std::move(summary));
 }

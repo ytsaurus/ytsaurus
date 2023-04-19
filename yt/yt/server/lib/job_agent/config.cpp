@@ -237,6 +237,9 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_infos_request_period", &TThis::OperationInfosRequestPeriod)
         .Default(TDuration::Seconds(5));
 
+    registrar.Parameter("unknown_operation_jobs_removal_delay", &TThis::UnknownOperationJobsRemovalDelay)
+        .Default();
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->CpuToVCpuFactor && *config->CpuToVCpuFactor <= 0) {
             THROW_ERROR_EXCEPTION("`cpu_to_vcpu_factor` must be greated than 0")
@@ -328,6 +331,9 @@ void TJobControllerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("disable_job_proxy_profiling", &TThis::DisableJobProxyProfiling)
         .Default(false);
+
+    registrar.Parameter("unknown_operation_jobs_removal_delay", &TThis::UnknownOperationJobsRemovalDelay)
+        .Default(TDuration::Minutes(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

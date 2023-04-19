@@ -117,6 +117,11 @@ public:
     /*!
      *  \note Thread affinity: any
      */
+    TJobTracker* GetJobTracker() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
     TJobProfiler* GetJobProfiler() const;
 
     bool IsConnected() const;
@@ -134,6 +139,8 @@ public:
 
     const TControllerAgentConfigPtr& GetConfig() const;
     void UpdateConfig(const TControllerAgentConfigPtr& config);
+
+    IInvokerPtr CreateCancelableInvoker(const IInvokerPtr& invoker);
 
     TOperationPtr FindOperation(TOperationId operationId);
     TOperationPtr GetOperation(TOperationId operationId);

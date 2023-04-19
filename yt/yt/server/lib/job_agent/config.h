@@ -220,6 +220,8 @@ public:
 
     TDuration OperationInfosRequestPeriod;
 
+    std::optional<TDuration> UnknownOperationJobsRemovalDelay;
+
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -270,6 +272,8 @@ public:
     TDuration JobProxyBuildInfoUpdatePeriod;
 
     bool DisableJobProxyProfiling;
+
+    TDuration UnknownOperationJobsRemovalDelay;
 
     REGISTER_YSON_STRUCT(TJobControllerConfig);
 

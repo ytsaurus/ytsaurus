@@ -87,8 +87,6 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerConnector)
 
 DECLARE_REFCOUNTED_STRUCT(IJobEnvironment)
 
-DECLARE_REFCOUNTED_STRUCT(TAgentHeartbeatContext)
-
 DEFINE_ENUM(EExecNodeThrottlerKind,
     //! Controls incoming bandwidth used by Artifact Cache downloads.
     (ArtifactCacheIn)

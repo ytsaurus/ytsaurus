@@ -2758,6 +2758,7 @@ private:
                     .ValueOrThrow();
 
                 operation->ControllerAttributes().PrepareAttributes = std::move(result.Attributes);
+                operation->ControlJobLifetimeAtScheduler() = result.ControlJobLifetimeAtScheduler;
             }
 
             ValidateOperationState(operation, EOperationState::Preparing);
@@ -2828,6 +2829,7 @@ private:
                 operation->ControllerAttributes().PrepareAttributes = result.Attributes;
                 operation->SetRevivedFromSnapshot(result.RevivedFromSnapshot);
                 operation->RevivedJobs() = std::move(result.RevivedJobs);
+                operation->ControlJobLifetimeAtScheduler() = result.ControlJobLifetimeAtScheduler;
                 for (const auto& bannedTreeId : result.RevivedBannedTreeIds) {
                     // If operation is already erased from the tree, UnregisterOperationFromTree() will produce unnecessary log messages.
                     // However, I believe that this way the code is simpler and more concise.
@@ -2877,7 +2879,10 @@ private:
         Strategy_->RegisterJobsFromRevivedOperation(operation->GetId(), jobs);
 
         // Second, register jobs at the node manager.
-        return NodeManager_->FinishOperationRevival(operation->GetId(), std::move(jobs));
+        return NodeManager_->FinishOperationRevival(
+            operation->GetId(),
+            std::move(jobs),
+            operation->ControlJobLifetimeAtScheduler());
     }
 
     void BuildOperationOrchid(const TOperationPtr& operation, IYsonConsumer* consumer)

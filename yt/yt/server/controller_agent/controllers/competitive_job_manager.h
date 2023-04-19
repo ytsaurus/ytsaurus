@@ -26,7 +26,7 @@ class ICompetitiveJobManagerHost
 public:
     virtual void OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitonType) = 0;
     virtual void AbortJobViaScheduler(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
-    virtual void AbortJobFromController(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
+    virtual void AbortJobByController(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

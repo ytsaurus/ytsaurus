@@ -90,6 +90,20 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::EnqueueFinishedJo
     ShouldSendOutOfBand_ = true;
 }
 
+const TControllerAgentDescriptor& TControllerAgentConnectorPool::TControllerAgentConnector::GetDescriptor() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return ControllerAgentDescriptor_;
+}
+
+void TControllerAgentConnectorPool::TControllerAgentConnector::AddUnconfirmedJobs(std::vector<TJobId> unconfirmedJobs)
+{
+    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
+
+    UnconfirmedJobs_ = std::move(unconfirmedJobs);
+}
+
 void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated()
 {
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
@@ -232,11 +246,12 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoPrepareHeartbea
 {
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
-    context->AgentDescriptor = ControllerAgentDescriptor_;
+    context->ControllerAgentConnector = MakeStrong(this);
     context->StatisticsThrottler = StatisticsThrottler_;
     context->RunningJobStatisticsSendingBackoff = RunningJobStatisticsSendingBackoff_;
     context->LastTotalConfirmationTime = LastTotalConfirmationTime_;
-    context->SentEnqueuedJobs = std::move(EnqueuedFinishedJobs_);
+    context->JobsToForcefullySend = EnqueuedFinishedJobs_;
+    context->UnconfirmedJobs = std::move(UnconfirmedJobs_);
 
     const auto& jobController = ControllerAgentConnectorPool_->Bootstrap_->GetJobController();
     jobController->PrepareAgentHeartbeatRequest(request, context);
@@ -252,6 +267,10 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoProcessHeartbea
 
     const auto& jobController = ControllerAgentConnectorPool_->Bootstrap_->GetJobController();
     jobController->ProcessAgentHeartbeatResponse(response, context);
+
+    for (auto finishedJobId : context->JobsToForcefullySend) {
+        EnqueuedFinishedJobs_.erase(finishedJobId);
+    }
 }
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::OnAgentIncarnationOutdated() noexcept

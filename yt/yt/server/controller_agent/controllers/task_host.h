@@ -147,7 +147,7 @@ struct ITaskHost
     virtual void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths) = 0;
 
     virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) = 0;
-    virtual void AbortJobFromController(TJobId jobId, EAbortReason abortReason) = 0;
+    virtual void AbortJobByController(TJobId jobId, EAbortReason abortReason) = 0;
 
     virtual bool CanInterruptJobs() const = 0;
     virtual void InterruptJob(TJobId jobId, EInterruptReason reason) = 0;

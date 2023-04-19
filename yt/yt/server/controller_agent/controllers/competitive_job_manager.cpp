@@ -139,7 +139,7 @@ void TCompetitiveJobManagerBase::OnJobLost(IChunkPoolOutput::TCookie cookie)
             cookie,
             ResultLost_);
         YT_VERIFY(it->second->Competitors.size() == 1);
-        Host_->AbortJobFromController(it->second->Competitors[0], ResultLost_);
+        Host_->AbortJobByController(it->second->Competitors[0], ResultLost_);
     }
 }
 

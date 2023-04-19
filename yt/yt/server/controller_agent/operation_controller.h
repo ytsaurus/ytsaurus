@@ -1,6 +1,5 @@
 #pragma once
 
-#include "public.h"
 #include "private.h"
 
 #include <yt/yt/server/lib/job_agent/public.h>
@@ -75,6 +74,7 @@ void ToProto(NProto::TInitializeOperationResult* resultProto, const TOperationCo
 struct TOperationControllerPrepareResult
 {
     NYson::TYsonString Attributes;
+    bool ControlJobLifetimeAtScheduler;
 };
 
 void ToProto(NProto::TPrepareOperationResult* resultProto, const TOperationControllerPrepareResult& result);
@@ -173,8 +173,14 @@ struct IOperationControllerHost
     virtual void InterruptJob(TJobId jobId, EInterruptReason reason) = 0;
     virtual void AbortJob(TJobId jobId, const TError& error) = 0;
     virtual void FailJob(TJobId jobId) = 0;
-    virtual void ReleaseJobs(const std::vector<NJobTrackerClient::TJobToRelease>& jobsToRelease) = 0;
     virtual void UpdateRunningJobsStatistics(std::vector<TAgentToSchedulerRunningJobStatistics> runningJobStatisticsUpdates) = 0;
+
+    virtual void RegisterJob(TStartedJobInfo jobInfo) = 0;
+    virtual void ReviveJobs(std::vector<TStartedJobInfo> jobs) = 0;
+    virtual void ReleaseJobs(std::vector<NJobTrackerClient::TJobToRelease> jobs) = 0;
+    virtual void AbortJobOnNode(
+        TJobId jobId,
+        NScheduler::EAbortReason abortReason) = 0;
 
     //! Registers job for monitoring.
     //!
@@ -218,6 +224,8 @@ struct IOperationControllerHost
     virtual TMemoryTagQueue* GetMemoryTagQueue() = 0;
 
     virtual TJobProfiler* GetJobProfiler() const = 0;
+
+    virtual TJobTracker* GetJobTracker() const = 0;
 
     virtual int GetOnlineExecNodeCount() = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) = 0;
@@ -574,6 +582,12 @@ struct IOperationController
      *  \note Invoker affinity: cancelable Controller invoker
      */
     virtual void OnJobInfoReceivedFromNode(std::unique_ptr<TJobSummary> jobSummary) = 0;
+
+    //! Called when jobtracker desides to abort job.
+    /*!
+     *  \note Invoker affinity: cancelable Controller invoker
+     */
+    virtual void AbortJobByJobTracker(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
 
     //! Builds operation alerts.
     /*!

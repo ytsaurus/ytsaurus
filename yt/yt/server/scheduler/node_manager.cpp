@@ -163,7 +163,10 @@ void TNodeManager::StartOperationRevival(TOperationId operationId, TControllerEp
     }
 }
 
-TFuture<void> TNodeManager::FinishOperationRevival(TOperationId operationId, std::vector<TJobPtr> jobs)
+TFuture<void> TNodeManager::FinishOperationRevival(
+    TOperationId operationId,
+    std::vector<TJobPtr> jobs,
+    bool controlJobLifetimeAtScheduler)
 {
     std::vector<std::vector<TJobPtr>> jobsPerShard(NodeShards_.size());
     for (auto& job : jobs) {
@@ -175,7 +178,7 @@ TFuture<void> TNodeManager::FinishOperationRevival(TOperationId operationId, std
     for (int shardId = 0; shardId < std::ssize(NodeShards_); ++shardId) {
         auto asyncResult = BIND(&TNodeShard::FinishOperationRevival, NodeShards_[shardId])
             .AsyncVia(NodeShards_[shardId]->GetInvoker())
-            .Run(operationId, std::move(jobsPerShard[shardId]));
+            .Run(operationId, std::move(jobsPerShard[shardId]), controlJobLifetimeAtScheduler);
         asyncResults.emplace_back(std::move(asyncResult));
     }
     return AllSucceeded(asyncResults);
@@ -187,7 +190,7 @@ TFuture<void> TNodeManager::ResetOperationRevival(const TOperationPtr& operation
     for (int shardId = 0; shardId < std::ssize(NodeShards_); ++shardId) {
         auto asyncResult = BIND(&TNodeShard::ResetOperationRevival, NodeShards_[shardId])
             .AsyncVia(NodeShards_[shardId]->GetInvoker())
-            .Run(operation->GetId());
+            .Run(operation->GetId(), operation->ControlJobLifetimeAtScheduler());
         asyncResults.emplace_back(std::move(asyncResult));
     }
     return AllSucceeded(asyncResults);

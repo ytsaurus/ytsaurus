@@ -108,6 +108,7 @@ YT_DEFINE_ERROR_ENUM(
     ((MaterializationFailed)                      (4415))
     ((OperationControllerMemoryLimitExceeded)     (4416))
     ((IncarnationMismatch)                        (4417))
+    ((AgentDisconnected)                          (4418))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

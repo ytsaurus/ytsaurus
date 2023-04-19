@@ -211,6 +211,7 @@ def get_scheduler_config():
             enable_response_keeper = %true;
         };
         crash_on_job_heartbeat_processing_exception = %true;
+        control_unknown_operation_jobs_lifetime = %false;
     };
 }
 """)
@@ -367,6 +368,12 @@ def get_controller_agent_config():
         enable_bulk_insert_for_everyone = %true;
 
         running_job_time_statistics_updates_send_period = 10;
+
+        control_job_lifetime_at_scheduler = %false;
+
+        job_tracker = {
+            logging_job_sample_size = 1000;
+        };
     };
 }
 """)
@@ -495,7 +502,8 @@ def get_node_config():
         job_controller = {
             total_confirmation_period = 5000;
             cpu_per_tablet_slot = 0.0;
-            send_job_result_extension_to_scheduler = %false;
+            operation_infos_request_period = 1000;
+            unknown_operation_jobs_removal_delay = 5000;
         };
 
         master_connector = {

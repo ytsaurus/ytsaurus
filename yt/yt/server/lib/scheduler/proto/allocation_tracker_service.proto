@@ -41,6 +41,8 @@ message TReqHeartbeat
 
     // COMPAT(pogorelov)
     repeated NYT.NProto.TGuid unconfirmed_allocations = 9;
+
+    // COMPAT(pogorelov)
     required int64 confirmed_job_count = 10;
 }
 
@@ -86,10 +88,12 @@ message TRspHeartbeat
     optional bool scheduling_skipped = 4;
     optional int32 operation_archive_version = 5;
 
+    // COMPAT(pogorelov)
     repeated NJobTrackerClient.NProto.TJobToRemove jobs_to_remove = 6;
     repeated NYT.NProto.TGuid jobs_to_store = 7;
-    repeated NYT.NProto.TGuid jobs_to_fail = 8;
     repeated NJobTrackerClient.NProto.TJobToConfirm jobs_to_confirm = 9;
+
+    repeated NYT.NProto.TGuid jobs_to_fail = 8;
 
     repeated TOperationInfo operation_infos = 10;
 

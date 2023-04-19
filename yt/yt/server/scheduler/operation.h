@@ -217,6 +217,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(bool, RevivedFromSnapshot);
     DEFINE_BYREF_RW_PROPERTY(std::vector<NScheduler::TJobPtr>, RevivedJobs);
+    DEFINE_BYREF_RW_PROPERTY(bool, ControlJobLifetimeAtScheduler);
 
     // A YSON map that is stored under ACL in Cypress.
     // NB: It should not be present in operation spec as it may contain

@@ -14,21 +14,6 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAgentHeartbeatContext
-    : public TRefCounted
-{
-    TControllerAgentDescriptor AgentDescriptor;
-    NConcurrency::IThroughputThrottlerPtr StatisticsThrottler;
-    TDuration RunningJobStatisticsSendingBackoff;
-    TInstant LastTotalConfirmationTime;
-
-    THashSet<TJobPtr> SentEnqueuedJobs;
-};
-
-DEFINE_REFCOUNTED_TYPE(TAgentHeartbeatContext)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TControllerAgentConnectorPool
     : public TRefCounted
 {
@@ -47,6 +32,10 @@ public:
         void EnqueueFinishedJob(const TJobPtr& job);
 
         void OnConfigUpdated();
+
+        const TControllerAgentDescriptor& GetDescriptor() const;
+
+        void AddUnconfirmedJobs(std::vector<TJobId> unconfirmedJobs);
 
         ~TControllerAgentConnector();
 
@@ -81,7 +70,10 @@ public:
         TInstant LastTotalConfirmationTime_;
 
         THashSet<TJobPtr> EnqueuedFinishedJobs_;
+        std::vector<TJobId> UnconfirmedJobs_;
         bool ShouldSendOutOfBand_ = false;
+
+        THashSet<TJobId> JobIdsToConfirm_;
 
         void SendHeartbeat();
         void OnAgentIncarnationOutdated() noexcept;
@@ -143,6 +135,23 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorPool)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAgentHeartbeatContext
+    : public TRefCounted
+{
+    TControllerAgentConnectorPool::TControllerAgentConnectorPtr ControllerAgentConnector;
+    NConcurrency::IThroughputThrottlerPtr StatisticsThrottler;
+    TDuration RunningJobStatisticsSendingBackoff;
+    TInstant LastTotalConfirmationTime;
+
+    THashSet<TJobPtr> JobsToForcefullySend;
+
+    std::vector<TJobId> UnconfirmedJobs;
+};
+
+DEFINE_REFCOUNTED_TYPE(TAgentHeartbeatContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 

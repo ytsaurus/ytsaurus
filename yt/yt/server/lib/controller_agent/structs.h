@@ -78,6 +78,7 @@ struct TJobSummary
 
     TInstant StatusTimestamp;
     bool JobExecutionCompleted = false;
+    bool FinishedOnNode = false;
 };
 
 struct TCompletedJobSummary
@@ -101,6 +102,12 @@ struct TCompletedJobSummary
 
 std::unique_ptr<TCompletedJobSummary> CreateAbandonedJobSummary(TJobId jobId);
 
+DEFINE_ENUM(EJobAbortInitiator,
+    (Scheduler)
+    (ControllerAgent)
+    (Node)
+);
+
 struct TAbortedJobSummary
     : public TJobSummary
 {
@@ -109,8 +116,10 @@ struct TAbortedJobSummary
     explicit TAbortedJobSummary(NProto::TJobStatus* status, const NLogging::TLogger& Logger);
 
     EAbortReason AbortReason = EAbortReason::None;
+
     std::optional<NScheduler::TPreemptedFor> PreemptedFor;
-    bool AbortedByScheduler = false;
+
+    EJobAbortInitiator AbortInitiator = EJobAbortInitiator::Node;
 
     bool Scheduled = true;
 

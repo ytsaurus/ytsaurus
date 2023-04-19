@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/chunk_pools/config.h>
 
@@ -695,6 +695,25 @@ DEFINE_REFCOUNTED_TYPE(TUserFileLimitsPatchConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobTrackerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration NodeDisconnectionTimeout;
+
+    TDuration JobConfirmationTimeout;
+
+    int LoggingJobSampleSize;
+
+    REGISTER_YSON_STRUCT(TJobTrackerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TControllerAgentConfig
     : public TNativeSingletonsDynamicConfig
 {
@@ -1115,10 +1134,13 @@ public:
     bool EnableJobProfiling;
 
     int MaxRunningJobStatisticsUpdateCountPerHeartbeat;
-
     TDuration RunningJobTimeStatisticsUpdatesSendPeriod;
 
     bool ReleaseFailedJobOnException;
+
+    bool ControlJobLifetimeAtScheduler;
+
+    TJobTrackerConfigPtr JobTracker;
 
     REGISTER_YSON_STRUCT(TControllerAgentConfig)
 

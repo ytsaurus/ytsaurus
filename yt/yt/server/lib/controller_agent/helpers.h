@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/controller_agent/proto/job_tracker_service.pb.h>
+
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
@@ -85,6 +87,51 @@ void PackBaggageFromJobSpec(
     const NProto::TJobSpec& jobSpec,
     TOperationId operationId,
     TJobId jobId);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJobToAbort
+{
+    TJobId JobId;
+    NScheduler::EAbortReason AbortReason;
+};
+
+struct TJobToStore
+{
+    TJobId JobId;
+};
+
+struct TJobToConfirm
+{
+    TJobId JobId;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+void ToProto(
+    NProto::TJobToAbort* protoJobToAbort,
+    const NControllerAgent::TJobToAbort& jobToAbort);
+void FromProto(
+    NControllerAgent::TJobToAbort* jobToAbort,
+    const NProto::TJobToAbort& protoJobToAbort);
+
+void ToProto(
+    NProto::TJobToStore* protoJobToStore,
+    const NControllerAgent::TJobToStore& jobToStore);
+void FromProto(
+    NControllerAgent::TJobToStore* jobToStore,
+    const NProto::TJobToStore& protoJobToStore);
+
+void ToProto(
+    NProto::TJobToConfirm* protoJobToConfirm,
+    const NControllerAgent::TJobToConfirm& jobToConfirm);
+void FromProto(
+    NControllerAgent::TJobToConfirm* jobToConfirm,
+    const NProto::TJobToConfirm& protoJobToConfirm);
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

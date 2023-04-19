@@ -1,6 +1,7 @@
 #include "job_tracker_service.h"
 
 #include "bootstrap.h"
+#include "controller_agent.h"
 #include "job_tracker.h"
 
 #include <yt/yt/server/lib/controller_agent/job_tracker_service_proxy.h>
@@ -55,7 +56,7 @@ private:
                 request->jobs_size(),
                 incarnationId);
 
-            Bootstrap_->GetJobTracker()->ProcessHeartbeat(context);
+            Bootstrap_->GetControllerAgent()->GetJobTracker()->ProcessHeartbeat(context);
         }
     }
 };

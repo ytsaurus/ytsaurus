@@ -16,6 +16,7 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/convert.h>
@@ -169,6 +170,50 @@ void PackBaggageFromJobSpec(
     AddTagToBaggage(baggage, EAggregateIOTag::JobType, FormatEnum(static_cast<EJobType>(jobSpec.type())));
     traceContext->PackBaggage(baggage);
 }
+
+namespace NProto {
+
+void ToProto(NProto::TJobToAbort* protoJobToAbort, const NControllerAgent::TJobToAbort& jobToAbort)
+{
+    ToProto(protoJobToAbort->mutable_job_id(), jobToAbort.JobId);
+    protoJobToAbort->set_abort_reason(static_cast<i32>(jobToAbort.AbortReason));
+}
+
+void FromProto(NControllerAgent::TJobToAbort* jobToAbort, const NProto::TJobToAbort& protoJobToAbort)
+{
+    FromProto(&jobToAbort->JobId, protoJobToAbort.job_id());
+    jobToAbort->AbortReason = NYT::FromProto<NScheduler::EAbortReason>(protoJobToAbort.abort_reason());
+}
+
+void ToProto(
+    NProto::TJobToStore* protoJobToStore,
+    const NControllerAgent::TJobToStore& jobToStore)
+{
+    ToProto(protoJobToStore->mutable_job_id(), jobToStore.JobId);
+}
+
+void FromProto(
+    NControllerAgent::TJobToStore* jobToStore,
+    const NProto::TJobToStore& protoJobToStore)
+{
+    FromProto(&jobToStore->JobId, protoJobToStore.job_id());
+}
+
+void ToProto(
+    NProto::TJobToConfirm* protoJobToConfirm,
+    const NControllerAgent::TJobToConfirm& jobToConfirm)
+{
+    ToProto(protoJobToConfirm->mutable_job_id(), jobToConfirm.JobId);
+}
+
+void FromProto(
+    NControllerAgent::TJobToConfirm* jobToConfirm,
+    const NProto::TJobToConfirm& protoJobToConfirm)
+{
+    FromProto(&jobToConfirm->JobId, protoJobToConfirm.job_id());
+}
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

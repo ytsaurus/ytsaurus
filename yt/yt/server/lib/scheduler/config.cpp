@@ -1005,6 +1005,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
         .Default(47);
 
+    registrar.Parameter("control_unknown_operation_jobs_lifetime", &TThis::ControlUnknownOperationJobsLifetime)
+        .Default(true);
+
     registrar.Preprocessor([&] (TSchedulerConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;
         if (!config->EventLog->Path) {

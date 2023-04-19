@@ -104,8 +104,11 @@ public:
         const IOperationControllerPtr& controller,
         bool jobsReady);
     void StartOperationRevival(TOperationId operationId, TControllerEpoch newControllerEpoch);
-    void FinishOperationRevival(TOperationId operationId, const std::vector<TJobPtr>& jobs);
-    void ResetOperationRevival(TOperationId operationId);
+    void FinishOperationRevival(
+        TOperationId operationId,
+        const std::vector<TJobPtr>& jobs,
+        bool controlJobLifetimeAtScheduler);
+    void ResetOperationRevival(TOperationId operationId, bool controlJobLifetimeAtScheduler);
     void UnregisterOperation(TOperationId operationId);
 
     void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
@@ -294,6 +297,8 @@ private:
         //! Prevents leaking #AbortUnconfirmedJobs between different incarnations of the same operation.
         TShardEpoch ShardEpoch;
         TControllerEpoch ControllerEpoch;
+
+        bool ControlJobLifetimeAtScheduler;
     };
 
     THashMap<TOperationId, TOperationState> IdToOpertionState_;

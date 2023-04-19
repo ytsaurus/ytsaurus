@@ -1696,7 +1696,7 @@ protected:
                 partitionIndex);
             std::vector<TJobletPtr> partitionJoblets(ActiveJoblets_[partitionIndex].begin(), ActiveJoblets_[partitionIndex].end());
             for (const auto& joblet : partitionJoblets) {
-                Controller_->AbortJobFromController(joblet->JobId, EAbortReason::ChunkMappingInvalidated);
+                Controller_->AbortJobByController(joblet->JobId, EAbortReason::ChunkMappingInvalidated);
                 InvalidatedJoblets_[partitionIndex].insert(joblet);
             }
             for (const auto& jobOutput : JobOutputs_[partitionIndex]) {

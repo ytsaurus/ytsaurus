@@ -389,7 +389,10 @@ void TNodeShard::StartOperationRevival(TOperationId operationId, TControllerEpoc
     YT_VERIFY(operationState.Jobs.empty());
 }
 
-void TNodeShard::FinishOperationRevival(TOperationId operationId, const std::vector<TJobPtr>& jobs)
+void TNodeShard::FinishOperationRevival(
+    TOperationId operationId,
+    const std::vector<TJobPtr>& jobs,
+    bool controlJobLifetimeAtScheduler)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
@@ -401,6 +404,7 @@ void TNodeShard::FinishOperationRevival(TOperationId operationId, const std::vec
     operationState.ForbidNewJobs = false;
     operationState.ControllerTerminated = false;
     operationState.OperationUnreadyLoggedJobIds = THashSet<TJobId>();
+    operationState.ControlJobLifetimeAtScheduler = controlJobLifetimeAtScheduler;
 
     for (const auto& job : jobs) {
         auto node = GetOrRegisterNode(
@@ -408,23 +412,30 @@ void TNodeShard::FinishOperationRevival(TOperationId operationId, const std::vec
             TNodeDescriptor(job->GetRevivalNodeAddress()),
             ENodeState::Online);
         job->SetNode(node);
-        SetJobWaitingForConfirmation(job);
+        // COMPAT(pogorelov)
+        if (controlJobLifetimeAtScheduler) {
+            SetJobWaitingForConfirmation(job);
+        }
         RemoveRecentlyFinishedJob(job->GetId());
         RegisterJob(job);
     }
 
-    YT_LOG_DEBUG("Operation revival finished at node shard (OperationId: %v, RevivedJobCount: %v)",
+    YT_LOG_DEBUG(
+        "Operation revival finished at node shard (OperationId: %v, RevivedJobCount: %v, ControlJobLifetimeAtScheduler: %v)",
         operationId,
-        jobs.size());
+        jobs.size(),
+        controlJobLifetimeAtScheduler);
 
     // Give some time for nodes to confirm the jobs.
-    TDelayedExecutor::Submit(
-        BIND(&TNodeShard::AbortUnconfirmedJobs, MakeWeak(this), operationId, operationState.ShardEpoch, jobs)
-            .Via(GetInvoker()),
-        Config_->JobRevivalAbortTimeout);
+    if (controlJobLifetimeAtScheduler) {
+        TDelayedExecutor::Submit(
+            BIND(&TNodeShard::AbortUnconfirmedJobs, MakeWeak(this), operationId, operationState.ShardEpoch, jobs)
+                .Via(GetInvoker()),
+            Config_->JobRevivalAbortTimeout);
+    }
 }
 
-void TNodeShard::ResetOperationRevival(TOperationId operationId)
+void TNodeShard::ResetOperationRevival(TOperationId operationId, bool controlJobLifetimeAtScheduler)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
@@ -435,9 +446,12 @@ void TNodeShard::ResetOperationRevival(TOperationId operationId)
     operationState.ForbidNewJobs = false;
     operationState.ControllerTerminated = false;
     operationState.OperationUnreadyLoggedJobIds = THashSet<TJobId>();
+    operationState.ControlJobLifetimeAtScheduler = controlJobLifetimeAtScheduler;
 
-    YT_LOG_DEBUG("Operation revival state reset at node shard (OperationId: %v)",
-        operationId);
+    YT_LOG_DEBUG(
+        "Operation revival state reset at node shard (OperationId: %v, ControlJobLifetimeAtScheduler: %v)",
+        operationId,
+        controlJobLifetimeAtScheduler);
 }
 
 void TNodeShard::UnregisterOperation(TOperationId operationId)
@@ -1802,6 +1816,7 @@ void TNodeShard::ProcessHeartbeatJobs(
         for (const auto& jobId : node->UnconfirmedJobIds()) {
             const auto jobPtr = FindJob(jobId, node);
             auto* operationState = FindOperationState(jobPtr->GetOperationId());
+            YT_VERIFY(operationState);
 
             auto agent = operationState->Controller->FindAgent();
             if (!agent) {
@@ -1817,9 +1832,11 @@ void TNodeShard::ProcessHeartbeatJobs(
         }
     }
 
-    for (const auto& job : node->Jobs()) {
-        // Verify that all flags are in the initial state.
-        YT_VERIFY(!checkMissingJobs || !job->GetFoundOnNode());
+    if (checkMissingJobs) {
+        for (const auto& job : node->Jobs()) {
+            // Verify that all flags are in the initial state.
+            YT_VERIFY(!job->GetFoundOnNode());
+        }
     }
 
     THashSet<TJobId> recentlyFinishedJobIdsToRemove;
@@ -1852,6 +1869,7 @@ void TNodeShard::ProcessHeartbeatJobs(
 
     // COMPAT(pogorelov)
     THashSet<TAllocationId> specFetchFailedAllocations;
+    specFetchFailedAllocations.reserve(std::size(request->spec_fetch_failed_allocations()));
 
     for (const auto& specFetchFailedAllocationProto : request->spec_fetch_failed_allocations()) {
         auto allocationId = NYT::FromProto<TAllocationId>(specFetchFailedAllocationProto.allocation_id());
@@ -1893,7 +1911,6 @@ void TNodeShard::ProcessHeartbeatJobs(
                 response,
                 &jobStatus);
         } catch (const std::exception& ex) {
-            auto jobId = GetJobId(&jobStatus);
             if (Config_->CrashOnJobHeartbeatProcessingException) {
                 YT_LOG_FATAL(ex, "Failed to process job heartbeat (JobId: %v)", jobId);
             } else {
@@ -2023,8 +2040,9 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     const auto& address = node->GetDefaultAddress();
 
     auto job = FindJob(jobId, node);
+    auto operation = FindOperationState(operationId);
+
     if (!job) {
-        auto operation = FindOperationState(operationId);
         auto Logger = SchedulerLogger.WithTag("Address: %v, JobId: %v, OperationId: %v, AllocationState: %v",
             address,
             jobId,
@@ -2049,25 +2067,40 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
             return nullptr;
         }
 
+        // We don't abort unknown allocations currently when ControlJobLifetimeAtScheduler option is turned off, since CA will abort such jobs.
+        // We will abort such allocations when allocation can run many jobs.
         switch (allocationState) {
             case EAllocationState::Finished:
-                YT_LOG_DEBUG(
-                    "Unknown job has finished, removal scheduled");
-                ToProto(response->add_jobs_to_remove(), {jobId});
+                if ((operation && operation->ControlJobLifetimeAtScheduler) || Config_->ControlUnknownOperationJobsLifetime) {
+                    ToProto(response->add_jobs_to_remove(), {jobId});
+                    YT_LOG_DEBUG("Unknown job has finished, remove it");
+                } else {
+                    YT_LOG_DEBUG("Unknown job has finished");
+                }
                 break;
 
             case EAllocationState::Running:
-                YT_LOG_DEBUG("Unknown job is running, abort scheduled");
-                AddAllocationToAbort(response, {jobId});
+                if ((operation && operation->ControlJobLifetimeAtScheduler) || Config_->ControlUnknownOperationJobsLifetime) {
+                    AddAllocationToAbort(response, {jobId});
+
+                    YT_LOG_DEBUG("Unknown job is running, abort it");
+                } else {
+                    YT_LOG_DEBUG("Unknown job is running");
+                }
                 break;
 
             case EAllocationState::Waiting:
-                YT_LOG_DEBUG("Unknown job is waiting, abort scheduled");
-                AddAllocationToAbort(response, {jobId});
+                if ((operation && operation->ControlJobLifetimeAtScheduler) || Config_->ControlUnknownOperationJobsLifetime) {
+                    AddAllocationToAbort(response, {jobId});
+
+                    YT_LOG_DEBUG("Unknown job is waiting, abort it");
+                } else {
+                    YT_LOG_DEBUG("Unknown job is waiting");
+                }
                 break;
 
             case EAllocationState::Finishing:
-                YT_LOG_DEBUG("Unknown job is finishing, abort scheduled");
+                YT_LOG_DEBUG("Unknown job is finishing");
                 break;
 
             default:
@@ -2080,6 +2113,8 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
 
     const auto& Logger = job->Logger();
 
+    YT_VERIFY(operation);
+
     // Check if the job is running on a proper node.
     if (node->GetId() != job->GetNode()->GetId()) {
         // Job has moved from one node to another. No idea how this could happen.
@@ -2088,8 +2123,10 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 // Job is already finishing, do nothing.
                 break;
             case EAllocationState::Finished:
-                ToProto(response->add_jobs_to_remove(), {jobId});
-                YT_LOG_WARNING("Job status report was expected from %v, removal scheduled",
+                if (operation->ControlJobLifetimeAtScheduler) {
+                    ToProto(response->add_jobs_to_remove(), {jobId});
+                }
+                YT_LOG_WARNING("Job status report was expected from %v",
                     node->GetDefaultAddress());
                 break;
             case EAllocationState::Waiting:
@@ -2123,9 +2160,11 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
             } else {
                 YT_LOG_DEBUG("Job finished, storage scheduled");
 
-                AddRecentlyFinishedJob(job);
+                if (operation->ControlJobLifetimeAtScheduler) {
+                    AddRecentlyFinishedJob(job);
+                    ToProto(response->add_jobs_to_store(), jobId);
+                }
                 OnJobFinished(job);
-                ToProto(response->add_jobs_to_store(), jobId);
             }
 
             break;
@@ -2676,6 +2715,10 @@ void TNodeShard::RemoveRecentlyFinishedJob(TJobId jobId)
 
 void TNodeShard::SetOperationJobsReleaseDeadline(TOperationState* operationState)
 {
+    if (!operationState->ControlJobLifetimeAtScheduler) {
+        return;
+    }
+
     auto storingEvictionDeadline = GetCpuInstant() + DurationToCpuDuration(Config_->FinishedOperationJobStoringTimeout);
 
     for (auto jobId : operationState->RecentlyFinishedJobIds) {

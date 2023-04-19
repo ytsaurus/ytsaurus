@@ -498,6 +498,19 @@ void TUserFileLimitsPatchConfig::Register(TRegistrar registrar)
         .Default();
 }
 
+void TJobTrackerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("node_disconnection_timeout", &TThis::NodeDisconnectionTimeout)
+        .Default(TDuration::Seconds(120))
+        .GreaterThan(TDuration::Zero());
+    registrar.Parameter("job_confirmation_timeout", &TThis::JobConfirmationTimeout)
+        .Default(TDuration::Seconds(240))
+        .GreaterThan(TDuration::Zero());
+    registrar.Parameter("logging_job_sample_size", &TThis::LoggingJobSampleSize)
+        .Default(3)
+        .GreaterThanOrEqual(0);
+}
+
 void TControllerAgentConfig::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -988,6 +1001,11 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("running_job_time_statistics_updates_send_period", &TThis::RunningJobTimeStatisticsUpdatesSendPeriod)
         .Default(TDuration::Seconds(2));
+    registrar.Parameter("control_job_lifetime_at_scheduler", &TThis::ControlJobLifetimeAtScheduler)
+        .Default(true);
+
+    registrar.Parameter("job_tracker", &TThis::JobTracker)
+        .DefaultNew();
 
     registrar.Parameter("fast_intermediate_medium", &TThis::FastIntermediateMedium)
         .Default("ssd_blobs");

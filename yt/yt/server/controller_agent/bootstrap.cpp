@@ -130,8 +130,6 @@ void TBootstrap::DoRun()
 
     NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
-    JobTracker_ = New<TJobTracker>(this);
-
     // Force start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
 
@@ -227,7 +225,7 @@ TNetworkPreferenceList TBootstrap::GetLocalNetworks() const
         : GetIths<0>(Config_->Addresses);
 }
 
-IInvokerPtr TBootstrap::GetControlInvoker() const
+const IInvokerPtr& TBootstrap::GetControlInvoker() const
 {
     return ControlQueue_->GetInvoker();
 }
@@ -255,11 +253,6 @@ const ICoreDumperPtr& TBootstrap::GetCoreDumper() const
 const IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
 {
     return NativeAuthenticator_;
-}
-
-const TJobTrackerPtr& TBootstrap::GetJobTracker() const
-{
-    return JobTracker_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -104,6 +104,7 @@ public:
         TOperation* operation,
         IInvokerPtr cancelableControlInvoker,
         IInvokerPtr uncancelableControlInvoker,
+        TJobTrackerOperationHandlerPtr operationJobsTracker,
         TAgentToSchedulerOperationEventOutboxPtr operationEventsOutbox,
         TAgentToSchedulerJobEventOutboxPtr jobEventsOutbox,
         TAgentToSchedulerRunningJobStatisticsOutboxPtr runningJobStatisticsUpdatesOutbox,
@@ -114,8 +115,14 @@ public:
     void InterruptJob(TJobId jobId, EInterruptReason reason) override;
     void AbortJob(TJobId jobId, const TError& error) override;
     void FailJob(TJobId jobId) override;
-    void ReleaseJobs(const std::vector<NJobTrackerClient::TJobToRelease>& TJobToRelease) override;
     void UpdateRunningJobsStatistics(std::vector<TAgentToSchedulerRunningJobStatistics> runningJobStatisticsUpdates) override;
+
+    void RegisterJob(TStartedJobInfo jobInfo) override;
+    void ReviveJobs(std::vector<TStartedJobInfo> jobs) override;
+    void ReleaseJobs(std::vector<NJobTrackerClient::TJobToRelease> jobs) override;
+    void AbortJobOnNode(
+        TJobId jobId,
+        NScheduler::EAbortReason abortReason) override;
 
     std::optional<TString> RegisterJobForMonitoring(TOperationId operationId, TJobId jobId) override;
     bool UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId) override;
@@ -152,6 +159,8 @@ public:
 
     TJobProfiler* GetJobProfiler() const override;
 
+    TJobTracker* GetJobTracker() const override;
+
     int GetOnlineExecNodeCount() override;
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) override;
     TJobResources GetMaxAvailableResources(const NScheduler::TSchedulingTagFilter& filter) override;
@@ -177,6 +186,7 @@ private:
     const TOperationId OperationId_;
     const IInvokerPtr CancelableControlInvoker_;
     const IInvokerPtr UncancelableControlInvoker_;
+    const TJobTrackerOperationHandlerPtr OperationJobsTracker_;
     const TAgentToSchedulerOperationEventOutboxPtr OperationEventsOutbox_;
     const TAgentToSchedulerJobEventOutboxPtr JobEventsOutbox_;
     const TAgentToSchedulerRunningJobStatisticsOutboxPtr RunningJobStatisticsUpdatesOutbox_;

@@ -2098,9 +2098,9 @@ void TTask::AbortJobViaScheduler(TJobId jobId, EAbortReason reason)
     GetTaskHost()->AbortJobViaScheduler(jobId, reason);
 }
 
-void TTask::AbortJobFromController(TJobId jobId, EAbortReason reason)
+void TTask::AbortJobByController(TJobId jobId, EAbortReason reason)
 {
-    GetTaskHost()->AbortJobFromController(jobId, reason);
+    GetTaskHost()->AbortJobByController(jobId, reason);
 }
 
 void TTask::OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType)

@@ -184,6 +184,16 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
         assert ok
 
 
+class TestSchedulerRandomMasterDisconnectionsWithControlJobLifetimeAtScheduler(TestSchedulerRandomMasterDisconnections):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "control_job_lifetime_at_scheduler": True,
+            "operation_time_limit_check_period": 100,
+            "snapshot_period": 3000,
+        },
+    }
+
+
 class TestSchedulerRestart(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -382,6 +392,17 @@ class TestSchedulerRestart(YTEnvSetup):
 
         op.track()
 
+
+class TestSchedulerRestartWithControlJobLifetimeAtScheduler(TestSchedulerRestart):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "control_job_lifetime_at_scheduler": True,
+            "operation_time_limit_check_period": 100,
+            "snapshot_period": 3000,
+        },
+    }
+
+
 ##################################################################
 
 
@@ -576,6 +597,17 @@ class TestControllerAgentReconnection(YTEnvSetup):
         self._wait_for_state(op, "aborted")
 
 
+class TestControllerAgentReconnectionWithControlJobLifetimeAtScheduler(TestControllerAgentReconnection):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "control_job_lifetime_at_scheduler": True,
+            "snapshot_period": 500,
+            "operation_time_limit_check_period": 100,
+            "operation_build_progress_period": 100,
+        },
+    }
+
+
 @authors("levysotsky")
 class TestControllerAgentZombieOrchids(YTEnvSetup):
     NUM_MASTERS = 1
@@ -633,6 +665,17 @@ class TestControllerAgentZombieOrchids(YTEnvSetup):
         ((job_id, attributes),) = list(retained_finished_jobs.items())
         assert attributes["job_type"] == "map"
         assert attributes["state"] == "failed"
+
+
+class TestControllerAgentZombieOrchidsWithControlJobLifetimeAtScheduler(TestControllerAgentZombieOrchids):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "control_job_lifetime_at_scheduler": True,
+            "zombie_operation_orchids": {
+                "clean_period": 15 * 1000,
+            },
+        },
+    }
 
 
 ##################################################################
@@ -693,6 +736,17 @@ class TestRaceBetweenShardAndStrategy(YTEnvSetup):
             release_breakpoint()
 
         wait(lambda: op.get_state() == "completed")
+
+
+class TestRaceBetweenShardAndStrategyWithControlJobLifetimeAtScheduler(TestRaceBetweenShardAndStrategy):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "control_job_lifetime_at_scheduler": True,
+            "snapshot_period": 500,
+            "operation_time_limit_check_period": 100,
+            "operation_build_progress_period": 100,
+        },
+    }
 
 
 ##################################################################
@@ -972,6 +1026,17 @@ class TestSchedulerReviveForMap(OperationReviveBase):
         return map(command=command, in_=["//tmp/t_in"], out="//tmp/t_out", **kwargs)
 
 
+class TestSchedulerReviveForMapWithControlJobLifetimeAtScheduler(TestSchedulerReviveForMap):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "control_job_lifetime_at_scheduler": True,
+            "snapshot_period": 500,
+            "operation_time_limit_check_period": 100,
+            "operation_build_progress_period": 100,
+        },
+    }
+
+
 class TestSchedulerReviveForVanilla(OperationReviveBase):
     OP_TYPE = "vanilla"
 
@@ -980,6 +1045,17 @@ class TestSchedulerReviveForVanilla(OperationReviveBase):
         job_count = spec.pop("job_count", 1)
         spec["tasks"] = {"main": {"command": command, "job_count": job_count}}
         return vanilla(spec=spec, **kwargs)
+
+
+class TestSchedulerReviveForVanillaWithControlJobLifetimeAtScheduler(TestSchedulerReviveForVanilla):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "control_job_lifetime_at_scheduler": True,
+            "snapshot_period": 500,
+            "operation_time_limit_check_period": 100,
+            "operation_build_progress_period": 100,
+        },
+    }
 
 
 ################################################################################
@@ -1513,6 +1589,18 @@ class TestDisabledJobRevival(TestJobRevivalBase):
             op.track()
 
 
+class TestDisabledJobRevivalWithControlJobLifetimeAtScheduler(TestDisabledJobRevival):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "control_job_lifetime_at_scheduler": True,
+            "snapshot_period": 500,
+            "operations_update_period": 100,
+            "operation_time_limit_check_period": 100,
+            "enable_job_revival": False,
+        },
+    }
+
+
 ##################################################################
 
 
@@ -1584,6 +1672,100 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
         )
 
         assert get_slot_index(op2) == 1
+
+
+class TestPreserveSlotIndexAfterReviveWithControlJobLifetimeAtScheduler(TestPreserveSlotIndexAfterRevive):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "control_job_lifetime_at_scheduler": True,
+            "operation_time_limit_check_period": 100,
+        },
+    }
+
+
+##################################################################
+
+
+class TestMoveJobRevivalToCA(YTEnvSetup, PrepareTables):
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "control_job_lifetime_at_scheduler": True,
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 10,
+                    "cpu": 10,
+                },
+            },
+        },
+    }
+
+    @authors("pogorelov")
+    def test_move_job_revival_to_ca(self):
+        ops = []
+
+        for i in range(10):
+            self._create_table("//tmp/t_in" + str(i))
+            self._create_table("//tmp/t_out" + str(i))
+
+            write_table("//tmp/t_in" + str(i), [{"x": "y"}])
+
+            mapper_command = with_breakpoint("cat ; BREAKPOINT")
+            reducer_command = "cat"
+
+            op = map_reduce(
+                in_="//tmp/t_in" + str(i),
+                out="//tmp/t_out" + str(i),
+                reduce_by="x",
+                sort_by="x",
+                mapper_command=mapper_command,
+                reducer_command=reducer_command,
+                spec={
+                    "enable_job_splitting": False,
+                    "max_speculative_job_count_per_task": 0,
+                },
+                track=False,
+            )
+
+            ops.append(op)
+
+        wait_breakpoint(job_count=10)
+
+        update_controller_agent_config("control_job_lifetime_at_scheduler", False)
+
+        release_breakpoint()
+
+        for i in range(10, 20):
+            self._create_table("//tmp/t_in" + str(i))
+            self._create_table("//tmp/t_out" + str(i))
+
+            write_table("//tmp/t_in" + str(i), [{"x": "y"}])
+
+            op = map(
+                in_="//tmp/t_in" + str(i),
+                out="//tmp/t_out" + str(i),
+                command="cat",
+                spec={
+                    "enable_job_splitting": False,
+                    "max_speculative_job_count_per_task": 0,
+                },
+                track=False,
+            )
+
+            ops.append(op)
+
+        for op in ops:
+            op.track()
+
+            assert op.get_job_count("total") == op.get_job_count("completed")
 
 
 ##################################################################

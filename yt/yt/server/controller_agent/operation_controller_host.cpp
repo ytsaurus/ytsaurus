@@ -1,8 +1,10 @@
 #include "operation_controller_host.h"
-#include "master_connector.h"
-#include "controller_agent.h"
-#include "operation.h"
+
 #include "bootstrap.h"
+#include "controller_agent.h"
+#include "job_tracker.h"
+#include "master_connector.h"
+#include "operation.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -188,6 +190,7 @@ TOperationControllerHost::TOperationControllerHost(
     TOperation* operation,
     IInvokerPtr cancelableControlInvoker,
     IInvokerPtr uncancelableControlInvoker,
+    TJobTrackerOperationHandlerPtr operationJobsTracker,
     TAgentToSchedulerOperationEventOutboxPtr operationEventsOutbox,
     TAgentToSchedulerJobEventOutboxPtr jobEventsOutbox,
     TAgentToSchedulerRunningJobStatisticsOutboxPtr runningJobStatisticsUpdatesOutbox,
@@ -195,6 +198,7 @@ TOperationControllerHost::TOperationControllerHost(
     : OperationId_(operation->GetId())
     , CancelableControlInvoker_(std::move(cancelableControlInvoker))
     , UncancelableControlInvoker_(std::move(uncancelableControlInvoker))
+    , OperationJobsTracker_(std::move(operationJobsTracker))
     , OperationEventsOutbox_(std::move(operationEventsOutbox))
     , JobEventsOutbox_(std::move(jobEventsOutbox))
     , RunningJobStatisticsUpdatesOutbox_(std::move(runningJobStatisticsUpdatesOutbox))
@@ -253,26 +257,6 @@ void TOperationControllerHost::FailJob(TJobId jobId)
         jobId);
 }
 
-void TOperationControllerHost::ReleaseJobs(const std::vector<TJobToRelease>& jobsToRelease)
-{
-    std::vector<TAgentToSchedulerJobEvent> events;
-    events.reserve(jobsToRelease.size());
-    for (const auto& jobToRelease : jobsToRelease) {
-        events.emplace_back(TAgentToSchedulerJobEvent{
-            .EventType = EAgentToSchedulerJobEventType::Released,
-            .JobId = jobToRelease.JobId,
-            .ControllerEpoch = ControllerEpoch_,
-            .Error = {},
-            .InterruptReason = {},
-            .ReleaseFlags = jobToRelease.ReleaseFlags,
-        });
-    }
-    JobEventsOutbox_->Enqueue(std::move(events));
-    YT_LOG_DEBUG("Jobs release request enqueued (OperationId: %v, JobCount: %v)",
-        OperationId_,
-        jobsToRelease.size());
-}
-
 void TOperationControllerHost::UpdateRunningJobsStatistics(
     std::vector<TAgentToSchedulerRunningJobStatistics> runningJobStatisticsUpdates)
 {
@@ -285,6 +269,51 @@ void TOperationControllerHost::UpdateRunningJobsStatistics(
     YT_LOG_DEBUG("Jobs statistics update request enqueued (OperationId: %v, JobCount: %v)",
         OperationId_,
         runningJobStatisticsUpdates.size());
+}
+
+void TOperationControllerHost::RegisterJob(TStartedJobInfo jobInfo)
+{
+    OperationJobsTracker_->RegisterJob(std::move(jobInfo));
+}
+
+void TOperationControllerHost::ReviveJobs(std::vector<TStartedJobInfo> jobs)
+{
+    OperationJobsTracker_->ReviveJobs(std::move(jobs));
+}
+
+void TOperationControllerHost::ReleaseJobs(std::vector<TJobToRelease> jobsToRelease)
+{
+    if (std::empty(jobsToRelease)) {
+        return;
+    }
+
+    std::vector<TAgentToSchedulerJobEvent> events;
+    events.reserve(jobsToRelease.size());
+    for (const auto& jobToRelease : jobsToRelease) {
+        events.emplace_back(TAgentToSchedulerJobEvent{
+            .EventType = EAgentToSchedulerJobEventType::Released,
+            .JobId = jobToRelease.JobId,
+            .ControllerEpoch = ControllerEpoch_,
+            .Error = {},
+            .InterruptReason = {},
+            .ReleaseFlags = jobToRelease.ReleaseFlags,
+        });
+    }
+    // COMPAT(pogorelov)
+    JobEventsOutbox_->Enqueue(std::move(events));
+
+    OperationJobsTracker_->ReleaseJobs(std::move(jobsToRelease));
+
+    YT_LOG_DEBUG("Jobs release request enqueued (OperationId: %v, JobCount: %v)",
+        OperationId_,
+        jobsToRelease.size());
+}
+
+void TOperationControllerHost::AbortJobOnNode(
+    TJobId jobId,
+    NScheduler::EAbortReason abortReason)
+{
+    OperationJobsTracker_->AbortJobOnNode(jobId, abortReason);
 }
 
 std::optional<TString> TOperationControllerHost::RegisterJobForMonitoring(TOperationId operationId, TJobId jobId)
@@ -411,6 +440,11 @@ TMemoryTagQueue* TOperationControllerHost::GetMemoryTagQueue()
 TJobProfiler* TOperationControllerHost::GetJobProfiler() const
 {
     return Bootstrap_->GetControllerAgent()->GetJobProfiler();
+}
+
+TJobTracker* TOperationControllerHost::GetJobTracker() const
+{
+    return Bootstrap_->GetControllerAgent()->GetJobTracker();
 }
 
 int TOperationControllerHost::GetOnlineExecNodeCount()
