@@ -316,8 +316,8 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
                         "Job confirmed (JobId: %v, JobStage: %v)",
                         jobId,
                         newJobStage);
-                    nodeJobs.JobsToConfirm.erase(jobIt);
                     YT_VERIFY(jobIt->second == operationId);
+                    nodeJobs.JobsToConfirm.erase(jobIt);
                     EmplaceOrCrash(nodeJobs.Jobs, jobId, TJobInfo{newJobStage, operationId});
 
                     acceptJobSummaryForOperationControllerProcessing();
