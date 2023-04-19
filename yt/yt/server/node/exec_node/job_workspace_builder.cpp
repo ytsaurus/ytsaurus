@@ -229,10 +229,10 @@ private:
                     .InodeLimit = Settings_.UserSandboxOptions.InodeLimit,
                     .UserId = Settings_.UserSandboxOptions.UserId
                 })
-                .Apply(BIND([=] (const TError& volumeOrError) {
-                    if (!volumeOrError.IsOK()) {
+                .Apply(BIND([=] (const TError& result) {
+                    if (!result.IsOK()) {
                         THROW_ERROR_EXCEPTION(TError(EErrorCode::RootVolumePreparationFailed, "Failed to set quotas")
-                            << volumeOrError);
+                            << result);
                     }
                 }));
         } else {
@@ -419,10 +419,10 @@ private:
                     .InodeLimit = Settings_.UserSandboxOptions.InodeLimit,
                     .UserId = Settings_.UserSandboxOptions.UserId
                 })
-                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& volumeOrError) {
-                    if (!volumeOrError.IsOK()) {
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
+                    if (!result.IsOK()) {
                         THROW_ERROR_EXCEPTION(TError(EErrorCode::RootVolumePreparationFailed, "Failed to set quotas")
-                            << volumeOrError);
+                            << result);
                     }
 
                     VolumePrepareFinishTime_ = TInstant::Now();

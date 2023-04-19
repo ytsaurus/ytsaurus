@@ -1922,15 +1922,19 @@ void TJob::Cleanup()
 
     ReleaseResources();
 
+    RootVolume_.Reset();
+
     SetJobPhase(EJobPhase::Finished);
 
-    if (Bootstrap_->GetExecNodeBootstrap()->GetSlotManager()->IsEnabledJobEnvironmentResurrect()) {
-        RootVolume_.Reset();
-    }
-
     CleanupFinished_.Fire();
+    ResourceReleased_.Set();
 
     YT_LOG_INFO("Job finished (JobState: %v)", GetState());
+}
+
+TFuture<void> TJob::GetResourceReleasedEvent()
+{
+    return ResourceReleased_.ToFuture();
 }
 
 // Preparation.

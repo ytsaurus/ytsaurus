@@ -426,26 +426,33 @@ public:
         }
     }
 
-    void RemoveSchedulerJobsOnFatalAlert() override
+    TFuture<void> RemoveSchedulerJobs() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         YT_LOG_INFO("Remove scheduler jobs on fatal alert");
 
         std::vector<TJobPtr> jobsToRemove;
+        std::vector<TFuture<void>> jobResourceReleaseFutures;
         jobsToRemove.reserve(std::size(JobMap_));
+        jobResourceReleaseFutures.reserve(std::size(JobMap_));
+
         for (const auto& [jobId, job] : JobMap_) {
             YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
 
-            YT_LOG_INFO("Removing job %v due to fatal alert", jobId);
+            YT_LOG_INFO("Removing job due to fatal alert (JobId: %v)", jobId);
             job->Abort(TError("Job aborted due to fatal alert"));
 
             jobsToRemove.push_back(job);
+            jobResourceReleaseFutures.push_back(job->GetResourceReleasedEvent());
         }
 
         for (const auto& job : jobsToRemove) {
             UnregisterJob(job);
         }
+
+        return AllSet(std::move(jobResourceReleaseFutures))
+            .AsVoid();
     }
 
 private:
@@ -872,7 +879,7 @@ private:
             // NB(psushin): if slot manager is disabled with fatal alert we might have experienced an unrecoverable failure (e.g. hanging Porto)
             // and to avoid inconsistent state with scheduler we decide not to report to it any jobs at all.
             // We also drop all scheduler jobs from |JobMap_|.
-            RemoveSchedulerJobsOnFatalAlert();
+            RemoveSchedulerJobs();
 
             request->set_confirmed_job_count(0);
 
@@ -1405,7 +1412,7 @@ private:
             // NB(psushin): if slot manager is disabled with fatal alert we might have experienced an unrecoverable failure (e.g. hanging Porto)
             // and to avoid inconsistent state with scheduler we decide not to report to it any jobs at all.
             // We also drop all scheduler jobs from |JobMap_|.
-            RemoveSchedulerJobsOnFatalAlert();
+            Y_UNUSED(RemoveSchedulerJobs());
 
             request->set_confirmed_job_count(0);
 

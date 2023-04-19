@@ -375,7 +375,7 @@ private:
 
     static const std::vector<TString> ContainerRequestVars_;
 
-    bool IsTestPortoFailures() const
+    bool TestPortoFailureEnabled() const
     {
         auto config = DynamicConfig_.Acquire();
         auto flag = config->EnableTestPortoFailures;
@@ -845,7 +845,7 @@ private:
         const TString& command,
         bool idempotent)
     {
-        if (IsTestPortoFailures()) {
+        if (TestPortoFailureEnabled()) {
             THROW_ERROR CreatePortoError(GetFailedStubError(), "Porto stub error");
         }
 

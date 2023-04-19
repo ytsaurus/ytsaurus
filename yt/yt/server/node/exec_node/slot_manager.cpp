@@ -63,13 +63,14 @@ TSlotManager::TSlotManager(
         Logger))
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+
+    ClusterConfig_.Store(New<TClusterNodeDynamicConfig>());
 }
 
-bool TSlotManager::IsEnabledJobEnvironmentResurrect()
+bool TSlotManager::IsJobEnvironmentResurrectionEnabled()
 {
     auto config = ClusterConfig_.Acquire();
-    auto value = config ? config->EnableJobEnvironmentResurrect : std::nullopt;
-    return value.value_or(Bootstrap_->GetConfig()->EnableJobEnvironmentResurrect);
+    return *config->EnableJobEnvironmentResurrection;
 }
 
 TFuture<void> TSlotManager::Resurrect()
@@ -81,17 +82,18 @@ TFuture<void> TSlotManager::Resurrect()
             if (result.IsOK()) {
                 InitMedia(Bootstrap_->GetClient()->GetNativeConnection()->GetMediumDirectory());
             } else {
-                YT_LOG_ERROR(result, "Slot manager resurrect failed");
+                YT_LOG_ERROR(result, "Slot manager resurrection failed");
             }
         }));
 }
 
-void TSlotManager::HandlePortoHealthCheckSuccess()
+void TSlotManager::OnPortoHealthCheckSuccess()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (IsEnabledJobEnvironmentResurrect()
-        && CanResurrect()) {
+    if (IsJobEnvironmentResurrectionEnabled() &&
+        CanResurrect())
+    {
         YT_LOG_INFO("Porto health check successed, try to resurrect slot manager");
 
         YT_VERIFY(Bootstrap_->IsExecNode());
@@ -101,11 +103,11 @@ void TSlotManager::HandlePortoHealthCheckSuccess()
     }
 }
 
-void TSlotManager::HandlePortoHealthCheckFailed(const TError& result)
+void TSlotManager::OnPortoHealthCheckFailed(const TError& result)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (IsEnabledJobEnvironmentResurrect() && IsEnabled()) {
+    if (IsJobEnvironmentResurrectionEnabled() && IsEnabled()) {
         YT_LOG_INFO("Porto health check failed, disable slot manager");
 
         YT_VERIFY(Bootstrap_->IsExecNode());
@@ -135,8 +137,6 @@ void TSlotManager::Initialize()
             FreeSlots_.insert(slotIndex);
         }
 
-        FreeSlotsEvent_.Set();
-
         InitializeEnvironment();
     })
         .AsyncVia(Bootstrap_->GetJobInvoker())
@@ -152,9 +152,9 @@ void TSlotManager::Initialize()
 
     if (environmentConfig->Type == EJobEnvironmentType::Porto)
     {
-        PortoHealthChecker_->SubscribeSuccess(BIND(&TSlotManager::HandlePortoHealthCheckSuccess, MakeWeak(this))
+        PortoHealthChecker_->SubscribeSuccess(BIND(&TSlotManager::OnPortoHealthCheckSuccess, MakeWeak(this))
             .AsyncVia(Bootstrap_->GetJobInvoker()));
-        PortoHealthChecker_->SubscribeFailed(BIND(&TSlotManager::HandlePortoHealthCheckFailed, MakeWeak(this))
+        PortoHealthChecker_->SubscribeFailed(BIND(&TSlotManager::OnPortoHealthCheckFailed, MakeWeak(this))
             .AsyncVia(Bootstrap_->GetJobInvoker()));
         PortoHealthChecker_->Start();
     }
@@ -179,7 +179,6 @@ TFuture<void> TSlotManager::InitializeEnvironment()
         SlotCount_);
 
     YT_VERIFY(std::ssize(FreeSlots_) == SlotCount_);
-    YT_VERIFY(FreeSlotsEvent_.IsSet());
 
     AliveLocations_.clear();
     NumaNodeStates_.clear();
@@ -487,7 +486,7 @@ void TSlotManager::ForceInitialize()
     }
 }
 
-void TSlotManager::ResetAlerts(std::vector<ESlotManagerAlertType> alertTypes)
+void TSlotManager::ResetAlerts(const std::vector<ESlotManagerAlertType>& alertTypes)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -557,11 +556,9 @@ bool TSlotManager::Disable(const TError& error)
         Alerts_[ESlotManagerAlertType::GenericPersistentError] = std::move(wrappedError);
     }
 
-    Bootstrap_->GetJobController()->RemoveSchedulerJobsOnFatalAlert();
+    auto timeout = *Bootstrap_->GetDynamicConfig()->ExecNode->SlotReleaseTimeout;
 
-    auto timeout = Bootstrap_->GetDynamicConfig()->ExecNode->SlotsFreeTimeout.value_or(Bootstrap_->GetConfig()->ExecNode->SlotsFreeTimeout);
-
-    auto syncResult = WaitFor(FreeSlotsEvent_.ToFuture()
+    auto syncResult = WaitFor(Bootstrap_->GetJobController()->RemoveSchedulerJobs()
         .WithTimeout(timeout));
 
     YT_LOG_FATAL_IF(!syncResult.IsOK(), syncResult, "Free slot synchronization failed");
@@ -842,10 +839,6 @@ int TSlotManager::DoAcquireSlot(ESlotType slotType)
     auto slotIndex = *slotIt;
     FreeSlots_.erase(slotIt);
 
-    if (FreeSlotsEvent_.IsSet()) {
-        FreeSlotsEvent_ = NewPromise<void>();
-    }
-
     YT_LOG_DEBUG("Exec slot acquired (SlotType: %v, SlotIndex: %v)",
         slotType,
         slotIndex);
@@ -853,41 +846,35 @@ int TSlotManager::DoAcquireSlot(ESlotType slotType)
     return slotIndex;
 }
 
-void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, double requestedCpu, const std::optional<i64>& numaNodeIdAffinity)
+TFuture<void> TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, double requestedCpu, const std::optional<i64>& numaNodeIdAffinity)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto& jobInvoker = Bootstrap_->GetJobInvoker();
-    jobInvoker->Invoke(
-        BIND([=, this, this_ = MakeStrong(this)] {
-            VERIFY_THREAD_AFFINITY(JobThread);
+    return BIND([=, this, this_ = MakeStrong(this)] {
+        VERIFY_THREAD_AFFINITY(JobThread);
 
-            YT_VERIFY(FreeSlots_.insert(slotIndex).second);
-            if (slotType == ESlotType::Idle) {
-                --UsedIdleSlotCount_;
-                IdlePolicyRequestedCpu_ -= requestedCpu;
-            }
+        YT_VERIFY(FreeSlots_.insert(slotIndex).second);
+        if (slotType == ESlotType::Idle) {
+            --UsedIdleSlotCount_;
+            IdlePolicyRequestedCpu_ -= requestedCpu;
+        }
 
-            if (numaNodeIdAffinity) {
-                for (auto& numaNodeState : NumaNodeStates_) {
-                    if (numaNodeState.NumaNodeInfo.NumaNodeId == *numaNodeIdAffinity) {
-                        numaNodeState.FreeCpuCount += requestedCpu;
-                        break;
-                    }
+        if (numaNodeIdAffinity) {
+            for (auto& numaNodeState : NumaNodeStates_) {
+                if (numaNodeState.NumaNodeInfo.NumaNodeId == *numaNodeIdAffinity) {
+                    numaNodeState.FreeCpuCount += requestedCpu;
+                    break;
                 }
             }
+        }
 
-            YT_VERIFY(!FreeSlotsEvent_.IsSet());
-
-            if (std::ssize(FreeSlots_) == SlotCount_) {
-                FreeSlotsEvent_.Set();
-            }
-
-            YT_LOG_DEBUG("Exec slot released (SlotType: %v, SlotIndex: %v, RequestedCpu: %v)",
-                slotType,
-                slotIndex,
-                requestedCpu);
-        }));
+        YT_LOG_DEBUG("Exec slot released (SlotType: %v, SlotIndex: %v, RequestedCpu: %v)",
+            slotType,
+            slotIndex,
+            requestedCpu);
+    })
+        .AsyncVia(Bootstrap_->GetJobInvoker())
+        .Run();
 }
 
 NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
@@ -935,7 +922,9 @@ TSlotManager::TSlotGuard::TSlotGuard(
 
 TSlotManager::TSlotGuard::~TSlotGuard()
 {
-    SlotManager_->ReleaseSlot(SlotType_, SlotIndex_, RequestedCpu_, NumaNodeIdAffinity_);
+    auto result = WaitFor(SlotManager_->ReleaseSlot(SlotType_, SlotIndex_, RequestedCpu_, NumaNodeIdAffinity_));
+
+    YT_LOG_FATAL_IF(!result.IsOK(), result, "Slot release failed (SlotIndex: %v, SlotType: %v)", SlotIndex_, SlotType_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -53,17 +53,18 @@ void TPortoHealthChecker::OnDynamicConfigChanged(const TPortoExecutorDynamicConf
 
 void TPortoHealthChecker::OnCheck()
 {
-    YT_LOG_DEBUG("Porto health checker run porto check");
+    YT_LOG_DEBUG("Run porto health check");
 
-    Executor_->ListVolumePaths()
-        .WithTimeout(Config_->ApiTimeout)
-        .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
+    WaitFor(Executor_->ListVolumePaths()
+        .AsVoid()
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
             if (result.IsOK()) {
                 Success_.Fire();
             } else {
                 Failed_.Fire(result);
             }
-        }));
+        })))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

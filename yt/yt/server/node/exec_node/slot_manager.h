@@ -111,7 +111,7 @@ public:
     bool IsEnabled() const;
     bool HasFatalAlert() const;
 
-    void ResetAlerts(std::vector<ESlotManagerAlertType> alertTypes);
+    void ResetAlerts(const std::vector<ESlotManagerAlertType>& alertTypes);
 
     NNodeTrackerClient::NProto::TDiskResources GetDiskResources();
 
@@ -145,7 +145,7 @@ public:
      */
     void InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
-    bool IsEnabledJobEnvironmentResurrect();
+    bool IsJobEnvironmentResurrectionEnabled();
 
     static bool IsResettableAlertType(ESlotManagerAlertType alertType);
 
@@ -159,8 +159,6 @@ private:
     std::atomic<ESlotManagerState> State_ = ESlotManagerState::Disabled;
 
     std::atomic_bool JobProxyReady_ = false;
-
-    TPromise<void> FreeSlotsEvent_ = NewPromise<void>();
 
     TAtomicIntrusivePtr<TSlotManagerDynamicConfig> DynamicConfig_;
     TAtomicIntrusivePtr<NClusterNode::TClusterNodeDynamicConfig> ClusterConfig_;
@@ -205,15 +203,15 @@ private:
 
     bool EnableNumaNodeScheduling() const;
 
-    void HandlePortoHealthCheckSuccess();
-    void HandlePortoHealthCheckFailed(const TError& result);
+    void OnPortoHealthCheckSuccess();
+    void OnPortoHealthCheckFailed(const TError& result);
 
     void ForceInitialize();
     TFuture<void> Resurrect();
     void AsyncInitialize();
 
     int DoAcquireSlot(ESlotType slotType);
-    void ReleaseSlot(
+    TFuture<void> ReleaseSlot(
         ESlotType slotType,
         int slotIndex,
         double requestedCpu,
