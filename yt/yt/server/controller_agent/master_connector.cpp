@@ -767,7 +767,7 @@ private:
         bool shouldUpdateLightOperationAttributes)
     {
         YT_LOG_DEBUG(
-            "Updating operation progress and failed jobs existence"
+            "Updating operation progress and failed jobs existence "
             "(OperationId: %v, ShouldUpdateProgress: %v, ShouldUpdateLightOperationAttributes: %v)",
             operationId,
             shouldUpdateProgress,

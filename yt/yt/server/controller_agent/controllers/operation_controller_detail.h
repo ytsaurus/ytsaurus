@@ -1191,7 +1191,7 @@ private:
     int RetainedJobCount_ = 0;
     int JobSpecCompletedArchiveCount_ = 0;
 
-    std::atomic<i64> FailedJobCount_ = 0;
+    std::atomic<int> FailedJobCount_ = 0;
     std::atomic<bool> ShouldUpdateLightOperationAttributes_ = false;
 
     // Release job flags to be sent to scheduler in EAgentToSchedulerJobEventType::Released.
