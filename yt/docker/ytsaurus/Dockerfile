@@ -20,6 +20,7 @@ ARG DRIVER_BINDINGS_PACKAGE_PATH=ytsaurus_native_driver-1.0.0-cp39-cp39-linux_x8
 
 COPY ${YTSERVER_ALL_PATH} /usr/bin/ytserver-all
 
+# If this list changes, also update yt_nightly/Dockerfile
 RUN ln /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln /usr/bin/ytserver-all /usr/bin/ytserver-clock && \
     ln /usr/bin/ytserver-all /usr/bin/ytserver-discovery && \
