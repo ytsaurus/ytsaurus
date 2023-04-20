@@ -648,6 +648,9 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkFormatStatistics)
         .SetExternal(isExternal)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkMediaStatistics)
+        .SetExternal(isExternal)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SnapshotStatistics)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DeltaStatistics)
@@ -915,6 +918,44 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
                 Bootstrap_,
                 chunkLists,
                 [] (const TChunk* chunk) { return chunk->GetChunkFormat(); });
+
+        case EInternedAttributeKey::ChunkMediaStatistics: {
+            if (isExternal) {
+                break;
+            }
+
+            auto chunkManager = Bootstrap_->GetChunkManager();
+            return ComputeChunkStatistics(
+                Bootstrap_,
+                chunkLists,
+                [] (const TChunk* chunk) -> std::optional<int> {
+                    if (chunk->StoredReplicas().empty()) {
+                        return std::nullopt;
+                    }
+
+                    // We should choose a single medium for the chunk if there are replicas
+                    // with different media. We choose the most frequent medium if more than
+                    // half replicas belong to it, otherwise arbitrary one.
+                    int chosenMediumIndex = -1;
+                    int chosenMediumReplicaCount = 0;
+
+                    for (auto replica : chunk->StoredReplicas()) {
+                        int mediumIndex = replica.GetPtr()->GetEffectiveMediumIndex();
+                        if (mediumIndex == chosenMediumIndex || chosenMediumReplicaCount == 0) {
+                            chosenMediumIndex = mediumIndex;
+                            ++chosenMediumReplicaCount;
+                        } else {
+                            --chosenMediumReplicaCount;
+                        }
+                    }
+
+                    YT_VERIFY(chosenMediumIndex != -1);
+                    return chosenMediumIndex;
+                },
+                [=] (int mediumIndex) {
+                    return chunkManager->GetMediumByIndexOrThrow(mediumIndex)->GetName();
+                });
+        }
 
         default:
             break;

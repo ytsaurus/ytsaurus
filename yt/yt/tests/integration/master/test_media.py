@@ -235,6 +235,8 @@ class TestMedia(YTEnvSetup):
         create("table", "//tmp/t3")
         write_table("//tmp/t3", {"a": "b"})
 
+        assert get("//tmp/t3/@chunk_media_statistics/default/chunk_count") == 1
+
         tbl_media = get("//tmp/t3/@media")
         tbl_media[TestMedia.NON_DEFAULT_MEDIUM] = {
             "replication_factor": 3,
@@ -259,6 +261,9 @@ class TestMedia(YTEnvSetup):
             lambda:
                 self._check_all_chunks_on_medium("t3", TestMedia.NON_DEFAULT_MEDIUM)
                 and self._check_account_and_table_usage_equal("t3"))
+
+        assert get(f"//tmp/t3/@chunk_media_statistics/{TestMedia.NON_DEFAULT_MEDIUM}/chunk_count") == 1
+        assert not exists("//tmp/t3/@chunk_media_statistics/default")
 
     @authors("babenko")
     def test_move_between_media_shortcut(self):

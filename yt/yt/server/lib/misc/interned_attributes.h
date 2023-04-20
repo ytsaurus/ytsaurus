@@ -78,6 +78,7 @@
     XX(ChunkIds, chunk_ids) \
     XX(ChunkListId, chunk_list_id) \
     XX(ChunkLocations, chunk_locations) \
+    XX(ChunkMediaStatistics, chunk_media_statistics) \
     XX(ChunkMergerMode, chunk_merger_mode) \
     XX(ChunkMergerNodeTraversalConcurrency, chunk_merger_node_traversal_concurrency) \
     XX(ChunkMergerTraversalInfo, chunk_merger_traversal_info) \

@@ -1006,8 +1006,12 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkLists,
-                [] (const TChunk* chunk) { return static_cast<ETableChunkFormat>(chunk->GetChunkFormat()); },
-                [] (const TChunk* chunk) { return chunk->GetChunkType() == EChunkType::Table; });
+                [] (const TChunk* chunk) -> std::optional<ETableChunkFormat> {
+                    if (chunk->GetChunkType() != EChunkType::Table) {
+                        return std::nullopt;
+                    }
+                    return static_cast<ETableChunkFormat>(chunk->GetChunkFormat());
+                });
 
         case EInternedAttributeKey::OptimizeForStatistics: {
             if (isExternal) {
@@ -1017,8 +1021,12 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkLists,
-                [] (const TChunk* chunk) { return OptimizeForFromFormat(chunk->GetChunkFormat()); },
-                [] (const TChunk* chunk) { return chunk->GetChunkType() == EChunkType::Table; });
+                [] (const TChunk* chunk) -> std::optional<EOptimizeFor> {
+                    if (chunk->GetChunkType() != EChunkType::Table) {
+                        return std::nullopt;
+                    }
+                    return OptimizeForFromFormat(chunk->GetChunkFormat());
+                });
         }
 
         case EInternedAttributeKey::HunkStatistics: {
