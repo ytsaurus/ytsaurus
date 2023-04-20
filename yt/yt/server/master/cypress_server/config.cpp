@@ -91,7 +91,7 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
 
     // COMPAT (h0pless)
     registrar.Parameter("enable_symlink_cyclicity_check", &TThis::EnableSymlinkCyclicityCheck)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("portal_synchronization_period", &TThis::PortalSynchronizationPeriod)
         .Default(TDuration::Minutes(1));
