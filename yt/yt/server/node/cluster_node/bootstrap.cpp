@@ -562,6 +562,11 @@ public:
         return JobResourceManager_;
     }
 
+    const TRebootManagerPtr& GetRebootManager() const override
+    {
+        return RebootManager_;
+    }
+
     const IIOTrackerPtr& GetIOTracker() const override
     {
         return IOTracker_;
@@ -699,6 +704,8 @@ private:
 
     IOrchidServiceProviderPtr JobsOrchidServiceProvider_;
     IJobResourceManagerPtr JobResourceManager_;
+
+    TRebootManagerPtr RebootManager_;
 
     IMasterConnectorPtr MasterConnector_;
 
@@ -920,6 +927,8 @@ private:
 
         JobResourceManager_ = IJobResourceManager::CreateJobResourceManager(this);
 
+        RebootManager_ = New<TRebootManager>(GetControlInvoker());
+
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
             timestampProviderConfig = CreateRemoteTimestampProviderConfig(Config_->ClusterConnection->Static->PrimaryMaster);
@@ -1089,6 +1098,10 @@ private:
             OrchidRoot_,
             "/config",
             CreateVirtualNode(ConfigNode_));
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/reboot_manager",
+            CreateVirtualNode(RebootManager_->GetOrchidService()));
         SetNodeByYPath(
             OrchidRoot_,
             "/job_controller",
@@ -1633,6 +1646,11 @@ const IBlobReaderCachePtr& TBootstrapBase::GetBlobReaderCache() const
 const NJobAgent::IJobResourceManagerPtr& TBootstrapBase::GetJobResourceManager() const
 {
     return Bootstrap_->GetJobResourceManager();
+}
+
+const TRebootManagerPtr& TBootstrapBase::GetRebootManager() const
+{
+    return Bootstrap_->GetRebootManager();
 }
 
 EJobEnvironmentType TBootstrapBase::GetJobEnvironmentType() const

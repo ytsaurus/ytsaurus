@@ -16,9 +16,9 @@
 
 #include <yt/yt/server/node/chaos_node/public.h>
 
-#include <yt/yt/server/lib/cellar_agent/public.h>
+#include <yt/yt/server/lib/misc/reboot_manager.h>
 
-#include <yt/yt/library/containers/public.h>
+#include <yt/yt/server/lib/cellar_agent/public.h>
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
@@ -28,13 +28,15 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/ytlib/misc/public.h>
+
 #include <yt/yt/library/profiling/solomon/public.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
-#include <yt/yt/library/query/base/public.h>
+#include <yt/yt/library/containers/public.h>
 
-#include <yt/yt/ytlib/misc/public.h>
+#include <yt/yt/library/query/base/public.h>
 
 #include <yt/yt/library/monitoring/public.h>
 
@@ -151,6 +153,9 @@ struct IBootstrapBase
 
     // Job resource manager.
     virtual const NJobAgent::IJobResourceManagerPtr& GetJobResourceManager() const = 0;
+
+    // Reboot manager for hot swap functionality.
+    virtual const TRebootManagerPtr& GetRebootManager() const = 0;
 
     // Job environment.
     virtual NExecNode::EJobEnvironmentType GetJobEnvironmentType() const = 0;
@@ -284,6 +289,8 @@ public:
     const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const override;
 
     const NJobAgent::IJobResourceManagerPtr& GetJobResourceManager() const override;
+
+    const TRebootManagerPtr& GetRebootManager() const override;
 
     NExecNode::EJobEnvironmentType GetJobEnvironmentType() const override;
 

@@ -26,8 +26,6 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-#include <yt/yt/server/lib/misc/reboot_manager.h>
-
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/library/containers/disk_manager/active_disk_checker.h>
@@ -110,8 +108,6 @@ public:
         MediumUpdater_ = New<TMediumUpdater>(
             this,
             MediumDirectoryManager_);
-
-        RebootManager_ = New<TRebootManager>(GetControlInvoker());
 
         ChunkStore_->Initialize();
 
@@ -285,7 +281,7 @@ public:
         LocationHealthChecker_->Initialize();
         ActiveDiskChecker_ = New<TActiveDiskChecker>(
             DiskInfoProvider_,
-            RebootManager_,
+            ClusterNodeBootstrap_->GetRebootManager(),
             GetControlInvoker());
     }
 
@@ -306,11 +302,6 @@ public:
             GetOrchidRoot(),
             "/ally_replica_manager",
             CreateVirtualNode(AllyReplicaManager_->GetOrchidService()));
-
-        SetNodeByYPath(
-            GetOrchidRoot(),
-            "/reboot_manager",
-            CreateVirtualNode(RebootManager_->GetOrchidService()));
 
         MasterConnector_->Initialize();
 
