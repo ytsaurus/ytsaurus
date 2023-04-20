@@ -2104,6 +2104,8 @@ private:
                 confirmedJobs.push_back(std::move(job));
             } else {
                 YT_LOG_DEBUG("Job unconfirmed (JobId: %v)", jobId);
+
+                unconfirmedJobs.push_back(jobId);
             }
         }
 
