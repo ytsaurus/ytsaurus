@@ -293,14 +293,14 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
     }
 
     for (const auto& diskId : diskWithDestroyingLocations) {
-        TError error;
+        TError resultOrError;
 
         if (diskWithLivenessLocations.contains(diskId)) {
-            error = TError("Disk cannot be repaired, because it contains alive locations");
+            resultOrError = TError("Disk cannot be repaired, because it contains alive locations");
         } else if (diskWithNotDestroyingLocations.contains(diskId)) {
-            error = TError("Disk contains not destroing locations");
+            resultOrError = TError("Disk contains not destroing locations");
         } else {
-            error = WaitFor(LocationManager_->RecoverDisk(diskId));
+            resultOrError = WaitFor(LocationManager_->RecoverDisk(diskId));
         }
 
         for (const auto& livenessInfo : livenessInfos) {
@@ -308,7 +308,7 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
             if (livenessInfo.DiskId == diskId &&
                 livenessInfo.LocationState == ELocationState::Destroying)
             {
-                livenessInfo.Location->FinishDestroy(error.IsOK(), error);
+                livenessInfo.Location->FinishDestroy(resultOrError.IsOK(), resultOrError);
             }
         }
     }

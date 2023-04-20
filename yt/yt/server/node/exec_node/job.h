@@ -226,8 +226,6 @@ public:
 
     bool IsFinished() const noexcept;
 
-    TFuture<void> GetResourceReleasedEvent();
-
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -329,8 +327,6 @@ private:
 
     //! True if scheduler asked to store this job.
     bool Stored_ = false;
-
-    TPromise<void> ResourceReleased_ = NewPromise<void>();
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobProbeLock_);
     NJobProberClient::IJobProbePtr JobProbe_;

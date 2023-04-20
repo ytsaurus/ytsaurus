@@ -527,6 +527,8 @@ void TExecNodeConfig::Register(TRegistrar registrar)
         .Default(100_MB);
     registrar.Parameter("job_abortion_timeout", &TThis::JobAbortionTimeout)
         .Default(TDuration::Minutes(15));
+    registrar.Parameter("slots_free_timeout", &TThis::SlotsFreeTimeout)
+        .Default(TDuration::Minutes(20));
 
     registrar.Parameter("job_prepare_time_limit", &TThis::JobPrepareTimeLimit)
         .Default();
@@ -641,8 +643,8 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_abortion_timeout", &TThis::JobAbortionTimeout)
         .Default();
-    registrar.Parameter("slot_release_timeout", &TThis::SlotReleaseTimeout)
-        .Default(TDuration::Minutes(20));
+    registrar.Parameter("slots_free_timeout", &TThis::SlotsFreeTimeout)
+        .Default();
 
     registrar.Parameter("abort_on_jobs_disabled", &TThis::AbortOnJobsDisabled)
         .Default(false);

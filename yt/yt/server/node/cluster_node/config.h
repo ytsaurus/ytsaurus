@@ -337,6 +337,8 @@ public:
     //! Porto executor config.
     NContainers::TPortoExecutorConfigPtr PortoExecutor;
 
+    bool EnableJobEnvironmentResurrect;
+
     //! Bucket configuration for in network throttlers.
     THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
 
@@ -399,7 +401,7 @@ public:
     //! Porto executor config.
     NContainers::TPortoExecutorDynamicConfigPtr PortoExecutor;
 
-    std::optional<bool> EnableJobEnvironmentResurrection;
+    std::optional<bool> EnableJobEnvironmentResurrect;
 
     bool EnableMemoryReferenceTracker;
 
