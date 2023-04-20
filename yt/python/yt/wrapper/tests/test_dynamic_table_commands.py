@@ -332,6 +332,40 @@ class TestDynamicTableCommands(object):
         tablets = yt.get("{}/@tablets".format(table))
         assert tablets[0]["cell_id"] != tablets[1]["cell_id"]
 
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("all_keys", [True, False])
+    def test_get_in_sync_replicas(self, all_keys):
+        def _get_in_sync_replicas(table, ts):
+            if all_keys:
+                return yt.get_in_sync_replicas(table, ts)
+            else:
+                return yt.get_in_sync_replicas(table, ts, [{"x": "a"}])
+
+        self._sync_create_tablet_cell()
+        table = TEST_DIR + "/test_get_in_sync_replicas"
+        table_replica = table + "_replica"
+        schema = [{"name": "x", "type": "string", "sort_order": "ascending"},
+                  {"name": "y", "type": "string"}]
+
+        yt.create("replicated_table", table, attributes={"dynamic": True, "schema": schema})
+        yt.mount_table(table, sync=True)
+
+        replica_id = yt.create("table_replica", attributes={
+            "table_path": table,
+            "cluster_name": "primary",
+            "mode": "sync",
+            "replica_path": table_replica}
+        )
+
+        ts = yt.generate_timestamp()
+        assert _get_in_sync_replicas(table, ts) == []
+
+        yt.alter_table_replica(replica_id, enabled=True)
+        wait(lambda: yt.get("#{0}/@state".format(replica_id)) == "enabled")
+
+        ts = yt.generate_timestamp()
+        wait(lambda: _get_in_sync_replicas(table, ts) == [replica_id])
+
     @authors("ignat")
     def test_get_tablet_infos(self):
         if get_api_version() != "v4":

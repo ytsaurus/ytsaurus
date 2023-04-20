@@ -756,6 +756,54 @@ def alter_table_replica(replica_id, enabled=None, mode=None, client=None):
     return make_request("alter_table_replica", params, client=client)
 
 
+def get_in_sync_replicas(path, timestamp, input_stream=None, cached_sync_replicas_timeout=None,
+                         format=None, raw=None, client=None):
+    """Returns ids of in-sync replicas for keys in input_stream.
+
+    :param path: path to table.
+    :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param timestamp: timestamp replicas are in-sync to.
+    :param input_stream: keys subset that must be in-sync. Same as all keys if not specified.
+        Should be python file-like object, string, list of strings.
+    :param cached_sync_replicas_timeout: the period in seconds.
+        Allows to use data from sync replicas cache if the data is no older than cached_sync_replicas_timeout.
+    :param format: format of input data.
+    :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param bool raw: if `raw` is specified stream with unparsed records (strings)
+        in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>`
+        are expected.
+    """
+
+    if raw is None:
+        raw = get_config(client)["default_value_of_raw_option"]
+    format = _prepare_command_format(format, raw, client)
+
+    params = {
+        "path": path,
+        "timestamp": timestamp,
+        "all_keys": input_stream is None,
+        "cached_sync_replicas_timeout": cached_sync_replicas_timeout,
+        "input_format": format
+    }
+
+    chunk_size = get_config(client)["write_retries"]["chunk_size"]
+    if chunk_size is None:
+        chunk_size = DEFAULT_WRITE_CHUNK_SIZE
+
+    if input_stream is None:
+        input_stream = []
+
+    input_data = b"".join(_to_chunk_stream(
+        input_stream,
+        format,
+        raw=raw,
+        split_rows=False,
+        chunk_size=chunk_size,
+        rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"]))
+
+    return make_formatted_request("get_in_sync_replicas", params, data=input_data, format=None, client=client)
+
+
 def get_tablet_infos(path, tablet_indexes, format=None, client=None):
     """Returns various runtime tablet information.
 

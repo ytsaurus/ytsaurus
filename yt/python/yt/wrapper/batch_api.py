@@ -8,7 +8,7 @@ from .table_commands import create_table, row_count, is_sorted, is_empty, alter_
 from .dynamic_table_commands import (  # noqa
     mount_table, unmount_table, remount_table,
     freeze_table, unfreeze_table, reshard_table, reshard_table_automatic, balance_tablet_cells,
-    trim_rows, alter_table_replica, get_tablet_infos, get_tablet_errors,
+    trim_rows, alter_table_replica, get_in_sync_replicas, get_tablet_infos, get_tablet_errors,
     create_table_backup, restore_table_backup)
 from .operation_commands import (  # noqa
     suspend_operation, resume_operation, get_operation_attributes, update_operation_parameters,

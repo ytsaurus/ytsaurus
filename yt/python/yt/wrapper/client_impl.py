@@ -773,6 +773,33 @@ class YtClient(ClientState):
             client=self,
             cache_path=cache_path)
 
+    def get_in_sync_replicas(
+            self,
+            path, timestamp,
+            input_stream=None, cached_sync_replicas_timeout=None, format=None, raw=None):
+        """
+        Returns ids of in-sync replicas for keys in input_stream.
+
+        :param path: path to table.
+        :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param timestamp: timestamp replicas are in-sync to.
+        :param input_stream: keys subset that must be in-sync. Same as all keys if not specified.
+        Should be python file-like object, string, list of strings.
+        :param cached_sync_replicas_timeout: the period in seconds.
+        Allows to use data from sync replicas cache if the data is no older than cached_sync_replicas_timeout.
+        :param format: format of input data.
+        :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+        :param bool raw: if `raw` is specified stream with unparsed records (strings)
+        in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>`
+        are expected.
+
+        """
+        return client_api.get_in_sync_replicas(
+            path, timestamp,
+            client=self,
+            input_stream=input_stream, cached_sync_replicas_timeout=cached_sync_replicas_timeout,
+            format=format, raw=raw)
+
     def get_job(
             self,
             operation_id, job_id,
