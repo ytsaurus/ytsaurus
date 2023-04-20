@@ -34,7 +34,7 @@ mkdir "$YTSAURUS_PYTHON"
 
   4. Install `yt_setup` package in editable mode, this library provide instruments to prepare modules layout.
 ```
-cd "$SOURCE_ROOT" && pip install -r yt/python/packages
+cd "$SOURCE_ROOT" && pip install -e yt/python/packages
 ```
   
   5. Run `generate_python_proto` to build proto modules (it requires protoc to be installed, see [build instruction](https://github.com/ytsaurus/ytsaurus/blob/main/BUILD.md)).
