@@ -2,14 +2,14 @@
 
 #include <yt/yt/client/api/rpc_proxy/private.h>
 
+namespace NYT::NApi::NRpcProxy {
 namespace {
 
-using namespace NYT::NApi::NRpcProxy;
+////////////////////////////////////////////////////////////////////////////////
 
 class TProxyUrlTest
     : public ::testing::Test
-{
-};
+{ };
 
 TEST_F(TProxyUrlTest, ParseProxyUrlAliasingRules)
 {
@@ -42,4 +42,7 @@ TEST_F(TProxyUrlTest, NormalizeHttpProxyUrl)
     ASSERT_EQ(NormalizeHttpProxyUrl("primary"), "http://localhost:12345");
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
+} // namespace NYT::NApi::NRpcProxy

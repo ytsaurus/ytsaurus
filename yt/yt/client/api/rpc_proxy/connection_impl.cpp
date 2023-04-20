@@ -17,6 +17,7 @@
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/http.h>
 #include <yt/yt/core/http/helpers.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
@@ -56,7 +57,7 @@ THashMap<TString, TString> ParseProxyUrlAliasingRules(TString envConfig)
 
 void ApplyProxyUrlAliasingRules(TString& url)
 {
-    static auto rules = ParseProxyUrlAliasingRules(GetEnv("YT_PROXY_URL_ALIASING_CONFIG"));
+    static const auto rules = ParseProxyUrlAliasingRules(GetEnv("YT_PROXY_URL_ALIASING_CONFIG"));
     if (auto ruleIt = rules.find(url); ruleIt != rules.end()) {
         url = ruleIt->second;
     }
