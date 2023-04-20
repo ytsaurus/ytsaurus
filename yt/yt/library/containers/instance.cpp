@@ -402,7 +402,7 @@ public:
         TErrorOr<ui64>& cpuSystemUsage) const
     {
         if (cpuUsage.IsOK() && cpuSystemUsage.IsOK()) {
-            return cpuUsage.Value() - cpuSystemUsage.Value();
+            return cpuUsage.Value() > cpuSystemUsage.Value() ? cpuUsage.Value() - cpuSystemUsage.Value() : 0;
         } else if (cpuUsage.IsOK()) {
             return TError("Missing property %Qlv in Porto response", EStatField::CpuSystemUsage)
                 << TErrorAttribute("container", Name_);
