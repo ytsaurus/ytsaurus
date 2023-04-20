@@ -59,7 +59,7 @@ public:
 
     static void InitType()
     {
-        behaviors().name("yson_lib.SkiffStructuredIteratorWithContext");
+        behaviors().name("yt_yson_bindings.yson_lib.SkiffStructuredIteratorWithContext");
         behaviors().doc("Iterates over pairs (row, context)");
         behaviors().supportGetattro();
         behaviors().supportSetattro();
@@ -200,7 +200,7 @@ void TSkiffStructuredIterator::InitType()
 {
     TIteratorWithContext::InitType();
 
-    behaviors().name("yson_lib.SkiffStructuredIterator");
+    behaviors().name("yt_yson_bindings.yson_lib.SkiffStructuredIterator");
     behaviors().doc("Iterates over stream with skiff rows and returns their structured representation");
     behaviors().supportGetattro();
     behaviors().supportSetattro();

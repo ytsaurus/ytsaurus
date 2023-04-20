@@ -149,7 +149,7 @@ int TSkiffSchemaPython::sequence_length()
 
 void TSkiffSchemaPython::InitType()
 {
-    behaviors().name("yson_lib.SkiffSchema");
+    behaviors().name("yt_yson_bindings.yson_lib.SkiffSchema");
     behaviors().doc("Skiff schema");
 
     behaviors().supportGetattro();

@@ -106,7 +106,7 @@ TYsonStringBuf TSkiffOtherColumns::GetYsonString()
 
 void TSkiffOtherColumns::InitType()
 {
-    behaviors().name("yson_lib.SkiffOtherColumns");
+    behaviors().name("yt_yson_bindings.yson_lib.SkiffOtherColumns");
     behaviors().doc("Very lazy dict of skiff $other_columns");
     behaviors().supportGetattro();
     behaviors().supportSetattro();

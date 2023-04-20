@@ -72,7 +72,7 @@ public:
     {
         Name_ = TString(FormatName) + "Iterator";
         Doc_ = "Iterates over stream with " + TString(FormatName) + " rows";
-        TypeName_ = "yson_lib." + Name_;
+        TypeName_ = "yt_yson_bindings.yson_lib." + Name_;
         TBase::behaviors().name(TypeName_.c_str());
         TBase::behaviors().doc(Doc_.c_str());
         TBase::behaviors().supportGetattro();
@@ -167,7 +167,7 @@ public:
 
     static void InitType()
     {
-        behaviors().name("yson_lib.RawYsonIterator");
+        behaviors().name("yt_yson_bindings.yson_lib.RawYsonIterator");
         behaviors().doc("Iterates over stream with YSON rows");
         behaviors().supportGetattro();
         behaviors().supportSetattro();
@@ -228,7 +228,7 @@ public:
 
     static void InitType()
     {
-        behaviors().name("yson_lib.LazyYsonIterator");
+        behaviors().name("yt_yson_bindings.yson_lib.LazyYsonIterator");
         behaviors().doc("Iterates over stream with YSON rows");
         behaviors().supportGetattro();
         behaviors().supportSetattro();

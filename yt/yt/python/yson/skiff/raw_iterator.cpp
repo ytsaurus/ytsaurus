@@ -77,7 +77,7 @@ PyObject* TSkiffRawIterator::iternext()
 
 void TSkiffRawIterator::InitType()
 {
-    behaviors().name("yson_lib.SkiffRawIterator");
+    behaviors().name("yt_yson_bindings.yson_lib.SkiffRawIterator");
     behaviors().doc("Iterates over stream with Skiff rows");
     behaviors().supportGetattro();
     behaviors().supportSetattro();
