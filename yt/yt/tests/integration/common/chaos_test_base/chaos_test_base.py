@@ -1,9 +1,9 @@
 from yt_tests_common.dynamic_tables_base import DynamicTablesBase
 
 from yt_commands import (
-    print_debug, wait, get_driver, get, set, ls, create, sync_create_cells, sync_mount_table, alter_table, insert_rows,
+    print_debug, wait, get_driver, get, set, ls, exists, create, sync_create_cells, sync_mount_table, alter_table, insert_rows,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
-    sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id)
+    sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id, migrate_replication_cards)
 
 from yt.common import YtError
 
@@ -184,6 +184,30 @@ class ChaosTestBase(DynamicTablesBase):
         if sync_replication_era:
             self._sync_replication_era(card_id, replicas)
         return card_id, replica_ids
+
+    def _sync_migrate_replication_cards(self, cell_id, card_ids, destination_cell_id, origin_driver=None, destination_driver=None):
+        if destination_driver is None:
+            destination_driver = origin_driver
+
+        migrate_replication_cards(cell_id, card_ids, destination_cell_id=destination_cell_id)
+
+        def _get_orchid_path(cell_id, driver=None):
+            address = get(f"#{cell_id}/@peers/0/address", driver=driver)
+            return "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}".format(address, cell_id)
+
+        for card_id in card_ids:
+            migration_path = "{0}/chaos_manager/replication_cards/{1}/state".format(
+                _get_orchid_path(cell_id, driver=origin_driver),
+                card_id
+            )
+            wait(lambda: get(migration_path, driver=origin_driver) == "migrated")
+
+        for card_id in card_ids:
+            migrated_card_path = "{0}/chaos_manager/replication_cards/{1}".format(
+                _get_orchid_path(destination_cell_id, driver=destination_driver),
+                card_id
+            )
+            wait(lambda: exists(migrated_card_path, driver=destination_driver))
 
     def _sync_alter_replica(self, card_id, replicas, replica_ids, replica_index, **kwargs):
         replica_id = replica_ids[replica_index]

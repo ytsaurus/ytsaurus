@@ -98,7 +98,16 @@ struct IConnection
 
     virtual const NRpc::IChannelPtr& GetSchedulerChannel() = 0;
     virtual const NRpc::IChannelFactoryPtr& GetChannelFactory() = 0;
-    virtual const NChaosClient::IReplicationCardChannelFactoryPtr& GetReplicationCardChannelFactory() = 0;
+
+    virtual NRpc::IChannelPtr GetChaosChannelByCellId(
+        NObjectClient::TCellId cellId,
+        NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
+    virtual NRpc::IChannelPtr GetChaosChannelByCellTag(
+        NObjectClient::TCellTag cellTag,
+        NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
+    virtual NRpc::IChannelPtr GetChaosChannelByCardId(
+        NChaosClient::TReplicationCardId replicationCardId,
+        NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 
     virtual const NRpc::IChannelPtr& GetQueueAgentChannelOrThrow(TStringBuf stage) const = 0;
     virtual const NQueueClient::TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;

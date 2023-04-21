@@ -2795,63 +2795,19 @@ TPullRowsResult TClient::DoPullRows(
     return combinedResult;
 }
 
-IChannelPtr TClient::WrapChaosChannel(IChannelPtr channel)
-{
-    return CreateRetryingChannel(
-        GetNativeConnection()->GetConfig()->ChaosCellChannel,
-        std::move(channel));
-}
-
 IChannelPtr TClient::GetChaosChannelByCellId(TCellId cellId, EPeerKind peerKind)
 {
-    const auto& cellDirectory = GetNativeConnection()->GetCellDirectory();
-    if (auto channel = cellDirectory->FindChannelByCellId(cellId, peerKind)) {
-        return WrapChaosChannel(std::move(channel));
-    }
-
-    auto cellTag = CellTagFromId(cellId);
-    const auto& synchronizer = GetNativeConnection()->GetChaosCellDirectorySynchronizer();
-    synchronizer->AddCellTag(cellTag);
-    if (!cellDirectory->FindChannelByCellTag(cellTag)) {
-        YT_LOG_DEBUG("Synchronizing replication card chaos cells");
-        WaitFor(synchronizer->Sync())
-            .ThrowOnError();
-        YT_LOG_DEBUG("Finished synchronizing replication card chaos cells");
-    }
-
-    auto channel = cellDirectory->GetChannelByCellIdOrThrow(cellId, peerKind);
-    return WrapChaosChannel(std::move(channel));
+    return GetNativeConnection()->GetChaosChannelByCellId(cellId, peerKind);
 }
 
 IChannelPtr TClient::GetChaosChannelByCellTag(TCellTag cellTag, EPeerKind peerKind)
 {
-    const auto& cellDirectory = GetNativeConnection()->GetCellDirectory();
-    if (auto channel = cellDirectory->FindChannelByCellTag(cellTag, peerKind)) {
-        return WrapChaosChannel(std::move(channel));
-    }
-
-    const auto& synchronizer = GetNativeConnection()->GetChaosCellDirectorySynchronizer();
-    synchronizer->AddCellTag(cellTag);
-    if (!cellDirectory->FindChannelByCellTag(cellTag)) {
-        YT_LOG_DEBUG("Synchronizing replication card chaos cells");
-        WaitFor(synchronizer->Sync())
-            .ThrowOnError();
-        YT_LOG_DEBUG("Finished synchronizing replication card chaos cells");
-    }
-
-    auto channel = cellDirectory->GetChannelByCellTagOrThrow(cellTag, peerKind);
-    return WrapChaosChannel(std::move(channel));
+    return GetNativeConnection()->GetChaosChannelByCellTag(cellTag, peerKind);
 }
 
 IChannelPtr TClient::GetChaosChannelByCardId(TReplicationCardId replicationCardId, EPeerKind peerKind)
 {
-    if (TypeFromId(replicationCardId) != EObjectType::ReplicationCard) {
-        THROW_ERROR_EXCEPTION("Malformed replication card id %v",
-            replicationCardId);
-    }
-
-    auto connection = GetNativeConnection();
-    return WrapChaosChannel(connection->GetReplicationCardChannelFactory()->CreateChannel(replicationCardId, peerKind));
+    return GetNativeConnection()->GetChaosChannelByCardId(replicationCardId, peerKind);
 }
 
 TReplicationCardPtr TClient::GetSyncReplicationCard(const TTableMountInfoPtr& tableInfo)

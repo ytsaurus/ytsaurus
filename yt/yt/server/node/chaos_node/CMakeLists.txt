@@ -44,6 +44,7 @@ target_sources(server-node-chaos_node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/chaos_node/chaos_slot.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/chaos_node/coordinator_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/chaos_node/coordinator_service.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/chaos_node/migrated_replication_card_remover.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/chaos_node/replication_card.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/chaos_node/replication_card_collocation.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/chaos_node/replication_card_observer.cpp

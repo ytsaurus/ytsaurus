@@ -2529,24 +2529,7 @@ class TestChaos(ChaosTestBase):
             with raises_yt_error("Trying to move incomplete collocation"):
                 migrate_replication_cards(cell_id, [card1], destination_cell_id=dst_cell_id)
 
-            def _sync_migrate_replication_cards(cell_id, card_ids, destination_cell_id):
-                migrate_replication_cards(cell_id, card_ids, destination_cell_id=destination_cell_id)
-
-                def _get_orchid_path(cell_id):
-                    address = get("#{0}/@peers/0/address".format(cell_id))
-                    return "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}".format(address, cell_id)
-
-                cell_orchid_path = _get_orchid_path(cell_id)
-                dst_orchid_path = _get_orchid_path(destination_cell_id)
-
-                for card_id in card_ids:
-                    migration_path = "{0}/chaos_manager/replication_cards/{1}/state".format(cell_orchid_path, card_id)
-                    wait(lambda: get(migration_path) == "migrated")
-
-                    migrated_card_path = "{0}/chaos_manager/replication_cards/{1}".format(dst_orchid_path, card_id)
-                    wait(lambda: exists(migrated_card_path))
-
-            _sync_migrate_replication_cards(cell_id, [card1, card2], destination_cell_id=dst_cell_id)
+            self._sync_migrate_replication_cards(cell_id, [card1, card2], dst_cell_id)
 
             self._sync_replication_era(card1, replicas1)
             self._sync_replication_era(card2, replicas2)
@@ -3391,6 +3374,43 @@ class TestChaosMetaCluster(ChaosTestBase):
                 return not exists("#{0}".format(card_id))
             except YtError as err:
                 print_debug("Checking if replication card {0} exists failed".format(card_id), err)
+                return False
+        wait(_check)
+
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("migrate", ["migrate", "stay"])
+    def test_remove_crt_with_migrated_replication_card(self, migrate):
+        cells = self._create_dedicated_areas_and_cells()
+        drivers = self._get_drivers()
+
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+        card_id = create_replication_card(chaos_cell_id=cells[0])
+
+        create(
+            "chaos_replicated_table",
+            "//tmp/crt",
+            attributes={"chaos_cell_bundle": "c", "schema": schema, "replication_card_id": card_id}
+        )
+
+        if migrate == "migrate":
+            self._sync_migrate_replication_cards(
+                cells[0],
+                [card_id],
+                cells[1],
+                origin_driver=drivers[-2],
+                destination_driver=drivers[-1]
+            )
+
+        remove("//tmp/crt")
+
+        def _check():
+            try:
+                return not exists(f"#{card_id}")
+            except YtError as err:
+                print_debug(f"Replication card {card_id} exists failed", err)
                 return False
         wait(_check)
 

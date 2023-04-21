@@ -495,6 +495,57 @@ public:
         return SchedulerChannel_;
     }
 
+    IChannelPtr GetChaosChannelByCellId(TCellId cellId, EPeerKind peerKind) override
+    {
+        const auto& cellDirectory = GetCellDirectory();
+        if (auto channel = cellDirectory->FindChannelByCellId(cellId, peerKind)) {
+            return WrapChaosChannel(std::move(channel));
+        }
+
+        auto cellTag = CellTagFromId(cellId);
+        const auto& synchronizer = GetChaosCellDirectorySynchronizer();
+        synchronizer->AddCellTag(cellTag);
+        if (!cellDirectory->FindChannelByCellTag(cellTag)) {
+            YT_LOG_DEBUG("Synchronizing replication card chaos cells");
+            WaitFor(synchronizer->Sync())
+                .ThrowOnError();
+            YT_LOG_DEBUG("Finished synchronizing replication card chaos cells");
+        }
+
+        auto channel = cellDirectory->GetChannelByCellIdOrThrow(cellId, peerKind);
+        return WrapChaosChannel(std::move(channel));
+    }
+
+    IChannelPtr GetChaosChannelByCellTag(TCellTag cellTag, EPeerKind peerKind) override
+    {
+        const auto& cellDirectory = GetCellDirectory();
+        if (auto channel = cellDirectory->FindChannelByCellTag(cellTag, peerKind)) {
+            return WrapChaosChannel(std::move(channel));
+        }
+
+        const auto& synchronizer = GetChaosCellDirectorySynchronizer();
+        synchronizer->AddCellTag(cellTag);
+        if (!cellDirectory->FindChannelByCellTag(cellTag)) {
+            YT_LOG_DEBUG("Synchronizing replication card chaos cells");
+            WaitFor(synchronizer->Sync())
+                .ThrowOnError();
+            YT_LOG_DEBUG("Finished synchronizing replication card chaos cells");
+        }
+
+        auto channel = cellDirectory->GetChannelByCellTagOrThrow(cellTag, peerKind);
+        return WrapChaosChannel(std::move(channel));
+    }
+
+    IChannelPtr GetChaosChannelByCardId(TReplicationCardId replicationCardId, EPeerKind peerKind) override
+    {
+        if (TypeFromId(replicationCardId) != EObjectType::ReplicationCard) {
+            THROW_ERROR_EXCEPTION("Malformed replication card id %v",
+                replicationCardId);
+        }
+
+        return WrapChaosChannel(ReplicationCardChannelFactory_->CreateChannel(replicationCardId, peerKind));
+    }
+
     const IChannelPtr& GetQueueAgentChannelOrThrow(TStringBuf stage) const override
     {
         auto it = QueueAgentChannels_.find(stage);
@@ -576,11 +627,6 @@ public:
     const NChaosClient::IChaosCellDirectorySynchronizerPtr& GetChaosCellDirectorySynchronizer() override
     {
         return ChaosCellDirectorySynchronizer_;
-    }
-
-    const IReplicationCardChannelFactoryPtr& GetReplicationCardChannelFactory() override
-    {
-        return ReplicationCardChannelFactory_;
     }
 
     const TNodeDirectoryPtr& GetNodeDirectory() override
@@ -1017,6 +1063,13 @@ private:
         } else {
             THROW_ERROR_EXCEPTION("Query tracker stage %Qv is not found in cluster directory", stage);
         }
+    }
+
+    IChannelPtr WrapChaosChannel(IChannelPtr channel)
+    {
+        return CreateRetryingChannel(
+            GetConfig()->ChaosCellChannel,
+            std::move(channel));
     }
 };
 

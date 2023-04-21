@@ -1182,12 +1182,6 @@ private:
     void DoAlterReplicationCard(
         NChaosClient::TReplicationCardId replicationCardId,
         const TAlterReplicationCardOptions& options);
-    NRpc::IChannelPtr WrapChaosChannel(NRpc::IChannelPtr channel);
-    template <class TPrefetcher, class TFetcher>
-    NRpc::IChannelPtr DoGetChaosChannel(
-        NObjectClient::TCellTag cellTag,
-        TPrefetcher channelPrefetcher,
-        TFetcher channelFetcher);
     NRpc::IChannelPtr GetChaosChannelByCellId(
         NObjectClient::TCellId cellId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
