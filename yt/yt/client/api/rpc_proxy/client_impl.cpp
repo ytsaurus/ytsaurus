@@ -1149,6 +1149,7 @@ TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> TClient::GetJobInput(
     }
 
     ToProto(req->mutable_job_id(), jobId);
+    req->set_job_spec_source(static_cast<NProto::EJobSpecSource>(options.JobSpecSource));
 
     return CreateRpcClientInputStream(std::move(req));
 }
@@ -1163,6 +1164,7 @@ TFuture<TYsonString> TClient::GetJobInputPaths(
     SetTimeoutOptions(*req, options);
 
     ToProto(req->mutable_job_id(), jobId);
+    req->set_job_spec_source(static_cast<NProto::EJobSpecSource>(options.JobSpecSource));
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobInputPathsPtr& rsp) {
         return TYsonString(rsp->paths());
@@ -1182,6 +1184,7 @@ TFuture<TYsonString> TClient::GetJobSpec(
     req->set_omit_node_directory(options.OmitNodeDirectory);
     req->set_omit_input_table_specs(options.OmitInputTableSpecs);
     req->set_omit_output_table_specs(options.OmitOutputTableSpecs);
+    req->set_job_spec_source(static_cast<NProto::EJobSpecSource>(options.JobSpecSource));
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobSpecPtr& rsp) {
         return TYsonString(rsp->job_spec());

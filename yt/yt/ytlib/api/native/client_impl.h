@@ -1494,6 +1494,7 @@ private:
     // Throws if spec could not be fetched.
     NControllerAgent::NProto::TJobSpec FetchJobSpec(
         NScheduler::TJobId jobId,
+        NApi::EJobSpecSource specSource,
         NYTree::EPermissionSet requiredPermissions);
 
     NConcurrency::IAsyncZeroCopyInputStreamPtr DoGetJobInput(
@@ -1772,4 +1773,3 @@ DEFINE_REFCOUNTED_TYPE(TClient)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative
-

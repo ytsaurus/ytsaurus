@@ -263,6 +263,13 @@ enum EMaintenanceComponent
     MC_HOST = 4;
 }
 
+enum EJobSpecSource
+{
+    JSS_NODE = 1;
+    JSS_ARCHIVE = 2;
+    JSS_AUTO = 0xFFFF;
+}
+
 // COMPAT(max42).
 // A legacy analog of NYT.NYTree.NProto.TAttributeFilter.
 // It is different in that universal filter is encoded via all = true
@@ -2089,6 +2096,7 @@ message TRspGetJob
 message TReqGetJobInputPaths
 {
     required NYT.NProto.TGuid job_id = 1;
+    optional EJobSpecSource job_spec_source = 2 [default = JSS_AUTO];
 }
 
 message TRspGetJobInputPaths
@@ -2105,6 +2113,7 @@ message TReqGetJobSpec
     optional bool omit_node_directory = 2 [default = true];
     optional bool omit_input_table_specs = 3 [default = false];
     optional bool omit_output_table_specs = 4 [default = false];
+    optional EJobSpecSource job_spec_source = 5 [default = JSS_AUTO];
 }
 
 message TRspGetJobSpec
@@ -2346,6 +2355,7 @@ message TRspWriteTable
 message TReqGetJobInput
 {
     required NYT.NProto.TGuid job_id = 1;
+    optional EJobSpecSource job_spec_source = 2 [default = JSS_AUTO];
 }
 
 message TRspGetJobInput

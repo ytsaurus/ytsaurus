@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, print_debug, wait, retry, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     create, get,
-    set, remove, exists, create_tmpdir, create_user, make_ace, insert_rows, select_rows, lookup_rows, delete_rows,
+    set, remove, exists, create_tmpdir, create_user, make_ace, insert_rows, select_rows, lookup_rows,
     read_table, write_table, map, reduce, map_reduce,
     sort, list_jobs, get_job_input,
     get_job_stderr, get_job_spec, get_job_input_paths,
@@ -450,17 +450,9 @@ class TestGetJobInput(YTEnvSetup):
 
         rows = get_job_spec_rows_for_jobs(job_ids)
         for r in rows:
-            new_r = {}
-            for key in ["job_id_hi", "job_id_lo"]:
-                new_r[key] = r[key]
-            new_r["spec"] = "junk"
-            insert_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, [new_r], update=True, atomicity="none")
-
-        for r in rows:
-            key = {k: r[k] for k in ["job_id_hi", "job_id_lo"]}
-            # We need to remove operation_id entries to ensure spec fetching
-            # from archive, not from the node.
-            delete_rows(OPERATION_IDS_ARCHIVE_TABLE, [key], atomicity="none")
+            new_row = {k: r[k] for k in ["job_id_hi", "job_id_lo"]}
+            new_row["spec"] = "junk"
+            insert_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, [new_row], update=True, atomicity="none")
 
         job_ids = os.listdir(self._tmpdir)
         assert job_ids
@@ -470,7 +462,7 @@ class TestGetJobInput(YTEnvSetup):
                 actual_input = inf.read()
             assert actual_input
             with pytest.raises(YtError):
-                get_job_input(job_id)
+                get_job_input(job_id, job_spec_source="archive")
 
     @authors("ermolovd")
     def test_map_with_query(self):

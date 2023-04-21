@@ -2879,6 +2879,8 @@ private:
         TGetJobInputOptions options;
         SetTimeoutOptions(&options, context.Get());
 
+        options.JobSpecSource = CheckedEnumCast<EJobSpecSource>(request->job_spec_source());
+
         context->SetRequestInfo("JobId: %v", jobId);
 
         auto jobInputReader = WaitFor(client->GetJobInput(jobId, options))
@@ -2894,6 +2896,8 @@ private:
 
         TGetJobInputPathsOptions options;
         SetTimeoutOptions(&options, context.Get());
+
+        options.JobSpecSource = CheckedEnumCast<EJobSpecSource>(request->job_spec_source());
 
         context->SetRequestInfo("JobId: %v", jobId);
 
@@ -2920,6 +2924,7 @@ private:
         options.OmitNodeDirectory = request->omit_node_directory();
         options.OmitInputTableSpecs = request->omit_input_table_specs();
         options.OmitOutputTableSpecs = request->omit_output_table_specs();
+        options.JobSpecSource = CheckedEnumCast<EJobSpecSource>(request->job_spec_source());
 
         context->SetRequestInfo("JobId: %v, OmitNodeDirectory: %v, OmitInputTableSpecs: %v, OmitOutputTableSpecs: %v",
             jobId,

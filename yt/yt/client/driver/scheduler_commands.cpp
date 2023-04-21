@@ -1,5 +1,4 @@
 #include "scheduler_commands.h"
-#include "config.h"
 #include "driver.h"
 
 #include <yt/yt/client/api/file_reader.h>
@@ -48,6 +47,8 @@ void TDumpJobContextCommand::DoExecute(ICommandContextPtr context)
 TGetJobInputCommand::TGetJobInputCommand()
 {
     RegisterParameter("job_id", JobId);
+    RegisterParameter("job_spec_source", Options.JobSpecSource)
+        .Default(EJobSpecSource::Auto);
 }
 
 void TGetJobInputCommand::DoExecute(ICommandContextPtr context)
@@ -64,6 +65,8 @@ void TGetJobInputCommand::DoExecute(ICommandContextPtr context)
 TGetJobInputPathsCommand::TGetJobInputPathsCommand()
 {
     RegisterParameter("job_id", JobId);
+    RegisterParameter("job_spec_source", Options.JobSpecSource)
+        .Default(EJobSpecSource::Auto);
 }
 
 void TGetJobInputPathsCommand::DoExecute(ICommandContextPtr context)
@@ -79,6 +82,8 @@ void TGetJobInputPathsCommand::DoExecute(ICommandContextPtr context)
 TGetJobSpecCommand::TGetJobSpecCommand()
 {
     RegisterParameter("job_id", JobId);
+    RegisterParameter("job_spec_source", Options.JobSpecSource)
+        .Default(EJobSpecSource::Auto);
     RegisterParameter("omit_node_directory", Options.OmitNodeDirectory)
         .Default(true);
     RegisterParameter("omit_input_table_specs", Options.OmitInputTableSpecs)

@@ -5,7 +5,6 @@
 #include "connection.h"
 #include "private.h"
 #include "rpc_helpers.h"
-#include "transaction.h"
 #include "default_type_handler.h"
 #include "replicated_table_replica_type_handler.h"
 #include "replication_card_type_handler.h"

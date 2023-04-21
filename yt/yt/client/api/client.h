@@ -1099,20 +1099,41 @@ struct TDumpJobContextOptions
     : public TTimeoutOptions
 { };
 
+//! Source to fetch job spec from. Useful in tests.
+DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EJobSpecSource, ui16,
+    //! Job spec is fetched from exec node.
+    ((Node) (1))
+
+    //! Job spec is fetched from job archive.
+    ((Archive) (2))
+
+    //! Job spec is fetched from any available source.
+    ((Auto) (0xFFFF))
+)
+
 struct TGetJobInputOptions
     : public TTimeoutOptions
-{ };
+{
+    //! Where job spec should be retrieved from.
+    EJobSpecSource JobSpecSource = EJobSpecSource::Auto;
+};
 
 struct TGetJobInputPathsOptions
     : public TTimeoutOptions
-{ };
+{
+    //! Where job spec should be retrieved from.
+    EJobSpecSource JobSpecSource = EJobSpecSource::Auto;
+};
 
 struct TGetJobSpecOptions
     : public TTimeoutOptions
 {
-    bool OmitNodeDirectory;
-    bool OmitInputTableSpecs;
-    bool OmitOutputTableSpecs;
+    //! Where job spec should be retrieved from.
+    EJobSpecSource JobSpecSource = EJobSpecSource::Auto;
+
+    bool OmitNodeDirectory = false;
+    bool OmitInputTableSpecs = false;
+    bool OmitOutputTableSpecs = false;
 };
 
 

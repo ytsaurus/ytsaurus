@@ -1,7 +1,6 @@
 #include "client_impl.h"
 
 #include "connection.h"
-#include "private.h"
 
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/operation_archive_schema.h>
@@ -77,9 +76,6 @@ using namespace NChunkClient::NProto;
 using namespace NScheduler;
 using namespace NNodeTrackerClient;
 
-using NChunkClient::TChunkReaderStatistics;
-using NChunkClient::TLegacyReadLimit;
-using NChunkClient::TLegacyReadRange;
 using NChunkClient::TDataSliceDescriptor;
 using NNodeTrackerClient::TNodeDescriptor;
 
@@ -461,31 +457,39 @@ void TClient::ValidateOperationAccess(
 
 TJobSpec TClient::FetchJobSpec(
     NScheduler::TJobId jobId,
+    NApi::EJobSpecSource specSource,
     NYTree::EPermissionSet requiredPermissions)
 {
-    auto jobSpecFromProxyOrError = TryFetchJobSpecFromJobNode(jobId, requiredPermissions);
-    if (!jobSpecFromProxyOrError.IsOK() && !IsNoSuchJobOrOperationError(jobSpecFromProxyOrError)) {
-        THROW_ERROR jobSpecFromProxyOrError;
+    if (Any(specSource & EJobSpecSource::Node)) {
+        auto jobSpecFromProxyOrError = TryFetchJobSpecFromJobNode(jobId, requiredPermissions);
+        if (!jobSpecFromProxyOrError.IsOK() && !IsNoSuchJobOrOperationError(jobSpecFromProxyOrError)) {
+            THROW_ERROR jobSpecFromProxyOrError;
+        }
+
+        if (jobSpecFromProxyOrError.IsOK()) {
+            return std::move(jobSpecFromProxyOrError).Value();
+        }
+
+        YT_LOG_DEBUG(jobSpecFromProxyOrError, "Failed to fetch job spec from job node (JobId: %v)",
+            jobId);
     }
 
-    if (jobSpecFromProxyOrError.IsOK()) {
-        return std::move(jobSpecFromProxyOrError).Value();
+    if (Any(specSource & EJobSpecSource::Archive)) {
+        auto jobSpec = FetchJobSpecFromArchive(jobId);
+
+        auto operationId = TryGetOperationId(jobId);
+        if (operationId) {
+            ValidateOperationAccess(operationId, jobId, requiredPermissions);
+        } else {
+            ValidateOperationAccess(jobId, jobSpec, requiredPermissions);
+        }
+
+
+        return jobSpec;
     }
-
-    YT_LOG_DEBUG(jobSpecFromProxyOrError, "Failed to fetch job spec from job node (JobId: %v)",
-        jobId);
-
-    auto jobSpec = FetchJobSpecFromArchive(jobId);
-
-    auto operationId = TryGetOperationId(jobId);
-    if (operationId) {
-        ValidateOperationAccess(operationId, jobId, requiredPermissions);
-    } else {
-        ValidateOperationAccess(jobId, jobSpec, requiredPermissions);
-    }
-
-
-    return jobSpec;
+    THROW_ERROR_EXCEPTION("Failed to get job spec")
+        << TErrorAttribute("job_id", jobId)
+        << TErrorAttribute("spec_source", specSource);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -507,9 +511,9 @@ void TClient::DoDumpJobContext(
 
 IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
     TJobId jobId,
-    const TGetJobInputOptions& /*options*/)
+    const TGetJobInputOptions& options)
 {
-    auto jobSpec = FetchJobSpec(jobId, EPermissionSet(EPermission::Read));
+    auto jobSpec = FetchJobSpec(jobId, options.JobSpecSource, EPermissionSet(EPermission::Read));
 
     auto* schedulerJobSpecExt = jobSpec.MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
@@ -570,9 +574,9 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
 
 TYsonString TClient::DoGetJobInputPaths(
     TJobId jobId,
-    const TGetJobInputPathsOptions& /*options*/)
+    const TGetJobInputPathsOptions& options)
 {
-    auto jobSpec = FetchJobSpec(jobId, EPermissionSet(EPermissionSet::Read));
+    auto jobSpec = FetchJobSpec(jobId, options.JobSpecSource, EPermissionSet(EPermissionSet::Read));
 
     auto schedulerJobSpecExt = jobSpec.GetExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
@@ -618,7 +622,7 @@ TYsonString TClient::DoGetJobSpec(
     TJobId jobId,
     const TGetJobSpecOptions& options)
 {
-    auto jobSpec = FetchJobSpec(jobId, EPermissionSet(EPermissionSet::Read));
+    auto jobSpec = FetchJobSpec(jobId, options.JobSpecSource, EPermissionSet(EPermissionSet::Read));
     auto* schedulerJobSpecExt = jobSpec.MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
     if (options.OmitNodeDirectory) {
