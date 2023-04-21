@@ -244,7 +244,7 @@ public:
         return TableRowIndex_;
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(
+    TInterruptDescriptor GetInterruptDescriptor(
         TRange<TUnversionedRow> /*unreadRows*/) const override
     {
         YT_UNIMPLEMENTED();
