@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE
 
 from yt_helpers import profiler_factory
 
@@ -51,7 +51,12 @@ def _update_job_in_archive(op_id, job_id, attributes):
             "job_id_lo": job_id_lo,
         }
     )
-    insert_rows(JOB_ARCHIVE_TABLE, [attributes], update=True, atomicity="none")
+
+    def do_update_job_in_archive():
+        insert_rows(JOB_ARCHIVE_TABLE, [attributes], update=True, atomicity="none")
+        return True
+
+    wait(do_update_job_in_archive, ignore_exceptions=True)
 
 
 def _get_job_from_archive(op_id, job_id):
@@ -411,7 +416,9 @@ class TestGetJobIsStale(_TestGetJobBase):
         )
         (job_id,) = wait_breakpoint()
 
-        abort_job(job_id)
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
         release_breakpoint()
         op.track()
 
