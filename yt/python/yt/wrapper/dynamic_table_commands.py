@@ -756,15 +756,16 @@ def alter_table_replica(replica_id, enabled=None, mode=None, client=None):
     return make_request("alter_table_replica", params, client=client)
 
 
-def get_in_sync_replicas(path, timestamp, input_stream=None, cached_sync_replicas_timeout=None,
+def get_in_sync_replicas(path, timestamp, input_stream, all_keys=False, cached_sync_replicas_timeout=None,
                          format=None, raw=None, client=None):
     """Returns ids of in-sync replicas for keys in input_stream.
 
     :param path: path to table.
     :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
     :param timestamp: timestamp replicas are in-sync to.
-    :param input_stream: keys subset that must be in-sync. Same as all keys if not specified.
+    :param input_stream: keys subset that must be in-sync.
         Should be python file-like object, string, list of strings.
+    :param bool all_keys: ignore input_stream and return in-sync for all keys.
     :param cached_sync_replicas_timeout: the period in seconds.
         Allows to use data from sync replicas cache if the data is no older than cached_sync_replicas_timeout.
     :param format: format of input data.
@@ -781,7 +782,7 @@ def get_in_sync_replicas(path, timestamp, input_stream=None, cached_sync_replica
     params = {
         "path": path,
         "timestamp": timestamp,
-        "all_keys": input_stream is None,
+        "all_keys": all_keys,
         "cached_sync_replicas_timeout": cached_sync_replicas_timeout,
         "input_format": format
     }
@@ -789,9 +790,6 @@ def get_in_sync_replicas(path, timestamp, input_stream=None, cached_sync_replica
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
     if chunk_size is None:
         chunk_size = DEFAULT_WRITE_CHUNK_SIZE
-
-    if input_stream is None:
-        input_stream = []
 
     input_data = b"".join(_to_chunk_stream(
         input_stream,

@@ -337,9 +337,9 @@ class TestDynamicTableCommands(object):
     def test_get_in_sync_replicas(self, all_keys):
         def _get_in_sync_replicas(table, ts):
             if all_keys:
-                return yt.get_in_sync_replicas(table, ts)
+                return yt.get_in_sync_replicas(table, ts, [], all_keys=True)
             else:
-                return yt.get_in_sync_replicas(table, ts, [{"x": "a"}])
+                return yt.get_in_sync_replicas(table, ts, [{"x": "a"}], all_keys=False)
 
         self._sync_create_tablet_cell()
         table = TEST_DIR + "/test_get_in_sync_replicas"
