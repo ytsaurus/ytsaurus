@@ -553,7 +553,8 @@ void TJobTracker::DoUnregisterOperation(TOperationId operationId)
 
     YT_LOG_FATAL_IF(
         !std::empty(operationIt->second.TrackedJobs),
-        "Operation has registered jobs at the moment of unregistration (Jobs: %v)",
+        "Operation has registered jobs at the moment of unregistration (OperationId: %v, JobIds: %v)",
+        operationId,
         operationIt->second.TrackedJobs);
 
     RegisteredOperations_.erase(operationIt);
@@ -625,7 +626,8 @@ void TJobTracker::DoReviveJobs(
 
     YT_LOG_FATAL_IF(
         !std::empty(trackedOperationJobs),
-        "Revive jobs of operation that already has jobs (RegisteredJobs: %v, NewJobs: %v)",
+        "Revive jobs of operation that already has jobs (OperationId: %v, RegisteredJobs: %v, NewJobs: %v)",
+        operationId,
         trackedOperationJobs,
         jobIds);
 
@@ -674,7 +676,8 @@ void TJobTracker::DoReleaseJobs(
         auto* nodeInfo = FindNodeInfo(nodeId);
         if (!nodeInfo) {
             YT_LOG_DEBUG(
-                "Skip jobs to release for node that is not connected (NodeId: %v, NodeAddress: %v, ReleasedJobCount: %v)",
+                "Skip jobs to release for node that is not connected (OperationId: %v, NodeId: %v, NodeAddress: %v, ReleasedJobCount: %v)",
+                operationId,
                 nodeId,
                 GetNodeAddressForLogging(nodeId),
                 std::size(jobs));
@@ -707,11 +710,12 @@ void TJobTracker::DoAbortJobOnNode(TJobId jobId, TOperationId operationId, EAbor
     auto* nodeInfo = FindNodeInfo(nodeId);
     if (!nodeInfo) {
         YT_LOG_DEBUG(
-            "Node is not registered, skip job abort request (JobId: %v, NodeId: %v, NodeAddress: %v, AbortReason: %v)",
+            "Node is not registered, skip job abort request (JobId: %v, NodeId: %v, NodeAddress: %v, AbortReason: %v, OperationId: %v)",
             jobId,
             nodeId,
             GetNodeAddressForLogging(nodeId),
-            abortReason);
+            abortReason,
+            operationId);
         return;
     }
 

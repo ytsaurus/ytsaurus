@@ -1417,13 +1417,11 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason)
 
         joblet->Task->OnJobAborted(joblet, jobSummary);
 
-        if (joblet->IsStarted) {
-            Host->AbortJobOnNode(
-                jobId,
-                abortReason);
+        Host->AbortJobOnNode(
+            jobId,
+            abortReason);
 
-            jobsToRelease.push_back({jobId, {}});
-        }
+        jobsToRelease.push_back({jobId, {}});
     }
     JobletMap.clear();
     JobsWaitingForFinalization_.clear();
