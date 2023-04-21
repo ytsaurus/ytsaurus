@@ -190,7 +190,6 @@ TOperationControllerHost::TOperationControllerHost(
     TOperation* operation,
     IInvokerPtr cancelableControlInvoker,
     IInvokerPtr uncancelableControlInvoker,
-    TJobTrackerOperationHandlerPtr operationJobsTracker,
     TAgentToSchedulerOperationEventOutboxPtr operationEventsOutbox,
     TAgentToSchedulerJobEventOutboxPtr jobEventsOutbox,
     TAgentToSchedulerRunningJobStatisticsOutboxPtr runningJobStatisticsUpdatesOutbox,
@@ -198,7 +197,6 @@ TOperationControllerHost::TOperationControllerHost(
     : OperationId_(operation->GetId())
     , CancelableControlInvoker_(std::move(cancelableControlInvoker))
     , UncancelableControlInvoker_(std::move(uncancelableControlInvoker))
-    , OperationJobsTracker_(std::move(operationJobsTracker))
     , OperationEventsOutbox_(std::move(operationEventsOutbox))
     , JobEventsOutbox_(std::move(jobEventsOutbox))
     , RunningJobStatisticsUpdatesOutbox_(std::move(runningJobStatisticsUpdatesOutbox))
@@ -206,6 +204,11 @@ TOperationControllerHost::TOperationControllerHost(
     , IncarnationId_(Bootstrap_->GetControllerAgent()->GetIncarnationId())
     , ControllerEpoch_(operation->GetControllerEpoch())
 { }
+
+void TOperationControllerHost::SetJobTrackerOperationHandler(TJobTrackerOperationHandlerPtr jobTrackerOperationHandler)
+{
+    YT_VERIFY(!std::exchange(JobTrackerOperationHandler_, jobTrackerOperationHandler));
+}
 
 void TOperationControllerHost::Disconnect(const TError& error)
 {
@@ -273,12 +276,12 @@ void TOperationControllerHost::UpdateRunningJobsStatistics(
 
 void TOperationControllerHost::RegisterJob(TStartedJobInfo jobInfo)
 {
-    OperationJobsTracker_->RegisterJob(std::move(jobInfo));
+    JobTrackerOperationHandler_->RegisterJob(std::move(jobInfo));
 }
 
 void TOperationControllerHost::ReviveJobs(std::vector<TStartedJobInfo> jobs)
 {
-    OperationJobsTracker_->ReviveJobs(std::move(jobs));
+    JobTrackerOperationHandler_->ReviveJobs(std::move(jobs));
 }
 
 void TOperationControllerHost::ReleaseJobs(std::vector<TJobToRelease> jobsToRelease)
@@ -302,7 +305,7 @@ void TOperationControllerHost::ReleaseJobs(std::vector<TJobToRelease> jobsToRele
     // COMPAT(pogorelov)
     JobEventsOutbox_->Enqueue(std::move(events));
 
-    OperationJobsTracker_->ReleaseJobs(std::move(jobsToRelease));
+    JobTrackerOperationHandler_->ReleaseJobs(std::move(jobsToRelease));
 
     YT_LOG_DEBUG("Jobs release request enqueued (OperationId: %v, JobCount: %v)",
         OperationId_,
@@ -313,7 +316,7 @@ void TOperationControllerHost::AbortJobOnNode(
     TJobId jobId,
     NScheduler::EAbortReason abortReason)
 {
-    OperationJobsTracker_->AbortJobOnNode(jobId, abortReason);
+    JobTrackerOperationHandler_->AbortJobOnNode(jobId, abortReason);
 }
 
 std::optional<TString> TOperationControllerHost::RegisterJobForMonitoring(TOperationId operationId, TJobId jobId)

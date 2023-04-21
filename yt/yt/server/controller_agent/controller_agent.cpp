@@ -461,7 +461,7 @@ public:
 
         ReconfigureNativeSingletons(Bootstrap_->GetConfig(), Config_);
 
-        JobTracker_->UpdateConfig(Config_->JobTracker);
+        JobTracker_->UpdateConfig(Config_);
 
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
 
@@ -588,29 +588,9 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
-        // COMPAT(pogorelov): Remove it when job tracker becomes stable.
-        auto config = Config_;
-        bool controlJobLifetimeAtControllerAgent = !config->ControlJobLifetimeAtScheduler;
-
         auto operation = New<TOperation>(descriptor);
+
         auto operationId = operation->GetId();
-
-        auto operationJobsTracker = JobTracker_->RegisterOperation(
-            operationId,
-            controlJobLifetimeAtControllerAgent);
-
-        {
-            auto host = New<TOperationControllerHost>(
-                operation.Get(),
-                CancelableControlInvoker_,
-                Bootstrap_->GetControlInvoker(),
-                std::move(operationJobsTracker),
-                OperationEventsOutbox_,
-                JobEventsOutbox_,
-                RunningJobStatisticsUpdatesOutbox_,
-                Bootstrap_);
-            operation->SetHost(std::move(host));
-        }
 
         {
             auto spec = ParseOperationSpec<TOperationSpecBase>(operation->GetSpec());
@@ -620,15 +600,41 @@ public:
             operation->SetMemoryTag(MemoryTagQueue_->AssignTagToOperation(operationId, testingAllocationSize));
         }
 
-        try {
-            auto controller = CreateControllerForOperation(std::move(config), operation.Get());
-            operation->SetController(controller);
-        } catch (...) {
-            MemoryTagQueue_->ReclaimTag(operation->GetMemoryTag());
-            throw;
+        {
+            // TODO(pogorelov): Refactor operation creation.
+
+            // COMPAT(pogorelov): Remove it when job tracker becomes stable.
+            auto config = Config_;
+
+            bool controlJobLifetimeAtControllerAgent = !config->ControlJobLifetimeAtScheduler;
+
+            auto host = New<TOperationControllerHost>(
+                operation.Get(),
+                CancelableControlInvoker_,
+                Bootstrap_->GetControlInvoker(),
+                OperationEventsOutbox_,
+                JobEventsOutbox_,
+                RunningJobStatisticsUpdatesOutbox_,
+                Bootstrap_);
+            operation->SetHost(host);
+
+            try {
+                auto controller = CreateControllerForOperation(std::move(config), operation.Get());
+                operation->SetController(controller);
+            } catch (...) {
+                MemoryTagQueue_->ReclaimTag(operation->GetMemoryTag());
+                throw;
+            }
+
+            auto jobTrackerOperationHandler = JobTracker_->RegisterOperation(
+                operationId,
+                controlJobLifetimeAtControllerAgent,
+                MakeWeak(operation->GetController()));
+
+            host->SetJobTrackerOperationHandler(std::move(jobTrackerOperationHandler));
         }
 
-        YT_VERIFY(IdToOperation_.emplace(operationId, operation).second);
+        EmplaceOrCrash(IdToOperation_, operationId, std::move(operation));
 
         MasterConnector_->RegisterOperation(operationId);
 
@@ -681,8 +687,10 @@ public:
         YT_VERIFY(Connected_);
 
         auto operation = GetOperationOrThrow(operationId);
-        auto controller = operation->GetController();
-        if (controller) {
+
+        {
+            auto controller = operation->GetController();
+
             controller->Cancel();
 
             // We carefully destroy controller and log warning if we detect that controller is actually leaked.
@@ -696,13 +704,13 @@ public:
             }
         }
 
-        YT_VERIFY(IdToOperation_.erase(operationId) == 1);
-
         MasterConnector_->UnregisterOperation(operationId);
 
         JobMonitoringIndexManager_.TryRemoveOperationJobs(operationId);
 
         JobTracker_->UnregisterOperation(operationId);
+
+        EraseOrCrash(IdToOperation_, operationId);
 
         YT_LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }

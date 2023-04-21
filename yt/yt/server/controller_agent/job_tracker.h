@@ -42,18 +42,21 @@ public:
 
     TJobTrackerOperationHandlerPtr RegisterOperation(
         TOperationId operationId,
-        bool controlJobLifetimeAtControllerAgent);
+        bool controlJobLifetimeAtControllerAgent,
+        TWeakPtr<IOperationController> operationController);
 
     void UnregisterOperation(TOperationId operationId);
 
     void UpdateExecNodes(TRefCountedExecNodeDescriptorMapPtr newExecNodes);
 
-    void UpdateConfig(TJobTrackerConfigPtr config);
+    void UpdateConfig(const TControllerAgentConfigPtr& config);
 
 private:
     TBootstrap* const Bootstrap_;
 
     TJobTrackerConfigPtr Config_;
+
+    EOperationControllerQueue JobEventsControllerQueue_;
 
     NProfiling::TCounter HeartbeatStatisticsBytes_;
     NProfiling::TCounter HeartbeatDataStatisticsBytes_;
@@ -78,6 +81,7 @@ private:
     {
         const bool ControlJobLifetimeAtControllerAgent;
         bool JobsReady = false;
+        const TWeakPtr<IOperationController> OperationController;
         THashSet<TJobId> TrackedJobs;
     };
 
@@ -112,7 +116,7 @@ private:
     IInvokerPtr GetCancelableInvoker() const;
     IInvokerPtr GetCancelableInvokerOrThrow() const;
 
-    void DoUpdateConfig(TJobTrackerConfigPtr config);
+    void DoUpdateConfig(const TControllerAgentConfigPtr& config);
 
     void DoUpdateExecNodes(TRefCountedExecNodeDescriptorMapPtr newExecNodes);
 
@@ -121,7 +125,8 @@ private:
 
     void DoRegisterOperation(
         TOperationId operationId,
-        bool controlJobLifetimeAtControllerAgent);
+        bool controlJobLifetimeAtControllerAgent,
+        TWeakPtr<IOperationController> operationController);
     void DoUnregisterOperation(TOperationId operationId);
 
     void DoRegisterJob(TStartedJobInfo jobInfo, TOperationId operationId);
@@ -148,16 +153,6 @@ private:
 
     using TOperationIdToJobIds = THashMap<TOperationId, std::vector<TJobId>>;
     void AbortJobs(TOperationIdToJobIds jobsByOperation, NScheduler::EAbortReason abortReason) const;
-
-    struct TJobEventsProcessingContext
-    {
-        THashMap<TOperationId, IOperationControllerPtr> OperationControllers;
-        EOperationControllerQueue JobEventsControllerQueue;
-    };
-
-    TJobEventsProcessingContext GetJobEventsProcessingContext(
-        NScheduler::TIncarnationId incarnationId,
-        std::vector<TOperationId> operationIds);
 
     void AbortUnconfirmedJobs(TOperationId operationId, std::vector<TJobId> jobs);
 

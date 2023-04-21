@@ -104,11 +104,12 @@ public:
         TOperation* operation,
         IInvokerPtr cancelableControlInvoker,
         IInvokerPtr uncancelableControlInvoker,
-        TJobTrackerOperationHandlerPtr operationJobsTracker,
         TAgentToSchedulerOperationEventOutboxPtr operationEventsOutbox,
         TAgentToSchedulerJobEventOutboxPtr jobEventsOutbox,
         TAgentToSchedulerRunningJobStatisticsOutboxPtr runningJobStatisticsUpdatesOutbox,
         TBootstrap* bootstrap);
+
+    void SetJobTrackerOperationHandler(TJobTrackerOperationHandlerPtr jobTrackerOperationHandler);
 
     void Disconnect(const TError& error) override;
 
@@ -186,7 +187,7 @@ private:
     const TOperationId OperationId_;
     const IInvokerPtr CancelableControlInvoker_;
     const IInvokerPtr UncancelableControlInvoker_;
-    const TJobTrackerOperationHandlerPtr OperationJobsTracker_;
+    TJobTrackerOperationHandlerPtr JobTrackerOperationHandler_;
     const TAgentToSchedulerOperationEventOutboxPtr OperationEventsOutbox_;
     const TAgentToSchedulerJobEventOutboxPtr JobEventsOutbox_;
     const TAgentToSchedulerRunningJobStatisticsOutboxPtr RunningJobStatisticsUpdatesOutbox_;
