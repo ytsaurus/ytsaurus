@@ -248,8 +248,6 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
 
         auto operationController = operationInfo.OperationController.Lock();
         if (!operationController) {
-            YT_VERIFY(std::empty(operationInfo.TrackedJobs));
-
             YT_LOG_DEBUG("Operation controller is already reset, skip handling job infos from node");
 
             continue;
@@ -907,7 +905,12 @@ void TJobTracker::AbortJobs(TOperationIdToJobIds jobsByOperation, EAbortReason a
         YT_VERIFY(operationInfo.ControlJobLifetimeAtControllerAgent);
 
         auto operationController = operationInfo.OperationController.Lock();
-        YT_VERIFY(operationController);
+        if (!operationController) {
+            YT_LOG_DEBUG(
+                "Operation controller is already destroyed, skip jobs abortion (OperationId: %v)",
+                operationId);
+            continue;
+        }
 
         operationController->GetCancelableInvoker(JobEventsControllerQueue_)->Invoke(
             BIND([operationController, jobs = std::move(jobIds), abortReason] () mutable {
