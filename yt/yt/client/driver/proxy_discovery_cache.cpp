@@ -2,7 +2,9 @@
 
 #include "private.h"
 
+#include <iterator>
 #include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/public.h>
 
 #include <yt/yt/client/api/rpc_proxy/address_helpers.h>
 
@@ -27,7 +29,8 @@ bool TProxyDiscoveryRequest::operator==(const TProxyDiscoveryRequest& other) con
         Type == other.Type &&
         Role == other.Role &&
         AddressType == other.AddressType &&
-        NetworkName == other.NetworkName;
+        NetworkName == other.NetworkName &&
+        IgnoreBalancers == other.IgnoreBalancers;
 }
 
 bool TProxyDiscoveryRequest::operator!=(const TProxyDiscoveryRequest& other) const
@@ -41,18 +44,20 @@ TProxyDiscoveryRequest::operator size_t() const
         Type,
         Role,
         AddressType,
-        NetworkName);
+        NetworkName,
+        IgnoreBalancers);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(TStringBuilderBase* builder, const TProxyDiscoveryRequest& request, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{Type: %v, Role: %v, AddressType: %v, NetworkName: %v}",
+    builder->AppendFormat("{Type: %v, Role: %v, AddressType: %v, NetworkName: %v, IgnoreBalancers: %v}",
         request.Type,
         request.Role,
         request.AddressType,
-        request.NetworkName);
+        request.NetworkName,
+        request.IgnoreBalancers);
 }
 
 TString ToString(const TProxyDiscoveryRequest& request)
@@ -89,6 +94,46 @@ private:
         const TProxyDiscoveryRequest& request,
         bool /*isPeriodicUpdate*/) noexcept override
     {
+        return GetResponseByBalancers(request).Apply(
+            BIND([=, this, this_ = MakeStrong(this)] (const std::optional<TProxyDiscoveryResponse>& response) {
+                if (response) {
+                    return MakeFuture<TProxyDiscoveryResponse>(std::move(*response));
+                }
+                return GetResponseByAddresses(request);
+            }).AsyncVia(Client_->GetConnection()->GetInvoker()));
+    }
+
+    TFuture<std::optional<TProxyDiscoveryResponse>> GetResponseByBalancers(const TProxyDiscoveryRequest& request)
+    {
+        if (request.IgnoreBalancers) {
+            return MakeFuture<std::optional<TProxyDiscoveryResponse>>(std::nullopt);
+        }
+
+        TGetNodeOptions options;
+        options.ReadFrom = EMasterChannelKind::LocalCache;
+        options.Attributes = {BalancersAttributeName};
+
+        auto path = GetProxyRegistryPath(request.Type) + "/@";
+        return Client_->GetNode(path, options).Apply(
+            BIND([=] (const TYsonString& yson) -> std::optional<TProxyDiscoveryResponse> {
+                auto attributes = ConvertTo<IMapNodePtr>(yson);
+
+                auto balancers = attributes->GetChildValueOrDefault<TBalancersMap>(BalancersAttributeName, {});
+
+                auto responseBalancers = GetBalancersOrNull(balancers, request.Role, request.AddressType, request.NetworkName);
+
+                if (!responseBalancers) {
+                    return std::nullopt;
+                }
+
+                TProxyDiscoveryResponse response;
+                std::move(responseBalancers->begin(), responseBalancers->end(), std::back_inserter(response.Addresses));
+                return response;
+            }).AsyncVia(Client_->GetConnection()->GetInvoker()));
+    }
+
+    TFuture<TProxyDiscoveryResponse> GetResponseByAddresses(const TProxyDiscoveryRequest& request)
+    {
         TGetNodeOptions options;
         options.ReadFrom = EMasterChannelKind::LocalCache;
         options.SuppressUpstreamSync = true;
@@ -96,38 +141,38 @@ private:
         options.Attributes = {BannedAttributeName, RoleAttributeName, AddressesAttributeName};
 
         auto path = GetProxyRegistryPath(request.Type);
+        return Client_->GetNode(path, options).Apply(BIND([=] (const TYsonString& yson) {
+            TProxyDiscoveryResponse response;
 
-        return Client_->GetNode(path, options)
-            .Apply(BIND([=] (const TYsonString& yson) {
-                TProxyDiscoveryResponse response;
-                for (const auto& [proxyAddress, proxyNode] : ConvertTo<THashMap<TString, IMapNodePtr>>(yson)) {
-                    if (!proxyNode->FindChild(AliveNodeName)) {
-                        continue;
-                    }
+            for (const auto& [proxyAddress, proxyNode] : ConvertTo<THashMap<TString, IMapNodePtr>>(yson)) {
+                if (!proxyNode->FindChild(AliveNodeName)) {
+                    continue;
+                }
 
-                    if (proxyNode->Attributes().Get(BannedAttributeName, false)) {
-                        continue;
-                    }
+                if (proxyNode->Attributes().Get(BannedAttributeName, false)) {
+                    continue;
+                }
 
-                    if (proxyNode->Attributes().Get<TString>(RoleAttributeName, DefaultProxyRole) != request.Role) {
-                        continue;
-                    }
+                if (proxyNode->Attributes().Get<TString>(RoleAttributeName, DefaultProxyRole) != request.Role) {
+                    continue;
+                }
 
-                    auto addresses = proxyNode->Attributes().Get<TProxyAddressMap>(AddressesAttributeName, {});
-                    auto address = GetAddressOrNull(addresses, request.AddressType, request.NetworkName);
+                auto addresses = proxyNode->Attributes().Get<TProxyAddressMap>(AddressesAttributeName, {});
+                auto address = GetAddressOrNull(addresses, request.AddressType, request.NetworkName);
 
-                    if (address) {
-                        response.Addresses.push_back(*address);
-                    } else {
-                        // COMPAT(verytable): Drop it after all rpc proxies migrate to 22.3.
-                        if (!proxyNode->Attributes().Contains(AddressesAttributeName)) {
-                            response.Addresses.push_back(proxyAddress);
-                        }
+                if (address) {
+                    response.Addresses.push_back(*address);
+                } else {
+                    // COMPAT(verytable): Drop it after all rpc proxies migrate to 22.3.
+                    if (!proxyNode->Attributes().Contains(AddressesAttributeName)) {
+                        response.Addresses.push_back(proxyAddress);
                     }
                 }
-                return response;
-            }).AsyncVia(Client_->GetConnection()->GetInvoker()));
+            }
+            return response;
+        }).AsyncVia(Client_->GetConnection()->GetInvoker()));
     }
+
 
     static TYPath GetProxyRegistryPath(EProxyType type)
     {
