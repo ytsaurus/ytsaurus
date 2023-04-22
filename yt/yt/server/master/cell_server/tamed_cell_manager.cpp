@@ -1323,6 +1323,27 @@ private:
             cell->GossipStatus().Initialize(Bootstrap_);
         }
 
+        // COMPAT(shakurov)
+        for (auto [id, bundle] : CellBundleMap_) {
+            if (!IsObjectAlive(bundle)) {
+                continue;
+            }
+
+            if (bundle->GetType() != EObjectType::ChaosCellBundle) {
+                continue;
+            }
+
+            auto* chaosCellBundle = bundle->As<TChaosCellBundle>();
+            if (auto nullCellCount = std::erase(chaosCellBundle->MetadataCells(), nullptr);
+                nullCellCount != 0)
+            {
+                YT_LOG_ALERT("Null metadata cells encountered; cleaning them out "
+                    "(CellBundleId: %v, NullMetadataCellCount: %v)",
+                    id,
+                    nullCellCount);
+            }
+        }
+
         AfterSnapshotLoaded_.Fire();
     }
 
