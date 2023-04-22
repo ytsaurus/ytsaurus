@@ -187,6 +187,8 @@ public:
     using TSubject::TSubject;
     explicit TUser(TUserId id);
 
+    void SetName(const TString& name) override;
+
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;
     TString GetObjectPath() const override;
@@ -220,6 +222,7 @@ private:
     NProfiling::TCounter WriteRequestCounter_;
     NProfiling::TSummary RequestQueueSizeSummary_;
 
+    void InitializeCounters();
     void UpdatePasswordRevision();
 };
 

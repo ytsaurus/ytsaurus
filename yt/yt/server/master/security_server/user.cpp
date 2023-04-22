@@ -236,6 +236,12 @@ TUser::TUser(TUserId id)
     , ObjectServiceRequestLimits_(New<TUserRequestLimitsConfig>())
 { }
 
+void TUser::SetName(const TString& name)
+{
+    TSubject::SetName(name);
+    InitializeCounters();
+}
+
 TString TUser::GetLowercaseObjectName() const
 {
     return Format("user %Qv", Name_);
@@ -284,6 +290,11 @@ void TUser::Load(TLoadContext& context)
         TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestBytesThrottlerConfig_);
     }
 
+    InitializeCounters();
+}
+
+void TUser::InitializeCounters()
+{
     auto profiler = SecurityProfiler
         .WithSparse()
         .WithTag("user", Name_);
