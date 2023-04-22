@@ -224,11 +224,13 @@ class JobShell(object):
         rsp = yson.loads(rsp.body, encoding=None)
         if get_api_version(self.yt_client) == "v4":
             rsp = rsp[b"result"]
-        if b"consumed_offset" in rsp:
-            consumed_offset = rsp[b"consumed_offset"]
-            if self.input_offset < consumed_offset <= self.input_offset + len(self.key_buffer):
-                self.key_buffer = self.key_buffer[consumed_offset - self.input_offset:]
-                self.input_offset = consumed_offset
+
+        consumed_offset = rsp.get(b"consumed_offset")
+        if isinstance(consumed_offset, yson.YsonEntity):
+            consumed_offset = None
+        if consumed_offset is not None and self.input_offset < consumed_offset <= self.input_offset + len(self.key_buffer):
+            self.key_buffer = self.key_buffer[consumed_offset - self.input_offset:]
+            self.input_offset = consumed_offset
 
     def _on_poll_response(self, rsp):
         if rsp.error:
