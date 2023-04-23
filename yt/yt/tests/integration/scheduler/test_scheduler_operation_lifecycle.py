@@ -850,6 +850,12 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         cpu_demand_sensor = profiler.gauge(metric_prefix + "resource_demand/cpu")
         user_slots_demand_sensor = profiler.gauge(metric_prefix + "resource_demand/user_slots")
 
+        accumulated_resource_usage_cpu_sensor = profiler.counter(metric_prefix + "accumulated_resource_usage/cpu")
+        accumulated_resource_usage_user_slots_sensor = profiler.counter(metric_prefix + "accumulated_resource_usage/user_slots")
+
+        tags1 = {"slot_index": "0"}
+        tags2 = {"slot_index": "1"}
+
         op1 = run_sleeping_vanilla(spec={"pool": "some_pool"})
         wait(lambda: op1.get_job_count("running") == 1)
         op2 = run_sleeping_vanilla(spec={"pool": "some_pool"})
@@ -858,33 +864,38 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         def get_slot_index(op):
             return op.get_runtime_progress("scheduling_info_per_pool_tree/default/slot_index", default=-1)
 
-        wait(lambda: get_slot_index(op1) == 0)
-        wait(lambda: get_slot_index(op2) == 1)
+        wait(lambda: get_slot_index(op1) == int(tags1["slot_index"]))
+        wait(lambda: get_slot_index(op2) == int(tags2["slot_index"]))
 
-        wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(tags={"slot_index": "0"}), 0.5))
-        wait(lambda: dominant_usage_share_sensor.get(tags={"slot_index": "0"}) == 1.0)
-        wait(lambda: dominant_demand_share_sensor.get(tags={"slot_index": "0"}) == 1.0)
-        wait(lambda: are_almost_equal(dominant_promised_fair_share_sensor.get(tags={"slot_index": "0"}), 0.5))
-        wait(lambda: cpu_usage_sensor.get(tags={"slot_index": "0"}) == 1)
-        wait(lambda: user_slots_usage_sensor.get(tags={"slot_index": "0"}) == 1)
-        wait(lambda: cpu_demand_sensor.get(tags={"slot_index": "0"}) == 1)
-        wait(lambda: user_slots_demand_sensor.get(tags={"slot_index": "0"}) == 1)
+        wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(tags=tags1), 0.5))
+        wait(lambda: dominant_usage_share_sensor.get(tags=tags1) == 1.0)
+        wait(lambda: dominant_demand_share_sensor.get(tags=tags1) == 1.0)
+        wait(lambda: are_almost_equal(dominant_promised_fair_share_sensor.get(tags=tags1), 0.5))
+        wait(lambda: cpu_usage_sensor.get(tags=tags1) == 1)
+        wait(lambda: user_slots_usage_sensor.get(tags=tags1) == 1)
+        wait(lambda: cpu_demand_sensor.get(tags=tags1) == 1)
+        wait(lambda: user_slots_demand_sensor.get(tags=tags1) == 1)
+        # Some non-trivial lower bound on resource consumption.
+        wait(lambda: accumulated_resource_usage_cpu_sensor.get_delta(tags=tags1) > 2.0)
+        wait(lambda: accumulated_resource_usage_user_slots_sensor.get_delta(tags=tags1) > 2.0)
 
-        wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(tags={"slot_index": "1"}), 0.5))
-        wait(lambda: dominant_usage_share_sensor.get(tags={"slot_index": "1"}) == 0)
-        wait(lambda: dominant_demand_share_sensor.get(tags={"slot_index": "1"}) == 1.0)
-        wait(lambda: are_almost_equal(dominant_promised_fair_share_sensor.get(tags={"slot_index": "1"}), 0.5))
-        wait(lambda: cpu_usage_sensor.get(tags={"slot_index": "1"}) == 0)
-        wait(lambda: user_slots_usage_sensor.get(tags={"slot_index": "1"}) == 0)
-        wait(lambda: cpu_demand_sensor.get(tags={"slot_index": "1"}) == 1)
-        wait(lambda: user_slots_demand_sensor.get(tags={"slot_index": "1"}) == 1)
+        wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(tags=tags2), 0.5))
+        wait(lambda: dominant_usage_share_sensor.get(tags=tags2) == 0)
+        wait(lambda: dominant_demand_share_sensor.get(tags=tags2) == 1.0)
+        wait(lambda: are_almost_equal(dominant_promised_fair_share_sensor.get(tags=tags2), 0.5))
+        wait(lambda: cpu_usage_sensor.get(tags=tags2) == 0)
+        wait(lambda: user_slots_usage_sensor.get(tags=tags2) == 0)
+        wait(lambda: cpu_demand_sensor.get(tags=tags2) == 1)
+        wait(lambda: user_slots_demand_sensor.get(tags=tags2) == 1)
+        wait(lambda: accumulated_resource_usage_cpu_sensor.get_delta(tags=tags2) == 0.0)
+        wait(lambda: accumulated_resource_usage_user_slots_sensor.get_delta(tags=tags2) == 0.0)
 
         op1.abort(wait_until_finished=True)
 
-        wait(lambda: dominant_fair_share_sensor.get(tags={"slot_index": "1"}) == 1.0)
-        wait(lambda: dominant_usage_share_sensor.get(tags={"slot_index": "1"}) == 1.0)
-        wait(lambda: dominant_demand_share_sensor.get(tags={"slot_index": "1"}) == 1.0)
-        wait(lambda: dominant_promised_fair_share_sensor.get(tags={"slot_index": "1"}) == 1.0)
+        wait(lambda: dominant_fair_share_sensor.get(tags=tags2) == 1.0)
+        wait(lambda: dominant_usage_share_sensor.get(tags=tags2) == 1.0)
+        wait(lambda: dominant_demand_share_sensor.get(tags=tags2) == 1.0)
+        wait(lambda: dominant_promised_fair_share_sensor.get(tags=tags2) == 1.0)
 
     @authors("ignat", "eshcherbin")
     def test_operations_by_user_profiling(self):

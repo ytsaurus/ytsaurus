@@ -100,6 +100,7 @@ private:
     TEnumIndexedVector<EJobPreemptionReason, THashMap<TString, TJobResources>> ImproperlyPreemptedResourcesByReasonMap_;
 
     THashMap<TOperationId, TOperationProfilingEntry> OperationIdToProfilingEntry_;
+    THashMap<TOperationId, TResourceVolume> OperationIdToAccumulatedResourceUsage_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PoolNameToProfilingEntryLock_);
     THashMap<TString, TPoolProfilingEntry> PoolNameToProfilingEntry_;
