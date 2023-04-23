@@ -1903,6 +1903,8 @@ void TJob::Cleanup()
         TResourceHolder::SetResourceUsage(oneUserSlotResources);
     }
 
+    RootVolume_.Reset();
+
     if (Slot_) {
         if (ShouldCleanSandboxes()) {
             try {
@@ -1924,13 +1926,14 @@ void TJob::Cleanup()
 
     SetJobPhase(EJobPhase::Finished);
 
-    if (Bootstrap_->GetExecNodeBootstrap()->GetSlotManager()->IsEnabledJobEnvironmentResurrect()) {
-        RootVolume_.Reset();
-    }
-
-    CleanupFinished_.Fire();
+    CleanupFinished_.Set();
 
     YT_LOG_INFO("Job finished (JobState: %v)", GetState());
+}
+
+TFuture<void> TJob::GetCleanupFinishedEvent()
+{
+    return CleanupFinished_.ToFuture();
 }
 
 // Preparation.

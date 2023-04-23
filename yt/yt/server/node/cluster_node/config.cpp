@@ -314,8 +314,6 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("porto_executor", &TThis::PortoExecutor)
         .DefaultNew();
-    registrar.Parameter("enable_job_environment_resurrect", &TThis::EnableJobEnvironmentResurrect)
-        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         NNodeTrackerClient::ValidateNodeTags(config->Tags);
@@ -445,8 +443,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("porto_executor", &TThis::PortoExecutor)
         .DefaultNew();
-    registrar.Parameter("enable_job_environment_resurrect", &TThis::EnableJobEnvironmentResurrect)
-        .Default();
+    registrar.Parameter("enable_job_environment_resurrection", &TThis::EnableJobEnvironmentResurrection)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,8 +2,6 @@
 
 #include <yt/yt/core/misc/public.h>
 
-#include <yt/yt/core/misc/public.h>
-
 #include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NContainers {

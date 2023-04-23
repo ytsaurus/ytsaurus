@@ -31,9 +31,9 @@ public:
 
     void OnDynamicConfigChanged(const TPortoExecutorDynamicConfigPtr& newConfig);
 
-    DEFINE_SIGNAL(TFuture<void>(), Success);
+    DEFINE_SIGNAL(void(), Success);
 
-    DEFINE_SIGNAL(TFuture<void>(const TError&), Failed);
+    DEFINE_SIGNAL(void(const TError&), Failed);
 
 private:
     const TPortoExecutorConfigPtr Config_;

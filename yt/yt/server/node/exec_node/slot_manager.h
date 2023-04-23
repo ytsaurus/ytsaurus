@@ -111,7 +111,7 @@ public:
     bool IsEnabled() const;
     bool HasFatalAlert() const;
 
-    void ResetAlerts(std::vector<ESlotManagerAlertType> alertTypes);
+    void ResetAlerts(const std::vector<ESlotManagerAlertType>& alertTypes);
 
     NNodeTrackerClient::NProto::TDiskResources GetDiskResources();
 
@@ -145,7 +145,7 @@ public:
      */
     void InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
-    bool IsEnabledJobEnvironmentResurrect();
+    bool IsJobEnvironmentResurrectionEnabled();
 
     static bool IsResettableAlertType(ESlotManagerAlertType alertType);
 
@@ -159,8 +159,6 @@ private:
     std::atomic<ESlotManagerState> State_ = ESlotManagerState::Disabled;
 
     std::atomic_bool JobProxyReady_ = false;
-
-    TPromise<void> FreeSlotsEvent_ = NewPromise<void>();
 
     TAtomicIntrusivePtr<TSlotManagerDynamicConfig> DynamicConfig_;
     TAtomicIntrusivePtr<NClusterNode::TClusterNodeDynamicConfig> ClusterConfig_;
@@ -180,7 +178,6 @@ private:
 
     double IdlePolicyRequestedCpu_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     TEnumIndexedVector<ESlotManagerAlertType, TError> Alerts_;
 
     //! If we observe too many consecutive aborts, we disable user slots on
@@ -196,6 +193,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     bool HasNonFatalAlerts() const;
+    bool HasGpuAlerts() const;
     bool HasSlotDisablingAlert() const;
 
     void SetDisableState();
@@ -205,8 +203,8 @@ private:
 
     bool EnableNumaNodeScheduling() const;
 
-    void HandlePortoHealthCheckSuccess();
-    void HandlePortoHealthCheckFailed(const TError& result);
+    void OnPortoHealthCheckSuccess();
+    void OnPortoHealthCheckFailed(const TError& result);
 
     void ForceInitialize();
     TFuture<void> Resurrect();

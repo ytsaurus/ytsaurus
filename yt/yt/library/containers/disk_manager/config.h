@@ -65,8 +65,8 @@ DEFINE_REFCOUNTED_TYPE(TDiskManagerProxyDynamicConfig)
 struct TActiveDiskCheckerDynamicConfig
     : public NYTree::TYsonStruct
 {
-    std::optional<bool> Enabled;
-    std::optional<TDuration> CheckPeriod;
+    bool Enabled;
+    TDuration CheckPeriod;
 
     REGISTER_YSON_STRUCT(TActiveDiskCheckerDynamicConfig);
 

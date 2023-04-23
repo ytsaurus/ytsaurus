@@ -67,7 +67,6 @@ public:
     DEFINE_SIGNAL(void(const NNodeTrackerClient::NProto::TNodeResources&), ResourcesUpdated);
     DEFINE_SIGNAL(void(), JobPrepared);
     DEFINE_SIGNAL(void(), JobFinished);
-    DEFINE_SIGNAL(void(), CleanupFinished);
 
 public:
     TJob(
@@ -226,6 +225,8 @@ public:
 
     bool IsFinished() const noexcept;
 
+    TFuture<void> GetCleanupFinishedEvent();
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -327,6 +328,8 @@ private:
 
     //! True if scheduler asked to store this job.
     bool Stored_ = false;
+
+    TPromise<void> CleanupFinished_ = NewPromise<void>();
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobProbeLock_);
     NJobProberClient::IJobProbePtr JobProbe_;

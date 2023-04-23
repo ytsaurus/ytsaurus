@@ -1575,7 +1575,7 @@ public:
                 TArtifactKey key;
                 key.MergeFrom(layerMeta.artifact_key());
 
-                YT_LOG_DEBUG("Porto cached layer initialization (LayerId: %v)", layerMeta.Id);
+                YT_LOG_DEBUG("Loading existing cached porto layer (LayerId: %v)", layerMeta.Id);
 
                 auto layer = New<TLayer>(layerMeta, key, location);
                 auto cookie = BeginInsert(layer->GetKey());
@@ -1814,7 +1814,7 @@ private:
                     auto layerMeta = WaitFor(location->MountSquashfsLayer(artifactKey, artifactChunk->GetFileName(), tag))
                         .ValueOrThrow();
 
-                    YT_LOG_DEBUG("Porto layer initialization (LayerId: %v, Tag: %v)", layerMeta.Id, tag);
+                    YT_LOG_DEBUG("New squashfs porto layer initialized (LayerId: %v, Tag: %v)", layerMeta.Id, tag);
                     auto layer = New<TLayer>(layerMeta, artifactKey, location);
                     layer->SetUnderlyingArtifact(artifactChunk);
                     return layer;
@@ -1940,7 +1940,7 @@ public:
         YT_LOG_INFO("Destroying volume (VolumeId: %v)",
             VolumeMeta_.Id);
 
-        Remove();
+        Y_UNUSED(WaitFor(Remove()));
     }
 
     TFuture<void> Remove() override

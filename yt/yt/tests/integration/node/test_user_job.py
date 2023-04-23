@@ -2268,7 +2268,7 @@ class TestHealExecNode(YTEnvSetup):
             if not os.path.exists(job_proxy_path):
                 shutil.move(job_proxy_moved_path, job_proxy_path)
 
-        assert has_job_proxy_build_info_missing_alert()
+        wait(lambda: has_job_proxy_build_info_missing_alert())
 
         with raises_yt_error("is not resettable"):
             heal_exec_node(node_address, alert_types_to_reset=["job_proxy_unavailable"])
@@ -2876,7 +2876,6 @@ class TestSlotManagerResurrect(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "enable_job_environment_resurrect": True,
         "exec_agent": {
             "test_root_fs": True,
             "abort_on_jobs_disabled": False,
@@ -2911,6 +2910,10 @@ class TestSlotManagerResurrect(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
+
+        update_nodes_dynamic_config({
+            "enable_job_environment_resurrection": True,
+        })
 
         ##################################################################
 
@@ -2983,6 +2986,10 @@ class TestSlotManagerResurrect(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
+
+        update_nodes_dynamic_config({
+            "enable_job_environment_resurrection": True,
+        })
 
         ##################################################################
 
