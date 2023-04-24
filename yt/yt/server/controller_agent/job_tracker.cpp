@@ -181,6 +181,9 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
                     operationId);
                 jobsToAbort[operationId].push_back(jobId);
 
+                auto& operationInfo = GetOrCrash(RegisteredOperations_, jobToConfirmIt->second);
+                EraseOrCrash(operationInfo.TrackedJobs, jobId);
+
                 nodeJobs.JobsToConfirm.erase(jobToConfirmIt);
             }
         }
