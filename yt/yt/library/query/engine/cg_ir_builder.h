@@ -25,7 +25,7 @@ struct TContextTrackingInserter
         ValuesInContext.insert(static_cast<llvm::Value*>(instruction));
 
         if (basicBlock) {
-            basicBlock->getInstList().insert(insertPoint, instruction);
+            instruction->insertInto(basicBlock, insertPoint);
         }
 
         instruction->setName(name);

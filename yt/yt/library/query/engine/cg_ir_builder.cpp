@@ -1,9 +1,12 @@
 #include "cg_ir_builder.h"
+#include "cg_helpers.h"
 
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/Module.h>
 
 #include <library/cpp/yt/assert/assert.h>
+
+#include <yt/yt/client/table_client/llvm_types.h>
 
 #include <yt/yt/library/codegen/llvm_migrate_helpers.h>
 #include <yt/yt/library/codegen/type_builder.h>
@@ -79,17 +82,19 @@ Value* TCGIRBuilder::ViaClosure(Value* value, Twine name)
         Type* closureType = llvm::StructType::get(Parent_->getContext(), Types_);
 
         // Load the value to the current context through the closure.
+        Value* castedClosure = CreatePointerCast(
+            ClosurePtr_,
+            llvm::PointerType::getUnqual(closureType),
+            "castedClosure");
+        Value* elementPtr = CreateStructGEP(
+            closureType,
+            castedClosure,
+            indexInClosure,
+            resultingName + ".inParentPtr");
         Value* result = CreateLoad(
-            CreateStructGEP(
-                nullptr,
-                CreatePointerCast(
-                    ClosurePtr_,
-                    llvm::PointerType::getUnqual(closureType),
-                    "castedClosure"),
-                indexInClosure,
-                resultingName + ".inParentPtr"),
+            value->getType(),
+            elementPtr,
             resultingName);
-
         restoreIP(currentIP);
 
         Mapping_[valueInParent] = std::make_pair(result, indexInClosure);

@@ -6,6 +6,8 @@
 #include <yt/yt/library/codegen/module.h>
 #include <yt/yt/library/codegen/llvm_migrate_helpers.h>
 
+#include <yt/yt/client/table_client/llvm_types.h>
+
 namespace NYT::NQueryClient {
 
 // Import extensively used LLVM types.
@@ -203,34 +205,64 @@ public:
         EValueType staticType,
         Twine name = {})
     {
+        Type* valueType = TValueTypeBuilder::Get(builder->getContext());
+
         Value* isNull = builder->getFalse();
         if (nullable) {
             Value* typePtr = builder->CreateConstInBoundsGEP2_32(
-                nullptr, rowValues, index, TValueTypeBuilder::Type, name + ".typePtr");
+                valueType,
+                rowValues,
+                index,
+                TValueTypeBuilder::Type,
+                name + ".typePtr");
 
-            isNull = builder->CreateLoad(typePtr, name + ".type");
+            isNull = builder->CreateLoad(
+                TValueTypeBuilder::TType::Get(builder->getContext()),
+                typePtr,
+                name + ".type");
         }
 
         Value* isAggregate = nullptr;
         if (aggregate) {
             Value* aggregatePtr = builder->CreateConstInBoundsGEP2_32(
-                nullptr, rowValues, index, TValueTypeBuilder::Aggregate, name + ".aggregatePtr");
+                valueType,
+                rowValues,
+                index,
+                TValueTypeBuilder::Aggregate,
+                name + ".aggregatePtr");
 
-            isAggregate = builder->CreateLoad(aggregatePtr, name + ".aggregate");
+            isAggregate = builder->CreateLoad(
+                TValueTypeBuilder::TAggregate::Get(builder->getContext()),
+                aggregatePtr,
+                name + ".aggregate");
         }
 
         Value* length = nullptr;
         if (IsStringLikeType(staticType)) {
             Value* lengthPtr = builder->CreateConstInBoundsGEP2_32(
-                nullptr, rowValues, index, TValueTypeBuilder::Length, name + ".lengthPtr");
+                valueType,
+                rowValues,
+                index,
+                TValueTypeBuilder::Length,
+                name + ".lengthPtr");
 
-            length = builder->CreateLoad(lengthPtr, name + ".length");
+            length = builder->CreateLoad(
+                TValueTypeBuilder::TLength::Get(builder->getContext()),
+                lengthPtr,
+                name + ".length");
         }
 
         Value* dataPtr = builder->CreateConstInBoundsGEP2_32(
-            nullptr, rowValues, index, TValueTypeBuilder::Data, name + ".dataPtr");
+            valueType,
+            rowValues,
+            index,
+            TValueTypeBuilder::Data,
+            name + ".dataPtr");
 
-        Value* data = builder->CreateLoad(dataPtr, name + ".data");
+        Value* data = builder->CreateLoad(
+            TValueTypeBuilder::TData::Get(builder->getContext()),
+            dataPtr,
+            name + ".data");
 
         if (NTableClient::IsStringLikeType(staticType)) {
             Value* dataPtrAsInt = builder->CreatePtrToInt(dataPtr, data->getType());
@@ -291,42 +323,61 @@ public:
         size_t index,
         Twine name) const
     {
-        const auto& type = TTypeBuilder<NTableClient::TUnversionedValue>::TType::Get(builder->getContext());
-
         if (IsNull_->getType() == builder->getInt1Ty()) {
+            Type* type = TValueTypeBuilder::TType::Get(builder->getContext());
             builder->CreateStore(
                 builder->CreateSelect(
                     GetIsNull(builder),
                     ConstantInt::get(type, static_cast<int>(EValueType::Null)),
                     ConstantInt::get(type, static_cast<int>(StaticType_))),
                 builder->CreateConstInBoundsGEP2_32(
-                    nullptr, valuePtr, index, TValueTypeBuilder::Type, name + ".typePtr"));
+                    TValueTypeBuilder::Get(builder->getContext()),
+                    valuePtr,
+                    index,
+                    TValueTypeBuilder::Type,
+                    name + ".typePtr"));
         } else {
             builder->CreateStore(
                 IsNull_,
                 builder->CreateConstInBoundsGEP2_32(
-                    nullptr, valuePtr, index, TValueTypeBuilder::Type, name + ".typePtr"));
+                    TValueTypeBuilder::Get(builder->getContext()),
+                    valuePtr,
+                    index,
+                    TValueTypeBuilder::Type,
+                    name + ".typePtr"));
         }
 
         if (IsAggregate_) {
             builder->CreateStore(
                 IsAggregate_,
                 builder->CreateConstInBoundsGEP2_32(
-                    nullptr, valuePtr, index, TValueTypeBuilder::Aggregate, name + ".aggregatePtr"));
+                    TValueTypeBuilder::Get(builder->getContext()),
+                    valuePtr,
+                    index,
+                    TValueTypeBuilder::Aggregate,
+                    name + ".aggregatePtr"));
         }
 
         if (IsStringLikeType(StaticType_)) {
             builder->CreateStore(
                 Length_,
                 builder->CreateConstInBoundsGEP2_32(
-                    nullptr, valuePtr, index, TValueTypeBuilder::Length, name + ".lengthPtr"));
+                    TValueTypeBuilder::Get(builder->getContext()),
+                    valuePtr,
+                    index,
+                    TValueTypeBuilder::Length,
+                    name + ".lengthPtr"));
         }
 
         Value* data = nullptr;
         auto targetType = TDataTypeBuilder::Get(builder->getContext());
 
         Value* dataPtr = builder->CreateConstInBoundsGEP2_32(
-            nullptr, valuePtr, index, TValueTypeBuilder::Data, name + ".dataPtr");
+            TValueTypeBuilder::Get(builder->getContext()),
+            valuePtr,
+            index,
+            TValueTypeBuilder::Data,
+            name + ".dataPtr");
 
         if (Data_->getType()->isPointerTy()) {
             data = builder->CreatePtrToInt(Data_, targetType);
@@ -520,8 +571,13 @@ public:
     Value* GetOpaqueValue(size_t index) const
     {
         Value* opaqueValues = GetOpaqueValues();
+        auto opaqueValuePtr = Builder_->CreateConstGEP1_32(
+            Builder_->getInt8PtrTy(),
+            opaqueValues,
+            index);
         return Builder_->CreateLoad(
-            Builder_->CreateConstGEP1_32(opaqueValues, index),
+            Builder_->getInt8PtrTy(),
+            opaqueValuePtr,
             "opaqueValues." + Twine(index));
     }
 

@@ -71,6 +71,7 @@ set_property(
   1
 )
 target_allocator(unittester-query
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
 )
 vcs_info(unittester-query)

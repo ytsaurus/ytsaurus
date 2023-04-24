@@ -56,7 +56,8 @@ Value* CodegenForEachRow(
     auto* endloopBB = builder->CreateBBHere("endloop");
 
     // index = 0
-    Value* indexPtr = builder->CreateAlloca(builder->getInt64Ty(), nullptr, "indexPtr");
+    Type* indexType = builder->getInt64Ty();
+    Value* indexPtr = builder->CreateAlloca(indexType, nullptr, "indexPtr");
     builder->CreateStore(builder->getInt64(0), indexPtr);
 
     builder->CreateBr(condBB);
@@ -64,15 +65,20 @@ Value* CodegenForEachRow(
     builder->SetInsertPoint(condBB);
 
     // if (index != size) ...
-    Value* index = builder->CreateLoad(indexPtr, "index");
+    Value* index = builder->CreateLoad(indexType, indexPtr, "index");
     Value* condition = builder->CreateICmpNE(index, size);
     builder->CreateCondBr(condition, loopBB, endloopBB);
 
     builder->SetInsertPoint(loopBB);
 
-    // row = rows[index]; consume(row);
+    // row = rows[index]
     Value* stackState = builder->CreateStackSave("stackState");
-    Value* row = builder->CreateLoad(builder->CreateGEP(rows, index, "rowPtr"), "row");
+    Type* rowPointerType = TTypeBuilder<TUnversionedValue*>::Get(builder->getContext());
+    Value* rowPointer = builder->CreateGEP(rowPointerType, rows, index, "rowPointer");
+    Type* rowType = TTypeBuilder<TUnversionedValue*>::Get(builder->getContext());
+    Value* row = builder->CreateLoad(rowType, rowPointer, "row");
+
+    // consume(row)
     Value* finished = codegenConsumer(builder, row);
     builder->CreateStackRestore(stackState);
     loopBB = builder->GetInsertBlock();
@@ -186,11 +192,13 @@ TValueTypeLabels CodegenHasherBody(
         hashScalarBB = builder->CreateBBHere("hashNull");
         builder->SetInsertPoint(hashScalarBB);
 
+        auto valuePtr = builder->CreateInBoundsGEP(
+            TValueTypeBuilder::Get(builder->getContext()),
+            values,
+            indexPhi);
         auto value = TCGValue::LoadFromRowValue(
             builder,
-            builder->CreateInBoundsGEP(
-                values,
-                indexPhi),
+            valuePtr,
             EValueType::Int64);
 
         result2Phi->addIncoming(builder->getInt64(0), builder->GetInsertBlock());
@@ -211,11 +219,13 @@ TValueTypeLabels CodegenHasherBody(
         cmpStringBB = builder->CreateBBHere("hashNull");
         builder->SetInsertPoint(cmpStringBB);
 
+        auto valuePtr = builder->CreateInBoundsGEP(
+            TValueTypeBuilder::Get(builder->getContext()),
+            values,
+            indexPhi);
         auto value = TCGValue::LoadFromRowValue(
             builder,
-            builder->CreateInBoundsGEP(
-                values,
-                indexPhi),
+            valuePtr,
             EValueType::String);
 
         result2Phi->addIncoming(builder->getInt64(0), builder->GetInsertBlock());
@@ -236,7 +246,8 @@ TValueTypeLabels CodegenHasherBody(
 
     builder->SetInsertPoint(gotoHashBB);
 
-    Value* offset = builder->CreateLoad(builder->CreateGEP(labelsArray, indexPhi));
+    Value* offsetPtr = builder->CreateGEP(builder->getInt8PtrTy(), labelsArray, indexPhi);
+    Value* offset = builder->CreateLoad(builder->getInt8PtrTy(), offsetPtr);
     auto* indirectBranch = builder->CreateIndirectBr(offset);
     indirectBranch->addDestination(hashScalarBB);
     indirectBranch->addDestination(cmpStringBB);
@@ -296,6 +307,7 @@ TValueTypeLabels CodegenLessComparerBody(
         auto lhsValue = TCGValue::LoadFromRowValue(
             builder,
             builder->CreateInBoundsGEP(
+                TValueTypeBuilder::Get(builder->getContext()),
                 lhsValues,
                 indexPhi),
             type);
@@ -303,6 +315,7 @@ TValueTypeLabels CodegenLessComparerBody(
         auto rhsValue = TCGValue::LoadFromRowValue(
             builder,
             builder->CreateInBoundsGEP(
+                TValueTypeBuilder::Get(builder->getContext()),
                 rhsValues,
                 indexPhi),
             type);
@@ -342,6 +355,7 @@ TValueTypeLabels CodegenLessComparerBody(
         auto lhsValue = TCGValue::LoadFromRowValue(
             builder,
             builder->CreateInBoundsGEP(
+                TValueTypeBuilder::Get(builder->getContext()),
                 lhsValues,
                 indexPhi),
             type);
@@ -349,6 +363,7 @@ TValueTypeLabels CodegenLessComparerBody(
         auto rhsValue = TCGValue::LoadFromRowValue(
             builder,
             builder->CreateInBoundsGEP(
+                TValueTypeBuilder::Get(builder->getContext()),
                 rhsValues,
                 indexPhi),
             type);
@@ -419,6 +434,7 @@ TValueTypeLabels CodegenLessComparerBody(
         auto lhsValue = TCGValue::LoadFromRowValue(
             builder,
             builder->CreateInBoundsGEP(
+                TValueTypeBuilder::Get(builder->getContext()),
                 lhsValues,
                 indexPhi),
             EValueType::String);
@@ -426,6 +442,7 @@ TValueTypeLabels CodegenLessComparerBody(
         auto rhsValue = TCGValue::LoadFromRowValue(
             builder,
             builder->CreateInBoundsGEP(
+                TValueTypeBuilder::Get(builder->getContext()),
                 rhsValues,
                 indexPhi),
             EValueType::String);
@@ -490,7 +507,8 @@ TValueTypeLabels CodegenLessComparerBody(
 
     builder->SetInsertPoint(gotoCmpBB);
 
-    Value* offset = builder->CreateLoad(builder->CreateGEP(labelsArray, indexPhi));
+    Value* offsetPtr = builder->CreateGEP(builder->getInt8PtrTy(), labelsArray, indexPhi);
+    Value* offset = builder->CreateLoad(builder->getInt8PtrTy(), offsetPtr);
     auto* indirectBranch = builder->CreateIndirectBr(offset);
     indirectBranch->addDestination(cmpIntBB);
     indirectBranch->addDestination(cmpUintBB);
@@ -930,8 +948,9 @@ Function* TComparerManager::CodegenOrderByComparerFunction(
         Value* lhsValues,
         Value* rhsValues
     ) {
-        lhsValues = builder->CreateGEP(lhsValues, builder->getInt64(offset));
-        rhsValues = builder->CreateGEP(rhsValues, builder->getInt64(offset));
+        Type* type = TValueTypeBuilder::Get(builder->getContext());
+        lhsValues = builder->CreateGEP(type, lhsValues, builder->getInt64(offset));
+        rhsValues = builder->CreateGEP(type, rhsValues, builder->getInt64(offset));
 
         std::vector<Constant*> isDescFlags;
         for (size_t index = 0; index < types.size(); ++index) {
@@ -979,7 +998,12 @@ Function* TComparerManager::CodegenOrderByComparerFunction(
 
         result = builder->CreateXor(
             builder->CreateZExt(isLess, builder->getInt8Ty()),
-            builder->CreateLoad(builder->CreateGEP(isDescArray, {builder->getInt64(0), index})));
+            builder->CreateLoad(
+                builder->getInt8Ty(),
+                builder->CreateGEP(
+                    isDescArrayType,
+                    isDescArray,
+                    llvm::ArrayRef<llvm::Value*>{builder->getInt64(0), index})));
 
         builder->CreateRet(result);
     });
@@ -1131,7 +1155,7 @@ void CodegenFragmentBodies(
                 Value* fragmentFlag = innerBuilder.GetFragmentFlag(id);
 
                 auto* evaluationNeeded = innerBuilder->CreateICmpEQ(
-                    innerBuilder->CreateLoad(fragmentFlag),
+                    innerBuilder->CreateLoad(innerBuilder->getInt8Ty(), fragmentFlag),
                     innerBuilder->getInt8(static_cast<int>(EValueType::TheBottom)));
 
                 CodegenIf<TCGExprContext>(
@@ -2070,10 +2094,10 @@ std::tuple<size_t, size_t, size_t> MakeCodegenSplitterOp(
 
             // FIXME(lukyan): This is logically wrong but fixes YT-11823
             return builder->CreateOr(
-                builder->CreateLoad(finalFinishRef),
+                builder->CreateLoad(builder->getInt1Ty(), finalFinishRef),
                 builder->CreateOr(
-                    builder->CreateLoad(intermediateFinishRef),
-                    builder->CreateLoad(totalsFinishRef)));
+                    builder->CreateLoad(builder->getInt1Ty(), intermediateFinishRef),
+                    builder->CreateLoad(builder->getInt1Ty(), totalsFinishRef)));
         };
 
         codegenSource(builder);
@@ -2122,8 +2146,11 @@ size_t MakeCodegenMultiJoinOp(
                     }),
                 primaryValuesPtr);
 
+            Type* closureType = TClosureTypeBuilder::Get(
+                builder->getContext(),
+                fragmentInfos->Functions.size());
             Value* expressionClosurePtr = builder->CreateAlloca(
-                TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos->Functions.size()),
+                closureType,
                 nullptr,
                 "expressionClosurePtr");
 
@@ -2139,7 +2166,9 @@ size_t MakeCodegenMultiJoinOp(
                     builder->ViaClosure(expressionClosurePtr));
 
                 for (size_t index = 0; index < parameters.size(); ++index) {
-                    Value* keyValues = builder->CreateLoad(builder->CreateConstGEP1_32(keyPtrsRef, index));
+                    Type* type = TTypeBuilder<TValue*>::Get(builder->getContext());
+                    Value* keyValuesPtr = builder->CreateConstGEP1_32(type, keyPtrsRef, index);
+                    Value* keyValues = builder->CreateLoad(type, keyValuesPtr);
 
                     const auto& equations = parameters[index].Equations;
                     for (size_t column = 0; column < equations.size(); ++column) {
@@ -2166,7 +2195,9 @@ size_t MakeCodegenMultiJoinOp(
                 }
 
                 Value* primaryValuesPtrRef = builder->ViaClosure(primaryValuesPtr);
-                Value* primaryValues = builder->CreateLoad(primaryValuesPtrRef);
+                Value* primaryValues = builder->CreateLoad(
+                    TTypeBuilder<TValue*>::Get(builder->getContext()),
+                    primaryValuesPtrRef);
                 for (size_t column = 0; column < primaryColumns.size(); ++column) {
                     TCGValue::LoadFromRowValues(
                         builder,
@@ -2197,8 +2228,10 @@ size_t MakeCodegenMultiJoinOp(
 
         const auto& module = builder.Module;
 
+        Type* joinComparersType = TTypeBuilder<TJoinComparers>::Get(builder->getContext());
+
         Value* joinComparers = builder->CreateAlloca(
-            TTypeBuilder<TJoinComparers>::Get(builder->getContext()),
+            joinComparersType,
             builder->getInt64(parameters.size()));
 
         typedef TTypeBuilder<TJoinComparers>::Fields TFields;
@@ -2210,31 +2243,31 @@ size_t MakeCodegenMultiJoinOp(
 
             builder->CreateStore(
                 comparerManager->GetEqComparer(lookupKeyTypes, module, 0, commonKeyPrefix),
-                builder->CreateConstGEP2_32(nullptr, joinComparers, index, TFields::PrefixEqComparer));
+                builder->CreateConstGEP2_32(joinComparersType, joinComparers, index, TFields::PrefixEqComparer));
 
             builder->CreateStore(
                 comparerManager->GetHasher(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
-                builder->CreateConstGEP2_32(nullptr, joinComparers, index, TFields::SuffixHasher));
+                builder->CreateConstGEP2_32(joinComparersType, joinComparers, index, TFields::SuffixHasher));
 
             builder->CreateStore(
                 comparerManager->GetEqComparer(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
-                builder->CreateConstGEP2_32(nullptr, joinComparers, index, TFields::SuffixEqComparer));
+                builder->CreateConstGEP2_32(joinComparersType, joinComparers, index, TFields::SuffixEqComparer));
 
             builder->CreateStore(
                 comparerManager->GetLessComparer(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
-                builder->CreateConstGEP2_32(nullptr, joinComparers, index, TFields::SuffixLessComparer));
+                builder->CreateConstGEP2_32(joinComparersType, joinComparers, index, TFields::SuffixLessComparer));
 
             builder->CreateStore(
                 comparerManager->GetEqComparer(lookupKeyTypes, module, 0, foreignKeyPrefix),
-                builder->CreateConstGEP2_32(nullptr, joinComparers, index, TFields::ForeignPrefixEqComparer));
+                builder->CreateConstGEP2_32(joinComparersType, joinComparers, index, TFields::ForeignPrefixEqComparer));
 
             builder->CreateStore(
                 comparerManager->GetLessComparer(lookupKeyTypes, module, foreignKeyPrefix, lookupKeyTypes.size()),
-                builder->CreateConstGEP2_32(nullptr, joinComparers, index, TFields::ForeignSuffixLessComparer));
+                builder->CreateConstGEP2_32(joinComparersType, joinComparers, index, TFields::ForeignSuffixLessComparer));
 
             builder->CreateStore(
                 comparerManager->GetTernaryComparer(lookupKeyTypes, module),
-                builder->CreateConstGEP2_32(nullptr, joinComparers, index, TFields::FullTernaryComparer));
+                builder->CreateConstGEP2_32(joinComparersType, joinComparers, index, TFields::FullTernaryComparer));
         }
 
         builder->CreateCall(
@@ -2269,8 +2302,11 @@ size_t MakeCodegenFilterOp(
         codegenSource = std::move(*codegenSource),
         fragmentInfos = std::move(fragmentInfos)
     ] (TCGOperatorContext& builder) {
+        Type* closureType = TClosureTypeBuilder::Get(
+            builder->getContext(),
+            fragmentInfos->Functions.size());
         Value* expressionClosurePtr = builder->CreateAlloca(
-            TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos->Functions.size()),
+            closureType,
             nullptr,
             "expressionClosurePtr");
 
@@ -2333,8 +2369,11 @@ size_t MakeCodegenFilterFinalizedOp(
         codegenAggregates = std::move(codegenAggregates),
         stateTypes = std::move(stateTypes)
     ] (TCGOperatorContext& builder) {
+        Type* closureType = TClosureTypeBuilder::Get(
+            builder->getContext(),
+            fragmentInfos->Functions.size());
         Value* expressionClosurePtr = builder->CreateAlloca(
-            TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos->Functions.size()),
+            closureType,
             nullptr,
             "expressionClosurePtr");
 
@@ -2466,8 +2505,12 @@ size_t MakeCodegenProjectOp(
         int projectionCount = argIds.size();
 
         Value* newValues = CodegenAllocateValues(builder, projectionCount);
+
+        Type* closureType = TClosureTypeBuilder::Get(
+            builder->getContext(),
+            fragmentInfos->Functions.size());
         Value* expressionClosurePtr = builder->CreateAlloca(
-            TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos->Functions.size()),
+            closureType,
             nullptr,
             "expressionClosurePtr");
 
@@ -2632,15 +2675,20 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                     newValuesPtr
                 });
 
+            Type* closureType = TClosureTypeBuilder::Get(
+                builder->getContext(),
+                fragmentInfos->Functions.size());
             Value* expressionClosurePtr = builder->CreateAlloca(
-                TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos->Functions.size()),
+                closureType,
                 nullptr,
                 "expressionClosurePtr");
 
             builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
                 Value* bufferRef = builder->ViaClosure(buffer);
                 Value* newValuesPtrRef = builder->ViaClosure(newValuesPtr);
-                Value* newValuesRef = builder->CreateLoad(newValuesPtrRef);
+                Value* newValuesRef = builder->CreateLoad(
+                    TTypeBuilder<TValue*>::Get(builder->getContext()),
+                    newValuesPtrRef);
 
                 auto innerBuilder = TCGExprContext::Make(
                     builder,
@@ -2800,7 +2848,7 @@ size_t MakeCodegenGroupTotalsOp(
                     newValuesPtr
                 });
 
-            Value* groupValues = builder->CreateLoad(newValuesPtr);
+            Value* groupValues = builder->CreateLoad(TTypeBuilder<TValue*>::Get(builder->getContext()), newValuesPtr);
 
             for (int index = 0; index < keySize; ++index) {
                 TCGValue::CreateNull(builder, keyTypes[index])
@@ -2819,7 +2867,9 @@ size_t MakeCodegenGroupTotalsOp(
                 Value* bufferRef = builder->ViaClosure(buffer);
                 Value* groupValuesRef = builder->ViaClosure(groupValues);
 
-                builder->CreateStore(builder->getTrue(), builder->ViaClosure(hasRows));
+                builder->CreateStore(
+                    builder->getTrue(),
+                    builder->ViaClosure(hasRows));
 
                 for (int index = 0; index < std::ssize(codegenAggregates); index++) {
                     auto aggState = TCGValue::LoadFromRowValues(
@@ -2845,7 +2895,7 @@ size_t MakeCodegenGroupTotalsOp(
 
             CodegenIf<TCGOperatorContext>(
                 builder,
-                builder->CreateLoad(hasRows),
+                builder->CreateLoad(builder->getInt1Ty(), hasRows),
                 [&] (TCGOperatorContext& builder) {
                     TCGContext innerBuilder(builder, buffer);
                     builder[consumerSlot](innerBuilder, groupValues);
@@ -2935,13 +2985,17 @@ size_t MakeCodegenOrderOp(
         ) {
             Value* newValues = CodegenAllocateValues(builder, schemaSize + exprIds.size());
 
+            Type* closureType = TClosureTypeBuilder::Get(
+                builder->getContext(),
+                fragmentInfos->Functions.size());
             Value* expressionClosurePtr = builder->CreateAlloca(
-                TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos->Functions.size()),
+                closureType,
                 nullptr,
                 "expressionClosurePtr");
 
             builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
                 Value* topCollectorRef = builder->ViaClosure(topCollector);
+
                 Value* newValuesRef = builder->ViaClosure(newValues);
 
                 for (size_t index = 0; index < schemaSize; index++) {
@@ -3033,19 +3087,19 @@ size_t MakeCodegenOffsetLimiterOp(
             auto* ifBB = builder->CreateBBHere("if");
             auto* endIfBB = builder->CreateBBHere("endIf");
 
-            Value* offset = builder->CreateLoad(
-                builder->CreatePointerCast(
-                    builder.GetOpaqueValue(offsetId),
-                    builder->getInt64Ty()->getPointerTo()));
+            Value* offsetRef = builder->CreatePointerCast(
+                builder.GetOpaqueValue(offsetId),
+                builder->getInt64Ty()->getPointerTo());
+            Value* offset = builder->CreateLoad(builder->getInt64Ty(), offsetRef);
 
-            Value* limit = builder->CreateLoad(
-                builder->CreatePointerCast(
-                    builder.GetOpaqueValue(limitId),
-                    builder->getInt64Ty()->getPointerTo()));
+            Value* limitRef = builder->CreatePointerCast(
+                builder.GetOpaqueValue(limitId),
+                builder->getInt64Ty()->getPointerTo());
+            Value* limit = builder->CreateLoad(builder->getInt64Ty(), limitRef);
 
             Value* end = builder->CreateAdd(offset, limit);
 
-            Value* index = builder->CreateLoad(indexPtrRef, "index");
+            Value* index = builder->CreateLoad(builder->getInt64Ty(), indexPtrRef, "index");
 
             // index = index + 1
             index = builder->CreateAdd(index, builder->getInt64(1));
