@@ -301,7 +301,6 @@ std::vector<TBlock> TChunkFileReader::OnBlocksRead(
             }
         }
         blocks.push_back(TBlock(block, blockInfo.Checksum));
-        blocks.back().BlockOrigin = EBlockOrigin::Disk;
     }
 
     return blocks;

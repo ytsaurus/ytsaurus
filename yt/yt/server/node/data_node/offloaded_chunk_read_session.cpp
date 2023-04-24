@@ -269,6 +269,7 @@ private:
             TableSchema_,
             Timestamp_,
             ProduceAllVersions_,
+            Bootstrap_->GetBlockCache(),
             /*testingOptions*/ std::nullopt,
             Logger);
 
@@ -297,6 +298,7 @@ private:
                     CreateIndexedVersionedChunkReader(
                         Options_,
                         std::move(controller),
+                        UnderlyingChunkReader_,
                         std::move(chunkFragmentReader)));
             })
                 .AsyncVia(Bootstrap_->GetStorageLookupInvoker()));
@@ -307,6 +309,7 @@ private:
             CreateIndexedVersionedChunkReader(
                 Options_,
                 std::move(controller),
+                UnderlyingChunkReader_,
                 std::move(chunkFragmentReader)));
     }
 

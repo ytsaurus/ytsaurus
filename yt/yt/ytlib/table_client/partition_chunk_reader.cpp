@@ -113,6 +113,7 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
             .BlockIndex = blockMeta.block_index(),
             .Priority = priority,
             .UncompressedDataSize = blockMeta.uncompressed_size(),
+            .BlockType = EBlockType::UncompressedData,
         });
     }
 

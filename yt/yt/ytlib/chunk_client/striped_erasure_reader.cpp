@@ -1,6 +1,7 @@
 #include "striped_erasure_reader.h"
 
 #include "private.h"
+#include "block_cache.h"
 #include "block_fetcher.h"
 #include "chunk_reader_allowing_repair.h"
 #include "chunk_writer.h"
@@ -58,7 +59,6 @@ public:
         const TSegmentPartFetchPlan& plan,
         const NProto::TStripedErasurePlacementExt& placement,
         TChunkReaderMemoryManagerPtr memoryManager,
-        IBlockCachePtr blockCache,
         const IChunkReader::TReadBlocksOptions& readBlocksOptions)
         : Codec_(codec)
         , Placement_(placement)
@@ -118,7 +118,8 @@ public:
                     .ReaderIndex = GetOrCrash(PartIndexToReaderIndex_, partIndex),
                     .BlockIndex = segmentIndex,
                     .Priority = segmentPartIndex,
-                    .UncompressedDataSize = segmentSizes[segmentIndex] / Codec_->GetDataPartCount()
+                    .UncompressedDataSize = segmentSizes[segmentIndex] / Codec_->GetDataPartCount(),
+                    .BlockType = EBlockType::None,
                 });
             };
 
@@ -147,7 +148,7 @@ public:
             std::move(blockInfos),
             std::move(memoryManager),
             std::move(partReaders),
-            std::move(blockCache),
+            GetNullBlockCache(),
             NCompression::ECodec::None,
             /*compressionRatio*/ 1.0,
             readBlocksOptions.ClientOptions,
@@ -377,13 +378,11 @@ public:
         const NErasure::ICodec* codec,
         std::vector<IChunkReaderAllowingRepairPtr> partReaders,
         TChunkReaderMemoryManagerPtr memoryManager,
-        IBlockCachePtr blockCache,
         IChunkReader::TReadBlocksOptions readBlocksOptions)
         : Config_(std::move(config))
         , Codec_(codec)
         , PartReaders_(std::move(partReaders))
         , MemoryManager_(std::move(memoryManager))
-        , BlockCache_(std::move(blockCache))
         , ReadBlocksOptions_(std::move(readBlocksOptions))
     { }
 
@@ -394,7 +393,6 @@ protected:
     const std::vector<IChunkReaderAllowingRepairPtr> PartReaders_;
 
     const TChunkReaderMemoryManagerPtr MemoryManager_;
-    const IBlockCachePtr BlockCache_;
 
     const IChunkReader::TReadBlocksOptions ReadBlocksOptions_;
 
@@ -426,14 +424,12 @@ public:
         std::vector<IChunkReaderAllowingRepairPtr> partReaders,
         std::vector<IChunkWriterPtr> partWriters,
         TChunkReaderMemoryManagerPtr memoryManager,
-        IBlockCachePtr blockCache,
         IChunkReader::TReadBlocksOptions readBlocksOptions)
         : TErasureReaderSessionBase(
             std::move(config),
             std::move(codec),
             std::move(partReaders),
             std::move(memoryManager),
-            std::move(blockCache),
             std::move(readBlocksOptions))
         , PartWriters_(std::move(partWriters))
     {
@@ -496,7 +492,6 @@ private:
                 fetchPlan,
                 PlacementExt_,
                 MemoryManager_,
-                BlockCache_,
                 ReadBlocksOptions_);
         }
 
@@ -551,7 +546,6 @@ TFuture<void> RepairErasedPartsStriped(
     std::vector<IChunkReaderAllowingRepairPtr> partReaders,
     std::vector<IChunkWriterPtr> partWriters,
     TChunkReaderMemoryManagerPtr memoryManager,
-    IBlockCachePtr blockCache,
     IChunkReader::TReadBlocksOptions readBlocksOptions)
 {
     auto repairSession = New<TErasureRepairSession>(
@@ -560,7 +554,6 @@ TFuture<void> RepairErasedPartsStriped(
         std::move(partReaders),
         std::move(partWriters),
         std::move(memoryManager),
-        std::move(blockCache),
         std::move(readBlocksOptions));
     return repairSession->Run();
 }

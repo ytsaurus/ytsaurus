@@ -407,6 +407,7 @@ private:
                     .BlockIndex = blockIndex,
                     .Priority = priority,
                     .UncompressedDataSize = blockMeta.uncompressed_size(),
+                    .BlockType = EBlockType::UncompressedData,
                 });
             }
 
@@ -602,6 +603,7 @@ private:
     {
         const auto& blockMetaExt = ChunkMeta_->DataBlockMeta();
         const auto& blockLastKeys = ChunkMeta_->BlockLastKeys();
+        YT_VERIFY(std::ssize(blockLastKeys) == blockMetaExt->data_blocks_size());
 
         std::vector<TBlockFetcher::TBlockInfo> blocks;
 
@@ -641,6 +643,7 @@ private:
                     .BlockIndex = blockIndex,
                     .Priority = priority,
                     .UncompressedDataSize = blockMeta.uncompressed_size(),
+                    .BlockType = EBlockType::UncompressedData,
                 });
 
                 ++blocksIt;

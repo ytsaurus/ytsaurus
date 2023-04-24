@@ -105,6 +105,10 @@ void TBlockCacheConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("uncompressed_data", &TThis::UncompressedData)
         .DefaultNew();
+    registrar.Parameter("hash_table_chunk_index", &TThis::HashTableChunkIndex)
+        .DefaultNew();
+    registrar.Parameter("xor_filter", &TThis::XorFilter)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,6 +118,10 @@ void TBlockCacheDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("compressed_data", &TThis::CompressedData)
         .DefaultNew();
     registrar.Parameter("uncompressed_data", &TThis::UncompressedData)
+        .DefaultNew();
+    registrar.Parameter("hash_table_chunk_index", &TThis::HashTableChunkIndex)
+        .DefaultNew();
+    registrar.Parameter("xor_filter", &TThis::XorFilter)
         .DefaultNew();
 }
 

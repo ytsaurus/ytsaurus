@@ -174,6 +174,12 @@ public:
         auto cookie = BeginInsert(id);
         return std::make_unique<TCachedBlockCookie>(std::move(cookie), MemoryReferenceTracker_);
     }
+
+    bool IsBlockTypeActive(EBlockType type) const
+    {
+        return type == Type_ && IsEnabled();
+    }
+
 private:
     const EBlockType Type_;
     const INodeMemoryReferenceTrackerPtr MemoryReferenceTracker_;
@@ -225,6 +231,8 @@ public:
         };
         initType(EBlockType::CompressedData, config->CompressedData);
         initType(EBlockType::UncompressedData, config->UncompressedData);
+        initType(EBlockType::HashTableChunkIndex, config->HashTableChunkIndex);
+        initType(EBlockType::XorFilter, config->XorFilter);
 
         // NB: We simply override the limit as underlying per-type caches are unaware of this cascading structure.
         MemoryTracker_->SetLimit(capacity);
@@ -268,6 +276,14 @@ public:
         return SupportedBlockTypes_;
     }
 
+    bool IsBlockTypeActive(EBlockType type) const override
+    {
+        const auto& cache = GetOrCrash(PerTypeCaches_, type);
+        return cache
+            ? cache->IsBlockTypeActive(type)
+            : false;
+    }
+
     void Reconfigure(const TBlockCacheDynamicConfigPtr& config) override
     {
         i64 newCapacity = 0;
@@ -279,6 +295,8 @@ public:
         };
         reconfigureType(EBlockType::CompressedData, config->CompressedData);
         reconfigureType(EBlockType::UncompressedData, config->UncompressedData);
+        reconfigureType(EBlockType::HashTableChunkIndex, config->HashTableChunkIndex);
+        reconfigureType(EBlockType::XorFilter, config->XorFilter);
 
         // NB: We simply override the limit as underlying per-type caches know nothing about this cascading structure.
         MemoryTracker_->SetLimit(newCapacity);

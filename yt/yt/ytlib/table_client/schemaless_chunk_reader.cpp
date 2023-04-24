@@ -519,11 +519,13 @@ protected:
 
 TFuture<void> THorizontalSchemalessChunkReaderBase::InitBlockFetcher()
 {
-    YT_LOG_DEBUG("Reading blocks (BlockCount: %v)", BlockIndexes_.size());
+    YT_LOG_DEBUG("Reading blocks (BlockCount: %v)",
+        BlockIndexes_.size());
 
     std::vector<TBlockFetcher::TBlockInfo> blocks;
     blocks.reserve(BlockIndexes_.size());
     for (int blockIndex : BlockIndexes_) {
+        // NB: This reader can only read data blocks, hence in block infos we set block type to UncompressedData.
         YT_VERIFY(blockIndex < BlockMetaExt_->data_blocks_size());
         const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
         int priority = blocks.size();
@@ -532,6 +534,7 @@ TFuture<void> THorizontalSchemalessChunkReaderBase::InitBlockFetcher()
             .BlockIndex = blockMeta.block_index(),
             .Priority = priority,
             .UncompressedDataSize = blockMeta.uncompressed_size(),
+            .BlockType = EBlockType::UncompressedData,
         });
     }
 

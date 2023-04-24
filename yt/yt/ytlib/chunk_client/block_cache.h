@@ -70,6 +70,9 @@ struct IBlockCache
 
     //! Returns the set of supported block types.
     virtual EBlockType GetSupportedBlockTypes() const = 0;
+
+    //! Returns whether block type is supported by block cache that has nonzero capacity.
+    virtual bool IsBlockTypeActive(EBlockType blockType) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBlockCache)

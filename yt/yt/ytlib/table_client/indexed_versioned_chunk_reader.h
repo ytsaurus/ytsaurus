@@ -11,6 +11,7 @@ namespace NYT::NTableClient {
 IVersionedReaderPtr CreateIndexedVersionedChunkReader(
     NChunkClient::TClientChunkReadOptions options,
     IChunkIndexReadControllerPtr controller,
+    NChunkClient::IChunkReaderPtr chunkReader,
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader);
 
 ////////////////////////////////////////////////////////////////////////////////

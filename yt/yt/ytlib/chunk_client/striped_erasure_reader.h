@@ -16,7 +16,6 @@ TFuture<void> RepairErasedPartsStriped(
     std::vector<IChunkReaderAllowingRepairPtr> partReaders,
     std::vector<IChunkWriterPtr> partWriters,
     TChunkReaderMemoryManagerPtr memoryManager,
-    IBlockCachePtr blockCache,
     IChunkReader::TReadBlocksOptions readBlocksOptions);
 
 ////////////////////////////////////////////////////////////////////////////////

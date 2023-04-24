@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -17,9 +18,26 @@ struct IChunkIndexReadController
 {
     using TChunkFragmentRequest = NChunkClient::IChunkFragmentReader::TChunkFragmentRequest;
 
-    virtual std::vector<TChunkFragmentRequest> GetFragmentRequests() = 0;
+    struct TReadRequest
+    {
+        // Whole system block will be requested iff block cache is provided and
+        // it considers corresponding system block type as active.
+        // Otherwise controller will only request system block fragments within #FragmentSubrequests.
+        std::vector<int> SystemBlockIndexes;
 
-    virtual void HandleFragmentsResponse(std::vector<TSharedRef> fragments) = 0;
+        std::vector<TChunkFragmentRequest> FragmentSubrequests;
+    };
+
+    struct TReadResponse
+    {
+        std::vector<NChunkClient::TBlock> SystemBlocks;
+
+        std::vector<TSharedRef> Fragments;
+    };
+
+    virtual TReadRequest GetReadRequest() = 0;
+
+    virtual void HandleReadResponse(TReadResponse response) = 0;
 
     virtual bool IsFinished() const = 0;
 
@@ -42,6 +60,7 @@ struct TChunkIndexReadControllerTestingOptions
 // NB: Requires chunk to have chunk index system block,
 // which is determined via presence of a specific extension in chunk meta.
 // #testingOptions is used for unittesting.
+// System blocks will be searched for in #blockCache if corresponding block type is active.
 IChunkIndexReadControllerPtr CreateChunkIndexReadController(
     NChunkClient::TChunkId chunkId,
     const TColumnFilter& columnFilter,
@@ -51,6 +70,7 @@ IChunkIndexReadControllerPtr CreateChunkIndexReadController(
     const TTableSchemaPtr& tableSchema,
     TTimestamp timestamp,
     bool produceAllVersions,
+    const NChunkClient::IBlockCachePtr& blockCache,
     std::optional<TChunkIndexReadControllerTestingOptions> testingOptions,
     const NLogging::TLogger& logger = {});
 

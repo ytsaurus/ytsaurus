@@ -1027,6 +1027,7 @@ private:
                     .BlockIndex = index,
                     .Priority = index,
                     .UncompressedDataSize = blocksExt.blocks(index).size(),
+                    .BlockType = EBlockType::None,
                 });
             }
 

@@ -604,7 +604,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             case EInMemoryMode::Compressed: {
                 for (const auto& compressedBlock : compressedBlocks) {
                     auto preloadedData = TSharedRef::MakeCopy<TPreloadedBlockTag>(compressedBlock.Data);
-                    auto block = TBlock(preloadedData, compressedBlock.Checksum, compressedBlock.BlockOrigin);
+                    auto block = TBlock(preloadedData, compressedBlock.Checksum);
                     blocks.push_back(std::move(block));
                 }
 
@@ -798,6 +798,11 @@ public:
         return MapInMemoryModeToBlockType(InMemoryMode_);
     }
 
+    bool IsBlockTypeActive(EBlockType blockType) const override
+    {
+        return Any(GetSupportedBlockTypes() & blockType);
+    }
+
     TFuture<void> Finish(const std::vector<TChunkInfo>& chunkInfos) override
     {
         bool expected = false;
@@ -969,6 +974,11 @@ public:
     EBlockType GetSupportedBlockTypes() const override
     {
         return EBlockType::None;
+    }
+
+    bool IsBlockTypeActive(EBlockType /*blockType*/) const override
+    {
+        return false;
     }
 
     TFuture<void> Finish(const std::vector<TChunkInfo>& /*chunkInfos*/) override

@@ -455,6 +455,7 @@ private:
                     .ReaderIndex = chunkIndex,
                     .BlockIndex = blockIndex,
                     .UncompressedDataSize = blockSizes[blockIndex],
+                    .BlockType = EBlockType::None,
                 });
             }
         }

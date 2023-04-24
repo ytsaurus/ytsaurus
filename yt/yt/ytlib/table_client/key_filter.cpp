@@ -94,6 +94,11 @@ public:
         }
     }
 
+    NChunkClient::EBlockType GetBlockType() const override
+    {
+        return NChunkClient::EBlockType::XorFilter;
+    }
+
 private:
     const TKeyFilterWriterConfigPtr Config_;
 

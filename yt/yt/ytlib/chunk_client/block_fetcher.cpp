@@ -83,6 +83,12 @@ TBlockFetcher::TBlockFetcher(
                 std::make_tuple(rhs.Priority, rhs.ReaderIndex, rhs.BlockIndex);
         });
 
+    YT_VERIFY(std::all_of(BlockInfos_.begin(), BlockInfos_.end(), [] (const TBlockInfo& info) {
+        return
+            info.BlockType == EBlockType::None ||
+            info.BlockType == EBlockType::UncompressedData;
+    }));
+
     int windowSize = 1;
     i64 totalRemainingSize = 0;
     for (int index = 0; index + 1 < std::ssize(BlockInfos_); ++index) {
@@ -114,6 +120,7 @@ TBlockFetcher::TBlockFetcher(
             rightIndex != std::ssize(BlockInfos_) &&
             getBlockDescriptor(BlockInfos_[rightIndex]) == getBlockDescriptor(currentBlock))
         {
+            YT_VERIFY(BlockInfos_[rightIndex].BlockType == currentBlock.BlockType);
             ++rightIndex;
         }
 
@@ -247,13 +254,14 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
             blockIndex,
             windowIndex);
 
+        const auto& blockInfo = BlockInfos_[windowIndex];
         windowSlot.MemoryUsageGuard = MemoryManager_->Acquire(
-            BlockInfos_[windowIndex].UncompressedDataSize);
+            blockInfo.UncompressedDataSize);
 
         TBlockId blockId(chunkId, blockIndex);
 
         auto cachedBlock = Config_->UseUncompressedBlockCache
-            ? BlockCache_->FindBlock(blockId, EBlockType::UncompressedData)
+            ? BlockCache_->FindBlock(blockId, blockInfo.BlockType)
             : TCachedBlock();
         if (cachedBlock) {
             ChunkReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
@@ -267,8 +275,8 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
 
             cachedBlock = TBlock(TSharedRef(ref, MakeSharedRangeHolder(std::move(windowSlot.MemoryUsageGuard))));
 
-            DoStartBlock(BlockInfos_[windowIndex]);
-            DoSetBlock(BlockInfos_[windowIndex], windowSlot, std::move(cachedBlock));
+            DoStartBlock(blockInfo);
+            DoSetBlock(blockInfo, windowSlot, std::move(cachedBlock));
         } else {
             TBlockDescriptor blockDescriptor{
                 .ReaderIndex = readerIndex,
@@ -350,7 +358,7 @@ void TBlockFetcher::DecompressBlocks(
         if (Config_->UseUncompressedBlockCache) {
             BlockCache_->PutBlock(
                 blockId,
-                EBlockType::UncompressedData,
+                blockInfo.BlockType,
                 TBlock(uncompressedBlock));
         }
 
@@ -427,7 +435,7 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
 
             TBlockId blockId(chunkId, blockIndex);
             auto cachedBlock = Config_->UseUncompressedBlockCache
-                ? BlockCache_->FindBlock(blockId, EBlockType::UncompressedData)
+                ? BlockCache_->FindBlock(blockId, blockInfo.BlockType)
                 : TCachedBlock();
             if (cachedBlock) {
                 ChunkReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(

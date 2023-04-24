@@ -3,6 +3,8 @@
 #include "public.h"
 #include "chunk_meta_extensions.h"
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <library/cpp/yt/memory/ref_counted.h>
@@ -36,6 +38,8 @@ public:
     virtual std::vector<TSharedRef> SerializeBlocks(NProto::TSystemBlockMetaExt* systemBlockMetaExt) = 0;
 
     virtual void FlushBlock(TLegacyKey key, bool force) = 0;
+
+    virtual NChunkClient::EBlockType GetBlockType() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IKeyFilterBuilder)

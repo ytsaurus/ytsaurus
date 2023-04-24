@@ -447,7 +447,7 @@ protected:
 
         auto blocks = ChunkIndexBuilder_->BuildIndex(lastKey, systemBlockMetaExt);
         for (auto& block : blocks) {
-            encodingChunkWriter->WriteBlock(std::move(block));
+            encodingChunkWriter->WriteBlock(std::move(block), ChunkIndexBuilder_->GetBlockType());
         }
 
         auto chunkFeatures = FromProto<EChunkFeatures>(meta->features());
@@ -456,6 +456,7 @@ protected:
 
         auto& miscExt = encodingChunkWriter->MiscExt();
         miscExt.set_block_format_version(TIndexedVersionedBlockWriter::GetBlockFormatVersion());
+        miscExt.set_system_block_count(blocks.size());
     }
 
     EChunkFormat GetChunkFormat() const
@@ -590,7 +591,7 @@ private:
         BlockMetaExtSize_ += block.Meta.ByteSizeLong();
 
         BlockMetaExt_.add_data_blocks()->Swap(&block.Meta);
-        EncodingChunkWriter_->WriteBlock(std::move(block.Data));
+        EncodingChunkWriter_->WriteBlock(std::move(block.Data), EBlockType::UncompressedData);
 
         MaxTimestamp_ = std::max(MaxTimestamp_, BlockWriter_->GetMaxTimestamp());
         MinTimestamp_ = std::min(MinTimestamp_, BlockWriter_->GetMinTimestamp());
@@ -618,7 +619,7 @@ private:
 
             auto blocks = KeyFilterBuilder_->SerializeBlocks(&SystemBlockMetaExt_);
             for (auto& block : blocks) {
-                EncodingChunkWriter_->WriteBlock(std::move(block));
+                EncodingChunkWriter_->WriteBlock(std::move(block), KeyFilterBuilder_->GetBlockType());
             }
         }
 
@@ -837,7 +838,7 @@ private:
         BlockMetaExtSize_ += block.Meta.ByteSizeLong();
 
         BlockMetaExt_.add_data_blocks()->Swap(&block.Meta);
-        EncodingChunkWriter_->WriteBlock(std::move(block.Data));
+        EncodingChunkWriter_->WriteBlock(std::move(block.Data), EBlockType::UncompressedData);
     }
 
     void PrepareChunkMeta() override

@@ -62,9 +62,9 @@ void DoTestEncodingWriter(
             WaitFor(encodingWriter->GetReadyEvent())
                 .ThrowOnError();
         }
-        encodingWriter->WriteBlock(block);
+        encodingWriter->WriteBlock(block, EBlockType::UncompressedData);
     }
-    encodingWriter->WriteBlock(blocks);
+    encodingWriter->WriteBlock(blocks, EBlockType::UncompressedData);
 
     WaitFor(encodingWriter->Flush())
         .ThrowOnError();

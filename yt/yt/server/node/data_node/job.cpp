@@ -792,7 +792,6 @@ private:
                 std::move(readers),
                 std::move(writers),
                 std::move(memoryManager),
-                GetNullBlockCache(),
                 readBlocksOptions);
         } else {
             return NChunkClient::RepairErasedParts(

@@ -67,10 +67,6 @@ TFuture<void> TChunkReaderBase::DoOpen(
 {
     TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-    if (miscExt.system_block_count() > 0) {
-        THROW_ERROR_EXCEPTION("Cannot read chunk with system blocks");
-    }
-
     if (blockSequence.empty()) {
         // NB(psushin): typically memory manager is finalized by block fetcher.
         // When block fetcher is not created, we should do it explicitly.

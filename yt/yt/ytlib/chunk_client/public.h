@@ -89,9 +89,15 @@ static_assert(ChunkShardCount < std::numeric_limits<i8>::max(), "|ChunkShardCoun
 struct TAllyReplicasInfo;
 
 DEFINE_BIT_ENUM(EBlockType,
-    ((None)              (0x0000))
-    ((CompressedData)    (0x0001))
-    ((UncompressedData)  (0x0002))
+    ((None)                 (0x0000))
+    //! This basically comprises any block regardless of its semantics (data or some system block).
+    ((CompressedData)       (0x0001))
+    //! Uncompressed data block.
+    ((UncompressedData)     (0x0002))
+    //! Hash table chunk index system block.
+    ((HashTableChunkIndex)  (0x0004))
+    //! Xor filter system block.
+    ((XorFilter)            (0x0008))
 );
 
 DEFINE_ENUM(EChunkType,

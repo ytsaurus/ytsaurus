@@ -40,6 +40,12 @@ public:
         int Priority = 0;
 
         i64 UncompressedDataSize = 0;
+
+        //! This field is used when accessing block cache.
+        //! May be |UncompressedData| or |None|.
+        //! |None| is set to explicitly avoid accesing block cache.
+        //! Block caches for other types of blocks are supported within other reading layers.
+        EBlockType BlockType = EBlockType::None;
     };
 
     TBlockFetcher(

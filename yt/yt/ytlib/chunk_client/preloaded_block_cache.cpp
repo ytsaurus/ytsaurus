@@ -48,6 +48,11 @@ public:
         return EBlockType::UncompressedData;
     }
 
+    bool IsBlockTypeActive(EBlockType blockType) const override
+    {
+        return blockType == EBlockType::UncompressedData;
+    }
+
     std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const NChunkClient::TBlockId& /*id*/,
         EBlockType /*type*/) override

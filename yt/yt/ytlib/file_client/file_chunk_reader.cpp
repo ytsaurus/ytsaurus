@@ -252,6 +252,11 @@ private:
 
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
 
+        if (miscExt.system_block_count() > 0) {
+            // NB: Hence in block infos we set block type to UncompressedData.
+            THROW_ERROR_EXCEPTION("System blocks are not supported for files");
+        }
+
         i64 selectedSize = 0;
         int blockIndex = 0;
         auto addBlock = [&] (int index, i64 size) -> bool {
@@ -267,6 +272,7 @@ private:
                     .BlockIndex = index,
                     .Priority = index,
                     .UncompressedDataSize = size,
+                    .BlockType = EBlockType::UncompressedData,
                 });
                 return true;
             }

@@ -762,6 +762,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             tabletSnapshot->TableSchema,
             timestamp,
             produceAllVersions,
+            chunkState->BlockCache,
             /*testingOptions*/ std::nullopt,
             TabletNodeLogger);
 
@@ -769,6 +770,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             CreateIndexedVersionedChunkReader(
                 chunkReadOptions,
                 std::move(controller),
+                std::move(backendReaders.ChunkReader),
                 tabletSnapshot->ChunkFragmentReader),
             /*needSetTimestamp*/ true);
     }

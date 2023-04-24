@@ -296,7 +296,11 @@ protected:
         BlockMetaExtSize_ += block.Meta.ByteSizeLong();
         BlockMetaExt_.add_data_blocks()->Swap(&block.Meta);
 
-        EncodingChunkWriter_->WriteBlock(std::move(block.Data), block.GroupIndex);
+        // NB: Currently schemaless writer does not support system blocks.
+        EncodingChunkWriter_->WriteBlock(
+            std::move(block.Data),
+            EBlockType::UncompressedData,
+            block.GroupIndex);
     }
 
     void ProcessRowset(TRange<TUnversionedRow> rows)

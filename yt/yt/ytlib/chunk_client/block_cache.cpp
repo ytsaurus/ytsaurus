@@ -109,6 +109,11 @@ public:
     {
         return EBlockType::None;
     }
+
+    bool IsBlockTypeActive(EBlockType /*blockType*/) const override
+    {
+        return false;
+    }
 };
 
 IBlockCachePtr GetNullBlockCache()

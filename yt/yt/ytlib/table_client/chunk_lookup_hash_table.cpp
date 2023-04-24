@@ -75,6 +75,11 @@ public:
         return EBlockType::UncompressedData;
     }
 
+    bool IsBlockTypeActive(EBlockType blockType) const override
+    {
+        return blockType == EBlockType::UncompressedData;
+    }
+
 private:
     const int StartBlockIndex_;
     const std::vector<TBlock>& Blocks_;

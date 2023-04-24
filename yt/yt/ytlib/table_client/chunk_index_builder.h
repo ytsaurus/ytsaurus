@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/client/table_client/versioned_row.h>
 
 #include <yt/yt/core/misc/range.h>
@@ -36,6 +38,8 @@ struct IChunkIndexBuilder
         TUnversionedValueRange lastKey,
         NProto::TSystemBlockMetaExt* systemBlockMetaExt,
         const std::vector<int>& rowToSlotIndex) = 0;
+
+    virtual NChunkClient::EBlockType GetBlockType() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkIndexBuilder)

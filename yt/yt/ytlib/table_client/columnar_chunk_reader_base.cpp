@@ -168,12 +168,15 @@ i64 TColumnarChunkReaderBase::GetReadyRowCount() const
 TBlockFetcher::TBlockInfo TColumnarChunkReaderBase::CreateBlockInfo(int blockIndex) const
 {
     YT_VERIFY(ChunkMeta_);
+    // NB: This reader can only read data blocks, hence in block infos we set block type to UncompressedData.
+    YT_VERIFY(blockIndex < ChunkMeta_->DataBlockMeta()->data_blocks_size());
     const auto& blockMeta = ChunkMeta_->DataBlockMeta()->data_blocks(blockIndex);
     return {
         .ReaderIndex = 0,
         .BlockIndex = blockIndex,
         .Priority = static_cast<int>(blockMeta.chunk_row_count() - blockMeta.row_count()),
         .UncompressedDataSize = blockMeta.uncompressed_size(),
+        .BlockType = EBlockType::UncompressedData,
     };
 }
 
