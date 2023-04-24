@@ -250,7 +250,7 @@ class YtTestEnvironment(object):
 
         self.env._create_cluster_client().set("//sys/@local_mode_fqdn", get_fqdn())
 
-        cluster_connection = self.config["driver_config"]
+        cluster_connection = self.env.configs["driver"]
         self.env._create_cluster_client().set("//sys/@cluster_connection", cluster_connection)
         self.env._create_cluster_client().set("//sys/@cluster_name", cluster_name)
         self.env._create_cluster_client().set("//sys/clusters", {cluster_name: cluster_connection})

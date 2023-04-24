@@ -356,6 +356,12 @@ class TestDynamicTableCommands(object):
             "mode": "sync",
             "replica_path": table_replica}
         )
+        yt.create("table", table_replica, attributes={
+            "dynamic": True,
+            "schema": schema,
+            "upstream_replica_id": replica_id
+        })
+        yt.mount_table(table_replica, sync=True)
 
         ts = yt.generate_timestamp()
         assert _get_in_sync_replicas(table, ts) == []
@@ -365,6 +371,11 @@ class TestDynamicTableCommands(object):
 
         ts = yt.generate_timestamp()
         wait(lambda: _get_in_sync_replicas(table, ts) == [replica_id])
+
+        yt.insert_rows(table, [{"x": "a", "y": "b"}])
+
+        ts = yt.generate_timestamp()
+        assert _get_in_sync_replicas(table, ts) == [replica_id]
 
     @authors("ignat")
     def test_get_tablet_infos(self):
