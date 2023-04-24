@@ -44,8 +44,8 @@ private:
 
     bool EnableColumnNameValidation_ = false;
 
-    // String values are owned by IdToName_
-    // NB: Names may be SSO-strings, using a deque to avoid string view invalidation
+    // String values are owned by IdToName_.
+    // NB: Names may be SSO-strings, using a deque to avoid string view invalidation.
     std::deque<TString> IdToName_;
     THashMap<TStringBuf, int> NameToId_;
     i64 ByteSize_ = 0;

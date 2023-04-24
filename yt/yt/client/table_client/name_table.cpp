@@ -14,6 +14,7 @@ namespace NYT::NTableClient {
 TNameTablePtr TNameTable::FromSchema(const TTableSchema& schema)
 {
     auto nameTable = New<TNameTable>();
+    nameTable->NameToId_.reserve(schema.Columns().size());
     for (const auto& column : schema.Columns()) {
         nameTable->DoRegisterNameOrThrow(column.Name());
     }
@@ -23,6 +24,7 @@ TNameTablePtr TNameTable::FromSchema(const TTableSchema& schema)
 TNameTablePtr TNameTable::FromSchemaStable(const TTableSchema& schema)
 {
     auto nameTable = New<TNameTable>();
+    nameTable->NameToId_.reserve(schema.Columns().size());
     for (const auto& column : schema.Columns()) {
         nameTable->DoRegisterNameOrThrow(column.StableName().Get());
     }
@@ -32,6 +34,7 @@ TNameTablePtr TNameTable::FromSchemaStable(const TTableSchema& schema)
 TNameTablePtr TNameTable::FromKeyColumns(const TKeyColumns& keyColumns)
 {
     auto nameTable = New<TNameTable>();
+    nameTable->NameToId_.reserve(keyColumns.size());
     for (const auto& name : keyColumns) {
         nameTable->DoRegisterNameOrThrow(name);
     }
