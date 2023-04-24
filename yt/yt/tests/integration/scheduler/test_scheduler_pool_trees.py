@@ -1968,6 +1968,36 @@ class TestMultiTreeOperations(YTEnvSetup):
         op.track()
 
     @authors("renadeen")
+    def test_offloading_enabled_for_configured_network_projects(self):
+        create_network_project("n")
+        set("//sys/controller_agents/config/network_projects_allowed_for_offloading", ["n"])
+
+        create_pool("primary_pool", pool_tree="default")
+        set("//sys/pools/primary_pool/@offloading_settings", {
+            "offload_tree": {"pool": "offload_pool"}
+        })
+
+        offload_node = create_custom_pool_tree_with_one_node("offload_tree")
+        create_pool("offload_pool", pool_tree="offload_tree")
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            spec={"pool": "primary_pool", "scheduling_options_per_pool_tree": {"default": {"resource_limits": {"user_slots": 0}}}},
+            task_patch={"network_project": "n"},
+            job_count=1)
+
+        wait_breakpoint(job_count=1)
+
+        wait(lambda: exists(scheduler_orchid_operation_path(op.id, "default")))
+        wait(lambda: exists(scheduler_orchid_operation_path(op.id, "offload_tree")))
+
+        for job in op.get_running_jobs().values():
+            assert job["address"] == offload_node
+
+        release_breakpoint()
+        op.track()
+
+    @authors("renadeen")
     def test_offloading_of_ephemeral_pools(self):
         create_pool(
             "ephemeral_hub",

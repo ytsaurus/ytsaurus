@@ -842,14 +842,14 @@ void TOperationControllerBase::FillInitializeResult(TOperationControllerInitiali
 
 bool TOperationControllerBase::NeedEraseOffloadingTrees() const
 {
-    bool hasJobsWithoutNetworkProject = false;
+    bool hasJobsAllowedForOffloading = false;
     auto userJobSpecs = GetUserJobSpecs();
     for (const auto& userJobSpec : userJobSpecs) {
-        if (!userJobSpec->NetworkProject) {
-            hasJobsWithoutNetworkProject = true;
+        if (!userJobSpec->NetworkProject || Config->NetworkProjectsAllowedForOffloading.contains(*userJobSpec->NetworkProject)) {
+            hasJobsAllowedForOffloading = true;
         }
     }
-    return !userJobSpecs.empty() && !hasJobsWithoutNetworkProject;
+    return !userJobSpecs.empty() && !hasJobsAllowedForOffloading;
 }
 
 void TOperationControllerBase::ValidateIntermediateDataAccess(const TString& user, EPermission permission) const

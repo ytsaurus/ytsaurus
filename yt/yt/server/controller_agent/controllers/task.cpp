@@ -202,8 +202,11 @@ TCompositePendingJobCount TTask::GetPendingJobCount() const
 
     if (auto userJobSpec = GetUserJobSpec()) {
         if (userJobSpec->NetworkProject) {
-            for (const auto& tree : TaskHost_->GetOffloadingPoolTrees()) {
-                result.CountByPoolTree[tree] = 0;
+            const auto& allowedNetworkProjects = TaskHost_->GetConfig()->NetworkProjectsAllowedForOffloading;
+            if (!allowedNetworkProjects.contains(*userJobSpec->NetworkProject)) {
+                for (const auto& tree : TaskHost_->GetOffloadingPoolTrees()) {
+                    result.CountByPoolTree[tree] = 0;
+                }
             }
         }
     }

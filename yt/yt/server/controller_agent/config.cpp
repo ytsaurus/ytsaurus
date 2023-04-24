@@ -1015,6 +1015,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("release_failed_job_on_exception", &TThis::ReleaseFailedJobOnException)
         .Default(true);
 
+    registrar.Parameter("network_projects_allowed_for_offloading", &TThis::NetworkProjectsAllowedForOffloading)
+        .Default();
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;
         if (!config->EventLog->Path) {

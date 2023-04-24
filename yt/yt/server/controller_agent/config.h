@@ -1142,6 +1142,8 @@ public:
 
     TJobTrackerConfigPtr JobTracker;
 
+    THashSet<TString> NetworkProjectsAllowedForOffloading;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig)
 
     static void Register(TRegistrar registrar);
