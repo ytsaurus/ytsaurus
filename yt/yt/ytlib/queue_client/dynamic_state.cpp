@@ -570,6 +570,7 @@ TTableSchemaPtr TConsumerRegistrationTableDescriptor::Schema = New<TTableSchema>
     TColumnSchema("consumer_cluster", EValueType::String, ESortOrder::Ascending),
     TColumnSchema("consumer_path", EValueType::String, ESortOrder::Ascending),
     TColumnSchema("vital", EValueType::Boolean),
+    TColumnSchema("partitions", EValueType::Any),
 });
 
 std::vector<TConsumerRegistrationTableRow> TConsumerRegistrationTableRow::ParseRowRange(
@@ -586,6 +587,7 @@ std::vector<TConsumerRegistrationTableRow> TConsumerRegistrationTableRow::ParseR
     auto consumerPathId = nameTable->GetIdOrThrow("consumer_path");
 
     auto vitalId = nameTable->FindId("vital");
+    auto partitionsId = nameTable->FindId("partitions");
 
     for (const auto& row : rows) {
         auto& typedRow = typedRows.emplace_back();
@@ -600,12 +602,20 @@ std::vector<TConsumerRegistrationTableRow> TConsumerRegistrationTableRow::ParseR
             return std::nullopt;
         };
 
+        auto setSimpleOptional = [&]<class T>(std::optional<int> id, std::optional<T>& valueToSet) {
+            if (auto value = findValue(id)) {
+                valueToSet = FromUnversionedValue<T>(*value);
+            }
+        };
+
         if (auto value = findValue(vitalId)) {
             YT_VERIFY(value->Type == EValueType::Boolean);
             typedRow.Vital = FromUnversionedValue<bool>(*value);
         } else {
             typedRow.Vital = false;
         }
+
+        setSimpleOptional(partitionsId, typedRow.Partitions);
     }
 
     return typedRows;
@@ -625,6 +635,7 @@ IUnversionedRowsetPtr TConsumerRegistrationTableRow::InsertRowRange(TRange<TCons
         rowBuilder.AddValue(ToUnversionedValue(row.Consumer.Cluster, rowBuffer, nameTable->GetIdOrThrow("consumer_cluster")));
         rowBuilder.AddValue(ToUnversionedValue(row.Consumer.Path, rowBuffer, nameTable->GetIdOrThrow("consumer_path")));
         rowBuilder.AddValue(ToUnversionedValue(row.Vital, rowBuffer, nameTable->GetIdOrThrow("vital")));
+        rowBuilder.AddValue(ToUnversionedValue(row.Partitions, rowBuffer, nameTable->GetIdOrThrow("partitions")));
 
         rowsBuilder.AddRow(rowBuilder.GetRow());
     }

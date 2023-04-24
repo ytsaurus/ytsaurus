@@ -1558,7 +1558,8 @@ class YtClient(ClientState):
 
     def register_queue_consumer(
             self,
-            queue_path, consumer_path, vital):
+            queue_path, consumer_path, vital,
+            partitions=None):
         """
         Register queue consumer.
 
@@ -1571,7 +1572,8 @@ class YtClient(ClientState):
         """
         return client_api.register_queue_consumer(
             queue_path, consumer_path, vital,
-            client=self)
+            client=self,
+            partitions=partitions)
 
     def remount_table(
             self,

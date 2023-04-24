@@ -168,7 +168,12 @@ struct TConsumerRegistrationTableRow
 {
     TCrossClusterReference Queue;
     TCrossClusterReference Consumer;
+    //! If true, this consumer will be considered in automatic trimming performed by queue agents for this queue.
     bool Vital;
+
+    //! Can be set to indicate the fact that this consumer will only be reading the specified queue partitions.
+    //! If null, all partitions are assumed to be read.
+    std::optional<std::vector<int>> Partitions;
 
     static std::vector<TConsumerRegistrationTableRow> ParseRowRange(
         TRange<NTableClient::TUnversionedRow> rows,

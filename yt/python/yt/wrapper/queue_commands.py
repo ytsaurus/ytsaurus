@@ -3,7 +3,7 @@ from .common import set_param
 from .ypath import TablePath
 
 
-def register_queue_consumer(queue_path, consumer_path, vital, client=None):
+def register_queue_consumer(queue_path, consumer_path, vital, partitions=None, client=None):
     """Register queue consumer.
 
     :param queue_path: path to queue table.
@@ -13,12 +13,11 @@ def register_queue_consumer(queue_path, consumer_path, vital, client=None):
     :param bool vital: vital.
     """
 
-    params = {
-        "queue_path": TablePath(queue_path, client=client),
-        "consumer_path": TablePath(consumer_path, client=client),
-    }
-
+    params = {}
+    set_param(params, "queue_path", queue_path, lambda path: TablePath(path, client=client))
+    set_param(params, "consumer_path", consumer_path, lambda path: TablePath(path, client=client))
     set_param(params, "vital", vital)
+    set_param(params, "partitions", partitions)
 
     return make_request("register_queue_consumer", params, client=client)
 

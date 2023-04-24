@@ -15,11 +15,53 @@ import yt.environment.init_queue_agent_state as init_queue_agent_state
 import yt_error_codes
 
 from yt.common import update_inplace, update, YtError
-
+from yt.yson import YsonEntity
 from yt.ypath import parse_ypath
 
 import builtins
 import pytest
+
+
+class QueueConsumerRegistration:
+    def __init__(self, queue_cluster, queue_path, consumer_cluster, consumer_path, vital, partitions=None):
+        self.key = (queue_cluster, queue_path, consumer_cluster, consumer_path)
+        self.value = (vital, partitions)
+
+    def __eq__(self, other):
+        return (self.key, self.value) == (other.key, other.value)
+
+    def __str__(self):
+        return str((self.key, self.value))
+
+    def __repr__(self):
+        return str(self)
+
+    def __hash__(self):
+        return hash(self.key + self.value)
+
+    @staticmethod
+    def _normalize_partitions(partitions):
+        if partitions is None:
+            return partitions
+        if partitions == YsonEntity():
+            return None
+        return tuple(partitions)
+
+    @classmethod
+    def from_select(cls, r):
+        return cls(r["queue_cluster"], r["queue_path"], r["consumer_cluster"], r["consumer_path"], r["vital"],
+                   cls._normalize_partitions(r["partitions"]))
+
+    @classmethod
+    def from_orchid(cls, r):
+        return cls(*r["queue"].split(":"), *r["consumer"].split(":"), r["vital"],
+                   cls._normalize_partitions(r["partitions"]))
+
+    @classmethod
+    def from_list_registrations(cls, r):
+        return cls(r["queue_path"].attributes["cluster"], str(r["queue_path"]),
+                   r["consumer_path"].attributes["cluster"], str(r["consumer_path"]),
+                   r["vital"], cls._normalize_partitions(r["partitions"]))
 
 
 class TestConsumerRegistrations(ChaosTestBase):
@@ -182,10 +224,7 @@ class TestConsumerRegistrations(ChaosTestBase):
 
     @staticmethod
     def _replica_registrations_are(local_replica_path, expected_registrations, driver):
-        def get_as_tuple(r):
-            return r["queue_cluster"], r["queue_path"], r["consumer_cluster"], r["consumer_path"], r["vital"]
-
-        registrations = {get_as_tuple(r)
+        registrations = {QueueConsumerRegistration.from_select(r)
                          for r in select_rows(f"* from [{local_replica_path}]", driver=driver)}
         if registrations != expected_registrations:
             print_debug(f"Registrations differ: {registrations} and {expected_registrations}")
@@ -193,18 +232,12 @@ class TestConsumerRegistrations(ChaosTestBase):
 
     @staticmethod
     def listed_registrations_are_equal(listed_registrations, expected_registrations):
-        expected_rich_registrations = sorted([
-            (parse_ypath(f"<cluster={r[0]}>{r[1]}"), parse_ypath(f"<cluster={r[2]}>{r[3]}"), r[4])
-            for r in expected_registrations
-        ])
+        expected_registrations = {r if isinstance(r, QueueConsumerRegistration) else QueueConsumerRegistration(*r)
+                                  for r in expected_registrations}
+        actual_registrations = {QueueConsumerRegistration.from_list_registrations(r) for r in listed_registrations}
 
-        rich_registrations = sorted([
-            (r["queue_path"], r["consumer_path"], r["vital"])
-            for r in listed_registrations
-        ])
-
-        if rich_registrations != expected_rich_registrations:
-            print_debug(f"Listed registrations differ: {rich_registrations} and {expected_rich_registrations}")
+        if actual_registrations != expected_registrations:
+            print_debug(f"Listed registrations differ: {actual_registrations} and {expected_registrations}")
             return False
 
         return True
@@ -217,7 +250,7 @@ class TestConsumerRegistrations(ChaosTestBase):
         for proxy in get("//sys/rpc_proxies", driver=driver).keys():
             orchid_path = f"//sys/rpc_proxies/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager"
             orchid_registrations = {
-                tuple(r["queue"].split(":") + r["consumer"].split(":") + [r["vital"]])
+                QueueConsumerRegistration.from_orchid(r)
                 for r in get(f"{orchid_path}/registrations", driver=driver)
             }
 
@@ -228,6 +261,7 @@ class TestConsumerRegistrations(ChaosTestBase):
         return True
 
     def _registrations_are(self, local_replica_path, replica_clusters, expected_registrations):
+        expected_registrations = {QueueConsumerRegistration(*r) for r in expected_registrations}
         replica_registrations = all(self._replica_registrations_are(local_replica_path, expected_registrations, driver)
                                     for driver in self._get_drivers(replica_clusters))
         cached_registrations = all(self._cached_registrations_are(expected_registrations, driver)
@@ -361,57 +395,57 @@ class TestConsumerRegistrations(ChaosTestBase):
 
         register_queue_consumer("//tmp/q1", "//tmp/c1", vital=True)
         register_queue_consumer("//tmp/q1", "//tmp/c2", vital=False)
-        register_queue_consumer("//tmp/q2", "//tmp/c1", vital=True)
+        register_queue_consumer("//tmp/q2", "//tmp/c1", vital=True, partitions=[1, 5, 4, 3])
 
-        self.listed_registrations_are_equal(
+        wait(lambda: self.listed_registrations_are_equal(
             list_queue_consumer_registrations(queue_path="//tmp/q1", consumer_path="//tmp/c1"),
             [
                 ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
             ]
-        )
+        ))
 
-        self.listed_registrations_are_equal(
+        wait(lambda: self.listed_registrations_are_equal(
             list_queue_consumer_registrations(queue_path="//tmp/q1"),
             [
                 ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
                 ("primary", "//tmp/q1", "primary", "//tmp/c2", False),
             ]
-        )
+        ))
 
-        self.listed_registrations_are_equal(
+        wait(lambda: self.listed_registrations_are_equal(
             list_queue_consumer_registrations(consumer_path="//tmp/c1"),
             [
                 ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
-                ("primary", "//tmp/q2", "primary", "//tmp/c1", True),
+                ("primary", "//tmp/q2", "primary", "//tmp/c1", True, (1, 5, 4, 3)),
             ]
-        )
+        ))
 
-        self.listed_registrations_are_equal(
+        wait(lambda: self.listed_registrations_are_equal(
             list_queue_consumer_registrations(consumer_path="<cluster=primary>//tmp/c2"),
             [
                 ("primary", "//tmp/q1", "primary", "//tmp/c2", False),
             ]
-        )
+        ))
 
-        self.listed_registrations_are_equal(
+        wait(lambda: self.listed_registrations_are_equal(
             list_queue_consumer_registrations(),
             [
                 ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
                 ("primary", "//tmp/q1", "primary", "//tmp/c2", False),
-                ("primary", "//tmp/q2", "primary", "//tmp/c1", True),
+                ("primary", "//tmp/q2", "primary", "//tmp/c1", True, (1, 5, 4, 3)),
             ]
-        )
+        ))
 
-        self.listed_registrations_are_equal(
+        wait(lambda: self.listed_registrations_are_equal(
             list_queue_consumer_registrations(queue_path="<cluster=remote_0>//tmp/q1"),
             []
-        )
+        ))
 
         unregister_queue_consumer("//tmp/q1", "//tmp/c1")
         unregister_queue_consumer("//tmp/q1", "//tmp/c2")
         unregister_queue_consumer("//tmp/q2", "//tmp/c1")
 
-        self.listed_registrations_are_equal(list_queue_consumer_registrations(), [])
+        wait(lambda: self.listed_registrations_are_equal(list_queue_consumer_registrations(), []))
 
     def _restart_service(self, service):
         for env in [self.Env] + self.remote_envs:

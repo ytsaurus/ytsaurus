@@ -1144,6 +1144,7 @@ def add_register_queue_consumer_parser(add_parser):
     add_ypath_argument(parser, "queue_path", hybrid=True)
     add_ypath_argument(parser, "consumer_path", hybrid=True)
     parser.add_argument("--vital", type=bool, required=True)
+    parser.add_argument("--partitions", type=int, nargs="*")
 
 
 def add_unregister_queue_consumer_parser(add_parser):

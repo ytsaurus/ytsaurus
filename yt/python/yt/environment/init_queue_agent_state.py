@@ -37,6 +37,7 @@ REGISTRATION_TABLE_SCHEMA = [
     {"name": "consumer_cluster", "type": "string", "sort_order": "ascending"},
     {"name": "consumer_path", "type": "string", "sort_order": "ascending"},
     {"name": "vital", "type": "boolean"},
+    {"name": "partitions", "type": "any"},
 ]
 
 DEFAULT_ROOT = "//sys/queue_agents"

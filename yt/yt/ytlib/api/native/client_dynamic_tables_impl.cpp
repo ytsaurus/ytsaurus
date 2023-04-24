@@ -2339,7 +2339,7 @@ void TClient::DoRegisterQueueConsumer(
     const NYPath::TRichYPath& queuePath,
     const NYPath::TRichYPath& consumerPath,
     bool vital,
-    const TRegisterQueueConsumerOptions& /*options*/)
+    const TRegisterQueueConsumerOptions& options)
 {
     const auto& tableMountCache = Connection_->GetTableMountCache();
     auto queueTableInfo = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()))
@@ -2356,9 +2356,14 @@ void TClient::DoRegisterQueueConsumer(
         .ThrowOnError();
 
     auto registrationCache = Connection_->GetQueueConsumerRegistrationManager();
-    registrationCache->RegisterQueueConsumer(queuePath, consumerPath, vital);
+    registrationCache->RegisterQueueConsumer(queuePath, consumerPath, vital, options.Partitions);
 
-    YT_LOG_DEBUG("Registered queue consumer (Queue: %v, Consumer: %v, Vital: %v)", queuePath, consumerPath, vital);
+    YT_LOG_DEBUG(
+        "Registered queue consumer (Queue: %v, Consumer: %v, Vital: %v, Partitions: %v)",
+        queuePath,
+        consumerPath,
+        vital,
+        options.Partitions);
 }
 
 void TClient::DoUnregisterQueueConsumer(
@@ -2418,6 +2423,7 @@ std::vector<TListQueueConsumerRegistrationsResult> TClient::DoListQueueConsumerR
             .QueuePath = registration.Queue,
             .ConsumerPath = registration.Consumer,
             .Vital = registration.Vital,
+            .Partitions = registration.Partitions,
         });
     }
 

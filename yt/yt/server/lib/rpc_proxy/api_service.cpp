@@ -3898,12 +3898,16 @@ private:
 
         TRegisterQueueConsumerOptions options;
         SetTimeoutOptions(&options, context.Get());
+        if (request->has_partitions()) {
+            options.Partitions = FromProto<std::vector<int>>(request->partitions().items());
+        }
 
         context->SetRequestInfo(
-            "QueuePath: %Qv, ConsumerPath: %Qv, Vital: %v",
+            "QueuePath: %Qv, ConsumerPath: %Qv, Vital: %v, Partitions: %v",
             queuePath,
             consumerPath,
-            vital);
+            vital,
+            options.Partitions);
 
         ExecuteCall(
             context,
@@ -3975,6 +3979,9 @@ private:
                     ToProto(protoRegistration->mutable_queue_path(), registration.QueuePath);
                     ToProto(protoRegistration->mutable_consumer_path(), registration.ConsumerPath);
                     protoRegistration->set_vital(registration.Vital);
+                    if (registration.Partitions) {
+                        ToProto(protoRegistration->mutable_partitions()->mutable_items(), *registration.Partitions);
+                    }
                 }
 
                 context->SetResponseInfo("Registrations: %v", registrations.size());

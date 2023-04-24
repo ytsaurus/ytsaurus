@@ -31,6 +31,40 @@ class TestQueueCommands(object):
         attributes.update({"dynamic": True})
         yt.create("table", path, attributes=attributes)
 
+    def check_single_registration(self, queue, consumer, vital, partitions=None):
+        assert list(yt.select_rows("* from [//sys/queue_agents/consumer_registrations]")) == [
+            {
+                "queue_cluster": "primary", "queue_path": queue,
+                "consumer_cluster": "primary", "consumer_path": consumer,
+                "vital": vital,
+                "partitions": partitions,
+            }
+        ]
+
+        expected_registration = {
+            "queue_path": parse_ypath("<cluster=primary>" + queue),
+            "consumer_path": parse_ypath("<cluster=primary>" + consumer),
+            "vital": vital,
+            "partitions": partitions,
+        }
+
+        by_queue_and_consumer = yt.list_queue_consumer_registrations(queue_path=queue, consumer_path=consumer)
+        by_queue = yt.list_queue_consumer_registrations(queue_path=queue)
+        by_consumer = yt.list_queue_consumer_registrations(consumer_path=consumer)
+        all_registrations = yt.list_queue_consumer_registrations()
+
+        assert all_registrations == by_consumer == by_queue == by_queue_and_consumer == [expected_registration]
+
+    def check_empty_registrations(self, queue, consumer):
+        assert list(yt.select_rows("* from [//sys/queue_agents/consumer_registrations]")) == []
+
+        by_queue_and_consumer = yt.list_queue_consumer_registrations(queue_path=queue, consumer_path=consumer)
+        by_queue = yt.list_queue_consumer_registrations(queue_path=queue)
+        by_consumer = yt.list_queue_consumer_registrations(consumer_path=consumer)
+        all_registrations = yt.list_queue_consumer_registrations()
+
+        assert all_registrations == by_consumer == by_queue == by_queue_and_consumer == []
+
     @authors("achulkov2")
     # This is a very basic test, just to check that there are no bugs in the client api implementation.
     # Tests for actual logic can be found in tests/integration/queues.
@@ -51,35 +85,13 @@ class TestQueueCommands(object):
         yt.mount_table(CONSUMER_REGISTRATIONS, sync=True)
 
         yt.register_queue_consumer(queue, consumer, vital=True)
-
-        assert list(yt.select_rows("* from [//sys/queue_agents/consumer_registrations]")) == [
-            {
-                "queue_cluster": "primary", "queue_path": queue,
-                "consumer_cluster": "primary", "consumer_path": consumer,
-                "vital": True,
-            }
-        ]
-
-        expected_registration = {
-            "queue_path": parse_ypath("<cluster=primary>" + queue),
-            "consumer_path": parse_ypath("<cluster=primary>" + consumer),
-            "vital": True,
-        }
-
-        by_queue_and_consumer = yt.list_queue_consumer_registrations(queue_path=queue, consumer_path=consumer)
-        by_queue = yt.list_queue_consumer_registrations(queue_path=queue)
-        by_consumer = yt.list_queue_consumer_registrations(consumer_path=consumer)
-        all_registrations = yt.list_queue_consumer_registrations()
-
-        assert all_registrations == by_consumer == by_queue == by_queue_and_consumer == [expected_registration]
+        self.check_single_registration(queue, consumer, vital=True)
 
         yt.unregister_queue_consumer(queue, consumer)
+        self.check_empty_registrations(queue, consumer)
 
-        assert list(yt.select_rows("* from [//sys/queue_agents/consumer_registrations]")) == []
+        yt.register_queue_consumer(queue, consumer, vital=False, partitions=[1, 5, 4, 3])
+        self.check_single_registration(queue, consumer, vital=False, partitions=[1, 5, 4, 3])
 
-        by_queue_and_consumer = yt.list_queue_consumer_registrations(queue_path=queue, consumer_path=consumer)
-        by_queue = yt.list_queue_consumer_registrations(queue_path=queue)
-        by_consumer = yt.list_queue_consumer_registrations(consumer_path=consumer)
-        all_registrations = yt.list_queue_consumer_registrations()
-
-        assert all_registrations == by_consumer == by_queue == by_queue_and_consumer == []
+        yt.unregister_queue_consumer(queue, consumer)
+        self.check_empty_registrations(queue, consumer)

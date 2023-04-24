@@ -16,10 +16,14 @@ TRegisterQueueConsumerCommand::TRegisterQueueConsumerCommand()
     RegisterParameter("queue_path", QueuePath);
     RegisterParameter("consumer_path", ConsumerPath);
     RegisterParameter("vital", Vital);
+    RegisterParameter("partitions", Partitions)
+        .Default();
 }
 
 void TRegisterQueueConsumerCommand::DoExecute(ICommandContextPtr context)
 {
+    Options.Partitions = Partitions;
+
     auto client = context->GetClient();
     auto asyncResult = client->RegisterQueueConsumer(
         QueuePath,
@@ -90,6 +94,7 @@ void TListQueueConsumerRegistrationsCommand::DoExecute(ICommandContextPtr contex
                         .Item("queue_path").Value(registration.QueuePath)
                         .Item("consumer_path").Value(registration.ConsumerPath)
                         .Item("vital").Value(registration.Vital)
+                        .Item("partitions").Value(registration.Partitions)
                     .EndMap();
             });
         });

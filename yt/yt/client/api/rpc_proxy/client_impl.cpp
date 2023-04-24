@@ -802,6 +802,9 @@ TFuture<void> TClient::RegisterQueueConsumer(
     ToProto(req->mutable_queue_path(), queuePath);
     ToProto(req->mutable_consumer_path(), consumerPath);
     req->set_vital(vital);
+    if (options.Partitions) {
+        ToProto(req->mutable_partitions()->mutable_items(), *options.Partitions);
+    }
 
     return req->Invoke().AsVoid();
 }
@@ -842,10 +845,15 @@ TFuture<std::vector<TListQueueConsumerRegistrationsResult>> TClient::ListQueueCo
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspListQueueConsumerRegistrationsPtr& rsp) {
         std::vector<TListQueueConsumerRegistrationsResult> result;
         for (const auto& registration : rsp->registrations()) {
+            std::optional<std::vector<int>> partitions;
+            if (registration.has_partitions()) {
+                partitions = FromProto<std::vector<int>>(registration.partitions().items());
+            }
             result.push_back({
                 .QueuePath = FromProto<TRichYPath>(registration.queue_path()),
                 .ConsumerPath = FromProto<TRichYPath>(registration.consumer_path()),
                 .Vital = registration.vital(),
+                .Partitions = std::move(partitions),
             });
         }
         return result;

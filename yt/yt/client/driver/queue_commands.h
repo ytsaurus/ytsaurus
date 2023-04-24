@@ -18,6 +18,7 @@ private:
     NYPath::TRichYPath QueuePath;
     NYPath::TRichYPath ConsumerPath;
     bool Vital;
+    std::optional<std::vector<int>> Partitions;
 
     void DoExecute(ICommandContextPtr context) override;
 };

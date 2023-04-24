@@ -1010,7 +1010,9 @@ struct TPullConsumerOptions
 
 struct TRegisterQueueConsumerOptions
     : public TTimeoutOptions
-{ };
+{
+    std::optional<std::vector<int>> Partitions;
+};
 
 struct TUnregisterQueueConsumerOptions
     : public TTimeoutOptions
@@ -1483,6 +1485,7 @@ struct TListQueueConsumerRegistrationsResult
     NYPath::TRichYPath QueuePath;
     NYPath::TRichYPath ConsumerPath;
     bool Vital;
+    std::optional<std::vector<int>> Partitions;
 };
 
 struct TGetFileFromCacheResult

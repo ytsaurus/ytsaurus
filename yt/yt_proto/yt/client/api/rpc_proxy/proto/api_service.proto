@@ -643,6 +643,13 @@ message TReqRegisterQueueConsumer
     optional string queue_path = 1;
     optional string consumer_path = 2;
     optional bool vital = 3;
+
+    // The most reasonable way to make a std::optional<std::vector<int>> field.
+    message TRegistrationPartitions
+    {
+        repeated int32 items = 1;
+    }
+    optional TRegistrationPartitions partitions = 4;
 }
 
 message TRspRegisterQueueConsumer
@@ -676,6 +683,13 @@ message TRspListQueueConsumerRegistrations
         optional string queue_path = 1;
         optional string consumer_path = 2;
         optional bool vital = 3;
+
+        // The most reasonable way to make a std::optional<std::vector<int>> field.
+        message TRegistrationPartitions
+        {
+            repeated int32 items = 1;
+        }
+        optional TRegistrationPartitions partitions = 4;
     }
 
     repeated TQueueConsumerRegistration registrations = 1;
