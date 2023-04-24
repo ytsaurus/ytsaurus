@@ -138,26 +138,46 @@ TEventTimerGuard::~TEventTimerGuard()
 
 void TGaugeHistogram::Add(double value, int count)
 {
+    if (!Histogram_) {
+        return;
+    }
+
     Histogram_->Add(value, count);
 }
 
 void TGaugeHistogram::Remove(double value, int count)
 {
+    if (!Histogram_) {
+        return;
+    }
+
     Histogram_->Remove(value, count);
 }
 
 void TGaugeHistogram::Reset()
 {
+    if (!Histogram_) {
+        return;
+    }
+
     Histogram_->Reset();
 }
 
 THistogramSnapshot TGaugeHistogram::GetSnapshot() const
 {
+    if (!Histogram_) {
+        return {};
+    }
+
     return Histogram_->GetSnapshot();
 }
 
 void TGaugeHistogram::LoadSnapshot(THistogramSnapshot snapshot)
 {
+    if (!Histogram_) {
+        return;
+    }
+
     Histogram_->LoadSnapshot(snapshot);
 }
 
