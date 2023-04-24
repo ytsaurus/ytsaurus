@@ -1630,7 +1630,7 @@ class YTInstance(object):
                     raise
                 return False, err
 
-        self._wait_or_skip(lambda: self._wait_for(controller_agents_ready, "controller_agent", max_wait_time=20), sync)
+        self._wait_or_skip(lambda: self._wait_for(controller_agents_ready, "controller_agent"), sync)
 
     def create_client(self):
         if self.yt_config.http_proxy_count > 0:
@@ -1791,7 +1791,7 @@ class YTInstance(object):
 
             return True
 
-        self._wait_or_skip(lambda: self._wait_for(proxy_ready, "http_proxy", max_wait_time=20), sync)
+        self._wait_or_skip(lambda: self._wait_for(proxy_ready, "http_proxy"), sync)
 
     def start_rpc_proxy(self, sync=True):
         self._run_builtin_yt_component("proxy", name="rpc_proxy")
@@ -1821,7 +1821,7 @@ class YTInstance(object):
 
             return proxies_discovery_ready and proxies_ports_ready
 
-        self._wait_or_skip(lambda: self._wait_for(rpc_proxy_ready, "rpc_proxy", max_wait_time=20), sync)
+        self._wait_or_skip(lambda: self._wait_for(rpc_proxy_ready, "rpc_proxy"), sync)
 
     def _prepare_tablet_balancers(self, tablet_balancer_configs):
         for tablet_balancer_index in xrange(self.yt_config.tablet_balancer_count):
@@ -1848,7 +1848,7 @@ class YTInstance(object):
             return True
 
         self._wait_or_skip(
-            lambda: self._wait_for(tablet_balancer_ready, "tablet_balancer", max_wait_time=20),
+            lambda: self._wait_for(tablet_balancer_ready, "tablet_balancer"),
             sync)
 
     def _prepare_cypress_proxies(self, cypress_proxy_configs):
@@ -1876,7 +1876,7 @@ class YTInstance(object):
             return True
 
         self._wait_or_skip(
-            lambda: self._wait_for(cypress_proxy_ready, "cypress_proxy", max_wait_time=20),
+            lambda: self._wait_for(cypress_proxy_ready, "cypress_proxy"),
             sync)
 
     def _validate_process_is_running(self, process, name, number=None):
