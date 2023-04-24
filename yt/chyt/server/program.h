@@ -129,7 +129,7 @@ private:
         auto config = GetConfig();
 
         std::optional<TString> address;
-        for (const auto& networkName : {"BB", "BACKBONE", "FASTBONE", "DEFAULT"}) {
+        for (const auto& networkName : {"DEFAULT", "BB", "BACKBONE", "FASTBONE"}) {
             auto addressOrEmpty = GetEnv(Format("YT_IP_ADDRESS_%v", networkName), /*default =*/ "");
             if (!addressOrEmpty.empty()) {
                 address = addressOrEmpty;
