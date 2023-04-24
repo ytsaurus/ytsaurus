@@ -482,51 +482,45 @@ void TSolomonExporter::HandleDebugTags(const IRequestPtr&, const IResponseWriter
 
 std::optional<TString> TSolomonExporter::ReadJson(const TReadOptions& options)
 {
-    auto result = BIND([this, options, this_ = MakeStrong(this)] () -> std::optional<TString> {
-        auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Lock_))
-            .ValueOrThrow();
+    auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Lock_))
+        .ValueOrThrow();
 
-        TStringStream buffer;
-        auto encoder = NMonitoring::BufferedEncoderJson(&buffer);
+    TStringStream buffer;
+    auto encoder = NMonitoring::BufferedEncoderJson(&buffer);
 
-        if (Window_.empty()) {
-            return {};
+    if (Window_.empty()) {
+        return {};
+    }
+
+    // Read last value.
+    auto readOptions = options;
+    readOptions.Times.emplace_back(std::vector<int>{Registry_->IndexOf(Window_.back().first)}, TInstant::Zero());
+    readOptions.ConvertCountersToRateGauge = false;
+    readOptions.EnableHistogramCompat = true;
+    readOptions.ExportSummary |= Config_->ExportSummary;
+    readOptions.ExportSummaryAsMax |= Config_->ExportSummaryAsMax;
+    readOptions.ExportSummaryAsAvg |= Config_->ExportSummaryAsAvg;
+    readOptions.MarkAggregates |= Config_->MarkAggregates;
+    if (!readOptions.Host && Config_->Host) {
+        readOptions.Host = Config_->Host;
+    }
+    if (readOptions.InstanceTags.empty() && !Config_->InstanceTags.empty()) {
+        readOptions.InstanceTags.reserve(Config_->InstanceTags.size());
+        for (auto&& [k, v] : Config_->InstanceTags) {
+            readOptions.InstanceTags.emplace_back(k, v);
         }
+    }
+    readOptions.SensorFilter = [this] (const TString& sensorName) {
+        return FilterDefaultGrid(sensorName);
+    };
 
-        // Read last value.
-        auto readOptions = options;
-        readOptions.Times.emplace_back(std::vector<int>{Registry_->IndexOf(Window_.back().first)}, TInstant::Zero());
-        readOptions.ConvertCountersToRateGauge = false;
-        readOptions.EnableHistogramCompat = true;
-        readOptions.ExportSummary |= this_->Config_->ExportSummary;
-        readOptions.ExportSummaryAsMax |= this_->Config_->ExportSummaryAsMax;
-        readOptions.ExportSummaryAsAvg |= this_->Config_->ExportSummaryAsAvg;
-        readOptions.MarkAggregates |= this_->Config_->MarkAggregates;
-        if (!readOptions.Host && this_->Config_->Host) {
-            readOptions.Host = this_->Config_->Host;
-        }
-        if (readOptions.InstanceTags.empty() && !this_->Config_->InstanceTags.empty()) {
-            readOptions.InstanceTags.reserve(this_->Config_->InstanceTags.size());
-            for (auto&& [k, v] : this_->Config_->InstanceTags) {
-                readOptions.InstanceTags.emplace_back(k, v);
-            }
-        }
-        readOptions.SensorFilter = [this] (const TString& sensorName) {
-            return FilterDefaultGrid(sensorName);
-        };
+    encoder->OnStreamBegin();
+    Registry_->ReadSensors(readOptions, encoder.Get());
+    encoder->OnStreamEnd();
+    guard->Release();
+    encoder->Close();
 
-        encoder->OnStreamBegin();
-        Registry_->ReadSensors(readOptions, encoder.Get());
-        encoder->OnStreamEnd();
-        guard->Release();
-        encoder->Close();
-
-        return buffer.Str();
-    })
-        .AsyncVia(ControlQueue_->GetInvoker())
-        .Run();
-
-    return WaitFor(result).ValueOrThrow();
+    return buffer.Str();
 }
 
 void TSolomonExporter::HandleShard(

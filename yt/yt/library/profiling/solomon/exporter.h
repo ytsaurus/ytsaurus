@@ -101,11 +101,8 @@ public:
     void Register(const TString& prefix, const NYT::NHttp::IServerPtr& server);
     void Register(const TString& prefix, const NYT::NHttp::IRequestPathMatcherPtr& handlers);
 
-    // ReadJson is compatibility function for bulatman@.
-    //
-    // Returns std::nullopt, if exporter is not ready.
-    //
-    // You should not use this function directly. Use Register() instead.
+    //! Attempts to read registered sensors in JSON format.
+    //! Returns null if exporter is not ready.
     std::optional<TString> ReadJson(const TReadOptions& options = {});
 
     void AttachRemoteProcess(TCallback<TFuture<TSharedRef>()> dumpSensors);
