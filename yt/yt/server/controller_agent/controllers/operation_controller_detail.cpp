@@ -2984,7 +2984,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
     auto jobId = jobSummary->Id;
     const auto abandoned = jobSummary->Abandoned;
 
-    if (State != EControllerState::Running && State != EControllerState::Failing) {
+    if (!ShouldProcessJobEvents()) {
         YT_LOG_DEBUG("Stale job completed, ignored (JobId: %v)", jobId);
         return;
     }
@@ -3182,7 +3182,7 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
 
     auto jobId = jobSummary->Id;
 
-    if (State != EControllerState::Running && State != EControllerState::Failing) {
+    if (!ShouldProcessJobEvents()) {
         YT_LOG_DEBUG("Stale job failed, ignored (JobId: %v)", jobId);
         return;
     }
@@ -3321,7 +3321,7 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
     auto jobId = jobSummary->Id;
     auto abortReason = jobSummary->AbortReason;
 
-    if (State != EControllerState::Running && State != EControllerState::Failing) {
+    if (!ShouldProcessJobEvents()) {
         YT_LOG_DEBUG("Stale job aborted, ignored (JobId: %v)", jobId);
         return;
     }
@@ -3611,6 +3611,12 @@ void TOperationControllerBase::SafeAbandonJob(TJobId jobId)
                 jobId,
                 OperationId,
                 joblet->JobType);
+    }
+
+    if (!ShouldProcessJobEvents()) {
+        THROW_ERROR_EXCEPTION("Cannot abandon job %v of operation %v that is not running",
+            jobId,
+            OperationId);
     }
 
     EmplaceOrCrash(JobsWaitingForFinalization_, jobId, TFinishedJobInfo::CreateRemovingInfo());
@@ -10209,6 +10215,11 @@ void TOperationControllerBase::DoAbortJobByController(
 {
     // NB(renadeen): there must be no context switches before call OnJobAborted.
 
+    if (!ShouldProcessJobEvents()) {
+        YT_LOG_DEBUG("Job events processing disabled, abort skipped (JobId: %v, OperationState: %v)", jobId, State.load());
+        return;
+    }
+
     Host->AbortJob(
         jobId,
         error);
@@ -10567,6 +10578,11 @@ void TOperationControllerBase::OnOperationReady() const
     YT_LOG_DEBUG("Register operation in job controller (JobCount: %v)", std::size(revivedJobs));
 
     Host->ReviveJobs(std::move(revivedJobs));
+}
+
+bool TOperationControllerBase::ShouldProcessJobEvents() const
+{
+    return State == EControllerState::Running || State == EControllerState::Failing;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

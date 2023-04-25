@@ -1495,6 +1495,8 @@ private:
     void DoAbortJobByController(TJobId jobId, EAbortReason abortReason, TError error, bool requestNodeTrackerJobAbortion);
 
     void OnOperationReady() const;
+
+    bool ShouldProcessJobEvents() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
