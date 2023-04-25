@@ -53,12 +53,9 @@ public:
         , Config_(std::move(config))
         , ThrottlerConfig_(std::move(throttlerConfig))
         , ThrottleRpcTimeout_(throttleRpcTimeout)
-        , Profiler_(profiler.WithTag("throttler_id", ThrottlerId_))
-        , Limit_(Profiler_.Gauge("/limit"))
-        , Usage_(Profiler_.Gauge("/usage"))
+        , Profiler_(profiler
+            .WithTag("throttler_id", ThrottlerId_))
     {
-        Limit_.Update(ThrottlerConfig_.Load()->Limit.value_or(-1));
-
         HistoricUsageAggregator_.UpdateParameters(THistoricUsageAggregationParameters(
             EHistoricUsageAggregationMode::ExponentialMovingAverage,
             Config_.Load()->EmaAlpha
@@ -80,7 +77,9 @@ public:
         auto guard = Guard(HistoricUsageAggregatorLock_);
 
         auto usage = HistoricUsageAggregator_.GetHistoricUsage();
-        Usage_.Update(usage);
+        if (Initialized_) {
+            Usage_.Update(usage);
+        }
         return usage;
     }
 
@@ -176,8 +175,11 @@ public:
 
     void SetLimit(std::optional<double> limit) override
     {
-        Limit_.Update(limit.value_or(-1));
         Underlying_->SetLimit(limit);
+
+        if (Initialized_) {
+            Limit_.Update(limit.value_or(-1));
+        }
     }
 
     TDuration GetEstimatedOverdraftDuration() const override
@@ -204,16 +206,37 @@ private:
     TProfiler Profiler_;
     TGauge Limit_;
     TGauge Usage_;
+    std::atomic<bool> Initialized_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistoricUsageAggregatorLock_);
     TAverageHistoricUsageAggregator HistoricUsageAggregator_;
+
+    void Initialize()
+    {
+        if (Initialized_) {
+            return;
+        }
+
+        VERIFY_SPINLOCK_AFFINITY(HistoricUsageAggregatorLock_);
+
+        Initialized_ = true;
+
+        Limit_ = Profiler_.Gauge("/limit");
+        Usage_ = Profiler_.Gauge("/usage");
+
+        Limit_.Update(ThrottlerConfig_.Load()->Limit.value_or(-1));
+    }
 
     void UpdateHistoricUsage(i64 amount)
     {
         auto guard = Guard(HistoricUsageAggregatorLock_);
         HistoricUsageAggregator_.UpdateAt(TInstant::Now(), amount);
-
-        Usage_.Update(HistoricUsageAggregator_.GetHistoricUsage());
+        if (amount > 0) {
+            Initialize();
+        }
+        if (Initialized_) {
+            Usage_.Update(HistoricUsageAggregator_.GetHistoricUsage());
+        }
     }
 };
 
