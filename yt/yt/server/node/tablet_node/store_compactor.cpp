@@ -1598,7 +1598,7 @@ private:
                 for (const auto& chunkSpec : writer->GetWrittenChunkSpecs()) {
                     storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
                 }
-                tabletSnapshot->PerformanceCounters->PartitioningDataWeightCount +=
+                tabletSnapshot->PerformanceCounters->PartitioningDataWeight +=
                     writer->GetDataStatistics().data_weight();
             }
 
@@ -1983,7 +1983,7 @@ private:
             for (const auto& chunkSpec : compactionResult.StoreWriter->GetWrittenChunkSpecs()) {
                 storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
             }
-            tabletSnapshot->PerformanceCounters->CompactionDataWeightCount +=
+            tabletSnapshot->PerformanceCounters->CompactionDataWeight +=
                 compactionResult.StoreWriter->GetDataStatistics().data_weight();
 
             YT_LOG_INFO("Partition compaction completed "

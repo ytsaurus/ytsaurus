@@ -182,7 +182,6 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
             TColumnFilter(0),
             nullptr,
             blockManagerFactory,
-            New<TChunkReaderPerformanceCounters>(),
             true);
 
         return CreateChunkLookupHashTableForColumnarFormat(keysReader, chunkRowCount);

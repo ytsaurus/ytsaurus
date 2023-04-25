@@ -1167,7 +1167,6 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
         chunkData->ChunkMeta,
         OverrideTimestamp_,
         chunkData->LookupHashTable,
-        PerformanceCounters_,
         GetKeyComparer(),
         /*virtualValueDirectory*/ nullptr,
         Schema_,

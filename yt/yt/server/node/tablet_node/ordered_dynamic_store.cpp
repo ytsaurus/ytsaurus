@@ -11,10 +11,11 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/yt/ytlib/table_client/schemaful_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/performance_counting.h>
+#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/schemaful_chunk_reader.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -26,11 +27,11 @@
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
-#include <yt/yt/client/table_client/row_batch.h>
-#include <yt/yt/client/table_client/name_table.h>
 
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
 
@@ -112,9 +113,6 @@ public:
         }
         RowCount_ += rows.size();
         DataWeight_ += dataWeight;
-
-        Store_->PerformanceCounters_->DynamicRowReadCount += rows.size();
-        Store_->PerformanceCounters_->DynamicRowReadDataWeightCount += dataWeight;
 
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
@@ -283,7 +281,7 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
     OnDynamicMemoryUsageUpdated();
 
     ++PerformanceCounters_->DynamicRowWriteCount;
-    PerformanceCounters_->DynamicRowWriteDataWeightCount += dataWeight;
+    PerformanceCounters_->DynamicRowWriteDataWeight += dataWeight;
     ++context->RowCount;
     context->DataWeight += dataWeight;
 
@@ -524,11 +522,14 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateReader(
     const NChunkClient::TClientChunkReadOptions& /*chunkReadOptions*/,
     std::optional<EWorkloadCategory> /*workloadCategory*/)
 {
-    return DoCreateReader(
-        tabletIndex,
-        lowerRowIndex,
-        upperRowIndex,
-        columnFilter);
+    return CreateSchemafulPerformanceCountingReader(DoCreateReader(
+            tabletIndex,
+            lowerRowIndex,
+            upperRowIndex,
+            columnFilter),
+        PerformanceCounters_,
+        NTableClient::EDataSource::DynamicStore,
+        ERequestType::Read);
 }
 
 void TOrderedDynamicStore::OnSetPassive()

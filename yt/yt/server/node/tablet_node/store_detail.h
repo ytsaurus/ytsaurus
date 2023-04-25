@@ -64,7 +64,7 @@ protected:
     const TStoreId StoreId_;
     TTablet* const Tablet_;
 
-    const TTabletPerformanceCountersPtr PerformanceCounters_;
+    const NTableClient::TTabletPerformanceCountersPtr PerformanceCounters_;
     const TRuntimeTabletDataPtr RuntimeData_;
     const TTabletId TabletId_;
     const NYPath::TYPath TablePath_;

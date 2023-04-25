@@ -232,7 +232,6 @@ private:
             chunkMeta,
             OverrideTimestamp_,
             /*lookupHashTable*/ nullptr,
-            New<TChunkReaderPerformanceCounters>(),
             GetKeyComparer(),
             /*virtualValueDirectory*/ nullptr,
             TableSchema_,

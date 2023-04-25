@@ -21,7 +21,6 @@ struct TChunkState
         TCachedVersionedChunkMetaPtr chunkMeta = nullptr,
         NTransactionClient::TTimestamp overrideTimestamp = NTransactionClient::NullTimestamp,
         TChunkLookupHashTablePtr lookupHashTable = nullptr,
-        TChunkReaderPerformanceCountersPtr performanceCounters = nullptr,
         TKeyComparer keyComparer = {},
         TVirtualValueDirectoryPtr virtualValueDirectory = nullptr,
         TTableSchemaPtr tableSchema = nullptr,
@@ -34,7 +33,6 @@ struct TChunkState
     TCachedVersionedChunkMetaPtr ChunkMeta;
     NTransactionClient::TTimestamp OverrideTimestamp;
     TChunkLookupHashTablePtr LookupHashTable;
-    TChunkReaderPerformanceCountersPtr PerformanceCounters;
     TKeyComparer KeyComparer;
     TVirtualValueDirectoryPtr VirtualValueDirectory;
     TTableSchemaPtr TableSchema;

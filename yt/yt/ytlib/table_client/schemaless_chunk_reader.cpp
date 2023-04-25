@@ -830,7 +830,6 @@ public:
         int commonKeyPrefix,
         const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keys,
-        TChunkReaderPerformanceCountersPtr performanceCounters,
         std::optional<int> partitionTag = std::nullopt,
         const TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
@@ -844,8 +843,6 @@ protected:
     // checked against limits individually.
     TRange<TLegacyKey> LowerBoundCmpRange_;
     TRange<TLegacyKey> UpperBoundCmpRange_;
-
-    const TChunkReaderPerformanceCountersPtr PerformanceCounters_;
 
     TKeyWideningOptions KeyWideningOptions_;
     bool HasMoreBlocks_ = true;
@@ -883,7 +880,6 @@ public:
         int commonKeyPrefix,
         const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keys,
-        TChunkReaderPerformanceCountersPtr performanceCounters,
         std::optional<int> partitionTag = std::nullopt,
         const TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
@@ -908,7 +904,6 @@ public:
         int commonKeyPrefix,
         const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keyPrefixes,
-        TChunkReaderPerformanceCountersPtr performanceCounters,
         std::optional<int> partitionTag = std::nullopt,
         const TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
@@ -935,7 +930,6 @@ THorizontalSchemalessLookupChunkReaderBase::THorizontalSchemalessLookupChunkRead
     int commonKeyPrefix,
     const TKeyWideningOptions& keyWideningOptions,
     const TSharedRange<TLegacyKey>& keyPrefixes,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
     std::optional<int> partitionTag,
     const TChunkReaderMemoryManagerPtr& memoryManager)
     : THorizontalSchemalessChunkReaderBase(
@@ -953,7 +947,6 @@ THorizontalSchemalessLookupChunkReaderBase::THorizontalSchemalessLookupChunkRead
         partitionTag,
         memoryManager)
     , Keys_(keyPrefixes)
-    , PerformanceCounters_(std::move(performanceCounters))
     , KeyWideningOptions_(keyWideningOptions)
     , ChunkState_(chunkState)
 {
@@ -1140,7 +1133,6 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     int commonKeyPrefix,
     const TKeyWideningOptions& keyWideningOptions,
     const TSharedRange<TLegacyKey>& keys,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
     std::optional<int> partitionTag,
     const TChunkReaderMemoryManagerPtr& memoryManager)
     : THorizontalSchemalessLookupChunkReaderBase(
@@ -1157,7 +1149,6 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
         commonKeyPrefix,
         keyWideningOptions,
         keys,
-        performanceCounters,
         partitionTag,
         memoryManager)
 {
@@ -1196,7 +1187,6 @@ THorizontalSchemalessKeyRangesChunkReader::THorizontalSchemalessKeyRangesChunkRe
     int commonKeyPrefix,
     const TKeyWideningOptions& keyWideningOptions,
     const TSharedRange<TLegacyKey>& keys,  // must be sorted.
-    TChunkReaderPerformanceCountersPtr performanceCounters,
     std::optional<int> partitionTag,
     const TChunkReaderMemoryManagerPtr& memoryManager)
     : THorizontalSchemalessLookupChunkReaderBase(
@@ -1213,7 +1203,6 @@ THorizontalSchemalessKeyRangesChunkReader::THorizontalSchemalessKeyRangesChunkRe
         commonKeyPrefix,
         keyWideningOptions,
         keys,
-        performanceCounters,
         partitionTag,
         memoryManager)
 {
@@ -1293,11 +1282,6 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
 
         return true;
     }();
-
-    if (PerformanceCounters_) {
-        PerformanceCounters_->StaticChunkRowLookupCount += rows.size();
-        PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
-    }
 
     DataWeight_ += dataWeight;
 
@@ -1404,11 +1388,6 @@ IUnversionedRowBatchPtr THorizontalSchemalessKeyRangesChunkReader::Read(const TR
 
     if (PrefixRange_.begin() + KeyIndex_ == PrefixRange_.end()) {
         BlockEnded_ = true;
-    }
-
-    if (PerformanceCounters_) {
-        PerformanceCounters_->StaticChunkRowLookupCount += rows.size();
-        PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
     }
 
     DataWeight_ += dataWeight;
@@ -2105,7 +2084,6 @@ public:
         int commonKeyPrefix,
         const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keys,
-        TChunkReaderPerformanceCountersPtr performanceCounters,
         const TChunkReaderMemoryManagerPtr& memoryManager)
         : TSchemalessChunkReaderBase(
             chunkState->ChunkSpec,
@@ -2127,7 +2105,6 @@ public:
             chunkReadOptions,
             [] (int) { YT_ABORT(); }, // Rows should not be skipped in lookup reader.
             memoryManager)
-        , PerformanceCounters_(std::move(performanceCounters))
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
@@ -2212,11 +2189,6 @@ public:
 
         i64 rowCount = rows.size();
 
-        if (PerformanceCounters_) {
-            PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
-            PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
-        }
-
         RowCount_ += rowCount;
         DataWeight_ += dataWeight;
 
@@ -2232,8 +2204,6 @@ public:
     }
 
 private:
-    const TChunkReaderPerformanceCountersPtr PerformanceCounters_;
-
     TChunkedMemoryPool Pool_;
 
     TMutableUnversionedRow ReadRow(i64 rowIndex)
@@ -2441,7 +2411,6 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
     std::optional<int> partitionTag,
     const TChunkReaderMemoryManagerPtr& memoryManager)
 {
@@ -2480,7 +2449,6 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
                 params.CommonKeyPrefix,
                 params.KeyWideningOptions,
                 keys,
-                std::move(performanceCounters),
                 partitionTag,
                 memoryManager);
 
@@ -2499,7 +2467,6 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
                 params.CommonKeyPrefix,
                 params.KeyWideningOptions,
                 keys,
-                std::move(performanceCounters),
                 memoryManager);
 
         default:
@@ -2521,7 +2488,6 @@ ISchemalessChunkReaderPtr CreateSchemalessKeyRangesChunkReader(
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keyPrefixes,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
     std::optional<int> partitionTag,
     const TChunkReaderMemoryManagerPtr& memoryManager)
 {
@@ -2558,7 +2524,6 @@ ISchemalessChunkReaderPtr CreateSchemalessKeyRangesChunkReader(
         params.CommonKeyPrefix,
         params.KeyWideningOptions,
         keyPrefixes,
-        std::move(performanceCounters),
         partitionTag,
         memoryManager);
 }

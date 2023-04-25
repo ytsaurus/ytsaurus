@@ -5,17 +5,18 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 
+#include <yt/yt/ytlib/chunk_client/cache_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/yt/ytlib/chunk_client/cache_reader.h>
 
-#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
-#include <yt/yt/ytlib/table_client/schemaful_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/performance_counting.h>
+#include <yt/yt/ytlib/table_client/schemaful_chunk_reader.h>
 
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_batch.h>
@@ -53,8 +54,7 @@ public:
         bool enableRowIndex,
         const TIdMapping& idMapping,
         int tabletIndex,
-        i64 lowerRowIndex,
-        TChunkReaderPerformanceCountersPtr performanceCounters)
+        i64 lowerRowIndex)
         : UnderlyingReader_(std::move(underlyingReader))
         , TabletIndex_(tabletIndex)
         , EnableTabletIndex_(enableTabletIndex)
@@ -62,7 +62,6 @@ public:
         , IdMapping_(idMapping)
         , CurrentRowIndex_(lowerRowIndex)
         , Pool_(TOrderedChunkStoreReaderTag())
-        , PerformanceCounters_(std::move(performanceCounters))
     { }
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -78,7 +77,6 @@ public:
 
         Pool_.Clear();
 
-        i64 dataWeight = 0;
         for (auto row : rows) {
             int updatedColumnCount =
                 row.GetCount() +
@@ -102,13 +100,9 @@ public:
                 ++updatedValue;
             }
 
-            dataWeight += GetDataWeight(updatedRow);
             updatedRows.push_back(updatedRow);
             ++CurrentRowIndex_;
         }
-
-        PerformanceCounters_->StaticChunkRowReadCount += updatedRows.size();
-        PerformanceCounters_->StaticChunkRowReadDataWeightCount += dataWeight;
 
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(updatedRows), MakeStrong(this)));
     }
@@ -148,7 +142,6 @@ private:
     i64 CurrentRowIndex_;
 
     TChunkedMemoryPool Pool_;
-    TChunkReaderPerformanceCountersPtr PerformanceCounters_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -230,6 +223,15 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
         idMapping.push_back(querySchema->GetColumnIndex(readColumn.Name()));
     }
 
+    auto wrapReaderWithPerformanceCounting = [&] (ISchemafulUnversionedReaderPtr underlyingReader)
+    {
+        return CreateSchemafulPerformanceCountingReader(
+            underlyingReader,
+            PerformanceCounters_,
+            NTableClient::EDataSource::ChunkStore,
+            ERequestType::Read);
+    };
+
     // Fast lane: check for in-memory reads.
     if (auto reader = TryCreateCacheBasedReader(
         chunkReadOptions,
@@ -241,7 +243,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
         lowerRowIndex,
         idMapping))
     {
-        return reader;
+        return wrapReaderWithPerformanceCounting(reader);
     }
 
     auto backendReaders = GetBackendReaders(workloadCategory);
@@ -263,14 +265,13 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
         /* sortColumns */ {},
         {readRange});
 
-    return New<TReader>(
+    return wrapReaderWithPerformanceCounting(New<TReader>(
         std::move(underlyingReader),
         enableTabletIndex,
         enableRowIndex,
         idMapping,
         tabletIndex,
-        lowerRowIndex,
-        PerformanceCounters_);
+        lowerRowIndex));
 }
 
 void TOrderedChunkStore::Save(TSaveContext& context) const
@@ -327,8 +328,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::TryCreateCacheBasedReader(
         enableRowIndex,
         idMapping,
         tabletIndex,
-        lowerRowIndex,
-        PerformanceCounters_);
+        lowerRowIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

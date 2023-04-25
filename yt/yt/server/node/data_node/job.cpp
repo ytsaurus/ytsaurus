@@ -1215,7 +1215,6 @@ private:
                 /*chunkMeta*/ nullptr,
                 /*chunkTimestamp*/ NullTimestamp,
                 /*lookupHashTable*/ nullptr,
-                /*performanceCounters*/ nullptr,
                 /*keyComparer*/ TKeyComparer{},
                 /*virtualValueDirectory*/ nullptr,
                 /*tableSchema*/ Schema_);
@@ -1826,7 +1825,6 @@ private:
             /*chunkMeta*/ nullptr,
             /*overrideTimestamp*/  NullTimestamp,
             /*lookupHashTable*/ nullptr,
-            /*performanceCounters*/ nullptr,
             /*keyComparer*/ TKeyComparer{},
             /*virtualValueDirectory*/ nullptr,
             /*tableSchema*/ columnarMeta->GetChunkSchema());

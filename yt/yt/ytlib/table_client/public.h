@@ -145,6 +145,8 @@ class TIndexedVersionedBlockFormatDetail;
 
 DECLARE_REFCOUNTED_STRUCT(IChunkIndexReadController)
 
+DECLARE_REFCOUNTED_STRUCT(TTabletPerformanceCounters)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

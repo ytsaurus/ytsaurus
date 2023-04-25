@@ -818,7 +818,6 @@ private:
     IVersionedRowBatchPtr RowBatch_;
     int RowIndex_ = -1;
 
-
     bool IsReaderReady() const
     {
         return RowBatch_ && RowIndex_ < RowBatch_->GetRowCount();

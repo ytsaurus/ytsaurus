@@ -395,8 +395,6 @@ private:
 
         this->RowCount_ += rowCount;
         this->DataWeight_ += dataWeight;
-        this->ChunkState_->PerformanceCounters->StaticChunkRowLookupCount += rowCount;
-        this->ChunkState_->PerformanceCounters->StaticChunkRowLookupDataWeightCount += dataWeight;
 
         return {
             std::move(rows),
@@ -452,7 +450,6 @@ private:
         if (!blockReader->SkipToKey(key) ||
             CompareKeys(blockReader->GetKey(), key, this->KeyComparer_) != 0)
         {
-            ++this->ChunkState_->PerformanceCounters->StaticChunkRowLookupFalsePositiveCount;
             return {};
         }
 
@@ -679,8 +676,6 @@ private:
 
         this->RowCount_ += rowCount;
         this->DataWeight_ += dataWeight;
-        this->ChunkState_->PerformanceCounters->StaticChunkRowReadCount += rowCount;
-        this->ChunkState_->PerformanceCounters->StaticChunkRowReadDataWeightCount += dataWeight;
 
         return {
             std::move(rows),

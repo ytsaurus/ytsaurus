@@ -15,6 +15,7 @@
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/performance_counting.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
 
@@ -30,8 +31,8 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/core/misc/skip_list.h>
 #include <yt/yt/core/misc/linear_probe.h>
+#include <yt/yt/core/misc/skip_list.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -637,8 +638,6 @@ public:
 
         RowCount_ += rowCount;
         DataWeight_ += dataWeight;
-        Store_->PerformanceCounters_->DynamicRowReadCount += rowCount;
-        Store_->PerformanceCounters_->DynamicRowReadDataWeightCount += dataWeight;
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
@@ -796,8 +795,6 @@ public:
         }
 
         DataWeight_ += dataWeight;
-        Store_->PerformanceCounters_->DynamicRowLookupCount += rows.size();
-        Store_->PerformanceCounters_->DynamicRowLookupDataWeightCount += dataWeight;
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
@@ -1053,7 +1050,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
     } else {
         ++PerformanceCounters_->DynamicRowWriteCount;
     }
-    PerformanceCounters_->DynamicRowWriteDataWeightCount += dataWeight;
+    PerformanceCounters_->DynamicRowWriteDataWeight += dataWeight;
     ++context->RowCount;
     context->DataWeight += dataWeight;
 
@@ -1127,7 +1124,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
 
     auto dataWeight = GetDataWeight(row);
     ++PerformanceCounters_->DynamicRowWriteCount;
-    PerformanceCounters_->DynamicRowWriteDataWeightCount += dataWeight;
+    PerformanceCounters_->DynamicRowWriteDataWeight += dataWeight;
     ++context->RowCount;
     context->DataWeight += dataWeight;
 
@@ -1837,15 +1834,19 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     const TClientChunkReadOptions& /*chunkReadOptions*/,
     std::optional<EWorkloadCategory> /*workloadCategory*/)
 {
-    return New<TRangeReader>(
-        this,
-        tabletSnapshot,
-        std::move(ranges),
-        timestamp,
-        produceAllVersions,
-        /*snapshotMode*/ false,
-        MaxRevision,
-        columnFilter);
+    return CreateVersionedPerformanceCountingReader(
+        New<TRangeReader>(
+            this,
+            tabletSnapshot,
+            std::move(ranges),
+            timestamp,
+            produceAllVersions,
+            /*snapshotMode*/ false,
+            MaxRevision,
+            columnFilter),
+        tabletSnapshot->PerformanceCounters,
+        NTableClient::EDataSource::DynamicStore,
+        ERequestType::Read);
 }
 
 IVersionedReaderPtr TSortedDynamicStore::CreateReader(
@@ -1857,13 +1858,17 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     const TClientChunkReadOptions& /*chunkReadOptions*/,
     std::optional<EWorkloadCategory> /*workloadCategory*/)
 {
-    return New<TLookupReader>(
-        this,
-        tabletSnapshot,
-        keys,
-        timestamp,
-        produceAllVersions,
-        columnFilter);
+    return CreateVersionedPerformanceCountingReader(
+        New<TLookupReader>(
+            this,
+            tabletSnapshot,
+            keys,
+            timestamp,
+            produceAllVersions,
+            columnFilter),
+        tabletSnapshot->PerformanceCounters,
+        NTableClient::EDataSource::DynamicStore,
+        ERequestType::Lookup);
 }
 
 bool TSortedDynamicStore::CheckRowLocks(

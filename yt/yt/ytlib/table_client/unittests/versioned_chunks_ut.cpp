@@ -424,7 +424,6 @@ protected:
                 /*chunkMeta*/ nullptr,
                 /*overrideTimestamp*/ NullTimestamp,
                 /*lookupHashTable*/ nullptr,
-                New<TChunkReaderPerformanceCounters>(),
                 KeyComparer,
                 /*virtualValueDirectory*/ nullptr,
                 Schema);
@@ -453,7 +452,6 @@ protected:
                     TColumnFilter(),
                     /*chunkColumnMapping*/ nullptr,
                     blockManagerFactory,
-                    chunkState->PerformanceCounters,
                     /*produceAll*/ false);
             } else if (testOptions.UseIndexedReaderForLookup) {
                 auto blockCache = testOptions.UseBlockCacheForIndexedReader
@@ -844,7 +842,6 @@ protected:
                 columnFilter,
                 chunkState->ChunkColumnMapping,
                 blockManagerFactory,
-                chunkState->PerformanceCounters,
                 produceAllVersions);
         } else {
             if (GetTestOptions().CacheBased) {
@@ -956,7 +953,6 @@ protected:
                     columnFilter,
                     chunkState->ChunkColumnMapping,
                     blockManagerFactory,
-                    chunkState->PerformanceCounters,
                     produceAllVersions);
             } else {
                 versionedReader = NNewTableClient::CreateVersionedChunkReader(
@@ -967,7 +963,6 @@ protected:
                     columnFilter,
                     chunkState->ChunkColumnMapping,
                     blockManagerFactory,
-                    chunkState->PerformanceCounters,
                     produceAllVersions);
             }
         } else if (GetTestOptions().UseIndexedReaderForLookup) {

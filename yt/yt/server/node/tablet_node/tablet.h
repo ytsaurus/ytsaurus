@@ -19,8 +19,8 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/ytlib/table_client/performance_counting.h>
 #include <yt/yt/ytlib/table_client/tablet_snapshot.h>
-#include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 
 #include <yt/yt/ytlib/tablet_client/public.h>
 #include <yt/yt/ytlib/tablet_client/backup.h>
@@ -44,28 +44,6 @@
 #include <atomic>
 
 namespace NYT::NTabletNode {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTabletPerformanceCounters
-    : public TChunkReaderPerformanceCounters
-{
-    std::atomic<i64> DynamicRowReadCount = 0;
-    std::atomic<i64> DynamicRowReadDataWeightCount = 0;
-    std::atomic<i64> DynamicRowLookupCount = 0;
-    std::atomic<i64> DynamicRowLookupDataWeightCount = 0;
-    std::atomic<i64> DynamicRowWriteCount = 0;
-    std::atomic<i64> DynamicRowWriteDataWeightCount = 0;
-    std::atomic<i64> DynamicRowDeleteCount = 0;
-    std::atomic<i64> UnmergedRowReadCount = 0;
-    std::atomic<i64> MergedRowReadCount = 0;
-    std::atomic<i64> CompactionDataWeightCount = 0;
-    std::atomic<i64> PartitioningDataWeightCount = 0;
-    std::atomic<i64> LookupErrorCount = 0;
-    std::atomic<i64> WriteErrorCount = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -240,7 +218,7 @@ struct TTabletSnapshot
 
     THashMap<TTableReplicaId, TTableReplicaSnapshotPtr> Replicas;
 
-    TTabletPerformanceCountersPtr PerformanceCounters;
+    NTableClient::TTabletPerformanceCountersPtr PerformanceCounters;
     TTableProfilerPtr TableProfiler;
 
     //! Local throttlers.
@@ -503,7 +481,7 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(TTableProfilerPtr, TableProfiler, TTableProfiler::GetDisabled());
 
-    DEFINE_BYREF_RO_PROPERTY(TTabletPerformanceCountersPtr, PerformanceCounters, New<TTabletPerformanceCounters>());
+    DEFINE_BYREF_RO_PROPERTY(NTableClient::TTabletPerformanceCountersPtr, PerformanceCounters, New<NTableClient::TTabletPerformanceCounters>());
     DEFINE_BYREF_RO_PROPERTY(TRuntimeTabletDataPtr, RuntimeData, New<TRuntimeTabletData>());
 
     DEFINE_BYREF_RO_PROPERTY(std::deque<TDynamicStoreId>, DynamicStoreIdPool);

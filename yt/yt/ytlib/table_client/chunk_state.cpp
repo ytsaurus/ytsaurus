@@ -12,7 +12,6 @@ TChunkState::TChunkState(
     TCachedVersionedChunkMetaPtr chunkMeta,
     NTransactionClient::TTimestamp overrideTimestamp,
     TChunkLookupHashTablePtr lookupHashTable,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
     TKeyComparer keyComparer,
     TVirtualValueDirectoryPtr virtualValueDirectory,
     TTableSchemaPtr tableSchema,
@@ -22,9 +21,6 @@ TChunkState::TChunkState(
     , ChunkMeta(std::move(chunkMeta))
     , OverrideTimestamp(overrideTimestamp)
     , LookupHashTable(std::move(lookupHashTable))
-    , PerformanceCounters(performanceCounters
-        ? std::move(performanceCounters)
-        : New<TChunkReaderPerformanceCounters>())
     , KeyComparer(std::move(keyComparer))
     , VirtualValueDirectory(std::move(virtualValueDirectory))
     , TableSchema(std::move(tableSchema))

@@ -72,7 +72,6 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
-    TChunkReaderPerformanceCountersPtr performanceCounters = nullptr,
     std::optional<int> partitionTag = std::nullopt,
     const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
@@ -88,7 +87,6 @@ ISchemalessChunkReaderPtr CreateSchemalessKeyRangesChunkReader(
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keyPrefixes,
-    TChunkReaderPerformanceCountersPtr performanceCounters = nullptr,
     std::optional<int> partitionTag = std::nullopt,
     const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 

@@ -137,7 +137,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
             and table_profiling.get_counter("lookup/cpu_time") > 0
         )
 
-    @authors("iskhakovt")
+    @authors("iskhakovt", "alexelexa")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("in_memory_mode", ["none", "compressed"])
     def test_data_weight_performance_counters(self, optimize_for, in_memory_mode):
