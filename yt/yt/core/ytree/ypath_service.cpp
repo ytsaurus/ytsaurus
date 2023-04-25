@@ -335,7 +335,7 @@ public:
     }
 
 private:
-    TYsonProducer Producer_;
+    const TYsonProducer Producer_;
 
     bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
@@ -356,7 +356,7 @@ private:
         if (request->has_attributes())  {
             // Execute fallback.
             auto node = BuildNodeFromProducer();
-            ExecuteVerb(node, IYPathServiceContextPtr(context));
+            ExecuteVerb(node, context->GetUnderlyingContext());
             return;
         }
 
@@ -370,7 +370,7 @@ private:
         if (request->has_attributes())  {
             // Execute fallback.
             auto node = BuildNodeFromProducer();
-            ExecuteVerb(node, IYPathServiceContextPtr(context));
+            ExecuteVerb(node, context->GetUnderlyingContext());
             return;
         }
 
@@ -395,14 +395,14 @@ private:
     {
         // Execute fallback.
         auto node = BuildNodeFromProducer();
-        ExecuteVerb(node, IYPathServiceContextPtr(context));
+        ExecuteVerb(node, context->GetUnderlyingContext());
     }
 
     void ListSelf(TReqList* /*request*/, TRspList* /*response*/, const TCtxListPtr& context) override
     {
         // Execute fallback.
         auto node = BuildNodeFromProducer();
-        ExecuteVerb(node, IYPathServiceContextPtr(context));
+        ExecuteVerb(node, context->GetUnderlyingContext());
     }
 
     void ListRecursive(const TYPath& path, TReqList* request, TRspList* response, const TCtxListPtr& context) override
@@ -431,7 +431,7 @@ private:
    {
         // Execute fallback.
         auto node = BuildNodeFromProducer();
-        ExecuteVerb(node, IYPathServiceContextPtr(context));
+        ExecuteVerb(node, context->GetUnderlyingContext());
    }
 
     void ExistsRecursive(const TYPath& path, TReqExists* /*request*/, TRspExists* /*response*/, const TCtxExistsPtr& context) override
@@ -625,9 +625,9 @@ class TCacheSnapshot
     : public TRefCounted
 {
 public:
-    TCacheSnapshot(const TErrorOr<INodePtr>& treeOrError, const TCacheProfilingCountersPtr& profilingCounters)
-        : TreeOrError_(treeOrError)
-        , ProfilingCounters_(profilingCounters)
+    TCacheSnapshot(TErrorOr<INodePtr> treeOrError, TCacheProfilingCountersPtr profilingCounters)
+        : TreeOrError_(std::move(treeOrError))
+        , ProfilingCounters_(std::move(profilingCounters))
     { }
 
     const TErrorOr<INodePtr>& GetTreeOrError() const
@@ -635,15 +635,15 @@ public:
         return TreeOrError_;
     }
 
-    void AddResponseToCache(const TCacheKey& key, const TErrorOr<TSharedRefArray>& response)
+    void AddResponse(const TCacheKey& key, const TSharedRefArray& responseMessage)
     {
         auto guard = WriterGuard(Lock_);
 
-        decltype(CachedReplies_)::insert_ctx ctx;
-        auto it = CachedReplies_.find(key, ctx);
+        decltype(KeyToResponseMessage_)::insert_ctx ctx;
+        auto it = KeyToResponseMessage_.find(key, ctx);
 
-        if (it == CachedReplies_.end()) {
-            CachedReplies_.emplace_direct(ctx, key, response);
+        if (it == KeyToResponseMessage_.end()) {
+            KeyToResponseMessage_.emplace_direct(ctx, key, responseMessage);
         } else {
             ProfilingCounters_->RedundantCacheMissCounter.Increment();
         }
@@ -653,8 +653,8 @@ public:
     {
         auto guard = ReaderGuard(Lock_);
 
-        auto it = CachedReplies_.find(key);
-        if (it == CachedReplies_.end()) {
+        auto it = KeyToResponseMessage_.find(key);
+        if (it == KeyToResponseMessage_.end()) {
             return std::nullopt;
         } else {
             return it->second;
@@ -665,7 +665,7 @@ private:
     const TErrorOr<INodePtr> TreeOrError_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
-    THashMap<TCacheKey, TErrorOr<TSharedRefArray>> CachedReplies_;
+    THashMap<TCacheKey, TSharedRefArray> KeyToResponseMessage_;
     TCacheProfilingCountersPtr ProfilingCounters_;
 };
 
@@ -674,50 +674,35 @@ DEFINE_REFCOUNTED_TYPE(TCacheSnapshot);
 DECLARE_REFCOUNTED_CLASS(TCachedYPathServiceContext)
 
 class TCachedYPathServiceContext
-    : public TServiceContextWrapper
-    , public IYPathServiceContext
+    : public TYPathServiceContextWrapper
 {
 public:
     TCachedYPathServiceContext(
-        IYPathServiceContextPtr underlyingContext,
+        const IYPathServiceContextPtr& underlyingContext,
         TWeakPtr<TCacheSnapshot> cacheSnapshot,
         TCacheKey cacheKey)
-        : TServiceContextWrapper(underlyingContext)
+        : TYPathServiceContextWrapper(underlyingContext)
         , CacheSnapshot_(std::move(cacheSnapshot))
         , CacheKey_(std::move(cacheKey))
-        , UnderlyingYPathContext_(underlyingContext.Get())
-    { }
-
-    void Reply(const TError& error) override
     {
-        TryAddResponseToCache(error);
-        TServiceContextWrapper::Reply(error);
-    }
-
-    void Reply(const TSharedRefArray& responseMessage) override
-    {
-        TryAddResponseToCache(responseMessage);
-        TServiceContextWrapper::Reply(responseMessage);
-    }
-
-    TReadRequestComplexityLimiterPtr GetReadRequestComplexityLimiter() override
-    {
-        return UnderlyingYPathContext_->GetReadRequestComplexityLimiter();
+        underlyingContext->GetAsyncResponseMessage()
+            .Subscribe(BIND([weakThis = MakeWeak(this)] (const TErrorOr<TSharedRefArray>& responseMessageOrError) {
+                if (auto this_ = weakThis.Lock()) {
+                    if (responseMessageOrError.IsOK()) {
+                        this_->TryAddResponseToCache(responseMessageOrError.Value());
+                    }
+                }
+            }));
     }
 
 private:
-    typedef TIntrusivePtr<TCacheSnapshot> TCacheSnapshotPtr;
-
     const TWeakPtr<TCacheSnapshot> CacheSnapshot_;
     const TCacheKey CacheKey_;
 
-    IYPathServiceContext* const UnderlyingYPathContext_;
-
-    void TryAddResponseToCache(const TErrorOr<TSharedRefArray>& response)
+    void TryAddResponseToCache(const TSharedRefArray& responseMessage)
     {
-        auto cacheSnapshot = CacheSnapshot_.Lock();
-        if (cacheSnapshot) {
-            cacheSnapshot->AddResponseToCache(CacheKey_, response);
+        if (auto cacheSnapshot = CacheSnapshot_.Lock()) {
+            cacheSnapshot->AddResponse(CacheKey_, responseMessage);
         }
     }
 };
@@ -832,8 +817,7 @@ bool TCachedYPathService::DoInvoke(const IYPathServiceContextPtr& context)
                     context->GetRequestHeader().method(),
                     context->GetRequestMessage()[1]);
 
-                auto cachedResponse = cacheSnapshot->LookupResponse(key);
-                if (cachedResponse) {
+                if (auto cachedResponse = cacheSnapshot->LookupResponse(key)) {
                     ReplyErrorOrValue(context, *cachedResponse);
                     ProfilingCounters_->CacheHitCounter.Increment();
                     return;
@@ -844,7 +828,7 @@ bool TCachedYPathService::DoInvoke(const IYPathServiceContextPtr& context)
                     context->Reply(static_cast<TError>(treeOrError));
                     return;
                 }
-                auto tree = treeOrError.Value();
+                const auto& tree = treeOrError.Value();
 
                 auto contextWrapper = New<TCachedYPathServiceContext>(context, MakeWeak(cacheSnapshot), std::move(key));
                 ExecuteVerb(tree, contextWrapper);

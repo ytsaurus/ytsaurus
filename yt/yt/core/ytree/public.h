@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/ypath/public.h>
 
+#include <yt/yt/core/rpc/public.h>
+
 namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,6 +75,16 @@ static const int MaxYPathResolveIterations = 256;
 DECLARE_REFCOUNTED_CLASS(TYsonSerializable)
 DECLARE_REFCOUNTED_CLASS(TYsonStruct)
 DECLARE_REFCOUNTED_CLASS(TYsonStructBase)
+
+class TYPathServiceContextWrapper;
+
+template <class TRequestMessage, class TResponseMessage>
+using TTypedYPathServiceContext = NRpc::TGenericTypedServiceContext<
+    IYPathServiceContext,
+    TYPathServiceContextWrapper,
+    TRequestMessage,
+    TResponseMessage
+>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

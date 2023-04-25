@@ -365,74 +365,13 @@ void ExecuteVerb(
     }
 
     auto requestMessage = context->GetRequestMessage();
-    NRpc::NProto::TRequestHeader requestHeader;
-    YT_VERIFY(ParseRequestHeader(requestMessage, &requestHeader));
-    SetRequestTargetYPath(&requestHeader, suffixPath);
-
-    auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
-
-    class TInvokeContext
-        : public TServiceContextBase
-        , public IYPathServiceContext
-    {
-    public:
-        TInvokeContext(
-            TSharedRefArray requestMessage,
-            IYPathServiceContextPtr underlyingContext)
-            : TServiceContextBase(
-                std::move(requestMessage),
-                underlyingContext->GetLogger(),
-                underlyingContext->GetLogLevel())
-            , UnderlyingContext_(std::move(underlyingContext))
-        { }
-
-        TBusNetworkStatistics GetBusNetworkStatistics() const override
-        {
-            return UnderlyingContext_->GetBusNetworkStatistics();
-        }
-
-        const IAttributeDictionary& GetEndpointAttributes() const override
-        {
-            return UnderlyingContext_->GetEndpointAttributes();
-        }
-
-        void SetRawRequestInfo(TString info, bool incremental) override
-        {
-            UnderlyingContext_->SetRawRequestInfo(std::move(info), incremental);
-        }
-
-        void SetRawResponseInfo(TString info, bool incremental) override
-        {
-            UnderlyingContext_->SetRawResponseInfo(std::move(info), incremental);
-        }
-
-        TReadRequestComplexityLimiterPtr GetReadRequestComplexityLimiter() override
-        {
-            return UnderlyingContext_->GetReadRequestComplexityLimiter();
-        }
-
-    private:
-        const IYPathServiceContextPtr UnderlyingContext_;
-
-
-        void LogRequest() override
-        { }
-
-        void LogResponse() override
-        { }
-
-        void DoReply() override
-        {
-            UnderlyingContext_->Reply(TServiceContextBase::GetResponseMessage());
-        }
-    };
-
-    auto invokeContext = New<TInvokeContext>(
-        std::move(updatedRequestMessage),
-        context);
+    auto requestHeader = std::make_unique<NRpc::NProto::TRequestHeader>();
+    YT_VERIFY(ParseRequestHeader(requestMessage, requestHeader.get()));
+    SetRequestTargetYPath(requestHeader.get(), suffixPath);
+    context->SetRequestHeader(std::move(requestHeader));
 
     // This should never throw.
-    suffixService->Invoke(std::move(invokeContext));
+    suffixService->Invoke(context);
 }
 
 TFuture<TYsonString> AsyncYPathGet(

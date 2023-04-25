@@ -34,6 +34,28 @@ static const auto NoneYsonFuture = MakeFuture(TYsonString());
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYPathServiceContextWrapper::TYPathServiceContextWrapper(IYPathServiceContextPtr underlyingContext)
+    : TServiceContextWrapper(underlyingContext)
+    , UnderlyingContext_(std::move(underlyingContext))
+{ }
+
+void TYPathServiceContextWrapper::SetRequestHeader(std::unique_ptr<NRpc::NProto::TRequestHeader> header)
+{
+    UnderlyingContext_->SetRequestHeader(std::move(header));
+}
+
+TReadRequestComplexityLimiterPtr TYPathServiceContextWrapper::GetReadRequestComplexityLimiter()
+{
+    return UnderlyingContext_->GetReadRequestComplexityLimiter();
+}
+
+const IYPathServiceContextPtr& TYPathServiceContextWrapper::GetUnderlyingContext() const
+{
+    return UnderlyingContext_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 IYPathService::TResolveResult TYPathServiceBase::Resolve(
     const TYPath& path,
     const IYPathServiceContextPtr& context)
@@ -177,13 +199,6 @@ IMPLEMENT_SUPPORTS_VERB_RESOLVE(
 #undef IMPLEMENT_SUPPORTS_VERB
 #undef IMPLEMENT_SUPPORTS_VERB_RESOLVE
 
-void TSupportsExistsBase::Reply(const TCtxExistsPtr& context, bool value)
-{
-    context->Response().set_value(value);
-    context->SetResponseInfo("Result: %v", value);
-    context->Reply();
-}
-
 void TSupportsExists::ExistsAttribute(
     const TYPath& /*path*/,
     TReqExists* /*request*/,
@@ -223,7 +238,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupportsMultisetAttributes, Multiset)
     context->SetRequestInfo("KeyCount: %v", request->subrequests_size());
 
     auto ctx = New<TCtxMultisetAttributes>(
-        context->GetUnderlyingYPathContext(),
+        context->GetUnderlyingContext(),
         context->GetOptions());
     ctx->DeserializeRequest();
 
@@ -1634,11 +1649,18 @@ class TYPathServiceContext
     , public IYPathServiceContext
 {
 public:
-    template <class... TArg>
-    TYPathServiceContext(const TReadRequestComplexity& limits, TArg&&... arg)
-        : TServiceContextBase(std::forward<TArg>(arg)...)
+    template <class... TArgs>
+    TYPathServiceContext(const TReadRequestComplexity& limits, TArgs&&... args)
+        : TServiceContextBase(std::forward<TArgs>(args)...)
         , ReadComplexityLimiter_(New<TReadRequestComplexityLimiter>(limits))
     { }
+
+    void SetRequestHeader(std::unique_ptr<NRpc::NProto::TRequestHeader> header) override
+    {
+        RequestHeader_ = std::move(header);
+        RequestMessage_ = NRpc::SetRequestHeader(RequestMessage_, *RequestHeader_);
+        CachedYPathExt_ = nullptr;
+    }
 
     TReadRequestComplexityLimiterPtr GetReadRequestComplexityLimiter() final
     {
@@ -1646,17 +1668,18 @@ public:
     }
 
 protected:
-    std::optional<NProfiling::TWallTimer> Timer_;
-    const NProto::TYPathHeaderExt* YPathExt_ = nullptr;
     TReadRequestComplexityLimiterPtr ReadComplexityLimiter_;
+
+    std::optional<NProfiling::TWallTimer> Timer_;
+    const NProto::TYPathHeaderExt* CachedYPathExt_ = nullptr;
 
 
     const NProto::TYPathHeaderExt& GetYPathExt()
     {
-        if (!YPathExt_) {
-            YPathExt_ = &RequestHeader_->GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+        if (!CachedYPathExt_) {
+            CachedYPathExt_ = &RequestHeader_->GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
         }
-        return *YPathExt_;
+        return *CachedYPathExt_;
     }
 
 

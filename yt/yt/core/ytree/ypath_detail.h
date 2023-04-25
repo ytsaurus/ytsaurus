@@ -29,6 +29,7 @@ namespace NYT::NYTree {
 struct IYPathServiceContext
     : public virtual NRpc::IServiceContext
 {
+    virtual void SetRequestHeader(std::unique_ptr<NRpc::NProto::TRequestHeader> header) = 0;
     virtual TReadRequestComplexityLimiterPtr GetReadRequestComplexityLimiter() = 0;
 };
 
@@ -36,30 +37,24 @@ DEFINE_REFCOUNTED_TYPE(IYPathServiceContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TRequestMessage, class TResponseMessage>
-class TTypedYPathServiceContext
-    : public NRpc::TTypedServiceContext<TRequestMessage, TResponseMessage>
+class TYPathServiceContextWrapper
+    : public NRpc::TServiceContextWrapper
     , public IYPathServiceContext
 {
-    using TBase = NRpc::TTypedServiceContext<TRequestMessage, TResponseMessage>;
-
 public:
-    using typename TBase::TTypedRequest;
-    using typename TBase::TTypedResponse;
+    explicit TYPathServiceContextWrapper(IYPathServiceContextPtr underlyingContext);
 
-    TTypedYPathServiceContext(
-        IYPathServiceContextPtr context,
-        const NRpc::THandlerInvocationOptions& options);
-
-    IYPathServiceContext* GetUnderlyingYPathContext();
-
+    void SetRequestHeader(std::unique_ptr<NRpc::NProto::TRequestHeader> header) override;
     TReadRequestComplexityLimiterPtr GetReadRequestComplexityLimiter() override;
 
-protected:
-    IYPathServiceContext* const UnderlyingYPathContext_;
+    const IYPathServiceContextPtr& GetUnderlyingContext() const;
+
+private:
+    const IYPathServiceContextPtr UnderlyingContext_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 #define DECLARE_YPATH_SERVICE_METHOD(ns, method) \
     using TCtx##method = ::NYT::NYTree::TTypedYPathServiceContext<ns::TReq##method, ns::TRsp##method>; \
@@ -141,10 +136,8 @@ class TSupportsExistsBase
     : public virtual TRefCounted
 {
 protected:
-    using TCtxExists = NRpc::TTypedServiceContext<NProto::TReqExists, NProto::TRspExists>;
-    using TCtxExistsPtr = TIntrusivePtr<TCtxExists>;
-
-    void Reply(const TCtxExistsPtr& context, bool value);
+    template <class TContextPtr>
+    void Reply(const TContextPtr& context, bool value);
 };
 
 class TSupportsMultisetAttributes

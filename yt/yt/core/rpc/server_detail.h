@@ -98,8 +98,8 @@ public:
     void SetResponseCodec(NCompression::ECodec codec) override;
 
 protected:
-    const std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
-    const TSharedRefArray RequestMessage_;
+    std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
+    TSharedRefArray RequestMessage_;
     const NLogging::TLogger Logger;
     const NLogging::ELogLevel LogLevel_;
 
@@ -234,7 +234,9 @@ public:
     NCompression::ECodec GetResponseCodec() const override;
     void SetResponseCodec(NCompression::ECodec codec) override;
 
-protected:
+    const IServiceContextPtr& GetUnderlyingContext() const;
+
+private:
     const IServiceContextPtr UnderlyingContext_;
 };
 

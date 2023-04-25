@@ -48,12 +48,6 @@ namespace NYT::NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRequestMessage>
-class TTypedServiceContextBase;
-
-template <class TRequestMessage, class TResponseMessage>
-class TTypedServiceContext;
-
-template <class TRequestMessage>
 class TTypedServiceRequest
     : public TRequestMessage
 {
@@ -75,8 +69,13 @@ public:
     }
 
 private:
-    template <class TRequestMessage_, class TResponseMessage_>
-    friend class TTypedServiceContext;
+    template <
+        class TServiceContext,
+        class TServiceContextWrapper,
+        class TRequestMessage_,
+        class TResponseMessage
+    >
+    friend class TGenericTypedServiceContext;
 
     IServiceContext* Context_ = nullptr;
 };
@@ -109,8 +108,13 @@ public:
     }
 
 private:
-    template <class TRequestMessage_, class TResponseMessage_>
-    friend class TTypedServiceContext;
+    template <
+        class TServiceContext,
+        class TServiceContextWrapper,
+        class TRequestMessage,
+        class TResponseMessage_
+    >
+    friend class TGenericTypedServiceContext;
 
     IServiceContext* Context_ = nullptr;
 };
@@ -144,49 +148,55 @@ struct THandlerInvocationOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TRequestMessage, class TResponseMessage>
-class TTypedServiceContext
+template <
+    class TServiceContext,
+    class TServiceContextWrapper,
+    class TRequestMessage,
+    class TResponseMessage
+>
+class TGenericTypedServiceContext
     : public TServiceContextWrapper
 {
 public:
     using TTypedRequest = TTypedServiceRequest<TRequestMessage>;
     using TTypedResponse = TTypedServiceResponse<TResponseMessage>;
-    using TThis = TTypedServiceContext<TRequestMessage, TResponseMessage>;
 
-    TTypedServiceContext(
-        IServiceContextPtr context,
+    TGenericTypedServiceContext(
+        TIntrusivePtr<TServiceContext> context,
         const THandlerInvocationOptions& options)
         : TServiceContextWrapper(std::move(context))
         , Options_(options)
     {
-        Response_ = UnderlyingContext_->IsPooled()
+        const auto& underlyingContext = this->GetUnderlyingContext();
+        Response_ = underlyingContext->IsPooled()
             ? ObjectPool<TTypedResponse, TPooledTypedResponseTraits<TResponseMessage>>().Allocate()
             : std::make_shared<TTypedResponse>();
+        Response_->Context_ = underlyingContext.Get();
 
-        Response_->Context_ = this->UnderlyingContext_.Get();
-
-        if (GetResponseCodec() == NCompression::ECodec::None) {
-            SetResponseCodec(Options_.ResponseCodec);
+        if (this->GetResponseCodec() == NCompression::ECodec::None) {
+            this->SetResponseCodec(Options_.ResponseCodec);
         }
     }
 
     bool DeserializeRequest()
     {
-        if (UnderlyingContext_->IsPooled()) {
+        const auto& underlyingContext = this->GetUnderlyingContext();
+        if (underlyingContext->IsPooled()) {
             Request_ = ObjectPool<TTypedRequest, TPooledTypedRequestTraits<TRequestMessage>>().Allocate();
         } else {
             Request_ = std::make_shared<TTypedRequest>();
         }
-        Request_->Context_ = UnderlyingContext_.Get();
 
-        const auto& requestHeader = GetRequestHeader();
-        auto body = UnderlyingContext_->GetRequestBody();
+        Request_->Context_ = underlyingContext.Get();
+
+        const auto& requestHeader = this->GetRequestHeader();
+        auto body = underlyingContext->GetRequestBody();
         if (requestHeader.has_request_format()) {
-            auto format = static_cast<EMessageFormat>(GetRequestHeader().request_format());
+            auto format = static_cast<EMessageFormat>(requestHeader.request_format());
 
             NYson::TYsonString formatOptionsYson;
-            if (GetRequestHeader().has_request_format_options()) {
-                formatOptionsYson = NYson::TYsonString(GetRequestHeader().request_format_options());
+            if (requestHeader.has_request_format_options()) {
+                formatOptionsYson = NYson::TYsonString(requestHeader.request_format_options());
             }
             if (format != EMessageFormat::Protobuf) {
                 body = ConvertMessageFromFormat(
@@ -204,7 +214,7 @@ public:
             int intCodecId = requestHeader.request_codec();
             NCompression::ECodec codecId;
             if (!TryEnumCast(intCodecId, &codecId)) {
-                UnderlyingContext_->Reply(TError(
+                underlyingContext->Reply(TError(
                     NRpc::EErrorCode::ProtocolError,
                     "Request codec %v is not supported",
                     intCodecId));
@@ -221,7 +231,7 @@ public:
             ? TryDeserializeProtoWithCompression(Request_.get(), body, *bodyCodecId)
             : TryDeserializeProtoWithEnvelope(Request_.get(), body);
         if (!deserializationSucceeded) {
-            UnderlyingContext_->Reply(TError(
+            underlyingContext->Reply(TError(
                 NRpc::EErrorCode::ProtocolError,
                 "Error deserializing request body"));
             return false;
@@ -230,10 +240,10 @@ public:
         std::vector<TSharedRef> requestAttachments;
         try {
             requestAttachments = DecompressAttachments(
-                UnderlyingContext_->RequestAttachments(),
+                underlyingContext->RequestAttachments(),
                 attachmentCodecId);
         } catch (const std::exception& ex) {
-            UnderlyingContext_->Reply(TError(
+            underlyingContext->Reply(TError(
                 NRpc::EErrorCode::ProtocolError,
                 "Error deserializing request attachments")
                 << ex);
@@ -273,11 +283,11 @@ public:
         Reply(TError());
     }
 
-    void Reply(const TError& error) override
+    void Reply(const TError& error)
     {
         if (this->Options_.Heavy) {
             TDispatcher::Get()->GetHeavyInvoker()->Invoke(BIND(
-                &TThis::DoReply,
+                &TGenericTypedServiceContext::DoReply,
                 MakeStrong(this),
                 error));
         } else {
@@ -285,18 +295,15 @@ public:
         }
     }
 
-    const IServiceContextPtr& GetUnderlyingContext() const
-    {
-        return UnderlyingContext_;
-    }
 
-    THandlerInvocationOptions GetOptions() const
+    const THandlerInvocationOptions& GetOptions() const
     {
         return Options_;
     }
 
 protected:
     const THandlerInvocationOptions Options_;
+
     typename TObjectPool<TTypedRequest, TPooledTypedRequestTraits<TRequestMessage>>::TObjectPtr Request_;
     typename TObjectPool<TTypedResponse, TPooledTypedResponseTraits<TResponseMessage>>::TObjectPtr Response_;
 
@@ -308,11 +315,12 @@ protected:
 
     TSerializedResponse SerializeResponse()
     {
-        const auto& requestHeader = GetRequestHeader();
+        const auto& underlyingContext = this->GetUnderlyingContext();
+        const auto& requestHeader = underlyingContext->GetRequestHeader();
 
         // COMPAT(kiselyovp): legacy RPC codecs
         NCompression::ECodec attachmentCodecId;
-        auto bodyCodecId = UnderlyingContext_->GetResponseCodec();
+        auto bodyCodecId = underlyingContext->GetResponseCodec();
         TSharedRef serializedBody;
         if (requestHeader.has_response_codec()) {
             serializedBody = SerializeProtoToRefWithCompression(*Response_, bodyCodecId, false);
@@ -356,22 +364,22 @@ protected:
 
     void DoReply(const TError& error)
     {
-        const auto& context = this->UnderlyingContext_;
+        const auto& underlyingContext = this->GetUnderlyingContext();
 
         if (error.IsOK()) {
             TSerializedResponse response;
             try {
                 response = SerializeResponse();
             } catch (const std::exception& ex) {
-                context->Reply(TError(ex));
+                underlyingContext->Reply(TError(ex));
                 return;
             }
 
-            this->UnderlyingContext_->SetResponseBody(std::move(response.Body));
-            this->UnderlyingContext_->ResponseAttachments() = std::move(response.Attachments);
+            underlyingContext->SetResponseBody(std::move(response.Body));
+            underlyingContext->ResponseAttachments() = std::move(response.Attachments);
         }
 
-        this->UnderlyingContext_->Reply(error);
+        underlyingContext->Reply(error);
     }
 };
 

@@ -704,6 +704,11 @@ void TServiceContextWrapper::SetResponseCodec(NCompression::ECodec codec)
     UnderlyingContext_->SetResponseCodec(codec);
 }
 
+const IServiceContextPtr& TServiceContextWrapper::GetUnderlyingContext() const
+{
+    return UnderlyingContext_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TServerBase::RegisterService(IServicePtr service)

@@ -47,9 +47,6 @@ class TClientResponse;
 template <class TResponseMessage>
 class TTypedClientResponse;
 
-template <class TRequestMessage, class TResponseMessage>
-class TTypedServiceContext;
-
 struct TServiceId;
 
 struct TAuthenticationContext;
@@ -82,6 +79,24 @@ DECLARE_REFCOUNTED_CLASS(TAttachmentsOutputStream)
 
 DECLARE_REFCOUNTED_STRUCT(IViablePeerRegistry)
 DECLARE_REFCOUNTED_CLASS(TDynamicChannelPool)
+
+template <
+    class TServiceContext,
+    class TServiceContextWrapper,
+    class TRequestMessage,
+    class TResponseMessage
+>
+class TGenericTypedServiceContext;
+
+class TServiceContextWrapper;
+
+template <class TRequestMessage, class TResponseMessage>
+using TTypedServiceContext = TGenericTypedServiceContext<
+    IServiceContext,
+    TServiceContextWrapper,
+    TRequestMessage,
+    TResponseMessage
+>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -8,24 +8,12 @@ namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TRequestMessage, class TResponseMessage>
-TTypedYPathServiceContext<TRequestMessage, TResponseMessage>::TTypedYPathServiceContext(
-    IYPathServiceContextPtr context,
-    const NRpc::THandlerInvocationOptions& options)
-    : TBase(context, options)
-    , UnderlyingYPathContext_(context.Get())
-{ }
-
-template <class TRequestMessage, class TResponseMessage>
-IYPathServiceContext* TTypedYPathServiceContext<TRequestMessage, TResponseMessage>::GetUnderlyingYPathContext()
+template <class TContextPtr>
+void TSupportsExistsBase::Reply(const TContextPtr& context, bool value)
 {
-    return UnderlyingYPathContext_;
-}
-
-template <class TRequestMessage, class TResponseMessage>
-TReadRequestComplexityLimiterPtr TTypedYPathServiceContext<TRequestMessage, TResponseMessage>::GetReadRequestComplexityLimiter()
-{
-    return UnderlyingYPathContext_->GetReadRequestComplexityLimiter();
+    context->Response().set_value(value);
+    context->SetResponseInfo("Result: %v", value);
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
