@@ -968,31 +968,43 @@ public :
     {
         turn_type const& current_turn = m_turns[turn_index];
 
+        bool const back_at_start_cluster
+                = has_points
+                && current_turn.is_clustered()
+                && m_turns[start_turn_index].cluster_id == current_turn.cluster_id;
         if (BOOST_GEOMETRY_CONDITION(target_operation == operation_intersection))
         {
-            if (has_points)
-            {
-                bool const back_at_start_cluster
-                        = current_turn.is_clustered()
-                        && m_turns[start_turn_index].cluster_id == current_turn.cluster_id;
+            // Intersection or difference
 
-                if (turn_index == start_turn_index || back_at_start_cluster)
-                {
-                    // Intersection can always be finished if returning
-                    turn_index = start_turn_index;
-                    op_index = start_op_index;
-                    return true;
-                }
+            if (has_points && (turn_index == start_turn_index || back_at_start_cluster))
+            {
+                // Intersection can always be finished if returning
+                turn_index = start_turn_index;
+                op_index = start_op_index;
+                return true;
             }
 
             if (! current_turn.is_clustered()
-                && current_turn.both(operation_intersection))
-            {
-                if (analyze_ii_intersection(turn_index, op_index,
+                && current_turn.both(operation_intersection)
+                && analyze_ii_intersection(turn_index, op_index,
                             current_turn, previous_seg_id))
-                {
-                    return true;
-                }
+            {
+                return true;
+            }
+        }
+        else if (turn_index == start_turn_index || back_at_start_cluster)
+        {
+            // Union or buffer: cannot return immediately to starting turn, because it then
+            // might miss a formed multi polygon with a touching point.
+            auto const& current_op = current_turn.operations[op_index];
+            signed_size_type const next_turn_index = current_op.enriched.get_next_turn_index();
+            bool const to_other_turn = next_turn_index >= 0 && m_turns[next_turn_index].cluster_id != current_turn.cluster_id;
+            if (! to_other_turn)
+            {
+                // Return to starting point
+                turn_index = start_turn_index;
+                op_index = start_op_index;
+                return true;
             }
         }
 

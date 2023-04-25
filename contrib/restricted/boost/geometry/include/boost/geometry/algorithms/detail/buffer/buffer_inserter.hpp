@@ -58,7 +58,7 @@ namespace boost { namespace geometry
 namespace detail { namespace buffer
 {
 
-template <typename RangeIn, typename RangeOut, typename DistanceStrategy, typename Strategies>
+template <typename RangeIn, typename DistanceStrategy, typename RangeOut, typename Strategies>
 inline void simplify_input(RangeIn const& range,
                            DistanceStrategy const& distance,
                            RangeOut& simplified,

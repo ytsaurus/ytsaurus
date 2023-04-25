@@ -58,9 +58,9 @@ class join_round
 public :
 
     //! \brief Constructs the strategy
-    //! \param points_per_circle points which would be used for a full circle
-    explicit inline join_round(std::size_t points_per_circle = 90)
-        : m_points_per_circle(points_per_circle)
+    //! \param points_per_circle Number of points (minimum 4) that would be used for a full circle
+    explicit inline join_round(std::size_t points_per_circle = default_points_per_circle)
+        : m_points_per_circle(get_point_count_for_join(points_per_circle))
     {}
 
 private :

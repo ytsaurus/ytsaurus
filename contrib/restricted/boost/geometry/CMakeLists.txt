@@ -15,6 +15,7 @@ target_link_libraries(restricted-boost-geometry INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   restricted-boost-algorithm
+  restricted-boost-any
   restricted-boost-array
   restricted-boost-assert
   restricted-boost-concept_check
@@ -33,6 +34,7 @@ target_link_libraries(restricted-boost-geometry INTERFACE
   restricted-boost-multiprecision
   restricted-boost-numeric_conversion
   restricted-boost-polygon
+  restricted-boost-predef
   restricted-boost-qvm
   restricted-boost-range
   restricted-boost-rational
@@ -46,4 +48,5 @@ target_link_libraries(restricted-boost-geometry INTERFACE
   restricted-boost-type_traits
   restricted-boost-utility
   restricted-boost-variant
+  restricted-boost-variant2
 )

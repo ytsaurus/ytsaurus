@@ -29,6 +29,7 @@
 #include <boost/geometry/core/point_order.hpp>
 #include <boost/geometry/algorithms/detail/overlay/cluster_info.hpp>
 #include <boost/geometry/algorithms/detail/overlay/do_reverse.hpp>
+#include <boost/geometry/algorithms/detail/overlay/colocate_clusters.hpp>
 #include <boost/geometry/algorithms/detail/overlay/get_clusters.hpp>
 #include <boost/geometry/algorithms/detail/overlay/get_ring.hpp>
 #include <boost/geometry/algorithms/detail/overlay/is_self_turn.hpp>
@@ -52,22 +53,22 @@ namespace boost { namespace geometry
 namespace detail { namespace overlay
 {
 
+// Removes clusters which have only one point left, or are empty.
 template <typename Turns, typename Clusters>
 inline void remove_clusters(Turns& turns, Clusters& clusters)
 {
-    typename Clusters::iterator it = clusters.begin();
+    auto it = clusters.begin();
     while (it != clusters.end())
     {
         // Hold iterator and increase. We can erase cit, this keeps the
         // iterator valid (cf The standard associative-container erase idiom)
-        typename Clusters::iterator current_it = it;
+        auto current_it = it;
         ++it;
 
-        std::set<signed_size_type> const& turn_indices
-                = current_it->second.turn_indices;
+        auto const& turn_indices = current_it->second.turn_indices;
         if (turn_indices.size() == 1)
         {
-            signed_size_type const turn_index = *turn_indices.begin();
+            auto const turn_index = *turn_indices.begin();
             turns[turn_index].cluster_id = -1;
             clusters.erase(current_it);
         }
@@ -78,18 +79,16 @@ template <typename Turns, typename Clusters>
 inline void cleanup_clusters(Turns& turns, Clusters& clusters)
 {
     // Removes discarded turns from clusters
-    for (typename Clusters::iterator mit = clusters.begin();
-         mit != clusters.end(); ++mit)
+    for (auto& pair : clusters)
     {
-        cluster_info& cinfo = mit->second;
-        std::set<signed_size_type>& ids = cinfo.turn_indices;
-        for (std::set<signed_size_type>::iterator sit = ids.begin();
-             sit != ids.end(); /* no increment */)
+        auto& cinfo = pair.second;
+        auto& ids = cinfo.turn_indices;
+        for (auto sit = ids.begin(); sit != ids.end(); /* no increment */)
         {
-            std::set<signed_size_type>::iterator current_it = sit;
+            auto current_it = sit;
             ++sit;
 
-            signed_size_type const turn_index = *current_it;
+            auto const turn_index = *current_it;
             if (turns[turn_index].discarded)
             {
                 ids.erase(current_it);
@@ -98,6 +97,7 @@ inline void cleanup_clusters(Turns& turns, Clusters& clusters)
     }
 
     remove_clusters(turns, clusters);
+    colocate_clusters(clusters, turns);
 }
 
 template <typename Turn, typename IdSet>
