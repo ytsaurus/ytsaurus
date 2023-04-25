@@ -2,13 +2,15 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove,
-    exists, concatenate, move,
+    exists, concatenate, move, lookup_rows,
     create_account, create_user, make_ace, insert_rows,
     alter_table, read_table, write_table, map, merge,
     sync_create_cells, sync_mount_table, update_nodes_dynamic_config,
     start_transaction, abort_transaction, commit_transaction,
     sync_unmount_table, create_dynamic_table, wait_for_sys_config_sync,
     get_singular_chunk_id)
+
+from yt.test_helpers import assert_items_equal
 
 from yt_helpers import get_chunk_owner_master_cell_counters
 
@@ -207,9 +209,11 @@ class TestChunkMerger(YTEnvSetup):
         rows = read_table("//tmp/t")
 
         self._wait_for_merge("//tmp/t", merge_mode)
-
         alter_table("//tmp/t", dynamic=True)
         sync_mount_table("//tmp/t")
+
+        keys = [{"key": i} for i in range(1, 4)]
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
         merged_rows = read_table("//tmp/t")
         assert _schematize_rows(rows, schema) == _schematize_rows(merged_rows, schema)
