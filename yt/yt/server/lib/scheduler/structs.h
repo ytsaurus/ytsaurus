@@ -4,15 +4,15 @@
 
 #include "scheduling_tag.h"
 
+#include <yt/yt/server/lib/controller_agent/public.h>
+
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
-
-#include <yt/yt/server/lib/controller_agent/public.h>
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 namespace NYT::NScheduler {
 
@@ -92,8 +92,8 @@ struct TPreemptedFor
 
 TString ToString(const TPreemptedFor& preemptedFor);
 
-void ToProto(NJobTrackerClient::NProto::TPreemptedFor* proto, const TPreemptedFor& preemptedFor);
-void FromProto(TPreemptedFor* preemptedFor, const NJobTrackerClient::NProto::TPreemptedFor& proto);
+void ToProto(NControllerAgent::NProto::TPreemptedFor* proto, const TPreemptedFor& preemptedFor);
+void FromProto(TPreemptedFor* preemptedFor, const NControllerAgent::NProto::TPreemptedFor& proto);
 
 void Serialize(const TPreemptedFor& preemptedFor, NYson::IYsonConsumer* consumer);
 void Deserialize(TPreemptedFor& preemptedFor, const NYTree::INodePtr& node);

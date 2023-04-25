@@ -58,7 +58,7 @@ bool TTimeStatistics::IsEmpty() const
 }
 
 void ToProto(
-    NJobTrackerClient::NProto::TTimeStatistics* timeStatisticsProto,
+    NControllerAgent::NProto::TTimeStatistics* timeStatisticsProto,
     const TTimeStatistics& timeStatistics)
 {
     if (timeStatistics.PrepareDuration) {
@@ -80,7 +80,7 @@ void ToProto(
 
 void FromProto(
     TTimeStatistics* timeStatistics,
-    const NJobTrackerClient::NProto::TTimeStatistics& timeStatisticsProto)
+    const NControllerAgent::NProto::TTimeStatistics& timeStatisticsProto)
 {
     if (timeStatisticsProto.has_prepare_duration()) {
         timeStatistics->PrepareDuration = FromProto<TDuration>(timeStatisticsProto.prepare_duration());

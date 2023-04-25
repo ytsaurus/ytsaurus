@@ -136,7 +136,7 @@ public:
     void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error);
     void InterruptJob(TJobId jobId, EInterruptReason reason);
     void FailJob(TJobId jobId);
-    void ReleaseJob(TJobId jobId, NJobTrackerClient::TReleaseJobFlags releaseFlags);
+    void ReleaseJob(TJobId jobId, NControllerAgent::TReleaseJobFlags releaseFlags);
 
     void BuildNodesYson(NYTree::TFluentMap fluent);
 

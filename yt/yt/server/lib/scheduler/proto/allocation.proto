@@ -1,6 +1,6 @@
 package NYT.NScheduler.NProto;
 
-import "yt/ytlib/job_tracker_client/proto/job.proto";
+import "yt/ytlib/controller_agent/proto/job.proto";
 
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
@@ -20,12 +20,12 @@ message TAllocationStatus
     required NYT.NProto.TGuid allocation_id = 1;
     required NYT.NProto.TGuid operation_id = 2;
     required int32 state = 3;
-    
+
     optional TAllocationResult result = 4;
     optional NNodeTrackerClient.NProto.TNodeResources resource_usage = 5;
 
     // COMPAT(pogorelov)
-    optional NJobTrackerClient.NProto.TTimeStatistics time_statistics = 6;
+    optional NYT.NControllerAgent.NProto.TTimeStatistics time_statistics = 6;
     optional int64 status_timestamp = 7;
 }
 

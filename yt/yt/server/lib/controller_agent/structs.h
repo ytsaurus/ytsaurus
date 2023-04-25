@@ -74,7 +74,7 @@ struct TJobSummary
     //! Total output data statistics. May be absent for running job summary or for abandoned completed job summary.
     std::optional<NChunkClient::NProto::TDataStatistics> TotalOutputDataStatistics;
 
-    NJobTrackerClient::TReleaseJobFlags ReleaseFlags;
+    TReleaseJobFlags ReleaseFlags;
 
     TInstant StatusTimestamp;
     bool JobExecutionCompleted = false;

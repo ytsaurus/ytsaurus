@@ -16,6 +16,11 @@ struct TJobToAbort
     std::optional<NScheduler::EAbortReason> AbortReason = {};
 };
 
+struct TJobToRemove
+{
+    TJobId JobId;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
@@ -24,11 +29,14 @@ void ToProto(NProto::TJobToAbort* protoJobToAbort, const NJobTrackerClient::TJob
 
 void FromProto(NJobTrackerClient::TJobToAbort* jobToAbort, const NProto::TJobToAbort& protoJobToAbort);
 
+void ToProto(NProto::TJobToRemove* protoJob, const NJobTrackerClient::TJobToRemove& jobToRemove);
+
+void FromProto(NJobTrackerClient::TJobToRemove* jobToRemove, const NProto::TJobToRemove& protoJobToRemove);
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(pogorelov): Remove it.
 void AddJobToAbort(NProto::TRspHeartbeat* response, const TJobToAbort& jobToAbort);
 
 ////////////////////////////////////////////////////////////////////////////////

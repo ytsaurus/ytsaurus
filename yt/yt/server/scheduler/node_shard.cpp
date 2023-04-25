@@ -57,7 +57,6 @@ using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
 
-using NJobTrackerClient::TReleaseJobFlags;
 using NNodeTrackerClient::TNodeId;
 using NScheduler::NProto::TSchedulerJobResultExt;
 
@@ -1851,7 +1850,7 @@ void TNodeShard::ProcessHeartbeatJobs(
                     nodeAddress,
                     *jobInfo.ReleaseFlags);
                 recentlyFinishedJobIdsToRemove.insert(jobId);
-                ToProto(response->add_jobs_to_remove(), NJobTrackerClient::TJobToRelease{jobId, *jobInfo.ReleaseFlags});
+                ToProto(response->add_jobs_to_remove(), NControllerAgent::TJobToRelease{jobId, *jobInfo.ReleaseFlags});
             } else if (now > jobInfo.EvictionDeadline) {
                 YT_LOG_DEBUG("Removing job from recently finished due to timeout for release "
                     "(JobId: %v, NodeId: %v, NodeAddress: %v)",
@@ -1859,7 +1858,7 @@ void TNodeShard::ProcessHeartbeatJobs(
                     nodeId,
                     nodeAddress);
                 recentlyFinishedJobIdsToRemove.insert(jobId);
-                ToProto(response->add_jobs_to_remove(), NJobTrackerClient::TJobToRelease{jobId});
+                ToProto(response->add_jobs_to_remove(), NControllerAgent::TJobToRelease{jobId});
             }
         }
         for (auto jobId : recentlyFinishedJobIdsToRemove) {

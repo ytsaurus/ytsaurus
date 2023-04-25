@@ -222,7 +222,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
                 "Request node to remove job (JobId: %v, ReleaseFlags: %v)",
                 jobId,
                 releaseFlags);
-            ToProto(response->add_jobs_to_remove(), NJobTrackerClient::TJobToRelease{jobId, releaseFlags});
+            ToProto(response->add_jobs_to_remove(), TJobToRelease{jobId, releaseFlags});
         }
 
         for (auto jobId : releasedJobs) {
@@ -343,7 +343,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
                 if (shouldAbortJob) {
                     NProto::ToProto(response->add_jobs_to_abort(), TJobToAbort{jobId, EAbortReason::Unknown});
                 } else {
-                    ToProto(response->add_jobs_to_remove(), NJobTrackerClient::TJobToRelease{jobId});
+                    ToProto(response->add_jobs_to_remove(), TJobToRelease{jobId});
                 }
             }
         } else {
@@ -655,7 +655,7 @@ void TJobTracker::DoReviveJobs(
 
 void TJobTracker::DoReleaseJobs(
     TOperationId operationId,
-    const std::vector<NJobTrackerClient::TJobToRelease>& jobs)
+    const std::vector<TJobToRelease>& jobs)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -672,7 +672,7 @@ void TJobTracker::DoReleaseJobs(
             loggingJobSampleMaxSize);
     }
 
-    THashMap<TNodeId, std::vector<NJobTrackerClient::TJobToRelease>> jobsByNodes;
+    THashMap<TNodeId, std::vector<TJobToRelease>> jobsByNodes;
     jobsByNodes.reserve(std::size(jobs));
 
     for (const auto& job : jobs) {
@@ -1068,7 +1068,7 @@ void TJobTrackerOperationHandler::ReviveJobs(std::vector<TStartedJobInfo> jobs)
         std::move(jobs)));
 }
 
-void TJobTrackerOperationHandler::ReleaseJobs(std::vector<NJobTrackerClient::TJobToRelease> jobs)
+void TJobTrackerOperationHandler::ReleaseJobs(std::vector<TJobToRelease> jobs)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

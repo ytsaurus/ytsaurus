@@ -103,13 +103,13 @@ TString ToString(const TPreemptedFor& preemptedFor)
         preemptedFor.JobId);
 }
 
-void ToProto(NJobTrackerClient::NProto::TPreemptedFor* proto, const TPreemptedFor& preemptedFor)
+void ToProto(NControllerAgent::NProto::TPreemptedFor* proto, const TPreemptedFor& preemptedFor)
 {
     ToProto(proto->mutable_job_id(), preemptedFor.JobId);
     ToProto(proto->mutable_operation_id(), preemptedFor.OperationId);
 }
 
-void FromProto(TPreemptedFor* preemptedFor, const NJobTrackerClient::NProto::TPreemptedFor& proto)
+void FromProto(TPreemptedFor* preemptedFor, const NControllerAgent::NProto::TPreemptedFor& proto)
 {
     FromProto(&preemptedFor->JobId, proto.job_id());
     FromProto(&preemptedFor->OperationId, proto.operation_id());

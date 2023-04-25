@@ -95,7 +95,7 @@ private:
     {
         THashMap<TJobId, TJobInfo> Jobs;
         THashMap<TJobId, TOperationId> JobsToConfirm;
-        THashMap<TJobId, NJobTrackerClient::TReleaseJobFlags> JobsToRelease;
+        THashMap<TJobId, TReleaseJobFlags> JobsToRelease;
         THashMap<TJobId, NScheduler::EAbortReason> JobsToAbort;
     };
 
@@ -137,7 +137,7 @@ private:
 
     void DoReleaseJobs(
         TOperationId operationId,
-        const std::vector<NJobTrackerClient::TJobToRelease>& jobs);
+        const std::vector<TJobToRelease>& jobs);
 
     void DoAbortJobOnNode(TJobId jobId, TOperationId operationId, NScheduler::EAbortReason abortReason);
 
@@ -181,7 +181,7 @@ public:
 
     void ReviveJobs(std::vector<TStartedJobInfo> jobs);
 
-    void ReleaseJobs(std::vector<NJobTrackerClient::TJobToRelease> jobs);
+    void ReleaseJobs(std::vector<TJobToRelease> jobs);
 
     void AbortJobOnNode(
         TJobId jobId,

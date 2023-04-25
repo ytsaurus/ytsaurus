@@ -43,7 +43,7 @@ using namespace NYTree;
 using namespace NControllerAgent;
 using namespace NTracing;
 
-using NJobTrackerClient::TReleaseJobFlags;
+using NControllerAgent::TReleaseJobFlags;
 
 using NYT::FromProto;
 using NYT::ToProto;

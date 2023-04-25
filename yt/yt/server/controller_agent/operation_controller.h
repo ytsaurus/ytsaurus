@@ -177,7 +177,7 @@ struct IOperationControllerHost
 
     virtual void RegisterJob(TStartedJobInfo jobInfo) = 0;
     virtual void ReviveJobs(std::vector<TStartedJobInfo> jobs) = 0;
-    virtual void ReleaseJobs(std::vector<NJobTrackerClient::TJobToRelease> jobs) = 0;
+    virtual void ReleaseJobs(std::vector<TJobToRelease> jobs) = 0;
     virtual void AbortJobOnNode(
         TJobId jobId,
         NScheduler::EAbortReason abortReason) = 0;

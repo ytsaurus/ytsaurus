@@ -9883,7 +9883,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     // COMPAT(pogorelov)
     if (context.GetVersion() < ESnapshotVersion::DoNotPersistJobReleaseFlags) {
-        THashMap<TJobId, NJobTrackerClient::TReleaseJobFlags> releaseJobFlags;
+        THashMap<TJobId, TReleaseJobFlags> releaseJobFlags;
         Persist(context, releaseJobFlags);
     }
 

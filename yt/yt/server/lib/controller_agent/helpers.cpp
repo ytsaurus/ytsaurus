@@ -26,7 +26,7 @@
 #include <util/generic/cast.h>
 
 // TODO(max42): this whole file must be moved to server/lib/job_tracker_client.
-namespace NYT::NJobTrackerClient {
+namespace NYT::NControllerAgent {
 
 using namespace NTableClient;
 
@@ -115,46 +115,6 @@ TTableSchemaPtr RenameColumnsInSchema(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto {
-
-void ToProto(NProto::TReleaseJobFlags* protoReleaseJobFlags, const NJobTrackerClient::TReleaseJobFlags& releaseJobFlags)
-{
-    protoReleaseJobFlags->set_archive_job_spec(releaseJobFlags.ArchiveJobSpec);
-    protoReleaseJobFlags->set_archive_stderr(releaseJobFlags.ArchiveStderr);
-    protoReleaseJobFlags->set_archive_fail_context(releaseJobFlags.ArchiveFailContext);
-    protoReleaseJobFlags->set_archive_profile(releaseJobFlags.ArchiveProfile);
-}
-
-void FromProto(NJobTrackerClient::TReleaseJobFlags* releaseJobFlags, const NProto::TReleaseJobFlags& protoReleaseJobFlags)
-{
-    releaseJobFlags->ArchiveJobSpec = protoReleaseJobFlags.archive_job_spec();
-    releaseJobFlags->ArchiveStderr = protoReleaseJobFlags.archive_stderr();
-    releaseJobFlags->ArchiveFailContext = protoReleaseJobFlags.archive_fail_context();
-    releaseJobFlags->ArchiveProfile = protoReleaseJobFlags.archive_profile();
-}
-
-void ToProto(NProto::TJobToRemove* protoJobToRemove, const NJobTrackerClient::TJobToRelease& jobToRelease)
-{
-    ToProto(protoJobToRemove->mutable_job_id(), jobToRelease.JobId);
-    ToProto(protoJobToRemove->mutable_release_job_flags(), jobToRelease.ReleaseFlags);
-}
-
-void FromProto(NJobTrackerClient::TJobToRelease* jobToRelease, const NProto::TJobToRemove& protoJobToRemove)
-{
-    FromProto(&jobToRelease->JobId, protoJobToRemove.job_id());
-    FromProto(&jobToRelease->ReleaseFlags, protoJobToRemove.release_job_flags());
-}
-
-} // namespace NProto
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NJobTrackerClient
-
-namespace NYT::NControllerAgent {
-
-////////////////////////////////////////////////////////////////////////////////
-
 void PackBaggageFromJobSpec(
     const NTracing::TTraceContextPtr& traceContext,
     const NControllerAgent::NProto::TJobSpec& jobSpec,
@@ -172,6 +132,34 @@ void PackBaggageFromJobSpec(
 }
 
 namespace NProto {
+
+void ToProto(NProto::TReleaseJobFlags* protoReleaseJobFlags, const NControllerAgent::TReleaseJobFlags& releaseJobFlags)
+{
+    protoReleaseJobFlags->set_archive_job_spec(releaseJobFlags.ArchiveJobSpec);
+    protoReleaseJobFlags->set_archive_stderr(releaseJobFlags.ArchiveStderr);
+    protoReleaseJobFlags->set_archive_fail_context(releaseJobFlags.ArchiveFailContext);
+    protoReleaseJobFlags->set_archive_profile(releaseJobFlags.ArchiveProfile);
+}
+
+void FromProto(NControllerAgent::TReleaseJobFlags* releaseJobFlags, const NProto::TReleaseJobFlags& protoReleaseJobFlags)
+{
+    releaseJobFlags->ArchiveJobSpec = protoReleaseJobFlags.archive_job_spec();
+    releaseJobFlags->ArchiveStderr = protoReleaseJobFlags.archive_stderr();
+    releaseJobFlags->ArchiveFailContext = protoReleaseJobFlags.archive_fail_context();
+    releaseJobFlags->ArchiveProfile = protoReleaseJobFlags.archive_profile();
+}
+
+void ToProto(NProto::TJobToRemove* protoJobToRemove, const NControllerAgent::TJobToRelease& jobToRelease)
+{
+    ToProto(protoJobToRemove->mutable_job_id(), jobToRelease.JobId);
+    ToProto(protoJobToRemove->mutable_release_job_flags(), jobToRelease.ReleaseFlags);
+}
+
+void FromProto(NControllerAgent::TJobToRelease* jobToRelease, const NProto::TJobToRemove& protoJobToRemove)
+{
+    FromProto(&jobToRelease->JobId, protoJobToRemove.job_id());
+    FromProto(&jobToRelease->ReleaseFlags, protoJobToRemove.release_job_flags());
+}
 
 void ToProto(NProto::TJobToAbort* protoJobToAbort, const NControllerAgent::TJobToAbort& jobToAbort)
 {

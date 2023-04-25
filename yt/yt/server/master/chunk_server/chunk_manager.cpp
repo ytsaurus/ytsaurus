@@ -45,8 +45,6 @@
 
 #include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
 
-#include <yt/yt/server/lib/controller_agent/helpers.h>
-
 #include <yt/yt/server/lib/hive/helpers.h>
 
 #include <yt/yt/server/lib/hydra_common/composite_automaton.h>
@@ -1781,7 +1779,7 @@ public:
             *node);
 
         auto removeJob = [&] (TJobId jobId) {
-            ToProto(response->add_jobs_to_remove(), {jobId});
+            ToProto(response->add_jobs_to_remove(), TJobToRemove{jobId});
 
             if (auto job = JobRegistry_->FindJob(jobId)) {
                 JobRegistry_->OnJobFinished(job);

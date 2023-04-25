@@ -2,8 +2,6 @@ package NYT.NControllerAgent.NProto;
 
 import "yt/ytlib/controller_agent/proto/job.proto";
 
-import "yt/ytlib/job_tracker_client/proto/job_tracker_service.proto";
-
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
@@ -41,7 +39,7 @@ message TJobToConfirm
 message TRspHeartbeat
 {
     repeated TJobToStore jobs_to_store = 1;
-    repeated NJobTrackerClient.NProto.TJobToRemove jobs_to_remove = 2;
+    repeated TJobToRemove jobs_to_remove = 2;
     repeated TJobToConfirm jobs_to_confirm = 3;
     repeated TJobToAbort jobs_to_abort = 4;
     repeated NYT.NProto.TGuid unknown_operations = 5;

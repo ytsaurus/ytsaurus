@@ -2,11 +2,11 @@ package NYT.NScheduler.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/misc/proto/error.proto";
-import "yt/ytlib/job_tracker_client/proto/job.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 import "yt_proto/yt/core/tracing/proto/tracing_ext.proto";
 import "yt/ytlib/scheduler/proto/job.proto";
 import "yt/ytlib/controller_agent/proto/controller_agent_service.proto";
+import "yt/ytlib/controller_agent/proto/job.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +86,7 @@ message TAgentToSchedulerJobEvent
     optional int32 interrupt_reason = 4; // EInterruptReason
 
     // for Release
-    optional NYT.NJobTrackerClient.NProto.TReleaseJobFlags release_job_flags = 9;
+    optional NYT.NControllerAgent.NProto.TReleaseJobFlags release_job_flags = 9;
 }
 
 message TAgentToSchedulerRunningJobStatistics

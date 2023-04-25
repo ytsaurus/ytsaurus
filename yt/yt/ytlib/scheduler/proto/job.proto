@@ -6,7 +6,6 @@ import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
 import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
 import "yt/ytlib/chunk_client/proto/data_source.proto";
-import "yt/ytlib/job_tracker_client/proto/job.proto";
 import "yt/ytlib/controller_agent/proto/job.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
 import "yt/library/query/proto/functions_cache.proto";
@@ -388,12 +387,6 @@ message TSchedulerJobSpecExt
 
 message TSchedulerJobResultExt
 {
-    // COMPAT(pogorelov)
-    extend NJobTrackerClient.NProto.TJobResult
-    {
-        optional TSchedulerJobResultExt scheduler_job_result_ext = 100;
-    }
-
     extend NControllerAgent.NProto.TJobResult
     {
         optional TSchedulerJobResultExt job_result_ext = 100;

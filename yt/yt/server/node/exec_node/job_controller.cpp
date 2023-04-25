@@ -453,7 +453,7 @@ public:
         }
 
         for (const auto& job : jobsToRemove) {
-            RemoveJob(job, NJobTrackerClient::TReleaseJobFlags{});
+            RemoveJob(job, TReleaseJobFlags{});
         }
 
         return AllSet(std::move(jobResourceReleaseFutures))
@@ -787,7 +787,7 @@ private:
     }
 
     TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
-        const NJobTrackerClient::NProto::TControllerAgentDescriptor& proto) const
+        const NScheduler::NProto::NNode::TControllerAgentDescriptor& proto) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1724,7 +1724,7 @@ private:
 
     void RemoveJob(
         const TJobPtr& job,
-        const NJobTrackerClient::TReleaseJobFlags& releaseFlags)
+        const NControllerAgent::TReleaseJobFlags& releaseFlags)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
         YT_VERIFY(job->GetPhase() >= EJobPhase::FinalizingJobProxy);
@@ -2050,7 +2050,7 @@ private:
                     VERIFY_THREAD_AFFINITY(JobThread);
 
                     if (auto job = weakJob.Lock(); job && !IsJobRemoved(job)) {
-                        RemoveJob(job, NJobTrackerClient::TReleaseJobFlags{});
+                        RemoveJob(job, TReleaseJobFlags{});
                     } else {
                         YT_LOG_DEBUG("Delayed remove skipped, since job is already removed (JobId: %v)", jobId);
                     }

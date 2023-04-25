@@ -87,7 +87,7 @@ struct TAgentToSchedulerJobEvent
     NScheduler::TControllerEpoch ControllerEpoch;
     TError Error;
     std::optional<EInterruptReason> InterruptReason;
-    std::optional<NJobTrackerClient::TReleaseJobFlags> ReleaseFlags;
+    std::optional<TReleaseJobFlags> ReleaseFlags;
 };
 
 using TAgentToSchedulerJobEventOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>>;
@@ -120,7 +120,7 @@ public:
 
     void RegisterJob(TStartedJobInfo jobInfo) override;
     void ReviveJobs(std::vector<TStartedJobInfo> jobs) override;
-    void ReleaseJobs(std::vector<NJobTrackerClient::TJobToRelease> jobs) override;
+    void ReleaseJobs(std::vector<TJobToRelease> jobs) override;
     void AbortJobOnNode(
         TJobId jobId,
         NScheduler::EAbortReason abortReason) override;
