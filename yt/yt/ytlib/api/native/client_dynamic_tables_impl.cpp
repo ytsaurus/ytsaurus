@@ -9,11 +9,9 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/ytlib/chaos_client/banned_replica_tracker.h>
-#include <yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.h>
 #include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
-#include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
 
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/functions.h>
@@ -90,12 +88,6 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include "yt/yt/core/misc/numeric_helpers.h"
 #include <yt/yt/core/misc/protobuf_helpers.h>
-
-#include <yt/yt/core/rpc/bus/channel.h>
-
-#include <yt/yt/core/rpc/balancing_channel.h>
-#include <yt/yt/core/rpc/retrying_channel.h>
-#include <yt/yt/core/rpc/config.h>
 
 #include <library/cpp/int128/int128.h>
 

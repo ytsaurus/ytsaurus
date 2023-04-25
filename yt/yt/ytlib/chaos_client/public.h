@@ -12,6 +12,7 @@ struct TAlienCellDescriptor;
 
 DECLARE_REFCOUNTED_STRUCT(IChaosCellDirectorySynchronizer)
 DECLARE_REFCOUNTED_STRUCT(IReplicationCardChannelFactory)
+DECLARE_REFCOUNTED_STRUCT(IChaosCellChannelFactory)
 DECLARE_REFCOUNTED_STRUCT(IReplicationCardResidencyCache)
 DECLARE_REFCOUNTED_STRUCT(IBannedReplicaTracker)
 DECLARE_REFCOUNTED_STRUCT(IBannedReplicaTrackerCache)
