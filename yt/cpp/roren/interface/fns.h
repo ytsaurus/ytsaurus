@@ -149,7 +149,13 @@ public:
     using TState = TState_;
 
 public:
-    static_assert(sizeof(TStateStore<TKey, TState>) == sizeof(NPrivate::IRawStateStore));
+    TStateStore() = delete;
+
+    TState& GetState(const TKey& key)
+    {
+        static_assert(sizeof(*this) == sizeof(NPrivate::IRawStateStore));
+        return *static_cast<TState*>(GetStateRaw(&key));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

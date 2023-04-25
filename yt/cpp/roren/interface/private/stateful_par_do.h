@@ -57,7 +57,7 @@ public:
                 const auto* key = &current->Key();
                 // TODO: we should keep pointer to upcasted state in our class.
                 // here we should use member function of upcasted state.
-                auto* rawState = RawStateMap_->GetState(key);
+                auto* rawState = RawStateMap_->GetStateRaw(key);
                 Func_->Do(*current, GetOutput(), *static_cast<TState*>(rawState));
             }
         } else {

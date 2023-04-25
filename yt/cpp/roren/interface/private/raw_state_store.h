@@ -12,7 +12,7 @@ class IRawStateStore
     : public TThrRefBase
 {
 public:
-    virtual void* GetState(const void* key) = 0;
+    virtual void* GetStateRaw(const void* key) = 0;
 
     template <typename TKey, typename TState>
     Y_FORCE_INLINE TStateStore<TKey, TState>* Upcast()
