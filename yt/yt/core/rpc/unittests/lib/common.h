@@ -404,8 +404,6 @@ private:
     static TString SocketPath_;
 };
 
-TString TRpcOverUdsImpl::SocketPath_ = "";
-
 ////////////////////////////////////////////////////////////////////////////////
 
 using TAllTransports = ::testing::Types<
