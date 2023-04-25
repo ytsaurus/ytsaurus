@@ -239,7 +239,7 @@ struct TExecutionPool
     const TString PoolName;
 
     // Profiling sensors.
-    const TGauge BucketCounter;
+    const NProfiling::TSummary BucketCounter;
     const NProfiling::TSummary SizeCounter;
     const TEventTimer WaitTimeCounter;
     const TEventTimer ExecTimeCounter;
@@ -259,7 +259,7 @@ struct TExecutionPool
 
     TExecutionPool(TString poolName, const TProfiler& profiler)
         : PoolName(std::move(poolName))
-        , BucketCounter(profiler.Gauge("/buckets"))
+        , BucketCounter(profiler.Summary("/buckets"))
         , SizeCounter(profiler.Summary("/size"))
         , WaitTimeCounter(profiler.Timer("/time/wait"))
         , ExecTimeCounter(profiler.Timer("/time/exec"))
@@ -371,7 +371,7 @@ public:
         IPoolWeightProviderPtr poolWeightProvider)
         : TNotifyManager(std::move(callbackEventCount), GetThreadTags(threadNamePrefix), TDuration::MilliSeconds(10))
         , ThreadNamePrefix_(threadNamePrefix)
-        , Profiler_(TProfiler{"/action_queue"}
+        , Profiler_(TProfiler{"/fair_share_queue"}
             .WithHot())
         , PoolWeightProvider_(std::move(poolWeightProvider))
     { }
@@ -632,6 +632,7 @@ private:
                 }
 
                 pool->ActiveBucketsHeap.Insert(bucket);
+                pool->BucketCounter.Record(pool->ActiveBucketsHeap.GetSize());
                 WaitHeap_.Insert(&bucket->EnqueuedTime);
             }
         });
@@ -746,7 +747,7 @@ private:
             WaitHeap_.Extract(&bucket->EnqueuedTime);
 
             pool->ActiveBucketsHeap.Extract(bucket);
-            pool->BucketCounter.Update(pool->ActiveBucketsHeap.GetSize());
+            pool->BucketCounter.Record(pool->ActiveBucketsHeap.GetSize());
 
             if (pool->ActiveBucketsHeap.Empty()) {
                 ActivePoolsHeap_.Extract(pool);
