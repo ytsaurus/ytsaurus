@@ -323,7 +323,6 @@ void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* ba
         return;
     }
 
-    int assignCount = 0;
 
     // Try to assign missing peers.
     for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
@@ -332,7 +331,6 @@ void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* ba
         }
 
         if (peers[peerId].Descriptor.IsNull()) {
-            ++assignCount;
             balancer->AssignPeer(cell, peerId);
         }
     }

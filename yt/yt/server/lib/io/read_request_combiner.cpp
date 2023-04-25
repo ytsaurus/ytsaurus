@@ -84,7 +84,6 @@ public:
             });
 
         i64 totalSize = 0;
-        int collapsedRequestCount = 0;
         {
             TIORequest collapsed;
             for (const auto& current : ioRequests) {
@@ -93,11 +92,9 @@ public:
                 {
                     totalSize += collapsed.Size;
                     collapsed = current;
-                    ++collapsedRequestCount;
                 }
             }
             totalSize += collapsed.Size;
-            ++collapsedRequestCount;
         }
 
         std::vector<TCombinedRequest> results;
