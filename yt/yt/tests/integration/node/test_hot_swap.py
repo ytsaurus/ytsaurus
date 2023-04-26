@@ -1,24 +1,25 @@
-import random
-import string
+import logging
 
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, wait,
     ls, get, create, set, make_ace,
-    create_user, exists,
+    create_user, exists, get_singular_chunk_id,
     update_nodes_dynamic_config,
-    write_table, disable_chunk_locations,
+    write_file, disable_chunk_locations,
     resurrect_chunk_locations)
 
 from yt.common import YtError
 
 ##################################################################
 
+log = logging.getLogger(__name__)
+
 
 class TestHotSwap(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 3
+    NUM_NODES = 2
     NUM_SCHEDULERS = 1
     STORE_LOCATION_COUNT = 2
 
@@ -87,13 +88,13 @@ class TestHotSwap(YTEnvSetup):
     def test_resurrect_chunk_locations(self):
         update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False, "publish_disabled_locations": True}})
         nodes = ls("//sys/cluster_nodes")
-        assert len(nodes) == 3
+        assert len(nodes) == 2
 
-        create("table", "//tmp/t")
+        create("file", "//tmp/f")
 
         def can_write(key="a"):
             try:
-                write_table("//tmp/t", {key: "b"})
+                write_file("//tmp/f", str.encode(key))
                 return True
             except YtError:
                 return False
@@ -105,8 +106,12 @@ class TestHotSwap(YTEnvSetup):
         wait(lambda: can_write())
 
         for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
-            for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
-                wait(lambda: can_write("{0}".format(random.choice(string.ascii_letters))) and get("//sys/chunk_locations/{}/@statistics/chunk_count".format(location_uuid)) != 0)
+            def chunk_count():
+                count = 0
+                for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                    count = count + get("//sys/chunk_locations/{}/@statistics/chunk_count".format(location_uuid))
+                return count
+            wait(lambda: chunk_count() != 0)
 
         for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
             for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
@@ -174,36 +179,39 @@ class TestHotSwap(YTEnvSetup):
 
         wait(lambda: not can_write())
 
+        for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
+            for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                wait(lambda: len(resurrect_chunk_locations(node, [location_uuid])) > 0)
+
+        for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
+            for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                wait(lambda: get("//sys/chunk_locations/{}/@statistics/enabled".format(location_uuid)))
+
+        wait(lambda: can_write())
+
     @authors("don-dron")
     def test_chunk_duplicate_resurrect(self):
         update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False, "publish_disabled_locations": True}})
         nodes = ls("//sys/cluster_nodes")
-        assert len(nodes) == 3
+        assert len(nodes) == 2
         node = nodes[0]
 
-        create("table", "//tmp/t")
+        create("file", "//tmp/f")
 
         def can_write(key="a"):
             try:
-                write_table("//tmp/t", {key: "b"})
+                write_file("//tmp/f", str.encode(key))
                 return True
             except YtError:
                 return False
 
-        wait(lambda: exists("//sys/cluster_nodes/{0}/orchid/reboot_manager".format(node)))
-        wait(lambda: not get("//sys/cluster_nodes/{0}/orchid/reboot_manager/need_reboot".format(node)))
-        wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) > 0)
+        for node in nodes:
+            wait(lambda: exists("//sys/cluster_nodes/{0}/orchid/reboot_manager".format(node)))
+            wait(lambda: not get("//sys/cluster_nodes/{0}/orchid/reboot_manager/need_reboot".format(node)))
+            wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) > 0)
         wait(lambda: can_write())
 
-        locations = get("//sys/cluster_nodes/{}/@chunk_locations".format(node))
-        location_uuids = list(locations.keys())
-
-        assert len(locations) == 2
-
-        location_uuid = location_uuids[0]
-        other_location_uuid = location_uuids[1]
-
-        wait(lambda: can_write("{0}".format(random.choice(string.ascii_letters))) and get("//sys/chunk_locations/{}/@statistics/chunk_count".format(location_uuid)) != 0)
+        chunk_id = get_singular_chunk_id("//tmp/f")
 
         def find_location_chunks(location):
             chunks = []
@@ -218,13 +226,32 @@ class TestHotSwap(YTEnvSetup):
 
             return chunks
 
-        wait(lambda: len(find_location_chunks(location_uuid)) != 0)
+        for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
+            def chunk_count():
+                count = 0
+                for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                    count = count + get("//sys/chunk_locations/{}/@statistics/chunk_count".format(location_uuid))
+                return count
+            wait(lambda: chunk_count() != 0)
+
+        locations = get("//sys/cluster_nodes/{}/@chunk_locations".format(node))
+        location_uuids = list(locations.keys())
+
+        assert len(locations) == 2
+
+        location_uuid = location_uuids[0] if len(find_location_chunks(location_uuids[0])) > 0 else location_uuids[1]
+        other_location_uuid = location_uuids[1] if location_uuid == location_uuids[0] else location_uuids[0]
+        assert location_uuid != other_location_uuid
 
         chunk_id = find_location_chunks(location_uuid)[0]
+        wait(lambda: len(get("//sys/chunks/{}/@stored_replicas".format(chunk_id))) == 2)
 
         wait(lambda: len(disable_chunk_locations(node, [location_uuid])) > 0)
         wait(lambda: not get("//sys/chunk_locations/{}/@statistics/enabled".format(location_uuid)))
 
+        wait(lambda: len(get("//sys/chunks/{}/@stored_replicas".format(chunk_id))) == 2)
+        wait(lambda: get("//sys/chunk_locations/{}/@statistics/session_count".format(location_uuid)) == 0)
+        wait(lambda: get("//sys/chunk_locations/{}/@statistics/session_count".format(other_location_uuid)) == 0)
         wait(lambda: len(find_location_chunks(location_uuid)) == 0)
         wait(lambda: chunk_id in find_location_chunks(other_location_uuid))
 
