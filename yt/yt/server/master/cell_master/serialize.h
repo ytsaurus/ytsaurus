@@ -132,6 +132,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropChunkExpirationTracker)                                   (2317))  // shakurov
     ((CypressTransactions)                                          (2318))  // gritukan
     ((UseMetadataCellIds)                                           (2319))  // ponasenko-rs
+    ((UpdatePerUserThrottlerLimits)                                 (2320))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////

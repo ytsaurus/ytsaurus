@@ -2500,6 +2500,9 @@ private:
 
     bool IsChunkHostCell_ = false;
 
+    // COMPAT(h0pless): Reign UpdatePerUserThrottlerLimits
+    bool NeedUpdatePerUserThrottlerLimits_ = false;
+
     // COMPAT(shakurov)
     bool RecomputeAccountResourceUsages_ = false;
     bool RecomputeAccountRefCounters_ = false;
@@ -2811,6 +2814,8 @@ private:
         ProxyRoleMap_.LoadKeys(context);
         AccountResourceUsageLeaseMap_.LoadKeys(context);
 
+        NeedUpdatePerUserThrottlerLimits_ = context.GetVersion() < EMasterReign::UpdatePerUserThrottlerLimits;
+
         RecomputeAccountRefCounters_ = context.GetVersion() < EMasterReign::RecomputeAccountRefCounters;
         RecomputeAccountResourceUsages_ = context.GetVersion() < EMasterReign::FixAccountResourceUsageCharge;
     }
@@ -2917,6 +2922,29 @@ private:
         RecomputeSubtreeSize(RootAccount_, /*validateMatch*/ true);
         if (RecomputeAccountRefCounters_) {
             RecomputeAccountRefCounters();
+        }
+
+        // Strictly speaking, only root user is necessary here, but it doesn't hurt to make more built-in users independent from the default config.
+        if (NeedUpdatePerUserThrottlerLimits_) {
+            const auto unlimitedThrottlerConfig = New<TThroughputThrottlerConfig>();
+            RootUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            RootUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
+            SchedulerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            SchedulerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
+            ReplicatorUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            ReplicatorUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
+            FileCacheUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            FileCacheUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
+            OperationsCleanerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            OperationsCleanerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
+            OperationsClientUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            OperationsClientUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
+            TabletCellChangeloggerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            TabletCellChangeloggerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
+            TabletCellSnapshotterUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            TabletCellSnapshotterUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
+            TableMountInformerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            TableMountInformerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
         }
     }
 
@@ -3341,6 +3369,7 @@ private:
         SequoiaAccount_ = nullptr;
 
         MustRecomputeMembershipClosure_ = false;
+        NeedUpdatePerUserThrottlerLimits_ = false;
         RecomputeAccountRefCounters_ = false;
         RecomputeAccountResourceUsages_ = false;
 
@@ -3452,8 +3481,8 @@ private:
             ReplicatorUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
             ReplicatorUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
             ReplicatorUser_->SetRequestQueueSizeLimit(1'000'000);
-            SchedulerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            SchedulerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
+            ReplicatorUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            ReplicatorUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
         }
 
         // owner
