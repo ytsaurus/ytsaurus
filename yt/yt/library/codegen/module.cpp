@@ -267,6 +267,24 @@ private:
         Compiled_ = true;
     }
 
+    // See YT-8035 for details why we are clearing COMDAT.
+    void ClearComdatSection() const
+    {
+        for (auto& it : Module_->functions()) {
+            it.setComdat(nullptr);
+        }
+
+        for (auto& it : Module_->globals()) {
+            it.setComdat(nullptr);
+        }
+
+        for (auto& it : Module_->ifuncs()) {
+            it.setComdat(nullptr);
+        }
+
+        Module_->getComdatSymbolTable().clear();
+    }
+
     void RunInternalizePass() const
     {
         auto modulePassManager = llvm::legacy::PassManager();
@@ -354,12 +372,7 @@ private:
 
         YT_LOG_DEBUG("Started compiling module");
 
-        // See YT-8035 for details why we are clearing COMDAT.
-        for (auto it = Module_->begin(), jt = Module_->end(); it != jt; ++it) {
-            it->setComdat(nullptr);
-        }
-
-        Module_->getComdatSymbolTable().clear();
+        ClearComdatSection();
 
         if (IsIRDumpEnabled()) {
             llvm::errs() << "\n******** Before Optimization ***********************************\n";
