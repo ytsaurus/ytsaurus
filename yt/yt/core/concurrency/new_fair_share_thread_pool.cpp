@@ -181,7 +181,7 @@ public:
         return Items_.empty();
     }
 
-    bool GetSize() const
+    size_t GetSize() const
     {
         return Items_.size();
     }
