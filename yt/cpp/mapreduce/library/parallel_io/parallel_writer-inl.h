@@ -6,6 +6,8 @@
 #endif
 #undef PARALLEL_WRITER_INL_H_
 
+#include "resource_limiter.h"
+
 #include <yt/cpp/mapreduce/interface/client.h>
 #include <yt/cpp/mapreduce/interface/fwd.h>
 #include <yt/cpp/mapreduce/interface/io.h>
@@ -83,6 +85,10 @@ public:
         , WritersPool_(options.ThreadCount_)
         , Options_(options.TableWriterOptions_)
     {
+        if (options.TaskCount_ > 0) {
+            TaskCountLimiter_ = MakeIntrusive<TResourceLimiter>(options.TaskCount_);
+        }
+
         if (!Path_.Append_.GetOrElse(false)) {
             if (Transaction_->Exists(Path_.Path_)) {
                 Transaction_->Lock(Path_.Path_, LM_EXCLUSIVE);
@@ -109,7 +115,7 @@ public:
             for (size_t i = 0; i < threadCount; ++i) {
                 WritersPool_.Push(Transaction_->CreateTableWriter<T>(Path_, Options_));
             }
-            YT_LOG_DEBUG("All writers was created");
+            YT_LOG_DEBUG("All %v writers was created", threadCount);
         }, *ThreadPool_);
     }
 
@@ -185,9 +191,14 @@ protected:
             return false;
         }
 
+        std::optional<TResourceGuard> taskCountGuard = TaskCountLimiter_
+            ? std::make_optional<TResourceGuard>(TaskCountLimiter_, 1)
+            : std::nullopt;
+
         Futures_.emplace_back(::NThreading::Async([
             this,
-            task=std::move(task)
+            task=std::move(task),
+            taskCountGuard=std::move(taskCountGuard)
         ] () mutable {
             try {
                 TMaybe<TTableWriterPtr<T>> writer = WritersPool_.Pop();
@@ -230,6 +241,8 @@ private:
 
     const TTableWriterOptions Options_;
     std::exception_ptr Exception_ = nullptr;
+
+    ::TIntrusivePtr<TResourceLimiter> TaskCountLimiter_;
 
     std::atomic<EWriterState> State_ = EWriterState::Ok;
 };
