@@ -66,10 +66,15 @@ jobs:
           cd ../build
           ninja
 
+      - name: Build Py
+        shell: bash
+        run: |
+          ./yt/docker/yt_nightly/build_py.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build
+
       - name: Docker
         shell: bash
         run: |
-          mkdir ../docker-build
+          mkdir -p ../docker-build
           ./yt/docker/yt_nightly/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --output-path ../docker-build --registry cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly --tag ${INVOCATION_ID}
 
       - name: Unittests
