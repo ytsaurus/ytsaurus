@@ -948,13 +948,13 @@ private:
 
             YT_LOG_INFO("World initialization completed");
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "World initialization failed");
+            YT_LOG_WARNING(ex, "World initialization failed");
             AbandonScheduled();
             if (transactionId) {
                 try {
                     AbortTransaction(transactionId);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Failed to abort world initialization transaction (TransactionId: %v)",
+                    YT_LOG_WARNING(ex, "Failed to abort world initialization transaction (TransactionId: %v)",
                         transactionId);
                 }
             }
