@@ -92,11 +92,12 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
     @Override
     public CompletableFuture<?> close() {
         return super.close()
-                .thenApply(response -> {
+                .thenCompose(response -> {
                     if (transaction != null && transaction.isActive()) {
-                        transaction.commit();
+                        return transaction.commit()
+                                .thenApply(unused -> response);
                     }
-                    return response;
+                    return CompletableFuture.completedFuture(response);
                 });
     }
 }

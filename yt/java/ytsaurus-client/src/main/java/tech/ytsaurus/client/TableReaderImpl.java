@@ -143,12 +143,11 @@ class TableReaderImpl<T> extends TableReaderBaseImpl<T> implements TableReader<T
 
     @Override
     public CompletableFuture<Void> close() {
-        return doClose()
-                .thenAccept(unused -> {
-                    if (transaction != null && transaction.isActive()) {
-                        transaction.commit();
-                    }
-                });
+        if (transaction != null && transaction.isActive()) {
+            return transaction.commit()
+                    .thenCompose(unused -> doClose());
+        }
+        return doClose();
     }
 }
 

@@ -1268,7 +1268,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return transactionAndLockResult != null ?
                 req.toBuilder()
                         .setTransactionalOptions(transactionAndLockResult.getKey().getTransactionalOptions())
-                        .setPath(YPath.objectRoot(transactionAndLockResult.getValue().nodeId))
+                        .setPath(req.getYPath().withObjectRoot(transactionAndLockResult.getValue().nodeId))
                         .build() :
                 req;
     }
@@ -1280,7 +1280,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return transactionAndLockResult != null ?
                 req.toBuilder()
                         .setTransactionalOptions(transactionAndLockResult.getKey().getTransactionalOptions())
-                        .setPath(YPath.objectRoot(transactionAndLockResult.getValue().nodeId))
+                        .setPath(req.getYPath().withObjectRoot(transactionAndLockResult.getValue().nodeId))
                         .build() :
                 req;
     }

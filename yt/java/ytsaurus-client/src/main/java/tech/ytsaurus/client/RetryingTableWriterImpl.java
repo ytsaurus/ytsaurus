@@ -470,14 +470,14 @@ class RetryingTableWriterBaseImpl<T> {
         }
 
         return init.thenCompose(initResult -> CompletableFuture.anyOf(result, CompletableFuture.allOf(
-                handledEvents.toArray(new CompletableFuture<?>[0]))).thenApply(unused -> initResult)
-        ).thenCompose(initResult -> initResult.transaction.commit()
-        ).whenComplete((unused, ex) -> {
-            // Exception will be saved after this stage.
-            if (ex != null) {
-                cancel();
-            }
-        });
+                        handledEvents.toArray(new CompletableFuture<?>[0]))).thenApply(unused -> initResult)
+                ).thenCompose(initResult -> initResult.transaction.commit())
+                .whenComplete((unused, ex) -> {
+                    // Exception will be saved after this stage.
+                    if (ex != null) {
+                        cancel();
+                    }
+                });
     }
 
     public CompletableFuture<TableSchema> getTableSchema() {
