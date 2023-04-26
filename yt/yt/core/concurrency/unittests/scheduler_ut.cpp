@@ -1423,7 +1423,11 @@ TEST_P(TFairShareSchedulerTest, TwoLevelFairness)
     YT_VERIFY(numWorkers > numPools);
     YT_VERIFY(numThreads <= numWorkers);
 
-    auto threadPool = CreateNewTwoLevelFairShareThreadPool(numThreads, "MyFairSharePool");
+    auto threadPool = CreateNewTwoLevelFairShareThreadPool(
+        numThreads,
+        "MyFairSharePool",
+        /*poolWeightProvider*/ nullptr,
+        /*verboseLogging*/ true);
 
     std::vector<TDuration> progresses(numWorkers);
     std::vector<TDuration> pools(numPools);

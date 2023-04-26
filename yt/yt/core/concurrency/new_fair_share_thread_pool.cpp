@@ -19,6 +19,8 @@
 
 #include <util/system/spinlock.h>
 
+#include <util/generic/xrange.h>
+
 namespace NYT::NConcurrency {
 
 using namespace NProfiling;
@@ -184,6 +186,11 @@ public:
     size_t GetSize() const
     {
         return Items_.size();
+    }
+
+    T& operator[] (size_t index)
+    {
+        return *Items_[index];
     }
 
     template <class F>
@@ -368,12 +375,14 @@ public:
     TTwoLevelFairShareQueue(
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TString& threadNamePrefix,
-        IPoolWeightProviderPtr poolWeightProvider)
+        IPoolWeightProviderPtr poolWeightProvider,
+        bool verboseLogging)
         : TNotifyManager(std::move(callbackEventCount), GetThreadTags(threadNamePrefix), TDuration::MilliSeconds(10))
         , ThreadNamePrefix_(threadNamePrefix)
         , Profiler_(TProfiler{"/fair_share_queue"}
             .WithHot())
         , PoolWeightProvider_(std::move(poolWeightProvider))
+        , VerboseLogging_(verboseLogging)
     { }
 
     ~TTwoLevelFairShareQueue()
@@ -539,6 +548,7 @@ private:
     const TString ThreadNamePrefix_;
     const TProfiler Profiler_;
     const IPoolWeightProviderPtr PoolWeightProvider_;
+    const bool VerboseLogging_;
 
     // TODO(lukyan): Sharded mapping.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MappingLock_);
@@ -724,6 +734,22 @@ private:
     bool GetStarvingBucket(TAction* action)
     {
         VERIFY_SPINLOCK_AFFINITY(MainLock_);
+
+        YT_LOG_DEBUG_IF(VerboseLogging_, "Вuckets: %v",
+            MakeFormattableView(
+                xrange(size_t(0), ActivePoolsHeap_.GetSize()),
+                [&] (auto* builder, auto index) {
+                    auto& pool = ActivePoolsHeap_[index];
+                    builder->AppendFormat("%vus[", pool.ExcessTime);
+
+                    for (size_t bucketIndex = 0; bucketIndex < pool.ActiveBucketsHeap.GetSize(); ++bucketIndex) {
+                        const auto& bucket = pool.ActiveBucketsHeap[bucketIndex];
+
+                        builder->AppendFormat("%Qv:%v/%v ",
+                            bucket.BucketName, bucket.ExcessTime, bucket.ActionQueue.front().EnqueuedAt);
+                    }
+                    builder->AppendFormat("]");
+                }));
 
         if (ActivePoolsHeap_.Empty()) {
             return false;
@@ -1026,12 +1052,14 @@ public:
     TTwoLevelFairShareThreadPool(
         int threadCount,
         const TString& threadNamePrefix,
-        IPoolWeightProviderPtr poolWeightProvider)
+        IPoolWeightProviderPtr poolWeightProvider,
+        bool verboseLogging)
         : TThreadPoolBase(threadNamePrefix)
         , Queue_(New<TTwoLevelFairShareQueue>(
             CallbackEventCount_,
             ThreadNamePrefix_,
-            std::move(poolWeightProvider)))
+            std::move(poolWeightProvider),
+            verboseLogging))
     {
         Configure(threadCount);
     }
@@ -1105,12 +1133,14 @@ private:
 ITwoLevelFairShareThreadPoolPtr CreateNewTwoLevelFairShareThreadPool(
     int threadCount,
     const TString& threadNamePrefix,
-    IPoolWeightProviderPtr poolWeightProvider = nullptr)
+    IPoolWeightProviderPtr poolWeightProvider = nullptr,
+    bool verboseLogging = false)
 {
     return New<TTwoLevelFairShareThreadPool>(
         threadCount,
         threadNamePrefix,
-        std::move(poolWeightProvider));
+        std::move(poolWeightProvider),
+        verboseLogging);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

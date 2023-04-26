@@ -11,7 +11,8 @@ namespace NYT::NConcurrency {
 ITwoLevelFairShareThreadPoolPtr CreateNewTwoLevelFairShareThreadPool(
     int threadCount,
     const TString& threadNamePrefix,
-    IPoolWeightProviderPtr poolWeightProvider = nullptr);
+    IPoolWeightProviderPtr poolWeightProvider = nullptr,
+    bool verboseLogging = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
