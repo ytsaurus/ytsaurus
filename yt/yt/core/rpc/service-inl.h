@@ -13,32 +13,38 @@ namespace NYT::NRpc {
 template <class... TArgs>
 void IServiceContext::SetRequestInfo(const char* format, TArgs&&... args)
 {
-    if (GetLogger().IsLevelEnabled(NLogging::ELogLevel::Debug)) {
-        SetRawRequestInfo(Format(format, std::forward<TArgs>(args)...), false);
+    if (IsLoggingEnabled()) {
+        SetRawRequestInfo(Format(format, std::forward<TArgs>(args)...), /*incremental*/ false);
+    } else {
+        // Still need to set the info to make AlertOnMissingRequestInfo check happy.
+        SetRawRequestInfo(TString(), /*incremental*/ false);
     }
 }
 
 template <class... TArgs>
 void IServiceContext::SetIncrementalRequestInfo(const char* format, TArgs&&... args)
 {
-    if (GetLogger().IsLevelEnabled(NLogging::ELogLevel::Debug)) {
-        SetRawRequestInfo(Format(format, std::forward<TArgs>(args)...), true);
+    if (IsLoggingEnabled()) {
+        SetRawRequestInfo(Format(format, std::forward<TArgs>(args)...), /*incremental*/ true);
+    } else {
+        // Still need to set the info to make AlertOnMissingRequestInfo check happy.
+        SetRawRequestInfo(TString(), /*incremental*/ true);
     }
 }
 
 template <class... TArgs>
 void IServiceContext::SetResponseInfo(const char* format, TArgs&&... args)
 {
-    if (GetLogger().IsLevelEnabled(NLogging::ELogLevel::Debug)) {
-        SetRawResponseInfo(Format(format, std::forward<TArgs>(args)...), false);
+    if (IsLoggingEnabled()) {
+        SetRawResponseInfo(Format(format, std::forward<TArgs>(args)...), /*incremental*/ false);
     }
 }
 
 template <class... TArgs>
 void IServiceContext::SetIncrementalResponseInfo(const char* format, TArgs&&... args)
 {
-    if (GetLogger().IsLevelEnabled(NLogging::ELogLevel::Debug)) {
-        SetRawResponseInfo(Format(format, std::forward<TArgs>(args)...), true);
+    if (IsLoggingEnabled()) {
+        SetRawResponseInfo(Format(format, std::forward<TArgs>(args)...), /*incremental*/ true);
     }
 }
 

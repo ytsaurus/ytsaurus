@@ -187,6 +187,9 @@ struct IServiceContext
     //! Returns mutable request header.
     virtual NProto::TRequestHeader& RequestHeader() = 0;
 
+    //! Returns true if request/response info logging is enabled.
+    virtual bool IsLoggingEnabled() const = 0;
+
     //! Registers a portion of request logging info.
     /*!
      *  \param incremental If true then \p info is just remembered but no logging happens.

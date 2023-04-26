@@ -86,6 +86,7 @@ public:
     const NProto::TRequestHeader& RequestHeader() const override;
     NProto::TRequestHeader& RequestHeader() override;
 
+    bool IsLoggingEnabled() const override;
     void SetRawRequestInfo(TString info, bool incremental) override;
     void SetRawResponseInfo(TString info, bool incremental) override;
 
@@ -104,7 +105,7 @@ protected:
     const NLogging::ELogLevel LogLevel_;
 
     // Set in #Initialize.
-    bool LogLevelEnabled_;
+    bool LoggingEnabled_;
     TRequestId RequestId_;
     TRealmId RealmId_;
 
@@ -221,8 +222,10 @@ public:
     NConcurrency::IAsyncZeroCopyOutputStreamPtr GetResponseAttachmentsStream() override;
 
     const NProto::TRequestHeader& RequestHeader() const override;
+
     NProto::TRequestHeader& RequestHeader() override;
 
+    bool IsLoggingEnabled() const override;
     void SetRawRequestInfo(TString info, bool incremental) override;
     void SetRawResponseInfo(TString info, bool incremental) override;
 

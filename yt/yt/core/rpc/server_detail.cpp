@@ -55,7 +55,7 @@ void TServiceContextBase::DoFlush()
 
 void TServiceContextBase::Initialize()
 {
-    LogLevelEnabled_ = Logger.IsLevelEnabled(LogLevel_);
+    LoggingEnabled_ = Logger.IsLevelEnabled(LogLevel_);
 
     RequestId_ = FromProto<TRequestId>(RequestHeader_->request_id());
     RealmId_ = FromProto<TRealmId>(RequestHeader_->realm_id());
@@ -109,7 +109,7 @@ void TServiceContextBase::ReplyEpilogue()
 {
     if (!RequestInfoSet_ &&
         Error_.IsOK() &&
-        LogLevelEnabled_ &&
+        LoggingEnabled_ &&
         TDispatcher::Get()->ShouldAlertOnMissingRequestInfo())
     {
         static const auto& Logger = RpcServerLogger;
@@ -132,7 +132,7 @@ void TServiceContextBase::ReplyEpilogue()
 
     DoReply();
 
-    if (LogLevelEnabled_) {
+    if (LoggingEnabled_) {
         LogResponse();
     }
 
@@ -391,13 +391,18 @@ TRequestHeader& TServiceContextBase::RequestHeader()
     return *RequestHeader_;
 }
 
+bool TServiceContextBase::IsLoggingEnabled() const
+{
+    return LoggingEnabled_;
+}
+
 void TServiceContextBase::SetRawRequestInfo(TString info, bool incremental)
 {
     YT_ASSERT(!Replied_);
 
     RequestInfoSet_ = true;
 
-    if (!LogLevelEnabled_) {
+    if (!LoggingEnabled_) {
         return;
     }
 
@@ -413,7 +418,7 @@ void TServiceContextBase::SetRawResponseInfo(TString info, bool incremental)
 {
     YT_ASSERT(!Replied_);
 
-    if (!LogLevelEnabled_) {
+    if (!LoggingEnabled_) {
         return;
     }
 
@@ -667,6 +672,11 @@ IAsyncZeroCopyOutputStreamPtr TServiceContextWrapper::GetResponseAttachmentsStre
 NProto::TRequestHeader& TServiceContextWrapper::RequestHeader()
 {
     return UnderlyingContext_->RequestHeader();
+}
+
+bool TServiceContextWrapper::IsLoggingEnabled() const
+{
+    return UnderlyingContext_->IsLoggingEnabled();
 }
 
 void TServiceContextWrapper::SetRawRequestInfo(TString info, bool incremental)
