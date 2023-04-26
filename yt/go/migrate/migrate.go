@@ -76,7 +76,7 @@ func UnfreezeAndWait(ctx context.Context, yc yt.Client, path ypath.Path) error {
 	return waitTabletState(ctx, yc, path, yt.TabletMounted)
 }
 
-// MountAndWait unmounts dynamic table and waits for a table to become unmounted.
+// UnmountAndWait unmounts dynamic table and waits for a table to become unmounted.
 func UnmountAndWait(ctx context.Context, yc yt.Client, path ypath.Path) error {
 	err := yc.UnmountTable(ctx, path, nil)
 	if err != nil {
