@@ -81,6 +81,13 @@ def main():
     parser.set_defaults(enable_mtn=default_enablers.enable_mtn)
 
     group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('--prefer-ipv6', dest='enable_preference_ipv6',
+                       action='store_true')
+    group.add_argument('--prefer-ipv4', dest='enable_preference_ipv6',
+                       action='store_false')
+    parser.set_defaults(enable_preference_ipv6=default_enablers.enable_preference_ipv6)
+
+    group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('--enable-advanced-event-log',
                        dest='advanced_event_log', action='store_true')
     group.add_argument('--disable-advanced-event-log',
@@ -176,7 +183,8 @@ def main():
                             enable_byop=args.enable_byop,
                             enable_profiling=args.enable_profiling,
                             enable_mtn=args.enable_mtn,
-                            enable_solomon_agent=args.enable_solomon_agent
+                            enable_solomon_agent=args.enable_solomon_agent,
+                            enable_preference_ipv6=args.enable_preference_ipv6
                         ),
                         client=yt_client,
                         preemption_mode=args.preemption_mode,

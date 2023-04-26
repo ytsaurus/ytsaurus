@@ -8,12 +8,13 @@ logger = logging.getLogger(__name__)
 
 class SpytEnablers(object):
     def __init__(self, enable_byop=True, enable_profiling=False, enable_arrow=None,
-                 enable_mtn=False, enable_solomon_agent=True):
+                 enable_mtn=False, enable_solomon_agent=True, enable_preference_ipv6=True):
         self.enable_byop = enable_byop
         self.enable_profiling = enable_profiling
         self.enable_arrow = enable_byop if enable_arrow is None else enable_arrow
         self.enable_mtn = enable_mtn
         self.enable_solomon_agent = enable_solomon_agent
+        self.enable_preference_ipv6 = enable_preference_ipv6
         self.config_enablers = {}
 
     def _get_enabler(self, enabler, enabler_name):
@@ -29,6 +30,7 @@ class SpytEnablers(object):
         self.enable_arrow = self._get_enabler(self.enable_arrow, "enable_arrow")
         self.enable_mtn = self._get_enabler(self.enable_mtn, "enable_mtn")
         self.enable_solomon_agent = self._get_enabler(self.enable_solomon_agent, "enable_solomon_agent")
+        self.enable_preference_ipv6 = self._get_enabler(self.enable_preference_ipv6, "enable_preference_ipv6")
 
     def get_spark_conf(self):
         enable_byop_conf_name = "spark.hadoop.yt.byop.enabled"
@@ -36,9 +38,10 @@ class SpytEnablers(object):
         enable_profiling_conf_name = "spark.hadoop.yt.profiling.enabled"
         enable_mtn_conf_name = "spark.hadoop.yt.mtn.enabled"
         enable_solomon_agent_name = "spark.hadoop.yt.solomonAgent.enabled"
+        enable_preference_ipv6_name = "spark.hadoop.yt.preferenceIpv6.enabled"
         enablers = [
             enable_byop_conf_name, enable_profiling_conf_name, enable_arrow_conf_name,
-            enable_mtn_conf_name, enable_solomon_agent_name
+            enable_mtn_conf_name, enable_solomon_agent_name, enable_preference_ipv6_name
         ]
         return {
             enable_byop_conf_name: str(self.enable_byop),
@@ -46,6 +49,7 @@ class SpytEnablers(object):
             enable_arrow_conf_name: str(self.enable_arrow),
             enable_mtn_conf_name: str(self.enable_mtn),
             enable_solomon_agent_name: str(self.enable_solomon_agent),
+            enable_preference_ipv6_name: str(self.enable_preference_ipv6),
             "spark.yt.enablers": ",".join(enablers)
         }
 

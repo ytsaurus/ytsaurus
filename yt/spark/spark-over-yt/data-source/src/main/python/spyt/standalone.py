@@ -343,19 +343,24 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     def script_path(script):
         return "{}/{}".format(spark_home, driver_op_discovery_script)
 
-    def _launcher_command(component, xmx="512m"):
+    def _launcher_command(component, xmx="512m", extra_java_opts=None):
         create_dir = "mkdir -p {}".format(spark_home)
         unpack_tar = "tar --warning=no-unknown-keyword -xf spark.tgz -C {}".format(
             spark_home)
         move_java = "cp -r /opt/jdk11 ./tmpfs/jdk11"
-        run_launcher = "./tmpfs/jdk11/bin/java -Xmx{0} -cp spark-yt-launcher.jar -Djava.net.preferIPv6Addresses=true".format(
-            xmx)
+        extra_java_opts_str = " " + " ".join(extra_java_opts) if extra_java_opts else ""
+        run_launcher = "./tmpfs/jdk11/bin/java -Xmx{0} -cp spark-yt-launcher.jar{1}".format(
+            xmx, extra_java_opts_str)
         spark_conf = get_spark_conf(config=config, enablers=enablers)
 
         return "{5} && {0} && {1} && {2} {3} tech.ytsaurus.spark.launcher.{4}Launcher ".format(
             unpack_tar, move_java, run_launcher, spark_conf, component, create_dir)
 
-    master_command = _launcher_command("Master")
+    extra_java_opts = []
+    if enablers.enable_preference_ipv6:
+        extra_java_opts.append("-Djava.net.preferIPv6Addresses=true")
+
+    master_command = _launcher_command("Master", extra_java_opts=extra_java_opts)
 
     def _script_absolute_path(script):
         return "{}/{}".format(spark_home, script)
@@ -379,7 +384,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         config["spark_conf"]["spark.driver.resource.jobid.discoveryScript"] = _script_absolute_path(
             "spark/bin/job-id-discovery.sh")
 
-    worker_command = _launcher_command("Worker", "2g") + \
+    worker_command = _launcher_command("Worker", "2g", extra_java_opts=extra_java_opts) + \
         "--cores {0} --memory {1} --wait-master-timeout {2} --wlog-service-enabled {3} " \
         "--wlog-enable-json {4} --wlog-update-interval {5} --wlog-table-path {6} " \
         "--wlog-table-ttl {7}".format(
@@ -394,7 +399,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
             shs_location or spark_discovery.event_log())
     if "spark.history.fs.numReplayThreads" not in config["spark_conf"]:
         config["spark_conf"]["spark.history.fs.numReplayThreads"] = history_server_cpu_limit
-    history_command = _launcher_command("HistoryServer") + \
+    history_command = _launcher_command("HistoryServer", extra_java_opts=extra_java_opts) + \
         "--log-path {} --memory {}".format(event_log_path,
                                            history_server_memory_limit)
 
@@ -423,6 +428,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
             "enable_byop": enablers.enable_byop,
             "enable_arrow": enablers.enable_arrow,
             "enable_mtn": enablers.enable_mtn,
+            "enable_preference_ipv6": enablers.enable_preference_ipv6,
             "job_types": job_types
         }
     }
@@ -447,7 +453,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     ytserver_proxy_path = config.get("ytserver_proxy_path")
 
     worker_environment = {
-        "SPARK_YT_BYOP_ENABLED": str(enablers.enable_byop)
+        "SPARK_YT_BYOP_ENABLED": str(enablers.enable_byop),
+        "SPARK_YT_IPV6_PREFERENCE_ENABLED": str(enablers.enable_preference_ipv6)
     }
     worker_environment = update(environment, worker_environment)
     if enablers.enable_byop:

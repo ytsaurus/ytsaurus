@@ -77,7 +77,9 @@ case class SparkGlobalConfig(spark_conf: Map[String, String],
 case class SparkLaunchConfig(spark_yt_base_path: String,
                              file_paths: Seq[String],
                              spark_conf: Map[String, String] = Map(
-                               "spark.yt.jarCaching" -> "true"
+                               "spark.yt.jarCaching" -> "true",
+                               "spark.driver.extraJavaOptions" -> "-Djava.net.preferIPv6Addresses=true",
+                               "spark.executor.extraJavaOptions" -> "-Djava.net.preferIPv6Addresses=true"
                              ),
                              enablers: SpytEnablers = SpytEnablers(),
                              ytserver_proxy_path: Option[String] = None,
@@ -94,7 +96,8 @@ case class SparkLaunchConfig(spark_yt_base_path: String,
 case class SpytEnablers(enable_byop: Boolean = true,
                         enable_arrow: Boolean = true,
                         enable_mtn: Boolean = true,
-                        enable_solomon_agent: Boolean = true) extends YsonableConfig
+                        enable_solomon_agent: Boolean = true,
+                        enable_preference_ipv6: Boolean = true) extends YsonableConfig
 
 object SparkLaunchConfig {
   val defaultLayers = Seq(
