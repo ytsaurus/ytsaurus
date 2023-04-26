@@ -20,11 +20,11 @@ class TRebootManager
     : public TRefCounted
 {
 public:
-    TRebootManager(IInvokerPtr invoker);
+    explicit TRebootManager(IInvokerPtr invoker);
 
     void RequestReboot();
 
-    bool NeedReboot();
+    bool IsRebootNeeded();
 
     NYTree::IYPathServicePtr GetOrchidService();
 
@@ -37,7 +37,6 @@ private:
     NYTree::IYPathServicePtr CreateOrchidService();
 
     void BuildOrchid(NYT::NYson::IYsonConsumer* consumer);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TRebootManager)

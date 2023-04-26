@@ -22,6 +22,7 @@ import builtins
 class TestMedia(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 10
+    STORE_LOCATION_COUNT = 3
 
     NON_DEFAULT_MEDIUM = "hdd1"
     NON_DEFAULT_TRANSIENT_MEDIUM = "hdd2"
@@ -35,26 +36,11 @@ class TestMedia(YTEnvSetup):
 
     @classmethod
     def modify_node_config(cls, config):
-        # Add two more locations with non-default media to each node.
-        assert len(config["data_node"]["store_locations"]) == 1
-        location_prototype = config["data_node"]["store_locations"][0]
+        assert len(config["data_node"]["store_locations"]) == 3
 
-        default_location = deepcopy(location_prototype)
-        default_location["path"] += "_0"
-        default_location["medium_name"] = "default"
-
-        non_default_location = deepcopy(location_prototype)
-        non_default_location["path"] += "_1"
-        non_default_location["medium_name"] = cls.NON_DEFAULT_MEDIUM
-
-        non_default_transient_location = deepcopy(location_prototype)
-        non_default_transient_location["path"] += "_2"
-        non_default_transient_location["medium_name"] = cls.NON_DEFAULT_TRANSIENT_MEDIUM
-
-        config["data_node"]["store_locations"] = []
-        config["data_node"]["store_locations"].append(default_location)
-        config["data_node"]["store_locations"].append(non_default_location)
-        config["data_node"]["store_locations"].append(non_default_transient_location)
+        config["data_node"]["store_locations"][0]["medium_name"] = "default"
+        config["data_node"]["store_locations"][1]["medium_name"] = cls.NON_DEFAULT_MEDIUM
+        config["data_node"]["store_locations"][2]["medium_name"] = cls.NON_DEFAULT_TRANSIENT_MEDIUM
 
     @classmethod
     def on_masters_started(cls):
@@ -652,6 +638,7 @@ class TestMediaMulticell(TestMedia):
 class TestDynamicMedia(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
+    STORE_LOCATION_COUNT = 2
 
     DELTA_NODE_CONFIG = {
         "data_node": {
@@ -689,21 +676,10 @@ class TestDynamicMedia(YTEnvSetup):
 
     @classmethod
     def modify_node_config(cls, config):
-        assert len(config["data_node"]["store_locations"]) == 1
-        location_prototype = config["data_node"]["store_locations"][0]
+        assert len(config["data_node"]["store_locations"]) == 2
 
-        location0 = deepcopy(location_prototype)
-        location0["path"] += "_0"
-        location0["medium_name"] = "default"
-
-        location1 = deepcopy(location_prototype)
-        location1["path"] += "_1"
-        location1["medium_name"] = "default"
-
-        config["data_node"]["store_locations"] = [
-            location0,
-            location1,
-        ]
+        config["data_node"]["store_locations"][0]["medium_name"] = "default"
+        config["data_node"]["store_locations"][1]["medium_name"] = "default"
 
     def _get_locations(self, node):
         return {

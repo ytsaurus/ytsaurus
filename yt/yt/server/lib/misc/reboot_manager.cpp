@@ -19,7 +19,7 @@ void TRebootManager::RequestReboot()
     NeedReboot_ = true;
 }
 
-bool TRebootManager::NeedReboot()
+bool TRebootManager::IsRebootNeeded()
 {
     return NeedReboot_;
 }
@@ -29,7 +29,7 @@ void TRebootManager::BuildOrchid(IYsonConsumer* consumer)
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("need_reboot")
-            .Value(NeedReboot())
+            .Value(IsRebootNeeded())
         .EndMap();
 }
 

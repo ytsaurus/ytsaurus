@@ -221,6 +221,7 @@ class YTEnvSetup(object):
     NUM_RPC_PROXIES = 2
     DRIVER_BACKEND = "native"
     NODE_PORT_SET_SIZE = None
+    STORE_LOCATION_COUNT = 1
     ARTIFACT_COMPONENTS = {}
     FORCE_CREATE_ENVIRONMENT = False
     NUM_CELL_BALANCERS = 0
@@ -411,6 +412,7 @@ class YTEnvSetup(object):
             enable_log_compression=True,
             log_compression_method="zstd",
             node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
+            store_location_count=cls.get_param("STORE_LOCATION_COUNT", index),
             node_io_engine_type=cls.get_param("NODE_IO_ENGINE_TYPE", index),
             node_use_direct_io_for_reads=cls.get_param("NODE_USE_DIRECT_IO_FOR_READS", index),
             cluster_name=cls.get_cluster_name(index),

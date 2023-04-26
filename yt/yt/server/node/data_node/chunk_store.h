@@ -212,6 +212,10 @@ private:
 
     void DoRegisterExistingChunk(const IChunkPtr& chunk);
 
+    void DoRegisterExistingJournalChunk(const IChunkPtr& chunk);
+
+    void FinishChunkRegistration(const IChunkPtr& chunk);
+
     void OnChunkRegistered(const IChunkPtr& chunk);
 
     //! Returns an already stored chunk that has same ID and location medium

@@ -1,3 +1,6 @@
+import random
+import string
+
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
@@ -17,6 +20,7 @@ class TestHotSwap(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+    STORE_LOCATION_COUNT = 2
 
     DELTA_NODE_CONFIG = {
         "tags": ["config_tag1", "config_tag2"],
@@ -87,9 +91,9 @@ class TestHotSwap(YTEnvSetup):
 
         create("table", "//tmp/t")
 
-        def can_write():
+        def can_write(key="a"):
             try:
-                write_table("//tmp/t", {"a": "b"})
+                write_table("//tmp/t", {key: "b"})
                 return True
             except YtError:
                 return False
@@ -102,7 +106,7 @@ class TestHotSwap(YTEnvSetup):
 
         for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
             for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
-                wait(lambda: get("//sys/chunk_locations/{}/@statistics/chunk_count".format(location_uuid)) != 0)
+                wait(lambda: can_write("{0}".format(random.choice(string.ascii_letters))) and get("//sys/chunk_locations/{}/@statistics/chunk_count".format(location_uuid)) != 0)
 
         for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
             for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
@@ -149,6 +153,7 @@ class TestHotSwap(YTEnvSetup):
                 return False
 
         wait(lambda: not check())
+        wait(lambda: exists("//sys/access_control_object_namespaces/admin_commands/disable_chunk_locations"))
         set("//sys/access_control_object_namespaces/admin_commands/disable_chunk_locations/principal/@acl", acl)
 
         wait(lambda: check())
@@ -168,3 +173,62 @@ class TestHotSwap(YTEnvSetup):
                 wait(lambda: get("//sys/chunk_locations/{}/@statistics/chunk_count".format(location_uuid)) == 0)
 
         wait(lambda: not can_write())
+
+    @authors("don-dron")
+    def test_chunk_duplicate_resurrect(self):
+        update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False, "publish_disabled_locations": True}})
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 3
+        node = nodes[0]
+
+        create("table", "//tmp/t")
+
+        def can_write(key="a"):
+            try:
+                write_table("//tmp/t", {key: "b"})
+                return True
+            except YtError:
+                return False
+
+        wait(lambda: exists("//sys/cluster_nodes/{0}/orchid/reboot_manager".format(node)))
+        wait(lambda: not get("//sys/cluster_nodes/{0}/orchid/reboot_manager/need_reboot".format(node)))
+        wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) > 0)
+        wait(lambda: can_write())
+
+        locations = get("//sys/cluster_nodes/{}/@chunk_locations".format(node))
+        location_uuids = list(locations.keys())
+
+        assert len(locations) == 2
+
+        location_uuid = location_uuids[0]
+        other_location_uuid = location_uuids[1]
+
+        wait(lambda: can_write("{0}".format(random.choice(string.ascii_letters))) and get("//sys/chunk_locations/{}/@statistics/chunk_count".format(location_uuid)) != 0)
+
+        def find_location_chunks(location):
+            chunks = []
+            for chunk_id in get("//sys/chunks"):
+                replicas = get("//sys/chunks/{}/@stored_replicas".format(chunk_id))
+
+                for replica in replicas:
+                    chunk_location = replica.attributes["location_uuid"]
+
+                    if chunk_location == location:
+                        chunks.append(chunk_id)
+
+            return chunks
+
+        wait(lambda: len(find_location_chunks(location_uuid)) != 0)
+
+        chunk_id = find_location_chunks(location_uuid)[0]
+
+        wait(lambda: len(disable_chunk_locations(node, [location_uuid])) > 0)
+        wait(lambda: not get("//sys/chunk_locations/{}/@statistics/enabled".format(location_uuid)))
+
+        wait(lambda: len(find_location_chunks(location_uuid)) == 0)
+        wait(lambda: chunk_id in find_location_chunks(other_location_uuid))
+
+        wait(lambda: len(resurrect_chunk_locations(node, [location_uuid])) > 0)
+        wait(lambda: get("//sys/chunk_locations/{}/@statistics/enabled".format(location_uuid)))
+
+        wait(lambda: chunk_id not in find_location_chunks(location_uuid) and chunk_id in find_location_chunks(other_location_uuid))

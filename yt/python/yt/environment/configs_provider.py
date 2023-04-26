@@ -795,38 +795,47 @@ def _build_node_configs(node_dirs,
             "preallocate_size": 2 ** 20,
         }
 
-        store_location_config = {
-            "low_watermark": 0,
-            "high_watermark": 0,
-            "disable_writes_watermark": 0,
-            "io_config": {
-                "enable_sync": False,
-            },
-            "use_direct_io_for_reads" : yt_config.node_use_direct_io_for_reads,
-            "multiplexed_changelog": changelog_config,
-            "high_latency_split_changelog": changelog_config,
-            "low_latency_split_changelog": changelog_config,
-        }
+        store_location_configs = []
 
-        if yt_config.node_io_engine_type:
-            store_location_config["io_engine_type"] = yt_config.node_io_engine_type
+        for location_index in range(yt_config.store_location_count):
+            store_location_config = {
+                "low_watermark": 0,
+                "high_watermark": 0,
+                "disable_writes_watermark": 0,
+                "io_config": {
+                    "enable_sync": False,
+                },
+                "use_direct_io_for_reads" : yt_config.node_use_direct_io_for_reads,
+                "multiplexed_changelog": changelog_config,
+                "high_latency_split_changelog": changelog_config,
+                "low_latency_split_changelog": changelog_config,
+            }
+
+            if yt_config.node_io_engine_type:
+                store_location_config["io_engine_type"] = yt_config.node_io_engine_type
+
+            if yt_config.node_chunk_store_quota is not None:
+                store_location_config["quota"] = yt_config.node_chunk_store_quota
+
+            if node_tmpfs_dirs is not None and yt_config.allow_chunk_storage_in_tmpfs:
+                store_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "chunk_store/{0}".format(location_index))
+            else:
+                store_location_config["path"] = os.path.join(node_dirs[index], "chunk_store/{0}".format(location_index))
+
+            store_location_configs.append(store_location_config)
+
+        set_at(config, "data_node/store_locations", store_location_configs)
 
         layer_location_config = {
             "low_watermark": 1,
             "location_is_absolute": False,
         }
 
-        if yt_config.node_chunk_store_quota is not None:
-            store_location_config["quota"] = yt_config.node_chunk_store_quota
-
         if node_tmpfs_dirs is not None and yt_config.allow_chunk_storage_in_tmpfs:
-            store_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "chunk_store")
             layer_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "layers")
         else:
-            store_location_config["path"] = os.path.join(node_dirs[index], "chunk_store")
             layer_location_config["path"] = os.path.join(node_dirs[index], "layers")
 
-        set_at(config, "data_node/store_locations", [store_location_config])
         set_at(config, "data_node/volume_manager/layer_locations", [layer_location_config])
 
         config["logging"] = _init_logging(logs_dir, "node-{0}".format(index), yt_config, has_structured_logs=True)
