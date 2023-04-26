@@ -40,6 +40,9 @@ class TJobMetrics;
 
 using TAllocationCounter = THashMap<EAllocationState, std::pair<i64, NProfiling::TGauge>>;
 
+using TNonOwningElementList = std::vector<TSchedulerElement*>;
+
+using TNonOwningOperationElementList = std::vector<TSchedulerOperationElement*>;
 using TNonOwningOperationElementMap = THashMap<TOperationId, TSchedulerOperationElement*>;
 using TOperationElementMap = THashMap<TOperationId, TSchedulerOperationElementPtr>;
 using TOperationIdToJobResources = THashMap<TOperationId, TJobResources>;
@@ -72,11 +75,16 @@ DEFINE_ENUM(EResourceTreeElementKind,
     (Root)
 );
 
+DEFINE_ENUM(EOperationSchedulingPriority,
+    (Medium)
+    (Low)
+);
+
 DEFINE_ENUM(EOperationPreemptionPriority,
     (None)
-    (Regular)
+    (Normal)
     (Aggressive)
-    (SsdRegular)
+    (SsdNormal)
     (SsdAggressive)
 );
 
@@ -103,12 +111,14 @@ DEFINE_ENUM(EJobPreemptionStatus,
 );
 
 DEFINE_ENUM(EJobSchedulingStage,
-    ((NonPreemptive)             (0))
-    ((PackingFallback)           (1))
-    ((Preemptive)                (100))
-    ((AggressivelyPreemptive)    (101))
-    ((SsdPreemptive)             (102))
-    ((SsdAggressivelyPreemptive) (103))
+    (RegularMediumPriority)
+    (RegularLowPriority)
+    (RegularPackingFallback)
+
+    (PreemptiveNormal)
+    (PreemptiveAggressive)
+    (PreemptiveSsdNormal)
+    (PreemptiveSsdAggressive)
 );
 
 DEFINE_ENUM(EJobPreemptionReason,

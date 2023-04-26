@@ -14,6 +14,10 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJobResourcesConfigPtr GetDefaultRequiredResourceLimitsForRemoteCopy()
 {
     auto config = New<TJobResourcesConfig>();
@@ -29,6 +33,19 @@ TJobResourcesConfigPtr GetDefaultMinSpareJobResourcesOnNode()
     config->Memory = 256_MB;
     return config;
 }
+
+TJobResourcesConfigPtr GetDefaultLowPriorityFallbackMinSpareJobResources()
+{
+    auto config = New<TJobResourcesConfig>();
+    config->UserSlots = 1;
+    config->Cpu = 5;
+    config->Memory = 1_GB;
+    return config;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,6 +204,18 @@ void TFairShareStrategySsdPriorityPreemptionConfig::Register(TRegistrar registra
             THROW_ERROR_EXCEPTION("SSD node tag filter must be non-empty when SSD priority preemption is enabled");
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TPrioritizedRegularSchedulingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("medium_priority_operation_count_limit", &TThis::MediumPriorityOperationCountLimit)
+        .GreaterThanOrEqual(0)
+        .Default(1000);
+
+    registrar.Parameter("low_priority_fallback_min_spare_job_resources", &TThis::LowPriorityFallbackMinSpareJobResources)
+        .DefaultCtor(&GetDefaultLowPriorityFallbackMinSpareJobResources);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -445,6 +474,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("running_job_statistics_update_period", &TThis::RunningJobStatisticsUpdatePeriod)
         .Default(TDuration::Seconds(1));
+
+    registrar.Parameter("prioritized_regular_scheduling", &TThis::PrioritizedRegularScheduling)
+        .Default();
 
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {

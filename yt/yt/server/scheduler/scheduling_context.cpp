@@ -13,6 +13,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): Why do we need |TSchedulingContextBase|, if it's used only here?
 class TSchedulingContext
     : public TSchedulingContextBase
 {
@@ -65,12 +66,13 @@ TString FormatPreemptibleInfoCompact(const TScheduleJobsStatistics& statistics)
 
 TString FormatScheduleJobAttemptsCompact(const TScheduleJobsStatistics& statistics)
 {
-    return Format("{NP: %v, SAP: %v, SP: %v, AP: %v, P: %v, C: %v, TO: %v, MNPSI: %v}",
-        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::NonPreemptive],
-        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::SsdAggressivelyPreemptive],
-        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::SsdPreemptive],
-        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::AggressivelyPreemptive],
-        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::Preemptive],
+    return Format("{RM: %v, RL: %v, PSA: %v, PSN: %v, PA: %v, PN: %v, C: %v, TO: %v, MNPSI: %v}",
+        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::RegularMediumPriority],
+        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::RegularLowPriority],
+        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::PreemptiveSsdAggressive],
+        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::PreemptiveSsdNormal],
+        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::PreemptiveAggressive],
+        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::PreemptiveNormal],
         statistics.ControllerScheduleJobCount,
         statistics.ControllerScheduleJobTimedOutCount,
         statistics.MaxNonPreemptiveSchedulingIndex);
@@ -81,9 +83,9 @@ TString FormatOperationCountByPreemptionPriorityCompact(
 {
     return Format("{N: %v, R: %v, A: %v, SR: %v, SA: %v}",
         operationCountByPriority[EOperationPreemptionPriority::None],
-        operationCountByPriority[EOperationPreemptionPriority::Regular],
+        operationCountByPriority[EOperationPreemptionPriority::Normal],
         operationCountByPriority[EOperationPreemptionPriority::Aggressive],
-        operationCountByPriority[EOperationPreemptionPriority::SsdRegular],
+        operationCountByPriority[EOperationPreemptionPriority::SsdNormal],
         operationCountByPriority[EOperationPreemptionPriority::SsdAggressive]);
 }
 

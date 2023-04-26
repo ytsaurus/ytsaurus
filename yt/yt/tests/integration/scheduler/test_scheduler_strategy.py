@@ -3200,12 +3200,31 @@ class TestSatisfactionRatio(YTEnvSetup):
         }
     }
 
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 2,
+                    "user_slots": 2,
+                }
+            }
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestSatisfactionRatio, self).setup_method(method)
+        update_pool_tree_config("default", {
+            "non_preemptible_resource_usage_threshold": {
+                "user_slots": 2,
+            },
+        })
+
     @authors("eshcherbin")
     def test_satisfaction_simple(self):
         create_pool("pool")
 
-        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "pool"}, job_count=2)
-        wait_breakpoint(job_count=1)
+        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "pool"}, job_count=3)
+        wait_breakpoint(job_count=2)
 
         op2 = run_sleeping_vanilla(spec={"pool": "pool"})
 

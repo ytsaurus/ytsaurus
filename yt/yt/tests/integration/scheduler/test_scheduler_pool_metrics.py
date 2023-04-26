@@ -225,10 +225,10 @@ class TestPoolMetrics(YTEnvSetup):
         create_pool("child2", parent_name="parent")
 
         profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
-        scheduled_cpu_non_preemptive_child1_counter = profiler.counter("scheduler/pools/scheduled_job_resources/cpu", {"pool": "child1", "scheduling_stage": "non_preemptive"})
-        scheduled_cpu_preemptive_child2_counter = profiler.counter("scheduler/pools/scheduled_job_resources/cpu", {"pool": "child2", "scheduling_stage": "preemptive"})
-        scheduled_cpu_non_preemptive_parent_counter = profiler.counter("scheduler/pools/scheduled_job_resources/cpu", {"pool": "parent", "scheduling_stage": "non_preemptive"})
-        scheduled_cpu_preemptive_parent_counter = profiler.counter("scheduler/pools/scheduled_job_resources/cpu", {"pool": "parent", "scheduling_stage": "preemptive"})
+        scheduled_cpu_non_preemptive_child1_counter = profiler.counter("scheduler/pools/scheduled_job_resources/cpu", {"pool": "child1", "scheduling_stage": "regular_medium_priority"})
+        scheduled_cpu_preemptive_child2_counter = profiler.counter("scheduler/pools/scheduled_job_resources/cpu", {"pool": "child2", "scheduling_stage": "preemptive_normal"})
+        scheduled_cpu_non_preemptive_parent_counter = profiler.counter("scheduler/pools/scheduled_job_resources/cpu", {"pool": "parent", "scheduling_stage": "regular_medium_priority"})
+        scheduled_cpu_preemptive_parent_counter = profiler.counter("scheduler/pools/scheduled_job_resources/cpu", {"pool": "parent", "scheduling_stage": "preemptive_normal"})
         preempted_cpu_preemption_child1_counter = profiler.counter("scheduler/pools/preempted_job_resources/cpu", {"pool": "child1", "preemption_reason": "preemption"})
         preempted_cpu_preemption_parent_counter = profiler.counter("scheduler/pools/preempted_job_resources/cpu", {"pool": "parent", "preemption_reason": "preemption"})
         preempted_cpu_overcommit_child1_counter = profiler.counter("scheduler/pools/preempted_job_resources/cpu", {"pool": "child1", "preemption_reason": "resource_overcommit"})
@@ -703,16 +703,16 @@ class TestPoolMetrics(YTEnvSetup):
         expected_counts_per_scope = {
             "operation_only": {
                 "none": 1.0,
-                "regular": 1.0,
+                "normal": 1.0,
                 "aggressive": 1.0,
-                "ssd_regular": 0.0,
+                "ssd_normal": 0.0,
                 "ssd_aggressive": 0.0,
             },
             "operation_and_ancestors": {
                 "none": 0.0,
-                "regular": 2.0,
+                "normal": 2.0,
                 "aggressive": 1.0,
-                "ssd_regular": 0.0,
+                "ssd_normal": 0.0,
                 "ssd_aggressive": 0.0,
             },
         }

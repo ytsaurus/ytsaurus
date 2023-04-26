@@ -207,6 +207,23 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategySsdPriorityPreemptionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPrioritizedRegularSchedulingConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    int MediumPriorityOperationCountLimit;
+
+    TJobResourcesConfigPtr LowPriorityFallbackMinSpareJobResources;
+
+    REGISTER_YSON_STRUCT(TPrioritizedRegularSchedulingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPrioritizedRegularSchedulingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTreeTestingOptions
     : public NYTree::TYsonStruct
 {
@@ -393,6 +410,8 @@ public:
     EOperationPreemptionPriorityScope SchedulingPreemptionPriorityScope;
 
     TDuration RunningJobStatisticsUpdatePeriod;
+
+    TPrioritizedRegularSchedulingConfigPtr PrioritizedRegularScheduling;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 

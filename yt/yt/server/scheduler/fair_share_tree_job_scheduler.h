@@ -20,7 +20,7 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr int SchedulingIndexProfilingRangeCount = 12;
-constexpr int InvalidChildHeapIndex = -1;
+constexpr int InvalidSchedulableChildSetIndex = -1;
 constexpr int EmptySchedulingTagFilterIndex = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,6 +29,8 @@ using TJobResourcesMap = THashMap<int, TJobResources>;
 using TNonOwningJobSet = THashSet<TJob*>;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+using TOperationElementsBySchedulingPriority = TEnumIndexedVector<EOperationSchedulingPriority, TNonOwningOperationElementList>;
 
 using TOperationCountByPreemptionPriority = TEnumIndexedVector<EOperationPreemptionPriority, int>;
 using TOperationPreemptionPriorityParameters = std::pair<EOperationPreemptionPriorityScope, /*ssdPriorityPreemptionEnabled*/ bool>;
@@ -62,6 +64,48 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicAttributesList;
+
+// NB(eschcherbin): It would be more correct to design this class as an interface
+// with two implementations (simple and with heap), but this would introduce
+// an extra level of indirection to a performance critical part of code.
+class TSchedulableChildSet
+{
+public:
+    TSchedulableChildSet(
+        const TSchedulerCompositeElement* owningElement,
+        TNonOwningElementList children,
+        TDynamicAttributesList* dynamicAttributesList,
+        bool useHeap);
+
+    const TNonOwningElementList& GetChildren() const;
+    TSchedulerElement* GetBestActiveChild() const;
+
+    void OnChildAttributesUpdated(const TSchedulerElement* child);
+
+    // For testing purposes.
+    bool UsesHeapInTest() const;
+
+private:
+    const TSchedulerCompositeElement* OwningElement_;
+    TDynamicAttributesList* const DynamicAttributesList_;
+    const ESchedulingMode Mode_;
+    const bool UseHeap_;
+
+    TNonOwningElementList Children_;
+
+    bool Comparator(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
+
+    void MoveBestChildToFront();
+
+    void InitializeChildrenOrder();
+
+    void OnChildAttributesUpdatedHeap(int childIndex);
+    void OnChildAttributesUpdatedSimple(int childIndex);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDynamicAttributes
 {
     //! Precomputed in dynamic attributes snapshot and updated after a job is scheduled or the usage is stale.
@@ -77,7 +121,10 @@ struct TDynamicAttributes
     double SatisfactionRatio = 0.0;
     bool Active = false;
     TSchedulerOperationElement* BestLeafDescendant = nullptr;
-    int HeapIndex = InvalidChildHeapIndex;
+    // Used only for pools.
+    std::optional<TSchedulableChildSet> SchedulableChildSet;
+    // Index of this element in its parent's schedulable child set.
+    int SchedulableChildSetIndex = InvalidSchedulableChildSetIndex;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,32 +152,6 @@ using TDynamicAttributesListSnapshotPtr = TIntrusivePtr<TDynamicAttributesListSn
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChildHeap
-{
-public:
-    TChildHeap(
-        const TSchedulerCompositeElement* owningElement,
-        TDynamicAttributesList* dynamicAttributesList);
-    TSchedulerElement* GetTop() const;
-    void Update(const TSchedulerElement* child);
-
-    // For testing purposes.
-    const std::vector<TSchedulerElement*>& GetHeap() const;
-
-private:
-    const TSchedulerCompositeElement* OwningElement_;
-    TDynamicAttributesList* const DynamicAttributesList_;
-    const ESchedulingMode Mode_;
-
-    std::vector<TSchedulerElement*> ChildHeap_;
-
-    bool Comparator(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
-};
-
-using TChildHeapMap = THashMap<int, TChildHeap>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TDynamicAttributesManager
 {
 public:
@@ -147,7 +168,10 @@ public:
 
     const TDynamicAttributes& AttributesOf(const TSchedulerElement* element) const;
 
-    void InitializeAttributesAtCompositeElement(TSchedulerCompositeElement* element, bool useChildHeap = true);
+    void InitializeAttributesAtCompositeElement(
+        TSchedulerCompositeElement* element,
+        std::optional<TNonOwningElementList> consideredSchedulableChildren,
+        bool useChildHeap = true);
     void InitializeAttributesAtOperation(TSchedulerOperationElement* element, bool isActive = true);
 
     // NB(eshcherbin): This is an ad-hoc way to initialize resource usage at a single place, where snapshot isn't ready yet.
@@ -163,13 +187,9 @@ public:
     //! Diagnostics.
     int GetCompositeElementDeactivationCount() const;
 
-    //! Testing.
-    const TChildHeapMap& GetChildHeapMapInTest() const;
-
 private:
     const TFairShareTreeSchedulingSnapshotPtr SchedulingSnapshot_;
     TDynamicAttributesList AttributesList_;
-    TChildHeapMap ChildHeapMap_;
 
     int CompositeElementDeactivationCount_ = 0;
 
@@ -187,8 +207,6 @@ private:
     void UpdateAttributes(TSchedulerElement* element);
     void UpdateAttributesAtCompositeElement(TSchedulerCompositeElement* element);
     void UpdateAttributesAtOperation(TSchedulerOperationElement* element);
-
-    void UpdateChildInHeap(const TSchedulerCompositeElement* parent, const TSchedulerElement* child);
 
     TSchedulerElement* GetBestActiveChild(TSchedulerCompositeElement* element) const;
     TSchedulerElement* GetBestActiveChildFifo(TSchedulerCompositeElement* element) const;
@@ -328,7 +346,9 @@ public:
         const NLogging::TLogger& logger);
 
     void PrepareForScheduling();
-    void PrescheduleJob(EOperationPreemptionPriority targetOperationPreemptionPriority = EOperationPreemptionPriority::None);
+    void PrescheduleJob(
+        const std::optional<TNonOwningOperationElementList>& consideredSchedulableOperations = {},
+        EOperationPreemptionPriority targetOperationPreemptionPriority = EOperationPreemptionPriority::None);
     TFairShareScheduleJobResult ScheduleJob(bool ignorePacking);
     // NB(eshcherbin): Public for testing purposes.
     TFairShareScheduleJobResult ScheduleJob(TSchedulerElement* element, bool ignorePacking);
@@ -377,7 +397,7 @@ public:
     const TDynamicAttributes& DynamicAttributesOf(const TSchedulerElement* element) const;
 
     //! Testing.
-    const TChildHeapMap& GetChildHeapMapInTest() const;
+    void DeactivateOperationInTest(TSchedulerOperationElement* element);
 
 private:
     const TFairShareTreeSnapshotPtr TreeSnapshot_;
@@ -429,6 +449,8 @@ private:
     // Populated only for pools.
     TJobResourcesMap LocalUnconditionalUsageDiscountMap_;
 
+    THashMap<const TSchedulerCompositeElement*, TNonOwningElementList> ConsideredSchedulableChildrenPerPool_;
+
     //! Common element methods.
     const TStaticAttributes& StaticAttributesOf(const TSchedulerElement* element) const;
     bool IsActive(const TSchedulerElement* element) const;
@@ -438,6 +460,10 @@ private:
     TJobResources GetHierarchicalAvailableResources(const TSchedulerElement* element) const;
     TJobResources GetLocalAvailableResourceLimits(const TSchedulerElement* element) const;
     TJobResources GetLocalUnconditionalUsageDiscount(const TSchedulerElement* element) const;
+
+    void CollectConsideredSchedulableChildrenPerPool(
+        const std::optional<TNonOwningOperationElementList>& consideredSchedulableOperations);
+    std::optional<TNonOwningElementList> GetConsideredSchedulableChildrenForPool(const TSchedulerCompositeElement* element);
 
     void PrescheduleJob(TSchedulerElement* element, EOperationPreemptionPriority targetOperationPreemptionPriority);
     void PrescheduleJobAtCompositeElement(TSchedulerCompositeElement* element, EOperationPreemptionPriority targetOperationPreemptionPriority);
@@ -530,6 +556,7 @@ class TFairShareTreeSchedulingSnapshot
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(TStaticAttributesList, StaticAttributesList);
+    DEFINE_BYREF_RO_PROPERTY(TOperationElementsBySchedulingPriority, SchedulableOperationsPerPriority);
     DEFINE_BYREF_RO_PROPERTY(THashSet<int>, SsdPriorityPreemptionMedia);
     DEFINE_BYREF_RO_PROPERTY(TCachedJobPreemptionStatuses, CachedJobPreemptionStatuses);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TSchedulingTagFilter>, KnownSchedulingTagFilters);
@@ -538,6 +565,7 @@ public:
 public:
     TFairShareTreeSchedulingSnapshot(
         TStaticAttributesList staticAttributesList,
+        TOperationElementsBySchedulingPriority schedulableOperationsPerPriority,
         THashSet<int> ssdPriorityPreemptionMedia,
         TCachedJobPreemptionStatuses cachedJobPreemptionStatuses,
         std::vector<TSchedulingTagFilter> knownSchedulingTagFilters,
@@ -575,6 +603,7 @@ struct TJobSchedulerPostUpdateContext
     TSchedulerRootElement* RootElement;
 
     THashSet<int> SsdPriorityPreemptionMedia;
+    TOperationElementsBySchedulingPriority SchedulableOperationsPerPriority;
     TStaticAttributesList StaticAttributesList;
     TFairShareTreeJobSchedulerOperationStateMap OperationIdToState;
     TFairShareTreeJobSchedulerSharedOperationStateMap OperationIdToSharedState;
@@ -766,6 +795,8 @@ private:
     void ScheduleJobsWithoutPreemption(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         TScheduleJobsContext* context,
+        const std::optional<TNonOwningOperationElementList>& consideredOperations,
+        const std::optional<TJobResources>& customMinSpareJobResources,
         TCpuInstant startTime);
     void ScheduleJobsPackingFallback(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
@@ -774,6 +805,8 @@ private:
     void DoScheduleJobsWithoutPreemption(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         TScheduleJobsContext* context,
+        const std::optional<TNonOwningOperationElementList>& consideredOperations,
+        const std::optional<TJobResources>& customMinSpareJobResources,
         TCpuInstant startTime,
         bool ignorePacking,
         bool oneJobOnly);
@@ -799,6 +832,7 @@ private:
     void UpdateSsdPriorityPreemptionMedia();
 
     void InitializeStaticAttributes(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext) const;
+    void CollectSchedulableOperationsPerPriority(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext) const;
 
     void PublishFairShareAndUpdatePreemptionAttributes(TSchedulerElement* element, TJobSchedulerPostUpdateContext* postUpdateContext) const;
     void PublishFairShareAndUpdatePreemptionAttributesAtCompositeElement(TSchedulerCompositeElement* element, TJobSchedulerPostUpdateContext* postUpdateContext) const;

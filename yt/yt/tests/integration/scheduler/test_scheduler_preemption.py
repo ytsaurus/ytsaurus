@@ -943,7 +943,7 @@ class TestPreemptionPriorityScope(YTEnvSetup):
                 scheduler_orchid_node_path(node) +
                 "/last_preemptive_heartbeat_statistics/operation_count_by_preemption_priority"
             )
-            return op_count["none"] == 2 and op_count["regular"] == 1
+            return op_count["none"] == 2 and op_count["normal"] == 1
         wait(check)
 
         update_pool_tree_config_option("default", "scheduling_preemption_priority_scope", "operation_and_ancestors")

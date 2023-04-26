@@ -19,17 +19,17 @@ public:
         TExecNodePtr node,
         const std::vector<TJobPtr>& runningJobs,
         const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
-    
+
     int GetNodeShardId() const override;
 
     TJobResources& UnconditionalResourceUsageDiscount() override;
     TJobResources GetMaxConditionalUsageDiscount() const override;
-    
+
     const TJobResources& ResourceLimits() const override;
 
     const TJobResources& ResourceUsage() const;
     TJobResources& ResourceUsage() override;
-    
+
     const NNodeTrackerClient::NProto::TDiskResources& DiskResources() const override;
     NNodeTrackerClient::NProto::TDiskResources& DiskResources();
 
@@ -38,10 +38,10 @@ public:
     bool CanStartJobForOperation(
         const TJobResourcesWithQuota& jobResourcesWithQuota,
         TOperationId operationId) const override;
-    bool CanStartMoreJobs() const override;
+    bool CanStartMoreJobs(const std::optional<TJobResources>& customMinSpareJobResources) const override;
     bool CanSchedule(const TSchedulingTagFilter& filter) const override;
     bool ShouldAbortJobsSinceResourcesOvercommit() const override;
-    
+
     const std::vector<TJobPtr>& StartedJobs() const override;
     const std::vector<TJobPtr>& RunningJobs() const override;
     const std::vector<TPreemptedJob>& PreemptedJobs() const override;
@@ -64,7 +64,7 @@ public:
     TJobResources GetNodeFreeResourcesWithoutDiscount() const override;
     TJobResources GetNodeFreeResourcesWithDiscount() const override;
     TJobResources GetNodeFreeResourcesWithDiscountForOperation(TOperationId operationId) const override;
-    
+
     TScheduleJobsStatistics GetSchedulingStatistics() const override;
     void SetSchedulingStatistics(TScheduleJobsStatistics statistics) override;
 
@@ -75,14 +75,14 @@ private:
     const TExecNodeDescriptor NodeDescriptor_;
     const TBooleanFormulaTags NodeTags_;
     const NChunkClient::TMediumDirectoryPtr MediumDirectory_;
-    const TJobResources MinSpareJobResources_;
-    
+    const TJobResources DefaultMinSpareJobResources_;
+
     TJobResources UnconditionalResourceUsageDiscount_;
     TJobResources MaxConditionalUsageDiscount_;
     TJobResources ResourceUsage_;
     TJobResources ResourceLimits_;
     NNodeTrackerClient::NProto::TDiskResources DiskResources_;
-    
+
     std::vector<TJobPtr> StartedJobs_;
     std::vector<TJobPtr> RunningJobs_;
     std::vector<TPreemptedJob> PreemptedJobs_;
@@ -91,7 +91,7 @@ private:
 
     // TODO(eshcherbin): Should we optimize and use tree index instead of operation ID here?
     THashMap<TOperationId, TJobResources> ConditionalUsageDiscountMap_;
-    
+
     TScheduleJobsStatistics SchedulingStatistics_;
 
     bool CanSatisfyResourceRequest(
