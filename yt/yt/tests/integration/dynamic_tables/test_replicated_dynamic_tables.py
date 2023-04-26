@@ -2754,8 +2754,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica2)
 
         set("//tmp/t/@replicated_table_options/preferred_sync_replica_clusters", [self.REPLICA_CLUSTER_NAME])
-        wait(lambda: get("#{}/@mode".format(replica1)) == "async")
-        assert get("#{}/@mode".format(replica2)) == "sync"
+        wait(lambda:
+             get("#{}/@mode".format(replica1)) == "async" and
+             get("#{}/@mode".format(replica2)) == "sync")
 
     @authors("akozhikhov")
     def test_forbid_write_if_not_in_sync(self):
