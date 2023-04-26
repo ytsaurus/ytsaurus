@@ -20,7 +20,9 @@ void OnCriticalLogEvent(
     if (event.Level == ELogLevel::Fatal ||
         event.Level == ELogLevel::Alert && logger.GetAbortOnAlert())
     {
-        fprintf(stderr, "*** Aborting on critical log event\n%s\n", event.MessageRef.ToStringBuf().data());
+        fprintf(stderr, "*** Aborting on critical log event\n");
+        fwrite(event.MessageRef.begin(), 1, event.MessageRef.size(), stderr);
+        fprintf(stderr, "\n");
         YT_ABORT();
     }
 }
