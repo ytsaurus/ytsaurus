@@ -9,10 +9,10 @@ namespace NYT::NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TContextPtr>
-void TSupportsExistsBase::Reply(const TContextPtr& context, bool value)
+void TSupportsExistsBase::Reply(const TContextPtr& context, bool exists)
 {
-    context->Response().set_value(value);
-    context->SetResponseInfo("Result: %v", value);
+    context->Response().set_value(exists);
+    context->SetResponseInfo("Result: %v", exists);
     context->Reply();
 }
 

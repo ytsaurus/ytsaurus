@@ -137,7 +137,7 @@ class TSupportsExistsBase
 {
 protected:
     template <class TContextPtr>
-    void Reply(const TContextPtr& context, bool value);
+    void Reply(const TContextPtr& context, bool exists);
 };
 
 class TSupportsMultisetAttributes

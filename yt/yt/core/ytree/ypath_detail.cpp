@@ -149,15 +149,15 @@ bool TYPathServiceBase::ShouldHideAttributes()
             return; \
         } \
         tokenizer.Skip(NYPath::ETokenType::Ampersand); \
-        if (tokenizer.GetType() == NYPath::ETokenType::Slash) { \
-            if (tokenizer.Advance() == NYPath::ETokenType::At) { \
-                method##Attribute(TYPath(tokenizer.GetSuffix()), request, response, context); \
-            } else { \
-                method##Recursive(TYPath(tokenizer.GetInput()), request, response, context); \
-            } \
+        if (tokenizer.GetType() != NYPath::ETokenType::Slash) { \
+            onPathError \
             return; \
         } \
-        onPathError \
+        if (tokenizer.Advance() == NYPath::ETokenType::At) { \
+            method##Attribute(TYPath(tokenizer.GetSuffix()), request, response, context); \
+        } else { \
+            method##Recursive(TYPath(tokenizer.GetInput()), request, response, context); \
+        } \
     }
 
 #define IMPLEMENT_SUPPORTS_VERB(method) \
@@ -165,7 +165,6 @@ bool TYPathServiceBase::ShouldHideAttributes()
         method, \
         { \
             tokenizer.ThrowUnexpected(); \
-            YT_ABORT(); \
         } \
     ) \
     \
@@ -193,7 +192,8 @@ IMPLEMENT_SUPPORTS_VERB(Remove)
 IMPLEMENT_SUPPORTS_VERB_RESOLVE(
     Exists,
     {
-        Reply(context, false);
+        context->SetRequestInfo();
+        Reply(context, /*exists*/ false);
     })
 
 #undef IMPLEMENT_SUPPORTS_VERB
@@ -207,7 +207,7 @@ void TSupportsExists::ExistsAttribute(
 {
     context->SetRequestInfo();
 
-    Reply(context, false);
+    Reply(context, /*exists*/ false);
 }
 
 void TSupportsExists::ExistsSelf(
@@ -217,7 +217,7 @@ void TSupportsExists::ExistsSelf(
 {
     context->SetRequestInfo();
 
-    Reply(context, true);
+    Reply(context, /*exists*/ true);
 }
 
 void TSupportsExists::ExistsRecursive(
@@ -228,7 +228,7 @@ void TSupportsExists::ExistsRecursive(
 {
     context->SetRequestInfo();
 
-    Reply(context, false);
+    Reply(context, /*exists*/ false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1551,27 +1551,27 @@ void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
         actualType);
 }
 
-void TNodeSetterBase::OnMyStringScalar(TStringBuf /*value*/)
+void TNodeSetterBase::OnMyStringScalar(TStringBuf /*exists*/)
 {
     ThrowInvalidType(ENodeType::String);
 }
 
-void TNodeSetterBase::OnMyInt64Scalar(i64 /*value*/)
+void TNodeSetterBase::OnMyInt64Scalar(i64 /*exists*/)
 {
     ThrowInvalidType(ENodeType::Int64);
 }
 
-void TNodeSetterBase::OnMyUint64Scalar(ui64 /*value*/)
+void TNodeSetterBase::OnMyUint64Scalar(ui64 /*exists*/)
 {
     ThrowInvalidType(ENodeType::Uint64);
 }
 
-void TNodeSetterBase::OnMyDoubleScalar(double /*value*/)
+void TNodeSetterBase::OnMyDoubleScalar(double /*exists*/)
 {
     ThrowInvalidType(ENodeType::Double);
 }
 
-void TNodeSetterBase::OnMyBooleanScalar(bool /*value*/)
+void TNodeSetterBase::OnMyBooleanScalar(bool /*exists*/)
 {
     ThrowInvalidType(ENodeType::Boolean);
 }

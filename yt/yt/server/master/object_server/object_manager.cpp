@@ -413,13 +413,18 @@ public:
             return;
         }
 
+        const auto& requestPath = GetOriginalRequestTargetYPath(context->RequestHeader());
+        context->SetRequestInfo("Method: %v.%v, Path: %v",
+            context->GetService(),
+            context->GetMethod(),
+            requestPath);
+
         const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
         auto mutationId = mutationContext ? mutationContext->Request().MutationId : NullMutationId;
 
         auto requestMessage = context->GetRequestMessage();
         auto forwardedRequestHeader = context->RequestHeader();
         auto* forwardedYPathExt = forwardedRequestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        const auto& requestPath = GetOriginalRequestTargetYPath(context->RequestHeader());
         auto targetPathRewrite = ObjectId_
             ? MakeYPathRewrite(requestPath, ObjectId_, forwardedYPathExt->target_path())
             : MakeYPathRewrite(requestPath, requestPath);

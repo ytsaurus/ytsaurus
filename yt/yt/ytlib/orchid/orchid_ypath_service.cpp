@@ -49,8 +49,12 @@ public:
             proxy.SetDefaultTimeout(*Options_.Timeout);
         }
 
-        auto path = Options_.RemoteRoot + GetRequestTargetYPath(context->RequestHeader());
+        const auto& path = GetRequestTargetYPath(context->RequestHeader());
         const auto& method = context->GetMethod();
+
+        context->SetRequestInfo("Path: %v, Method: %v",
+            path,
+            method);
 
         auto requestMessage = context->GetRequestMessage();
         NRpc::NProto::TRequestHeader requestHeader;
@@ -59,7 +63,8 @@ public:
             return;
         }
 
-        SetRequestTargetYPath(&requestHeader, path);
+        auto remotePath = Options_.RemoteRoot + path;
+        SetRequestTargetYPath(&requestHeader, remotePath);
 
         auto innerRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
@@ -68,7 +73,7 @@ public:
         outerRequest->Attachments() = innerRequestMessage.ToVector();
 
         YT_LOG_DEBUG("Sending request to remote Orchid (Path: %v, Method: %v, RequestId: %v)",
-            path,
+            remotePath,
             method,
             outerRequest->GetRequestId());
 
@@ -76,7 +81,7 @@ public:
             &TOrchidYPathService::OnResponse,
             MakeStrong(this),
             context,
-            path,
+            remotePath,
             method));
     }
 
