@@ -705,7 +705,7 @@ public:
         : Owner_(std::move(owner))
         , ChunkData_(std::move(chunkData))
         , ChunkId_(chunkId)
-        , NativeBlockType_(MapInMemoryModeToBlockType(ChunkData_->InMemoryMode))
+        , NativeBlockType_(GetBlockTypeFromInMemoryMode(ChunkData_->InMemoryMode))
         , UnderlyingCache_(std::move(underlyingCache))
     { }
 

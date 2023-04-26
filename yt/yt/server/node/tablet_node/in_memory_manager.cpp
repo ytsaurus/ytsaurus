@@ -168,7 +168,7 @@ TInMemoryChunkDataPtr CreateInMemoryChunkData(
         std::move(blocksWithCategory));
 }
 
-EBlockType MapInMemoryModeToBlockType(EInMemoryMode mode)
+EBlockType GetBlockTypeFromInMemoryMode(EInMemoryMode mode)
 {
     switch (mode) {
         case EInMemoryMode::Compressed:
@@ -752,7 +752,7 @@ public:
         EBlockType type,
         const TBlock& data) override
     {
-        if (type != MapInMemoryModeToBlockType(InMemoryMode_)) {
+        if (type != GetBlockTypeFromInMemoryMode(InMemoryMode_)) {
             return;
         }
 
@@ -795,7 +795,7 @@ public:
 
     EBlockType GetSupportedBlockTypes() const override
     {
-        return MapInMemoryModeToBlockType(InMemoryMode_);
+        return GetBlockTypeFromInMemoryMode(InMemoryMode_);
     }
 
     bool IsBlockTypeActive(EBlockType blockType) const override

@@ -176,6 +176,7 @@ class TBlockCacheConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
+    // TODO(akozhikhov): Use enumeration instead (same for dynamic config).
     TSlruCacheConfigPtr CompressedData;
     TSlruCacheConfigPtr UncompressedData;
     TSlruCacheConfigPtr HashTableChunkIndex;

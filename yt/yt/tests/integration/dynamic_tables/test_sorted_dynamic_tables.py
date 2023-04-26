@@ -206,6 +206,13 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
         set("{}/@mount_config/enable_hash_chunk_index_for_lookup".format(path), True)
         set("{}/@chunk_format".format(path), "table_versioned_indexed")
 
+    def _enable_data_node_lookup(self, path):
+        set("{}/@enable_data_node_lookup".format(path), True)
+        if exists("{}/@chunk_reader".format(path)):
+            set("{}/@chunk_reader/prefer_local_replicas".format(path), False)
+        else:
+            set("{}/@chunk_reader".format(path), {"prefer_local_replicas": False})
+
 
 ##################################################################
 

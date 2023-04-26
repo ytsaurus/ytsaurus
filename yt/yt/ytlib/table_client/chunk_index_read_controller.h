@@ -20,7 +20,7 @@ struct IChunkIndexReadController
 
     struct TReadRequest
     {
-        // Whole system block will be requested iff block cache is provided and
+        // The whole system block will be requested iff block cache is provided and
         // it considers corresponding system block type as active.
         // Otherwise controller will only request system block fragments within #FragmentSubrequests.
         std::vector<int> SystemBlockIndexes;

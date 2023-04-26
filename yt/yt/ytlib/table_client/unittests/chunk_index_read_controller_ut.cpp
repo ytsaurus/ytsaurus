@@ -168,6 +168,16 @@ DEFINE_REFCOUNTED_TYPE(TMockSystemBlockCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TControllerUnittestingOptions
+{
+    TColumnFilter ColumnFilter = {};
+    TTimestamp Timestamp = AsyncLastCommittedTimestamp;
+    bool ProduceAllVersions = false;
+    std::optional<int> FingerprintDomainSize = std::nullopt;
+    std::optional<int> MaxBlockSize = std::nullopt;
+    std::vector<int> CachedSystemBlockFlags = {};
+};
+
 class TTestHashTableChunkIndexReadController
     : public ::testing::Test
 {
@@ -180,12 +190,7 @@ public:
         const TTableSchemaPtr& readSchema,
         const std::vector<TUnversionedOwningRow>& owningKeys,
         std::vector<int> keySlots,
-        const TColumnFilter& columnFilter = {},
-        TTimestamp timestamp = AsyncLastCommittedTimestamp,
-        bool produceAllVersions = false,
-        std::optional<int> fingerprintDomainSize = std::nullopt,
-        std::optional<int> maxBlockSize = std::nullopt,
-        std::vector<int> cachedSystemBlockFlags = {})
+        TControllerUnittestingOptions options = {})
     {
         Blocks_.clear();
 
@@ -195,8 +200,8 @@ public:
         TIndexedVersionedBlockFormatDetail blockFormatDetail(writeSchema);
 
         auto builderConfig = New<TChunkIndexesWriterConfig>();
-        if (maxBlockSize) {
-            builderConfig->HashTable->MaxBlockSize = *maxBlockSize;
+        if (options.MaxBlockSize) {
+            builderConfig->HashTable->MaxBlockSize = *options.MaxBlockSize;
         }
         YT_VERIFY(slotCount >= std::ssize(rows));
         builderConfig->HashTable->LoadFactor = static_cast<double>(std::ssize(rows)) / slotCount;
@@ -254,28 +259,28 @@ public:
             keys.push_back(key);
         }
 
-        auto cacheEnabled = !cachedSystemBlockFlags.empty();
+        auto cacheEnabled = !options.CachedSystemBlockFlags.empty();
         SystemBlockCache_ = New<TMockSystemBlockCache>(
             cacheEnabled,
             ChunkId_,
             Blocks_);
         if (cacheEnabled) {
-            SystemBlockCache_->MarkCachedSystemBlocks(cachedSystemBlockFlags);
+            SystemBlockCache_->MarkCachedSystemBlocks(options.CachedSystemBlockFlags);
         }
 
         return CreateChunkIndexReadController(
             ChunkId_,
-            columnFilter,
+            options.ColumnFilter,
             versionedChunkMeta,
             MakeSharedRange(keys),
             /*keyComparer*/ TKeyComparer(),
             readSchema,
-            timestamp,
-            produceAllVersions,
+            options.Timestamp,
+            options.ProduceAllVersions,
             SystemBlockCache_,
             TChunkIndexReadControllerTestingOptions{
                 .KeySlotIndexes = keySlots,
-                .FingerprintDomainSize = fingerprintDomainSize
+                .FingerprintDomainSize = options.FingerprintDomainSize
             });
     }
 
@@ -559,6 +564,9 @@ TEST_F(TTestHashTableChunkIndexReadController, ColumnFilter)
             }
         }
 
+        TControllerUnittestingOptions testingOptions{
+            .ColumnFilter = TColumnFilter(columnIndexes),
+        };
         auto controller = InitializeController(
             rows,
             /*rowSlots*/ {0},
@@ -567,7 +575,7 @@ TEST_F(TTestHashTableChunkIndexReadController, ColumnFilter)
             SchemaWithGroups,
             keys,
             /*keySlots*/ {0, 0, 0},
-            TColumnFilter(columnIndexes));
+            testingOptions);
 
         auto request = controller->GetReadRequest();
         EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
@@ -608,6 +616,9 @@ TEST_F(TTestHashTableChunkIndexReadController, LookupByTimestamp1)
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("0") };
 
     for (int valueIndex = 0; valueIndex < 1; ++valueIndex) {
+        TControllerUnittestingOptions testingOptions{
+            .Timestamp = timestamps[valueIndex],
+        };
         auto controller = InitializeController(
             rows,
             /*rowSlots*/ {0},
@@ -616,8 +627,7 @@ TEST_F(TTestHashTableChunkIndexReadController, LookupByTimestamp1)
             SimpleSchema,
             keys,
             /*keySlots*/ {0},
-            /*columnFilter*/ {},
-            timestamps[valueIndex]);
+            testingOptions);
 
         controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
         controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
@@ -643,6 +653,9 @@ TEST_F(TTestHashTableChunkIndexReadController, VersionedLookup)
 
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("0") };
 
+    TControllerUnittestingOptions testingOptions{
+        .ProduceAllVersions = true,
+    };
     auto controller = InitializeController(
         rows,
         /*rowSlots*/ {0},
@@ -651,9 +664,7 @@ TEST_F(TTestHashTableChunkIndexReadController, VersionedLookup)
         SimpleSchema,
         keys,
         /*keySlots*/ {0},
-        /*columnFilter*/ {},
-        /*timestamp*/ AsyncLastCommittedTimestamp,
-        /*produceAllVersions*/ true);
+        testingOptions);
 
     controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
     controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
@@ -710,6 +721,9 @@ TEST_F(TTestHashTableChunkIndexReadController, WidenedSchema2)
 
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("0; #; #"), YsonToKey("0; 0; 0"), YsonToKey("1; k2; #") };
 
+    TControllerUnittestingOptions testingOptions{
+        .ColumnFilter = TColumnFilter({3, 5, 7, 8}),
+    };
     auto controller = InitializeController(
         rows,
         /*rowSlots*/ {1, 1},
@@ -718,7 +732,7 @@ TEST_F(TTestHashTableChunkIndexReadController, WidenedSchema2)
         WidenedSchemaWithGroups,
         keys,
         /*keySlots*/ {1, 2, 1},
-        TColumnFilter({3, 5, 7, 8}));
+        testingOptions);
 
     controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
     controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
@@ -765,7 +779,7 @@ TEST_F(TTestHashTableChunkIndexReadController, MultipleSectors)
             SimpleSchema,
             SimpleSchema,
             keys,
-            {130, 170, 130, 170, 130, 170});
+            /*keySlots*/ {130, 170, 130, 170, 130, 170});
 
         auto expectedSectorCount = slotCount == 300 ? 2 : 3;
         EXPECT_EQ(THashTableChunkIndexFormatDetail::SectorSize * expectedSectorCount, std::ssize(GetBlocks()[1]));
@@ -801,6 +815,9 @@ TEST_F(TTestHashTableChunkIndexReadController, FingerprintClash)
 
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("-1"), YsonToKey("0"), YsonToKey("1") };
 
+    TControllerUnittestingOptions testingOptions{
+        .FingerprintDomainSize = 2,
+    };
     auto controller = InitializeController(
         rows,
         {1, 1},
@@ -809,10 +826,7 @@ TEST_F(TTestHashTableChunkIndexReadController, FingerprintClash)
         SimpleSchema,
         keys,
         {1, 1, 1},
-        /*columnFilter*/ {},
-        /*timestamp*/ AsyncLastCommittedTimestamp,
-        /*produceAllVersions*/ false,
-        /*fingerprintDomainSize*/ 2);
+        testingOptions);
 
     auto request = controller->GetReadRequest();
     EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
@@ -855,6 +869,10 @@ TEST_F(TTestHashTableChunkIndexReadController, LookupByTimestamp2)
 
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("0"), YsonToKey("1") };
 
+    TControllerUnittestingOptions testingOptions{
+        .Timestamp = 100,
+        .FingerprintDomainSize = 2,
+    };
     auto controller = InitializeController(
         rows,
         /*rowSlots*/ {0, 0},
@@ -863,10 +881,7 @@ TEST_F(TTestHashTableChunkIndexReadController, LookupByTimestamp2)
         SimpleSchema,
         keys,
         /*keySlots*/ {0, 0},
-        /*columnFilter*/ {},
-        /*timestamp*/ 100,
-        /*produceAllVersions*/ false,
-        /*fingerprintDomainSize*/ 2);
+        testingOptions);
 
     controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
     controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
@@ -894,6 +909,9 @@ TEST_F(TTestHashTableChunkIndexReadController, MultipleBlocks)
     auto getController = [&] (const std::vector<TUnversionedOwningRow>& keys) {
         std::vector<int> keySlots(keys.size(), 0);
 
+        TControllerUnittestingOptions testingOptions{
+            .MaxBlockSize = THashTableChunkIndexFormatDetail::SectorSize,
+        };
         auto controller = InitializeController(
             rows,
             {0, 0},
@@ -902,11 +920,7 @@ TEST_F(TTestHashTableChunkIndexReadController, MultipleBlocks)
             SimpleSchema,
             keys,
             keySlots,
-            /*columnFilter*/ {},
-            /*timestamp*/ AsyncLastCommittedTimestamp,
-            /*produceAllVersions*/ false,
-            /*fingerprintDomainSize*/ std::nullopt,
-            /*maxBlockSize*/ THashTableChunkIndexFormatDetail::SectorSize);
+            testingOptions);
 
         EXPECT_EQ(3, std::ssize(GetBlocks()));
         EXPECT_EQ(THashTableChunkIndexFormatDetail::SectorSize, std::ssize(GetBlocks()[1]));
@@ -1034,8 +1048,9 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheSimple1)
 
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("0") };
 
-    std::vector<int> cachedSystemBlockFlags = { 0 };
-
+    TControllerUnittestingOptions testingOptions{
+        .CachedSystemBlockFlags = { 0 },
+    };
     auto controller = InitializeController(
         rows,
         /*rowSlots*/ {0},
@@ -1044,12 +1059,7 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheSimple1)
         SimpleSchema,
         keys,
         /*keySlots*/ {0},
-        /*columnFilter*/ {},
-        /*timestamp*/ AsyncLastCommittedTimestamp,
-        /*produceAllVersions*/ false,
-        /*fingerprintDomainSize*/ std::nullopt,
-        /*maxBlockSize*/ std::nullopt,
-        cachedSystemBlockFlags);
+        testingOptions);
 
     auto systemBlockCache = GetSystemBlockCache();
     auto& blockAccessStatistics = systemBlockCache->GetBlockAccessStatistics();
@@ -1088,8 +1098,9 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheSimple2)
 
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("0") };
 
-    std::vector<int> cachedSystemBlockFlags = { 1 };
-
+    TControllerUnittestingOptions testingOptions{
+        .CachedSystemBlockFlags = { 1 },
+    };
     auto controller = InitializeController(
         rows,
         /*rowSlots*/ {0},
@@ -1098,12 +1109,7 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheSimple2)
         SimpleSchema,
         keys,
         /*keySlots*/ {0},
-        /*columnFilter*/ {},
-        /*timestamp*/ AsyncLastCommittedTimestamp,
-        /*produceAllVersions*/ false,
-        /*fingerprintDomainSize*/ std::nullopt,
-        /*maxBlockSize*/ std::nullopt,
-        cachedSystemBlockFlags);
+        testingOptions);
 
     auto systemBlockCache = GetSystemBlockCache();
     auto& blockAccessStatistics = systemBlockCache->GetBlockAccessStatistics();
@@ -1137,8 +1143,9 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheEmpty1)
 
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("0") };
 
-    std::vector<int> cachedSystemBlockFlags = { 0 };
-
+    TControllerUnittestingOptions testingOptions{
+        .CachedSystemBlockFlags = { 0 },
+    };
     auto controller = InitializeController(
         rows,
         /*rowSlots*/ {0},
@@ -1147,12 +1154,7 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheEmpty1)
         SimpleSchema,
         keys,
         /*keySlots*/ {0},
-        /*columnFilter*/ {},
-        /*timestamp*/ AsyncLastCommittedTimestamp,
-        /*produceAllVersions*/ false,
-        /*fingerprintDomainSize*/ std::nullopt,
-        /*maxBlockSize*/ std::nullopt,
-        cachedSystemBlockFlags);
+        testingOptions);
 
     auto systemBlockCache = GetSystemBlockCache();
     auto& blockAccessStatistics = systemBlockCache->GetBlockAccessStatistics();
@@ -1181,8 +1183,9 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheEmpty2)
 
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("0") };
 
-    std::vector<int> cachedSystemBlockFlags = {1};
-
+    TControllerUnittestingOptions testingOptions{
+        .CachedSystemBlockFlags = { 1 },
+    };
     auto controller = InitializeController(
         rows,
         /*rowSlots*/ {0},
@@ -1191,12 +1194,7 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheEmpty2)
         SimpleSchema,
         keys,
         /*keySlots*/ {0},
-        /*columnFilter*/ {},
-        /*timestamp*/ AsyncLastCommittedTimestamp,
-        /*produceAllVersions*/ false,
-        /*fingerprintDomainSize*/ std::nullopt,
-        /*maxBlockSize*/ std::nullopt,
-        cachedSystemBlockFlags);
+        testingOptions);
 
     auto systemBlockCache = GetSystemBlockCache();
     auto& blockAccessStatistics = systemBlockCache->GetBlockAccessStatistics();
@@ -1229,8 +1227,10 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheMultipleBlocks)
 
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("0"), YsonToKey("1"), YsonToKey("2"), YsonToKey("3") };
 
-    std::vector<int> cachedSystemBlockFlags = { 1, 0 };
-
+    TControllerUnittestingOptions testingOptions{
+        .MaxBlockSize = THashTableChunkIndexFormatDetail::SectorSize,
+        .CachedSystemBlockFlags = { 1, 0 },
+    };
     auto controller = InitializeController(
         rows,
         {0, 0, 100, 100},
@@ -1238,13 +1238,8 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheMultipleBlocks)
         SimpleSchema,
         SimpleSchema,
         keys,
-        {0, 0, 100, 100},
-        /*columnFilter*/ {},
-        /*timestamp*/ AsyncLastCommittedTimestamp,
-        /*produceAllVersions*/ false,
-        /*fingerprintDomainSize*/ std::nullopt,
-        /*maxBlockSize*/ THashTableChunkIndexFormatDetail::SectorSize,
-        cachedSystemBlockFlags);
+        /*keySlots*/ {0, 0, 100, 100},
+        testingOptions);
 
     EXPECT_EQ(3, std::ssize(GetBlocks()));
     EXPECT_EQ(THashTableChunkIndexFormatDetail::SectorSize, std::ssize(GetBlocks()[1]));
@@ -1288,8 +1283,9 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheMultipleSectors)
 
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("0"), YsonToKey("1") };
 
-    std::vector<int> cachedSystemBlockFlags = { 1 };
-
+    TControllerUnittestingOptions testingOptions{
+        .CachedSystemBlockFlags = { 1 },
+    };
     auto controller = InitializeController(
         rows,
         {299},
@@ -1297,13 +1293,8 @@ TEST_F(TTestHashTableChunkIndexReadController, BlockCacheMultipleSectors)
         SimpleSchema,
         SimpleSchema,
         keys,
-        {0, 299},
-        /*columnFilter*/ {},
-        /*timestamp*/ AsyncLastCommittedTimestamp,
-        /*produceAllVersions*/ false,
-        /*fingerprintDomainSize*/ std::nullopt,
-        /*maxBlockSize*/ {},
-        cachedSystemBlockFlags);
+        /*keySlots*/ {0, 299},
+        testingOptions);
 
     EXPECT_EQ(2, std::ssize(GetBlocks()));
     EXPECT_EQ(2 * THashTableChunkIndexFormatDetail::SectorSize, std::ssize(GetBlocks()[1]));
