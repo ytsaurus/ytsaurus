@@ -1,6 +1,7 @@
 #include "dynamic_io_engine.h"
 
 #include "io_engine.h"
+#include "io_engine_uring.h"
 
 namespace NYT::NIO {
 
@@ -21,6 +22,11 @@ public:
         , AuxPoolInvoker_(ProxyInvoker_)
     {
         for (auto engineType : GetSupportedIOEngineTypes()) {
+            // We have to check available system resources each time we create new io_uring engine.
+            if (IsUringBasedIOEngine(engineType) && !IsUringIOEngineSupported()) {
+                continue;
+            }
+
             State_->Engines[engineType] = CreateIOEngine(
                 engineType,
                 ioConfig,

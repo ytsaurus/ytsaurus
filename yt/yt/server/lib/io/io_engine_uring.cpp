@@ -1412,7 +1412,12 @@ public:
         , ReconfigureInvoker_(std::move(reconfigureInvoker))
         , RequestQueue_(New<TQueue>(locationId, Config_))
     {
-        ReconfigureInvoker_->Invoke(BIND(&TUringThreadPoolBase::ResizeThreads, MakeWeak(this)));
+        auto initFuture = BIND(&TUringThreadPoolBase::ResizeThreads, MakeWeak(this))
+            .AsyncVia(ReconfigureInvoker_)
+            .Run();
+
+        WaitFor(initFuture)
+            .ThrowOnError();
     }
 
     ~TUringThreadPoolBase()
@@ -1845,6 +1850,20 @@ bool IsUringIOEngineSupported()
 
 #endif
     return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsUringBasedIOEngine(EIOEngineType engineType)
+{
+    switch (engineType) {
+        case EIOEngineType::FairShareUring:
+        case EIOEngineType::Uring:
+            return true;
+
+        default:
+            return false;
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

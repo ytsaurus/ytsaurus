@@ -21,6 +21,8 @@ IIOEnginePtr CreateIOEngineUring(
 
 bool IsUringIOEngineSupported();
 
+bool IsUringBasedIOEngine(EIOEngineType engineType);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NIO
