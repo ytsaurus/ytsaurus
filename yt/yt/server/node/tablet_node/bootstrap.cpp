@@ -281,6 +281,8 @@ public:
 
         GetRpcServer()->RegisterService(CreateQueryService(GetConfig()->QueryAgent, this));
 
+        GetRpcServer()->RegisterService(CreateTabletCellService(this));
+
         SlotManager_->Initialize();
     }
 
