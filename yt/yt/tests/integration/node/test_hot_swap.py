@@ -3,8 +3,8 @@ import logging
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait,
-    ls, get, create, set, make_ace,
+    authors, wait, create_access_control_object_namespace,
+    ls, get, create, set, make_ace, create_access_control_object,
     create_user, exists, get_singular_chunk_id,
     update_nodes_dynamic_config,
     write_file, disable_chunk_locations,
@@ -158,6 +158,16 @@ class TestHotSwap(YTEnvSetup):
                 return False
 
         wait(lambda: not check())
+
+        try:
+            create_access_control_object_namespace(name="admin_commands")
+        except Exception:
+            pass
+        try:
+            create_access_control_object(name="disable_chunk_locations", namespace="admin_commands")
+        except Exception:
+            pass
+
         wait(lambda: exists("//sys/access_control_object_namespaces/admin_commands/disable_chunk_locations"))
         set("//sys/access_control_object_namespaces/admin_commands/disable_chunk_locations/principal/@acl", acl)
 
