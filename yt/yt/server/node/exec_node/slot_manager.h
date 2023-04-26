@@ -86,7 +86,7 @@ public:
             TSlotManagerPtr slotManager,
             ESlotType slotType,
             double requestedCpu,
-            const std::optional<i64>& numaNodeIdAffinity);
+            std::optional<i64> numaNodeIdAffinity);
         ~TSlotGuard();
 
     private:

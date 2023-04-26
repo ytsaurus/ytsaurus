@@ -23,11 +23,11 @@ TPortoHealthChecker::TPortoHealthChecker(
     TPortoExecutorConfigPtr config,
     IInvokerPtr invoker,
     TLogger logger)
-    : Config_(config)
+    : Config_(std::move(config))
     , Logger(std::move(logger))
     , CheckInvoker_(std::move(invoker))
     , Executor_(CreatePortoExecutor(
-        config,
+        Config_,
         "porto_check"))
 { }
 
@@ -37,7 +37,7 @@ void TPortoHealthChecker::Start()
 
     PeriodicExecutor_ = New<TPeriodicExecutor>(
         CheckInvoker_,
-        BIND(&TPortoHealthChecker::OnCheck, MakeStrong(this)),
+        BIND(&TPortoHealthChecker::OnCheck, MakeWeak(this)),
         Config_->RetriesTimeout);
     PeriodicExecutor_->Start();
 }

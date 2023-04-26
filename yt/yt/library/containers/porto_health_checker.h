@@ -43,7 +43,6 @@ private:
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
     void OnCheck();
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TPortoHealthChecker)

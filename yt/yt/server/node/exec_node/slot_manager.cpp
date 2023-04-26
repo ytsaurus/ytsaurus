@@ -149,8 +149,7 @@ void TSlotManager::Initialize()
 
     auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
 
-    if (environmentConfig->Type == EJobEnvironmentType::Porto)
-    {
+    if (environmentConfig->Type == EJobEnvironmentType::Porto) {
         PortoHealthChecker_->SubscribeSuccess(BIND(&TSlotManager::OnPortoHealthCheckSuccess, MakeStrong(this))
             .Via(Bootstrap_->GetJobInvoker()));
         PortoHealthChecker_->SubscribeFailed(BIND(&TSlotManager::OnPortoHealthCheckFailed, MakeStrong(this))
@@ -497,7 +496,6 @@ void TSlotManager::ForceInitialize()
         YT_LOG_WARNING("Slot manager expects other state (Expected: %v, Actual: %v)",
             ESlotManagerState::Disabled,
             expected);
-        return;
     } else {
         State_.store(ESlotManagerState::Initialized);
     }
@@ -511,7 +509,7 @@ void TSlotManager::ResetAlerts(const std::vector<ESlotManagerAlertType>& alertTy
         VERIFY_THREAD_AFFINITY(JobThread);
 
         bool needInitialize = false;
-        for (const auto& alertType : alertTypes) {
+        for (auto alertType : alertTypes) {
             Alerts_[alertType] = {};
         }
 
@@ -933,7 +931,7 @@ TSlotManager::TSlotGuard::TSlotGuard(
     TSlotManagerPtr slotManager,
     ESlotType slotType,
     double requestedCpu,
-    const std::optional<i64>& numaNodeIdAffinity)
+    std::optional<i64> numaNodeIdAffinity)
     : SlotManager_(std::move(slotManager))
     , RequestedCpu_(requestedCpu)
     , NumaNodeIdAffinity_(numaNodeIdAffinity)

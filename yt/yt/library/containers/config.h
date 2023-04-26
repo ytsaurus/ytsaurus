@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "porto_executor.h"
 
 #include <yt/yt/core/ytree/yson_struct.h>
 

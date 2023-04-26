@@ -823,7 +823,7 @@ private:
         {
             auto guard = Guard(SpinLock_);
 
-            if (Layers_.find(layerId) == Layers_.end()) {
+            if (!Layers_.contains(layerId)) {
                 YT_LOG_FATAL("Layer already removed (LayerId: %v, LayerPath: %v, IsSquashfs: %v)",
                     layerId,
                     layerPath,
@@ -850,11 +850,9 @@ private:
 
             NFS::Remove(layerMetaPath);
 
-            i64 layerSize = -1;
-
             {
                 auto guard = Guard(SpinLock_);
-                layerSize = Layers_[layerId].size();
+                i64 layerSize = Layers_[layerId].size();
                 YT_VERIFY(Layers_.erase(layerId));
 
                 UsedSpace_ -= layerSize;
@@ -981,7 +979,7 @@ private:
         {
             auto guard = Guard(SpinLock_);
 
-            if (Volumes_.find(volumeId) == Volumes_.end()) {
+            if (!Volumes_.contains(volumeId)) {
                 YT_LOG_FATAL("Volume already removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
                     volumeId,
                     volumePath,
