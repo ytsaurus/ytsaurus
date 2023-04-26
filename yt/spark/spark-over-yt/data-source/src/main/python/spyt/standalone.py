@@ -217,19 +217,32 @@ def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None,
     if local_files:
         remote_paths = {}
         new_spark_args = []
+        local_files_pattern = "[A-Za-z0-9]+:\/[^,]+(,[A-Za-z0-9]+:\/[^,]+)*" # Matches "FS:/..." path sequence
         for spark_arg in spark_args:
-            if spark_arg.startswith('local:/'):
-                if spark_arg not in remote_paths:
-                    file_path = spark_arg[7:] # Drops prefix
-                    _, file_extension = os.path.splitext(file_path)
-                    destination = upload_file_to_cache(file_path, client=client)
-                    destination_ext = "{}{}".format(destination, file_extension)
-                    cypress_copy(destination, destination_ext, ignore_existing=True, client=client) # Extension is necessary
-                    logger.info("%s has been uploaded to YT as %s", file_path, destination_ext)
-                    remote_paths[spark_arg] = "yt:/{}".format(destination_ext)
-                new_spark_args.append(remote_paths[spark_arg])
-            else:
+            is_file_list = re.fullmatch(local_files_pattern, spark_arg)
+            if not is_file_list:
                 new_spark_args.append(spark_arg)
+                continue
+            file_list = spark_arg.split(",")
+            new_file_list = []
+            for single_file in file_list:
+                if single_file.startswith('local:/'):
+                    local_file_path = single_file[7:] # Drops prefix
+                    if local_file_path not in remote_paths:
+                        _, file_extension = os.path.splitext(local_file_path)
+                        destination = upload_file_to_cache(local_file_path, client=client)
+                        destination_ext = "{}{}".format(destination, file_extension)
+                        if file_extension != "":
+                            cypress_copy(destination, destination_ext, ignore_existing=True, client=client) # Extension is necessary
+                        else:
+                            logger.warn("%s has no extension. Usually such files are unacceptable")
+                        logger.info("%s has been uploaded to YT as %s", local_file_path, destination_ext)
+                        remote_paths[local_file_path] = "yt:/{}".format(destination_ext)
+                    new_file_list.append(remote_paths[local_file_path])
+                else:
+                    new_file_list.append(single_file)
+            new_spark_arg = ",".join(new_file_list)
+            new_spark_args.append(new_spark_arg)
         spark_args = new_spark_args
 
     # replace stdin to avoid https://bugs.openjdk.java.net/browse/JDK-8211842
