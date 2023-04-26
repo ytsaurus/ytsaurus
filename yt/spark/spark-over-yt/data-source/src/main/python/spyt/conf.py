@@ -66,8 +66,8 @@ def validate_versions_compatibility(spyt_version, spark_cluster_version):
 
 
 def validate_mtn_config(enablers, network_project, tvm_id, tvm_secret):
-    if enablers.enable_mtn and not (network_project and tvm_id and tvm_secret):
-        raise RuntimeError("When using MTN, network_project arg, env variables SPARK_TVM_ID and SPARK_TVM_SECRET must be set.")
+    if enablers.enable_mtn and not network_project:
+        raise RuntimeError("When using MTN, network_project arg must be set.")
 
 
 def latest_compatible_spyt_version(spark_cluster_version, client=None):
