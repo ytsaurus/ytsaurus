@@ -127,7 +127,7 @@ TEST(TFederatedClientTest, Basic)
 
     EXPECT_CALL(*mockClientVla, LookupRows(data.Path, _, _, _))
         .WillOnce(Return(MakeFuture(data.LookupResult1)))
-        .WillOnce(Return(MakeFuture<IUnversionedRowsetPtr>(TError("Failure"))));
+        .WillOnce(Return(MakeFuture<IUnversionedRowsetPtr>(TError(NRpc::EErrorCode::Unavailable, "Failure"))));
 
     EXPECT_CALL(*mockClientSas, LookupRows(data.Path, _, _, _))
         .WillOnce(Return(MakeFuture(data.LookupResult2)));
@@ -287,7 +287,7 @@ TEST(TFederatedClientTest, Transactions)
 
     EXPECT_CALL(*mockTransactionVla, LookupRows(data.Path, _, _, _))
         .WillOnce(Return(MakeFuture(data.LookupResult1)))
-        .WillOnce(Return(MakeFuture<IUnversionedRowsetPtr>(TError("Failure"))));
+        .WillOnce(Return(MakeFuture<IUnversionedRowsetPtr>(TError(NRpc::EErrorCode::Unavailable, "Failure"))));
 
     // Wait for the first check of clusters healths.
     Sleep(TDuration::Seconds(2));
@@ -370,7 +370,7 @@ TEST(TFederatedClientTest, RetryWithoutTransaction)
     // 3. `sas` client should be used as other cluster.
 
     EXPECT_CALL(*mockClientVla, LookupRows(data.Path, _, _, _))
-        .WillOnce(Return(MakeFuture<IUnversionedRowsetPtr>(TError("Failure"))));
+        .WillOnce(Return(MakeFuture<IUnversionedRowsetPtr>(TError(NRpc::EErrorCode::Unavailable, "Failure"))));
 
     EXPECT_CALL(*mockClientSas, LookupRows(data.Path, _, _, _))
         .WillOnce(Return(MakeFuture(data.LookupResult2)));
@@ -394,7 +394,7 @@ TEST(TFederatedClientTest, RetryWithoutTransaction)
 
     auto mockTransactionVla = New<TStrictMockTransaction>();
     EXPECT_CALL(*mockClientVla, StartTransaction(_, _))
-        .WillOnce(Return(MakeFuture<NApi::ITransactionPtr>(TError("Failure"))));
+        .WillOnce(Return(MakeFuture<NApi::ITransactionPtr>(TError(NRpc::EErrorCode::Unavailable, "Failure"))));
 
     auto mockTransactionSas = New<TStrictMockTransaction>();
     EXPECT_CALL(*mockClientSas, StartTransaction(_, _))

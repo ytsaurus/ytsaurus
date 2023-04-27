@@ -16,6 +16,7 @@
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/helpers.h>
 
 #include <library/cpp/yt/memory/ref.h>
 
@@ -648,9 +649,11 @@ ITransactionPtr TClient::AttachTransaction(
     THROW_ERROR_EXCEPTION("No client is known for transaction %v", transactionId);
 }
 
-void TClient::HandleError(const TErrorOr<void>& /*error*/, int clientIndex)
+void TClient::HandleError(const TErrorOr<void>& error, int clientIndex)
 {
-    // TODO(nadya73): check error and do nothing if it's not fatal error
+    if (!NRpc::IsChannelFailureError(error)) {
+        return;
+    }
 
     UnderlyingClients_[clientIndex]->HasErrors = true;
     if (ActiveClientIndex_ != clientIndex) {
