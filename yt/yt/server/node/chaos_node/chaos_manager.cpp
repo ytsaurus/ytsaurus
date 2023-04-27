@@ -697,16 +697,16 @@ private:
     }
 
     void HydraRemoveReplicationCard(
-        const TCtxRemoveReplicationCardPtr& context,
+        const TCtxRemoveReplicationCardPtr& /*context*/,
         NChaosClient::NProto::TReqRemoveReplicationCard* request,
         NChaosClient::NProto::TRspRemoveReplicationCard* /*response*/)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        bool isMessageFromHive = context.Get() == nullptr;
-        auto* replicationCard = GetReplicationCardOrThrow(replicationCardId, isMessageFromHive);
+        bool isHiveMutation = IsHiveMutation();
+        auto* replicationCard = GetReplicationCardOrThrow(replicationCardId, isHiveMutation);
 
         if (IsReplicationCardMigrated(replicationCard)) {
-            YT_VERIFY(isMessageFromHive);
+            YT_VERIFY(isHiveMutation);
             MigratedReplicationCardRemover_->EnqueueRemoval(replicationCardId);
             return;
         }

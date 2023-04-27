@@ -31,7 +31,7 @@ using namespace NRpc;
 
 static const auto& Logger = ChaosNodeLogger;
 
-static const int MigratedReplicatedCardRemoveBatchSize = 128;
+static constexpr int MigratedReplicatedCardRemoveBatchSize = 128;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,7 +148,10 @@ IMigratedReplicationCardRemoverPtr CreateMigratedReplicationCardRemover(
     IChaosSlotPtr slot,
     IBootstrap* bootstrap)
 {
-    return New<TMigratedReplicationCardRemover>(std::move(config), std::move(slot), bootstrap);
+    return New<TMigratedReplicationCardRemover>(
+        std::move(config),
+        std::move(slot),
+        bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
