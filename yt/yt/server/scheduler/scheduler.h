@@ -68,6 +68,11 @@ public:
     /*!
      *  \note Thread affinity: any
      */
+    IInvokerPtr GetOperationsCleanerInvoker() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
     const TNodeManagerPtr& GetNodeManager() const;
 
     /*!

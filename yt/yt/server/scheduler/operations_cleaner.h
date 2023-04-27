@@ -54,6 +54,7 @@ struct IOperationsCleanerHost
     virtual ~IOperationsCleanerHost() = default;
     virtual void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert) = 0;
     virtual IInvokerPtr GetBackgroundInvoker() const = 0;
+    virtual IInvokerPtr GetOperationsCleanerInvoker() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

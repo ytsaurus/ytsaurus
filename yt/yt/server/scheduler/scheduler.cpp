@@ -1393,6 +1393,11 @@ public:
         return BackgroundThreadPool_->GetInvoker();
     }
 
+    IInvokerPtr GetOperationsCleanerInvoker() const override
+    {
+        return OperationsCleanerActionQueue_->GetInvoker();
+    }
+
     IInvokerPtr GetOrchidWorkerInvoker() const override
     {
         return OrchidWorkerPool_->GetInvoker();
@@ -1758,6 +1763,7 @@ private:
     const IThreadPoolPtr OrchidWorkerPool_;
     const TActionQueuePtr EventLoggingActionQueue_ = New<TActionQueue>("EventLogging");
     const TActionQueuePtr FairShareProfilingActionQueue_ = New<TActionQueue>("FSProfiling");
+    const TActionQueuePtr OperationsCleanerActionQueue_ = New<TActionQueue>("OpsCleaner");
     const IThreadPoolPtr FairShareUpdatePool_;
     const IThreadPoolPtr BackgroundThreadPool_;
 
@@ -2643,7 +2649,7 @@ private:
 
             ValidateOperationState(operation, EOperationState::Starting);
 
-            RegisterOperation(operation, /* jobsReady */ true);
+            RegisterOperation(operation, /*jobsReady*/ true);
 
             if (operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree.empty()) {
                 UnregisterOperation(operation);
