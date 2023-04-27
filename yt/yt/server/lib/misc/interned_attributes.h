@@ -105,6 +105,7 @@
     XX(ConfigPreset, config_preset) \
     XX(ConfigVersion, config_version) \
     XX(Confirmed, confirmed) \
+    XX(UsePoolSatisfactionForScheduling, use_pool_satisfaction_for_scheduling) \
     XX(ConsistentReplicaPlacement, consistent_replica_placement) \
     XX(ConsistentReplicaPlacementHash, consistent_replica_placement_hash) \
     XX(ConsistentReplicaPlacementTokenCount, consistent_replica_placement_token_count) \
@@ -188,6 +189,7 @@
     XX(FairShareAggressiveStarvationTimeout, fair_share_aggressive_starvation_timeout) \
     XX(FairShareStarvationTolerance, fair_share_starvation_tolerance) \
     XX(FifoSortParameters, fifo_sort_parameters) \
+    XX(FifoPoolSchedulingOrder, fifo_pool_scheduling_order) \
     XX(FileName, file_name) \
     XX(Flavors, flavors) \
     XX(FlushLagTime, flush_lag_time) \

@@ -268,6 +268,7 @@ public:
     std::optional<int> MaxOperationCount;
 
     std::vector<EFifoSortParameter> FifoSortParameters;
+    std::optional<EFifoPoolSchedulingOrder> FifoPoolSchedulingOrder;
 
     bool ForbidImmediateOperations;
 
@@ -298,6 +299,8 @@ public:
     TOffloadingSettings OffloadingSettings;
 
     TJobResourcesConfigPtr NonPreemptibleResourceUsageThreshold;
+
+    std::optional<bool> UsePoolSatisfactionForScheduling;
 
     void Validate(const TString& poolName);
 

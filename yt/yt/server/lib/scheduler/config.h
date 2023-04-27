@@ -413,6 +413,10 @@ public:
 
     TPrioritizedRegularSchedulingConfigPtr PrioritizedRegularScheduling;
 
+    EFifoPoolSchedulingOrder FifoPoolSchedulingOrder;
+
+    bool UsePoolSatisfactionForScheduling;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);

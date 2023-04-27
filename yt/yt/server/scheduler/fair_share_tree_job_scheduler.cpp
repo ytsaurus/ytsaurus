@@ -220,6 +220,14 @@ bool IsRegularPreemptionAllowed(const TSchedulerElement* element)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool ShouldUseFifoSchedulingOrder(const TSchedulerCompositeElement* element)
+{
+    return element->GetMode() == ESchedulingMode::Fifo &&
+        element->GetEffectiveFifoPoolSchedulingOrder() == EFifoPoolSchedulingOrder::Fifo;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -231,7 +239,7 @@ TSchedulableChildSet::TSchedulableChildSet(
     bool useHeap)
     : OwningElement_(owningElement)
     , DynamicAttributesList_(dynamicAttributesList)
-    , Mode_(OwningElement_->GetMode())
+    , UseFifoSchedulingOrder_(ShouldUseFifoSchedulingOrder(OwningElement_))
     , UseHeap_(useHeap)
     , Children_(std::move(children))
 {
@@ -314,14 +322,11 @@ bool TSchedulableChildSet::Comparator(const TSchedulerElement* lhs, const TSched
         return rhsAttributes.Active < lhsAttributes.Active;
     }
 
-    switch (Mode_) {
-        case ESchedulingMode::Fifo:
-            return OwningElement_->HasHigherPriorityInFifoMode(lhs, rhs);
-        case ESchedulingMode::FairShare:
-            return lhsAttributes.SatisfactionRatio < rhsAttributes.SatisfactionRatio;
-        default:
-            YT_ABORT();
+    if (UseFifoSchedulingOrder_) {
+        return OwningElement_->HasHigherPriorityInFifoMode(lhs, rhs);
     }
+
+    return lhsAttributes.SatisfactionRatio < rhsAttributes.SatisfactionRatio;
 }
 
 void TSchedulableChildSet::MoveBestChildToFront()
@@ -596,19 +601,23 @@ void TDynamicAttributesManager::UpdateAttributesAtCompositeElement(TSchedulerCom
     }
 
     // Satisfaction ratio of a composite element is the minimum of its children's satisfaction ratios.
-    // NB(eshcherbin): We initialize with local satisfaction ratio in case all children have no pending jobs
-    // and thus are not in the |SchedulableChildren_| list.
-    attributes.SatisfactionRatio = attributes.LocalSatisfactionRatio;
 
     if (const auto* bestChild = GetBestActiveChild(element)) {
         const auto& bestChildAttributes = AttributesOf(bestChild);
         attributes.Active = true;
         attributes.BestLeafDescendant = bestChildAttributes.BestLeafDescendant;
-        attributes.SatisfactionRatio = std::min(bestChildAttributes.SatisfactionRatio, attributes.SatisfactionRatio);
+        attributes.SatisfactionRatio = bestChildAttributes.SatisfactionRatio;
+
+        if (element->GetEffectiveUsePoolSatisfactionForScheduling()) {
+            attributes.SatisfactionRatio = std::min(attributes.SatisfactionRatio, attributes.LocalSatisfactionRatio);
+        }
     } else {
         // Declare the element passive if all children are passive.
         attributes.Active = false;
         attributes.BestLeafDescendant = nullptr;
+        // NB(eshcherbin): We use pool's local satisfaction ratio as a fallback value for smoother diagnostics.
+        // This value will not influence scheduling decisions.
+        attributes.SatisfactionRatio = attributes.LocalSatisfactionRatio;
     }
 }
 
@@ -626,14 +635,11 @@ TSchedulerElement* TDynamicAttributesManager::GetBestActiveChild(TSchedulerCompo
     }
 
     // COMPAT(eshcherbin)
-    switch (element->GetMode()) {
-        case ESchedulingMode::Fifo:
-            return GetBestActiveChildFifo(element);
-        case ESchedulingMode::FairShare:
-            return GetBestActiveChildFairShare(element);
-        default:
-            YT_ABORT();
+    if (ShouldUseFifoSchedulingOrder(element)) {
+        return GetBestActiveChildFifo(element);
     }
+
+    return GetBestActiveChildFairShare(element);
 }
 
 TSchedulerElement* TDynamicAttributesManager::GetBestActiveChildFifo(TSchedulerCompositeElement* element) const

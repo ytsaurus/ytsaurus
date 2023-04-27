@@ -1348,8 +1348,12 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableOperationsOrder)
     auto fifoPoolConfig = New<TPoolConfig>();
     fifoPoolConfig->Mode = ESchedulingMode::Fifo;
     fifoPoolConfig->FifoSortParameters = {EFifoSortParameter::Weight};
+    fifoPoolConfig->FifoPoolSchedulingOrder = EFifoPoolSchedulingOrder::Fifo;
 
-    for (const auto& poolConfig : {New<TPoolConfig>(), fifoPoolConfig}) {
+    auto fifoPoolWithSatisfactionOrderConfig = NYTree::CloneYsonStruct(fifoPoolConfig);
+    fifoPoolWithSatisfactionOrderConfig->FifoPoolSchedulingOrder = EFifoPoolSchedulingOrder::Satisfaction;
+
+    for (const auto& poolConfig : {New<TPoolConfig>(), fifoPoolConfig, fifoPoolWithSatisfactionOrderConfig}) {
         pool->SetConfig(poolConfig);
 
         for (int minChildHeapSize : {3, 100}) {
@@ -1358,14 +1362,17 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableOperationsOrder)
             for (const auto& consideredOperations : {{}, std::make_optional(nonOwningOperationElements)}) {
                 YT_LOG_INFO(
                     "Testing schedulable operations order "
-                    "(PoolMode: %v, MinChildHeapSize: %v, UseConsideredOperations: %v)",
+                    "(PoolMode: %v, FifoPoolSchedulingOrder: %v, MinChildHeapSize: %v, UseConsideredOperations: %v)",
                     pool->GetConfig()->Mode,
+                    pool->GetConfig()->FifoPoolSchedulingOrder,
                     TreeConfig_->MinChildHeapSize,
                     consideredOperations.has_value());
 
+                bool shouldUseFifoOrder = pool->GetConfig()->Mode == ESchedulingMode::Fifo &&
+                    pool->GetConfig()->FifoPoolSchedulingOrder == EFifoPoolSchedulingOrder::Fifo;
                 checkOrder(
                     consideredOperations,
-                    poolConfig->Mode == ESchedulingMode::Fifo
+                    shouldUseFifoOrder
                         ? ExpectedOperationIndicesFifo
                         : ExpectedOperationIndicesFairShare);
             }

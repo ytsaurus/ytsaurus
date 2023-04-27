@@ -89,7 +89,7 @@ public:
 private:
     const TSchedulerCompositeElement* OwningElement_;
     TDynamicAttributesList* const DynamicAttributesList_;
-    const ESchedulingMode Mode_;
+    const bool UseFifoSchedulingOrder_;
     const bool UseHeap_;
 
     TNonOwningElementList Children_;

@@ -1967,6 +1967,9 @@ void TPoolConfig::Register(TRegistrar registrar)
         .Default({EFifoSortParameter::Weight, EFifoSortParameter::StartTime})
         .NonEmpty();
 
+    registrar.Parameter("fifo_pool_scheduling_order", &TThis::FifoPoolSchedulingOrder)
+        .Default();
+
     registrar.Parameter("forbid_immediate_operations", &TThis::ForbidImmediateOperations)
         .Default(false);
 
@@ -2010,6 +2013,9 @@ void TPoolConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("non_preemptible_resource_usage_threshold", &TThis::NonPreemptibleResourceUsageThreshold)
+        .Default();
+
+    registrar.Parameter("use_pool_satisfaction_for_scheduling", &TThis::UsePoolSatisfactionForScheduling)
         .Default();
 }
 

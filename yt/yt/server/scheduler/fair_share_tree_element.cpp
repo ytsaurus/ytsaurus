@@ -1101,6 +1101,22 @@ void TSchedulerCompositeElement::UpdateEffectiveRecursiveAttributes()
 
     TSchedulerElement::UpdateEffectiveRecursiveAttributes();
 
+    if (IsRoot()) {
+        YT_VERIFY(GetSpecifiedFifoPoolSchedulingOrder());
+        EffectiveFifoPoolSchedulingOrder_ = *GetSpecifiedFifoPoolSchedulingOrder();
+
+        YT_VERIFY(ShouldUsePoolSatisfactionForScheduling());
+        EffectiveUsePoolSatisfactionForScheduling_ = *ShouldUsePoolSatisfactionForScheduling();
+    } else {
+        YT_VERIFY(Parent_);
+
+        EffectiveFifoPoolSchedulingOrder_ = GetSpecifiedFifoPoolSchedulingOrder().value_or(
+            Parent_->GetEffectiveFifoPoolSchedulingOrder());
+
+        EffectiveUsePoolSatisfactionForScheduling_ = ShouldUsePoolSatisfactionForScheduling().value_or(
+            Parent_->GetEffectiveUsePoolSatisfactionForScheduling());
+    }
+
     for (const auto& child : EnabledChildren_) {
         child->UpdateEffectiveRecursiveAttributes();
     }
@@ -1251,6 +1267,16 @@ std::optional<bool> TSchedulerPoolElement::IsAggressiveStarvationEnabled() const
 TJobResourcesConfigPtr TSchedulerPoolElement::GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const
 {
     return Config_->NonPreemptibleResourceUsageThreshold;
+}
+
+std::optional<EFifoPoolSchedulingOrder> TSchedulerPoolElement::GetSpecifiedFifoPoolSchedulingOrder() const
+{
+    return Config_->FifoPoolSchedulingOrder;
+}
+
+std::optional<bool> TSchedulerPoolElement::ShouldUsePoolSatisfactionForScheduling() const
+{
+    return Config_->UsePoolSatisfactionForScheduling;
 }
 
 TString TSchedulerPoolElement::GetId() const
@@ -2267,6 +2293,16 @@ std::optional<bool> TSchedulerRootElement::IsAggressiveStarvationEnabled() const
 TJobResourcesConfigPtr TSchedulerRootElement::GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const
 {
     return TreeConfig_->NonPreemptibleResourceUsageThreshold;
+}
+
+std::optional<EFifoPoolSchedulingOrder> TSchedulerRootElement::GetSpecifiedFifoPoolSchedulingOrder() const
+{
+    return TreeConfig_->FifoPoolSchedulingOrder;
+}
+
+std::optional<bool> TSchedulerRootElement::ShouldUsePoolSatisfactionForScheduling() const
+{
+    return TreeConfig_->UsePoolSatisfactionForScheduling;
 }
 
 void TSchedulerRootElement::CheckForStarvation(TInstant /*now*/)

@@ -388,6 +388,10 @@ public:
     // Computed in fair share update and used in schedule jobs.
     DEFINE_BYREF_RO_PROPERTY(std::vector<TSchedulerElementPtr>, SchedulableChildren);
 
+    // Computed in post update and used in schedule jobs.
+    DEFINE_BYVAL_RO_PROPERTY(EFifoPoolSchedulingOrder, EffectiveFifoPoolSchedulingOrder);
+    DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveUsePoolSatisfactionForScheduling);
+
 protected:
     // Used in fair share update.
     ESchedulingMode Mode_ = ESchedulingMode::Fifo;
@@ -467,6 +471,9 @@ public:
     void MarkImmutable() override;
 
     bool IsSchedulable() const override;
+
+    virtual std::optional<EFifoPoolSchedulingOrder> GetSpecifiedFifoPoolSchedulingOrder() const = 0;
+    virtual std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const = 0;
 
     //! Schedule jobs related methods.
     bool HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
@@ -628,6 +635,9 @@ public:
     std::optional<bool> IsAggressiveStarvationEnabled() const override;
 
     TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
+
+    std::optional<EFifoPoolSchedulingOrder> GetSpecifiedFifoPoolSchedulingOrder() const override;
+    std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const override;
 
     //! Other methods.
     void BuildResourceMetering(
@@ -945,6 +955,9 @@ public:
     std::optional<bool> IsAggressiveStarvationEnabled() const override;
 
     TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
+
+    std::optional<EFifoPoolSchedulingOrder> GetSpecifiedFifoPoolSchedulingOrder() const override;
+    std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const override;
 
     //! Other methods.
     THashSet<TString> GetAllowedProfilingTags() const override;
