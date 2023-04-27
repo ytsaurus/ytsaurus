@@ -2031,8 +2031,6 @@ private:
                 Options_.ResponseKeeper->Start();
             }
 
-            ApplyFinalRecoveryAction(/*isLeader*/ true);
-
             WaitFor(BIND(&TDistributedHydraManager::OnLeaderActiveAutomaton, MakeWeak(this))
                 .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
                 .Run())
@@ -2284,22 +2282,18 @@ private:
 
             YT_LOG_INFO("Follower recovery completed");
 
-            // Do not complete recovery -- we do not want to become active.
-            // Just wait for leader to die, so that we can die as well.
-            if (ApplyFinalRecoveryAction(/*isLeader*/ false)) {
-                SystemLockGuard_.Release();
+            SystemLockGuard_.Release();
 
-                WaitFor(BIND(&TDistributedHydraManager::OnFollowerRecoveryCompleteAutomaton, MakeWeak(this))
-                    .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
-                    .Run())
-                    .ThrowOnError();
+            WaitFor(BIND(&TDistributedHydraManager::OnFollowerRecoveryCompleteAutomaton, MakeWeak(this))
+                .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
+                .Run())
+                .ThrowOnError();
 
-                if (Options_.ResponseKeeper) {
-                    Options_.ResponseKeeper->Start();
-                }
-
-                FollowerRecovered_ = true;
+            if (Options_.ResponseKeeper) {
+                Options_.ResponseKeeper->Start();
             }
+
+            FollowerRecovered_ = true;
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Follower recovery failed, backing off");
             TDelayedExecutor::WaitForDuration(Config_->Get()->RestartBackoffTime);
@@ -2421,65 +2415,6 @@ private:
             BIND(&TDistributedHydraManager::RecoverFollower, MakeStrong(this)));
 
         return true;
-    }
-
-    bool ApplyFinalRecoveryAction(bool isLeader)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto epochContext = ControlEpochContext_;
-
-        auto finalActionOrError = WaitFor(BIND(&TDecoratedAutomaton::GetFinalRecoveryAction, DecoratedAutomaton_)
-            .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
-            .Run());
-
-        auto finalAction = finalActionOrError.ValueOrThrow();
-
-        if (finalAction == EFinalRecoveryAction::None) {
-            return true;
-        }
-
-        YT_LOG_INFO("Applying final recovery action (FinalRecoveryAction: %v)",
-            finalAction);
-
-        switch (finalAction) {
-            case EFinalRecoveryAction::BuildSnapshotAndRestart: {
-                // Do not do anything for follower: after leader finalizes followers will
-                // die naturally.
-                if (!isLeader) {
-                    return false;
-                }
-
-                YT_LOG_INFO("Building compatibility snapshot");
-
-                const auto& leaderCommitter = epochContext->LeaderCommitter;
-                if (leaderCommitter->CanBuildSnapshot()) {
-                    SetReadOnly(true);
-
-                    auto snapshotIdOrError = WaitFor(leaderCommitter->BuildSnapshot(
-                        /*waitForSnapshotCompletion*/ true,
-                        /*setReadOnly*/ true));
-                    if (snapshotIdOrError.IsOK()) {
-                        const auto& snapshotId = snapshotIdOrError.Value();
-                        YT_LOG_INFO("Compatibility snapshot built (SnapshotId: %v)",
-                            snapshotId);
-                    } else {
-                        YT_LOG_WARNING(snapshotIdOrError, "Error building compatibility snapshot");
-                    }
-                } else {
-                    YT_LOG_WARNING("Cannot build compatibility snapshot");
-                }
-
-                YT_LOG_INFO("Stopping Hydra instance and waiting for resurrection");
-                WaitFor(Finalize())
-                    .ThrowOnError();
-
-                // Unreachable because Finalize stops epoch executor.
-                YT_ABORT();
-            }
-            default:
-                YT_ABORT();
-        }
     }
 
     IInvokerPtr CreateEpochInvoker(const TEpochContextPtr& epochContext, const IInvokerPtr& underlying)
