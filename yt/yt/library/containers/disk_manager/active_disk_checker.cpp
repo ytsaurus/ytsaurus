@@ -29,8 +29,8 @@ TActiveDiskChecker::TActiveDiskChecker(
     : DiskInfoProvider_(std::move(diskInfoProvider))
     , RebootManager_(std::move(rebootManager))
     , Invoker_(std::move(invoker))
+    , Config_(New<TActiveDiskCheckerDynamicConfig>())
 {
-    Config_.Store(New<TActiveDiskCheckerDynamicConfig>());
     ActiveDisksCheckerExecutor_ = New<TPeriodicExecutor>(
         Invoker_,
         BIND(&TActiveDiskChecker::OnActiveDisksCheck, MakeWeak(this)),
@@ -66,7 +66,7 @@ void TActiveDiskChecker::OnDynamicConfigChanged(const TActiveDiskCheckerDynamicC
 
 void TActiveDiskChecker::OnActiveDisksCheck()
 {
-    auto activeDisks = WaitFor(DiskInfoProvider_->GetYtDiskInfos()
+    auto activeDisksOrError = WaitFor(DiskInfoProvider_->GetYtDiskInfos()
         .Apply(BIND([] (const std::vector<TDiskInfo>& diskInfos) {
             std::vector<TDiskInfo> activeDisks;
 
@@ -80,22 +80,22 @@ void TActiveDiskChecker::OnActiveDisksCheck()
         })));
 
     // Fast path.
-    if (!activeDisks.IsOK()) {
-        YT_LOG_ERROR(activeDisks, "Failed to get active disks");
+    if (!activeDisksOrError.IsOK()) {
+        YT_LOG_ERROR(activeDisksOrError, "Failed to get active disks");
         return;
     }
 
-    auto current = activeDisks.Value().size();
+    auto currentCount = std::ssize(activeDisksOrError.Value());
 
-    if (ActiveDiskCount_ && current > ActiveDiskCount_) {
+    if (ActiveDiskCount_ && currentCount > ActiveDiskCount_) {
         // Start node reboot (with ytcfgen config regeneration).
 
-        YT_LOG_WARNING("Start node reboot");
+        YT_LOG_WARNING("Request node reboot (PreviousDiskCount: %v, CurrentDiskCount: %v)", ActiveDiskCount_.value(), currentCount);
 
         RebootManager_->RequestReboot();
     }
 
-    ActiveDiskCount_ = current;
+    ActiveDiskCount_ = currentCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
