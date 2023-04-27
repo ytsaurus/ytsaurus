@@ -37,10 +37,11 @@ bool TAutoMergeDirector::CanScheduleTaskJob(int intermediateChunkCount) const
 
         YT_LOG_DEBUG("Disallowing scheduling of a task job "
             "(IntermediateChunkCountEstimate: %v, CurrentIntermediateChunkCount: %v, MaxIntermediateChunkCount: %v, "
-            "RunningMergeJobCount: %v)",
+            "RunningTaskJobCount: %v, RunningMergeJobCount: %v)",
             intermediateChunkCount,
             CurrentIntermediateChunkCount_,
             MaxIntermediateChunkCount_,
+            RunningTaskJobCount_,
             RunningMergeJobCount_);
 
         // If there are already some auto-merge jobs running, we should just wait for them.
