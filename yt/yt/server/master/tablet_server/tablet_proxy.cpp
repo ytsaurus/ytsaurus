@@ -7,6 +7,8 @@
 #include "tablet_proxy_base.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 
@@ -61,6 +63,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::LastCommitTimestamp);
         descriptors->push_back(EInternedAttributeKey::LastWriteTimestamp);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PerformanceCounters)
+            .SetOpaque(!Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->AddPerfCountersToTabletsAttribute)
             .SetPresent(tablet->GetCell()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PivotKey)
             .SetPresent(table->IsPhysicallySorted()));

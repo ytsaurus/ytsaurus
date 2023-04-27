@@ -199,6 +199,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetExternal(isExternal)
         .SetPresent(isDynamic)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletPerformanceCounters)
+        .SetExternal(isExternal)
+        .SetPresent(isDynamic)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PivotKeys)
         .SetExternal(isExternal)
         .SetPresent(isDynamic && isSorted)
@@ -487,10 +491,27 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(trunkTable->GetLastCommitTimestamp());
             return true;
 
-        case EInternedAttributeKey::Tablets:
+        case EInternedAttributeKey::TabletPerformanceCounters:
             if (!isDynamic || isExternal) {
                 break;
             }
+            BuildYsonFluently(consumer)
+                .DoListFor(trunkTable->Tablets(), [&] (TFluentList fluent, TTabletBase* tabletBase) {
+                    auto* tablet = tabletBase->As<TTablet>();
+                    fluent
+                        .Item().BeginMap()
+                            .Item("tablet_id").Value(tablet->GetId())
+                            .Item("performance_counters").Value(tablet->PerformanceCounters())
+                        .EndMap();
+                });
+            return true;
+
+        case EInternedAttributeKey::Tablets: {
+            if (!isDynamic || isExternal) {
+                break;
+            }
+            auto addPerfCounters = Bootstrap_->GetConfigManager()->GetConfig()
+                ->TabletManager->AddPerfCountersToTabletsAttribute;
             BuildYsonFluently(consumer)
                 .DoListFor(trunkTable->Tablets(), [&] (TFluentList fluent, TTabletBase* tabletBase) {
                     auto* tablet = tabletBase->As<TTablet>();
@@ -499,7 +520,10 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                     fluent
                         .Item().BeginMap()
                             .Item("index").Value(tablet->GetIndex())
-                            .Item("performance_counters").Value(tablet->PerformanceCounters())
+                            .DoIf(addPerfCounters, [&] (TFluentMap fluent) {
+                                fluent
+                                    .Item("performance_counters").Value(tablet->PerformanceCounters());
+                            })
                             .DoIf(table->IsSorted(), [&] (TFluentMap fluent) {
                                 fluent
                                     .Item("pivot_key").Value(tablet->GetPivotKey());
@@ -533,6 +557,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                         .EndMap();
                 });
             return true;
+        }
 
         case EInternedAttributeKey::PivotKeys:
             if (!isDynamic || !isSorted || isExternal) {

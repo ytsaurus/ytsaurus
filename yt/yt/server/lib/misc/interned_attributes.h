@@ -475,6 +475,7 @@
     XX(TabletErrorsUntrimmed, tablet_errors_untrimmed) \
     XX(TabletId, tablet_id) \
     XX(TabletIds, tablet_ids) \
+    XX(TabletPerformanceCounters, tablet_performance_counters) \
     XX(TabletSlots, tablet_slots) \
     XX(TabletState, tablet_state) \
     XX(TabletStatistics, tablet_statistics) \

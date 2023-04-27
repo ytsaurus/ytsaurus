@@ -2907,6 +2907,30 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         with pytest.raises(YtError, match="Cannot mount table since it has column \"value\" with value type \"null\""):
             sync_mount_table("//tmp/t")
 
+    @authors("alexelexa")
+    def test_performance_counters_attribute(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+
+        tablets = get("//tmp/t/@tablets")
+        tablet_id = tablets[0]["tablet_id"]
+
+        assert "performance_counters" in tablets[0]
+        assert get("#" + tablet_id + "/@")["performance_counters"]
+
+        set("//sys/@config/tablet_manager/add_perf_counters_to_tablets_attribute", False)
+
+        assert "performance_counters" not in get("//tmp/t/@tablets")[0]
+        assert not get("#" + tablet_id + "/@")["performance_counters"]
+
+        tablet_performance_counters = get("//tmp/t/@tablet_performance_counters")
+        assert len(tablet_performance_counters) == len(tablets)
+        assert tablet_performance_counters[0]["tablet_id"] == tablet_id
+        assert "dynamic_row_write_count" in get("#" + tablet_id + "/@performance_counters")
+
 
 ##################################################################
 

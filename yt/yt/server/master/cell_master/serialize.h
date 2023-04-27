@@ -134,6 +134,7 @@ DEFINE_ENUM(EMasterReign,
     ((UseMetadataCellIds)                                           (2319))  // ponasenko-rs
     ((UpdatePerUserThrottlerLimits)                                 (2320))  // h0pless
     ((RequireMediumUsePermissionForChunkOwnerCreation)              (2321))  // kvk1920
+    ((MakePerformanceCountersOpaque)                                (2322))  // alexelexa
 );
 
 ////////////////////////////////////////////////////////////////////////////////
