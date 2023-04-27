@@ -770,7 +770,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        GetUncancelableInvoker()->Invoke(
+        if (!IsEnabled()) {
+            return;
+        }
+
+        GetCancelableInvoker()->Invoke(
             BIND([this, this_ = MakeStrong(this), operationId, alertType, alert] {
                 OperationAlertEventQueue_.push_back({
                     operationId,
@@ -968,6 +972,7 @@ private:
         RemoveBatcher_->Drop();
         ArchiveTimeToOperationIdMap_.clear();
         OperationMap_.clear();
+        OperationAlertEventQueue_.clear();
         ArchivePending_ = 0;
         RemovePending_ = 0;
 
