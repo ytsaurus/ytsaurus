@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, wait
 
 from yt_commands import (
-    authors, create, ls, get, set, copy, move, remove,
+    authors, create, ls, get, set, copy, move, remove, create_medium,
     exists, create_account,
     create_user, create_group, make_ace, check_permission, check_permission_by_acl, add_member, remove_group, remove_user, start_transaction, lock,
     read_table, write_table, alter_table,
@@ -1586,6 +1586,14 @@ class TestCypressAcls(CheckPermissionBase):
         set("//sys/access_control_object_namespaces/cats/garfield/@acl/end", make_ace("allow", "u1", "read"))
         new_attribute_revision = get("//sys/access_control_object_namespaces/cats/garfield/@attribute_revision")
         assert new_attribute_revision > old_attribute_revision
+
+    @authors("kvk1920")
+    def test_medium_permission_validation(self):
+        create_medium("prohibited")
+        create_user("u")
+
+        with raises_yt_error("Access denied"):
+            create("table", "//tmp/t", attributes={"primary_medium": "prohibited"}, authenticated_user="u")
 
 
 ##################################################################

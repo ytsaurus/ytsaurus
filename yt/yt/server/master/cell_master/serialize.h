@@ -133,6 +133,7 @@ DEFINE_ENUM(EMasterReign,
     ((CypressTransactions)                                          (2318))  // gritukan
     ((UseMetadataCellIds)                                           (2319))  // ponasenko-rs
     ((UpdatePerUserThrottlerLimits)                                 (2320))  // h0pless
+    ((RequireMediumUsePermissionForChunkOwnerCreation)              (2321))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
