@@ -11,15 +11,15 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLogging::TLogger Logger{"RoamingChannelTest"};
+const NLogging::TLogger Logger("RoamingChannelTest");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOneTimeProvider
+class TOneChannelProvider
     : public IRoamingChannelProvider
 {
 public:
-    TOneTimeProvider(IChannelPtr channel)
+    explicit TOneChannelProvider(IChannelPtr channel)
         : Channel_(std::move(channel))
     { }
 
@@ -45,8 +45,7 @@ public:
 
     TFuture<IChannelPtr> GetChannel() override
     {
-        YT_ASSERT(Channel_);
-        return MakeFuture(std::move(Channel_));
+        return MakeFuture(Channel_);
     }
 
     void Terminate(const TError& /*error*/) override
@@ -55,7 +54,7 @@ public:
     }
 
 private:
-    IChannelPtr Channel_;
+    const IChannelPtr Channel_;
 };
 
 class TManualProvider
@@ -99,7 +98,7 @@ public:
     }
 
 private:
-    TPromise<IChannelPtr> Channel_ = NewPromise<IChannelPtr>();
+    const TPromise<IChannelPtr> Channel_ = NewPromise<IChannelPtr>();
 };
 
 class TNeverProvider
@@ -137,7 +136,7 @@ public:
     }
 
 private:
-    TPromise<IChannelPtr> Channel_ = NewPromise<IChannelPtr>();
+    const TPromise<IChannelPtr> Channel_ = NewPromise<IChannelPtr>();
 };
 
 template <class TImpl>
@@ -146,7 +145,7 @@ TYPED_TEST_SUITE(TRpcTest, TAllTransports);
 
 TYPED_TEST(TRpcTest, RoamingChannelNever)
 {
-    auto channel = CreateRoamingChannel(New<TOneTimeProvider>(CreateRoamingChannel(New<TNeverProvider>())));
+    auto channel = CreateRoamingChannel(New<TOneChannelProvider>(CreateRoamingChannel(New<TNeverProvider>())));
 
     TMyProxy proxy(std::move(channel));
     auto req = proxy.SomeCall();
@@ -163,7 +162,7 @@ TYPED_TEST(TRpcTest, RoamingChannelManual)
 {
     auto manualProvider = New<TManualProvider>();
 
-    auto channel = CreateRoamingChannel(New<TOneTimeProvider>(CreateRoamingChannel(manualProvider)));
+    auto channel = CreateRoamingChannel(New<TOneChannelProvider>(CreateRoamingChannel(manualProvider)));
 
     auto manualProviderWeak = MakeWeak(manualProvider);
     manualProvider.Reset();
