@@ -70,7 +70,7 @@ public:
             }
             return EvaluateQuery(
                 *EvaluationContext_,
-                {inputValues.data(), inputValues.size()},
+                MakeRange(inputValues.data(), inputValues.size()),
                 rowBuffer.Get());
         } catch (const std::exception& ex) {
             return TError("Error evaluating query %Qv",
