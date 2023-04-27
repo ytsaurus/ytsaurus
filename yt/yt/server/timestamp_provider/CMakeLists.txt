@@ -11,7 +11,7 @@ add_library(yt-server-timestamp_provider)
 target_compile_options(yt-server-timestamp_provider PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(yt-server-timestamp_provider PRIVATE
+target_include_directories(yt-server-timestamp_provider PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(yt-server-timestamp_provider PUBLIC

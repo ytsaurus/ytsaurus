@@ -155,8 +155,10 @@ add_library(library-query-engine)
 target_compile_options(library-query-engine PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(library-query-engine PRIVATE
+target_include_directories(library-query-engine PUBLIC
   ${CMAKE_BINARY_DIR}/yt
+)
+target_include_directories(library-query-engine PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
   ${CMAKE_SOURCE_DIR}/contrib/libs/re2
   ${CMAKE_SOURCE_DIR}/contrib/libs/xdelta3
@@ -191,8 +193,10 @@ add_global_library_for(library-query-engine.global library-query-engine)
 target_compile_options(library-query-engine.global PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(library-query-engine.global PRIVATE
+target_include_directories(library-query-engine.global PUBLIC
   ${CMAKE_BINARY_DIR}/yt
+)
+target_include_directories(library-query-engine.global PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
   ${CMAKE_SOURCE_DIR}/contrib/libs/re2
   ${CMAKE_SOURCE_DIR}/contrib/libs/xdelta3

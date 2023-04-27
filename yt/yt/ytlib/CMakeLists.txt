@@ -872,8 +872,10 @@ add_library(yt-yt-ytlib)
 target_compile_options(yt-yt-ytlib PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(yt-yt-ytlib PRIVATE
+target_include_directories(yt-yt-ytlib PUBLIC
   ${CMAKE_BINARY_DIR}/yt
+)
+target_include_directories(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
 target_link_libraries(yt-yt-ytlib PUBLIC
@@ -1482,8 +1484,10 @@ add_global_library_for(yt-yt-ytlib.global yt-yt-ytlib)
 target_compile_options(yt-yt-ytlib.global PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(yt-yt-ytlib.global PRIVATE
+target_include_directories(yt-yt-ytlib.global PUBLIC
   ${CMAKE_BINARY_DIR}/yt
+)
+target_include_directories(yt-yt-ytlib.global PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
 target_link_libraries(yt-yt-ytlib.global PUBLIC

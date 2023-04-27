@@ -216,7 +216,7 @@ add_library(yt-server-master)
 target_compile_options(yt-server-master PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(yt-server-master PRIVATE
+target_include_directories(yt-server-master PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(yt-server-master PUBLIC

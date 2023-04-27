@@ -12,7 +12,7 @@ add_library(server-lib-io)
 target_compile_options(server-lib-io PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(server-lib-io PRIVATE
+target_include_directories(server-lib-io PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-io PUBLIC

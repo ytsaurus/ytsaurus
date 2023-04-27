@@ -35,7 +35,7 @@ add_library(chyt-server-protos)
 target_compile_options(chyt-server-protos PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(chyt-server-protos PRIVATE
+target_include_directories(chyt-server-protos PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(chyt-server-protos PUBLIC

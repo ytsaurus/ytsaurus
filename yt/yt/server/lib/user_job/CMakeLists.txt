@@ -23,7 +23,7 @@ add_library(server-lib-user_job)
 target_compile_options(server-lib-user_job PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(server-lib-user_job PRIVATE
+target_include_directories(server-lib-user_job PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-user_job PUBLIC

@@ -35,7 +35,7 @@ add_library(server-lib-controller_agent)
 target_compile_options(server-lib-controller_agent PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(server-lib-controller_agent PRIVATE
+target_include_directories(server-lib-controller_agent PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-controller_agent PUBLIC

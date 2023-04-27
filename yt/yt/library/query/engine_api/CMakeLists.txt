@@ -11,8 +11,10 @@ add_library(library-query-engine_api)
 target_compile_options(library-query-engine_api PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(library-query-engine_api PRIVATE
+target_include_directories(library-query-engine_api PUBLIC
   ${CMAKE_BINARY_DIR}/yt
+)
+target_include_directories(library-query-engine_api PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
 target_link_libraries(library-query-engine_api PUBLIC

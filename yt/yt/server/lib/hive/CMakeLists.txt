@@ -23,7 +23,7 @@ add_library(server-lib-hive)
 target_compile_options(server-lib-hive PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(server-lib-hive PRIVATE
+target_include_directories(server-lib-hive PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-hive PUBLIC

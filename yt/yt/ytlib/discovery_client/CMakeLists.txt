@@ -23,7 +23,7 @@ add_library(yt-ytlib-discovery_client)
 target_compile_options(yt-ytlib-discovery_client PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(yt-ytlib-discovery_client PRIVATE
+target_include_directories(yt-ytlib-discovery_client PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(yt-ytlib-discovery_client PUBLIC

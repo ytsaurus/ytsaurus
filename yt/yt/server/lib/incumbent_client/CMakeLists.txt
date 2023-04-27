@@ -23,7 +23,7 @@ add_library(server-lib-incumbent_client)
 target_compile_options(server-lib-incumbent_client PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(server-lib-incumbent_client PRIVATE
+target_include_directories(server-lib-incumbent_client PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-incumbent_client PUBLIC

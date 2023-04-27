@@ -34,10 +34,8 @@ target_compile_options(yt-yt-client PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-yt-client PUBLIC
-  ${CMAKE_BINARY_DIR}/yt/yt/client/_/api/rpc_proxy
-)
-target_include_directories(yt-yt-client PRIVATE
   ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt/yt/client/_/api/rpc_proxy
 )
 target_link_libraries(yt-yt-client PUBLIC
   contrib-libs-linux-headers

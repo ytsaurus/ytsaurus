@@ -23,7 +23,7 @@ add_library(server-lib-transaction_supervisor)
 target_compile_options(server-lib-transaction_supervisor PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(server-lib-transaction_supervisor PRIVATE
+target_include_directories(server-lib-transaction_supervisor PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-transaction_supervisor PUBLIC

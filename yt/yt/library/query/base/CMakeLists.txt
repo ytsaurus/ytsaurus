@@ -12,10 +12,8 @@ target_compile_options(library-query-base PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(library-query-base PUBLIC
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/base
-)
-target_include_directories(library-query-base PRIVATE
   ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/base
 )
 target_link_libraries(library-query-base PUBLIC
   contrib-libs-linux-headers

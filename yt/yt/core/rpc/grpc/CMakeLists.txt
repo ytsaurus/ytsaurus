@@ -23,8 +23,10 @@ add_library(core-rpc-grpc)
 target_compile_options(core-rpc-grpc PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(core-rpc-grpc PRIVATE
+target_include_directories(core-rpc-grpc PUBLIC
   ${CMAKE_BINARY_DIR}/yt
+)
+target_include_directories(core-rpc-grpc PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/grpc
 )
 target_link_libraries(core-rpc-grpc PUBLIC

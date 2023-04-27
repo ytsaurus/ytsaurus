@@ -11,9 +11,6 @@ add_executable(unittester-core-logging)
 target_compile_options(unittester-core-logging PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(unittester-core-logging PRIVATE
-  ${CMAKE_BINARY_DIR}/yt
-)
 target_link_libraries(unittester-core-logging PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp

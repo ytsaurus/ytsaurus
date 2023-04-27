@@ -29,9 +29,6 @@ add_executable(unittester-core-ytree)
 target_compile_options(unittester-core-ytree PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(unittester-core-ytree PRIVATE
-  ${CMAKE_BINARY_DIR}/yt
-)
 target_link_libraries(unittester-core-ytree PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp

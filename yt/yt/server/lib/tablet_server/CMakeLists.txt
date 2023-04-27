@@ -36,7 +36,7 @@ add_library(server-lib-tablet_server)
 target_compile_options(server-lib-tablet_server PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(server-lib-tablet_server PRIVATE
+target_include_directories(server-lib-tablet_server PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-tablet_server PUBLIC

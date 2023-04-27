@@ -23,7 +23,7 @@ add_library(server-lib-tablet_node)
 target_compile_options(server-lib-tablet_node PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(server-lib-tablet_node PRIVATE
+target_include_directories(server-lib-tablet_node PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-tablet_node PUBLIC

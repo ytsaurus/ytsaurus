@@ -23,7 +23,7 @@ add_library(yt-ytlib-distributed_throttler)
 target_compile_options(yt-ytlib-distributed_throttler PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(yt-ytlib-distributed_throttler PRIVATE
+target_include_directories(yt-ytlib-distributed_throttler PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(yt-ytlib-distributed_throttler PUBLIC

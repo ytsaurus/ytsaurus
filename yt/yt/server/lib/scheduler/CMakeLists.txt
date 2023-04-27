@@ -47,7 +47,7 @@ add_library(server-lib-scheduler)
 target_compile_options(server-lib-scheduler PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(server-lib-scheduler PRIVATE
+target_include_directories(server-lib-scheduler PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-scheduler PUBLIC

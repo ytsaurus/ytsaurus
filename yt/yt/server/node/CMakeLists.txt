@@ -63,9 +63,11 @@ add_library(yt-server-node)
 target_compile_options(yt-server-node PRIVATE
   -Wdeprecated-this-capture
 )
+target_include_directories(yt-server-node PUBLIC
+  ${CMAKE_BINARY_DIR}/yt
+)
 target_include_directories(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
-  ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(yt-server-node PUBLIC
   contrib-libs-linux-headers

@@ -11,9 +11,6 @@ add_executable(unittester-core-concurrency)
 target_compile_options(unittester-core-concurrency PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(unittester-core-concurrency PRIVATE
-  ${CMAKE_BINARY_DIR}/yt
-)
 target_link_libraries(unittester-core-concurrency PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp

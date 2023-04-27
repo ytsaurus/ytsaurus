@@ -23,7 +23,7 @@ add_library(server-lib-hydra2)
 target_compile_options(server-lib-hydra2 PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(server-lib-hydra2 PRIVATE
+target_include_directories(server-lib-hydra2 PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-hydra2 PUBLIC

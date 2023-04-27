@@ -23,7 +23,7 @@ add_library(server-lib-security_server)
 target_compile_options(server-lib-security_server PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(server-lib-security_server PRIVATE
+target_include_directories(server-lib-security_server PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-security_server PUBLIC

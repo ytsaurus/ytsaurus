@@ -20,7 +20,7 @@ get_built_tool_path(
 )
 
 add_library(chyt-client-protos)
-target_include_directories(chyt-client-protos PRIVATE
+target_include_directories(chyt-client-protos PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(chyt-client-protos PUBLIC

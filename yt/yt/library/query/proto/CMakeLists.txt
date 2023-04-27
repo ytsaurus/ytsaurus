@@ -47,7 +47,7 @@ add_library(library-query-proto)
 target_compile_options(library-query-proto PRIVATE
   -Wdeprecated-this-capture
 )
-target_include_directories(library-query-proto PRIVATE
+target_include_directories(library-query-proto PUBLIC
   ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(library-query-proto PUBLIC
