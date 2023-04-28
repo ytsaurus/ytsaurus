@@ -1236,6 +1236,11 @@ private:
 
                             response->mutable_chunk_reader_statistics()->set_data_bytes_read_from_disk(dataBytesReadFromDisk);
                             response->mutable_chunk_reader_statistics()->set_data_io_requests(dataIORequests);
+                            if (const auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
+                                NTracing::FlushCurrentTraceContextElapsedTime();
+                                response->mutable_chunk_reader_statistics()->set_remote_cpu_time(
+                                    traceContext->GetElapsedTime().GetValue());
+                            }
 
                             const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
                             if (netThrottler->IsOverdraft()) {
