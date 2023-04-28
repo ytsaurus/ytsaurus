@@ -354,12 +354,12 @@ public:
         TChunkId chunkId,
         std::vector<TChunkReplicaDescriptor> replicas,
         TDuration requestTimeout,
-        int quorum,
+        int readQuorum,
         INodeChannelFactoryPtr channelFactory)
         : ChunkId_(chunkId)
         , Replicas_(std::move(replicas))
         , RequestTimeout_(requestTimeout)
-        , Quorum_(quorum)
+        , ReadQuorum_(readQuorum)
         , ChannelFactory_(std::move(channelFactory))
         , Logger(JournalClientLogger.WithTag("ChunkId: %v", ChunkId_))
     { }
@@ -368,7 +368,7 @@ protected:
     const TChunkId ChunkId_;
     const std::vector<TChunkReplicaDescriptor> Replicas_;
     const TDuration RequestTimeout_;
-    const int Quorum_;
+    const int ReadQuorum_;
     const INodeChannelFactoryPtr ChannelFactory_;
 
     const NLogging::TLogger Logger;
@@ -387,13 +387,13 @@ public:
         std::vector<TChunkReplicaDescriptor> replicas,
         TDuration abortRequestTimeout,
         TDuration quorumSessionDelay,
-        int quorum,
+        int readQuorum,
         INodeChannelFactoryPtr channelFactory)
         : TQuorumSessionBase(
             chunkId,
             std::move(replicas),
             abortRequestTimeout,
-            quorum,
+            readQuorum,
             std::move(channelFactory))
         , QuorumSessionDelay_(quorumSessionDelay)
     { }
@@ -422,15 +422,15 @@ private:
 
     void DoRun()
     {
-        YT_LOG_DEBUG("Aborting journal chunk session quorum (Replicas: %v, Quorum: %v)",
+        YT_LOG_DEBUG("Aborting journal chunk session quorum (Replicas: %v, ReadQuorum: %v)",
             Replicas_,
-            Quorum_);
+            ReadQuorum_);
 
-        if (std::ssize(Replicas_) < Quorum_) {
+        if (std::ssize(Replicas_) < ReadQuorum_) {
             auto error = TError("Unable to abort sessions quorum for journal chunk %v: too few replicas known, %v given, %v needed",
                 ChunkId_,
                 Replicas_.size(),
-                Quorum_);
+                ReadQuorum_);
             Promise_.Set(error);
             return;
         }
@@ -485,8 +485,8 @@ private:
     bool IsQuorumReached()
     {
         return IsErasureChunkId(ChunkId_)
-            ? static_cast<ssize_t>(SuccessPartIndexes_.count()) >= Quorum_
-            : SuccessCounter_ >= Quorum_;
+            ? static_cast<ssize_t>(SuccessPartIndexes_.count()) >= ReadQuorum_
+            : SuccessCounter_ >= ReadQuorum_;
     }
 
     void OnQuorumSessionDelayReached()
@@ -522,7 +522,7 @@ TFuture<std::vector<TChunkReplicaDescriptor>> AbortSessionsQuorum(
     std::vector<TChunkReplicaDescriptor> replicas,
     TDuration abortRequestTimeout,
     TDuration quorumSessionDelay,
-    int quorum,
+    int readQuorum,
     INodeChannelFactoryPtr channelFactory)
 {
     return
@@ -531,7 +531,7 @@ TFuture<std::vector<TChunkReplicaDescriptor>> AbortSessionsQuorum(
             std::move(replicas),
             abortRequestTimeout,
             quorumSessionDelay,
-            quorum,
+            readQuorum,
             std::move(channelFactory))
         ->Run();
 }
@@ -546,7 +546,7 @@ public:
         TChunkId chunkId,
         bool overlayed,
         NErasure::ECodec codecId,
-        int quorum,
+        int readQuorum,
         i64 replicaLagLimit,
         std::vector<TChunkReplicaDescriptor> replicas,
         TDuration requestTimeout,
@@ -555,7 +555,7 @@ public:
             chunkId,
             std::move(replicas),
             requestTimeout,
-            quorum,
+            readQuorum,
             std::move(channelFactory))
         , Overlayed_(overlayed)
         , CodecId_(codecId)
@@ -600,20 +600,20 @@ private:
             return;
         }
 
-        YT_VERIFY(Quorum_ > 0);
+        YT_VERIFY(ReadQuorum_ > 0);
 
-        if (std::ssize(Replicas_) < Quorum_) {
+        if (std::ssize(Replicas_) < ReadQuorum_) {
             auto error = TError("Unable to compute quorum info for journal chunk %v: too few replicas known, %v given, %v needed",
                 ChunkId_,
                 Replicas_.size(),
-                Quorum_);
+                ReadQuorum_);
             Promise_.Set(error);
             return;
         }
 
-        YT_LOG_DEBUG("Computing quorum info for journal chunk (Replicas: %v, Quorum: %v, Codec: %v)",
+        YT_LOG_DEBUG("Computing quorum info for journal chunk (Replicas: %v, ReadQuorum: %v, Codec: %v)",
             Replicas_,
-            Quorum_,
+            ReadQuorum_,
             CodecId_);
 
         std::vector<TFuture<void>> futures;
@@ -756,11 +756,11 @@ private:
             }
         }
 
-        if (std::ssize(ChunkMetaResults_) < Quorum_) {
+        if (std::ssize(ChunkMetaResults_) < ReadQuorum_) {
             Promise_.Set(TError("Unable to compute quorum info for journal chunk %v: too few replicas alive, %v found, %v needed",
                 ChunkId_,
                 ChunkMetaResults_.size(),
-                Quorum_)
+                ReadQuorum_)
                 << ChunkMetaInnerErrors_);
             return;
         }
@@ -803,40 +803,25 @@ private:
 
     const TChunkMetaResult& GetQuorumResult()
     {
-        return IsErasureChunkId(ChunkId_)
-            ? GetErasureQuorumResult()
-            : GetRegularQuorumResult();
-    }
-
-    const TChunkMetaResult& GetErasureQuorumResult()
-    {
-        std::sort(
-            ChunkMetaResults_.begin(),
-            ChunkMetaResults_.end(),
-            [] (const auto& lhs, const auto& rhs) {
-                return lhs.MiscExt.row_count() > rhs.MiscExt.row_count();
-            });
-
         YT_VERIFY(!ChunkMetaResults_.empty());
-        ValidateReplicaLag(ChunkMetaResults_.back(), ChunkMetaResults_.front());
-
-        auto* codec = NErasure::GetCodec(CodecId_);
-        return ChunkMetaResults_[codec->GetGuaranteedRepairablePartCount() - 1];
-    }
-
-    const TChunkMetaResult& GetRegularQuorumResult()
-    {
-        std::sort(
-            ChunkMetaResults_.begin(),
-            ChunkMetaResults_.end(),
-            [] (const auto& lhs, const auto& rhs) {
-                return lhs.MiscExt.row_count() < rhs.MiscExt.row_count();
-            });
-
-        YT_VERIFY(!ChunkMetaResults_.empty());
+        SortBy(ChunkMetaResults_, [&] (const auto& result) {
+            return result.MiscExt.row_count();
+        });
         ValidateReplicaLag(ChunkMetaResults_.front(), ChunkMetaResults_.back());
 
-        return ChunkMetaResults_[Quorum_ - 1];
+        // Number of replicas required to read a record.
+        int readReplicaCount = [&] {
+            if (IsErasureChunkId(ChunkId_)) {
+                auto* codec = NErasure::GetCodec(CodecId_);
+                return codec->GetTotalPartCount() - codec->GetGuaranteedRepairablePartCount();
+            } else {
+                return 1;
+            }
+        }();
+
+        YT_VERIFY(readReplicaCount >= 0);
+        YT_VERIFY(readReplicaCount <= ReadQuorum_);
+        return ChunkMetaResults_[ReadQuorum_ - readReplicaCount];
     }
 
     void ValidateReplicaLag(
