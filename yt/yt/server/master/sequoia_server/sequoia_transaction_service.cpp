@@ -14,6 +14,7 @@ using namespace NCellMaster;
 using namespace NHydra;
 using namespace NRpc;
 using namespace NSequoiaClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,6 +38,10 @@ private:
     {
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
+
+        context->SetRequestInfo("TransactionId: %v, Timeout: %v",
+            FromProto<TTransactionId>(request->id()),
+            FromProto<TDuration>(request->timeout()));
 
         const auto& sequoiaManager = Bootstrap_->GetSequoiaManager();
         sequoiaManager->StartTransaction(request);
