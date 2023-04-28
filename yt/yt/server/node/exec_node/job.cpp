@@ -1282,11 +1282,11 @@ bool TJob::GetStored() const
     return Stored_;
 }
 
-void TJob::SetStored(bool value)
+void TJob::SetStored()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    Stored_ = value;
+    Stored_ = true;
 }
 
 bool TJob::IsJobProxyCompleted() const noexcept

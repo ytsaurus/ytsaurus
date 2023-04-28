@@ -17,6 +17,9 @@
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <yt/yt/core/ytree/service_combiner.h>
+#include <yt/yt/core/ytree/virtual.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
@@ -30,6 +33,8 @@ static const NLogging::TLogger Logger("JobTracker");
 using namespace NConcurrency;
 using namespace NScheduler;
 using namespace NNodeTrackerClient;
+using namespace NYTree;
+using namespace NYson;
 
 using NYT::FromProto;
 
@@ -72,6 +77,320 @@ std::vector<TJobId> CreateJobIdSampleForLogging(const TJobContainer& jobContaine
 
 ////////////////////////////////////////////////////////////////////
 
+class TJobTracker::TJobTrackerNodeOrchidService
+    : public TVirtualMapBase
+{
+public:
+    explicit TJobTrackerNodeOrchidService(const TJobTracker* jobTracker)
+        : TVirtualMapBase(/*owningNode*/ nullptr)
+        , JobTracker_(jobTracker)
+    { }
+
+    i64 GetSize() const override
+    {
+        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+
+        return std::ssize(JobTracker_->RegisteredNodes_);
+    }
+
+    std::vector<TString> GetKeys(i64 limit) const override
+    {
+        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+
+        std::vector<TString> keys;
+        keys.reserve(std::min(limit, GetSize()));
+        for (const auto& [nodeId, nodeInfo] : JobTracker_->RegisteredNodes_) {
+            if (static_cast<i64>(keys.size()) >= limit) {
+                break;
+            }
+
+            keys.push_back(nodeInfo.NodeAddress);
+        }
+
+        return keys;
+    }
+
+    IYPathServicePtr FindItemService(TStringBuf key) const override
+    {
+        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+
+        auto nodeIdIt = JobTracker_->NodeAddressToNodeId_.find(key);
+        if (nodeIdIt == std::end(JobTracker_->NodeAddressToNodeId_)) {
+            return nullptr;
+        }
+
+        auto nodeId = nodeIdIt->second;
+
+        YT_VERIFY(JobTracker_->RegisteredNodes_.contains(nodeId));
+
+        auto producer = TYsonProducer(BIND([
+            jobTracker = JobTracker_,
+            nodeId
+        ] (IYsonConsumer* consumer) {
+            auto nodeIt = jobTracker->RegisteredNodes_.find(nodeId);
+
+            if (nodeIt == std::end(jobTracker->RegisteredNodes_)) {
+                return;
+            }
+
+            const auto& nodeJobs = nodeIt->second.Jobs;
+
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("jobs").DoMapFor(nodeJobs.Jobs, [] (TFluentMap fluent, const auto& pair) {
+                        const auto& [jobId, jobInfo] = pair;
+
+                        fluent
+                            .Item(ToString(jobId)).BeginMap()
+                                .Item("operation_id").Value(jobInfo.OperationId)
+                                .Item("stage").Value(jobInfo.Stage)
+                            .EndMap();
+                    })
+                    .Item("jobs_waiting_for_confirmation").DoMapFor(nodeJobs.JobsToConfirm, [] (TFluentMap fluent, const auto& pair) {
+                        const auto& [jobId, operationId] = pair;
+
+                        fluent
+                            .Item(ToString(jobId)).BeginMap()
+                                .Item("operation_id").Value(operationId)
+                            .EndMap();
+                    })
+                    .Item("jobs_to_release").DoMapFor(nodeJobs.JobsToRelease, [] (TFluentMap fluent, const auto& pair) {
+                        const auto& [jobId, releaseFlags] = pair;
+
+                        fluent
+                            .Item(ToString(jobId)).BeginMap()
+                                .Item("release_flags").Value(ToString(releaseFlags))
+                            .EndMap();
+                    })
+                    .Item("jobs_to_abort").DoMapFor(nodeJobs.JobsToAbort, [] (TFluentMap fluent, const auto& pair) {
+                        const auto& [jobId, abortReason] = pair;
+
+                        fluent
+                            .Item(ToString(jobId)).BeginMap()
+                                .Item("abort_reason").Value(abortReason)
+                            .EndMap();
+                    })
+                .EndMap();
+        }));
+
+        return IYPathService::YPathDesignatedServiceFromProducer(std::move(producer));
+    }
+
+private:
+    const TJobTracker* const JobTracker_;
+};
+
+class TJobTracker::TJobTrackerJobOrchidService
+    : public TVirtualMapBase
+{
+public:
+    explicit TJobTrackerJobOrchidService(const TJobTracker* jobTracker)
+        : TVirtualMapBase(/*owningNode*/ nullptr)
+        , JobTracker_(jobTracker)
+    { }
+
+    i64 GetSize() const override
+    {
+        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+
+        i64 size = 0;
+
+        for (const auto& [nodeId, nodeInfo] : JobTracker_->RegisteredNodes_) {
+            const auto& nodeJobs = nodeInfo.Jobs;
+            size += std::ssize(nodeJobs.Jobs) +
+                std::ssize(nodeJobs.JobsToConfirm) +
+                std::ssize(nodeJobs.JobsToRelease) +
+                std::ssize(nodeJobs.JobsToAbort);
+        }
+        return size;
+    }
+
+    std::vector<TString> GetKeys(i64 limit) const override
+    {
+        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+
+        std::vector<TString> keys;
+        keys.reserve(std::min(limit, GetSize()));
+        for (const auto& [nodeId, nodeInfo] : JobTracker_->RegisteredNodes_) {
+            const auto& nodeJobs = nodeInfo.Jobs;
+
+            for (const auto& [jobId, _] : nodeJobs.Jobs) {
+                keys.push_back(ToString(jobId));
+                if (static_cast<i64>(keys.size()) >= limit) {
+                    return keys;
+                }
+            }
+
+            for (const auto& [jobId, _] : nodeJobs.JobsToConfirm) {
+                keys.push_back(ToString(jobId));
+                if (static_cast<i64>(keys.size()) >= limit) {
+                    return keys;
+                }
+            }
+
+            for (const auto& [jobId, _] : nodeJobs.JobsToAbort) {
+                keys.push_back(ToString(jobId));
+                if (static_cast<i64>(keys.size()) >= limit) {
+                    return keys;
+                }
+            }
+
+            for (const auto& [jobId, _] : nodeJobs.JobsToRelease) {
+                keys.push_back(ToString(jobId));
+                if (static_cast<i64>(keys.size()) >= limit) {
+                    return keys;
+                }
+            }
+        }
+
+        return keys;
+    }
+
+    IYPathServicePtr FindItemService(TStringBuf key) const override
+    {
+        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+
+        auto jobId = TJobId::FromString(key);
+
+        auto nodeId = NodeIdFromJobId(jobId);
+
+        auto nodeInfoIt = JobTracker_->RegisteredNodes_.find(nodeId);
+        if (nodeInfoIt == std::end(JobTracker_->RegisteredNodes_)) {
+            return nullptr;
+        }
+
+        TYsonString jobYson;
+
+        const auto& [nodeJobs, _, nodeAddress] = nodeInfoIt->second;
+
+        if (auto jobIt = nodeJobs.Jobs.find(jobId);
+            jobIt != std::end(nodeJobs.Jobs))
+        {
+            jobYson = BuildYsonStringFluently().BeginMap()
+                    .Item("stage").Value(jobIt->second.Stage)
+                    .Item("operation_id").Value(jobIt->second.OperationId)
+                    .Item("node_address").Value(nodeAddress)
+                .EndMap();
+        } else if (auto jobToConfirmIt = nodeJobs.JobsToConfirm.find(jobId);
+            jobToConfirmIt != std::end(nodeJobs.JobsToConfirm))
+        {
+            jobYson = BuildYsonStringFluently().BeginMap()
+                    .Item("stage").Value("confirmation")
+                    .Item("operation_id").Value(jobToConfirmIt->second)
+                    .Item("node_address").Value(nodeAddress)
+                .EndMap();
+        } else if (auto jobToAbortIt = nodeJobs.JobsToAbort.find(jobId);
+            jobToAbortIt != std::end(nodeJobs.JobsToAbort))
+        {
+            jobYson = BuildYsonStringFluently().BeginMap()
+                    .Item("stage").Value("aborting")
+                    .Item("abort_reason").Value(jobToAbortIt->second)
+                    .Item("node_address").Value(nodeAddress)
+                .EndMap();
+        } else if (auto jobToReleaseIt = nodeJobs.JobsToRelease.find(jobId);
+            jobToReleaseIt != std::end(nodeJobs.JobsToRelease))
+        {
+            jobYson = BuildYsonStringFluently().BeginMap()
+                    .Item("stage").Value("releasing")
+                    .Item("release_flags").Value(ToString(jobToReleaseIt->second))
+                    .Item("node_address").Value(nodeAddress)
+                .EndMap();
+        }
+
+        if (!jobYson) {
+            return nullptr;
+        }
+
+        auto producer = TYsonProducer(BIND([yson = std::move(jobYson)] (IYsonConsumer* consumer) {
+            consumer->OnRaw(yson);
+        }));
+
+        return IYPathService::FromProducer(std::move(producer));
+    }
+
+private:
+    const TJobTracker* const JobTracker_;
+};
+
+class TJobTracker::TJobTrackerOperationOrchidService
+    : public TVirtualMapBase
+{
+public:
+    explicit TJobTrackerOperationOrchidService(const TJobTracker* jobTracker)
+        : TVirtualMapBase(/*owningNode*/ nullptr)
+        , JobTracker_(jobTracker)
+    { }
+
+    i64 GetSize() const override
+    {
+        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+
+        return std::ssize(JobTracker_->RegisteredOperations_);
+    }
+
+    std::vector<TString> GetKeys(i64 limit) const override
+    {
+        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+
+        std::vector<TString> keys;
+        keys.reserve(std::min(limit, GetSize()));
+        for (const auto& [operationId, operationInfo] : JobTracker_->RegisteredOperations_) {
+            if (static_cast<i64>(keys.size()) >= limit) {
+                break;
+            }
+
+            keys.push_back(ToString(operationId));
+        }
+
+        return keys;
+    }
+
+    IYPathServicePtr FindItemService(TStringBuf key) const override
+    {
+        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+
+        auto operationId = TOperationId::FromString(key);
+        auto operationInfoIt = JobTracker_->RegisteredOperations_.find(operationId);
+        if (operationInfoIt == std::end(JobTracker_->RegisteredOperations_)) {
+            return nullptr;
+        }
+
+        const auto& operationInfo = operationInfoIt->second;
+
+        auto producer = TYsonProducer(BIND([
+            controlJobLifetimeAtControllerAgent = operationInfo.ControlJobLifetimeAtControllerAgent,
+            jobsReady = operationInfo.JobsReady,
+            operationId,
+            jobTracker = JobTracker_
+        ] (IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("job_lifetime_controlled_by_job_tracker").Value(controlJobLifetimeAtControllerAgent)
+                    .Item("jobs_ready").Value(jobsReady)
+                    .Item("jobs").Do([&] (TFluentAny innerFluent) {
+                        const auto& operationIt = jobTracker->RegisteredOperations_.find(operationId);
+
+                        if (operationIt == std::end(jobTracker->RegisteredOperations_)) {
+                            return;
+                        }
+
+                        innerFluent.DoListFor(operationIt->second.TrackedJobs, [] (TFluentList fluent, TJobId jobId) {
+                            fluent
+                                .Item().Value(jobId);
+                        });
+                    })
+                .EndMap();
+        }));
+
+        return IYPathService::YPathDesignatedServiceFromProducer(std::move(producer));
+    }
+
+private:
+    const TJobTracker* const JobTracker_;
+};
+
+////////////////////////////////////////////////////////////////////
+
 TJobTracker::TJobTracker(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
     , Config_(bootstrap->GetConfig()->ControllerAgent->JobTracker)
@@ -84,6 +403,7 @@ TJobTracker::TJobTracker(TBootstrap* bootstrap)
     , HeartbeatCount_(ControllerAgentProfiler.WithHot().Counter("/node_heartbeat/count"))
     , JobTrackerQueue_(New<NConcurrency::TActionQueue>("JobTracker"))
     , ExecNodes_(New<TRefCountedExecNodeDescriptorMap>())
+    , OrchidService_(CreateOrchidService())
 { }
 
 TFuture<void> TJobTracker::Initialize()
@@ -161,9 +481,9 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
 
     TForbidContextSwitchGuard guard;
 
-    UpdateOrRegisterNode(nodeId, nodeDescriptor.GetDefaultAddress());
+    auto& nodeInfo = UpdateOrRegisterNode(nodeId, nodeDescriptor.GetDefaultAddress());
 
-    auto& nodeJobs = GetOrCrash(RegisteredNodes_, nodeId).Jobs;
+    auto& nodeJobs = nodeInfo.Jobs;
 
     // NB(pogorelov): As checked before, incarnation id did not change from the previous heartbeat,
     // so job life time of job operations must be still controlled by agent.
@@ -443,6 +763,13 @@ void TJobTracker::UpdateConfig(const TControllerAgentConfigPtr& config)
         config));
 }
 
+NYTree::IYPathServicePtr TJobTracker::GetOrchidService() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return OrchidService_;
+}
+
 void TJobTracker::ProfileHeartbeatRequest(const NProto::TReqHeartbeat* request)
 {
     i64 totalJobStatisticsSize = 0;
@@ -500,6 +827,21 @@ IInvokerPtr TJobTracker::GetCancelableInvokerOrThrow() const
     THROW_ERROR_EXCEPTION_IF(!invoker, EErrorCode::AgentDisconnected, "Job tracker disconnected");
 
     return invoker;
+}
+
+NYTree::IYPathServicePtr TJobTracker::CreateOrchidService() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto service = New<TCompositeMapService>();
+
+    service->AddChild("nodes", New<TJobTrackerNodeOrchidService>(this));
+
+    service->AddChild("jobs", New<TJobTrackerJobOrchidService>(this));
+
+    service->AddChild("operations", New<TJobTrackerOperationOrchidService>(this));
+
+    return service->Via(GetInvoker());
 }
 
 void TJobTracker::DoUpdateConfig(const TControllerAgentConfigPtr& config)
@@ -779,10 +1121,23 @@ TJobTracker::TNodeInfo& TJobTracker::RegisterNode(TNodeId nodeId, TString nodeAd
         nodeId,
         nodeAddress);
 
+    if (auto nodeIdIt = NodeAddressToNodeId_.find(nodeAddress); nodeIdIt != std::end(NodeAddressToNodeId_)) {
+        auto oldNodeId = nodeIdIt->second;
+        YT_LOG_WARNING(
+            "Node with the same address is already registered, unregister old node and register new (NodeAddress: %v, NewNodeId: %v, OldNodeId: %v)",
+            nodeAddress,
+            nodeId,
+            nodeIdIt->second);
+
+        UnregisterNode(oldNodeId, nodeAddress);
+    }
+
     auto lease = TLeaseManager::CreateLease(
         Config_->NodeDisconnectionTimeout,
-        BIND_NO_PROPAGATE(&TJobTracker::OnNodeHeartbeatLeaseExpired, MakeWeak(this), nodeId)
+        BIND_NO_PROPAGATE(&TJobTracker::OnNodeHeartbeatLeaseExpired, MakeWeak(this), nodeId, nodeAddress)
             .Via(GetCancelableInvoker()));
+
+    EmplaceOrCrash(NodeAddressToNodeId_, nodeAddress, nodeId);
 
     auto emplaceIt = EmplaceOrCrash(
         RegisteredNodes_,
@@ -791,45 +1146,53 @@ TJobTracker::TNodeInfo& TJobTracker::RegisterNode(TNodeId nodeId, TString nodeAd
     return emplaceIt->second;
 }
 
-void TJobTracker::UpdateOrRegisterNode(TNodeId nodeId, const TString& nodeAddress)
+TJobTracker::TNodeInfo& TJobTracker::UpdateOrRegisterNode(TNodeId nodeId, const TString& nodeAddress)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (auto nodeIt = RegisteredNodes_.find(nodeId); nodeIt == std::end(RegisteredNodes_)) {
-        RegisterNode(nodeId, nodeAddress);
+        return RegisterNode(nodeId, nodeAddress);
     } else {
         auto& savedAddress = nodeIt->second.NodeAddress;
         if (savedAddress != nodeAddress) {
             YT_LOG_WARNING(
-                "Node address has changed (OldAddress: %v, NewAddress: %v)",
+                "Node address has changed, unregister old node and register new (OldAddress: %v, NewAddress: %v)",
                 savedAddress,
                 nodeAddress);
 
-            savedAddress = nodeAddress;
+            UnregisterNode(nodeId, savedAddress);
+            return RegisterNode(nodeId, nodeAddress);
         }
+
         TLeaseManager::RenewLease(nodeIt->second.Lease, Config_->NodeDisconnectionTimeout);
+
+        return nodeIt->second;
     }
 }
 
-TJobTracker::TNodeInfo* TJobTracker::FindNodeInfo(TNodeId nodeId)
-{
-    if (auto nodeIt = RegisteredNodes_.find(nodeId); nodeIt != std::end(RegisteredNodes_)) {
-        return &nodeIt->second;
-    }
-
-    return nullptr;
-}
-
-void TJobTracker::OnNodeHeartbeatLeaseExpired(TNodeId nodeId)
+void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     TForbidContextSwitchGuard guard;
 
-    auto& [nodeJobs, _, nodeAddress] = GetOrCrash(RegisteredNodes_, nodeId);
+    auto nodeIt = RegisteredNodes_.find(nodeId);
+    if (nodeIt == std::end(RegisteredNodes_)) {
+        YT_LOG_DEBUG(
+            "Node is already unregistered (NodeId: %v, NodeAddress: %v)",
+            nodeId,
+            nodeAddress);
+
+        return;
+    }
+
+    const auto& nodeInfo = nodeIt->second;
+
+    const auto& nodeJobs = nodeInfo.Jobs;
+    YT_VERIFY(nodeAddress == nodeInfo.NodeAddress);
 
     YT_LOG_DEBUG(
-        "Node heartbeat lease expired, remove jobs (NodeId: %v, NodeAddress: %v)",
+        "Unregistering node (NodeId: %v, NodeAddress: %v)",
         nodeId,
         nodeAddress);
 
@@ -841,14 +1204,14 @@ void TJobTracker::OnNodeHeartbeatLeaseExpired(TNodeId nodeId)
             if (GetOrCrash(RegisteredOperations_, jobInfo.OperationId).ControlJobLifetimeAtControllerAgent) {
                 if (jobInfo.Stage == EJobStage::Running) {
                     YT_LOG_DEBUG(
-                        "Abort job since node heartbeat lease expired (NodeId: %v, JobId: %v, OperationId: %v)",
+                        "Abort job since node unregistered (NodeId: %v, JobId: %v, OperationId: %v)",
                         nodeId,
                         jobId,
                         jobInfo.OperationId);
                     jobsToAbort[jobInfo.OperationId].push_back(jobId);
                 } else {
                     YT_LOG_DEBUG(
-                        "Remove finished job from operation info since node heartbeat lease expired (NodeId: %v, JobId: %v, OperationId: %v)",
+                        "Remove finished job from operation info since node unregistered (NodeId: %v, JobId: %v, OperationId: %v)",
                         nodeId,
                         jobId,
                         jobInfo.OperationId);
@@ -859,7 +1222,7 @@ void TJobTracker::OnNodeHeartbeatLeaseExpired(TNodeId nodeId)
 
         for (auto [jobId, operationId] : nodeJobs.JobsToConfirm) {
             YT_LOG_DEBUG(
-                "Abort unconfirmed job since node heartbeat lease expired (NodeId: %v, JobId: %v, OperationId: %v)",
+                "Abort unconfirmed job since node unregistered (NodeId: %v, JobId: %v, OperationId: %v)",
                 nodeId,
                 jobId,
                 operationId);
@@ -885,7 +1248,28 @@ void TJobTracker::OnNodeHeartbeatLeaseExpired(TNodeId nodeId)
         AbortJobs(std::move(jobsToAbort), EAbortReason::NodeOffline);
     }
 
-    EraseOrCrash(RegisteredNodes_, nodeId);
+    EraseOrCrash(NodeAddressToNodeId_, nodeAddress);
+
+    RegisteredNodes_.erase(nodeIt);
+}
+
+TJobTracker::TNodeInfo* TJobTracker::FindNodeInfo(TNodeId nodeId)
+{
+    if (auto nodeIt = RegisteredNodes_.find(nodeId); nodeIt != std::end(RegisteredNodes_)) {
+        return &nodeIt->second;
+    }
+
+    return nullptr;
+}
+
+void TJobTracker::OnNodeHeartbeatLeaseExpired(TNodeId nodeId, const TString& nodeAddress)
+{
+    YT_LOG_DEBUG(
+        "Node heartbeat lease expired, unregister node (NodeId: %v, NodeAddress: %v)",
+        nodeId,
+        nodeAddress);
+
+    UnregisterNode(nodeId, nodeAddress);
 }
 
 const TString& TJobTracker::GetNodeAddressForLogging(TNodeId nodeId)
@@ -1041,6 +1425,8 @@ void TJobTracker::DoCleanup()
 
     // No need to cancel leases.
     RegisteredNodes_.clear();
+
+    NodeAddressToNodeId_.clear();
 
     RegisteredOperations_.clear();
 }

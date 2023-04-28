@@ -110,6 +110,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated()
 
     const auto& currentConfig = *ControllerAgentConnectorPool_->CurrentConfig_;
 
+    YT_LOG_DEBUG("Set new controller agent heartbeat period (NewPeriod: %v)", currentConfig.HeartbeatPeriod);
     HeartbeatExecutor_->SetPeriod(currentConfig.HeartbeatPeriod);
     RunningJobStatisticsSendingBackoff_ = currentConfig.RunningJobStatisticsSendingBackoff;
     StatisticsThrottler_->Reconfigure(currentConfig.StatisticsThrottler);

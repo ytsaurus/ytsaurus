@@ -489,11 +489,12 @@ def get_node_config():
             failed_heartbeat_backoff_start_time = 50;
             failed_heartbeat_backoff_max_time = 50;
             failed_heartbeat_backoff_multiplier = 1.0;
-            heartbeat_period = 200;
+            heartbeat_period = 100;
         };
 
         controller_agent_connector = {
             running_job_statistics_sending_backoff = 0;
+            heartbeat_period = 100;
         };
 
         job_proxy_heartbeat_period = 200;

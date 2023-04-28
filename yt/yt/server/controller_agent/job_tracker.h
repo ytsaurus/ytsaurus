@@ -51,6 +51,8 @@ public:
 
     void UpdateConfig(const TControllerAgentConfigPtr& config);
 
+    NYTree::IYPathServicePtr GetOrchidService() const;
+
 private:
     TBootstrap* const Bootstrap_;
 
@@ -108,13 +110,18 @@ private:
     };
 
     THashMap<TNodeId, TNodeInfo> RegisteredNodes_;
+    THashMap<TString, TNodeId> NodeAddressToNodeId_;
 
     THashMap<TOperationId, TOperationInfo> RegisteredOperations_;
+
+    NYTree::IYPathServicePtr OrchidService_;
 
     IInvokerPtr GetInvoker() const;
     IInvokerPtr TryGetCancelableInvoker() const;
     IInvokerPtr GetCancelableInvoker() const;
     IInvokerPtr GetCancelableInvokerOrThrow() const;
+
+    NYTree::IYPathServicePtr CreateOrchidService() const;
 
     void DoUpdateConfig(const TControllerAgentConfigPtr& config);
 
@@ -143,11 +150,12 @@ private:
 
     TNodeInfo& GetOrRegisterNode(TNodeId nodeId, const TString& nodeAddress);
     TNodeInfo& RegisterNode(TNodeId nodeId, TString nodeAddress);
-    void UpdateOrRegisterNode(TNodeId nodeId, const TString& nodeAddress);
+    TNodeInfo& UpdateOrRegisterNode(TNodeId nodeId, const TString& nodeAddress);
+    void UnregisterNode(TNodeId nodeId, const TString& nodeAddress);
 
     TNodeInfo* FindNodeInfo(TNodeId nodeId);
 
-    void OnNodeHeartbeatLeaseExpired(TNodeId nodeId);
+    void OnNodeHeartbeatLeaseExpired(TNodeId nodeId, const TString& nodeAddress);
 
     const TString& GetNodeAddressForLogging(TNodeId nodeId);
 
@@ -161,6 +169,15 @@ private:
     void DoCleanup();
 
     friend class TJobTrackerOperationHandler;
+
+    class TJobTrackerNodeOrchidService;
+    friend class TJobTrackerNodeOrchidService;
+
+    class TJobTrackerJobOrchidService;
+    friend class TJobTrackerJobOrchidService;
+
+    class TJobTrackerOperationOrchidService;
+    friend class TJobTrackerOperationOrchidService;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobTracker)

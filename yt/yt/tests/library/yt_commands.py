@@ -1222,11 +1222,22 @@ class Operation(object):
         job_path = "//sys/scheduler/orchid/scheduler/jobs/{0}".format(job_id)
         return get(job_path + "/address", verbose=False, driver=self._driver)
 
-    def get_job_phase(self, job_id):
-        job_phase_path = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/job_phase".format(
+    def get_job_node_orchid_path(self, job_id):
+        return "//sys/cluster_nodes/{0}/orchid".format(
+            self.get_node(job_id)
+        )
+
+    def get_job_node_orchid(self, job_id):
+        job_orchid_path = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}".format(
             self.get_node(job_id), job_id
         )
-        return get(job_phase_path, verbose=False, driver=self._driver)
+
+        return get(job_orchid_path, verbose=False, driver=self._driver)
+
+    def get_job_phase(self, job_id):
+        job_orchid = self.get_job_node_orchid(job_id)
+
+        return job_orchid["job_phase"]
 
     def ensure_running(self, timeout=10.0):
         print_debug("Waiting for operation %s to become running" % self.id)

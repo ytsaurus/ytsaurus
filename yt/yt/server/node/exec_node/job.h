@@ -202,7 +202,7 @@ public:
 
     bool GetStored() const;
 
-    void SetStored(bool value);
+    void SetStored();
 
     bool IsJobProxyCompleted() const noexcept;
 

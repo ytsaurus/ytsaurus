@@ -580,8 +580,8 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             request->disk_resources());
     }
 
-    TLeaseManager::RenewLease(node->GetHeartbeatLease());
-    TLeaseManager::RenewLease(node->GetRegistrationLease());
+    TLeaseManager::RenewLease(node->GetHeartbeatLease(), Config_->NodeHeartbeatTimeout);
+    TLeaseManager::RenewLease(node->GetRegistrationLease(), Config_->NodeRegistrationTimeout);
 
     bool isThrottlingActive = false;
     {
@@ -926,7 +926,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         }
 
         if (newState == NNodeTrackerClient::ENodeState::Online) {
-            TLeaseManager::RenewLease(execNode->GetRegistrationLease());
+            TLeaseManager::RenewLease(execNode->GetRegistrationLease(), Config_->NodeRegistrationTimeout);
             if (execNode->GetSchedulerState() == ENodeState::Offline &&
                 execNode->GetLastSeenTime() + Config_->MaxNodeUnseenPeriodToAbortJobs < now)
             {
@@ -961,6 +961,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
             SubtractNodeResources(execNode);
             // State change must happen before aborting jobs.
             UpdateNodeState(execNode, newState, execNode->GetSchedulerState());
+
             AbortAllJobsAtNode(execNode, EAbortReason::NodeOffline);
             ++nodeChangesCount;
             continue;
@@ -984,6 +985,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
                 UpdateNodeState(execNode, /* newMasterState */ newState, /* newSchedulerState */ ENodeState::Offline, error);
                 if (oldState == NNodeTrackerClient::ENodeState::Online && previousSchedulerState == ENodeState::Online) {
                     SubtractNodeResources(execNode);
+
                     AbortAllJobsAtNode(execNode, EAbortReason::NodeOffline);
                 }
             } else {

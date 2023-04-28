@@ -357,6 +357,7 @@ public:
                         .Item("job_state").Value(job->GetState())
                         .Item("job_phase").Value(job->GetPhase())
                         .Item("job_type").Value(job->GetType())
+                        .Item("stored").Value(job->GetStored())
                         .Item("slot_index").Value(job->GetSlotIndex())
                         .Item("start_time").Value(job->GetStartTime())
                         .Item("duration").Value(TInstant::Now() - job->GetStartTime())
@@ -1093,7 +1094,7 @@ private:
                     jobToStore.JobId,
                     agentDescriptor);
                 YT_VERIFY(job->IsFinished());
-                job->SetStored(true);
+                job->SetStored();
             } else {
                 YT_LOG_WARNING(
                     "Agent requested to store a non-existent job (JobId: %v, AgentDescriptor: %v)",
@@ -1299,7 +1300,7 @@ private:
                     "Storing job by scheduler request (JobId: %v)",
                     jobId);
                 YT_VERIFY(job->IsFinished());
-                job->SetStored(true);
+                job->SetStored();
             } else {
                 YT_LOG_WARNING(
                     "Scheduler requested to store a non-existent job (JobId: %v)",

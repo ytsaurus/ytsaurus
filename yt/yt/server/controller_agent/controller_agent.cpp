@@ -307,10 +307,13 @@ public:
         auto dynamicOrchidService = GetDynamicOrchidService()
             ->Via(Bootstrap_->GetControlInvoker());
 
+        auto jobTrackerOrchidService = GetJobTrackerOrchidService();
+
         return New<TServiceCombiner>(
             std::vector<IYPathServicePtr>{
                 staticOrchidService->Via(Bootstrap_->GetControlInvoker()),
-                std::move(dynamicOrchidService)
+                std::move(dynamicOrchidService),
+                std::move(jobTrackerOrchidService),
             },
             Config_->ControllerOrchidKeysUpdatePeriod);
     }
@@ -2118,6 +2121,13 @@ private:
         auto dynamicOrchidService = New<TCompositeMapService>();
         dynamicOrchidService->AddChild("operations", New<TOperationsService>(this));
         return dynamicOrchidService;
+    }
+
+    IYPathServicePtr GetJobTrackerOrchidService()
+    {
+        auto service = New<TCompositeMapService>();
+        service->AddChild("job_tracker", JobTracker_->GetOrchidService());
+        return service;
     }
 
     class TOperationsService
