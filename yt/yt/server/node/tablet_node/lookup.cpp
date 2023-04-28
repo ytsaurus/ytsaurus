@@ -924,8 +924,9 @@ private:
     // and used for profiling within TLookupSession dtor.
     std::atomic<int> FoundRowCount_ = 0;
     std::atomic<i64> FoundDataWeight_ = 0;
-    std::atomic<int> MissingKeyCount_ = 0;
+    std::atomic<int> MissingRowCount_ = 0;
     std::atomic<int> UnmergedRowCount_ = 0;
+    std::atomic<int> UnmergedMissingRowCount_ = 0;
     std::atomic<i64> UnmergedDataWeight_ = 0;
     std::atomic<TDuration::TValue> DecompressionCpuTime_ = 0;
     std::atomic<int> RetryCount_ = 0;
@@ -987,7 +988,6 @@ private:
     TStoreSessionList DynamicEdenSessions_;
     TStoreSessionList ChunkEdenSessions_;
 
-    int RecursionDepth_ = 0;
     int CurrentPartitionSessionIndex_ = 0;
     std::vector<TPartitionSession> PartitionSessions_;
 
@@ -995,6 +995,7 @@ private:
     using TPipeline::GetFoundDataWeight;
 
     int UnmergedRowCount_ = 0;
+    int RequestedUnmergedRowCount_ = 0;
     i64 UnmergedDataWeight_ = 0;
     TDuration DecompressionCpuTime_;
 
@@ -1284,9 +1285,10 @@ TLookupSession::~TLookupSession()
     auto* counters = tabletSnapshot->TableProfiler->GetLookupCounters(ProfilingUser_);
 
     counters->RowCount.Increment(FoundRowCount_.load(std::memory_order::relaxed));
-    counters->MissingKeyCount.Increment(MissingKeyCount_.load(std::memory_order::relaxed));
+    counters->MissingRowCount.Increment(MissingRowCount_.load(std::memory_order::relaxed));
     counters->DataWeight.Increment(FoundDataWeight_.load(std::memory_order::relaxed));
     counters->UnmergedRowCount.Increment(UnmergedRowCount_.load(std::memory_order::relaxed));
+    counters->UnmergedMissingRowCount.Increment(UnmergedMissingRowCount_.load(std::memory_order::relaxed));
     counters->UnmergedDataWeight.Increment(UnmergedDataWeight_.load(std::memory_order::relaxed));
     if (!FinishedSuccessfully_) {
         counters->WastedUnmergedDataWeight.Increment(UnmergedDataWeight_.load(std::memory_order::relaxed));
@@ -1585,6 +1587,8 @@ TStoreSessionList TTabletLookupSession<TPipeline>::CreateStoreSessions(
             store->GetId(),
             keys.Size());
 
+        RequestedUnmergedRowCount_ += keys.Size();
+
         sessions.emplace_back(store->CreateReader(
             TabletSnapshot_,
             keys,
@@ -1871,8 +1875,9 @@ TTabletLookupSession<TPipeline>::~TTabletLookupSession()
 {
     LookupSession_->FoundRowCount_.fetch_add(GetFoundRowCount(), std::memory_order::relaxed);
     LookupSession_->FoundDataWeight_.fetch_add(GetFoundDataWeight(), std::memory_order::relaxed);
-    LookupSession_->MissingKeyCount_.fetch_add(LookupKeys_.size() - GetFoundRowCount(), std::memory_order::relaxed);
+    LookupSession_->MissingRowCount_.fetch_add(LookupKeys_.size() - GetFoundRowCount(), std::memory_order::relaxed);
     LookupSession_->UnmergedRowCount_.fetch_add(UnmergedRowCount_, std::memory_order::relaxed);
+    LookupSession_->UnmergedMissingRowCount_.fetch_add(RequestedUnmergedRowCount_ - UnmergedRowCount_, std::memory_order::relaxed);
     LookupSession_->UnmergedDataWeight_.fetch_add(UnmergedDataWeight_, std::memory_order::relaxed);
     LookupSession_->DecompressionCpuTime_.fetch_add(DecompressionCpuTime_.MicroSeconds(), std::memory_order::relaxed);
 }

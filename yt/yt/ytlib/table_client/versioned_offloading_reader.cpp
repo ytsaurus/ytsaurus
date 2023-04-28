@@ -71,10 +71,12 @@ public:
                 readOptions.MaxRowsPerRead));
 
         while (rows.size() < rows.capacity()) {
-            ++RowCount_;
             rows.push_back(WireReader_->ReadVersionedRow(WireFormatSchemaData_, /*captureValues*/ false));
+            ExistingRowCount_ += static_cast<bool>(rows.back());
             DataWeight_ += GetDataWeight(rows.back());
         }
+
+        RowCount_ += rows.size();
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
@@ -90,7 +92,7 @@ public:
         dataStatistics.set_chunk_count(1);
         dataStatistics.set_compressed_data_size(CompressedDataSize_.load());
         dataStatistics.set_uncompressed_data_size(UncompressedDataSize_.load());
-        dataStatistics.set_row_count(RowCount_);
+        dataStatistics.set_row_count(ExistingRowCount_);
         dataStatistics.set_data_weight(DataWeight_);
         return dataStatistics;
     }
@@ -126,6 +128,7 @@ private:
 
     TFuture<void> ReadyEvent_;
     int RowCount_ = 0;
+    int ExistingRowCount_ = 0;
     i64 DataWeight_ = 0;
     std::atomic<i64> CompressedDataSize_ = 0;
     std::atomic<i64> UncompressedDataSize_ = 0;

@@ -33,6 +33,8 @@ public:
 
     TFuture<void> Open() override
     {
+        YT_VERIFY(!std::exchange(Opened_, true));
+
         {
             TCurrentTraceContextGuard guard(TraceContext_);
             ReadyEvent_ = DoRead();
@@ -63,6 +65,7 @@ public:
         rows.reserve(std::min(rowsLeft, options.MaxRowsPerRead));
         while (rows.size() < rows.capacity()) {
             rows.push_back(result[RowCount_++]);
+            ExistingRowCount_ += static_cast<bool>(rows.back());
             DataWeight_ += GetDataWeight(rows.back());
         }
 
@@ -78,7 +81,7 @@ public:
     {
         NChunkClient::NProto::TDataStatistics dataStatistics;
         dataStatistics.set_chunk_count(1);
-        dataStatistics.set_row_count(RowCount_);
+        dataStatistics.set_row_count(ExistingRowCount_);
         dataStatistics.set_data_weight(DataWeight_);
         return dataStatistics;
     }
@@ -107,9 +110,11 @@ private:
     const NTracing::TTraceContextPtr TraceContext_;
     const NTracing::TTraceContextFinishGuard FinishGuard_;
 
+    bool Opened_ = false;
     TFuture<void> ReadyEvent_;
 
     int RowCount_ = 0;
+    int ExistingRowCount_ = 0;
     i64 DataWeight_ = 0;
 
 

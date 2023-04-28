@@ -549,15 +549,11 @@ private:
             }
         }
 
-        i64 rowCount = 0;
-        for (auto row : *rows) {
-            if (row) {
-                ++rowCount;
-            }
-        }
-
-        RowCount_ += rowCount;
         DataWeight_ += dataWeight;
+
+        for (auto row : *rows) {
+            RowCount_ += static_cast<bool>(row);
+        }
 
         if (hasMore) {
             return true;

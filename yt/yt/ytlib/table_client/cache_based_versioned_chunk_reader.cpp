@@ -386,10 +386,7 @@ private:
 
             rows.push_back(Lookup(Keys_[KeyIndex_++]));
 
-            if (rows.back()) {
-                ++rowCount;
-            }
-
+            rowCount += static_cast<bool>(rows.back());
             dataWeight += GetDataWeight(rows.back());
         }
 

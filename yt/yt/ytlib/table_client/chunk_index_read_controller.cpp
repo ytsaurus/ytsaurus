@@ -119,7 +119,7 @@ public:
 
         MakePlanForPendingSectors();
 
-        LogNewRequests();
+        OnRequestsGenerated();
     }
 
     TReadRequest GetReadRequest() override
@@ -216,7 +216,7 @@ public:
 
         MakePlanForPendingSectors();
 
-        LogNewRequests();
+        OnRequestsGenerated();
     }
 
     bool IsFinished() const override
@@ -580,9 +580,10 @@ private:
         }
     }
 
-    void LogNewRequests() const
+    void OnRequestsGenerated() const
     {
         if (IsFinished()) {
+            // Read session is finished now.
             YT_LOG_DEBUG("Hash table chunk index read contoller has no new requests");
             return;
         }

@@ -673,6 +673,7 @@ public:
 private:
     const TSharedRange<TRowRange> Ranges_;
     const bool SnapshotMode_;
+
     TLegacyKey LowerBound_;
     TLegacyKey UpperBound_;
     size_t RangeIndex_ = 0;
@@ -767,8 +768,6 @@ public:
             return nullptr;
         }
 
-        i64 dataWeight = 0;
-
         while (rows.size() < rows.capacity()) {
             YT_VERIFY(RowCount_ < std::ssize(Keys_));
 
@@ -786,7 +785,8 @@ public:
             }
             rows.push_back(row);
             ++RowCount_;
-            dataWeight += GetDataWeight(row);
+            ExistingRowCount_ += static_cast<bool>(row);
+            DataWeight_ += GetDataWeight(row);
         }
 
         if (rows.empty()) {
@@ -794,15 +794,13 @@ public:
             return nullptr;
         }
 
-        DataWeight_ += dataWeight;
-
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
     TDataStatistics GetDataStatistics() const override
     {
         TDataStatistics dataStatistics;
-        dataStatistics.set_row_count(RowCount_);
+        dataStatistics.set_row_count(ExistingRowCount_);
         dataStatistics.set_data_weight(DataWeight_);
         return dataStatistics;
     }
@@ -824,7 +822,9 @@ public:
 
 private:
     const TSharedRange<TLegacyKey> Keys_;
+
     i64 RowCount_  = 0;
+    i64 ExistingRowCount_ = 0;
     i64 DataWeight_ = 0;
     bool Finished_ = false;
 

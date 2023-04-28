@@ -1215,17 +1215,10 @@ public:
             }
         }
 
-        i64 rowCount = 0;
-        i64 dataWeight = 0;
         for (auto row : rows) {
-            if (row) {
-                ++rowCount;
-            }
-            dataWeight += GetDataWeight(row);
+            RowCount_ += static_cast<bool>(row);
+            DataWeight_ += GetDataWeight(row);
         }
-
-        RowCount_ += rowCount;
-        DataWeight_ += dataWeight;
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
@@ -1530,17 +1523,10 @@ public:
             }
         }
 
-        i64 rowCount = 0;
-        i64 dataWeight = 0;
         for (auto row : rows) {
-            if (row) {
-                ++rowCount;
-            }
-            dataWeight += GetDataWeight(row);
+            RowCount_ += static_cast<bool>(row);
+            DataWeight_ += GetDataWeight(row);
         }
-
-        RowCount_ += rowCount;
-        DataWeight_ += dataWeight;
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }

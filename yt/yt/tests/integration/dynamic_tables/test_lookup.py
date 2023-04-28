@@ -544,11 +544,10 @@ class TestLookup(TestSortedDynamicTablesBase):
         actual = lookup_rows("//tmp/t", [{"key": i} for i in range(0, 1000)])
         assert_items_equal(actual, rows)
 
-        if not enable_hash_chunk_index:
-            for tablet in range(10):
-                path = "//tmp/t/@tablets/{0}/performance_counters/static_chunk_row_lookup_count".format(tablet)
-                wait(lambda: get(path) > 0)
-                assert get(path) == 100
+        for tablet in range(10):
+            path = "//tmp/t/@tablets/{0}/performance_counters/static_chunk_row_lookup_count".format(tablet)
+            wait(lambda: get(path) > 0)
+            assert get(path) == 100
 
     @authors("ifsmirnov")
     def test_lookup_rich_ypath(self):
@@ -653,6 +652,34 @@ class TestLookup(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", keys) == rows
 
         wait(lambda: request_counter.get_delta() > 0)
+
+    @authors("akozhikhov")
+    def test_lookup_row_count_sensors(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
+            name="lookup/row_count")
+        missing_row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
+            name="lookup/missing_row_count")
+        unmerged_row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
+            name="lookup/unmerged_row_count")
+        unmerged_missing_row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
+            name="lookup/unmerged_missing_row_count")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "0"}, {"key": 2, "value": "2"}])
+        sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}, {"key": 2, "value": "22"}])
+
+        assert lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}]) == \
+            [{"key": 0, "value": "0"}, {"key": 1, "value": "1"}, {"key": 2, "value": "22"}]
+
+        wait(lambda: row_count.get_delta() == 3)
+        wait(lambda: missing_row_count.get_delta() == 1)
+        wait(lambda: unmerged_row_count.get_delta() == 4)
+        wait(lambda: unmerged_missing_row_count.get_delta() == 4)
 
     @authors("akozhikhov")
     def test_lookup_overflow(self):
@@ -1097,6 +1124,32 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
 
         for _ in range(5):
             assert lookup_rows("//tmp/t", keys) == rows
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("enable_data_node_lookup", [False, True])
+    @pytest.mark.parametrize("enable_hash_chunk_index", [False, True])
+    def test_alternative_lookup_performance_counters(self, enable_data_node_lookup, enable_hash_chunk_index):
+        if not enable_data_node_lookup and not enable_hash_chunk_index:
+            return
+
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t")
+        if enable_data_node_lookup:
+            self._enable_data_node_lookup("//tmp/t")
+        if enable_hash_chunk_index:
+            self._enable_hash_chunk_index("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}])
+
+        row_count = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        wait(lambda: get(row_count) > 0)
+        assert get(row_count) == 1
 
 
 class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
