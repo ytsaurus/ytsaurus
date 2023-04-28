@@ -278,14 +278,14 @@ private:
 
 // TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
 bool PrepareKeyFilteringReader(
-    const TTablet* tablet,
+    const TCustomTableMountConfigPtr& mountConfig,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const IChunkReaderPtr& chunkReader,
     const TClientChunkReadOptions& chunkReadOptions,
     TSharedRange<TLegacyKey>* keys,
     std::vector<ui8> *missingKeyMask)
 {
-    if (!tablet->GetSettings().MountConfig->TestingOnlyUseKeyFilter) {
+    if (!mountConfig->TestingOnlyUseKeyFilter) {
         return false;
     }
 
@@ -761,7 +761,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     // TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
     needKeyFilteringReader = PrepareKeyFilteringReader(
-        Tablet_,
+        mountConfig,
         chunkMeta,
         backendReaders.ChunkReader,
         chunkReadOptions,
