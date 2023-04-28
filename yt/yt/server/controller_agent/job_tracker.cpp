@@ -835,16 +835,25 @@ void TJobTracker::OnNodeHeartbeatLeaseExpired(TNodeId nodeId)
 
     {
         TOperationIdToJobIds jobsToAbort;
+        TOperationIdToJobIds finishedJobs;
+
         for (const auto& [jobId, jobInfo] : nodeJobs.Jobs) {
-            if (jobInfo.Stage == EJobStage::Running &&
-                GetOrCrash(RegisteredOperations_, jobInfo.OperationId).ControlJobLifetimeAtControllerAgent)
-            {
-                YT_LOG_DEBUG(
-                    "Abort job since node heartbeat lease expired (NodeId: %v, JobId: %v, OperationId: %v)",
-                    nodeId,
-                    jobId,
-                    jobInfo.OperationId);
-                jobsToAbort[jobInfo.OperationId].push_back(jobId);
+            if (GetOrCrash(RegisteredOperations_, jobInfo.OperationId).ControlJobLifetimeAtControllerAgent) {
+                if (jobInfo.Stage == EJobStage::Running) {
+                    YT_LOG_DEBUG(
+                        "Abort job since node heartbeat lease expired (NodeId: %v, JobId: %v, OperationId: %v)",
+                        nodeId,
+                        jobId,
+                        jobInfo.OperationId);
+                    jobsToAbort[jobInfo.OperationId].push_back(jobId);
+                } else {
+                    YT_LOG_DEBUG(
+                        "Remove finished job from operation info since node heartbeat lease expired (NodeId: %v, JobId: %v, OperationId: %v)",
+                        nodeId,
+                        jobId,
+                        jobInfo.OperationId);
+                    finishedJobs[jobInfo.OperationId].push_back(jobId);
+                }
             }
         }
 
@@ -859,6 +868,13 @@ void TJobTracker::OnNodeHeartbeatLeaseExpired(TNodeId nodeId)
         }
 
         for (const auto& [operationId, jobs] : jobsToAbort) {
+            auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
+
+            for (auto jobId : jobs) {
+                EraseOrCrash(operationInfo.TrackedJobs, jobId);
+            }
+        }
+        for (const auto& [operationId, jobs] : finishedJobs) {
             auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
 
             for (auto jobId : jobs) {
