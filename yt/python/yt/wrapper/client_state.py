@@ -10,6 +10,10 @@ class ClientState(object):
         else:
             self._copy_init_state(other)
 
+    def __del__(self):
+        if self._requests_session is not None:
+            self._requests_session.close()
+
     def _init_state(self):
         self.COMMAND_PARAMS = {
             "transaction_id": "0-0-0-0",
@@ -24,7 +28,7 @@ class ClientState(object):
 
         self._transaction_stack = None
         self._driver = None
-        self._requests_session = None
+        self._requests_session = None  # type: requests.Session
         self._heavy_proxy_provider_state = None
 
         # socket.getfqdn can be slow so client fqdn is cached.

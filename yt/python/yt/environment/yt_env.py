@@ -988,9 +988,6 @@ class YTInstance(object):
             stderr_path = os.path.join(self.stderrs_path, "stderr.{0}".format(name_with_number))
             self._stderr_paths[name].append(stderr_path)
 
-            stdout = open(os.devnull, "w")
-            stderr = open(stderr_path, "w")
-
             if self._kill_child_processes:
                 args += ["--pdeathsig", str(int(signal.SIGTERM))]
             args += ["--setsid"]
@@ -1001,8 +998,9 @@ class YTInstance(object):
                     del env["YT_LOG_LEVEL"]
             env = update(env, {"YT_ALLOC_CONFIG": "{enable_eager_memory_release=%true}"})
 
-            p = self._subprocess_module.Popen(args, shell=False, close_fds=True, cwd=self.runtime_data_path,
-                                              env=env, stdout=stdout, stderr=stderr)
+            with open(os.devnull, "w") as stdout, open(stderr_path, "w") as stderr:
+                p = self._subprocess_module.Popen(args, shell=False, close_fds=True, cwd=self.runtime_data_path,
+                                                  env=env, stdout=stdout, stderr=stderr)
 
             self._validate_process_is_running(p, name, number)
 
