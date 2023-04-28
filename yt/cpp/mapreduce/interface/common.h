@@ -143,6 +143,66 @@ public: \
         return static_cast<TSelf&>(*this);\
     }
 
+#define FLUENT_OPTIONAL_VECTOR_FIELD_ENCAPSULATED(type, name) \
+private: \
+    TMaybe<TVector<type>> name##s_; \
+public: \
+    const TMaybe<TVector<type>>& name##s() const & { \
+        return name##s_; \
+    } \
+    TMaybe<TVector<type>>& name##s() & { \
+        return name##s_; \
+    } \
+    TMaybe<TVector<type>> name##s() && { \
+        return std::move(name##s_); \
+    } \
+    TSelf& Add##name(const type& value) & \
+    { \
+        if (name##s_.Empty()) { \
+            name##s_.ConstructInPlace(); \
+        } \
+        name##s_->push_back(value); \
+        return static_cast<TSelf&>(*this);\
+    } \
+    TSelf Add##name(const type& value) && \
+    { \
+        if (name##s_.Empty()) { \
+            name##s_.ConstructInPlace(); \
+        } \
+        name##s_->push_back(value); \
+        return static_cast<TSelf&&>(*this);\
+    } \
+    TSelf& name##s(TVector<type> values) & \
+    { \
+        name##s_ = std::move(values); \
+        return static_cast<TSelf&>(*this);\
+    } \
+    TSelf name##s(TVector<type> values) && \
+    { \
+        name##s_ = std::move(values); \
+        return static_cast<TSelf&&>(*this);\
+    } \
+    TSelf& name##s(TNothing) & \
+    { \
+        name##s_ = Nothing(); \
+        return static_cast<TSelf&>(*this);\
+    } \
+    TSelf name##s(TNothing) && \
+    { \
+        name##s_ = Nothing(); \
+        return static_cast<TSelf&&>(*this);\
+    } \
+    TSelf& Reset##name##s() & \
+    { \
+        name##s_ = Nothing(); \
+        return static_cast<TSelf&>(*this);\
+    } \
+    TSelf Reset##name##s() && \
+    { \
+        name##s_ = Nothing(); \
+        return static_cast<TSelf&&>(*this);\
+    }
+
 #define FLUENT_VECTOR_FIELD_ENCAPSULATED(type, name) \
 private: \
     TVector<type> name##s_; \

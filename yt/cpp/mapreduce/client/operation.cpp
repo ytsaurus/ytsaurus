@@ -648,6 +648,22 @@ TNode BuildJobProfilerSpec(const TJobProfilerSpec& profilerSpec)
     return result;
 }
 
+// Returns undefined node if resources doesn't contain any meaningful field
+TNode BuildSchedulerResourcesSpec(const TSchedulerResources& resources)
+{
+    TNode result;
+    if (resources.UserSlots().Defined()) {
+        result["user_slots"] = *resources.UserSlots();
+    }
+    if (resources.Cpu().Defined()) {
+        result["cpu"] = *resources.Cpu();
+    }
+    if (resources.Memory().Defined()) {
+        result["memory"] = *resources.Memory();
+    }
+    return result;
+}
+
 void BuildUserJobFluently(
     const TJobPreparer& preparer,
     const TMaybe<TFormat>& inputFormat,
@@ -747,6 +763,19 @@ void BuildCommonOperationPart(const TConfigPtr& config, const TOperationSpecBase
         })
         .DoIf(baseSpec.TimeLimit_.Defined(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("time_limit").Value(baseSpec.TimeLimit_->MilliSeconds());
+        })
+        .DoIf(baseSpec.PoolTrees().Defined(), [&] (TFluentMap fluentMap) {
+            TNode poolTreesSpec = TNode::CreateList();
+            for (const auto& tree : *baseSpec.PoolTrees()) {
+                poolTreesSpec.Add(tree);
+            }
+            fluentMap.Item("pool_trees").Value(poolTreesSpec);
+        })
+        .DoIf(baseSpec.ResourceLimits().Defined(), [&] (TFluentMap fluentMap) {
+            auto resourceLimitsSpec = BuildSchedulerResourcesSpec(*baseSpec.ResourceLimits());
+            if (!resourceLimitsSpec.IsUndefined()) {
+                fluentMap.Item("resource_limits").Value(std::move(resourceLimitsSpec));
+            }
         })
         .DoIf(options.SecureVault_.Defined(), [&] (TFluentMap fluentMap) {
             Y_ENSURE(options.SecureVault_->IsMap(),
@@ -996,7 +1025,10 @@ void DoExecuteMap(
                 fluent);
         })
         .DoIf(spec.AutoMerge_.Defined(), [&] (TFluentMap fluent) {
-            fluent.Item("auto_merge").Value(BuildAutoMergeSpec(*spec.AutoMerge_));
+            auto autoMergeSpec = BuildAutoMergeSpec(*spec.AutoMerge_);
+            if (!autoMergeSpec.IsUndefined()) {
+                fluent.Item("auto_merge").Value(std::move(autoMergeSpec));
+            }
         })
         .Item("input_table_paths").List(operationIo.Inputs)
         .Item("output_table_paths").List(operationIo.Outputs)

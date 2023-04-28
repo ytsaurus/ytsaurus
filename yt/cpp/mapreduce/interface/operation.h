@@ -215,6 +215,27 @@ public:
     FLUENT_FIELD_OPTION(TAutoMergeSpec, AutoMerge);
 };
 
+///
+/// @brief Resources controlled by scheduler and used by running operations.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/scheduler/scheduler_and_pools#resursy
+class TSchedulerResources
+{
+public:
+    /// @cond Doxygen_Suppress
+    using TSelf = TSchedulerResources;
+    /// @endcond
+
+    /// Each job consumes exactly one user slot.
+    FLUENT_FIELD_OPTION_ENCAPSULATED(i64, UserSlots);
+
+    /// Number of (virtual) cpu cores consumed by all jobs.
+    FLUENT_FIELD_OPTION_ENCAPSULATED(i64, Cpu);
+
+    /// Amount of memory in bytes.
+    FLUENT_FIELD_OPTION_ENCAPSULATED(i64, Memory);
+};
+
 /// Base for input format hints of a user job.
 template <class TDerived>
 class TUserJobInputFormatHintsBase
@@ -486,6 +507,8 @@ struct TOperationIOSpec
 
 ///
 /// @brief Base spec for all operations.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/operations_options
 template <class TDerived>
 struct TOperationSpecBase
 {
@@ -504,6 +527,12 @@ struct TOperationSpecBase
 
     /// @brief Pool to be used for this operation.
     FLUENT_FIELD_OPTION(TString, Pool);
+
+    /// @breif Pool tree list that operation will use.
+    FLUENT_OPTIONAL_VECTOR_FIELD_ENCAPSULATED(TString, PoolTree);
+
+    /// How much resources can be consumed by operation.
+    FLUENT_FIELD_OPTION_ENCAPSULATED(TSchedulerResources, ResourceLimits);
 };
 
 ///
