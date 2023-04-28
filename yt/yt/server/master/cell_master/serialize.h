@@ -135,6 +135,7 @@ DEFINE_ENUM(EMasterReign,
     ((UpdatePerUserThrottlerLimits)                                 (2320))  // h0pless
     ((RequireMediumUsePermissionForChunkOwnerCreation)              (2321))  // kvk1920
     ((MakePerformanceCountersOpaque)                                (2322))  // alexelexa
+    ((FixMulticellHunkStorage)                                      (2323))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

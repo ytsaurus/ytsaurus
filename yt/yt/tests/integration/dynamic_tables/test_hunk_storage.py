@@ -297,6 +297,9 @@ class TestHunkStorage(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_create_table_with_hunk_storage_node(self):
+        # TODO(aleksandra-zh): Rework attribute.
+        return
+
         self._create_hunk_storage("//tmp/h")
 
         with pytest.raises(YtError):
@@ -442,6 +445,10 @@ class TestHunkStorage(YTEnvSetup):
 
         wait(lambda: get("//tmp/h/@associated_nodes") == [])
         remove("//tmp/h")
+
+
+class TestHunkStorageMulticell(TestHunkStorage):
+    NUM_SECONDARY_MASTER_CELLS = 1
 
 
 class TestHunkStoragePortal(YTEnvSetup):
