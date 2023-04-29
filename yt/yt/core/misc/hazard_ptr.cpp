@@ -217,7 +217,7 @@ void THazardPointerManager::RetireHazardPointer(TPackedPtr packedPtr, THazardPtr
         return;
     }
 
-    int threadCount = ThreadCount_.load(std::memory_order_relaxed);
+    int threadCount = ThreadCount_.load(std::memory_order::relaxed);
     while (std::ssize(threadState->RetireList) >= std::max(2 * threadCount, 1)) {
         DoReclaimHazardPointers(threadState);
     }
@@ -233,7 +233,7 @@ bool THazardPointerManager::TryReclaimHazardPointers()
     YT_VERIFY(!threadState->Reclaiming);
 
     bool hasNewPointers = DoReclaimHazardPointers(threadState);
-    int threadCount = ThreadCount_.load(std::memory_order_relaxed);
+    int threadCount = ThreadCount_.load(std::memory_order::relaxed);
     return
         hasNewPointers ||
         std::ssize(threadState->RetireList) > threadCount;

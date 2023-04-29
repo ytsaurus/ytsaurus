@@ -814,7 +814,7 @@ private:
                 threadState.AccountedAt = currentInstant;
             }
 
-            auto request = threadState.Request.load(std::memory_order_acquire);
+            auto request = threadState.Request.load(std::memory_order::acquire);
             if (request != ERequest::None) {
                 ServeEndExecute(&threadState, currentInstant);
 
@@ -824,7 +824,7 @@ private:
                     threadRequests[threadIndex] = true;
                     threadIds[requestCount++] = threadIndex;
                 } else {
-                    threadState.Request.store(ERequest::None, std::memory_order_release);
+                    threadState.Request.store(ERequest::None, std::memory_order::release);
                 }
             }
         }
@@ -857,7 +857,7 @@ private:
             if (threadIndex != -1 && threadRequests[threadIndex]) {
                 ServeBeginExecute(&ThreadStates_[threadIndex], currentInstant, std::move(action));
                 threadRequests[threadIndex] = false;
-                ThreadStates_[threadIndex].Request.store(ERequest::None, std::memory_order_release);
+                ThreadStates_[threadIndex].Request.store(ERequest::None, std::memory_order::release);
             } else {
                 OtherActions_[otherActionCount++] = std::move(action);
             }
@@ -870,7 +870,7 @@ private:
                     ServeBeginExecute(&ThreadStates_[threadIndex], currentInstant, std::move(OtherActions_[--otherActionCount]));
                 }
 
-                ThreadStates_[threadIndex].Request.store(ERequest::None, std::memory_order_release);
+                ThreadStates_[threadIndex].Request.store(ERequest::None, std::memory_order::release);
             }
         }
 
@@ -942,7 +942,7 @@ private:
             while (true) {
                 SpinLockPause();
 
-                if (request.load(std::memory_order_acquire) == ERequest::None) {
+                if (request.load(std::memory_order::acquire) == ERequest::None) {
                     return std::move(threadState.Action.Callback);
                 } else if (!MainLock_.IsLocked() && MainLock_.TryAcquire()) {
                     break;

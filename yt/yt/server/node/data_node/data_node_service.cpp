@@ -1363,7 +1363,7 @@ private:
                     NTracing::FlushCurrentTraceContextElapsedTime();
                     chunkReaderStatistics->RemoteCpuTime.fetch_add(
                         traceContext->GetElapsedTime().GetValue(),
-                        std::memory_order_relaxed);
+                        std::memory_order::relaxed);
                 }
                 ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
