@@ -242,9 +242,9 @@ private:
                     ->Increment();
 
                 THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
-                    "%v to tablet %v is throttled",
-                    throttlerKind,
+                    "Write to tablet %v is throttled",
                     tabletId)
+                    << TErrorAttribute("throttler_kind", throttlerKind)
                     << TErrorAttribute("queue_total_count", writeThrottler->GetQueueTotalAmount());
             }
         } catch (const std::exception& ex) {
