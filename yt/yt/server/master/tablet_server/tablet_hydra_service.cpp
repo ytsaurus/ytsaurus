@@ -51,11 +51,16 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, GetTableBalancingAttributes)
     {
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::LeaderOrFollower);
+
         bool balancingAttributesRequested = request->fetch_balancing_attributes();
         bool statisticsRequested = request->fetch_statistics();
 
-        ValidateClusterInitialized();
-        ValidatePeer(EPeerKind::LeaderOrFollower);
+        context->SetRequestInfo("BalancingAttributesRequested: %v, StatisticsRequested: %v",
+            balancingAttributesRequested,
+            statisticsRequested);
+
         SyncWithUpstream();
 
         auto requestedPerformanceCounters = FromProto<std::vector<TString>>(

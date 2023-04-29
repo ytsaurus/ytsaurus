@@ -329,6 +329,8 @@ private:
     {
         ValidatePeer(EPeerKind::Leader);
 
+        context->SetRequestInfo();
+
         const auto& hydraManager = Slot_->GetHydraManager();
         auto mutation = CreateMutation(hydraManager, NTabletServer::NProto::TReqSuspendTabletCell());
         mutation->CommitAndReply(context);
@@ -337,6 +339,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, ResumeTabletCell)
     {
         ValidatePeer(EPeerKind::Leader);
+
+        context->SetRequestInfo();
 
         const auto& hydraManager = Slot_->GetHydraManager();
         auto mutation = CreateMutation(hydraManager, NTabletServer::NProto::TReqResumeTabletCell());

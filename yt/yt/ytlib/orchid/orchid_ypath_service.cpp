@@ -36,6 +36,8 @@ public:
 
     void Invoke(const IYPathServiceContextPtr& context) override
     {
+        context->SetRequestInfo();
+
         // Throw options-provided error, if it is non-trivial.
         Options_.Error.ThrowOnError();
 
@@ -51,10 +53,6 @@ public:
 
         const auto& path = GetRequestTargetYPath(context->RequestHeader());
         const auto& method = context->GetMethod();
-
-        context->SetRequestInfo("Path: %v, Method: %v",
-            path,
-            method);
 
         auto requestMessage = context->GetRequestMessage();
         NRpc::NProto::TRequestHeader requestHeader;

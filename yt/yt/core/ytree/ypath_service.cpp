@@ -135,10 +135,11 @@ private:
         if (request->has_attributes())  {
             // Execute fallback.
             auto node = BuildNodeFromProducer();
-            ExecuteVerb(node, IYPathServiceContextPtr(context));
+            ExecuteVerb(node, context->GetUnderlyingContext());
             return;
         }
 
+        context->SetRequestInfo();
         auto yson = BuildStringFromProducer();
         response->set_value(yson.ToString());
         context->Reply();
@@ -265,10 +266,11 @@ private:
         if (request->has_attributes())  {
             // Execute fallback.
             auto node = BuildNodeFromProducer(options);
-            ExecuteVerb(node, IYPathServiceContextPtr(context));
+            ExecuteVerb(node, context->GetUnderlyingContext());
             return;
         }
 
+        context->SetRequestInfo();
         auto yson = BuildStringFromProducer(options);
         response->set_value(yson.ToString());
         context->Reply();
@@ -348,11 +350,6 @@ private:
 
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
     {
-        IAttributeDictionaryPtr options;
-        if (request->has_options()) {
-            options = NYTree::FromProto(request->options());
-        }
-
         if (request->has_attributes())  {
             // Execute fallback.
             auto node = BuildNodeFromProducer();
@@ -360,6 +357,12 @@ private:
             return;
         }
 
+        IAttributeDictionaryPtr options;
+        if (request->has_options()) {
+            options = NYTree::FromProto(request->options());
+        }
+
+        context->SetRequestInfo();
         auto yson = BuildStringFromProducer();
         response->set_value(yson.ToString());
         context->Reply();
@@ -373,6 +376,8 @@ private:
             ExecuteVerb(node, context->GetUnderlyingContext());
             return;
         }
+
+        context->SetRequestInfo();
 
         TStringStream stream;
         {
@@ -407,6 +412,8 @@ private:
 
     void ListRecursive(const TYPath& path, TReqList* request, TRspList* response, const TCtxListPtr& context) override
     {
+        context->SetRequestInfo();
+
         auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
         auto consumer = CreateYPathDesignatedConsumer(path, EMissingPathMode::ThrowError, builder.get());
         Producer_.Run(consumer.get());
@@ -416,6 +423,7 @@ private:
         if (request->has_limit()) {
             innerRequest->set_limit(request->limit());
         }
+
         ExecuteVerb(node, innerRequest)
             .Subscribe(BIND([=] (const TErrorOr<TYPathProxy::TRspListPtr> resultOrError) {
                 if (resultOrError.IsOK()) {
@@ -436,18 +444,20 @@ private:
 
     void ExistsRecursive(const TYPath& path, TReqExists* /*request*/, TRspExists* /*response*/, const TCtxExistsPtr& context) override
     {
+        context->SetRequestInfo();
+
         auto consumer = CreateYPathDesignatedConsumer(path, EMissingPathMode::ThrowError, GetNullYsonConsumer());
         try {
             Producer_.Run(consumer.get());
         } catch (const TErrorException& ex) {
             if (ex.Error().FindMatching(EErrorCode::ResolveError)) {
-                Reply(context, false);
+                Reply(context, /*exists*/ false);
                 return;
             }
             throw;
         }
 
-        Reply(context, true);
+        Reply(context, /*exists*/ true);
     }
 
     TYsonString BuildStringFromProducer()

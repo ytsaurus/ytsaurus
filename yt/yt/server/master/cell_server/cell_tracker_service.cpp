@@ -67,6 +67,8 @@ private:
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
 
+        context->SetRequestInfo();
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsPrimaryMaster()) {
             THROW_ERROR_EXCEPTION("Cannot get cluster state at secondary master");
