@@ -106,7 +106,7 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
                 {"name": "value", "type_v3": "string"},
             ]},
         )
-        data = [{"key": i % 10, "value": "#" * 1000000} for i in range(100, 1, -1)]
+        data = [{"key": i % 100, "value": "#" * 1000000} for i in range(1000, 1, -1)]
         for d in data:
             write_table(f"<append=%true>{in_table}", [d])
 
