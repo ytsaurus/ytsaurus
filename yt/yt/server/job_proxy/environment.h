@@ -24,8 +24,8 @@ struct TJobEnvironmentCpuStatistics
     TDuration SystemUsageTime;
     TDuration WaitTime;
     TDuration ThrottledTime;
-    ui64 ContextSwitchesDelta;
-    ui64 PeakThreadCount;
+    ui64 ContextSwitchesDelta = 0;
+    ui64 PeakThreadCount = 0;
 };
 
 void Serialize(const TJobEnvironmentCpuStatistics& statistics, NYson::IYsonConsumer* consumer);
@@ -34,9 +34,9 @@ void Serialize(const TJobEnvironmentCpuStatistics& statistics, NYson::IYsonConsu
 
 struct TJobEnvironmentMemoryStatistics
 {
-    ui64 Rss;
-    ui64 MappedFile;
-    ui64 MajorPageFaults;
+    ui64 Rss = 0;
+    ui64 MappedFile = 0;
+    ui64 MajorPageFaults = 0;
 };
 
 void Serialize(const TJobEnvironmentMemoryStatistics& statistics, NYson::IYsonConsumer* consumer);
@@ -45,12 +45,12 @@ void Serialize(const TJobEnvironmentMemoryStatistics& statistics, NYson::IYsonCo
 
 struct TJobEnvironmentBlockIOStatistics
 {
-    ui64 IOReadByte;
-    ui64 IOWriteByte;
+    ui64 IOReadByte = 0;
+    ui64 IOWriteByte = 0;
 
-    ui64 IOReadOps;
-    ui64 IOWriteOps;
-    ui64 IOOps;
+    ui64 IOReadOps = 0;
+    ui64 IOWriteOps = 0;
+    ui64 IOOps = 0;
 };
 
 void Serialize(const TJobEnvironmentBlockIOStatistics& statistics, NYson::IYsonConsumer* consumer);
@@ -59,13 +59,13 @@ void Serialize(const TJobEnvironmentBlockIOStatistics& statistics, NYson::IYsonC
 
 struct TJobEnvironmentNetworkStatistics
 {
-    ui64 TxBytes;
-    ui64 TxPackets;
-    ui64 TxDrops;
+    ui64 TxBytes = 0;
+    ui64 TxPackets = 0;
+    ui64 TxDrops = 0;
 
-    ui64 RxBytes;
-    ui64 RxPackets;
-    ui64 RxDrops;
+    ui64 RxBytes = 0;
+    ui64 RxPackets = 0;
+    ui64 RxDrops = 0;
 };
 
 void Serialize(const TJobEnvironmentNetworkStatistics& statistics, NYson::IYsonConsumer* consumer);
