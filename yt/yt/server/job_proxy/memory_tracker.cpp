@@ -73,17 +73,17 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
     auto now = TInstant::Now();
 
     if (LastMemoryMeasureTime_ + Config_->MemoryStatisticsCachePeriod >= now &&
-        CachedMemoryStatisitcs_)
+        CachedMemoryStatistics_)
     {
-        return CachedMemoryStatisitcs_;
+        return CachedMemoryStatistics_;
     }
 
 #ifdef _linux_
-    auto memoryStatistics = New<TJobMemoryStatistics>();
-    if (auto statistics = Environment_->GetMemoryStatistics();
-        statistics.IsOK() && statistics.Value())
+    auto jobMemoryStatistics = New<TJobMemoryStatistics>();
+    if (auto environmentMemoryStatistics = Environment_->GetMemoryStatistics();
+        environmentMemoryStatistics.IsOK() && environmentMemoryStatistics.Value())
     {
-        memoryStatistics->Total = *statistics.Value();
+        jobMemoryStatistics->Total = *environmentMemoryStatistics.Value();
     } else {
         std::vector<int> pids;
 
@@ -124,76 +124,75 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
                 }
             }
 
-            memoryStatistics->Total.Rss = memoryMappingStatistics.PrivateClean + memoryMappingStatistics.PrivateDirty;
-            memoryStatistics->Total.MappedFile = memoryMappingStatistics.SharedClean + memoryMappingStatistics.SharedDirty;
+            jobMemoryStatistics->Total.Rss = memoryMappingStatistics.PrivateClean + memoryMappingStatistics.PrivateDirty;
+            jobMemoryStatistics->Total.MappedFile = memoryMappingStatistics.SharedClean + memoryMappingStatistics.SharedDirty;
 
-            YT_LOG_DEBUG("Memory statisitcs collected (Rss: %v, Shared: %v, SkippedBecauseOfTmpfs: %v)",
-                memoryStatistics->Total.Rss,
-                memoryStatistics->Total.MappedFile,
+            YT_LOG_DEBUG("Job memory statistics updated (Rss: %v, Shared: %v, SkippedBecauseOfTmpfs: %v)",
+                jobMemoryStatistics->Total.Rss,
+                jobMemoryStatistics->Total.MappedFile,
                 skippedBecauseOfTmpfs);
         } else {
             for (auto pid : pids) {
                 try {
                     auto memoryUsage = GetProcessMemoryUsage(pid);
-
-                    // RSS from /proc/pid/statm includes all pages resident to current process,
-                    // including memory-mapped files and shared memory.
-                    // Since we want to account shared memory separately, let's subtract it here.
-                    memoryStatistics->Total.Rss = memoryStatistics->Total.Rss +
-                        memoryUsage.Rss - memoryUsage.Shared;
-                    memoryStatistics->Total.MappedFile = memoryStatistics->Total.MappedFile
-                        + memoryUsage.Shared;
-
-                    try {
-                        memoryStatistics->Total.MajorPageFaults = GetProcessCumulativeMajorPageFaults(pid);
-                    } catch (const std::exception& ex) {
-                        YT_LOG_WARNING(ex, "Failed to get major page fault count");
-                    }
-
                     auto processName = GetProcessName(pid);
                     auto commandLine = GetProcessCommandLine(pid);
-                    auto rss = memoryStatistics->Total.Rss;
-                    auto shared = memoryStatistics->Total.MappedFile;
+
+                    i64 majorPageFaults = 0;
+                    try {
+                        majorPageFaults = GetProcessCumulativeMajorPageFaults(pid);
+                    } catch (const std::exception& ex) {
+                        YT_LOG_WARNING(ex, "Failed to get process major page fault count (Pid: %v)",
+                            pid);
+                    }
 
                     auto processMemoryStatistics = New<TProcessMemoryStatistics>();
                     processMemoryStatistics->Pid = pid;
                     processMemoryStatistics->Cmdline = commandLine;
-                    processMemoryStatistics->Rss = rss;
-                    processMemoryStatistics->Shared = shared;
+                    processMemoryStatistics->Rss = memoryUsage.Rss;
+                    processMemoryStatistics->Shared = memoryUsage.Shared;
+                    jobMemoryStatistics->ProcessesStatistics.push_back(processMemoryStatistics);
 
                     YT_LOG_DEBUG(
-                        "Memory statistics collected (Pid: %v, ProcessName: %v, CommandLine: %Qv, Rss: %v, Shared: %v)",
+                        "Process memory statistics collected (Pid: %v, ProcessName: %v, CommandLine: %v, Rss: %v, Shared: %v, MajorPageFaults: %v)",
                         pid,
                         processName,
                         commandLine,
-                        rss,
-                        shared);
+                        memoryUsage.Rss,
+                        memoryUsage.Shared,
+                        majorPageFaults);
 
-                    memoryStatistics->ProcessesStatistics.push_back(processMemoryStatistics);
+                    // RSS from /proc/pid/statm includes all pages resident to current process,
+                    // including memory-mapped files and shared memory.
+                    // Since we want to account shared memory separately, let's subtract it here.
+                    jobMemoryStatistics->Total.Rss += (memoryUsage.Rss - memoryUsage.Shared);
+                    jobMemoryStatistics->Total.MappedFile += memoryUsage.Shared;
+
+                    jobMemoryStatistics->Total.MajorPageFaults += majorPageFaults;
                 } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Failed to collect memory statistics (Pid: %v)", pid);
+                    YT_LOG_WARNING(ex, "Failed to collect process memory statistics (Pid: %v)",
+                        pid);
                 }
             }
         }
 
-        YT_LOG_DEBUG("Current memory usage (Private: %v, Shared: %v)",
-            memoryStatistics->Total.Rss,
-            memoryStatistics->Total.MappedFile);
+        YT_LOG_DEBUG("Job memory statistics updated (Private: %v, Shared: %v)",
+            jobMemoryStatistics->Total.Rss,
+            jobMemoryStatistics->Total.MappedFile);
     }
 
-    auto memoryUsage = memoryStatistics->Total.Rss +
-        memoryStatistics->Total.MappedFile;
+    auto memoryUsage = jobMemoryStatistics->Total.Rss + jobMemoryStatistics->Total.MappedFile;
     MaxMemoryUsage_ = std::max<i64>(MaxMemoryUsage_, memoryUsage);
 
-    memoryStatistics->TmpfsSize = TmpfsManager_->GetTmpfsSize();
+    jobMemoryStatistics->TmpfsSize = TmpfsManager_->GetTmpfsSize();
 
     if (now > LastMemoryMeasureTime_) {
         CumulativeMemoryUsageMBSec_ += memoryUsage * (now - LastMemoryMeasureTime_).SecondsFloat() / 1_MB;
     }
     LastMemoryMeasureTime_ = now;
-    CachedMemoryStatisitcs_ = memoryStatistics;
+    CachedMemoryStatistics_ = jobMemoryStatistics;
 
-    return memoryStatistics;
+    return jobMemoryStatistics;
 
 #else
     return New<TJobMemoryStatistics>();

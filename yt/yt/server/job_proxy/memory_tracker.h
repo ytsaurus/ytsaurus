@@ -67,7 +67,7 @@ private:
 
     TInstant LastMemoryMeasureTime_ = TInstant::Now();
 
-    TJobMemoryStatisticsPtr CachedMemoryStatisitcs_ = nullptr;
+    TJobMemoryStatisticsPtr CachedMemoryStatistics_ = nullptr;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryTracker)
