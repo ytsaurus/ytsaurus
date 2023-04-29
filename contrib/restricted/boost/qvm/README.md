@@ -30,4 +30,4 @@ Besides GitHub, there are two other distribution channels:
 	* [qvm.hpp](https://boostorg.github.io/qvm/qvm.hpp): single header containing the complete QVM source, including the complete set of swizzling overloads.
 	* [qvm_lite.hpp](https://boostorg.github.io/qvm/qvm_lite.hpp): single header containing everything except for the swizzling overloads.
 
-Copyright 2008-2022 Emil Dotchevski and Reverge Studios, Inc. Distributed under the [Boost Software License, Version 1.0](http://www.boost.org/LICENSE_1_0.txt).
+Copyright 2008-2023 Emil Dotchevski and Reverge Studios, Inc. Distributed under the [Boost Software License, Version 1.0](http://www.boost.org/LICENSE_1_0.txt).
