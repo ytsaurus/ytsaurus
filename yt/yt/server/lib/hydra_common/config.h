@@ -452,7 +452,7 @@ public:
     //! number to consider follower active.
     int MaxCatchUpSequenceNumberGap;
 
-    TDistributedHydraManagerConfigPtr ApplyDynamic(const TDynamicDistributedHydraManagerConfigPtr& dynamicConfig);
+    TDistributedHydraManagerConfigPtr ApplyDynamic(const TDynamicDistributedHydraManagerConfigPtr& dynamicConfig) const;
     void ApplyDynamicInplace(const TDynamicDistributedHydraManagerConfig& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TDistributedHydraManagerConfig);

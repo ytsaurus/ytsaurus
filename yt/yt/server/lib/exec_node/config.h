@@ -308,8 +308,7 @@ class TSchedulerConnectorConfig
     : public THeartbeatReporterConfigBase
 {
 public:
-    TSchedulerConnectorConfigPtr ApplyDynamic(const TSchedulerConnectorDynamicConfigPtr& dynamicConfig);
-
+    TSchedulerConnectorConfigPtr ApplyDynamic(const TSchedulerConnectorDynamicConfigPtr& dynamicConfig) const;
     void ApplyDynamicInplace(const TSchedulerConnectorDynamicConfig& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TSchedulerConnectorConfig);
@@ -328,7 +327,7 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     TDuration RunningJobStatisticsSendingBackoff;
 
-    TControllerAgentConnectorConfigPtr ApplyDynamic(const TControllerAgentConnectorDynamicConfigPtr& dynamicConfig);
+    TControllerAgentConnectorConfigPtr ApplyDynamic(const TControllerAgentConnectorDynamicConfigPtr& dynamicConfig) const;
     void ApplyDynamicInplace(const TControllerAgentConnectorDynamicConfig& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TControllerAgentConnectorConfig);

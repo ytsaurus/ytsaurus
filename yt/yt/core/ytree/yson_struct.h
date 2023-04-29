@@ -206,6 +206,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+TIntrusivePtr<T> CloneYsonStruct(const TIntrusivePtr<const T>& obj);
+template <class T>
 TIntrusivePtr<T> CloneYsonStruct(const TIntrusivePtr<T>& obj);
 template <class T>
 std::vector<TIntrusivePtr<T>> CloneYsonStructs(const std::vector<TIntrusivePtr<T>>& objs);

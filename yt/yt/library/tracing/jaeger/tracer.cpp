@@ -26,9 +26,12 @@ namespace NYT::NTracing {
 using namespace NRpc;
 using namespace NConcurrency;
 using namespace NProfiling;
+using namespace NYTree;
 
-static NLogging::TLogger Logger{"Jaeger"};
-static NProfiling::TProfiler Profiler{"/tracing"};
+////////////////////////////////////////////////////////////////////////////////
+
+static const NLogging::TLogger Logger{"Jaeger"};
+static const NProfiling::TProfiler Profiler{"/tracing"};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +87,7 @@ void TJaegerTracerConfig::Register(TRegistrar registrar)
         .Default(false);
 }
 
-TJaegerTracerConfigPtr TJaegerTracerConfig::ApplyDynamic(const TJaegerTracerDynamicConfigPtr& dynamicConfig)
+TJaegerTracerConfigPtr TJaegerTracerConfig::ApplyDynamic(const TJaegerTracerDynamicConfigPtr& dynamicConfig) const
 {
     auto config = New<TJaegerTracerConfig>();
     config->CollectorChannelConfig = CollectorChannelConfig;

@@ -75,7 +75,7 @@ public:
 
     bool EnablePidTag;
 
-    TJaegerTracerConfigPtr ApplyDynamic(const TJaegerTracerDynamicConfigPtr& dynamicConfig);
+    TJaegerTracerConfigPtr ApplyDynamic(const TJaegerTracerDynamicConfigPtr& dynamicConfig) const;
 
     bool IsEnabled() const;
 

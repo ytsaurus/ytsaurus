@@ -4,6 +4,8 @@
 
 namespace NYT::NBus {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TMultiplexingBandConfig::Register(TRegistrar registrar)
@@ -35,10 +37,10 @@ void TTcpDispatcherConfig::Register(TRegistrar registrar)
 TTcpDispatcherConfigPtr TTcpDispatcherConfig::ApplyDynamic(
     const TTcpDispatcherDynamicConfigPtr& dynamicConfig) const
 {
-    auto mergedConfig = New<TTcpDispatcherConfig>();
-    mergedConfig->ThreadPoolSize = dynamicConfig->ThreadPoolSize.value_or(ThreadPoolSize);
-    mergedConfig->Networks = dynamicConfig->Networks.value_or(Networks);
-    mergedConfig->MultiplexingBands = dynamicConfig->MultiplexingBands.value_or(MultiplexingBands);
+    auto mergedConfig = CloneYsonStruct(MakeStrong(this));
+    UpdateYsonStructField(mergedConfig->ThreadPoolSize, dynamicConfig->ThreadPoolSize);
+    UpdateYsonStructField(mergedConfig->Networks, dynamicConfig->Networks);
+    UpdateYsonStructField(mergedConfig->MultiplexingBands, dynamicConfig->MultiplexingBands);
     mergedConfig->Postprocess();
     return mergedConfig;
 }

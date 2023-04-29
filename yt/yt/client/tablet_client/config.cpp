@@ -2,6 +2,8 @@
 
 namespace NYT::NTabletClient {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TTableMountCacheConfig::Register(TRegistrar registrar)
@@ -11,15 +13,11 @@ void TTableMountCacheConfig::Register(TRegistrar registrar)
 }
 
 TTableMountCacheConfigPtr TTableMountCacheConfig::ApplyDynamic(
-    const TTableMountCacheDynamicConfigPtr& dynamicConfig)
+    const TTableMountCacheDynamicConfigPtr& dynamicConfig) const
 {
     auto mergedConfig = CloneYsonStruct(MakeStrong(this));
-
     mergedConfig->ApplyDynamicInplace(dynamicConfig);
-
-    mergedConfig->RejectIfEntryIsRequestedButNotReady = dynamicConfig->RejectIfEntryIsRequestedButNotReady.value_or(
-        RejectIfEntryIsRequestedButNotReady);
-
+    UpdateYsonStructField(mergedConfig->RejectIfEntryIsRequestedButNotReady, dynamicConfig->RejectIfEntryIsRequestedButNotReady);
     mergedConfig->Postprocess();
     return mergedConfig;
 }

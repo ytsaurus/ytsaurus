@@ -15,7 +15,7 @@ public:
     //! If entry is requested for the first time then allow only client who requested the entry to wait for it.
     bool RejectIfEntryIsRequestedButNotReady;
 
-    TTableMountCacheConfigPtr ApplyDynamic(const TTableMountCacheDynamicConfigPtr& dynamicConfig);
+    TTableMountCacheConfigPtr ApplyDynamic(const TTableMountCacheDynamicConfigPtr& dynamicConfig) const;
 
     REGISTER_YSON_STRUCT(TTableMountCacheConfig);
 

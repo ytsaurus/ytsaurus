@@ -176,7 +176,7 @@ public:
     //! Per-location configuration of per-chunk changelog that is being written directly (w/o multiplexing).
     NYTree::INodePtr LowLatencySplitChangelog;
 
-    TStoreLocationConfigPtr ApplyDynamic(const TStoreLocationDynamicConfigPtr& dynamicConfig);
+    TStoreLocationConfigPtr ApplyDynamic(const TStoreLocationDynamicConfigPtr& dynamicConfig) const;
     void ApplyDynamicInplace(const TStoreLocationDynamicConfig& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TStoreLocationConfig);

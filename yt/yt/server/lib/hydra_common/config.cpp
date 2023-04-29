@@ -216,7 +216,7 @@ void TDynamicDistributedHydraManagerConfig::Register(TRegistrar registrar)
 ////////////////////////////////////////////////////////////////////////////////
 
 TDistributedHydraManagerConfigPtr TDistributedHydraManagerConfig::ApplyDynamic(
-    const TDynamicDistributedHydraManagerConfigPtr& dynamicConfig)
+    const TDynamicDistributedHydraManagerConfigPtr& dynamicConfig) const
 {
     auto config = CloneYsonStruct(MakeStrong(this));
     config->ApplyDynamicInplace(*dynamicConfig);

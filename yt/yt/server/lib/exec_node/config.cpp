@@ -232,20 +232,18 @@ void THeartbeatReporterConfigBase::ApplyDynamicInplace(const THeartbeatReporterD
 void TSchedulerConnectorConfig::Register(TRegistrar /*registrar*/)
 { }
 
-TSchedulerConnectorConfigPtr TSchedulerConnectorConfig::ApplyDynamic(const TSchedulerConnectorDynamicConfigPtr& dynamicConfig)
+TSchedulerConnectorConfigPtr TSchedulerConnectorConfig::ApplyDynamic(
+    const TSchedulerConnectorDynamicConfigPtr& dynamicConfig) const
 {
-    YT_VERIFY(dynamicConfig);
-
     auto newConfig = CloneYsonStruct(MakeStrong(this));
     newConfig->ApplyDynamicInplace(*dynamicConfig);
-
     return newConfig;
 }
 
-void TSchedulerConnectorConfig::ApplyDynamicInplace(const TSchedulerConnectorDynamicConfig& dynamicConfig)
+void TSchedulerConnectorConfig::ApplyDynamicInplace(
+    const TSchedulerConnectorDynamicConfig& dynamicConfig)
 {
     THeartbeatReporterConfigBase::ApplyDynamicInplace(dynamicConfig);
-
     Postprocess();
 }
 
@@ -259,7 +257,7 @@ void TControllerAgentConnectorConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
 }
 
-TControllerAgentConnectorConfigPtr TControllerAgentConnectorConfig::ApplyDynamic(const TControllerAgentConnectorDynamicConfigPtr& dynamicConfig)
+TControllerAgentConnectorConfigPtr TControllerAgentConnectorConfig::ApplyDynamic(const TControllerAgentConnectorDynamicConfigPtr& dynamicConfig) const
 {
     YT_VERIFY(dynamicConfig);
 

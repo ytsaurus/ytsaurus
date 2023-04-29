@@ -107,7 +107,7 @@ public:
     //! If set to true, cache will invoke DoGetMany once instead of DoGet on every entry during an update.
     bool BatchUpdate;
 
-    TAsyncExpiringCacheConfigPtr ApplyDynamic(const TAsyncExpiringCacheDynamicConfigPtr& dynamicConfig);
+    TAsyncExpiringCacheConfigPtr ApplyDynamic(const TAsyncExpiringCacheDynamicConfigPtr& dynamicConfig) const;
 
     REGISTER_YSON_STRUCT(TAsyncExpiringCacheConfig);
 

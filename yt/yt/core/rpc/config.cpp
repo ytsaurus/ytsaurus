@@ -267,7 +267,7 @@ void TDispatcherConfig::Register(TRegistrar registrar)
 
 TDispatcherConfigPtr TDispatcherConfig::ApplyDynamic(const TDispatcherDynamicConfigPtr& dynamicConfig) const
 {
-    auto mergedConfig = New<TDispatcherConfig>();
+    auto mergedConfig = CloneYsonStruct(MakeStrong(this));
     UpdateYsonStructField(mergedConfig->HeavyPoolSize, dynamicConfig->HeavyPoolSize);
     UpdateYsonStructField(mergedConfig->CompressionPoolSize, dynamicConfig->CompressionPoolSize);
     UpdateYsonStructField(mergedConfig->AlertOnMissingRequestInfo, dynamicConfig->AlertOnMissingRequestInfo);

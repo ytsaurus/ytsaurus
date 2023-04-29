@@ -3,6 +3,7 @@
 namespace NYT::NTransactionClient {
 
 using namespace NObjectClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,10 +36,11 @@ void TClockManagerConfig::Register(TRegistrar registrar)
         .Default(InvalidCellTag);
 }
 
-TClockManagerConfigPtr TClockManagerConfig::ApplyDynamic(const TDynamicClockManagerConfigPtr& dynamicConfig) const
+TClockManagerConfigPtr TClockManagerConfig::ApplyDynamic(
+    const TDynamicClockManagerConfigPtr& dynamicConfig) const
 {
     auto mergedConfig = New<TClockManagerConfig>();
-    mergedConfig->ClockClusterTag = dynamicConfig->ClockClusterTag.value_or(ClockClusterTag);
+    UpdateYsonStructField(mergedConfig->ClockClusterTag, dynamicConfig->ClockClusterTag);
     mergedConfig->Postprocess();
     return mergedConfig;
 }

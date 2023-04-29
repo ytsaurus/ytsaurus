@@ -2,6 +2,8 @@
 
 namespace NYT::NChunkClient {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TRemoteReaderOptions::Register(TRegistrar registrar)
@@ -41,10 +43,11 @@ void TDispatcherConfig::Register(TRegistrar registrar)
         .Default(DefaultChunkReaderPoolSize);
 }
 
-TDispatcherConfigPtr TDispatcherConfig::ApplyDynamic(const TDispatcherDynamicConfigPtr& dynamicConfig) const
+TDispatcherConfigPtr TDispatcherConfig::ApplyDynamic(
+    const TDispatcherDynamicConfigPtr& dynamicConfig) const
 {
-    auto mergedConfig = New<TDispatcherConfig>();
-    mergedConfig->ChunkReaderPoolSize = dynamicConfig->ChunkReaderPoolSize.value_or(ChunkReaderPoolSize);
+    auto mergedConfig = CloneYsonStruct(MakeStrong(this));
+    UpdateYsonStructField(mergedConfig->ChunkReaderPoolSize, dynamicConfig->ChunkReaderPoolSize);
     mergedConfig->Postprocess();
     return mergedConfig;
 }

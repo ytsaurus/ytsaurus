@@ -158,7 +158,8 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStoreLocationConfigPtr TStoreLocationConfig::ApplyDynamic(const TStoreLocationDynamicConfigPtr& dynamicConfig)
+TStoreLocationConfigPtr TStoreLocationConfig::ApplyDynamic
+    (const TStoreLocationDynamicConfigPtr& dynamicConfig) const
 {
     auto config = CloneYsonStruct(MakeStrong(this));
     config->ApplyDynamicInplace(*dynamicConfig);
@@ -166,7 +167,8 @@ TStoreLocationConfigPtr TStoreLocationConfig::ApplyDynamic(const TStoreLocationD
     return config;
 }
 
-void TStoreLocationConfig::ApplyDynamicInplace(const TStoreLocationDynamicConfig& dynamicConfig)
+void TStoreLocationConfig::ApplyDynamicInplace(
+    const TStoreLocationDynamicConfig& dynamicConfig)
 {
     TChunkLocationConfig::ApplyDynamicInplace(dynamicConfig);
 

@@ -177,9 +177,15 @@ TYsonStructRegistrar<TStruct>::operator TYsonStructRegistrar<TBase>()
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TIntrusivePtr<T> CloneYsonStruct(const TIntrusivePtr<T>& obj)
+TIntrusivePtr<T> CloneYsonStruct(const TIntrusivePtr<const T>& obj)
 {
     return ConvertTo<TIntrusivePtr<T>>(NYson::ConvertToYsonString(*obj));
+}
+
+template <class T>
+TIntrusivePtr<T> CloneYsonStruct(const TIntrusivePtr<T>& obj)
+{
+    return CloneYsonStruct(ConstPointerCast<const T>(obj));
 }
 
 template <class T>

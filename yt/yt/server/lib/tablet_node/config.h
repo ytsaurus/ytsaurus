@@ -566,7 +566,7 @@ public:
     // COMPAT(babenko): use /tablet_node/throttlers/static_store_preload_in instead.
     NConcurrency::TRelativeThroughputThrottlerConfigPtr PreloadThrottler;
 
-    TInMemoryManagerConfigPtr ApplyDynamic(const TInMemoryManagerDynamicConfigPtr& dynamicConfig);
+    TInMemoryManagerConfigPtr ApplyDynamic(const TInMemoryManagerDynamicConfigPtr& dynamicConfig) const;
 
     REGISTER_YSON_STRUCT(TInMemoryManagerConfig);
 
