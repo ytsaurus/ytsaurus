@@ -14,7 +14,6 @@
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/core/misc/guid.h>
-#include <yt/yt/core/misc/hash_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/singleton.h>
 
