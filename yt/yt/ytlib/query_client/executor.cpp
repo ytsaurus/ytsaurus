@@ -407,8 +407,8 @@ private:
             auto* ext = req->Header().MutableExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
             if (options.ExecutionPool) {
                 ext->set_execution_pool(*options.ExecutionPool);
-                ext->set_execution_tag(ToString(options.ReadSessionId));
             }
+            ext->set_execution_tag(ToString(options.ReadSessionId));
         }
 
         TDuration serializationTime;

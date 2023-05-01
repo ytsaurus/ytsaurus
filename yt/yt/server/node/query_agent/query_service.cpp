@@ -371,12 +371,14 @@ private:
     IInvokerPtr GetExecuteInvoker(const NRpc::NProto::TRequestHeader& requestHeader)
     {
         const auto& ext = requestHeader.GetExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
-        if (!ext.has_execution_pool()) {
-            return nullptr;
-        }
 
-        const auto& poolName = ext.execution_pool();
-        const auto& tag = ext.execution_tag();
+        auto tag = ext.has_execution_tag()
+            ? ext.execution_tag()
+            : DefaultQLExecutionTag;
+
+        auto poolName = ext.has_execution_pool()
+            ? ext.execution_pool()
+            : DefaultQLExecutionPoolName;
 
         return Bootstrap_->GetQueryPoolInvoker(poolName, tag);
     }
