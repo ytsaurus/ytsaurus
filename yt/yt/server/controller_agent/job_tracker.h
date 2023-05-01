@@ -84,7 +84,7 @@ private:
         const bool ControlJobLifetimeAtControllerAgent;
         bool JobsReady = false;
         const TWeakPtr<IOperationController> OperationController;
-        THashSet<TJobId> TrackedJobs;
+        THashSet<TJobId> TrackedJobIds;
     };
 
     struct TJobInfo
@@ -160,7 +160,7 @@ private:
     const TString& GetNodeAddressForLogging(TNodeId nodeId);
 
     using TOperationIdToJobIds = THashMap<TOperationId, std::vector<TJobId>>;
-    void AbortJobs(TOperationIdToJobIds jobsByOperation, NScheduler::EAbortReason abortReason) const;
+    void AbortJobs(TOperationIdToJobIds operationIdToJobIds, NScheduler::EAbortReason abortReason) const;
 
     void AbortUnconfirmedJobs(TOperationId operationId, std::vector<TJobId> jobs);
 

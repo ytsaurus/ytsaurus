@@ -146,7 +146,7 @@ void TSchedulerConnector::EnqueueFinishedJobs(std::vector<TJobPtr> jobs)
     }
 }
 
-void TSchedulerConnector::AddUnconfirmedJobs(const std::vector<TJobId>& unconfirmedJobIds)
+void TSchedulerConnector::AddUnconfirmedJobIds(const std::vector<TJobId>& unconfirmedJobIds)
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 

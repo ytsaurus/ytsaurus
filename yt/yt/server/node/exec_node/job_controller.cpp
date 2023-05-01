@@ -971,7 +971,7 @@ private:
 
             if (job->GetStored()) {
                 YT_LOG_DEBUG(
-                    "Confirming job (JobId: %v, OperationId: %v, Stored: %v, State: %v, ControllerAgentDescriptor: %v)",
+                    "Confirm job (JobId: %v, OperationId: %v, Stored: %v, State: %v, ControllerAgentDescriptor: %v)",
                     jobId,
                     job->GetOperationId(),
                     job->GetStored(),
@@ -1059,8 +1059,8 @@ private:
         }
 
         request->set_confirmed_job_count(confirmedJobCount);
-        if (!std::empty(context->UnconfirmedJobs)) {
-            ToProto(request->mutable_unconfirmed_jobs(), context->UnconfirmedJobs);
+        if (!std::empty(context->UnconfirmedJobIds)) {
+            ToProto(request->mutable_unconfirmed_job_ids(), context->UnconfirmedJobIds);
         }
 
         YT_LOG_DEBUG(
@@ -1090,7 +1090,7 @@ private:
 
             if (auto job = FindJob(jobToStore.JobId)) {
                 YT_LOG_DEBUG(
-                    "Storing job by agent request (JobId: %v, AgentDescriptor: %v)",
+                    "Agent requested to store job (JobId: %v, AgentDescriptor: %v)",
                     jobToStore.JobId,
                     agentDescriptor);
                 YT_VERIFY(job->IsFinished());
@@ -1133,7 +1133,7 @@ private:
                 AbortJob(job, jobToAbort);
             } else {
                 YT_LOG_WARNING(
-                    "Requested to abort a non-existent job (JobId: %v, AbortReason: %v, AgentDescriptor: %v)",
+                    "Agent requested to abort a non-existent job (JobId: %v, AbortReason: %v, AgentDescriptor: %v)",
                     jobToAbort.JobId,
                     jobToAbort.AbortReason,
                     agentDescriptor);
@@ -1169,11 +1169,11 @@ private:
             }
         }
 
-        for (auto protoOperationId : response->unknown_operations()) {
+        for (auto protoOperationId : response->unknown_operation_ids()) {
             auto operationId = NYT::FromProto<TOperationId>(protoOperationId);
 
             YT_LOG_DEBUG(
-                "Operation is not handled by CA, reset it for jobs (OperationId: %v, ControllerAgentDescriptor: %v)",
+                "Operation is not handled by agent, reset it for jobs (OperationId: %v, AgentDescriptor: %v)",
                 operationId,
                 agentDescriptor);
 
@@ -1215,7 +1215,8 @@ private:
                 YT_LOG_DEBUG("Scheduler requested to remove job (JobId: %v, ReleaseFlags: %v)", jobId, jobToRemove.ReleaseFlags);
                 RemoveJob(job, jobToRemove.ReleaseFlags);
             } else {
-                YT_LOG_WARNING("Scheduler requested to remove a non-existent job (JobId: %v)",
+                YT_LOG_WARNING(
+                    "Scheduler requested to remove a non-existent job (JobId: %v)",
                     jobId);
             }
         }
@@ -1451,7 +1452,7 @@ private:
 
             if (job->GetStored()) {
                 YT_LOG_DEBUG(
-                    "Confirming job (JobId: %v, OperationId: %v, Stored: %v, State: %v)",
+                    "Confirm job (JobId: %v, OperationId: %v, Stored: %v, State: %v)",
                     jobId,
                     job->GetOperationId(),
                     job->GetStored(),
@@ -2053,12 +2054,19 @@ private:
                     if (auto job = weakJob.Lock(); job && !IsJobRemoved(job)) {
                         RemoveJob(job, TReleaseJobFlags{});
                     } else {
-                        YT_LOG_DEBUG("Delayed remove skipped, since job is already removed (JobId: %v)", jobId);
+                        YT_LOG_DEBUG(
+                            "Delayed remove skipped since job is already removed (JobId: %v)",
+                            jobId);
                     }
                 };
 
-                auto removalDelay = GetDynamicConfig()->UnknownOperationJobsRemovalDelay.value_or(Config_->UnknownOperationJobsRemovalDelay);
-                YT_LOG_DEBUG("Schedule delayed removal of job (JobId: %v, Delay: %v)", job->GetId(), removalDelay);
+                auto removalDelay = GetDynamicConfig()->UnknownOperationJobsRemovalDelay.value_or(
+                    Config_->UnknownOperationJobsRemovalDelay);
+
+                YT_LOG_DEBUG(
+                    "Schedule delayed removal of job (JobId: %v, Delay: %v)",
+                    job->GetId(),
+                    removalDelay);
 
                 TDelayedExecutor::Submit(
                     BIND(removeJob),
@@ -2105,7 +2113,7 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         std::vector<TJobPtr> confirmedJobs;
-        std::vector<TJobId> unconfirmedJobs;
+        std::vector<TJobId> unconfirmedJobIds;
 
         confirmedJobs.reserve(std::size(jobIds));
 
@@ -2127,16 +2135,16 @@ private:
             } else {
                 YT_LOG_DEBUG("Job unconfirmed (JobId: %v)", jobId);
 
-                unconfirmedJobs.push_back(jobId);
+                unconfirmedJobIds.push_back(jobId);
             }
         }
 
         const auto& schedulerConnector = Bootstrap_->GetExecNodeBootstrap()->GetSchedulerConnector();
-        schedulerConnector->AddUnconfirmedJobs(unconfirmedJobs);
+        schedulerConnector->AddUnconfirmedJobIds(unconfirmedJobIds);
         schedulerConnector->EnqueueFinishedJobs(std::move(confirmedJobs));
 
         if (initiator) {
-            initiator->AddUnconfirmedJobs(std::move(unconfirmedJobs));
+            initiator->AddUnconfirmedJobIds(std::move(unconfirmedJobIds));
         }
 
         Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool()->SendOutOfBandHeartbeatsIfNeeded();

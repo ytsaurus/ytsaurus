@@ -50,7 +50,7 @@ public:
     void SetMinSpareResources(const NScheduler::TJobResources& minSpareResources);
 
     void EnqueueFinishedJobs(std::vector<TJobPtr> jobs);
-    void AddUnconfirmedJobs(const std::vector<TJobId>& unconfirmedJobIds);
+    void AddUnconfirmedJobIds(const std::vector<TJobId>& unconfirmedJobIds);
 
     void EnqueueSpecFetchFailedAllocation(TAllocationId allocationId, TSpecFetchFailedAllocationInfo info);
     void RemoveSpecFetchFailedAllocations(THashMap<TAllocationId, TSpecFetchFailedAllocationInfo> allocations);

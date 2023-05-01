@@ -2041,7 +2041,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     const auto& address = node->GetDefaultAddress();
 
     auto job = FindJob(jobId, node);
-    auto operation = FindOperationState(operationId);
+    auto operationState = FindOperationState(operationId);
 
     if (!job) {
         auto Logger = SchedulerLogger.WithTag("Address: %v, JobId: %v, OperationId: %v, AllocationState: %v",
@@ -2053,12 +2053,12 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         // We can decide what to do with the job of an operation only when all
         // TJob structures of the operation are materialized. Also we should
         // not remove the completed jobs that were not saved to the snapshot.
-        if ((operation && !operation->JobsReady) ||
+        if ((operationState && !operationState->JobsReady) ||
             WaitingForRegisterOperationIds_.contains(operationId))
         {
-            if (operation && !operation->OperationUnreadyLoggedJobIds.contains(jobId)) {
+            if (operationState && !operationState->OperationUnreadyLoggedJobIds.contains(jobId)) {
                 YT_LOG_DEBUG("Job is skipped since operation jobs are not ready yet");
-                operation->OperationUnreadyLoggedJobIds.insert(jobId);
+                operationState->OperationUnreadyLoggedJobIds.insert(jobId);
             }
             return nullptr;
         }
@@ -2072,7 +2072,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         // We will abort such allocations when allocation can run many jobs.
         switch (allocationState) {
             case EAllocationState::Finished:
-                if ((operation && operation->ControlJobLifetimeAtScheduler) || Config_->ControlUnknownOperationJobsLifetime) {
+                if ((operationState && operationState->ControlJobLifetimeAtScheduler) || Config_->ControlUnknownOperationJobsLifetime) {
                     ToProto(response->add_jobs_to_remove(), {jobId});
                     YT_LOG_DEBUG("Unknown job has finished, remove it");
                 } else {
@@ -2081,8 +2081,8 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 break;
 
             case EAllocationState::Running:
-                if ((operation && operation->ControlJobLifetimeAtScheduler) || Config_->ControlUnknownOperationJobsLifetime) {
-                    AddAllocationToAbort(response, {jobId});
+                if ((operationState && operationState->ControlJobLifetimeAtScheduler) || Config_->ControlUnknownOperationJobsLifetime) {
+                    AddAllocationToAbort(response, {jobId, /*AbortReason*/ std::nullopt});
 
                     YT_LOG_DEBUG("Unknown job is running, abort it");
                 } else {
@@ -2091,8 +2091,8 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 break;
 
             case EAllocationState::Waiting:
-                if ((operation && operation->ControlJobLifetimeAtScheduler) || Config_->ControlUnknownOperationJobsLifetime) {
-                    AddAllocationToAbort(response, {jobId});
+                if ((operationState && operationState->ControlJobLifetimeAtScheduler) || Config_->ControlUnknownOperationJobsLifetime) {
+                    AddAllocationToAbort(response, {jobId, /*AbortReason*/ std::nullopt});
 
                     YT_LOG_DEBUG("Unknown job is waiting, abort it");
                 } else {
@@ -2114,7 +2114,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
 
     const auto& Logger = job->Logger();
 
-    YT_VERIFY(operation);
+    YT_VERIFY(operationState);
 
     // Check if the job is running on a proper node.
     if (node->GetId() != job->GetNode()->GetId()) {
@@ -2124,16 +2124,18 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 // Job is already finishing, do nothing.
                 break;
             case EAllocationState::Finished:
-                if (operation->ControlJobLifetimeAtScheduler) {
+                if (operationState->ControlJobLifetimeAtScheduler) {
                     ToProto(response->add_jobs_to_remove(), {jobId});
                 }
-                YT_LOG_WARNING("Job status report was expected from %v",
+                YT_LOG_WARNING(
+                    "Job status report was expected from other node (ExpectedAddress: %v)",
                     node->GetDefaultAddress());
                 break;
             case EAllocationState::Waiting:
             case EAllocationState::Running:
                 AddAllocationToAbort(response, {jobId, EAbortReason::JobOnUnexpectedNode});
-                YT_LOG_WARNING("Job status report was expected from %v, abort scheduled",
+                YT_LOG_WARNING(
+                    "Job status report was expected from other node, abort scheduled (ExpectedAddress: %v)",
                     node->GetDefaultAddress());
                 break;
             default:
@@ -2161,7 +2163,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
             } else {
                 YT_LOG_DEBUG("Job finished, storage scheduled");
 
-                if (operation->ControlJobLifetimeAtScheduler) {
+                if (operationState->ControlJobLifetimeAtScheduler) {
                     AddRecentlyFinishedJob(job);
                     ToProto(response->add_jobs_to_store(), jobId);
                 }
@@ -2692,9 +2694,15 @@ void TNodeShard::AddRecentlyFinishedJob(const TJobPtr& job)
     if (operationState) {
         auto finishedStoringEvictionDeadline =
             GetCpuInstant() + DurationToCpuDuration(Config_->FinishedJobStoringTimeout);
-        YT_VERIFY(node->RecentlyFinishedJobs().insert(
-            {jobId, TRecentlyFinishedJobInfo{job->GetOperationId(), finishedStoringEvictionDeadline}}).second);
-        YT_VERIFY(operationState->RecentlyFinishedJobIds.insert(jobId).second);
+        EmplaceOrCrash(
+            node->RecentlyFinishedJobs(),
+            jobId,
+            TRecentlyFinishedJobInfo{
+                .OperationId = job->GetOperationId(),
+                .EvictionDeadline = finishedStoringEvictionDeadline,
+                .ReleaseFlags = std::nullopt
+            });
+        EmplaceOrCrash(operationState->RecentlyFinishedJobIds, jobId);
     }
 }
 

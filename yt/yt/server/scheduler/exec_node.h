@@ -35,7 +35,7 @@ struct TRecentlyFinishedJobInfo
 {
     TOperationId OperationId;
     NProfiling::TCpuInstant EvictionDeadline;
-    std::optional<NControllerAgent::TReleaseJobFlags> ReleaseFlags = {};
+    std::optional<NControllerAgent::TReleaseJobFlags> ReleaseFlags;
 };
 
 //! Scheduler-side representation of an execution node.

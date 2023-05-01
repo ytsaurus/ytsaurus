@@ -1787,7 +1787,7 @@ public:
         };
 
         auto abortJob = [&] (TJobId jobId) {
-            AddJobToAbort(response, {jobId});
+            AddJobToAbort(response, {jobId, /*AbortReason*/ std::nullopt});
         };
 
         TJobControllerCallbacks jobControllerCallbacks;

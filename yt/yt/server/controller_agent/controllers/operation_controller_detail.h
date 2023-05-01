@@ -1195,7 +1195,7 @@ private:
     std::atomic<bool> ShouldUpdateLightOperationAttributes_ = false;
 
     // Release job flags to be sent to scheduler in EAgentToSchedulerJobEventType::Released.
-    THashMap<TJobId, TReleaseJobFlags> ReleaseJobFlags_;
+    THashMap<TJobId, TReleaseJobFlags> JobIdToReleaseFlags_;
     std::vector<std::pair<TJobId, NYson::TYsonString>> RetainedFinishedJobs_;
 
     NChunkPools::IPersistentChunkPoolInputPtr Sink_;
@@ -1492,7 +1492,11 @@ private:
 
     void RemoveRemainingJobsOnOperationFinished();
 
-    void DoAbortJobByController(TJobId jobId, EAbortReason abortReason, TError error, bool requestNodeTrackerJobAbortion);
+    void DoAbortJobByController(
+        TJobId jobId,
+        EAbortReason abortReason,
+        TError error,
+        bool requestNodeTrackerJobAbortion);
 
     void OnOperationReady() const;
 

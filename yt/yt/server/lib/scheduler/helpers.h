@@ -42,7 +42,7 @@ struct TAllocationToAbort
 {
     TAllocationId AllocationId;
     // TODO(pogorelov): Make AbortReason non-nullable.
-    std::optional<NScheduler::EAbortReason> AbortReason{};
+    std::optional<NScheduler::EAbortReason> AbortReason;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

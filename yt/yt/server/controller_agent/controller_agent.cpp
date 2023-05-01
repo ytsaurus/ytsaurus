@@ -1249,7 +1249,7 @@ private:
             YT_LOG_FATAL_IF(
                 !error.IsOK(),
                 error,
-                "Unexpected fail in job tracker initialization");
+                "Unexpected failure in job tracker initialization");
         }
 
         SwitchTo(CancelableControlInvoker_);

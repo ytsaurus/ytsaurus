@@ -35,7 +35,7 @@ public:
 
         const TControllerAgentDescriptor& GetDescriptor() const;
 
-        void AddUnconfirmedJobs(std::vector<TJobId> unconfirmedJobs);
+        void AddUnconfirmedJobIds(std::vector<TJobId> unconfirmedJobIds);
 
         ~TControllerAgentConnector();
 
@@ -70,7 +70,7 @@ public:
         TInstant LastTotalConfirmationTime_;
 
         THashSet<TJobPtr> EnqueuedFinishedJobs_;
-        std::vector<TJobId> UnconfirmedJobs_;
+        std::vector<TJobId> UnconfirmedJobIds_;
         bool ShouldSendOutOfBand_ = false;
 
         THashSet<TJobId> JobIdsToConfirm_;
@@ -148,7 +148,7 @@ struct TAgentHeartbeatContext
 
     THashSet<TJobPtr> JobsToForcefullySend;
 
-    std::vector<TJobId> UnconfirmedJobs;
+    std::vector<TJobId> UnconfirmedJobIds;
 };
 
 DEFINE_REFCOUNTED_TYPE(TAgentHeartbeatContext)

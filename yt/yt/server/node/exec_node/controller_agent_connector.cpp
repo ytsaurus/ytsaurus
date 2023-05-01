@@ -97,11 +97,11 @@ const TControllerAgentDescriptor& TControllerAgentConnectorPool::TControllerAgen
     return ControllerAgentDescriptor_;
 }
 
-void TControllerAgentConnectorPool::TControllerAgentConnector::AddUnconfirmedJobs(std::vector<TJobId> unconfirmedJobs)
+void TControllerAgentConnectorPool::TControllerAgentConnector::AddUnconfirmedJobIds(std::vector<TJobId> unconfirmedJobIds)
 {
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
-    UnconfirmedJobs_ = std::move(unconfirmedJobs);
+    UnconfirmedJobIds_ = std::move(unconfirmedJobIds);
 }
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated()
@@ -252,7 +252,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoPrepareHeartbea
     context->RunningJobStatisticsSendingBackoff = RunningJobStatisticsSendingBackoff_;
     context->LastTotalConfirmationTime = LastTotalConfirmationTime_;
     context->JobsToForcefullySend = EnqueuedFinishedJobs_;
-    context->UnconfirmedJobs = std::move(UnconfirmedJobs_);
+    context->UnconfirmedJobIds = std::move(UnconfirmedJobIds_);
 
     const auto& jobController = ControllerAgentConnectorPool_->Bootstrap_->GetJobController();
     jobController->PrepareAgentHeartbeatRequest(request, context);

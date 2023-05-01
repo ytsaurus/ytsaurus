@@ -5217,7 +5217,7 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
 
     // TODO(gritukan, prime): This is always true.
     if (releaseJobFlags.IsNonTrivial()) {
-        ReleaseJobFlags_.emplace(jobId, releaseJobFlags);
+        JobIdToReleaseFlags_.emplace(jobId, releaseJobFlags);
     }
 
     if (shouldRetainJob) {
@@ -8998,9 +8998,9 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
     std::vector<TJobToRelease> jobsToRelease;
     jobsToRelease.reserve(jobIds.size());
     for (auto jobId : jobIds) {
-        if (auto it = ReleaseJobFlags_.find(jobId); it != ReleaseJobFlags_.end()) {
+        if (auto it = JobIdToReleaseFlags_.find(jobId); it != JobIdToReleaseFlags_.end()) {
             jobsToRelease.emplace_back(TJobToRelease{jobId, it->second});
-            ReleaseJobFlags_.erase(it);
+            JobIdToReleaseFlags_.erase(it);
         }
     }
 
@@ -9883,8 +9883,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     // COMPAT(pogorelov)
     if (context.GetVersion() < ESnapshotVersion::DoNotPersistJobReleaseFlags) {
-        THashMap<TJobId, TReleaseJobFlags> releaseJobFlags;
-        Persist(context, releaseJobFlags);
+        THashMap<TJobId, TReleaseJobFlags> jobIdToReleaseFlags;
+        Persist(context, jobIdToReleaseFlags);
     }
 
     Persist(context, JobSpecCompletedArchiveCount_);
@@ -10216,7 +10216,10 @@ void TOperationControllerBase::DoAbortJobByController(
     // NB(renadeen): there must be no context switches before call OnJobAborted.
 
     if (!ShouldProcessJobEvents()) {
-        YT_LOG_DEBUG("Job events processing disabled, abort skipped (JobId: %v, OperationState: %v)", jobId, State.load());
+        YT_LOG_DEBUG(
+            "Job events processing disabled, abort skipped (JobId: %v, OperationState: %v)",
+            jobId,
+            State.load());
         return;
     }
 
@@ -10535,26 +10538,23 @@ void TOperationControllerBase::RemoveRemainingJobsOnOperationFinished()
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
-    EAbortReason jobAbortReason;
+    EAbortReason jobAbortReason = [this] {
+        auto operationControllerState = State.load();
 
-    auto operationControllerState = State.load();
-    switch (operationControllerState) {
-        case EControllerState::Aborted:
-            jobAbortReason = EAbortReason::OperationAborted;
-            break;
-        case EControllerState::Completed:
-            jobAbortReason = EAbortReason::OperationCompleted;
-            break;
-        case EControllerState::Failed:
-            jobAbortReason = EAbortReason::OperationFailed;
-            break;
-        default:
-            jobAbortReason = EAbortReason::OperationFailed;
-            break;
-            YT_LOG_DEBUG(
-                "Operation controller is not in finished state (State: %v)",
-                operationControllerState);
-    }
+        switch (operationControllerState) {
+            case EControllerState::Aborted:
+                return EAbortReason::OperationAborted;
+            case EControllerState::Completed:
+                return EAbortReason::OperationCompleted;
+            case EControllerState::Failed:
+                return EAbortReason::OperationFailed;
+            default:
+                YT_LOG_DEBUG(
+                    "Operation controller is not in finished state (State: %v)",
+                    operationControllerState);
+                return EAbortReason::OperationFailed;
+        }
+    }();
 
     AbortAllJoblets(jobAbortReason);
 

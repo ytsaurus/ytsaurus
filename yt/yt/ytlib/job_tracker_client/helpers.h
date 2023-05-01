@@ -13,7 +13,7 @@ namespace NYT::NJobTrackerClient {
 struct TJobToAbort
 {
     TJobId JobId;
-    std::optional<NScheduler::EAbortReason> AbortReason = {};
+    std::optional<NScheduler::EAbortReason> AbortReason;
 };
 
 struct TJobToRemove

@@ -374,7 +374,7 @@ public:
                             return;
                         }
 
-                        innerFluent.DoListFor(operationIt->second.TrackedJobs, [] (TFluentList fluent, TJobId jobId) {
+                        innerFluent.DoListFor(operationIt->second.TrackedJobIds, [] (TFluentList fluent, TJobId jobId) {
                             fluent
                                 .Item().Value(jobId);
                         });
@@ -453,7 +453,10 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
 
     TNodeId nodeId = request->node_id();
 
-    THROW_ERROR_EXCEPTION_IF(!incarnationId, EErrorCode::AgentDisconnected, "Controller agent disconnected");
+    THROW_ERROR_EXCEPTION_IF(
+        !incarnationId,
+        NControllerAgent::EErrorCode::AgentDisconnected,
+        "Controller agent disconnected");
 
     auto Logger = NControllerAgent::Logger.WithTag(
         "NodeId: %v, NodeAddress: %v",
@@ -474,9 +477,10 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
 
     if (incarnationId != IncarnationId_) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::IncarnationMismatch,
-            "Controller agent incarnation mismatch (ActualIncarnationId: %v)",
-            IncarnationId_);
+            NControllerAgent::EErrorCode::IncarnationMismatch,
+            "Controller agent incarnation mismatch: expected %v, got %v)",
+            IncarnationId_,
+            incarnationId);
     }
 
     TForbidContextSwitchGuard guard;
@@ -488,7 +492,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
     // NB(pogorelov): As checked before, incarnation id did not change from the previous heartbeat,
     // so job life time of job operations must be still controlled by agent.
     {
-        auto unconfirmedJobs = NYT::FromProto<std::vector<TJobId>>(request->unconfirmed_jobs());
+        auto unconfirmedJobs = NYT::FromProto<std::vector<TJobId>>(request->unconfirmed_job_ids());
         TOperationIdToJobIds jobsToAbort;
         for (auto jobId : unconfirmedJobs) {
             if (auto jobToConfirmIt = nodeJobs.JobsToConfirm.find(jobId);
@@ -502,7 +506,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
                 jobsToAbort[operationId].push_back(jobId);
 
                 auto& operationInfo = GetOrCrash(RegisteredOperations_, jobToConfirmIt->second);
-                EraseOrCrash(operationInfo.TrackedJobs, jobId);
+                EraseOrCrash(operationInfo.TrackedJobIds, jobId);
 
                 nodeJobs.JobsToConfirm.erase(jobToConfirmIt);
             }
@@ -555,14 +559,14 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
         // TODO(pogorelov): Request to confirm unreceived jobs
 
         auto Logger = heartbeatProcessingLogger.WithTag(
-            "OperationId: %v)",
+            "OperationId: %v",
             operationId);
 
         auto operationIt = RegisteredOperations_.find(operationId);
         if (operationIt == std::end(RegisteredOperations_)) {
             YT_LOG_DEBUG("Operation is not registered at job controller, skip handling job infos from node");
 
-            ToProto(response->add_unknown_operations(), operationId);
+            ToProto(response->add_unknown_operation_ids(), operationId);
 
             continue;
         }
@@ -824,7 +828,10 @@ IInvokerPtr TJobTracker::GetCancelableInvokerOrThrow() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto invoker = TryGetCancelableInvoker();
-    THROW_ERROR_EXCEPTION_IF(!invoker, EErrorCode::AgentDisconnected, "Job tracker disconnected");
+    THROW_ERROR_EXCEPTION_IF(
+        !invoker,
+        NControllerAgent::EErrorCode::AgentDisconnected,
+        "Job tracker disconnected");
 
     return invoker;
 }
@@ -859,7 +866,7 @@ void TJobTracker::DoUpdateExecNodes(TRefCountedExecNodeDescriptorMapPtr newExecN
     std::swap(newExecNodes, ExecNodes_);
 
     NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
-        BIND([oldExecNodesToDestroy{std::move(newExecNodes)}] {}));
+        BIND([oldExecNodesToDestroy = std::move(newExecNodes)] {}));
 }
 
 void TJobTracker::AccountEnqueuedControllerEvent(int delta)
@@ -903,10 +910,10 @@ void TJobTracker::DoUnregisterOperation(TOperationId operationId)
     YT_VERIFY(operationIt != std::end(RegisteredOperations_));
 
     YT_LOG_FATAL_IF(
-        !std::empty(operationIt->second.TrackedJobs),
+        !std::empty(operationIt->second.TrackedJobIds),
         "Operation has registered jobs at the moment of unregistration (OperationId: %v, JobIds: %v)",
         operationId,
-        operationIt->second.TrackedJobs);
+        operationIt->second.TrackedJobIds);
 
     RegisteredOperations_.erase(operationIt);
 }
@@ -928,7 +935,7 @@ void TJobTracker::DoRegisterJob(TStartedJobInfo jobInfo, TOperationId operationI
     EmplaceOrCrash(nodeJobs.Jobs, jobInfo.JobId, TJobInfo{EJobStage::Running, operationId});
 
     auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
-    EmplaceOrCrash(operationInfo.TrackedJobs, jobInfo.JobId);
+    EmplaceOrCrash(operationInfo.TrackedJobIds, jobInfo.JobId);
 }
 
 void TJobTracker::DoReviveJobs(
@@ -955,7 +962,7 @@ void TJobTracker::DoReviveJobs(
         auto jobIdSample = CreateJobIdSampleForLogging(jobs, loggingJobSampleMaxSize);
 
         YT_LOG_DEBUG(
-            "Revive jobs (OperationId: %v, JobCount: %v, JobSample: %v, JobSampleMaxSize: %v)",
+            "Revive jobs (OperationId: %v, JobCount: %v, JobIdSample: %v, SampleMaxSize: %v)",
             operationId,
             std::size(jobs),
             jobIdSample,
@@ -964,8 +971,8 @@ void TJobTracker::DoReviveJobs(
 
     std::vector<TJobId> jobIds;
     jobIds.reserve(std::size(jobs));
-    THashSet<TJobId> trackedJobs;
-    trackedJobs.reserve(std::size(jobs));
+    THashSet<TJobId> trackedJobIds;
+    trackedJobIds.reserve(std::size(jobs));
 
     for (auto& jobInfo : jobs) {
         auto nodeId = NodeIdFromJobId(jobInfo.JobId);
@@ -973,17 +980,17 @@ void TJobTracker::DoReviveJobs(
         EmplaceOrCrash(nodeJobs.JobsToConfirm, jobInfo.JobId, operationId);
 
         jobIds.push_back(jobInfo.JobId);
-        trackedJobs.emplace(jobInfo.JobId);
+        trackedJobIds.emplace(jobInfo.JobId);
     }
 
     YT_LOG_FATAL_IF(
-        !std::empty(operationInfo.TrackedJobs),
-        "Revive jobs of operation that already has jobs (OperationId: %v, RegisteredJobs: %v, NewJobs: %v)",
+        !std::empty(operationInfo.TrackedJobIds),
+        "Revive jobs of operation that already has jobs (OperationId: %v, RegisteredJobIds: %v, NewJobIds: %v)",
         operationId,
-        operationInfo.TrackedJobs,
+        operationInfo.TrackedJobIds,
         jobIds);
 
-    operationInfo.TrackedJobs = std::move(trackedJobs);
+    operationInfo.TrackedJobIds = std::move(trackedJobIds);
 
     TDelayedExecutor::Submit(
         BIND(
@@ -1004,27 +1011,27 @@ void TJobTracker::DoReleaseJobs(
     {
         int loggingJobSampleMaxSize = Config_->LoggingJobSampleSize;
 
-        std::vector<TJobId> jobSample = CreateJobIdSampleForLogging(jobs, loggingJobSampleMaxSize);
+        std::vector<TJobId> jobIdSample = CreateJobIdSampleForLogging(jobs, loggingJobSampleMaxSize);
 
         YT_LOG_DEBUG(
-            "Add jobs to release (OperationId: %v, JobCount: %v, JobSample: %v, JobSampleMaxSize: %v)",
+            "Add jobs to release (OperationId: %v, JobCount: %v, JobIdSample: %v, SampleMaxSize: %v)",
             operationId,
             std::size(jobs),
-            jobSample,
+            jobIdSample,
             loggingJobSampleMaxSize);
     }
 
-    THashMap<TNodeId, std::vector<TJobToRelease>> jobsByNodes;
-    jobsByNodes.reserve(std::size(jobs));
+    THashMap<TNodeId, std::vector<TJobToRelease>> nodeIdToJobsToRelease;
+    nodeIdToJobsToRelease.reserve(std::size(jobs));
 
     for (const auto& job : jobs) {
         auto nodeId = NodeIdFromJobId(job.JobId);
-        jobsByNodes[nodeId].push_back(job);
+        nodeIdToJobsToRelease[nodeId].push_back(job);
     }
 
-    auto& operationJobs = GetOrCrash(RegisteredOperations_, operationId).TrackedJobs;
+    auto& operationJobs = GetOrCrash(RegisteredOperations_, operationId).TrackedJobIds;
 
-    for (const auto& [nodeId, jobs] : jobsByNodes) {
+    for (const auto& [nodeId, jobs] : nodeIdToJobsToRelease) {
         auto* nodeInfo = FindNodeInfo(nodeId);
         if (!nodeInfo) {
             YT_LOG_DEBUG(
@@ -1084,7 +1091,7 @@ void TJobTracker::DoAbortJobOnNode(TJobId jobId, TOperationId operationId, EAbor
 
     auto removeJobFromOperation = [operationId, jobId, this] {
         auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
-        operationInfo.TrackedJobs.erase(jobId);
+        operationInfo.TrackedJobIds.erase(jobId);
     };
 
     if (auto jobIt = nodeJobs.Jobs.find(jobId); jobIt != std::end(nodeJobs.Jobs)) {
@@ -1153,7 +1160,8 @@ TJobTracker::TNodeInfo& TJobTracker::UpdateOrRegisterNode(TNodeId nodeId, const 
     if (auto nodeIt = RegisteredNodes_.find(nodeId); nodeIt == std::end(RegisteredNodes_)) {
         return RegisterNode(nodeId, nodeAddress);
     } else {
-        auto& savedAddress = nodeIt->second.NodeAddress;
+        auto& nodeInfo = nodeIt->second;
+        auto& savedAddress = nodeInfo.NodeAddress;
         if (savedAddress != nodeAddress) {
             YT_LOG_WARNING(
                 "Node address has changed, unregister old node and register new (OldAddress: %v, NewAddress: %v)",
@@ -1164,7 +1172,7 @@ TJobTracker::TNodeInfo& TJobTracker::UpdateOrRegisterNode(TNodeId nodeId, const 
             return RegisterNode(nodeId, nodeAddress);
         }
 
-        TLeaseManager::RenewLease(nodeIt->second.Lease, Config_->NodeDisconnectionTimeout);
+        TLeaseManager::RenewLease(nodeInfo.Lease, Config_->NodeDisconnectionTimeout);
 
         return nodeIt->second;
     }
@@ -1197,8 +1205,8 @@ void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress)
         nodeAddress);
 
     {
-        TOperationIdToJobIds jobsToAbort;
-        TOperationIdToJobIds finishedJobs;
+        TOperationIdToJobIds jobIdsToAbort;
+        TOperationIdToJobIds finishedJobIds;
 
         for (const auto& [jobId, jobInfo] : nodeJobs.Jobs) {
             if (GetOrCrash(RegisteredOperations_, jobInfo.OperationId).ControlJobLifetimeAtControllerAgent) {
@@ -1208,14 +1216,14 @@ void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress)
                         nodeId,
                         jobId,
                         jobInfo.OperationId);
-                    jobsToAbort[jobInfo.OperationId].push_back(jobId);
+                    jobIdsToAbort[jobInfo.OperationId].push_back(jobId);
                 } else {
                     YT_LOG_DEBUG(
                         "Remove finished job from operation info since node unregistered (NodeId: %v, JobId: %v, OperationId: %v)",
                         nodeId,
                         jobId,
                         jobInfo.OperationId);
-                    finishedJobs[jobInfo.OperationId].push_back(jobId);
+                    finishedJobIds[jobInfo.OperationId].push_back(jobId);
                 }
             }
         }
@@ -1227,25 +1235,25 @@ void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress)
                 jobId,
                 operationId);
 
-            jobsToAbort[operationId].push_back(jobId);
+            jobIdsToAbort[operationId].push_back(jobId);
         }
 
-        for (const auto& [operationId, jobs] : jobsToAbort) {
+        for (const auto& [operationId, jobIds] : jobIdsToAbort) {
             auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
 
-            for (auto jobId : jobs) {
-                EraseOrCrash(operationInfo.TrackedJobs, jobId);
+            for (auto jobId : jobIds) {
+                EraseOrCrash(operationInfo.TrackedJobIds, jobId);
             }
         }
-        for (const auto& [operationId, jobs] : finishedJobs) {
+        for (const auto& [operationId, jobIds] : finishedJobIds) {
             auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
 
-            for (auto jobId : jobs) {
-                EraseOrCrash(operationInfo.TrackedJobs, jobId);
+            for (auto jobId : jobIds) {
+                EraseOrCrash(operationInfo.TrackedJobIds, jobId);
             }
         }
 
-        AbortJobs(std::move(jobsToAbort), EAbortReason::NodeOffline);
+        AbortJobs(std::move(jobIdsToAbort), EAbortReason::NodeOffline);
     }
 
     EraseOrCrash(NodeAddressToNodeId_, nodeAddress);
@@ -1285,15 +1293,15 @@ const TString& TJobTracker::GetNodeAddressForLogging(TNodeId nodeId)
     }
 }
 
-void TJobTracker::AbortJobs(TOperationIdToJobIds jobsByOperation, EAbortReason abortReason) const
+void TJobTracker::AbortJobs(TOperationIdToJobIds operationIdToJobIds, EAbortReason abortReason) const
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
-    if (std::empty(jobsByOperation)) {
+    if (std::empty(operationIdToJobIds)) {
         return;
     }
 
-    for (const auto& [operationId, jobIds] : jobsByOperation) {
+    for (const auto& [operationId, jobIds] : operationIdToJobIds) {
         auto operationIt = RegisteredOperations_.find(operationId);
         if (operationIt == std::end(RegisteredOperations_)) {
             YT_LOG_DEBUG(
@@ -1381,13 +1389,15 @@ void TJobTracker::AbortUnconfirmedJobs(TOperationId operationId, std::vector<TJo
     for (auto jobId : jobsToAbort) {
         auto& operationInfo = operationIt->second;
 
-        EraseOrCrash(operationInfo.TrackedJobs, jobId);
+        EraseOrCrash(operationInfo.TrackedJobIds, jobId);
     }
 
-    TOperationIdToJobIds operationJobsToAbort;
-    operationJobsToAbort[operationId] = std::move(jobsToAbort);
+    TOperationIdToJobIds operationJobIdsToAbort;
+    operationJobIdsToAbort[operationId] = std::move(jobsToAbort);
 
-    AbortJobs(/*jobsByOperation*/ std::move(operationJobsToAbort), EAbortReason::RevivalConfirmationTimeout);
+    AbortJobs(
+        /*operationIdToJobIds*/ std::move(operationJobIdsToAbort),
+        EAbortReason::RevivalConfirmationTimeout);
 }
 
 void TJobTracker::DoInitialize(IInvokerPtr cancelableInvoker)
