@@ -249,6 +249,9 @@ namespace NPyBind {
 #if PY_VERSION_HEX >= 0x030800b4 && PY_VERSION_HEX < 0x03090000
         , nullptr /*tp_print*/
 #endif
+#if PY_VERSION_HEX >= 0x030C0000
+        , 0 /*tp_watched*/
+#endif
     };
 
     template <typename TObjectHolder, typename TObject, typename TTraits>
