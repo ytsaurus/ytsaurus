@@ -288,6 +288,16 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnAgentIncarnatio
     EnqueuedFinishedJobs_.clear();
 
     YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
+
+    if (ControllerAgentConnectorPool_->ControllerAgentConnectors_.erase(ControllerAgentDescriptor_)) {
+        YT_LOG_DEBUG(
+            "Remove controller agent connector since incarnation is outdated (ControllerAgentDescriptor: %v)",
+            ControllerAgentDescriptor_);
+    } else {
+        YT_LOG_DEBUG(
+            "Controller agent connector is already removed (ControllerAgentDescriptor: %v)",
+            ControllerAgentDescriptor_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
