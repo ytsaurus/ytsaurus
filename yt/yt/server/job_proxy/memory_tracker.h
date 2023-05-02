@@ -28,6 +28,8 @@ struct TProcessMemoryStatistics
 
 DEFINE_REFCOUNTED_TYPE(TProcessMemoryStatistics)
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobMemoryStatistics
     : public TRefCounted
 {
@@ -37,6 +39,8 @@ struct TJobMemoryStatistics
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobMemoryStatistics)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TMemoryTracker
     : public TRefCounted
@@ -67,7 +71,7 @@ private:
 
     TInstant LastMemoryMeasureTime_ = TInstant::Now();
 
-    TJobMemoryStatisticsPtr CachedMemoryStatistics_ = nullptr;
+    TJobMemoryStatisticsPtr CachedMemoryStatistics_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryTracker)
