@@ -36,13 +36,14 @@
 
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/new_with_offloaded_dtor.h>
+
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/numeric_helpers.h>
 
 #include <yt/yt/core/utilex/random.h>
-
-#include <yt/yt/core/actions/cancelable_context.h>
 
 namespace NYT::NScheduler {
 
@@ -1228,7 +1229,8 @@ private:
                     EPermissionSet(EPermission::Read | EPermission::Manage));
             }
 
-            auto operation = New<TOperation>(
+            auto operation = NewWithOffloadedDtor<TOperation>(
+                Owner_->Bootstrap_->GetScheduler()->GetBackgroundInvoker(),
                 operationId,
                 operationType,
                 attributes.Get<TMutationId>("mutation_id"),

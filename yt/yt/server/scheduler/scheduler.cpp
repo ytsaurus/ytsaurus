@@ -60,6 +60,7 @@
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -306,12 +307,6 @@ public:
             BIND(&TImpl::CheckHungOperations, MakeWeak(this)),
             Config_->OperationHangupCheckPeriod);
         StrategyHungOperationsChecker_->Start();
-
-        OperationsDestroyerExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::OperationsPeriodicActivity),
-            BIND(&TImpl::PostOperationsToDestroy, MakeWeak(this)),
-            Config_->OperationsDestroyPeriod);
-        OperationsDestroyerExecutor_->Start();
 
         MeteringRecordCountCounter_ = SchedulerProfiler
             .Counter("/metering/record_count");
@@ -669,7 +664,8 @@ public:
         auto runtimeParameters = New<TOperationRuntimeParameters>();
         InitOperationRuntimeParameters(runtimeParameters, spec, baseAcl, user, type, operationId);
 
-        auto operation = New<TOperation>(
+        auto operation = NewWithOffloadedDtor<TOperation>(
+            GetBackgroundInvoker(),
             operationId,
             type,
             mutationId,
@@ -1814,7 +1810,6 @@ private:
     TPeriodicExecutorPtr OrphanedOperationQueueScanPeriodExecutor_;
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
     TPeriodicExecutorPtr PendingByPoolOperationScanPeriodExecutor_;
-    TPeriodicExecutorPtr OperationsDestroyerExecutor_;
 
     TString ServiceAddress_;
 
@@ -1840,9 +1835,6 @@ private:
 
     TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
     TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
-
-    std::vector<TOperationPtr> OperationsToDestroy_;
-    std::vector<IYPathServicePtr> OperationServicesToDestroy_;
 
     THashMap<TString, TString> UserToDefaultPoolMap_;
 
@@ -2373,7 +2365,6 @@ private:
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
             JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
             StrategyHungOperationsChecker_->SetPeriod(Config_->OperationHangupCheckPeriod);
-            OperationsDestroyerExecutor_->SetPeriod(Config_->OperationsDestroyPeriod);
 
             if (OrphanedOperationQueueScanPeriodExecutor_) {
                 OrphanedOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
@@ -2918,7 +2909,7 @@ private:
                 ->Via(GetControlInvoker(EControlQueue::DynamicOrchid));
         return New<TServiceCombiner>(
             std::vector<IYPathServicePtr>{
-                New<TOperationService>(this, operation),
+                NewWithOffloadedDtor<TOperationService>(GetBackgroundInvoker(), this, operation),
                 operationAttributesOrchidService,
             },
             /*cacheUpdatePeriod*/ std::nullopt,
@@ -3009,13 +3000,7 @@ private:
     void UnregisterOperation(const TOperationPtr& operation)
     {
         EraseOrCrash(IdToOperation_, operation->GetId());
-
-        {
-            auto it = IdToOperationService_.find(operation->GetId());
-            YT_VERIFY(it != IdToOperationService_.end());
-            OperationServicesToDestroy_.push_back(std::move(it->second));
-            IdToOperationService_.erase(it);
-        }
+        EraseOrCrash(IdToOperationService_, operation->GetId());
 
         if (operation->Alias()) {
             auto& alias = GetOrCrash(OperationAliases_, *operation->Alias());
@@ -3102,7 +3087,6 @@ private:
             UnregisterOperation(operation);
         }
         operation->Cancel(TError("Operation finished"));
-        OperationsToDestroy_.push_back(operation);
     }
 
     void UnregisterOperationAtController(const TOperationPtr& operation) const
@@ -4001,21 +3985,6 @@ private:
         }
     }
 
-    void PostOperationsToDestroy()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        Y_UNUSED(WaitFor(
-            BIND(
-                &TImpl::TryDestroyOperations,
-                MakeStrong(this),
-                Passed(std::move(OperationsToDestroy_)),
-                Passed(std::move(OperationServicesToDestroy_))
-            )
-            .AsyncVia(GetBackgroundInvoker())
-            .Run()));
-    }
-
     TPreprocessedSpec DoAssignExperimentsAndParseSpec(
         EOperationType type,
         const TString& user,
@@ -4048,24 +4017,6 @@ private:
         result.ProvidedSpecString = ConvertToYsonString(providedSpecNode);
 
         return result;
-    }
-
-    void TryDestroyOperations(
-        std::vector<TOperationPtr>&& operations,
-        std::vector<IYPathServicePtr>&& operationServices)
-    {
-        operationServices.clear();
-        for (auto& operation : operations) {
-            if (operation->GetRefCount() == 1) {
-                YT_LOG_DEBUG("Destroying operation (OperationId: %v)", operation->GetId());
-            } else {
-                YT_LOG_DEBUG(
-                    "Operation is still in use and will be destroyed later (OperationId: %v, ResidualRefCount: %v)",
-                    operation->GetId(),
-                    operation->GetRefCount() - 1);
-            }
-            operation.Reset();
-        }
     }
 
     const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override

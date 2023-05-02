@@ -936,9 +936,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("finished_operation_job_storing_timeout", &TThis::FinishedOperationJobStoringTimeout)
         .Default(TDuration::Seconds(10));
 
-    registrar.Parameter("operations_destroy_period", &TThis::OperationsDestroyPeriod)
-        .Default(TDuration::Seconds(1));
-
     registrar.Parameter("testing_options", &TThis::TestingOptions)
         .DefaultNew();
 
