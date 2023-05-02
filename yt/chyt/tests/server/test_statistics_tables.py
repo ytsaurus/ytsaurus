@@ -151,7 +151,6 @@ class TestStatistisTables(ClickHouseTestBase):
                     "path": "//tmp/ancestor_query_ids",
                 },
             },
-            "enable_dynamic_tables": True,
         },
     }
 

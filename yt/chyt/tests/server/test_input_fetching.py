@@ -125,7 +125,7 @@ class TestInputFetching(ClickHouseTestBase):
         with Clique(
                 1,
                 config_patch={
-                    "yt": {"settings": {"enable_computed_column_deduction": True}, "enable_dynamic_tables": True}
+                    "yt": {"settings": {"enable_computed_column_deduction": True}}
                 },
         ) as clique:
             clique.make_query_and_validate_row_count("select * from `//tmp/t`", exact=5)
@@ -168,7 +168,7 @@ class TestInputFetching(ClickHouseTestBase):
         with Clique(
                 1,
                 config_patch={
-                    "yt": {"settings": {"enable_computed_column_deduction": True}, "enable_dynamic_tables": True}
+                    "yt": {"settings": {"enable_computed_column_deduction": True}}
                 },
         ) as clique:
             assert len(clique.make_query_and_validate_row_count("select * from `//tmp/t`", exact=5)) == 5

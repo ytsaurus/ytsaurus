@@ -446,9 +446,6 @@ void TYtConfig::Register(TRegistrar registrar)
     registrar.Parameter("health_checker", &TThis::HealthChecker)
         .DefaultNew();
 
-    registrar.Parameter("enable_dynamic_tables", &TThis::EnableDynamicTables)
-        .Default(false);
-
     registrar.Parameter("total_memory_tracker_update_period", &TThis::TotalMemoryTrackerUpdatePeriod)
         .Default(TDuration::MilliSeconds(300));
 

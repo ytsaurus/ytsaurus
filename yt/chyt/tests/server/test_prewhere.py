@@ -189,7 +189,7 @@ class TestClickHousePrewhere(ClickHouseTestBase):
         # Without unmount we would simply get zeroes as columnar statistics as all rows will reside in dynamic stores.
         sync_unmount_table("//tmp/t")
 
-        with Clique(1, config_patch={"yt": {"enable_dynamic_tables": True}}) as clique:
+        with Clique(1) as clique:
             query = "select light from `//tmp/t` where heavy == '{}'".format(rows[42]["heavy"])
             explain_result = clique.make_query("explain syntax " + query)
             print_debug(explain_result)

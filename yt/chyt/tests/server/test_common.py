@@ -1411,7 +1411,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             sync_mount_table(table_path)
             insert_rows(table_path, [{"key": i, "value": i + 10}])
 
-        with Clique(1, config_patch={"yt": {"enable_dynamic_tables": True}}) as clique:
+        with Clique(1) as clique:
             def get_table_virtual_values(index):
                 return {
                     "$table_index": index,

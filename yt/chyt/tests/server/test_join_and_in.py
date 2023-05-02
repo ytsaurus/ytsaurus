@@ -477,10 +477,7 @@ class TestJoinAndIn(ClickHouseTestBase):
         sync_mount_table("//tmp/t2")
         insert_rows("//tmp/t1", [{"k": 1, "v": "a1"}, {"k": 3, "v": "a3"}, {"k": 4, "v": "a4"}, {"k": 7, "v": "a7"}])
         insert_rows("//tmp/t2", [{"k": 2, "v": "b2"}, {"k": 3, "v": "b3"}, {"k": 6, "v": "b6"}, {"k": 7, "v": "b7"}])
-        with Clique(1,
-                    config_patch={
-                        "yt": {"enable_dynamic_tables": True},
-                    }) as clique:
+        with Clique(1) as clique:
             assert clique.make_query("select k, t1.v v1, t2.v v2 from `//tmp/t1` t1 join `//tmp/t2` t2 using k") == [
                 {"k": 3, "v1": "a3", "v2": "b3"}, {"k": 7, "v1": "a7", "v2": "b7"},
             ]

@@ -20,7 +20,6 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
     def _get_config_patch(self):
         return {
             "yt": {
-                "enable_dynamic_tables": True,
                 "subquery": {
                     "min_data_weight_per_thread": 0,
                 },

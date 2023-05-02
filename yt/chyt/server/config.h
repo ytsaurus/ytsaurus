@@ -549,8 +549,6 @@ public:
 
     TShowTablesConfigPtr ShowTables;
 
-    bool EnableDynamicTables;
-
     TDuration TotalMemoryTrackerUpdatePeriod;
 
     TQuerySettingsPtr QuerySettings;
