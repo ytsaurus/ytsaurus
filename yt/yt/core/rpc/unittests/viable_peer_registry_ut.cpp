@@ -152,12 +152,16 @@ IViablePeerRegistryPtr CreateTestRegistry(
     EPeerPriorityStrategy peerPriorityStrategy,
     const IChannelFactoryPtr& channelFactory,
     int maxPeerCount,
-    std::optional<int> hashesPerPeer = {})
+    std::optional<int> hashesPerPeer = {},
+    std::optional<int> minPeerCountForPriorityAwareness = {})
 {
     auto config = New<TViablePeerRegistryConfig>();
     config->MaxPeerCount = maxPeerCount;
     if (hashesPerPeer) {
         config->HashesPerPeer = *hashesPerPeer;
+    }
+    if (minPeerCountForPriorityAwareness) {
+        config->MinPeerCountForPriorityAwareness = *minPeerCountForPriorityAwareness;
     }
 
     config->PeerPriorityStrategy = peerPriorityStrategy;
@@ -499,6 +503,40 @@ TEST(TPreferLocalViablePeerRegistryTest, Simple)
         auto channel = viablePeerRegistry->PickRandomChannel(req, /*hedgingOptions*/ {});
         EXPECT_EQ(channel->GetEndpointDescription(), "a.man.yp-c.yandex.net");
     }
+}
+
+TEST(TPreferLocalViablePeerRegistryTest, MinPeerCountForPriorityAwareness)
+{
+    auto channelFactory = New<TFakeChannelFactory>();
+    auto viablePeerRegistry = CreateTestRegistry(
+        EPeerPriorityStrategy::PreferLocal,
+        channelFactory,
+        /*maxPeerCount*/ 100,
+        /*hashesPerPeer*/ {},
+        /*minPeerCountForPriorityAwareness*/ 2);
+
+    auto finally = Finally([oldLocalHostName = NNet::GetLocalHostName()] {
+        NNet::WriteLocalHostName(oldLocalHostName);
+    });
+    NNet::WriteLocalHostName("home.man.yp-c.yandex.net");
+
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("local.man.yp-c.yandex.net"));
+
+    for (int i = 0; i < 99; ++i) {
+        EXPECT_TRUE(viablePeerRegistry->RegisterPeer(Format("non-local-%v.sas.yp-c.yandex.net", i)));
+    }
+
+    THashSet<TString> retrievedAddresses;
+
+    auto req = CreateRequest();
+    for (int iter = 0; iter < 100; ++iter) {
+        auto channel = viablePeerRegistry->PickRandomChannel(req, /*hedgingOptions*/ {});
+        retrievedAddresses.insert(channel->GetEndpointDescription());
+        EXPECT_THAT(channelFactory->GetChannelRegistry(), Contains(channel->GetEndpointDescription()));
+    }
+
+    // The probability of this failing should be 1e-200.
+    EXPECT_GT(retrievedAddresses.size(), 1u);
 }
 
 TEST(TPreferLocalViablePeerRegistryTest, RegistrationEvictsLesserPeers)

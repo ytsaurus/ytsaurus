@@ -139,6 +139,18 @@ void TViablePeerRegistryConfig::Register(TRegistrar registrar)
         .Default(10);
     registrar.Parameter("peer_priority_strategy", &TThis::PeerPriorityStrategy)
         .Default(EPeerPriorityStrategy::None);
+    registrar.Parameter("min_peer_count_for_priority_awareness", &TThis::MinPeerCountForPriorityAwareness)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->MinPeerCountForPriorityAwareness > config->MaxPeerCount) {
+            THROW_ERROR_EXCEPTION(
+                "Value of \"min_peer_count_for_priority_awareness\" cannot be bigger than \"max_peer_count\": %v > %v; please read the corresponding comment",
+                config->MinPeerCountForPriorityAwareness,
+                config->MaxPeerCount);
+        }
+    });
 }
 
 void TDynamicChannelPoolConfig::Register(TRegistrar registrar)

@@ -209,6 +209,45 @@ public:
         return it->second;
     }
 
+    // We only use this method for small counts, so this approach should work fine.
+    static THashSet<int> GetRandomIndexes(int max, int count = 1)
+    {
+        THashSet<int> result;
+        while (std::ssize(result) < count) {
+            result.insert(static_cast<int>(RandomNumber<unsigned int>(max)));
+        }
+
+        return result;
+    }
+
+    std::vector<std::pair<TString, IChannelPtr>> PickRandomPeers(int peerCount = 1) const
+    {
+        VERIFY_READER_SPINLOCK_AFFINITY(SpinLock_);
+
+        YT_VERIFY(0 < peerCount && peerCount <= ActivePeerToPriority_.Size());
+
+        int minPeersToPickFrom = std::max(Config_->MinPeerCountForPriorityAwareness, peerCount);
+
+        std::vector<std::pair<TString, IChannelPtr>> peers;
+
+        const auto& smallestPriorityPool = PriorityToActivePeers_.begin()->second;
+
+        if (minPeersToPickFrom <= smallestPriorityPool.Size()) {
+            for (const auto& index : GetRandomIndexes(smallestPriorityPool.Size(), peerCount)) {
+                peers.push_back(smallestPriorityPool[index]);
+            }
+        } else {
+            for (const auto& index : GetRandomIndexes(ActivePeerToPriority_.Size(), peerCount)) {
+                const auto& [address, priority] = ActivePeerToPriority_[index];
+                peers.emplace_back(
+                    address,
+                    GetOrCrash(PriorityToActivePeers_, priority).Get(address));
+            }
+        }
+
+        return peers;
+    }
+
     IChannelPtr PickRandomChannel(
         const IClientRequestPtr& request,
         const std::optional<THedgingChannelOptions>& hedgingOptions) const override
@@ -219,16 +258,11 @@ public:
             return nullptr;
         }
 
-        const auto& viablePeers = PriorityToActivePeers_.begin()->second;
-        YT_VERIFY(viablePeers.Size() != 0);
-        int peerIndex = RandomNumber<size_t>(viablePeers.Size());
-
         IChannelPtr channel;
-        if (hedgingOptions && hedgingOptions->HedgingManager && viablePeers.Size() > 1) {
-            const auto& primaryPeer = viablePeers[peerIndex];
-            const auto& backupPeer = peerIndex + 1 == viablePeers.Size()
-                ? viablePeers[0]
-                : viablePeers[peerIndex + 1];
+        if (hedgingOptions && hedgingOptions->HedgingManager && ActivePeerToPriority_.Size() >= 2) {
+            auto peers = PickRandomPeers(/*peerCount*/ 2);
+            const auto& primaryPeer = peers[0];
+            const auto& backupPeer = peers[1];
             channel = CreateHedgingChannel(
                 primaryPeer.second,
                 backupPeer.second,
@@ -240,7 +274,7 @@ public:
                 primaryPeer.first,
                 backupPeer.first);
         } else {
-            const auto& peer = viablePeers[peerIndex];
+            auto peer = PickRandomPeers()[0];
             channel = peer.second;
 
             YT_LOG_DEBUG(
@@ -443,7 +477,7 @@ private:
     void ActivateBacklogPeers()
     {
         VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
-        
+
         while (!BacklogPeerToPriority_.empty() && ActivePeerToPriority_.Size() < Config_->MaxPeerCount) {
             auto& [priority, backlogPeers] = *PriorityToBacklogPeers_.begin();
             auto randomBacklogPeer = backlogPeers.GetRandomElement();
