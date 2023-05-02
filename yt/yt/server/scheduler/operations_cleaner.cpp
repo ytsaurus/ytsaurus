@@ -719,7 +719,12 @@ public:
                     YT_LOG_WARNING(error, "Failed to fetch finished operations from Cypress (DisconnectOnFailure: %v)",
                         disconnectOnFailure);
                     if (disconnectOnFailure) {
-                        Bootstrap_->GetScheduler()->GetMasterConnector()->Disconnect(error);
+                        Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector)->Invoke(
+                            BIND(
+                                &TMasterConnector::Disconnect,
+                                Bootstrap_->GetScheduler()->GetMasterConnector(),
+                                std::move(error)
+                            ));
                     }
                 }
             }).Via(GetCancelableInvoker()));
