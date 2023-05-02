@@ -36,6 +36,7 @@ target_link_options(unittester-core-actions PRIVATE
 target_sources(unittester-core-actions PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/actions/unittests/actions_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/actions/unittests/invoker_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/actions/unittests/new_with_offloaded_dtor_ut.cpp
 )
 add_test(
   NAME

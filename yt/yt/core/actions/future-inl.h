@@ -161,14 +161,14 @@ protected:
     std::atomic<int> CancelableRefCount_;
 
     template <class T>
-    static void DestroyRefCountedImpl(T* ptr)
+    static void DestroyRefCountedImpl(T* obj)
     {
         // No virtual call when T is final.
-        ptr->~T();
+        obj->~T();
 #ifdef _win_
-        ::_aligned_free(ptr);
+        ::_aligned_free(obj);
 #else
-        ::free(ptr);
+        ::free(obj);
 #endif
     }
 };
