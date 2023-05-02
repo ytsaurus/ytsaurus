@@ -501,7 +501,7 @@ public:
             ? DivCeil(InputDataWeight_, JobCount_)
             : 1;
 
-        return std::min(dataWeightPerJob, DivCeil<i64>(GetMaxDataWeightPerJob() , 2));
+        return std::min(dataWeightPerJob, DivCeil<i64>(GetMaxDataWeightPerJob(), 2));
     }
 
     i64 GetPrimaryDataWeightPerJob() const override
