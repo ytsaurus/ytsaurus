@@ -26,7 +26,7 @@ trait SparkLauncher {
   private val masterClass = "org.apache.spark.deploy.master.Master"
   private val workerClass = "org.apache.spark.deploy.worker.Worker"
   private val historyServerClass = "org.apache.spark.deploy.history.HistoryServer"
-  private val commonJavaOpts = Seq("-Djava.net.preferIPv6Addresses=true")
+  private val commonJavaOpts = configureJavaOptions()
 
   case class SparkDaemonConfig(memory: String,
                                startTimeout: Duration)
@@ -45,6 +45,15 @@ trait SparkLauncher {
 
   private def prepareSparkConf(): Unit = {
     moveToSparkConfIfExists("metrics.properties")
+  }
+
+  private def configureJavaOptions(): Seq[String] = {
+    val ipv6PreferenceEnabled = sys.env.get("SPARK_YT_IPV6_PREFERENCE_ENABLED").exists(_.toBoolean)
+    if (ipv6PreferenceEnabled) {
+      Seq("-Djava.net.preferIPv6Addresses=true")
+    } else {
+      Seq()
+    }
   }
 
   private def moveToSparkConfIfExists(filename: String): Unit = {

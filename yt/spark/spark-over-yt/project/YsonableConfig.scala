@@ -77,9 +77,7 @@ case class SparkGlobalConfig(spark_conf: Map[String, String],
 case class SparkLaunchConfig(spark_yt_base_path: String,
                              file_paths: Seq[String],
                              spark_conf: Map[String, String] = Map(
-                               "spark.yt.jarCaching" -> "true",
-                               "spark.driver.extraJavaOptions" -> "-Djava.net.preferIPv6Addresses=true",
-                               "spark.executor.extraJavaOptions" -> "-Djava.net.preferIPv6Addresses=true"
+                               "spark.yt.jarCaching" -> "true"
                              ),
                              enablers: SpytEnablers = SpytEnablers(),
                              ytserver_proxy_path: Option[String] = None,

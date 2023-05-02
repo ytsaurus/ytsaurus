@@ -202,9 +202,11 @@ def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None,
             'No permission for reading cluster, actual permission status is ' + str(permission_status))
     discovery = SparkDiscovery(discovery_path=discovery_path)
 
-    spark_conf = read_cluster_conf(str(discovery.conf()), client)['spark_conf']
+    cluster_conf = read_cluster_conf(str(discovery.conf()), client)
+    spark_conf = cluster_conf['spark_conf']
     dedicated_driver_op = _parse_bool(spark_conf.get('spark.dedicated_operation_mode'))
     jar_caching_enabled = _parse_bool(spark_conf.get('spark.yt.jarCaching'))
+    ipv6_preference_enabled = _parse_bool(spark_conf.get('spark.hadoop.yt.preferenceIpv6.enabled'))
 
     _add_master(discovery, spark_base_args, rest=True, client=client)
     _add_shs_option(discovery, spark_base_args, client=client)
@@ -212,6 +214,7 @@ def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None,
     _add_spyt_deps(spyt_version, spark_base_args, discovery, client, jar_caching_enabled)
     _add_python_version(python_version, spark_base_args, client)
     _add_dedicated_driver_op_conf(spark_base_args, dedicated_driver_op)
+    _add_ipv6_preference(ipv6_preference_enabled, spark_base_args)
     spark_env = _create_spark_env(client, spark_home)
 
     if local_files:
@@ -267,6 +270,14 @@ def _add_python_version(python_version, spark_args, client):
         else:
             raise RuntimeError(
                 "Interpreter for python version `{}` is not found".format(python_version))
+
+
+def _add_ipv6_preference(ipv6_preference_enabled, spark_args):
+    if ipv6_preference_enabled:
+        _add_conf({
+            'spark.driver.extraJavaOptions': '-Djava.net.preferIPv6Addresses=true',
+            'spark.executor.extraJavaOptions': '-Djava.net.preferIPv6Addresses=true'
+        }, spark_args)
 
 
 def wrap_cached_jar(path, jar_caching_enabled):
@@ -449,13 +460,13 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["SPARK_LOCAL_DIRS"] = "./tmpfs"
     environment["SPARK_YT_SOLOMON_ENABLED"] = str(enablers.enable_solomon_agent)
     environment["SOLOMON_PUSH_PORT"] = "27099"
+    environment["SPARK_YT_IPV6_PREFERENCE_ENABLED"] = str(enablers.enable_preference_ipv6)
 
     ytserver_proxy_path = config.get("ytserver_proxy_path")
 
     tvm_enabled = enablers.enable_mtn and bool(tvm_id) and bool(tvm_secret)
     worker_environment = {
-        "SPARK_YT_BYOP_ENABLED": str(enablers.enable_byop),
-        "SPARK_YT_IPV6_PREFERENCE_ENABLED": str(enablers.enable_preference_ipv6)
+        "SPARK_YT_BYOP_ENABLED": str(enablers.enable_byop)
     }
     worker_environment = update(environment, worker_environment)
     if enablers.enable_byop:
