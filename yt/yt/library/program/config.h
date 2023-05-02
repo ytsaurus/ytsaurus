@@ -45,6 +45,24 @@ DEFINE_REFCOUNTED_TYPE(TRpcConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class THeapSizeLimit
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    //! Limit program memory in terms of container memory.
+    // If program heap size exceeds the limit tcmalloc is instructed to release memory to the kernel.
+    std::optional<double> ContainerMemoryRatio;
+
+    //! If true tcmalloc crashes when system allocates more memory than #ContainerMemoryRatio.
+    bool IsHard;
+
+    REGISTER_YSON_STRUCT(THeapSizeLimit);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(THeapSizeLimit)
+
 class TTCMallocConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -52,13 +70,20 @@ public:
     i64 BackgroundReleaseRate;
     int MaxPerCpuCacheSize;
 
+    //! Threshold in bytes
     i64 AggressiveReleaseThreshold;
+
+    //! Threshold in fractions of total memory of the container
+    std::optional<double> AggressiveReleaseThresholdRatio;
+
     i64 AggressiveReleaseSize;
     TDuration AggressiveReleasePeriod;
 
     //! Approximately 1/#GuardedSamplingRate of all allocations of
     //! size <= 256 KiB will be under GWP-ASAN.
     std::optional<i64> GuardedSamplingRate;
+
+    THeapSizeLimitPtr HeapSizeLimit;
 
     REGISTER_YSON_STRUCT(TTCMallocConfig);
 

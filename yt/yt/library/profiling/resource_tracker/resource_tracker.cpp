@@ -112,13 +112,14 @@ void TMemoryCgroupTracker::CollectSensors(ISensorWriter* writer)
                     auto stat = GetCgroupMemoryStat(group.Path);
 
                     writer->AddGauge("/memory_limit", stat.HierarchicalMemoryLimit);
-
                     writer->AddGauge("/cache", stat.Cache);
                     writer->AddGauge("/rss", stat.Rss);
                     writer->AddGauge("/rss_huge", stat.RssHuge);
                     writer->AddGauge("/mapped_file", stat.MappedFile);
                     writer->AddGauge("/dirty", stat.Dirty);
                     writer->AddGauge("/writeback", stat.Writeback);
+
+                    TotalMemoryLimit.store(stat.HierarchicalMemoryLimit);
 
                     return;
                 }
@@ -130,6 +131,11 @@ void TMemoryCgroupTracker::CollectSensors(ISensorWriter* writer)
             CgroupErrorLogged_ = true;
         }
     }
+}
+
+i64 TMemoryCgroupTracker::GetTotalMemoryLimit()
+{
+    return TotalMemoryLimit.load();
 }
 
 TResourceTracker::TTimings TResourceTracker::TTimings::operator-(const TResourceTracker::TTimings& other) const
@@ -411,6 +417,11 @@ double TResourceTracker::GetSystemCpu()
 double TResourceTracker::GetCpuWait()
 {
     return LastCpuWait_.load();
+}
+
+i64 TResourceTracker::GetTotalMemoryLimit()
+{
+    return MemoryCgroupTracker_->GetTotalMemoryLimit();
 }
 
 TResourceTrackerPtr GetResourceTracker()

@@ -1,5 +1,6 @@
 #include "helpers.h"
 #include "config.h"
+#include "private.h"
 
 #include <yt/yt/core/ytalloc/bindings.h>
 
@@ -52,6 +53,83 @@ using namespace NThreading;
 ////////////////////////////////////////////////////////////////////////////////
 
 static std::once_flag InitAggressiveReleaseThread;
+static auto& Logger = ProgramLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCMallocLimitsAdjuster
+{
+public:
+    void Adjust(const TTCMallocConfigPtr& config)
+    {
+        i64 totalMemory = GetContainerMemoryLimit();
+        AdjustPageHeapLimit(totalMemory, config);
+        AdjustAggressiveReleaseThreshold(totalMemory, config);
+    }
+
+    i64 GetAggressiveReleaseThreshold()
+    {
+        return AggressiveReleaseThreshold_;
+    }
+
+private:
+    using TAllocatorMemoryLimit = tcmalloc::MallocExtension::MemoryLimit;
+
+    TAllocatorMemoryLimit AppliedLimit_;
+    i64 AggressiveReleaseThreshold_ = 0;
+
+
+    void AdjustPageHeapLimit(i64 totalMemory, const TTCMallocConfigPtr& config)
+    {
+        auto proposed = ProposeHeapMemoryLimit(totalMemory, config);
+
+        if (proposed.limit == AppliedLimit_.limit && proposed.hard == AppliedLimit_.hard) {
+            // Already applied
+            return;
+        }
+
+        YT_LOG_INFO("Changing tcmalloc memory limit (Limit: %v, IsHard: %v)",
+            proposed.limit,
+            proposed.hard);
+
+        tcmalloc::MallocExtension::SetMemoryLimit(proposed);
+        AppliedLimit_ = proposed;
+    }
+
+    void AdjustAggressiveReleaseThreshold(i64 totalMemory, const TTCMallocConfigPtr& config)
+    {
+        if (totalMemory && config->AggressiveReleaseThresholdRatio) {
+            AggressiveReleaseThreshold_ = *config->AggressiveReleaseThresholdRatio * totalMemory;
+        } else {
+            AggressiveReleaseThreshold_ = config->AggressiveReleaseThreshold;
+        }
+    }
+
+    i64 GetContainerMemoryLimit() const
+    {
+        auto resourceTracker = NProfiling::GetResourceTracker();
+        if (!resourceTracker) {
+            return 0;
+        }
+
+        return resourceTracker->GetTotalMemoryLimit();
+    }
+
+    TAllocatorMemoryLimit ProposeHeapMemoryLimit(i64 totalMemory, const TTCMallocConfigPtr& config) const
+    {
+        const auto& heapLimitConfig = config->HeapSizeLimit;
+
+        if (totalMemory == 0 || !heapLimitConfig->ContainerMemoryRatio) {
+            return {};
+        }
+
+        TAllocatorMemoryLimit proposed;
+        proposed.limit = *heapLimitConfig->ContainerMemoryRatio * totalMemory;
+        proposed.hard = heapLimitConfig->IsHard;
+
+        return proposed;
+    }
+};
 
 void ConfigureTCMalloc(const TTCMallocConfigPtr& config)
 {
@@ -72,13 +150,21 @@ void ConfigureTCMalloc(const TTCMallocConfigPtr& config)
             std::thread([] {
                 ::TThread::SetCurrentThreadName("TCAllocYT");
 
+                TCMallocLimitsAdjuster limitsAdjuster;
+
                 while (true) {
                     auto config = LeakySingleton<TAtomicObject<TTCMallocConfigPtr>>()->Load();
+                    limitsAdjuster.Adjust(config);
 
                     auto freeBytes = tcmalloc::MallocExtension::GetNumericProperty("tcmalloc.page_heap_free");
                     YT_VERIFY(freeBytes);
 
-                    if (static_cast<i64>(*freeBytes) > config->AggressiveReleaseThreshold) {
+                    if (static_cast<i64>(*freeBytes) > limitsAdjuster.GetAggressiveReleaseThreshold()) {
+
+                        YT_LOG_DEBUG("Aggressively releasing memory (FreeBytes: %v, Threshold: %v)",
+                            static_cast<i64>(*freeBytes),
+                            limitsAdjuster.GetAggressiveReleaseThreshold());
+
                         tcmalloc::MallocExtension::ReleaseMemoryToSystem(config->AggressiveReleaseSize);
                     }
 

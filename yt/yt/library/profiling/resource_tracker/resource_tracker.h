@@ -34,8 +34,12 @@ class TMemoryCgroupTracker
 public:
     void CollectSensors(ISensorWriter* writer) override;
 
+    i64 GetTotalMemoryLimit();
+
 private:
     bool CgroupErrorLogged_ = false;
+
+    std::atomic<i64> TotalMemoryLimit{0};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,6 +55,8 @@ public:
     double GetUserCpu();
     double GetSystemCpu();
     double GetCpuWait();
+
+    i64 GetTotalMemoryLimit();
 
     void CollectSensors(ISensorWriter* writer) override;
 
