@@ -414,6 +414,13 @@ void TServiceContextBase::SetRawRequestInfo(TString info, bool incremental)
     }
 }
 
+void TServiceContextBase::SuppressMissingRequestInfoCheck()
+{
+    YT_ASSERT(!Replied_);
+
+    RequestInfoSet_ = true;
+}
+
 void TServiceContextBase::SetRawResponseInfo(TString info, bool incremental)
 {
     YT_ASSERT(!Replied_);
@@ -682,6 +689,11 @@ bool TServiceContextWrapper::IsLoggingEnabled() const
 void TServiceContextWrapper::SetRawRequestInfo(TString info, bool incremental)
 {
     UnderlyingContext_->SetRawRequestInfo(std::move(info), incremental);
+}
+
+void TServiceContextWrapper::SuppressMissingRequestInfoCheck()
+{
+    UnderlyingContext_->SuppressMissingRequestInfoCheck();
 }
 
 void TServiceContextWrapper::SetRawResponseInfo(TString info, bool incremental)

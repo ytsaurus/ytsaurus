@@ -16,8 +16,7 @@ void IServiceContext::SetRequestInfo(const char* format, TArgs&&... args)
     if (IsLoggingEnabled()) {
         SetRawRequestInfo(Format(format, std::forward<TArgs>(args)...), /*incremental*/ false);
     } else {
-        // Still need to set the info to make AlertOnMissingRequestInfo check happy.
-        SetRawRequestInfo(TString(), /*incremental*/ false);
+        SuppressMissingRequestInfoCheck();
     }
 }
 
@@ -27,8 +26,7 @@ void IServiceContext::SetIncrementalRequestInfo(const char* format, TArgs&&... a
     if (IsLoggingEnabled()) {
         SetRawRequestInfo(Format(format, std::forward<TArgs>(args)...), /*incremental*/ true);
     } else {
-        // Still need to set the info to make AlertOnMissingRequestInfo check happy.
-        SetRawRequestInfo(TString(), /*incremental*/ true);
+        SuppressMissingRequestInfoCheck();
     }
 }
 

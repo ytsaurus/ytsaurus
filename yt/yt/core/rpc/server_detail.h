@@ -88,6 +88,7 @@ public:
 
     bool IsLoggingEnabled() const override;
     void SetRawRequestInfo(TString info, bool incremental) override;
+    void SuppressMissingRequestInfoCheck() override;
     void SetRawResponseInfo(TString info, bool incremental) override;
 
     const NLogging::TLogger& GetLogger() const override;
@@ -227,6 +228,7 @@ public:
 
     bool IsLoggingEnabled() const override;
     void SetRawRequestInfo(TString info, bool incremental) override;
+    void SuppressMissingRequestInfoCheck() override;
     void SetRawResponseInfo(TString info, bool incremental) override;
 
     const NLogging::TLogger& GetLogger() const override;

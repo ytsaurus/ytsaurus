@@ -913,7 +913,9 @@ public:
         const auto& agentId = request->agent_id();
         auto incarnationId = FromProto<NControllerAgent::TIncarnationId>(request->incarnation_id());
 
-        context->SetRequestInfo("AgentId: %v, IncarnationId: %v", agentId, incarnationId);
+        context->SetRequestInfo("AgentId: %v, IncarnationId: %v",
+            agentId,
+            incarnationId);
 
         auto agent = GetAgentOrThrow(agentId);
         if (agent->GetState() != EControllerAgentState::Registered && agent->GetState() != EControllerAgentState::WaitingForInitialHeartbeat) {

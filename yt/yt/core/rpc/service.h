@@ -201,6 +201,9 @@ struct IServiceContext
      */
     virtual void SetRawRequestInfo(TString info, bool incremental) = 0;
 
+    //! After this call there is no obligation to set request info for this request.
+    virtual void SuppressMissingRequestInfoCheck() = 0;
+
     //! Registers a portion of response logging info.
     /*!
      *  \param incremental If false then \p info overrides all previously remembered infos.
