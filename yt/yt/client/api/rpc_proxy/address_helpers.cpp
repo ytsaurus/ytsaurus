@@ -36,10 +36,10 @@ std::optional<TString> GetAddressOrNull(
     EAddressType type,
     const TString& network)
 {
-    auto typeAddresses = addresses.find(type);
-    if (typeAddresses != addresses.end()) {
-        auto it = typeAddresses->second.find(network);
-        if (it != typeAddresses->second.end()) {
+    auto typeAddressesIt = addresses.find(type);
+    if (typeAddressesIt != addresses.end()) {
+        auto it = typeAddressesIt->second.find(network);
+        if (it != typeAddressesIt->second.end()) {
             return it->second;
         }
     }
@@ -54,12 +54,12 @@ std::optional<std::vector<TString>> GetBalancersOrNull(
     EAddressType addressType,
     const TString& network)
 {
-    auto roleBalancers = balancers.find(role);
-    if (roleBalancers != balancers.end()) {
-        auto roleTypeBalancers = roleBalancers->second.find(addressType);
-        if (roleTypeBalancers != roleBalancers->second.end()) {
-            auto it = roleTypeBalancers->second.find(network);
-            if (it != roleTypeBalancers->second.end()) {
+    auto roleBalancersIt = balancers.find(role);
+    if (roleBalancersIt != balancers.end()) {
+        auto roleTypeBalancersIt = roleBalancersIt->second.find(addressType);
+        if (roleTypeBalancersIt != roleBalancersIt->second.end()) {
+            auto it = roleTypeBalancersIt->second.find(network);
+            if (it != roleTypeBalancersIt->second.end()) {
                 return it->second;
             }
         }
