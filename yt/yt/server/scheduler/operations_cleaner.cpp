@@ -766,7 +766,7 @@ public:
     void EnqueueOperationAlertEvent(
         TOperationId operationId,
         EOperationAlertType alertType,
-        const TError& alert)
+        TError alert)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -775,7 +775,7 @@ public:
         }
 
         GetCancelableInvoker()->Invoke(
-            BIND([this, this_ = MakeStrong(this), operationId, alertType, alert] {
+            BIND([this, this_ = MakeStrong(this), operationId, alertType, alert = std::move(alert)] {
                 OperationAlertEventQueue_.push_back({
                     operationId,
                     alertType,
@@ -983,12 +983,12 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(GetUncancelableInvoker());
 
-        bool enable = Config_->Enable;
+        bool oldEnable = Config_->Enable;
         bool oldEnableOperationArchivation = Config_->EnableOperationArchivation;
-        bool enableOperationAlertEventArchivation = Config_->EnableOperationAlertEventArchivation;
+        bool oldEnableOperationAlertEventArchivation = Config_->EnableOperationAlertEventArchivation;
         Config_ = std::move(config);
 
-        if (enable != Config_->Enable) {
+        if (oldEnable != Config_->Enable) {
             if (Config_->Enable) {
                 DoStart(/*fetchFinishedOperations*/ true);
             } else {
@@ -1004,7 +1004,7 @@ private:
             }
         }
 
-        if (enableOperationAlertEventArchivation != Config_->EnableOperationAlertEventArchivation) {
+        if (oldEnableOperationAlertEventArchivation != Config_->EnableOperationAlertEventArchivation) {
             if (Config_->EnableOperationAlertEventArchivation) {
                 DoStartAlertEventArchivation();
             } else {
@@ -1031,6 +1031,8 @@ private:
 
     void DoSubmitForArchivation(TArchiveOperationRequest request)
     {
+        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+
         auto id = request.Id;
 
         // Can happen if scheduler reported operation and archiver was turned on and
@@ -1785,9 +1787,9 @@ void TOperationsCleaner::BuildOrchid(TFluentMap fluent) const
 void TOperationsCleaner::EnqueueOperationAlertEvent(
     TOperationId operationId,
     EOperationAlertType alertType,
-    const TError& alert)
+    TError alert)
 {
-    Impl_->EnqueueOperationAlertEvent(operationId, alertType, alert);
+    Impl_->EnqueueOperationAlertEvent(operationId, alertType, std::move(alert));
 }
 
 DELEGATE_SIGNAL(TOperationsCleaner, void(const std::vector<TArchiveOperationRequest>& requests), OperationsRemovedFromCypress, *Impl_);

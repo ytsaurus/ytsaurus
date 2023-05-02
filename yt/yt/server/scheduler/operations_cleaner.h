@@ -96,7 +96,7 @@ public:
     void EnqueueOperationAlertEvent(
         TOperationId operationId,
         EOperationAlertType alertType,
-        const TError& alert);
+        TError alert);
 
     //! Raised when a new portion of operations has been archived.
     DECLARE_SIGNAL(void(const std::vector<TArchiveOperationRequest>&), OperationsRemovedFromCypress);
