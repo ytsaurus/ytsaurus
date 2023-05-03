@@ -1700,7 +1700,6 @@ protected:
                 InvalidatedJoblets_[partitionIndex].insert(joblet);
             }
             for (const auto& jobOutput : JobOutputs_[partitionIndex]) {
-                YT_VERIFY(jobOutput.JobSummary.Statistics);
                 auto tableIndex = Controller_->GetRowCountLimitTableIndex();
                 if (tableIndex && jobOutput.JobSummary.OutputDataStatistics) {
                     auto count = VectorAtOr(*jobOutput.JobSummary.OutputDataStatistics, *tableIndex).row_count();
