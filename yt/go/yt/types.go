@@ -29,6 +29,7 @@ const (
 	NodeAccount           NodeType = "account"
 	NodeMedium            NodeType = "medium"
 	NodeTabletCellBundle  NodeType = "tablet_cell_bundle"
+	NodeTabletCell        NodeType = "tablet_cell"
 	NodeSys               NodeType = "sys_node"
 	NodePortalEntrance    NodeType = "portal_entrance"
 	NodePortalExit        NodeType = "portal_exit"
