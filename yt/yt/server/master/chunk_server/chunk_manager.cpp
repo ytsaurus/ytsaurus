@@ -2603,6 +2603,15 @@ private:
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         if (auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid)) {
+            if (location->GetNode() == nullptr) {
+                YT_LOG_ALERT(
+                    "Chunk location without a node encountered (LocationUuid: %v, NodeId: %v, Address: %v)",
+                    locationUuid,
+                    node->GetId(),
+                    node->GetDefaultAddress());
+                return nullptr;
+            }
+
             return location;
         }
 
