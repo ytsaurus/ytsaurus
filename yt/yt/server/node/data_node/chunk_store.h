@@ -87,7 +87,7 @@ public:
     void UpdateExistingChunk(const IChunkPtr& chunk);
 
     //! Unregisters the chunk but does not remove any of its files.
-    void UnregisterChunk(const IChunkPtr& chunk, bool force);
+    void UnregisterChunk(const IChunkPtr& chunk);
 
     //! Finds a chunk by id on the specified medium (or on the highest priority
     //! medium if #mediumIndex == AllMediaIndex).

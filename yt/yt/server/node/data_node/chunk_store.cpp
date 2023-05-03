@@ -402,7 +402,7 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
                 shorterChunk->SyncRemove(true);
                 if (shorterChunk == oldChunk) {
                     // But register new chunk.
-                    UnregisterChunk(oldChunk, false);
+                    UnregisterChunk(oldChunk);
                     FinishChunkRegistration(chunk);
                 }
                 break;
@@ -515,12 +515,14 @@ void TChunkStore::UpdateExistingChunk(const IChunkPtr& chunk)
     ChunkAdded_.Fire(chunk);
 }
 
-void TChunkStore::UnregisterChunk(const IChunkPtr& chunk, bool force)
+void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     const auto& location = chunk->GetLocation();
-    if (!(location->IsEnabled() || force)) {
+    auto state = location->GetState();
+
+    if (state == ELocationState::Enabled || state == ELocationState::Disabling) {
         return;
     }
 
@@ -612,9 +614,8 @@ TFuture<void> TChunkStore::RemoveChunk(const IChunkPtr& chunk)
         ->RegisterAction(
             BIND([=, this, this_ = MakeStrong(this)] () {
                 ChunkRemovalScheduled_.Fire(chunk);
-
-                return chunk->ScheduleRemove().Apply(
-                    BIND(&TChunkStore::UnregisterChunk, MakeStrong(this), chunk, false));
+                return chunk->ScheduleRemove()
+                    .Apply(BIND(&TChunkStore::UnregisterChunk, MakeStrong(this), chunk));
             }));
 }
 
