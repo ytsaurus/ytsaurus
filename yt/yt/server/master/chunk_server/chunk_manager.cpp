@@ -3055,6 +3055,10 @@ private:
         announceReplicaRequests.reserve(request->chunks().size());
 
         for (const auto& chunkInfo : request->chunks()) {
+            AlertAndThrowOnDanglingLocation<true>(chunkInfo, node);
+        }
+
+        for (const auto& chunkInfo : request->chunks()) {
             if (auto* chunk = ProcessAddedChunk(node, chunkInfo, false)) {
                 if (chunk->IsBlob()) {
                     announceReplicaRequests.push_back(chunk);
@@ -3088,6 +3092,36 @@ private:
         OnMaybeNodeWriteTargetValidityChanged(
             node,
             EWriteTargetValidityChange::ReportedDataNodeHeartbeat);
+    }
+
+    template <bool FullHeartbeat>
+    void AlertAndThrowOnDanglingLocation(const auto& chunkInfo, TNode* node)
+    {
+        if (!chunkInfo.has_location_uuid()) {
+            return;
+        }
+
+        auto uuid = FromProto<TChunkLocationUuid>(chunkInfo.location_uuid());
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        auto* location = dataNodeTracker->FindChunkLocationByUuid(uuid);
+
+        if (location->GetState() == EChunkLocationState::Online) {
+            return;
+        }
+
+        constexpr bool isRemoval = !FullHeartbeat &&
+            std::is_same_v<std::decay_t<decltype(chunkInfo)>, TChunkRemoveInfo>;
+
+        YT_VERIFY(!location->GetNode());
+        YT_LOG_ALERT("Data node reported %v heartbeat with dangling location (%vChunkId: %v, NodeId: %v, NodeAddress: %v, LocationId: %v)",
+            FullHeartbeat ? "full" : "incremental",
+            FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
+            FromProto<TChunkId>(chunkInfo.chunk_id()),
+            node->GetId(),
+            node->GetDefaultAddress(),
+            location->GetId());
+        THROW_ERROR_EXCEPTION("%v heartbeats with replicas in dangling locations are invalid",
+            FullHeartbeat ? "Full" : "Incremental");
     }
 
     void ScheduleEndorsement(TChunk* chunk)
@@ -3179,6 +3213,13 @@ private:
                     ++EndorsementsConfirmed_;
                 }
             }
+        }
+
+        for (const auto& chunkInfo : request->added_chunks()) {
+            AlertAndThrowOnDanglingLocation<false>(chunkInfo, node);
+        }
+        for (const auto& chunkInfo : request->removed_chunks()) {
+            AlertAndThrowOnDanglingLocation<false>(chunkInfo, node);
         }
 
         std::vector<TChunk*> announceReplicaRequests;
