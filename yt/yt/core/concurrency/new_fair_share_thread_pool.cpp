@@ -292,7 +292,6 @@ struct TBucketBase
     TExecutionPool* Pool = nullptr;
 
     TCpuDuration ExcessTime = 0;
-    int CurrentExecutions = 0;
 
     TEnqueuedTime EnqueuedTime;
 
@@ -610,10 +609,17 @@ private:
 
             auto* pool = bucket->Pool;
             if (!pool->GetPositionInHeap()) {
-                // ActionCountInQueue considers also currently executing actions.
-                if (pool->ActionCountInQueue == 0) {
-                    // Use last excess time to schedule new pool
+                // ExcessTime can be greater than last pool excess time
+                // if the pool is "currently executed" and reschedules action.
+                if (pool->ExcessTime < LastPoolExcessTime_) {
+                    // Use last pool excess time to schedule new pool
                     // after earlier scheduled pools (and not yet executed) in queue.
+
+                    YT_LOG_DEBUG_IF(VerboseLogging_, "Initial pool excess time (Name: %v, ExcessTime: %v -> %v)",
+                        pool->PoolName,
+                        pool->ExcessTime,
+                        LastPoolExcessTime_);
+
                     pool->ExcessTime = LastPoolExcessTime_;
                 }
 
@@ -634,10 +640,17 @@ private:
             YT_ASSERT(wasEmpty == !bucket->GetPositionInHeap());
 
             if (!bucket->GetPositionInHeap()) {
-                // Otherwise ExcessTime will be recalculated in AccountCurrentlyExecutingBuckets.
-                if (bucket->CurrentExecutions == 0) {
-                    // Use last excess time to schedule new bucket
+                // ExcessTime can be greater than last bucket excess time
+                // if the bucket is "currently executed" and reschedules action.
+                if (bucket->ExcessTime < pool->LastBucketExcessTime) {
+                    // Use last bucket excess time to schedule new bucket
                     // after earlier scheduled buckets (and not yet executed) in queue.
+
+                    YT_LOG_DEBUG_IF(VerboseLogging_, "Initial bucket excess time (Name: %v, ExcessTime: %v -> %v)",
+                        bucket->BucketName,
+                        bucket->ExcessTime,
+                        pool->LastBucketExcessTime);
+
                     bucket->ExcessTime = pool->LastBucketExcessTime;
                 }
 
@@ -664,10 +677,6 @@ private:
         YT_ASSERT(!threadState->Action.Callback);
         YT_ASSERT(!threadState->Action.BucketHolder);
 
-        auto* bucket = action.BucketHolder.Get();
-
-        ++bucket->CurrentExecutions;
-
         action.StartedAt = currentInstant;
 
         threadState->AccountedAt = currentInstant;
@@ -690,10 +699,6 @@ private:
         // Try not to change bucket ref count under lock.
         auto bucket = std::move(action.BucketHolder);
 
-        // Expected that excess time is already updated in combiner.
-        auto currentExecutions = bucket->CurrentExecutions--;
-        YT_ASSERT(currentExecutions > 0);
-
         auto& pool = *bucket->Pool;
         YT_ASSERT(pool.PoolName == bucket->PoolName);
 
@@ -715,6 +720,12 @@ private:
             pool->NextUpdateWeightInstant = currentInstant + DurationToCpuDuration(TDuration::Seconds(1));
             pool->InverseWeight = 1.0 / PoolWeightProvider_->GetWeight(pool->PoolName);
         }
+
+        YT_LOG_DEBUG_IF(VerboseLogging_, "Increment excess time (BucketName: %v, PoolName: %v, ExcessTime: %v -> %v)",
+            bucket->BucketName,
+            bucket->PoolName,
+            bucket->ExcessTime,
+            bucket->ExcessTime + duration);
 
         pool->ExcessTime += duration * pool->InverseWeight;
         bucket->ExcessTime += duration;
@@ -740,13 +751,15 @@ private:
                 xrange(size_t(0), ActivePoolsHeap_.GetSize()),
                 [&] (auto* builder, auto index) {
                     auto& pool = ActivePoolsHeap_[index];
-                    builder->AppendFormat("%vus[", pool.ExcessTime);
+                    builder->AppendFormat("%v [", CpuDurationToDuration(pool.ExcessTime));
 
                     for (size_t bucketIndex = 0; bucketIndex < pool.ActiveBucketsHeap.GetSize(); ++bucketIndex) {
                         const auto& bucket = pool.ActiveBucketsHeap[bucketIndex];
 
                         builder->AppendFormat("%Qv:%v/%v ",
-                            bucket.BucketName, bucket.ExcessTime, bucket.ActionQueue.front().EnqueuedAt);
+                            bucket.BucketName,
+                            CpuDurationToDuration(bucket.ExcessTime),
+                            bucket.ActionQueue.front().EnqueuedAt);
                     }
                     builder->AppendFormat("]");
                 }));
