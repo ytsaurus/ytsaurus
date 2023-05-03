@@ -254,9 +254,10 @@ class TestProbingLayer(TestLayers):
             write_table(f"<append=%true>{TestProbingLayer.INPUT_TABLE}", [{"k": key, "layer": "LAYER"}])
 
     @staticmethod
-    def get_spec(user_slots, max_failed_job_count):
+    def get_spec(user_slots, max_failed_job_count, max_speculative_job_count_per_task):
         return {
             "max_failed_job_count": max_failed_job_count,
+            "max_speculative_job_count_per_task": max_speculative_job_count_per_task,
             "mapper": {
                 "default_base_layer_path": "//tmp/layer2",
                 "probing_base_layer_path": "//tmp/layer1",
@@ -270,12 +271,12 @@ class TestProbingLayer(TestLayers):
         }
 
     @staticmethod
-    def run_map(command, job_count, user_slots, max_failed_job_count=0):
+    def run_map(command, job_count, user_slots, max_failed_job_count=0, max_speculative_job_count_per_task=10):
         op = map(
             in_=TestProbingLayer.INPUT_TABLE,
             out=TestProbingLayer.OUTPUT_TABLE,
             command=command,
-            spec=TestProbingLayer.get_spec(user_slots, max_failed_job_count),
+            spec=TestProbingLayer.get_spec(user_slots, max_failed_job_count, max_speculative_job_count_per_task),
         )
 
         assert get(f"{TestProbingLayer.INPUT_TABLE}/@row_count") == get(f"{TestProbingLayer.OUTPUT_TABLE}/@row_count")
@@ -341,6 +342,31 @@ class TestProbingLayer(TestLayers):
                 break
 
         assert try_count < self.MAX_TRIES
+
+    @authors("galtsev")
+    def test_probing_layer_disabled(self):
+        self.setup_files()
+
+        job_count = 7
+        self.create_tables(job_count)
+
+        command = (
+            "if test -e $YT_ROOT_FS/test; then "
+            "    sed 's/LAYER/default/g'; "
+            "else "
+            "    sed 's/LAYER/probing/g'; "
+            "fi"
+        )
+
+        op = self.run_map(command, job_count, user_slots=1, max_speculative_job_count_per_task=0)
+
+        assert op.get_job_count("failed") == 0
+
+        counter = Counter([row["layer"] for row in read_table(self.OUTPUT_TABLE)])
+        assert counter["default"] == job_count
+        assert counter["probing"] == 0
+
+        assert op.get_job_count("aborted") == 0
 
     @authors("galtsev")
     @pytest.mark.timeout(600)

@@ -527,10 +527,14 @@ void TTask::ScheduleJob(
     auto nodeId = context->GetNodeDescriptor().Id;
     const auto& address = context->GetNodeDescriptor().Address;
 
+    auto isLayerProbingAllowed = LayerProbingJobManager_.IsLayerProbingEnabled() &&
+        TaskHost_->GetSpec()->MaxProbingJobCountPerTask != 0 &&
+        TaskHost_->GetSpec()->MaxSpeculativeJobCountPerTask != 0;
+
     if (treeIsProbing) {
         joblet->CompetitionType = EJobCompetitionType::Probing;
         joblet->OutputCookie = ProbingJobManager_.PeekJobCandidate();
-    } else if (LayerProbingJobManager_.IsLayerProbingEnabled() && LayerProbingJobManager_.IsLayerProbeReady()) {
+    } else if (isLayerProbingAllowed && LayerProbingJobManager_.IsLayerProbeReady()) {
         joblet->CompetitionType = EJobCompetitionType::LayerProbing;
         joblet->OutputCookie = LayerProbingJobManager_.PeekJobCandidate();
     } else if (speculative) {
