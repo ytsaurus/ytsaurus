@@ -1417,6 +1417,11 @@ struct TVanillaTask
     /// @note If @ref NYT::TUserOperationSpecBase::FailOnJobRestart is `false`, a failed job will be restarted
     /// and will not count in this amount.
     FLUENT_FIELD(ui64, JobCount);
+
+    ///
+    /// @brief Network project name.
+    FLUENT_FIELD(TMaybe<TString>, NetworkProject);
+
 };
 
 ///

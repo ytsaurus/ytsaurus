@@ -2040,6 +2040,9 @@ void ExecuteVanilla(
             fluent
                 .Item(task.Name_).BeginMap()
                     .Item("job_count").Value(task.JobCount_)
+                    .DoIf(task.NetworkProject_.Defined(), [&](TFluentMap fluent) {
+                        fluent.Item("network_project").Value(*task.NetworkProject_);
+                    })
                     .Do([&] (TFluentMap fluent) {
                         BuildUserJobFluently(
                             std::cref(jobPreparer),
@@ -2070,6 +2073,9 @@ void ExecuteVanilla(
             fluent
                 .Item(task.Name_).BeginMap()
                     .Item("job_count").Value(task.JobCount_)
+                    .DoIf(task.NetworkProject_.Defined(), [&](TFluentMap fluent) {
+                        fluent.Item("network_project").Value(*task.NetworkProject_);
+                    })
                     .Do([&] (TFluentMap fluent) {
                         BuildUserJobFluently(
                             std::cref(jobPreparer),
