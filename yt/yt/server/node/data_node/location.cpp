@@ -848,7 +848,7 @@ TString TChunkLocation::GetChunkPath(TChunkId chunkId) const
 
 void TChunkLocation::RemoveChunkFilesPermanently(TChunkId chunkId)
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    VERIFY_THREAD_AFFINITY_ANY();
 
     try {
         YT_LOG_DEBUG("Started removing chunk files (ChunkId: %v)", chunkId);
@@ -878,7 +878,7 @@ void TChunkLocation::RemoveChunkFilesPermanently(TChunkId chunkId)
 
 void TChunkLocation::RemoveChunkFiles(TChunkId chunkId, bool /*force*/)
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    VERIFY_THREAD_AFFINITY_ANY();
 
     RemoveChunkFilesPermanently(chunkId);
 }
@@ -1629,7 +1629,7 @@ bool TStoreLocation::HasEnoughSpace(i64 size) const
 
 void TStoreLocation::RemoveChunkFiles(TChunkId chunkId, bool force)
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    VERIFY_THREAD_AFFINITY_ANY();
 
     auto config = GetRuntimeConfig();
 
@@ -1788,8 +1788,6 @@ void TStoreLocation::RemoveTrashFiles(const TTrashChunkEntry& entry)
 
 void TStoreLocation::MoveChunkFilesToTrash(TChunkId chunkId)
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
-
     try {
         YT_LOG_DEBUG("Started moving chunk files to trash (ChunkId: %v)", chunkId);
 
