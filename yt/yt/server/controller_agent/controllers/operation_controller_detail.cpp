@@ -1810,6 +1810,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
         case EAutoMergeMode::Economy:
             maxIntermediateChunkCount = std::max(500, static_cast<int>(2.5 * sqrt(outputChunkCountEstimate)));
             chunkCountPerMergeJob = maxIntermediateChunkCount / 10;
+            maxIntermediateChunkCount *= OutputTables_.size();
             break;
         case EAutoMergeMode::Manual:
             maxIntermediateChunkCount = *autoMergeSpec->MaxIntermediateChunkCount;
