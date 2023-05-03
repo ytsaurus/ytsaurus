@@ -1967,7 +1967,7 @@ private:
                     replica->History.begin(),
                     replica->History.begin() + historyIndex);
 
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Forsaken old replica history items (RepliationCardId: %v, ReplicaId: %v, RetainTimestamp: %v, HistoryItemIndex: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Forsaken old replica history items (ReplicationCardId: %v, ReplicaId: %v, RetainTimestamp: %v, HistoryItemIndex: %v)",
                     replicationCardId,
                     replicaId,
                     retainTimestamp,

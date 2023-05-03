@@ -708,7 +708,7 @@ private:
         auto oldestTimestamp = GetReplicationProgressMinTimestamp(*progress);
         auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
 
-        YT_LOG_DEBUG("Rplica is in pulling mode, consider jumping (ReplicaMode: %v, OldestTimestmap: %v, HistoryItemIndex: %v)",
+        YT_LOG_DEBUG("Replica is in pulling mode, consider jumping (ReplicaMode: %v, OldestTimestmap: %v, HistoryItemIndex: %v)",
             ETabletWriteMode::Pull,
             oldestTimestamp,
             historyItemIndex);

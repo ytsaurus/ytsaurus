@@ -2642,7 +2642,7 @@ private:
         if (isStrictlyAdvanced) {
             tablet->RuntimeData()->ReplicationProgress.Store(progress);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updated tablet repication progress (TabletId: %v, TransactionId: %v, ReplicationProgress: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updated tablet replication progress (TabletId: %v, TransactionId: %v, ReplicationProgress: %v)",
                 tabletId,
                 transaction->GetId(),
                 static_cast<NChaosClient::TReplicationProgress>(*progress));
