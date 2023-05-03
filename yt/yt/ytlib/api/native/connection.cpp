@@ -1045,7 +1045,7 @@ private:
         return CreateRetryingChannel(
             GetConfig()->ChaosCellChannel,
             std::move(channel),
-            BIND([](const TError& error) {
+            BIND([] (const TError& error) {
                 if (IsRetriableError(error)) {
                     return true;
                 }
