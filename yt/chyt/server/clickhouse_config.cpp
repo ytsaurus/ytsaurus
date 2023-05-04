@@ -9,7 +9,7 @@ namespace NYT::NClickHouseServer {
 void TSystemLogConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("engine", &TThis::Engine)
-        .Default("ENGINE = Buffer('{database}', '{underlying_table_name}', 1, 1, 1800, 1000000000000, 1000000000000, 1000000000000, 1000000000000)");
+        .Default("ENGINE = Buffer('system', 'query_log_older', 1, 1, 1800, 1000000000000, 1000000000000, 1000000000000, 1000000000000)");
     registrar.Parameter("flush_interval_milliseconds", &TThis::FlushIntervalMilliseconds)
         .Default(100);
 }

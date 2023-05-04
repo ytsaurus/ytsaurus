@@ -365,6 +365,52 @@ void TQuerySamplingConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TClickHouseTableConfigPtr TClickHouseTableConfig::Create(TString database, TString name, TString engine)
+{
+    auto config = New<TClickHouseTableConfig>();
+    config->Database = std::move(database);
+    config->Name = std::move(name);
+    config->Engine = std::move(engine);
+    return config;
+}
+
+void TClickHouseTableConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("database", &TThis::Database)
+        .Default();
+    registrar.Parameter("name", &TThis::Name)
+        .Default();
+    registrar.Parameter("engine", &TThis::Engine)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TQueryLogConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("additional_tables", &TThis::AdditionalTables)
+        .Default();
+
+    // NB: .DefaultCtor() does not work properly for this case, so set default value in preprocessor.
+    // Will be fixed in YT-19026.
+    registrar.Preprocessor([](TThis* config){
+            config->AdditionalTables = {
+                TClickHouseTableConfig::Create(
+                    "system",
+                    "query_log_older",
+                    // NB: By default system.query_log flushes its data to system.query_log_older every 30m (1800s).
+                    // query_log_older should then guarantee that flushed data stays in memory for some fixed time.
+                    // It's done by setting flush preiod to 29m (1740s), which is lower that query_log flush period.
+                    // It guarantees that the query_log_older table will be empty during a query_log flush.
+                    // A flush period is counted from "first_writte_time", so writting to an empty Buffer table guarantees
+                    // that data will stay there at least for a specified period of time.
+                    "ENGINE = Buffer('', '', 1, 1, 1740, 1000000000000, 1000000000000, 1000000000000, 1000000000000)"),
+            };
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TYtConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("clique_id", &TThis::CliqueId)
@@ -469,6 +515,9 @@ void TYtConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("query_sampling", &TThis::QuerySampling)
+        .DefaultNew();
+
+    registrar.Parameter("query_log", &TThis::QueryLog)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {

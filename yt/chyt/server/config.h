@@ -482,6 +482,42 @@ DEFINE_REFCOUNTED_TYPE(TQuerySamplingConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TClickHouseTableConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TString Database;
+    TString Name;
+    TString Engine;
+
+    static TClickHouseTableConfigPtr Create(TString database, TString name, TString engine);
+
+    REGISTER_YSON_STRUCT(TClickHouseTableConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TClickHouseTableConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueryLogConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! AdditionalTables is a list of tables (except system.query_log itself)
+    //! which should be created for proper query_log operation.
+    std::vector<TClickHouseTableConfigPtr> AdditionalTables;
+
+    REGISTER_YSON_STRUCT(TQueryLogConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueryLogConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYtConfig
     : public NYTree::TYsonStruct
 {
@@ -560,6 +596,8 @@ public:
     TQueryRegistryConfigPtr QueryRegistry;
 
     TQuerySamplingConfigPtr QuerySampling;
+
+    TQueryLogConfigPtr QueryLog;
 
     REGISTER_YSON_STRUCT(TYtConfig);
 
