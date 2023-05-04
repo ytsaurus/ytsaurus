@@ -46,7 +46,7 @@
 #include <utility>
 
 #if defined(MAGIC_ENUM_CONFIG_FILE)
-#include MAGIC_ENUM_CONFIG_FILE
+#error #include MAGIC_ENUM_CONFIG_FILE
 #endif
 
 #if !defined(MAGIC_ENUM_USING_ALIAS_OPTIONAL)
