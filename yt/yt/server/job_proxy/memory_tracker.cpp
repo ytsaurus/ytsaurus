@@ -138,6 +138,15 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
                     auto processName = GetProcessName(pid);
                     auto commandLine = GetProcessCommandLine(pid);
 
+                    if (!commandLine.empty() && commandLine[0].EndsWith("/portod")) {
+                        YT_LOG_DEBUG("Memory tracker found portod, ignoring (Pid: %v, CommandLine: %v, Rss: %v, Shared: %v)",
+                            pid,
+                            commandLine,
+                            memoryUsage.Rss,
+                            memoryUsage.Shared);
+                        continue;
+                    }
+
                     i64 majorPageFaults = 0;
                     try {
                         majorPageFaults = GetProcessCumulativeMajorPageFaults(pid);
