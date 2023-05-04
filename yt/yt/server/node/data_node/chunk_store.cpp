@@ -522,7 +522,7 @@ void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
     const auto& location = chunk->GetLocation();
     auto state = location->GetState();
 
-    if (state == ELocationState::Enabled || state == ELocationState::Disabling) {
+    if (!(state == ELocationState::Enabled || state == ELocationState::Disabling)) {
         return;
     }
 
