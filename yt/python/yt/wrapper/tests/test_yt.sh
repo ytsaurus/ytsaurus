@@ -705,6 +705,29 @@ test_sort_order()
     check "c=3\nc=1\nc=4\nc=2\n" "$($YT read-table "$out_table" --format dsv | cut -f 3)"
 }
 
+test_dirtable()
+{
+    rm -rf source_files
+    rm -rf download_files
+    mkdir source_files
+    cat /dev/random | fold -w 1024 | head -512000 > source_files/random_file1
+    mkdir source_files/data
+    cat /dev/random | fold -w 1024 | head -512000 > source_files/data/random_file2
+    $YT dirtable upload --directory source_files --yt-table //home/wrapper_test/dirtable
+    mkdir download_files
+    $YT dirtable download --directory download_files --yt-table //home/wrapper_test/dirtable
+    check "" "$($diff -r source_files download_files)"
+    rm -rf download_files/*
+
+    cat /dev/random | fold -w 1024 | head -512000 > source_files/i_am_just_appended_random_file
+    $YT dirtable append-single-file --yt-name i_am_just_appended_random_file --fs-path source_files/i_am_just_appended_random_file --yt-table //home/wrapper_test/dirtable
+    $YT dirtable download --directory download_files --yt-table //home/wrapper_test/dirtable
+    check "" "$($diff -r source_files download_files)"
+
+    rm -rf source_files
+    rm -rf download_files
+}
+
 tear_down
 run_test test_cypress_commands
 run_test test_list_long_format
@@ -737,3 +760,4 @@ run_test test_check_permissions
 run_test test_transfer_account_resources
 run_test test_transfer_pool_resources
 run_test test_sort_order
+run_test test_dirtable

@@ -14,6 +14,7 @@ from yt.wrapper.cli_helpers import (
 from yt.wrapper.constants import GETTINGSTARTED_DOC_URL, TUTORIAL_DOC_URL
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.admin_commands import add_switch_leader_parser
+from yt.wrapper.dirtable_commands import add_dirtable_parsers
 from yt.wrapper.spec_builders import (
     MapSpecBuilder, ReduceSpecBuilder, MapReduceSpecBuilder, EraseSpecBuilder,
     MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder,
@@ -62,7 +63,7 @@ File commands:
     read-file, write-file
 Table commands:
     read-table, read-blob-table, write-table, create-temp-table,
-    alter-table, get-table-columnar-statistics
+    alter-table, get-table-columnar-statistics, dirtable
 Dynamic table commands:
     mount-table, unmount-table, remount-table, freeze-table, unfreeze-table, get-tablet-infos,
     reshard-table, reshard-table-automatic, balance-tablet-cells, trim-rows, alter-table-replica,
@@ -2121,6 +2122,12 @@ def add_admin_parser(root_subparsers):
     add_switch_leader_parser(admin_subparsers)
 
 
+def add_dirtable_parser(root_subparsers):
+    parser = populate_argument_help(root_subparsers.add_parser("dirtable", description="Upload/download to file system commands"))
+    dirtable_subparsers = parser.add_subparsers(metavar="dirtable_command", **SUBPARSER_KWARGS)
+    add_dirtable_parsers(dirtable_subparsers)
+
+
 def add_spark_parser(root_subparsers):
     parser = populate_argument_help(root_subparsers.add_parser("spark", description="Spark over YT commands"))
     spark_subparsers = parser.add_subparsers(metavar="spark_command", **SUBPARSER_KWARGS)
@@ -2624,6 +2631,8 @@ def main_func():
         add_idm_parser(subparsers)
 
     add_admin_parser(subparsers)
+
+    add_dirtable_parser(subparsers)
 
     if "_ARGCOMPLETE" in os.environ:
         completers.autocomplete(parser, append_space=False)
