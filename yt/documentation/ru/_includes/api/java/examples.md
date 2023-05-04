@@ -2,7 +2,7 @@
 
 Java API опубликовано в [maven](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.0.1).
 
-Документацию можно найти [здесь](https://javadoc.io/doc/tech.ytsaurus/ytsaurus-client/latest/index.html).
+Документацию можно найти [здесь](https://java.ytsaurus.tech).
 
 Примеры находятся в [yt/java/ytsaurus-client-examples](https://github.com/ytsaurus/ytsaurus/tree/main/yt/java/ytsaurus-client-examples).
 

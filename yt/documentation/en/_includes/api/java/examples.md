@@ -2,7 +2,7 @@
 
 We have Java SDK for YTsaurus which is published in [maven](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.0.1).
 
-A detailed description of the Java SDK is located [here](https://javadoc.io/doc/tech.ytsaurus/ytsaurus-client/latest/index.html).
+A detailed description of the Java SDK is located [here](https://java.ytsaurus.tech).
 
 The examples are located at [yt/java/ytsaurus-client-examples](https://github.com/ytsaurus/ytsaurus/tree/main/yt/java/ytsaurus-client-examples).
 
