@@ -1,6 +1,7 @@
 #include "clickhouse_server.h"
 
 #include "clickhouse_config.h"
+#include "config.h"
 #include "config_repository.h"
 #include "logger.h"
 #include "http_handler.h"
@@ -31,14 +32,13 @@
 #include <Interpreters/ExternalDictionariesLoader.h>
 #include <Interpreters/ProcessList.h>
 #include <Interpreters/QueryLog.h>
-#include <Interpreters/executeQuery.h>
 #include <Storages/StorageMemory.h>
+#include <Storages/System/attachSystemTables.h>
+#include <Storages/System/attachSystemTablesImpl.h>
 #include <Storages/System/StorageSystemAsynchronousMetrics.h>
 #include <Storages/System/StorageSystemDictionaries.h>
 #include <Storages/System/StorageSystemMetrics.h>
 #include <Storages/System/StorageSystemProcesses.h>
-#include <Storages/System/attachSystemTables.h>
-#include <Storages/System/attachSystemTablesImpl.h>
 
 #include <Poco/DirectoryIterator.h>
 #include <Poco/ThreadPool.h>
@@ -281,46 +281,34 @@ private:
 
     void PrepareSystemLogTables()
     {
-        YT_LOG_DEBUG("Preparing query log tables");
-        // This log won't actually be serving as log; we use it
-        // to extract table creation query and apply it to our two
-        // buffer tables implementing in-memory query log with rotation.
-        auto log = std::make_shared<DB::QueryLog>(
-            ServerContext_,
-            "system",
-            "{table_name}",
-            Config_->QueryLog->Engine,
-            Config_->QueryLog->FlushIntervalMilliseconds);
+        auto queryLogConfig = Host_->GetConfig()->QueryLog;
 
-        auto createTableAst = log->getCreateTableQuery();
-        auto createTableQuery = TString(DB::serializeAST(*createTableAst));
+        YT_LOG_DEBUG("Preparing tables for query log (AdditionalTableCount: %v)", queryLogConfig->AdditionalTables.size());
 
-        const TString TableNamePlaceholder = "{table_name}";
-        const TString UnderlyingTableNamePlaceholder = "{underlying_table_name}";
-        const TString DatabasePlaceholder = "{database}";
+        auto queryLogTables = queryLogConfig->AdditionalTables;
 
-        auto replace = [&] (TString query, TString placeholder, TString with) {
-            auto position = query.find(placeholder);
-            YT_VERIFY(position != TString::npos);
-            query.replace(position, placeholder.size(), with);
-            return query;
-        };
+        // In ClickHouse system.query_log is created after the first query has been executed.
+        // It leads to an error if the first query is 'select * from system.query_log'.
+        // To eliminate this, we explicitly create system.query_log among our own addition query log tables during startup.
+        queryLogTables.push_back(TClickHouseTableConfig::Create("system", "query_log", Config_->QueryLog->Engine));
 
-        auto createTableQueryNewer = createTableQuery;
-        createTableQueryNewer = replace(createTableQueryNewer, TableNamePlaceholder, "query_log");
-        createTableQueryNewer = replace(createTableQueryNewer, UnderlyingTableNamePlaceholder, "query_log_older");
-        createTableQueryNewer = replace(createTableQueryNewer, DatabasePlaceholder, "system");
+        for (const auto& table : queryLogTables) {
+            YT_LOG_DEBUG("Preparing query log table (Database: %v, Name: %v, Engine: %Qv)", table->Database, table->Name, table->Engine);
+            // NB: This is not a real QueryLog, it is needed only to create a table with proper query log structure.
+            auto queryLog = std::make_shared<DB::QueryLog>(
+                ServerContext_,
+                table->Database,
+                table->Name,
+                table->Engine,
+                /*flush_interval_milliseconds_*/ 42);  // flush_interval_milliseconds_ is not used, any value is OK.
 
-        YT_LOG_DEBUG("Creating newer query log table (Query: %v)", createTableQueryNewer);
-        DB::executeQuery(createTableQueryNewer, ServerContext_, true);
+            // prepareTable is public in ISystemLog interface, but is overwritten as private in QueryLog.
+            auto* systemLog = static_cast<DB::ISystemLog*>(queryLog.get());
+            systemLog->prepareTable();
+            YT_LOG_DEBUG("Query log table prepared (Database: %v, Name: %v)", table->Database, table->Name);
+        }
 
-        auto createTableQueryOlder = createTableQuery;
-        createTableQueryOlder = replace(createTableQueryOlder, TableNamePlaceholder, "query_log_older");
-        createTableQueryOlder = replace(createTableQueryOlder, UnderlyingTableNamePlaceholder, "");
-        createTableQueryOlder = replace(createTableQueryOlder, DatabasePlaceholder, "");
-
-        YT_LOG_DEBUG("Creating older query log table (Query: %v)", createTableQueryOlder);
-        DB::executeQuery(createTableQueryOlder, ServerContext_, true);
+        YT_LOG_DEBUG("Tables for query log prepared");
     }
 
     void SetupServers()

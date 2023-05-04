@@ -5,35 +5,45 @@ from yt_commands import (authors, print_debug)
 from yt.common import wait
 
 import time
-import pytest
 
 
 class TestQueryLog(ClickHouseTestBase):
     @staticmethod
-    def _get_engine_specification(period):
-        return (
-            "ENGINE = Buffer('{{database}}', '{{underlying_table_name}}', 1, 1, {}, "
-            "1000000000000, 1000000000000, 1000000000000, 1000000000000)".format(period)
-        )
+    def _get_query_log_patch(query_log_period, query_log_older_period):
+        return {
+            "clickhouse": {
+                "query_log": {
+                    "engine": f"ENGINE = Buffer('system', 'query_log_older', 1, 1, {query_log_period}, "
+                              "1000000000000, 1000000000000, 1000000000000, 1000000000000)",
+                },
+            },
+            "yt": {
+                "query_log": {
+                    "additional_tables": [
+                        {
+                            "database": "system",
+                            "name": "query_log_older",
+                            "engine": f"ENGINE = Buffer('', '', 1, 1, {query_log_older_period}, "
+                                      "1000000000000, 1000000000000, 1000000000000, 1000000000000)",
+                        },
+                    ],
+                },
+            },
+        }
 
     @authors("max42")
     def test_query_log_simple(self):
-        with Clique(
-                1, config_patch={"clickhouse": {"query_log": {"engine": self._get_engine_specification(1)}}}
-        ) as clique:
+        with Clique(1, config_patch=self._get_query_log_patch(1.5, 1)) as clique:
             clique.make_query("select 1")
             wait(lambda: len(clique.make_query("select * from system.query_log")) >= 1)
             time.sleep(6)
             assert len(clique.make_query("select * from system.query_log")) == 0
 
     @authors("max42")
-    @pytest.skip('Temporary broken because of CH bug: CHYT-633')
     def test_query_log_eviction(self):
         period = 3
 
-        with Clique(
-                1, config_patch={"clickhouse": {"query_log": {"engine": self._get_engine_specification(period)}}}
-        ) as clique:
+        with Clique(1, config_patch=self._get_query_log_patch(period, period-1)) as clique:
             timespan = 15
             counter = 0
             start = time.time()
