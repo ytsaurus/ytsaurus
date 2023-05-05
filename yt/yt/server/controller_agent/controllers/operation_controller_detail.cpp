@@ -8986,7 +8986,7 @@ void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
 
 void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     YT_LOG_DEBUG(
         "Releasing jobs (JobCount: %v)",
