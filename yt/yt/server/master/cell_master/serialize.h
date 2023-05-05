@@ -136,6 +136,7 @@ DEFINE_ENUM(EMasterReign,
     ((RequireMediumUsePermissionForChunkOwnerCreation)              (2321))  // kvk1920
     ((MakePerformanceCountersOpaque)                                (2322))  // alexelexa
     ((FixMulticellHunkStorage)                                      (2323))  // gritukan
+    ((FixAttachHunksWithDynamicStoreRead)                           (2324))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1377,9 +1377,13 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_journal_hunk_chunk_parents(self, optimize_for):
+    @pytest.mark.parametrize("enable_dynamic_store_read", [True, False])
+    def test_journal_hunk_chunk_parents(self, optimize_for, enable_dynamic_store_read):
+        set("//sys/@config/tablet_manager/enable_dynamic_store_read_by_default", enable_dynamic_store_read)
+
         sync_create_cells(1)
         self._create_table(optimize_for=optimize_for)
+        set("//tmp/t/@enable_dynamic_store_read", enable_dynamic_store_read)
 
         create("hunk_storage", "//tmp/h", attributes={
             "store_rotation_period": 20000,

@@ -645,11 +645,13 @@ public:
             }
         }
 
+        std::vector<TChunkTree*> hunkChunksToAttach;
+        hunkChunksToAttach.reserve(request->hunk_chunks_to_add_size());
         for (const auto& descriptor : request->hunk_chunks_to_add()) {
             auto chunkId = FromProto<TChunkId>(descriptor.chunk_id());
             auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
             validateChunkAttach(chunk);
-            chunksToAttach.push_back(chunk);
+            hunkChunksToAttach.push_back(chunk);
         }
 
         if (updateReason == ETabletStoresUpdateReason::Flush) {
@@ -707,10 +709,12 @@ public:
             }
         }
 
+        std::vector<TChunkTree*> hunkChunksToDetach;
+        hunkChunksToDetach.reserve(request->hunk_chunks_to_remove_size());
         for (const auto& descriptor : request->hunk_chunks_to_remove()) {
             auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
             auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
-            chunksOrViewsToDetach.push_back(chunk);
+            hunkChunksToDetach.push_back(chunk);
         }
 
         // Update last commit timestamp.
@@ -776,6 +780,14 @@ public:
                     ? EChunkDetachPolicy::OrderedTabletPrefix
                     : EChunkDetachPolicy::SortedTablet);
         }
+
+        AttachChunksToTablet(tablet, hunkChunksToAttach);
+        DetachChunksFromTablet(
+            tablet,
+            hunkChunksToDetach,
+            table->IsPhysicallySorted()
+                ? EChunkDetachPolicy::SortedTablet
+                : EChunkDetachPolicy::OrderedTabletPrefix);
 
         // Unstage just attached chunks.
         for (auto* chunk : chunksToAttach) {
