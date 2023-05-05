@@ -766,8 +766,6 @@ def _build_node_configs(node_dirs,
                 cypress_proxy_rpc_ports,
                 config_template=config["cluster_connection"])
 
-        set_at(config, "data_node/multiplexed_changelog/path", os.path.join(node_dirs[index], "multiplexed"))
-
         cache_location_config = {
             "quota": 256 * MB,
             "io_config": {
