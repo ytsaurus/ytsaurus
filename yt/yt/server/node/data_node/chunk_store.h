@@ -34,6 +34,7 @@ struct IChunkStoreHost
     virtual void SubscribePopulateAlerts(TCallback<void(std::vector<TError>*)> alerts) = 0;
     virtual NClusterNode::TMasterEpoch GetMasterEpoch() = 0;
     virtual INodeMemoryTrackerPtr GetMemoryUsageTracker() = 0;
+    virtual void CancelLocationSessions(const TChunkLocationPtr& location) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStoreHost)

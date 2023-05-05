@@ -64,6 +64,9 @@ public:
         return MemoryUsageTracker_;
     }
 
+    void CancelLocationSessions(const TChunkLocationPtr& /*location*/) override
+    { }
+
 private:
     const INodeMemoryTrackerPtr MemoryUsageTracker_ = CreateNodeMemoryTracker(1_GBs);
 };

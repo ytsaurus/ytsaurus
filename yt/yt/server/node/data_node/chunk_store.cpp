@@ -77,6 +77,15 @@ public:
         return Bootstrap_->GetMemoryUsageTracker();
     }
 
+    void CancelLocationSessions(const TChunkLocationPtr& location) override
+    {
+        auto sessionManager = Bootstrap_->GetDataNodeBootstrap()->GetSessionManager();
+
+        if (sessionManager) {
+            sessionManager->CancelLocationSessions(location);
+        }
+    }
+
 private:
     NClusterNode::IBootstrapBase* const Bootstrap_;
 };

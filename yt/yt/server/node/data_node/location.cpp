@@ -1854,6 +1854,8 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
 
     BIND([=, this, this_ = MakeStrong(this)] () {
         try {
+            ChunkStoreHost_->CancelLocationSessions(MakeStrong(static_cast<TChunkLocation*>(this)));
+
             WaitFor(BIND(&TStoreLocation::SynchronizeActions, MakeStrong(this))
                 .AsyncVia(GetAuxPoolInvoker())
                 .Run())

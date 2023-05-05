@@ -49,6 +49,9 @@ public:
     //! Updates the flags indicating if new write sessions are disabled.
     void SetDisableWriteSessions(bool value);
 
+    //! Cancel all location sessions.
+    void CancelLocationSessions(const TChunkLocationPtr& location);
+
 private:
     const TDataNodeConfigPtr Config_;
     IBootstrap* const Bootstrap_;

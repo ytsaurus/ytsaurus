@@ -284,6 +284,23 @@ void TSessionManager::OnChunkRemovalScheduled(const IChunkPtr& chunk)
     }
 }
 
+void TSessionManager::CancelLocationSessions(const TChunkLocationPtr& location)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    THashMap<TSessionId, ISessionPtr> sessionMap;
+    {
+        auto guard = ReaderGuard(SessionMapLock_);
+        sessionMap = SessionMap_;
+    }
+
+    for (const auto& [sessionId, session] : sessionMap) {
+        if (location == session->GetStoreLocation()) {
+            session->Cancel(TError("Location disabled (LocationUuid: %v)", location->GetUuid()));
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDataNode
