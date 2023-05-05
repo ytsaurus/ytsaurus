@@ -115,7 +115,6 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/fair_throttler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/fiber.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/fiber_scheduler_thread.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/finalizer_thread.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/fls.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/new_fair_share_thread_pool.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/notify_manager.cpp
@@ -132,6 +131,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/single_queue_scheduler_thread.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/thread.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/suspendable_action_queue.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/system_invokers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/thread_affinity.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/thread_pool.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/thread_pool_detail.cpp

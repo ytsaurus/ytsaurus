@@ -181,7 +181,7 @@ THazardPointerManager::THazardPointerManager()
 
 void THazardPointerManager::Shutdown()
 {
-    if (auto* logFile = GetShutdownLogFile()) {
+    if (auto* logFile = TryGetShutdownLogFile()) {
         ::fprintf(logFile, "*** Hazard Pointer Manager shutdown started (ThreadCount: %d)\n",
             ThreadCount_.load());
     }
@@ -192,7 +192,7 @@ void THazardPointerManager::Shutdown()
         ++count;
     });
 
-    if (auto* logFile = GetShutdownLogFile()) {
+    if (auto* logFile = TryGetShutdownLogFile()) {
         ::fprintf(logFile, "*** Hazard Pointer Manager shutdown completed (DeletedPtrCount: %d)\n",
             count);
     }
@@ -279,7 +279,7 @@ THazardThreadState* THazardPointerManager::AllocateThreadState()
         ++ThreadCount_;
     }
 
-    if (auto* logFile = GetShutdownLogFile()) {
+    if (auto* logFile = TryGetShutdownLogFile()) {
         ::fprintf(logFile, "*** Hazard Pointer Manager thread state allocated (ThreadId: %" PRISZT ")\n",
             GetCurrentThreadId());
     }
@@ -371,7 +371,7 @@ void THazardPointerManager::DestroyThreadState(THazardThreadState* threadState)
         ++count;
     }
 
-    if (auto* logFile = GetShutdownLogFile()) {
+    if (auto* logFile = TryGetShutdownLogFile()) {
         ::fprintf(logFile, "*** Hazard Pointer Manager thread state destroyed (ThreadId: %" PRISZT ", RetiredPtrCount: %d)\n",
             GetCurrentThreadId(),
             count);

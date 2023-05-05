@@ -3,6 +3,7 @@
 #include "fair_share_queue_scheduler_thread.h"
 #include "private.h"
 #include "profiling_helpers.h"
+#include "system_invokers.h"
 
 #include <yt/yt/core/actions/current_invoker.h>
 #include <yt/yt/core/actions/invoker_util.h>
@@ -47,7 +48,7 @@ public:
 
     ~TImpl()
     {
-        Shutdown(false);
+        Shutdown(/*graceful*/ false);
     }
 
     void Shutdown(bool graceful)
@@ -58,11 +59,10 @@ public:
 
         Queue_->Shutdown();
 
-        FinalizerInvoker_->Invoke(BIND_NO_PROPAGATE([graceful, thread = Thread_, queue = Queue_] {
+        ShutdownInvoker_->Invoke(BIND_NO_PROPAGATE([graceful, thread = Thread_, queue = Queue_] {
             thread->Stop(graceful);
             queue->DrainConsumer();
         }));
-        FinalizerInvoker_.Reset();
     }
 
     const IInvokerPtr& GetInvoker()
@@ -76,12 +76,12 @@ private:
     const TMpscInvokerQueuePtr Queue_;
     const IInvokerPtr Invoker_;
     const TMpscSingleQueueSchedulerThreadPtr Thread_;
+
     const TShutdownCookie ShutdownCookie_;
+    const IInvokerPtr ShutdownInvoker_ = GetShutdownInvoker();
 
     std::atomic<bool> Started_ = false;
     std::atomic<bool> Stopped_ = false;
-
-    IInvokerPtr FinalizerInvoker_ = GetFinalizerInvoker();
 
 
     void EnsureStarted()

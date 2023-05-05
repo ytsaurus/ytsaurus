@@ -34,7 +34,7 @@ public:
         auto guard = Guard(Lock_);
 
         if (ShutdownStarted_.load()) {
-            if (auto* logFile = GetShutdownLogFile()) {
+            if (auto* logFile = TryGetShutdownLogFile()) {
                 ::fprintf(logFile, "*** Attempt to register shutdown callback when shutdown is already in progress (Name: %s)\n",
                     name.c_str());
             }
@@ -47,7 +47,7 @@ public:
         registeredCallback->Priority = priority;
         InsertOrCrash(RegisteredCallbacks_, registeredCallback.Get());
 
-        if (auto* logFile = GetShutdownLogFile()) {
+        if (auto* logFile = TryGetShutdownLogFile()) {
             ::fprintf(logFile, "*** Shutdown callback registered (Name: %s, Priority: %d)\n",
                 registeredCallback->Name.c_str(),
                 registeredCallback->Priority);
@@ -70,7 +70,7 @@ public:
             ShutdownStarted_.store(true);
             ShutdownThreadId_.store(GetCurrentThreadId());
 
-            if (auto* logFile = GetShutdownLogFile()) {
+            if (auto* logFile = TryGetShutdownLogFile()) {
                 ::fprintf(logFile, "*** Shutdown started (ThreadId: %" PRISZT ")\n",
                     GetCurrentThreadId());
             }
@@ -105,7 +105,7 @@ public:
 
         for (auto it = registeredCallbacks.rbegin(); it != registeredCallbacks.rend(); it++) {
             const auto& registeredCallback = *it;
-            if (auto* logFile = GetShutdownLogFile()) {
+            if (auto* logFile = TryGetShutdownLogFile()) {
                 ::fprintf(logFile, "*** Running callback (Name: %s, Priority: %d)\n",
                     registeredCallback.Name.c_str(),
                     registeredCallback.Priority);
@@ -118,7 +118,7 @@ public:
         watchdogThread.join();
     #endif
 
-        if (auto* logFile = GetShutdownLogFile()) {
+        if (auto* logFile = TryGetShutdownLogFile()) {
             ::fprintf(logFile, "*** Shutdown completed\n");
         }
     }
@@ -146,7 +146,7 @@ public:
         ShutdownLogFile_.store(file);
     }
 
-    FILE* GetShutdownLogFile()
+    FILE* TryGetShutdownLogFile()
     {
         return ShutdownLogFile_.load();
     }
@@ -193,7 +193,7 @@ private:
     void UnregisterShutdownCallback(TRefCountedRegisteredCallback* registeredCallback)
     {
         auto guard = Guard(Lock_);
-        if (auto* logFile = GetShutdownLogFile()) {
+        if (auto* logFile = TryGetShutdownLogFile()) {
             ::fprintf(logFile, "*** Shutdown callback unregistered (Name: %s, Priority: %d)\n",
                 registeredCallback->Name.c_str(),
                 registeredCallback->Priority);
@@ -237,9 +237,9 @@ void EnableShutdownLoggingToFile(const TString& fileName)
     TShutdownManager::Get()->EnableShutdownLoggingToFile(fileName);
 }
 
-FILE* GetShutdownLogFile()
+FILE* TryGetShutdownLogFile()
 {
-    return TShutdownManager::Get()->GetShutdownLogFile();
+    return TShutdownManager::Get()->TryGetShutdownLogFile();
 }
 
 size_t GetShutdownThreadId()
@@ -255,7 +255,7 @@ static const void* ShutdownGuardInitializer = [] {
     public:
         ~TShutdownGuard()
         {
-            if (auto* logFile = TShutdownManager::Get()->GetShutdownLogFile()) {
+            if (auto* logFile = TShutdownManager::Get()->TryGetShutdownLogFile()) {
                 fprintf(logFile, "*** Shutdown guard destructed\n");
             }
             Shutdown();

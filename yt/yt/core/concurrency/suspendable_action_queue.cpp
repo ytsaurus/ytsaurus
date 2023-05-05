@@ -2,6 +2,7 @@
 
 #include "profiling_helpers.h"
 #include "single_queue_scheduler_thread.h"
+#include "system_invokers.h"
 
 #include <yt/yt/core/actions/invoker_util.h>
 
@@ -42,11 +43,10 @@ public:
 
         Queue_->Shutdown();
 
-        FinalizerInvoker_->Invoke(BIND([graceful, thread = Thread_, queue = Queue_] {
+        ShutdownInvoker_->Invoke(BIND([graceful, thread = Thread_, queue = Queue_] {
             thread->Shutdown(graceful);
             queue->DrainConsumer();
         }));
-        FinalizerInvoker_.Reset();
     }
 
     const IInvokerPtr& GetInvoker() override
@@ -75,12 +75,12 @@ private:
     const TMpscInvokerQueuePtr Queue_;
     const IInvokerPtr Invoker_;
     const TMpscSuspendableSingleQueueSchedulerThreadPtr Thread_;
+
     const TShutdownCookie ShutdownCookie_;
+    const IInvokerPtr ShutdownInvoker_ = GetShutdownInvoker();
 
     std::atomic<bool> Started_ = false;
     std::atomic<bool> Stopped_ = false;
-
-    IInvokerPtr FinalizerInvoker_ = GetFinalizerInvoker();
 
     void EnsureStarted()
     {

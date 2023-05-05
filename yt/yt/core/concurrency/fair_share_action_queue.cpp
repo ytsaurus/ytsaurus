@@ -2,11 +2,13 @@
 
 #include "fair_share_queue_scheduler_thread.h"
 #include "profiling_helpers.h"
+#include "system_invokers.h"
 
 #include <yt/yt/core/actions/invoker_util.h>
 #include <yt/yt/core/actions/invoker_detail.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/core/ypath/token.h>
 
@@ -28,6 +30,10 @@ public:
         const TString& threadName,
         const std::vector<TString>& queueNames,
         const THashMap<TString, std::vector<TString>>& queueToBucket)
+        : ShutdownCookie_(RegisterShutdownCallback(
+            Format("FairShareActionQueue(%v)", threadName),
+            BIND_NO_PROPAGATE(&TFairShareActionQueue::Shutdown, MakeWeak(this), /*graceful*/ false),
+            /*priority*/ 100))
     {
         THashMap<TString, int> queueNameToIndex;
         for (int queueIndex = 0; queueIndex < std::ssize(queueNames); ++queueIndex) {
@@ -88,10 +94,10 @@ public:
 
     ~TFairShareActionQueue()
     {
-        Shutdown();
+        Shutdown(/*graceful*/ false);
     }
 
-    void Shutdown()
+    void Shutdown(bool graceful)
     {
         if (Stopped_.exchange(true)) {
             return;
@@ -99,11 +105,10 @@ public:
 
         Queue_->Shutdown();
 
-        FinalizerInvoker_->Invoke(BIND([thread = Thread_, queue = Queue_] {
-            thread->Stop();
+        ShutdownInvoker_->Invoke(BIND([graceful, thread = Thread_, queue = Queue_] {
+            thread->Stop(graceful);
             queue->DrainConsumer();
         }));
-        FinalizerInvoker_.Reset();
     }
 
     const IInvokerPtr& GetInvoker(int index) override
@@ -132,10 +137,13 @@ public:
     }
 
 private:
+    const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_ = New<NThreading::TEventCount>();
+
+    const TShutdownCookie ShutdownCookie_;
+    const IInvokerPtr ShutdownInvoker_ = GetShutdownInvoker();
+
     TFairShareInvokerQueuePtr Queue_;
     TFairShareQueueSchedulerThreadPtr Thread_;
-
-    const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_ = New<NThreading::TEventCount>();
 
     std::vector<int> QueueIndexToBucketIndex_;
     std::vector<int> QueueIndexToBucketQueueIndex_;
@@ -144,8 +152,6 @@ private:
 
     std::atomic<bool> Started_ = false;
     std::atomic<bool> Stopped_ = false;
-
-    IInvokerPtr FinalizerInvoker_ = GetFinalizerInvoker();
 
 
     void EnsuredStarted()

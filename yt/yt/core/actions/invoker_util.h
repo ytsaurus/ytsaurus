@@ -30,10 +30,6 @@ IInvokerPtr GetNullInvoker();
 
 //! Returns a special per-process invoker that handles all asynchronous finalization
 //! activities (fiber unwinding, abandoned promise cancelation etc).
-/*!
- *  This call may return a null invoker (cf. #GetNullInvoker) if the finalizer thread has been shut down.
- *  This is the caller's responsibility to handle such a case gracefully.
- */
 IInvokerPtr GetFinalizerInvoker();
 
 //! Tries to invoke #onSuccess via #invoker.

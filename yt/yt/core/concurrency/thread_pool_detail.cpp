@@ -1,4 +1,6 @@
 #include "thread_pool_detail.h"
+
+#include "system_invokers.h"
 #include "private.h"
 
 #include <yt/yt/core/actions/invoker_util.h>
@@ -48,15 +50,6 @@ TString TThreadPoolBase::MakeThreadName(int index)
     return Format("%v:%v", ThreadNamePrefix_, index);
 }
 
-void TThreadPoolBase::EnsureFinalizerInvoker()
-{
-    auto guard = Guard(SpinLock_);
-    if (!FinalizerInvoker_) {
-        FinalizerInvoker_ = GetFinalizerInvoker();
-        YT_VERIFY(FinalizerInvoker_);
-    }
-}
-
 void TThreadPoolBase::DoStart()
 {
     decltype(Threads_) threads;
@@ -65,8 +58,6 @@ void TThreadPoolBase::DoStart()
         threads = Threads_;
     }
 
-    EnsureFinalizerInvoker();
-
     for (const auto& thread : threads) {
         thread->Start();
     }
@@ -74,16 +65,7 @@ void TThreadPoolBase::DoStart()
 
 void TThreadPoolBase::DoShutdown()
 {
-    EnsureFinalizerInvoker();
-
-    IInvokerPtr finalizerInvoker;
-    {
-        auto guard = Guard(SpinLock_);
-        finalizerInvoker = FinalizerInvoker_;
-        FinalizerInvoker_.Reset();
-    }
-
-    finalizerInvoker->Invoke(MakeFinalizerCallback());
+    GetFinalizerInvoker()->Invoke(MakeFinalizerCallback());
 }
 
 TClosure TThreadPoolBase::MakeFinalizerCallback()

@@ -38,10 +38,8 @@ protected:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::vector<TSchedulerThreadBasePtr> Threads_;
-    IInvokerPtr FinalizerInvoker_;
 
     void Resize();
-    void EnsureFinalizerInvoker();
 
     TString MakeThreadName(int index);
 

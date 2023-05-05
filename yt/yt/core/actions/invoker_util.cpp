@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/fls.h>
-#include <yt/yt/core/concurrency/finalizer_thread.h>
+#include <yt/yt/core/concurrency/system_invokers.h>
 
 #include <yt/yt/core/misc/lazy_ptr.h>
 #include <yt/yt/core/misc/singleton.h>

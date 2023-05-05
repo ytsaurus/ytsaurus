@@ -67,7 +67,7 @@ void EnableShutdownLoggingToStderr();
 void EnableShutdownLoggingToFile(const TString& fileName);
 
 //! Returns the pointer to the log file if shutdown logging has been enabled or nullptr otherwise.
-FILE* GetShutdownLogFile();
+FILE* TryGetShutdownLogFile();
 
 //! In case the global shutdown has been started, returns
 //! the id of the thread invoking shutdown callbacks.
