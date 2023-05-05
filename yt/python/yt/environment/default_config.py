@@ -569,7 +569,6 @@ def get_node_config():
     master_connector = {
         heartbeat_period = 100;
         heartbeat_period_splay = 30;
-        lease_transaction_timeout = 3000;
     };
 
     use_new_heartbeats = %true;
@@ -678,7 +677,6 @@ def get_chaos_node_config():
     master_connector = {
         heartbeat_period = 100;
         heartbeat_period_splay = 30;
-        lease_transaction_timeout = 3000;
     };
 
     use_new_heartbeats = %true;
