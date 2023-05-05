@@ -24,6 +24,9 @@ void TTestingOptions::Register(TRegistrar registrar)
 
     registrar.Parameter("delay_in_unregistration", &TThis::DelayInUnregistration)
         .Default();
+
+    registrar.Parameter("delay_in_handshake", &TThis::DelayInHandshake)
+        .Default();
 }
 
 void TLowGpuPowerUsageOnWindowConfig::Register(TRegistrar registrar)

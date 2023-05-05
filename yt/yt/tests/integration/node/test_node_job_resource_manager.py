@@ -1,7 +1,7 @@
-from yt_env_setup import YTEnvSetup, wait
+from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, update_nodes_dynamic_config, ls, get)
+    authors, update_nodes_dynamic_config, ls, get, wait)
 
 
 class TestMemoryPressureDetector(YTEnvSetup):

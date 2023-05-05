@@ -1309,6 +1309,10 @@ private:
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
+        if (auto maybeDelay = Config_->TestingOptions->DelayInHandshake) {
+            TDelayedExecutor::WaitForDuration(*maybeDelay);
+        }
+
         YT_LOG_DEBUG("Handshake succeeded");
 
         IncarnationId_ = FromProto<TIncarnationId>(rsp->incarnation_id());

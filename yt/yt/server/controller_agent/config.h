@@ -70,6 +70,9 @@ public:
     //! If this option is set, controller agent sleeps for this duration before performing actual unregistration.
     std::optional<TDuration> DelayInUnregistration;
 
+    //! If this option is set, controller agent sleeps for this duration before finishing handshake.
+    std::optional<TDuration> DelayInHandshake;
+
     REGISTER_YSON_STRUCT(TTestingOptions)
 
     static void Register(TRegistrar registrar);
