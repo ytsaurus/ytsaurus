@@ -250,7 +250,7 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_unpreemptible_running_job_count", &TThis::MaxUnpreemptibleRunningJobCount)
         .Alias("max_unpreemptable_running_job_count")
-        .Default(10);
+        .Default();
 
     registrar.Parameter("non_preemptible_resource_usage_threshold", &TThis::NonPreemptibleResourceUsageThreshold)
         .DefaultNew();
@@ -792,7 +792,7 @@ void TControllerAgentTrackerConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("message_offload_thread_count", &TThis::MessageOffloadThreadCount)
-        .Default(4)
+        .Default(1)
         .GreaterThan(0);
 
     registrar.Parameter("enable_response_keeper", &TThis::EnableResponseKeeper)
@@ -975,15 +975,15 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(5));
 
     registrar.Parameter("orchid_worker_thread_count", &TThis::OrchidWorkerThreadCount)
-        .Default(4)
+        .Default(1)
         .GreaterThan(0);
 
     registrar.Parameter("fair_share_update_thread_count", &TThis::FairShareUpdateThreadCount)
-        .Default(4)
+        .Default(1)
         .GreaterThan(0);
 
     registrar.Parameter("background_thread_count", &TThis::BackgroundThreadCount)
-        .Default(4)
+        .Default(1)
         .GreaterThan(0);
 
     registrar.Parameter("allowed_node_resources_overcommit_duration", &TThis::AllowedNodeResourcesOvercommitDuration)
