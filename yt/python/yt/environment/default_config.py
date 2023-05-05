@@ -396,9 +396,6 @@ def get_node_config():
     };
 
     data_node = {
-        read_thread_count =  2;
-        write_thread_count = 2;
-
         multiplexed_changelog = {
             flush_period = 10;
             enable_sync = %false;
