@@ -542,7 +542,6 @@ def get_node_config():
         hive_manager = {
             ping_period = 1000;
             idle_post_period = 1000;
-            rpc_timeout = 1000;
         };
 
         master_connector = {
@@ -677,6 +676,7 @@ def get_chaos_node_config():
                         use_new_hydra = %true;
                         hive_manager = {
                             ping_period = 1000;
+                            idle_post_period = 1000;
                         };
                     };
                 };
