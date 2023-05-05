@@ -42,7 +42,7 @@ class JobEvents(object):
             if os.path.exists(file_name):
                 break
             if datetime.datetime.now() > deadline:
-                raise TimeoutError("Timeout exceeded while waiting for {0}".format(event_name))
+                raise TimeoutError("Timeout exceeded while waiting for event '{0}'".format(event_name))
             time.sleep(0.1)
 
     def check_event(self, event_name):
@@ -56,7 +56,7 @@ class JobEvents(object):
             " do\n"
             "     sleep 0.1 ; ((wait_limit--)) ;\n"
             "     if [ $wait_limit -le 0 ] ; then \n"
-            "         echo timeout for event {event_name} exceeded >&2 ; exit 1 ;\n"
+            "         echo Timeout exceeded while waiting for event '{event_name}' >&2 ; exit 1 ;\n"
             "     fi\n"
             " done \n"
             "}}").format(
@@ -79,7 +79,7 @@ class JobEvents(object):
             """ while [ -f {job_breakpoint} -a ! -f {breakpoint_released} ] ; do \n """
             """   sleep 0.1 ; ((wait_limit--)) ;\n """
             """   if [ $wait_limit -le 0 ] ; then \n """
-            """       echo timeout for breakpoint {breakpoint_name} exceeded >&2 ; exit 1 ;\n """
+            """       echo Timeout exceeded while waiting for breakpoint '{breakpoint_name}' >&2 ; exit 1 ;\n """
             """   fi\n """
             """ done\n """
             """ }} """
@@ -135,7 +135,7 @@ class JobEvents(object):
 
             if datetime.datetime.now() > deadline:
                 raise TimeoutError(
-                    "Timeout exceeded while waiting for breakpoint {0}, current jobs {1}"
+                    "Timeout exceeded while waiting for breakpoint '{0}', current jobs are {1}"
                     .format(breakpoint_name, job_id_list))
 
             time.sleep(0.1)
