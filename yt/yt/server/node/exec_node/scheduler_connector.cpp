@@ -75,6 +75,7 @@ void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     auto scheduleOutOfBandHeartbeat = [&] {
+        YT_LOG_DEBUG("Send out of band heartbeat to scheduler");
         HeartbeatExecutor_->ScheduleOutOfBand();
     };
 
@@ -103,6 +104,10 @@ void TSchedulerConnector::OnJobFinished(const TJobPtr& job)
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     EnqueueFinishedJobs({job});
+
+    YT_LOG_DEBUG(
+        "Job finished, send out of band heartbeat to scheduler (JobId: %v)",
+        job->GetId());
 
     HeartbeatExecutor_->ScheduleOutOfBand();
 }
@@ -205,6 +210,9 @@ void TSchedulerConnector::OnDynamicConfigChanged(
             CurrentConfig_ = StaticConfig_;
             SendHeartbeatOnJobFinished_.store(true, std::memory_order::relaxed);
         }
+        YT_LOG_DEBUG(
+            "Set new scheduler heartbeat period (NewPeriod: %v)",
+            CurrentConfig_->HeartbeatPeriod);
         HeartbeatExecutor_->SetPeriod(CurrentConfig_->HeartbeatPeriod);
     }));
 }
