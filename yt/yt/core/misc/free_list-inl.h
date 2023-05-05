@@ -35,11 +35,11 @@ Y_NO_SANITIZE("thread")
 bool TFreeList<TItem>::PutIf(TItem* head, TItem* tail, TPredicate predicate)
 {
     auto* current = Head_.Pointer.load(std::memory_order::relaxed);
-    auto popCount = Head_.PopCount.load(std::memory_order::relaxed);
+    auto epoch = Head_.Epoch.load(std::memory_order::relaxed);
 
     while (predicate(current)) {
         tail->Next.store(current, std::memory_order::release);
-        if (CompareAndSet(&AtomicHead_, current, popCount, head, popCount)) {
+        if (CompareAndSet(&AtomicHead_, current, epoch, head, epoch + 1)) {
             return true;
         }
     }
@@ -55,11 +55,11 @@ Y_NO_SANITIZE("thread")
 void TFreeList<TItem>::Put(TItem* head, TItem* tail)
 {
     auto* current = Head_.Pointer.load(std::memory_order::relaxed);
-    auto popCount = Head_.PopCount.load(std::memory_order::relaxed);
+    auto epoch = Head_.Epoch.load(std::memory_order::relaxed);
 
     do {
         tail->Next.store(current, std::memory_order::release);
-    } while (!CompareAndSet(&AtomicHead_, current, popCount, head, popCount));
+    } while (!CompareAndSet(&AtomicHead_, current, epoch, head, epoch + 1));
 }
 
 template <class TItem>
@@ -73,14 +73,14 @@ Y_NO_SANITIZE("thread")
 TItem* TFreeList<TItem>::Extract()
 {
     auto* current = Head_.Pointer.load(std::memory_order::relaxed);
-    auto popCount = Head_.PopCount.load(std::memory_order::relaxed);
+    auto epoch = Head_.Epoch.load(std::memory_order::relaxed);
 
     while (current) {
         // If current node is already extracted by other thread
         // there can be any writes at address &current->Next.
         // The only guaranteed thing is that address is valid (memory is not freed).
         auto next = current->Next.load(std::memory_order::acquire);
-        if (CompareAndSet(&AtomicHead_, current, popCount, next, popCount + 1)) {
+        if (CompareAndSet(&AtomicHead_, current, epoch, next, epoch + 1)) {
             current->Next.store(nullptr, std::memory_order::release);
             return current;
         }
@@ -93,10 +93,10 @@ template <class TItem>
 TItem* TFreeList<TItem>::ExtractAll()
 {
     auto* current = Head_.Pointer.load(std::memory_order::relaxed);
-    auto popCount = Head_.PopCount.load(std::memory_order::relaxed);
+    auto epoch = Head_.Epoch.load(std::memory_order::relaxed);
 
     while (current) {
-        if (CompareAndSet<TItem*, size_t>(&AtomicHead_, current, popCount, nullptr, popCount + 1)) {
+        if (CompareAndSet<TItem*, size_t>(&AtomicHead_, current, epoch, nullptr, epoch + 1)) {
             return current;
         }
     }

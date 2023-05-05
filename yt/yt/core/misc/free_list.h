@@ -112,8 +112,8 @@ class TFreeList
 private:
     struct THead
     {
-        std::atomic<TItem*> Pointer = {nullptr};
-        std::atomic<size_t> PopCount = 0;
+        std::atomic<TItem*> Pointer = nullptr;
+        std::atomic<size_t> Epoch = 0;
 
         THead() = default;
 
