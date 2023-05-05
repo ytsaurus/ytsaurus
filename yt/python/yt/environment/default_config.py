@@ -532,11 +532,6 @@ def get_node_config():
         };
 
         security_manager = {
-            table_permission_cache = {
-                expire_after_successful_update_time = 0;
-                expire_after_failed_update_time = 0;
-                refresh_time = 0;
-            };
             resource_limits_cache = {
                 expire_after_successful_update_time = 0;
                 expire_after_failed_update_time = 0;
