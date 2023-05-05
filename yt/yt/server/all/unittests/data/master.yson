@@ -21,9 +21,6 @@
     "changelogs" = {
         "path" = "/home/levysotsky/.ya/build/build_root/tten/000048/yt/java/ytclient/src/test-medium/test-results/src-test-medium/testing_out_stuff/yt_wd/61e915e7-4ff4-48a2-90f6-13efc647b00c/runtime_data/master/0/changelogs";
         "flush_period" = 10;
-        "io_engine" = {
-            "enable_sync" = %false;
-        };
         "enable_sync" = %false;
     };
     "rpc_port" = 25282;
