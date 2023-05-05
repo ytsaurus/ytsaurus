@@ -32,7 +32,7 @@ public:
         ICompetitiveJobManagerHost* host,
         NLogging::TLogger logger);
 
-    void SetUserJobSpec(NScheduler::TUserJobSpecPtr userJobSpec);
+    void SetUserJobSpec(TOperationSpecBasePtr operationSpec, NScheduler::TUserJobSpecPtr userJobSpec);
 
     void OnJobScheduled(const TJobletPtr& joblet) override;
     void OnJobCompleted(const TJobletPtr& joblet) override;

@@ -23,9 +23,14 @@ TLayerProbingJobManager::TLayerProbingJobManager(
         EAbortReason::LayerProbingResultLost)
 { }
 
-void TLayerProbingJobManager::SetUserJobSpec(TUserJobSpecPtr userJobSpec)
+void TLayerProbingJobManager::SetUserJobSpec(TOperationSpecBasePtr operationSpec, TUserJobSpecPtr userJobSpec)
 {
-    UserJobSpec_ = userJobSpec;
+    auto competitiveJobsAllowed =
+        operationSpec->MaxProbingJobCountPerTask != 0 &&
+        operationSpec->MaxSpeculativeJobCountPerTask != 0;
+    UserJobSpec_ = competitiveJobsAllowed
+        ? userJobSpec
+        : nullptr;
 }
 
 void TLayerProbingJobManager::OnJobScheduled(const TJobletPtr& joblet)
