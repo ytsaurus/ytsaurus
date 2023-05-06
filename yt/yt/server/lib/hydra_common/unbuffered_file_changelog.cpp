@@ -238,7 +238,7 @@ public:
 
         try {
             NFS::WrapIOErrors([&] {
-                WaitFor(IOEngine_->Close({.Handle = std::exchange(DataFileHandle_, nullptr), .Flush = Config_->EnableSync}))
+                WaitFor(IOEngine_->Close({.Handle = std::exchange(DataFileHandle_, nullptr), .Flush = true}))
                     .ThrowOnError();
 
                 Index_->SetFlushedDataRecordCount(recordCount);
@@ -346,10 +346,8 @@ public:
             withIndex);
 
         try {
-            if (Config_->EnableSync) {
-                WaitFor(IOEngine_->FlushFile({.Handle = DataFileHandle_, .Mode = EFlushFileMode::Data}))
-                    .ThrowOnError();
-            }
+            WaitFor(IOEngine_->FlushFile({.Handle = DataFileHandle_, .Mode = EFlushFileMode::Data}))
+                .ThrowOnError();
 
             Index_->SetFlushedDataRecordCount(GetRecordCount());
 
@@ -626,7 +624,7 @@ private:
                 EWorkloadCategory::UserBatch))
                 .ThrowOnError();
 
-            WaitFor(IOEngine_->Close({.Handle = dataFile, .Flush = Config_->EnableSync}))
+            WaitFor(IOEngine_->Close({.Handle = dataFile, .Flush = true}))
                 .ThrowOnError();
 
             // TODO(babenko): use IO engine

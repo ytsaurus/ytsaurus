@@ -16,7 +16,6 @@ def get_master_config():
 
     changelogs = {
         flush_period = 10;
-        enable_sync = %false;
         io_engine = {
             enable_sync = %false;
         }
@@ -227,9 +226,8 @@ def get_clock_config():
 
     changelogs = {
         flush_period = 10;
-        enable_sync = %false;
         io_engine = {
-            enable_sync = %true;
+            enable_sync = %false;
         };
     };
 
@@ -398,15 +396,9 @@ def get_node_config():
     data_node = {
         multiplexed_changelog = {
             flush_period = 10;
-            enable_sync = %false;
-        };
-        high_latency_split_changelog = {
-            flush_period = 10;
-            enable_sync = %false;
         };
         low_latency_split_changelog = {
             flush_period = 10;
-            enable_sync = %false;
         };
 
         incremental_heartbeat_period = 200;

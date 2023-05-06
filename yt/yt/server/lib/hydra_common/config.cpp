@@ -19,8 +19,6 @@ void TFileChangelogConfig::Register(TRegistrar registrar)
         .Default(16_MB);
     registrar.Parameter("flush_period", &TThis::FlushPeriod)
         .Default(TDuration::MilliSeconds(10));
-    registrar.Parameter("enable_sync", &TThis::EnableSync)
-        .Default(true);
     registrar.Parameter("preallocate_size", &TThis::PreallocateSize)
         .GreaterThan(0)
         .Default();

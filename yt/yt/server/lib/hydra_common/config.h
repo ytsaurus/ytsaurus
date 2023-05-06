@@ -29,10 +29,6 @@ public:
     //! Interval between consequent automatic flushes.
     TDuration FlushPeriod;
 
-    //! When |false|, no |fdatasync| calls are actually made.
-    //! Should only be used in tests and local mode.
-    bool EnableSync;
-
     //! If set, enables preallocating changelog data file to avoid excessive FS metadata
     //! (in particular, file size) updates.
     std::optional<i64> PreallocateSize;

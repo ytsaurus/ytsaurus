@@ -200,7 +200,7 @@ void TFileChangelogIndex::Close()
         .ThrowOnError();
 
     if (auto handle = std::exchange(Handle_, nullptr)) {
-        WaitFor(IOEngine_->Close({.Handle = handle, .Flush = Config_->EnableSync}))
+        WaitFor(IOEngine_->Close({.Handle = handle, .Flush = true}))
             .ThrowOnError();
     }
 }
@@ -330,7 +330,7 @@ void TFileChangelogIndex::AsyncFlush()
             .Handle = Handle_,
             .Offset = currentPosition,
             .Buffers = {std::move(buffer)},
-            .Flush = Config_->EnableSync
+            .Flush = true,
         },
         WorkloadCategory_)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] {
