@@ -70,7 +70,7 @@ TFuture<TSharedRef> IIOEngine::ReadAll(
                     (const TReadResponse& response)
                 {
                     YT_VERIFY(response.OutputBuffers.size() == 1);
-                    return Close({handle}, category)
+                    return Close({.Handle = handle}, category)
                         .Apply(BIND([buffers = response.OutputBuffers] {
                             return buffers[0];
                         }));

@@ -78,13 +78,13 @@ struct IIOEngine
     struct TOpenRequest
     {
         TString Path;
-        EOpenMode Mode = {};
+        EOpenMode Mode = OpenExisting;
     };
 
     struct TCloseRequest
     {
         TIOEngineHandlePtr Handle;
-        std::optional<i64> Size = {};
+        std::optional<i64> Size;
         bool Flush = false;
     };
 

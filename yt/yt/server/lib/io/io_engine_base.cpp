@@ -235,16 +235,15 @@ TIOEngineBase::TIOEngineBase(
 TIOEngineHandlePtr TIOEngineBase::DoOpen(const TOpenRequest& request)
 {
     Sensors_->UpdateKernelStatistics();
-    TIOEngineHandlePtr handle;
-    {
+    auto handle = [&] {
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
-        handle = New<TIOEngineHandle>(request.Path, request.Mode);
-    }
+        return New<TIOEngineHandle>(request.Path, request.Mode);
+    }();
     if (!handle->IsOpen()) {
         THROW_ERROR_EXCEPTION(
-            "Cannot open %Qv with mode %v",
-            request.Path,
-            request.Mode)
+            "Cannot open %v",
+            request.Path)
+            << TErrorAttribute("mode", DecodeOpenMode(request.Mode))
             << TError::FromSystem();
     }
     return handle;
@@ -255,7 +254,9 @@ void TIOEngineBase::DoFlushDirectory(const TFlushDirectoryRequest& request)
     Sensors_->UpdateKernelStatistics();
     NFS::WrapIOErrors([&] {
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
-        NFS::FlushDirectory(request.Path);
+        if (StaticConfig_->EnableSync) {
+            NFS::FlushDirectory(request.Path);
+        }
     });
 }
 
