@@ -232,9 +232,12 @@ message TUserJobSpec
 
     repeated string gpu_check_binary_args = 63;
 
+    // The following options must be used only with network projects.
     // Enables NAT64 - YT-15665.
-    // Only to be used with user network projects.
     optional bool enable_nat64 = 64;
+    
+    // Disables networking inside the job.
+    optional bool disable_network = 67;
 
     optional bool enable_squashfs = 65;
 

@@ -9341,17 +9341,15 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         }
 
         TGetNodeOptions options {
-            .Attributes = std::vector<TString>{"project_id", "enable_nat64"}
+            .Attributes = std::vector<TString>{"project_id", "enable_nat64", "disable_network"}
         };
         auto networkProject = WaitFor(client->GetNode(networkProjectPath, options))
             .ValueOrThrow();
         auto networkProjectNode = ConvertToNode(networkProject);
         jobSpec->set_network_project_id(networkProjectNode->Attributes().Get<ui32>("project_id"));
 
-        auto enableNat64 = networkProjectNode->Attributes().Find<bool>("enable_nat64");
-        if (enableNat64) {
-            jobSpec->set_enable_nat64(*enableNat64);
-        }
+        jobSpec->set_enable_nat64(networkProjectNode->Attributes().Get<bool>("enable_nat64", false));
+        jobSpec->set_disable_network(networkProjectNode->Attributes().Get<bool>("disable_network", false));
     }
 
     jobSpec->set_enable_porto(ToProto<int>(jobSpecConfig->EnablePorto.value_or(Config->DefaultEnablePorto)));

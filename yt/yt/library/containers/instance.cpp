@@ -298,6 +298,14 @@ public:
     {
         Spec_.IPAddresses = addresses;
         Spec_.EnableNat64 = enableNat64;
+        Spec_.DisableNetwork = false;
+    }
+
+    void DisableNetwork() override
+    {
+        Spec_.DisableNetwork = true;
+        Spec_.IPAddresses.clear();
+        Spec_.EnableNat64 = false;
     }
 
     void SetHostName(const TString& hostName) override

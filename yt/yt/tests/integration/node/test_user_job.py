@@ -34,6 +34,7 @@ import time
 import datetime
 import os
 import shutil
+import re
 
 ##################################################################
 
@@ -1181,7 +1182,6 @@ class TestUserJobIsolation(YTEnvSetup):
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
-                    "test_network": True,  # Deprecated from 21.2+
                     "porto_executor": {
                         "enable_network_isolation": False
                     }
@@ -1236,6 +1236,33 @@ class TestUserJobIsolation(YTEnvSetup):
         network_project_id, hostname, _ = get_job_stderr(op.id, job_id).split(b"\n")
         assert network_project_id == str(int("0xDEADBEEF", base=16)).encode("ascii")
         assert hostname.startswith(b"slot_")
+        release_breakpoint()
+        op.track()
+
+    @authors("psushin")
+    def test_network_disabled(self):
+        create_network_project("n")
+        set("//sys/network_projects/n/@project_id", 0xDEADBEEF)
+        set("//sys/network_projects/n/@disable_network", True)
+
+        op = run_test_vanilla(
+            with_breakpoint("ip -o a 1>&2; BREAKPOINT"),
+            task_patch={"network_project": "n"},
+        )
+
+        # ip6tnl0 is some kind of technical interface used by porto.
+        pattern = re.compile(b".: (lo|ip6tnl0)")
+        job_id = wait_breakpoint()[0]
+        interfaces = get_job_stderr(op.id, job_id)
+        for line in interfaces.split(b'\n'):
+            if line:
+                r'''
+                Typical response from ip -o.
+                1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+                2: ip6tnl0    inet6 fe80::8c2d:f7ff:fe9f:eebb/64 scope link \       valid_lft forever preferred_lft forever
+                '''
+                assert pattern.match(line), line
+
         release_breakpoint()
         op.track()
 

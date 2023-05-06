@@ -2134,6 +2134,10 @@ TJobProxyConfigPtr TJob::CreateConfig()
             proxyConfig->EnableNat64 = UserJobSpec_->enable_nat64();
         }
 
+        if (UserJobSpec_ && UserJobSpec_->has_disable_network()) {
+            proxyConfig->DisableNetwork = UserJobSpec_->disable_network();
+        }
+
         proxyConfig->HostName = Format("slot_%v.%v",
             Slot_->GetSlotIndex(),
             Bootstrap_->GetConfig()->Addresses[0].second);

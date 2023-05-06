@@ -93,6 +93,7 @@ struct IInstanceLauncher
     virtual void SetIPAddresses(
         const std::vector<NNet::TIP6Address>& addresses,
         bool enableNat64 = false) = 0;
+    virtual void DisableNetwork() = 0;
     virtual void SetHostName(const TString& hostName) = 0;
 
     virtual TFuture<IInstancePtr> Launch(

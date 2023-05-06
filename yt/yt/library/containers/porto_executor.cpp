@@ -456,7 +456,10 @@ private:
             }
         }
 
-        if (!spec.IPAddresses.empty() && Config_->EnableNetworkIsolation) {
+        if (spec.DisableNetwork) {
+            auto* netConfig = portoSpec.mutable_net()->add_cfg();
+            netConfig->set_opt("none");
+        } else if (!spec.IPAddresses.empty() && Config_->EnableNetworkIsolation) {
             // This label is intended for HBF-agent: YT-12512.
             auto* label = portoSpec.mutable_labels()->add_map();
             label->set_key("HBF.ignore_address");

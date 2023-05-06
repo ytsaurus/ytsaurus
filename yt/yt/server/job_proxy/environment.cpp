@@ -369,7 +369,9 @@ public:
 
         //! There is no HBF in test environment, so setting IP addresses to
         //! user job will cause multiple problems during container startup.
-        if (!Options_.NetworkAddresses.empty()) {
+        if (Options_.DisableNetwork) {
+            launcher->DisableNetwork();
+        } else if (!Options_.NetworkAddresses.empty()) {
             std::vector<TIP6Address> addresses;
             addresses.reserve(Options_.NetworkAddresses.size());
             for (const auto& address : Options_.NetworkAddresses) {

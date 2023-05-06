@@ -194,6 +194,7 @@ public:
     std::optional<TString> HostName;
 
     bool EnableNat64;
+    bool DisableNetwork;
 
     //! Network addresses to bind into container.
     std::vector<TUserJobNetworkAddressPtr> NetworkAddresses;
