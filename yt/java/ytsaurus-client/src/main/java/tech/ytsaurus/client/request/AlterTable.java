@@ -35,6 +35,8 @@ public class AlterTable
     @Nullable
     private final GUID upstreamReplicaId;
     @Nullable
+    private final TableSchemaModification schemaModification;
+    @Nullable
     private final TransactionalOptions transactionalOptions;
 
     AlterTable(BuilderBase<?> builder) {
@@ -42,6 +44,7 @@ public class AlterTable
         this.schemaNode = builder.schemaNode;
         this.dynamic = builder.dynamic;
         this.upstreamReplicaId = builder.upstreamReplicaId;
+        this.schemaModification = builder.schemaModification;
         this.transactionalOptions = builder.transactionalOptions;
     }
 
@@ -80,6 +83,10 @@ public class AlterTable
             builder.setUpstreamReplicaId(RpcUtil.toProto(upstreamReplicaId));
         }
 
+        if (schemaModification != null) {
+            builder.setSchemaModification(schemaModification.getProtoValue());
+        }
+
         if (transactionalOptions != null) {
             builder.setTransactionalOptions(transactionalOptions.toProto());
         }
@@ -94,6 +101,12 @@ public class AlterTable
         if (dynamic != null) {
             sb.append("Dynamic: ").append(dynamic).append("; ");
         }
+        if (upstreamReplicaId != null) {
+            sb.append("Upstream replica ID: ").append(upstreamReplicaId).append("; ");
+        }
+        if (schemaModification != null) {
+            sb.append("Schema modification: ").append(schemaModification).append("; ");
+        }
     }
 
     public YTreeBuilder toTree(YTreeBuilder builder) {
@@ -103,6 +116,10 @@ public class AlterTable
                 .when(
                         upstreamReplicaId != null,
                         x -> x.key("upstream_replica_id").value(Objects.requireNonNull(upstreamReplicaId).toString())
+                )
+                .when(
+                        schemaModification != null,
+                        x -> x.key("schema_modification").value(Objects.requireNonNull(schemaModification).toString())
                 );
     }
 
@@ -113,6 +130,7 @@ public class AlterTable
                 .setDynamic(dynamic)
                 .setTransactionalOptions(transactionalOptions)
                 .setUpstreamReplicaId(upstreamReplicaId)
+                .setSchemaModification(schemaModification)
                 .setMutatingOptions(mutatingOptions)
                 .setPath(path)
                 .setTabletRangeOptions(tabletRangeOptions)
@@ -143,6 +161,8 @@ public class AlterTable
         @Nullable
         private GUID upstreamReplicaId;
         @Nullable
+        private TableSchemaModification schemaModification;
+        @Nullable
         private TransactionalOptions transactionalOptions;
 
         public BuilderBase() {
@@ -155,6 +175,7 @@ public class AlterTable
             }
             dynamic = builder.dynamic;
             upstreamReplicaId = builder.upstreamReplicaId;
+            schemaModification = builder.schemaModification;
             if (builder.transactionalOptions != null) {
                 transactionalOptions = new TransactionalOptions(builder.transactionalOptions);
             }
@@ -162,6 +183,7 @@ public class AlterTable
 
         /**
          * If specified, it sets a new schema for the table
+         *
          * @return self
          */
         public TBuilder setSchema(@Nullable TableSchema schema) {
@@ -173,6 +195,7 @@ public class AlterTable
 
         /**
          * If specified, it sets a new schema for the table
+         *
          * @return self
          */
         public TBuilder setSchema(@Nullable YTreeNode schema) {
@@ -185,6 +208,7 @@ public class AlterTable
         /**
          * If specified, it changes a static table to a dynamic table.
          * This setting can only be changed outside a transaction.
+         *
          * @return self
          */
         public TBuilder setDynamic(@Nullable Boolean dynamic) {
@@ -194,10 +218,11 @@ public class AlterTable
 
         /**
          * If specified, it changes the ID of the replica object on the metacluster.
-         * For more information, @see <a href="https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/replicated-dynamic-tables">
+         *
+         * @return self
+         * @see <a href="https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/replicated-dynamic-tables">
          * Replicated dynamic tables
          * </a>
-         * @return self
          */
         public TBuilder setUpstreamReplicaId(@Nullable GUID upstreamReplicaId) {
             this.upstreamReplicaId = upstreamReplicaId;
@@ -205,7 +230,22 @@ public class AlterTable
         }
 
         /**
+         * If specified, it determines whether extended write format is enabled
+         *
+         * @return self
+         * @see
+         * <a href="https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/bulk-insert#deletions-and-extended-write-format">
+         * Deletions and extended write format
+         * </a>
+         */
+        public TBuilder setSchemaModification(@Nullable TableSchemaModification schemaModification) {
+            this.schemaModification = schemaModification;
+            return self();
+        }
+
+        /**
          * Set transactional options of the request.
+         *
          * @return self
          */
         public TBuilder setTransactionalOptions(@Nullable TransactionalOptions transactionalOptions) {
@@ -222,6 +262,12 @@ public class AlterTable
             if (dynamic != null) {
                 sb.append("Dynamic: ").append(dynamic).append("; ");
             }
+            if (upstreamReplicaId != null) {
+                sb.append("Upstream replica ID: ").append(upstreamReplicaId).append("; ");
+            }
+            if (schemaModification != null) {
+                sb.append("Schema modification: ").append(schemaModification).append("; ");
+            }
         }
 
         public YTreeBuilder toTree(YTreeBuilder builder) {
@@ -231,6 +277,10 @@ public class AlterTable
                     .when(
                             upstreamReplicaId != null,
                             x -> x.key("upstream_replica_id").value(upstreamReplicaId.toString())
+                    )
+                    .when(
+                            schemaModification != null,
+                            x -> x.key("schema_modification").value(schemaModification.toString())
                     );
         }
 
