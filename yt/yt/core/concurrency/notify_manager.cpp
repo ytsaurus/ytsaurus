@@ -22,6 +22,9 @@ TNotifyManager::TNotifyManager(
         .WithTags(tagSet)
         .WithHot()
         .Counter("/wakeup"))
+    , WakeupByTimeoutCounter_(NProfiling::TProfiler("/action_queue")
+        .WithTags(tagSet)
+        .Counter("/wakeup_by_timeout"))
     , PollingPeriod_(pollingPeriod)
 { }
 
@@ -120,6 +123,8 @@ void TNotifyManager::Wait(NThreading::TEventCount::TCookie cookie, std::function
                 YT_LOG_DEBUG("Wake up by timeout (WaitTime: %v, MinEnqueuedAt: %v)",
                     waitTime,
                     minEnqueuedAt);
+
+                WakeupByTimeoutCounter_.Increment();
 
                 break;
             }

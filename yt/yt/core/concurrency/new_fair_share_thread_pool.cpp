@@ -248,6 +248,7 @@ struct TExecutionPool
     // Profiling sensors.
     const NProfiling::TSummary BucketCounter;
     const NProfiling::TSummary SizeCounter;
+    const NProfiling::TCounter DequeuedCounter;
     const TEventTimer WaitTimeCounter;
     const TEventTimer ExecTimeCounter;
     const TEventTimer TotalTimeCounter;
@@ -268,6 +269,7 @@ struct TExecutionPool
         : PoolName(std::move(poolName))
         , BucketCounter(profiler.Summary("/buckets"))
         , SizeCounter(profiler.Summary("/size"))
+        , DequeuedCounter(profiler.Counter("/dequeued"))
         , WaitTimeCounter(profiler.Timer("/time/wait"))
         , ExecTimeCounter(profiler.Timer("/time/exec"))
         , TotalTimeCounter(profiler.Timer("/time/total"))
@@ -933,6 +935,7 @@ private:
             if (bucketToUndef) {
                 auto* pool = bucketToUndef->Pool;
                 pool->SizeCounter.Record(threadState.LastActionsInQueue);
+                pool->DequeuedCounter.Increment(1);
                 pool->ExecTimeCounter.Record(threadState.TimeFromStart);
                 pool->TotalTimeCounter.Record(threadState.TimeFromEnqueue);
                 pool->CumulativeTimeCounter.Add(threadState.TimeFromStart);
