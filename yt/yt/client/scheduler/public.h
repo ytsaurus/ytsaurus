@@ -121,6 +121,7 @@ DEFINE_ENUM(EAbortReason,
     ((LayerProbingRunWon)              ( 43))
     ((OperationCompleted)              ( 44))
     ((OperationAborted)                ( 45))
+    ((OperationFinished)               ( 46))
     ((SchedulingFirst)                 (100))
     ((SchedulingTimeout)               (101))
     ((SchedulingResourceOvercommit)    (102))

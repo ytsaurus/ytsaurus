@@ -329,13 +329,15 @@ TResourceHolder* TJob::AsResourceHolder()
     return this;
 }
 
-void TJob::Abort(const TError& error)
+void TJob::Abort(TError error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     auto timeout = DynamicConfig_->JobAbortionTimeout.value_or(Config_->JobAbortionTimeout);
 
-    YT_LOG_INFO(error, "Job abort requested (Phase: %v, Timeout: %v)",
+    YT_LOG_INFO(
+        error,
+        "Job abort requested (Phase: %v, Timeout: %v)",
         JobPhase_,
         timeout);
 

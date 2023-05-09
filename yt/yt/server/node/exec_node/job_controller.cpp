@@ -1721,7 +1721,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        job->Abort(abortionError);
+        job->Abort(std::move(abortionError));
     }
 
     void RemoveJob(
@@ -2073,7 +2073,9 @@ private:
                     removalDelay,
                     Bootstrap_->GetJobInvoker());
             } else {
-                job->Abort(TError{"Operation %v is not running", operationId});
+                auto error = TError{"Operation %v is not running", operationId}
+                    << TErrorAttribute("abort_reason", EAbortReason::OperationFinished);
+                job->Abort(std::move(error));
             }
         }
     }

@@ -84,7 +84,7 @@ public:
 
     NJobAgent::TResourceHolder* AsResourceHolder();
 
-    void Abort(const TError& error);
+    void Abort(TError error);
 
     void OnJobProxySpawned();
 
