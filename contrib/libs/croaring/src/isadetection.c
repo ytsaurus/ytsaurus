@@ -230,7 +230,7 @@ int croaring_hardware_support() {
 
 #elif defined(__AVX512F__) && defined(__AVX512DQ__) && defined(__AVX512BW__) && defined(__AVX512VBMI2__) && defined(__AVX512BITALG__) && defined(__AVX512VPOPCNTDQ__)
 int croaring_hardware_support() {
-    return  ROARING_SUPPORTS_AVX2 | ROARING_SUPPORTS_AVX512
+    return  ROARING_SUPPORTS_AVX2 | ROARING_SUPPORTS_AVX512;
 }
 #elif defined(__AVX2__)
 
@@ -262,7 +262,7 @@ int croaring_hardware_support() {
 }
 #endif
 
+#endif // defined(__x86_64__) || defined(_M_AMD64) // x64
 #ifdef __cplusplus
 } } }  // extern "C" { namespace roaring { namespace internal {
 #endif
-#endif // defined(__x86_64__) || defined(_M_AMD64) // x64
