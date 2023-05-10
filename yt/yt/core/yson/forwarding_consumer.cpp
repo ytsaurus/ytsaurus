@@ -311,4 +311,20 @@ void TForwardingYsonConsumer::OnMyRaw(TStringBuf yson, EYsonType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTeeYsonConsumer::TTeeYsonConsumer(
+    std::vector<IYsonConsumer*> consumers,
+    std::vector<std::unique_ptr<IYsonConsumer>> ownedConsumers,
+    EYsonType type)
+    : OwnedConsumers_(std::move(ownedConsumers))
+{
+    consumers.reserve(consumers.size() + ownedConsumers.size());
+    for (const auto& consumer : OwnedConsumers_) {
+        consumers.push_back(consumer.get());
+    }
+
+    Forward(std::move(consumers), /*onFinished*/ {}, type);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NYson

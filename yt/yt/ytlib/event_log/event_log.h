@@ -18,7 +18,7 @@ class TFluentLogEventConsumer
     : public NYson::TForwardingYsonConsumer
 {
 public:
-    TFluentLogEventConsumer(const NLogging::TLogger* logger, IYsonConsumer* tableConsumer);
+    explicit TFluentLogEventConsumer(const NLogging::TLogger* logger);
 
 protected:
     void OnMyBeginMap() override;
@@ -26,13 +26,12 @@ protected:
     void OnMyEndMap() override;
 
 private:
+    const NLogging::TLogger* Logger_;
+
     using TState = NYTree::TFluentYsonWriterState;
     using TStatePtr = TIntrusivePtr<NYTree::TFluentYsonWriterState>;
 
     TStatePtr State_;
-    const NLogging::TLogger* Logger_;
-
-    IYsonConsumer* const TableConsumer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,6 +83,7 @@ DEFINE_REFCOUNTED_TYPE(IEventLogWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): Hide implementation.
 class TEventLogWriter
     : public IEventLogWriter
 {

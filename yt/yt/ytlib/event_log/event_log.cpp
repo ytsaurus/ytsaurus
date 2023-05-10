@@ -21,41 +21,21 @@ using namespace NComplexTypes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFluentLogEventConsumer::TFluentLogEventConsumer(const NLogging::TLogger* logger, IYsonConsumer* tableConsumer)
+TFluentLogEventConsumer::TFluentLogEventConsumer(const NLogging::TLogger* logger)
     : Logger_(logger)
-    , TableConsumer_(tableConsumer)
+    , State_(New<TState>(EYsonFormat::Binary, EYsonType::MapFragment))
 {
-    YT_VERIFY(tableConsumer || logger);
-    if (Logger_) {
-        State_ = New<TState>(EYsonFormat::Binary, EYsonType::MapFragment);
-    }
+    YT_VERIFY(Logger_);
 }
 
 void TFluentLogEventConsumer::OnMyBeginMap()
 {
-    std::vector<IYsonConsumer*> consumers;
-
-    if (TableConsumer_) {
-        TableConsumer_->OnBeginMap();
-        consumers.push_back(TableConsumer_);
-    }
-
-    if (Logger_) {
-        YT_VERIFY(State_);
-        consumers.push_back(State_->GetConsumer());
-    }
-
-    Forward(std::move(consumers), nullptr, EYsonType::MapFragment);
+    Forward(State_->GetConsumer(), /*onFinished*/ {}, EYsonType::MapFragment);
 }
 
 void TFluentLogEventConsumer::OnMyEndMap()
 {
-    if (TableConsumer_) {
-        TableConsumer_->OnEndMap();
-    }
-    if (Logger_) {
-        LogStructuredEvent(*Logger_, State_->GetValue(), NLogging::ELogLevel::Info);
-    }
+    LogStructuredEvent(*Logger_, State_->GetValue(), NLogging::ELogLevel::Info);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

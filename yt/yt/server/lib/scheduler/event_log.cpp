@@ -28,8 +28,22 @@ TFluentLogEvent TEventLogHostBase::LogEventFluently(
     ELogEventType eventType,
     TInstant now)
 {
-    auto consumer = std::make_unique<TFluentLogEventConsumer>(eventLogger, eventLogConsumer);
-    return TFluentLogEvent(std::move(consumer))
+    std::vector<IYsonConsumer*> consumers;
+    if (eventLogConsumer) {
+        consumers.push_back(eventLogConsumer);
+    }
+
+    std::vector<std::unique_ptr<IYsonConsumer>> ownedConsumers;
+    if (eventLogger) {
+        ownedConsumers.push_back(std::make_unique<TFluentLogEventConsumer>(eventLogger));
+    }
+
+    YT_VERIFY(!consumers.empty() || !ownedConsumers.empty());
+
+    auto teeConsumer = std::make_unique<TTeeYsonConsumer>(
+        std::move(consumers),
+        std::move(ownedConsumers));
+    return TFluentLogEvent(std::move(teeConsumer))
         .Item("timestamp").Value(now)
         .Item("event_type").Value(eventType);
 }

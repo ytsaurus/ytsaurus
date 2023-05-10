@@ -77,4 +77,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! This is the most basic forwarding consumer which forwards all the events to given consumers.
+class TTeeYsonConsumer
+    : public TForwardingYsonConsumer
+{
+public:
+    explicit TTeeYsonConsumer(
+        std::vector<IYsonConsumer*> consumers,
+        std::vector<std::unique_ptr<IYsonConsumer>> ownedConsumers = {},
+        EYsonType type = EYsonType::Node);
+
+private:
+    std::vector<std::unique_ptr<IYsonConsumer>> OwnedConsumers_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NYson
