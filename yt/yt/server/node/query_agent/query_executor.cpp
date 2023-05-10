@@ -234,6 +234,7 @@ public:
         auto tabletSnapshot = SnapshotStore_->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
 
         SnapshotStore_->ValidateTabletAccess(tabletSnapshot, timestamp);
+        SnapshotStore_->ValidateBundleNotBanned(tabletSnapshot);
 
         Map_.emplace(tabletId, tabletSnapshot);
 

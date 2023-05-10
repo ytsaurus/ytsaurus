@@ -1225,6 +1225,7 @@ private:
                         ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, subrequest.mount_revision())
                         : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
                     snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
+                    snapshotStore->ValidateBundleNotBanned(tabletSnapshot);
                 } catch (const std::exception& ex) {
                     subresponse->set_tablet_missing(true);
                     ToProto(subresponse->mutable_error(), TError(ex));
@@ -1389,6 +1390,7 @@ private:
             ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, request->mount_revision())
             : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
         snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
+        snapshotStore->ValidateBundleNotBanned(tabletSnapshot);
 
         if (tabletSnapshot->PhysicalSchema->IsSorted()) {
             THROW_ERROR_EXCEPTION("Fetching rows for sorted tablets is not implemented");
@@ -1628,6 +1630,7 @@ private:
             ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, *mountRevision)
             : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
         snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
+        snapshotStore->ValidateBundleNotBanned(tabletSnapshot);
 
         if (tabletSnapshot->PhysicalSchema->IsSorted()) {
             THROW_ERROR_EXCEPTION("Finding stores for sorted tablets is not implemented");

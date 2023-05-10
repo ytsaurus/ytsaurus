@@ -1376,6 +1376,8 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
         tabletSnapshot,
         timestamp);
 
+    lookupSession->SnapshotStore_->ValidateBundleNotBanned(tabletSnapshot);
+
     ThrowUponDistributedThrottlerOverdraft(
         ETabletDistributedThrottlerKind::Lookup,
         tabletSnapshot,

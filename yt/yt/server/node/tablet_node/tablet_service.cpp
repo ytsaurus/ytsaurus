@@ -158,6 +158,9 @@ private:
         TCurrentInvokerGuard invokerGuard(epochInvoker.Get());
 
         auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
+        Bootstrap_
+            ->GetTabletSnapshotStore()
+            ->ValidateBundleNotBanned(tabletSnapshot, Slot_);
 
         try {
             if (tabletSnapshot->Atomicity != atomicity) {
@@ -318,6 +321,9 @@ private:
             trimmedRowCount);
 
         auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
+        Bootstrap_
+            ->GetTabletSnapshotStore()
+            ->ValidateBundleNotBanned(tabletSnapshot, Slot_);
 
         const auto& tabletManager = Slot_->GetTabletManager();
         auto future = tabletManager->Trim(tabletSnapshot, trimmedRowCount);

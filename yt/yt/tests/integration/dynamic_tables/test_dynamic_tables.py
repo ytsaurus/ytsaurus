@@ -2931,6 +2931,51 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert tablet_performance_counters[0]["tablet_id"] == tablet_id
         assert "dynamic_row_write_count" in get("#" + tablet_id + "/@performance_counters")
 
+    @authors("alexelexa")
+    def test_bundle_ban(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "0"}]
+        keys = [{"key": r["key"]} for r in rows]
+        insert_rows("//tmp/t", rows)
+        assert lookup_rows("//tmp/t", keys) == rows
+        assert select_rows("* from [//tmp/t]") == rows
+
+        set(
+            "//sys/tablet_cell_bundles/default/@dynamic_options/ban_message",
+            "I'm banned",
+        )
+
+        def check_error(func):
+            try:
+                func()
+                return False
+            except YtError as e:
+                return e.contains_code(yt_error_codes.BundleIsBanned)
+
+        wait(lambda: check_error(lambda: insert_rows("//tmp/t", rows)))
+        assert check_error(lambda: lookup_rows("//tmp/t", keys))
+        assert check_error(lambda: select_rows("* from [//tmp/t]"))
+
+        remove("//sys/tablet_cell_bundles/default/@dynamic_options/ban_message")
+
+        row = {"key": 1, "value": "1"}
+        rows.append(row)
+        keys = [{"key": r["key"]} for r in rows]
+
+        def check_no_error(func):
+            try:
+                func()
+                return True
+            except YtError:
+                return False
+
+        wait(lambda: check_no_error(lambda: insert_rows("//tmp/t", [row])))
+        assert lookup_rows("//tmp/t", keys) == rows
+        assert select_rows("* from [//tmp/t]") == rows
+
 
 ##################################################################
 

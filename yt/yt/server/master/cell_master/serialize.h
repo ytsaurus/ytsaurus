@@ -137,6 +137,7 @@ DEFINE_ENUM(EMasterReign,
     ((MakePerformanceCountersOpaque)                                (2322))  // alexelexa
     ((FixMulticellHunkStorage)                                      (2323))  // gritukan
     ((FixAttachHunksWithDynamicStoreRead)                           (2324))  // aleksandra-zh
+    ((BundlesBan)                                                   (2325))  // alexelexa
 );
 
 ////////////////////////////////////////////////////////////////////////////////
