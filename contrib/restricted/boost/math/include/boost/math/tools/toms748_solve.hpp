@@ -20,7 +20,7 @@
 
 #ifdef BOOST_MATH_LOG_ROOT_ITERATIONS
 #  define BOOST_MATH_LOGGER_INCLUDE <boost/math/tools/iteration_logger.hpp>
-#  include BOOST_MATH_LOGGER_INCLUDE
+#  error #include BOOST_MATH_LOGGER_INCLUDE
 #  undef BOOST_MATH_LOGGER_INCLUDE
 #else
 #  define BOOST_MATH_LOG_COUNT(count)
