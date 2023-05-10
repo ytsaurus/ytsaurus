@@ -25,6 +25,8 @@
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
 
+#include <library/cpp/string_utils/quote/quote.h>
+
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/grpc_security.h>
 
@@ -444,7 +446,7 @@ private:
             ParseRequestId();
 
             if (!TryParsePeerAddress()) {
-                YT_LOG_DEBUG("Malformed peer address (PeerAddress: %v, RequestId: %v)",
+                YT_LOG_WARNING("Malformed peer address (PeerAddress: %v, RequestId: %v)",
                     PeerAddressString_,
                     RequestId_);
                 Unref();
@@ -527,17 +529,21 @@ private:
             auto addressString = MakeGprString(grpc_call_get_peer(Call_.Unwrap()));
             PeerAddressString_ = TString(addressString.get());
 
+            // Drop ipvN: prefix.
             if (PeerAddressString_.StartsWith("ipv6:") || PeerAddressString_.StartsWith("ipv4:")) {
                 PeerAddressString_ = PeerAddressString_.substr(5);
             }
 
+            // Decode URL-encoded square brackets.
+            CGIUnescape(PeerAddressString_);
+
             auto address = NNet::TNetworkAddress::TryParse(PeerAddressString_);
-            if (address.IsOK()) {
-                PeerAddress_ = address.Value();
-                return true;
-            } else {
+            if (!address.IsOK()) {
                 return false;
             }
+
+            PeerAddress_ = address.Value();
+            return true;
         }
 
         void ParseTraceContext()
