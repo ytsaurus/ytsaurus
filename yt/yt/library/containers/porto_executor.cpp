@@ -507,7 +507,8 @@ private:
             auto* portoBind = portoSpec.mutable_bind()->add_bind();
             portoBind->set_target(bind.TargetPath);
             portoBind->set_source(bind.SourcePath);
-            portoBind->add_flag(bind.IsReadOnly ? "ro" : "rw");
+            portoBind->add_flag(bind.ReadOnly ? "ro" : "rw");
+            portoBind->add_flag(bind.Executable ? "exec" : "noexec");
         };
 
         if (spec.RootFS) {

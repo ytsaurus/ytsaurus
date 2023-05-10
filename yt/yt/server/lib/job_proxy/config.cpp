@@ -76,6 +76,9 @@ void TBindConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("read_only", &TThis::ReadOnly)
         .Default(true);
+
+    registrar.Parameter("executable", &TThis::Executable)
+        .Default(false);
 }
 
 void TJobProxyConfig::Register(TRegistrar registrar)

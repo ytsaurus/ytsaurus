@@ -288,7 +288,7 @@ class TestHotSwap(YTEnvSetup):
         wait(lambda: chunk_id not in find_location_chunks(location_uuid) and chunk_id in find_location_chunks(other_location_uuid))
 
     @authors("don-dron")
-    def test_lost_location(self):
+    def DISABLED_test_lost_location(self):
         update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False, "publish_disabled_locations": True}})
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 2

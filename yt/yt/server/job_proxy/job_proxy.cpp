@@ -973,18 +973,42 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
 
         // Please observe the hierarchy of binds for correct mounting!
         // TODO(don-dron): Make topological sorting.
-        rootFS.Binds.emplace_back(TBind{GetPreparationPath(), GetSlotPath(), /*readOnly*/ false});
+        rootFS.Binds.emplace_back(TBind{
+            .SourcePath = GetPreparationPath(),
+            .TargetPath = GetSlotPath(),
+            .ReadOnly = false,
+            .Executable = false});
+
         for (const auto& tmpfsPath : Config_->TmpfsManager->TmpfsPaths) {
-            rootFS.Binds.emplace_back(TBind{tmpfsPath, AdjustPath(tmpfsPath), /*readOnly*/ false});
+            rootFS.Binds.emplace_back(TBind{
+                .SourcePath = tmpfsPath,
+                .TargetPath = AdjustPath(tmpfsPath),
+                .ReadOnly= false,
+                .Executable = false});
         }
 
         // Temporary workaround for nirvana - make tmp directories writable.
         auto tmpPath = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), GetSandboxRelPath(ESandboxKind::Tmp));
-        rootFS.Binds.emplace_back(TBind{tmpPath, "/tmp", /*readOnly*/ false});
-        rootFS.Binds.emplace_back(TBind{tmpPath, "/var/tmp", /*readOnly*/ false});
+
+        rootFS.Binds.emplace_back(TBind{
+            .SourcePath = tmpPath,
+            .TargetPath = "/tmp",
+            .ReadOnly = false,
+            .Executable = false});
+
+        rootFS.Binds.emplace_back(TBind{
+            .SourcePath = tmpPath,
+            .TargetPath = "/var/tmp",
+            .ReadOnly = false,
+            .Executable = false});
 
         for (const auto& bind : Config_->Binds) {
-            rootFS.Binds.emplace_back(TBind{bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
+            rootFS.Binds.emplace_back(TBind{
+                .SourcePath = bind->ExternalPath,
+                .TargetPath = bind->InternalPath,
+                .ReadOnly = bind->ReadOnly,
+                .Executable = bind->Executable
+            });
         }
 
         return rootFS;

@@ -133,6 +133,7 @@ public:
     TString ExternalPath;
     TString InternalPath;
     bool ReadOnly;
+    bool Executable;
 
     REGISTER_YSON_STRUCT(TBindConfig);
 

@@ -23,6 +23,7 @@ class TestLayers(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
@@ -439,6 +440,7 @@ class TestTmpfsLayerCache(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
@@ -547,6 +549,8 @@ class TestJobSetup(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
+            "use_common_root_fs_quota": True,
             "job_controller": {
                 "job_setup_command": {
                     "path": "/static-bin/static-bash",
@@ -604,6 +608,7 @@ class TestJobSetup(YTEnvSetup):
 class TestSquashfsLayers(TestLayers):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
+            "use_artifact_binds": True,
             "test_root_fs": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
@@ -627,6 +632,7 @@ class TestSquashfsTmpfsLayerCache(TestTmpfsLayerCache):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
@@ -661,6 +667,7 @@ class TestJobAbortDuringVolumePreparation(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {

@@ -116,7 +116,8 @@ struct TBind
 {
     TString SourcePath;
     TString TargetPath;
-    bool IsReadOnly;
+    bool ReadOnly;
+    bool Executable;
 };
 
 struct TRootFS

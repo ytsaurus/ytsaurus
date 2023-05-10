@@ -2530,6 +2530,8 @@ class TestConsecutiveJobAborts(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
+            "use_common_root_fs_quota": True,
             "job_controller": {
                 "gpu_manager": {
                     "driver_version": "0",
@@ -2905,6 +2907,8 @@ class TestSlotManagerResurrect(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
+            "use_common_root_fs_quota": True,
             "abort_on_jobs_disabled": False,
             "slot_manager": {
                 "job_environment": {

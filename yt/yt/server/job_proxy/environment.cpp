@@ -292,6 +292,7 @@ public:
                 rootFS.Binds.push_back(TBind {
                     ResolveBinaryPath(ExecProgramName).ValueOrThrow(),
                     RootFSBinaryDirectory + ExecProgramName,
+                    true,
                     true});
             }
 

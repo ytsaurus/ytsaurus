@@ -10,6 +10,8 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
+#include <yt/yt/core/misc/fs.h>
+
 namespace NYT::NExecNode
 {
 
@@ -329,6 +331,31 @@ private:
         }
     }
 
+    void SetArtifactPermissions()
+    {
+        for (const auto& artifact : Settings_.Artifacts) {
+            if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
+                YT_VERIFY(artifact.Chunk);
+
+                int permissions = artifact.Executable ? 0755 : 0644;
+
+                YT_LOG_INFO(
+                    "Set permissions for artifact (FileName: %v, Permissions: "
+                    "%v, SandboxKind: %v, CompressedDataSize: %v)",
+                    artifact.Name,
+                    permissions,
+                    artifact.SandboxKind,
+                    artifact.Key.GetCompressedDataSize());
+
+                SetPermissions(
+                    artifact.Chunk->GetFileName(),
+                    permissions);
+            } else {
+                YT_VERIFY(artifact.SandboxKind == ESandboxKind::User);
+            }
+        }
+    }
+
     TFuture<void> DoPrepareSandboxDirectories()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -344,6 +371,8 @@ private:
 
         if (Settings_.LayerArtifactKeys.empty() || !Settings_.UserSandboxOptions.EnableArtifactBinds) {
             MakeArtifactSymlinks();
+        } else {
+            SetArtifactPermissions();
         }
 
         YT_LOG_INFO("Finished preparing sandbox directories");

@@ -1589,7 +1589,12 @@ void TJob::RunWithWorkspaceBuilder()
     binds.reserve(Config_->RootFSBinds.size());
 
     for (const auto& bind : Config_->RootFSBinds) {
-        binds.push_back({bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
+        binds.push_back(TBind{
+            .SourcePath = bind->ExternalPath,
+            .TargetPath = bind->InternalPath,
+            .ReadOnly = bind->ReadOnly,
+            .Executable = bind->Executable
+        });
     }
 
     TUserSandboxOptions options = BuildUserSandboxOptions();
@@ -2075,7 +2080,8 @@ TJobProxyConfigPtr TJob::CreateConfig()
                     auto bind = New<TBindConfig>();
                     bind->ExternalPath = artifact.Chunk->GetFileName();
                     bind->InternalPath = targetPath;
-                    bind->ReadOnly = false;
+                    bind->ReadOnly = true;
+                    bind->Executable = artifact.Executable;
 
                     proxyConfig->Binds.push_back(std::move(bind));
                 }
@@ -2728,7 +2734,12 @@ NContainers::TRootFS TJob::MakeWritableRootFS()
     rootFS.Binds.reserve(Config_->RootFSBinds.size());
 
     for (const auto& bind : Config_->RootFSBinds) {
-        rootFS.Binds.push_back({bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
+        rootFS.Binds.push_back(TBind{
+            .SourcePath = bind->ExternalPath,
+            .TargetPath = bind->InternalPath,
+            .ReadOnly = bind->ReadOnly,
+            .Executable = bind->Executable
+        });
     }
 
     return rootFS;
