@@ -1,8 +1,6 @@
+#include "ypath_designated_consumer.h"
 #include "forwarding_consumer.h"
 #include "null_consumer.h"
-#include "ypath_designated_consumer.h"
-
-#include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/error.h>
 
@@ -197,7 +195,7 @@ std::unique_ptr<IYsonConsumer> CreateYPathDesignatedConsumer(
     EMissingPathMode missingPathMode,
     IYsonConsumer* underlyingConsumer)
 {
-    return make_unique<TYPathDesignatedYsonConsumer>(
+    return std::make_unique<TYPathDesignatedYsonConsumer>(
         std::move(path),
         missingPathMode,
         underlyingConsumer);
