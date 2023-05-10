@@ -396,15 +396,16 @@ std::pair<ResponsePtr, Undo> TestKeeperListRequest::process(TestKeeper::Containe
              child_it != container.end() && startsWith(child_it->first, path_prefix);
             ++child_it)
         {
+            using enum ListRequestType;
             if (parentPath(child_it->first) == path)
             {
-                ListRequestType list_request_type = ListRequestType::ALL;
+                ListRequestType list_request_type = ALL;
                 if (const auto * filtered_list = dynamic_cast<const TestKeeperFilteredListRequest *>(this))
                     list_request_type = filtered_list->list_request_type;
 
                 const auto is_ephemeral = child_it->second.stat.ephemeralOwner != 0;
-                if (list_request_type == ListRequestType::ALL || (is_ephemeral && list_request_type == ListRequestType::EPHEMERAL_ONLY)
-                    || (!is_ephemeral && list_request_type == ListRequestType::PERSISTENT_ONLY))
+                if (list_request_type == ALL || (is_ephemeral && list_request_type == EPHEMERAL_ONLY)
+                    || (!is_ephemeral && list_request_type == PERSISTENT_ONLY))
                     response.names.emplace_back(baseName(child_it->first));
             }
         }

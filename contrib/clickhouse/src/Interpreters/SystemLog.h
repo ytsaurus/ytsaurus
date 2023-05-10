@@ -141,8 +141,6 @@ private:
 
     /// flushImpl can be executed only in saving_thread.
     void flushImpl(const std::vector<LogElement> & to_flush, uint64_t to_flush_end);
-
-public:
     ASTPtr getCreateTableQuery();
 };
 
