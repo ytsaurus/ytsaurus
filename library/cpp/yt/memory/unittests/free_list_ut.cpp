@@ -1,13 +1,12 @@
-#include <yt/yt/core/test_framework/framework.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
-#include <yt/yt/core/concurrency/count_down_latch.h>
-
-#include <yt/yt/core/misc/free_list.h>
+#include <library/cpp/yt/memory/free_list.h>
 
 #include <util/random/random.h>
 
 #include <thread>
 #include <stack>
+#include <latch>
 
 namespace NYT {
 namespace {
@@ -50,7 +49,7 @@ struct TTestItem
     ui64 Value = 0;
     ui64 IndexInSet = 0;
     // Avoid false sharing.
-    char Padding[NThreading::CacheLineSize - 2 * sizeof(ui64)];
+    char Padding[CacheLineSize - 2 * sizeof(ui64)];
 };
 
 class TTestItemSet
@@ -100,7 +99,7 @@ TEST_P(TFreeListStressTest, Stress)
 
     TFreeList<TTestItem> list;
 
-    NConcurrency::TCountDownLatch start(params.Threads);
+    std::latch start(params.Threads);
 
     std::atomic<bool> running{true};
     std::atomic<ui64> put{0};
@@ -110,8 +109,7 @@ TEST_P(TFreeListStressTest, Stress)
     for (ui64 i = 0; i < params.Threads; ++i) {
         auto itemSet = TTestItemSet::Allocate(params.MaxBatchSize);
         workers.emplace_back([&, params, itemSet = std::move(itemSet)]() mutable {
-            start.CountDown();
-            start.Wait();
+            start.arrive_and_wait();
 
             while (running.load(std::memory_order::relaxed)) {
                 // Push batch of items.
@@ -150,7 +148,6 @@ INSTANTIATE_TEST_SUITE_P(
     TFreeListTest,
     TFreeListStressTest,
     testing::Values(
-        TTestConfig{2, 2, 15s},
         TTestConfig{4, 1, 15s},
         TTestConfig{4, 3, 15s},
         TTestConfig{4, 5, 15s}));

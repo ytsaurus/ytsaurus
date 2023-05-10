@@ -764,7 +764,7 @@ private:
     TSchedulingSegmentManager SchedulingSegmentManager_;
 
     // TODO(eshcherbin): Add generic data structure for state sharding.
-    struct alignas(NThreading::CacheLineSize) TNodeStateShard
+    struct alignas(CacheLineSize) TNodeStateShard
     {
         TFairShareTreeJobSchedulerNodeStateMap NodeIdToState;
     };

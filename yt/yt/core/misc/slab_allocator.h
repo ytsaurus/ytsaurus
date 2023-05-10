@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.h"
-#include "free_list.h"
 #include "error.h"
 #include "memory_usage_tracker.h"
 
@@ -10,6 +9,8 @@
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
+
+#include <library/cpp/yt/memory/free_list.h>
 
 #include <array>
 

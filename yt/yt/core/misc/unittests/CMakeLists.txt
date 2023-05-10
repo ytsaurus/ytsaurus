@@ -71,7 +71,6 @@ target_sources(unittester-core-misc PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/fenwick_tree_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/finally_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/format_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/free_list_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/fs_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/future_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/guid_ut.cpp
