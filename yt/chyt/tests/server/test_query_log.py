@@ -41,9 +41,10 @@ class TestQueryLog(ClickHouseTestBase):
 
     @authors("max42")
     def test_query_log_eviction(self):
-        period = 3
+        query_log_flush_period = 3
+        query_log_older_flush_preiod = 1
 
-        with Clique(1, config_patch=self._get_query_log_patch(period, period-1)) as clique:
+        with Clique(1, config_patch=self._get_query_log_patch(query_log_flush_period, query_log_older_flush_preiod)) as clique:
             timespan = 15
             counter = 0
             start = time.time()
@@ -84,10 +85,10 @@ class TestQueryLog(ClickHouseTestBase):
             if state["state"] in ("seen", "evicted"):
                 assert state["seen_at"] - state["started_at"] <= 0.5
             if state["state"] == "evicted":
-                assert state["evicted_at"] - state["started_at"] >= period * 0.5
-                assert state["evicted_at"] - state["started_at"] <= period * 3.5
+                assert state["evicted_at"] - state["started_at"] >= query_log_older_flush_preiod
+                assert state["evicted_at"] - state["started_at"] <= (query_log_flush_period + query_log_older_flush_preiod) * 2
 
-            if state["started_at"] <= 1.5 * period:
+            if state["started_at"] <= timespan - (query_log_flush_period + query_log_older_flush_preiod) - 5:
                 assert state["state"] == "evicted"
-            if state["started_at"] <= 3.5 * period:
+            if state["started_at"] <= timespan - 5:
                 assert state["state"] in ("seen", "evicted")
