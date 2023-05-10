@@ -90,7 +90,7 @@ TEST_P(TIOEngineTest, ReadWrite)
         engine->Write({
             .Handle= file,
             .Offset = 0,
-            .Buffers = {data},
+            .Buffers = {data.Slice(1, 1), data.Slice(1, 1), data, data.Slice(1, 1)},
             .Flush = true,
         })
             .Get()

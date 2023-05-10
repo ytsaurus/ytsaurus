@@ -905,7 +905,7 @@ private:
         request->WriteRequest.Offset += writtenSize;
         request->WrittenBytes += writtenSize;
 
-        while (writtenSize > 0) {
+        do {
             auto& buffer = request->WriteRequest.Buffers[request->CurrentWriteSubrequestIndex];
             auto bufferSize = static_cast<i64>(buffer.Size());
             if (bufferSize <= writtenSize) {
@@ -924,7 +924,7 @@ private:
                 buffer = buffer.Slice(writtenSize, bufferSize);
                 writtenSize = 0;
             }
-        }
+        } while (writtenSize > 0);
 
         HandleWriteRequest(request);
     }
