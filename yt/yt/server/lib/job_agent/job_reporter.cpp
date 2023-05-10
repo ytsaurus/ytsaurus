@@ -438,8 +438,18 @@ public:
                 ReporterProfiler.WithTag("reporter_type", "profiles")))
     { }
 
-    void HandleJobReport(TJobReport&& jobReport)
+    // TODO: refactor it to get rid of node address in job_reporter interface.
+    void HandleJobReport(TJobReport&& jobReport, const std::optional<TString>& nodeAddress = {})
     {
+        const auto& localAddress = [&] {
+            if (nodeAddress) {
+                return nodeAddress;
+            } else {
+                YT_VERIFY(LocalAddress_);
+                return LocalAddress_;
+            }
+        }();
+
         if (jobReport.Spec()) {
             JobSpecHandler_->Enqueue(std::make_unique<TJobSpecRowlet>(jobReport.ExtractSpec()));
         }
@@ -457,7 +467,7 @@ public:
             JobHandler_->Enqueue(std::make_unique<TJobRowlet>(
                 std::move(jobReport),
                 Config_->ReportStatisticsLz4,
-                LocalAddress_));
+                localAddress));
         }
     }
 
@@ -540,10 +550,10 @@ TJobReporter::TJobReporter(
 
 TJobReporter::~TJobReporter() = default;
 
-void TJobReporter::HandleJobReport(TJobReport&& jobReport)
+void TJobReporter::HandleJobReport(TJobReport&& jobReport, const std::optional<TString>& nodeAddress)
 {
     if (Impl_) {
-        Impl_->HandleJobReport(std::move(jobReport));
+        Impl_->HandleJobReport(std::move(jobReport), nodeAddress);
     }
 }
 

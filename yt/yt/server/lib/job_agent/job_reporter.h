@@ -28,7 +28,7 @@ public:
 
     ~TJobReporter();
 
-    void HandleJobReport(TJobReport&& statistics);
+    void HandleJobReport(TJobReport&& statistics, const std::optional<TString>& nodeAddress = {});
     void SetOperationArchiveVersion(int version);
     int ExtractWriteFailuresCount();
     bool GetQueueIsTooLarge();

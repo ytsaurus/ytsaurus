@@ -10281,7 +10281,7 @@ void TOperationControllerBase::ReportJobHasCompetitors(const TJobletPtr& joblet,
             .OperationId(OperationId)
             .JobId(joblet->JobId)
             .HasCompetitors(/*hasCompetitors*/ true, competitionType);
-        Host->GetJobReporter()->HandleJobReport(std::move(jobReport));
+        Host->GetJobReporter()->HandleJobReport(std::move(jobReport), joblet->NodeDescriptor.Address);
     }
 }
 
@@ -10508,7 +10508,7 @@ void TOperationControllerBase::ReportJobCookieToArchive(const TJobletPtr& joblet
         .JobId(joblet->JobId)
         .JobCookie(joblet->OutputCookie);
 
-    Host->GetJobReporter()->HandleJobReport(std::move(jobReport));
+    Host->GetJobReporter()->HandleJobReport(std::move(jobReport), joblet->NodeDescriptor.Address);
 }
 
 void TOperationControllerBase::SendRunningJobTimeStatisticsUpdates()
