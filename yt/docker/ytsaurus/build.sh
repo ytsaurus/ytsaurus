@@ -110,7 +110,7 @@ cp $ytserver_log_tailer_credits_path data/ytserver-log-tailer.CREDITS
 cp $init_operation_archive_path data/init_operation_archive
 cp $driver_bindings_package_path data/ytsaurus_native_driver-1.0.0-cp39-cp39-linux_x86_64.whl
 
-docker build -t ytsaurus/ytsaurus:0.0.1 \
+docker build -t ytsaurus/ytsaurus:unstable-0.0.2 \
     --build-arg YTSERVER_ALL_PATH=data/ytserver-all \
     --build-arg YTSERVER_ALL_CREDITS_PATH=data/ytserver-all.CREDITS \
     --build-arg CHYT_CONTROLLER_PATH=data/chyt-controller \

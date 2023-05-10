@@ -18,6 +18,9 @@ ARG YTSERVER_LOG_TAILER_CREDITS_PATH=ytserver-log-tailer.CREDITS
 
 ARG DRIVER_BINDINGS_PACKAGE_PATH=ytsaurus_native_driver-1.0.0-cp39-cp39-linux_x86_64.whl
 
+ARG SPYT_VERSION=1.69.3
+ARG SPARK_VERSION=1.69.0
+
 COPY ${YTSERVER_ALL_PATH} /usr/bin/ytserver-all
 
 # If this list changes, also update yt_nightly/Dockerfile
@@ -44,17 +47,17 @@ COPY ${YTSERVER_LOG_TAILER_PATH} /usr/bin/ytserver-log-tailer
 COPY ${INIT_OPERATION_ARCHIVE_PATH} /usr/bin/init_operation_archive
 
 # SPYT files
-COPY spyt_release/home/spark/conf/releases/1.67.0/metrics.properties /usr/bin/metrics.properties
-COPY spyt_release/home/spark/conf/releases/1.67.0/solomon-agent.template.conf /usr/bin/solomon-agent.template.conf
-COPY spyt_release/home/spark/conf/releases/1.67.0/solomon-service-master.template.conf /usr/bin/solomon-service-master.template.conf
-COPY spyt_release/home/spark/conf/releases/1.67.0/solomon-service-worker.template.conf /usr/bin/solomon-service-worker.template.conf
+COPY spyt_release/home/spark/conf/releases/${SPARK_VERSION}/metrics.properties /usr/bin/metrics.properties
+COPY spyt_release/home/spark/conf/releases/${SPARK_VERSION}/solomon-agent.template.conf /usr/bin/solomon-agent.template.conf
+COPY spyt_release/home/spark/conf/releases/${SPARK_VERSION}/solomon-service-master.template.conf /usr/bin/solomon-service-master.template.conf
+COPY spyt_release/home/spark/conf/releases/${SPARK_VERSION}/solomon-service-worker.template.conf /usr/bin/solomon-service-worker.template.conf
 
-COPY spyt_release/home/spark/spark/releases/3.2.2-fork-1.67.0/spark.tgz /usr/bin/spark.tgz
+COPY spyt_release/home/spark/spark/releases/${SPARK_VERSION}/spark.tgz /usr/bin/spark.tgz
 
-COPY spyt_release/home/spark/spyt/releases/1.67.3/spark-yt-data-source.jar /usr/bin/spark-yt-data-source.jar
-COPY spyt_release/home/spark/spyt/releases/1.67.3/spyt.zip /usr/bin/spyt.zip
+COPY spyt_release/home/spark/spyt/releases/${SPYT_VERSION}/spark-yt-data-source.jar /usr/bin/spark-yt-data-source.jar
+COPY spyt_release/home/spark/spyt/releases/${SPYT_VERSION}/spyt.zip /usr/bin/spyt.zip
 
-COPY spyt_release/home/spark/bin/releases/1.67.0/spark-yt-launcher.jar /usr/bin/spark-yt-launcher.jar
+COPY spyt_release/home/spark/bin/releases/${SPARK_VERSION}/spark-yt-launcher.jar /usr/bin/spark-yt-launcher.jar
 
 # CREDITS files with licenses for all binaries
 COPY ${YTSERVER_ALL_CREDITS_PATH} /usr/bin/ytserver-all.CREDITS
@@ -77,14 +80,16 @@ RUN apt-get update && apt-get install -y \
 # This is required for jobs, using yson format in python 3.
 RUN pip install -i https://pypi.org/simple/ \
     ytsaurus-client \
-    ytsaurus-yson
+    ytsaurus-yson \
+    ytsaurus-spyt==${SPYT_VERSION}
 
 # Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
 RUN ln -s /opt/conda/bin/python3.7 /usr/bin/python3 -f
 
 RUN /opt/conda/bin/python3.7 -m pip install -i https://pypi.org/simple/ \
     ytsaurus-client \
-    ytsaurus-local
+    ytsaurus-local \
+    ytsaurus-spyt==${SPYT_VERSION}
 
 # Local built package with native driver bindings
 COPY ${DRIVER_BINDINGS_PACKAGE_PATH} ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl
