@@ -1,6 +1,7 @@
 #include "controller_agent_connector.h"
 
 #include "bootstrap.h"
+#include "helpers.h"
 #include "job.h"
 #include "job_controller.h"
 #include "private.h"
@@ -8,6 +9,7 @@
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/controller_agent/job_spec_service_proxy.h>
 #include <yt/yt/server/lib/controller_agent/job_tracker_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -24,6 +26,8 @@ using namespace NObjectClient;
 using namespace NRpc;
 
 using namespace NControllerAgent;
+using namespace NControllerAgent::NProto;
+using namespace NScheduler::NProto::NNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,6 +106,94 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::AddUnconfirmedJob
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
     UnconfirmedJobIds_ = std::move(unconfirmedJobIds);
+}
+
+TFuture<std::vector<TErrorOr<NControllerAgent::NProto::TJobSpec>>>
+TControllerAgentConnectorPool::TControllerAgentConnector::RequestJobSpecs(
+    const std::vector<TJobStartInfo>& jobStartInfos)
+{
+    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
+
+    TJobSpecServiceProxy jobSpecServiceProxy(Channel_);
+
+    auto getJobSpecsTimeout = ControllerAgentConnectorPool_->GetJobSpecTimeout_;
+
+    jobSpecServiceProxy.SetDefaultTimeout(getJobSpecsTimeout);
+    auto jobSpecRequest = jobSpecServiceProxy.GetJobSpecs();
+
+    for (auto [allocationId, operationId] : jobStartInfos) {
+        auto* subrequest = jobSpecRequest->add_requests();
+        ToProto(subrequest->mutable_operation_id(), operationId);
+        // TODO(pogorelov): Rename job_id to allocation_id in JobSpecService proto types.
+        ToProto(subrequest->mutable_job_id(), allocationId);
+
+        YT_LOG_DEBUG(
+            "Add job spec request (AgentDescriptor: %v, AllocationId: %v, OperationId: %v)",
+            ControllerAgentDescriptor_,
+            allocationId,
+            operationId);
+    }
+
+    YT_LOG_DEBUG(
+        "Requesting job specs (AgentDescriptor: %v, Count: %v)",
+        ControllerAgentDescriptor_,
+        std::size(jobStartInfos));
+
+    return jobSpecRequest->Invoke().ApplyUnique(BIND([
+        this,
+        this_ = MakeStrong(this),
+        jobCount = std::ssize(jobStartInfos),
+        jobStartInfos
+    ] (TErrorOr<TIntrusivePtr<TTypedClientResponse<TRspGetJobSpecs>>>&& rspOrError) {
+        std::vector<TErrorOr<NControllerAgent::NProto::TJobSpec>> result(jobCount);
+
+        if (!rspOrError.IsOK()) {
+            YT_LOG_DEBUG(
+                rspOrError,
+                "Error getting job specs (ControllerAgentDescriptor: %v)",
+                ControllerAgentDescriptor_);
+
+            for (auto& specOrError : result) {
+                specOrError = rspOrError.Wrap();
+            }
+
+            return result;
+        }
+
+        const auto& rsp = rspOrError.Value();
+
+        YT_LOG_DEBUG(
+            "Job specs received (ControllerAgentDescriptor: %v)",
+            ControllerAgentDescriptor_);
+
+        YT_VERIFY(rsp->responses_size() == jobCount);
+        YT_VERIFY(std::ssize(rsp->Attachments()) == jobCount);
+
+        for (int index = 0; index < jobCount; ++index) {
+            const auto& subresponse = rsp->mutable_responses(index);
+            const auto& jobStartInfo = jobStartInfos[index];
+            if (auto error = FromProto<TError>(subresponse->error()); !error.IsOK()) {
+                YT_LOG_DEBUG(
+                    error,
+                    "No spec is available for allocation (ControllerAgentDescriptor: %v, OperationId: %v, AllocationId: %v)",
+                    ControllerAgentDescriptor_,
+                    jobStartInfo.OperationId,
+                    jobStartInfo.AllocationId);
+
+                result[index] = std::move(error);
+
+                continue;
+            }
+
+            TJobSpec spec;
+            DeserializeProtoWithEnvelope(&spec, rsp->Attachments()[index]);
+
+            result[index] = std::move(spec);
+        }
+
+        return result;
+    })
+    .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
 }
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated()
@@ -303,11 +395,12 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnAgentIncarnatio
 ////////////////////////////////////////////////////////////////////////////////
 
 TControllerAgentConnectorPool::TControllerAgentConnectorPool(
-    TControllerAgentConnectorConfigPtr config,
+    TExecNodeConfigPtr config,
     IBootstrap* const bootstrap)
-    : StaticConfig_(std::move(config))
+    : StaticConfig_(config->ControllerAgentConnector)
     , CurrentConfig_(CloneYsonStruct(StaticConfig_))
     , Bootstrap_(bootstrap)
+    , GetJobSpecTimeout_(config->JobController->GetJobSpecsTimeout)
 { }
 
 void TControllerAgentConnectorPool::SendOutOfBandHeartbeatsIfNeeded()
@@ -353,6 +446,7 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
         return;
     }
 
+    // TODO(pogorelov): Make controller agent connector config dynamic only and refactor this.
     TDuration testHeartbeatDelay;
     TControllerAgentConnectorConfigPtr newCurrentConfig;
     if (newConfig->ControllerAgentConnector) {
@@ -361,14 +455,18 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
         newCurrentConfig = StaticConfig_->ApplyDynamic(newConfig->ControllerAgentConnector);
     }
 
+    std::optional<TDuration> getJobSpecTimeout = newConfig->JobController->GetJobSpecsTimeout;
+
     Bootstrap_->GetJobInvoker()->Invoke(
         BIND([
             this,
             this_{MakeStrong(this)},
             newConfig{std::move(newConfig)},
             testHeartbeatDelay,
+            getJobSpecTimeout,
             newCurrentConfig{std::move(newCurrentConfig)}]
         {
+            GetJobSpecTimeout_ = getJobSpecTimeout.value_or(GetJobSpecTimeout_);
             TestHeartbeatDelay_ = testHeartbeatDelay;
             CurrentConfig_ = newCurrentConfig ? newCurrentConfig : StaticConfig_;
             OnConfigUpdated();
@@ -416,6 +514,18 @@ void TControllerAgentConnectorPool::OnRegisteredAgentSetReceived(
     }
 }
 
+TFuture<std::vector<TErrorOr<NControllerAgent::NProto::TJobSpec>>>
+TControllerAgentConnectorPool::RequestJobSpecs(
+    const TControllerAgentDescriptor& agentDescriptor,
+    const std::vector<TControllerAgentConnector::TJobStartInfo>& jobStartInfos)
+{
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+
+    auto controllerAgentConnector = GetControllerAgentConnector(agentDescriptor);
+
+    return controllerAgentConnector->RequestJobSpecs(jobStartInfos);
+}
+
 IChannelPtr TControllerAgentConnectorPool::CreateChannel(const TControllerAgentDescriptor& agentDescriptor)
 {
     const auto& client = Bootstrap_->GetClient();
@@ -454,15 +564,22 @@ void TControllerAgentConnectorPool::OnJobFinished(const TJobPtr& job)
 
 TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector>
 TControllerAgentConnectorPool::AddControllerAgentConnector(
-    TControllerAgentDescriptor descriptor)
+    TControllerAgentDescriptor agentDescriptor)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
-    auto controllerAgentConnector = New<TControllerAgentConnector>(this, descriptor);
+    auto controllerAgentConnector = New<TControllerAgentConnector>(this, agentDescriptor);
 
-    EmplaceOrCrash(ControllerAgentConnectors_, std::move(descriptor), controllerAgentConnector);
+    EmplaceOrCrash(ControllerAgentConnectors_, std::move(agentDescriptor), controllerAgentConnector);
 
     return controllerAgentConnector;
+}
+
+TIntrusivePtr<TControllerAgentConnectorPool::TControllerAgentConnector>
+TControllerAgentConnectorPool::GetControllerAgentConnector(
+    const TControllerAgentDescriptor& agentDescriptor)
+{
+    return GetOrCrash(ControllerAgentConnectors_, agentDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -85,7 +85,7 @@ public:
         // via signal.
         JobController_ = CreateJobController(this);
 
-        ControllerAgentConnectorPool_ = New<TControllerAgentConnectorPool>(GetConfig()->ExecNode->ControllerAgentConnector, this);
+        ControllerAgentConnectorPool_ = New<TControllerAgentConnectorPool>(GetConfig()->ExecNode, this);
 
         BuildJobProxyConfigTemplate();
 

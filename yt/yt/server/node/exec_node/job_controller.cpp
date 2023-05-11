@@ -1,6 +1,7 @@
 #include "job_controller.h"
 
 #include "bootstrap.h"
+#include "helpers.h"
 #include "job.h"
 #include "private.h"
 #include "scheduler_connector.h"
@@ -65,6 +66,8 @@ using NNodeTrackerClient::NProto::TNodeResources;
 
 using TControllerAgentConnectorPtr = TControllerAgentConnectorPool::TControllerAgentConnectorPtr;
 
+using TJobStartInfo = TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ExecNodeLogger;
@@ -83,10 +86,6 @@ NScheduler::TAllocationToAbort ParseAllocationToAbort(const NScheduler::NProto::
 }
 
 // COMPAT(pogorelov): AllocationId is currently equal to JobId.
-TAllocationId ToAllocationId(TJobId jobId)
-{
-    return jobId;
-}
 
 TJobId FromAllocationId(TAllocationId allocationId)
 {
@@ -530,67 +529,86 @@ private:
         return GetOrCrash(JobFactoryMap_, type);
     }
 
-    TFuture<void> RequestJobSpecsAndStartJobs(std::vector<TAllocationStartInfo> jobStartInfos)
+    TFuture<std::vector<TErrorOr<NControllerAgent::NProto::TJobSpec>>>
+    RequestJobSpecs(
+        const TControllerAgentDescriptor& controllerAgentDescriptor,
+        std::vector<TAllocationStartInfo> allocationStartInfoProtos)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        THashMap<TControllerAgentDescriptor, std::vector<TAllocationStartInfo>> groupedStartInfos;
+        std::vector<TJobStartInfo> jobStartInfos;
+        jobStartInfos.reserve(std::size(allocationStartInfoProtos));
 
-        for (auto& startInfo : jobStartInfos) {
-            auto operationId = FromProto<TOperationId>(startInfo.operation_id());
-            auto jobId = FromAllocationId(FromProto<TAllocationId>(startInfo.allocation_id()));
+        for (const auto& startInfoProto : allocationStartInfoProtos) {
+            auto operationId = FromProto<TOperationId>(startInfoProto.operation_id());
+            auto allocationId = FromProto<TAllocationId>(startInfoProto.allocation_id());
 
-            if (auto agentDescriptorOrError = TryParseControllerAgentDescriptor(startInfo.controller_agent_descriptor());
+            jobStartInfos.push_back({
+                .AllocationId = allocationId,
+                .OperationId = operationId,
+            });
+        }
+
+        const auto& controllerAgentConnectorPool = Bootstrap_
+            ->GetExecNodeBootstrap()
+            ->GetControllerAgentConnectorPool();
+
+        return controllerAgentConnectorPool->RequestJobSpecs(
+            controllerAgentDescriptor,
+            jobStartInfos);
+    }
+
+    TFuture<void> RequestJobSpecsAndStartJobs(std::vector<TAllocationStartInfo> allocationStartInfoProtos)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        THashMap<TControllerAgentDescriptor, std::vector<TAllocationStartInfo>> groupedStartInfoProtos;
+
+        for (auto& startInfoProto : allocationStartInfoProtos) {
+            auto operationId = FromProto<TOperationId>(startInfoProto.operation_id());
+            auto allocationId = FromProto<TAllocationId>(startInfoProto.allocation_id());
+
+            if (auto agentDescriptorOrError = TryParseControllerAgentDescriptor(
+                    startInfoProto.controller_agent_descriptor(),
+                    Bootstrap_->GetLocalNetworks());
                 agentDescriptorOrError.IsOK())
             {
                 auto& agentDescriptor = agentDescriptorOrError.Value();
-                YT_LOG_DEBUG("Job spec will be requested (OperationId: %v, JobId: %v, SpecServiceAddress: %v)",
+                YT_LOG_DEBUG("Job spec will be requested (OperationId: %v, AllocationId: %v, ControllerAgentDescriptor: %v)",
                     operationId,
-                    jobId,
-                    agentDescriptor.Address);
-                groupedStartInfos[std::move(agentDescriptor)].push_back(startInfo);
+                    allocationId,
+                    agentDescriptor);
+
+                groupedStartInfoProtos[std::move(agentDescriptor)].push_back(std::move(startInfoProto));
             } else {
-                YT_LOG_DEBUG(agentDescriptorOrError, "Job spec cannot be requested (OperationId: %v, JobId: %v)",
+                YT_LOG_DEBUG(
+                    agentDescriptorOrError,
+                    "Job spec cannot be requested (OperationId: %v, AllocationId: %v)",
                     operationId,
-                    jobId);
+                    allocationId);
 
                 const auto& schedulerConnector = Bootstrap_->GetExecNodeBootstrap()->GetSchedulerConnector();
                 schedulerConnector->EnqueueSpecFetchFailedAllocation(
-                    ToAllocationId(jobId),
-                    TSpecFetchFailedAllocationInfo{operationId, std::move(agentDescriptorOrError)});
+                    allocationId,
+                    TSpecFetchFailedAllocationInfo{
+                        .OperationId = operationId,
+                        .Error = std::move(agentDescriptorOrError)
+                    });
             }
         }
 
         std::vector<TFuture<void>> asyncResults;
-        for (auto& [agentDescriptor, startInfos] : groupedStartInfos) {
-            const auto& channel = Bootstrap_
-                ->GetExecNodeBootstrap()
-                ->GetControllerAgentConnectorPool()
-                ->GetOrCreateChannel(agentDescriptor);
-            TJobSpecServiceProxy jobSpecServiceProxy(channel);
+        for (auto& [agentDescriptor, startInfoProtos] : groupedStartInfoProtos) {
 
-            auto getJobSpecsTimeout = GetDynamicConfig()->GetJobSpecsTimeout.value_or(
-                Config_->GetJobSpecsTimeout);
+            auto jobSpecsFuture = RequestJobSpecs(
+                agentDescriptor,
+                startInfoProtos);
 
-            jobSpecServiceProxy.SetDefaultTimeout(getJobSpecsTimeout);
-            auto jobSpecRequest = jobSpecServiceProxy.GetJobSpecs();
-
-            for (const auto& startInfo : startInfos) {
-                auto* subrequest = jobSpecRequest->add_requests();
-                *subrequest->mutable_operation_id() = startInfo.operation_id();
-                // TODO(pogorelov): Rename job_id to allocation_id in JobSpecService proto types.
-                *subrequest->mutable_job_id() = startInfo.allocation_id();
-            }
-
-            YT_LOG_DEBUG("Requesting job specs (SpecServiceAddress: %v, Count: %v)",
-                agentDescriptor.Address,
-                startInfos.size());
-
-            auto asyncResult = jobSpecRequest->Invoke().Apply(
+            auto asyncResult = jobSpecsFuture.ApplyUnique(
                 BIND(
-                    &TJobController::OnJobSpecsReceived<TAllocationStartInfo>,
+                    &TJobController::OnJobSpecsReceived,
                     MakeStrong(this),
-                    Passed(std::move(startInfos)),
+                    Passed(std::move(startInfoProtos)),
                     agentDescriptor)
                 .AsyncVia(Bootstrap_->GetJobInvoker()));
             asyncResults.push_back(asyncResult);
@@ -599,73 +617,62 @@ private:
         return AllSet(asyncResults).As<void>();
     }
 
-    template <class TAllocationStartInfo>
     void OnJobSpecsReceived(
-        std::vector<TAllocationStartInfo> startInfos,
+        std::vector<TAllocationStartInfo> startInfoProtos,
         const TControllerAgentDescriptor& controllerAgentDescriptor,
-        const TJobSpecServiceProxy::TErrorOrRspGetJobSpecsPtr& rspOrError)
+        TErrorOr<std::vector<TErrorOr<NControllerAgent::NProto::TJobSpec>>>&& jobSpecsOrError)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        if (!rspOrError.IsOK()) {
-            YT_LOG_DEBUG(rspOrError, "Error getting job specs (SpecServiceAddress: %v)",
-                controllerAgentDescriptor.Address);
-            for (const auto& startInfo : startInfos) {
-                auto allocationId = FromProto<TAllocationId>(startInfo.allocation_id());
-                auto operationId = FromProto<TOperationId>(startInfo.operation_id());
+        YT_LOG_FATAL_IF(
+            !jobSpecsOrError.IsOK(),
+            jobSpecsOrError,
+            "Failed to request job specs (AgentDescriptor: %v)",
+            controllerAgentDescriptor);
 
+        auto& jobSpecOrErrors = jobSpecsOrError.Value();
+
+        YT_VERIFY(std::size(startInfoProtos) == std::size(jobSpecOrErrors));
+
+        for (int index = 0; index < std::ssize(startInfoProtos); ++index) {
+            auto& startInfoProto = startInfoProtos[index];
+
+            auto operationId = FromProto<TOperationId>(startInfoProto.operation_id());
+            auto allocationId = FromProto<TAllocationId>(startInfoProto.allocation_id());
+
+            auto& jobSpecOrError = jobSpecOrErrors[index];
+
+            if (!jobSpecOrError.IsOK()) {
                 const auto& schedulerConnector = Bootstrap_->GetExecNodeBootstrap()->GetSchedulerConnector();
                 schedulerConnector->EnqueueSpecFetchFailedAllocation(
                     allocationId,
-                    TSpecFetchFailedAllocationInfo{operationId, rspOrError});
-            }
-            return;
-        }
-
-        YT_LOG_DEBUG("Job specs received (SpecServiceAddress: %v)", controllerAgentDescriptor.Address);
-
-        const auto& rsp = rspOrError.Value();
-
-        YT_VERIFY(rsp->responses_size() == std::ssize(startInfos));
-        for (size_t index = 0; index < startInfos.size(); ++index) {
-            auto& startInfo = startInfos[index];
-
-            auto operationId = FromProto<TOperationId>(startInfo.operation_id());
-            auto allocationId = FromProto<TAllocationId>(startInfo.allocation_id());
-
-            const auto& subresponse = rsp->mutable_responses(index);
-            if (auto error = FromProto<TError>(subresponse->error()); !error.IsOK()) {
-                const auto& schedulerConnector = Bootstrap_->GetExecNodeBootstrap()->GetSchedulerConnector();
-                schedulerConnector->EnqueueSpecFetchFailedAllocation(
-                    allocationId,
-                    TSpecFetchFailedAllocationInfo{operationId, std::move(error)});
-                YT_LOG_DEBUG(error, "No spec is available for allocation (OperationId: %v, AllocationId: %v)",
+                    TSpecFetchFailedAllocationInfo{operationId, std::move(jobSpecOrError)});
+                YT_LOG_DEBUG(
+                    jobSpecOrError,
+                    "No spec is available for allocation (OperationId: %v, AllocationId: %v)",
                     operationId,
                     allocationId);
                 continue;
             }
 
-            const auto& attachment = rsp->Attachments()[index];
+            auto& jobSpec = jobSpecOrError.Value();
 
-            TJobSpec spec;
-            DeserializeProtoWithEnvelope(&spec, attachment);
-
-            startInfo.mutable_resource_limits()->set_vcpu(
+            startInfoProto.mutable_resource_limits()->set_vcpu(
                 static_cast<double>(NVectorHdrf::TCpuResource(
-                    startInfo.resource_limits().cpu() * JobResourceManager_->GetCpuToVCpuFactor())));
+                    startInfoProto.resource_limits().cpu() * JobResourceManager_->GetCpuToVCpuFactor())));
 
             CreateJob(
                 // TODO(pogorelov): Send jobId with spec.
                 FromAllocationId(allocationId),
                 operationId,
-                startInfo.resource_limits(),
-                std::move(spec),
+                startInfoProto.resource_limits(),
+                std::move(jobSpec),
                 controllerAgentDescriptor);
         }
     }
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+        const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
         const TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
@@ -785,38 +792,6 @@ private:
 
         resources.set_cpu(static_cast<double>(NVectorHdrf::TCpuResource(resources.cpu() * LastHeartbeatCpuToVCpuFactor_)));
         resources.clear_vcpu();
-    }
-
-    TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
-        const NScheduler::NProto::NNode::TControllerAgentDescriptor& proto) const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        const auto incarnationId = FromProto<NScheduler::TIncarnationId>(proto.incarnation_id());
-
-        auto addressOrError = TryParseControllerAgentAddress(proto.addresses());
-        if (!addressOrError.IsOK()) {
-            return TError{std::move(addressOrError)};
-        }
-
-        return TControllerAgentDescriptor{std::move(addressOrError.Value()), incarnationId};
-    }
-
-    TErrorOr<TString> TryParseControllerAgentAddress(
-        const NNodeTrackerClient::NProto::TAddressMap& proto) const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        const auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(proto);
-
-        try {
-            return GetAddressOrThrow(addresses, Bootstrap_->GetLocalNetworks());
-        } catch (const std::exception& ex) {
-            return TError{
-                "No suitable controller agent address exists (SpecServiceAddresses: %v)",
-                GetValues(addresses)}
-                << TError{ex};
-        }
     }
 
     void OnJobResourcesUpdated(const TWeakPtr<TJob>& weakCurrentJob, const TNodeResources& resourceDelta)
@@ -1193,7 +1168,9 @@ private:
             THashSet<TControllerAgentDescriptor> receivedRegisteredAgents;
             receivedRegisteredAgents.reserve(response->registered_controller_agents_size());
             for (const auto& protoAgentDescriptor : response->registered_controller_agents()) {
-                auto descriptorOrError = TryParseControllerAgentDescriptor(protoAgentDescriptor);
+                auto descriptorOrError = TryParseControllerAgentDescriptor(
+                    protoAgentDescriptor,
+                    Bootstrap_->GetLocalNetworks());
                 YT_LOG_FATAL_IF(
                     !descriptorOrError.IsOK(),
                     descriptorOrError,
@@ -1321,7 +1298,9 @@ private:
                 "Scheduler requested to confirm job (JobId: %v)",
                 jobId);
 
-            auto agentInfoOrError = TryParseControllerAgentDescriptor(jobInfo.controller_agent_descriptor());
+            auto agentInfoOrError = TryParseControllerAgentDescriptor(
+                jobInfo.controller_agent_descriptor(),
+                Bootstrap_->GetLocalNetworks());
             if (!agentInfoOrError.IsOK()) {
                 YT_LOG_WARNING(
                     agentInfoOrError,
@@ -1351,7 +1330,9 @@ private:
                 continue;
             }
 
-            auto descriptorOrError = TryParseControllerAgentDescriptor(protoOperationInfo.controller_agent_descriptor());
+            auto descriptorOrError = TryParseControllerAgentDescriptor(
+                protoOperationInfo.controller_agent_descriptor(),
+                Bootstrap_->GetLocalNetworks());
             YT_LOG_FATAL_IF(
                 !descriptorOrError.IsOK(),
                 descriptorOrError,

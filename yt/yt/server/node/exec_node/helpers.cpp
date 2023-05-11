@@ -32,6 +32,7 @@ using namespace NDataNode;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NFileClient;
+using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NYTree;
@@ -171,6 +172,46 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
 
     result.ArtifactKey = std::move(layerKey);
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+TErrorOr<TString> TryParseControllerAgentAddress(
+    const NNodeTrackerClient::NProto::TAddressMap& proto,
+    const NNodeTrackerClient::TNetworkPreferenceList& localNetworks)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    const auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(proto);
+
+    try {
+        return GetAddressOrThrow(addresses, localNetworks);
+    } catch (const std::exception& ex) {
+        return TError{
+            "No suitable controller agent address exists (SpecServiceAddresses: %v)",
+            GetValues(addresses)}
+            << TError{ex};
+    }
+}
+
+} // namespace
+
+TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
+    const NScheduler::NProto::NNode::TControllerAgentDescriptor& proto,
+    const NNodeTrackerClient::TNetworkPreferenceList& localNetworks)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    const auto incarnationId = FromProto<NScheduler::TIncarnationId>(proto.incarnation_id());
+
+    auto addressOrError = TryParseControllerAgentAddress(proto.addresses(), localNetworks);
+    if (!addressOrError.IsOK()) {
+        return TError{std::move(addressOrError)};
+    }
+
+    return TControllerAgentDescriptor{std::move(addressOrError.Value()), incarnationId};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

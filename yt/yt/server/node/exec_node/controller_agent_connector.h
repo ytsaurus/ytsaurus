@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/controller_agent/job_tracker_service_proxy.h>
 
+#include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
+
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
@@ -36,6 +38,15 @@ public:
         const TControllerAgentDescriptor& GetDescriptor() const;
 
         void AddUnconfirmedJobIds(std::vector<TJobId> unconfirmedJobIds);
+
+        struct TJobStartInfo
+        {
+            TAllocationId AllocationId;
+            TOperationId OperationId;
+        };
+
+        TFuture<std::vector<TErrorOr<NControllerAgent::NProto::TJobSpec>>>
+        RequestJobSpecs(const std::vector<TJobStartInfo>& jobStartInfos);
 
         ~TControllerAgentConnector();
 
@@ -97,11 +108,9 @@ public:
 
     using TControllerAgentConnectorPtr = TIntrusivePtr<TControllerAgentConnector>;
 
-    TControllerAgentConnectorPool(TControllerAgentConnectorConfigPtr config, IBootstrap* bootstrap);
+    TControllerAgentConnectorPool(TExecNodeConfigPtr config, IBootstrap* bootstrap);
 
     void Start();
-
-    NRpc::IChannelPtr GetOrCreateChannel(const TControllerAgentDescriptor& controllerAgentDescriptor);
 
     void SendOutOfBandHeartbeatsIfNeeded();
 
@@ -113,6 +122,11 @@ public:
 
     void OnRegisteredAgentSetReceived(THashSet<TControllerAgentDescriptor> controllerAgentDescriptors);
 
+    TFuture<std::vector<TErrorOr<NControllerAgent::NProto::TJobSpec>>>
+    RequestJobSpecs(
+        const TControllerAgentDescriptor& agentDescriptor,
+        const std::vector<TControllerAgentConnector::TJobStartInfo>& jobStartInfos);
+
 private:
     THashMap<TControllerAgentDescriptor, TControllerAgentConnectorPtr> ControllerAgentConnectors_;
 
@@ -122,12 +136,19 @@ private:
     IBootstrap* const Bootstrap_;
 
     TDuration TestHeartbeatDelay_{};
+    TDuration GetJobSpecTimeout_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     NRpc::IChannelPtr CreateChannel(const TControllerAgentDescriptor& agentDescriptor);
 
-    TWeakPtr<TControllerAgentConnector> AddControllerAgentConnector(TControllerAgentDescriptor descriptor);
+    TWeakPtr<TControllerAgentConnector> AddControllerAgentConnector(
+        TControllerAgentDescriptor agentDescriptor);
+
+    TIntrusivePtr<TControllerAgentConnector> GetControllerAgentConnector(
+        const TControllerAgentDescriptor& agentDescriptor);
+
+    NRpc::IChannelPtr GetOrCreateChannel(const TControllerAgentDescriptor& controllerAgentDescriptor);
 
     void OnConfigUpdated();
 
@@ -147,7 +168,6 @@ struct TAgentHeartbeatContext
     TInstant LastTotalConfirmationTime;
 
     THashSet<TJobPtr> JobsToForcefullySend;
-
     std::vector<TJobId> UnconfirmedJobIds;
 };
 
