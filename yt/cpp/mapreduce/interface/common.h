@@ -1180,8 +1180,18 @@ struct TTableColumnarStatistics
 /// Description of a partition.
 struct TMultiTablePartition
 {
+    struct TStatistics
+    {
+        i64 ChunkCount = 0;
+        i64 DataWeight = 0;
+        i64 RowCount = 0;
+    };
+
     /// Ranges of input tables for this partition.
     TVector<TRichYPath> TableRanges;
+
+    /// Aggregate statistics of all the table ranges in the partition.
+    TStatistics AggregateStatistics;
 };
 
 /// Table partitions from GetTablePartitions command.

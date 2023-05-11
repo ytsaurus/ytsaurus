@@ -12,9 +12,9 @@ i64 GetFootprintMemorySize();
 
 i64 GetInputIOMemorySize(
     const NScheduler::TJobIOConfigPtr& ioConfig,
-    const NChunkPools::TChunkStripeStatistics& stat);
+    const NTableClient::TChunkStripeStatistics& stat);
 
-i64 GetSortInputIOMemorySize(const NChunkPools::TChunkStripeStatistics& stat);
+i64 GetSortInputIOMemorySize(const NTableClient::TChunkStripeStatistics& stat);
 
 i64 GetIntermediateOutputIOMemorySize(const NScheduler::TJobIOConfigPtr& ioConfig);
 

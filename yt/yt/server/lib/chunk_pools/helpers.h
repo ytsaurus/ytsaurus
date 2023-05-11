@@ -51,7 +51,7 @@ public:
     explicit TSuspendableStripe(TChunkStripePtr stripe);
 
     const TChunkStripePtr& GetStripe() const;
-    const TChunkStripeStatistics& GetStatistics() const;
+    const NTableClient::TChunkStripeStatistics& GetStatistics() const;
     // Increase suspended stripe count by one and return true if 0 -> 1 transition happened.
     bool Suspend();
     // Decrease suspended stripe count by one and return true if 1 -> 0 transition happened.
@@ -64,7 +64,7 @@ public:
 private:
     TChunkStripePtr Stripe_;
     int SuspendedStripeCount_ = 0;
-    TChunkStripeStatistics Statistics_;
+    NTableClient::TChunkStripeStatistics Statistics_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

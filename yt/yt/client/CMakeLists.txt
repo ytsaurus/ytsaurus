@@ -121,6 +121,7 @@ target_sources(yt-yt-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/table_output.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/blob_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/check_schema_compatibility.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/chunk_stripe_statistics.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/column_rename_descriptor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/column_sort_schema.cpp

@@ -277,12 +277,12 @@ private:
 
         // IPersistentChunkPoolOutput implementation.
 
-        TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
+        NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
         {
             YT_VERIFY(!Runs_.empty());
             YT_VERIFY(JobCounter->GetPending() > 0);
 
-            TChunkStripeStatisticsVector result(1);
+            NTableClient::TChunkStripeStatisticsVector result(1);
 
             // This is the next run to be given by #Extract.
             auto it = PendingRuns_.begin();

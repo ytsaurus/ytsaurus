@@ -116,7 +116,7 @@ public:
 
     void Persist(const TPersistenceContext& context);
 
-    TChunkStripeStatisticsVector GetApproximateStripeStatistics() const;
+    NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const;
 
     const TChunkStripeListPtr& GetStripeList(IChunkPoolOutput::TCookie cookie);
 

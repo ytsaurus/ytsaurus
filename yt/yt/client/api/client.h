@@ -25,6 +25,7 @@
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/table_client/config.h>
+#include <yt/yt/client/table_client/chunk_stripe_statistics.h>
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -1050,6 +1051,9 @@ struct TMultiTablePartition
 {
     //! Table ranges are indexed by table index.
     std::vector<NYPath::TRichYPath> TableRanges;
+
+    //! Aggregate statistics of all the table ranges in the partition.
+    NTableClient::TChunkStripeStatistics AggregateStatistics;
 };
 
 void Serialize(const TMultiTablePartition& partitions, NYson::IYsonConsumer* consumer);

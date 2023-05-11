@@ -5,34 +5,9 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/client/table_client/chunk_stripe_statistics.h>
+
 namespace NYT::NChunkPools {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TChunkStripeStatistics
-{
-    int ChunkCount = 0;
-    i64 DataWeight = 0;
-    i64 RowCount = 0;
-    i64 ValueCount = 0;
-    i64 MaxBlockSize = 0;
-
-    void Persist(const NTableClient::TPersistenceContext& context);
-};
-
-TChunkStripeStatistics operator + (
-    const TChunkStripeStatistics& lhs,
-    const TChunkStripeStatistics& rhs);
-
-TChunkStripeStatistics& operator += (
-    TChunkStripeStatistics& lhs,
-    const TChunkStripeStatistics& rhs);
-
-typedef TCompactVector<TChunkStripeStatistics, 1> TChunkStripeStatisticsVector;
-
-//! Adds up input statistics and returns a single-item vector with the sum.
-TChunkStripeStatisticsVector AggregateStatistics(
-    const TChunkStripeStatisticsVector& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +19,7 @@ struct TChunkStripe
     explicit TChunkStripe(const std::vector<NChunkClient::TLegacyDataSlicePtr>& dataSlices);
     explicit TChunkStripe(NChunkClient::TChunkListId, TBoundaryKeys boundaryKeys = TBoundaryKeys());
 
-    TChunkStripeStatistics GetStatistics() const;
+    NTableClient::TChunkStripeStatistics GetStatistics() const;
     int GetChunkCount() const;
 
     int GetTableIndex() const;
@@ -76,8 +51,8 @@ struct TChunkStripeList
     TChunkStripeList() = default;
     TChunkStripeList(int stripeCount);
 
-    TChunkStripeStatisticsVector GetStatistics() const;
-    TChunkStripeStatistics GetAggregateStatistics() const;
+    NTableClient::TChunkStripeStatisticsVector GetStatistics() const;
+    NTableClient::TChunkStripeStatistics GetAggregateStatistics() const;
 
     void AddStripe(TChunkStripePtr stripe);
 

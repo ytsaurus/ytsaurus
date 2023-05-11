@@ -117,7 +117,7 @@ struct ITaskHost
         const NChunkPools::TChunkStripePtr& stripe) = 0;
 
     virtual TExtendedJobResources GetAutoMergeResources(
-        const NChunkPools::TChunkStripeStatisticsVector& statistics) const = 0;
+        const NTableClient::TChunkStripeStatisticsVector& statistics) const = 0;
     virtual TAutoMergeDirector* GetAutoMergeDirector() = 0;
 
     void Persist(const TPersistenceContext& context) override = 0;

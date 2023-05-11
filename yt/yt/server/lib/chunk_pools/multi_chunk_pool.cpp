@@ -218,7 +218,7 @@ public:
         return 0;
     }
 
-    TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
+    NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
     {
         if (PendingPools_.empty()) {
             return {};

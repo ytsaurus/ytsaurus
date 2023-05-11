@@ -151,7 +151,7 @@ public:
 
     TChunkPoolOutputWithJobManagerBase(const NLogging::TLogger& logger);
 
-    TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override;
+    NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override;
     IChunkPoolOutput::TCookie Extract(NNodeTrackerClient::TNodeId nodeId) override;
     TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override;
     int GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const override;

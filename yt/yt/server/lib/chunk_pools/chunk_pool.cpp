@@ -114,7 +114,7 @@ TChunkPoolOutputWithJobManagerBase<TJobManager>::TChunkPoolOutputWithJobManagerB
 { }
 
 template <class TJobManager>
-TChunkStripeStatisticsVector TChunkPoolOutputWithJobManagerBase<TJobManager>::GetApproximateStripeStatistics() const
+NTableClient::TChunkStripeStatisticsVector TChunkPoolOutputWithJobManagerBase<TJobManager>::GetApproximateStripeStatistics() const
 {
     return JobManager_->GetApproximateStripeStatistics();
 }

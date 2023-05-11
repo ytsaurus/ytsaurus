@@ -1193,6 +1193,11 @@ void ToProto(
     for (const auto& range : multiTablePartition.TableRanges) {
         protoMultiTablePartition->add_table_ranges(ToString(range));
     }
+
+    auto aggregateStatistics = protoMultiTablePartition->mutable_aggregate_statistics();
+    aggregateStatistics->set_chunk_count(multiTablePartition.AggregateStatistics.ChunkCount);
+    aggregateStatistics->set_data_weight(multiTablePartition.AggregateStatistics.DataWeight);
+    aggregateStatistics->set_row_count(multiTablePartition.AggregateStatistics.RowCount);
 }
 
 void FromProto(
@@ -1201,6 +1206,13 @@ void FromProto(
 {
     for (const auto& range : protoMultiTablePartition.table_ranges()) {
         multiTablePartition->TableRanges.emplace_back(NYPath::TRichYPath::Parse(range));
+    }
+
+    if (protoMultiTablePartition.has_aggregate_statistics()) {
+        const auto& aggregateStatistics = protoMultiTablePartition.aggregate_statistics();
+        multiTablePartition->AggregateStatistics.ChunkCount = aggregateStatistics.chunk_count();
+        multiTablePartition->AggregateStatistics.DataWeight = aggregateStatistics.data_weight();
+        multiTablePartition->AggregateStatistics.RowCount = aggregateStatistics.row_count();
     }
 }
 
