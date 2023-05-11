@@ -33,7 +33,6 @@ done
 ytsaurus_python=$(realpath "${ytsaurus_build_path}/ytsaurus_python")
 
 mkdir -p ${ytsaurus_python}
-
 cd ${ytsaurus_source_path}
 pip3 install -e yt/python/packages
 
