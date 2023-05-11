@@ -482,7 +482,6 @@ def get_node_config():
         job_controller = {
             total_confirmation_period = 5000;
             cpu_per_tablet_slot = 0.0;
-            operation_infos_request_period = 1000;
             unknown_operation_jobs_removal_delay = 5000;
         };
 
@@ -689,6 +688,10 @@ def get_dynamic_node_config():
         config_annotation = "default";
         exec_agent = {
             abort_on_jobs_disabled = %true;
+
+            job_controller = {
+                operation_infos_request_period = 1000;
+            };
         };
     };
 }
