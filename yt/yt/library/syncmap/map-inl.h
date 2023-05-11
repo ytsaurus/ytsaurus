@@ -62,41 +62,30 @@ TValue* TSyncMap<TKey, TValue, THash, TEqual, TLock>::Find(const TFindKey& key)
 
 template <class TKey, class TValue, class THash, class TEqual, class TLock>
 template <class TCtor, class TFindKey>
-std::pair<TValue*, bool> TSyncMap<TKey, TValue, THash, TEqual, TLock>::FindOrInsert(const TFindKey& key, TCtor&& ctor)
+std::pair<TValue*, bool> TSyncMap<TKey, TValue, THash, TEqual, TLock>::FindOrInsert(
+    const TFindKey& key,
+    TCtor&& ctor)
 {
-    {
-        auto snapshot = AcquireSnapshot();
+    return FindOr(
+        key,
+        [] (TCtor&& ctor) {
+            return New<TEntry>(ctor());
+        },
+        std::forward<TCtor>(ctor));
+}
 
-        if (auto it = snapshot->Map->find(key); it != snapshot->Map->end()) {
-            return {&(it->second->Value), false};
-        }
-    }
-
-    {
-        auto guard = Guard(Lock_);
-
-        auto* snapshot = Snapshot_.load();
-        if (auto it = snapshot->Map->find(key); it != snapshot->Map->end()) {
-            OnMiss();
-            return {&(it->second->Value), false};
-        }
-
-        if (snapshot->Dirty) {
-            if (auto it = DirtyMap_->find(key); it != DirtyMap_->end()) {
-                OnMiss();
-                return {&(it->second->Value), false};
-            }
-        }
-
-        if (!snapshot->Dirty) {
-            DirtyMap_ = New<TMap>(*snapshot->Map);
-            UpdateSnapshot(snapshot->Map, true);
-        }
-
-        auto [newIt, inserted] = DirtyMap_->emplace(key, New<TEntry>(ctor()));
-        YT_VERIFY(inserted);
-        return {&(newIt->second->Value), true};
-    }
+template <class TKey, class TValue, class THash, class TEqual, class TLock>
+template <class TFindKey, class... TArgs>
+std::pair<TValue*, bool> TSyncMap<TKey, TValue, THash, TEqual, TLock>::FindOrEmplace(
+    const TFindKey& key,
+    TArgs&&... args)
+{
+    return FindOr(
+        key,
+        [] (TArgs&&... args) {
+            return New<TEntry>(std::forward<TArgs>(args)...);
+        },
+        std::forward<TArgs>(args)...);
 }
 
 template <class TKey, class TValue, class THash, class TEqual, class TLock>
@@ -134,6 +123,48 @@ void TSyncMap<TKey, TValue, THash, TEqual, TLock>::OnMiss()
     }
 
     UpdateSnapshot(std::move(DirtyMap_), false);
+}
+
+template <class TKey, class TValue, class THash, class TEqual, class TLock>
+template <class TFindKey, class TInserter, class... TArgs>
+std::pair<TValue*, bool> TSyncMap<TKey, TValue, THash, TEqual, TLock>::FindOr(
+    const TFindKey& key,
+    TInserter&& inserter,
+    TArgs&&... args)
+{
+    {
+        auto snapshot = AcquireSnapshot();
+
+        if (auto it = snapshot->Map->find(key); it != snapshot->Map->end()) {
+            return {&(it->second->Value), false};
+        }
+    }
+
+    {
+        auto guard = Guard(Lock_);
+
+        auto* snapshot = Snapshot_.load();
+        if (auto it = snapshot->Map->find(key); it != snapshot->Map->end()) {
+            OnMiss();
+            return {&(it->second->Value), false};
+        }
+
+        if (snapshot->Dirty) {
+            if (auto it = DirtyMap_->find(key); it != DirtyMap_->end()) {
+                OnMiss();
+                return {&(it->second->Value), false};
+            }
+        }
+
+        if (!snapshot->Dirty) {
+            DirtyMap_ = New<TMap>(*snapshot->Map);
+            UpdateSnapshot(snapshot->Map, true);
+        }
+
+        auto [newIt, inserted] = DirtyMap_->emplace(key, inserter(std::forward<TArgs>(args)...));
+        YT_VERIFY(inserted);
+        return {&(newIt->second->Value), true};
+    }
 }
 
 template <class TKey, class TValue, class THash, class TEqual, class TLock>

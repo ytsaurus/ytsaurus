@@ -24,6 +24,28 @@ TEST(TSyncMap, SingleInsert)
     }
 }
 
+TEST(TSyncMap, SingleEmplace)
+{
+    struct TestVal: TNonCopyable
+    {
+        TestVal(int value) : Value(value) { };
+        int Value;
+    };
+    TSyncMap<int, TestVal> map;
+
+    auto ptr = map.Find(0);
+    EXPECT_EQ(ptr, nullptr);
+
+    auto [insertedPtr, inserted] = map.FindOrEmplace(0, 42);
+    EXPECT_TRUE(inserted);
+    EXPECT_EQ(42, insertedPtr->Value);
+
+    for (int i = 0; i < 100; i++) {
+        auto ptr = map.Find(0);
+        EXPECT_EQ(42, ptr->Value);
+    }
+}
+
 TEST(TSyncMap, TestInsertLoop)
 {
     TSyncMap<int, int> map;

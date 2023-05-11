@@ -41,6 +41,12 @@ public:
     template <class TCtor, class TFindKey = TKey>
     std::pair<TValue*, bool> FindOrInsert(const TFindKey& key, TCtor&& ctor);
 
+    template <class TFindKey, class... TArgs>
+    std::pair<TValue*, bool> FindOrEmplace(const TFindKey& key, TArgs&&... args);
+
+    template <class TFindKey = TKey>
+    inline std::pair<TValue*, bool> FindOrDefault(const TFindKey& key);
+
     //! Flushes dirty map. All keys inserted before this call will be moved to read-only portion of the map.
     //! Designed to facilitate usage of IterateReadOnly.
     void Flush();
@@ -54,6 +60,11 @@ private:
     {
         explicit TEntry(TValue value)
             : Value(std::move(value))
+        { }
+
+        template <class... TArgs>
+        TEntry(TArgs&&... args)
+            : Value(std::forward<TArgs>(args)...)
         { }
 
         TValue Value;
@@ -83,7 +94,17 @@ private:
 
     THazardPtr<TSnapshot> AcquireSnapshot();
     void UpdateSnapshot(TIntrusivePtr<TMap> map, bool dirty);
+
+    template <class TFindKey, class TInserter, class... TArgs>
+    std::pair<TValue*, bool> FindOr(const TFindKey& key, TInserter&& inserter, TArgs&&... args);
 };
+
+template <class TKey, class TValue, class THash, class TEqual, class TLock>
+template <class TFindKey>
+std::pair<TValue*, bool> TSyncMap<TKey, TValue, THash, TEqual, TLock>::FindOrDefault(const TFindKey& key)
+{
+    return FindOrEmplace(key);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
