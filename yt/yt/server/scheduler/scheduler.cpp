@@ -3531,22 +3531,19 @@ private:
         // Result is ignored since failure causes scheduler disconnection.
         Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
 
-        auto result = WaitFor(BIND(&TImpl::RequestOperationProgress, MakeStrong(this), operation)
+        auto operationProgress = WaitFor(BIND(&TImpl::RequestOperationProgress, MakeStrong(this), operation)
             .AsyncVia(operation->GetCancelableControlInvoker())
-            .Run());
-        auto progress = result.IsOK()
-            ? result.Value().Progress
-            : TYsonString();
-        auto alerts = result.IsOK()
-            ? result.Value().Alerts
-            : TYsonString();
+            .Run())
+            .ValueOrThrow();
+
+        SubmitOperationToCleaner(operation, operationProgress);
 
         LogOperationFinished(
             operation,
             ELogEventType::OperationCompleted,
             TError(),
-            progress,
-            alerts);
+            operationProgress.Progress,
+            operationProgress.Alerts);
 
         FinishOperation(operation);
     }
@@ -3590,22 +3587,19 @@ private:
         // Result is ignored since failure causes scheduler disconnection.
         Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
 
-        auto result = WaitFor(BIND(&TImpl::RequestOperationProgress, MakeStrong(this), operation)
+        auto operationProgress = WaitFor(BIND(&TImpl::RequestOperationProgress, MakeStrong(this), operation)
             .AsyncVia(operation->GetCancelableControlInvoker())
-            .Run());
-        auto progress = result.IsOK()
-            ? result.Value().Progress
-            : TYsonString();
-        auto alerts = result.IsOK()
-            ? result.Value().Alerts
-            : TYsonString();
+            .Run())
+            .ValueOrThrow();
+
+        SubmitOperationToCleaner(operation, operationProgress);
 
         LogOperationFinished(
             operation,
             ELogEventType::OperationAborted,
             error,
-            progress,
-            alerts);
+            operationProgress.Progress,
+            operationProgress.Alerts);
 
         FinishOperation(operation);
     }
