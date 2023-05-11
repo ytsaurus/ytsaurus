@@ -38,7 +38,7 @@ protected:
     virtual NObjectServer::TObject* AsObject() = 0;
 
 private:
-    TMaintenanceCounts MaintenanceCounts_ = {};
+    TMaintenanceCounts MaintenanceCounts_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,15 +51,15 @@ template <class TImpl, EMaintenanceType Type>
 class TMaintenanceFlagGetter;
 
 #define DEFINE_MAINTENANCE_FLAG_GETTER(Method, Type) \
-template <class TImpl> \
-class TMaintenanceFlagGetter<TImpl, EMaintenanceType::Type> \
-{ \
-public: \
-    bool Method() const \
+    template <class TImpl> \
+    class TMaintenanceFlagGetter<TImpl, EMaintenanceType::Type> \
     { \
-        return static_cast<const TImpl*>(this)->GetMaintenanceFlag(EMaintenanceType::Type); \
-    } \
-}
+    public: \
+        bool Method() const \
+        { \
+            return static_cast<const TImpl*>(this)->GetMaintenanceFlag(EMaintenanceType::Type); \
+        } \
+    }
 
 DEFINE_MAINTENANCE_FLAG_GETTER(IsBanned, Ban);
 DEFINE_MAINTENANCE_FLAG_GETTER(IsDecommissioned, Decommission);

@@ -1748,7 +1748,7 @@ NProto::EMaintenanceComponent ConvertMaintenanceComponentToProto(EMaintenanceCom
         case EMaintenanceComponent::Host:
             return NProto::EMaintenanceComponent::MC_HOST;
         default:
-            THROW_ERROR_EXCEPTION("Invalid maintenance component: %Qv", component);
+            THROW_ERROR_EXCEPTION("Invalid maintenance component %Qv", component);
     }
 }
 
@@ -1766,7 +1766,7 @@ NProto::EMaintenanceType ConvertMaintenanceTypeToProto(EMaintenanceType type)
         case EMaintenanceType::DisableTabletCells:
             return NProto::EMaintenanceType::MT_DISABLE_TABLET_CELLS;
         default:
-            THROW_ERROR_EXCEPTION("Invalid maintenance type: %Qv", type);
+            THROW_ERROR_EXCEPTION("Invalid maintenance type %Qv", type);
     }
 }
 
@@ -1828,12 +1828,22 @@ TFuture<TMaintenanceCounts> TClient::RemoveMaintenance(
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspRemoveMaintenancePtr>& rsp) {
         auto rspValue = rsp.ValueOrThrow();
 
+        const auto& protoCounts = rspValue->removed_maintenance_counts();
         TMaintenanceCounts counts;
-        counts[EMaintenanceType::Ban] = rspValue->ban();
-        counts[EMaintenanceType::Decommission] = rspValue->decommission();
-        counts[EMaintenanceType::DisableSchedulerJobs] = rspValue->disable_scheduler_jobs();
-        counts[EMaintenanceType::DisableWriteSessions] = rspValue->disable_write_sessions();
-        counts[EMaintenanceType::DisableTabletCells] = rspValue->disable_tablet_cells();
+
+        if (!rspValue->use_map_instead_of_fields()) {
+            counts[EMaintenanceType::Ban] = rspValue->ban();
+            counts[EMaintenanceType::Decommission] = rspValue->decommission();
+            counts[EMaintenanceType::DisableSchedulerJobs] = rspValue->disable_scheduler_jobs();
+            counts[EMaintenanceType::DisableWriteSessions] = rspValue->disable_write_sessions();
+            counts[EMaintenanceType::DisableTabletCells] = rspValue->disable_tablet_cells();
+        } else {
+            for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {
+                auto it = protoCounts.find(ConvertMaintenanceTypeToProto(type));
+                counts[type] = it == protoCounts.end() ? 0 : it->second;
+            }
+        }
+
         return counts;
     }));
 }

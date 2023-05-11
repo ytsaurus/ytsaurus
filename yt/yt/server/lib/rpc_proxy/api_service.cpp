@@ -4269,7 +4269,7 @@ private:
             });
     }
 
-    static EMaintenanceComponent ComponentFromProto(
+    static EMaintenanceComponent MaintenanceComponentFromProto(
         NApi::NRpcProxy::NProto::EMaintenanceComponent component)
     {
         using EProtoMaintenanceComponent = NApi::NRpcProxy::NProto::EMaintenanceComponent;
@@ -4289,12 +4289,13 @@ private:
         }
     }
 
-    static EMaintenanceType TypeFromProto(NApi::NRpcProxy::NProto::EMaintenanceType type)
+    static EMaintenanceType MaintenanceTypeFromProto(
+        NApi::NRpcProxy::NProto::EMaintenanceType type)
     {
         using EProtoMaintenanceType = NApi::NRpcProxy::NProto::EMaintenanceType;
 
         switch (type) {
-            case EProtoMaintenanceType::MT_BAN:
+            case NApi::NRpcProxy::NProto::MT_BAN:
                 return EMaintenanceType::Ban;
             case EProtoMaintenanceType::MT_DECOMMISSION:
                 return EMaintenanceType::Decommission;
@@ -4312,9 +4313,9 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AddMaintenance)
     {
-        auto component = ComponentFromProto(request->component());
+        auto component = MaintenanceComponentFromProto(request->component());
         auto address = request->address();
-        auto type = TypeFromProto(request->type());
+        auto type = MaintenanceTypeFromProto(request->type());
         auto comment = request->comment();
         ValidateMaintenanceComment(comment);
 
@@ -4343,7 +4344,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemoveMaintenance)
     {
-        auto component = ComponentFromProto(request->component());
+        auto component = MaintenanceComponentFromProto(request->component());
         auto address = request->address();
 
         TStringBuilder requestInfo;
@@ -4359,7 +4360,7 @@ private:
         filter.Ids = FromProto<std::vector<TMaintenanceId>>(request->ids());
 
         if (request->has_type()) {
-            filter.Type = TypeFromProto(request->type());
+            filter.Type = MaintenanceTypeFromProto(request->type());
             requestInfo.AppendFormat(", Type: %v", filter.Type);
         }
 
@@ -4388,13 +4389,29 @@ private:
                 return client->RemoveMaintenance(component, address, filter);
             },
             [=] (const auto& context, const TMaintenanceCounts& result) {
-                auto* response = &context->Response();
+                auto& response = context->Response();
 
-                response->set_ban(result[EMaintenanceType::Ban]);
-                response->set_decommission(result[EMaintenanceType::Decommission]);
-                response->set_disable_scheduler_jobs(result[EMaintenanceType::DisableSchedulerJobs]);
-                response->set_disable_write_sessions(result[EMaintenanceType::DisableWriteSessions]);
-                response->set_disable_tablet_cells(result[EMaintenanceType::DisableTabletCells]);
+                response.set_ban(result[EMaintenanceType::Ban]);
+                response.set_decommission(result[EMaintenanceType::Decommission]);
+                response.set_disable_scheduler_jobs(result[EMaintenanceType::DisableSchedulerJobs]);
+                response.set_disable_write_sessions(result[EMaintenanceType::DisableWriteSessions]);
+                response.set_disable_tablet_cells(result[EMaintenanceType::DisableTabletCells]);
+
+                response.set_use_map_instead_of_fields(true);
+
+                using namespace NApi::NRpcProxy::NProto;
+                constexpr NApi::NRpcProxy::NProto::EMaintenanceType Types[] =  {
+                    MT_BAN,
+                    MT_DECOMMISSION,
+                    MT_DISABLE_SCHEDULER_JOBS,
+                    MT_DISABLE_WRITE_SESSIONS,
+                    MT_DISABLE_TABLET_CELLS,
+                };
+
+                auto* map = response.mutable_removed_maintenance_counts();
+                for (auto type : Types) {
+                    map->insert({type, result[MaintenanceTypeFromProto(type)]});
+                }
             });
     }
 

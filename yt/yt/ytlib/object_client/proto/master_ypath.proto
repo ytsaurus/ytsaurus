@@ -95,11 +95,16 @@ message TReqRemoveMaintenance
 
 message TRspRemoveMaintenance
 {
-    required int32 ban = 1;
-    required int32 decommission = 2;
-    required int32 disable_scheduler_jobs = 3;
-    required int32 disable_write_sessions = 4;
-    required int32 disable_tablet_cells = 5;
+    // COMPAT(kvk1920): Can be removed after all masters and proxies will be updated.
+    optional int32 ban = 1;
+    optional int32 decommission = 2;
+    optional int32 disable_scheduler_jobs = 3;
+    optional int32 disable_write_sessions = 4;
+    optional int32 disable_tablet_cells = 5;
+
+    // COMPAT(kvk1920)
+    optional bool use_map_instead_of_fields = 6 [default = false];
+    map<int32, int32> removed_maintenance_counts = 7; // Key: EMaintenanceType
 }
 
 ////////////////////////////////////////////////////////////////////////////////

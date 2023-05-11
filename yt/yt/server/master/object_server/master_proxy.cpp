@@ -274,13 +274,23 @@ private:
     {
         DeclareMutating();
 
+        auto component = CheckedEnumCast<EMaintenanceComponent>(request->component());
+        auto type = CheckedEnumCast<EMaintenanceType>(request->type());
+
+        context->SetRequestInfo(
+            "Component: %v, "
+            "Address: %v, "
+            "Type: %v, "
+            "Comment: %v",
+            component,
+            request->address(),
+            type,
+            request->comment());
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsPrimaryMaster()) {
             THROW_ERROR_EXCEPTION("Maintenance can only be added via primary master");
         }
-
-        auto component = CheckedEnumCast<EMaintenanceComponent>(request->component());
-        auto type = CheckedEnumCast<EMaintenanceType>(request->type());
 
         const auto& maintenanceTracker = Bootstrap_->GetMaintenanceTracker();
         auto id = maintenanceTracker->AddMaintenance(
@@ -297,11 +307,6 @@ private:
     {
         DeclareMutating();
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (!multicellManager->IsPrimaryMaster()) {
-            THROW_ERROR_EXCEPTION("Maintenance can only be added via primary master");
-        }
-
         auto component = CheckedEnumCast<EMaintenanceComponent>(request->component());
 
         std::optional<TCompactSet<TMaintenanceId, TypicalMaintenanceRequestCount>> ids;
@@ -314,9 +319,6 @@ private:
 
         std::optional<TStringBuf> user;
         if (request->has_user()) {
-            THROW_ERROR_EXCEPTION_IF(request->has_mine(),
-                "At most one of {\"mine\", \"user\"} can be specified");
-
             user = request->user();
         } else if (request->mine()) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -327,6 +329,21 @@ private:
         if (request->has_type()) {
             type = CheckedEnumCast<EMaintenanceType>(request->type());
         }
+
+        context->SetRequestInfo("Component: %v, Address: %v, Ids: %v, User: %v, Type: %v",
+            component,
+            request->address(),
+            ids ? std::optional(TCompactVector<TMaintenanceId, TypicalMaintenanceRequestCount>(ids->begin(), ids->end())) : std::nullopt,
+            user,
+            type);
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsPrimaryMaster()) {
+            THROW_ERROR_EXCEPTION("Maintenance can only be added via primary master");
+        }
+
+        THROW_ERROR_EXCEPTION_IF(request->has_user() && request->mine(),
+            "At most one of {\"mine\", \"user\"} can be specified");
 
         const auto& maintenanceTracker = Bootstrap_->GetMaintenanceTracker();
         auto removed = maintenanceTracker->RemoveMaintenance(
@@ -341,6 +358,14 @@ private:
         response->set_disable_scheduler_jobs(removed[EMaintenanceType::DisableSchedulerJobs]);
         response->set_disable_write_sessions(removed[EMaintenanceType::DisableWriteSessions]);
         response->set_disable_tablet_cells(removed[EMaintenanceType::DisableTabletCells]);
+
+        response->set_use_map_instead_of_fields(true);
+        for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {
+            response->mutable_removed_maintenance_counts()->insert({
+                static_cast<int>(type),
+                removed[type],
+            });
+        }
 
         context->Reply();
     }

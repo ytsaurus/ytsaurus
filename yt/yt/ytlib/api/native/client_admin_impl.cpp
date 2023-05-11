@@ -589,11 +589,20 @@ TMaintenanceCounts TClient::DoRemoveMaintenance(
         .ValueOrThrow();
 
     TMaintenanceCounts result;
-    result[EMaintenanceType::Ban] = response->ban();
-    result[EMaintenanceType::Decommission] = response->decommission();
-    result[EMaintenanceType::DisableSchedulerJobs] = response->disable_scheduler_jobs();
-    result[EMaintenanceType::DisableWriteSessions] = response->disable_write_sessions();
-    result[EMaintenanceType::DisableTabletCells] = response->disable_tablet_cells();
+
+    if (response->use_map_instead_of_fields()) {
+        const auto& removedMaintenanceCounts = response->removed_maintenance_counts();
+        for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {
+            auto it = removedMaintenanceCounts.find(static_cast<int>(type));
+            result[type] = it == removedMaintenanceCounts.end() ? 0 : it->second;
+        }
+    } else {
+        result[EMaintenanceType::Ban] = response->ban();
+        result[EMaintenanceType::Decommission] = response->decommission();
+        result[EMaintenanceType::DisableSchedulerJobs] = response->disable_scheduler_jobs();
+        result[EMaintenanceType::DisableWriteSessions] = response->disable_write_sessions();
+        result[EMaintenanceType::DisableTabletCells] = response->disable_tablet_cells();
+    }
 
     return result;
 }

@@ -193,7 +193,7 @@ private:
         }
 
         auto timestamp = TryGetCurrentMutationContext()->GetTimestamp();
-        TMaintenanceRequest maintenanceRequest = {
+        TMaintenanceRequest maintenanceRequest {
             .User = user,
             .Type = type,
             .Comment = comment,
@@ -289,7 +289,7 @@ private:
         YT_VERIFY(component != EMaintenanceComponent::Host);
 
         if (component != EMaintenanceComponent::ClusterNode) {
-            THROW_ERROR_EXCEPTION("Maintenance component %Qv is not supported", component)
+            THROW_ERROR_EXCEPTION("Maintenance component %Qlv is not supported", component)
                 << TErrorAttribute("component", component);
         }
 
@@ -308,7 +308,7 @@ private:
         const TString& address)
     {
         if (component != EMaintenanceComponent::ClusterNode) {
-            YT_LOG_ALERT("Maintenance component is not supported yet (Component: %Qv)",
+            YT_LOG_ALERT("Maintenance component is not supported yet (Component: %v)",
                 component);
             return nullptr;
         }
@@ -365,6 +365,7 @@ private:
             }
             default:
                 YT_VERIFY(component != EMaintenanceComponent::Host);
+                break;
         }
     }
 };

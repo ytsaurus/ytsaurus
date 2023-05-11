@@ -13,7 +13,6 @@ namespace NYT::NMaintenanceTrackerServer {
 struct IMaintenanceTracker
     : public virtual TRefCounted
 {
-public:
     virtual TMaintenanceId AddMaintenance(
         EMaintenanceComponent component,
         const TString& address,
