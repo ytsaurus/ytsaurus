@@ -95,6 +95,7 @@ const char * auto_time_zones[] {
     "America/Cayman",
     "America/Chicago",
     "America/Chihuahua",
+    "America/Ciudad_Juarez",
     "America/Coral_Harbour",
     "America/Cordoba",
     "America/Costa_Rica",

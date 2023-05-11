@@ -2,11 +2,11 @@
 
 const char * auto_config_build[]
 {
-    "VERSION_FULL", "ClickHouse 22.8.16.1",
-    "VERSION_DESCRIBE", "v22.8.16.1-lts",
-    "VERSION_INTEGER", "22008016",
+    "VERSION_FULL", "ClickHouse 22.8.18.1",
+    "VERSION_DESCRIBE", "v22.8.18.1-lts",
+    "VERSION_INTEGER", "22008018",
     "SYSTEM", "Linux",
-    "VERSION_GITHASH", "d36fa168bbf23f85c1488c513e418d993ef7b608",
+    "VERSION_GITHASH", "df7f2ef0b4104fb2226fb2b1129fbd471e6ded82",
     "VERSION_REVISION", "54465",
     "VERSION_DATE", "",
     "BUILD_TYPE", "MinSizeRel",
@@ -44,7 +44,7 @@ const char * auto_config_build[]
     "USE_ODBC", "",
     "USE_GRPC", "",
     "USE_LDAP", "",
-    "TZDATA_VERSION", "2022f",
+    "TZDATA_VERSION", "2023c",
     "USE_KRB5", "",
     "USE_FILELOG", "1",
     "USE_BZIP2", "",
