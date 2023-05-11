@@ -45,7 +45,7 @@ jobs:
       - checkout
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
-       -name: Store credentials
+      - name: Store credentials
         shell: bash
         run: |
           echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' > sa.json
