@@ -31,8 +31,11 @@ public class AuthenticationWrapper extends RpcClientWrapper {
         TCredentialsExt.Builder credentialsExtBuilder = TCredentialsExt.newBuilder();
 
         var serviceTicketAuth = clientAuth.getServiceTicketAuth();
+        var userTicketAuth = clientAuth.getUserTicketAuth();
         if (serviceTicketAuth.isPresent()) {
             credentialsExtBuilder.setServiceTicket(serviceTicketAuth.get().issueServiceTicket());
+        } else if (userTicketAuth.isPresent()) {
+            credentialsExtBuilder.setUserTicket(userTicketAuth.get().issueUserTicket());
         } else {
             clientAuth.getToken().ifPresent(credentialsExtBuilder::setToken);
         }

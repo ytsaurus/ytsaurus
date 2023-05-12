@@ -11,15 +11,22 @@ public class YTsaurusClientAuth {
     private final String user;
     private final String token;
     private final ServiceTicketAuth serviceTicketAuth;
+    private final UserTicketAuth userTicketAuth;
 
     private YTsaurusClientAuth(Builder builder) {
-        this(builder.user, builder.token, builder.serviceTicketAuth);
+        this(builder.user, builder.token, builder.serviceTicketAuth, builder.userTicketAuth);
     }
 
-    private YTsaurusClientAuth(String user, String token, ServiceTicketAuth serviceTicketAuth) {
+    private YTsaurusClientAuth(
+            String user,
+            String token,
+            ServiceTicketAuth serviceTicketAuth,
+            UserTicketAuth userTicketAuth
+    ) {
         this.user = user;
         this.token = token;
         this.serviceTicketAuth = serviceTicketAuth;
+        this.userTicketAuth = userTicketAuth;
     }
 
     public static Builder builder() {
@@ -27,7 +34,7 @@ public class YTsaurusClientAuth {
     }
 
     public static YTsaurusClientAuth empty() {
-        return new YTsaurusClientAuth(null, null, null);
+        return new YTsaurusClientAuth(null, null, null, null);
     }
 
     public Optional<String> getUser() {
@@ -40,6 +47,10 @@ public class YTsaurusClientAuth {
 
     public Optional<ServiceTicketAuth> getServiceTicketAuth() {
         return Optional.ofNullable(serviceTicketAuth);
+    }
+
+    public Optional<UserTicketAuth> getUserTicketAuth() {
+        return Optional.ofNullable(userTicketAuth);
     }
 
     /**
@@ -85,6 +96,7 @@ public class YTsaurusClientAuth {
         private String user;
         private String token;
         private ServiceTicketAuth serviceTicketAuth;
+        private UserTicketAuth userTicketAuth;
 
         public YTsaurusClientAuth build() {
             return new YTsaurusClientAuth(this);
@@ -102,6 +114,11 @@ public class YTsaurusClientAuth {
 
         public Builder setServiceTicketAuth(ServiceTicketAuth serviceTicketAuth) {
             this.serviceTicketAuth = serviceTicketAuth;
+            return this;
+        }
+
+        public Builder setUserTicketAuth(UserTicketAuth userTicketAuth) {
+            this.userTicketAuth = userTicketAuth;
             return this;
         }
     }
