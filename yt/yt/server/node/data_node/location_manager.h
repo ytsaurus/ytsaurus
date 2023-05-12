@@ -72,8 +72,7 @@ public:
     TLocationHealthChecker(
         TChunkStorePtr chunkStore,
         TLocationManagerPtr locationManager,
-        IInvokerPtr invoker,
-        TLocationHealthCheckerConfigPtr config);
+        IInvokerPtr invoker);
 
     void Initialize();
 
@@ -82,9 +81,7 @@ public:
     void OnDynamicConfigChanged(const TLocationHealthCheckerDynamicConfigPtr& newConfig);
 
 private:
-    const TLocationHealthCheckerConfigPtr Config_;
-    bool Enabled_;
-
+    TAtomicIntrusivePtr<TLocationHealthCheckerDynamicConfig> DynamicConfig_;
     const IInvokerPtr Invoker_;
 
     const TChunkStorePtr ChunkStore_;

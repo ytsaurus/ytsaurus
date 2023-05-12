@@ -276,8 +276,7 @@ public:
         LocationHealthChecker_ = New<TLocationHealthChecker>(
             ChunkStore_,
             LocationManager_,
-            GetControlInvoker(),
-            GetConfig()->DataNode->LocationHealthChecker);
+            GetControlInvoker());
         LocationHealthChecker_->Initialize();
         ActiveDiskChecker_ = New<TActiveDiskChecker>(
             DiskInfoProvider_,

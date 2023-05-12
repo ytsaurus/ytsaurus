@@ -199,17 +199,15 @@ TFuture<void> TLocationManager::RecoverDisk(const TString& diskId)
 TLocationHealthChecker::TLocationHealthChecker(
     TChunkStorePtr chunkStore,
     TLocationManagerPtr locationManager,
-    IInvokerPtr invoker,
-    TLocationHealthCheckerConfigPtr config)
-    : Config_(std::move(config))
-    , Enabled_(Config_->Enabled)
+    IInvokerPtr invoker)
+    : DynamicConfig_(New<TLocationHealthCheckerDynamicConfig>())
     , Invoker_(std::move(invoker))
     , ChunkStore_(std::move(chunkStore))
     , LocationManager_(std::move(locationManager))
     , HealthCheckerExecutor_(New<TPeriodicExecutor>(
         Invoker_,
         BIND(&TLocationHealthChecker::OnLocationsHealthCheck, MakeWeak(this)),
-        Config_->HealthCheckPeriod))
+        DynamicConfig_.Acquire()->HealthCheckPeriod))
 { }
 
 void TLocationHealthChecker::Initialize()
@@ -224,7 +222,7 @@ void TLocationHealthChecker::Initialize()
 
 void TLocationHealthChecker::Start()
 {
-    if (Enabled_) {
+    if (DynamicConfig_.Acquire()->Enabled) {
         YT_LOG_DEBUG("Starting location health checker");
         HealthCheckerExecutor_->Start();
     }
@@ -232,10 +230,11 @@ void TLocationHealthChecker::Start()
 
 void TLocationHealthChecker::OnDynamicConfigChanged(const TLocationHealthCheckerDynamicConfigPtr& newConfig)
 {
-    auto oldEnabled = Enabled_;
-    auto newEnabled = newConfig->Enabled.value_or(Config_->Enabled);
-    auto newHealthCheckPeriod = newConfig->HealthCheckPeriod.value_or(Config_->HealthCheckPeriod);
+    auto config = DynamicConfig_.Acquire();
+    auto oldEnabled = config->Enabled;
+    auto newEnabled = newConfig->Enabled;
 
+    auto newHealthCheckPeriod = newConfig->HealthCheckPeriod;
     HealthCheckerExecutor_->SetPeriod(newHealthCheckPeriod);
 
     if (oldEnabled && !newEnabled) {
@@ -246,18 +245,18 @@ void TLocationHealthChecker::OnDynamicConfigChanged(const TLocationHealthChecker
         HealthCheckerExecutor_->Start();
     }
 
-    Enabled_ = newEnabled;
+    DynamicConfig_.Store(newConfig);
 }
 
 void TLocationHealthChecker::OnDiskHealthCheckFailed(
     const TStoreLocationPtr& location,
     const TError& error)
 {
-    if (!Enabled_) {
-        return;
-    }
+    auto config = DynamicConfig_.Acquire();
 
-    YT_UNUSED_FUTURE(LocationManager_->FailDiskByName(location->GetStaticConfig()->DeviceName, error));
+    if (config->Enabled && config->EnableManualDiskFailures) {
+        YT_UNUSED_FUTURE(LocationManager_->FailDiskByName(location->GetStaticConfig()->DeviceName, error));
+    }
 }
 
 void TLocationHealthChecker::OnLocationsHealthCheck()

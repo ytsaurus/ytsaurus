@@ -517,24 +517,16 @@ void TIOThroughputMeterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLocationHealthCheckerConfig::Register(TRegistrar registrar)
+void TLocationHealthCheckerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default(false);
 
+    registrar.Parameter("enable_manual_disk_failures", &TThis::EnableManualDiskFailures)
+        .Default(false);
+
     registrar.Parameter("health_check_period", &TThis::HealthCheckPeriod)
         .Default(TDuration::Seconds(60));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TLocationHealthCheckerDynamicConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enabled", &TThis::Enabled)
-        .Default();
-
-    registrar.Parameter("health_check_period", &TThis::HealthCheckPeriod)
-        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -621,8 +613,6 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("changelog_reader_cache", &TThis::ChangelogReaderCache)
         .DefaultNew();
     registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
-        .DefaultNew();
-    registrar.Parameter("location_health_checker", &TThis::LocationHealthChecker)
         .DefaultNew();
 
     registrar.Parameter("session_timeout", &TThis::SessionTimeout)
