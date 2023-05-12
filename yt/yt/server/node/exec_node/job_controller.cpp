@@ -956,6 +956,12 @@ private:
             }
 
             switch (job->GetState()) {
+                case EJobState::Waiting:
+                    // COMPAT(pogorelov)
+                    if (context->SendWaitingJobs) {
+                        runningJobs.push_back(job);
+                    }
+                    break;
                 case EJobState::Running:
                     runningJobs.push_back(job);
                     break;

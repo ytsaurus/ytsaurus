@@ -1277,6 +1277,11 @@ class YTEnvSetup(object):
 
     def _setup_nodes_dynamic_config(self, driver=None):
         config = get_dynamic_node_config()
+
+        # COMPAT(pogorelov)
+        if "controller_agent" in self.__class__.ARTIFACT_COMPONENTS.get("22_4", []):
+            config["%true"]["exec_agent"]["controller_agent_connector"]["send_waiting_jobs"] = False
+
         yt_commands.set("//sys/cluster_nodes/@config", config, driver=driver)
 
         nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)

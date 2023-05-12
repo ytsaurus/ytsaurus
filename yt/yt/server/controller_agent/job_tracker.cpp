@@ -47,7 +47,6 @@ EJobStage JobStateToJobStage(EJobState jobState) noexcept
     switch (jobState) {
         case EJobState::Running:
         case EJobState::Waiting:
-        case EJobState::Aborting:
             return EJobStage::Running;
         case EJobState::Failed:
         case EJobState::Aborted:

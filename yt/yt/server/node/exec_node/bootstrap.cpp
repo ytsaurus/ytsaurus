@@ -122,6 +122,7 @@ public:
             }
         }
 
+        // TODO(pogorelov): Remove this.
         auto createSchedulerJob = BIND([this] (
             TJobId jobId,
             TOperationId operationId,

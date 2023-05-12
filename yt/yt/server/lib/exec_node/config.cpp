@@ -194,6 +194,8 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("running_job_statistics_sending_backoff", &TThis::RunningJobStatisticsSendingBackoff)
         .Default();
+    registrar.Parameter("send_waiting_jobs", &TThis::SendWaitingJobs)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

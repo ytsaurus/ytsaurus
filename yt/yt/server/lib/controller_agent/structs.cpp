@@ -293,6 +293,14 @@ TFailedJobSummary::TFailedJobSummary(NProto::TJobStatus* status)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TWaitingJobSummary::TWaitingJobSummary(NProto::TJobStatus* status)
+    : TJobSummary(status)
+{
+    YT_VERIFY(State == ExpectedState);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TRunningJobSummary::TRunningJobSummary(NProto::TJobStatus* status)
     : TJobSummary(status)
     , Progress(status->progress())
@@ -442,6 +450,8 @@ std::unique_ptr<TJobSummary> ParseJobSummary(NProto::TJobStatus* const status, c
             return std::make_unique<TAbortedJobSummary>(status, Logger);
         case EJobState::Running:
             return std::make_unique<TRunningJobSummary>(status);
+        case EJobState::Waiting:
+            return std::make_unique<TWaitingJobSummary>(status);
         default:
             YT_LOG_ERROR(
                 "Unexpected job state in parsing status (JobState: %v, JobId: %v)",

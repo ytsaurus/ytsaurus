@@ -345,6 +345,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoPrepareHeartbea
     context->LastTotalConfirmationTime = LastTotalConfirmationTime_;
     context->JobsToForcefullySend = EnqueuedFinishedJobs_;
     context->UnconfirmedJobIds = std::move(UnconfirmedJobIds_);
+    context->SendWaitingJobs = ControllerAgentConnectorPool_->SendWaitingJobs_;
 
     const auto& jobController = ControllerAgentConnectorPool_->Bootstrap_->GetJobController();
     jobController->PrepareAgentHeartbeatRequest(request, context);
@@ -447,28 +448,27 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
     }
 
     // TODO(pogorelov): Make controller agent connector config dynamic only and refactor this.
-    TDuration testHeartbeatDelay;
     TControllerAgentConnectorConfigPtr newCurrentConfig;
     if (newConfig->ControllerAgentConnector) {
-        testHeartbeatDelay = newConfig->ControllerAgentConnector->TestHeartbeatDelay;
-
         newCurrentConfig = StaticConfig_->ApplyDynamic(newConfig->ControllerAgentConnector);
     }
-
-    std::optional<TDuration> getJobSpecTimeout = newConfig->JobController->GetJobSpecsTimeout;
 
     Bootstrap_->GetJobInvoker()->Invoke(
         BIND([
             this,
-            this_{MakeStrong(this)},
-            newConfig{std::move(newConfig)},
-            testHeartbeatDelay,
-            getJobSpecTimeout,
+            this_ = MakeStrong(this),
+            newConfig = std::move(newConfig),
             newCurrentConfig{std::move(newCurrentConfig)}]
         {
-            GetJobSpecTimeout_ = getJobSpecTimeout.value_or(GetJobSpecTimeout_);
-            TestHeartbeatDelay_ = testHeartbeatDelay;
+            if (newConfig->ControllerAgentConnector) {
+                TestHeartbeatDelay_ = newConfig->ControllerAgentConnector->TestHeartbeatDelay;
+                SendWaitingJobs_ = newConfig->ControllerAgentConnector->SendWaitingJobs;
+            } else {
+                TestHeartbeatDelay_ = TDuration::Zero();
+            }
             CurrentConfig_ = newCurrentConfig ? newCurrentConfig : StaticConfig_;
+
+            GetJobSpecTimeout_ = newConfig->JobController->GetJobSpecsTimeout.value_or(GetJobSpecTimeout_);
             OnConfigUpdated();
         }));
 }

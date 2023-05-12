@@ -5843,6 +5843,14 @@ void TOperationControllerBase::SafeOnJobInfoReceivedFromNode(std::unique_ptr<TJo
         return;
     }
 
+    if (jobSummary->State == EJobState::Waiting) {
+        YT_LOG_DEBUG(
+            "Received waiting job info, skip it (JobId: %v)",
+            jobId);
+
+        return;
+    }
+
     if (jobSummary->State == EJobState::Running) {
         OnJobRunning(SummaryCast<TRunningJobSummary>(std::move(jobSummary)));
         return;

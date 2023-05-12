@@ -131,16 +131,22 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(TAbortedBySchedulerJ
 struct TFailedJobSummary
     : public TJobSummary
 {
-    explicit TFailedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
     explicit TFailedJobSummary(NProto::TJobStatus* status);
 
     inline static constexpr EJobState ExpectedState = EJobState::Failed;
 };
 
+struct TWaitingJobSummary
+    : public TJobSummary
+{
+    explicit TWaitingJobSummary(NProto::TJobStatus* status);
+
+    inline static constexpr EJobState ExpectedState = EJobState::Waiting;
+};
+
 struct TRunningJobSummary
     : public TJobSummary
 {
-    explicit TRunningJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
     explicit TRunningJobSummary(NProto::TJobStatus* status);
 
     double Progress = 0;

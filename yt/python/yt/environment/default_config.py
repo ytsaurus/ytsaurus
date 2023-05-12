@@ -692,6 +692,10 @@ def get_dynamic_node_config():
             job_controller = {
                 operation_infos_request_period = 1000;
             };
+
+            controller_agent_connector = {
+                send_waiting_jobs = %true;
+            };
         };
     };
 }

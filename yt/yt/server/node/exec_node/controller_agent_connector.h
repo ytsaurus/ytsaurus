@@ -138,6 +138,9 @@ private:
     TDuration TestHeartbeatDelay_{};
     TDuration GetJobSpecTimeout_;
 
+    // COMPAT(pogorelov)
+    bool SendWaitingJobs_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     NRpc::IChannelPtr CreateChannel(const TControllerAgentDescriptor& agentDescriptor);
@@ -169,6 +172,9 @@ struct TAgentHeartbeatContext
 
     THashSet<TJobPtr> JobsToForcefullySend;
     std::vector<TJobId> UnconfirmedJobIds;
+
+    // COMPAT(pogorelov)
+    bool SendWaitingJobs;
 };
 
 DEFINE_REFCOUNTED_TYPE(TAgentHeartbeatContext)
