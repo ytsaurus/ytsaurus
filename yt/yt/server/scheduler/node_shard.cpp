@@ -649,7 +649,6 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             &hasWaitingJobs);
     }
 
-    // TODO(eshcherbin): Rename to |shouldScheduleJobs|?
     bool skipScheduleJobs = false;
     if (hasWaitingJobs || isThrottlingActive) {
         if (hasWaitingJobs) {

@@ -276,12 +276,6 @@ struct TScheduleJobsProfilingCounters
     NProfiling::TSummary ActiveOperationCount;
 };
 
-struct TFairShareScheduleJobResult
-{
-    bool Finished = true;
-    bool Scheduled = false;
-};
-
 struct TScheduleJobsStage
 {
     EJobSchedulingStage Type;
@@ -346,12 +340,20 @@ public:
         const NLogging::TLogger& logger);
 
     void PrepareForScheduling();
+    //! Filters schedulable elements that will be considered for schedulaing, and initializes their dynamic attributes.
     void PrescheduleJob(
         const std::optional<TNonOwningOperationElementList>& consideredSchedulableOperations = {},
         EOperationPreemptionPriority targetOperationPreemptionPriority = EOperationPreemptionPriority::None);
+
+    struct TFairShareScheduleJobResult
+    {
+        bool Finished = true;
+        bool Scheduled = false;
+    };
     TFairShareScheduleJobResult ScheduleJob(bool ignorePacking);
-    // NB(eshcherbin): Public for testing purposes.
-    TFairShareScheduleJobResult ScheduleJob(TSchedulerElement* element, bool ignorePacking);
+
+    // NB(eshcherbin): For testing purposes only.
+    bool ScheduleJobInTest(TSchedulerOperationElement* element, bool ignorePacking);
 
     int GetOperationWithPreemptionPriorityCount(EOperationPreemptionPriority priority) const;
 
@@ -469,8 +471,9 @@ private:
     void PrescheduleJobAtCompositeElement(TSchedulerCompositeElement* element, EOperationPreemptionPriority targetOperationPreemptionPriority);
     void PrescheduleJobAtOperation(TSchedulerOperationElement* element, EOperationPreemptionPriority targetOperationPreemptionPriority);
 
-    TFairShareScheduleJobResult ScheduleJobAtCompositeElement(TSchedulerCompositeElement* element, bool ignorePacking);
-    TFairShareScheduleJobResult ScheduleJobAtOperation(TSchedulerOperationElement* element, bool ignorePacking);
+    TSchedulerOperationElement* FindBestOperationForScheduling();
+    //! Returns whether scheduling attempt was successful.
+    bool ScheduleJob(TSchedulerOperationElement* element, bool ignorePacking);
 
     void PrepareConditionalUsageDiscountsAtCompositeElement(const TSchedulerCompositeElement* element, TPrepareConditionalUsageDiscountsContext* context);
     void PrepareConditionalUsageDiscountsAtOperation(const TSchedulerOperationElement* element, TPrepareConditionalUsageDiscountsContext* context);
@@ -750,6 +753,9 @@ private:
     THashMap<NNodeTrackerClient::TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime_;
 
     NProfiling::TTimeCounter CumulativeScheduleJobsTime_;
+    NProfiling::TEventTimer ScheduleJobsTime_;
+
+    NProfiling::TEventTimer GracefulPreemptionTime_;
 
     NProfiling::TCounter ScheduleJobsDeadlineReachedCounter_;
 

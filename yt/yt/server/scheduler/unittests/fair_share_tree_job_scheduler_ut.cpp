@@ -853,7 +853,7 @@ protected:
 
         context.PrepareForScheduling();
         context.PrescheduleJob();
-        context.ScheduleJob(operationElement.Get(), /*ignorePacking*/ true);
+        context.ScheduleJobInTest(operationElement.Get(), /*ignorePacking*/ true);
 
         context.FinishStage();
     }
@@ -1494,8 +1494,8 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithPrioritizedSch
                     EXPECT_TRUE(context.SchedulingContext()->CanStartMoreJobs());
 
                     const auto& operationElement = sortedOperationElements[i];
-                    auto scheduleJobResult = context.ScheduleJob(operationElement.Get(), /*ignorePacking*/ true);
-                    EXPECT_TRUE(scheduleJobResult.Scheduled);
+                    bool scheduled = context.ScheduleJobInTest(operationElement.Get(), /*ignorePacking*/ true);
+                    EXPECT_TRUE(scheduled);
 
                     checkRootChildSet(context, /*expectedChildCount*/ 3, /*expectedUsesHeap*/ true);
                 }
@@ -1537,8 +1537,8 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithPrioritizedSch
                     EXPECT_TRUE(context.SchedulingContext()->CanStartMoreJobs());
 
                     const auto& operationElement = sortedOperationElements[i];
-                    auto scheduleJobResult = context.ScheduleJob(operationElement.Get(), /*ignorePacking*/ true);
-                    EXPECT_TRUE(scheduleJobResult.Scheduled);
+                    bool scheduled = context.ScheduleJobInTest(operationElement.Get(), /*ignorePacking*/ true);
+                    EXPECT_TRUE(scheduled);
 
                     checkRootChildSet(context, /*expectedChildCount*/ 2, /*expectedUsesHeap*/ false);
                 }
@@ -1661,8 +1661,8 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithoutPrioritized
             for (auto operationElement : operationElements) {
                 YT_VERIFY(context.SchedulingContext()->CanStartMoreJobs());
 
-                auto scheduleJobResult = context.ScheduleJob(operationElement.Get(), /*ignorePacking*/ true);
-                EXPECT_TRUE(scheduleJobResult.Scheduled);
+                bool scheduled = context.ScheduleJobInTest(operationElement.Get(), /*ignorePacking*/ true);
+                EXPECT_TRUE(scheduled);
 
                 const auto& childSet = context.DynamicAttributesOf(rootElement.Get()).SchedulableChildSet;
 

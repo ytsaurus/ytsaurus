@@ -942,7 +942,6 @@ void TScheduleJobsContext::PrepareForScheduling()
     }
 }
 
-// TODO(eshcherbin): Rename to FilterSchedulableElements.
 void TScheduleJobsContext::PrescheduleJob(
     const std::optional<TNonOwningOperationElementList>& consideredSchedulableOperations,
     EOperationPreemptionPriority targetOperationPreemptionPriority)
@@ -956,27 +955,28 @@ void TScheduleJobsContext::PrescheduleJob(
     StageState_->PrescheduleExecuted = true;
 }
 
-TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJob(bool ignorePacking)
+TScheduleJobsContext::TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJob(bool ignorePacking)
 {
     ++StageState_->ScheduleJobAttemptCount;
 
-    // TODO(eshcherbin): We call |ScheduleJobAtCompositeElement| only for root, so we don't really need this "polymorphism".
-    // Rename this method to |FindBestOperationForScheduling| and make it only return best leaf descendant.
-    // Then process best operation here by calling |ScheduleJobAtOperation|.
-    return ScheduleJobAtCompositeElement(TreeSnapshot_->RootElement().Get(), ignorePacking);
+    auto* bestOperation = FindBestOperationForScheduling();
+    if (!bestOperation) {
+        return TFairShareScheduleJobResult{
+            .Finished = true,
+            .Scheduled = false,
+        };
+    }
+
+    bool scheduled = ScheduleJob(bestOperation, ignorePacking);
+    return TFairShareScheduleJobResult{
+        .Finished = false,
+        .Scheduled = scheduled,
+    };
 }
 
-TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJob(TSchedulerElement* element, bool ignorePacking)
+bool TScheduleJobsContext::ScheduleJobInTest(TSchedulerOperationElement* element, bool ignorePacking)
 {
-    switch (element->GetType()) {
-        case ESchedulerElementType::Pool:
-        case ESchedulerElementType::Root:
-            return ScheduleJobAtCompositeElement(static_cast<TSchedulerCompositeElement*>(element), ignorePacking);
-        case ESchedulerElementType::Operation:
-            return ScheduleJobAtOperation(static_cast<TSchedulerOperationElement*>(element), ignorePacking);
-        default:
-            YT_ABORT();
-    }
+    return ScheduleJob(element, ignorePacking);
 }
 
 int TScheduleJobsContext::GetOperationWithPreemptionPriorityCount(EOperationPreemptionPriority priority) const
@@ -1581,17 +1581,14 @@ void TScheduleJobsContext::PrescheduleJobAtOperation(
     }
 }
 
-TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJobAtCompositeElement(TSchedulerCompositeElement* element, bool ignorePacking)
+TSchedulerOperationElement* TScheduleJobsContext::FindBestOperationForScheduling()
 {
-    const auto& attributes = DynamicAttributesOf(element);
+    const auto& attributes = DynamicAttributesOf(TreeSnapshot_->RootElement().Get());
     TSchedulerOperationElement* bestLeafDescendant = nullptr;
     TSchedulerOperationElement* lastConsideredBestLeafDescendant = nullptr;
     while (!bestLeafDescendant) {
         if (!attributes.Active) {
-            return TFairShareScheduleJobResult{
-                .Finished = true,
-                .Scheduled = false,
-            };
+            return nullptr;
         }
 
         bestLeafDescendant = attributes.BestLeafDescendant;
@@ -1608,14 +1605,10 @@ TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJobAtCompositeElement(
         }
     }
 
-    auto childResult = ScheduleJobAtOperation(bestLeafDescendant, ignorePacking);
-    return TFairShareScheduleJobResult{
-        .Finished = false,
-        .Scheduled = childResult.Scheduled,
-    };
+    return bestLeafDescendant;
 }
 
-TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJobAtOperation(TSchedulerOperationElement* element, bool ignorePacking)
+bool TScheduleJobsContext::ScheduleJob(TSchedulerOperationElement* element, bool ignorePacking)
 {
     YT_VERIFY(IsActive(element));
 
@@ -1661,18 +1654,12 @@ TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJobAtOperation(TSchedu
 
     if (auto blockedReason = CheckBlocked(element)) {
         deactivateOperationElement(*blockedReason);
-        return TFairShareScheduleJobResult{
-            .Finished = true,
-            .Scheduled = false,
-        };
+        return false;
     }
 
     if (!IsOperationEnabled(element)) {
         deactivateOperationElement(EDeactivationReason::IsNotAlive);
-        return TFairShareScheduleJobResult{
-            .Finished = true,
-            .Scheduled = false,
-        };
+        return false;
     }
 
     if (!HasJobsSatisfyingResourceLimits(element)) {
@@ -1699,10 +1686,7 @@ TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJobAtOperation(TSchedu
             SchedulingContext_->GetNodeFreeResourcesWithDiscountForOperation(element->GetOperationId()),
             element->AggregatedMinNeededJobResources());
         deactivateOperationElement(EDeactivationReason::MinNeededResourcesUnsatisfied);
-        return TFairShareScheduleJobResult{
-            .Finished = true,
-            .Scheduled = false,
-        };
+        return false;
     }
 
     TJobResources precommittedResources;
@@ -1716,10 +1700,7 @@ TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJobAtOperation(TSchedu
         &availableResources);
     if (deactivationReason) {
         deactivateOperationElement(*deactivationReason);
-        return TFairShareScheduleJobResult{
-            .Finished = true,
-            .Scheduled = false,
-        };
+        return false;
     }
 
     std::optional<TPackingHeartbeatSnapshot> heartbeatSnapshot;
@@ -1739,10 +1720,8 @@ TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJobAtOperation(TSchedu
             deactivateOperationElement(EDeactivationReason::BadPacking);
             BadPackingOperations_.push_back(element);
             FinishScheduleJob(element);
-            return TFairShareScheduleJobResult{
-                .Finished = true,
-                .Scheduled = false,
-            };
+
+            return false;
         }
     }
 
@@ -1773,10 +1752,7 @@ TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJobAtOperation(TSchedu
         decreaseHierarchicalResourceUsagePrecommit(precommittedResources, scheduleJobEpoch);
         FinishScheduleJob(element);
 
-        return TFairShareScheduleJobResult{
-            .Finished = true,
-            .Scheduled = false,
-        };
+        return false;
     }
 
     const auto& startDescriptor = *scheduleJobResult->StartDescriptor;
@@ -1796,10 +1772,8 @@ TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJobAtOperation(TSchedu
         deactivateOperationElement(EDeactivationReason::OperationDisabled);
         decreaseHierarchicalResourceUsagePrecommit(precommittedResources, scheduleJobEpoch);
         FinishScheduleJob(element);
-        return TFairShareScheduleJobResult{
-            .Finished = true,
-            .Scheduled = false,
-        };
+
+        return false;
     }
 
     SchedulingContext_->StartJob(
@@ -1826,10 +1800,8 @@ TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJobAtOperation(TSchedu
         SchedulingContext_->GetNodeDescriptor().Id,
         startDescriptor.Id,
         StrategyHost_->FormatResources(startDescriptor.ResourceLimits));
-    return TFairShareScheduleJobResult{
-        .Finished = true,
-        .Scheduled = true,
-    };
+
+    return true;
 }
 
 void TScheduleJobsContext::PrepareConditionalUsageDiscountsAtCompositeElement(
@@ -2391,6 +2363,8 @@ TFairShareTreeJobScheduler::TFairShareTreeJobScheduler(
     , Config_(std::move(config))
     , Profiler_(std::move(profiler))
     , CumulativeScheduleJobsTime_(Profiler_.TimeCounter("/cumulative_schedule_jobs_time"))
+    , ScheduleJobsTime_(Profiler_.Timer("/schedule_jobs_time"))
+    , GracefulPreemptionTime_(Profiler_.Timer("/graceful_preemption_time"))
     , ScheduleJobsDeadlineReachedCounter_(Profiler_.Counter("/schedule_jobs_deadline_reached"))
     , OperationCountByPreemptionPriorityBufferedProducer_(New<TBufferedProducer>())
     , SchedulingSegmentManager_(TreeId_, Config_->SchedulingSegments, Logger, Profiler_)
@@ -2486,15 +2460,10 @@ void TFairShareTreeJobScheduler::ProcessSchedulingHeartbeat(
         }
     }();
 
-    // TODO(eshcherbin): Remove this profiling in favour of custom per-tree counters.
-    YT_PROFILE_TIMING("/scheduler/graceful_preemption_time") {
-        PreemptJobsGracefully(schedulingContext, treeSnapshot);
-    }
+    PreemptJobsGracefully(schedulingContext, treeSnapshot);
 
     if (!skipScheduleJobs) {
-        YT_PROFILE_TIMING("/scheduler/schedule_time") {
-            ScheduleJobs(schedulingContext, nodeState->SchedulingSegment, treeSnapshot);
-        }
+        ScheduleJobs(schedulingContext, nodeState->SchedulingSegment, treeSnapshot);
     }
 }
 
@@ -2655,7 +2624,9 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
 
     schedulingContext->SetSchedulingStatistics(context.SchedulingStatistics());
 
-    CumulativeScheduleJobsTime_.Add(scheduleJobsTimer.GetElapsedTime());
+    auto elapsedTime = scheduleJobsTimer.GetElapsedTime();
+    CumulativeScheduleJobsTime_.Add(elapsedTime);
+    ScheduleJobsTime_.Record(elapsedTime);
 }
 
 void TFairShareTreeJobScheduler::PreemptJobsGracefully(
@@ -2663,6 +2634,8 @@ void TFairShareTreeJobScheduler::PreemptJobsGracefully(
     const TFairShareTreeSnapshotPtr& treeSnapshot) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    NProfiling::TEventTimerGuard eventTimerGuard(GracefulPreemptionTime_);
 
     const auto& treeConfig = treeSnapshot->TreeConfig();
 
