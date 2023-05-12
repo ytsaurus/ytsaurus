@@ -81,8 +81,14 @@ jobs:
         shell: bash
         run: |
           mkdir -p ../docker-build
-          bash ./yt/docker/yt_nightly/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --output-path ../docker-build --registry cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly --tag ${INVOCATION_ID}
-          docker push cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly:${INVOCATION_ID}
+          bash ./yt/docker/yt_nightly/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --output-path ../docker-build --registry cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly --tag ${GITHUB_SHA}
+          docker push cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly:${GITHUB_SHA}
+
+      - name: Kube
+        shell: bash
+        run: |
+          export HOME=/root
+          bash yt/docker/yt_nightly/kube.sh --ytsaurus-source-path $(pwd) --ytsaurus-docker ../docker-build
 
       - name: Unittests
         shell: bash
