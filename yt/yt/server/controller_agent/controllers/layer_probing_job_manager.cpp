@@ -27,7 +27,8 @@ void TLayerProbingJobManager::SetUserJobSpec(TOperationSpecBasePtr operationSpec
 {
     auto competitiveJobsAllowed =
         operationSpec->MaxProbingJobCountPerTask != 0 &&
-        operationSpec->MaxSpeculativeJobCountPerTask != 0;
+        operationSpec->MaxSpeculativeJobCountPerTask != 0 &&
+        !operationSpec->FailOnJobRestart;
     UserJobSpec_ = competitiveJobsAllowed
         ? userJobSpec
         : nullptr;

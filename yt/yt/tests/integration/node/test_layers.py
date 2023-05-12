@@ -255,10 +255,8 @@ class TestProbingLayer(TestLayers):
             write_table(f"<append=%true>{TestProbingLayer.INPUT_TABLE}", [{"k": key, "layer": "LAYER"}])
 
     @staticmethod
-    def get_spec(user_slots, max_failed_job_count, max_speculative_job_count_per_task):
-        return {
-            "max_failed_job_count": max_failed_job_count,
-            "max_speculative_job_count_per_task": max_speculative_job_count_per_task,
+    def get_spec(user_slots, **options):
+        spec = {
             "mapper": {
                 "default_base_layer_path": "//tmp/layer2",
                 "probing_base_layer_path": "//tmp/layer1",
@@ -270,14 +268,22 @@ class TestProbingLayer(TestLayers):
                 "user_slots": user_slots,
             },
         }
+        spec.update(options)
+        return spec
 
     @staticmethod
-    def run_map(command, job_count, user_slots, max_failed_job_count=0, max_speculative_job_count_per_task=10):
+    def run_map(command, job_count, user_slots, **options):
+        default_options = {
+            "max_failed_job_count": 0,
+            "max_speculative_job_count_per_task": 10,
+        }
+        default_options.update(options)
+
         op = map(
             in_=TestProbingLayer.INPUT_TABLE,
             out=TestProbingLayer.OUTPUT_TABLE,
             command=command,
-            spec=TestProbingLayer.get_spec(user_slots, max_failed_job_count, max_speculative_job_count_per_task),
+            spec=TestProbingLayer.get_spec(user_slots, **options),
         )
 
         assert get(f"{TestProbingLayer.INPUT_TABLE}/@row_count") == get(f"{TestProbingLayer.OUTPUT_TABLE}/@row_count")
@@ -344,8 +350,12 @@ class TestProbingLayer(TestLayers):
 
         assert try_count < self.MAX_TRIES
 
+    @pytest.mark.parametrize("options", [
+        {"max_speculative_job_count_per_task": 0},
+        {"fail_on_job_restart": True},
+    ])
     @authors("galtsev")
-    def test_probing_layer_disabled(self):
+    def test_probing_layer_disabled(self, options):
         self.setup_files()
 
         job_count = 7
@@ -359,7 +369,7 @@ class TestProbingLayer(TestLayers):
             "fi"
         )
 
-        op = self.run_map(command, job_count, user_slots=1, max_speculative_job_count_per_task=0)
+        op = self.run_map(command, job_count, user_slots=1, **options)
 
         assert op.get_job_count("failed") == 0
 
