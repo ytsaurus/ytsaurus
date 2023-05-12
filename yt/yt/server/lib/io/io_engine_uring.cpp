@@ -897,6 +897,10 @@ private:
             return;
         }
 
+        if (request->CurrentWriteSubrequestIndex == std::ssize(request->WriteRequest.Buffers)) {
+            return HandleWriteRequest(request);
+        }
+
         i64 writtenSize = cqe->res;
         if (Config_->SimulatedMaxBytesPerWrite) {
             writtenSize = Min(writtenSize, *Config_->SimulatedMaxBytesPerWrite);

@@ -433,6 +433,7 @@ const char CustomConfig[] =
     "    simulated_max_bytes_per_read = 4096;"
     "    simulated_max_bytes_per_write = 4096;"
     "    large_unaligned_direct_io_read_size = 16384;"
+    "    flush_after_write = true;"
     "}";
 
 bool AllocatorBehaviourCollocate(false);
