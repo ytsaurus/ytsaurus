@@ -2622,7 +2622,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
         // Split large outputs into separate requests.
         // For static tables there is always exactly one subrequest. For dynamic tables
         // there may be multiple subrequests, each corresponding to the whole tablet.
-        TChunkServiceProxy::TReqExecuteBatch::TAttachChunkTreesSubrequest* req = nullptr;
+        NChunkClient::NProto::TReqAttachChunkTrees* req = nullptr;
         TChunkServiceProxy::TReqExecuteBatchPtr batchReq;
 
         auto flushSubrequest = [&] (bool requestStatistics) {

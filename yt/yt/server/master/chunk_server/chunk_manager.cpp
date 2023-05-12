@@ -382,6 +382,12 @@ public:
         RegisterMethod(BIND(&TChunkManager::HydraExportChunks, Unretained(this)));
         RegisterMethod(BIND(&TChunkManager::HydraImportChunks, Unretained(this)));
         RegisterMethod(BIND(&TChunkManager::HydraExecuteBatch, Unretained(this)));
+        RegisterMethod(BIND(&TChunkManager::HydraCreateChunk, Unretained(this)));
+        RegisterMethod(BIND(&TChunkManager::HydraConfirmChunk, Unretained(this)));
+        RegisterMethod(BIND(&TChunkManager::HydraSealChunk, Unretained(this)));
+        RegisterMethod(BIND(&TChunkManager::HydraCreateChunkLists, Unretained(this)));
+        RegisterMethod(BIND(&TChunkManager::HydraAttachChunkTrees, Unretained(this)));
+        RegisterMethod(BIND(&TChunkManager::HydraUnstageChunkTree, Unretained(this)));
         RegisterMethod(BIND(&TChunkManager::HydraUnstageExpiredChunks, Unretained(this)));
         RegisterMethod(BIND(&TChunkManager::HydraRedistributeConsistentReplicaPlacementTokens, Unretained(this)));
 
@@ -468,16 +474,16 @@ public:
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareCreateChunk, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, TCreateChunkRequest, const NTransactionSupervisor::TTransactionCommitOptions&>()),
+                MakeEmptyTransactionActionHandler<TTransaction, TReqCreateChunk, const NTransactionSupervisor::TTransactionCommitOptions&>()),
             MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, TCreateChunkRequest, const NTransactionSupervisor::TTransactionAbortOptions&>()));
+                MakeEmptyTransactionActionHandler<TTransaction, TReqCreateChunk, const NTransactionSupervisor::TTransactionAbortOptions&>()));
 
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareConfirmChunk, Unretained(this))),
             MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, TConfirmChunkRequest, const NTransactionSupervisor::TTransactionCommitOptions&>()),
+                MakeEmptyTransactionActionHandler<TTransaction, TReqConfirmChunk, const NTransactionSupervisor::TTransactionCommitOptions&>()),
             MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, TConfirmChunkRequest, const NTransactionSupervisor::TTransactionAbortOptions&>()));
+                MakeEmptyTransactionActionHandler<TTransaction, TReqConfirmChunk, const NTransactionSupervisor::TTransactionAbortOptions&>()));
 
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfiler
@@ -622,6 +628,92 @@ public:
             this);
     }
 
+    std::unique_ptr<TMutation> CreateCreateChunkMutation(TCtxCreateChunkPtr context) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TChunkManager::HydraCreateChunk,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateConfirmChunkMutation(TCtxConfirmChunkPtr context) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TChunkManager::HydraConfirmChunk,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateSealChunkMutation(TCtxSealChunkPtr context) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TChunkManager::HydraSealChunk,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateCreateChunkListsMutation(TCtxCreateChunkListsPtr context) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TChunkManager::HydraCreateChunkLists,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateUnstageChunkTreeMutation(TCtxUnstageChunkTreePtr context) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TChunkManager::HydraUnstageChunkTree,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateAttachChunkTreesMutation(TCtxAttachChunkTreesPtr context) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TChunkManager::HydraAttachChunkTrees,
+            this);
+    }
+
+    bool IsSequoiaCreateChunkRequest(const TReqCreateChunk& request) override
+    {
+        auto account = FromProto<TString>(request.account());
+        if (account == NSecurityClient::SequoiaAccountName) {
+            return false;
+        }
+
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+        if (!config->SequoiaManager->Enable) {
+            return false;
+        }
+
+        auto type = CheckedEnumCast<EObjectType>(request.type());
+        if (IsJournalChunkType(type)) {
+            return false;
+        }
+
+        auto probability = config->ChunkManager->SequoiaChunkProbability;
+        return static_cast<int>(RandomNumber<ui32>() % 100) < probability;
+    }
+
+    bool IsSequoiaConfirmChunkRequest(const TReqConfirmChunk& request) override
+    {
+        auto chunkId = FromProto<TChunkId>(request.chunk_id());
+        if (!IsSequoiaId(chunkId)) {
+            return false;
+        }
+
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+        return config->SequoiaManager->Enable;
+    }
+
     TPreparedExecuteBatchRequestPtr PrepareExecuteBatchRequest(const TReqExecuteBatch& request) override
     {
         auto preparedRequest = New<TPreparedExecuteBatchRequest>();
@@ -638,7 +730,7 @@ public:
             isSubrequestSequoia->reserve(subrequests.size());
 
             for (const auto& subrequest : subrequests) {
-                auto isSequoia = sequoiaFilter(subrequest);
+                auto isSequoia = (this->*sequoiaFilter)(subrequest);
                 isSubrequestSequoia->push_back(isSequoia);
 
                 if (isSequoia) {
@@ -649,47 +741,18 @@ public:
             }
         };
 
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        auto isCreateChunkRequestSequoia = [&] (const TCreateChunkRequest& request) {
-            auto account = FromProto<TString>(request.account());
-            if (account == NSecurityClient::SequoiaAccountName) {
-                return false;
-            }
-
-            if (!config->SequoiaManager->Enable) {
-                return false;
-            }
-
-            auto type = CheckedEnumCast<EObjectType>(request.type());
-            if (IsJournalChunkType(type)) {
-                return false;
-            }
-
-            auto probability = config->ChunkManager->SequoiaChunkProbability;
-            return static_cast<int>(RandomNumber<ui32>() % 100) < probability;
-        };
-
-        auto isConfirmChunkRequestSequoia = [&] (const TConfirmChunkRequest& request) {
-            auto chunkId = FromProto<TChunkId>(request.chunk_id());
-            if (!IsSequoiaId(chunkId)) {
-                return false;
-            }
-
-            return config->SequoiaManager->Enable;
-        };
-
         splitSubrequests(
             request.create_chunk_subrequests(),
             preparedRequest->MutationRequest.mutable_create_chunk_subrequests(),
             &preparedRequest->SequoiaRequest.CreateChunkSubrequests,
             &preparedRequest->IsCreateChunkSubrequestSequoia,
-            isCreateChunkRequestSequoia);
+            &TChunkManager::IsSequoiaCreateChunkRequest);
         splitSubrequests(
             request.confirm_chunk_subrequests(),
             preparedRequest->MutationRequest.mutable_confirm_chunk_subrequests(),
             &preparedRequest->SequoiaRequest.ConfirmChunkSubrequests,
             &preparedRequest->IsConfirmChunkSubrequestSequoia,
-            isConfirmChunkRequestSequoia);
+            &TChunkManager::IsSequoiaConfirmChunkRequest);
         return preparedRequest;
     }
 
@@ -732,6 +795,7 @@ public:
             request->IsConfirmChunkSubrequestSequoia);
     }
 
+    // COMPAT(aleksandra-zh)
     TFuture<void> ExecuteBatchSequoia(TPreparedExecuteBatchRequestPtr request) override
     {
         int createChunkSubrequestCount = request->SequoiaRequest.CreateChunkSubrequests.size();
@@ -745,7 +809,7 @@ public:
             auto* subresponse = &request->SequoiaResponse.CreateChunkSubresponses[index];
 
             auto future = CreateChunk(subrequest)
-                .Apply(BIND([=, request = request, this_ = MakeStrong(this)] (const TCreateChunkResponse& response) {
+                .Apply(BIND([=, request = request, this_ = MakeStrong(this)] (const TRspCreateChunk& response) {
                     *subresponse = response;
                 }));
             futures.push_back(future);
@@ -757,7 +821,7 @@ public:
             auto* subresponse = &request->SequoiaResponse.ConfirmChunkSubresponses[index];
 
             auto future = ConfirmChunk(subrequest)
-                .Apply(BIND([=, request = request, this_ = MakeStrong(this)] (const TConfirmChunkResponse& response) {
+                .Apply(BIND([=, request = request, this_ = MakeStrong(this)] (const TRspConfirmChunk& response) {
                     *subresponse = response;
                 }));
             futures.push_back(future);
@@ -1097,14 +1161,14 @@ public:
         return chunk;
     }
 
-    TFuture<TConfirmChunkResponse> ConfirmChunk(const TConfirmChunkRequest& request) override
+    TFuture<TRspConfirmChunk> ConfirmChunk(const TReqConfirmChunk& request) override
     {
-        return GuardedConfirmChunk(request)
-            .Apply(BIND([] (const TErrorOr<TConfirmChunkResponse>& responseOrError) {
+        return SequoiaConfirmChunk(request)
+            .Apply(BIND([] (const TErrorOr<TRspConfirmChunk>& responseOrError) {
                 if (responseOrError.IsOK()) {
                     return responseOrError.Value();
                 } else {
-                    TConfirmChunkResponse response;
+                    TRspConfirmChunk response;
                     ToProto(response.mutable_error(), TError(responseOrError));
                     return response;
                 }
@@ -1134,7 +1198,7 @@ public:
         return statistics;
     }
 
-    TFuture<TConfirmChunkResponse> GuardedConfirmChunk(TConfirmChunkRequest request)
+    TFuture<TRspConfirmChunk> SequoiaConfirmChunk(const TReqConfirmChunk& request) override
     {
         const auto& client = Bootstrap_->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
         auto transaction = CreateSequoiaTransaction(client, Logger);
@@ -1164,7 +1228,7 @@ public:
                 WaitFor(transaction->Commit(commitOptions))
                     .ThrowOnError();
 
-                TConfirmChunkResponse response;
+                TRspConfirmChunk response;
                 if (request.request_statistics()) {
                     const auto& chunkInfo = request.chunk_info();
                     const auto& miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
@@ -1175,21 +1239,21 @@ public:
             }));
     }
 
-    TFuture<TCreateChunkResponse> CreateChunk(const TCreateChunkRequest& request) override
+    TFuture<TRspCreateChunk> CreateChunk(const TReqCreateChunk& request) override
     {
-        return GuardedCreateChunk(request)
-            .Apply(BIND([] (const TErrorOr<TCreateChunkResponse>& responseOrError) {
+        return SequoiaCreateChunk(request)
+            .Apply(BIND([] (const TErrorOr<TRspCreateChunk>& responseOrError) {
                 if (responseOrError.IsOK()) {
                     return responseOrError.Value();
                 } else {
-                    TCreateChunkResponse response;
+                    TRspCreateChunk response;
                     ToProto(response.mutable_error(), TError(responseOrError));
                     return response;
                 }
             }));
     }
 
-    TFuture<TCreateChunkResponse> GuardedCreateChunk(TCreateChunkRequest request)
+    TFuture<TRspCreateChunk> SequoiaCreateChunk(const TReqCreateChunk& request) override
     {
         const auto& client = Bootstrap_->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
         auto transaction = CreateSequoiaTransaction(client, Logger);
@@ -1198,7 +1262,7 @@ public:
         try {
             mediumIndex = GetMediumByNameOrThrow(request.medium_name())->GetIndex();
         } catch (const std::exception& ex) {
-            return MakeFuture<TCreateChunkResponse>(TError(ex));
+            return MakeFuture<TRspCreateChunk>(TError(ex));
         }
 
         return transaction->Start(/*startOptions*/ {})
@@ -1226,7 +1290,7 @@ public:
                 WaitFor(transaction->Commit(commitOptions))
                     .ThrowOnError();
 
-                TCreateChunkResponse response;
+                TRspCreateChunk response;
                 auto sessionId = TSessionId(chunkId, mediumIndex);
                 ToProto(response.mutable_session_id(), sessionId);
                 return response;
@@ -1235,7 +1299,7 @@ public:
 
     void HydraPrepareCreateChunk(
         TTransaction* /*transaction*/,
-        TCreateChunkRequest* request,
+        TReqCreateChunk* request,
         const NTransactionSupervisor::TTransactionPrepareOptions& options)
     {
         YT_VERIFY(options.Persistent);
@@ -1248,7 +1312,7 @@ public:
 
     void HydraPrepareConfirmChunk(
         TTransaction* /*transaction*/,
-        TConfirmChunkRequest* request,
+        TReqConfirmChunk* request,
         const NTransactionSupervisor::TTransactionPrepareOptions& options)
     {
         YT_VERIFY(options.Persistent);
@@ -3842,7 +3906,10 @@ private:
         }
     }
 
-    void HydraExecuteBatch(const TCtxExecuteBatchPtr& /*context*/, TReqExecuteBatch* request, TRspExecuteBatch* response)
+    void HydraExecuteBatch(
+        const TCtxExecuteBatchPtr& /*context*/,
+        TReqExecuteBatch* request,
+        TRspExecuteBatch* response)
     {
         auto executeSubrequests = [&] (
             auto* subrequests,
@@ -3900,10 +3967,60 @@ private:
             "Error attaching chunk trees");
     }
 
-    void ExecuteCreateChunkSubrequest(
-        TReqExecuteBatch::TCreateChunkSubrequest* subrequest,
-        TRspExecuteBatch::TCreateChunkSubresponse* subresponse)
+    void HydraCreateChunk(
+        const TCtxCreateChunkPtr& /*context*/,
+        TReqCreateChunk* request,
+        TRspCreateChunk* response)
     {
+        ExecuteCreateChunkSubrequest(request, response);
+    }
+
+    void HydraConfirmChunk(
+        const TCtxConfirmChunkPtr& /*context*/,
+        TReqConfirmChunk* request,
+        TRspConfirmChunk* response)
+    {
+        ExecuteConfirmChunkSubrequest(request, response);
+    }
+
+    void HydraSealChunk(
+        const TCtxSealChunkPtr& /*context*/,
+        TReqSealChunk* request,
+        TRspSealChunk* response)
+    {
+        ExecuteSealChunkSubrequest(request, response);
+    }
+
+    void HydraCreateChunkLists(
+        const TCtxCreateChunkListsPtr& /*context*/,
+        TReqCreateChunkLists* request,
+        TRspCreateChunkLists* response)
+    {
+        ExecuteCreateChunkListsSubrequest(request, response);
+    }
+
+    void HydraUnstageChunkTree(
+        const TCtxUnstageChunkTreePtr& /*context*/,
+        TReqUnstageChunkTree* request,
+        TRspUnstageChunkTree* response)
+    {
+        ExecuteUnstageChunkTreeSubrequest(request, response);
+    }
+
+    void HydraAttachChunkTrees(
+        const TCtxAttachChunkTreesPtr& /*context*/,
+        TReqAttachChunkTrees* request,
+        TRspAttachChunkTrees* response)
+    {
+        ExecuteAttachChunkTreesSubrequest(request, response);
+    }
+
+    void ExecuteCreateChunkSubrequest(
+        TReqCreateChunk* subrequest,
+        TRspCreateChunk* subresponse)
+    {
+        YT_VERIFY(HasMutationContext());
+
         auto chunkType = CheckedEnumCast<EObjectType>(subrequest->type());
         bool isErasure = IsErasureChunkType(chunkType);
         bool isJournal = IsJournalChunkType(chunkType);
@@ -3987,9 +4104,11 @@ private:
     }
 
     void ExecuteConfirmChunkSubrequest(
-        TReqExecuteBatch::TConfirmChunkSubrequest* subrequest,
-        TRspExecuteBatch::TConfirmChunkSubresponse* subresponse)
+        TReqConfirmChunk* subrequest,
+        TRspConfirmChunk* subresponse)
     {
+        YT_VERIFY(HasMutationContext());
+
         YT_VERIFY(!subrequest->replicas().empty() || !subrequest->legacy_replicas().empty());
 
         const auto& config = GetDynamicConfig();
@@ -4058,9 +4177,11 @@ private:
     }
 
     void ExecuteSealChunkSubrequest(
-        TReqExecuteBatch::TSealChunkSubrequest* subrequest,
-        TRspExecuteBatch::TSealChunkSubresponse* /*subresponse*/)
+        TReqSealChunk* subrequest,
+        TRspSealChunk* /*subresponse*/)
     {
+        YT_VERIFY(HasMutationContext());
+
         auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
         auto* chunk = GetChunkOrThrow(chunkId);
 
@@ -4069,9 +4190,11 @@ private:
     }
 
     void ExecuteCreateChunkListsSubrequest(
-        TReqExecuteBatch::TCreateChunkListsSubrequest* subrequest,
-        TRspExecuteBatch::TCreateChunkListsSubresponse* subresponse)
+        TReqCreateChunkLists* subrequest,
+        TRspCreateChunkLists* subresponse)
     {
+        YT_VERIFY(HasMutationContext());
+
         auto transactionId = FromProto<TTransactionId>(subrequest->transaction_id());
         int count = subrequest->count();
 
@@ -4095,9 +4218,11 @@ private:
     }
 
     void ExecuteUnstageChunkTreeSubrequest(
-        TReqExecuteBatch::TUnstageChunkTreeSubrequest* subrequest,
-        TRspExecuteBatch::TUnstageChunkTreeSubresponse* /*subresponse*/)
+        TReqUnstageChunkTree* subrequest,
+        TRspUnstageChunkTree* /*subresponse*/)
     {
+        YT_VERIFY(HasMutationContext());
+
         auto chunkTreeId = FromProto<TTransactionId>(subrequest->chunk_tree_id());
         auto recursive = subrequest->recursive();
 
@@ -4111,9 +4236,11 @@ private:
     }
 
     void ExecuteAttachChunkTreesSubrequest(
-        TReqExecuteBatch::TAttachChunkTreesSubrequest* subrequest,
-        TRspExecuteBatch::TAttachChunkTreesSubresponse* subresponse)
+        TReqAttachChunkTrees* subrequest,
+        TRspAttachChunkTrees* subresponse)
     {
+        YT_VERIFY(HasMutationContext());
+
         auto parentId = FromProto<TChunkListId>(subrequest->parent_id());
         auto* parent = GetChunkListOrThrow(parentId);
         auto transactionId = subrequest->has_transaction_id()

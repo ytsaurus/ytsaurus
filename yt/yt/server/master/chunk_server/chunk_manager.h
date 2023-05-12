@@ -64,29 +64,66 @@ struct IChunkManager
         NChunkClient::NProto::TRspExecuteBatch>;
     using TCtxExecuteBatchPtr = TIntrusivePtr<TCtxExecuteBatch>;
 
+    using TCtxCreateChunk = NRpc::TTypedServiceContext<
+        NChunkClient::NProto::TReqCreateChunk,
+        NChunkClient::NProto::TRspCreateChunk>;
+    using TCtxCreateChunkPtr = TIntrusivePtr<TCtxCreateChunk>;
+
+    using TCtxConfirmChunk = NRpc::TTypedServiceContext<
+        NChunkClient::NProto::TReqConfirmChunk,
+        NChunkClient::NProto::TRspConfirmChunk>;
+    using TCtxConfirmChunkPtr = TIntrusivePtr<TCtxConfirmChunk>;
+
+    using TCtxSealChunk = NRpc::TTypedServiceContext<
+        NChunkClient::NProto::TReqSealChunk,
+        NChunkClient::NProto::TRspSealChunk>;
+    using TCtxSealChunkPtr = TIntrusivePtr<TCtxSealChunk>;
+
+    using TCtxCreateChunkLists = NRpc::TTypedServiceContext<
+        NChunkClient::NProto::TReqCreateChunkLists,
+        NChunkClient::NProto::TRspCreateChunkLists>;
+    using TCtxCreateChunkListsPtr = TIntrusivePtr<TCtxCreateChunkLists>;
+
+    using TCtxUnstageChunkTree = NRpc::TTypedServiceContext<
+        NChunkClient::NProto::TReqUnstageChunkTree,
+        NChunkClient::NProto::TRspUnstageChunkTree>;
+    using TCtxUnstageChunkTreePtr = TIntrusivePtr<TCtxUnstageChunkTree>;
+
+    using TCtxAttachChunkTrees = NRpc::TTypedServiceContext<
+        NChunkClient::NProto::TReqAttachChunkTrees,
+        NChunkClient::NProto::TRspAttachChunkTrees>;
+    using TCtxAttachChunkTreesPtr = TIntrusivePtr<TCtxAttachChunkTrees>;
+
     virtual std::unique_ptr<NHydra::TMutation> CreateExecuteBatchMutation(
         TCtxExecuteBatchPtr context) = 0;
+
+    virtual std::unique_ptr<NHydra::TMutation> CreateCreateChunkMutation(
+        TCtxCreateChunkPtr context) = 0;
+    virtual std::unique_ptr<NHydra::TMutation> CreateConfirmChunkMutation(
+        TCtxConfirmChunkPtr context) = 0;
+    virtual std::unique_ptr<NHydra::TMutation> CreateSealChunkMutation(
+        TCtxSealChunkPtr context) = 0;
+    virtual std::unique_ptr<NHydra::TMutation> CreateCreateChunkListsMutation(
+        TCtxCreateChunkListsPtr context) = 0;
+    virtual std::unique_ptr<NHydra::TMutation> CreateUnstageChunkTreeMutation(
+        TCtxUnstageChunkTreePtr context) = 0;
+    virtual std::unique_ptr<NHydra::TMutation> CreateAttachChunkTreesMutation(
+        TCtxAttachChunkTreesPtr context) = 0;
 
     virtual std::unique_ptr<NHydra::TMutation> CreateExecuteBatchMutation(
         NChunkClient::NProto::TReqExecuteBatch* request,
         NChunkClient::NProto::TRspExecuteBatch* response) = 0;
 
-    using TCreateChunkRequest = NChunkClient::NProto::TReqExecuteBatch::TCreateChunkSubrequest;
-    using TCreateChunkResponse = NChunkClient::NProto::TRspExecuteBatch::TCreateChunkSubresponse;
-
-    using TConfirmChunkRequest = NChunkClient::NProto::TReqExecuteBatch::TConfirmChunkSubrequest;
-    using TConfirmChunkResponse = NChunkClient::NProto::TRspExecuteBatch::TConfirmChunkSubresponse;
-
     struct TSequoiaExecuteBatchRequest
     {
-        std::vector<TCreateChunkRequest> CreateChunkSubrequests;
-        std::vector<TConfirmChunkRequest> ConfirmChunkSubrequests;
+        std::vector<NChunkClient::NProto::TReqCreateChunk> CreateChunkSubrequests;
+        std::vector<NChunkClient::NProto::TReqConfirmChunk> ConfirmChunkSubrequests;
     };
 
     struct TSequoiaExecuteBatchResponse
     {
-        std::vector<TCreateChunkResponse> CreateChunkSubresponses;
-        std::vector<TConfirmChunkResponse> ConfirmChunkSubresponses;
+        std::vector<NChunkClient::NProto::TRspCreateChunk> CreateChunkSubresponses;
+        std::vector<NChunkClient::NProto::TRspConfirmChunk> ConfirmChunkSubresponses;
     };
 
     struct TPreparedExecuteBatchRequest final
@@ -114,8 +151,19 @@ struct IChunkManager
 
     virtual TFuture<void> ExecuteBatchSequoia(TPreparedExecuteBatchRequestPtr request) = 0;
 
-    virtual TFuture<TCreateChunkResponse> CreateChunk(const TCreateChunkRequest& request) = 0;
-    virtual TFuture<TConfirmChunkResponse> ConfirmChunk(const TConfirmChunkRequest& request) = 0;
+    // COMPAT(aleksandra-zh)
+    virtual TFuture<NChunkClient::NProto::TRspCreateChunk> CreateChunk(
+        const NChunkClient::NProto::TReqCreateChunk& request) = 0;
+    virtual TFuture<NChunkClient::NProto::TRspConfirmChunk> ConfirmChunk(
+        const NChunkClient::NProto::TReqConfirmChunk& request) = 0;
+
+    virtual TFuture<NChunkClient::NProto::TRspCreateChunk> SequoiaCreateChunk(
+        const NChunkClient::NProto::TReqCreateChunk& request) = 0;
+    virtual TFuture<NChunkClient::NProto::TRspConfirmChunk> SequoiaConfirmChunk(
+        const NChunkClient::NProto::TReqConfirmChunk& request) = 0;
+
+    virtual bool IsSequoiaCreateChunkRequest(const NChunkClient::NProto::TReqCreateChunk& request) = 0;
+    virtual bool IsSequoiaConfirmChunkRequest(const NChunkClient::NProto::TReqConfirmChunk& request) = 0;
 
     using TCtxJobHeartbeat = NRpc::TTypedServiceContext<
         NJobTrackerClient::NProto::TReqHeartbeat,
