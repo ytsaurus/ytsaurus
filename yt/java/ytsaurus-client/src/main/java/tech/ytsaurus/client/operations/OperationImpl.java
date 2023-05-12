@@ -3,6 +3,7 @@ package tech.ytsaurus.client.operations;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -21,6 +22,7 @@ import tech.ytsaurus.client.request.JobResult;
 import tech.ytsaurus.client.request.JobState;
 import tech.ytsaurus.client.request.ListJobs;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.core.common.YTsaurusError;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.ysontree.YTreeListNode;
@@ -78,6 +80,30 @@ public class OperationImpl implements Operation {
     }
 
     @Override
+    public CompletableFuture<Void> watchAndThrowIfNotSuccess() {
+        return watch()
+                .thenCompose(unused -> getStatus())
+                .thenCompose(operationStatus -> {
+                    if (operationStatus.isSuccess()) {
+                        return CompletableFuture.completedFuture(null);
+                    }
+
+                    return getResult()
+                            .thenAccept(operationResult -> {
+                                Map<String, YTreeNode> error = Collections.emptyMap();
+                                if (operationResult != null) {
+                                    Map<String, YTreeNode> result = operationResult.asMap();
+                                    if (result.containsKey("error")) {
+                                        error = result.get("error").asMap();
+                                    }
+                                }
+
+                                throw YTsaurusError.parseFrom(error);
+                            });
+                });
+    }
+
+    @Override
     public CompletableFuture<Void> abort() {
         return client.abortOperation(new AbortOperation(id));
     }
@@ -92,12 +118,12 @@ public class OperationImpl implements Operation {
     private void watchImpl() {
         logger.debug("Operation's watch iteration was started (OperationId: {})", id);
         client.getOperation(GetOperation.builder()
-                .setOperationId(id)
-                .addAttribute("state")
-                .addAttribute("brief_progress")
-                .addAttribute("type")
-                .addAttribute("operation_type")
-                .build())
+                        .setOperationId(id)
+                        .addAttribute("state")
+                        .addAttribute("brief_progress")
+                        .addAttribute("type")
+                        .addAttribute("operation_type")
+                        .build())
                 .thenApply(this::getAndLogStatus)
                 .thenCompose(status -> {
                     if (status.isFinished()) {
@@ -112,11 +138,11 @@ public class OperationImpl implements Operation {
                     }
                     return CompletableFuture.completedFuture(null);
                 }).handle((unused, ex) -> {
-            if (!watchResult.isDone()) {
-                executorService.schedule(this::watchImpl, pingPeriod.toNanos(), TimeUnit.NANOSECONDS);
-            }
-            return null;
-        });
+                    if (!watchResult.isDone()) {
+                        executorService.schedule(this::watchImpl, pingPeriod.toNanos(), TimeUnit.NANOSECONDS);
+                    }
+                    return null;
+                });
     }
 
     private OperationStatus getAndLogStatus(YTreeNode getOperationResult) {
@@ -171,9 +197,9 @@ public class OperationImpl implements Operation {
 
     private CompletableFuture<Void> getAndLogFailedJobs(GUID operationId) {
         return client.listJobs(ListJobs.builder()
-                .setOperationId(operationId)
-                .setState(JobState.Failed)
-                .setLimit(5L).build())
+                        .setOperationId(operationId)
+                        .setState(JobState.Failed)
+                        .setLimit(5L).build())
                 .thenCompose(listJobsResult -> CompletableFuture.allOf(listJobsResult
                         .getJobs()
                         .stream()

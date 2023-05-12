@@ -1,19 +1,27 @@
 package tech.ytsaurus.core.common;
 
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.TError;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.yson.YsonConsumer;
 import tech.ytsaurus.yson.YsonError;
 import tech.ytsaurus.yson.YsonParser;
 import tech.ytsaurus.yson.YsonTextWriter;
+import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ytree.TAttribute;
+import tech.ytsaurus.ytree.TAttributeDictionary;
 
 
 @NonNullApi
@@ -23,6 +31,51 @@ public class YTsaurusError extends RuntimeException {
     public YTsaurusError(TError error) {
         super(createFullErrorDescription(error));
         this.error = error;
+    }
+
+    public static YTsaurusError parseFrom(Map<String, YTreeNode> error) {
+        int code = Optional.ofNullable(error.get("code"))
+                .map(YTreeNode::intValue)
+                .orElse(0);
+
+        String message = Optional.ofNullable(error.get("message"))
+                .map(YTreeNode::stringValue)
+                .orElse("");
+
+        List<TAttribute> attributes = Optional.ofNullable(error.get("attributes"))
+                .map(YTreeNode::asMap)
+                .map(Map::entrySet)
+                .map(entrySet -> entrySet.stream()
+                        .map(entry -> TAttribute.newBuilder()
+                                .setKey(entry.getKey())
+                                .setValue(ByteString.copyFrom(entry.getValue().toBinary()))
+                                .build()
+                        )
+                        .collect(Collectors.toUnmodifiableList())
+                )
+                .orElse(Collections.emptyList());
+
+        List<TError> innerErrors = Optional.ofNullable(error.get("inner_errors"))
+                .map(YTreeNode::asList)
+                .map(list -> list.stream()
+                        .map(YTreeNode::asMap)
+                        .map(YTsaurusError::parseFrom)
+                        .map(YTsaurusError::getError)
+                        .collect(Collectors.toUnmodifiableList())
+                )
+                .orElse(Collections.emptyList());
+
+        return new YTsaurusError(
+                TError.newBuilder()
+                        .setCode(code)
+                        .setMessage(message)
+                        .setAttributes(TAttributeDictionary.newBuilder()
+                                .addAllAttributes(attributes)
+                                .build()
+                        )
+                        .addAllInnerErrors(innerErrors)
+                        .build()
+        );
     }
 
     public TError getError() {
@@ -57,7 +110,7 @@ public class YTsaurusError extends RuntimeException {
      */
     public Set<Integer> getErrorCodes() {
         Set<Integer> result = new HashSet<>();
-        Consumer<TError> walker = new Consumer<TError>() {
+        Consumer<TError> walker = new Consumer<>() {
             @Override
             public void accept(TError e) {
                 result.add(e.getCode());

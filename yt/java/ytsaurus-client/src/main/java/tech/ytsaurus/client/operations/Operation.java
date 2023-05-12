@@ -19,5 +19,7 @@ public interface Operation {
 
     CompletableFuture<Void> watch();
 
+    CompletableFuture<Void> watchAndThrowIfNotSuccess();
+
     CompletableFuture<Void> abort();
 }

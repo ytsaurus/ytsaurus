@@ -2,7 +2,6 @@ package tech.ytsaurus.client.sync;
 
 import java.util.List;
 
-import tech.ytsaurus.client.operations.SyncOperation;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.CheckPermission;
 import tech.ytsaurus.client.request.ConcatenateNodes;

@@ -3,7 +3,6 @@ package tech.ytsaurus.client.sync;
 import java.util.List;
 
 import tech.ytsaurus.client.TransactionalClient;
-import tech.ytsaurus.client.operations.SyncOperation;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.CheckPermission;
 import tech.ytsaurus.client.request.ConcatenateNodes;
@@ -117,72 +116,72 @@ abstract class SyncTransactionalClientImpl implements SyncTransactionalClient {
 
     @Override
     public SyncOperation map(MapOperation req) {
-        return new SyncOperation(client.map(req).join());
+        return new SyncOperationImpl(client.map(req).join());
     }
 
     @Override
     public SyncOperation reduce(ReduceOperation req) {
-        return new SyncOperation(client.reduce(req).join());
+        return new SyncOperationImpl(client.reduce(req).join());
     }
 
     @Override
     public SyncOperation mapReduce(MapReduceOperation req) {
-        return new SyncOperation(client.mapReduce(req).join());
+        return new SyncOperationImpl(client.mapReduce(req).join());
     }
 
     @Override
     public SyncOperation merge(MergeOperation req) {
-        return new SyncOperation(client.merge(req).join());
+        return new SyncOperationImpl(client.merge(req).join());
     }
 
     @Override
     public SyncOperation sort(SortOperation req) {
-        return new SyncOperation(client.sort(req).join());
+        return new SyncOperationImpl(client.sort(req).join());
     }
 
     @Override
     public SyncOperation vanilla(VanillaOperation req) {
-        return new SyncOperation(client.vanilla(req).join());
+        return new SyncOperationImpl(client.vanilla(req).join());
     }
 
     @Override
     public SyncOperation remoteCopy(RemoteCopyOperation req) {
-        return new SyncOperation(client.remoteCopy(req).join());
+        return new SyncOperationImpl(client.remoteCopy(req).join());
     }
 
     @Override
     public SyncOperation startMap(MapOperation req) {
-        return new SyncOperation(client.startMap(req).join());
+        return new SyncOperationImpl(client.startMap(req).join());
     }
 
     @Override
     public SyncOperation startReduce(ReduceOperation req) {
-        return new SyncOperation(client.startReduce(req).join());
+        return new SyncOperationImpl(client.startReduce(req).join());
     }
 
     @Override
     public SyncOperation startMapReduce(MapReduceOperation req) {
-        return new SyncOperation(client.startMapReduce(req).join());
+        return new SyncOperationImpl(client.startMapReduce(req).join());
     }
 
     @Override
     public SyncOperation startMerge(MergeOperation req) {
-        return new SyncOperation(client.startMerge(req).join());
+        return new SyncOperationImpl(client.startMerge(req).join());
     }
 
     @Override
     public SyncOperation startSort(SortOperation req) {
-        return new SyncOperation(client.startSort(req).join());
+        return new SyncOperationImpl(client.startSort(req).join());
     }
 
     @Override
     public SyncOperation startVanilla(VanillaOperation req) {
-        return new SyncOperation(client.startVanilla(req).join());
+        return new SyncOperationImpl(client.startVanilla(req).join());
     }
 
     @Override
     public SyncOperation startRemoteCopy(RemoteCopyOperation req) {
-        return new SyncOperation(client.startRemoteCopy(req).join());
+        return new SyncOperationImpl(client.startRemoteCopy(req).join());
     }
 
     @Override

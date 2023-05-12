@@ -54,7 +54,7 @@ class SyncApiServiceClientImpl
         this.client = client;
     }
 
-    public static SyncApiServiceClientImpl wrap(ApiServiceClient client) {
+    static SyncApiServiceClientImpl wrap(ApiServiceClient client) {
         return new SyncApiServiceClientImpl(client);
     }
 
