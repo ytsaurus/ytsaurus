@@ -114,6 +114,8 @@ TEST(TJanitorFileThresholdTest, ZeroSize)
 TEST(TJanitorSnapshotChangelogTest, TooManyChangelogs)
 {
     std::vector<THydraFileInfo> snapshots{
+        {1, 0},
+        {2, 0},
         {3, 0}
     };
     std::vector<THydraFileInfo> changelogs{
@@ -129,6 +131,8 @@ TEST(TJanitorSnapshotChangelogTest, TooManyChangelogs)
 TEST(TJanitorSnapshotChangelogTest, TooMuchChangelogSpace)
 {
     std::vector<THydraFileInfo> snapshots{
+        {1, 0},
+        {2, 0},
         {3, 0}
     };
     std::vector<THydraFileInfo> changelogs{
@@ -227,36 +231,46 @@ TEST(TJanitorSnapshotChangelogTest, NoSnapshotsPresent)
     ASSERT_EQ(0, ComputeJanitorThresholdId(snapshots, changelogs, config));
 }
 
-TEST(TJanitorSnapshotChangelogTest, JustMaxSnapshotCountToKeep1)
+TEST(TJanitorSnapshotChangelogTest, JustMaxSnapshotCountToKeep)
 {
     std::vector<THydraFileInfo> snapshots{
-        {1, 0},
-        {2, 0},
-        {3, 0}
+        {5, 0},
     };
     std::vector<THydraFileInfo> changelogs{
-        {1, 0},
-        {2, 0},
-        {3, 0}
-    };
-    auto config = New<THydraJanitorConfig>();
-    config->MaxSnapshotCountToKeep = 2;
-    ASSERT_EQ(2, ComputeJanitorThresholdId(snapshots, changelogs, config));
-}
-
-TEST(TJanitorSnapshotChangelogTest, JustMaxSnapshotCountToKeep2)
-{
-    std::vector<THydraFileInfo> snapshots{
         {1, 0},
         {2, 0},
         {3, 0},
         {4, 0},
         {5, 0}
     };
+    auto config = New<THydraJanitorConfig>();
+    config->MaxSnapshotCountToKeep = 1;
+    ASSERT_EQ(5, ComputeJanitorThresholdId(snapshots, changelogs, config));
+}
+
+TEST(TJanitorSnapshotChangelogTest, JustMaxSnapshotCountToKeep2)
+{
+    std::vector<THydraFileInfo> snapshots{
+        {5, 0},
+    };
+    std::vector<THydraFileInfo> changelogs{
+        {1, 0},
+        {2, 0},
+        {3, 0},
+        {4, 0},
+        {5, 0}
+    };
+    auto config = New<THydraJanitorConfig>();
+    config->MaxSnapshotCountToKeep = 2;
+    ASSERT_EQ(5, ComputeJanitorThresholdId(snapshots, changelogs, config));
+}
+
+TEST(TJanitorSnapshotChangelogTest, Empty)
+{
+    std::vector<THydraFileInfo> snapshots{};
     std::vector<THydraFileInfo> changelogs{};
     auto config = New<THydraJanitorConfig>();
-    config->MaxSnapshotCountToKeep = 3;
-    ASSERT_EQ(3, ComputeJanitorThresholdId(snapshots, changelogs, config));
+    ASSERT_EQ(0, ComputeJanitorThresholdId(snapshots, changelogs, config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

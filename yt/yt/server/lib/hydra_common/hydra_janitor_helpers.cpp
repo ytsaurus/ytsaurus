@@ -56,9 +56,13 @@ int ComputeJanitorThresholdId(
             config->MaxSnapshotSizeToKeep);
 
     int maxSnapshotId = 0;
+    int minSnapshotId = snapshots.empty() ? 0 : std::numeric_limits<int>::max();
     for (const auto& snapshot : snapshots) {
+        minSnapshotId = std::min(minSnapshotId, snapshot.Id);
         maxSnapshotId = std::max(maxSnapshotId, snapshot.Id);
     }
+    YT_VERIFY(minSnapshotId <= maxSnapshotId);
+
     int changelogThresholdId = std::min(
         ComputeJanitorThresholdId(
             changelogs,
@@ -66,7 +70,9 @@ int ComputeJanitorThresholdId(
             config->MaxChangelogSizeToKeep),
         maxSnapshotId);
 
-    int thresholdId = std::max(snapshotThresholdId, changelogThresholdId);
+    int thresholdId = std::max(
+        std::max(snapshotThresholdId, changelogThresholdId),
+        minSnapshotId);
 
     // Sanity checks, please take them very seriously.
     // Deleting wrong changelogs and snapshots may cause unrecoverable data loss.
