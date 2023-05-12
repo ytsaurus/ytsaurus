@@ -2,6 +2,7 @@
 #include "private.h"
 #include "changelog_acquisition.h"
 #include "changelog_discovery.h"
+#include "snapshot_discovery.h"
 #include "decorated_automaton.h"
 #include "hydra_service_proxy.h"
 #include "lease_tracker.h"
@@ -1410,13 +1411,23 @@ private:
                 priority);
         }
 
-        int currentChangelogId = changelogStore->GetLatestChangelogIdOrThrow();
+        auto currentChangelogId = changelogStore->GetLatestChangelogIdOrThrow();
         if (currentChangelogId >= changelogId) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
                 "Cannot acquire changelog %v because changelog %v exists",
                 changelogId,
                 currentChangelogId);
+        }
+
+        auto currentSnapshotId = WaitFor(SnapshotStore_->GetLatestSnapshotId())
+            .ValueOrThrow();
+        if (currentSnapshotId >= changelogId) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot acquire changelog %v because snapshot %v exists",
+                changelogId,
+                currentSnapshotId);
         }
 
         if (epochContext->AcquiringChangelog) {
@@ -1872,7 +1883,14 @@ private:
         auto [changelogId, term] = WaitFor(asyncResult)
             .ValueOrThrow();
 
-        auto newChangelogId = changelogId + 1;
+        auto snapshotParams = WaitFor(
+            DiscoverLatestSnapshot(Config_->Get(), ControlEpochContext_->CellManager))
+            .ValueOrThrow();
+        auto localLatestSnapshotId = WaitFor(SnapshotStore_->GetLatestSnapshotId())
+            .ValueOrThrow();
+        auto snapshotId = std::max(snapshotParams.SnapshotId, localLatestSnapshotId);
+
+        auto newChangelogId = std::max(snapshotId, changelogId) + 1;
         auto newTerm = term + 1;
 
         WaitFor(ChangelogStore_->SetTerm(newTerm))
