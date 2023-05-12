@@ -697,6 +697,8 @@ void TOperationsCleanerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("operation_alert_sender_alert_threshold", &TThis::OperationAlertSenderAlertThreshold)
         .Default(TDuration::Minutes(5));
+    registrar.Parameter("locked_operation_wait_timeout", &TThis::LockedOperationWaitTimeout)
+        .Default(TDuration::Minutes(1));
     registrar.Parameter("disconnect_on_finished_operation_fetch_failure", &TThis::DisconnectOnFinishedOperationFetchFailure)
         .Default(true);
 

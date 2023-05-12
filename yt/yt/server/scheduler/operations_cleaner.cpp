@@ -657,8 +657,11 @@ public:
         , Client_(Bootstrap_->GetClient()->GetNativeConnection()
             ->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::OperationsCleanerUserName)))
     {
-        Profiler.AddFuncGauge("/remove_pending", MakeStrong(this), [this] {
-            return RemovePending_.load();
+        Profiler.WithTag("locked", "true").AddFuncGauge("/remove_pending", MakeStrong(this), [this] {
+            return RemovePendingLocked_.load();
+        });
+        Profiler.WithTag("locked", "false").AddFuncGauge("/remove_pending", MakeStrong(this), [this] {
+            return RemovePending_.load() - RemovePendingLocked_.load();
         });
         Profiler.AddFuncGauge("/archive_pending", MakeStrong(this), [this] {
             return ArchivePending_.load();
@@ -723,8 +726,7 @@ public:
                             BIND(
                                 &TMasterConnector::Disconnect,
                                 Bootstrap_->GetScheduler()->GetMasterConnector(),
-                                std::move(error)
-                            ));
+                                std::move(error)));
                     }
                 }
             }).Via(GetCancelableInvoker()));
@@ -765,7 +767,8 @@ public:
             .Item("remove_pending").Value(RemovePending_.load())
             .Item("archive_pending").Value(ArchivePending_.load())
             .Item("submitted").Value(Submitted_.load())
-            .Item("enqueued_alert_events").Value(EnqueuedAlertEvents_.load());
+            .Item("enqueued_alert_events").Value(EnqueuedAlertEvents_.load())
+            .Item("remove_pending_locked").Value(RemovePendingLocked_.load());
     }
 
     void EnqueueOperationAlertEvent(
@@ -814,6 +817,7 @@ private:
 
     TIntrusivePtr<TNonblockingBatch<TOperationId>> RemoveBatcher_;
     TIntrusivePtr<TNonblockingBatch<TOperationId>> ArchiveBatcher_;
+    std::deque<std::pair<TOperationId, TInstant>> LockedOperationQueue_;
 
     std::deque<TOperationAlertEvent> OperationAlertEventQueue_;
     TInstant LastOperationAlertEventSendTime_;
@@ -825,6 +829,7 @@ private:
     std::atomic<i64> ArchivePending_{0};
     std::atomic<i64> Submitted_{0};
     std::atomic<i64> EnqueuedAlertEvents_{0};
+    std::atomic<i64> RemovePendingLocked_{0};
 
     TCounter ArchivedOperationCounter_ = Profiler.Counter("/archived");
     TCounter RemovedOperationCounter_ = Profiler.Counter("/removed");
@@ -978,8 +983,10 @@ private:
         ArchiveTimeToOperationIdMap_.clear();
         OperationMap_.clear();
         OperationAlertEventQueue_.clear();
+        LockedOperationQueue_.clear();
         ArchivePending_ = 0;
         RemovePending_ = 0;
+        RemovePendingLocked_ = 0;
 
         YT_LOG_INFO("Operations cleaner stopped");
     }
@@ -1020,6 +1027,10 @@ private:
         CheckAndTruncateAlertEvents();
         if (OperationAlertEventSenderExecutor_) {
             OperationAlertEventSenderExecutor_->SetPeriod(Config_->OperationAlertEventSendPeriod);
+        }
+
+        if (AnalysisExecutor_) {
+            AnalysisExecutor_->SetPeriod(Config_->AnalysisPeriod);
         }
 
         ArchiveBatcher_->UpdateMaxBatchSize(Config_->ArchiveBatchSize);
@@ -1391,6 +1402,8 @@ private:
     {
         YT_LOG_DEBUG("Removing operations from Cypress (OperationCount: %v)", operationIds.size());
 
+        ProcessWaitingLockedOperations();
+
         std::vector<TOperationId> failedOperationIds;
         std::vector<TOperationId> removedOperationIds;
         std::vector<TOperationId> operationIdsToRemove;
@@ -1415,8 +1428,9 @@ private:
             if (batchRspOrError.IsOK()) {
                 const auto& batchRsp = batchRspOrError.Value();
                 auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_lock_count");
-                YT_VERIFY(rsps.size() == operationIds.size());
+                YT_VERIFY(std::ssize(rsps) == std::ssize(operationIds));
 
+                auto now = TInstant::Now();
                 for (int index = 0; index < std::ssize(rsps); ++index) {
                     bool isLocked = false;
                     const auto rsp = rsps[index];
@@ -1429,7 +1443,7 @@ private:
 
                     auto operationId = operationIds[index];
                     if (isLocked) {
-                        failedOperationIds.push_back(operationId);
+                        LockedOperationQueue_.emplace_back(std::move(operationId), now);
                         ++lockedOperationCount;
                     } else {
                         operationIdsToRemove.push_back(operationId);
@@ -1443,7 +1457,7 @@ private:
 
                 failedOperationIds = operationIds;
 
-                failedToRemoveOperationCount = operationIds.size();
+                failedToRemoveOperationCount = std::ssize(operationIds);
             }
         }
 
@@ -1455,14 +1469,14 @@ private:
 
             std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> responseFutures;
 
-            int subbatchCount = DivCeil(static_cast<int>(operationIdsToRemove.size()), subbatchSize);
+            int subbatchCount = DivCeil(static_cast<int>(std::ssize(operationIdsToRemove)), subbatchSize);
 
             std::vector<int> subbatchSizes;
             for (int subbatchIndex = 0; subbatchIndex < subbatchCount; ++subbatchIndex) {
                 auto batchReq = proxy.ExecuteBatch();
 
                 int startIndex = subbatchIndex * subbatchSize;
-                int endIndex = std::min(static_cast<int>(operationIdsToRemove.size()), startIndex + subbatchSize);
+                int endIndex = std::min(static_cast<int>(std::ssize(operationIdsToRemove)), startIndex + subbatchSize);
                 for (int index = startIndex; index < endIndex; ++index) {
                     auto req = TYPathProxy::Remove(GetOperationPath(operationIdsToRemove[index]));
                     req->set_recursive(true);
@@ -1478,7 +1492,7 @@ private:
 
             for (int subbatchIndex = 0; subbatchIndex < subbatchCount; ++subbatchIndex) {
                 int startIndex = subbatchIndex * subbatchSize;
-                int endIndex = std::min(static_cast<int>(operationIdsToRemove.size()), startIndex + subbatchSize);
+                int endIndex = std::min(static_cast<int>(std::ssize(operationIdsToRemove)), startIndex + subbatchSize);
 
                 const auto& batchRspOrError = responseResults[subbatchIndex];
                 if (batchRspOrError.IsOK()) {
@@ -1517,11 +1531,11 @@ private:
             }
         }
 
-        YT_VERIFY(operationIds.size() == failedOperationIds.size() + removedOperationIds.size());
-        int removedCount = removedOperationIds.size();
+        YT_VERIFY(std::ssize(operationIds) == std::ssize(failedOperationIds) + std::ssize(removedOperationIds) + lockedOperationCount);
+        int removedCount = std::ssize(removedOperationIds);
 
-        RemovedOperationCounter_.Increment(removedOperationIds.size());
-        RemoveOperationErrorCounter_.Increment(failedOperationIds.size());
+        RemovedOperationCounter_.Increment(std::ssize(removedOperationIds));
+        RemoveOperationErrorCounter_.Increment(std::ssize(failedOperationIds) + lockedOperationCount);
 
         ProcessRemovedOperations(removedOperationIds);
 
@@ -1529,6 +1543,7 @@ private:
             RemoveBatcher_->Enqueue(operationId);
         }
 
+        RemovePendingLocked_ += lockedOperationCount;
         RemovePending_ -= removedCount;
         YT_LOG_DEBUG(
             "Successfully removed operations from Cypress (Count: %v, LockedCount: %v, FailedToRemoveCount: %v)",
@@ -1729,6 +1744,20 @@ private:
             OperationAlertEventQueue_.pop_front();
         }
         EnqueuedAlertEvents_.store(std::ssize(OperationAlertEventQueue_));
+    }
+
+    void ProcessWaitingLockedOperations()
+    {
+        auto now = TInstant::Now();
+        while (!LockedOperationQueue_.empty()) {
+            const auto& [operationId, enqueueInstant] = LockedOperationQueue_.front();
+            if (now - enqueueInstant < Config_->LockedOperationWaitTimeout) {
+                break;
+            }
+            RemoveBatcher_->Enqueue(operationId);
+            LockedOperationQueue_.pop_front();
+            --RemovePendingLocked_;
+        }
     }
 };
 

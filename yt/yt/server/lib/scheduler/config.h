@@ -641,6 +641,9 @@ public:
     //! within this period, alert is raised.
     TDuration OperationAlertSenderAlertThreshold;
 
+    //! How often to retry removing a previously locked operation.
+    TDuration LockedOperationWaitTimeout;
+
     //! Disconnect from master in case of finished operation fetch failure.
     //! This option does not affect fetching after cleaner is re-enabled.
     bool DisconnectOnFinishedOperationFetchFailure;
