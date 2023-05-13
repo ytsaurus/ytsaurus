@@ -35,22 +35,27 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-class TWriteTask {
+class TWriteTask
+{
 public:
-    TWriteTask(const T& row)
+    TWriteTask(const T& row, size_t rowWeight)
         : Row_(row)
+        , Weight_(rowWeight)
     { }
 
-    TWriteTask(T&& row)
+    TWriteTask(T&& row, size_t rowWeight)
         : Row_(std::move(row))
+        , Weight_(rowWeight)
     { }
 
-    TWriteTask(const TVector<T>& rows)
-        : Rows_(rows)
+    TWriteTask(const TVector<T>& rowBatch, size_t rowBatchWeight)
+        : RowBatch_(rowBatch)
+        , Weight_(rowBatchWeight)
     { }
 
-    TWriteTask(TVector<T>&& rows)
-        : Rows_(std::move(rows))
+    TWriteTask(TVector<T>&& rowBatch, size_t rowBatchWeight)
+        : RowBatch_(std::move(rowBatch))
+        , Weight_(rowBatchWeight)
     { }
 
     void Process(const TTableWriterPtr<T>& writer)
@@ -58,13 +63,19 @@ public:
         if (Row_) {
             writer->AddRow(std::move(Row_).value());
         } else {
-            writer->AddRowBatch(std::move(Rows_).value());
+            writer->AddRowBatch(std::move(RowBatch_).value());
         }
+    }
+
+    size_t GetWeight() const
+    {
+        return Weight_;
     }
 
 private:
     std::optional<T> Row_;
-    std::optional<TVector<T>> Rows_;
+    std::optional<TVector<T>> RowBatch_;
+    size_t Weight_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,6 +95,7 @@ public:
         , ThreadPool_(threadPool)
         , WritersPool_(options.ThreadCount_)
         , Options_(options.TableWriterOptions_)
+        , RamLimiter_(options.RamLimiter_)
     {
         if (options.TaskCount_ > 0) {
             TaskCountLimiter_ = MakeIntrusive<TResourceLimiter>(options.TaskCount_);
@@ -179,26 +191,37 @@ private:
     }
 
 protected:
-    void AddRowError() {
+    void AddRowError()
+    {
         if (State_ == EWriterState::Exception) {
             std::rethrow_exception(Exception_);
         }
         ythrow TApiUsageError() << "Can't write after Finish or Abort";
     }
 
-    bool AddWriteTask(TWriteTask<T> task) {
+    bool AddWriteTask(TWriteTask<T> task)
+    {
         if (Stopped_) {
             return false;
+        }
+
+        if (RamLimiter_ && RamLimiter_->GetLimit() < task.GetWeight()) {
+            throw TApiUsageError() << "Weight of row/rowBatch is greater than RamLimiter limit";
         }
 
         std::optional<TResourceGuard> taskCountGuard = TaskCountLimiter_
             ? std::make_optional<TResourceGuard>(TaskCountLimiter_, 1)
             : std::nullopt;
 
+        std::optional<TResourceGuard> memoryGuard = RamLimiter_
+            ? std::make_optional<TResourceGuard>(RamLimiter_, task.GetWeight())
+            : std::nullopt;
+
         Futures_.emplace_back(::NThreading::Async([
             this,
             task=std::move(task),
-            taskCountGuard=std::move(taskCountGuard)
+            taskCountGuard=std::move(taskCountGuard),
+            memoryGuard=std::move(memoryGuard)
         ] () mutable {
             try {
                 TMaybe<TTableWriterPtr<T>> writer = WritersPool_.Pop();
@@ -243,6 +266,7 @@ private:
     std::exception_ptr Exception_ = nullptr;
 
     ::TIntrusivePtr<TResourceLimiter> TaskCountLimiter_;
+    ::TIntrusivePtr<TResourceLimiter> RamLimiter_;
 
     std::atomic<EWriterState> State_ = EWriterState::Ok;
 };
@@ -255,30 +279,40 @@ public:
     using TBase = TParallelUnorderedTableWriterBase<T>;
     using TBase::TParallelUnorderedTableWriterBase;
 
-    void AddRow(T&& row, size_t) override
+    void AddRow(T&& row, size_t tableIndex) override
     {
-        if (!TBase::AddWriteTask(TWriteTask<T>(std::move(row)))) {
+        AddRow(std::move(row), tableIndex, 0 /*rowWeight*/);
+    }
+
+    void AddRow(T&& row, size_t /*tableIndex*/, size_t rowWeight) override
+    {
+        if (!TBase::AddWriteTask(TWriteTask<T>(std::move(row), rowWeight))) {
             TBase::AddRowError();
         }
     }
 
-    void AddRow(const T& row, size_t) override
+    void AddRow(const T& row, size_t tableIndex) override
     {
-        if (!TBase::AddWriteTask(TWriteTask<T>(row))) {
+        AddRow(row, tableIndex, 0 /*rowWeight*/);
+    }
+
+    void AddRow(const T& row, size_t /*tableIndex*/, size_t rowWeight) override
+    {
+        if (!TBase::AddWriteTask(TWriteTask<T>(row, rowWeight))) {
             TBase::AddRowError();
         }
     }
 
-    void AddRowBatch(TVector<T>&& rows, size_t) override
+    void AddRowBatch(TVector<T>&& rowBatch, size_t /*tableIndex*/, size_t rowBatchWeight) override
     {
-        if (!TBase::AddWriteTask(TWriteTask<T>(std::move(rows)))) {
+        if (!TBase::AddWriteTask(TWriteTask<T>(std::move(rowBatch), rowBatchWeight))) {
             TBase::AddRowError();
         }
     }
 
-    void AddRowBatch(const TVector<T>& rows, size_t) override
+    void AddRowBatch(const TVector<T>& rowBatch, size_t /*tableIndex*/, size_t rowBatchWeight) override
     {
-        if (!TBase::AddWriteTask(TWriteTask<T>(rows))) {
+        if (!TBase::AddWriteTask(TWriteTask<T>(rowBatch, rowBatchWeight))) {
             TBase::AddRowError();
         }
     }
@@ -295,16 +329,26 @@ public:
     using TBase = TParallelUnorderedTableWriterBase<T>;
     using TBase::TParallelUnorderedTableWriterBase;
 
-    void AddRow(Message&& row, size_t) override
+    void AddRow(Message&& row, size_t tableIndex) override
     {
-        if (!TBase::AddWriteTask(TWriteTask<T>(std::move(static_cast<T&&>(row))))) {
+        AddRow(std::move(row), tableIndex, 0 /*rowWeight*/);
+    }
+
+    void AddRow(Message&& row, size_t /*tableIndex*/, size_t rowWeight) override
+    {
+        if (!TBase::AddWriteTask(TWriteTask<T>(std::move(static_cast<T&&>(row)), rowWeight))) {
             TBase::AddRowError();
         }
     }
 
-    void AddRow(const Message& row, size_t) override
+    void AddRow(const Message& row, size_t tableIndex) override
     {
-        if (!TBase::AddWriteTask(TWriteTask<T>(static_cast<const T&>(row)))) {
+        AddRow(row, tableIndex, 0 /*rowWeight*/);
+    }
+
+    void AddRow(const Message& row, size_t /*tableIndex*/, size_t rowWeight) override
+    {
+        if (!TBase::AddWriteTask(TWriteTask<T>(static_cast<const T&>(row), rowWeight))) {
             TBase::AddRowError();
         }
     }

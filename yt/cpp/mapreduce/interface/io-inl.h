@@ -707,9 +707,39 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T>
 struct IWriterImplBase
     : public TThrRefBase
 {
+    virtual void AddRow(const T& row, size_t tableIndex) = 0;
+
+    virtual void AddRow(const T& row, size_t tableIndex, size_t /*rowWeight*/)
+    {
+        AddRow(row, tableIndex);
+    }
+
+    virtual void AddRow(T&& row, size_t tableIndex) = 0;
+
+    virtual void AddRow(T&& row, size_t tableIndex, size_t /*rowWeight*/)
+    {
+        AddRow(std::move(row), tableIndex);
+    }
+
+    virtual void AddRowBatch(const TVector<T>& rowBatch, size_t tableIndex, size_t rowBatchWeight = 0)
+    {
+        for (const auto& row : rowBatch) {
+            AddRow(row, tableIndex, rowBatchWeight / rowBatch.size());
+        }
+    }
+
+    virtual void AddRowBatch(TVector<T>&& rowBatch, size_t tableIndex, size_t rowBatchWeight = 0)
+    {
+        auto rowBatchSize = rowBatch.size();
+        for (auto&& row : std::move(rowBatch)) {
+            AddRow(std::move(row), tableIndex, rowBatchWeight / rowBatchSize);
+        }
+    }
+
     virtual size_t GetTableCount() const = 0;
     virtual void FinishTable(size_t tableIndex) = 0;
     virtual void Abort()
@@ -717,60 +747,18 @@ struct IWriterImplBase
 };
 
 struct INodeWriterImpl
-    : public IWriterImplBase
+    : public IWriterImplBase<TNode>
 {
-    virtual void AddRow(const TNode& row, size_t tableIndex) = 0;
-    virtual void AddRow(TNode&& row, size_t tableIndex) = 0;
-    virtual void AddRowBatch(const TVector<TNode>& rows, size_t tableIndex)
-    {
-        for (const auto& row : rows) {
-            AddRow(row, tableIndex);
-        }
-    }
-    virtual void AddRowBatch(TVector<TNode>&& rows, size_t tableIndex)
-    {
-        for (auto&& row : std::move(rows)) {
-            AddRow(std::move(row), tableIndex);
-        }
-    }
 };
 
 struct IYaMRWriterImpl
-    : public IWriterImplBase
+    : public IWriterImplBase<TYaMRRow>
 {
-    virtual void AddRow(const TYaMRRow& row, size_t tableIndex) = 0;
-    virtual void AddRow(TYaMRRow&& row, size_t tableIndex) = 0;
-    virtual void AddRowBatch(const TVector<TYaMRRow>& rows, size_t tableIndex)
-    {
-        for (const auto& row : rows) {
-            AddRow(row, tableIndex);
-        }
-    }
-    virtual void AddRowBatch(TVector<TYaMRRow>&& rows, size_t tableIndex)
-    {
-        for (auto&& row : std::move(rows)) {
-            AddRow(std::move(row), tableIndex);
-        }
-    }
 };
 
 struct IProtoWriterImpl
-    : public IWriterImplBase
+    : public IWriterImplBase<Message>
 {
-    virtual void AddRow(const Message& row, size_t tableIndex) = 0;
-    virtual void AddRow(Message&& row, size_t tableIndex) = 0;
-    virtual void AddRowBatch(const TVector<Message>& rows, size_t tableIndex)
-    {
-        for (const auto& row : rows) {
-            AddRow(row, tableIndex);
-        }
-    }
-    virtual void AddRowBatch(TVector<Message>&& rows, size_t tableIndex)
-    {
-        for (auto&& row : std::move(rows)) {
-            AddRow(std::move(row), tableIndex);
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -800,24 +788,24 @@ public:
         Writer_->Abort();
     }
 
-    void AddRow(const T& row, size_t tableIndex = 0)
+    void AddRow(const T& row, size_t tableIndex = 0, size_t rowWeight = 0)
     {
-        DoAddRow<T>(row, tableIndex);
+        DoAddRow<T>(row, tableIndex, rowWeight);
     }
 
-    void AddRow(T&& row, size_t tableIndex = 0)
+    void AddRow(T&& row, size_t tableIndex = 0, size_t rowWeight = 0)
     {
-        DoAddRow<T>(std::move(row), tableIndex);
+        DoAddRow<T>(std::move(row), tableIndex, rowWeight);
     }
 
-    void AddRowBatch(const TVector<T>& rows, size_t tableIndex = 0)
+    void AddRowBatch(const TVector<T>& rowBatch, size_t tableIndex = 0, size_t rowBatchWeight = 0)
     {
-        DoAddRowBatch<T>(rows, tableIndex);
+        DoAddRowBatch<T>(rowBatch, tableIndex, rowBatchWeight);
     };
 
-    void AddRowBatch(TVector<T>&& rows, size_t tableIndex = 0)
+    void AddRowBatch(TVector<T>&& rowBatch, size_t tableIndex = 0, size_t rowBatchWeight = 0)
     {
-        DoAddRowBatch<T>(std::move(rows), tableIndex);
+        DoAddRowBatch<T>(std::move(rowBatch), tableIndex, rowBatchWeight);
     }
 
     void Finish()
@@ -830,7 +818,7 @@ public:
 
 protected:
     template <class U>
-    void DoAddRow(const U& row, size_t tableIndex = 0)
+    void DoAddRow(const U& row, size_t tableIndex = 0, size_t rowWeight = 0)
     {
         if (tableIndex >= Locks_->size()) {
             ythrow TIOException() <<
@@ -839,11 +827,11 @@ protected:
         }
 
         auto guard = Guard((*Locks_)[tableIndex]);
-        Writer_->AddRow(row, tableIndex);
+        Writer_->AddRow(row, tableIndex, rowWeight);
     }
 
     template <class U>
-    void DoAddRow(U&& row, size_t tableIndex = 0)
+    void DoAddRow(U&& row, size_t tableIndex = 0, size_t rowWeight = 0)
     {
         if (tableIndex >= Locks_->size()) {
             ythrow TIOException() <<
@@ -852,11 +840,11 @@ protected:
         }
 
         auto guard = Guard((*Locks_)[tableIndex]);
-        Writer_->AddRow(std::move(row), tableIndex);
+        Writer_->AddRow(std::move(row), tableIndex, rowWeight);
     }
 
     template <class U>
-    void DoAddRowBatch(const TVector<U>& rows, size_t tableIndex = 0)
+    void DoAddRowBatch(const TVector<U>& rowBatch, size_t tableIndex = 0, size_t rowBatchWeight = 0)
     {
         if (tableIndex >= Locks_->size()) {
             ythrow TIOException() <<
@@ -865,11 +853,11 @@ protected:
         }
 
         auto guard = Guard((*Locks_)[tableIndex]);
-        Writer_->AddRowBatch(rows, tableIndex);
+        Writer_->AddRowBatch(rowBatch, tableIndex, rowBatchWeight);
     }
 
     template <class U>
-    void DoAddRowBatch(TVector<U>&& rows, size_t tableIndex = 0)
+    void DoAddRowBatch(TVector<U>&& rowBatch, size_t tableIndex = 0, size_t rowBatchWeight = 0)
     {
         if (tableIndex >= Locks_->size()) {
             ythrow TIOException() <<
@@ -878,7 +866,7 @@ protected:
         }
 
         auto guard = Guard((*Locks_)[tableIndex]);
-        Writer_->AddRowBatch(std::move(rows), tableIndex);
+        Writer_->AddRowBatch(std::move(rowBatch), tableIndex, rowBatchWeight);
     }
 
     ::TIntrusivePtr<IWriterImpl> GetWriterImpl()
@@ -927,16 +915,16 @@ public:
     { }
 
     template <class U, std::enable_if_t<std::is_base_of<Message, U>::value>* = nullptr>
-    void AddRow(const U& row, size_t tableIndex = 0)
+    void AddRow(const U& row, size_t tableIndex = 0, size_t rowWeight = 0)
     {
-        TBase::AddRow(row, tableIndex);
+        TBase::AddRow(row, tableIndex, rowWeight);
     }
 
     template <class U, std::enable_if_t<std::is_base_of<Message, U>::value>* = nullptr>
-    void AddRowBatch(const TVector<U>& rows, size_t tableIndex = 0)
+    void AddRowBatch(const TVector<U>& rowBatch, size_t tableIndex = 0, size_t rowBatchWeight = 0)
     {
-        for (const auto& row : rows) {
-            AddRow(row, tableIndex);
+        for (const auto& row : rowBatch) {
+            AddRow(row, tableIndex, rowBatchWeight / rowBatch.size());
         }
     }
 };
@@ -953,14 +941,14 @@ public:
         : TBase(writer)
     { }
 
-    void AddRow(const T& row, size_t tableIndex = 0)
+    void AddRow(const T& row, size_t tableIndex = 0, size_t rowWeight = 0)
     {
-        TBase::AddRow<T>(row, tableIndex);
+        TBase::AddRow<T>(row, tableIndex, rowWeight);
     }
 
-    void AddRowBatch(const TVector<T>& rows, size_t tableIndex = 0)
+    void AddRowBatch(const TVector<T>& rowBatch, size_t tableIndex = 0, size_t rowBatchWeight = 0)
     {
-        TBase::AddRowBatch<T>(rows, tableIndex);
+        TBase::AddRowBatch<T>(rowBatch, tableIndex, rowBatchWeight);
     }
 };
 

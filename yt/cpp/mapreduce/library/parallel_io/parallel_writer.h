@@ -1,5 +1,7 @@
 #pragma once
 
+#include "resource_limiter.h"
+
 #include <yt/cpp/mapreduce/interface/client.h>
 #include <yt/cpp/mapreduce/interface/io.h>
 
@@ -19,6 +21,9 @@ struct TParallelTableWriterOptions
     // It is a limit of this queue.
     // Set to 0 for unlimited size of queue.
     FLUENT_FIELD_DEFAULT(size_t, TaskCount, 1000);
+
+    // Allows to limit RAM usage of received rows.
+    FLUENT_FIELD(::TIntrusivePtr<TResourceLimiter>, RamLimiter);
 
     // @ref NYT::TTableWriterOptions
     FLUENT_FIELD_DEFAULT(TTableWriterOptions, TableWriterOptions, TTableWriterOptions());
