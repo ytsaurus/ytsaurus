@@ -14,31 +14,31 @@ import yt.yson as yson
 
 def get_chunk_table_attributes():
     res = {}
-    res['schema'] = [
-        {'name': 'filename', 'type': 'string', 'sort_order': 'ascending'},
-        {'name': 'part_index', 'type': 'int64', 'sort_order': 'ascending'},
-        {'name': 'offset', 'type': 'int64'},
-        {'name': 'filesize', 'type': 'int64'},
-        {'name': 'data', 'type': 'string'}
+    res["schema"] = [
+        {"name": "filename", "type": "string", "sort_order": "ascending"},
+        {"name": "part_index", "type": "int64", "sort_order": "ascending"},
+        {"name": "offset", "type": "int64"},
+        {"name": "filesize", "type": "int64"},
+        {"name": "data", "type": "string"}
     ]
-    res['optimize_for'] = 'lookup'
+    res["optimize_for"] = "lookup"
     return res
 
 
 def get_skynet_table_attributes():
     res = {}
-    res['schema'] = [
-        {'group': 'meta', 'name': 'filename', 'type': 'string', 'sort_order': 'ascending'},
-        {'group': 'meta', 'name': 'part_index', 'type': 'int64', 'sort_order': 'ascending'},
-        {'group': 'meta', 'name': 'offset', 'type': 'int64'},
-        {'group': 'meta', 'name': 'filesize', 'type': 'int64'},
-        {'group': 'meta', 'name': 'data_size', 'type': 'int64'},
-        {'group': 'meta', 'name': 'sha1', 'type': 'string'},
-        {'group': 'meta', 'name': 'md5', 'type': 'string'},
-        {'group': 'data', 'name': 'data', 'type': 'string'}
+    res["schema"] = [
+        {"group": "meta", "name": "filename", "type": "string", "sort_order": "ascending"},
+        {"group": "meta", "name": "part_index", "type": "int64", "sort_order": "ascending"},
+        {"group": "meta", "name": "offset", "type": "int64"},
+        {"group": "meta", "name": "filesize", "type": "int64"},
+        {"group": "meta", "name": "data_size", "type": "int64"},
+        {"group": "meta", "name": "sha1", "type": "string"},
+        {"group": "meta", "name": "md5", "type": "string"},
+        {"group": "data", "name": "data", "type": "string"}
     ]
-    res['enable_skynet_sharing'] = True
-    res['optimize_for'] = 'scan'
+    res["enable_skynet_sharing"] = True
+    res["optimize_for"] = "scan"
     return res
 
 
@@ -52,20 +52,20 @@ class ChunkToUpload:
         self.file_size = file_size
 
     def make_row(self, for_sky_share):
-        with open(self.full_path, 'rb') as f:
+        with open(self.full_path, "rb") as f:
             f.seek(self.offset)
             data = f.read(self.data_size)
             res = {
-                'filename': self.yt_name,
-                'part_index': self.part_index,
-                'data': data,
-                'offset': self.offset,
-                'filesize': self.file_size
+                "filename": self.yt_name,
+                "part_index": self.part_index,
+                "data": data,
+                "offset": self.offset,
+                "filesize": self.file_size
             }
-            if for_sky_share:  # Documentation says that it's not neccessary, but without that it won't work with big files (YT-18990)
-                res['md5'] = hashlib.md5(data).digest()
-                res['sha1'] = hashlib.sha1(data).digest()
-                res['data_size'] = self.data_size
+            if for_sky_share:  # Documentation says that it"s not neccessary, but without that it won"t work with big files (YT-18990)
+                res["md5"] = hashlib.md5(data).digest()
+                res["sha1"] = hashlib.sha1(data).digest()
+                res["data_size"] = self.data_size
         return res
 
 
@@ -121,7 +121,7 @@ def write_chunks(chunks, folder, client_config, transaction_id, for_sky_share):
     with client.Transaction(transaction_id=transaction_id):
         table_path = client.find_free_subpath(folder)
         attributes = get_skynet_table_attributes() if for_sky_share else get_chunk_table_attributes()
-        client.create('table', table_path, attributes=attributes)
+        client.create("table", table_path, attributes=attributes)
         client.write_table(table_path, (c.make_row(for_sky_share=for_sky_share) for c in chunks), raw=False)
     return table_path
 
@@ -134,9 +134,9 @@ def get_file_sizes_from_table(client, yt_table):
     while cur_row < row_count:
         t = TablePath(yt_table, start_index=cur_row, end_index=cur_row + 1, client=client)
         row, = client.read_table(t, raw=False)  # There is single row
-        assert row['part_index'] == 0
-        filename = row['filename']
-        filesize = row['filesize']
+        assert row["part_index"] == 0
+        filename = row["filename"]
+        filesize = row["filesize"]
         res[filename] = filesize
         row_count_for_file = filesize // part_size + bool(filesize % part_size)
         cur_row += row_count_for_file
@@ -144,20 +144,20 @@ def get_file_sizes_from_table(client, yt_table):
 
 
 def write_meta_file(client, yt_table, file_sizes, force):
-    meta_file_path = yt_table + '.dirtable.meta'
+    meta_file_path = yt_table + ".dirtable.meta"
     meta = yson.to_yson_type({
-        'file_sizes': file_sizes
+        "file_sizes": file_sizes
     })
-    client.write_file(meta_file_path, yson.dumps(meta), force_create=force)
+    client.write_file(meta_file_path, yson.dumps(meta), force_create=True)
 
 
 def get_file_sizes(client, yt_table):
-    meta_file_path = yt_table + '.dirtable.meta'
+    meta_file_path = yt_table + ".dirtable.meta"
     try:
         meta = yson.loads(client.read_file(meta_file_path).read())
-        return meta['file_sizes']
+        return meta["file_sizes"]
     except YtError:
-        print('Warning: {} not found, try to get file sizes from table'.format(meta_file_path))
+        print("Warning: {} not found, try to get file sizes from table".format(meta_file_path))
         return get_file_sizes_from_table(client, yt_table)
 
 
@@ -169,11 +169,11 @@ def download_range(r, directory, yt_table, client_config, transaction_id):
         files = {}
         try:
             for row in client.read_table(table, raw=False):
-                if row['filename'] not in files:
-                    files[row['filename']] = open(os.path.join(directory, row['filename']), 'r+b')
-                f = files[row['filename']]
-                f.seek(row['offset'])
-                f.write(yson.get_bytes(row['data']))
+                if row["filename"] not in files:
+                    files[row["filename"]] = open(os.path.join(directory, row["filename"]), "r+b")
+                f = files[row["filename"]]
+                f.seek(row["offset"])
+                f.write(yson.get_bytes(row["data"]))
         except Exception as e:
             raise e
         finally:
@@ -192,18 +192,27 @@ def upload_directory_to_yt(directory, recursive, yt_table, part_size, process_co
     with client.Transaction(attributes={"title": "dirtable upload"}, ping=True) as tx:
         folder = ypath_dirname(yt_table)
         client.mkdir(folder, recursive=True)
-        if not folder.endswith('/'):
-            folder = folder + '/'
+        if not folder.endswith("/"):
+            folder = folder + "/"
 
         attributes = get_skynet_table_attributes() if prepare_for_sky_share else get_chunk_table_attributes()
-        client.create('table', yt_table, attributes=attributes, force=force)
+        client.create("table", yt_table, attributes=attributes, force=force)
 
         chunks = split_chunks(chunks, process_count)
 
         worker = functools.partial(write_chunks, folder=folder, client_config=get_config(client), transaction_id=tx.transaction_id, for_sky_share=prepare_for_sky_share)
         temp_tables = []
-        with mp.Pool(process_count) as pool:
+
+        pool = mp.Pool(process_count)
+        try:
             temp_tables = [t for t in pool.map(worker, chunks)]
+            pool.close()
+        except:
+            pool.terminate()
+            raise
+        finally:
+            pool.join()
+
         client.concatenate(temp_tables, yt_table)
 
         for t in temp_tables:
@@ -214,21 +223,31 @@ def upload_directory_to_yt(directory, recursive, yt_table, part_size, process_co
 
 def download_directory_from_yt(directory, yt_table, process_count):
     client = YtClient(config=get_config(None))
-    os.makedirs(directory, exist_ok=True)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
     with client.Transaction(attributes={"title": "dirtable download"}, ping=True) as tx:
         file_sizes = get_file_sizes(client, yt_table)
         try:
             for filename, size in file_sizes.items():
                 full_path = os.path.join(directory, filename)
-                os.makedirs(os.path.dirname(full_path), exist_ok=True)
-                with open(full_path, 'wb') as f:
-                    f.write(b'\0' * size)
+                if not os.path.exists(os.path.dirname(full_path)):
+                    os.makedirs(os.path.dirname(full_path))
+                with open(full_path, "wb") as f:
+                    f.write(b"\0" * size)
             row_count = client.get_attribute(yt_table, "row_count")
             ranges = split_range(0, row_count, process_count)
             worker = functools.partial(download_range, directory=directory, yt_table=yt_table, client_config=get_config(client), transaction_id=tx.transaction_id)
-            with mp.Pool(process_count) as pool:
+            pool = mp.Pool(process_count)
+            try:
                 pool.map(worker, ranges)
+                pool.close()
+            except:
+                pool.terminate()
+                raise
+            finally:
+                pool.join()
+
         except Exception:
             for filename in file_sizes:
                 try:
@@ -258,8 +277,8 @@ def append_single_file(yt_table, fs_path, yt_name, process_count):
         file_chunks = list(get_chunks(fs_path, yt_name, part_size))
 
         folder = ypath_dirname(yt_table)
-        if not folder.endswith('/'):
-            folder = folder + '/'
+        if not folder.endswith("/"):
+            folder = folder + "/"
 
         prefix_table = TablePath(yt_table, upper_key=yt_name, client=client)
         suffix_table = TablePath(yt_table, lower_key=yt_name, client=client)
@@ -268,13 +287,21 @@ def append_single_file(yt_table, fs_path, yt_name, process_count):
         for_sky_share = client.get_attribute(yt_table, "enable_skynet_sharing", default=False)
         worker = functools.partial(write_chunks, folder=folder, client_config=get_config(client), transaction_id=tx.transaction_id, for_sky_share=for_sky_share)
         middle_tables = []
-        with mp.Pool(process_count) as pool:
+
+        pool = mp.Pool(process_count)
+        try:
             middle_tables = [t for t in pool.map(worker, file_chunks)]
+            pool.close()
+        except:
+            pool.terminate()
+            raise
+        finally:
+            pool.join()
 
         temp_concat_table = client.find_free_subpath(folder)
         attributes = get_skynet_table_attributes() if for_sky_share else get_chunk_table_attributes()
-        client.create('table', temp_concat_table, attributes=attributes)
-        client.run_merge(list(itertools.chain([prefix_table], middle_tables, [suffix_table])), temp_concat_table, mode='sorted')
+        client.create("table", temp_concat_table, attributes=attributes)
+        client.run_merge(list(itertools.chain([prefix_table], middle_tables, [suffix_table])), temp_concat_table, mode="sorted")
 
         for t in middle_tables:
             client.remove(t)
@@ -286,43 +313,43 @@ def append_single_file(yt_table, fs_path, yt_name, process_count):
 def add_upload_parser(parsers):
     parser = parsers.add_parser("upload", help="Upload directory to YT")
     parser.set_defaults(func=upload_directory_to_yt)
-    parser.add_argument('--directory', required=True)
-    parser.add_argument('--part-size', type=int, default=4*1024*1024)
+    parser.add_argument("--directory", required=True)
+    parser.add_argument("--part-size", type=int, default=4*1024*1024)
 
     parser.set_defaults(recursive=True)
-    parser.add_argument('--recursive', action='store_true')
-    parser.add_argument('--no-recursive', dest='recursive', action='store_false')
-    parser.add_argument('--yt-table', required=True)
-    parser.add_argument('--process-count', type=int, default=4)
+    parser.add_argument("--recursive", action="store_true")
+    parser.add_argument("--no-recursive", dest="recursive", action="store_false")
+    parser.add_argument("--yt-table", required=True)
+    parser.add_argument("--process-count", type=int, default=4)
 
     parser.set_defaults(force=False)
-    parser.add_argument('--force', action='store_true')
+    parser.add_argument("--force", action="store_true")
 
     parser.set_defaults(prepare_for_sky_share=False)
-    parser.add_argument('--prepare-for-sky-share', action='store_true')
+    parser.add_argument("--prepare-for-sky-share", action="store_true")
 
 
 def add_download_parser(parsers):
     parser = parsers.add_parser("download", help="Download directory from YT")
     parser.set_defaults(func=download_directory_from_yt)
-    parser.add_argument('--directory', required=True)
-    parser.add_argument('--yt-table', required=True)
-    parser.add_argument('--process-count', type=int, default=4)
+    parser.add_argument("--directory", required=True)
+    parser.add_argument("--yt-table", required=True)
+    parser.add_argument("--process-count", type=int, default=4)
 
 
 def add_list_files_parser(parsers):
     parser = parsers.add_parser("list-files", help="List files from YT")
     parser.set_defaults(func=list_files_from_yt)
-    parser.add_argument('--yt-table', required=True)
+    parser.add_argument("--yt-table", required=True)
 
 
 def add_append_single_file(parsers):
     parser = parsers.add_parser("append-single-file", help="Append single file to table")
     parser.set_defaults(func=append_single_file)
-    parser.add_argument('--yt-table', required=True)
-    parser.add_argument('--yt-name', required=True)
-    parser.add_argument('--fs-path', required=True)
-    parser.add_argument('--process-count', type=int, default=4)
+    parser.add_argument("--yt-table", required=True)
+    parser.add_argument("--yt-name", required=True)
+    parser.add_argument("--fs-path", required=True)
+    parser.add_argument("--process-count", type=int, default=4)
 
 
 def add_dirtable_parsers(subparsers):

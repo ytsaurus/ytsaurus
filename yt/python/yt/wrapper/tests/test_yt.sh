@@ -707,25 +707,34 @@ test_sort_order()
 
 test_dirtable()
 {
-    rm -rf source_files
-    rm -rf download_files
-    mkdir source_files
-    cat /dev/random | fold -w 1024 | head -512000 > source_files/random_file1
-    mkdir source_files/data
-    cat /dev/random | fold -w 1024 | head -512000 > source_files/data/random_file2
-    $YT dirtable upload --directory source_files --yt-table //home/wrapper_test/dirtable
-    mkdir download_files
-    $YT dirtable download --directory download_files --yt-table //home/wrapper_test/dirtable
-    check "" "$($diff -r source_files download_files)"
-    rm -rf download_files/*
+    SOURCE_DIR="tmp_source_files"
+    DOWNLOAD_DIR="tmp_download_files"
+    # patch for py2 yt/python/yt/wrapper/framing.py assert isinstance(size, int)
+    YT_CONFIG_PATCHES=$(echo $YT_CONFIG_PATCHES | sed 's/"read_buffer_size"=[0-9]*;//')
 
-    cat /dev/random | fold -w 1024 | head -512000 > source_files/i_am_just_appended_random_file
-    $YT dirtable append-single-file --yt-name i_am_just_appended_random_file --fs-path source_files/i_am_just_appended_random_file --yt-table //home/wrapper_test/dirtable
-    $YT dirtable download --directory download_files --yt-table //home/wrapper_test/dirtable
-    check "" "$($diff -r source_files download_files)"
+    rm -rf ${SOURCE_DIR}
+    rm -rf ${DOWNLOAD_DIR}
+    mkdir ${SOURCE_DIR}
+    
+    # cat /dev/random | fold -w 1024 | head -512000 > ${SOURCE_DIR}/random_file1
+    python -c "open('${SOURCE_DIR}/random_file1','wb').truncate(1024*1024*10)"
+    mkdir ${SOURCE_DIR}/data
+    # cat /dev/random | fold -w 1024 | head -512000 > ${SOURCE_DIR}/data/random_file2
+    python -c "open('${SOURCE_DIR}/data/random_file2','wb').truncate(1024*1024*20)"
+    $YT dirtable upload --directory ${SOURCE_DIR} --yt-table //home/wrapper_test/dirtable
+    mkdir ${DOWNLOAD_DIR}
+    $YT dirtable download --directory ${DOWNLOAD_DIR} --yt-table //home/wrapper_test/dirtable
+    check "" "$(diff -qr ${SOURCE_DIR} ${DOWNLOAD_DIR})"
+    rm -rf ${DOWNLOAD_DIR}/*
 
-    rm -rf source_files
-    rm -rf download_files
+    # cat /dev/random | fold -w 1024 | head -512000 > ${SOURCE_DIR}/i_am_just_appended_random_file
+    python -c "open('${SOURCE_DIR}/i_am_just_appended_random_file','wb').truncate(1024*1024*30)"
+    $YT dirtable append-single-file --yt-name i_am_just_appended_random_file --fs-path ${SOURCE_DIR}/i_am_just_appended_random_file --yt-table //home/wrapper_test/dirtable
+    $YT dirtable download --directory ${DOWNLOAD_DIR} --yt-table //home/wrapper_test/dirtable
+    check "" "$(diff -qr ${SOURCE_DIR} ${DOWNLOAD_DIR})"
+
+    rm -rf ${SOURCE_DIR}
+    rm -rf ${DOWNLOAD_DIR}
 }
 
 tear_down
