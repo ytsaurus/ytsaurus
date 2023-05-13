@@ -369,12 +369,11 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 2 and get(CLEANER_ORCHID + "/remove_pending_locked") == 1)
 
         config = {
-            "remove_batch_size": 3,
+            "remove_batch_size": 2,
             "locked_operation_wait_timeout": 100
         }
         update_scheduler_config("operations_cleaner", config)
 
-        for _ in range(2):
-            run_test_vanilla("sleep 1")
+        run_test_vanilla("sleep 1")
 
-        wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 1 and get(CLEANER_ORCHID + "/remove_pending_locked") == 0)
+        wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 0 and get(CLEANER_ORCHID + "/remove_pending_locked") == 0)
