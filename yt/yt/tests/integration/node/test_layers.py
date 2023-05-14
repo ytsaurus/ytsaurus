@@ -10,6 +10,8 @@ import yt.yson as yson
 
 from yt_helpers import profiler_factory
 
+from pydantic.utils import deep_update
+
 import pytest
 
 import os
@@ -267,18 +269,12 @@ class TestProbingLayer(TestLayers):
             "resource_limits": {
                 "user_slots": user_slots,
             },
+            "max_failed_job_count": 0,
         }
-        spec.update(options)
-        return spec
+        return deep_update(spec, options)
 
     @staticmethod
     def run_map(command, job_count, user_slots, **options):
-        default_options = {
-            "max_failed_job_count": 0,
-            "max_speculative_job_count_per_task": 10,
-        }
-        default_options.update(options)
-
         op = map(
             in_=TestProbingLayer.INPUT_TABLE,
             out=TestProbingLayer.OUTPUT_TABLE,
@@ -353,6 +349,7 @@ class TestProbingLayer(TestLayers):
     @pytest.mark.parametrize("options", [
         {"max_speculative_job_count_per_task": 0},
         {"fail_on_job_restart": True},
+        {"mapper": {"layer_paths": ["//tmp/layer2"]}},
     ])
     @authors("galtsev")
     def test_probing_layer_disabled(self, options):

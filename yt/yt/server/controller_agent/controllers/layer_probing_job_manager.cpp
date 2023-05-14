@@ -135,7 +135,10 @@ std::optional<EAbortReason> TLayerProbingJobManager::ShouldAbortCompletingJob(co
 
 bool TLayerProbingJobManager::IsLayerProbingEnabled() const
 {
-    return UserJobSpec_ && UserJobSpec_->DefaultBaseLayerPath && UserJobSpec_->ProbingBaseLayerPath;
+    return UserJobSpec_ &&
+        UserJobSpec_->LayerPaths.empty() &&
+        UserJobSpec_->DefaultBaseLayerPath &&
+        UserJobSpec_->ProbingBaseLayerPath;
 }
 
 bool TLayerProbingJobManager::IsLayerProbeReady() const
