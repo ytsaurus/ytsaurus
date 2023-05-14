@@ -689,6 +689,7 @@ class YTEnvSetup(object):
             old_components = cls.ARTIFACT_COMPONENTS.get("22_4", [])
             if "scheduler" in old_components or "controller_agent" in old_components or "node" in old_components:
                 config["controller_agent"]["control_job_lifetime_at_scheduler"] = True
+                config["controller_agent"]["job_tracker"]["abort_vanished_jobs"] = False
 
             configs["controller_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_controller_agent_config(configs["controller_agent"][index])

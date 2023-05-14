@@ -32,6 +32,14 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAllocationId AllocationIdFromJobId(TJobId jobId)
+{
+    // Job id is currently equal to allocation id.
+    return jobId;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TString JobTypeAsKey(EJobType jobType)
 {
     return Format("%lv", jobType);

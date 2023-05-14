@@ -13,8 +13,7 @@ from yt_commands import (
     update_controller_agent_config, update_nodes_dynamic_config,
     update_scheduler_config, create_test_tables
 )
-
-from yt_helpers import read_structured_log, write_log_barrier
+from yt_helpers import read_structured_log, write_log_barrier, JobCountProfiler
 
 import pytest
 
@@ -304,6 +303,8 @@ class TestJobTracker(YTEnvSetup):
     def test_unconfirmed_jobs(self, mode):
         (job_confirmation_timeout, job_abort_reason) = (30000, "unconfirmed") if mode == "unconfirmed" else (1, "revival_confirmation_timeout")
 
+        aborted_job_profiler = JobCountProfiler("aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": job_abort_reason})
+
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 30000)
         update_controller_agent_config("job_tracker/job_confirmation_timeout", job_confirmation_timeout)
 
@@ -315,39 +316,42 @@ class TestJobTracker(YTEnvSetup):
 
         op.ensure_running()
 
-        controller_agent_address = self._get_controller_agent(op)
-
         (job_id, ) = wait_breakpoint()
 
         op.wait_for_fresh_snapshot()
+
+        if mode == "confirmation_timeout":
+            update_nodes_dynamic_config({
+                "exec_agent": {
+                    "controller_agent_connector": {
+                        "test_heartbeat_delay": 5000,
+                    },
+                },
+            })
 
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
-            if "mode" == "confirmation_timeout":
-                update_nodes_dynamic_config({
-                    "exec_agent": {
-                        "controller_agent_connector": {
-                            "heartbeat_period": 10000,
-                        },
-                    },
-                })
+            pass
 
-                time.sleep(1)
+        wait(lambda: aborted_job_profiler.get_job_count_delta() == 1)
+
+        if mode == "confirmation_timeout":
+            update_nodes_dynamic_config({
+                "exec_agent": {
+                    "controller_agent_connector": {
+                        "test_heartbeat_delay": 0,
+                    },
+                },
+            })
 
         release_breakpoint()
 
         op.track()
 
-        job_events = self._get_job_events_from_event_log(op.id, controller_agent_address)
-        aborted_job_events = {event["job_id"]: event for event in job_events if event["event_type"] == "job_aborted"}
-
-        assert len(aborted_job_events) == 1
-        assert aborted_job_events[job_id]["reason"] == job_abort_reason
-
     @authors("pogorelov")
-    def test_abort_job(self):
+    def test_abort_finished_operation_job(self):
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 100000)
 
         create_test_tables()
@@ -383,6 +387,28 @@ class TestJobTracker(YTEnvSetup):
         wait(lambda: get(
             self._get_job_tracker_orchid_path(controller_agent_address) + "/jobs/{}".format(
                 second_job))["stage"] == "aborting")
+
+    @authors("pogorelov")
+    def test_abort_vanished_job(self):
+        update_controller_agent_config("job_tracker/node_disconnection_timeout", 100000)
+
+        update_scheduler_config("nodes_attributes_update_period", 1000000)
+        time.sleep(0.5)
+
+        aborted_job_profiler = JobCountProfiler("aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": "vanished"})
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
+
+        (job_id, ) = wait_breakpoint()
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait(lambda: aborted_job_profiler.get_job_count_delta() == 1)
+
+        release_breakpoint()
+
+        op.track()
 
 
 ##################################################################

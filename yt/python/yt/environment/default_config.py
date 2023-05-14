@@ -370,6 +370,7 @@ def get_controller_agent_config():
 
         job_tracker = {
             logging_job_sample_size = 1000;
+            abort_vanished_jobs = %true;
         };
     };
 }

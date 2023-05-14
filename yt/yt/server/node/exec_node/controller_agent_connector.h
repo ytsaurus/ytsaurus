@@ -45,9 +45,6 @@ public:
             TOperationId OperationId;
         };
 
-        TFuture<std::vector<TErrorOr<NControllerAgent::NProto::TJobSpec>>>
-        RequestJobSpecs(const std::vector<TJobStartInfo>& jobStartInfos);
-
         ~TControllerAgentConnector();
 
         using TRspHeartbeat = NRpc::TTypedClientResponse<
@@ -59,6 +56,8 @@ public:
         using TReqHeartbeatPtr = TIntrusivePtr<TReqHeartbeat>;
 
     private:
+        friend class TControllerAgentConnectorPool;
+
         struct THeartbeatInfo
         {
             TInstant LastSentHeartbeatTime;
@@ -86,6 +85,8 @@ public:
 
         THashSet<TJobId> JobIdsToConfirm_;
 
+        THashMap<TAllocationId, TOperationId> AllocationIdsWaitingForSpec_;
+
         void SendHeartbeat();
         void OnAgentIncarnationOutdated() noexcept;
 
@@ -104,6 +105,13 @@ public:
         void DoProcessHeartbeatResponse(
             const TRspHeartbeatPtr& response,
             const TAgentHeartbeatContextPtr& context);
+
+        TFuture<std::vector<TErrorOr<NControllerAgent::NProto::TJobSpec>>>
+        RequestJobSpecs(const std::vector<TJobStartInfo>& jobStartInfos);
+
+        void OnJobRegistered(const TJobPtr& job);
+
+        void OnJobRegistrationFailed(TAllocationId allocationId);
     };
 
     using TControllerAgentConnectorPtr = TIntrusivePtr<TControllerAgentConnector>;
@@ -126,6 +134,8 @@ public:
     RequestJobSpecs(
         const TControllerAgentDescriptor& agentDescriptor,
         const std::vector<TControllerAgentConnector::TJobStartInfo>& jobStartInfos);
+
+    THashMap<TAllocationId, TOperationId> GetAllocationIdsWaitingForSpec() const;
 
 private:
     THashMap<TControllerAgentDescriptor, TControllerAgentConnectorPtr> ControllerAgentConnectors_;
@@ -156,6 +166,14 @@ private:
     void OnConfigUpdated();
 
     void OnJobFinished(const TJobPtr& job);
+
+    void OnJobRegistered(const TJobPtr& job);
+
+    void OnJobRegistrationFailed(
+        TAllocationId allocationId,
+        TOperationId operationId,
+        const TControllerAgentDescriptor& agentDescriptor,
+        const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorPool)
@@ -175,6 +193,8 @@ struct TAgentHeartbeatContext
 
     // COMPAT(pogorelov)
     bool SendWaitingJobs;
+
+    THashMap<TAllocationId, TOperationId> AllocationIdsWaitingForSpec;
 };
 
 DEFINE_REFCOUNTED_TYPE(TAgentHeartbeatContext)

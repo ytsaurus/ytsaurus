@@ -160,13 +160,6 @@ void TSchedulerConnector::AddUnconfirmedJobIds(const std::vector<TJobId>& unconf
     }
 }
 
-void TSchedulerConnector::EnqueueSpecFetchFailedAllocation(TAllocationId allocationId, TSpecFetchFailedAllocationInfo info)
-{
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
-
-    EmplaceOrCrash(SpecFetchFailedAllocations_, allocationId, std::move(info));
-}
-
 void TSchedulerConnector::RemoveSpecFetchFailedAllocations(THashMap<TAllocationId, TSpecFetchFailedAllocationInfo> allocations)
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
@@ -184,8 +177,14 @@ void TSchedulerConnector::Start()
         MakeWeak(this)));
 
     const auto& jobController = Bootstrap_->GetJobController();
+
     jobController->SubscribeJobFinished(BIND_NO_PROPAGATE(
             &TSchedulerConnector::OnJobFinished,
+            MakeWeak(this))
+        .Via(Bootstrap_->GetJobInvoker()));
+
+    jobController->SubscribeJobRegistrationFailed(BIND_NO_PROPAGATE(
+            &TSchedulerConnector::OnJobRegistrationFailed,
             MakeWeak(this))
         .Via(Bootstrap_->GetJobInvoker()));
 
@@ -372,6 +371,23 @@ void TSchedulerConnector::DoProcessHeartbeatResponse(
     jobController->ProcessSchedulerHeartbeatResponse(response, context);
 
     RemoveSpecFetchFailedAllocations(std::move(context->SpecFetchFailedAllocations));
+}
+
+void TSchedulerConnector::OnJobRegistrationFailed(
+    TAllocationId allocationId,
+    TOperationId operationId,
+    const TControllerAgentDescriptor& /*agentDescriptor*/,
+    const TError& error)
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    EmplaceOrCrash(
+        SpecFetchFailedAllocations_,
+        allocationId,
+        TSpecFetchFailedAllocationInfo{
+            .OperationId = operationId,
+            .Error = error,
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

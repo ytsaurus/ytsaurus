@@ -96,6 +96,10 @@ public:
 
     virtual void OnAgentIncarnationOutdated(const TControllerAgentDescriptor& controllerAgentDescriptor) = 0;
 
+    DECLARE_INTERFACE_SIGNAL(void(const TJobPtr&), JobRegistered);
+    DECLARE_INTERFACE_SIGNAL(
+        void(TAllocationId, TOperationId, const TControllerAgentDescriptor&, const TError&),
+        JobRegistrationFailed);
     DECLARE_INTERFACE_SIGNAL(void(const TJobPtr&), JobFinished);
     DECLARE_INTERFACE_SIGNAL(void(const TError& error), JobProxyBuildInfoUpdated);
 };

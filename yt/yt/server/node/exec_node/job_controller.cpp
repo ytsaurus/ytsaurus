@@ -100,6 +100,10 @@ class TJobController
     : public IJobController
 {
 public:
+    DEFINE_SIGNAL_OVERRIDE(void(const TJobPtr& job), JobRegistered);
+    DEFINE_SIGNAL_OVERRIDE(
+        void(TAllocationId, TOperationId, const TControllerAgentDescriptor&, const TError&),
+        JobRegistrationFailed);
     DEFINE_SIGNAL_OVERRIDE(void(const TJobPtr& job), JobFinished);
     DEFINE_SIGNAL_OVERRIDE(void(const TError& error), JobProxyBuildInfoUpdated);
 
@@ -587,13 +591,11 @@ private:
                     operationId,
                     allocationId);
 
-                const auto& schedulerConnector = Bootstrap_->GetExecNodeBootstrap()->GetSchedulerConnector();
-                schedulerConnector->EnqueueSpecFetchFailedAllocation(
+                JobRegistrationFailed_.Fire(
                     allocationId,
-                    TSpecFetchFailedAllocationInfo{
-                        .OperationId = operationId,
-                        .Error = std::move(agentDescriptorOrError)
-                    });
+                    operationId,
+                    TControllerAgentDescriptor{},
+                    agentDescriptorOrError);
             }
         }
 
@@ -643,15 +645,18 @@ private:
             auto& jobSpecOrError = jobSpecOrErrors[index];
 
             if (!jobSpecOrError.IsOK()) {
-                const auto& schedulerConnector = Bootstrap_->GetExecNodeBootstrap()->GetSchedulerConnector();
-                schedulerConnector->EnqueueSpecFetchFailedAllocation(
-                    allocationId,
-                    TSpecFetchFailedAllocationInfo{operationId, std::move(jobSpecOrError)});
                 YT_LOG_DEBUG(
                     jobSpecOrError,
                     "No spec is available for allocation (OperationId: %v, AllocationId: %v)",
                     operationId,
                     allocationId);
+
+                JobRegistrationFailed_.Fire(
+                    allocationId,
+                    operationId,
+                    controllerAgentDescriptor,
+                    jobSpecOrError);
+
                 continue;
             }
 
@@ -883,6 +888,10 @@ private:
             return statistics;
         };
 
+        auto addAllocationInfoToHeartbeatRequest = [&request] (TAllocationId allocationId) {
+            ToProto(request->add_allocations()->mutable_allocation_id(), allocationId);
+        };
+
         std::vector<TJobPtr> runningJobs;
         runningJobs.reserve(std::size(JobMap_));
 
@@ -1017,6 +1026,8 @@ private:
         int reportedRunningJobCount = 0;
         i64 runningJobsStatisticsSize = 0;
         for (const auto& job : runningJobs) {
+            addAllocationInfoToHeartbeatRequest(job->GetAllocationId());
+
             auto* jobStatus = request->add_jobs();
 
             FillJobStatus(jobStatus, job);
@@ -1037,6 +1048,10 @@ private:
                     jobStatus->set_statistics(std::move(statisticsString));
                 }
             }
+        }
+
+        for (auto [allocationId, operationId] : context->AllocationIdsWaitingForSpec) {
+            addAllocationInfoToHeartbeatRequest(allocationId);
         }
 
         request->set_confirmed_job_count(confirmedJobCount);
@@ -1162,6 +1177,166 @@ private:
 
             UpdateOperationControllerAgent(operationId, {});
         }
+    }
+
+    void DoPrepareSchedulerHeartbeatRequest(
+        const TSchedulerConnector::TReqHeartbeatPtr& request,
+        const TSchedulerHeartbeatContextPtr& context)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        YT_LOG_DEBUG("Preparing scheduler heartbeat request");
+
+        request->set_node_id(Bootstrap_->GetNodeId());
+        ToProto(request->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
+        *request->mutable_resource_limits() = JobResourceManager_->GetResourceLimits();
+        *request->mutable_resource_usage() = JobResourceManager_->GetResourceUsage(/*includeWaiting*/ true);
+
+        *request->mutable_disk_resources() = JobResourceManager_->GetDiskResources();
+
+        const auto& jobReporter = Bootstrap_->GetExecNodeBootstrap()->GetJobReporter();
+        request->set_job_reporter_write_failures_count(jobReporter->ExtractWriteFailuresCount());
+        request->set_job_reporter_queue_is_too_large(jobReporter->GetQueueIsTooLarge());
+
+        // Only for scheduler `cpu` stores `vcpu` actually.
+        // In all resource limits and usages we send and get back vcpu instead of cpu.
+        LastHeartbeatCpuToVCpuFactor_ = JobResourceManager_->GetCpuToVCpuFactor();
+        ReplaceCpuWithVCpu(*request->mutable_resource_limits());
+        ReplaceCpuWithVCpu(*request->mutable_resource_usage());
+
+        auto* execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
+        auto slotManager = execNodeBootstrap->GetSlotManager();
+
+        if (slotManager->HasFatalAlert()) {
+            // NB(psushin): if slot manager is disabled with fatal alert we might have experienced an unrecoverable failure (e.g. hanging Porto)
+            // and to avoid inconsistent state with scheduler we decide not to report to it any jobs at all.
+            // We also drop all scheduler jobs from |JobMap_|.
+            Y_UNUSED(RemoveSchedulerJobs());
+
+            request->set_confirmed_job_count(0);
+
+            return;
+        }
+
+        const bool totalConfirmation = NeedSchedulerTotalConfirmation();
+        YT_LOG_INFO_IF(totalConfirmation, "Including all stored jobs in heartbeat");
+
+        int confirmedJobCount = 0;
+
+        const bool requestOperationInfosForJobs =
+            TInstant::Now() > LastOperationInfosRequestTime_ +
+                DynamicConfig_.Load()->OperationInfosRequestPeriod;
+        THashSet<TOperationId> operationIdsToRequestInfo;
+
+        for (const auto& job : GetJobs()) {
+            auto jobId = job->GetId();
+
+            YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
+
+            if (requestOperationInfosForJobs) {
+                operationIdsToRequestInfo.insert(job->GetOperationId());
+            }
+
+            bool sendForcefully = context->JobsToForcefullySend.erase(job) || totalConfirmation;
+            if (job->GetStored() && !sendForcefully) {
+                continue;
+            }
+
+            if (job->GetStored()) {
+                YT_LOG_DEBUG(
+                    "Confirm job (JobId: %v, OperationId: %v, Stored: %v, State: %v)",
+                    jobId,
+                    job->GetOperationId(),
+                    job->GetStored(),
+                    job->GetState());
+                ++confirmedJobCount;
+            }
+
+            auto* allocationStatus = request->add_allocations();
+            FillJobStatus(allocationStatus, job);
+            switch (job->GetState()) {
+                case EJobState::Running: {
+                    auto& resourceUsage = *allocationStatus->mutable_resource_usage();
+                    resourceUsage = job->GetResourceUsage();
+                    ReplaceCpuWithVCpu(resourceUsage);
+                    break;
+                }
+                case EJobState::Completed:
+                case EJobState::Aborted:
+                case EJobState::Failed: {
+                    ToProto(allocationStatus->mutable_result()->mutable_error(), job->GetJobError());
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+
+        const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
+
+        for (auto [allocationId, operationId] : controllerAgentConnectorPool->GetAllocationIdsWaitingForSpec()) {
+            auto* allocationStatus = request->add_allocations();
+
+            ToProto(allocationStatus->mutable_allocation_id(), allocationId);
+            ToProto(allocationStatus->mutable_operation_id(), operationId);
+
+            allocationStatus->set_state(ToProto<int>(EAllocationState::Waiting));
+        }
+
+        for (const auto& job : context->JobsToForcefullySend) {
+            YT_LOG_DEBUG(
+                "Forcefully send already removed job (JobId: %v, JobState: %v)",
+                job->GetId(),
+                job->GetState());
+
+            YT_VERIFY(job->IsFinished());
+
+            auto* allocationStatus = request->add_allocations();
+            FillJobStatus(allocationStatus, job);
+            ToProto(allocationStatus->mutable_result()->mutable_error(), job->GetJobError());
+        }
+
+        request->set_confirmed_job_count(confirmedJobCount);
+
+        for (const auto& [allocationId, info] : context->SpecFetchFailedAllocations) {
+            auto* jobStatus = request->add_allocations();
+            ToProto(jobStatus->mutable_allocation_id(), allocationId);
+
+            ToProto(jobStatus->mutable_operation_id(), info.OperationId);
+            jobStatus->set_state(static_cast<int>(JobStateToAllocationState(EJobState::Aborted)));
+
+            jobStatus->mutable_time_statistics();
+
+            TAllocationResult jobResult;
+            auto error = (TError("Failed to get job spec")
+                << TErrorAttribute("abort_reason", EAbortReason::GetSpecFailed))
+                << info.Error;
+            ToProto(jobResult.mutable_error(), error);
+            *jobStatus->mutable_result() = jobResult;
+        }
+
+        for (const auto& [allocationId, info] : context->SpecFetchFailedAllocations) {
+            auto* specFetchFailedAllocationInfoProto = request->add_spec_fetch_failed_allocations();
+            ToProto(specFetchFailedAllocationInfoProto->mutable_allocation_id(), allocationId);
+            ToProto(specFetchFailedAllocationInfoProto->mutable_operation_id(), info.OperationId);
+            ToProto(specFetchFailedAllocationInfoProto->mutable_error(), info.Error);
+        }
+
+        if (!std::empty(context->UnconfirmedJobIds)) {
+            ToProto(request->mutable_unconfirmed_allocations(), context->UnconfirmedJobIds);
+        }
+
+        if (requestOperationInfosForJobs) {
+            YT_LOG_DEBUG(
+                "Adding operation info requests for stored jobs (Count: %v)",
+                std::size(operationIdsToRequestInfo));
+
+            ToProto(request->mutable_operations_ids_to_request_info(), operationIdsToRequestInfo);
+
+            LastOperationInfosRequestTime_ = TInstant::Now();
+        }
+
+        YT_LOG_DEBUG("Scheduler heartbeat request prepared");
     }
 
     void DoProcessSchedulerHeartbeatResponse(
@@ -1374,155 +1549,6 @@ private:
             "Failed to request some job specs");
     }
 
-    void DoPrepareSchedulerHeartbeatRequest(
-        const TSchedulerConnector::TReqHeartbeatPtr& request,
-        const TSchedulerHeartbeatContextPtr& context)
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        YT_LOG_DEBUG("Preparing scheduler heartbeat request");
-
-        request->set_node_id(Bootstrap_->GetNodeId());
-        ToProto(request->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
-        *request->mutable_resource_limits() = JobResourceManager_->GetResourceLimits();
-        *request->mutable_resource_usage() = JobResourceManager_->GetResourceUsage(/*includeWaiting*/ true);
-
-        *request->mutable_disk_resources() = JobResourceManager_->GetDiskResources();
-
-        const auto& jobReporter = Bootstrap_->GetExecNodeBootstrap()->GetJobReporter();
-        request->set_job_reporter_write_failures_count(jobReporter->ExtractWriteFailuresCount());
-        request->set_job_reporter_queue_is_too_large(jobReporter->GetQueueIsTooLarge());
-
-        // Only for scheduler `cpu` stores `vcpu` actually.
-        // In all resource limits and usages we send and get back vcpu instead of cpu.
-        LastHeartbeatCpuToVCpuFactor_ = JobResourceManager_->GetCpuToVCpuFactor();
-        ReplaceCpuWithVCpu(*request->mutable_resource_limits());
-        ReplaceCpuWithVCpu(*request->mutable_resource_usage());
-
-        auto* execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
-        auto slotManager = execNodeBootstrap->GetSlotManager();
-
-        if (slotManager->HasFatalAlert()) {
-            // NB(psushin): if slot manager is disabled with fatal alert we might have experienced an unrecoverable failure (e.g. hanging Porto)
-            // and to avoid inconsistent state with scheduler we decide not to report to it any jobs at all.
-            // We also drop all scheduler jobs from |JobMap_|.
-            Y_UNUSED(RemoveSchedulerJobs());
-
-            request->set_confirmed_job_count(0);
-
-            return;
-        }
-
-        const bool totalConfirmation = NeedSchedulerTotalConfirmation();
-        YT_LOG_INFO_IF(totalConfirmation, "Including all stored jobs in heartbeat");
-
-        int confirmedJobCount = 0;
-
-        const bool requestOperationInfosForJobs =
-            TInstant::Now() > LastOperationInfosRequestTime_ +
-                DynamicConfig_.Load()->OperationInfosRequestPeriod;
-        THashSet<TOperationId> operationIdsToRequestInfo;
-
-        for (const auto& job : GetJobs()) {
-            auto jobId = job->GetId();
-
-            YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
-
-            if (requestOperationInfosForJobs) {
-                operationIdsToRequestInfo.insert(job->GetOperationId());
-            }
-
-            bool sendForcefully = context->JobsToForcefullySend.erase(job) || totalConfirmation;
-            if (job->GetStored() && !sendForcefully) {
-                continue;
-            }
-
-            if (job->GetStored()) {
-                YT_LOG_DEBUG(
-                    "Confirm job (JobId: %v, OperationId: %v, Stored: %v, State: %v)",
-                    jobId,
-                    job->GetOperationId(),
-                    job->GetStored(),
-                    job->GetState());
-                ++confirmedJobCount;
-            }
-
-            auto* allocationStatus = request->add_allocations();
-            FillJobStatus(allocationStatus, job);
-            switch (job->GetState()) {
-                case EJobState::Running: {
-                    auto& resourceUsage = *allocationStatus->mutable_resource_usage();
-                    resourceUsage = job->GetResourceUsage();
-                    ReplaceCpuWithVCpu(resourceUsage);
-                    break;
-                }
-                case EJobState::Completed:
-                case EJobState::Aborted:
-                case EJobState::Failed: {
-                    ToProto(allocationStatus->mutable_result()->mutable_error(), job->GetJobError());
-                    break;
-                }
-                default:
-                    break;
-            }
-        }
-
-        for (const auto& job : context->JobsToForcefullySend) {
-            YT_LOG_DEBUG(
-                "Forcefully send already removed job (JobId: %v, JobState: %v)",
-                job->GetId(),
-                job->GetState());
-
-            YT_VERIFY(job->IsFinished());
-
-            auto* allocationStatus = request->add_allocations();
-            FillJobStatus(allocationStatus, job);
-            ToProto(allocationStatus->mutable_result()->mutable_error(), job->GetJobError());
-        }
-
-        request->set_confirmed_job_count(confirmedJobCount);
-
-        for (const auto& [allocationId, info] : context->SpecFetchFailedAllocations) {
-            auto* jobStatus = request->add_allocations();
-            ToProto(jobStatus->mutable_allocation_id(), allocationId);
-
-            ToProto(jobStatus->mutable_operation_id(), info.OperationId);
-            jobStatus->set_state(static_cast<int>(JobStateToAllocationState(EJobState::Aborted)));
-
-            jobStatus->mutable_time_statistics();
-
-            TAllocationResult jobResult;
-            auto error = (TError("Failed to get job spec")
-                << TErrorAttribute("abort_reason", EAbortReason::GetSpecFailed))
-                << info.Error;
-            ToProto(jobResult.mutable_error(), error);
-            *jobStatus->mutable_result() = jobResult;
-        }
-
-        for (const auto& [allocationId, info] : context->SpecFetchFailedAllocations) {
-            auto* specFetchFailedAllocationInfoProto = request->add_spec_fetch_failed_allocations();
-            ToProto(specFetchFailedAllocationInfoProto->mutable_allocation_id(), allocationId);
-            ToProto(specFetchFailedAllocationInfoProto->mutable_operation_id(), info.OperationId);
-            ToProto(specFetchFailedAllocationInfoProto->mutable_error(), info.Error);
-        }
-
-        if (!std::empty(context->UnconfirmedJobIds)) {
-            ToProto(request->mutable_unconfirmed_allocations(), context->UnconfirmedJobIds);
-        }
-
-        if (requestOperationInfosForJobs) {
-            YT_LOG_DEBUG(
-                "Adding operation info requests for stored jobs (Count: %v)",
-                std::size(operationIdsToRequestInfo));
-
-            ToProto(request->mutable_operations_ids_to_request_info(), operationIdsToRequestInfo);
-
-            LastOperationInfosRequestTime_ = TInstant::Now();
-        }
-
-        YT_LOG_DEBUG("Scheduler heartbeat request prepared");
-    }
-
     void StartWaitingJobs()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -1589,11 +1615,15 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        TForbidContextSwitchGuard guard;
+
         {
             auto guard = WriterGuard(JobMapLock_);
             EmplaceOrCrash(JobMap_, jobId, job);
             EmplaceOrCrash(OperationIdToJobs_[job->GetOperationId()], job);
         }
+
+        JobRegistered_.Fire(job);
 
         job->SubscribeResourcesUpdated(
             BIND_NO_PROPAGATE(&TJobController::OnJobResourcesUpdated, MakeWeak(this), MakeWeak(job))

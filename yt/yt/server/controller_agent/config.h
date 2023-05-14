@@ -708,6 +708,8 @@ public:
 
     int LoggingJobSampleSize;
 
+    bool AbortVanishedJobs;
+
     REGISTER_YSON_STRUCT(TJobTrackerConfig);
 
     static void Register(TRegistrar registrar);

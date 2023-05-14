@@ -512,6 +512,8 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("logging_job_sample_size", &TThis::LoggingJobSampleSize)
         .Default(3)
         .GreaterThanOrEqual(0);
+    registrar.Parameter("abort_vanished_jobs", &TThis::AbortVanishedJobs)
+        .Default(false);
 }
 
 void TControllerAgentConfig::Register(TRegistrar registrar)

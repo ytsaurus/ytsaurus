@@ -10,6 +10,7 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using NScheduler::TAllocationId;
 using NScheduler::TExecNodeDescriptorMap;
 using NScheduler::TRefCountedExecNodeDescriptorMapPtr;
 using NScheduler::TIncarnationId;

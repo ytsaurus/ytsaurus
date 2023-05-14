@@ -59,16 +59,6 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
     HeartbeatExecutor_->Start();
 }
 
-void TControllerAgentConnectorPool::Start()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    const auto& jobController = Bootstrap_->GetJobController();
-    jobController->SubscribeJobFinished(BIND_NO_PROPAGATE(
-        &TControllerAgentConnectorPool::OnJobFinished,
-        MakeWeak(this)));
-}
-
 NRpc::IChannelPtr TControllerAgentConnectorPool::TControllerAgentConnector::GetChannel() const noexcept
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -132,6 +122,8 @@ TControllerAgentConnectorPool::TControllerAgentConnector::RequestJobSpecs(
             ControllerAgentDescriptor_,
             allocationId,
             operationId);
+
+        EmplaceOrCrash(AllocationIdsWaitingForSpec_, allocationId, operationId);
     }
 
     YT_LOG_DEBUG(
@@ -346,6 +338,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoPrepareHeartbea
     context->JobsToForcefullySend = EnqueuedFinishedJobs_;
     context->UnconfirmedJobIds = std::move(UnconfirmedJobIds_);
     context->SendWaitingJobs = ControllerAgentConnectorPool_->SendWaitingJobs_;
+    context->AllocationIdsWaitingForSpec = AllocationIdsWaitingForSpec_;
 
     const auto& jobController = ControllerAgentConnectorPool_->Bootstrap_->GetJobController();
     jobController->PrepareAgentHeartbeatRequest(request, context);
@@ -393,6 +386,20 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnAgentIncarnatio
     }
 }
 
+void TControllerAgentConnectorPool::TControllerAgentConnector::OnJobRegistered(const TJobPtr& job)
+{
+    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
+
+    EraseOrCrash(AllocationIdsWaitingForSpec_, job->GetAllocationId());
+}
+
+void TControllerAgentConnectorPool::TControllerAgentConnector::OnJobRegistrationFailed(TAllocationId allocationId)
+{
+    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
+
+    EraseOrCrash(AllocationIdsWaitingForSpec_, allocationId);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TControllerAgentConnectorPool::TControllerAgentConnectorPool(
@@ -403,6 +410,28 @@ TControllerAgentConnectorPool::TControllerAgentConnectorPool(
     , Bootstrap_(bootstrap)
     , GetJobSpecTimeout_(config->JobController->GetJobSpecsTimeout)
 { }
+
+void TControllerAgentConnectorPool::Start()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    const auto& jobController = Bootstrap_->GetJobController();
+
+    jobController->SubscribeJobFinished(BIND_NO_PROPAGATE(
+            &TControllerAgentConnectorPool::OnJobFinished,
+            MakeWeak(this))
+        .Via(Bootstrap_->GetJobInvoker()));
+
+    jobController->SubscribeJobRegistered(BIND_NO_PROPAGATE(
+            &TControllerAgentConnectorPool::OnJobRegistered,
+            MakeWeak(this))
+        .Via(Bootstrap_->GetJobInvoker()));
+
+    jobController->SubscribeJobRegistrationFailed(BIND_NO_PROPAGATE(
+            &TControllerAgentConnectorPool::OnJobRegistrationFailed,
+            MakeWeak(this))
+        .Via(Bootstrap_->GetJobInvoker()));
+}
 
 void TControllerAgentConnectorPool::SendOutOfBandHeartbeatsIfNeeded()
 {
@@ -526,6 +555,20 @@ TControllerAgentConnectorPool::RequestJobSpecs(
     return controllerAgentConnector->RequestJobSpecs(jobStartInfos);
 }
 
+THashMap<TAllocationId, TOperationId> TControllerAgentConnectorPool::GetAllocationIdsWaitingForSpec() const
+{
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+
+    THashMap<TAllocationId, TOperationId> result;
+    for (const auto& [agentDescriptor, agentConnector] : ControllerAgentConnectors_) {
+        result.insert(
+            std::begin(agentConnector->AllocationIdsWaitingForSpec_),
+            std::end(agentConnector->AllocationIdsWaitingForSpec_));
+    }
+
+    return result;
+}
+
 IChannelPtr TControllerAgentConnectorPool::CreateChannel(const TControllerAgentDescriptor& agentDescriptor)
 {
     const auto& client = Bootstrap_->GetClient();
@@ -538,7 +581,9 @@ IChannelPtr TControllerAgentConnectorPool::GetOrCreateChannel(
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
-    if (const auto it = ControllerAgentConnectors_.find(agentDescriptor); it != std::cend(ControllerAgentConnectors_)) {
+    if (const auto it = ControllerAgentConnectors_.find(agentDescriptor);
+        it != std::cend(ControllerAgentConnectors_))
+    {
         return it->second->GetChannel();
     }
 
@@ -579,7 +624,37 @@ TIntrusivePtr<TControllerAgentConnectorPool::TControllerAgentConnector>
 TControllerAgentConnectorPool::GetControllerAgentConnector(
     const TControllerAgentDescriptor& agentDescriptor)
 {
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+
     return GetOrCrash(ControllerAgentConnectors_, agentDescriptor);
+}
+
+void TControllerAgentConnectorPool::OnJobRegistered(const TJobPtr& job)
+{
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+
+    if (auto connector = job->GetControllerAgentConnector()) {
+        connector->OnJobRegistered(job);
+    }
+}
+
+void TControllerAgentConnectorPool::OnJobRegistrationFailed(
+    TAllocationId allocationId,
+    TOperationId /*operationId*/,
+    const TControllerAgentDescriptor& agentDescriptor,
+    const TError& /*error*/)
+{
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+
+    if (!agentDescriptor) {
+        return;
+    }
+
+    if (auto connectorIt = ControllerAgentConnectors_.find(agentDescriptor);
+        connectorIt != std::end(ControllerAgentConnectors_))
+    {
+        connectorIt->second->OnJobRegistrationFailed(allocationId);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

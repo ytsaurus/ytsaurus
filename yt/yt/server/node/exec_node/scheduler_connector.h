@@ -52,7 +52,6 @@ public:
     void EnqueueFinishedJobs(std::vector<TJobPtr> jobs);
     void AddUnconfirmedJobIds(const std::vector<TJobId>& unconfirmedJobIds);
 
-    void EnqueueSpecFetchFailedAllocation(TAllocationId allocationId, TSpecFetchFailedAllocationInfo info);
     void RemoveSpecFetchFailedAllocations(THashMap<TAllocationId, TSpecFetchFailedAllocationInfo> allocations);
 
     using TRspHeartbeat = NRpc::TTypedClientResponse<
@@ -123,6 +122,12 @@ private:
     void DoProcessHeartbeatResponse(
         const TRspHeartbeatPtr& response,
         const TSchedulerHeartbeatContextPtr& context);
+
+    void OnJobRegistrationFailed(
+        TAllocationId allocationId,
+        TOperationId operationId,
+        const TControllerAgentDescriptor& agentDescriptor,
+        const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnector)

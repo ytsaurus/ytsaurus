@@ -28,7 +28,7 @@ class JobCountProfiler:
     def get_job_count_delta(self, tags=None):
         delta = 0
         for counter in self._counters:
-            delta += counter.get_delta(tags=tags)
+            delta += counter.get_delta(tags=tags, verbose=True)
 
         return delta
 

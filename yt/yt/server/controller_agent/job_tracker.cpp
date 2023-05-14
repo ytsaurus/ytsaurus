@@ -472,6 +472,14 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
         operationIds.push_back(operationId);
     }
 
+    THashSet<TAllocationId> allocationIdsRunningOnNode;
+    allocationIdsRunningOnNode.reserve(std::size(request->allocations()));
+
+    for (const auto& allocationInfoProto : request->allocations()) {
+        allocationIdsRunningOnNode.insert(
+            FromProto<TAllocationId>(allocationInfoProto.allocation_id()));
+    }
+
     SwitchTo(GetCancelableInvokerOrThrow());
 
     if (incarnationId != IncarnationId_) {
@@ -514,8 +522,6 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
         AbortJobs(std::move(jobsToAbort), EAbortReason::Unconfirmed);
     }
 
-    // NB(pogorelov): Lost allocations must be aborted by scheduler now.
-
     THashSet<TJobId> jobsToSkip;
     jobsToSkip.reserve(std::size(nodeJobs.JobsToAbort) + std::size(nodeJobs.JobsToRelease));
 
@@ -555,8 +561,6 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
 
     const auto& heartbeatProcessingLogger = Logger;
     for (auto& [operationId, jobSummaries] : groupedJobSummaries) {
-        // TODO(pogorelov): Request to confirm unreceived jobs
-
         auto Logger = heartbeatProcessingLogger.WithTag(
             "OperationId: %v",
             operationId);
@@ -704,6 +708,35 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
                         }
                     }
                 }));
+    }
+
+    if (Config_->AbortVanishedJobs) {
+        TOperationIdToJobIds jobIdsToAbort;
+        for (const auto& [jobId, jobInfo] : nodeJobs.Jobs) {
+            if (jobInfo.Stage != EJobStage::Running) {
+                continue;
+            }
+
+            if (!allocationIdsRunningOnNode.contains(AllocationIdFromJobId(jobId))) {
+                YT_LOG_DEBUG(
+                    "Job vanished, aborting it (JobId: %v, OperationId: %v)",
+                    jobId,
+                    jobInfo.OperationId);
+
+                jobIdsToAbort[jobInfo.OperationId].push_back(jobId);
+            }
+        }
+
+        for (const auto& [operationId, jobIds] : jobIdsToAbort) {
+            auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
+
+            for (auto jobId : jobIds) {
+                EraseOrCrash(nodeJobs.Jobs, jobId);
+                EraseOrCrash(operationInfo.TrackedJobIds, jobId);
+            }
+        }
+
+        AbortJobs(jobIdsToAbort, EAbortReason::Vanished);
     }
 
     for (auto [jobId, operationId] : nodeJobs.JobsToConfirm) {
