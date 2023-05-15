@@ -1764,7 +1764,7 @@ private:
         auto latePrepare = prepareMode == ETransactionCoordinatorPrepareMode::Late;
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Preparing at coordinator (TransactionId: %v, PrepareTimestamp: %v@%v, PrepareMode: %v",
+            "Preparing at coordinator (TransactionId: %v, PrepareTimestamp: %v@%v, PrepareMode: %v)",
             transactionId,
             commit->PrepareTimestamp(),
             commit->PrepareTimestampClusterTag(),
