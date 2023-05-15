@@ -384,6 +384,7 @@
     XX(RecursiveCommittedResourceUsage, recursive_committed_resource_usage) \
     XX(RecursiveResourceUsage, recursive_resource_usage) \
     XX(RecursiveViolatedResourceLimits, recursive_violated_resource_limits) \
+    XX(RecursiveLockCount, recursive_lock_count) \
     XX(RefCounter, ref_counter) \
     XX(ReferencingAccounts, referencing_accounts) \
     XX(RegisterTime, register_time) \

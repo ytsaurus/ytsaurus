@@ -86,10 +86,11 @@ namespace NYT::NCypressServer {
 
 using namespace NBus;
 using namespace NCellMaster;
+using namespace NChunkServer;
 using namespace NCypressClient::NProto;
 using namespace NHydra;
-using namespace NObjectClient::NProto;
 using namespace NObjectClient;
+using namespace NObjectClient::NProto;
 using namespace NObjectServer;
 using namespace NRpc;
 using namespace NSecurityClient;
@@ -98,10 +99,10 @@ using namespace NSequoiaClient;
 using namespace NSequoiaServer;
 using namespace NTableServer;
 using namespace NTransactionServer;
-using namespace NYTree;
-using namespace NYson;
+using namespace NTransactionSupervisor;
 using namespace NYPath;
-using namespace NChunkServer;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2754,10 +2755,9 @@ private:
                 lock->GetId(),
                 trunkNode->GetId());
             lock->SetTrunkNode(nullptr);
+
             auto* transaction = lock->GetTransaction();
-            YT_VERIFY(transaction->Locks().erase(lock) == 1);
-            lock->SetTransaction(nullptr);
-            objectManager->UnrefObject(lock);
+            transaction->DetachLock(lock, objectManager);
         }
 
         trunkNode->ResetLockingState();
@@ -2941,8 +2941,8 @@ private:
             return TError();
         }
 
-        // Check if any of parent transactions has taken a snapshot lock.
         if (transaction) {
+            // Check if any of parent transactions has taken a snapshot lock.
             auto* currentTransaction = transaction->GetParent();
             while (currentTransaction) {
                 if (lockingState.HasSnapshotLock(currentTransaction)) {
@@ -2953,6 +2953,24 @@ private:
                         GetNodePath(trunkNode, transaction),
                         ELockMode::Snapshot,
                         currentTransaction->GetId());
+                }
+                currentTransaction = currentTransaction->GetParent();
+            }
+
+            // Validate lock count.
+            const auto& config = GetDynamicConfig();
+            auto lockCountLimit = config->MaxLocksPerTransactionSubtree;
+            currentTransaction = transaction;
+            while (currentTransaction) {
+                auto recursiveLockCount = currentTransaction->GetRecursiveLockCount();
+                if (recursiveLockCount >= lockCountLimit) {
+                    return TError(
+                        NCypressClient::EErrorCode::TooManyLocksOnTransaction,
+                        "Cannot create %Qlv lock for node %v since transaction %v and it's decendants already have %v locks associated with them",
+                        request.Mode,
+                        GetNodePath(trunkNode, transaction),
+                        currentTransaction->GetId(),
+                        recursiveLockCount);
                 }
                 currentTransaction = currentTransaction->GetParent();
             }
@@ -3333,7 +3351,6 @@ private:
         lock->SetImplicit(implicit);
         lock->SetState(ELockState::Pending);
         lock->SetTrunkNode(trunkNode);
-        lock->SetTransaction(transaction);
         lock->Request() = request;
 
         const auto* hydraContext = GetCurrentHydraContext();
@@ -3343,15 +3360,16 @@ private:
         lockingState->PendingLocks.push_back(lock);
         lock->SetLockListIterator(--lockingState->PendingLocks.end());
 
-        YT_VERIFY(transaction->Locks().insert(lock).second);
-        objectManager->RefObject(lock);
+        transaction->AttachLock(lock, objectManager);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Lock created (LockId: %v, Mode: %v, Key: %v, NodeId: %v, Implicit: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Lock created (LockId: %v, Mode: %v, Key: %v, NodeId: %v, Implicit: %v, TransactionRecursiveLockCount: %v)",
             id,
             request.Mode,
             request.Key,
             TVersionedNodeId(trunkNode->GetId(), transaction->GetId()),
-            implicit);
+            implicit,
+            transaction->GetRecursiveLockCount() + 1);
 
         return lock;
     }
@@ -3361,7 +3379,6 @@ private:
         auto* parentTransaction = transaction->GetParent();
 
         TCompactVector<TLock*, 16> locks(transaction->Locks().begin(), transaction->Locks().end());
-        transaction->Locks().clear();
         Sort(locks, TObjectIdComparer());
 
         TCompactVector<TCypressNode*, 16> lockedNodes(transaction->LockedNodes().begin(), transaction->LockedNodes().end());
@@ -3413,7 +3430,10 @@ private:
         YT_VERIFY(parentTransaction);
         auto* trunkNode = lock->GetTrunkNode();
 
-        lock->SetTransaction(parentTransaction);
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        parentTransaction->AttachLock(lock, objectManager);
+        transaction->DetachLock(lock, objectManager, /* resetLockTransaction */ false);
+
         if (trunkNode && lock->GetState() == ELockState::Acquired) {
             auto* lockingState = trunkNode->MutableLockingState();
             switch (lock->Request().Mode) {
@@ -3446,7 +3466,6 @@ private:
             // NB: Node could be locked more than once.
             parentTransaction->LockedNodes().insert(trunkNode);
         }
-        YT_VERIFY(parentTransaction->Locks().insert(lock).second);
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Lock promoted (LockId: %v, TransactionId: %v -> %v)",
             lock->GetId(),
             transaction->GetId(),
@@ -3498,11 +3517,8 @@ private:
             }
             lock->SetTrunkNode(nullptr);
         }
-        lock->SetTransaction(nullptr);
-        transaction->Locks().erase(lock);
-
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->UnrefObject(lock);
+        transaction->DetachLock(lock, objectManager);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Lock released (LockId: %v, TransactionId: %v)",
             lock->GetId(),

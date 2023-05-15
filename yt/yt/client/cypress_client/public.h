@@ -41,6 +41,7 @@ YT_DEFINE_ERROR_ENUM(
     ((ConcurrentTransactionLockConflict)   (402))
     ((PendingLockConflict)                 (403))
     ((LockDestroyed)                       (404))
+    ((TooManyLocksOnTransaction)           (405))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

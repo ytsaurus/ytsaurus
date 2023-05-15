@@ -138,6 +138,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixMulticellHunkStorage)                                      (2323))  // gritukan
     ((FixAttachHunksWithDynamicStoreRead)                           (2324))  // aleksandra-zh
     ((BundlesBan)                                                   (2325))  // alexelexa
+    ((TooManyLocksCheck)                                            (2326))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -83,6 +83,8 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LockIds)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RecursiveLockCount)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceUsage)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellResourceUsage)
@@ -292,6 +294,14 @@ private:
                         return BuildYsonStringFluently().DoListFor(transaction->Locks(), [] (TFluentList fluent, const TLock* lock) {
                             fluent.Item().Value(lock->GetId());
                         });
+                    });
+            }
+
+            case EInternedAttributeKey::RecursiveLockCount: {
+                return FetchMergeableAttribute(
+                    key.Unintern(),
+                    [&] {
+                        return ConvertToYsonString(transaction->GetRecursiveLockCount());
                     });
             }
 
