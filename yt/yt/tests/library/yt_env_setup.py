@@ -687,7 +687,7 @@ class YTEnvSetup(object):
             )
 
             old_components = cls.ARTIFACT_COMPONENTS.get("22_4", [])
-            if "scheduler" in old_components or "controller_agent" in old_components or "node" in old_components:
+            if "scheduler" in old_components or "controller-agent" in old_components or "node" in old_components:
                 config["controller_agent"]["control_job_lifetime_at_scheduler"] = True
                 config["controller_agent"]["job_tracker"]["abort_vanished_jobs"] = False
 
@@ -1280,7 +1280,7 @@ class YTEnvSetup(object):
         config = get_dynamic_node_config()
 
         # COMPAT(pogorelov)
-        if "controller_agent" in self.__class__.ARTIFACT_COMPONENTS.get("22_4", []):
+        if "controller-agent" in self.__class__.ARTIFACT_COMPONENTS.get("22_4", []):
             config["%true"]["exec_agent"]["controller_agent_connector"]["send_waiting_jobs"] = False
 
         yt_commands.set("//sys/cluster_nodes/@config", config, driver=driver)

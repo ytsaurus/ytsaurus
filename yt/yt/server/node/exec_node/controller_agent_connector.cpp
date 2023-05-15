@@ -494,6 +494,7 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
                 SendWaitingJobs_ = newConfig->ControllerAgentConnector->SendWaitingJobs;
             } else {
                 TestHeartbeatDelay_ = TDuration::Zero();
+                SendWaitingJobs_ = false;
             }
             CurrentConfig_ = newCurrentConfig ? newCurrentConfig : StaticConfig_;
 
