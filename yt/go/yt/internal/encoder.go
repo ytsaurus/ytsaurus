@@ -244,6 +244,17 @@ func (e *Encoder) RemoveMember(
 	return
 }
 
+func (e *Encoder) BuildMasterSnapshots(
+	ctx context.Context,
+	options *yt.BuildMasterSnapshotsOptions,
+) (response *yt.BuildMasterSnapshotsResponse, err error) {
+	call := e.newCall(NewBuildMasterSnapshotsParams(options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decode(&response)
+	})
+	return
+}
+
 func (e *Encoder) TransferPoolResources(
 	ctx context.Context,
 	srcPool string,

@@ -1238,6 +1238,13 @@ func (e *Encoder) TransferPoolResources(
 	return
 }
 
+func (e *Encoder) BuildMasterSnapshots(
+	ctx context.Context,
+	opts *yt.BuildMasterSnapshotsOptions,
+) (response *yt.BuildMasterSnapshotsResponse, err error) {
+	return nil, xerrors.Errorf("Unimplemented method: BuildMasterSnapshots")
+}
+
 func (e *Encoder) CheckPermission(
 	ctx context.Context,
 	user string,

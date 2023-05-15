@@ -612,6 +612,24 @@ func writeRemoveMemberOptions(w *yson.Writer, o *yt.RemoveMemberOptions) {
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
+func writeBuildMasterSnapshots(w *yson.Writer, o *yt.BuildMasterSnapshotsOptions) {
+	if o == nil {
+		return
+	}
+	if o.SetReadOnly != nil {
+		w.MapKeyString("set_read_only")
+		w.Any(o.SetReadOnly)
+	}
+	if o.WaitForSnapshotCompletion != nil {
+		w.MapKeyString("wait_for_snapshot_completion")
+		w.Any(o.WaitForSnapshotCompletion)
+	}
+	if o.Retry != nil {
+		w.MapKeyString("retry")
+		w.Any(o.Retry)
+	}
+}
+
 func writeCheckPermissionOptions(w *yson.Writer, o *yt.CheckPermissionOptions) {
 	if o == nil {
 		return
@@ -2505,6 +2523,40 @@ func (p *RemoveMemberParams) MutatingOptions() **yt.MutatingOptions {
 func (p *RemoveMemberParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 	return &p.options.PrerequisiteOptions
 }
+
+type BuildMasterSnapshotsParams struct {
+	verb Verb
+	options *yt.BuildMasterSnapshotsOptions
+}
+
+func NewBuildMasterSnapshotsParams(
+	options *yt.BuildMasterSnapshotsOptions,
+) *BuildMasterSnapshotsParams {
+	if options == nil {
+		options = &yt.BuildMasterSnapshotsOptions{}
+	}
+	return &BuildMasterSnapshotsParams{
+		VerbBuildMasterSnapshots,
+		options,
+	}
+}
+
+func (p* BuildMasterSnapshotsParams) HTTPVerb() Verb {
+	return p.verb
+}
+
+func (p *BuildMasterSnapshotsParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+
+func (p *BuildMasterSnapshotsParams) Log() []log.Field {
+	return []log.Field{}
+}
+
+func (p *BuildMasterSnapshotsParams) MarshalHTTP(w *yson.Writer) {
+	writeBuildMasterSnapshots(w, p.options)
+}
+
 
 type DisableChunkLocationsParams struct {
 	verb          Verb

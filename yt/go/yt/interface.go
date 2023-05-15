@@ -757,6 +757,12 @@ type AddMemberOptions struct {
 	*PrerequisiteOptions
 }
 
+type BuildMasterSnapshotsOptions struct {
+	SetReadOnly               *bool `yson:"set_read_only,omitnil"`
+	WaitForSnapshotCompletion *bool `yson:"wait_for_snapshot_completion,omitnil"`
+	Retry                     *bool `yson:"retry,omitnil"`
+}
+
 type RemoveMemberOptions struct {
 	*MutatingOptions
 	*PrerequisiteOptions
@@ -784,6 +790,13 @@ type CheckPermissionResponse struct {
 	Columns []CheckPermissionResult `yson:"columns,omitempty"`
 }
 
+type BuildMasterSnapshot struct {
+	CellID     guid.GUID `yson:"cell_id"`
+	SnapshotID int       `yson:"snapshot_id"`
+}
+
+type BuildMasterSnapshotsResponse = []BuildMasterSnapshot
+
 type DisableChunkLocationsResponse struct {
 	LocationUuids []guid.GUID
 }
@@ -805,6 +818,12 @@ type AdminClient interface {
 		member string,
 		options *AddMemberOptions,
 	) (err error)
+
+	// http:verb:"build_master_snapshots"
+	BuildMasterSnapshots(
+		ctx context.Context,
+		options *BuildMasterSnapshotsOptions,
+	) (result *BuildMasterSnapshotsResponse, err error)
 
 	// http:verb:"remove_member"
 	// http:params:"group","member"
