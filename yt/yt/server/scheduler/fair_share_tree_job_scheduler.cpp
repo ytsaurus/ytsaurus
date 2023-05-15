@@ -2553,13 +2553,13 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
             EJobSchedulingStage::RegularMediumPriority,
             schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium]);
 
-        auto customMediumPriorityMinSpareJobResources = !context.SchedulingContext()->StartedJobs().empty()
+        auto customLowPriorityMinSpareJobResources = !context.SchedulingContext()->StartedJobs().empty()
             ? std::make_optional(ToJobResources(priorityConfig->LowPriorityFallbackMinSpareJobResources, TJobResources{}))
             : std::nullopt;
         runRegularSchedulingStage(
-            EJobSchedulingStage::RegularMediumPriority,
+            EJobSchedulingStage::RegularLowPriority,
             schedulableOperationsPerPriority[EOperationSchedulingPriority::Low],
-            customMediumPriorityMinSpareJobResources);
+            customLowPriorityMinSpareJobResources);
     } else {
         runRegularSchedulingStage(EJobSchedulingStage::RegularMediumPriority);
     }
