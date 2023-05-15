@@ -605,11 +605,6 @@ private:
             return;
         }
 
-        auto lock = request->lock();
-        if (lock && tablet->GetState() != ETabletState::Mounted) {
-            return;
-        }
-
         auto storeId = FromProto<TStoreId>(request->store_id());
         auto store = tablet->FindStore(storeId);
         if (!store) {
@@ -621,8 +616,13 @@ private:
                 storeId);
             return;
         }
-
         store->Unlock(transaction->GetId(), EObjectLockMode::Shared);
+
+        auto lock = request->lock();
+        if (lock && tablet->GetState() != ETabletState::Mounted) {
+            return;
+        }
+
         if (lock) {
             store->Lock(lockerTabletId);
         } else {
@@ -671,7 +671,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetState() != ETabletState::Mounted || tablet->GetMountRevision() != mountRevision) {
+        if (tablet->GetMountRevision() != mountRevision) {
             return;
         }
 
