@@ -449,6 +449,11 @@ const THashMap<TString, TUserJobSensorPtr>& TUserJobMonitoringConfig::GetDefault
                 .Item("source").Value("gpu")
                 .Item("profiling_name").Value("/user_job/gpu/clock_sm")
             .EndMap()
+            .Item("gpu/stuck").BeginMap()
+                .Item("type").Value("gauge")
+                .Item("source").Value("gpu")
+                .Item("profiling_name").Value("/user_job/gpu/stuck")
+            .EndMap()
         .EndMap());
 
     return DefaultSensors;
