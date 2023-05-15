@@ -44,6 +44,27 @@ DEFINE_REFCOUNTED_TYPE(TAsyncBlockCacheEntry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCachedBlock PrepareBlockToCache(TCachedBlock block, const INodeMemoryReferenceTrackerPtr& tracker)
+{
+    static constexpr double TOLERATED_OVERHEAD_THRESHOLD = 1.2;
+
+    if (const auto& holder = block.Data.GetHolder()) {
+        auto totalMemory = holder->GetTotalByteSize();
+
+        if (totalMemory && *totalMemory > block.Data.Size() * TOLERATED_OVERHEAD_THRESHOLD) {
+            struct TCopiedBlockCache
+            { };
+
+            block.Data = TSharedMutableRef::MakeCopy<TCopiedBlockCache>(block.Data);
+        }
+    }
+
+    block.Data = TrackMemory(tracker, EMemoryCategory::BlockCache, std::move(block.Data));
+    return block;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCachedBlockCookie
     : public ICachedBlockCookie
 {
@@ -82,8 +103,7 @@ public:
         }
 
         if (blockOrError.IsOK()) {
-            auto block = std::move(blockOrError).Value();
-            block.Data = TrackMemory(MemoryReferenceTracker_, EMemoryCategory::BlockCache, std::move(block.Data));
+            auto block = PrepareBlockToCache(std::move(blockOrError).Value(), MemoryReferenceTracker_);
             auto entry = New<TAsyncBlockCacheEntry>(Cookie_.GetKey(), std::move(block));
             Cookie_.EndInsert(std::move(entry));
         } else {
@@ -244,9 +264,8 @@ public:
         const TBlock& block) override
     {
         if (const auto& cache = GetOrCrash(PerTypeCaches_, type)) {
-            auto cachedBlock = block;
-            cachedBlock.Data = TrackMemory(MemoryReferenceTracker_, EMemoryCategory::BlockCache, std::move(cachedBlock.Data));
-            cache->PutBlock(id, std::move(cachedBlock));
+            auto cachingBlock = PrepareBlockToCache(block, MemoryReferenceTracker_);
+            cache->PutBlock(id, std::move(cachingBlock));
         }
     }
 
