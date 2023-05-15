@@ -4,14 +4,17 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import com.google.protobuf.Message;
 import tech.ytsaurus.client.TableAttachmentReader;
 import tech.ytsaurus.client.rows.EntitySkiffSerializer;
 import tech.ytsaurus.client.rows.WireRowSerializer;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
 import tech.ytsaurus.core.rows.YTreeSerializer;
+import tech.ytsaurus.core.utils.ProtoUtils;
 import tech.ytsaurus.rpcproxy.ERowsetFormat;
 
 import static tech.ytsaurus.client.rows.EntityUtil.isEntityAnnotationPresent;
+import static tech.ytsaurus.core.utils.ClassUtils.castToType;
 
 public class SerializationContext<T> {
     @Nullable
@@ -40,12 +43,19 @@ public class SerializationContext<T> {
         this.format = format;
     }
 
-    public SerializationContext(Class<T> objectClazz) {
-        this.objectClass = objectClazz;
-        if (isEntityAnnotationPresent(objectClazz)) {
-            this.skiffSerializer = new EntitySkiffSerializer<>(objectClazz);
+    public SerializationContext(Class<T> objectClass) {
+        this.objectClass = objectClass;
+        if (isEntityAnnotationPresent(objectClass)) {
+            this.skiffSerializer = new EntitySkiffSerializer<>(objectClass);
             this.rowsetFormat = ERowsetFormat.RF_FORMAT;
             this.attachmentReader = TableAttachmentReader.skiff(skiffSerializer);
+            return;
+        }
+        if (Message.class.isAssignableFrom(objectClass)) {
+            Message.Builder messageBuilder = ProtoUtils.newBuilder(castToType(objectClass));
+            this.rowsetFormat = ERowsetFormat.RF_FORMAT;
+            this.format = Format.protobuf(messageBuilder);
+            this.attachmentReader = castToType(TableAttachmentReader.protobuf(messageBuilder));
         }
     }
 
@@ -82,5 +92,9 @@ public class SerializationContext<T> {
 
     public Optional<TableAttachmentReader<T>> getAttachmentReader() {
         return Optional.ofNullable(attachmentReader);
+    }
+
+    public boolean isProtobufFormat() {
+        return objectClass != null && Message.class.isAssignableFrom(objectClass);
     }
 }

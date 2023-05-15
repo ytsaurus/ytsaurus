@@ -7,6 +7,7 @@ import java.util.List;
 import javax.annotation.Nullable;
 
 import NYT.NChunkClient.NProto.DataStatistics.TDataStatistics;
+import com.google.protobuf.Message;
 import tech.ytsaurus.client.rows.EntitySkiffSerializer;
 import tech.ytsaurus.client.rows.WireRowDeserializer;
 import tech.ytsaurus.core.tables.TableSchema;
@@ -49,6 +50,10 @@ public interface TableAttachmentReader<T> {
 
     static <T> TableAttachmentReader<T> skiff(EntitySkiffSerializer<T> serializer) {
         return new TableAttachmentSkiffReader<>(serializer);
+    }
+
+    static <T extends Message> TableAttachmentReader<T> protobuf(Message.Builder messageBuilder) {
+        return new TableAttachmentProtobufReader<>(messageBuilder);
     }
 }
 

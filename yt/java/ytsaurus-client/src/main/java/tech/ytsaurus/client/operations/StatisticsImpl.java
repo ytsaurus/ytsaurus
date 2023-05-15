@@ -56,7 +56,7 @@ public class StatisticsImpl implements Statistics {
             try {
                 OutputStream output =
                         new BufferedOutputStream(YtUtils.outputStreamById(STATISTICS_FILE_DESCRIPTOR_NUMBER));
-                yield = YTableEntryTypes.YSON.yield(new OutputStream[]{output});
+                yield = YTableEntryTypes.yson(false).yield(new OutputStream[]{output});
             } catch (FileNotFoundException e) {
                 yield = null;
             }

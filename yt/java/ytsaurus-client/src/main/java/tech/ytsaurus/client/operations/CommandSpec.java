@@ -238,8 +238,8 @@ public class CommandSpec implements Spec, UserJobSpec {
     public abstract static class BuilderBase<T extends BuilderBase<T>> {
         @Nullable
         String command = null;
-        YTableEntryType<?> inputType = YTableEntryTypes.YSON;
-        YTableEntryType<?> outputType = YTableEntryTypes.YSON;
+        YTableEntryType<?> inputType = YTableEntryTypes.yson(false);
+        YTableEntryType<?> outputType = YTableEntryTypes.yson(false);
         List<YPath> files = new ArrayList<>();
         @Nullable
         DataSize memoryLimit = null;

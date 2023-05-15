@@ -1,8 +1,11 @@
 package tech.ytsaurus.client.request;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import com.google.protobuf.Message;
+import tech.ytsaurus.core.common.YTsaurusProtobufFormat;
 import tech.ytsaurus.skiff.SkiffSchema;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
@@ -32,7 +35,7 @@ public class Format {
         for (Map.Entry<String, YTreeNode> attribute : attributes.entrySet()) {
             builder.key(attribute.getKey()).value(attribute.getValue());
         }
-        return builder.endAttributes().value(type.toString()).build();
+        return builder.endAttributes().value(type).build();
     }
 
     public static Format ysonBinary() {
@@ -57,5 +60,13 @@ public class Format {
         attributes.put("table_skiff_schemas", tableSkiffSchemasBuilder.endList().build());
         attributes.put("skiff_schema_registry", skiffSchemaRegistry);
         return new Format("skiff", attributes);
+    }
+
+    public static Format protobuf(Message.Builder messageBuilder) {
+        return new Format(
+                "protobuf",
+                new YTsaurusProtobufFormat(List.of(messageBuilder))
+                        .spec().getAttributes()
+        );
     }
 }

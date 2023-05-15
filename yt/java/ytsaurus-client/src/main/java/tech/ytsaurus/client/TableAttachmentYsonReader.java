@@ -8,9 +8,6 @@ import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 class TableAttachmentYsonReader extends TableAttachmentRowsetReader<YTreeNode> {
-    TableAttachmentYsonReader() {
-    }
-
     @Override
     protected List<YTreeNode> parseMergedRow(ByteBuffer bb, int size) {
         byte[] data = new byte[size];

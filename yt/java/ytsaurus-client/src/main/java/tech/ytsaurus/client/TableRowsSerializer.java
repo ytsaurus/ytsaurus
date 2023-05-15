@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import com.google.protobuf.CodedOutputStream;
+import com.google.protobuf.Message;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import tech.ytsaurus.client.request.SerializationContext;
@@ -26,6 +27,8 @@ import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.rpcproxy.ERowsetFormat;
 import tech.ytsaurus.rpcproxy.TRowsetDescriptor;
+
+import static tech.ytsaurus.core.utils.ClassUtils.castToType;
 
 
 @NonNullApi
@@ -99,11 +102,6 @@ class TableRowsYsonSerializer<T> extends TableRowsSerializer<T> {
     }
 
     @Override
-    public TableSchema getSchema() {
-        return null;
-    }
-
-    @Override
     protected void writeRows(
             ByteBuf buf,
             TRowsetDescriptor descriptor,
@@ -143,11 +141,6 @@ class TableRowsSkiffSerializer<T> extends TableRowsSerializer<T> {
     }
 
     @Override
-    public TableSchema getSchema() {
-        return null;
-    }
-
-    @Override
     protected void writeRows(
             ByteBuf buf,
             TRowsetDescriptor descriptor,
@@ -158,6 +151,44 @@ class TableRowsSkiffSerializer<T> extends TableRowsSerializer<T> {
             buf.writeByte(0);
             buf.writeByte(0);
             buf.writeBytes(serializer.serialize(row));
+        });
+    }
+
+    @Override
+    protected void writeRowsWithoutCount(
+            ByteBuf buf, TRowsetDescriptor descriptor, List<T> rows, int[] idMapping) {
+        writeRows(buf, descriptor, rows, idMapping);
+    }
+
+    @Override
+    public void writeMeta(ByteBuf buf, ByteBuf serializedRows, int rowsCount) {
+        buf.writeLongLE(serializedRows.readableBytes());
+    }
+
+    @Override
+    protected TRowsetDescriptor getCurrentRowsetDescriptor(TableSchema schema) {
+        return rowsetDescriptor;
+    }
+}
+
+@NonNullApi
+@NonNullFields
+class TableRowsProtobufSerializer<T extends Message> extends TableRowsSerializer<T> {
+    TableRowsProtobufSerializer() {
+        super(ERowsetFormat.RF_FORMAT);
+    }
+
+    @Override
+    protected void writeRows(
+            ByteBuf buf,
+            TRowsetDescriptor descriptor,
+            List<T> rows,
+            int[] idMapping
+    ) {
+        rows.forEach(row -> {
+            byte[] messageBytes = row.toByteArray();
+            buf.writeIntLE(messageBytes.length);
+            buf.writeBytes(messageBytes);
         });
     }
 
@@ -191,7 +222,9 @@ abstract class TableRowsSerializer<T> {
         this.rowsetDescriptor = TRowsetDescriptor.newBuilder().setRowsetFormat(rowsetFormat).build();
     }
 
-    public abstract TableSchema getSchema();
+    public TableSchema getSchema() {
+        return TableSchema.builder().build();
+    }
 
     static <T> Optional<TableRowsSerializer<T>> createTableRowsSerializer(
             SerializationContext<T> context,
@@ -215,6 +248,9 @@ abstract class TableRowsSerializer<T> {
             }
             if (context.getSkiffSerializer().isPresent()) {
                 return Optional.of(new TableRowsSkiffSerializer<>(context.getSkiffSerializer().get()));
+            }
+            if (context.isProtobufFormat()) {
+                return Optional.of(castToType(new TableRowsProtobufSerializer<>()));
             }
             if (context.getYtreeSerializer().isEmpty()) {
                 throw new IllegalArgumentException("No yson serializer for RF_FORMAT");
