@@ -115,6 +115,7 @@ private:
                                         .Item("clocks_sm_limit").Value(gpuInfo.ClocksMaxSm)
                                         .Item("sm_utilization_rate").Value(gpuInfo.SMUtilizationRate)
                                         .Item("sm_occupancy_rate").Value(gpuInfo.SMOccupancyRate)
+                                        .Item("stuck").Value(gpuInfo.Stuck.Status)
                                     .EndMap();
                             })
                         .Item("slot_manager").DoMap(std::bind(

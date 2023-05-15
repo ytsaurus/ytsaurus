@@ -18,6 +18,7 @@ target_link_libraries(server-lib-job_agent PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  cpp-protobuf-interop
   yt-yt-ytlib
   server-lib-job_proxy
   server-lib-misc
