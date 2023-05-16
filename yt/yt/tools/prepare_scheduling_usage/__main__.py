@@ -78,7 +78,7 @@ def extract_cumulative_used_cpu(job_statistics):
         "user_job/cpu/user",
         "user_job/cpu/system",
     ]
-    return sum([extract_statistic(job_statistics, statistic_path, default=0) for statistic_path in statistic_paths]) / 1000.0
+    return sum([extract_statistic(job_statistics, path, default=0) for path in statistic_paths]) / 1000.0
 
 
 def extract_cumulative_gpu_utilization(job_statistics):
@@ -270,14 +270,18 @@ def build_pool_mapping(pools_info):
 
 
 def convert_pool_mapping_to_pool_paths_info(cluster_and_tree_to_pool_mapping):
-    result = collections.defaultdict(lambda: collections.defaultdict(dict))
+    result = list()
     for cluster_and_tree, pool_mapping in cluster_and_tree_to_pool_mapping.items():
         cluster, pool_tree = cluster_and_tree
         for pool_info in pool_mapping.values():
-            result[cluster][pool_tree][build_pool_path(pool_info["ancestor_pools"])] = pool_info
-    for cluster in result:
-        for pool_tree in result[cluster]:
-            result[cluster][pool_tree] = list(result[cluster][pool_tree].items())
+            result.append(
+                {
+                    "cluster": cluster,
+                    "pool_tree": pool_tree,
+                    "pool_path": build_pool_path(pool_info["ancestor_pools"]),
+                    "pool_info": pool_info
+                }
+            )
     return result
 
 
@@ -294,7 +298,9 @@ class ExtractPoolsMapping(TypedJob):
                 # TODO(ignat): how is it possible?
                 if "pools" in row.other:
                     pool_mapping = build_pool_mapping(row.other["pools"])
-                    cluster_and_tree_to_pool_mapping[key] = {key: yson.dumps(value) for key, value in pool_mapping.items()}
+                    cluster_and_tree_to_pool_mapping[key] = {
+                        key: yson.dumps(value) for key, value in pool_mapping.items()
+                    }
                 else:
                     print("XXX", row.other, file=sys.stderr)
 
@@ -549,12 +555,22 @@ def do_process_scheduler_log_on_yt(client, input_table, output_table, expiration
         pools_output_table,
         recursive=True,
         attributes=add_expiration_timeout_to_attributes(
-            {"schema": [{"name": "pools", "type": "string"}]}, expiration_timeout))
+            {
+                "schema": [
+                    {"name": "cluster", "type": "string"},
+                    {"name": "pool_tree", "type": "string"},
+                    {"name": "pool_path", "type": "string"},
+                    {"name": "pool_info", "type": "string"},
+                ]
+            },
+            expiration_timeout
+        )
+    )
 
     pool_paths_info = convert_pool_mapping_to_pool_paths_info(cluster_and_tree_to_pool_mapping)
     client.write_table(
         pools_output_table,
-        [{"pools": json.dumps(pool_paths_info, cls=YsonEncoder)}],
+        pool_paths_info,
         table_writer={"max_row_weight": 64 * 1024 * 1024},
     )
 
