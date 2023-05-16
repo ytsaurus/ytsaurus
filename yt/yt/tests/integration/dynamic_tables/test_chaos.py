@@ -829,9 +829,9 @@ class TestChaos(ChaosTestBase):
 
         wait(lambda: get("#{0}/@era".format(card_id)) == 1)
 
+        assert get("//tmp/crt/@era") == get("#{0}/@era".format(card_id))
+        wait(lambda: get("//tmp/crt/@coordinator_cell_ids") == get("#{0}/@coordinator_cell_ids".format(card_id)))
         card = get("#{0}/@".format(card_id))
-        assert get("//tmp/crt/@era") == card["era"]
-        assert get("//tmp/crt/@coordinator_cell_ids") == card["coordinator_cell_ids"]
 
         crt_replicas = get("//tmp/crt/@replicas")
         assert len(crt_replicas) == 2
