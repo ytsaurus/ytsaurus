@@ -10,17 +10,54 @@ TResourceLimiter::TResourceLimiter(size_t limit)
     Y_ENSURE(Limit_ > 0);
 }
 
-void TResourceLimiter::Acquire(size_t lockAmount) {
-    Y_ENSURE(lockAmount <= Limit_);
+bool TResourceLimiter::HasEnoughHardMemoryLimit(size_t lockAmount) {
+    return lockAmount <= Limit_ - CurrentHardUsage_;
+}
+
+bool TResourceLimiter::CanLock(size_t lockAmount) {
+    return CurrentSoftUsage_ + lockAmount <= Limit_ - CurrentHardUsage_;
+}
+
+void TResourceLimiter::Acquire(size_t lockAmount, EResourceLimiterLockType lockType) {
     with_lock(Mutex_) {
-        CondVar_.Wait(Mutex_, [this, lockAmount]{ return CurrentUsage_ + lockAmount <= Limit_; });
-        CurrentUsage_ += lockAmount;
+        CondVar_.Wait(Mutex_, [this, lockAmount]{
+            return CanLock(lockAmount) || !HasEnoughHardMemoryLimit(lockAmount);
+        });
+        if (!HasEnoughHardMemoryLimit(lockAmount)) {
+            ythrow yexception() << "Acquire" << " " << lockAmount << " >= Limit_ - CurrentHardUsage_ "
+                    << "(" << Limit_ << " - " << CurrentHardUsage_ << ") = " << Limit_ - CurrentHardUsage_;
+        }
+        switch (lockType) {
+            case EResourceLimiterLockType::SOFT: {
+                CurrentSoftUsage_ += lockAmount;
+                break;
+            }
+            case EResourceLimiterLockType::HARD: {
+                CurrentHardUsage_ += lockAmount;
+                break;
+            }
+        };
+    }
+    // Acquiring hard limit may decrease available lock amount to such values that
+    // previously valid (and currently blocked) acquire calls will no longer be possible
+    // Broadcast all waiters to check HasEnoughHardMemoryLimit
+    if (lockType == EResourceLimiterLockType::HARD) {
+        CondVar_.BroadCast();
     }
 }
 
-void TResourceLimiter::Release(size_t lockAmount) {
+void TResourceLimiter::Release(size_t lockAmount, EResourceLimiterLockType lockType) {
     with_lock(Mutex_) {
-        CurrentUsage_ -= lockAmount;
+        switch (lockType) {
+            case EResourceLimiterLockType::SOFT: {
+                CurrentSoftUsage_ -= lockAmount;
+                break;
+            }
+            case EResourceLimiterLockType::HARD: {
+                CurrentHardUsage_ -= lockAmount;
+                break;
+            }
+        };
     }
     // Broadcast because:
     // 1. We may have locked on assigning small chunks of data, which in sum smaller than unlocked lockAmount
@@ -35,24 +72,31 @@ size_t TResourceLimiter::GetLimit() const {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResourceGuard::TResourceGuard(const ::TIntrusivePtr<TResourceLimiter>& limiter, size_t lockAmount)
+TResourceGuard::TResourceGuard(
+    const ::TIntrusivePtr<TResourceLimiter>& limiter,
+    size_t lockAmount,
+    EResourceLimiterLockType lockType
+)
     : Limiter_(limiter)
     , LockAmount_(lockAmount)
+    , LockType_(lockType)
 {
-    Limiter_->Acquire(LockAmount_);
+    Limiter_->Acquire(LockAmount_, LockType_);
 }
 
 TResourceGuard::TResourceGuard(TResourceGuard&& other) {
     Limiter_ = other.Limiter_;
     LockAmount_ = other.LockAmount_;
+    LockType_ = other.LockType_;
     other.LockAmount_ = 0;
 }
 
 TResourceGuard::~TResourceGuard() {
     if (LockAmount_ > 0) {
-        Limiter_->Release(LockAmount_);
+        Limiter_->Release(LockAmount_, LockType_);
     }
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
