@@ -170,7 +170,8 @@ THashSet<TString> GetAliveNodes(
 
 THashSet<TString> GetAliveProxies(
     const std::vector<TString>& bundleProxies,
-    const TSchedulerInputState& input);
+    const TSchedulerInputState& input,
+    EGracePeriodBehaviour gracePeriodBehaviour);
 
 TString GetInstancePodIdTemplate(
     const TString& cluster,
