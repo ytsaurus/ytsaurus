@@ -76,10 +76,9 @@ void TCellBundleProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* a
         .SetMandatory(true));
     attributes->push_back(EInternedAttributeKey::DynamicConfigVersion);
     attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::NodeTagFilter)
-        .SetPresent(cellBundle->Areas().size() == 1)
         .SetWritable(true)
         .SetReplicated(true)
-        .SetPresent(!cellBundle->NodeTagFilter().IsEmpty()));
+        .SetPresent(cellBundle->Areas().size() == 1 && !cellBundle->Areas().begin()->second->NodeTagFilter().IsEmpty()));
     attributes->push_back(EInternedAttributeKey::TabletCellCount);
     attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellIds)
         .SetOpaque(true));
