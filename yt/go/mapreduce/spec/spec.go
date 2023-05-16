@@ -131,10 +131,12 @@ type Spec struct {
 	DataSizePerJob        int64 `yson:"data_size_per_job,omitempty"`
 	UseColumnarStatistics *bool `yson:"use_columnar_statistics,omitempty"`
 
-	TimeLimit         yson.Duration `yson:"time_limit,omitempty"`
-	MaxFailedJobCount int           `yson:"max_failed_job_count,omitempty"`
-	StderrTablePath   ypath.Path    `yson:"stderr_table_path,omitempty"`
-	CoreTablePath     ypath.Path    `yson:"core_table_path,omitempty"`
+	TimeLimit                     yson.Duration `yson:"time_limit,omitempty"`
+	MaxFailedJobCount             int           `yson:"max_failed_job_count,omitempty"`
+	MaxSpeculativeJobCountPerTask *int          `yson:"max_speculative_job_count_per_task,omitempty"`
+	FailOnJobRestart              *bool         `yson:"fail_on_job_restart,omitempty"`
+	StderrTablePath               ypath.Path    `yson:"stderr_table_path,omitempty"`
+	CoreTablePath                 ypath.Path    `yson:"core_table_path,omitempty"`
 
 	Mapper         *UserScript            `yson:"mapper,omitempty"`
 	Reducer        *UserScript            `yson:"reducer,omitempty"`
