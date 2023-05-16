@@ -418,6 +418,8 @@ std::optional<TUnversionedValue> FoldConstants(
                 case EValueType::Double:
                     value.Data.Double = -value.Data.Double;
                     break;
+                case EValueType::Null:
+                    break;
                 default:
                     YT_ABORT();
             }
@@ -430,6 +432,8 @@ std::optional<TUnversionedValue> FoldConstants(
                     break;
                 case EValueType::Uint64:
                     value.Data.Uint64 = ~value.Data.Uint64;
+                    break;
+                case EValueType::Null:
                     break;
                 default:
                     YT_ABORT();

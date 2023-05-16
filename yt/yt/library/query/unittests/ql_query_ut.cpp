@@ -6896,6 +6896,20 @@ TEST_F(TQueryEvaluateTest, SelectKeyword)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TQueryEvaluateTest, UnaryNullOperations)
+{
+    auto split = MakeSplit({ {"a", EValueType::Int64}, });
+
+    std::vector<TString> source = { "a=4", "a=10" };
+
+    auto result = YsonToRows({ "a=4", "a=10" }, split);
+
+    Evaluate("* from [//t] where a != (-#)", split, source, ResultMatcher(result));
+    Evaluate("* from [//t] where a != ~#", split, source, ResultMatcher(result));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryEvaluatePlaceholdersTest
     : public TQueryEvaluateTest
     , public ::testing::WithParamInterface<std::tuple<
