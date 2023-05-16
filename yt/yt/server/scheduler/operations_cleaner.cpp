@@ -1751,7 +1751,7 @@ private:
         auto now = TInstant::Now();
         while (!LockedOperationQueue_.empty()) {
             const auto& [operationId, enqueueInstant] = LockedOperationQueue_.front();
-            if (now - enqueueInstant < Config_->LockedOperationWaitTimeout) {
+            if (enqueueInstant + Config_->LockedOperationWaitTimeout > now) {
                 break;
             }
             RemoveBatcher_->Enqueue(operationId);
