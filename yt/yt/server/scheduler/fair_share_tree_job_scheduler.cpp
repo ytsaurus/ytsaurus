@@ -968,6 +968,11 @@ TScheduleJobsContext::TFairShareScheduleJobResult TScheduleJobsContext::Schedule
     }
 
     bool scheduled = ScheduleJob(bestOperation, ignorePacking);
+
+    if (scheduled) {
+        ReactivateBadPackingOperations();
+    }
+
     return TFairShareScheduleJobResult{
         .Finished = false,
         .Scheduled = scheduled,
@@ -1271,20 +1276,6 @@ void TScheduleJobsContext::PreemptJob(
     operationSharedState->UpdatePreemptibleJobsList(element);
 
     SchedulingContext_->PreemptJob(job, treeConfig->JobInterruptTimeout, preemptionReason);
-}
-
-void TScheduleJobsContext::ReactivateBadPackingOperations()
-{
-    for (const auto& operation : BadPackingOperations_) {
-        // TODO(antonkikh): multiple activations can be implemented more efficiently.
-        ActivateOperation(operation.Get());
-    }
-    BadPackingOperations_.clear();
-}
-
-bool TScheduleJobsContext::HasBadPackingOperations() const
-{
-    return !BadPackingOperations_.empty();
 }
 
 void TScheduleJobsContext::StartStage(TScheduleJobsStage* schedulingStage)
@@ -2167,6 +2158,15 @@ bool TScheduleJobsContext::CheckPacking(const TSchedulerOperationElement* elemen
         GetPackingConfig());
 }
 
+void TScheduleJobsContext::ReactivateBadPackingOperations()
+{
+    for (auto* operation : BadPackingOperations_) {
+        // TODO(antonkikh): multiple activations can be implemented more efficiently.
+        ActivateOperation(operation);
+    }
+    BadPackingOperations_.clear();
+}
+
 void TScheduleJobsContext::RecordPackingHeartbeat(const TSchedulerOperationElement* element, const TPackingHeartbeatSnapshot& heartbeatSnapshot)
 {
     TreeSnapshot_->SchedulingSnapshot()->GetEnabledOperationSharedState(element)->RecordPackingHeartbeat(heartbeatSnapshot, GetPackingConfig());
@@ -2523,28 +2523,23 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
     context.SchedulingStatistics().SsdPriorityPreemptionEnabled = context.GetSsdPriorityPreemptionEnabled();
     context.SchedulingStatistics().SsdPriorityPreemptionMedia = context.SsdPriorityPreemptionMedia();
 
-    bool hasBadPackingOperations = false;
     auto runRegularSchedulingStage = [&] (
         EJobSchedulingStage stageType,
         const std::optional<TNonOwningOperationElementList>& consideredOperations = {},
-        const std::optional<TJobResources>& customMinSpareJobResources = {})
+        const std::optional<TJobResources>& customMinSpareJobResources = {},
+        bool ignorePacking = false,
+        bool oneJobOnly = false)
     {
         context.StartStage(&SchedulingStages_[stageType]);
-        auto finally = Finally([&] {
-            context.FinishStage();
-        });
-
         ScheduleJobsWithoutPreemption(
             treeSnapshot,
             &context,
             consideredOperations,
             customMinSpareJobResources,
-            now);
-
-        hasBadPackingOperations |= context.HasBadPackingOperations();
-        context.ReactivateBadPackingOperations();
-
-        context.SchedulingStatistics().MaxNonPreemptiveSchedulingIndex = context.GetStageMaxSchedulingIndex();
+            now,
+            ignorePacking,
+            oneJobOnly);
+        context.FinishStage();
     };
 
     if (const auto& priorityConfig = config->PrioritizedRegularScheduling) {
@@ -2562,6 +2557,16 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
             customLowPriorityMinSpareJobResources);
     } else {
         runRegularSchedulingStage(EJobSchedulingStage::RegularMediumPriority);
+    }
+
+    bool needPackingFallback = schedulingContext->StartedJobs().empty() && !context.BadPackingOperations().empty();
+    if (needPackingFallback) {
+        runRegularSchedulingStage(
+            EJobSchedulingStage::RegularPackingFallback,
+            context.BadPackingOperations(),
+            /*customMinSpareJobResources*/ {},
+            /*ignorePacking*/ true,
+            /*oneJobOnly*/ true);
     }
 
     auto nodeId = schedulingContext->GetNodeDescriptor().Id;
@@ -2608,13 +2613,6 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
         }
     } else {
         YT_LOG_DEBUG("Skip preemptive scheduling");
-    }
-
-    bool needPackingFallback = schedulingContext->StartedJobs().empty() && hasBadPackingOperations;
-    if (needPackingFallback) {
-        context.StartStage(&SchedulingStages_[EJobSchedulingStage::RegularPackingFallback]);
-        ScheduleJobsPackingFallback(treeSnapshot, &context, now);
-        context.FinishStage();
     }
 
     // Interrupt some jobs if usage is greater that limit.
@@ -3238,43 +3236,6 @@ void TFairShareTreeJobScheduler::ScheduleJobsWithoutPreemption(
     TScheduleJobsContext* context,
     const std::optional<TNonOwningOperationElementList>& consideredOperations,
     const std::optional<TJobResources>& customMinSpareJobResources,
-    TCpuInstant startTime)
-{
-    YT_LOG_TRACE("Scheduling new jobs");
-
-    DoScheduleJobsWithoutPreemption(
-        treeSnapshot,
-        context,
-        consideredOperations,
-        customMinSpareJobResources,
-        startTime,
-        /*ignorePacking*/ false,
-        /*oneJobOnly*/ false);
-}
-
-void TFairShareTreeJobScheduler::ScheduleJobsPackingFallback(
-    const TFairShareTreeSnapshotPtr& treeSnapshot,
-    TScheduleJobsContext* context,
-    TCpuInstant startTime)
-{
-    YT_LOG_TRACE("Scheduling jobs with packing ignored");
-
-    // Schedule at most one job with packing ignored in case all operations have rejected the heartbeat.
-    DoScheduleJobsWithoutPreemption(
-        treeSnapshot,
-        context,
-        /*consideredOperations*/ {},
-        /*customMinSpareJobResources*/ {},
-        startTime,
-        /*ignorePacking*/ true,
-        /*oneJobOnly*/ true);
-}
-
-void TFairShareTreeJobScheduler::DoScheduleJobsWithoutPreemption(
-    const TFairShareTreeSnapshotPtr& treeSnapshot,
-    TScheduleJobsContext* context,
-    const std::optional<TNonOwningOperationElementList>& consideredOperations,
-    const std::optional<TJobResources>& customMinSpareJobResources,
     TCpuInstant startTime,
     bool ignorePacking,
     bool oneJobOnly)
@@ -3293,9 +3254,6 @@ void TFairShareTreeJobScheduler::DoScheduleJobsWithoutPreemption(
                 context->PrescheduleJob(consideredOperations);
             }
             auto scheduleJobResult = context->ScheduleJob(ignorePacking);
-            if (scheduleJobResult.Scheduled) {
-                context->ReactivateBadPackingOperations();
-            }
             if (scheduleJobResult.Finished || (oneJobOnly && scheduleJobResult.Scheduled)) {
                 break;
             }
@@ -3305,6 +3263,8 @@ void TFairShareTreeJobScheduler::DoScheduleJobsWithoutPreemption(
             ScheduleJobsDeadlineReachedCounter_.Increment();
         }
     }
+
+    context->SchedulingStatistics().MaxNonPreemptiveSchedulingIndex = context->GetStageMaxSchedulingIndex();
 }
 
 // TODO(eshcherbin): Maybe receive a set of preemptible job levels instead of max level.

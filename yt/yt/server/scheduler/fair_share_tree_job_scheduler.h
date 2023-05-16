@@ -328,6 +328,8 @@ public:
     // NB(eshcherbin): The following properties are public for testing purposes.
     DEFINE_BYREF_RW_PROPERTY(TJobWithPreemptionInfoSetMap, ConditionallyPreemptibleJobSetMap);
 
+    DEFINE_BYREF_RO_PROPERTY(TNonOwningOperationElementList, BadPackingOperations);
+
 public:
     TScheduleJobsContext(
         ISchedulingContextPtr schedulingContext,
@@ -372,9 +374,6 @@ public:
         const TJobPtr& job,
         TSchedulerOperationElement* element,
         EJobPreemptionReason preemptionReason) const;
-
-    void ReactivateBadPackingOperations();
-    bool HasBadPackingOperations() const;
 
     void StartStage(TScheduleJobsStage* schedulingStage);
     void FinishStage();
@@ -446,8 +445,6 @@ private:
 
     std::vector<bool> CanSchedule_;
 
-    std::vector<TSchedulerOperationElementPtr> BadPackingOperations_;
-
     // Populated only for pools.
     TJobResourcesMap LocalUnconditionalUsageDiscountMap_;
 
@@ -515,6 +512,7 @@ private:
 
     TFairShareStrategyPackingConfigPtr GetPackingConfig() const;
     bool CheckPacking(const TSchedulerOperationElement* element, const TPackingHeartbeatSnapshot& heartbeatSnapshot) const;
+    void ReactivateBadPackingOperations();
 
     // Shared state methods.
     void RecordPackingHeartbeat(const TSchedulerOperationElement* element, const TPackingHeartbeatSnapshot& heartbeatSnapshot);
@@ -803,20 +801,9 @@ private:
         TScheduleJobsContext* context,
         const std::optional<TNonOwningOperationElementList>& consideredOperations,
         const std::optional<TJobResources>& customMinSpareJobResources,
-        TCpuInstant startTime);
-    void ScheduleJobsPackingFallback(
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
-        TScheduleJobsContext* context,
-        TCpuInstant startTime);
-    void DoScheduleJobsWithoutPreemption(
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
-        TScheduleJobsContext* context,
-        const std::optional<TNonOwningOperationElementList>& consideredOperations,
-        const std::optional<TJobResources>& customMinSpareJobResources,
         TCpuInstant startTime,
         bool ignorePacking,
         bool oneJobOnly);
-
     void ScheduleJobsWithPreemption(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         TScheduleJobsContext* context,
