@@ -66,10 +66,20 @@ class TestPortals(YTEnvSetup):
             create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": 10})
 
     @authors("babenko")
-    def test_validate_cypress_node_host_cell_role(self):
+    def test_validate_cypress_node_host_cell_role1(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host"]}})
         with pytest.raises(YtError):
             create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+
+    @authors("aleksandra-zh")
+    def test_validate_cypress_node_host_cell_role2(self):
+        set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", True)
+        set("//sys/@config/multicell_manager/cell_descriptors", {})
+        with pytest.raises(YtError):
+            create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+
+        set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", False)
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 
     @authors("babenko")
     def test_need_exit_cell_tag_on_create(self):

@@ -139,6 +139,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixAttachHunksWithDynamicStoreRead)                           (2324))  // aleksandra-zh
     ((BundlesBan)                                                   (2325))  // alexelexa
     ((TooManyLocksCheck)                                            (2326))  // h0pless
+    ((RemoveDefaultSecondaryRoles)                                  (2327))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

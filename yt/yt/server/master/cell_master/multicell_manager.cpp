@@ -1227,6 +1227,12 @@ private:
                 return elem.second;
             });
 
+        for (auto [cellTag, roles] : MasterCellRolesMap_) {
+            if (roles == EMasterCellRoles::None) {
+                alerts.push_back(TError("No roles configured for cell")
+                    << TErrorAttribute("cell_tag", cellTag));
+            }
+        }
         return alerts;
     }
 
@@ -1302,11 +1308,19 @@ private:
 
     EMasterCellRoles GetDefaultMasterCellRoles(TCellTag cellTag)
     {
-        return cellTag == GetPrimaryCellTag()
-            ? (EMasterCellRoles::CypressNodeHost |
-               EMasterCellRoles::TransactionCoordinator |
-               (IsMulticell() ? EMasterCellRoles::None : EMasterCellRoles::ChunkHost))
-            : (EMasterCellRoles::CypressNodeHost | EMasterCellRoles::ChunkHost);
+        const auto& config = GetDynamicConfig();
+
+        if (cellTag == GetPrimaryCellTag()) {
+            return EMasterCellRoles::CypressNodeHost |
+                EMasterCellRoles::TransactionCoordinator |
+                (IsMulticell() ? EMasterCellRoles::None : EMasterCellRoles::ChunkHost);
+        }
+
+        if (config->RemoveSecondaryCellDefaultRoles) {
+            return EMasterCellRoles::None;
+        }
+
+        return EMasterCellRoles::CypressNodeHost | EMasterCellRoles::ChunkHost;
     }
 
     EMasterCellRoles ComputeMasterCellRolesFromConfig(TCellTag cellTag)
