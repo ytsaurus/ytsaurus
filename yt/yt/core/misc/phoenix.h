@@ -170,7 +170,7 @@ private:
     template <class T>
     static void* DoInstantiate();
 
-    Y_DECLARE_SINGLETON_FRIEND();
+    Y_DECLARE_SINGLETON_FRIEND()
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,7 +220,7 @@ public:                                                               \
                                                                       \
 private:                                                              \
     DECLARE_DYNAMIC_PHOENIX_TYPE(type, tag);                          \
-};
+}
 
 #define INHERIT_DYNAMIC_PHOENIX_TYPE_TEMPLATED(baseType, type, tag, ...) \
 class type                                                               \
@@ -231,7 +231,7 @@ public:                                                                  \
                                                                          \
 private:                                                                 \
     DECLARE_DYNAMIC_PHOENIX_TYPE(type, tag);                             \
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

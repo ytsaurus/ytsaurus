@@ -21,7 +21,7 @@ public:
     bool UseNativeTabletNodeApi;
     bool UsePullConsumer;
 
-    REGISTER_YSON_STRUCT(TPartitionReaderConfig)
+    REGISTER_YSON_STRUCT(TPartitionReaderConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -48,7 +48,7 @@ public:
     //! If set, this number of rows is guaranteed to be kept in each partition.
     std::optional<i64> RetainedRows;
 
-    REGISTER_YSON_STRUCT_LITE(TQueueAutoTrimConfig)
+    REGISTER_YSON_STRUCT_LITE(TQueueAutoTrimConfig);
 
     static void Register(TRegistrar registrar);
 };

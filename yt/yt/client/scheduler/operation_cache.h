@@ -32,7 +32,7 @@ private:
         bool isPeriodicUpdate) noexcept override;
 };
 
-DEFINE_REFCOUNTED_TYPE(TOperationCache);
+DEFINE_REFCOUNTED_TYPE(TOperationCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

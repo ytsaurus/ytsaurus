@@ -15,8 +15,8 @@ inline const NProfiling::TProfiler HttpProfiler = NProfiling::TProfiler{"/http"}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(THttpInput);
-DECLARE_REFCOUNTED_CLASS(THttpOutput);
+DECLARE_REFCOUNTED_CLASS(THttpInput)
+DECLARE_REFCOUNTED_CLASS(THttpOutput)
 
 ////////////////////////////////////////////////////////////////////////////////
 

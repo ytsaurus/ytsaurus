@@ -149,7 +149,7 @@ using TRandomReaderPtr = TIntrusivePtr<TRandomReader>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TRandomWriter);
+DECLARE_REFCOUNTED_CLASS(TRandomWriter)
 
 class TRandomWriter
     : public TRefCounted
@@ -380,7 +380,7 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TRandomWriter);
+DEFINE_REFCOUNTED_TYPE(TRandomWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

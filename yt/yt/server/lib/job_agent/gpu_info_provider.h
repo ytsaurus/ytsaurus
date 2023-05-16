@@ -49,7 +49,7 @@ struct IGpuInfoProvider
     virtual std::vector<TGpuInfo> GetGpuInfos(TDuration checkTimeout) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IGpuInfoProvider);
+DEFINE_REFCOUNTED_TYPE(IGpuInfoProvider)
 
 IGpuInfoProviderPtr CreateGpuInfoProvider(const TGpuInfoSourceConfigPtr& gpuInfoSource);
 

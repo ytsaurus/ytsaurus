@@ -28,7 +28,7 @@ public:
         }
     }
 };
-REGISTER_MAPPER(TNormalizeNameMapper);
+REGISTER_MAPPER(TNormalizeNameMapper)
 
 class TCountNameReducer
     : public IReducer<
@@ -50,7 +50,7 @@ public:
         writer->AddRow(result);
     }
 };
-REGISTER_REDUCER(TCountNameReducer);
+REGISTER_REDUCER(TCountNameReducer)
 
 int main() {
     NYT::Initialize();

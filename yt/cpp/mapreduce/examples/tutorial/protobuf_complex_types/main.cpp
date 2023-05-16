@@ -29,7 +29,7 @@ public:
         writer->AddRow(doc);
     }
 };
-REGISTER_REDUCER(AggregateLinksReducer);
+REGISTER_REDUCER(AggregateLinksReducer)
 
 int main() {
     NYT::Initialize();

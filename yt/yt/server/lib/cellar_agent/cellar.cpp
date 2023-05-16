@@ -261,7 +261,7 @@ private:
             : Owner_(std::move(owner))
         { }
 
-        DECLARE_NEW_FRIEND();
+        DECLARE_NEW_FRIEND()
     };
 
     const ECellarType Type_;

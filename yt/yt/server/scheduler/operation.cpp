@@ -380,7 +380,7 @@ bool TOperation::IsRunningInStrategy() const
 void TOperation::SetRunningInStrategy()
 {
     RunningInStrategy_= true;
-};
+}
 
 std::optional<TJobResources> TOperation::GetInitialAggregatedMinNeededResources() const
 {

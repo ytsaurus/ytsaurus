@@ -28,7 +28,7 @@ struct TInstanceInfo
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TInstanceInfo);
+DEFINE_REFCOUNTED_TYPE(TInstanceInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +43,7 @@ struct TAlert
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TAlert);
+DEFINE_REFCOUNTED_TYPE(TAlert)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +59,7 @@ struct TAllocatingInstanceInfo
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TAllocatingInstanceInfo);
+DEFINE_REFCOUNTED_TYPE(TAllocatingInstanceInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,7 +93,7 @@ struct TBundleInfo
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TBundleInfo);
+DEFINE_REFCOUNTED_TYPE(TBundleInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -44,7 +44,7 @@ private:
         const TErrorOr<std::vector<TDataNodeServiceProxy::TRspGetChunkMetaPtr>>& rspOrError);
 };
 
-DEFINE_REFCOUNTED_TYPE(TChunkMetaFetcher);
+DEFINE_REFCOUNTED_TYPE(TChunkMetaFetcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 

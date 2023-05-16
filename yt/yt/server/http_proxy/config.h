@@ -81,7 +81,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TDelayBeforeCommand);
+DEFINE_REFCOUNTED_TYPE(TDelayBeforeCommand)
 
 class TApiTestingOptions
     : public NYTree::TYsonStruct
@@ -94,7 +94,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TApiTestingOptions);
+DEFINE_REFCOUNTED_TYPE(TApiTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 

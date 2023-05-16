@@ -113,7 +113,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, LowerLimit);
     DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, UpperLimit);
     //! Index of this chunk slice among all slices of the same chunk returned by chunk slice fetcher.
-    DEFINE_BYVAL_RW_PROPERTY(int, SliceIndex, 0)
+    DEFINE_BYVAL_RW_PROPERTY(int, SliceIndex, 0);
 
     bool IsLegacy = true;
 

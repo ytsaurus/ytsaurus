@@ -607,7 +607,7 @@ IYPathServicePtr IYPathService::Via(IInvokerPtr invoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TCacheProfilingCounters);
+DECLARE_REFCOUNTED_STRUCT(TCacheProfilingCounters)
 
 struct TCacheProfilingCounters
     : public TRefCounted
@@ -627,9 +627,9 @@ struct TCacheProfilingCounters
     NProfiling::TGauge ByteSize;
 };
 
-DEFINE_REFCOUNTED_TYPE(TCacheProfilingCounters);
+DEFINE_REFCOUNTED_TYPE(TCacheProfilingCounters)
 
-DECLARE_REFCOUNTED_CLASS(TCacheSnapshot);
+DECLARE_REFCOUNTED_CLASS(TCacheSnapshot)
 
 class TCacheSnapshot
     : public TRefCounted
@@ -679,7 +679,7 @@ private:
     TCacheProfilingCountersPtr ProfilingCounters_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TCacheSnapshot);
+DEFINE_REFCOUNTED_TYPE(TCacheSnapshot)
 
 DECLARE_REFCOUNTED_CLASS(TCachedYPathServiceContext)
 
@@ -717,9 +717,9 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TCachedYPathServiceContext);
+DEFINE_REFCOUNTED_TYPE(TCachedYPathServiceContext)
 
-DECLARE_REFCOUNTED_CLASS(TCachedYPathService);
+DECLARE_REFCOUNTED_CLASS(TCachedYPathService)
 
 class TCachedYPathService
     : public TYPathServiceBase
@@ -755,7 +755,7 @@ private:
     void UpdateCachedTree(const TErrorOr<INodePtr>& treeOrError);
 };
 
-DEFINE_REFCOUNTED_TYPE(TCachedYPathService);
+DEFINE_REFCOUNTED_TYPE(TCachedYPathService)
 
 TCachedYPathService::TCachedYPathService(
     IYPathServicePtr underlyingService,

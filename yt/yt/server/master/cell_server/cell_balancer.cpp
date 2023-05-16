@@ -597,7 +597,7 @@ private:
     {
         return PeerTracker_.IsPeer(cell, node->GetNode()) ||
             BannedPeerTracker_.IsPeer(cell, node->GetNode());
-    };
+    }
 
     void SmoothNodes(TNodeHolder* srcNode, TNodeHolder* dstNode, const TArea* area, int limit)
     {

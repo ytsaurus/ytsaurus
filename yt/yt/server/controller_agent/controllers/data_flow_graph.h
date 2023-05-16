@@ -73,7 +73,7 @@ private:
     const TIntrusivePtr<TImpl> Impl_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TDataFlowGraph);
+DEFINE_REFCOUNTED_TYPE(TDataFlowGraph)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,7 +103,7 @@ struct TInputStreamDescriptor
     void Persist(const TPersistenceContext& context);
 };
 
-DEFINE_REFCOUNTED_TYPE(TInputStreamDescriptor);
+DEFINE_REFCOUNTED_TYPE(TInputStreamDescriptor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,7 +153,7 @@ struct TOutputStreamDescriptor
     void Persist(const TPersistenceContext& context);
 };
 
-DEFINE_REFCOUNTED_TYPE(TOutputStreamDescriptor);
+DEFINE_REFCOUNTED_TYPE(TOutputStreamDescriptor)
 
 ////////////////////////////////////////////////////////////////////////////////
 

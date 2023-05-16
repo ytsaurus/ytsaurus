@@ -7,8 +7,8 @@ namespace NYT::NDynamicConfig {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager);
-DECLARE_REFCOUNTED_CLASS(TDynamicConfigManagerConfig);
+DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
+DECLARE_REFCOUNTED_CLASS(TDynamicConfigManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

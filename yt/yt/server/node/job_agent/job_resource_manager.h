@@ -19,7 +19,7 @@ namespace NYT::NJobAgent {
 DEFINE_ENUM(EResourcesConsumerType,
     ((MasterJob)      (0))
     ((SchedulerJob)   (1))
-)
+);
 
 class IJobResourceManager
     : public TRefCounted

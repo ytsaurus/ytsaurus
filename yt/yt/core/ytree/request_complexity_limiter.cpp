@@ -82,7 +82,7 @@ TReadRequestComplexityUsage& TReadRequestComplexityUsage::operator+=(const TRead
     NodeCount = add(NodeCount, that.NodeCount);
     ResultSize = add(ResultSize, that.ResultSize);
     return *this;
-};
+}
 
 const TReadRequestComplexity& TReadRequestComplexityUsage::AsComplexity() const noexcept
 {
@@ -96,7 +96,7 @@ TReadRequestComplexityLimits::TReadRequestComplexityLimits(
     : TReadRequestComplexity(limits)
 {
     VerifyNonNegative(limits);
-};
+}
 
 TError TReadRequestComplexityLimits::CheckOverdraught(
     const TReadRequestComplexityUsage& usage) const noexcept
@@ -119,7 +119,7 @@ TError TReadRequestComplexityLimits::CheckOverdraught(
     }
 
     return error;
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

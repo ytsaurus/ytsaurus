@@ -22,7 +22,7 @@ DEFINE_ENUM(ENodeCloneMode,
     ((Restore) (3))
 );
 
-DECLARE_REFCOUNTED_CLASS(TBatchAttributeFetcher);
+DECLARE_REFCOUNTED_CLASS(TBatchAttributeFetcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 

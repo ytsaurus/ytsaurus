@@ -424,7 +424,7 @@ TEphemeralObjectPtrContext TEphemeralObjectPtrContext::Capture()
         NDetail::EpochContext->CurrentEpoch,
         NDetail::EpochContext->EphemeralPtrUnrefInvoker
     };
-};
+}
 
 bool TEphemeralObjectPtrContext::IsCurrent() const
 {

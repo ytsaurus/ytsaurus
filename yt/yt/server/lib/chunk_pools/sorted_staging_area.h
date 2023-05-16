@@ -15,7 +15,7 @@ DEFINE_ENUM(ESliceType,
     (Buffer)
     (Solid)
     (Foreign)
-)
+);
 
 //! This interface defines a helper object for means of job creation. Think of it as of a staging
 //! area for data slices; it reacts on events like "promote current job upper bound to the

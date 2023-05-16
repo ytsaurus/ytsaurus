@@ -749,7 +749,7 @@ std::vector<TInstance> TDiscoverVersionsHandler::GetAttributes(
         result.StartTime = startTime;
     }
     return results;
-};
+}
 
 std::vector<TInstance> TDiscoverVersionsHandler::ListJobProxies()
 {

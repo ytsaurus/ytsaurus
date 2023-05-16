@@ -26,7 +26,7 @@ struct IMemoryReferenceTracker
         bool keepExistingTracking = false) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IMemoryReferenceTracker);
+DEFINE_REFCOUNTED_TYPE(IMemoryReferenceTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 

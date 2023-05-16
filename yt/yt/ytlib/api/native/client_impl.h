@@ -298,32 +298,32 @@ public:
         NQueryTrackerClient::EQueryEngine engine,
         const TString& query,
         const TStartQueryOptions& options = {}),
-        (engine, query, options));
+        (engine, query, options))
     IMPLEMENT_METHOD(void, AbortQuery, (
         NQueryTrackerClient::TQueryId queryId,
         const TAbortQueryOptions& options = {}),
-        (queryId, options));
+        (queryId, options))
     IMPLEMENT_METHOD(TQueryResult, GetQueryResult, (
         NQueryTrackerClient::TQueryId queryId,
         i64 resultIndex = 0,
         const TGetQueryResultOptions& options = {}),
-        (queryId, resultIndex, options));
+        (queryId, resultIndex, options))
     IMPLEMENT_METHOD(IUnversionedRowsetPtr, ReadQueryResult, (
         NQueryTrackerClient::TQueryId queryId,
         i64 resultIndex = 0,
         const TReadQueryResultOptions& options = {}),
-        (queryId, resultIndex, options));
+        (queryId, resultIndex, options))
     IMPLEMENT_METHOD(TQuery, GetQuery, (
         NQueryTrackerClient::TQueryId queryId,
         const TGetQueryOptions& options = {}),
-        (queryId, options));
+        (queryId, options))
     IMPLEMENT_METHOD(TListQueriesResult, ListQueries, (
         const TListQueriesOptions& options = {}),
-        (options));
+        (options))
     IMPLEMENT_METHOD(void, AlterQuery, (
         NQueryTrackerClient::TQueryId queryId,
         const TAlterQueryOptions& options = {}),
-        (queryId, options));
+        (queryId, options))
 
     IMPLEMENT_METHOD(NYson::TYsonString, GetNode, (
         const NYPath::TYPath& path,
@@ -723,20 +723,20 @@ public:
         const TString& user,
         const TString& passwordSha256,
         const TIssueTokenOptions& options),
-        (user, passwordSha256, options));
+        (user, passwordSha256, options))
 
     IMPLEMENT_METHOD(void, RevokeToken, (
         const TString& user,
         const TString& passwordSha256,
         const TString& tokenSha256,
         const TRevokeTokenOptions& options),
-        (user, passwordSha256, tokenSha256, options));
+        (user, passwordSha256, tokenSha256, options))
 
     IMPLEMENT_METHOD(TListUserTokensResult, ListUserTokens, (
         const TString& user,
         const TString& passwordSha256,
         const TListUserTokensOptions& options),
-        (user, passwordSha256, options));
+        (user, passwordSha256, options))
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD

@@ -71,7 +71,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, PrepareTimestamp, NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CommitTimestamp, NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, PrepareRevision, NHydra::NullRevision);
-    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, CommitTimestampClusterTag, NObjectClient::InvalidCellTag)
+    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, CommitTimestampClusterTag, NObjectClient::InvalidCellTag);
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletId>, TransientAffectedTabletIds);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletId>, PersistentAffectedTabletIds);

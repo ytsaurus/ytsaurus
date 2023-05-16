@@ -40,7 +40,7 @@ struct IUserJobReadController
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IUserJobReadController);
+DEFINE_REFCOUNTED_TYPE(IUserJobReadController)
 
 ////////////////////////////////////////////////////////////////////////////////
 

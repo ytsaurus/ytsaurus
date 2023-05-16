@@ -44,8 +44,8 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TYqlSettings);
-DECLARE_REFCOUNTED_CLASS(TYqlSettings);
+DEFINE_REFCOUNTED_TYPE(TYqlSettings)
+DECLARE_REFCOUNTED_CLASS(TYqlSettings)
 
 ///////////////////////////////////////////////////////////////////////////////
 

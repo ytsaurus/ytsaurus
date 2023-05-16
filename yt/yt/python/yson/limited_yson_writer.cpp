@@ -12,7 +12,7 @@ DEFINE_ENUM(ETokenType,
     (Attributes)
     (Map)
     (List)
-)
+);
 
 class TLimitedYsonWriter::TImpl
     : public TRefCounted

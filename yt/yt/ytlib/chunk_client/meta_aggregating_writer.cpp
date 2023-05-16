@@ -379,7 +379,7 @@ bool TMetaAggregatingWriter::ExtensionEquals(const std::optional<T>& lhs, const 
         return true;
     }
     return google::protobuf::util::MessageDifferencer::Equals(*lhs, *rhs);
-};
+}
 
 void TMetaAggregatingWriter::AbsorbFirstMeta(const TDeferredChunkMetaPtr& meta, TChunkId /*chunkId*/)
 {

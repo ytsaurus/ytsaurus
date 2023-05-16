@@ -32,7 +32,7 @@ struct IFairShareCallbackQueue
     virtual void AccountCpuTime(int bucketIndex, NProfiling::TCpuDuration cpuTime) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IFairShareCallbackQueue);
+DEFINE_REFCOUNTED_TYPE(IFairShareCallbackQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 

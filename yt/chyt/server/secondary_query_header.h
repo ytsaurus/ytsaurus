@@ -45,7 +45,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSecondaryQueryHeader);
+DEFINE_REFCOUNTED_TYPE(TSecondaryQueryHeader)
 
 ////////////////////////////////////////////////////////////////////////////////
 

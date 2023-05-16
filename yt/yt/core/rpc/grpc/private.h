@@ -32,7 +32,7 @@ inline const NLogging::TLogger GrpcLogger("Grpc");
 
 class TCompletionQueueTag;
 
-DECLARE_REFCOUNTED_CLASS(TGrpcLibraryLock);
+DECLARE_REFCOUNTED_CLASS(TGrpcLibraryLock)
 
 ////////////////////////////////////////////////////////////////////////////////
 

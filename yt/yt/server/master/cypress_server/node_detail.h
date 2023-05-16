@@ -500,7 +500,7 @@ class TScalarNode
     : public TCypressNode
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(TValue, Value)
+    DEFINE_BYREF_RW_PROPERTY(TValue, Value);
 
 public:
     using TCypressNode::TCypressNode;

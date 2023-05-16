@@ -71,7 +71,7 @@ public:
 
 private:
     friend class TInternRegistry<T>;
-    DECLARE_NEW_FRIEND();
+    DECLARE_NEW_FRIEND()
 
     const T Data_;
     const size_t Hash_;

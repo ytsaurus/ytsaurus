@@ -74,7 +74,7 @@ private:
     void RefillSessions();
     void UpdateReadyEvent();
 
-    DECLARE_NEW_FRIEND();
+    DECLARE_NEW_FRIEND()
 };
 
 DECLARE_REFCOUNTED_CLASS(TSchemafulOverlappingLookupReader)
@@ -750,7 +750,7 @@ private:
             minConcurrency)
     { }
 
-    DECLARE_NEW_FRIEND();
+    DECLARE_NEW_FRIEND()
 };
 
 ////////////////////////////////////////////////////////////////////////////////

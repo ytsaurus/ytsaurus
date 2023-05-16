@@ -17,7 +17,7 @@ struct IClickHouseServer
 };
 
 
-DEFINE_REFCOUNTED_TYPE(IClickHouseServer);
+DEFINE_REFCOUNTED_TYPE(IClickHouseServer)
 
 ////////////////////////////////////////////////////////////////////////////////
 

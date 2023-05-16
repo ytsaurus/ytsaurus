@@ -801,7 +801,7 @@ public:
     void AddRowBatch(const TVector<T>& rowBatch, size_t tableIndex = 0, size_t rowBatchWeight = 0)
     {
         DoAddRowBatch<T>(rowBatch, tableIndex, rowBatchWeight);
-    };
+    }
 
     void AddRowBatch(TVector<T>&& rowBatch, size_t tableIndex = 0, size_t rowBatchWeight = 0)
     {

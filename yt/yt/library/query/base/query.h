@@ -902,7 +902,7 @@ struct TAbstractExpressionPrinter
 
         case EBinaryOp::BitOr:
             return 4;
-        
+
         case EBinaryOp::Equal:
         case EBinaryOp::NotEqual:
         case EBinaryOp::Less:
@@ -913,7 +913,7 @@ struct TAbstractExpressionPrinter
 
         case EBinaryOp::And:
             return 6;
-        
+
         case EBinaryOp::Or:
             return 7;
         }
@@ -927,7 +927,7 @@ struct TAbstractExpressionPrinter
             expr->As<TFunctionExpression>() ||
             expr->As<TUnaryOpExpression>() ||
             expr->As<TTransformExpression>();
-    };
+    }
 
     const TExpression* GetExpression(const TConstExpressionPtr& expr)
     {
@@ -1030,7 +1030,7 @@ struct TAbstractExpressionPrinter
                 }
             }
         }
-        
+
         if (needParenthesisRhs) {
             Builder->AppendChar('(');
         }

@@ -173,6 +173,7 @@ public: \
         name##_ = value; \
         ShouldFlush_ = true; \
     } \
+    static_assert(true)
 
 #define DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(type, name, ...) \
 protected: \
@@ -188,7 +189,8 @@ public: \
     Y_FORCE_INLINE const type& name() const \
     { \
         return name##_; \
-    }
+    } \
+    static_assert(true)
 
 ////////////////////////////////////////////////////////////////////////////////
 

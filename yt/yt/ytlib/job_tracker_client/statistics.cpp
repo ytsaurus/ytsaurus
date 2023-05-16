@@ -63,7 +63,7 @@ THashMap<int, i64> GetOutputPipeIdleTimes(const TStatistics& jobStatistics)
     }
 
     return result;
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

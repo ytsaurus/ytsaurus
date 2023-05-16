@@ -1026,8 +1026,8 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TClickHouseContext);
-DECLARE_REFCOUNTED_CLASS(TClickHouseContext);
+DEFINE_REFCOUNTED_TYPE(TClickHouseContext)
+DECLARE_REFCOUNTED_CLASS(TClickHouseContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 

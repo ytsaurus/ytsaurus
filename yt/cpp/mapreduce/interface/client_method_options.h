@@ -1413,10 +1413,10 @@ struct TSkyShareTableOptions
     ///
     /// One torrent is created for each value of `KeyColumns` columns.
     /// If not specified, all files go into single torrent.
-    FLUENT_FIELD_OPTION(TColumnNames, KeyColumns)
+    FLUENT_FIELD_OPTION(TColumnNames, KeyColumns);
 
     /// @brief Allow skynet manager to return fastbone links to skynet. See YT-11437
-    FLUENT_FIELD_OPTION(bool, EnableFastbone)
+    FLUENT_FIELD_OPTION(bool, EnableFastbone);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

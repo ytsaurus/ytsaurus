@@ -78,7 +78,7 @@ private:
 
     void FreeInstance(TObject* obj);
 
-    Y_DECLARE_SINGLETON_FRIEND();
+    Y_DECLARE_SINGLETON_FRIEND()
 };
 
 template <class TObject, class TTraits = TPooledObjectTraits<TObject>>

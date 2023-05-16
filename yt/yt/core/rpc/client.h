@@ -429,7 +429,8 @@ struct TServiceDescriptor
     \
     explicit type(::NYT::NRpc::IChannelPtr channel) \
         : ::NYT::NRpc::TProxyBase(std::move(channel), GetDescriptor()) \
-    { }
+    { } \
+    static_assert(true)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -456,7 +457,8 @@ struct TMethodDescriptor
     { \
         static const auto Descriptor = ::NYT::NRpc::TMethodDescriptor(#method) __VA_ARGS__; \
         return CreateRequest<TReq##method>(Descriptor); \
-    }
+    } \
+    static_assert(true)
 
 ////////////////////////////////////////////////////////////////////////////////
 

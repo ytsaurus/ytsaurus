@@ -134,7 +134,7 @@ struct TRefCountedJobPreemptionStatusMapPerOperation
     , public TJobPreemptionStatusMapPerOperation
 { };
 
-DEFINE_REFCOUNTED_TYPE(TRefCountedJobPreemptionStatusMapPerOperation);
+DEFINE_REFCOUNTED_TYPE(TRefCountedJobPreemptionStatusMapPerOperation)
 
 struct TCachedJobPreemptionStatuses
 {

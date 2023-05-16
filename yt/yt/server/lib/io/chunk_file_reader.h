@@ -31,7 +31,7 @@ struct TBlocksExt final
     bool SyncOnClose = false;
 };
 
-DEFINE_REFCOUNTED_TYPE(TBlocksExt);
+DEFINE_REFCOUNTED_TYPE(TBlocksExt)
 
 ////////////////////////////////////////////////////////////////////////////////
 

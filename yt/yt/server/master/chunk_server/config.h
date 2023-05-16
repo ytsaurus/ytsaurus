@@ -173,7 +173,7 @@ public:
 
     bool ShouldRescheduleAfterChange(const TDynamicChunkReincarnatorConfig& that) const noexcept;
 
-    REGISTER_YSON_STRUCT(TDynamicChunkReincarnatorConfig)
+    REGISTER_YSON_STRUCT(TDynamicChunkReincarnatorConfig);
 
     static void Register(TRegistrar registrar);
 

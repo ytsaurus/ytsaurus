@@ -32,9 +32,9 @@ using NTabletNode::TTableMountConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(ILsmBackend);
+DECLARE_REFCOUNTED_STRUCT(ILsmBackend)
 
-DECLARE_REFCOUNTED_CLASS(TTablet);
+DECLARE_REFCOUNTED_CLASS(TTablet)
 
 class TPartition;
 class TStore;

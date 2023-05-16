@@ -527,11 +527,11 @@ public:
     }
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Account, TAccount)
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(AccountResourceUsageLease, TAccountResourceUsageLease)
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(User, TUser)
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Group, TGroup)
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(NetworkProject, TNetworkProject)
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Account, TAccount);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(AccountResourceUsageLease, TAccountResourceUsageLease);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(User, TUser);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Group, TGroup);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(NetworkProject, TNetworkProject);
 
 
     TAccount* CreateAccount(TObjectId hintId = NullObjectId) override
@@ -4465,11 +4465,11 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, AccountMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, AccountResourceUsageLease, TAccountResourceUsageLease, AccountResourceUsageLeaseMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, UserMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, GroupMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, NetworkProject, TNetworkProject, NetworkProjectMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, AccountMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, AccountResourceUsageLease, TAccountResourceUsageLease, AccountResourceUsageLeaseMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, UserMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, GroupMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, NetworkProject, TNetworkProject, NetworkProjectMap_);
 
 
 ////////////////////////////////////////////////////////////////////////////////

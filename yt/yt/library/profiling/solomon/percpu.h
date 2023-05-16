@@ -112,8 +112,8 @@ private:
     std::array<TShard, TTscp::MaxProcessorId> Shards_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TPerCpuSummary<double>);
-DEFINE_REFCOUNTED_TYPE(TPerCpuSummary<TDuration>);
+DEFINE_REFCOUNTED_TYPE(TPerCpuSummary<double>)
+DEFINE_REFCOUNTED_TYPE(TPerCpuSummary<TDuration>)
 
 ////////////////////////////////////////////////////////////////////////////////
 

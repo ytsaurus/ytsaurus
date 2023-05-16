@@ -18,7 +18,7 @@ class TStoreManagerBase
     : public virtual IStoreManager
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(TTablet*, Tablet)
+    DEFINE_BYVAL_RO_PROPERTY(TTablet*, Tablet);
 
 public:
     TStoreManagerBase(

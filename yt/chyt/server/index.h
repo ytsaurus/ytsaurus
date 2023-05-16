@@ -27,7 +27,7 @@ public:
     DB::MergeTreeIndexAggregatorPtr CreateAggregator() const;
 };
 
-DEFINE_REFCOUNTED_TYPE(TClickHouseIndex);
+DEFINE_REFCOUNTED_TYPE(TClickHouseIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -40,6 +40,7 @@ public: \
     { \
         return name##_.Get(); \
     } \
+    static_assert(true)
 
 #define DEFINE_BYVAL_EXTRA_AGGREGATE_PROPERTY(holder, name) \
 public: \
@@ -70,6 +71,7 @@ public: \
         INITIALIZE_EXTRA_PROPERTY_HOLDER(holder); \
         holder##_->name.Reset(); \
     } \
+    static_assert(true)
 
 ////////////////////////////////////////////////////////////////////////////////
 

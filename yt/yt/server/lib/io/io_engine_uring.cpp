@@ -368,7 +368,7 @@ struct TReadUringRequest
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TUringConfigProvider);
+DECLARE_REFCOUNTED_STRUCT(TUringConfigProvider)
 
 #define YT_DECLARE_ATOMIC_FIELD(type, name) \
     std::atomic<type> name##_;\
@@ -417,11 +417,11 @@ struct TUringConfigProvider final
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TUringConfigProvider);
+DEFINE_REFCOUNTED_TYPE(TUringConfigProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IUringThreadPool);
+DECLARE_REFCOUNTED_STRUCT(IUringThreadPool)
 
 struct IUringThreadPool
     : public TRefCounted
@@ -437,7 +437,7 @@ struct IUringThreadPool
     virtual const TNotificationHandle& GetNotificationHandle(int threadIndex) const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IUringThreadPool);
+DEFINE_REFCOUNTED_TYPE(IUringThreadPool)
 
 ////////////////////////////////////////////////////////////////////////////////
 

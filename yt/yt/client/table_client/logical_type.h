@@ -41,7 +41,7 @@ DEFINE_ENUM(ELogicalMetatype,
     (Tagged)
 
     (Decimal)
-)
+);
 
 class TLogicalType
     : public virtual TRefCounted

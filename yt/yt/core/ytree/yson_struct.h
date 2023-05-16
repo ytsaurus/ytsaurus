@@ -22,7 +22,7 @@ namespace NYT::NYTree {
 //! Base class for structs that are meant to be serialized to or deserialized from YSON.
 /*!
  * Usually this class is used for various configs.
- * To use it inherit TYsonStruct and add `REGISTER_YSON_STRUCT(TYourClass);` to your class declaration
+ * To use it inherit TYsonStruct and add `REGISTER_YSON_STRUCT(TYourClass)` to your class declaration
  * for ref-counted struct or inherit TYsonStructLite and add `REGISTER_YSON_STRUCT_LITE(TYourClass);`
  * for non-ref-counted struct. Then configure fields in static method TYourClass::Register(TRegistrar registrar).
  * Various examples can be found in yt/yt/core/ytree/unittests/yson_struct_ut.cpp
@@ -259,7 +259,7 @@ void UpdateYsonStructField(TIntrusivePtr<TDst>& dst, const TIntrusivePtr<TSrc>& 
 private: \
     using TRegistrar = ::NYT::NYTree::TYsonStructRegistrar<TStruct>; \
     using TThis = TStruct; \
-    friend class ::NYT::NYTree::TYsonStructRegistry;
+    friend class ::NYT::NYTree::TYsonStructRegistry
 
 #define REGISTER_YSON_STRUCT(TStruct) \
 public: \

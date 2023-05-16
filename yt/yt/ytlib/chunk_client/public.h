@@ -232,7 +232,7 @@ using TRefCountedBlocksExt = TRefCountedProto<NChunkClient::NProto::TBlocksExt>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedBlocksExt)
 
 using TRefCountedMiscExt = TRefCountedProto<NChunkClient::NProto::TMiscExt>;
-DECLARE_REFCOUNTED_TYPE(TRefCountedMiscExt);
+DECLARE_REFCOUNTED_TYPE(TRefCountedMiscExt)
 
 using TPlacementId = TGuid;
 

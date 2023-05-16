@@ -278,7 +278,7 @@ public:
     const TProtobufEnumType* ReflectEnumTypeInternal(const EnumDescriptor* descriptor);
 
 private:
-    Y_DECLARE_SINGLETON_FRIEND();
+    Y_DECLARE_SINGLETON_FRIEND()
     TProtobufTypeRegistry() = default;
 
     void Initialize() const

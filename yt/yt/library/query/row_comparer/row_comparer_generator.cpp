@@ -573,7 +573,7 @@ public:
 IRowComparerProviderPtr CreateRowComparerProvider(TSlruCacheConfigPtr config)
 {
     return New<TRowComparerCache>(config);
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

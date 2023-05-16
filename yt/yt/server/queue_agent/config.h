@@ -28,7 +28,7 @@ class TAlertManagerDynamicConfig
 public:
     TDuration AlertCollectionPeriod;
 
-    REGISTER_YSON_STRUCT(TAlertManagerDynamicConfig)
+    REGISTER_YSON_STRUCT(TAlertManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -41,7 +41,7 @@ class TCypressSynchronizerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    REGISTER_YSON_STRUCT(TCypressSynchronizerConfig)
+    REGISTER_YSON_STRUCT(TCypressSynchronizerConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -91,7 +91,7 @@ public:
     //! Each queue agent only handles queues and consumers with the corresponding attribute set to its own stage.
     TString Stage;
 
-    REGISTER_YSON_STRUCT(TQueueAgentConfig)
+    REGISTER_YSON_STRUCT(TQueueAgentConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -111,7 +111,7 @@ public:
     //! Flag for disabling automatic trimming entirely.
     bool EnableAutomaticTrimming;
 
-    REGISTER_YSON_STRUCT(TQueueControllerDynamicConfig)
+    REGISTER_YSON_STRUCT(TQueueControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -148,7 +148,7 @@ class TQueueAgentShardingManagerDynamicConfig
 public:
     TDuration PassPeriod;
 
-    REGISTER_YSON_STRUCT(TQueueAgentShardingManagerDynamicConfig)
+    REGISTER_YSON_STRUCT(TQueueAgentShardingManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -180,7 +180,7 @@ public:
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
     TString DynamicConfigPath;
 
-    REGISTER_YSON_STRUCT(TQueueAgentServerConfig)
+    REGISTER_YSON_STRUCT(TQueueAgentServerConfig);
 
     static void Register(TRegistrar registrar);
 };

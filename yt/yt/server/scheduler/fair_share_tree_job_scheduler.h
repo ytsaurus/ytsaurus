@@ -323,7 +323,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TScheduleJobsStatistics, SchedulingStatistics);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, SsdPriorityPreemptionEnabled);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<int>, SsdPriorityPreemptionMedia)
+    DEFINE_BYREF_RW_PROPERTY(THashSet<int>, SsdPriorityPreemptionMedia);
 
     // NB(eshcherbin): The following properties are public for testing purposes.
     DEFINE_BYREF_RW_PROPERTY(TJobWithPreemptionInfoSetMap, ConditionallyPreemptibleJobSetMap);
@@ -597,7 +597,7 @@ private:
     friend class TFairShareTreeJobScheduler;
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareTreeSchedulingSnapshot);
+DEFINE_REFCOUNTED_TYPE(TFairShareTreeSchedulingSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 

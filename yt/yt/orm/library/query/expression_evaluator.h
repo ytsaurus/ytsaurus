@@ -27,7 +27,7 @@ struct IExpressionEvaluator
     virtual const TString& GetQuery() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IExpressionEvaluator);
+DEFINE_REFCOUNTED_TYPE(IExpressionEvaluator)
 
 ////////////////////////////////////////////////////////////////////////////////
 

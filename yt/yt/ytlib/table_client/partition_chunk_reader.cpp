@@ -259,7 +259,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
 
     reader->Open();
     return reader;
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

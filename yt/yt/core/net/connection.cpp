@@ -715,7 +715,7 @@ private:
         , Poller_(poller)
     { }
 
-    DECLARE_NEW_FRIEND();
+    DECLARE_NEW_FRIEND()
 
     class TSynchronousIOGuard
     {

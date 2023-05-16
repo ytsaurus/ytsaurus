@@ -2239,7 +2239,7 @@ private:
                 desiredCount = desiredCount < max ? desiredCount : max;
                 std::atomic_thread_fence(std::memory_order::acquire);
 
-                auto myDequeueCount = this->dequeueOptimisticCount.fetch_add(desiredCount, std::memory_order::relaxed);;
+                auto myDequeueCount = this->dequeueOptimisticCount.fetch_add(desiredCount, std::memory_order::relaxed);
 
                 tail = this->tailIndex.load(std::memory_order::acquire);
                 auto actualCount = static_cast<size_t>(tail - (myDequeueCount - overcommit));

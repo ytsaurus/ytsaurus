@@ -127,7 +127,8 @@ TErrorOr<NApi::IUnversionedRowsetPtr> LookupOperationsInArchive(
 
 DEFINE_ENUM(EPoolNameValidationLevel,
     (NonStrict)
-    (Strict))
+    (Strict)
+);
 
 TError CheckPoolName(const TString& poolName, EPoolNameValidationLevel validationLevel = EPoolNameValidationLevel::NonStrict);
 void ValidatePoolName(const TString& poolName, EPoolNameValidationLevel validationLevel = EPoolNameValidationLevel::NonStrict);

@@ -220,7 +220,7 @@ DEFINE_ENUM(EYPathLimitKind,
     (None)
     (RowIndex)
     (Key)
-)
+);
 
 //! This is an intermediate representation used only while parsing rich YPath short form.
 struct TYPathLimit

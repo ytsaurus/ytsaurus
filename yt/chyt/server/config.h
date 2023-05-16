@@ -46,7 +46,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TCompositeSettings);
+DEFINE_REFCOUNTED_TYPE(TCompositeSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,7 +71,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDynamicTableSettings);
+DEFINE_REFCOUNTED_TYPE(TDynamicTableSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,7 +96,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TTestingSettings);
+DEFINE_REFCOUNTED_TYPE(TTestingSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -162,7 +162,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TExecutionSettings);
+DEFINE_REFCOUNTED_TYPE(TExecutionSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -358,7 +358,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TMemoryWatchdogConfig);
+DEFINE_REFCOUNTED_TYPE(TMemoryWatchdogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -375,7 +375,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig);
+DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -394,7 +394,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueryStatisticsReporterConfig);
+DEFINE_REFCOUNTED_TYPE(TQueryStatisticsReporterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -426,7 +426,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TGossipConfig);
+DEFINE_REFCOUNTED_TYPE(TGossipConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -444,7 +444,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TInvokerLivenessCheckerConfig);
+DEFINE_REFCOUNTED_TYPE(TInvokerLivenessCheckerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -462,7 +462,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueryRegistryConfig);
+DEFINE_REFCOUNTED_TYPE(TQueryRegistryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -478,7 +478,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TQuerySamplingConfig);
+DEFINE_REFCOUNTED_TYPE(TQuerySamplingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -497,7 +497,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TClickHouseTableConfig);
+DEFINE_REFCOUNTED_TYPE(TClickHouseTableConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -514,7 +514,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueryLogConfig);
+DEFINE_REFCOUNTED_TYPE(TQueryLogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -602,7 +602,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TYtConfig);
+DEFINE_REFCOUNTED_TYPE(TYtConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -617,7 +617,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TLauncherConfig);
+DEFINE_REFCOUNTED_TYPE(TLauncherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -659,7 +659,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TMemoryConfig);
+DEFINE_REFCOUNTED_TYPE(TMemoryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -706,7 +706,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TClickHouseServerBootstrapConfig);
+DEFINE_REFCOUNTED_TYPE(TClickHouseServerBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

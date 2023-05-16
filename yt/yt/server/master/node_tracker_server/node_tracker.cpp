@@ -2366,10 +2366,10 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, NodeMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker, Host, THost, HostMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker, Rack, TRack, RackMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker, DataCenter, TDataCenter, DataCenterMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, NodeMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker, Host, THost, HostMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker, Rack, TRack, RackMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker, DataCenter, TDataCenter, DataCenterMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

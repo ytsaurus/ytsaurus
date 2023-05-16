@@ -92,7 +92,7 @@ public:
 
     std::optional<TDuration> CheckPeriod;
 
-    REGISTER_YSON_STRUCT(TRowDigestCompactionConfig)
+    REGISTER_YSON_STRUCT(TRowDigestCompactionConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -340,7 +340,7 @@ class TTabletHunkWriterConfig
     : public NChunkClient::TMultiChunkWriterConfig
     , public NTableClient::THunkChunkPayloadWriterConfig
 {
-    REGISTER_YSON_STRUCT(TTabletHunkWriterConfig)
+    REGISTER_YSON_STRUCT(TTabletHunkWriterConfig);
 
     static void Register(TRegistrar registrar);
 };

@@ -3220,7 +3220,7 @@ private:
             *rowset->GetSchema(),
             rowset->GetRows(),
             response->mutable_rowset_descriptor());
-    };
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, LookupRows)
     {

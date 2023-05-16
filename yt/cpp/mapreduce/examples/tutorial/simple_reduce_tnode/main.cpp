@@ -26,7 +26,7 @@ public:
         writer->AddRow(result);
     }
 };
-REGISTER_REDUCER(TCountNamesReduce);
+REGISTER_REDUCER(TCountNamesReduce)
 
 int main() {
     NYT::Initialize();

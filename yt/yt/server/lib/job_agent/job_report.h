@@ -58,9 +58,9 @@ struct TJobEvent
     explicit TJobEvent(NJobTrackerClient::EJobPhase phase);
     TJobEvent(NJobTrackerClient::EJobState state, NJobTrackerClient::EJobPhase phase);
 
-    DEFINE_BYREF_RO_PROPERTY(TInstant, Timestamp)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<NJobTrackerClient::EJobState>, State)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<NJobTrackerClient::EJobPhase>, Phase)
+    DEFINE_BYREF_RO_PROPERTY(TInstant, Timestamp);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NJobTrackerClient::EJobState>, State);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NJobTrackerClient::EJobPhase>, Phase);
 };
 
 using TJobEvents = std::vector<TJobEvent>;
@@ -90,26 +90,26 @@ struct TJobReport
 
     bool IsEmpty() const;
 
-    DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TOperationId, OperationId)
-    DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, JobId)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<NJobTrackerClient::EJobType>, Type)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, State)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, StartTime)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, FinishTime)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Error)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Spec)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, SpecVersion)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Statistics)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Events)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<ui64>, StderrSize)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Stderr)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, FailContext)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TJobProfile>, Profile)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<NScheduler::TCoreInfos>, CoreInfos)
-    DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, JobCompetitionId)
-    DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, ProbingJobCompetitionId)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<bool>, HasCompetitors)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<bool>, HasProbingCompetitors)
+    DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TOperationId, OperationId);
+    DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, JobId);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NJobTrackerClient::EJobType>, Type);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, State);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, StartTime);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, FinishTime);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Error);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Spec);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, SpecVersion);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Statistics);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Events);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<ui64>, StderrSize);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Stderr);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, FailContext);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TJobProfile>, Profile);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NScheduler::TCoreInfos>, CoreInfos);
+    DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, JobCompetitionId);
+    DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, ProbingJobCompetitionId);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<bool>, HasCompetitors);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<bool>, HasProbingCompetitors);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, ExecAttributes);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, TaskName);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, TreeId);
@@ -174,7 +174,7 @@ struct TGpuDevice
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TGpuDevice);
+DEFINE_REFCOUNTED_TYPE(TGpuDevice)
 
 struct TExecAttributes
     : public NYTree::TYsonStructLite

@@ -86,7 +86,7 @@ public:
                 THROW_ERROR_EXCEPTION("Invalid export config: \"job_count\" must be greater than \"job_index\"");
             }
         });
-    };
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TExportArgumentsConfig)

@@ -173,7 +173,7 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TZookeeperManager, ZookeeperShard, TZookeeperShard, ZookeeperShardMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TZookeeperManager, ZookeeperShard, TZookeeperShard, ZookeeperShardMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

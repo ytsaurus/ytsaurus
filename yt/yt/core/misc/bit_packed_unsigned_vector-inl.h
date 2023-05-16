@@ -92,7 +92,7 @@ BitPackUnsignedVector(TRange<T> values, ui64 maxValue)
     YT_VERIFY(size == actualSize * sizeof(ui64));
 
     return data;
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

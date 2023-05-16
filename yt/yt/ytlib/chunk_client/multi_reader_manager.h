@@ -72,7 +72,7 @@ struct IMultiReaderManager
     DECLARE_INTERFACE_SIGNAL(void(), ReaderSwitched);
 };
 
-DEFINE_REFCOUNTED_TYPE(IMultiReaderManager);
+DEFINE_REFCOUNTED_TYPE(IMultiReaderManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

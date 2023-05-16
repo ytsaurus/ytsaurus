@@ -30,7 +30,7 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TTable);
+DEFINE_REFCOUNTED_TYPE(TTable)
 
 TTable::TTable(TRichYPath path, const IAttributeDictionaryPtr& attributes)
     : TUserObject(std::move(path))

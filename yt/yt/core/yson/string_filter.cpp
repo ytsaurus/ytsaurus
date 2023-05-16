@@ -220,7 +220,7 @@ private:
             Cursor_.GetCurrent().GetType(),
             StackLevelIsList_.back() ? "list" : "map",
             stage);
-    };
+    }
 
     //! If the current stack corresponds to a requested path, pass the current
     //! composite to a sparse YSON builder.
@@ -236,7 +236,7 @@ private:
             return true;
         }
         return false;
-    };
+    }
 
     //! A helper function that starts consuming a composite item. It returns true if
     //! current composite is not finished, and advances to the beginning of the value
@@ -267,7 +267,7 @@ private:
                     ThrowUnexpectedItemType("prologue");
             }
         }
-    };
+    }
 
     //! A helper function that finishes consuming a composite item. It either transfers
     //! a whole value to a sparse YSON builder in case of a match, descends into inner
@@ -318,7 +318,7 @@ private:
                 // "{42;]", "{foo=}", "<foo=bar><boo=far>42", "[>]" or "[foo".
                 ThrowUnexpectedItemType("epilogue");
         }
-    };
+    }
 
     //! A helper to move out of a finished composite.
     void FinishComposite()
@@ -326,7 +326,7 @@ private:
         StackLevelIsList_.pop_back();
         Stack_.Pop();
         Cursor_.Next();
-    };
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////

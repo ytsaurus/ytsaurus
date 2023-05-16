@@ -367,7 +367,7 @@ double TParameterizedReassignSolver::CalculateTotalBundleMetric() const
         });
 
     return cellMetric + nodeMetric;
-};
+}
 
 bool TParameterizedReassignSolver::CheckMoveFollowsMemoryLimits(
     const TTabletInfo* tablet,
@@ -478,7 +478,7 @@ void TParameterizedReassignSolver:: TryMoveTablet(
             }
         };
     }
-};
+}
 
 bool TParameterizedReassignSolver::CheckSwapFollowsMemoryLimits(
     const TTabletInfo* lhsTablet,
@@ -641,7 +641,7 @@ void TParameterizedReassignSolver::TrySwapTablets(
             }
         };
     }
-};
+}
 
 bool TParameterizedReassignSolver::TryFindBestAction(bool canMakeSwap)
 {

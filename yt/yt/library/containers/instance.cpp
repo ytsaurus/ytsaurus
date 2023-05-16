@@ -727,7 +727,7 @@ private:
         SetProperty(key, ToString(value));
     }
 
-    DECLARE_NEW_FRIEND();
+    DECLARE_NEW_FRIEND()
 };
 
 ////////////////////////////////////////////////////////////////////////////////

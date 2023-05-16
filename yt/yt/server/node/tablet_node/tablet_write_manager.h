@@ -28,7 +28,7 @@ struct ITabletWriteManagerHost
     virtual const IBackupManagerPtr& GetBackupManager() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ITabletWriteManagerHost);
+DEFINE_REFCOUNTED_TYPE(ITabletWriteManagerHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 

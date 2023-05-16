@@ -131,7 +131,7 @@ std::optional<EJobPreemptionStatus> GetCachedJobPreemptionStatus(
     const auto& jobIdToStatus = operationIt->second;
     auto jobIt = jobIdToStatus.find(job->GetId());
     return jobIt != jobIdToStatus.end() ? std::make_optional(jobIt->second) : std::nullopt;
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

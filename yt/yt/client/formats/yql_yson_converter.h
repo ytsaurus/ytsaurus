@@ -18,8 +18,8 @@ struct TYqlConverterConfig
     std::optional<i64> StringWeightLimit;
     std::optional<i64> FieldWeightLimit;
 };
-DECLARE_REFCOUNTED_STRUCT(TYqlConverterConfig);
-DEFINE_REFCOUNTED_TYPE(TYqlConverterConfig);
+DECLARE_REFCOUNTED_STRUCT(TYqlConverterConfig)
+DEFINE_REFCOUNTED_TYPE(TYqlConverterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

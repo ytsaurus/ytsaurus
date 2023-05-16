@@ -162,7 +162,7 @@ TYsonStructRegistry::TForbidCachedDynamicCastGuard::TForbidCachedDynamicCastGuar
     : Target_(target)
 {
     Target_->CachedDynamicCastAllowed_ = false;
-};
+}
 
 TYsonStructRegistry::TForbidCachedDynamicCastGuard::~TForbidCachedDynamicCastGuard()
 {
@@ -188,7 +188,7 @@ void Deserialize(TYsonStructBase& value, TYsonPullParserCursor* cursor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TYsonStruct);
+DEFINE_REFCOUNTED_TYPE(TYsonStruct)
 
 ////////////////////////////////////////////////////////////////////////////////
 

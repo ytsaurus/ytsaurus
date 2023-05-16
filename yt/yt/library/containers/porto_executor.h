@@ -125,7 +125,7 @@ struct IPortoExecutor
 
     virtual IInvokerPtr GetInvoker() const = 0;
 
-    DECLARE_INTERFACE_SIGNAL(void(const TError&), Failed)
+    DECLARE_INTERFACE_SIGNAL(void(const TError&), Failed);
 };
 
 DEFINE_REFCOUNTED_TYPE(IPortoExecutor)

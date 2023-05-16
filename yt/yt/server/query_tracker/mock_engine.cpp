@@ -44,8 +44,8 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TMockResult);
-DECLARE_REFCOUNTED_CLASS(TMockResult);
+DEFINE_REFCOUNTED_TYPE(TMockResult)
+DECLARE_REFCOUNTED_CLASS(TMockResult)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,8 +68,8 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TMockSettings);
-DECLARE_REFCOUNTED_CLASS(TMockSettings);
+DEFINE_REFCOUNTED_TYPE(TMockSettings)
+DECLARE_REFCOUNTED_CLASS(TMockSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 

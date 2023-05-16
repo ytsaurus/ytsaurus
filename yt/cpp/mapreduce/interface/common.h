@@ -33,7 +33,8 @@ namespace NYT {
     { \
         name##_ = value; \
         return static_cast<TSelf&>(*this); \
-    }
+    } \
+    static_assert(true)
 
 #define FLUENT_FIELD_ENCAPSULATED(type, name) \
 private: \
@@ -56,7 +57,8 @@ public: \
     type name() && \
     { \
         return name##_; \
-    }
+    } \
+    static_assert(true)
 
 #define FLUENT_FIELD_OPTION(type, name) \
     TMaybe<type> name##_; \
@@ -64,7 +66,8 @@ public: \
     { \
         name##_ = value; \
         return static_cast<TSelf&>(*this); \
-    }
+    } \
+    static_assert(true)
 
 #define FLUENT_FIELD_OPTION_ENCAPSULATED(type, name) \
 private: \
@@ -97,7 +100,8 @@ public: \
     TMaybe<type> name() && \
     { \
         return name##_; \
-    }
+    } \
+    static_assert(true)
 
 #define FLUENT_FIELD_DEFAULT(type, name, defaultValue) \
     type name##_ = defaultValue; \
@@ -105,7 +109,8 @@ public: \
     { \
         name##_ = value; \
         return static_cast<TSelf&>(*this); \
-    }
+    } \
+    static_assert(true)
 
 #define FLUENT_FIELD_DEFAULT_ENCAPSULATED(type, name, defaultValue) \
 private: \
@@ -128,7 +133,8 @@ public: \
     type name() && \
     { \
         return name##_; \
-    }
+    } \
+    static_assert(true)
 
 #define FLUENT_VECTOR_FIELD(type, name) \
     TVector<type> name##s_; \
@@ -141,7 +147,8 @@ public: \
     { \
         name##s_ = std::move(values); \
         return static_cast<TSelf&>(*this);\
-    }
+    } \
+    static_assert(true)
 
 #define FLUENT_OPTIONAL_VECTOR_FIELD_ENCAPSULATED(type, name) \
 private: \
@@ -201,7 +208,8 @@ public: \
     { \
         name##s_ = Nothing(); \
         return static_cast<TSelf&&>(*this);\
-    }
+    } \
+    static_assert(true)
 
 #define FLUENT_VECTOR_FIELD_ENCAPSULATED(type, name) \
 private: \
@@ -234,7 +242,8 @@ public: \
     TVector<type> name##s() && \
     { \
         return name##s_; \
-    }
+    } \
+    static_assert(true)
 
 #define FLUENT_MAP_FIELD(keytype, valuetype, name) \
     TMap<keytype,valuetype> name##_; \
@@ -242,7 +251,8 @@ public: \
     { \
         name##_.emplace(key, value); \
         return static_cast<TSelf&>(*this);\
-    }
+    } \
+    static_assert(true)
 
 /// @endcond
 

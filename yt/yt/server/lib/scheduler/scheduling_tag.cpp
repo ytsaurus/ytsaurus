@@ -34,12 +34,12 @@ bool TSchedulingTagFilter::CanSchedule(const TBooleanFormulaTags& nodeTags) cons
 bool TSchedulingTagFilter::IsEmpty() const
 {
     return BooleanFormula_.IsEmpty();
-};
+}
 
 size_t TSchedulingTagFilter::GetHash() const
 {
     return Hash_;
-};
+}
 
 const TBooleanFormula& TSchedulingTagFilter::GetBooleanFormula() const
 {

@@ -25,7 +25,7 @@ public:
     TDuration QueryStateWriteBackoff;
     i64 RowCountLimit;
 
-    REGISTER_YSON_STRUCT(TEngineConfigBase)
+    REGISTER_YSON_STRUCT(TEngineConfigBase);
 
     static void Register(TRegistrar registrar);
 };
@@ -38,7 +38,7 @@ class TYqlEngineConfig
     : public TEngineConfigBase
 {
 public:
-    REGISTER_YSON_STRUCT(TYqlEngineConfig)
+    REGISTER_YSON_STRUCT(TYqlEngineConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -54,7 +54,7 @@ public:
     TString DefaultClique;
     TString DefaultCluster;
 
-    REGISTER_YSON_STRUCT(TChytEngineConfig)
+    REGISTER_YSON_STRUCT(TChytEngineConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -69,7 +69,7 @@ class TQLEngineConfig
 public:
     TString DefaultCluster;
 
-    REGISTER_YSON_STRUCT(TQLEngineConfig)
+    REGISTER_YSON_STRUCT(TQLEngineConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -92,7 +92,7 @@ public:
     TYqlEngineConfigPtr YqlEngine;
     TChytEngineConfigPtr ChytEngine;
 
-    REGISTER_YSON_STRUCT(TQueryTrackerDynamicConfig)
+    REGISTER_YSON_STRUCT(TQueryTrackerDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -120,7 +120,7 @@ public:
 
     bool CreateStateTablesOnStartup;
 
-    REGISTER_YSON_STRUCT(TQueryTrackerServerConfig)
+    REGISTER_YSON_STRUCT(TQueryTrackerServerConfig);
 
     static void Register(TRegistrar registrar);
 };

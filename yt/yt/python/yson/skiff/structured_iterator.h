@@ -49,20 +49,20 @@ private:
 
 private:
     Py::Object GetTableIndex() const;
-    PYCXX_NOARGS_METHOD_DECL(TSkiffStructuredIterator, GetTableIndex);
+    PYCXX_NOARGS_METHOD_DECL(TSkiffStructuredIterator, GetTableIndex)
 
     Py::Object GetKeySwitch() const;
-    PYCXX_NOARGS_METHOD_DECL(TSkiffStructuredIterator, GetKeySwitch);
+    PYCXX_NOARGS_METHOD_DECL(TSkiffStructuredIterator, GetKeySwitch)
 
     Py::Object GetRowIndex() const;
-    PYCXX_NOARGS_METHOD_DECL(TSkiffStructuredIterator, GetRowIndex);
+    PYCXX_NOARGS_METHOD_DECL(TSkiffStructuredIterator, GetRowIndex)
 
     Py::Object GetRangeIndex() const;
-    PYCXX_NOARGS_METHOD_DECL(TSkiffStructuredIterator, GetRangeIndex);
+    PYCXX_NOARGS_METHOD_DECL(TSkiffStructuredIterator, GetRangeIndex)
 
     // This method must be const, but is not due to bug in PyCXX (self() method is not const).
     Py::Object WithContext();
-    PYCXX_NOARGS_METHOD_DECL(TSkiffStructuredIterator, WithContext);
+    PYCXX_NOARGS_METHOD_DECL(TSkiffStructuredIterator, WithContext)
 };
 
 Py::Object LoadSkiffStructured(Py::Tuple& args, Py::Dict& kwargs);

@@ -472,7 +472,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TStrategyOperationSpec, 0x22fc73fa);
 };
 
-DEFINE_REFCOUNTED_TYPE(TStrategyOperationSpec);
+DEFINE_REFCOUNTED_TYPE(TStrategyOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -556,13 +556,13 @@ DEFINE_ENUM(EControllerFailureType,
     (None)
     (AssertionFailureInPrepare)
     (ExceptionThrownInOnJobCompleted)
-)
+);
 
 DEFINE_ENUM(ETestingSpeculativeLaunchMode,
     (None)
     (Once)
     (Always)
-)
+);
 
 class TTestingOperationOptions
     : public NYTree::TYsonStruct
@@ -1043,7 +1043,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOperationSpecBase, 0xf0494353);
 };
 
-DEFINE_REFCOUNTED_TYPE(TOperationSpecBase);
+DEFINE_REFCOUNTED_TYPE(TOperationSpecBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1058,7 +1058,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TTaskOutputStreamConfig);
+DEFINE_REFCOUNTED_TYPE(TTaskOutputStreamConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1329,7 +1329,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSimpleOperationSpecBase, 0x7819ae12);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSimpleOperationSpecBase);
+DEFINE_REFCOUNTED_TYPE(TSimpleOperationSpecBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1347,7 +1347,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOperationWithInputSpec, 0xd4e68bb7);
 };
 
-DEFINE_REFCOUNTED_TYPE(TOperationWithInputSpec);
+DEFINE_REFCOUNTED_TYPE(TOperationWithInputSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 

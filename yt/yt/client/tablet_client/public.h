@@ -204,7 +204,7 @@ DEFINE_ENUM(ETabletActionState,
 
 DEFINE_ENUM(ETabletServiceFeatures,
     ((WriteGenerations)         (0))
-)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

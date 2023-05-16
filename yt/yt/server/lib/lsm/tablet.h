@@ -29,7 +29,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, IsForcedRotationPossible);
     DEFINE_BYVAL_RW_PROPERTY(bool, IsOverflowRotationNeeded);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, LastPeriodicRotationTime);
-    DEFINE_BYVAL_RW_PROPERTY(bool, IsOutOfBandRotationRequested)
+    DEFINE_BYVAL_RW_PROPERTY(bool, IsOutOfBandRotationRequested);
 
     // Sorted.
     DEFINE_BYREF_RW_PROPERTY(std::vector<std::unique_ptr<TPartition>>, Partitions);

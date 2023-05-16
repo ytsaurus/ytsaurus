@@ -608,7 +608,7 @@ private:
             : Owner_(std::move(impl))
         { }
 
-        DECLARE_NEW_FRIEND();
+        DECLARE_NEW_FRIEND()
     };
 
     const TTabletManagerConfigPtr Config_;
@@ -4420,7 +4420,7 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TabletMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TabletMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4507,7 +4507,7 @@ bool TTabletManager::AllocateDynamicStoreIfNeeded(TTablet* tablet)
     return Impl_->AllocateDynamicStoreIfNeeded(tablet);
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_);
 
 DELEGATE_SIGNAL(TTabletManager, void(TTablet*, const TTableReplicaInfo*), ReplicationTransactionFinished, *Impl_);
 DELEGATE_SIGNAL(TTabletManager, void(), EpochStarted, *Impl_);

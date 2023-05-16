@@ -79,7 +79,7 @@ private:
     TAtomicIntrusivePtr<NNewTableClient::TPreparedChunkMeta> PreparedMeta_;
     size_t PreparedMetaSize_ = 0;
 
-    DECLARE_NEW_FRIEND();
+    DECLARE_NEW_FRIEND()
 
 
     void ParseHashTableChunkIndexMeta(const NProto::TSystemBlockMetaExt& systemBlockMetaExt);

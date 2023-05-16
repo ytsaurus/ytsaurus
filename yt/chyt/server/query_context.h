@@ -47,7 +47,7 @@ public:
     ~TStorageContext();
 };
 
-DEFINE_REFCOUNTED_TYPE(TStorageContext);
+DEFINE_REFCOUNTED_TYPE(TStorageContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,7 +182,7 @@ private:
     DECLARE_NEW_FRIEND()
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueryContext);
+DEFINE_REFCOUNTED_TYPE(TQueryContext)
 
 void Serialize(const TQueryContext& queryContext, NYson::IYsonConsumer* consumer, const DB::QueryStatusInfo* queryStatusInfo);
 

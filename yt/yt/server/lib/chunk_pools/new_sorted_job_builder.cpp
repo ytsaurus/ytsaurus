@@ -50,7 +50,7 @@ DEFINE_ENUM(ERowSliceabilityDecision,
     (NextPrimaryLowerBoundTooClose)
     (OverlapsWithStagedDataSlice)
     (TooMuchForeignData)
-)
+);
 
 class TNewSortedJobBuilder
     : public INewSortedJobBuilder

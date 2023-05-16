@@ -21,8 +21,8 @@ public:
     virtual NApi::IClientPtr GetClient(TStringBuf clusterUrl) = 0;
 };
 
-DECLARE_REFCOUNTED_TYPE(IClientsCache);
-DEFINE_REFCOUNTED_TYPE(IClientsCache);
+DECLARE_REFCOUNTED_TYPE(IClientsCache)
+DEFINE_REFCOUNTED_TYPE(IClientsCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

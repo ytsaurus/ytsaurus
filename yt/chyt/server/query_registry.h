@@ -46,7 +46,7 @@ private:
     TIntrusivePtr<TImpl> Impl_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueryRegistry);
+DEFINE_REFCOUNTED_TYPE(TQueryRegistry)
 
 ////////////////////////////////////////////////////////////////////////////////
 

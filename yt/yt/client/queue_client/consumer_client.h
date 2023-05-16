@@ -72,7 +72,7 @@ struct ISubConsumerClient
         int partitionIndex) const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ISubConsumerClient);
+DEFINE_REFCOUNTED_TYPE(ISubConsumerClient)
 
 struct IConsumerClient
     : public TRefCounted
@@ -80,7 +80,7 @@ struct IConsumerClient
     virtual ISubConsumerClientPtr GetSubConsumerClient(const TCrossClusterReference& queue) const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IConsumerClient);
+DEFINE_REFCOUNTED_TYPE(IConsumerClient)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -90,7 +90,7 @@ typename TTrait::TValue& GetGloballyCachedValue(U&&... u)
 {
     static NDetail::TSynchronizedCache<TTrait> cache;
     return cache.Find(std::forward<U>(u)...);
-};
+}
 
 template <typename TTrait, typename... U>
 typename TTrait::TValue& GetLocallyCachedValue(U&&... u)

@@ -170,7 +170,7 @@ void TControllerFeatures::AddSingular(const TString& name, const INodePtr& node)
                 node->GetType());
             break;
     }
-};
+}
 
 void TControllerFeatures::AddCounted(TStringBuf name, double value)
 {

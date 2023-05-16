@@ -45,7 +45,7 @@ void TCommandRawJob::Do(const TRawJobContext& /* jobContext */)
     Y_FAIL("TCommandRawJob::Do must not be called");
 }
 
-REGISTER_NAMED_RAW_JOB("NYT::TCommandRawJob", TCommandRawJob);
+REGISTER_NAMED_RAW_JOB("NYT::TCommandRawJob", TCommandRawJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 

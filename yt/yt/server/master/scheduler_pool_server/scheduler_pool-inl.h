@@ -44,7 +44,7 @@ void TSchedulerPool::ValidateChildrenGuaranteeSum(
             << TErrorAttribute("parent_resource", *parentResource)
             << TErrorAttribute("children_resource_sum", childrenResourceSum);
     }
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

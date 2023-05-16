@@ -44,8 +44,8 @@ private:
     void HydraAbortTransaction(NProto::TReqAbortTransaction* request);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSimpleTransactionSupervisor);
-DECLARE_REFCOUNTED_CLASS(TSimpleTransactionSupervisor);
+DEFINE_REFCOUNTED_TYPE(TSimpleTransactionSupervisor)
+DECLARE_REFCOUNTED_CLASS(TSimpleTransactionSupervisor)
 
 ////////////////////////////////////////////////////////////////////////////////
 

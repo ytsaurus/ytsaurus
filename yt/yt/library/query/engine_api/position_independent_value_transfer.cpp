@@ -59,7 +59,7 @@ TMutablePIValueRange CapturePIValueRange(
     return TMutablePIValueRange(
         reinterpret_cast<TPIValue*>(captured.Begin()),
         static_cast<size_t>(captured.GetCount()));
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

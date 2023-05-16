@@ -26,7 +26,7 @@ public:
     Py::Object repr() override;
 
     Py::Object DeepCopy(const Py::Tuple& args);
-    PYCXX_VARARGS_METHOD_DECL(TSkiffOtherColumns, DeepCopy);
+    PYCXX_VARARGS_METHOD_DECL(TSkiffOtherColumns, DeepCopy)
 
     static void InitType();
 

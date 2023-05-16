@@ -10,12 +10,12 @@ DEFINE_ENUM(EResourceOverdraftStatus,
     (None)
     (Once)
     (MultipleTimes)
-)
+);
 
 DEFINE_ENUM(EPredecessorType,
     (None)
     (ResourceOverdraft)
-)
+);
 
 class TOperationControllerBase;
 

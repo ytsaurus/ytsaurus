@@ -30,7 +30,7 @@ DEFINE_ENUM(ESlotManagerAlertType,
     ((TooManyConsecutiveJobAbortions)   (2))
     ((JobProxyUnavailable)              (3))
     ((TooManyConsecutiveGpuJobFailures) (4))
-)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +39,7 @@ DEFINE_ENUM(ESlotManagerState,
     ((Disabling)                   (1))
     ((Initialized)                 (2))
     ((Initializing)              (3))
-)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

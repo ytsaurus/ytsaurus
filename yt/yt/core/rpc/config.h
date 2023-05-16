@@ -150,7 +150,7 @@ public:
     //! If null then no limit is enforced.
     std::optional<TDuration> RetryTimeout;
 
-    REGISTER_YSON_STRUCT(TRetryingChannelConfig)
+    REGISTER_YSON_STRUCT(TRetryingChannelConfig);
 
     static void Register(TRegistrar registrar);
 };

@@ -28,7 +28,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(THttpIOConfig);
+DEFINE_REFCOUNTED_TYPE(THttpIOConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,7 +66,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TServerConfig);
+DEFINE_REFCOUNTED_TYPE(TServerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,7 +82,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TClientConfig);
+DEFINE_REFCOUNTED_TYPE(TClientConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,7 +99,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TCorsConfig);
+DEFINE_REFCOUNTED_TYPE(TCorsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

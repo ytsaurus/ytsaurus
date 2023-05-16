@@ -459,16 +459,16 @@ private:
             Persist(context, PrepareDuration_);
         }
 
-        DEFINE_BYVAL_RO_PROPERTY(i64, RowCount, 0)
-        DEFINE_BYVAL_RO_PROPERTY(i64, TotalRowCount, 1)
-        DEFINE_BYVAL_RO_PROPERTY(i64, TotalDataWeight, 1)
-        DEFINE_BYVAL_RO_PROPERTY(TDuration, PrepareWithoutDownloadDuration)
-        DEFINE_BYVAL_RO_PROPERTY(TDuration, ExecDuration)
-        DEFINE_BYVAL_RO_PROPERTY(TDuration, RemainingDuration)
+        DEFINE_BYVAL_RO_PROPERTY(i64, RowCount, 0);
+        DEFINE_BYVAL_RO_PROPERTY(i64, TotalRowCount, 1);
+        DEFINE_BYVAL_RO_PROPERTY(i64, TotalDataWeight, 1);
+        DEFINE_BYVAL_RO_PROPERTY(TDuration, PrepareWithoutDownloadDuration);
+        DEFINE_BYVAL_RO_PROPERTY(TDuration, ExecDuration);
+        DEFINE_BYVAL_RO_PROPERTY(TDuration, RemainingDuration);
         DEFINE_BYVAL_RO_PROPERTY(bool, IsInterruptible);
-        DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, SplitDeadline)
-        DEFINE_BYVAL_RO_PROPERTY(TDuration, PrepareDuration)
-        DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, NextLoggingTime)
+        DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, SplitDeadline);
+        DEFINE_BYVAL_RO_PROPERTY(TDuration, PrepareDuration);
+        DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, NextLoggingTime);
 
     private:
         TJobSplitter* Owner_ = nullptr;

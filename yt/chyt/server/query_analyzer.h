@@ -15,7 +15,7 @@ namespace NYT::NClickHouseServer {
 DEFINE_ENUM(EPoolKind,
     (Unordered)
     (Sorted)
-)
+);
 
 struct TQueryAnalysisResult
 {

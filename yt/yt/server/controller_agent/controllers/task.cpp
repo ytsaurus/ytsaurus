@@ -2288,7 +2288,7 @@ void TTask::TResourceOverdraftState::Persist(const TPersistenceContext& context)
     }
     Persist(context, DedicatedUserJobMemoryReserveFactor);
     Persist(context, DedicatedJobProxyMemoryReserveFactor);
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

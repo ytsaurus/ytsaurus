@@ -201,11 +201,11 @@ private:
     void OnResult(const TErrorOr<void>& error);
 };
 
-DECLARE_REFCOUNTED_TYPE(TTransaction);
+DECLARE_REFCOUNTED_TYPE(TTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TClientDescription);
+DECLARE_REFCOUNTED_STRUCT(TClientDescription)
 
 struct TClientDescription final
 {
@@ -219,7 +219,7 @@ struct TClientDescription final
     std::atomic<bool> HasErrors{false};
 };
 
-DEFINE_REFCOUNTED_TYPE(TClientDescription);
+DEFINE_REFCOUNTED_TYPE(TClientDescription)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -424,7 +424,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 };
 
-DECLARE_REFCOUNTED_TYPE(TTransaction);
+DECLARE_REFCOUNTED_TYPE(TTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -494,7 +494,7 @@ TFuture<ITransactionPtr> TTransaction::StartTransaction(
     ));
 }
 
-DEFINE_REFCOUNTED_TYPE(TTransaction);
+DEFINE_REFCOUNTED_TYPE(TTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 

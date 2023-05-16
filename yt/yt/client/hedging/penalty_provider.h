@@ -11,7 +11,7 @@ namespace NYT::NClient::NHedging::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(IPenaltyProvider);
+DECLARE_REFCOUNTED_CLASS(IPenaltyProvider)
 
 class IPenaltyProvider
     : public TRefCounted
@@ -20,7 +20,7 @@ public:
     virtual NProfiling::TCpuDuration Get(const TString& cluster) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IPenaltyProvider);
+DEFINE_REFCOUNTED_TYPE(IPenaltyProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 

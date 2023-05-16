@@ -233,7 +233,7 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TZombieOperationOrchids);
+DEFINE_REFCOUNTED_TYPE(TZombieOperationOrchids)
 
 ////////////////////////////////////////////////////////////////////
 

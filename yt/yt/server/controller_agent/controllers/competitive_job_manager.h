@@ -16,7 +16,7 @@ DEFINE_ENUM(ECompetitionStatus,
     (SingleJobOnly)
     (TwoCompetitiveJobs)
     (HasCompletedJob)
-)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

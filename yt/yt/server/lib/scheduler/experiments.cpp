@@ -178,7 +178,7 @@ bool TExperimentAssigner::MatchExperiment(
 
     return experiment->FilterMatcher->Match(attributes.GetAttributesAsYson())
         .ValueOrThrow();
-};
+}
 
 void TExperimentAssigner::UpdateExperimentConfigs(const THashMap<TString, TExperimentConfigPtr>& experiments)
 {

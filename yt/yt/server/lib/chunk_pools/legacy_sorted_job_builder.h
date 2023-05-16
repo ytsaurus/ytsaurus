@@ -28,7 +28,7 @@ struct ILegacySortedJobBuilder
     virtual i64 GetTotalDataSliceCount() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ILegacySortedJobBuilder);
+DEFINE_REFCOUNTED_TYPE(ILegacySortedJobBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 

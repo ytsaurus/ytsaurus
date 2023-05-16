@@ -382,7 +382,7 @@ private:
     THashMap<TStringBuf, int> NameToColumnIndex_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTableSchema);
+DEFINE_REFCOUNTED_TYPE(TTableSchema)
 
 void FormatValue(TStringBuilderBase* builder, const TTableSchema& schema, TStringBuf spec);
 void FormatValue(TStringBuilderBase* builder, const TTableSchemaPtr& schema, TStringBuf spec);

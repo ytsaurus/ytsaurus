@@ -67,8 +67,8 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TChytSettings);
-DECLARE_REFCOUNTED_CLASS(TChytSettings);
+DEFINE_REFCOUNTED_TYPE(TChytSettings)
+DECLARE_REFCOUNTED_CLASS(TChytSettings)
 
 ///////////////////////////////////////////////////////////////////////////////
 

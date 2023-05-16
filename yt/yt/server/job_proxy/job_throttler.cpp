@@ -100,8 +100,8 @@ private:
     }
 };
 
-DECLARE_REFCOUNTED_CLASS(TThrottlingSession);
-DEFINE_REFCOUNTED_TYPE(TThrottlingSession);
+DECLARE_REFCOUNTED_CLASS(TThrottlingSession)
+DEFINE_REFCOUNTED_TYPE(TThrottlingSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 

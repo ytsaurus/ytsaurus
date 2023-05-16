@@ -33,7 +33,7 @@ private:
     bool Finalized_ = false;
 };
 
-DEFINE_REFCOUNTED_TYPE(TDeferredChunkMeta);
+DEFINE_REFCOUNTED_TYPE(TDeferredChunkMeta)
 
 ////////////////////////////////////////////////////////////////////////////////
 

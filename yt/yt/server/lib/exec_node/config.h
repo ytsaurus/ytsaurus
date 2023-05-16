@@ -58,7 +58,7 @@ DEFINE_REFCOUNTED_TYPE(TSimpleJobEnvironmentConfig)
 DEFINE_ENUM(ETestingJobEnvironmentScenario,
     (None)
     (IncreasingMajorPageFaultCount)
-)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1841,7 +1841,7 @@ TUntypedExpression TBuilderCtx::MakeBinaryExpr(
             rhs.Generator(argTypes.second));
     };
     return TUntypedExpression{resultTypes, std::move(generator), false};
-};
+}
 
 struct TBinaryOpGenerator
 {

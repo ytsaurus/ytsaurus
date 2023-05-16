@@ -368,7 +368,7 @@ private:
             : Owner_(std::move(impl))
         { }
 
-        DECLARE_NEW_FRIEND();
+        DECLARE_NEW_FRIEND()
     };
 
     const TChaosManagerConfigPtr Config_;
@@ -2293,8 +2293,8 @@ private:
 
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TChaosManager, ReplicationCard, TReplicationCard, ReplicationCardMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TChaosManager, ReplicationCardCollocation, TReplicationCardCollocation, CollocationMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TChaosManager, ReplicationCard, TReplicationCard, ReplicationCardMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TChaosManager, ReplicationCardCollocation, TReplicationCardCollocation, CollocationMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

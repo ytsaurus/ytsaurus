@@ -10,7 +10,7 @@ void TNativeSingletonsConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("native_authentication_manager", &TThis::NativeAuthenticationManager)
         .DefaultNew();
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,7 +20,7 @@ void TNativeSingletonsDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("native_authentication_manager", &TThis::NativeAuthenticationManager)
         .DefaultNew();
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

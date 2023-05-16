@@ -91,7 +91,7 @@ public:
 
 }; // class TMockClient
 
-DECLARE_REFCOUNTED_CLASS(TMockClient);
-DEFINE_REFCOUNTED_TYPE(TMockClient);
+DECLARE_REFCOUNTED_CLASS(TMockClient)
+DEFINE_REFCOUNTED_TYPE(TMockClient)
 
 } // namespace NYT::NHttp

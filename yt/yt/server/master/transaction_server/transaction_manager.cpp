@@ -2177,7 +2177,7 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TransactionMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TransactionMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

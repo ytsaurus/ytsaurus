@@ -41,7 +41,7 @@ private:
     void AddAction(TCallback<TFuture<void>()> action);
 };
 
-DEFINE_REFCOUNTED_TYPE(TFramingAsyncOutputStream);
+DEFINE_REFCOUNTED_TYPE(TFramingAsyncOutputStream)
 
 ////////////////////////////////////////////////////////////////////////////////
 

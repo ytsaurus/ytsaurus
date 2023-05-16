@@ -686,7 +686,7 @@ private:
     IThroughputThrottlerPtr ReadRpsOutThrottler_;
 
     IReconfigurableThroughputThrottlerPtr RawUserJobContainerCreationThrottler_;
-    IThroughputThrottlerPtr UserJobContainerCreationThrottler_;;
+    IThroughputThrottlerPtr UserJobContainerCreationThrottler_;
 
     IReconfigurableThroughputThrottlerPtr RawAnnounceChunkReplicaRpsOutThrottler_;
     IThroughputThrottlerPtr AnnounceChunkReplicaRpsOutThrottler_;

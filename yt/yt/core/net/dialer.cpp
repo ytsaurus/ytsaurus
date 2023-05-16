@@ -99,7 +99,7 @@ private:
     const IPollerPtr Poller_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TDialer);
+DEFINE_REFCOUNTED_TYPE(TDialer)
 
 ////////////////////////////////////////////////////////////////////////////////
 

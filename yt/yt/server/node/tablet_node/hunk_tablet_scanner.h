@@ -10,7 +10,7 @@ struct IHunkTabletScanner
     virtual void Scan(THunkTablet* tablet) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IHunkTabletScanner);
+DEFINE_REFCOUNTED_TYPE(IHunkTabletScanner)
 
 ////////////////////////////////////////////////////////////////////////////////
 

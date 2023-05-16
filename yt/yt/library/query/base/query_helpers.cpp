@@ -92,7 +92,7 @@ void SortRows(
     std::sort(begin, end, [&] (TRow lhs, TRow rhs) {
         return CompareRow(lhs, rhs, mapping) < 0;
     });
-};
+}
 
 void SortRows(
     std::vector<std::pair<TRow, size_t>>::iterator begin,
@@ -102,7 +102,7 @@ void SortRows(
     std::sort(begin, end, [&] (const std::pair<TRow, size_t>& lhs, const std::pair<TRow, size_t>& rhs) {
         return CompareRow(lhs.first, rhs.first, mapping) < 0;
     });
-};
+}
 
 } // namespace
 

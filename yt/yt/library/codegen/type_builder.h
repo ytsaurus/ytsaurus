@@ -185,7 +185,7 @@ public: \
     { \
         return llvm::IntegerType::get(ctx, sizeof(T) * CHAR_BIT); \
     } \
-};
+}
 
 DEFINE_INTEGRAL_TYPEBUILDER(char);
 DEFINE_INTEGRAL_TYPEBUILDER(signed char);

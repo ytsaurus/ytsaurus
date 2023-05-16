@@ -67,19 +67,19 @@ public:
     TIntrusivePtr<TDriverResponseHolder> GetHolder() const;
 
     Py::Object ResponseParameters(Py::Tuple& args, Py::Dict& kwargs);
-    PYCXX_KEYWORDS_METHOD_DECL(TDriverResponse, ResponseParameters);
+    PYCXX_KEYWORDS_METHOD_DECL(TDriverResponse, ResponseParameters)
 
     Py::Object Wait(Py::Tuple& args, Py::Dict& kwargs);
-    PYCXX_KEYWORDS_METHOD_DECL(TDriverResponse, Wait);
+    PYCXX_KEYWORDS_METHOD_DECL(TDriverResponse, Wait)
 
     Py::Object IsSet(Py::Tuple& args, Py::Dict& kwargs);
-    PYCXX_KEYWORDS_METHOD_DECL(TDriverResponse, IsSet);
+    PYCXX_KEYWORDS_METHOD_DECL(TDriverResponse, IsSet)
 
     Py::Object IsOk(Py::Tuple& args, Py::Dict& kwargs);
-    PYCXX_KEYWORDS_METHOD_DECL(TDriverResponse, IsOk);
+    PYCXX_KEYWORDS_METHOD_DECL(TDriverResponse, IsOk)
 
     Py::Object Error(Py::Tuple& args, Py::Dict& kwargs);
-    PYCXX_KEYWORDS_METHOD_DECL(TDriverResponse, Error);
+    PYCXX_KEYWORDS_METHOD_DECL(TDriverResponse, Error)
 
     virtual ~TDriverResponse();
 

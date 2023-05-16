@@ -584,13 +584,13 @@ struct IsYsonStructPtr<TIntrusivePtr<T>, typename std::enable_if<std::is_convert
 template <class TStruct, class TValue>
 TYsonFieldAccessor<TStruct, TValue>::TYsonFieldAccessor(TYsonStructField<TStruct, TValue> field)
     : Field_(field)
-{ };
+{ }
 
 template <class TStruct, class TValue>
 TValue& TYsonFieldAccessor<TStruct, TValue>::GetValue(const TYsonStructBase* source)
 {
     return TYsonStructRegistry::Get()->template CachedDynamicCast<TStruct>(source)->*Field_;
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

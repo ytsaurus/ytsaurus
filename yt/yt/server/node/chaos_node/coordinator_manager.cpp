@@ -155,7 +155,7 @@ private:
             : Owner_(std::move(owner))
         { }
 
-        DECLARE_NEW_FRIEND();
+        DECLARE_NEW_FRIEND()
     };
 
     struct TShortcut

@@ -334,7 +334,7 @@ public:
     bool Enable;
     TTDigestConfigPtr TDigest;
 
-    REGISTER_YSON_STRUCT(TVersionedRowDigestConfig)
+    REGISTER_YSON_STRUCT(TVersionedRowDigestConfig);
 
     static void Register(TRegistrar registrar);
 };

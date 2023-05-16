@@ -1947,7 +1947,7 @@ public:
 #define Y_SAVELOAD_JOB(...) \
     virtual void Save(IOutputStream& stream) const override { Save(&stream); } \
     virtual void Load(IInputStream& stream) override { Load(&stream); } \
-    Y_PASS_VA_ARGS(Y_SAVELOAD_DEFINE(__VA_ARGS__));
+    Y_PASS_VA_ARGS(Y_SAVELOAD_DEFINE(__VA_ARGS__))
 
 ////////////////////////////////////////////////////////////////////////////////
 

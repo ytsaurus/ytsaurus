@@ -48,7 +48,7 @@ struct ITabletCellWriteManagerHost
     virtual void AdvanceReplicatedTrimmedRowCount(TTablet* tablet, TTransaction* transaction) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ITabletCellWriteManagerHost);
+DEFINE_REFCOUNTED_TYPE(ITabletCellWriteManagerHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,7 +87,7 @@ struct ITabletCellWriteManager
     DECLARE_INTERFACE_SIGNAL(void(TTablet*), ReplicatorWriteTransactionFinished);
 };
 
-DEFINE_REFCOUNTED_TYPE(ITabletCellWriteManager);
+DEFINE_REFCOUNTED_TYPE(ITabletCellWriteManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

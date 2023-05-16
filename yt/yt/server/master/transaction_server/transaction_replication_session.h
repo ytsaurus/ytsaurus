@@ -167,7 +167,7 @@ private:
     NObjectClient::TCellTagList UnsyncedRemoteTransactionCells_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTransactionReplicationSessionWithoutBoomerangs);
+DEFINE_REFCOUNTED_TYPE(TTransactionReplicationSessionWithoutBoomerangs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -245,7 +245,7 @@ private:
     void EndRequestInResponseKeeper(const TError& error);
 };
 
-DEFINE_REFCOUNTED_TYPE(TTransactionReplicationSessionWithBoomerangs);
+DEFINE_REFCOUNTED_TYPE(TTransactionReplicationSessionWithBoomerangs)
 
 ////////////////////////////////////////////////////////////////////////////////
 

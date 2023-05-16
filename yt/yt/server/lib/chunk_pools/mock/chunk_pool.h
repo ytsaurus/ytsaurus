@@ -112,7 +112,7 @@ public:
     using TJobSplittingBase::Completed;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTestJobSplittingBase);
+DEFINE_REFCOUNTED_TYPE(TTestJobSplittingBase)
 
 using TTestJobSplittingBasePtr = TIntrusivePtr<TTestJobSplittingBase>;
 

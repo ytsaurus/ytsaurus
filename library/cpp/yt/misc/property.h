@@ -6,7 +6,7 @@
 #define DECLARE_BYREF_RW_PROPERTY(type, name) \
 public: \
     type& name(); \
-    const type& name() const;
+    const type& name() const
 
 //! Defines a trivial public read-write property that is passed by reference.
 //! All arguments after name are used as default value (via braced-init-list).
@@ -23,7 +23,8 @@ public: \
     Y_FORCE_INLINE const type& name() const \
     { \
         return name##_; \
-    }
+    } \
+    static_assert(true)
 
 //! Defines a trivial public read-write property that is passed by reference
 //! and is not inline-initialized.
@@ -40,7 +41,8 @@ public: \
     Y_FORCE_INLINE const type& name() const \
     { \
         return name##_; \
-    }
+    } \
+    static_assert(true)
 
 //! Forwards a trivial public read-write property that is passed by reference.
 #define DELEGATE_BYREF_RW_PROPERTY(declaringType, type, name, delegateTo) \
@@ -52,14 +54,15 @@ public: \
     const type& declaringType::name() const \
     { \
         return (delegateTo).name(); \
-    }
+    } \
+    static_assert(true)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Declares a trivial public read-only property that is passed by reference.
 #define DECLARE_BYREF_RO_PROPERTY(type, name) \
 public: \
-    const type& name() const;
+    const type& name() const
 
 //! Defines a trivial public read-only property that is passed by reference.
 //! All arguments after name are used as default value (via braced-init-list).
@@ -71,7 +74,8 @@ public: \
     Y_FORCE_INLINE const type& name() const \
     { \
         return name##_; \
-    }
+    } \
+    static_assert(true)
 
 //! Defines a trivial public read-only property that is passed by reference
 //! and is not inline-initialized.
@@ -83,14 +87,16 @@ public: \
     Y_FORCE_INLINE const type& name() const \
     { \
         return name##_; \
-    }
+    } \
+    static_assert(true)
 
 //! Forwards a trivial public read-only property that is passed by reference.
 #define DELEGATE_BYREF_RO_PROPERTY(declaringType, type, name, delegateTo) \
     const type& declaringType::name() const \
     { \
         return (delegateTo).name(); \
-    }
+    } \
+    static_assert(true)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,7 +104,7 @@ public: \
 #define DECLARE_BYVAL_RW_PROPERTY(type, name) \
 public: \
     type Get##name() const; \
-    void Set##name(type value);
+    void Set##name(type value)
 
 //! Defines a trivial public read-write property that is passed by value.
 //! All arguments after name are used as default value (via braced-init-list).
@@ -116,6 +122,8 @@ public: \
     { \
         name##_ = value; \
     } \
+    static_assert(true)
+
 
 //! Defines a trivial public read-write property that is passed by value.
 //! All arguments after name are used as default value (via braced-init-list).
@@ -139,6 +147,7 @@ public: \
         name##_ = value; \
         return std::move(*this); \
     } \
+    static_assert(true)
 
 //! Defines a trivial public read-write property that is passed by value
 //! and is not inline-initialized.
@@ -156,6 +165,7 @@ public: \
     { \
         name##_ = value; \
     } \
+    static_assert(true)
 
 //! Forwards a trivial public read-write property that is passed by value.
 #define DELEGATE_BYVAL_RW_PROPERTY(declaringType, type, name, delegateTo) \
@@ -167,14 +177,15 @@ public: \
     void declaringType::Set##name(type value) \
     { \
         (delegateTo).Set##name(value); \
-    }
+    } \
+    static_assert(true)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Declares a trivial public read-only property that is passed by value.
 #define DECLARE_BYVAL_RO_PROPERTY(type, name) \
 public: \
-    type Get##name() const;
+    type Get##name() const
 
 //! Defines a trivial public read-only property that is passed by value.
 //! All arguments after name are used as default value (via braced-init-list).
@@ -186,7 +197,8 @@ public: \
     Y_FORCE_INLINE type Get##name() const \
     { \
         return name##_; \
-    }
+    } \
+    static_assert(true)
 
 
 //! Defines a trivial public read-only property that is passed by value
@@ -199,14 +211,16 @@ public: \
     Y_FORCE_INLINE type Get##name() const \
     { \
         return name##_; \
-    }
+    } \
+    static_assert(true)
 
 //! Forwards a trivial public read-only property that is passed by value.
 #define DELEGATE_BYVAL_RO_PROPERTY(declaringType, type, name, delegateTo) \
     type declaringType::Get##name() \
     { \
         return (delegateTo).Get##name(); \
-    }
+    } \
+    static_assert(true)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -218,7 +232,8 @@ public: \
 #define INITIALIZE_EXTRA_PROPERTY_HOLDER(holder) \
     if (!holder##_) { \
         holder##_.reset(new decltype(holder##_)::element_type()); \
-    }
+    } \
+    static_assert(true)
 
 //! Declares an extra property holder. Holder contains extra properties values.
 //! Holder is not created until some property is set with a non-default value.
@@ -239,15 +254,15 @@ public: \
     } \
     Y_FORCE_INLINE void InitializeCustom##holder() \
     { \
-        INITIALIZE_EXTRA_PROPERTY_HOLDER(holder) \
+        INITIALIZE_EXTRA_PROPERTY_HOLDER(holder); \
     } \
 private: \
     std::unique_ptr<type> holder##_; \
-    static const type Default##holder##_;
+    static const type Default##holder##_
 
 //! Defines a storage for extra properties default values.
 #define DEFINE_EXTRA_PROPERTY_HOLDER(class, type, holder) \
-    const type class::Default##holder##_;
+    const type class::Default##holder##_
 
 //! Defines a public read-write extra property that is passed by value.
 #define DEFINE_BYVAL_RW_EXTRA_PROPERTY(holder, name) \
@@ -268,7 +283,8 @@ public: \
             INITIALIZE_EXTRA_PROPERTY_HOLDER(holder); \
         } \
         holder##_->name = val; \
-    }
+    } \
+    static_assert(true)
 
 //! Defines a public read-write extra property that is passed by reference.
 #define DEFINE_BYREF_RW_EXTRA_PROPERTY(holder, name) \
@@ -284,6 +300,7 @@ public: \
     { \
         INITIALIZE_EXTRA_PROPERTY_HOLDER(holder); \
         return holder##_->name; \
-    }
+    } \
+    static_assert(true)
 
 ////////////////////////////////////////////////////////////////////////////////

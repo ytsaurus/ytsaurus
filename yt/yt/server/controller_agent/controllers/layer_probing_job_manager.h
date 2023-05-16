@@ -18,7 +18,7 @@ namespace NYT::NControllerAgent::NControllers {
 DEFINE_ENUM(ELayerProbingJobStatus,
     (LayerProbingJobCompleted)
     (NoLayerProbingJobResult)
-)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

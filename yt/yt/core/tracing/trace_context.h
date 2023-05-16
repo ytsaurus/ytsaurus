@@ -235,7 +235,7 @@ private:
         TSpanContext parentSpanContext,
         TString spanName,
         TTraceContextPtr parentTraceContext = nullptr);
-    DECLARE_NEW_FRIEND();
+    DECLARE_NEW_FRIEND()
 
     void SetDuration();
 };

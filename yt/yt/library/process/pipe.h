@@ -32,7 +32,7 @@ private:
 
     explicit TNamedPipe(const TString& path, bool owning);
     void Open(int permissions);
-    DECLARE_NEW_FRIEND();
+    DECLARE_NEW_FRIEND()
 };
 
 DEFINE_REFCOUNTED_TYPE(TNamedPipe)

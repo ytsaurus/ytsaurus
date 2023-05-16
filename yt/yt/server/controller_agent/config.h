@@ -73,7 +73,7 @@ public:
     //! If this option is set, controller agent sleeps for this duration before finishing handshake.
     std::optional<TDuration> DelayInHandshake;
 
-    REGISTER_YSON_STRUCT(TTestingOptions)
+    REGISTER_YSON_STRUCT(TTestingOptions);
 
     static void Register(TRegistrar registrar);
 };
@@ -95,7 +95,7 @@ public:
     // Power threshold in Watts.
     double Threshold;
 
-    REGISTER_YSON_STRUCT(TLowGpuPowerUsageOnWindowConfig)
+    REGISTER_YSON_STRUCT(TLowGpuPowerUsageOnWindowConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -196,7 +196,7 @@ public:
     // if queues with average wait time above this threshold are found.
     TDuration QueueAverageWaitTimeThreshold;
 
-    REGISTER_YSON_STRUCT(TAlertManagerConfig)
+    REGISTER_YSON_STRUCT(TAlertManagerConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -229,7 +229,7 @@ public:
 
     bool ShowRunningJobsInProgress;
 
-    REGISTER_YSON_STRUCT(TJobSplitterConfig)
+    REGISTER_YSON_STRUCT(TJobSplitterConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -260,7 +260,7 @@ public:
     //! Maximum number of suspicious jobs that are reported in Orchid for each job type.
     i64 MaxOrchidEntryCountPerType;
 
-    REGISTER_YSON_STRUCT(TSuspiciousJobsOptions)
+    REGISTER_YSON_STRUCT(TSuspiciousJobsOptions);
 
     static void Register(TRegistrar registrar);
 };
@@ -278,7 +278,7 @@ public:
     double Tolerance;
     bool UseNodeIOWeight;
 
-    REGISTER_YSON_STRUCT(TDataBalancerOptions)
+    REGISTER_YSON_STRUCT(TDataBalancerOptions);
 
     static void Register(TRegistrar registrar);
 };
@@ -295,7 +295,7 @@ public:
     i64 ThreadLimitMultiplier;
     i64 InitialThreadLimit;
 
-    REGISTER_YSON_STRUCT(TUserJobOptions)
+    REGISTER_YSON_STRUCT(TUserJobOptions);
 
     static void Register(TRegistrar registrar);
 };
@@ -352,7 +352,7 @@ public:
 
     TUserJobOptionsPtr UserJobOptions;
 
-    REGISTER_YSON_STRUCT(TOperationOptions)
+    REGISTER_YSON_STRUCT(TOperationOptions);
 
     static void Register(TRegistrar registrar);
 };
@@ -371,7 +371,7 @@ public:
     int MaxJobCount;
     i64 DataWeightPerJob;
 
-    REGISTER_YSON_STRUCT(TSimpleOperationOptions)
+    REGISTER_YSON_STRUCT(TSimpleOperationOptions);
 
     static void Register(TRegistrar registrar);
 };
@@ -389,7 +389,7 @@ private:
 public:
     NChunkPools::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
 
-    REGISTER_YSON_STRUCT(TMapOperationOptions)
+    REGISTER_YSON_STRUCT(TMapOperationOptions);
 
     static void Register(TRegistrar registrar);
 };
@@ -402,7 +402,7 @@ class TUnorderedMergeOperationOptions
     : public TSimpleOperationOptions
 {
 public:
-    REGISTER_YSON_STRUCT(TUnorderedMergeOperationOptions)
+    REGISTER_YSON_STRUCT(TUnorderedMergeOperationOptions);
 
     static void Register(TRegistrar)
     { }
@@ -419,7 +419,7 @@ class TOrderedMergeOperationOptions
     : public TSimpleOperationOptions
 {
 public:
-    REGISTER_YSON_STRUCT(TOrderedMergeOperationOptions)
+    REGISTER_YSON_STRUCT(TOrderedMergeOperationOptions);
 
     static void Register(TRegistrar)
     { }
@@ -436,7 +436,7 @@ class TSortedMergeOperationOptions
     : public TSimpleOperationOptions
 {
 public:
-    REGISTER_YSON_STRUCT(TSortedMergeOperationOptions)
+    REGISTER_YSON_STRUCT(TSortedMergeOperationOptions);
 
     static void Register(TRegistrar)
     { }
@@ -453,7 +453,7 @@ class TReduceOperationOptions
     : public TSortedMergeOperationOptions
 {
 public:
-    REGISTER_YSON_STRUCT(TReduceOperationOptions)
+    REGISTER_YSON_STRUCT(TReduceOperationOptions);
 
     static void Register(TRegistrar registrar);
 
@@ -470,7 +470,7 @@ class TEraseOperationOptions
     : public TOrderedMergeOperationOptions
 {
 public:
-    REGISTER_YSON_STRUCT(TEraseOperationOptions)
+    REGISTER_YSON_STRUCT(TEraseOperationOptions);
 
     static void Register(TRegistrar)
     { }
@@ -502,7 +502,7 @@ public:
     NChunkPools::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
     TDataBalancerOptionsPtr DataBalancer;
 
-    REGISTER_YSON_STRUCT(TSortOperationOptionsBase)
+    REGISTER_YSON_STRUCT(TSortOperationOptionsBase);
 
     static void Register(TRegistrar registrar);
 };
@@ -515,7 +515,7 @@ class TSortOperationOptions
     : public TSortOperationOptionsBase
 {
 public:
-    REGISTER_YSON_STRUCT(TSortOperationOptions)
+    REGISTER_YSON_STRUCT(TSortOperationOptions);
 
     static void Register(TRegistrar)
     { }
@@ -532,7 +532,7 @@ class TMapReduceOperationOptions
     : public TSortOperationOptionsBase
 {
 public:
-    REGISTER_YSON_STRUCT(TMapReduceOperationOptions)
+    REGISTER_YSON_STRUCT(TMapReduceOperationOptions);
 
     static void Register(TRegistrar)
     { }
@@ -552,7 +552,7 @@ public:
     NScheduler::TCpuResource CpuLimit;
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
 
-    REGISTER_YSON_STRUCT(TRemoteCopyOperationOptions)
+    REGISTER_YSON_STRUCT(TRemoteCopyOperationOptions);
 
     static void Register(TRegistrar registrar);
 
@@ -574,7 +574,7 @@ public:
     //! Maximum total number of jobs.
     int MaxTotalJobCount;
 
-    REGISTER_YSON_STRUCT(TVanillaOperationOptions)
+    REGISTER_YSON_STRUCT(TVanillaOperationOptions);
 
     static void Register(TRegistrar registrar)
     {
@@ -605,7 +605,7 @@ public:
     //! Is orchid saving and cleaning enabled?
     bool Enable;
 
-    REGISTER_YSON_STRUCT(TZombieOperationOrchidsConfig)
+    REGISTER_YSON_STRUCT(TZombieOperationOrchidsConfig);
 
     static void Register(TRegistrar registrar);
 
@@ -624,7 +624,7 @@ public:
     int MaxMonitoredUserJobsPerOperation;
     int MaxMonitoredUserJobsPerAgent;
 
-    REGISTER_YSON_STRUCT(TUserJobMonitoringConfig)
+    REGISTER_YSON_STRUCT(TUserJobMonitoringConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -649,7 +649,7 @@ public:
 
     TDuration MemoryUsageCheckPeriod;
 
-    REGISTER_YSON_STRUCT(TMemoryWatchdogConfig)
+    REGISTER_YSON_STRUCT(TMemoryWatchdogConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -669,7 +669,7 @@ public:
     //! Maximum chunk count of file allowed to be passed to jobs.
     i64 MaxChunkCount;
 
-    REGISTER_YSON_STRUCT(TUserFileLimitsConfig)
+    REGISTER_YSON_STRUCT(TUserFileLimitsConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -689,7 +689,7 @@ public:
     //! Maximum chunk count of file allowed to be passed to jobs.
     std::optional<i64> MaxChunkCount;
 
-    REGISTER_YSON_STRUCT(TUserFileLimitsPatchConfig)
+    REGISTER_YSON_STRUCT(TUserFileLimitsPatchConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -1149,7 +1149,7 @@ public:
 
     THashSet<TString> NetworkProjectsAllowedForOffloading;
 
-    REGISTER_YSON_STRUCT(TControllerAgentConfig)
+    REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
     static void Register(TRegistrar registrar);
 
@@ -1175,7 +1175,7 @@ public:
 
     bool AbortOnUnrecognizedOptions;
 
-    REGISTER_YSON_STRUCT(TControllerAgentBootstrapConfig)
+    REGISTER_YSON_STRUCT(TControllerAgentBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };

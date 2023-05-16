@@ -301,7 +301,7 @@ private:
             : Owner_(std::move(store))
         { }
 
-        DECLARE_NEW_FRIEND();
+        DECLARE_NEW_FRIEND()
     };
 
 private:

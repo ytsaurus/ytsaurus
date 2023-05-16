@@ -234,7 +234,7 @@ private:
     NLogging::TSerializableLogger Logger;
 };
 
-DEFINE_REFCOUNTED_TYPE(TNewJobManager);
+DEFINE_REFCOUNTED_TYPE(TNewJobManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

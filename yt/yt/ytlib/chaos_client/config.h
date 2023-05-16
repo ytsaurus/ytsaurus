@@ -37,7 +37,7 @@ class TReplicationCardResidencyCacheConfig
     : public TAsyncExpiringCacheConfig
 {
 public:
-    REGISTER_YSON_STRUCT(TReplicationCardResidencyCacheConfig)
+    REGISTER_YSON_STRUCT(TReplicationCardResidencyCacheConfig);
 
     static void Register(TRegistrar)
     { }
@@ -53,7 +53,7 @@ class TReplicationCardChannelConfig
 public:
     TDuration RpcAcknowledgementTimeout;
 
-    REGISTER_YSON_STRUCT(TReplicationCardChannelConfig)
+    REGISTER_YSON_STRUCT(TReplicationCardChannelConfig);
 
     static void Register(TRegistrar registrar);
 };

@@ -115,7 +115,7 @@ void TQueueAgentServerConfig::Register(TRegistrar registrar)
             dynamicConfigPath = config->DynamicState->Root + "/config";
         }
     });
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

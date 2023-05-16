@@ -252,7 +252,7 @@ public:
     void SetOption(TMaybe<T>& option, T newOption)
     {
         NYT::NFormats::SetOption(option, newOption, OptionToFieldFlagName);
-    };
+    }
 
 public:
     TMaybe<ESpecialProtobufType> Type;
@@ -274,7 +274,7 @@ public:
     void SetOption(TMaybe<T>& option, T newOption)
     {
         NYT::NFormats::SetOption(option, newOption, OptionToMessageFlagName);
-    };
+    }
 
 public:
     TMaybe<EProtobufFieldSortOrder> FieldSortOrder;
@@ -292,7 +292,7 @@ public:
     void SetOption(TMaybe<T>& option, T newOption)
     {
         NYT::NFormats::SetOption(option, newOption, OptionToOneofFlagName);
-    };
+    }
 
 public:
     TMaybe<EProtobufOneofMode> Mode;

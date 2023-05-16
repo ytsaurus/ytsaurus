@@ -29,7 +29,7 @@ public:
 
     virtual const IBundleNodeTrackerPtr& GetBundleNodeTracker() = 0;
 
-    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(CellBundle, TCellBundle)
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(CellBundle, TCellBundle);
     virtual const THashSet<TCellBundle*>& CellBundles(NCellarClient::ECellarType cellarType) = 0;
     virtual TCellBundle* FindCellBundleByName(
         const TString& name,
@@ -51,7 +51,7 @@ public:
     virtual void ZombifyCellBundle(TCellBundle* cellBundle) = 0;
     virtual void DestroyCellBundle(TCellBundle* cellBundle) = 0;
 
-    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Cell, TCellBase)
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Cell, TCellBase);
     virtual const THashSet<TCellBase*>& Cells(NCellarClient::ECellarType cellarType) = 0;
     virtual TCellBase* GetCellOrThrow(TTamedCellId id) = 0;
     virtual void RemoveCell(TCellBase* cell, bool force) = 0;
@@ -64,7 +64,7 @@ public:
     virtual void DestroyCell(TCellBase* cell) = 0;
     virtual void UpdatePeerCount(TCellBase* cell, std::optional<int> peerCount) = 0;
 
-    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Area, TArea)
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Area, TArea);
     virtual TArea* CreateArea(
         const TString& name,
         TCellBundle* cellBundle,
@@ -76,14 +76,14 @@ public:
 
     virtual void UpdateCellArea(TCellBase* cell, TArea* area) = 0;
 
-    DECLARE_INTERFACE_SIGNAL(void(TCellBundle* bundle), CellBundleDestroyed)
-    DECLARE_INTERFACE_SIGNAL(void(TArea* area), AreaCreated)
-    DECLARE_INTERFACE_SIGNAL(void(TArea* area), AreaDestroyed)
-    DECLARE_INTERFACE_SIGNAL(void(TArea* area), AreaNodeTagFilterChanged)
-    DECLARE_INTERFACE_SIGNAL(void(TCellBase* cell), CellCreated)
-    DECLARE_INTERFACE_SIGNAL(void(TCellBase* cell), CellDecommissionStarted)
-    DECLARE_INTERFACE_SIGNAL(void(), CellPeersAssigned)
-    DECLARE_INTERFACE_SIGNAL(void(), AfterSnapshotLoaded)
+    DECLARE_INTERFACE_SIGNAL(void(TCellBundle* bundle), CellBundleDestroyed);
+    DECLARE_INTERFACE_SIGNAL(void(TArea* area), AreaCreated);
+    DECLARE_INTERFACE_SIGNAL(void(TArea* area), AreaDestroyed);
+    DECLARE_INTERFACE_SIGNAL(void(TArea* area), AreaNodeTagFilterChanged);
+    DECLARE_INTERFACE_SIGNAL(void(TCellBase* cell), CellCreated);
+    DECLARE_INTERFACE_SIGNAL(void(TCellBase* cell), CellDecommissionStarted);
+    DECLARE_INTERFACE_SIGNAL(void(), CellPeersAssigned);
+    DECLARE_INTERFACE_SIGNAL(void(), AfterSnapshotLoaded);
 };
 
 DEFINE_REFCOUNTED_TYPE(ITamedCellManager)

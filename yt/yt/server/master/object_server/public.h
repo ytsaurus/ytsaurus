@@ -96,7 +96,7 @@ class TAttributeSet;
 
 struct TObjectTypeMetadata;
 
-DECLARE_ENTITY_TYPE(TSchemaObject, TObjectId, ::THash<TObjectId>);
+DECLARE_ENTITY_TYPE(TSchemaObject, TObjectId, ::THash<TObjectId>)
 
 class TMasterObject;
 

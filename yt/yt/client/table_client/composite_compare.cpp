@@ -35,7 +35,7 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECompareClass, ui32,
     ((EndList)(1))
     ((Entity)(2))
     ((BeginValue)(3))
-)
+);
 
 // Helper fucntion for GetComparreClass
 static constexpr ui32 SetMask(EYsonItemType type, ECompareClass compareClass)

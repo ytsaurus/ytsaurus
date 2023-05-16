@@ -40,8 +40,8 @@ private:
     static NNodeTrackerClient::NProto::TNodeResources GetJobResourceUsage();
 };
 
-DECLARE_REFCOUNTED_TYPE(TReincarnationJob);
-DEFINE_REFCOUNTED_TYPE(TReincarnationJob);
+DECLARE_REFCOUNTED_TYPE(TReincarnationJob)
+DEFINE_REFCOUNTED_TYPE(TReincarnationJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 

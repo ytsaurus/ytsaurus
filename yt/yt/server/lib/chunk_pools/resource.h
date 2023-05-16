@@ -10,7 +10,7 @@ DEFINE_ENUM(EResourceKind,
     (DataSliceCount)
     (DataWeight)
     (PrimaryDataWeight)
-)
+);
 
 //! Helper structure for representing job parameters.
 struct TResourceVector

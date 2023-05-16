@@ -32,7 +32,7 @@ struct TQueueSnapshot
     std::vector<NQueueClient::TConsumerRegistrationTableRow> Registrations;
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueueSnapshot);
+DEFINE_REFCOUNTED_TYPE(TQueueSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +62,7 @@ struct TQueuePartitionSnapshot
     NYson::TYsonString Meta;
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueuePartitionSnapshot);
+DEFINE_REFCOUNTED_TYPE(TQueuePartitionSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,7 +82,7 @@ struct TConsumerSnapshot
     THashMap<NQueueClient::TCrossClusterReference, TSubConsumerSnapshotPtr> SubSnapshots;
 };
 
-DEFINE_REFCOUNTED_TYPE(TConsumerSnapshot);
+DEFINE_REFCOUNTED_TYPE(TConsumerSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -135,7 +135,7 @@ struct TConsumerPartitionSnapshot
     TPerformanceCounters ReadRate;
 };
 
-DEFINE_REFCOUNTED_TYPE(TConsumerPartitionSnapshot);
+DEFINE_REFCOUNTED_TYPE(TConsumerPartitionSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 

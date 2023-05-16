@@ -36,7 +36,7 @@ private:
     void ExecuteQueries();
 };
 
-DEFINE_REFCOUNTED_TYPE(THealthChecker);
+DEFINE_REFCOUNTED_TYPE(THealthChecker)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1210,7 +1210,7 @@ T* ConstructObjectInplace(char** memory, TArgs&&... args)
     auto result = new (*memory) T(std::forward<TArgs>(args)...);
     *memory += sizeof(T);
     return result;
-};
+}
 
 struct TDestructorCaller
 {

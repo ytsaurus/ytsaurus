@@ -441,7 +441,7 @@ IReconfigurableThroughputThrottlerPtr CreateNamedReconfigurableThroughputThrottl
         std::move(config),
         logger.WithTag("Throttler: %v", name),
         profiler.WithPrefix("/" + CamelCaseToUnderscoreCase(name)));
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -522,7 +522,7 @@ IThroughputThrottlerPtr CreateNamedUnlimitedThroughputThrottler(
 {
     profiler = profiler.WithPrefix("/" + CamelCaseToUnderscoreCase(name));
     return New<TUnlimitedThroughtputThrottler>(profiler);
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

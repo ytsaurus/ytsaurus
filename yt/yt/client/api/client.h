@@ -1115,7 +1115,7 @@ DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EJobSpecSource, ui16,
 
     //! Job spec is fetched from any available source.
     ((Auto) (0xFFFF))
-)
+);
 
 struct TGetJobInputOptions
     : public TTimeoutOptions
@@ -1177,8 +1177,8 @@ struct TListOperationsAccessFilter
     }
 };
 
-DECLARE_REFCOUNTED_TYPE(TListOperationsAccessFilter);
-DEFINE_REFCOUNTED_TYPE(TListOperationsAccessFilter);
+DECLARE_REFCOUNTED_TYPE(TListOperationsAccessFilter)
+DEFINE_REFCOUNTED_TYPE(TListOperationsAccessFilter)
 
 struct TListOperationsOptions
     : public TTimeoutOptions

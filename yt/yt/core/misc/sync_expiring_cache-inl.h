@@ -25,7 +25,7 @@ TSyncExpiringCache<TKey, TValue>::TEntry::TEntry(TSyncExpiringCache<TKey, TValue
     : LastAccessTime(entry.LastAccessTime.load())
     , LastUpdateTime(entry.LastUpdateTime)
     , Value(std::move(entry.Value))
-{ };
+{ }
 
 template <class TKey, class TValue>
 typename TSyncExpiringCache<TKey, TValue>::TEntry&

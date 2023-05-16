@@ -159,7 +159,7 @@ ui32 TTimestampSegmentReader::GetLowerDeleteIndex(i64 rowIndex) const
     return (adjustedRowIndex == 0)
         ? 0
         : GetDeleteIndex(adjustedRowIndex - 1);
-};
+}
 
 ui32 TTimestampSegmentReader::GetLowerWriteIndex(i64 rowIndex) const
 {
@@ -167,7 +167,7 @@ ui32 TTimestampSegmentReader::GetLowerWriteIndex(i64 rowIndex) const
     return (adjustedRowIndex == 0)
         ? 0
         : GetWriteIndex(adjustedRowIndex - 1);
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -15,7 +15,7 @@ public:
     double Delta;
     double CompressionFrequency;
 
-    REGISTER_YSON_STRUCT(TTDigestConfig)
+    REGISTER_YSON_STRUCT(TTDigestConfig);
 
     static void Register(TRegistrar registrar);
 };

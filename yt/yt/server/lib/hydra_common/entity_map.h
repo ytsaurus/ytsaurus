@@ -184,7 +184,7 @@ private:
 #define DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityNamePlural, entityType) \
     virtual entityType* Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const = 0; \
     virtual entityType* Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const = 0; \
-    virtual const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& entityNamePlural() const = 0;
+    virtual const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& entityNamePlural() const = 0
 
 #define DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(entityName, entityType) \
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityName ## s, entityType)
@@ -195,12 +195,12 @@ private:
 #define DECLARE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityNamePlural, entityType) \
     entityType* Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const; \
     entityType* Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const; \
-    const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& entityNamePlural() const;
+    const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& entityNamePlural() const
 
 #define DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE_IMPL(entityName, entityNamePlural, entityType) \
     virtual entityType* Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const override; \
     virtual entityType* Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const override; \
-    virtual const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& entityNamePlural() const override;
+    virtual const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& entityNamePlural() const override
 
 #define DECLARE_ENTITY_MAP_ACCESSORS(entityName, entityType) \
     DECLARE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityName ## s, entityType)
@@ -225,7 +225,8 @@ private:
     const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& declaringType::entityNamePlural() const \
     { \
         return (map); \
-    }
+    } \
+    static_assert(true)
 
 #define DEFINE_ENTITY_MAP_ACCESSORS(declaringType, entityName, entityType, map) \
     DEFINE_ENTITY_MAP_ACCESSORS_IMPL(declaringType, entityName, entityName ## s, entityType, map)
@@ -247,7 +248,8 @@ private:
     const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& declaringType::entityNamePlural() const \
     { \
         return (delegateTo).entityNamePlural(); \
-    }
+    } \
+    static_assert(true)
 
 #define DELEGATE_ENTITY_MAP_ACCESSORS(declaringType, entityName, entityType, delegateTo) \
     DELEGATE_ENTITY_MAP_ACCESSORS_IMPL(declaringType, entityName, entityName ## s, entityType, delegateTo)

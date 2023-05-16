@@ -214,7 +214,7 @@ DECLARE_REFCOUNTED_STRUCT(TExperimentAssignment)
 
 struct TExecNodeDescriptor;
 using TExecNodeDescriptorMap = THashMap<NNodeTrackerClient::TNodeId, TExecNodeDescriptor>;
-DECLARE_REFCOUNTED_STRUCT(TRefCountedExecNodeDescriptorMap);
+DECLARE_REFCOUNTED_STRUCT(TRefCountedExecNodeDescriptorMap)
 
 class TSchedulingTagFilter;
 

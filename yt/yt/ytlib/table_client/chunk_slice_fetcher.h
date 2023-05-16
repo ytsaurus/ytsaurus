@@ -32,7 +32,7 @@ struct IChunkSliceFetcher
         bool sliceByKeys) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcher);
+DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 

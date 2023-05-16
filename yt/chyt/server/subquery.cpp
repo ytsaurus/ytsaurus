@@ -106,7 +106,7 @@ DEFINE_ENUM(EKeyConditionScale,
     (Partition)
     (Tablet)
     (TopLevelDataSlice)
-)
+);
 
 class TInputFetcher
     : public TRefCounted
@@ -789,7 +789,7 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TInputFetcher);
+DEFINE_REFCOUNTED_TYPE(TInputFetcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 

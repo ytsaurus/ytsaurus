@@ -102,7 +102,7 @@ DECLARE_REFCOUNTED_TYPE(IUnversionedRowset)
 DECLARE_REFCOUNTED_TYPE(IVersionedRowset)
 DECLARE_REFCOUNTED_TYPE(ITypeErasedRowset)
 DECLARE_REFCOUNTED_STRUCT(IPersistentQueueRowset)
-DECLARE_REFCOUNTED_STRUCT(TSkynetSharePartsLocations);
+DECLARE_REFCOUNTED_STRUCT(TSkynetSharePartsLocations)
 
 struct TConnectionOptions;
 

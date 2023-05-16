@@ -18,7 +18,7 @@ struct IListener
     virtual void Shutdown() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IListener);
+DEFINE_REFCOUNTED_TYPE(IListener)
 
 IListenerPtr CreateListener(
     const TNetworkAddress& address,

@@ -172,10 +172,10 @@ class TRealChunkLocation
 public:
     using TObject::TObject;
 
-    DEFINE_BYVAL_RW_PROPERTY(TChunkLocationUuid, Uuid)
-    DEFINE_BYVAL_RW_PROPERTY(EChunkLocationState, State, EChunkLocationState::Offline)
-    DEFINE_BYREF_RW_PROPERTY(TMediumPtr, MediumOverride)
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TChunkLocationStatistics, Statistics)
+    DEFINE_BYVAL_RW_PROPERTY(TChunkLocationUuid, Uuid);
+    DEFINE_BYVAL_RW_PROPERTY(EChunkLocationState, State, EChunkLocationState::Offline);
+    DEFINE_BYREF_RW_PROPERTY(TMediumPtr, MediumOverride);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TChunkLocationStatistics, Statistics);
 
 public:
     bool IsImaginary() const override;

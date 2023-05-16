@@ -49,7 +49,7 @@ private:
     const IConnectionPtr Connection_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TClientCache);
+DEFINE_REFCOUNTED_TYPE(TClientCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

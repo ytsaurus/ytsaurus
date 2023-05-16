@@ -156,7 +156,8 @@ public: \
     void Merge##name(const ownerType* branchedNode) \
     { \
         name##_.Merge(branchedNode->name##_, IsTrunk()); \
-    }
+    } \
+    static_assert(true)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -195,7 +196,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ModificationTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AccessTime);
 
-    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TInstant, ExpirationTime)
+    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TInstant, ExpirationTime);
 
     //! Master memory usage account was already charged for.
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TDetailedMasterMemory, ChargedDetailedMasterMemoryUsage);
@@ -206,7 +207,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Opaque);
-    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TString, Annotation)
+    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TString, Annotation);
 
     //! The shard this node belongs to.
     //! Always null for foreign and non-trunk nodes.

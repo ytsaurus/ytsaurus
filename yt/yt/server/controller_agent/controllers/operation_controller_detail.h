@@ -105,7 +105,7 @@ DEFINE_ENUM(EIntermediateChunkUnstageMode,
     (OnJobCompleted)
     // Keep a release queue of chunks and unstage then when snapshot is built.
     (OnSnapshotCompleted)
-)
+);
 
 class TOperationControllerBase
     : public IOperationController
@@ -1074,7 +1074,7 @@ private:
     public:
         using TCallback = TCallback<NYson::TYsonString()>;
 
-        DEFINE_BYVAL_RW_PROPERTY(TDuration, UpdatePeriod)
+        DEFINE_BYVAL_RW_PROPERTY(TDuration, UpdatePeriod);
 
         TCachedYsonCallback(TDuration period, TCallback callback);
 

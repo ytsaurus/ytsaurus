@@ -14,7 +14,7 @@ struct ITvmBridge
     virtual TFuture<void> EnsureDestinationServiceIds(const std::vector<TTvmId>& serviceIds) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ITvmBridge);
+DEFINE_REFCOUNTED_TYPE(ITvmBridge)
 
 ////////////////////////////////////////////////////////////////////////////////
 

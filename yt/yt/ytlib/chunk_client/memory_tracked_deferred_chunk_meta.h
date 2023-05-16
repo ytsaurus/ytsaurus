@@ -21,7 +21,7 @@ private:
     TMemoryUsageTrackerGuard Guard_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TMemoryTrackedDeferredChunkMeta);
+DEFINE_REFCOUNTED_TYPE(TMemoryTrackedDeferredChunkMeta)
 
 ////////////////////////////////////////////////////////////////////////////////
 

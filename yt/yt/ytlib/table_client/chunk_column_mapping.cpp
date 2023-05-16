@@ -71,7 +71,7 @@ void ValidateSchema(const TTableSchema& chunkSchema, const TTableSchema& readerS
     }
 }
 
-DEFINE_REFCOUNTED_TYPE(TChunkColumnMapping);
+DEFINE_REFCOUNTED_TYPE(TChunkColumnMapping)
 
 TChunkColumnMapping::TChunkColumnMapping(const TTableSchemaPtr& tableSchema, const TTableSchemaPtr& chunkSchema)
     : TableKeyColumnCount_(tableSchema->GetKeyColumnCount())

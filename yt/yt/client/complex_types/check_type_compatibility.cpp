@@ -50,7 +50,7 @@ DEFINE_ENUM(ESimpleTypeClass,
     (Uint)
     (Floating)
     (String)
-)
+);
 
 template <ESimpleTypeClass typeClass>
 static int GetSimpleTypeRank(ESimpleLogicalValueType type)

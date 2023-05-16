@@ -51,7 +51,7 @@ struct THedgingClientOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(THedgingExecutor);
+DECLARE_REFCOUNTED_CLASS(THedgingExecutor)
 
 class THedgingExecutor final
 {
@@ -129,7 +129,7 @@ private:
     TSpinLock SpinLock_;
 };
 
-DEFINE_REFCOUNTED_TYPE(THedgingExecutor);
+DEFINE_REFCOUNTED_TYPE(THedgingExecutor)
 
 ////////////////////////////////////////////////////////////////////////////////
 

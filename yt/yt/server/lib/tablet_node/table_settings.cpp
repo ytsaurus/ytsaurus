@@ -46,7 +46,7 @@ void TTableIOConfigPatch::Register(TRegistrar registrar)
                     TDefaultFormatter{}));
         }
     });
-};
+}
 
 bool TTableIOConfigPatch::IsEqual(const TTableIOConfigPatchPtr& other) const
 {

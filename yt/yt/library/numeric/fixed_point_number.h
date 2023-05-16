@@ -135,7 +135,7 @@ public:
    static NYT::TFixedPointNumber<U, P> max()
    {
        return numeric_limits<U>::max() / NYT::TFixedPointNumber<U, P>::ScalingFactor;
-   };
+   }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -33,7 +33,7 @@ public:
         }
     }
 };
-REGISTER_REDUCER(TFilterVideoRegexp);
+REGISTER_REDUCER(TFilterVideoRegexp)
 
 int main() {
     NYT::Initialize();

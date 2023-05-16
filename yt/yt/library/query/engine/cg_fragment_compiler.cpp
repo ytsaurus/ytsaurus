@@ -125,7 +125,7 @@ Value* CodegenFingerprint64(const TCGIRBuilderPtr& builder, Value* x)
     b = builder->CreateXor(b, builder->CreateLShr(b, builder->getInt64(41)));
     b = builder->CreateMul(b, kMul);
     return b;
-};
+}
 
 Value* CodegenFingerprint128(const TCGIRBuilderPtr& builder, Value* x, Value* y)
 {
@@ -138,7 +138,7 @@ Value* CodegenFingerprint128(const TCGIRBuilderPtr& builder, Value* x, Value* y)
     b = builder->CreateXor(b, builder->CreateLShr(b, builder->getInt64(41)));
     b = builder->CreateMul(b, kMul);
     return b;
-};
+}
 
 TValueTypeLabels CodegenHasherBody(
     TCGBaseContext& builder,
@@ -522,7 +522,7 @@ TValueTypeLabels CodegenLessComparerBody(
         llvm::BlockAddress::get(cmpDoubleBB),
         llvm::BlockAddress::get(cmpStringBB)
     };
-};
+}
 
 struct TComparerManager
     : public TRefCounted
@@ -626,7 +626,7 @@ struct TComparerManager
         const std::vector<bool>& isDesc);
 };
 
-DEFINE_REFCOUNTED_TYPE(TComparerManager);
+DEFINE_REFCOUNTED_TYPE(TComparerManager)
 
 TComparerManagerPtr MakeComparerManager()
 {
@@ -1035,7 +1035,7 @@ Value* CodegenLexicographicalCompare(
         builder->CreateAnd(
             builder->CreateICmpEQ(cmpResult, builder->getInt32(0)),
             lhsLengthIsLess));
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

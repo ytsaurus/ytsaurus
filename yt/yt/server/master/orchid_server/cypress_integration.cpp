@@ -49,8 +49,8 @@ struct TOrchidManifest
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TOrchidManifest);
-DECLARE_REFCOUNTED_STRUCT(TOrchidManifest);
+DEFINE_REFCOUNTED_TYPE(TOrchidManifest)
+DECLARE_REFCOUNTED_STRUCT(TOrchidManifest)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -23,7 +23,7 @@ extern const TString KeySwitchColumnName;
 DEFINE_ENUM(ERowRangeIndexMode,
     (Incremental)
     (IncrementalWithError)
-)
+);
 
 class TFieldDescription
 {

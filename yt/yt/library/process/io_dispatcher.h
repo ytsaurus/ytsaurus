@@ -24,7 +24,7 @@ public:
 private:
     TIODispatcher();
 
-    Y_DECLARE_SINGLETON_FRIEND();
+    Y_DECLARE_SINGLETON_FRIEND()
 
     TLazyIntrusivePtr<NConcurrency::IThreadPoolPoller> Poller_;
 };

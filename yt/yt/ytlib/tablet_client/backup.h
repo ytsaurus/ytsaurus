@@ -15,7 +15,7 @@ DEFINE_ENUM(ETableBackupState,
 
     //! Backup destination. Table cannot be mounted, resharded etc.
     ((BackupCompleted)             (1))
-)
+);
 
 //! Backup state of individual tables. Stored at the external cell. Also aggregate value
 //! for all tables of the table is stored.
@@ -54,7 +54,7 @@ DEFINE_ENUM(ETabletBackupState,
 
     // Only applied to aggregate state.
     ((Mixed)                       (9))
-)
+);
 
 //! Describes the backup mode of a certain table.
 DEFINE_ENUM(EBackupMode,
@@ -69,7 +69,7 @@ DEFINE_ENUM(EBackupMode,
     ((SortedSyncReplica)              (6))
     ((SortedAsyncReplica)             (7))
     ((ReplicatedSorted)               (8))
-)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

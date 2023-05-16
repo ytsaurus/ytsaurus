@@ -50,7 +50,7 @@ std::optional<TString> MapEnumToString(const std::optional<T>& optionalValue)
         stringValue = FormatEnum(*optionalValue);
     }
     return stringValue;
-};
+}
 
 //! Returns remote client from client directory for the given cluster.
 //! Falls back to the given local client if cluster is null or the corresponding client is not found.

@@ -809,7 +809,7 @@ private:
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TAlertManager);
-DEFINE_REFCOUNTED_TYPE(TAlertManager);
+DEFINE_REFCOUNTED_TYPE(TAlertManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

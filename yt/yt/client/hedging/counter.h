@@ -27,7 +27,7 @@ struct TCounter final
     NProfiling::TEventTimer RequestDuration;
 };
 
-DEFINE_REFCOUNTED_TYPE(TCounter);
+DEFINE_REFCOUNTED_TYPE(TCounter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +43,7 @@ struct TLagPenaltyProviderCounters final
     NProfiling::TGauge TotalTabletsCount;
 };
 
-DEFINE_REFCOUNTED_TYPE(TLagPenaltyProviderCounters);
+DEFINE_REFCOUNTED_TYPE(TLagPenaltyProviderCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 

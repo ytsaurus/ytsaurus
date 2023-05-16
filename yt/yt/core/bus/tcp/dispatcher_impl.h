@@ -56,7 +56,7 @@ public:
 private:
     friend class TTcpDispatcher;
 
-    DECLARE_NEW_FRIEND();
+    DECLARE_NEW_FRIEND()
 
     void StartPeriodicExecutors();
     void OnPeriodicCheck();

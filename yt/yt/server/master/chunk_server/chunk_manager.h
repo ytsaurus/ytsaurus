@@ -182,7 +182,7 @@ struct IChunkManager
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
     virtual TChunkList* GetChunkListOrThrow(TChunkListId id) = 0;
 
-    DECLARE_INTERFACE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium)
+    DECLARE_INTERFACE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium);
 
     virtual TChunkTree* FindChunkTree(TChunkTreeId id) = 0;
     virtual TChunkTree* GetChunkTree(TChunkTreeId id) = 0;

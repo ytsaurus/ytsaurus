@@ -86,7 +86,7 @@ private:
     void DoFetch();
 };
 
-DEFINE_REFCOUNTED_TYPE(TBatchAttributeFetcher);
+DEFINE_REFCOUNTED_TYPE(TBatchAttributeFetcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 

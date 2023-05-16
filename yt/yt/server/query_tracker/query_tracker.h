@@ -22,7 +22,7 @@ struct IQueryTracker
     virtual void OnDynamicConfigChanged(const TQueryTrackerDynamicConfigPtr& config) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IQueryTracker);
+DEFINE_REFCOUNTED_TYPE(IQueryTracker)
 
 IQueryTrackerPtr CreateQueryTracker(
     TQueryTrackerDynamicConfigPtr config,

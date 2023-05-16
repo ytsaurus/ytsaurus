@@ -57,7 +57,7 @@ struct IChunkSliceFetcherFactory
 IChunkSliceFetcherFactoryPtr CreateCallbackChunkSliceFetcherFactory(
     TCallback<NTableClient::IChunkSliceFetcherPtr()> factoryCallback);
 
-DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcherFactory);
+DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcherFactory)
 
 ////////////////////////////////////////////////////////////////////////////////
 

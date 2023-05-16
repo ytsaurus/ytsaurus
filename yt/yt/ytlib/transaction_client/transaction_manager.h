@@ -109,7 +109,7 @@ private:
     const TImplPtr Impl_;
 
     friend class TTransactionManager;
-    DECLARE_NEW_FRIEND();
+    DECLARE_NEW_FRIEND()
 
     static TTransactionPtr Create(TImplPtr impl);
     explicit TTransaction(TImplPtr impl);

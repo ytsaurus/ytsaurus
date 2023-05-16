@@ -31,7 +31,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TNativeAuthenticationManagerConfig);
+DEFINE_REFCOUNTED_TYPE(TNativeAuthenticationManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +47,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TNativeAuthenticationManagerDynamicConfig);
+DEFINE_REFCOUNTED_TYPE(TNativeAuthenticationManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,7 +72,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TTvmBridgeConfig);
+DEFINE_REFCOUNTED_TYPE(TTvmBridgeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

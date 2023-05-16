@@ -25,7 +25,7 @@ struct IRandomFileProvider
     virtual std::optional<TFileInfo> GetRandomExistingFile() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IRandomFileProvider);
+DEFINE_REFCOUNTED_TYPE(IRandomFileProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +43,7 @@ struct IGentleLoader
     DECLARE_INTERFACE_SIGNAL(void(i64 /*currentIOPS*/), ProbesRoundFinished);
 };
 
-DEFINE_REFCOUNTED_TYPE(IGentleLoader);
+DEFINE_REFCOUNTED_TYPE(IGentleLoader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,8 +70,8 @@ public:
     virtual double GetWriteProbability() const = 0;
 };
 
-DECLARE_REFCOUNTED_CLASS(ILoadAdjuster);
-DEFINE_REFCOUNTED_TYPE(ILoadAdjuster);
+DECLARE_REFCOUNTED_CLASS(ILoadAdjuster)
+DEFINE_REFCOUNTED_TYPE(ILoadAdjuster)
 
 ILoadAdjusterPtr CreateLoadAdjuster(
     TGentleLoaderConfigPtr config,

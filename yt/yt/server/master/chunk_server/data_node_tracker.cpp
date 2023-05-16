@@ -320,7 +320,7 @@ public:
     }
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkLocation, TRealChunkLocation)
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkLocation, TRealChunkLocation);
 
     TEntityMap<TRealChunkLocation>* MutableChunkLocations() override
     {
@@ -683,7 +683,7 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TDataNodeTracker, ChunkLocation, TRealChunkLocation, ChunkLocationMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TDataNodeTracker, ChunkLocation, TRealChunkLocation, ChunkLocationMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

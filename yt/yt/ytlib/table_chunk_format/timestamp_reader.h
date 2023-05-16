@@ -196,7 +196,7 @@ public:
         return MakeRange(
             TimestampIndexRanges_.data(),
             TimestampIndexRanges_.data() + rowCount);
-    };
+    }
 
     NTableClient::TTimestamp GetValueTimestamp(i64 rowIndex, ui32 timestampIndex) const
     {

@@ -287,7 +287,7 @@ private:
     THashMap<TString, TWeakPtr<TTrackedMemoryChunkProvider>> Map_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TMemoryProviderMapByTag);
+DEFINE_REFCOUNTED_TYPE(TMemoryProviderMapByTag)
 
 TTrackedMemoryChunkProvider::~TTrackedMemoryChunkProvider()
 {

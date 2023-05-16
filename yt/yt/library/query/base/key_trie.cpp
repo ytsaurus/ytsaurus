@@ -52,7 +52,7 @@ int CompareBound(const TBound& lhs, const TBound& rhs, bool lhsDir, bool rhsDir)
     return result == 0
         ? rank(lhsDir, lhs.Included) - rank(rhsDir, rhs.Included)
         : result;
-};
+}
 
 template <class TEachCallback>
 void MergeBounds(const std::vector<TBound>& lhs, const std::vector<TBound>& rhs, TEachCallback eachCallback)
@@ -283,7 +283,7 @@ TKeyTriePtr TKeyTrie::FromRange(const TKeyRange& range)
 TKeyTriePtr UniteKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
 {
     return UniteKeyTrie({lhs, rhs});
-};
+}
 
 bool Covers(const std::vector<TBound>& bounds, const TValue& point)
 {

@@ -205,7 +205,7 @@ static constexpr char ReferencePrefix = '$';
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TSkiffSchemaRepresentation);
+DECLARE_REFCOUNTED_CLASS(TSkiffSchemaRepresentation)
 
 class TSkiffSchemaRepresentation
     : public TYsonStruct
@@ -226,7 +226,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TSkiffSchemaRepresentation);
+DEFINE_REFCOUNTED_TYPE(TSkiffSchemaRepresentation)
 
 ////////////////////////////////////////////////////////////////////////////////
 

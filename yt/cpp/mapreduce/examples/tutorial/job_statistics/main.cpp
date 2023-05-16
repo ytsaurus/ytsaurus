@@ -35,7 +35,7 @@ class TComputeEmailsMapper
                     ("short", shortLoginCount)));
         }
 };
-REGISTER_MAPPER(TComputeEmailsMapper);
+REGISTER_MAPPER(TComputeEmailsMapper)
 
 int main() {
     NYT::Initialize();

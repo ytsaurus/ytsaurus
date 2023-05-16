@@ -219,7 +219,7 @@ private:
     TChecksum Checksum_ = NullChecksum;
 };
 
-DEFINE_REFCOUNTED_TYPE(TErasurePartWriterWrapper);
+DEFINE_REFCOUNTED_TYPE(TErasurePartWriterWrapper)
 
 typedef TIntrusivePtr<TErasurePartWriterWrapper> TErasurePartWriterWrapperPtr;
 

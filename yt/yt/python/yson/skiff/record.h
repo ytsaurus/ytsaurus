@@ -75,16 +75,16 @@ public:
     Py::Object iter() override;
 
     Py::Object GetItemsIterator();
-    PYCXX_NOARGS_METHOD_DECL(TSkiffRecordPython, GetItemsIterator);
+    PYCXX_NOARGS_METHOD_DECL(TSkiffRecordPython, GetItemsIterator)
 
     Py::Object GetSchema();
-    PYCXX_NOARGS_METHOD_DECL(TSkiffRecordPython, GetSchema);
+    PYCXX_NOARGS_METHOD_DECL(TSkiffRecordPython, GetSchema)
 
     Py::Object CopyRecord();
-    PYCXX_NOARGS_METHOD_DECL(TSkiffRecordPython, CopyRecord);
+    PYCXX_NOARGS_METHOD_DECL(TSkiffRecordPython, CopyRecord)
 
     Py::Object DeepCopyRecord(const Py::Tuple& args);
-    PYCXX_VARARGS_METHOD_DECL(TSkiffRecordPython, DeepCopyRecord);
+    PYCXX_VARARGS_METHOD_DECL(TSkiffRecordPython, DeepCopyRecord)
 
     void SetSkiffRecordObject(TIntrusivePtr<TSkiffRecord> record);
 

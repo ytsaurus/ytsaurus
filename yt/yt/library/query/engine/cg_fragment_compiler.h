@@ -70,7 +70,7 @@ DEFINE_ENUM(EStreamTag,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TComparerManager);
+DECLARE_REFCOUNTED_STRUCT(TComparerManager)
 
 TComparerManagerPtr MakeComparerManager();
 

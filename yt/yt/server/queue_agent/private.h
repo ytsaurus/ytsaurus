@@ -83,23 +83,23 @@ DEFINE_ENUM(EQueueFamily,
     ((Null)                       (0))
     //! Regular ordered dynamic table.
     ((OrderedDynamicTable)        (1))
-)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TQueueSnapshot);
+DECLARE_REFCOUNTED_STRUCT(TQueueSnapshot)
 using TQueueSnapshotConstPtr = TIntrusivePtr<const TQueueSnapshot>;
-DECLARE_REFCOUNTED_STRUCT(TQueuePartitionSnapshot);
-DECLARE_REFCOUNTED_STRUCT(TConsumerSnapshot);
+DECLARE_REFCOUNTED_STRUCT(TQueuePartitionSnapshot)
+DECLARE_REFCOUNTED_STRUCT(TConsumerSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TSubConsumerSnapshot)
-DECLARE_REFCOUNTED_STRUCT(TConsumerPartitionSnapshot);
+DECLARE_REFCOUNTED_STRUCT(TConsumerPartitionSnapshot)
 using TConsumerSnapshotConstPtr = TIntrusivePtr<const TConsumerSnapshot>;
 using TSubConsumerSnapshotConstPtr = TIntrusivePtr<const TSubConsumerSnapshot>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IQueueProfileManager);
-DECLARE_REFCOUNTED_STRUCT(IConsumerProfileManager);
+DECLARE_REFCOUNTED_STRUCT(IQueueProfileManager)
+DECLARE_REFCOUNTED_STRUCT(IConsumerProfileManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,7 +114,7 @@ DEFINE_ENUM(EConsumerPartitionDisposition,
     (Expired)
     //! Ahead of the window, i.e. "unread row count < 0" (unread row count is capped)
     (Ahead)
-)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

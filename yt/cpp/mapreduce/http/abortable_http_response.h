@@ -23,10 +23,10 @@ struct TOutageOptions
     using TSelf = TOutageOptions;
 
     /// @brief Number of responses to abort.
-    FLUENT_FIELD_DEFAULT(size_t, ResponseCount, std::numeric_limits<size_t>::max())
+    FLUENT_FIELD_DEFAULT(size_t, ResponseCount, std::numeric_limits<size_t>::max());
 
     /// @brief Number of bytes to read before abortion. If zero, abort immediately.
-    FLUENT_FIELD_DEFAULT(size_t, LengthLimit, 0)
+    FLUENT_FIELD_DEFAULT(size_t, LengthLimit, 0);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

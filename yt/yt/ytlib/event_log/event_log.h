@@ -79,7 +79,7 @@ public:
     virtual TFuture<void> Close() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IEventLogWriter);
+DEFINE_REFCOUNTED_TYPE(IEventLogWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

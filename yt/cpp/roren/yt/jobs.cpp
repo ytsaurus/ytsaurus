@@ -116,7 +116,7 @@ private:
 public:
     Y_SAVELOAD_JOB(State_);
 };
-REGISTER_RAW_JOB(TParDoMap)
+REGISTER_RAW_JOB(TParDoMap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -155,7 +155,7 @@ private:
 public:
     Y_SAVELOAD_JOB(RowVtables_);
 };
-REGISTER_RAW_JOB(TSplitKvMap)
+REGISTER_RAW_JOB(TSplitKvMap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -207,7 +207,7 @@ private:
 public:
     Y_SAVELOAD_JOB(State_);
 };
-REGISTER_RAW_JOB(TJoinKvReduce)
+REGISTER_RAW_JOB(TJoinKvReduce);
 
 void ProcessOneGroup(const IRawCoGroupByKeyPtr& rawComputation, const IYtNotSerializableJobInputPtr& input, const IRawOutputPtr& rawOutput)
 {
@@ -297,7 +297,7 @@ private:
 public:
     Y_SAVELOAD_JOB(State_);
 };
-REGISTER_RAW_JOB(TMultiJoinKvReduce)
+REGISTER_RAW_JOB(TMultiJoinKvReduce);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -366,7 +366,7 @@ private:
 public:
     Y_SAVELOAD_JOB(State_);
 };
-REGISTER_RAW_JOB(TCombineCombiner)
+REGISTER_RAW_JOB(TCombineCombiner);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -470,7 +470,7 @@ private:
 public:
     Y_SAVELOAD_JOB(State_);
 };
-REGISTER_RAW_JOB(TCombineReducer)
+REGISTER_RAW_JOB(TCombineReducer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

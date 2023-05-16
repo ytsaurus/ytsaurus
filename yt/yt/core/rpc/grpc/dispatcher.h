@@ -54,7 +54,7 @@ class TGrpcLibraryLock
     : public TRefCounted
 {
 private:
-    DECLARE_NEW_FRIEND();
+    DECLARE_NEW_FRIEND()
     friend class TDispatcher::TImpl;
 
     TGrpcLibraryLock();

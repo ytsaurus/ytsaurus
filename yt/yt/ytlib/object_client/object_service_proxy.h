@@ -120,7 +120,7 @@ private:
     private:
         friend class TReqExecuteBatch;
 
-        DECLARE_NEW_FRIEND();
+        DECLARE_NEW_FRIEND()
 
         TSharedRefArray SerializeHeaderless() const override;
         size_t ComputeHash() const override;
@@ -181,7 +181,7 @@ public:
             const TReqExecuteBatchBase& other,
             std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
 
-        DECLARE_NEW_FRIEND();
+        DECLARE_NEW_FRIEND()
 
         void PushDownPrerequisites();
 
@@ -225,7 +225,7 @@ public:
         std::optional<int> StickyGroupSize_;
         bool EnableClientStickiness_ = false;
 
-        DECLARE_NEW_FRIEND();
+        DECLARE_NEW_FRIEND()
 
         //! Patch the message and set the 'retry' flag to true.
         static TSharedRefArray PatchForRetry(const TSharedRefArray& message);
@@ -265,7 +265,7 @@ public:
             TCallback<bool(int, const TError&)> needRetry,
             int subbatchSize = DefaultSubbatchSize);
 
-        DECLARE_NEW_FRIEND();
+        DECLARE_NEW_FRIEND()
 
         void InvokeNextBatch();
 
@@ -424,7 +424,7 @@ public:
             NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
             TPromise<TRspExecuteBatchPtr> promise = {});
 
-        DECLARE_NEW_FRIEND();
+        DECLARE_NEW_FRIEND()
 
         void SetEmpty();
 

@@ -14,7 +14,7 @@ DEFINE_ENUM(ELogFormat,
     // Legacy alias for JSON.
     (Structured)
     (Yson)
-)
+);
 
 DEFINE_ENUM(ECompressionMethod,
     (Gzip)

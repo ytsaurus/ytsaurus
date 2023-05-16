@@ -396,7 +396,7 @@ private:
         TraversalStack_.push_back(parent);
 
         return EReincarnationResult::OK;
-    };
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

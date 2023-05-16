@@ -67,7 +67,7 @@ private:
         explicit TChunkPlacementGroup(TChunk* chunk);
 
         // Kept sorted for ease of group ordering.
-        DEFINE_BYREF_RO_PROPERTY(std::vector<TChunk*>, Chunks)
+        DEFINE_BYREF_RO_PROPERTY(std::vector<TChunk*>, Chunks);
 
     public:
         void AddChunk(TChunk* chunk);

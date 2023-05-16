@@ -389,7 +389,7 @@ DEFINE_ENUM(ESchemaCompatibility,
     // Values that satisfy old schema ALWAYS satisfy new schema.
     // E.g. Int32 and Int64
     (FullyCompatible)
-)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

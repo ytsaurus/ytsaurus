@@ -155,7 +155,7 @@ private:
     EMergeJobType GetCurrentMergeType() const;
 };
 
-DEFINE_REFCOUNTED_TYPE(TAutoMergeTask);
+DEFINE_REFCOUNTED_TYPE(TAutoMergeTask)
 
 ////////////////////////////////////////////////////////////////////////////////
 

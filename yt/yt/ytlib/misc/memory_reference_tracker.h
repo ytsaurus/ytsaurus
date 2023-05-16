@@ -19,7 +19,7 @@ struct INodeMemoryReferenceTracker
     virtual void Reconfigure(TNodeMemoryReferenceTrackerConfigPtr config) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(INodeMemoryReferenceTracker);
+DEFINE_REFCOUNTED_TYPE(INodeMemoryReferenceTracker)
 
 /////////////////////////////////////////////////////////////////////////////
 

@@ -196,7 +196,7 @@ private:
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TExplicitJobSizeConstraints);
-DEFINE_REFCOUNTED_TYPE(TExplicitJobSizeConstraints);
+DEFINE_REFCOUNTED_TYPE(TExplicitJobSizeConstraints)
 
 ////////////////////////////////////////////////////////////////////////////////
 

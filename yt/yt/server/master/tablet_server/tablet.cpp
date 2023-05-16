@@ -87,7 +87,7 @@ void TBackupCutoffDescriptor::Persist(const NCellMaster::TPersistenceContext& co
     Persist(context, CutoffRowIndex);
     Persist(context, NextDynamicStoreId);
     Persist(context, DynamicStoreIdsToKeep);
-};
+}
 
 TString ToString(const TBackupCutoffDescriptor& descriptor)
 {
@@ -380,4 +380,3 @@ void TTablet::ValidateReshardRemove() const
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer
-

@@ -20,7 +20,7 @@ DEFINE_ENUM(ETabletDistributedThrottlerKind,
     (Select)
     (CompactionRead)
     (Write)
-)
+);
 
 DEFINE_ENUM(EHunkCompactionReason,
     (None)
@@ -32,7 +32,7 @@ DEFINE_ENUM(EHunkCompactionReason,
 DEFINE_ENUM(ETabletWriteMode,
     ((Direct)         (0))
     ((Pull)           (1))
-)
+);
 
 DEFINE_ENUM(EBackupStage,
     ((None)                           (0))
@@ -41,7 +41,7 @@ DEFINE_ENUM(EBackupStage,
     ((AwaitingReplicationFinish)      (3))
     ((RespondedToMasterSuccess)       (4))
     ((RespondedToMasterFailure)       (5))
-)
+);
 
 DEFINE_ENUM(ETabletLockType,
     // Lock of this kind is acquired on leader during #Write RPC call

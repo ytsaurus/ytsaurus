@@ -86,7 +86,7 @@ void TReadRequestComplexityLimitsConfig::RegisterParameters(
         .Default(defaults.NodeCount);
     registrar.Parameter("result_size", &TThis::ResultSize)
         .Default(defaults.ResultSize);
-};
+}
 
 void TReadRequestComplexityLimitsConfig::ToReadRequestComplexity(TReadRequestComplexity& limits) const
 {

@@ -20,7 +20,7 @@ struct IDialer
     virtual TFuture<IConnectionPtr> Dial(const TNetworkAddress& remote) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IDialer);
+DEFINE_REFCOUNTED_TYPE(IDialer)
 
 IDialerPtr CreateDialer(
     TDialerConfigPtr config,
@@ -42,7 +42,7 @@ struct IAsyncDialerSession
     virtual void Dial() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IAsyncDialerSession);
+DEFINE_REFCOUNTED_TYPE(IAsyncDialerSession)
 
 //! Async dialer interface.
 struct IAsyncDialer
@@ -54,7 +54,7 @@ struct IAsyncDialer
         TAsyncDialerCallback onFinished) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IAsyncDialer);
+DEFINE_REFCOUNTED_TYPE(IAsyncDialer)
 
 IAsyncDialerPtr CreateAsyncDialer(
     TDialerConfigPtr config,

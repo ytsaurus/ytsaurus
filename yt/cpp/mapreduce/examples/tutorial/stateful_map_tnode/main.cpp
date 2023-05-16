@@ -35,7 +35,7 @@ private:
     TString Pattern_;
     size_t MaxDistance_ = 0;
 };
-REGISTER_MAPPER(TFilterMapper);
+REGISTER_MAPPER(TFilterMapper)
 
 int main() {
     NYT::Initialize();

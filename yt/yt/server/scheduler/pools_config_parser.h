@@ -13,7 +13,7 @@ DEFINE_ENUM(EUpdatePoolActionType,
     (Create)
     (Move)
     (Erase)
-)
+);
 
 // The purpose of this class is not only to parse and validate config
 // but also to generate ordered sequence of primitive actions on existent pool tree structure.

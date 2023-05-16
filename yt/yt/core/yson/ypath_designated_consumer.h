@@ -10,7 +10,7 @@ namespace NYT::NYson {
 DEFINE_ENUM(EMissingPathMode,
     (ThrowError)
     (Ignore)
-)
+);
 
 std::unique_ptr<NYson::IYsonConsumer> CreateYPathDesignatedConsumer(
     NYPath::TYPath path,

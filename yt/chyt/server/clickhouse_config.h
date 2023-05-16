@@ -25,7 +25,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TUserConfig);
+DEFINE_REFCOUNTED_TYPE(TUserConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +40,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDictionarySourceYtConfig);
+DEFINE_REFCOUNTED_TYPE(TDictionarySourceYtConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +59,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDictionarySourceConfig);
+DEFINE_REFCOUNTED_TYPE(TDictionarySourceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,7 +107,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSystemLogConfig);
+DEFINE_REFCOUNTED_TYPE(TSystemLogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,7 +159,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TClickHouseConfig);
+DEFINE_REFCOUNTED_TYPE(TClickHouseConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

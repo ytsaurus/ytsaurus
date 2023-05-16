@@ -138,7 +138,7 @@ using TPreemptionStatusStatisticsVector = TEnumIndexedVector<EOperationPreemptio
 using TJobPreemptionStatusMap = THashMap<TJobId, EJobPreemptionStatus>;
 using TJobPreemptionStatusMapPerOperation = THashMap<TOperationId, TJobPreemptionStatusMap>;
 
-DECLARE_REFCOUNTED_STRUCT(TRefCountedJobPreemptionStatusMapPerOperation);
+DECLARE_REFCOUNTED_STRUCT(TRefCountedJobPreemptionStatusMapPerOperation)
 
 ////////////////////////////////////////////////////////////////////////////////
 

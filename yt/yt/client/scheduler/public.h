@@ -146,7 +146,7 @@ DEFINE_ENUM(EAutoMergeMode,
     (Relaxed)
     (Economy)
     (Manual)
-)
+);
 
 DECLARE_REFCOUNTED_CLASS(TOperationCache)
 

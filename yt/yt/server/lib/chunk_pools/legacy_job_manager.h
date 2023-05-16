@@ -230,7 +230,7 @@ private:
     NLogging::TSerializableLogger Logger;
 };
 
-DEFINE_REFCOUNTED_TYPE(TLegacyJobManager);
+DEFINE_REFCOUNTED_TYPE(TLegacyJobManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

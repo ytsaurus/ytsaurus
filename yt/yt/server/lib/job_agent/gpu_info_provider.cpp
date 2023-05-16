@@ -13,7 +13,7 @@ struct TGpuInfoProviderMock
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TGpuInfoProviderMock);
+DEFINE_REFCOUNTED_TYPE(TGpuInfoProviderMock)
 
 ////////////////////////////////////////////////////////////////////////////////
 

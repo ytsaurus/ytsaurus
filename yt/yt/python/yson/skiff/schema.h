@@ -62,19 +62,19 @@ public:
     int sequence_length() override;
 
     Py::Object CreateRecord();
-    PYCXX_NOARGS_METHOD_DECL(TSkiffSchemaPython, CreateRecord);
+    PYCXX_NOARGS_METHOD_DECL(TSkiffSchemaPython, CreateRecord)
 
     Py::Object HasOtherColumns();
-    PYCXX_NOARGS_METHOD_DECL(TSkiffSchemaPython, HasOtherColumns);
+    PYCXX_NOARGS_METHOD_DECL(TSkiffSchemaPython, HasOtherColumns)
 
     Py::Object CopySchema();
-    PYCXX_NOARGS_METHOD_DECL(TSkiffSchemaPython, CopySchema);
+    PYCXX_NOARGS_METHOD_DECL(TSkiffSchemaPython, CopySchema)
 
     Py::Object DeepCopySchema(const Py::Tuple& args);
-    PYCXX_VARARGS_METHOD_DECL(TSkiffSchemaPython, DeepCopySchema);
+    PYCXX_VARARGS_METHOD_DECL(TSkiffSchemaPython, DeepCopySchema)
 
     Py::Object GetFieldNames();
-    PYCXX_NOARGS_METHOD_DECL(TSkiffSchemaPython, GetFieldNames);
+    PYCXX_NOARGS_METHOD_DECL(TSkiffSchemaPython, GetFieldNames)
 
     static void InitType();
 

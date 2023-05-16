@@ -52,7 +52,7 @@ private:
     TString Column_;
     TString Pattern_;
 };
-REGISTER_MAPPER(TGrepper);
+REGISTER_MAPPER(TGrepper)
 
 int main() {
     NYT::Initialize();

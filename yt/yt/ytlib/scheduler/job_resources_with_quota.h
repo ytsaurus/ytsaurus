@@ -44,7 +44,7 @@ class TJobResourcesWithQuota
     : public TJobResources
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TDiskQuota, DiskQuota)
+    DEFINE_BYVAL_RW_PROPERTY(TDiskQuota, DiskQuota);
 
 public:
     TJobResourcesWithQuota() = default;

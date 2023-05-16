@@ -32,7 +32,7 @@ struct IFilterMatcher
         NTableClient::TRowBufferPtr rowBuffer = nullptr) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IFilterMatcher);
+DEFINE_REFCOUNTED_TYPE(IFilterMatcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 

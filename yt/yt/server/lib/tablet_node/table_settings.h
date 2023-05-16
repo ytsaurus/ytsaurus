@@ -23,7 +23,7 @@ public:
 
     bool IsEqual(const TTableIOConfigPatchPtr& other) const;
 
-    REGISTER_YSON_STRUCT(TTableIOConfigPatch)
+    REGISTER_YSON_STRUCT(TTableIOConfigPatch);
 
     static void Register(TRegistrar registrar);
 };
@@ -46,7 +46,7 @@ public:
 
     bool IsEqual(const TTableConfigPatchPtr& other) const;
 
-    REGISTER_YSON_STRUCT(TTableConfigPatch)
+    REGISTER_YSON_STRUCT(TTableConfigPatch);
 
     static void Register(TRegistrar registrar);
 };
@@ -91,7 +91,7 @@ public:
     //! taking place only after explicit remount.
     bool AutoApply;
 
-    REGISTER_YSON_STRUCT(TTableConfigExperiment)
+    REGISTER_YSON_STRUCT(TTableConfigExperiment);
 
     static void Register(TRegistrar registrar);
 
@@ -135,7 +135,7 @@ class TClusterTableConfigPatchSet
 public:
     std::map<TString, TTableConfigExperimentPtr> TableConfigExperiments;
 
-    REGISTER_YSON_STRUCT(TClusterTableConfigPatchSet)
+    REGISTER_YSON_STRUCT(TClusterTableConfigPatchSet);
 
     static void Register(TRegistrar registrar);
 };

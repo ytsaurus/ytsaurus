@@ -25,7 +25,7 @@ DEFINE_STRING_SERIALIZABLE_ENUM(EQueryEngine,
     (Yql)
     (Chyt)
     (Mock)
-)
+);
 
 DEFINE_STRING_SERIALIZABLE_ENUM(EQueryState,
     (Draft)
@@ -37,7 +37,7 @@ DEFINE_STRING_SERIALIZABLE_ENUM(EQueryState,
     (Completed)
     (Failing)
     (Failed)
-)
+);
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -268,7 +268,7 @@ TNode* TClusterStateProvider::FindNodeByAddress(const TString& address)
     return it->second;
 }
 
-DEFINE_ENTITY_MAP_ACCESSORS(TClusterStateProvider, CellBundle, TCellBundle, CellBundleMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TClusterStateProvider, CellBundle, TCellBundle, CellBundleMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

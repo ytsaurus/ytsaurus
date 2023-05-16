@@ -65,7 +65,7 @@ private:
     class TImpl;
     std::unique_ptr<TImpl> Impl_;
 
-    DECLARE_NEW_FRIEND();
+    DECLARE_NEW_FRIEND()
 
     explicit TCGModule(std::unique_ptr<TImpl> impl);
     uint64_t GetFunctionAddress(const TString& name);

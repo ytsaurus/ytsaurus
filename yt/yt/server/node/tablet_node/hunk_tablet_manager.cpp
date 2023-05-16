@@ -220,7 +220,7 @@ private:
             : Owner_(std::move(impl))
         { }
 
-        DECLARE_NEW_FRIEND();
+        DECLARE_NEW_FRIEND()
     };
 
     const IYPathServicePtr OrchidService_;
@@ -810,7 +810,7 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(THunkTabletManager, Tablet, THunkTablet, TabletMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(THunkTabletManager, Tablet, THunkTablet, TabletMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

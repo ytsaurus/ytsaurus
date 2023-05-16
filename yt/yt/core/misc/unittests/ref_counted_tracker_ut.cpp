@@ -241,7 +241,7 @@ TEST(TRefCountedTrackerTest, TBlobAllocatedMemoryTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TThrowingConstructorObject);
+DECLARE_REFCOUNTED_CLASS(TThrowingConstructorObject)
 TThrowingConstructorObjectPtr GlobalObject;
 
 class TThrowingConstructorObject
@@ -257,7 +257,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TThrowingConstructorObject);
+DEFINE_REFCOUNTED_TYPE(TThrowingConstructorObject)
 
 ////////////////////////////////////////////////////////////////////////////////
 

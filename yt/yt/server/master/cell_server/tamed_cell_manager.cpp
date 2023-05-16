@@ -2753,9 +2753,9 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TTamedCellManager, CellBundle, TCellBundle, CellBundleMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TTamedCellManager, Cell, TCellBase, CellMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TTamedCellManager, Area, TArea, AreaMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTamedCellManager, CellBundle, TCellBundle, CellBundleMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TTamedCellManager, Cell, TCellBase, CellMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TTamedCellManager, Area, TArea, AreaMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

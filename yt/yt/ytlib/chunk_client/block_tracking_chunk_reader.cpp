@@ -75,7 +75,7 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TBlockTrackingChunkReader);
+DEFINE_REFCOUNTED_TYPE(TBlockTrackingChunkReader)
 
 IChunkReaderPtr CreateBlockTrackingChunkReader(
     IChunkReaderPtr underlying,

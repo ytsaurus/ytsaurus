@@ -41,12 +41,12 @@ DEFINE_ENUM(EChunkResponse,
     (OK)
     (Timeout)
     (Failure)
-)
+);
 
 DEFINE_ENUM(ENodeResponse,
     (OK)
     (Failure)
-)
+);
 
 struct TNodeResponseScenario
 {
@@ -169,13 +169,13 @@ protected:
     TActionQueuePtr ControlQueue_;
     IInvokerPtr Invoker_;
     TNodeDirectoryPtr NodeDirectory_;
-    
+
     int NodeCount_ = 0;
     int ChunkCount_ = 0;
     std::vector<TInputChunkPtr> Chunks_;
 
     TResponseProfile ResponseProfile_;
-    
+
     TTestFetcherPtr Fetcher_;
 
     TFetcherBaseTest()
@@ -208,7 +208,7 @@ protected:
             Fetcher_->AddChunk(Chunks_.back());
         }
     }
-    
+
     void SetNodeResponse(int nodeId, const TNodeResponseScenario& nodeResponseScenario)
     {
         YT_VERIFY(1 <= nodeId && nodeId <= NodeCount_);
@@ -222,7 +222,7 @@ protected:
     {
         auto inputChunk = New<TInputChunk>();
         inputChunk->SetChunkId(TChunkId(id, 0));
-        
+
         TChunkReplicaList replicas;
         for (int index = 0; index < std::ssize(replicaNodes); ++index) {
             replicas.emplace_back(replicaNodes[index], index);

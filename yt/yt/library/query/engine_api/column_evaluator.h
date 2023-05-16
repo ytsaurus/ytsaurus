@@ -76,7 +76,7 @@ private:
         std::vector<TColumn> columns,
         std::vector<bool> isAggregate);
 
-    DECLARE_NEW_FRIEND();
+    DECLARE_NEW_FRIEND()
 };
 
 DEFINE_REFCOUNTED_TYPE(TColumnEvaluator)

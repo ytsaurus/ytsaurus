@@ -65,7 +65,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TLogTableConfig);
+DEFINE_REFCOUNTED_TYPE(TLogTableConfig)
 
 /////////////////////////////////////////////////////////////////////////////
 

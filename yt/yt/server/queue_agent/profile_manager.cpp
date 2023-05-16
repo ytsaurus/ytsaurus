@@ -227,7 +227,7 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueueProfileManager);
+DEFINE_REFCOUNTED_TYPE(TQueueProfileManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

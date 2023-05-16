@@ -62,8 +62,8 @@ struct IYsonStructParameter
 };
 
 //using IYsonStructParameterPtr = TIntrusivePtr<IYsonStructParameter>;
-DECLARE_REFCOUNTED_STRUCT(IYsonStructParameter);
-DEFINE_REFCOUNTED_TYPE(IYsonStructParameter);
+DECLARE_REFCOUNTED_STRUCT(IYsonStructParameter)
+DEFINE_REFCOUNTED_TYPE(IYsonStructParameter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

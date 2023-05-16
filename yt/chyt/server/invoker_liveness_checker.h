@@ -36,7 +36,7 @@ private:
     void DoCheck();
 };
 
-DEFINE_REFCOUNTED_TYPE(TInvokerLivenessChecker);
+DEFINE_REFCOUNTED_TYPE(TInvokerLivenessChecker)
 
 ////////////////////////////////////////////////////////////////////////////////
 

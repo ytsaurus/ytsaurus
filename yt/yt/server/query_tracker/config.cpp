@@ -94,7 +94,7 @@ void TQueryTrackerServerConfig::Register(TRegistrar registrar)
             dynamicConfigPath = config->Root + "/config";
         }
     });
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

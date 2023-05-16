@@ -373,7 +373,7 @@ protected:
         }
 
         return TOperationControllerBase::GetUnavailableInputChunkCount();
-    };
+    }
 
     void CalculateSizes()
     {

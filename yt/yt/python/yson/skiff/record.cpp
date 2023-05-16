@@ -211,7 +211,7 @@ THashMap<TString, Py::Object>* TSkiffRecord::GetOtherFields()
 THashMap<ui16, Py::Object>* TSkiffRecord::GetSparseFields()
 {
     return &SparseFields_;
-};
+}
 
 TIntrusivePtr<TSkiffRecord> TSkiffRecord::DeepCopy()
 {

@@ -49,7 +49,7 @@ DEFINE_BIT_ENUM(ETestBitEnum,
     ((Red)    (0x0001))
     ((Yellow) (0x0002))
     ((Green)  (0x0004))
-)
+);
 
 template <typename T>
 T PullParserConvert(TYsonStringBuf s)

@@ -16,7 +16,7 @@ struct IQueueProfileManager
         const TQueueSnapshotPtr& currentQueueSnapshot) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IQueueProfileManager);
+DEFINE_REFCOUNTED_TYPE(IQueueProfileManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,7 +34,7 @@ struct IConsumerProfileManager
         const TConsumerSnapshotPtr& currentConsumerSnapshot) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IConsumerProfileManager);
+DEFINE_REFCOUNTED_TYPE(IConsumerProfileManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

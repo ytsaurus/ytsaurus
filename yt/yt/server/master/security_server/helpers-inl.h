@@ -19,7 +19,7 @@ THashMap<TString, T> CellTagMapToCellNameMap(const THashMap<NObjectClient::TCell
         YT_VERIFY(result.emplace(cellName, value).second);
     }
     return result;
-};
+}
 
 template <class T>
 THashMap<NObjectClient::TCellTag, T> CellNameMapToCellTagMapOrThrow(const THashMap<TString, T>& map, const NCellMaster::IMulticellManagerPtr& multicellManager)
@@ -33,7 +33,7 @@ THashMap<NObjectClient::TCellTag, T> CellNameMapToCellTagMapOrThrow(const THashM
         YT_VERIFY(result.emplace(*optionalCellTag, value).second);
     }
     return result;
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

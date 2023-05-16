@@ -34,7 +34,7 @@ public:
     TDiscoveryCache(TDiscoveryCacheConfigPtr config, const NProfiling::TProfiler& profiler = {});
 };
 
-DEFINE_REFCOUNTED_TYPE(TDiscoveryCache);
+DEFINE_REFCOUNTED_TYPE(TDiscoveryCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

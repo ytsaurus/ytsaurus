@@ -616,7 +616,7 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TLegacySortedJobBuilder);
+DEFINE_REFCOUNTED_TYPE(TLegacySortedJobBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 

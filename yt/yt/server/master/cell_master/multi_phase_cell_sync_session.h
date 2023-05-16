@@ -49,7 +49,7 @@ private:
     bool RegisterCellToSyncWith(NObjectClient::TCellTag cellTag);
 };
 
-DEFINE_REFCOUNTED_TYPE(TMultiPhaseCellSyncSession);
+DEFINE_REFCOUNTED_TYPE(TMultiPhaseCellSyncSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 

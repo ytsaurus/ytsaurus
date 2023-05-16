@@ -19,8 +19,8 @@ using NControllerAgent::IPersistent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(ILegacySortedJobBuilder);
-DECLARE_REFCOUNTED_STRUCT(INewSortedJobBuilder);
+DECLARE_REFCOUNTED_STRUCT(ILegacySortedJobBuilder)
+DECLARE_REFCOUNTED_STRUCT(INewSortedJobBuilder)
 
 DECLARE_REFCOUNTED_CLASS(TNewJobManager)
 DECLARE_REFCOUNTED_CLASS(TLegacyJobManager)

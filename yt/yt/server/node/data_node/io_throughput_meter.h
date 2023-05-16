@@ -25,7 +25,7 @@ struct IIOThroughputMeter
     virtual TIOCapacity GetLocationIOCapacity(TChunkLocationUuid uuid) const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IIOThroughputMeter);
+DEFINE_REFCOUNTED_TYPE(IIOThroughputMeter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

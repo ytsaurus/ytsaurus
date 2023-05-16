@@ -327,7 +327,7 @@ public:
         }
     }
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox)
+    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox);
 
 private:
     const TCellId SelfCellId_;
@@ -1675,7 +1675,7 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(THiveManager::TImpl, Mailbox, TMailbox, MailboxMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(THiveManager::TImpl, Mailbox, TMailbox, MailboxMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1767,7 +1767,7 @@ TFuture<void> THiveManager::SyncWith(TCellId cellId, bool enableBatching)
     return Impl_->SyncWith(cellId, enableBatching);
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(THiveManager, Mailbox, TMailbox, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(THiveManager, Mailbox, TMailbox, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

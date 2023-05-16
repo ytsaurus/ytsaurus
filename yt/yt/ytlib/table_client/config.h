@@ -92,7 +92,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TTableColumnarStatisticsCacheConfig);
+DEFINE_REFCOUNTED_TYPE(TTableColumnarStatisticsCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

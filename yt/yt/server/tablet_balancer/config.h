@@ -31,7 +31,7 @@ public:
     TDuration ParameterizedTimeoutOnStart;
     TDuration ParameterizedTimeout;
 
-    REGISTER_YSON_STRUCT(TStandaloneTabletBalancerConfig)
+    REGISTER_YSON_STRUCT(TStandaloneTabletBalancerConfig);
 
     static void Register(TRegistrar registrar);
 };
@@ -88,7 +88,7 @@ public:
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
     TString DynamicConfigPath;
 
-    REGISTER_YSON_STRUCT(TTabletBalancerServerConfig)
+    REGISTER_YSON_STRUCT(TTabletBalancerServerConfig);
 
     static void Register(TRegistrar registrar);
 };

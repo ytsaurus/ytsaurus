@@ -15,7 +15,7 @@ class TReplicationCardCacheConfig
     , public NRpc::TBalancingChannelConfig
     , public NRpc::TRetryingChannelConfig
 {
-    REGISTER_YSON_STRUCT(TReplicationCardCacheConfig)
+    REGISTER_YSON_STRUCT(TReplicationCardCacheConfig);
 
     static void Register(TRegistrar)
     { }

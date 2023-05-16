@@ -14,7 +14,7 @@ TReplicationCardCacheKey::operator size_t() const
     return MultiHash(
         CardId,
         FetchOptions);
-};
+}
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCardCacheKey& key, TStringBuf /*spec*/)
 {
