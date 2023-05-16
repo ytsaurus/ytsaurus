@@ -3032,6 +3032,38 @@ done
         release_breakpoint()
         op.track()
 
+    @pytest.mark.xfail(reason="YT-19087 is not closed")
+    @authors("ermolovd")
+    def test_column_filter_intermediate_schema_YT_19087(self):
+        create("table", "//tmp/t_in", attributes={
+            "schema": [
+                make_column("a", "string"),
+                make_column("b", "string"),
+            ]})
+
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_in", [
+            {"a": "a one", "b": "b one"},
+            {"a": "a two", "b": "b two"},
+        ])
+
+        map_reduce(
+            in_="//tmp/t_in{b}",
+            out="//tmp/t_out",
+            reduce_by="b",
+            reducer_command="cat",
+            spec={
+                "reducer": {
+                    "enable_input_table_index": True
+                },
+            },
+        )
+
+        assert read_table("//tmp/t_out") == [
+            {"b": "b one"},
+            {"b": "b two"},
+        ]
+
 
 ##################################################################
 
