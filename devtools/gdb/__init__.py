@@ -15,6 +15,8 @@ import libcxx_xmethods
 
 import yt_fibers_printer
 
+import tcont_printer
+
 def register_printers():
     libcxx_printers.register_libcxx_printers(None)
 
@@ -29,6 +31,9 @@ def register_printers():
     yabs_printers.YabsEnable()  # 'yabs-enable' command will register YaBS pretty-printers
 
     yt_fibers_printer.register_fibers_printer()
+
+    tcont_printer.register_commands()
+
     print('[arc] Arcadia GDB pretty-printers enabled')
 
 register_printers()
