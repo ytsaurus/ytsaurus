@@ -289,11 +289,11 @@ public:
             // TODO(gritukan): ytserver-exec can be resolved into something strange in tests,
             // so let's live with exec in layer for a while.
             if (!Config_->UseExecFromLayer) {
-                rootFS.Binds.push_back(TBind {
-                    ResolveBinaryPath(ExecProgramName).ValueOrThrow(),
-                    RootFSBinaryDirectory + ExecProgramName,
-                    true,
-                    true});
+                rootFS.Binds.push_back(TBind{
+                    .SourcePath = ResolveBinaryPath(ExecProgramName).ValueOrThrow(),
+                    .TargetPath = RootFSBinaryDirectory + ExecProgramName,
+                    .ReadOnly = true
+                });
             }
 
             launcher->SetRoot(rootFS);

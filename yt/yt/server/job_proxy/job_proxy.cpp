@@ -973,41 +973,40 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
 
         // Please observe the hierarchy of binds for correct mounting!
         // TODO(don-dron): Make topological sorting.
-        rootFS.Binds.emplace_back(TBind{
+        rootFS.Binds.push_back(TBind{
             .SourcePath = GetPreparationPath(),
             .TargetPath = GetSlotPath(),
-            .ReadOnly = false,
-            .Executable = false});
+            .ReadOnly = false
+        });
 
         for (const auto& tmpfsPath : Config_->TmpfsManager->TmpfsPaths) {
-            rootFS.Binds.emplace_back(TBind{
+            rootFS.Binds.push_back(TBind{
                 .SourcePath = tmpfsPath,
                 .TargetPath = AdjustPath(tmpfsPath),
-                .ReadOnly= false,
-                .Executable = false});
+                .ReadOnly= false
+            });
         }
 
         // Temporary workaround for nirvana - make tmp directories writable.
         auto tmpPath = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), GetSandboxRelPath(ESandboxKind::Tmp));
 
-        rootFS.Binds.emplace_back(TBind{
+        rootFS.Binds.push_back(TBind{
             .SourcePath = tmpPath,
             .TargetPath = "/tmp",
-            .ReadOnly = false,
-            .Executable = false});
+            .ReadOnly = false
+        });
 
-        rootFS.Binds.emplace_back(TBind{
+        rootFS.Binds.push_back(TBind{
             .SourcePath = tmpPath,
             .TargetPath = "/var/tmp",
-            .ReadOnly = false,
-            .Executable = false});
+            .ReadOnly = false
+        });
 
         for (const auto& bind : Config_->Binds) {
-            rootFS.Binds.emplace_back(TBind{
+            rootFS.Binds.push_back(TBind{
                 .SourcePath = bind->ExternalPath,
                 .TargetPath = bind->InternalPath,
-                .ReadOnly = bind->ReadOnly,
-                .Executable = bind->Executable
+                .ReadOnly = bind->ReadOnly
             });
         }
 

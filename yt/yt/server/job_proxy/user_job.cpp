@@ -475,7 +475,7 @@ public:
 
             SetPermissions(artifactPath, permissions);
 
-            YT_LOG_INFO("Artifact materialized with permissions (Permissions: %v)", permissions);
+            YT_LOG_INFO("Artifact materialized with permissions (Permissions: %x)", permissions);
         } catch (const TSystemError& ex) {
             // For util functions.
             onError(TError::FromSystem(ex));

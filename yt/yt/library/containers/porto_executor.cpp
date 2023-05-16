@@ -508,7 +508,6 @@ private:
             portoBind->set_target(bind.TargetPath);
             portoBind->set_source(bind.SourcePath);
             portoBind->add_flag(bind.ReadOnly ? "ro" : "rw");
-            portoBind->add_flag(bind.Executable ? "exec" : "noexec");
         };
 
         if (spec.RootFS) {
