@@ -137,11 +137,9 @@ public:
         tabletSnapshot->TabletRuntimeData->ModificationTime = NProfiling::GetInstant();
 
         auto actualizeTablet = [&] {
-            if (!tablet) {
-                tablet = Host_->GetTabletOrThrow(tabletSnapshot->TabletId);
-                tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
-                ValidateTabletMounted(tablet);
-            }
+            tablet = Host_->GetTabletOrThrow(tabletSnapshot->TabletId);
+            tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
+            ValidateTabletMounted(tablet);
         };
 
         actualizeTablet();
@@ -347,7 +345,6 @@ public:
                     context.BlockedRow,
                     context.BlockedLockMask,
                     context.BlockedTimestamp);
-                tablet = nullptr;
             }
 
             context.Error.ThrowOnError();
