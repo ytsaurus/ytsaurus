@@ -30,6 +30,10 @@ type Agent struct {
 	// nodeCh receives events of form "particular node in root has changed revision"
 	nodeCh <-chan []ypath.Path
 
+	// runningOpsCh periodically receives all running vanilla operations
+	// with operation namespace from controller.
+	runningOpsCh <-chan []yt.OperationStatus
+
 	started   bool
 	ctx       context.Context
 	cancelCtx context.CancelFunc
@@ -90,41 +94,11 @@ func (a *Agent) updateACLs() error {
 	return nil
 }
 
-func (a *Agent) abortDangling() error {
-	startedAt := time.Now()
-
+func (a *Agent) abortDangling(runningOps []yt.OperationStatus) error {
 	family := a.controller.Family()
 	l := log.With(a.l, log.String("family", family))
 
-	l.Info("aborting dangling operations")
-
-	optFilter := `"strawberry_operation_namespace"="` + a.OperationNamespace() + `"`
-	optState := yt.StateRunning
-	optType := yt.OperationVanilla
-
-	runningOps, err := yt.ListAllOperations(
-		a.ctx,
-		a.ytc,
-		&yt.ListOperationsOptions{
-			Filter: &optFilter,
-			State:  &optState,
-			Type:   &optType,
-			MasterReadOptions: &yt.MasterReadOptions{
-				ReadFrom: yt.ReadFromFollower,
-			},
-		})
-
-	if err != nil {
-		l.Error("error collecting running operations", log.Error(err))
-		return err
-	}
-
-	opIDStrs := make([]string, len(runningOps))
-	for i, op := range runningOps {
-		opIDStrs[i] = op.ID.String()
-	}
-
-	l.Debug("collected running operations", log.Strings("operation_ids", opIDStrs))
+	startedAt := time.Now()
 
 	l.Info("aborting dangling operations")
 	abortedOps := 0
@@ -226,14 +200,6 @@ func (a *Agent) pass() {
 		}
 	}
 
-	// Abort dangling operations. This results in fetching running operations
-	// and filtering those which are not listed in our idToOp.
-
-	if err := a.abortDangling(); err != nil {
-		a.healthState.Store(yterrors.Err("failed to abort dangling operations", err))
-		return
-	}
-
 	// Sanity check.
 	for alias, oplet := range a.aliasToOp {
 		if oplet.Alias() != alias {
@@ -283,6 +249,13 @@ loop:
 						}
 					}
 				}
+			}
+		case runningOps := <-a.runningOpsCh:
+			// Abort dangling operations. This results in filtering those
+			// which are not listed in our aliasToOp.
+			if err := a.abortDangling(runningOps); err != nil {
+				a.healthState.Store(yterrors.Err("failed to abort dangling operations", err))
+				return
 			}
 		case <-ticker.C:
 			a.pass()
@@ -357,6 +330,13 @@ func (a *Agent) Start() {
 
 	a.nodeCh = TrackChildren(a.ctx, a.config.Root, time.Millisecond*1000, a.ytc, a.l)
 
+	a.runningOpsCh = CollectOperations(
+		a.ctx,
+		a.ytc,
+		time.Duration(a.config.CollectOperationsPeriodOrDefault()),
+		a.OperationNamespace(),
+		a.l)
+
 	var initialAliases []string
 	err := a.ytc.ListNode(a.ctx, a.config.Root, &initialAliases, nil)
 	if err != nil {
@@ -383,6 +363,7 @@ func (a *Agent) Stop() {
 	a.ctx = nil
 	a.aliasToOp = nil
 	a.nodeCh = nil
+	a.runningOpsCh = nil
 	a.started = false
 	a.l.Info("agent stopped")
 }

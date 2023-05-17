@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"time"
+
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 )
@@ -12,6 +14,8 @@ type Config struct {
 
 	// PassPeriod defines how often agent performs its passes.
 	PassPeriod *yson.Duration `yson:"pass_period"`
+	// CollectOperationsPeriod defines how often agent collects running operations.
+	CollectOperationsPeriod *yson.Duration `yson:"collect_operations_period"`
 	// RevisionCollectPeriod defines how often agent collects Cypress node revisions via batch ListNode.
 	RevisionCollectPeriod *yson.Duration `yson:"revision_collect_period"`
 
@@ -37,9 +41,10 @@ type Config struct {
 }
 
 const (
-	DefaultPassPeriod            = yson.Duration(5000)
-	DefaultRevisionCollectPeriod = yson.Duration(5000)
-	DefaultPassWorkerNumber      = 1
+	DefaultPassPeriod              = yson.Duration(5 * time.Second)
+	DefaultCollectOperationsPeriod = yson.Duration(time.Minute)
+	DefaultRevisionCollectPeriod   = yson.Duration(5 * time.Second)
+	DefaultPassWorkerNumber        = 1
 )
 
 func (c *Config) PassPeriodOrDefault() yson.Duration {
@@ -47,6 +52,13 @@ func (c *Config) PassPeriodOrDefault() yson.Duration {
 		return *c.PassPeriod
 	}
 	return DefaultPassPeriod
+}
+
+func (c *Config) CollectOperationsPeriodOrDefault() yson.Duration {
+	if c.CollectOperationsPeriod != nil {
+		return *c.CollectOperationsPeriod
+	}
+	return DefaultCollectOperationsPeriod
 }
 
 func (c *Config) RevisionCollectPeriodOrDefault() yson.Duration {
