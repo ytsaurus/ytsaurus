@@ -16,6 +16,8 @@ public:
     TDuration ExpireAfterSuccessfulUpdateTime;
     TDuration ExpireAfterFailedUpdateTime;
 
+    std::optional<int> CacheStickyGroupSize;
+
     REGISTER_YSON_STRUCT(TNodeDirectorySynchronizerConfig);
 
     static void Register(TRegistrar registrar);
