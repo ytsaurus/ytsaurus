@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 
-#include <yt/yt/server/lib/job_agent/job_report.h>
+#include <yt/yt/server/lib/job_agent/structs.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 

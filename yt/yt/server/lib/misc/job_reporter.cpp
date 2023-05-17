@@ -1,9 +1,11 @@
 #include "job_reporter.h"
 
 #include "config.h"
-#include "job_report.h"
+
+#include <yt/yt/server/lib/job_agent/config.h>
 
 #include <yt/yt/server/lib/misc/archive_reporter.h>
+#include <yt/yt/server/lib/misc/job_report.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -35,7 +37,7 @@
 
 #include <yt/yt/core/utilex/random.h>
 
-namespace NYT::NJobAgent {
+namespace NYT {
 
 using namespace NNodeTrackerClient;
 using namespace NTransactionClient;
@@ -64,11 +66,9 @@ class TJobRowlet
 public:
     TJobRowlet(
         TJobReport&& report,
-        bool reportStatisticsLz4,
-        const std::optional<TString>& localAddress)
+        bool reportStatisticsLz4)
         : Report_(std::move(report))
         , ReportStatisticsLz4_(reportStatisticsLz4)
-        , DefaultLocalAddress_(localAddress)
     { }
 
     size_t EstimateSize() const override
@@ -105,8 +105,8 @@ public:
         if (Report_.FinishTime()) {
             builder.AddValue(MakeUnversionedInt64Value(*Report_.FinishTime(), index.FinishTime));
         }
-        if (DefaultLocalAddress_) {
-            builder.AddValue(MakeUnversionedStringValue(*DefaultLocalAddress_, index.Address));
+        if (Report_.Address()) {
+            builder.AddValue(MakeUnversionedStringValue(*Report_.Address(), index.Address));
         }
         if (Report_.Error()) {
             builder.AddValue(MakeUnversionedAnyValue(*Report_.Error(), index.Error));
@@ -176,7 +176,6 @@ public:
 private:
     const TJobReport Report_;
     const bool ReportStatisticsLz4_;
-    const std::optional<TString> DefaultLocalAddress_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -370,12 +369,10 @@ class TJobReporter::TImpl
 public:
     TImpl(
         TJobReporterConfigPtr reporterConfig,
-        const NApi::NNative::IConnectionPtr& connection,
-        std::optional<TString> localAddress)
+        const NApi::NNative::IConnectionPtr& connection)
         : Client_(connection->CreateNativeClient(
             TClientOptions::FromUser(reporterConfig->User)))
         , Config_(std::move(reporterConfig))
-        , LocalAddress_(std::move(localAddress))
         , JobHandler_(
             CreateArchiveReporter(
                 Version_,
@@ -438,18 +435,8 @@ public:
                 ReporterProfiler.WithTag("reporter_type", "profiles")))
     { }
 
-    // TODO: refactor it to get rid of node address in job_reporter interface.
-    void HandleJobReport(TJobReport&& jobReport, const std::optional<TString>& nodeAddress = {})
+    void HandleJobReport(TJobReport&& jobReport)
     {
-        const auto& localAddress = [&] {
-            if (nodeAddress) {
-                return nodeAddress;
-            } else {
-                YT_VERIFY(LocalAddress_);
-                return LocalAddress_;
-            }
-        }();
-
         if (jobReport.Spec()) {
             JobSpecHandler_->Enqueue(std::make_unique<TJobSpecRowlet>(jobReport.ExtractSpec()));
         }
@@ -466,8 +453,7 @@ public:
             OperationIdHandler_->Enqueue(std::make_unique<TOperationIdRowlet>(jobReport.ExtractIds()));
             JobHandler_->Enqueue(std::make_unique<TJobRowlet>(
                 std::move(jobReport),
-                Config_->ReportStatisticsLz4,
-                localAddress));
+                Config_->ReportStatisticsLz4));
         }
     }
 
@@ -525,7 +511,6 @@ public:
 private:
     const NNative::IClientPtr Client_;
     const TJobReporterConfigPtr Config_;
-    const std::optional<TString> LocalAddress_;
     const TActionQueuePtr Reporter_ = New<TActionQueue>("JobReporter");
     const TArchiveVersionHolderPtr Version_ = New<TArchiveVersionHolder>();
     const IArchiveReporterPtr JobHandler_;
@@ -540,20 +525,19 @@ private:
 
 TJobReporter::TJobReporter(
     TJobReporterConfigPtr reporterConfig,
-    const NApi::NNative::IConnectionPtr& connection,
-    std::optional<TString> localAddress)
+    const NApi::NNative::IConnectionPtr& connection)
     : Impl_(
         reporterConfig->Enabled
-            ? New<TImpl>(std::move(reporterConfig), connection, std::move(localAddress))
+            ? New<TImpl>(std::move(reporterConfig), connection)
             : nullptr)
 { }
 
 TJobReporter::~TJobReporter() = default;
 
-void TJobReporter::HandleJobReport(TJobReport&& jobReport, const std::optional<TString>& nodeAddress)
+void TJobReporter::HandleJobReport(TJobReport&& jobReport)
 {
     if (Impl_) {
-        Impl_->HandleJobReport(std::move(jobReport), nodeAddress);
+        Impl_->HandleJobReport(std::move(jobReport));
     }
 }
 
@@ -598,4 +582,4 @@ void TJobReporter::OnDynamicConfigChanged(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobAgent
+} // namespace NYT

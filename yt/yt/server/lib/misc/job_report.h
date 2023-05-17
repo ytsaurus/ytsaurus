@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/controller_agent/public.h>
 
+#include <yt/yt/server/lib/job_agent/structs.h>
+
 #include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
@@ -22,33 +24,7 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/property.h>
 
-namespace NYT::NJobAgent {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTimeStatistics
-{
-    std::optional<TDuration> PrepareDuration;
-    std::optional<TDuration> ArtifactsDownloadDuration;
-    std::optional<TDuration> PrepareRootFSDuration;
-    std::optional<TDuration> ExecDuration;
-    std::optional<TDuration> GpuCheckDuration;
-
-    void Persist(const TStreamPersistenceContext& context);
-
-    void AddSamplesTo(TStatistics* statistics) const;
-
-    bool IsEmpty() const;
-};
-
-void ToProto(
-    NControllerAgent::NProto::TTimeStatistics* timeStatisticsProto,
-    const TTimeStatistics& timeStatistics);
-void FromProto(
-    TTimeStatistics* timeStatistics,
-    const NControllerAgent::NProto::TTimeStatistics& timeStatisticsProto);
-
-void Serialize(const TTimeStatistics& timeStatistics, NYson::IYsonConsumer* consumer);
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,17 +45,9 @@ void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobProfile
+class TJobReport
 {
-    TString Type;
-    TString Blob;
-    double ProfilingProbability;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TJobReport
-{
+public:
     size_t EstimateSize() const;
 
     TJobReport ExtractSpec() const;
@@ -104,7 +72,7 @@ struct TJobReport
     DEFINE_BYREF_RO_PROPERTY(std::optional<ui64>, StderrSize);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Stderr);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, FailContext);
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TJobProfile>, Profile);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NJobAgent::TJobProfile>, Profile);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NScheduler::TCoreInfos>, CoreInfos);
     DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, JobCompetitionId);
     DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, ProbingJobCompetitionId);
@@ -115,49 +83,10 @@ struct TJobReport
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, TreeId);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, MonitoringDescriptor);
     DEFINE_BYREF_RO_PROPERTY(std::optional<ui64>, JobCookie);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Address);
 
 protected:
     TJobReport() = default;
-};
-
-struct TControllerJobReport
-    : public TJobReport
-{
-    TControllerJobReport OperationId(NJobTrackerClient::TOperationId operationId);
-    TControllerJobReport JobId(NJobTrackerClient::TJobId jobId);
-    TControllerJobReport HasCompetitors(bool hasCompetitors, NControllerAgent::EJobCompetitionType);
-    TControllerJobReport JobCookie(ui64 jobCookie);
-};
-
-struct TNodeJobReport
-    : public TJobReport
-{
-    TNodeJobReport OperationId(NJobTrackerClient::TOperationId operationId);
-    TNodeJobReport JobId(NJobTrackerClient::TJobId jobId);
-    TNodeJobReport Type(NJobTrackerClient::EJobType type);
-    TNodeJobReport State(NJobTrackerClient::EJobState state);
-    TNodeJobReport StartTime(TInstant startTime);
-    TNodeJobReport FinishTime(TInstant finishTime);
-    TNodeJobReport Error(const TError& error);
-    TNodeJobReport Spec(const NControllerAgent::NProto::TJobSpec& spec);
-    TNodeJobReport SpecVersion(i64 specVersion);
-    TNodeJobReport Statistics(const NYson::TYsonString& statistics);
-    TNodeJobReport Events(const TJobEvents& events);
-    TNodeJobReport StderrSize(i64 stderrSize);
-    TNodeJobReport Stderr(const TString& stderr);
-    TNodeJobReport FailContext(const TString& failContext);
-    TNodeJobReport Profile(const TJobProfile& profile);
-    TNodeJobReport CoreInfos(NScheduler::TCoreInfos coreInfos);
-    TNodeJobReport ExecAttributes(const NYson::TYsonString& execAttributes);
-    TNodeJobReport TreeId(TString treeId);
-    TNodeJobReport MonitoringDescriptor(TString monitoringDescriptor);
-
-    void SetStatistics(const NYson::TYsonString& statistics);
-    void SetStartTime(TInstant startTime);
-    void SetFinishTime(TInstant finishTime);
-    void SetJobCompetitionId(NJobTrackerClient::TJobId jobCompetitionId);
-    void SetProbingJobCompetitionId(NJobTrackerClient::TJobId CompetitionId);
-    void SetTaskName(const TString& taskName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,7 +103,7 @@ struct TGpuDevice
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TGpuDevice)
+DEFINE_REFCOUNTED_TYPE(TGpuDevice);
 
 struct TExecAttributes
     : public NYTree::TYsonStructLite
@@ -203,4 +132,4 @@ struct TExecAttributes
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobAgent
+} // namespace NYT

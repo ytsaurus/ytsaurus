@@ -418,7 +418,7 @@ class TExecNodeConfig
 public:
     TSlotManagerConfigPtr SlotManager;
     NJobAgent::TJobControllerConfigPtr JobController;
-    NJobAgent::TJobReporterConfigPtr JobReporter;
+    TJobReporterConfigPtr JobReporter;
     TControllerAgentConnectorConfigPtr ControllerAgentConnector;
     TSchedulerConnectorConfigPtr SchedulerConnector;
 
@@ -573,7 +573,7 @@ public:
 
     NJobAgent::TJobControllerDynamicConfigPtr JobController;
 
-    NJobAgent::TJobReporterDynamicConfigPtr JobReporter;
+    TJobReporterDynamicConfigPtr JobReporter;
 
     TSchedulerConnectorDynamicConfigPtr SchedulerConnector;
     TControllerAgentConnectorDynamicConfigPtr ControllerAgentConnector;

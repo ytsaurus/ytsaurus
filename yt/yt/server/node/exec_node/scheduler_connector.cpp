@@ -15,9 +15,9 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
-#include <yt/yt/server/lib/job_agent/job_reporter.h>
-
 #include <yt/yt/server/lib/scheduler/allocation_tracker_service_proxy.h>
+
+#include <yt/yt/server/lib/misc/job_reporter.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>

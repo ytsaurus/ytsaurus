@@ -1081,7 +1081,7 @@ public:
 
     NScheduler::EEnablePorto DefaultEnablePorto;
 
-    NJobAgent::TJobReporterConfigPtr JobReporter;
+    TJobReporterConfigPtr JobReporter;
 
     //! Timeout for the response to a heavy request to the operation controller,
     //! such as Initialize, Prepare, Materialize, Revive or Commit.

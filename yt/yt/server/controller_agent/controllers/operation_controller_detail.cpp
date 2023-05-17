@@ -14,10 +14,11 @@
 #include <yt/yt/server/controller_agent/config.h>
 #include <yt/yt/server/controller_agent/private.h>
 
-#include <yt/yt/server/lib/job_agent/job_report.h>
-#include <yt/yt/server/lib/job_agent/job_reporter.h>
+#include <yt/yt/server/lib/controller_agent/job_report.h>
 
+#include <yt/yt/server/lib/misc/job_report.h>
 #include <yt/yt/server/lib/misc/job_table_schema.h>
+#include <yt/yt/server/lib/misc/job_reporter.h>
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 #include <yt/yt/server/lib/scheduler/public.h>
@@ -10272,6 +10273,15 @@ void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason reaso
     Host->InterruptJob(jobId, reason);
 }
 
+void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport)
+{
+    Host->GetJobReporter()->HandleJobReport(
+        jobReport
+            .OperationId(OperationId)
+            .JobId(joblet->JobId)
+            .Address(joblet->NodeDescriptor.Address));
+}
+
 void TOperationControllerBase::OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType)
 {
     ReportJobHasCompetitors(joblet, competitionType);
@@ -10285,11 +10295,9 @@ void TOperationControllerBase::ReportJobHasCompetitors(const TJobletPtr& joblet,
 {
     if (!joblet->HasCompetitors[competitionType]) {
         joblet->HasCompetitors[competitionType] = true;
-        auto jobReport = NJobAgent::TControllerJobReport()
-            .OperationId(OperationId)
-            .JobId(joblet->JobId)
-            .HasCompetitors(/*hasCompetitors*/ true, competitionType);
-        Host->GetJobReporter()->HandleJobReport(std::move(jobReport), joblet->NodeDescriptor.Address);
+
+        HandleJobReport(joblet, TControllerJobReport()
+            .HasCompetitors(/*hasCompetitors*/ true, competitionType));
     }
 }
 
@@ -10511,12 +10519,8 @@ void TOperationControllerBase::UnregisterUnavailableInputChunk(TChunkId chunkId)
 
 void TOperationControllerBase::ReportJobCookieToArchive(const TJobletPtr& joblet)
 {
-    auto jobReport = NJobAgent::TControllerJobReport()
-        .OperationId(OperationId)
-        .JobId(joblet->JobId)
-        .JobCookie(joblet->OutputCookie);
-
-    Host->GetJobReporter()->HandleJobReport(std::move(jobReport), joblet->NodeDescriptor.Address);
+    HandleJobReport(joblet, TControllerJobReport()
+        .JobCookie(joblet->OutputCookie));
 }
 
 void TOperationControllerBase::SendRunningJobTimeStatisticsUpdates()

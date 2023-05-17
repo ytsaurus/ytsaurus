@@ -28,6 +28,5 @@ target_sources(server-lib-job_agent PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_agent/estimate_size_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_agent/gpu_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_agent/gpu_info_provider.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_agent/job_report.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_agent/job_reporter.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_agent/structs.cpp
 )

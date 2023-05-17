@@ -14,9 +14,12 @@
 #include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/server/lib/exec_node/public.h>
+#include <yt/yt/server/lib/exec_node/job_report.h>
 
-#include <yt/yt/server/lib/job_agent/job_report.h>
+#include <yt/yt/server/lib/misc/job_report.h>
+
 #include <yt/yt/server/lib/job_agent/public.h>
+#include <yt/yt/server/lib/job_agent/structs.h>
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
@@ -182,7 +185,7 @@ public:
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
         const NYson::TYsonString& parameters);
 
-    void HandleJobReport(NJobAgent::TNodeJobReport&& jobReport);
+    void HandleJobReport(NExecNode::TNodeJobReport&& jobReport);
 
     void ReportSpec();
 
@@ -275,7 +278,7 @@ private:
 
     NProfiling::TBufferedProducerPtr UserJobSensorProducer_;
 
-    NJobAgent::TExecAttributes ExecAttributes_;
+    TExecAttributes ExecAttributes_;
 
     std::optional<TError> Error_;
     std::optional<NScheduler::NProto::TSchedulerJobResultExt> JobResultExtension_;
@@ -321,7 +324,7 @@ private:
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;
 
-    NJobAgent::TJobEvents JobEvents_;
+    TJobEvents JobEvents_;
 
     NScheduler::EInterruptReason InterruptionReason_ = NScheduler::EInterruptReason::None;
     std::optional<NScheduler::TPreemptedFor> PreemptedFor_;
@@ -468,7 +471,7 @@ private:
 
     NContainers::TRootFS MakeWritableRootFS();
 
-    NJobAgent::TNodeJobReport MakeDefaultJobReport();
+    TNodeJobReport MakeDefaultJobReport();
 
     void InitializeJobProbe();
 

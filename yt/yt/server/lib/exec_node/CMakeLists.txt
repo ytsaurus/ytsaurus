@@ -41,6 +41,7 @@ target_sources(server-lib-exec_node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/job_report.cpp
 )
 target_proto_addincls(server-lib-exec_node
   ./

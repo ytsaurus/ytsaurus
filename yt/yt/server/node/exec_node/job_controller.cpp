@@ -18,11 +18,13 @@
 #include <yt/yt/server/lib/controller_agent/job_spec_service_proxy.h>
 
 #include <yt/yt/server/lib/job_agent/config.h>
-#include <yt/yt/server/lib/job_agent/job_reporter.h>
+#include <yt/yt/server/lib/job_agent/structs.h>
 
 #include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
 #include <yt/yt/server/lib/scheduler/structs.h>
+
+#include <yt/yt/server/lib/misc/job_reporter.h>
 
 #include <yt/yt/ytlib/job_tracker_client/helpers.h>
 
@@ -38,7 +40,6 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/atomic_object.h>
-
 #include <yt/yt/core/misc/statistics.h>
 
 #include <yt/yt/core/ytree/ypath_resolver.h>

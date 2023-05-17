@@ -15,13 +15,13 @@
 #include "private.h"
 #include "scheduling_context.h"
 
-#include <yt/yt/server/lib/job_agent/job_reporter.h>
-
 #include <yt/yt/server/lib/scheduler/message_queue.h>
 #include <yt/yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
+
+#include <yt/yt/server/lib/misc/job_reporter.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -265,7 +265,7 @@ public:
             Config_->EventLog,
             Bootstrap_->GetClient(),
             Bootstrap_->GetControlInvoker()))
-        , JobReporter_(New<NJobAgent::TJobReporter>(
+        , JobReporter_(New<TJobReporter>(
             Config_->JobReporter,
             Bootstrap_->GetClient()->GetNativeConnection()))
         , MasterConnector_(std::make_unique<TMasterConnector>(
@@ -530,7 +530,7 @@ public:
         return EventLogWriter_;
     }
 
-    const NJobAgent::TJobReporterPtr& GetJobReporter() const
+    const TJobReporterPtr& GetJobReporter() const
     {
         return JobReporter_;
     }
@@ -1127,7 +1127,7 @@ private:
     const IThroughputThrottlerPtr JobSpecSliceThrottler_;
     const TAsyncSemaphorePtr CoreSemaphore_;
     const IEventLogWriterPtr EventLogWriter_;
-    const NJobAgent::TJobReporterPtr JobReporter_;
+    const TJobReporterPtr JobReporter_;
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     const TJobTrackerPtr JobTracker_;
     const TJobProfilerPtr JobProfiler_;
@@ -2313,7 +2313,7 @@ const IEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
     return Impl_->GetEventLogWriter();
 }
 
-const NJobAgent::TJobReporterPtr& TControllerAgent::GetJobReporter() const
+const TJobReporterPtr& TControllerAgent::GetJobReporter() const
 {
     return Impl_->GetJobReporter();
 }

@@ -6,7 +6,13 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobReport;
+
 DECLARE_REFCOUNTED_CLASS(TServerConfig)
+
+DECLARE_REFCOUNTED_CLASS(TJobReporterConfig)
+DECLARE_REFCOUNTED_CLASS(TJobReporter)
+DECLARE_REFCOUNTED_CLASS(TJobReporterDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDiskHealthChecker)
 DECLARE_REFCOUNTED_CLASS(TDiskHealthCheckerConfig)

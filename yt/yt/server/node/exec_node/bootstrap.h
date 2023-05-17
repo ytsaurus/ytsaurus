@@ -28,7 +28,7 @@ struct IBootstrap
 
     virtual const TSlotManagerPtr& GetSlotManager() const = 0;
 
-    virtual const NJobAgent::TJobReporterPtr& GetJobReporter() const = 0;
+    virtual const TJobReporterPtr& GetJobReporter() const = 0;
 
     virtual const NJobProxy::TJobProxyConfigPtr& GetJobProxyConfigTemplate() const = 0;
 

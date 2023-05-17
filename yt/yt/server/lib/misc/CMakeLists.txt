@@ -33,6 +33,8 @@ target_sources(server-lib-misc PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/private.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/profiling_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/reboot_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/job_reporter.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/job_report.cpp
 )
 
 add_global_library_for(server-lib-misc.global server-lib-misc)

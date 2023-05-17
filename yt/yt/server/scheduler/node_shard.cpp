@@ -12,7 +12,7 @@
 
 #include <yt/yt/server/lib/exec_node/public.h>
 
-#include <yt/yt/server/lib/job_agent/job_report.h>
+#include <yt/yt/server/lib/misc/job_report.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>

@@ -154,7 +154,7 @@ public:
     const NCoreDump::ICoreDumperPtr& GetCoreDumper() override;
     const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() override;
     const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() override;
-    const NJobAgent::TJobReporterPtr& GetJobReporter() override;
+    const TJobReporterPtr& GetJobReporter() override;
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
     TMemoryTagQueue* GetMemoryTagQueue() override;
 

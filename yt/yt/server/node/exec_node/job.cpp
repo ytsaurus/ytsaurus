@@ -27,11 +27,13 @@
 
 #include <yt/yt/server/lib/io/io_tracker.h>
 
-#include <yt/yt/server/lib/job_agent/job_reporter.h>
-
 #include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
+
+#include <yt/yt/server/lib/job_agent/structs.h>
+
+#include <yt/yt/server/lib/misc/job_reporter.h>
 
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
@@ -1124,7 +1126,8 @@ void TJob::HandleJobReport(TNodeJobReport&& jobReport)
     Bootstrap_->GetJobReporter()->HandleJobReport(
         jobReport
             .OperationId(GetOperationId())
-            .JobId(GetId()));
+            .JobId(GetId())
+            .Address(Bootstrap_->GetLocalDescriptor().GetDefaultAddress()));
 }
 
 void TJob::ReportSpec()

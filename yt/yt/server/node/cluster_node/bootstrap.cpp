@@ -50,9 +50,8 @@
 #include <yt/yt/server/node/job_agent/orchid_service_provider.h>
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
-#include <yt/yt/server/lib/job_agent/job_reporter.h>
-
 #include <yt/yt/server/lib/misc/address_helpers.h>
+#include <yt/yt/server/lib/misc/job_reporter.h>
 
 #include <yt/yt/server/node/query_agent/query_executor.h>
 #include <yt/yt/server/node/query_agent/query_service.h>

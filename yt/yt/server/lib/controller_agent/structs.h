@@ -7,7 +7,7 @@
 #include <yt/yt/server/lib/scheduler/structs.h>
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
-#include <yt/yt/server/lib/job_agent/job_report.h>
+#include <yt/yt/server/lib/job_agent/structs.h>
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 

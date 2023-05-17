@@ -478,7 +478,7 @@ const NConcurrency::IThroughputThrottlerPtr& TOperationControllerHost::GetJobSpe
     return Bootstrap_->GetControllerAgent()->GetJobSpecSliceThrottler();
 }
 
-const NJobAgent::TJobReporterPtr& TOperationControllerHost::GetJobReporter()
+const TJobReporterPtr& TOperationControllerHost::GetJobReporter()
 {
     return Bootstrap_->GetControllerAgent()->GetJobReporter();
 }

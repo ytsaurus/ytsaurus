@@ -280,6 +280,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/string_merger.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/ypath_designated_consumer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/depth_limiting_yson_consumer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/attributes_stripper.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/attribute_consumer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/attributes.cpp

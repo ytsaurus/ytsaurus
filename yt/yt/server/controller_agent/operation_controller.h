@@ -11,6 +11,10 @@
 
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
+#include <yt/yt/server/lib/misc/public.h>
+
+#include <yt/yt/library/coredumper/public.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/cypress_client/public.h>
@@ -219,7 +223,7 @@ struct IOperationControllerHost
     virtual const NCoreDump::ICoreDumperPtr& GetCoreDumper() = 0;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
-    virtual const NJobAgent::TJobReporterPtr& GetJobReporter() = 0;
+    virtual const TJobReporterPtr& GetJobReporter() = 0;
     virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() = 0;
     virtual TMemoryTagQueue* GetMemoryTagQueue() = 0;
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/server/lib/job_agent/public.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
@@ -12,7 +14,7 @@
 
 #include <optional>
 
-namespace NYT::NJobAgent {
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,12 +25,11 @@ class TJobReporter
 public:
     TJobReporter(
         TJobReporterConfigPtr reporterConfig,
-        const NApi::NNative::IConnectionPtr& connection,
-        std::optional<TString> localAddress = {});
+        const NApi::NNative::IConnectionPtr& connection);
 
     ~TJobReporter();
 
-    void HandleJobReport(TJobReport&& statistics, const std::optional<TString>& nodeAddress = {});
+    void HandleJobReport(TJobReport&& statistics);
     void SetOperationArchiveVersion(int version);
     int ExtractWriteFailuresCount();
     bool GetQueueIsTooLarge();
@@ -50,4 +51,4 @@ DEFINE_REFCOUNTED_TYPE(TJobReporter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobAgent
+} // namespace NYT

@@ -19,6 +19,7 @@
 #include <yt/yt/server/controller_agent/master_connector.h>
 
 #include <yt/yt/server/lib/controller_agent/serialize.h>
+#include <yt/yt/server/lib/controller_agent/job_report.h>
 
 #include <yt/yt/server/lib/scheduler/event_log.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
@@ -1411,6 +1412,8 @@ private:
     std::vector<NYPath::TRichYPath> GetLayerPaths(const NScheduler::TUserJobSpecPtr& userJobSpec) const;
 
     void MaybeCancel(NScheduler::ECancelationStage cancelationStage);
+
+    void HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport);
 
     void ReportJobHasCompetitors(const TJobletPtr& joblet, EJobCompetitionType competitionType);
 
