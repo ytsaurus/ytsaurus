@@ -60,7 +60,7 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
     ) {
         this(
                 executorService,
-                YTsaurusClientConfig.builder().setRpcOptions(rpcOptions).build(),
+                YTsaurusClientConfig.builder().withPorto().setRpcOptions(rpcOptions).build(),
                 heavyExecutor,
                 serializationResolver
         );

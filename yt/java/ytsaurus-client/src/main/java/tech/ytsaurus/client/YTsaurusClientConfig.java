@@ -59,7 +59,7 @@ public class YTsaurusClientConfig {
     }
 
     public static Builder builder() {
-        return new Builder().withPorto();
+        return new Builder();
     }
 
     public Builder toBuilder() {

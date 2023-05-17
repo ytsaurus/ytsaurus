@@ -199,7 +199,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     ) {
         this(
                 client,
-                YTsaurusClientConfig.builder().setRpcOptions(options).build(),
+                YTsaurusClientConfig.builder().withPorto().setRpcOptions(options).build(),
                 heavyExecutor,
                 executorService,
                 serializationResolver
