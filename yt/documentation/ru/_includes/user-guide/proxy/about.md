@@ -37,9 +37,9 @@ HTTP-прокси разделяются в зависимости от типа
 
 Поддерживаются следующие языки программирования:
 
-- [C++](../../user-guide/proxy/rpc.md#c_plus_plus);
-- [Java](../../user-guide/proxy/rpc.md#java);
-- [Python](../../user-guide/proxy/rpc.md#python).
+- [C++](../../../user-guide/proxy/rpc.md#c_plus_plus);
+- [Java](../../../user-guide/proxy/rpc.md#java);
+- [Python](../../../user-guide/proxy/rpc.md#python).
 
 По каждому языку программирования доступны примеры.
 
