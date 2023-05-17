@@ -1,29 +1,10 @@
-FROM cr.yandex/crpl84hkh3k16ihscv0j/jammy:latest
+FROM cr.yandex/crpl84hkh3k16ihscv0j/yt_nightly_base:latest
 
 WORKDIR /tmp
 
 USER root
 
 ARG DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y \
-  curl \
-  less \
-  gdb \
-  lsof \
-  strace \
-  telnet \
-  dnsutils \
-  iputils-ping \
-  lsb-release \
-  python3-pip \
-  openjdk-11-jdk
-
-# This is required for jobs, using yson format in python 3.
-RUN pip3 install -i https://pypi.org/simple/ \
-    ytsaurus-client \
-    ytsaurus-yson \
-    ytsaurus-local
 
 COPY ./clickhouse-trampoline.py /usr/bin/clickhouse-trampoline
 COPY ./init_operation_archive.py /usr/bin/init_operation_archive
