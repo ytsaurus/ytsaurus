@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/rpc_proxy/bootstrap.h>
-
 #include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -13,6 +11,8 @@
 #include <yt/yt/client/node_tracker_client/public.h>
 
 #include <yt/yt/library/coredumper/public.h>
+
+#include <yt/yt/library/tracing/jaeger/public.h>
 
 #include <yt/yt/core/bus/public.h>
 
@@ -32,26 +32,12 @@ namespace NYT::NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrap
-    : public IBootstrap
 {
 public:
-    TBootstrap(TProxyConfigPtr config, NYTree::INodePtr configNode);
+    TBootstrap(
+        TProxyConfigPtr config,
+        NYTree::INodePtr configNode);
     ~TBootstrap();
-
-    // IBootstrap implementation.
-    const IInvokerPtr& GetWorkerInvoker() const override;
-    const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const override;
-    NAuth::TAuthenticationManagerConfigPtr GetConfigAuthenticationManager() const override;
-    const NTracing::TSamplerPtr& GetTraceSampler() const override;
-    const IProxyCoordinatorPtr& GetProxyCoordinator() const override;
-    const IAccessCheckerPtr& GetAccessChecker() const override;
-    const NApi::NNative::IConnectionPtr& GetNativeConnection() const override;
-    const NApi::NNative::IClientPtr& GetNativeClient() const override;
-
-    const TProxyConfigPtr& GetConfig() const;
-    const IInvokerPtr& GetControlInvoker() const;
-    const NNodeTrackerClient::TAddressMap& GetLocalAddresses() const;
-    const IDynamicConfigManagerPtr& GetDynamicConfigManager() const;
 
     void Run();
 
@@ -75,9 +61,9 @@ private:
     NHttp::IServerPtr HttpServer_;
     NCoreDump::ICoreDumperPtr CoreDumper_;
 
-    NApi::NNative::IConnectionPtr NativeConnection_;
+    NApi::NNative::IConnectionPtr Connection_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
-    NApi::NNative::IClientPtr NativeClient_;
+    NApi::NNative::IClientPtr RootClient_;
     NAuth::IAuthenticationManagerPtr AuthenticationManager_;
     NAuth::IAuthenticationManagerPtr TvmOnlyAuthenticationManager_;
     NRpcProxy::IProxyCoordinatorPtr ProxyCoordinator_;
@@ -91,6 +77,9 @@ private:
     void OnDynamicConfigChanged(
         const TProxyDynamicConfigPtr& /*oldConfig*/,
         const TProxyDynamicConfigPtr& newConfig);
+
+    const IInvokerPtr& GetWorkerInvoker() const;
+    const IInvokerPtr& GetControlInvoker() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

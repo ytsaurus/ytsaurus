@@ -8,6 +8,7 @@
 
 #include <yt/yt/server/lib/rpc_proxy/api_service.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
+#include <yt/yt/server/lib/rpc_proxy/security_manager.h>
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -130,36 +131,43 @@ void TBootstrap::DoRun()
     NApi::NNative::TConnectionOptions connectionOptions;
     connectionOptions.ConnectionInvoker = GetWorkerInvoker();
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
-    NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
+    Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
 
-    NativeConnection_->GetClusterDirectorySynchronizer()->Start();
-    NativeConnection_->GetNodeDirectorySynchronizer()->Start();
-    NativeConnection_->GetQueueConsumerRegistrationManager()->StartSync();
+    Connection_->GetClusterDirectorySynchronizer()->Start();
+    Connection_->GetNodeDirectorySynchronizer()->Start();
+    Connection_->GetQueueConsumerRegistrationManager()->StartSync();
 
-    NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
+    NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
-    auto clientOptions = TClientOptions::FromUser(NSecurityClient::RootUserName);
-    NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
+    RootClient_ = Connection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     AuthenticationManager_ = CreateAuthenticationManager(
         Config_,
         HttpPoller_,
-        NativeClient_);
+        RootClient_);
 
     if (Config_->TvmOnlyRpcPort && Config_->TvmOnlyAuth) {
         TvmOnlyAuthenticationManager_ = CreateAuthenticationManager(
             Config_->TvmOnlyAuth,
             HttpPoller_,
-            NativeClient_);
+            RootClient_);
     }
 
     ProxyCoordinator_ = CreateProxyCoordinator();
     TraceSampler_ = New<NTracing::TSampler>();
 
-    DynamicConfigManager_ = CreateDynamicConfigManager(this);
+    DynamicConfigManager_ = CreateDynamicConfigManager(
+        Config_,
+        ProxyCoordinator_,
+        Connection_,
+        GetControlInvoker());
     DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 
-    AccessChecker_ = CreateAccessChecker(this);
+    AccessChecker_ = CreateAccessChecker(
+        Config_->AccessChecker,
+        ProxyCoordinator_,
+        Connection_,
+        DynamicConfigManager_);
 
     BusServer_ = CreateBusServer(Config_->BusServer);
     if (Config_->TvmOnlyRpcPort) {
@@ -198,7 +206,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/cluster_connection",
-        CreateVirtualNode(NativeConnection_->GetOrchidService()));
+        CreateVirtualNode(Connection_->GetOrchidService()));
     SetBuildAttributes(
         orchidRoot,
         "proxy");
@@ -212,20 +220,28 @@ void TBootstrap::DoRun()
         TvmOnlyRpcServer_->RegisterService(orchidService);
     }
 
-    ApiService_ = CreateApiService(
-        this,
-        AuthenticationManager_->GetRpcAuthenticator(),
-        RpcProxyLogger,
-        Config_->ApiService,
-        RpcProxyProfiler);
+    auto securityManager = CreateSecurityManager(
+        Config_->ApiService->SecurityManager,
+        Connection_,
+        Logger);
 
-    if (TvmOnlyAuthenticationManager_) {
-        TvmOnlyApiService_ = CreateApiService(
-            this,
-            TvmOnlyAuthenticationManager_->GetRpcAuthenticator(),
-            RpcProxyLogger,
+    auto createApiService = [&] (const NAuth::IAuthenticationManagerPtr& authenticationManager) {
+        return CreateApiService(
             Config_->ApiService,
+            GetWorkerInvoker(),
+            Connection_,
+            authenticationManager->GetRpcAuthenticator(),
+            ProxyCoordinator_,
+            AccessChecker_,
+            securityManager,
+            TraceSampler_,
+            RpcProxyLogger,
             RpcProxyProfiler);
+    };
+
+    ApiService_ = createApiService(AuthenticationManager_);
+    if (TvmOnlyAuthenticationManager_) {
+        TvmOnlyApiService_ = createApiService(TvmOnlyAuthenticationManager_);
     }
 
     RpcServer_->RegisterService(ApiService_);
@@ -242,7 +258,13 @@ void TBootstrap::DoRun()
         .ThrowOnError();
 
     if (Config_->DiscoveryService->Enable) {
-        DiscoveryService_ = CreateDiscoveryService(this);
+        DiscoveryService_ = CreateDiscoveryService(
+            Config_,
+            ProxyCoordinator_,
+            Connection_,
+            GetControlInvoker(),
+            GetWorkerInvoker(),
+            LocalAddresses_);
         RpcServer_->RegisterService(DiscoveryService_);
         if (TvmOnlyRpcServer_) {
             TvmOnlyRpcServer_->RegisterService(DiscoveryService_);
@@ -294,72 +316,6 @@ void TBootstrap::DoRun()
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-const IInvokerPtr& TBootstrap::GetWorkerInvoker() const
-{
-    return WorkerPool_->GetInvoker();
-}
-
-const IAuthenticatorPtr& TBootstrap::GetRpcAuthenticator() const
-{
-    return AuthenticationManager_->GetRpcAuthenticator();
-}
-
-TAuthenticationManagerConfigPtr TBootstrap::GetConfigAuthenticationManager() const
-{
-    return Config_;
-}
-
-const NTracing::TSamplerPtr& TBootstrap::GetTraceSampler() const
-{
-    return TraceSampler_;
-}
-
-const IProxyCoordinatorPtr& TBootstrap::GetProxyCoordinator() const
-{
-    return ProxyCoordinator_;
-}
-
-const IAccessCheckerPtr& TBootstrap::GetAccessChecker() const
-{
-    return AccessChecker_;
-}
-
-const NNative::IConnectionPtr& TBootstrap::GetNativeConnection() const
-{
-    return NativeConnection_;
-}
-
-const NNative::IClientPtr& TBootstrap::GetNativeClient() const
-{
-    return NativeClient_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-const TProxyConfigPtr& TBootstrap::GetConfig() const
-{
-    return Config_;
-}
-
-const IInvokerPtr& TBootstrap::GetControlInvoker() const
-{
-    return ControlQueue_->GetInvoker();
-}
-
-const NNodeTrackerClient::TAddressMap& TBootstrap::GetLocalAddresses() const
-{
-    return LocalAddresses_;
-}
-
-const IDynamicConfigManagerPtr& TBootstrap::GetDynamicConfigManager() const
-{
-    return DynamicConfigManager_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TBootstrap::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& /*oldConfig*/,
     const TProxyDynamicConfigPtr& newConfig)
@@ -368,9 +324,19 @@ void TBootstrap::OnDynamicConfigChanged(
 
     TraceSampler_->UpdateConfig(newConfig->Tracing);
 
-    NativeConnection_->Reconfigure(newConfig->ClusterConnection);
+    Connection_->Reconfigure(newConfig->ClusterConnection);
 
     ApiService_->OnDynamicConfigChanged(newConfig->Api);
+}
+
+const IInvokerPtr& TBootstrap::GetWorkerInvoker() const
+{
+    return WorkerPool_->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetControlInvoker() const
+{
+    return ControlQueue_->GetInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

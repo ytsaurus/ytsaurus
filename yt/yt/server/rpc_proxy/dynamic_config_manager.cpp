@@ -6,6 +6,7 @@
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/core/net/local_address.h>
 
@@ -21,19 +22,24 @@ class TDynamicConfigManager
     : public IDynamicConfigManager
 {
 public:
-    explicit TDynamicConfigManager(TBootstrap* bootstrap)
+    TDynamicConfigManager(
+        TProxyConfigPtr config,
+        IProxyCoordinatorPtr proxyCoordinator,
+        NApi::NNative::IConnectionPtr connection,
+        IInvokerPtr controlInvoker)
         : IDynamicConfigManager(
             TDynamicConfigManagerOptions{
-                .ConfigPath = bootstrap->GetConfig()->DynamicConfigPath,
+                .ConfigPath = config->DynamicConfigPath,
                 .Name = "RpcProxy",
-                .ConfigIsTagged = bootstrap->GetConfig()->UseTaggedDynamicConfig
+                .ConfigIsTagged = config->UseTaggedDynamicConfig
             },
-            bootstrap->GetConfig()->DynamicConfigManager,
-            bootstrap->GetNativeClient(),
-            bootstrap->GetControlInvoker())
-        , Bootstrap_(bootstrap)
+            config->DynamicConfigManager,
+            connection->CreateNativeClient(NApi::TClientOptions::FromUser(NRpc::RootUserName)),
+            controlInvoker)
+        , Config_(std::move(config))
+        , ProxyCoordinator_(std::move(proxyCoordinator))
     {
-        auto proxyAddress = NNet::BuildServiceAddress(NNet::GetLocalHostName(), bootstrap->GetConfig()->RpcPort);
+        auto proxyAddress = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
         BaseTags_.push_back(proxyAddress);
 
         OnProxyRoleChanged(std::nullopt);
@@ -43,12 +49,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        const auto& coordinator = Bootstrap_->GetProxyCoordinator();
-        coordinator->SubscribeOnProxyRoleChanged(BIND(&TDynamicConfigManager::OnProxyRoleChanged, MakeWeak(this)));
+        ProxyCoordinator_->SubscribeOnProxyRoleChanged(BIND(&TDynamicConfigManager::OnProxyRoleChanged, MakeWeak(this)));
     }
 
 private:
-    TBootstrap* Bootstrap_;
+    const TProxyConfigPtr Config_;
+    const IProxyCoordinatorPtr ProxyCoordinator_;
 
     std::vector<TString> BaseTags_;
 
@@ -78,9 +84,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IDynamicConfigManagerPtr CreateDynamicConfigManager(TBootstrap* bootstrap)
+IDynamicConfigManagerPtr CreateDynamicConfigManager(
+    TProxyConfigPtr config,
+    IProxyCoordinatorPtr proxyCoordinator,
+    NApi::NNative::IConnectionPtr connection,
+    IInvokerPtr controlInvoker)
 {
-    return New<TDynamicConfigManager>(bootstrap);
+    return New<TDynamicConfigManager>(
+        std::move(config),
+        std::move(proxyCoordinator),
+        std::move(connection),
+        std::move(controlInvoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

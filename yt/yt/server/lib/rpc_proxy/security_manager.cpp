@@ -1,6 +1,5 @@
 #include "security_manager.h"
 
-#include "bootstrap.h"
 #include "config.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -27,26 +26,28 @@ class TUserCache
 public:
     TUserCache(
         TAsyncExpiringCacheConfigPtr config,
-        IBootstrap* bootstrap,
+        IConnectionPtr connection,
         TLogger logger)
         : TAsyncExpiringCache(std::move(config), logger.WithTag("Cache: User"))
-        , Bootstrap_(bootstrap)
+        , Connection_(std::move(connection))
         , Logger(std::move(logger))
+        , Client_(Connection_->CreateClient(TClientOptions{.User = NRpc::RootUserName}))
     { }
 
 private:
-    IBootstrap* const Bootstrap_;
+    const IConnectionPtr Connection_;
     const TLogger Logger;
+
+    const IClientPtr Client_;
 
     TFuture<void> DoGet(const TString& user, bool /*isPeriodicUpdate*/) noexcept override
     {
         YT_LOG_DEBUG("Getting user ban flag (User: %v)",
             user);
 
-        auto client = Bootstrap_->GetNativeClient();
         auto options = TGetNodeOptions();
         options.ReadFrom = EMasterChannelKind::Cache;
-        return client->GetNode("//sys/users/" + ToYPathLiteral(user) + "/@banned", options).Apply(
+        return Client_->GetNode("//sys/users/" + ToYPathLiteral(user) + "/@banned", options).Apply(
             BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
                 if (!resultOrError.IsOK()) {
                     auto wrappedError = TError("Error getting user info for user %Qv",
@@ -74,21 +75,21 @@ DEFINE_REFCOUNTED_TYPE(TUserCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManager::TImpl
-    : public TRefCounted
+class TSecurityManager
+    : public ISecurityManager
 {
 public:
-    TImpl(
+    TSecurityManager(
         TSecurityManagerDynamicConfigPtr config,
-        IBootstrap* bootstrap,
+        IConnectionPtr connection,
         TLogger logger)
         : UserCache_(New<TUserCache>(
             config->UserCache,
-            bootstrap,
+            std::move(connection),
             std::move(logger)))
     { }
 
-    void ValidateUser(const TString& user)
+    void ValidateUser(const TString& user) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -96,7 +97,7 @@ public:
             .ThrowOnError();
     }
 
-    void Reconfigure(const TSecurityManagerDynamicConfigPtr& config)
+    void Reconfigure(const TSecurityManagerDynamicConfigPtr& config) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -109,26 +110,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecurityManager::TSecurityManager(
+ISecurityManagerPtr CreateSecurityManager(
     TSecurityManagerDynamicConfigPtr config,
-    IBootstrap* bootstrap,
-    TLogger logger)
-    : Impl_(New<TImpl>(
+    IConnectionPtr connection,
+    NLogging::TLogger logger)
+{
+    return New<TSecurityManager>(
         std::move(config),
-        bootstrap,
-        std::move(logger)))
-{ }
-
-TSecurityManager::~TSecurityManager() = default;
-
-void TSecurityManager::ValidateUser(const TString& user)
-{
-    Impl_->ValidateUser(user);
-}
-
-void TSecurityManager::Reconfigure(const TSecurityManagerDynamicConfigPtr& config)
-{
-    Impl_->Reconfigure(config);
+        std::move(connection),
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

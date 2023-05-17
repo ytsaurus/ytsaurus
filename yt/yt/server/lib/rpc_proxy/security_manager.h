@@ -9,23 +9,21 @@ namespace NYT::NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Thread affinity: any.
-class TSecurityManager
+struct ISecurityManager
+    : public TRefCounted
 {
-public:
-    TSecurityManager(
-        TSecurityManagerDynamicConfigPtr config,
-        IBootstrap* bootstrap,
-        NLogging::TLogger logger);
-    ~TSecurityManager();
-
-    void ValidateUser(const TString& user);
-
-    void Reconfigure(const TSecurityManagerDynamicConfigPtr& config);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual void ValidateUser(const TString& user) = 0;
+    virtual void Reconfigure(const TSecurityManagerDynamicConfigPtr& config) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(ISecurityManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISecurityManagerPtr CreateSecurityManager(
+    TSecurityManagerDynamicConfigPtr config,
+    NApi::IConnectionPtr connection,
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

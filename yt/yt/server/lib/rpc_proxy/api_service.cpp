@@ -1,7 +1,6 @@
 #include "api_service.h"
 
 #include "access_checker.h"
-#include "bootstrap.h"
 #include "config.h"
 #include "format_row_stream.h"
 #include "proxy_coordinator.h"
@@ -585,30 +584,35 @@ public:
     using TTypedServiceContextImpl = TApiServiceContext<TRequestMessage, TResponseMessage>;
 
     TApiService(
-        IBootstrap* bootstrap,
-        IAuthenticatorPtr authenticator,
-        NLogging::TLogger logger,
         TApiServiceConfigPtr config,
+        IInvokerPtr workerInvoker,
+        NApi::NNative::IConnectionPtr connection,
+        NRpc::IAuthenticatorPtr authenticator,
+        IProxyCoordinatorPtr proxyCoordinator,
+        IAccessCheckerPtr accessChecker,
+        ISecurityManagerPtr securityManager,
+        NTracing::TSamplerPtr traceSampler,
+        NLogging::TLogger logger,
         TProfiler profiler,
         IStickyTransactionPoolPtr stickyTransactionPool)
         : TServiceBase(
-            bootstrap->GetWorkerInvoker(),
+            std::move(workerInvoker),
             GetServiceDescriptor(),
             std::move(logger),
             NullRealmId,
-            authenticator)
-        , Bootstrap_(bootstrap)
+            std::move(authenticator))
         , Profiler_(std::move(profiler))
-        , Config_(New<TApiServiceDynamicConfig>())
-        , Coordinator_(Bootstrap_->GetProxyCoordinator())
-        , AccessChecker_(Bootstrap_->GetAccessChecker())
-        , SecurityManager_(config->SecurityManager, Bootstrap_, Logger)
+        , Connection_(std::move(connection))
+        , ProxyCoordinator_(std::move(proxyCoordinator))
+        , AccessChecker_(std::move(accessChecker))
+        , SecurityManager_(std::move(securityManager))
+        , TraceSampler_(std::move(traceSampler))
         , StickyTransactionPool_(stickyTransactionPool
             ? stickyTransactionPool
             : CreateStickyTransactionPool(Logger))
         , AuthenticatedClientCache_(New<NApi::NNative::TClientCache>(
             config->ClientCache,
-            Bootstrap_->GetNativeConnection()))
+            Connection_))
         , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
         , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
         , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
@@ -750,11 +754,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
 
         DeclareServerFeature(ERpcProxyFeature::GetInSyncWithoutKeys);
-
-        if (!Bootstrap_->GetConfigAuthenticationManager()->RequireAuthentication) {
-            GetOrCreateClient(
-                NRpc::TAuthenticationIdentity(NSecurityClient::RootUserName));
-        }
     }
 
     void OnDynamicConfigChanged(const TApiServiceDynamicConfigPtr& config) override
@@ -770,19 +769,19 @@ public:
 
         AuthenticatedClientCache_->Reconfigure(config->ClientCache);
 
-        SecurityManager_.Reconfigure(config->SecurityManager);
+        SecurityManager_->Reconfigure(config->SecurityManager);
 
         Config_.Store(config);
     }
 
 private:
-    IBootstrap* const Bootstrap_;
     const TProfiler Profiler_;
-    TAtomicIntrusivePtr<TApiServiceDynamicConfig> Config_;
-    const IProxyCoordinatorPtr Coordinator_;
+    TAtomicIntrusivePtr<TApiServiceDynamicConfig> Config_{New<TApiServiceDynamicConfig>()};
+    const NApi::NNative::IConnectionPtr Connection_;
+    const IProxyCoordinatorPtr ProxyCoordinator_;
     const IAccessCheckerPtr AccessChecker_;
-
-    TSecurityManager SecurityManager_;
+    const ISecurityManagerPtr SecurityManager_;
+    const NTracing::TSamplerPtr TraceSampler_;
     const IStickyTransactionPoolPtr StickyTransactionPool_;
     const NNative::TClientCachePtr AuthenticatedClientCache_;
 
@@ -833,7 +832,7 @@ private:
         }
 
         const auto& identity = context->GetAuthenticationIdentity();
-        Bootstrap_->GetTraceSampler()->SampleTraceContext(identity.User, traceContext);
+        TraceSampler_->SampleTraceContext(identity.User, traceContext);
 
         if (traceContext->IsRecorded()) {
             traceContext->AddTag("user", identity.User);
@@ -903,9 +902,9 @@ private:
 
         THROW_ERROR_EXCEPTION_IF_FAILED(AccessChecker_->ValidateAccess(identity.User));
 
-        SecurityManager_.ValidateUser(identity.User);
+        SecurityManager_->ValidateUser(identity.User);
 
-        Coordinator_->ValidateOperable();
+        ProxyCoordinator_->ValidateOperable();
 
         const auto& config = Config_.Acquire();
 
@@ -1094,14 +1093,12 @@ private:
             count,
             clockClusterTag);
 
-        const auto& connection = Bootstrap_->GetNativeConnection();
-
         if (clockClusterTag == InvalidCellTag) {
-            connection->GetClockManager()->ValidateDefaultClock("Unable to generate timestamps");
-            clockClusterTag = connection->GetClusterTag();
+            Connection_->GetClockManager()->ValidateDefaultClock("Unable to generate timestamps");
+            clockClusterTag = Connection_->GetClusterTag();
         }
 
-        const auto& timestampProvider = connection->GetClockManager()->GetTimestampProviderOrThrow(clockClusterTag);
+        const auto& timestampProvider = Connection_->GetClockManager()->GetTimestampProviderOrThrow(clockClusterTag);
 
         ExecuteCall(
             context,
@@ -5285,7 +5282,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Coordinator_->GetOperableState();
+        return ProxyCoordinator_->GetOperableState();
     }
 };
 
@@ -5294,18 +5291,28 @@ DEFINE_REFCOUNTED_TYPE(TApiService)
 ////////////////////////////////////////////////////////////////////////////////
 
 IApiServicePtr CreateApiService(
-    IBootstrap* bootstrap,
-    NRpc::IAuthenticatorPtr authenticator,
-    NLogging::TLogger logger,
     TApiServiceConfigPtr config,
+    IInvokerPtr workerInvoker,
+    NApi::NNative::IConnectionPtr connection,
+    NRpc::IAuthenticatorPtr authenticator,
+    IProxyCoordinatorPtr proxyCoordinator,
+    IAccessCheckerPtr accessChecker,
+    ISecurityManagerPtr securityManager,
+    NTracing::TSamplerPtr traceSampler,
+    NLogging::TLogger logger,
     TProfiler profiler,
     IStickyTransactionPoolPtr stickyTransactionPool)
 {
     return New<TApiService>(
-        bootstrap,
-        authenticator,
-        std::move(logger),
         std::move(config),
+        std::move(workerInvoker),
+        std::move(connection),
+        std::move(authenticator),
+        std::move(proxyCoordinator),
+        std::move(accessChecker),
+        std::move(securityManager),
+        std::move(traceSampler),
+        std::move(logger),
         std::move(profiler),
         std::move(stickyTransactionPool));
 }

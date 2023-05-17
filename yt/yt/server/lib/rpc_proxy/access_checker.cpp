@@ -1,5 +1,7 @@
 #include "access_checker.h"
 
+#include <yt/yt/core/misc/error.h>
+
 namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -8,9 +10,9 @@ class TNoopAccessChecker
     : public IAccessChecker
 {
 public:
-    TError ValidateAccess(const TString& /* user */) const override
+    TError ValidateAccess(const TString& /*user*/) const override
     {
-        return TError();
+        return {};
     }
 };
 

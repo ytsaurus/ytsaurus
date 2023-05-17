@@ -6,8 +6,6 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBootstrap;
-
 DECLARE_REFCOUNTED_CLASS(TProxyConfig)
 DECLARE_REFCOUNTED_CLASS(TProxyDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TAccessCheckerConfig)

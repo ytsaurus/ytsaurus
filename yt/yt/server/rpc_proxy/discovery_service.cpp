@@ -86,47 +86,52 @@ class TDiscoveryService
 {
 public:
     TDiscoveryService(
-        TBootstrap* bootstrap)
+        TProxyConfigPtr config,
+        IProxyCoordinatorPtr proxyCoordinator,
+        NApi::NNative::IConnectionPtr connection,
+        IInvokerPtr controlInvoker,
+        IInvokerPtr workerInvoker,
+        const NNodeTrackerClient::TAddressMap& localAddresses)
         : TServiceBase(
-            bootstrap->GetWorkerInvoker(),
+            workerInvoker,
             GetDescriptor(),
             RpcProxyLogger)
-        , Bootstrap_(bootstrap)
-        , Config_(bootstrap->GetConfig()->DiscoveryService)
-        , Coordinator_(bootstrap->GetProxyCoordinator())
-        , RootClient_(bootstrap->GetNativeClient())
+        , Config_(std::move(config))
+        , ProxyCoordinator_(std::move(proxyCoordinator))
+        , Connection_(std::move(connection))
+        , RootClient_(Connection_->CreateNativeClient(TClientOptions::FromUser(RootUserName)))
         , ProxyPath_(RpcProxiesPath + "/" + BuildServiceAddress(
             GetLocalHostName(),
-            Bootstrap_->GetConfig()->RpcPort))
+            Config_->RpcPort))
         , AliveUpdateExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
+            controlInvoker,
             BIND(&TDiscoveryService::OnPeriodicEvent, MakeWeak(this), &TDiscoveryService::UpdateLiveness),
-            TPeriodicExecutorOptions::WithJitter(Config_->LivenessUpdatePeriod)))
+            TPeriodicExecutorOptions::WithJitter(Config_->DiscoveryService->LivenessUpdatePeriod)))
         , ProxyUpdateExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
+            controlInvoker,
             BIND(&TDiscoveryService::OnPeriodicEvent, MakeWeak(this), &TDiscoveryService::UpdateProxies),
-            TPeriodicExecutorOptions::WithJitter(Config_->ProxyUpdatePeriod)))
+            TPeriodicExecutorOptions::WithJitter(Config_->DiscoveryService->ProxyUpdatePeriod)))
         , GrpcPort_(GetGrpcPort())
         , GrpcProxyPath_(BuildGrpcProxyPath())
     {
         for (const auto& descriptor : GetProxyDescriptors()) {
             TCypressRegistrarOptions options{
                 .RootPath = descriptor.CypressPath,
-                .OrchidRemoteAddresses = Bootstrap_->GetLocalAddresses(),
+                .OrchidRemoteAddresses = localAddresses,
                 .CreateAliveChild = true,
                 .EnableImplicitInitialization = false,
                 .AttributesOnStart = BuildAttributeDictionaryFluently()
                     .Item(VersionAttributeName).Value(GetVersion())
                     .Item(StartTimeAttributeName).Value(TInstant::Now())
-                    .Item(AnnotationsAttributeName).Value(Bootstrap_->GetConfig()->CypressAnnotations)
+                    .Item(AnnotationsAttributeName).Value(Config_->CypressAnnotations)
                     .Item(AddressesAttributeName).Value(descriptor.Addresses)
                     .Finish()
             };
             CypressRegistrars_.push_back(CreateCypressRegistrar(
                 std::move(options),
-                Config_->CypressRegistrar,
+                Config_->DiscoveryService->CypressRegistrar,
                 RootClient_,
-                Bootstrap_->GetControlInvoker()));
+                controlInvoker));
         }
 
         AliveUpdateExecutor_->Start();
@@ -136,10 +141,10 @@ public:
     }
 
 private:
-    TBootstrap* const Bootstrap_;
-    const TDiscoveryServiceConfigPtr Config_;
-    const IProxyCoordinatorPtr Coordinator_;
-    const NNative::IClientPtr RootClient_;
+    const TProxyConfigPtr Config_;
+    const IProxyCoordinatorPtr ProxyCoordinator_;
+    const NApi::NNative::IConnectionPtr Connection_;
+    const NApi::NNative::IClientPtr RootClient_;
     const TString ProxyPath_;
     const TPeriodicExecutorPtr AliveUpdateExecutor_;
     const TPeriodicExecutorPtr ProxyUpdateExecutor_;
@@ -163,7 +168,7 @@ private:
 
     std::optional<int> GetGrpcPort()
     {
-        const auto& grpcServerConfig = Bootstrap_->GetConfig()->GrpcServer;
+        const auto& grpcServerConfig = Config_->GrpcServer;
         if (!grpcServerConfig) {
             return std::nullopt;
         }
@@ -194,15 +199,13 @@ private:
 
     std::vector<TProxyDescriptor> GetProxyDescriptors() const
     {
-        const auto& config = Bootstrap_->GetConfig();
-
         auto proxyAddressMap = TProxyAddressMap{
-            {EAddressType::InternalRpc, GetLocalAddresses(config->Addresses, config->RpcPort)},
-            {EAddressType::MonitoringHttp, GetLocalAddresses(config->Addresses, config->MonitoringPort)}
+            {EAddressType::InternalRpc, GetLocalAddresses(Config_->Addresses, Config_->RpcPort)},
+            {EAddressType::MonitoringHttp, GetLocalAddresses(Config_->Addresses, Config_->MonitoringPort)}
         };
 
-        if (config->TvmOnlyAuth && config->TvmOnlyRpcPort) {
-            auto addresses = GetLocalAddresses(config->Addresses, config->TvmOnlyRpcPort);
+        if (Config_->TvmOnlyAuth && Config_->TvmOnlyRpcPort) {
+            auto addresses = GetLocalAddresses(Config_->Addresses, Config_->TvmOnlyRpcPort);
             proxyAddressMap.emplace(EAddressType::TvmOnlyInternalRpc, addresses);
         }
 
@@ -253,7 +256,7 @@ private:
 
     bool IsAvailable() const
     {
-        return Now() - LastSuccessTimestamp_ < Config_->AvailabilityPeriod;
+        return Now() - LastSuccessTimestamp_ < Config_->DiscoveryService->AvailabilityPeriod;
     }
 
     void OnPeriodicEvent(void (TDiscoveryService::*action)())
@@ -264,10 +267,11 @@ private:
                 (this->*action)();
                 return;
             } catch (const std::exception& ex) {
-                backoffDuration = Min(backoffDuration + RandomDuration(Max(backoffDuration, Config_->LivenessUpdatePeriod)),
-                    Config_->BackoffPeriod);
+                backoffDuration = Min(
+                    backoffDuration + RandomDuration(Max(backoffDuration, Config_->DiscoveryService->LivenessUpdatePeriod)),
+                    Config_->DiscoveryService->BackoffPeriod);
                 YT_LOG_WARNING(ex, "Failed to perform update, backing off (Duration: %v)", backoffDuration);
-                if (!IsAvailable() && Coordinator_->SetAvailableState(false)) {
+                if (!IsAvailable() && ProxyCoordinator_->SetAvailableState(false)) {
                     Initialized_ = false;
                     YT_LOG_WARNING("Connectivity lost");
                 }
@@ -294,7 +298,7 @@ private:
         }
 
         LastSuccessTimestamp_ = Now();
-        if (Coordinator_->SetAvailableState(true)) {
+        if (ProxyCoordinator_->SetAvailableState(true)) {
             YT_LOG_INFO("Connectivity restored");
         }
     }
@@ -303,21 +307,20 @@ private:
     {
         TMasterReadOptions options{
             .ReadFrom = EMasterChannelKind::LocalCache,
-            .ExpireAfterSuccessfulUpdateTime = Config_->ProxyUpdatePeriod,
-            .ExpireAfterFailedUpdateTime = Config_->ProxyUpdatePeriod,
+            .ExpireAfterSuccessfulUpdateTime = Config_->DiscoveryService->ProxyUpdatePeriod,
+            .ExpireAfterFailedUpdateTime = Config_->DiscoveryService->ProxyUpdatePeriod,
             .CacheStickyGroupSize = 1
         };
 
-        auto connection = Bootstrap_->GetNativeConnection();
         auto channel = RootClient_->GetMasterChannelOrThrow(options.ReadFrom);
         auto proxy = CreateObjectServiceReadProxy(
             RootClient_,
             options.ReadFrom,
             PrimaryMasterCellTagSentinel,
-            connection->GetStickyGroupSizeCache());
+            Connection_->GetStickyGroupSizeCache());
 
         auto batchReq = proxy.ExecuteBatch();
-        SetBalancingHeader(batchReq, connection, options);
+        SetBalancingHeader(batchReq, Connection_, options);
 
         {
             auto req = TYPathProxy::Get(ProxyPath_ + "/@");
@@ -328,7 +331,7 @@ private:
                     BannedAttributeName,
                     BanMessageAttributeName,
                 });
-            SetCachingHeader(req, connection, options);
+            SetCachingHeader(req, Connection_, options);
             batchReq->AddRequest(req, "get_ban");
         }
 
@@ -341,7 +344,7 @@ private:
                     BannedAttributeName,
                     AddressesAttributeName,
                 });
-            SetCachingHeader(req, connection, options);
+            SetCachingHeader(req, Connection_, options);
             batchReq->AddRequest(req, "get_proxies");
         }
 
@@ -353,16 +356,16 @@ private:
             auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_ban").Value();
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
             bool banned = attributes->Get(BannedAttributeName, false);
-            bool changed = Coordinator_->SetBannedState(banned);
+            bool changed = ProxyCoordinator_->SetBannedState(banned);
             if (changed) {
                 if (banned) {
-                    Coordinator_->SetBanMessage(attributes->Get(BanMessageAttributeName, TString()));
+                    ProxyCoordinator_->SetBanMessage(attributes->Get(BanMessageAttributeName, TString()));
                 }
                 YT_LOG_INFO("Proxy has been %v (Path: %v)", banned ? "banned" : "unbanned", ProxyPath_);
             }
 
             auto role = attributes->Find<TString>(RoleAttributeName);
-            Coordinator_->SetProxyRole(role);
+            ProxyCoordinator_->SetProxyRole(role);
 
             if (role) {
                 NProfiling::TSolomonRegistry::Get()->SetDynamicTags({NProfiling::TTag{"proxy_role", *role}});
@@ -403,7 +406,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DiscoverProxies)
     {
-        Coordinator_->ValidateOperable();
+        ProxyCoordinator_->ValidateOperable();
 
         auto roleFilter = request->has_role() ? request->role() : DefaultProxyRole;
         auto addressType = request->has_address_type()
@@ -435,9 +438,20 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IServicePtr CreateDiscoveryService(
-    TBootstrap* bootstrap)
+    TProxyConfigPtr config,
+    IProxyCoordinatorPtr proxyCoordinator,
+    NApi::NNative::IConnectionPtr connection,
+    IInvokerPtr controlInvoker,
+    IInvokerPtr workerInvoker,
+    NNodeTrackerClient::TAddressMap localAddresses)
 {
-    return New<TDiscoveryService>(bootstrap);
+    return New<TDiscoveryService>(
+        std::move(config),
+        std::move(proxyCoordinator),
+        std::move(connection),
+        std::move(controlInvoker),
+        std::move(workerInvoker),
+        std::move(localAddresses));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

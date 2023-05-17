@@ -2,13 +2,19 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/rpc_proxy/access_checker.h>
+#include <yt/yt/server/lib/rpc_proxy/public.h>
+
+#include <yt/yt/ytlib/api/native/public.h>
 
 namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IAccessCheckerPtr CreateAccessChecker(TBootstrap* bootstrap);
+IAccessCheckerPtr CreateAccessChecker(
+    TAccessCheckerConfigPtr config,
+    IProxyCoordinatorPtr proxyCoordinator,
+    NApi::NNative::IConnectionPtr connection,
+    IDynamicConfigManagerPtr dynamicConfigManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

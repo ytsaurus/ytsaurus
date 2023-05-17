@@ -5,6 +5,7 @@
 #include "config.h"
 #include "dynamic_config_manager.h"
 
+#include <yt/yt/server/lib/rpc_proxy/access_checker.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
@@ -27,18 +28,19 @@ class TAccessChecker
     : public IAccessChecker
 {
 public:
-    explicit TAccessChecker(TBootstrap* bootstrap)
-        : Config_(bootstrap->GetConfig()->AccessChecker)
+    TAccessChecker(
+        TAccessCheckerConfigPtr config,
+        IProxyCoordinatorPtr proxyCoordinator,
+        NApi::NNative::IConnectionPtr connection,
+        IDynamicConfigManagerPtr dynamicConfigManager)
+        : Config_(std::move(config))
         , Cache_(New<TPermissionCache>(
             Config_->Cache,
-            bootstrap->GetNativeConnection(),
+            connection,
             RpcProxyProfiler.WithPrefix("/access_checker_cache")))
         , Enabled_(Config_->Enabled)
     {
-        const auto& dynamicConfigManager = bootstrap->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TAccessChecker::OnDynamicConfigChanged, MakeWeak(this)));
-
-        const auto& proxyCoordinator = bootstrap->GetProxyCoordinator();
         proxyCoordinator->SubscribeOnProxyRoleChanged(BIND(&TAccessChecker::OnProxyRoleChanged, MakeWeak(this)));
     }
 
@@ -106,9 +108,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IAccessCheckerPtr CreateAccessChecker(TBootstrap* bootstrap)
+IAccessCheckerPtr CreateAccessChecker(
+    TAccessCheckerConfigPtr config,
+    IProxyCoordinatorPtr proxyCoordinator,
+    NApi::NNative::IConnectionPtr connection,
+    IDynamicConfigManagerPtr dynamicConfigManager)
 {
-    return New<TAccessChecker>(bootstrap);
+    return New<TAccessChecker>(
+        std::move(config),
+        std::move(proxyCoordinator),
+        std::move(connection),
+        std::move(dynamicConfigManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

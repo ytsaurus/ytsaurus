@@ -1,6 +1,8 @@
 #include "proxy_coordinator.h"
 
 #include <yt/yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/error.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 #include <atomic>
