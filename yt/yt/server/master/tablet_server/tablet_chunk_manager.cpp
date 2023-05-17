@@ -1769,12 +1769,21 @@ private:
 
     void AttachChunksToTablet(TTabletBase* tablet, const std::vector<TChunkTree*>& chunkTrees)
     {
+        auto* chunkList = tablet->GetChunkList();
+        auto* hunkChunkList = tablet->GetHunkChunkList();
+
         std::vector<TChunkTree*> storeChildren;
         std::vector<TChunkTree*> hunkChildren;
         storeChildren.reserve(chunkTrees.size());
         hunkChildren.reserve(chunkTrees.size());
         for (auto* child : chunkTrees) {
             if (IsHunkChunk(tablet, child)) {
+                // NB: It is OK to try to attach hunk chunk multiple times.
+                // Tablet node will take care of reference tracking and will detach
+                // it only when it is not required by any store.
+                if (hunkChunkList->HasChild(child)) {
+                    continue;
+                }
                 hunkChildren.push_back(child);
             } else {
                 storeChildren.push_back(child);
@@ -1782,8 +1791,8 @@ private:
         }
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager->AttachToChunkList(tablet->GetChunkList(), storeChildren);
-        chunkManager->AttachToChunkList(tablet->GetHunkChunkList(), hunkChildren);
+        chunkManager->AttachToChunkList(chunkList, storeChildren);
+        chunkManager->AttachToChunkList(hunkChunkList, hunkChildren);
     }
 };
 

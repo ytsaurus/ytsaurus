@@ -318,6 +318,13 @@ bool TChunkList::HasChildToIndexMapping() const
         Kind_ == EChunkListKind::HunkTablet;
 }
 
+bool TChunkList::HasChild(TChunkTree* child) const
+{
+    YT_ASSERT(HasChildToIndexMapping());
+
+    return ChildToIndex_.contains(child);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

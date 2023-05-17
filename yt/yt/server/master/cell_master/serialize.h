@@ -141,6 +141,7 @@ DEFINE_ENUM(EMasterReign,
     ((TooManyLocksCheck)                                            (2326))  // h0pless
     ((RemoveDefaultSecondaryRoles)                                  (2327))  // aleksandra-zh
     ((MasterCellChunkStatisticsCollector)                           (2328))  // kvk1920
+    ((FixHunkChunksAttach)                                          (2329))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
