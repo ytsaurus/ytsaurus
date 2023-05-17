@@ -1,5 +1,4 @@
-# TODO: download base image from the local registry.
-FROM ubuntu:jammy
+FROM cr.yandex/crpl84hkh3k16ihscv0j/jammy:latest
 
 WORKDIR /tmp
 
