@@ -1,13 +1,17 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (
     authors, create_tablet_cell_bundle, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells,
-    ls, get, set, retry, start_transaction, commit_transaction, create, exists)
+    ls, get, set, retry, start_transaction, commit_transaction, create, exists, wait, write_table)
+
+from yt_helpers import profiler_factory
 
 from original_tests.yt.yt.tests.integration.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
 import yatest.common
 
+import builtins
+import datetime
 import os
 import pytest
 
@@ -95,6 +99,52 @@ def check_cypress_transactions():
 
     assert exists("//tmp/old")
     assert exists("//tmp/new")
+
+
+def check_chunk_creation_time_histogram():
+    create("table", "//tmp/chunk_creation_time")
+    write_table("//tmp/chunk_creation_time", {"a": "b"})
+    write_table("<append=%true>//tmp/chunk_creation_time", {"a": "b"})
+
+    yield
+
+    def check_histogram(self):
+        def parse_time(t):
+            return datetime.strptime(t, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp() * 1000
+
+        bounds = sorted(map(parse_time, get("//sys/@config/chunk_manager/global_chunk_statistics_collector/creation_time_histogram_bucket_bounds")))
+        chunks = ls("//sys/chunks", attributes=["shard_index"])
+        creation_times = [
+            (parse_time(get(f"//sys/estimated_creation_time/{chunk}")["min"]), chunk.attributes["shard_index"])
+            for chunk in chunks
+        ]
+
+        master_address = ls("//sys/primary_masters")[0]
+        profiler = profiler_factory().at_primary_master(master_address)
+        shards = [
+            profiler.histogram(
+                "chunk_server/histograms/chunk_creation_time_histogram",
+                fixed_tags={"shard_index": str(shard_index)}).get_bins()
+            for shard_index in range(60)
+        ]
+
+        true_bins = [[0] * (len(bounds) + 1) for _ in range(60)]
+        for creation_time, shard_index in creation_times:
+            bin_index = 0
+            while bin_index < len(bounds) and creation_time >= bounds[bin_index]:
+                bin_index += 1
+            true_bins[shard_index][bin_index] += 1
+
+        sizes = builtins.set(map(len, shards))
+        if len(sizes) != 1:
+            print_debug(f"Shards have different sizes: {sizes}")
+            return False
+
+        histogram = [[bin["count"] for bin in shard] for shard in shards]
+
+        return histogram == true_bins
+
+    wait(check_histogram)
 
 
 class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):

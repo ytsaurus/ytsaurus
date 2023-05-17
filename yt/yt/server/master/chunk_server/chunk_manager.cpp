@@ -3,6 +3,7 @@
 #include "private.h"
 #include "chunk.h"
 #include "chunk_autotomizer.h"
+#include "chunk_creation_time_histogram_builder.h"
 #include "chunk_list.h"
 #include "chunk_list_type_handler.h"
 #include "chunk_merger.h"
@@ -25,6 +26,7 @@
 #include "job.h"
 #include "job_controller.h"
 #include "job_registry.h"
+#include "master_cell_chunk_statistics_collector.h"
 #include "medium.h"
 #include "medium_type_handler.h"
 #include "chunk_location.h"
@@ -370,11 +372,20 @@ public:
             Bootstrap_,
             ConsistentChunkPlacement_))
         , JobRegistry_(CreateJobRegistry(Bootstrap_))
-        , ChunkReplicator_(New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_, JobRegistry_))
+        , ChunkReplicator_(
+            New<TChunkReplicator>(
+                Config_,
+                Bootstrap_,
+                ChunkPlacement_,
+                JobRegistry_))
         , ChunkSealer_(CreateChunkSealer(Bootstrap_))
         , ChunkAutotomizer_(CreateChunkAutotomizer(Bootstrap_))
         , ChunkMerger_(New<TChunkMerger>(Bootstrap_))
         , ChunkReincarnator_(CreateChunkReincarnator(Bootstrap_))
+        , MasterCellChunkStatisticsCollector_(
+            CreateMasterCellChunkStatisticsCollector(
+                Bootstrap_,
+                {CreateChunkCreationTimeHistogramBuilder(bootstrap)}))
     {
         RegisterMethod(BIND(&TChunkManager::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
         RegisterMethod(BIND(&TChunkManager::HydraUpdateChunkRequisition, Unretained(this)));
@@ -533,7 +544,6 @@ public:
         ChunkAutotomizer_->Initialize();
         ChunkReincarnator_->Initialize();
     }
-
 
     IYPathServicePtr GetOrchidService() override
     {
@@ -1359,6 +1369,8 @@ public:
         ChunkSealer_->OnChunkDestroyed(chunk);
 
         ChunkReincarnator_->OnChunkDestroyed(chunk);
+
+        MasterCellChunkStatisticsCollector_->OnChunkDestroyed(chunk);
 
         if (chunk->HasConsistentReplicaPlacementHash()) {
             ConsistentChunkPlacement_->RemoveChunk(chunk);
@@ -2488,6 +2500,7 @@ public:
         return TGlobalChunkScanDescriptor{
             .FrontChunk = chunkList.GetFront(),
             .ChunkCount = chunkList.GetSize(),
+            .ShardIndex = shardIndex,
         };
     }
 
@@ -2497,6 +2510,7 @@ public:
         return TGlobalChunkScanDescriptor{
             .FrontChunk = chunkList.GetFront(),
             .ChunkCount = chunkList.GetSize(),
+            .ShardIndex = shardIndex,
         };
     }
 
@@ -2595,6 +2609,8 @@ private:
     const TChunkMergerPtr ChunkMerger_;
 
     const IChunkReincarnatorPtr ChunkReincarnator_;
+
+    const IMasterCellChunkStatisticsCollectorPtr MasterCellChunkStatisticsCollector_;
 
     // Global chunk lists; cf. TChunkDynamicData.
     using TGlobalChunkList = TIntrusiveLinkedList<TChunk, TChunkToLinkedListNode>;
@@ -2754,6 +2770,8 @@ private:
         if (chunk->IsSequoia()) {
             ++SequoiaChunkCount_;
         }
+
+        MasterCellChunkStatisticsCollector_->OnChunkCreated(chunk);
 
         return chunk;
     }

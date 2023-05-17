@@ -123,12 +123,15 @@ DECLARE_REFCOUNTED_CLASS(IChunkReincarnator)
 DECLARE_REFCOUNTED_CLASS(TChunkReplicator)
 DECLARE_REFCOUNTED_CLASS(TChunkPlacement)
 DECLARE_REFCOUNTED_CLASS(TConsistentChunkPlacement)
+DECLARE_REFCOUNTED_STRUCT(IMasterCellChunkStatisticsCollector)
+DECLARE_REFCOUNTED_STRUCT(IMasterCellChunkStatisticsPieceCollector);
 
 DECLARE_REFCOUNTED_CLASS(TChunkManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicDataNodeTrackerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkTreeBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkAutotomizerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkMergerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicMasterCellChunkStatisticsCollectorConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkReincarnatorConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkManagerTestingConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkManagerConfig)
@@ -178,11 +181,12 @@ DEFINE_BIT_ENUM(ECrossMediumChunkStatus,
 );
 
 DEFINE_BIT_ENUM(EChunkScanKind,
-    ((None)              (0x0000))
-    ((Refresh)           (0x0001))
-    ((RequisitionUpdate) (0x0002))
-    ((Seal)              (0x0004))
-    ((Reincarnation)     (0x0008))
+    ((None)                         (0x0000))
+    ((Refresh)                      (0x0001))
+    ((RequisitionUpdate)            (0x0002))
+    ((Seal)                         (0x0004))
+    ((Reincarnation)                (0x0008))
+    ((GlobalStatisticsCollector)    (0x0010))
 );
 
 DEFINE_ENUM(EChunkListKind,
@@ -294,6 +298,7 @@ struct TGlobalChunkScanDescriptor
 {
     TChunk* FrontChunk;
     int ChunkCount;
+    int ShardIndex;
 };
 
 struct TChunkToShardIndex
@@ -308,6 +313,8 @@ constexpr int ChunkLocationShardCount = 256;
 
 //! A reasonable upper estimate on the number of cells 99% of chunks are exported to.
 constexpr int TypicalChunkExportFactor = 4;
+
+constexpr int MaxChunkCreationTimeHistogramBuckets = 50;
 
 ////////////////////////////////////////////////////////////////////////////////
 

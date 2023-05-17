@@ -528,16 +528,14 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-            ChunkScanner_.Start(
-                shardIndex,
-                chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
+            ChunkScanner_.Start(chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
         }
 
         const auto& config = GetDynamicConfig();
 
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         const auto& invoker = hydraFacade->GetEpochAutomatonInvoker(
-            EAutomatonThreadQueue::ChunkAutotomizer);
+            EAutomatonThreadQueue::ChunkReincarnator);
 
         auto startExecutor = [&] (TPeriodicExecutorPtr* executor, auto callback, TDuration period) {
             *executor = New<TPeriodicExecutor>(invoker, std::move(callback), period);
@@ -703,9 +701,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
             auto descriptor = chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex);
-            ChunkScanner_.ScheduleGlobalScan(
-                shardIndex,
-                descriptor);
+            ChunkScanner_.ScheduleGlobalScan(descriptor);
         }
     }
 
@@ -1087,7 +1083,9 @@ private:
                 continue;
             }
 
-            auto estimatedCreationTime = epochHistoryManager->GetEstimatedCreationTime(chunk->GetId()).second;
+            auto estimatedCreationTime = epochHistoryManager->GetEstimatedCreationTime(
+                chunk->GetId(),
+                NProfiling::GetInstant()).second;
 
             if (estimatedCreationTime > config->MinAllowedCreationTime) {
                 continue;

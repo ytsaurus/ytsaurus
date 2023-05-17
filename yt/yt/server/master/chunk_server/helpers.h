@@ -151,6 +151,8 @@ void SerializeMediumOverrides(
 
 int GetChunkShardIndex(TChunkId chunkId);
 
+std::vector<TInstant> GenerateChunkCreationTimeHistogramBucketBounds(TInstant now);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

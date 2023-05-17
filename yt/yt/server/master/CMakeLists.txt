@@ -211,6 +211,18 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 add_library(yt-server-master)
 target_compile_options(yt-server-master PRIVATE
@@ -254,6 +266,7 @@ target_proto_messages(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cell_master/proto/response_keeper_manager.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chaos_server/proto/alien_cell.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chaos_server/proto/chaos_manager.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/master_cell_chunk_statistics_collector.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_autotomizer.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_manager.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_merger.proto
@@ -324,6 +337,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chaos_server/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_autotomizer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_creation_time_histogram_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_list.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_list_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_list_type_handler.cpp
@@ -365,6 +379,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/master_cell_chunk_statistics_collector.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_type_handler.cpp

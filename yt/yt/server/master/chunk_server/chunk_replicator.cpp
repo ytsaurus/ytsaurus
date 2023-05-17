@@ -1231,7 +1231,6 @@ void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
 {
     // NB: We have to handle chunk here even if it should not be processed by replicator
     // since it may be in some of the queues being put when replicator processed this chunk.
-
     GetChunkRefreshScanner(chunk)->OnChunkDestroyed(chunk);
     GetChunkRequisitionUpdateScanner(chunk)->OnChunkDestroyed(chunk);
     ResetChunkStatus(chunk);
@@ -2286,8 +2285,8 @@ void TChunkReplicator::ScheduleGlobalChunkRefresh()
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
         if (IsShardActive(shardIndex)) {
-            BlobRefreshScanner_->ScheduleGlobalScan(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
-            JournalRefreshScanner_->ScheduleGlobalScan(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+            BlobRefreshScanner_->ScheduleGlobalScan(chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
+            JournalRefreshScanner_->ScheduleGlobalScan(chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
         }
     }
 }
@@ -3194,8 +3193,8 @@ bool TChunkReplicator::UsePullReplication(TChunk* chunk) const
 void TChunkReplicator::StartRefresh(int shardIndex)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    BlobRefreshScanner_->Start(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
-    JournalRefreshScanner_->Start(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+    BlobRefreshScanner_->Start(chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
+    JournalRefreshScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
 
     auto& jobEpoch = JobEpochs_[shardIndex];
     YT_VERIFY(jobEpoch == InvalidJobEpoch);
@@ -3263,8 +3262,8 @@ void TChunkReplicator::StartRequisitionUpdate()
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-        BlobRequisitionUpdateScanner_->Start(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
-        JournalRequisitionUpdateScanner_->Start(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+        BlobRequisitionUpdateScanner_->Start(chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
+        JournalRequisitionUpdateScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
     }
 
     YT_VERIFY(!std::exchange(RequisitionUpdateRunning_, true));

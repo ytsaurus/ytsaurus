@@ -136,7 +136,7 @@ TEventTimerGuard::~TEventTimerGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGaugeHistogram::Add(double value, int count)
+void TGaugeHistogram::Add(double value, int count) noexcept
 {
     if (!Histogram_) {
         return;
@@ -145,7 +145,7 @@ void TGaugeHistogram::Add(double value, int count)
     Histogram_->Add(value, count);
 }
 
-void TGaugeHistogram::Remove(double value, int count)
+void TGaugeHistogram::Remove(double value, int count) noexcept
 {
     if (!Histogram_) {
         return;
@@ -154,7 +154,7 @@ void TGaugeHistogram::Remove(double value, int count)
     Histogram_->Remove(value, count);
 }
 
-void TGaugeHistogram::Reset()
+void TGaugeHistogram::Reset() noexcept
 {
     if (!Histogram_) {
         return;

@@ -1006,7 +1006,7 @@ class TestChunkWeightStatisticsHistogram(YTEnvSetup):
             profiler = profiler_factory().at_primary_master(master_address)
             histogram = profiler.histogram("chunk_server/histograms/" + histogram_name)
 
-            histogram_bins = histogram.get_bins(verbose=False)
+            histogram_bins = histogram.get_bins()
             for i in range(0, 39):
                 assert int(histogram_bins[i]['count']) == result[i]
 

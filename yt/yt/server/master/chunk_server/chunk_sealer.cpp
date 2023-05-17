@@ -154,7 +154,7 @@ public:
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-            SealScanner_->Start(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+            SealScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
         }
 
         SealExecutor_ = New<TPeriodicExecutor>(

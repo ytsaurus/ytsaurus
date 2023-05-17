@@ -68,9 +68,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "chunk_manager": {
             "chunk_reincarnator": {
-                "chunk_scan_period": 250,
-                "max_skipped_chunks_per_scan": 10,
-                "max_visited_chunk_lists_per_scan": 500,
+                "chunk_scan_period": 600,
             }
         },
         "cell_master": {

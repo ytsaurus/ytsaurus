@@ -1239,6 +1239,23 @@ int GetChunkShardIndex(TChunkId chunkId)
     return TDirectObjectIdHash()(chunkId) % ChunkShardCount;
 }
 
+std::vector<TInstant> GenerateChunkCreationTimeHistogramBucketBounds(TInstant now)
+{
+    std::vector<TInstant> bounds;
+    bounds.reserve(5 + 11 + 3 + 1);
+    for (int yearDelta = 5; yearDelta > 0; --yearDelta) {
+        bounds.push_back(now - TDuration::Days(yearDelta * 365));
+    }
+    for (int monthDelta = 11; monthDelta > 0; --monthDelta) {
+        bounds.push_back(now - TDuration::Days(monthDelta * 30));
+    }
+    for (int weekDelta = 3; weekDelta > 0; --weekDelta) {
+        bounds.push_back(now - TDuration::Days(weekDelta * 7));
+    }
+    bounds.push_back(now);
+    return bounds;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

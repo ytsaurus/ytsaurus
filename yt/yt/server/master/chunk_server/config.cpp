@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include "helpers.h"
+
 #include <yt/yt/client/job_tracker_client/helpers.h>
 
 #include <yt/yt/core/concurrency/config.h>
@@ -156,6 +158,28 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("allow_setting_chunk_merger_mode", &TThis::AllowSettingChunkMergerMode)
         .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicMasterCellChunkStatisticsCollectorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_chunks_per_scan", &TThis::MaxChunksPerScan)
+        .Default(500);
+    registrar.Parameter("chunk_scan_period", &TThis::ChunkScanPeriod)
+        .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("creation_time_histogram_bucket_bounds", &TThis::CreationTimeHistogramBucketBounds)
+        .Default(GenerateChunkCreationTimeHistogramBucketBounds(TInstant::ParseIso8601("2023-02-15 00:00:00Z")));
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (std::ssize(config->CreationTimeHistogramBucketBounds) > MaxChunkCreationTimeHistogramBuckets) {
+            THROW_ERROR_EXCEPTION("creation_time_histogram_bucket_bounds is too large")
+                << TErrorAttribute("size", std::ssize(config->CreationTimeHistogramBucketBounds))
+                << TErrorAttribute("limit", MaxChunkCreationTimeHistogramBuckets);
+        }
+        Sort(config->CreationTimeHistogramBucketBounds);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -496,6 +520,8 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("chunk_merger", &TThis::ChunkMerger)
         .DefaultNew();
 
+    registrar.Parameter("master_cell_chunk_statistics_collector", &TThis::MasterCellChunkStatisticsCollector)
+        .DefaultNew();
 
     registrar.Parameter("chunk_reincarnator", &TThis::ChunkReincarnator)
         .DefaultNew();

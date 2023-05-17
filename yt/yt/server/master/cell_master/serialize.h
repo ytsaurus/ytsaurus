@@ -140,6 +140,7 @@ DEFINE_ENUM(EMasterReign,
     ((BundlesBan)                                                   (2325))  // alexelexa
     ((TooManyLocksCheck)                                            (2326))  // h0pless
     ((RemoveDefaultSecondaryRoles)                                  (2327))  // aleksandra-zh
+    ((MasterCellChunkStatisticsCollector)                           (2328))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,9 +13,13 @@ namespace NYT::NCellMaster {
 struct IEpochHistoryManager
     : public virtual TRefCounted
 {
-    virtual std::pair<TInstant, TInstant> GetEstimatedMutationTime(NHydra::TVersion version) const = 0;
+    virtual std::pair<TInstant, TInstant> GetEstimatedMutationTime(
+        NHydra::TVersion version,
+        TInstant now) const = 0;
 
-    virtual std::pair<TInstant, TInstant> GetEstimatedCreationTime(NObjectClient::TObjectId id) const = 0;
+    virtual std::pair<TInstant, TInstant> GetEstimatedCreationTime(
+        NObjectClient::TObjectId id,
+        TInstant now) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IEpochHistoryManager)

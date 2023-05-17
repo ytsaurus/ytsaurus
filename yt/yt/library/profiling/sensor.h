@@ -134,9 +134,9 @@ private:
 class TGaugeHistogram
 {
 public:
-    void Add(double value, int count = 1);
-    void Remove(double value, int count = 1);
-    void Reset();
+    void Add(double value, int count = 1) noexcept;
+    void Remove(double value, int count = 1) noexcept;
+    void Reset() noexcept;
 
     THistogramSnapshot GetSnapshot() const;
     void LoadSnapshot(THistogramSnapshot snapshot);

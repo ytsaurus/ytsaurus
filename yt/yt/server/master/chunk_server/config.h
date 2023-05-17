@@ -151,6 +151,24 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkMergerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicMasterCellChunkStatisticsCollectorConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    int MaxChunksPerScan;
+    TDuration ChunkScanPeriod;
+
+    std::vector<TInstant> CreationTimeHistogramBucketBounds;
+
+    REGISTER_YSON_STRUCT(TDynamicMasterCellChunkStatisticsCollectorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicMasterCellChunkStatisticsCollectorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicChunkReincarnatorConfig
     : public NYTree::TYsonStruct
 {
@@ -504,6 +522,8 @@ public:
     TDynamicChunkTreeBalancerConfigPtr ChunkTreeBalancer;
 
     TDynamicChunkMergerConfigPtr ChunkMerger;
+
+    TDynamicMasterCellChunkStatisticsCollectorConfigPtr MasterCellChunkStatisticsCollector;
 
     TDynamicChunkReincarnatorConfigPtr ChunkReincarnator;
 

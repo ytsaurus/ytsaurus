@@ -74,13 +74,13 @@ public:
     TTagSet() = default;
     explicit TTagSet(const TTagList& tags);
 
-    TTagSet WithTag(TTag tag, int parent = NoParent);
-    TTagSet WithRequiredTag(TTag tag, int parent = NoParent);
-    TTagSet WithExcludedTag(TTag tag, int parent = NoParent);
-    TTagSet WithAlternativeTag(TTag tag, int alternativeTo, int parent = NoParent);
-    TTagSet WithExtensionTag(TTag tag, int extensionOf);
-    TTagSet WithTagWithChild(TTag tag, int child);
-    TTagSet WithTagSet(const TTagSet& other);
+    TTagSet WithTag(TTag tag, int parent = NoParent) const;
+    TTagSet WithRequiredTag(TTag tag, int parent = NoParent) const;
+    TTagSet WithExcludedTag(TTag tag, int parent = NoParent) const;
+    TTagSet WithAlternativeTag(TTag tag, int alternativeTo, int parent = NoParent) const;
+    TTagSet WithExtensionTag(TTag tag, int extensionOf) const;
+    TTagSet WithTagWithChild(TTag tag, int child) const;
+    TTagSet WithTagSet(const TTagSet& other) const;
 
     void AddTag(TTag tag, int parent = NoParent);
     void AddRequiredTag(TTag tag, int parent = NoParent);
