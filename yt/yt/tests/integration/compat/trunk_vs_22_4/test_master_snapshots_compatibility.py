@@ -10,7 +10,6 @@ from original_tests.yt.yt.tests.integration.master.test_master_snapshots \
 
 import yatest.common
 
-import builtins
 import datetime
 import os
 import pytest
@@ -108,41 +107,54 @@ def check_chunk_creation_time_histogram():
 
     yield
 
-    def check_histogram(self):
+    set("//sys/@config/chunk_manager/master_cell_chunk_statistics_collector/chunk_scan_period", 250)
+    set("//sys/@config/chunk_manager/master_cell_chunk_statistics_collector/max_skipped_chunks_per_scan", 10)
+    set("//sys/@config/chunk_manager/master_cell_chunk_statistics_collector/max_visited_chunk_lists_per_scan", 500)
+
+    def check_histogram():
         def parse_time(t):
-            return datetime.strptime(t, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp() * 1000
+            return datetime.datetime.strptime(t, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp() * 1000
 
-        bounds = sorted(map(parse_time, get("//sys/@config/chunk_manager/global_chunk_statistics_collector/creation_time_histogram_bucket_bounds")))
-        chunks = ls("//sys/chunks", attributes=["shard_index"])
-        creation_times = [
-            (parse_time(get(f"//sys/estimated_creation_time/{chunk}")["min"]), chunk.attributes["shard_index"])
-            for chunk in chunks
+        bounds = sorted(map(parse_time, get("//sys/@config/chunk_manager/master_cell_chunk_statistics_collector/creation_time_histogram_bucket_bounds")))
+        chunks = ls("//sys/chunks", attributes=["estimated_creation_time", "type"])
+        chunks = [chunk for chunk in chunks if chunk.attributes["type"] != "journal_chunk"]
+
+        master_addresses = [ls("//sys/primary_masters")[0]]
+
+        secondary_cell_tags = ls("//sys/secondary_masters")
+        for cell_tag in secondary_cell_tags:
+            master_addresses.append((cell_tag, ls(f"//sys/secondary_masters/{cell_tag}")[0]))
+
+        profilers = [profiler_factory().at_primary_master(master_addresses[0])] + [
+            profiler_factory().at_secondary_master(cell_tag, address)
+            for cell_tag, address in master_addresses[1:]
         ]
 
-        master_address = ls("//sys/primary_masters")[0]
-        profiler = profiler_factory().at_primary_master(master_address)
-        shards = [
-            profiler.histogram(
-                "chunk_server/histograms/chunk_creation_time_histogram",
-                fixed_tags={"shard_index": str(shard_index)}).get_bins()
-            for shard_index in range(60)
+        histogram = [
+            bin["count"]
+            for bin in profilers[0].histogram("chunk_server/histograms/chunk_creation_time_histogram").get_bins()
         ]
 
-        true_bins = [[0] * (len(bounds) + 1) for _ in range(60)]
-        for creation_time, shard_index in creation_times:
+        for profiler in profilers[1:]:
+            for i, bin in enumerate(profiler.histogram("chunk_server/histograms/chunk_creation_time_histogram").get_bins()):
+                histogram[i] += bin["count"]
+
+        true_histogram = [0] * (len(bounds) + 1)
+        verbose_true_histogram = [[] for _ in range(len(bounds) + 1)]
+        for chunk in chunks:
+            creation_time = parse_time(chunk.attributes["estimated_creation_time"]["min"])
             bin_index = 0
             while bin_index < len(bounds) and creation_time >= bounds[bin_index]:
                 bin_index += 1
-            true_bins[shard_index][bin_index] += 1
+            true_histogram[bin_index] += 1
+            verbose_true_histogram[bin_index].append(str(chunk))
 
-        sizes = builtins.set(map(len, shards))
-        if len(sizes) != 1:
-            print_debug(f"Shards have different sizes: {sizes}")
-            return False
+        if histogram != true_histogram:
+            print_debug(f"actual:   {histogram}")
+            print_debug(f"expected: {true_histogram}")
+            print_debug(f"verbose: {verbose_true_histogram}")
 
-        histogram = [[bin["count"] for bin in shard] for shard in shards]
-
-        return histogram == true_bins
+        return histogram == true_histogram
 
     wait(check_histogram)
 
@@ -158,6 +170,7 @@ class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
         CHECKER_LIST = [
             check_maintenance_flags,
             check_cypress_transactions,
+            check_chunk_creation_time_histogram,
         ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]

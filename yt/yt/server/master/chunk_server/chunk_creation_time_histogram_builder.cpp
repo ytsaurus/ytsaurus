@@ -143,7 +143,7 @@ public:
 
     void Load(NCellMaster::TLoadContext& context) override
     {
-        NeedBuildHistogramFromSnapshot_ = false;
+        NeedBuildHistogramFromSnapshot_ = context.GetVersion() < EMasterReign::MasterCellChunkStatisticsCollector;
 
         using NYT::Load;
 

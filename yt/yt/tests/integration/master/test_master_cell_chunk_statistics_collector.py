@@ -42,10 +42,6 @@ class TestMasterCellChunkStatisticsCollector(YTEnvSetup):
         }
     }
 
-    def setup_method(self, method):
-        super().setup_method(method)
-        set("//sys/@config/incumbent_manager/banned_peers", [])
-
     def _switch_leader(self):
         while True:
             try:
