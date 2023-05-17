@@ -3,6 +3,7 @@ import hashlib
 import itertools
 import multiprocessing as mp
 import os
+import re
 
 from .client import YtClient
 from .config import get_config
@@ -161,14 +162,12 @@ def get_file_sizes(client, yt_table):
         return get_file_sizes_from_table(client, yt_table)
 
 
-def download_range(r, directory, yt_table, client_config, transaction_id):
-    begin, end = r
+def download_table(table_path, directory, client_config, transaction_id):
     client = YtClient(config=client_config)
     with client.Transaction(transaction_id=transaction_id):
-        table = TablePath(yt_table, start_index=begin, end_index=end, client=client)
         files = {}
         try:
-            for row in client.read_table(table, raw=False):
+            for row in client.read_table(table_path, raw=False):
                 if row["filename"] not in files:
                     files[row["filename"]] = open(os.path.join(directory, row["filename"]), "r+b")
                 f = files[row["filename"]]
@@ -221,13 +220,29 @@ def upload_directory_to_yt(directory, recursive, yt_table, part_size, process_co
         write_meta_file(client, yt_table, file_sizes, force)
 
 
-def download_directory_from_yt(directory, yt_table, process_count):
+def check_file_name(file_name, exact_filenames, filter_by_regexp, exclude_by_regexp):
+    if exact_filenames and (file_name not in exact_filenames):
+        return False
+    if filter_by_regexp and (not filter_by_regexp.match(file_name)):
+        return False
+    if exclude_by_regexp and (exclude_by_regexp.match(file_name)):
+        return False
+    return True
+
+
+def download_directory_from_yt(directory, yt_table, process_count, exact_filenames, filter_by_regexp, exclude_by_regexp):
     client = YtClient(config=get_config(None))
     if not os.path.exists(directory):
         os.makedirs(directory)
 
     with client.Transaction(attributes={"title": "dirtable download"}, ping=True) as tx:
         file_sizes = get_file_sizes(client, yt_table)
+        filtered = False
+        if exact_filenames or filter_by_regexp or exclude_by_regexp:
+            filtered = True
+            file_sizes = {key: value for key, value in file_sizes.items() if check_file_name(key, exact_filenames, filter_by_regexp, exclude_by_regexp)}
+            if not file_sizes:
+                print("Warning: there is no appropriate files")
         try:
             for filename, size in file_sizes.items():
                 full_path = os.path.join(directory, filename)
@@ -236,11 +251,15 @@ def download_directory_from_yt(directory, yt_table, process_count):
                 with open(full_path, "wb") as f:
                     f.write(b"\0" * size)
             row_count = client.get_attribute(yt_table, "row_count")
-            ranges = split_range(0, row_count, process_count)
-            worker = functools.partial(download_range, directory=directory, yt_table=yt_table, client_config=get_config(client), transaction_id=tx.transaction_id)
+            tables = []
+            if filtered:
+                tables = [TablePath(yt_table, exact_key=name, client=client) for name in file_sizes]
+            else:
+                tables = [TablePath(yt_table, start_index=begin, end_index=end, client=client) for begin, end in split_range(0, row_count, process_count)]
+            worker = functools.partial(download_table, directory=directory, client_config=get_config(client), transaction_id=tx.transaction_id)
             pool = mp.Pool(process_count)
             try:
-                pool.map(worker, ranges)
+                pool.map(worker, tables)
                 pool.close()
             except:
                 pool.terminate()
@@ -335,6 +354,9 @@ def add_download_parser(parsers):
     parser.add_argument("--directory", required=True)
     parser.add_argument("--yt-table", required=True)
     parser.add_argument("--process-count", type=int, default=4)
+    parser.add_argument("--exact-filenames", type=lambda s: s.split(","), help="Files to extract (separated by comma)")
+    parser.add_argument("--filter-by-regexp", type=lambda s: re.compile(s), help="Files with name matching that regexp will be extracted")
+    parser.add_argument("--exclude-by-regexp", type=lambda s: re.compile(s), help="Files with name matching that regexp will not be extracted")
 
 
 def add_list_files_parser(parsers):
