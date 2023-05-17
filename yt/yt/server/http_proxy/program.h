@@ -14,6 +14,8 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/client/driver/config.h>
+
 #include <yt/yt/core/json/json_parser.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -96,6 +98,7 @@ protected:
             // harmful, in which case we do not want to see requests under root in cluster logs.
             defaultConfig->Auth->BlackboxTokenAuthenticator = New<NAuth::TCachingBlackboxTokenAuthenticatorConfig>();
             defaultConfig->Auth->BlackboxTokenAuthenticator->Scope = "yt:api";
+            defaultConfig->Driver = New<NDriver::TDriverConfig>();
             // Dump it into node and apply patch from config file (if present).
             configNode = NYTree::ConvertToNode(defaultConfig);
             if (auto configNodePatch = GetConfigNode(true /* returnNullIfNotSupplied */)) {

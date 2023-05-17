@@ -388,6 +388,12 @@ TConnectionCompoundConfigPtr TConnectionCompoundConfig::Clone() const
 
 void Serialize(const TConnectionCompoundConfigPtr& connectionConfig, NYson::IYsonConsumer* consumer)
 {
+    if (!connectionConfig) {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+            .EndMap();
+        return;
+    }
     auto node = ConvertToNode(connectionConfig->Static);
     node = PatchNode(node, ConvertToNode(connectionConfig->Dynamic));
     Serialize(node, consumer);
