@@ -11,7 +11,7 @@ import sys
 try:
     from yt.test_helpers import (  # noqa
         are_almost_equal, wait, unorderable_list_difference,
-        assert_items_equal, WaitFailed, Counter)
+        assert_items_equal, are_items_equal, WaitFailed, Counter)
     assert_almost_equal = are_almost_equal
 except ImportError:
     pass

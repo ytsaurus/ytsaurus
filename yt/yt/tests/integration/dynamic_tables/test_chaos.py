@@ -19,11 +19,12 @@ from yt_commands import (
     align_chaos_cell_tag, migrate_replication_cards, alter_replication_card,
     get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error,
     create_table_replica, sync_enable_table_replica, get_tablet_infos, ban_node,
-    suspend_chaos_cells, resume_chaos_cells, merge, add_maintenance, remove_maintenance)
+    suspend_chaos_cells, resume_chaos_cells, merge, add_maintenance, remove_maintenance,
+    sync_freeze_table)
 
 from yt_type_helpers import make_schema
 
-from yt.environment.helpers import assert_items_equal
+from yt.environment.helpers import assert_items_equal, are_items_equal
 from yt.common import YtError
 
 import yt.yson as yson
@@ -1468,6 +1469,152 @@ class TestChaos(ChaosTestBase):
 
         assert str(row[0]["value"][0]) == "0"
         assert row[0].attributes["write_timestamps"][0] == ts
+
+    @authors("ponasenko-rs")
+    def test_migrate_replicated_table_to_chaos_replicated_table(self):
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+
+        def _create_replica_with_table(path, cluster_name, mode, table):
+            replica_id = create_table_replica(
+                table,
+                cluster_name,
+                path,
+                attributes={"mode": mode}
+            )
+
+            replica_driver = get_driver(cluster=cluster_name)
+            create("table", path, driver=replica_driver, attributes={
+                "schema": schema,
+                "dynamic": True,
+                "upstream_replica_id": replica_id
+            })
+            sync_mount_table(path, driver=replica_driver)
+
+            sync_enable_table_replica(replica_id)
+            return replica_id
+
+        _keys = [{"key": i} for i in range(15)]
+        _values = [{"key": key["key"], "value": ""} for key in _keys]
+
+        def _checked_insert_values(path, iteration):
+            def gen_values(iteration):
+                assert iteration < len(_keys)
+                return [
+                    {"key": _keys[i]["key"], "value": str(_keys[i]["key"] * iteration)}
+                    for i in range(0, len(_keys), iteration)
+                ]
+
+            def update_values(values, new_values):
+                for new_value in new_values:
+                    for value in values:
+                        if value["key"] == new_value["key"]:
+                            value["value"] = new_value["value"]
+
+            def _check(keys, values):
+                for replica in replicas:
+                    driver = get_driver(cluster=replica["cluster_name"])
+                    path = replica["replica_path"]
+                    if replica["mode"] == "sync":
+                        assert lookup_rows(path, keys, driver=driver) == values
+                    else:
+                        wait(lambda: lookup_rows(path, keys, driver=driver) == values)
+
+            new_values = gen_values(iteration=iteration)
+            update_values(_values, new_values)
+            insert_rows(path, new_values)
+            assert lookup_rows(path, _keys) == _values
+            _check(_keys, _values)
+
+        def _in_sync(path, replica_ids):
+            timestamp = generate_timestamp()
+
+            def _checkable():
+                return are_items_equal(
+                    get_in_sync_replicas(path, [], all_keys=True, timestamp=timestamp),
+                    replica_ids
+                )
+            return _checkable
+
+        def _switch(from_replica_ids, to_replica_ids):
+            for replica_id in from_replica_ids:
+                alter_table_replica(replica_id, enabled=False)
+
+            for i, replica_id in enumerate(to_replica_ids):
+                replica = replicas[i]
+                path = replica["replica_path"]
+                driver = get_driver(cluster=replica["cluster_name"])
+                sync_unmount_table(path, driver=driver)
+                alter_table(
+                    path,
+                    upstream_replica_id=replica_id,
+                    driver=driver
+                )
+                sync_mount_table(path, driver=driver)
+                alter_table_replica(replica_id, enabled=True)
+
+        # Setup environment.
+        for driver in self._get_drivers():
+            sync_create_cells(1, driver=driver)
+
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+
+        # Replicated table initialization.
+        create("replicated_table", "//tmp/rt", attributes={"schema": schema, "dynamic": True})
+
+        sync_mount_table("//tmp/rt")
+        replicas = [
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": False, "replica_path": "//tmp/r1"},
+        ]
+
+        rt_replica_ids = [
+            _create_replica_with_table(
+                replica["replica_path"],
+                replica["cluster_name"],
+                replica["mode"],
+                "//tmp/rt"
+            )
+            for replica in replicas
+        ]
+
+        _checked_insert_values("//tmp/rt", 1)
+
+        # Chaos intialization.
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle", "schema": schema})
+        card_id = get("//tmp/crt/@replication_card_id")
+
+        queues = [
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+        ]
+        crt_replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        queues_replica_ids = self._create_chaos_table_replicas(queues, table_path="//tmp/crt")
+        self._create_replica_tables(queues, queues_replica_ids, schema=schema)
+
+        # Switch to chaos.
+        _checked_insert_values("//tmp/rt", 2)
+        sync_freeze_table("//tmp/rt")
+        wait(_in_sync("//tmp/rt", rt_replica_ids))
+        sync_unmount_table("//tmp/rt")
+
+        _switch(rt_replica_ids, crt_replica_ids)
+
+        self._sync_replication_era(card_id, replicas)
+        wait(_in_sync("//tmp/crt", crt_replica_ids))
+
+        _checked_insert_values("//tmp/crt", 3)
+
+        # Switch back.
+        sync_mount_table("//tmp/rt")
+        _switch(crt_replica_ids, rt_replica_ids)
+        wait(_in_sync("//tmp/rt", rt_replica_ids))
+
+        _checked_insert_values("//tmp/rt", 4)
+        wait(_in_sync("//tmp/rt", rt_replica_ids))
 
     @authors("savrus")
     @pytest.mark.parametrize("disable_data", [True, False])
