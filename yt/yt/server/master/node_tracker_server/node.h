@@ -280,6 +280,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::optional<TIncrementalHeartbeatCounters>, IncrementalHeartbeatCounters);
 
     DEFINE_BYVAL_RW_PROPERTY(int, NextDisposedLocationIndex);
+    DEFINE_BYVAL_RW_PROPERTY(bool, DisposalTickScheduled);
 public:
     explicit TNode(NObjectServer::TObjectId objectId);
 

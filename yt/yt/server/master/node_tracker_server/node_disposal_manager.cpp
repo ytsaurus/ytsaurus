@@ -196,7 +196,17 @@ private:
 
         YT_VERIFY(IsLeader());
 
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+
         for (auto nodeId : NodesBeingDisposed_) {
+            auto* node = nodeTracker->FindNode(nodeId);
+
+            if (node->GetDisposalTickScheduled()) {
+                continue;
+            }
+
+            node->SetDisposalTickScheduled(true);
+
             TReqNodeDisposalTick request;
             request.set_node_id(nodeId);
 
@@ -245,6 +255,8 @@ private:
             if (!IsObjectAlive(node)) {
                 return;
             }
+
+            node->SetDisposalTickScheduled(false);
 
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Starting node disposal tick (NodeId: %v, Address: %v)",
                 node->GetId(),
