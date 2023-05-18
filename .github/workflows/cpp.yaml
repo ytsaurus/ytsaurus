@@ -21,7 +21,7 @@ jobs:
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           folder-id: b1gcvl619mdunf1cqqbv
-          image-id: fd82138ocbjat688ankr
+          image-id: fd8ref8pd2uefi7o6kh3
           zone-id: 'ru-central1-b'
           subnet-id: e2lno1rkqo63l729dlo7
           cores: 16
@@ -45,6 +45,19 @@ jobs:
       - checkout
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
+      - name: Docker registry login
+        shell: bash
+        run: |
+          echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' > sa.json
+          cat sa.json | docker login --username json_key --password-stdin  cr.yandex
+
+      - name: Build Go
+        shell: bash
+        run: |
+          cd yt/chyt/controller/cmd/chyt-controller
+          export HOME=${RUNNER_WORKSPACE}
+          /usr/local/go/bin/go build
+
       - name: Configure
         shell: bash
         run: |
@@ -58,6 +71,24 @@ jobs:
         run: |
           cd ../build
           ninja
+
+      - name: Build Py
+        shell: bash
+        run: |
+          bash ./yt/docker/yt_nightly/build_py.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build
+
+      - name: Docker
+        shell: bash
+        run: |
+          mkdir -p ../docker-build
+          bash ./yt/docker/yt_nightly/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --output-path ../docker-build --registry cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly --tag ${GITHUB_SHA}
+          docker push cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly:${GITHUB_SHA}
+
+      - name: Kube
+        shell: bash
+        run: |
+          export HOME=/root
+          bash yt/docker/yt_nightly/kube.sh --ytsaurus-source-path $(pwd) --ytsaurus-docker ../docker-build
 
       - name: Unittests
         shell: bash
