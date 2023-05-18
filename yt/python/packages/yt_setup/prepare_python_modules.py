@@ -33,7 +33,7 @@ CONTRIB_PYTHON_PACKAGE_LIST = [
     "backports_abc",
     "singledispatch",
     ("tornado", "tornado/tornado-4"),
-    "tqdm",
+    ("tqdm", "tqdm/py2"),
     ("typing_extensions", "typing-extensions/py3"),
     ("idna", "idna/py2"),
     "six",
