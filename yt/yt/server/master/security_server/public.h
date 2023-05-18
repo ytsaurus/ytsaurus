@@ -86,6 +86,7 @@ class TClusterResources;
 class TRichClusterResources;
 class TClusterResourceLimits;
 class TViolatedClusterResourceLimits;
+struct TChunkMergerCriteria;
 
 class TDetailedMasterMemory;
 

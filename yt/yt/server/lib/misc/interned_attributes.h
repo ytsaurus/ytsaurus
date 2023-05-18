@@ -81,6 +81,7 @@
     XX(ChunkMediaStatistics, chunk_media_statistics) \
     XX(ChunkMergerMode, chunk_merger_mode) \
     XX(ChunkMergerNodeTraversalConcurrency, chunk_merger_node_traversal_concurrency) \
+    XX(ChunkMergerCriteria, chunk_merger_criteria) \
     XX(ChunkMergerTraversalInfo, chunk_merger_traversal_info) \
     XX(ChunkReader, chunk_reader) \
     XX(ChunkReplicaCount, chunk_replica_count) \

@@ -143,6 +143,7 @@ DEFINE_ENUM(EMasterReign,
     ((MasterCellChunkStatisticsCollector)                           (2328))  // kvk1920
     ((FixHunkChunksAttach)                                          (2329))  // gritukan
     ((ExportMasterTableSchemas)                                     (2330))  // h0pless
+    ((SupportAccountChunkMergerCriteria)                            (2331))  // danilalexeev
 );
 
 ////////////////////////////////////////////////////////////////////////////////

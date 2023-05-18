@@ -56,6 +56,37 @@ TAccountMulticellStatistics SubtractAccountMulticellStatistics(const TAccountMul
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Changing this macro changes snapshot serialization format and requires reign promotion.
+#define FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD(XX) \
+    XX(int, MaxChunkCount, max_chunk_count) \
+    XX(i64, MaxRowCount, max_row_count) \
+    XX(i64, MaxDataWeight, max_data_weight) \
+    XX(i64, MaxUncompressedDataSize, max_uncompressed_data_size) \
+    XX(i64, MaxCompressedDataSize, max_compressed_data_size) \
+    XX(i64, MaxInputChunkDataWeight, max_input_chunk_data_weight)
+
+struct TChunkMergerCriteria
+{
+    #define XX(type, camelCaseName, snakeCaseName) std::optional<type> camelCaseName;
+    FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD(XX)
+    #undef XX
+
+    void AssignNotNull(const TChunkMergerCriteria& rhs);
+    bool IsEmpty() const;
+
+    //! Checks that all fields are well-formed, throws otherwise.
+    void Validate() const;
+
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
+};
+
+void Serialize(const TChunkMergerCriteria& criteria, NYson::IYsonConsumer* consumer);
+
+void Deserialize(TChunkMergerCriteria& criteria, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAccount
     : public NObjectServer::TNonversionedMapObjectBase<TAccount>
 {
@@ -66,6 +97,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TClusterResourceLimits, ClusterResourceLimits);
     DEFINE_BYVAL_RW_PROPERTY(bool, AllowChildrenLimitOvercommit);
     DEFINE_BYVAL_RW_PROPERTY(int, ChunkMergerNodeTraversalConcurrency, 0);
+    DEFINE_BYREF_RW_PROPERTY(TChunkMergerCriteria, ChunkMergerCriteria);
     DEFINE_BYVAL_RW_PROPERTY(bool, AllowUsingChunkMerger, false);
 
     //! Transient property.

@@ -105,7 +105,7 @@ class TestChunkMerger(YTEnvSetup):
 
         assert merged_rows == rows
 
-    @authors("aleksandra-zh")
+    @authors("aleksandra-zh", "danilalexeev")
     def test_merge_attributes(self):
         create("table", "//tmp/t")
 
@@ -133,6 +133,29 @@ class TestChunkMerger(YTEnvSetup):
         with pytest.raises(YtError):
             set("//sys/accounts/a/@chunk_merger_node_traversal_concurrency", -1)
         assert get("//sys/accounts/a/@chunk_merger_node_traversal_concurrency") == 12
+
+        create_account("d")
+
+        data = {'max_chunk_count': 3, 'max_compressed_data_size': 7}
+        set("//sys/accounts/d/@chunk_merger_criteria", data)
+        assert get("//sys/accounts/d/@chunk_merger_criteria") == data
+
+        with pytest.raises(YtError):
+            set("//sys/accounts/d/@chunk_merger_criteria/max_row_count", -1)
+        set("//sys/accounts/d/@chunk_merger_criteria/max_row_count", 2)
+        assert get("//sys/accounts/d/@chunk_merger_criteria/max_row_count") == 2
+
+    @authors("danilalexeev")
+    def test_remove_account_criteria(self):
+        create_account("d")
+        assert not exists("//sys/accounts/d/@chunk_merger_criteria")
+
+        data = {'max_uncompressed_data_size': 512, 'max_input_chunk_data_weight': 128}
+        set("//sys/accounts/d/@chunk_merger_criteria", data)
+        assert get("//sys/accounts/d/@chunk_merger_criteria") == data
+
+        remove("//sys/accounts/d/@chunk_merger_criteria")
+        assert not exists("//sys/accounts/d/@chunk_merger_criteria")
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
@@ -395,6 +418,27 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/t/@chunk_count") == 1)
 
         assert read_table("//tmp/t") == rows
+
+    @authors("danilalexeev")
+    def test_account_priority(self):
+        create_account("d")
+        set("//sys/accounts/d/@chunk_merger_criteria/max_row_count", 3)
+        create("table", "//tmp/t", attributes={"account": "d"})
+
+        write_table("//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"b": "c"})
+        write_table("<append=true>//tmp/t", {"c": "d"})
+        write_table("<append=true>//tmp/t", {"q": "d"})
+
+        set("//sys/accounts/d/@merge_job_rate_limit", 10)
+        set("//sys/accounts/d/@chunk_merger_node_traversal_concurrency", 1)
+        set("//tmp/t/@chunk_merger_mode", "deep")
+
+        try:
+            # [{"a": "b"}, {"b": "c"}], [{"c": "d"}, {"q": "d"}]
+            wait(lambda: get("//tmp/t/@chunk_count") == 2)
+        finally:
+            self._abort_chunk_merger_txs()
 
     @authors("aleksandra-zh")
     def test_chunk_tail(self):

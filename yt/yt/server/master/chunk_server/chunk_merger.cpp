@@ -493,12 +493,23 @@ private:
             return false;
         }
 
-        if (CurrentRowCount_ + chunk->GetRowCount() < config->MaxRowCount &&
-            CurrentDataWeight_ + chunk->GetDataWeight() < config->MaxDataWeight &&
-            CurrentCompressedDataSize_ + chunk->GetCompressedDataSize() < config->MaxCompressedDataSize &&
-            CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < config->MaxUncompressedDataSize &&
-            std::ssize(ChunkIds_) < config->MaxChunkCount &&
-            chunk->GetDataWeight() < config->MaxInputChunkDataWeight &&
+        auto accountCriteria = Account_->ChunkMergerCriteria();
+        auto mergerCriteria = TChunkMergerCriteria{
+            config->MaxChunkCount,
+            config->MaxRowCount,
+            config->MaxDataWeight,
+            config->MaxUncompressedDataSize,
+            config->MaxCompressedDataSize,
+            config->MaxInputChunkDataWeight
+        };
+        mergerCriteria.AssignNotNull(accountCriteria);
+
+        if (CurrentRowCount_ + chunk->GetRowCount() < mergerCriteria.MaxRowCount &&
+            CurrentDataWeight_ + chunk->GetDataWeight() < mergerCriteria.MaxDataWeight &&
+            CurrentCompressedDataSize_ + chunk->GetCompressedDataSize() < mergerCriteria.MaxCompressedDataSize &&
+            CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < mergerCriteria.MaxUncompressedDataSize &&
+            std::ssize(ChunkIds_) < mergerCriteria.MaxChunkCount &&
+            chunk->GetDataWeight() < mergerCriteria.MaxInputChunkDataWeight &&
             (ParentChunkListId_ == NullObjectId || ParentChunkListId_ == parent->GetId()))
         {
             CurrentRowCount_ += chunk->GetRowCount();
@@ -519,19 +530,19 @@ private:
                 NodeId_,
                 CurrentRowCount_,
                 chunk->GetRowCount(),
-                config->MaxRowCount,
+                *mergerCriteria.MaxRowCount,
                 CurrentDataWeight_,
                 chunk->GetDataWeight(),
-                config->MaxDataWeight,
-                config->MaxInputChunkDataWeight,
+                *mergerCriteria.MaxDataWeight,
+                *mergerCriteria.MaxInputChunkDataWeight,
                 CurrentCompressedDataSize_,
                 chunk->GetCompressedDataSize(),
-                config->MaxCompressedDataSize,
+                *mergerCriteria.MaxCompressedDataSize,
                 CurrentUncompressedDataSize_,
                 chunk->GetUncompressedDataSize(),
-                config->MaxUncompressedDataSize,
+                *mergerCriteria.MaxUncompressedDataSize,
                 std::ssize(ChunkIds_),
-                config->MaxChunkCount,
+                *mergerCriteria.MaxChunkCount,
                 ParentChunkListId_,
                 parent->GetId());
         }
