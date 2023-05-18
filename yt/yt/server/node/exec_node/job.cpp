@@ -2191,7 +2191,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable = false;
         proxyConfig->JobThrottler->RpsPrefetch->Enable = false;
     }
-    YT_LOG_DEBUG("Prefetching job throttler init (DynamicConfigEnable: %v, JobSpecEnable: %v, PrefetchEnable: %v)",
+    YT_LOG_DEBUG("Initializing prefetching job throttler (DynamicConfigEnable: %v, JobSpecEnable: %v, PrefetchEnable: %v)",
         DynamicConfig_->JobThrottler->BandwidthPrefetch->Enable,
         SchedulerJobSpecExt_->enable_prefetching_job_throttler(),
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable);
