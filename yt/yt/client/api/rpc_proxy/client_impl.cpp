@@ -455,6 +455,9 @@ TFuture<void> TClient::AlterTable(
     if (options.Schema) {
         req->set_schema(ConvertToYsonString(*options.Schema).ToString());
     }
+    if (options.SchemaId) {
+        ToProto(req->mutable_schema_id(), *options.SchemaId);
+    }
     if (options.Dynamic) {
         req->set_dynamic(*options.Dynamic);
     }

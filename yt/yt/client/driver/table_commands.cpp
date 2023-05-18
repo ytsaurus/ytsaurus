@@ -581,6 +581,8 @@ TAlterTableCommand::TAlterTableCommand()
     RegisterParameter("path", Path);
     RegisterParameter("schema", Options.Schema)
         .Optional();
+    RegisterParameter("schema_id", Options.SchemaId)
+        .Optional();
     RegisterParameter("dynamic", Options.Dynamic)
         .Optional();
     RegisterParameter("upstream_replica_id", Options.UpstreamReplicaId)

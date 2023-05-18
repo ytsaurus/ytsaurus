@@ -551,7 +551,6 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/replicated_table_node.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/replicated_table_node_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/replicated_table_node_type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/schemaful_node_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_collocation.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_collocation_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_collocation_type_handler.cpp

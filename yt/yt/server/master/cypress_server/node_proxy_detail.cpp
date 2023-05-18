@@ -1763,7 +1763,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
     for (const auto& registeredSchema : request->schemas()) {
         auto key = TEntitySerializationKey(registeredSchema.key());
         auto tableSchema = FromProto<TTableSchema>(registeredSchema.schema());
-        auto* schema = tableManager->GetOrCreateMasterTableSchema(tableSchema, Transaction_);
+        auto* schema = tableManager->GetOrCreateNativeMasterTableSchema(tableSchema, Transaction_);
         copyContext.RegisterSchema(key, schema);
     }
 

@@ -211,6 +211,7 @@ DEFINE_ENUM(EMisconfiguredPartitionTactics,
 
 using TTableId = NCypressClient::TNodeId;
 using TTableCollocationId = NObjectClient::TObjectId;
+using TMasterTableSchemaId = NObjectClient::TObjectId;
 
 //! NB: |int| is important since we use negative values to indicate that
 //! certain values need to be dropped. Cf. #TRowBuffer::CaptureAndPermuteRow.

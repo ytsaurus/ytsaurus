@@ -141,6 +141,13 @@ bool IsUserType(EObjectType type)
         type == EObjectType::HunkStorage;
 }
 
+bool IsSchemafulType(EObjectType type)
+{
+    return
+        IsTableType(type) ||
+        type == EObjectType::ChaosReplicatedTable;
+}
+
 bool IsTableType(EObjectType type)
 {
     return

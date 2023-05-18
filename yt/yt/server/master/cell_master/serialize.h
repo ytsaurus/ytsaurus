@@ -142,6 +142,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveDefaultSecondaryRoles)                                  (2327))  // aleksandra-zh
     ((MasterCellChunkStatisticsCollector)                           (2328))  // kvk1920
     ((FixHunkChunksAttach)                                          (2329))  // gritukan
+    ((ExportMasterTableSchemas)                                     (2330))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////

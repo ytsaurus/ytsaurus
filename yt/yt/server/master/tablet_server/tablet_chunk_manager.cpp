@@ -1237,6 +1237,10 @@ private:
             return &nullCounters;
         }
 
+        if (!IsObjectAlive(table)) {
+            return &nullCounters;
+        }
+
         TProfilerKey key{reason, cellBundle->GetName(), table->IsPhysicallySorted()};
         auto it = Counters_.find(key);
         if (it != Counters_.end()) {

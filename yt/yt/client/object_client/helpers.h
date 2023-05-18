@@ -27,6 +27,9 @@ bool IsVersionedType(EObjectType type);
 //! Checks if the given type is user, i.e. regular users are allowed to create its instances.
 bool IsUserType(EObjectType type);
 
+//! Checks if the given type can have schema assigned to it, i.e. Cypress table or chaos replicated table.
+bool IsSchemafulType(EObjectType type);
+
 //! Checks if the given type is table, i.e. represents a Cypress table.
 bool IsTableType(EObjectType type);
 

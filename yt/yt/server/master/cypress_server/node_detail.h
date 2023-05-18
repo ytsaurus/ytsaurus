@@ -163,6 +163,12 @@ public:
         return DoCreate(TVersionedNodeId(id), context);
     }
 
+    void Zombify(TCypressNode* node) override
+    {
+        auto* typedNode = node->As<TImpl>();
+        DoZombify(typedNode);
+    }
+
     void Destroy(TCypressNode* node) override
     {
         // Run core stuff.
@@ -357,6 +363,9 @@ protected:
 
         return nodeHolder;
     }
+
+    virtual void DoZombify(TImpl* /*node*/)
+    { }
 
     virtual void DoDestroy(TImpl* /*node*/)
     { }

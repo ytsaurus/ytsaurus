@@ -223,7 +223,7 @@ class YtClient(ClientState):
     def alter_table(
             self,
             path,
-            schema=None, dynamic=None, upstream_replica_id=None):
+            schema=None, schema_id=None, dynamic=None, upstream_replica_id=None):
         """
         Performs schema and other table meta information modifications.
         Applicable to static and dynamic tables.
@@ -231,6 +231,7 @@ class YtClient(ClientState):
         :param path: path to table
         :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param schema: new schema to set on table
+        :param schema_id: new schema_id to set on table
         :param bool dynamic: dynamic
         :param str upstream_replica_id: upstream_replica_id
 
@@ -238,7 +239,7 @@ class YtClient(ClientState):
         return client_api.alter_table(
             path,
             client=self,
-            schema=schema, dynamic=dynamic, upstream_replica_id=upstream_replica_id)
+            schema=schema, schema_id=schema_id, dynamic=dynamic, upstream_replica_id=upstream_replica_id)
 
     def alter_table_replica(
             self,

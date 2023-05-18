@@ -5781,14 +5781,16 @@ void TOperationControllerBase::FetchTableSchemas(
     for (const auto& table : tables) {
         const auto& schemaId = table->SchemaId;
         schemaIdToTables[schemaId].push_back(table);
-        cellTagToSchemaIds[tableToCellTag(table)].push_back(schemaId);
+    }
+
+    for (const auto& [schemaId, tablesWithIdenticalSchema] : schemaIdToTables) {
+        YT_VERIFY(!tablesWithIdenticalSchema.empty());
+        auto cellTag = tableToCellTag(tablesWithIdenticalSchema.front());
+        cellTagToSchemaIds[cellTag].push_back(schemaId);
     }
 
     std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
     for (auto& [cellTag, schemaIds] : cellTagToSchemaIds) {
-        std::sort(schemaIds.begin(), schemaIds.end());
-        schemaIds.erase(std::unique(schemaIds.begin(), schemaIds.end()), schemaIds.end());
-
         auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower, cellTag);
         auto batchReq = proxy.ExecuteBatch();
 

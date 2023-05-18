@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (
     authors, create_tablet_cell_bundle, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells,
-    ls, get, set, retry, start_transaction, commit_transaction, create, exists, wait, write_table)
+    ls, get, set, retry, start_transaction, commit_transaction, create, exists, wait, write_table, get_driver)
 
 from yt_helpers import profiler_factory
 
@@ -11,6 +11,9 @@ from original_tests.yt.yt.tests.integration.master.test_master_snapshots \
 import yatest.common
 
 import datetime
+
+from time import sleep
+
 import os
 import pytest
 
@@ -229,6 +232,145 @@ class TestBundleControllerAttribute(MasterSnapshotsCompatibilityBase):
         bundle_controller_config["tablet_node_count"] = 11
         set(config_path, bundle_controller_config)
 
+        sleep(0.5)
+
         retry(lambda: self.restart_with_update(MASTERS_SERVICE))
 
         assert bundle_controller_config == get(config_path)
+
+
+##################################################################
+
+
+class TestSchemaMigration(MasterSnapshotsCompatibilityBase):
+    def _check_table_schemas(self):
+        table_path = "//tmp/empty_schema_holder_primary1"
+        assert self.empty_schema_primary_id == get("{}/@schema_id".format(table_path))
+        assert self.empty_schema_content == get("{}/@schema".format(table_path))
+
+        table_path = "//tmp/empty_schema_holder_primary2"
+        assert self.empty_schema_primary_id == get("{}/@schema_id".format(table_path))
+        assert self.empty_schema_content == get("{}/@schema".format(table_path))
+        table_id = get("{}/@id".format(table_path))
+        assert self.empty_schema_primary_id == get("#{}/@schema_id".format(table_id), driver=get_driver(1))
+        assert self.empty_schema_content == get("#{}/@schema".format(table_id), driver=get_driver(1))
+
+        table_path = "//tmp/empty_schema_holder_primary3"
+        assert self.empty_schema_primary_id == get("{}/@schema_id".format(table_path))
+        assert self.empty_schema_content == get("{}/@schema".format(table_path))
+        table_id = get("{}/@id".format(table_path))
+        assert self.empty_schema_primary_id == get("#{}/@schema_id".format(table_id), driver=get_driver(2))
+        assert self.empty_schema_content == get("#{}/@schema".format(table_id), driver=get_driver(2))
+
+        table_path = "//tmp/schema1_holder_primary"
+        assert self.schema1_primary_id == get("{}/@schema_id".format(table_path))
+        assert self.schema1_content == get("{}/@schema".format(table_path))
+        table_id = get("{}/@id".format(table_path))
+        assert self.schema1_primary_id == get("#{}/@schema_id".format(table_id), driver=get_driver(1))
+        assert self.schema1_content == get("#{}/@schema".format(table_id), driver=get_driver(1))
+
+        table_path = "//tmp/schema2_holder_primary"
+        assert self.schema2_primary_id == get("{}/@schema_id".format(table_path))
+        assert self.schema2_content == get("{}/@schema".format(table_path))
+        table_id = get("{}/@id".format(table_path))
+        assert self.schema2_primary_id == get("#{}/@schema_id".format(table_id), driver=get_driver(2))
+        assert self.schema2_content == get("#{}/@schema".format(table_id), driver=get_driver(2))
+
+        table_path = "//tmp/schema4_holder_primary"
+        assert self.schema4_primary_id == get("{}/@schema_id".format(table_path))
+        assert self.schema4_content == get("{}/@schema".format(table_path))
+
+        table_path = "//tmp/portal_to_11/empty_schema_holder_secondary1"
+        assert self.empty_schema_primary_id == get("{}/@schema_id".format(table_path))
+        assert self.empty_schema_content == get("{}/@schema".format(table_path))
+
+        table_path = "//tmp/portal_to_11/empty_schema_holder_secondary2"
+        assert self.empty_schema_primary_id == get("{}/@schema_id".format(table_path))
+        assert self.empty_schema_content == get("{}/@schema".format(table_path))
+        table_id = get("{}/@id".format(table_path))
+        assert self.empty_schema_primary_id == get("#{}/@schema_id".format(table_id), driver=get_driver(2))
+        assert self.empty_schema_content == get("#{}/@schema".format(table_id), driver=get_driver(2))
+
+        table_path = "//tmp/portal_to_11/schema1_holder_secondary1"
+        assert self.schema1_11_id == get("{}/@schema_id".format(table_path))
+        assert self.schema1_content == get("{}/@schema".format(table_path))
+
+        table_path = "//tmp/portal_to_11/schema1_holder_secondary2"
+        assert self.schema1_11_id == get("{}/@schema_id".format(table_path))
+        assert self.schema1_content == get("{}/@schema".format(table_path))
+        table_id = get("{}/@id".format(table_path))
+        assert self.schema1_11_id == get("#{}/@schema_id".format(table_id), driver=get_driver(2))
+        assert self.schema1_content == get("#{}/@schema".format(table_id), driver=get_driver(2))
+
+        table_path = "//tmp/portal_to_11/schema1_holder_secondary3"
+        assert self.schema1_11_id == get("{}/@schema_id".format(table_path))
+        assert self.schema1_content == get("{}/@schema".format(table_path))
+        table_id = get("{}/@id".format(table_path))
+        assert self.schema1_11_id == get("#{}/@schema_id".format(table_id), driver=get_driver(3))
+        assert self.schema1_content == get("#{}/@schema".format(table_id), driver=get_driver(3))
+
+        table_path = "//tmp/portal_to_11/schema3_holder_secondary"
+        assert self.schema3_11_id == get("{}/@schema_id".format(table_path))
+        assert self.schema3_content == get("{}/@schema".format(table_path))
+        table_id = get("{}/@id".format(table_path))
+        assert self.schema3_11_id == get("#{}/@schema_id".format(table_id), driver=get_driver(2))
+        assert self.schema3_content == get("#{}/@schema".format(table_id), driver=get_driver(2))
+
+    @authors("h0pless")
+    def test(self):
+        create("portal_entrance", "//tmp/portal_to_11", attributes={"exit_cell_tag": 11})
+
+        schema1 = [{"name": "id", "type": "int64"}]
+        schema2 = [
+            {"name": "key", "type": "string", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"}]
+        schema3 = [{"name": "whoami", "type": "string"}]
+
+        schema4 = [
+            {"name": "key", "type": "string", "sort_order": "ascending"},
+            {"name": "subkey", "type": "string", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}]
+
+        # Primary cell native schemas
+        create("table", "//tmp/empty_schema_holder_primary1", attributes={"external": False})
+        create("table", "//tmp/empty_schema_holder_primary2", attributes={"external_cell_tag": 11})
+        create("table", "//tmp/empty_schema_holder_primary3", attributes={"external_cell_tag": 12})
+        create("table", "//tmp/schema1_holder_primary", attributes={"schema": schema1, "external_cell_tag": 11})
+        create("table", "//tmp/schema2_holder_primary", attributes={"schema": schema2, "external_cell_tag": 12})
+        create("table", "//tmp/schema4_holder_primary", attributes={"schema": schema4, "external": False})
+
+        # Secondary cell native schemas
+        create("table", "//tmp/portal_to_11/empty_schema_holder_secondary1", attributes={"external": False})
+        create("table", "//tmp/portal_to_11/empty_schema_holder_secondary2", attributes={"external_cell_tag": 12})
+        create("table", "//tmp/portal_to_11/schema1_holder_secondary1", attributes={"schema": schema1, "external": False})
+        create("table", "//tmp/portal_to_11/schema1_holder_secondary2", attributes={"schema": schema1, "external_cell_tag": 12})
+        create("table", "//tmp/portal_to_11/schema1_holder_secondary3", attributes={"schema": schema1, "external_cell_tag": 13})
+        create("table", "//tmp/portal_to_11/schema3_holder_secondary", attributes={"schema": schema3, "external_cell_tag": 12})
+
+        # Schema content
+        self.empty_schema_content = get("//tmp/empty_schema_holder_primary1/@schema")
+        self.schema1_content = get("//tmp/schema1_holder_primary/@schema")
+        self.schema2_content = get("//tmp/schema2_holder_primary/@schema")
+        self.schema3_content = get("//tmp/portal_to_11/schema3_holder_secondary/@schema")
+        self.schema4_content = get("//tmp/schema4_holder_primary/@schema")
+
+        # Ids on primary cell
+        self.empty_schema_primary_id = get("//tmp/empty_schema_holder_primary1/@schema_id")
+        self.schema1_primary_id = get("//tmp/schema1_holder_primary/@schema_id")
+        self.schema2_primary_id = get("//tmp/schema2_holder_primary/@schema_id")
+        self.schema4_primary_id = get("//tmp/schema4_holder_primary/@schema_id")
+
+        # Ids on secondary native cell
+        self.schema1_11_id = get("//tmp/portal_to_11/schema1_holder_secondary1/@schema_id")
+        self.schema3_11_id = get("//tmp/portal_to_11/schema3_holder_secondary/@schema_id")
+
+        self.restart_with_update(MASTERS_SERVICE)
+
+        # To make sure mutations have enough time to apply before looking attributes up.
+        sleep(1)
+
+        self._check_table_schemas()
+
+        self.restart_with_update(MASTERS_SERVICE)
+
+        self._check_table_schemas()

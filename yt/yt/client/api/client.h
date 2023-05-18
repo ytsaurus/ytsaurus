@@ -250,6 +250,7 @@ struct TAlterTableOptions
     , public TTransactionalOptions
 {
     std::optional<NTableClient::TTableSchema> Schema;
+    std::optional<NTableClient::TMasterTableSchemaId> SchemaId;
     std::optional<bool> Dynamic;
     std::optional<NTabletClient::TTableReplicaId> UpstreamReplicaId;
     std::optional<NTableClient::ETableSchemaModification> SchemaModification;

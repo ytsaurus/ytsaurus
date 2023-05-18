@@ -86,7 +86,7 @@ public:
         std::optional<NCompression::ECodec> CompressionCodec;
         std::optional<NErasure::ECodec> ErasureCodec;
         const NChunkClient::NProto::TDataStatistics* Statistics = nullptr;
-        NTableServer::TMasterTableSchema* Schema;
+        NTableServer::TMasterTableSchema* Schema = nullptr;
         NTableClient::ETableSchemaMode SchemaMode = NTableClient::ETableSchemaMode::Weak;
         std::optional<NTableClient::EOptimizeFor> OptimizeFor;
         std::optional<NChunkClient::EChunkFormat> ChunkFormat;

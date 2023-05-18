@@ -20,10 +20,11 @@
 
 namespace NYT::NTableClient {
 
-using namespace NYTree;
-using namespace NYson;
 using namespace NChunkClient;
+using namespace NObjectClient;
 using namespace NTabletClient;
+using namespace NYson;
+using namespace NYTree;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -2127,6 +2128,22 @@ void FromProto(NTableClient::TColumnFilter* columnFilter, const TColumnFilter& p
 }
 
 } // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCellTaggedTableSchema::TCellTaggedTableSchema(TTableSchema tableSchema, TCellTag cellTag)
+    : TableSchema(std::move(tableSchema))
+    , CellTag(cellTag)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCellTaggedTableSchemaPtr::TCellTaggedTableSchemaPtr(TTableSchemaPtr tableSchema, TCellTag cellTag)
+    : TableSchema(std::move(tableSchema))
+    , CellTag(cellTag)
+{
+    YT_VERIFY(TableSchema);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

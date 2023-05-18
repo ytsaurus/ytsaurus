@@ -2345,6 +2345,9 @@ private:
         if (request->has_schema()) {
             options.Schema = ConvertTo<TTableSchema>(TYsonString(request->schema()));
         }
+        if (request->has_schema_id()) {
+            options.SchemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
+        }
         if (request->has_dynamic()) {
             options.Dynamic = request->dynamic();
         }

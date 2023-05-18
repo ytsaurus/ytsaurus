@@ -1,12 +1,13 @@
-#include "mount_config_attributes.h"
-#include "table_manager.h"
 #include "table_node_type_handler_detail.h"
-#include "table_node.h"
-#include "table_node_proxy.h"
-#include "replicated_table_node.h"
-#include "replicated_table_node_proxy.h"
+
 #include "master_table_schema.h"
+#include "mount_config_attributes.h"
 #include "private.h"
+#include "replicated_table_node_proxy.h"
+#include "replicated_table_node.h"
+#include "table_manager.h"
+#include "table_node_proxy.h"
+#include "table_node.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -42,19 +43,24 @@ namespace NYT::NTableServer {
 
 using namespace NCellMaster;
 using namespace NChaosClient;
-using namespace NChunkClient::NProto;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NChunkServer;
 using namespace NCypressServer;
+using namespace NCypressServer::NProto;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTableClient;
-using namespace NTabletServer;
 using namespace NTabletClient;
+using namespace NTabletServer;
 using namespace NTransactionServer;
-using namespace NYTree;
 using namespace NYson;
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,7 +98,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     TVersionedNodeId id,
     const TCreateNodeContext& context)
 {
-    const auto& dynamicConfig = this->Bootstrap_->GetConfigManager()->GetConfig();
     const auto& cypressManagerConfig = this->Bootstrap_->GetConfig()->CypressManager;
     const auto& chunkManagerConfig = this->Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
 
@@ -138,59 +143,16 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     }
 
     auto tableSchema = combinedAttributes->FindAndRemove<TTableSchemaPtr>("schema");
-    auto schemaId = combinedAttributes->FindAndRemove<TObjectId>("schema_id");
-
-    if (dynamic && !tableSchema && !schemaId) {
-        THROW_ERROR_EXCEPTION("Either \"schema\" or \"schema_id\" must be specified for dynamic tables");
-    }
+    auto schemaId = combinedAttributes->GetAndRemove<TObjectId>("schema_id", NullObjectId);
+    auto schemaMode = combinedAttributes->GetAndRemove<ETableSchemaMode>("schema_mode", ETableSchemaMode::Weak);
 
     const auto& tableManager = this->Bootstrap_->GetTableManager();
-    const TTableSchema* effectiveTableSchema = nullptr;
-    if (schemaId) {
-        auto* schemaById = tableManager->GetMasterTableSchemaOrThrow(*schemaId);
-        if (tableSchema) {
-            auto* schemaByYson = tableManager->FindMasterTableSchema(*tableSchema);
-            if (IsObjectAlive(schemaByYson)) {
-                if (schemaById != schemaByYson) {
-                    THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and they refer to different schemas");
-                }
-            } else {
-                if (*schemaById->AsTableSchema() != *tableSchema) {
-                    THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and the schemas do not match");
-                }
-            }
-        }
-        effectiveTableSchema = schemaById->AsTableSchema().Get();
-    } else if (tableSchema) {
-        effectiveTableSchema = &*tableSchema;
-    }
-
-    if (effectiveTableSchema) {
-        // NB: Sorted dynamic tables contain unique keys, set this for user.
-        if (dynamic && effectiveTableSchema->IsSorted() && !effectiveTableSchema->GetUniqueKeys()) {
-            tableSchema = effectiveTableSchema->ToUniqueKeys();
-            effectiveTableSchema = &*tableSchema;
-        }
-
-        if (effectiveTableSchema->HasNontrivialSchemaModification()) {
-            THROW_ERROR_EXCEPTION("Cannot create table with nontrivial schema modification");
-        }
-
-        ValidateTableSchemaUpdate(TTableSchema(), *effectiveTableSchema, dynamic, true);
-
-        if (!dynamicConfig->EnableDescendingSortOrder || (dynamic && !dynamicConfig->EnableDescendingSortOrderDynamic)) {
-            ValidateNoDescendingSortOrder(*effectiveTableSchema);
-        }
-
-        if (!dynamicConfig->EnableTableColumnRenaming) {
-            ValidateNoRenamedColumns(*effectiveTableSchema);
-        }
-    }
-    if (type == EObjectType::ReplicationLogTable) {
-        if (!effectiveTableSchema || !effectiveTableSchema->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Could not create unsorted replication log table");
-        }
-    }
+    const auto* effectiveTableSchema = tableManager->ProcessSchemaFromAttributes(
+        tableSchema,
+        schemaId,
+        dynamic,
+        /*chaos*/ false,
+        id);
 
     auto optionalTabletCount = combinedAttributes->FindAndRemove<int>("tablet_count");
     auto optionalPivotKeys = combinedAttributes->FindAndRemove<std::vector<TLegacyOwningKey>>("pivot_keys");
@@ -240,14 +202,42 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Strong);
         }
 
-        if (effectiveTableSchema) {
-            tableManager->GetOrCreateMasterTableSchema(*effectiveTableSchema, node);
-        } else {
-            auto* emptySchema = tableManager->GetEmptyMasterTableSchema();
-            tableManager->SetTableSchema(node, emptySchema);
-        }
+        auto setCorrespondingTableSchema = [] (
+            TTableNode* node,
+            const TTableSchema* effectiveTableSchema,
+            const TTableSchemaPtr& tableSchema,
+            TMasterTableSchemaId schemaId,
+            const auto& tableManager)
+        {
+            if (node->IsNative()) {
+                if (effectiveTableSchema) {
+                    return tableManager->GetOrCreateNativeMasterTableSchema(*effectiveTableSchema, node);
+                }
 
-        if (effectiveTableSchema) {
+                auto* emptySchema = tableManager->GetEmptyMasterTableSchema();
+                tableManager->SetTableSchema(node, emptySchema);
+                return emptySchema;
+            }
+
+            if (tableSchema) {
+                // COMPAT(h0pless): Remove this after schema migration is complete.
+                if (!schemaId) {
+                    YT_LOG_ALERT("Created native schema on an external cell tag (NodeId: %v)",
+                        node->GetId());
+                    return tableManager->GetOrCreateNativeMasterTableSchema(*tableSchema, node);
+                }
+
+                return tableManager->CreateImportedMasterTableSchema(*tableSchema, node, schemaId);
+            }
+
+            auto* schemaById = tableManager->GetMasterTableSchema(schemaId);
+            tableManager->SetTableSchema(node, schemaById);
+            return schemaById;
+        };
+
+        setCorrespondingTableSchema(node, effectiveTableSchema, tableSchema, schemaId, tableManager);
+
+        if ((node->IsNative() && effectiveTableSchema) || schemaMode == ETableSchemaMode::Strong) {
             node->SetSchemaMode(ETableSchemaMode::Strong);
         }
 
@@ -292,6 +282,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             }
         }
     } catch (const std::exception&) {
+        this->Zombify(node);
         this->Destroy(node);
         throw;
     }
@@ -308,12 +299,26 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 }
 
 template <class TImpl>
+void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
+{
+    TBase::DoZombify(table);
+
+    // NB: This can lead to additional attempts to send schema to an external cell.
+    if (table->IsExternal()) {
+        auto* schema = table->GetSchema();
+        auto externalCellTag = table->GetExternalCellTag();
+        if (schema && schema->IsExported(externalCellTag)) {
+            schema->UnexportRef(externalCellTag);
+        }
+    }
+}
+
+template <class TImpl>
 void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
 {
     TBase::DoDestroy(table);
 
     const auto& tableManager = this->Bootstrap_->GetTableManager();
-
     if (table->IsQueueObject()) {
         tableManager->UnregisterQueue(table);
     }
@@ -322,10 +327,10 @@ void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
         tableManager->UnregisterConsumer(table);
     }
 
+    tableManager->ResetTableSchema(table);
+
     // TODO(aleksandra-zh, gritukan): consider moving that to Zombify.
     table->ResetHunkStorageNode();
-
-    tableManager->ResetTableSchema(table);
 }
 
 template <class TImpl>
@@ -361,7 +366,13 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
 
     bool isQueueObjectBefore = originatingNode->IsQueueObject();
 
+    if (originatingNode->IsExternal()) {
+        auto* schema = originatingNode->GetSchema();
+        schema->UnexportRef(originatingNode->GetExternalCellTag());
+    }
+
     tableManager->SetTableSchema(originatingNode, branchedNode->GetSchema());
+
     tableManager->ResetTableSchema(branchedNode);
 
     originatingNode->SetHunkStorageNode(branchedNode->GetHunkStorageNode());

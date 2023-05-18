@@ -92,6 +92,8 @@ struct INodeTypeHandler
         NYTree::IAttributeDictionary* inheritedAttributes,
         NYTree::IAttributeDictionary* explicitAttributes) = 0;
 
+    virtual void Zombify(TCypressNode* node) = 0;
+
     //! Performs cleanup on node destruction.
     /*!
      *  This is called prior to the actual removal of the node from the node map.

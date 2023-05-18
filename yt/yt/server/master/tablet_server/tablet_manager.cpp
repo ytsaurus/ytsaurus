@@ -5326,24 +5326,30 @@ private:
         }
 
         auto* table = tablet->GetTable();
-        if (!table->IsPhysicallySorted()) {
-            const auto& chunkListStatistics = tablet->GetChunkList()->Statistics();
-            if (tablet->GetTrimmedRowCount() > chunkListStatistics.LogicalRowCount) {
-                auto message = Format(
-                    "Trimmed row count exceeds total row count of the tablet "
-                    "and will be rolled back (TableId: %v, TabletId: %v, CellId: %v, "
-                    "TrimmedRowCount: %v, LogicalRowCount: %v)",
-                    table->GetId(),
-                    tablet->GetId(),
-                    cellId,
-                    tablet->GetTrimmedRowCount(),
-                    chunkListStatistics.LogicalRowCount);
-                if (force) {
-                    YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), message);
-                    tablet->SetTrimmedRowCount(chunkListStatistics.LogicalRowCount);
-                } else {
-                    YT_LOG_ALERT(message);
+        auto* chunkList = tablet->GetChunkList();
+        if (!chunkList) {
+            YT_VERIFY(force);
+        } else {
+            if (chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet) {
+                const auto& chunkListStatistics = chunkList->Statistics();
+                if (tablet->GetTrimmedRowCount() > chunkListStatistics.LogicalRowCount) {
+                    auto message = Format(
+                        "Trimmed row count exceeds total row count of the tablet "
+                        "and will be rolled back (TableId: %v, TabletId: %v, CellId: %v, "
+                        "TrimmedRowCount: %v, LogicalRowCount: %v)",
+                        table->GetId(),
+                        tablet->GetId(),
+                        cellId,
+                        tablet->GetTrimmedRowCount(),
+                        chunkListStatistics.LogicalRowCount);
+                    if (force) {
+                        YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), message);
+                        tablet->SetTrimmedRowCount(chunkListStatistics.LogicalRowCount);
+                    } else {
+                        YT_LOG_ALERT(message);
+                    }
                 }
+
             }
         }
 

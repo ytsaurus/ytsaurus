@@ -29,6 +29,8 @@ protected:
         NCypressServer::TVersionedNodeId id,
         const NCypressServer::TCreateNodeContext& context) override;
 
+    void DoZombify(TImpl* table) override;
+
     void DoDestroy(TImpl* table) override;
 
     void DoBranch(

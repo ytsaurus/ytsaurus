@@ -1923,6 +1923,9 @@ void TClient::DoAlterTable(
     if (options.Schema) {
         ToProto(req->mutable_schema(), *options.Schema);
     }
+    if (options.SchemaId) {
+        ToProto(req->mutable_schema_id(), *options.SchemaId);
+    }
     if (options.Dynamic) {
         req->set_dynamic(*options.Dynamic);
     }

@@ -91,6 +91,11 @@ protected:
 
     void GetBasicAttributes(TGetBasicAttributesContext* context) override;
 
+    void ReplicateEndUploadRequestToExternalCell(
+        TChunkOwnerBase* node,
+        NChunkClient::NProto::TReqEndUpload* request,
+        TChunkOwnerBase::TEndUploadContext& uploadContext);
+
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, BeginUpload);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, GetUploadParams);
