@@ -178,7 +178,7 @@ class TPortoUserJobEnvironment
 {
 public:
     TPortoUserJobEnvironment(
-        TGuid jobId,
+        TJobId jobId,
         TPortoJobEnvironmentConfigPtr config,
         const TUserJobEnvironmentOptions& options,
         const TString& slotContainerName,
@@ -446,7 +446,7 @@ public:
     }
 
 private:
-    const TGuid JobId_;
+    const TJobId JobId_;
     const TPortoJobEnvironmentConfigPtr Config_;
     const TUserJobEnvironmentOptions Options_;
     const TString SlotContainerName_;
@@ -506,7 +506,7 @@ public:
     }
 
     IUserJobEnvironmentPtr CreateUserJobEnvironment(
-        TGuid jobId,
+        TJobId jobId,
         const TUserJobEnvironmentOptions& options) override
     {
         return New<TPortoUserJobEnvironment>(
@@ -576,7 +576,17 @@ public:
     void CleanProcesses() override
     {
         if (auto process = Process_.Acquire()) {
+            auto pids = GetJobPids();
             process->Kill(9);
+            for (auto pid : pids) {
+                if (pid != process->GetProcessId()) {
+                    if (TryKillProcessByPid(pid, 9)) {
+                        YT_LOG_DEBUG("Child job process killed (Pid: %v)", pid);
+                    } else {
+                        YT_LOG_DEBUG("Failed to kill child job process (Pid: %v)", pid);
+                    }
+                }
+            }
         }
     }
 
