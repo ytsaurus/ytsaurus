@@ -1185,6 +1185,9 @@ public:
 
     std::optional<TString> SystemLayerPath;
 
+    //! The docker image to use in the operation.
+    std::optional<TString> DockerImage;
+
     //! Default base layer used if no other layers are requested.
     std::optional<TString> DefaultBaseLayerPath;
 

@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, link, exists,
     write_file, write_table, get_job, abort_job,
-    read_table, run_test_vanilla, map, wait_for_nodes, update_nodes_dynamic_config)
+    raises_yt_error, read_table, run_test_vanilla, map, wait_for_nodes, update_nodes_dynamic_config)
 
 from yt.common import YtError
 import yt.yson as yson
@@ -438,6 +438,106 @@ class TestProbingLayer(TestLayers):
                     assert attributes["failed_non_layer_probing_job_count"] == op.get_job_count("failed")
                     assert attributes["succeeded_layer_probing_job_count"] > 0 or counter["probing"] == 0
                     alert_count += 1
+
+
+class TestDockerImage(TestLayers):
+    INPUT_TABLE = "//tmp/input_table"
+    OUTPUT_TABLE = "//tmp/output_table"
+    COMMAND = "test -e $YT_ROOT_FS/test && test -e $YT_ROOT_FS/static-bin"
+    IMAGE = "tmp/test-image"
+    TAG_DOCUMENT_PATH = f"//{IMAGE}/_tags"
+
+    @staticmethod
+    def create_tables():
+        create("table", TestDockerImage.INPUT_TABLE)
+        create("table", TestDockerImage.OUTPUT_TABLE)
+
+        write_table(TestDockerImage.INPUT_TABLE, [{"a": 1}])
+
+    @staticmethod
+    def create_mock_docker_image(document):
+        create(
+            "document",
+            TestDockerImage.TAG_DOCUMENT_PATH,
+            attributes={"value": document},
+            recursive=True,
+        )
+
+    @staticmethod
+    def run_map(docker_image, **kwargs):
+        spec = {
+            "mapper": {
+                "docker_image": docker_image,
+            },
+        }
+        spec["mapper"].update(kwargs)
+
+        map(
+            in_=TestDockerImage.INPUT_TABLE,
+            out=TestDockerImage.OUTPUT_TABLE,
+            command=TestDockerImage.COMMAND,
+            spec=spec,
+        )
+
+    @authors("galtsev")
+    def test_docker_image_success(self):
+        self.setup_files()
+        self.create_tables()
+
+        tag = "tag"
+        self.create_mock_docker_image({tag: ["//tmp/layer1", "//tmp/layer2"]})
+
+        self.run_map(f"{TestDockerImage.IMAGE}:{tag}")
+
+    @authors("galtsev")
+    def test_docker_image_and_layer_paths(self):
+        self.setup_files()
+        self.create_tables()
+
+        tag = "tag"
+        self.create_mock_docker_image({tag: ["//tmp/layer1"]})
+
+        self.run_map(f"{TestDockerImage.IMAGE}:{tag}", layer_paths=["//tmp/layer2"])
+
+    @authors("galtsev")
+    def test_default_docker_tag(self):
+        self.setup_files()
+        self.create_tables()
+
+        default_docker_tag = "latest"
+        self.create_mock_docker_image({default_docker_tag: ["//tmp/layer1", "//tmp/layer2"]})
+
+        self.run_map(f"{TestDockerImage.IMAGE}")
+
+    @authors("galtsev")
+    def test_no_tag(self):
+        self.setup_files()
+        self.create_tables()
+
+        tag = "tag"
+        wrong_tag = "wrong_tag"
+        self.create_mock_docker_image({tag: ["//tmp/layer1", "//tmp/layer2"]})
+
+        with raises_yt_error(f'No tag "{wrong_tag}" in "{TestDockerImage.TAG_DOCUMENT_PATH}", available tags are [{tag}]'):
+            self.run_map(f"{TestDockerImage.IMAGE}:{wrong_tag}")
+
+    @authors("galtsev")
+    def test_no_image(self):
+        self.setup_files()
+        self.create_tables()
+
+        with raises_yt_error(f'Failed to read tags from "{TestDockerImage.TAG_DOCUMENT_PATH}"'):
+            self.run_map(f"{TestDockerImage.IMAGE}:tag")
+
+    @authors("galtsev")
+    def test_wrong_tag_document_type(self):
+        self.setup_files()
+        self.create_tables()
+
+        self.create_mock_docker_image("wrong tag document type")
+
+        with raises_yt_error(f'Tags document "{TestDockerImage.TAG_DOCUMENT_PATH}" is not a map'):
+            self.run_map(f"{TestDockerImage.IMAGE}:tag")
 
 
 @authors("psushin")

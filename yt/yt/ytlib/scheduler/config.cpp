@@ -939,6 +939,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("system_layer_path", &TThis::SystemLayerPath)
         .Default();
 
+    registrar.Parameter("docker_image", &TThis::DockerImage)
+        .Default();
+
     registrar.Parameter("default_base_layer_path", &TThis::DefaultBaseLayerPath)
         .Default();
     registrar.Parameter("probing_base_layer_path", &TThis::ProbingBaseLayerPath)

@@ -10331,7 +10331,13 @@ std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
     if (!Config->TestingOptions->RootfsTestLayers.empty()) {
         return Config->TestingOptions->RootfsTestLayers;
     }
-    auto layerPaths = userJobSpec->LayerPaths;
+    std::vector<TRichYPath> layerPaths;
+    if (userJobSpec->DockerImage) {
+        layerPaths = GetLayerPathsFromDockerImage(
+            Host->GetClient(),
+            *userJobSpec->DockerImage);
+    }
+    std::copy(userJobSpec->LayerPaths.begin(), userJobSpec->LayerPaths.end(), std::back_inserter(layerPaths));
     if (layerPaths.empty() && userJobSpec->DefaultBaseLayerPath) {
         layerPaths.insert(layerPaths.begin(), *userJobSpec->DefaultBaseLayerPath);
     }

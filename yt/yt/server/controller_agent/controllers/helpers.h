@@ -70,6 +70,12 @@ void UpdateAggregatedJobStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<NYPath::TRichYPath> GetLayerPathsFromDockerImage(
+    NApi::NNative::IClientPtr client,
+    const TString& dockerImage);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers
 
 #define HELPERS_INL_H
