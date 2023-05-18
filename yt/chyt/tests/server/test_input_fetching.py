@@ -844,6 +844,51 @@ class TestInputFetching(ClickHouseTestBase):
                 {"a": 42, "b_1": 12, "b_2": None},
             ]
 
+    @authors("denvid")
+    def test_chyt_banned(self):
+        schema = [{"name": "a", "type": "int64"}]
+        create(
+            "table",
+            "//tmp/table_banned",
+            attributes={
+                "chyt_banned": True,
+                "schema": schema,
+            },
+        )
+        create(
+            "table",
+            "//tmp/table_implicitly_not_banned",
+            attributes={
+                "schema": schema,
+            },
+        )
+        create(
+            "table",
+            "//tmp/table_explicitly_not_banned",
+            attributes={
+                "chyt_banned": False,
+                "schema": schema,
+            },
+        )
+        data = [{"a": 1}]
+        write_table("//tmp/table_banned", data)
+        write_table("//tmp/table_implicitly_not_banned", data)
+        write_table("//tmp/table_explicitly_not_banned", data)
+
+        with Clique(1) as clique:
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('select * from "//tmp/table_banned"')
+
+            assert clique.make_query('select * from "//tmp/table_banned"', settings={'chyt.testing.check_chyt_banned': 0}) == data
+            assert clique.make_query('select * from "//tmp/table_implicitly_not_banned"') == data
+            assert clique.make_query('select * from "//tmp/table_explicitly_not_banned"') == data
+
+            assert clique.make_query('exists "//tmp/table_surely_nonexisting"') == [{'result': 0}]
+            assert clique.make_query('exists "//tmp/table_banned"', settings={'chyt.testing.check_chyt_banned': 0}) == [{'result': 1}]
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('exists "//tmp/table_banned"', settings={'chyt.testing.check_chyt_banned': 1})
+
 
 class TestInputFetchingYPath(ClickHouseTestBase):
     def _create_table(self):

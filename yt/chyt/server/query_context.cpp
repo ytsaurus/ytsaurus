@@ -129,6 +129,7 @@ TQueryContext::TQueryContext(
 TQueryContext::TQueryContext(THost* host, NApi::NNative::IClientPtr client)
     : QueryKind(EQueryKind::NoQuery)
     , Host(host)
+    , Settings(New<TQuerySettings>())
     , Client_(std::move(client))
 { }
 
@@ -307,6 +308,14 @@ std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> TQueryContext::GetObjectA
 
     for (const auto& path : paths) {
         result.push_back(ObjectAttributesSnapshot_.at(path));
+
+        const auto& attributesOrError = result.back();
+        if (Settings->Testing->CheckCHYTBanned && attributesOrError.IsOK()) {
+            const auto& attributes = attributesOrError.Value();
+            if (attributes->Get<bool>("chyt_banned", false)) {
+                THROW_ERROR_EXCEPTION("Table %Qv is banned via \"chyt_banned\" attribute", path);
+            }
+        }
     }
 
     return result;

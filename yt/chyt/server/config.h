@@ -91,6 +91,8 @@ public:
     //! If |value| > 0, clique nodes are replaced with |value| virtual local nodes.
     int LocalCliqueSize;
 
+    bool CheckCHYTBanned;
+
     REGISTER_YSON_STRUCT(TTestingSettings);
 
     static void Register(TRegistrar registrar);

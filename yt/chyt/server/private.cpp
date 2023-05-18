@@ -18,6 +18,7 @@ const std::vector<TString> TableAttributesToFetch{
     "revision",
     "boundary_keys",
     "enable_dynamic_store_read",
+    "chyt_banned",
 };
 
 ////////////////////////////////////////////////////////////////////////////////
