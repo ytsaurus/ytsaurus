@@ -1763,6 +1763,11 @@ extern "C" void NumericToString(
     TValue* value
 )
 {
+    if (value->Type == EValueType::Null) {
+        result->Type = EValueType::Null;
+        return;
+    }
+
     auto piResult = BorrowFromNonPI(result);
     auto piValue = BorrowFromNonPI(value);
 
