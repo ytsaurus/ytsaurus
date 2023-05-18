@@ -342,6 +342,30 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
         ContainsRegex("Ambiguous resolution"));
 }
 
+TEST_F(TQueryPrepareTest, IncorrectDivision)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+
+    ExpectPrepareThrowsWithDiagnostics(
+        "* from [//t] where a = -9223372036854775808 / -1",
+        ContainsRegex("Division INT_MIN by -1"));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+
+    ExpectPrepareThrowsWithDiagnostics(
+        "* from [//t] where a = -9223372036854775808 % -1",
+        ContainsRegex("Division INT_MIN by -1"));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+
+    ExpectPrepareThrowsWithDiagnostics(
+        "* from [//t] where a = 42 % 0",
+        ContainsRegex("Division by zero"));
+}
+
 TEST_F(TQueryPrepareTest, SelectColumns)
 {
     {
