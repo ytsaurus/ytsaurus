@@ -3165,7 +3165,7 @@ private:
                 if (recursiveLockCount >= lockCountLimit) {
                     return TError(
                         NCypressClient::EErrorCode::TooManyLocksOnTransaction,
-                        "Cannot create %Qlv lock for node %v since transaction %v and it's decendants already have %v locks associated with them",
+                        "Cannot create %Qlv lock for node %v since transaction %v and its decendants already have %v locks associated with them",
                         request.Mode,
                         GetNodePath(trunkNode, transaction),
                         currentTransaction->GetId(),
@@ -3631,7 +3631,7 @@ private:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         parentTransaction->AttachLock(lock, objectManager);
-        transaction->DetachLock(lock, objectManager, /* resetLockTransaction */ false);
+        transaction->DetachLock(lock, objectManager, /*resetLockTransaction*/ false);
 
         if (trunkNode && lock->GetState() == ELockState::Acquired) {
             auto* lockingState = trunkNode->MutableLockingState();

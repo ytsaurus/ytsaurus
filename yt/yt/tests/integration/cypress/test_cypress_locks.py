@@ -1519,7 +1519,7 @@ class TestCypressLocks(YTEnvSetup):
         tx12 = start_transaction(tx=tx1)
         with pytest.raises(YtError,
                            match="Cannot create \"shared\" lock for node .* since "
-                           "transaction .* it's decendants already have . locks associated with them"):
+                           "transaction .* its decendants already have . locks associated with them"):
             lock("//tmp/table", mode="shared", tx=tx12)
 
         unlock("//tmp/table", tx=tx11)
@@ -1535,7 +1535,7 @@ class TestCypressLocks(YTEnvSetup):
 
         with pytest.raises(YtError,
                            match="Cannot create \"shared\" lock for node .* since "
-                           "transaction .* it's decendants already have . locks associated with them"):
+                           "transaction .* its decendants already have . locks associated with them"):
             lock("//tmp/table", mode="shared", tx=tx12)
 
 

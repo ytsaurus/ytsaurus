@@ -257,7 +257,7 @@ private:
                         });
                 }).AsyncVia(GetCurrentInvoker()));
 
-            case EInternedAttributeKey::StagedNodeIds: {
+            case EInternedAttributeKey::StagedNodeIds:
                 return FetchMergeableAttribute(
                     key.Unintern(),
                     [&] {
@@ -265,9 +265,8 @@ private:
                             fluent.Item().Value(node->GetId());
                         });
                     });
-            }
 
-            case EInternedAttributeKey::BranchedNodeIds: {
+            case EInternedAttributeKey::BranchedNodeIds:
                 return FetchMergeableAttribute(
                     key.Unintern(),
                     [&] {
@@ -275,9 +274,8 @@ private:
                             fluent.Item().Value(node->GetId());
                         });
                     });
-            }
 
-            case EInternedAttributeKey::LockedNodeIds: {
+            case EInternedAttributeKey::LockedNodeIds:
                 return FetchMergeableAttribute(
                     key.Unintern(),
                     [&] {
@@ -285,9 +283,8 @@ private:
                             fluent.Item().Value(node->GetId());
                         });
                     });
-            }
 
-            case EInternedAttributeKey::LockIds: {
+            case EInternedAttributeKey::LockIds:
                 return FetchMergeableAttribute(
                     key.Unintern(),
                     [&] {
@@ -295,17 +292,15 @@ private:
                             fluent.Item().Value(lock->GetId());
                         });
                     });
-            }
 
-            case EInternedAttributeKey::RecursiveLockCount: {
+            case EInternedAttributeKey::RecursiveLockCount:
                 return FetchMergeableAttribute(
                     key.Unintern(),
                     [&] {
                         return ConvertToYsonString(transaction->GetRecursiveLockCount());
                     });
-            }
 
-            case EInternedAttributeKey::StagedObjectIds: {
+            case EInternedAttributeKey::StagedObjectIds:
                 return FetchMergeableAttribute(
                     key.Unintern(),
                     [&] {
@@ -313,7 +308,6 @@ private:
                             fluent.Item().Value(object->GetId());
                         });
                     });
-            }
 
             case EInternedAttributeKey::ImportedObjectCount:
                 return FetchSummableAttribute(
