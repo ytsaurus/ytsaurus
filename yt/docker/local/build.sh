@@ -3,7 +3,7 @@
 script_name=$0
 
 ytserver_all_path=./ytserver-all
-ytserver_all_credits_path=./ytserver-all.CREDITS.txt
+ytserver_all_credits_path=../ytsaurus/credits/ytserver-all.CREDITS
 yt_local_path=../../python/yt/local/bin/yt_local
 
 print_usage() {

@@ -4,7 +4,6 @@ WORKDIR /tmp
 
 ARG YT_LOCAL_PATH=yt_local
 ARG YTSERVER_ALL_PATH=ytserver-all
-
 ARG YTSERVER_ALL_CREDITS_PATH=ytserver-all.CREDITS
 
 COPY ${YT_LOCAL_PATH} /usr/bin/yt_local

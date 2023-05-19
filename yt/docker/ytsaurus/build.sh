@@ -2,6 +2,8 @@
 
 script_name=$0
 
+image_tag=unstable-0.0.2
+
 ytserver_all_path=./ytserver-all
 chyt_controller_path=./chyt-controller
 clickhouse_trampoline_path=../../chyt/trampoline/clickhouse-trampoline.py
@@ -11,10 +13,10 @@ init_operation_archive_path=../../python/yt/environment/init_operation_archive.p
 
 driver_bindings_package_path=./ytsaurus_native_driver-1.0.0-cp39-cp39-linux_x86_64.whl
 
-ytserver_all_credits_path=./ytserver-all.CREDITS.txt
-chyt_controller_credits_path=./chyt-controller.CREDITS.txt
-ytserver_clickhouse_credits_path=./ytserver-clickhouse.CREDITS.txt
-ytserver_log_tailer_credits_path=./ytserver-log-tailer.CREDITS.txt
+ytserver_all_credits_path=./credits/ytserver-all.CREDITS
+chyt_controller_credits_path=./credits/chyt-controller.CREDITS
+ytserver_clickhouse_credits_path=./credits/ytserver-clickhouse.CREDITS
+ytserver_log_tailer_credits_path=./credits/ytserver-log-tailer.CREDITS
 
 print_usage() {
     cat <<EOF
@@ -33,6 +35,7 @@ Usage: $script_name [-h|--help]
   --ytserver-log-tailer-credits: Path to CREDITS file for ytserver-log-tailer binary (default: $ytserver_log_tailer_credits_path)
   --init-operation-archive: Path to init_operation_archive script (default: $init_operation_archive_path)
   --driver-bindings-package: Path to built python driver_bindings package (default: $driver_bindings_package_path)
+  --image-tag: Tag for ytsaurus/ytsaurus image (default: $image_tag)
 
 EOF
     exit 0
@@ -86,6 +89,10 @@ while [[ $# -gt 0 ]]; do
         driver_bindings_package_path="$2"
         shift 2
         ;;
+        --image-tag)
+        image_tag="$2"
+        shift 2
+        ;;
         -h|--help)
         print_usage
         shift
@@ -110,7 +117,7 @@ cp $ytserver_log_tailer_credits_path data/ytserver-log-tailer.CREDITS
 cp $init_operation_archive_path data/init_operation_archive
 cp $driver_bindings_package_path data/ytsaurus_native_driver-1.0.0-cp39-cp39-linux_x86_64.whl
 
-docker build -t ytsaurus/ytsaurus:unstable-0.0.2 \
+docker build -t ytsaurus/ytsaurus:$image_tag \
     --build-arg YTSERVER_ALL_PATH=data/ytserver-all \
     --build-arg YTSERVER_ALL_CREDITS_PATH=data/ytserver-all.CREDITS \
     --build-arg CHYT_CONTROLLER_PATH=data/chyt-controller \
