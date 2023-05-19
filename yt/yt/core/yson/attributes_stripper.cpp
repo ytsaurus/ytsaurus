@@ -13,7 +13,7 @@ class TYsonAttributesStripper
     : public IYsonConsumer
 {
 public:
-    TYsonAttributesStripper(IYsonConsumer* output)
+    explicit TYsonAttributesStripper(IYsonConsumer* output)
         : Output_(output)
     { }
 
@@ -119,7 +119,7 @@ public:
     }
 
 private:
-    IYsonConsumer* Output_;
+    IYsonConsumer* const Output_;
     int AttributesDepth_ = 0;
 };
 
