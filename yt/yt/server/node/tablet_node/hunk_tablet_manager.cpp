@@ -616,13 +616,8 @@ private:
                 storeId);
             return;
         }
-        store->Unlock(transaction->GetId(), EObjectLockMode::Shared);
 
         auto lock = request->lock();
-        if (lock && tablet->GetState() != ETabletState::Mounted) {
-            return;
-        }
-
         if (lock) {
             store->Lock(lockerTabletId);
         } else {
@@ -642,6 +637,8 @@ private:
 
             store->Unlock(lockerTabletId);
         }
+
+        store->Unlock(transaction->GetId(), EObjectLockMode::Shared);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Hunk tablet store lock toggle committed "
