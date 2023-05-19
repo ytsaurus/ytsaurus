@@ -6,8 +6,6 @@
 
 #include <library/cpp/yt/memory/ref.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
-
 namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////

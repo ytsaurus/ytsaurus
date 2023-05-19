@@ -11,9 +11,11 @@
 
 #include <yt/yt/core/actions/invoker_util.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
+#include <library/cpp/yt/memory/memory_tag.h>
 
 #include <library/cpp/yt/threading/fork_aware_spin_lock.h>
+
+#include <library/cpp/yt/memory/memory_tag.h>
 
 #include <util/thread/lfstack.h>
 
@@ -119,10 +121,10 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE NYTAlloc::TMemoryTag SwapMemoryTag(NYTAlloc::TMemoryTag tag)
+Y_FORCE_INLINE TMemoryTag SwapMemoryTag(TMemoryTag tag)
 {
-    auto result = NYTAlloc::GetCurrentMemoryTag();
-    NYTAlloc::SetCurrentMemoryTag(tag);
+    auto result = GetCurrentMemoryTag();
+    SetCurrentMemoryTag(tag);
     return result;
 }
 
@@ -446,7 +448,7 @@ void YieldFiber(TClosure afterSwitch)
 
 void ResumeFiber(TFiberPtr targetFiber)
 {
-    NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
+    TMemoryTagGuard guard(NullMemoryTag);
 
     auto currentFiber = MakeStrong(GetCurrentFiber());
 
@@ -627,12 +629,12 @@ protected:
     ~TBaseSwitchHandler()
     {
         YT_VERIFY(FiberId_ == InvalidFiberId);
-        YT_VERIFY(MemoryTag_ == NYTAlloc::NullMemoryTag);
+        YT_VERIFY(MemoryTag_ == NullMemoryTag);
         YT_VERIFY(!Fls_);
     }
 
 private:
-    NYTAlloc::TMemoryTag MemoryTag_ = NYTAlloc::NullMemoryTag;
+    TMemoryTag MemoryTag_ = NullMemoryTag;
     TFls* Fls_ = nullptr;
     TFiberId FiberId_ = InvalidFiberId;
 };
@@ -891,7 +893,7 @@ TFiberCanceler GetCurrentFiberCanceler()
     }
 
     if (!switchHandler->Canceler()) {
-        NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
+        TMemoryTagGuard guard(NullMemoryTag);
         switchHandler->Canceler() = New<NDetail::TCanceler>(GetCurrentFiberId());
     }
 
@@ -905,7 +907,7 @@ void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
     YT_VERIFY(future);
     YT_ASSERT(invoker);
 
-    NYTAlloc::TMemoryTagGuard memoryTagGuard(NYTAlloc::NullMemoryTag);
+    TMemoryTagGuard memoryTagGuard(NullMemoryTag);
 
     auto* currentFiber = NDetail::TryGetCurrentFiber();
     if (!currentFiber) {

@@ -9,7 +9,6 @@ using namespace NYT::NYTree;
 using namespace NYT::NYson;
 using namespace NConcurrency;
 using namespace NCrypto;
-using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -585,7 +584,7 @@ TYPED_TEST(TRpcTest, ResponseMemoryTag)
         TMyProxy proxy(this->CreateChannel());
         TString longString(100, 'a');
 
-        NYTAlloc::TMemoryTagGuard guard(testMemoryTag);
+        TMemoryTagGuard guard(testMemoryTag);
 
         for (int i = 0; i < 10000; ++i) {
             auto req = proxy.PassCall();

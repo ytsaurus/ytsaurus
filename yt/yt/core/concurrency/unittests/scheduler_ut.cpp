@@ -868,7 +868,7 @@ TEST_W(TSchedulerTest, CancelDelayedFuture)
 
 #if !defined(_asan_enabled_) && !defined(_msan_enabled_) && defined (YT_ALLOC_ENABLED)
 
-using NYTAlloc::TMemoryTag;
+using TMemoryTag;
 using NYTAlloc::SetCurrentMemoryTag;
 using NYTAlloc::GetCurrentMemoryTag;
 

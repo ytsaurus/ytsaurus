@@ -1043,7 +1043,7 @@ protected:
 private:
     using TThis = TOperationControllerBase;
 
-    const NYTAlloc::TMemoryTag MemoryTag_;
+    const TMemoryTag MemoryTag_;
 
     NScheduler::TPoolTreeControllerSettingsMap PoolTreeControllerSettingsMap_;
     std::optional<std::vector<TString>> OffloadingPoolTrees_;

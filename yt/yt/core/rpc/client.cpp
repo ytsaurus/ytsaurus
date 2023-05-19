@@ -21,7 +21,6 @@ namespace NYT::NRpc {
 
 using namespace NBus;
 using namespace NYTree;
-using namespace NYTAlloc;
 
 using NYT::FromProto;
 using NYT::ToProto;

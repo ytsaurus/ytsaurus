@@ -574,7 +574,7 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
         // This value corresponds to the maximum possible number of memory tags.
         // It should be changed simultaneously with values of all `MaxTagValue`
         // across the code base.
-        .LessThan(NYTAlloc::MaxMemoryTag);
+        .LessThan(MaxMemoryTag);
 
     registrar.Parameter("operations_without_tentative_pool_trees", &TThis::OperationsWithoutTentativePoolTrees)
         .Default({EOperationType::Sort, EOperationType::MapReduce, EOperationType::RemoteCopy});

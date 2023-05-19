@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/actions/callback.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
+#include <library/cpp/yt/memory/public.h>
 
 namespace NYT::NConcurrency {
 
@@ -73,7 +73,7 @@ ISuspendableInvokerPtr CreateSuspendableInvoker(IInvokerPtr underlyingInvoker);
 //! given memory tag. Every allocation performed by a callback will be properly tagged.
 IInvokerPtr CreateMemoryTaggingInvoker(
     IInvokerPtr underlyingInvoker,
-    NYTAlloc::TMemoryTag memoryTag);
+    TMemoryTag memoryTag);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -14,6 +14,7 @@ target_link_libraries(cpp-ytalloc-impl PUBLIC
   yutil
   cpp-malloc-api
   cpp-yt-containers
+  cpp-yt-memory
   cpp-yt-threading
 )
 target_sources(cpp-ytalloc-impl PRIVATE

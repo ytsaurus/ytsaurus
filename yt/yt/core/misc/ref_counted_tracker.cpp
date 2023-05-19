@@ -4,15 +4,13 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
-
 #include <library/cpp/yt/string/format.h>
+
+#include <library/cpp/yt/memory/memory_tag.h>
 
 #include <algorithm>
 
 namespace NYT {
-
-using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 

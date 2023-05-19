@@ -1,8 +1,8 @@
 #include <yt/yt/library/ytprof/heap_profiler.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
+#include <library/cpp/yt/memory/public.h>
 
-namespace NYT::NYTAlloc {
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,4 +23,4 @@ size_t GetMemoryUsageForTag(TMemoryTag tag)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NYTAlloc
+} // namespace NYT

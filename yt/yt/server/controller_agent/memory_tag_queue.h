@@ -12,8 +12,6 @@
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
-
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,8 +33,8 @@ public:
         TControllerAgentConfigPtr config,
         IInvokerPtr invoker);
 
-    NYTAlloc::TMemoryTag AssignTagToOperation(TOperationId operationId, i64 testingMemoryFootprint);
-    void ReclaimTag(NYTAlloc::TMemoryTag tag);
+    TMemoryTag AssignTagToOperation(TOperationId operationId, i64 testingMemoryFootprint);
+    void ReclaimTag(TMemoryTag tag);
 
     void BuildTaggedMemoryStatistics(NYTree::TFluentList fluent);
 
@@ -53,10 +51,10 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 
     //! A queue of spare tags.
-    std::queue<NYTAlloc::TMemoryTag> AvailableTags_;
+    std::queue<TMemoryTag> AvailableTags_;
 
     //! A hashset of used tags.
-    THashSet<NYTAlloc::TMemoryTag> UsedTags_;
+    THashSet<TMemoryTag> UsedTags_;
 
     struct TOperationInfo
     {
@@ -75,7 +73,7 @@ private:
     i64 CachedTotalUsage_;
 
     //! Cached per-tag memory usage.
-    THashMap<NYTAlloc::TMemoryTag, i64> CachedMemoryUsage_;
+    THashMap<TMemoryTag, i64> CachedMemoryUsage_;
 
     void AllocateNewTags();
 

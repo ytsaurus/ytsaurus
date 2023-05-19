@@ -6,7 +6,7 @@
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
+#include <library/cpp/yt/memory/memory_tag.h>
 
 #include <util/random/random.h>
 
@@ -16,8 +16,6 @@
 #if !defined(_msan_enabled_) and !defined(_asan_enabled_) and defined(_linux_) and defined(YT_ALLOC_ENABLED)
 
 namespace NYT {
-
-using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 

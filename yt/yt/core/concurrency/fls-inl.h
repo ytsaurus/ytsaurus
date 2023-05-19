@@ -5,7 +5,7 @@
 #endif
 #undef FLS_INL_H_
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
+#include <library/cpp/yt/memory/memory_tag.h>
 
 namespace NYT::NConcurrency {
 
@@ -95,7 +95,7 @@ Y_FORCE_INLINE T* TFlsSlot<T>::GetOrCreate() const
 template <class T>
 T* TFlsSlot<T>::Create() const
 {
-    NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
+    TMemoryTagGuard guard(NullMemoryTag);
     auto cookie = new T();
     GetCurrentFls()->Set(Index_, cookie);
     return static_cast<T*>(cookie);

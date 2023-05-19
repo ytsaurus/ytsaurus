@@ -7,8 +7,6 @@
 #include "helpers.h"
 #include "stream.h"
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
-
 namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,7 +56,7 @@ TFuture<typename TResponse::TResult> TTypedClientRequest<TRequestMessage, TRespo
     auto responseAttachmentsStream = context->GetResponseAttachmentsStream();
     typename TResponse::TResult response;
     {
-        NYTAlloc::TMemoryTagGuard guard(context->GetResponseMemoryTag());
+        TMemoryTagGuard guard(context->GetResponseMemoryTag());
         response = New<TResponse>(std::move(context));
     }
     auto promise = response->GetPromise();
@@ -128,7 +126,7 @@ void TTypedClientResponse<TResponseMessage>::SetPromise(const TError& error)
 template <class TResponseMessage>
 bool TTypedClientResponse<TResponseMessage>::TryDeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId)
 {
-    NYTAlloc::TMemoryTagGuard guard(ClientContext_->GetResponseMemoryTag());
+    TMemoryTagGuard guard(ClientContext_->GetResponseMemoryTag());
 
     return codecId
         ? TryDeserializeProtoWithCompression(this, data, *codecId)
@@ -151,7 +149,7 @@ TIntrusivePtr<T> TProxyBase::CreateRequest(const TMethodDescriptor& methodDescri
     request->SetResponseCodec(DefaultResponseCodec_);
     request->SetEnableLegacyRpcCodecs(DefaultEnableLegacyRpcCodecs_);
     request->SetMultiplexingBand(methodDescriptor.MultiplexingBand);
-    request->SetResponseMemoryTag(NYTAlloc::GetCurrentMemoryTag());
+    request->SetResponseMemoryTag(GetCurrentMemoryTag());
 
     if (methodDescriptor.StreamingEnabled) {
         request->ClientAttachmentsStreamingParameters() =
