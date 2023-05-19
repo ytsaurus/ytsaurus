@@ -49,6 +49,10 @@ public:
         item->set_index(NChunkClient::DefaultSlotsMediumIndex);
         item->set_priority(0);
         MediumDirectory_->LoadFrom(protoDirectory);
+
+        for (const auto& node : ExecNodes_) {
+            NodeToState_.emplace(node, TFairShareTreeJobSchedulerNodeState{});
+        }
     }
 
     IInvokerPtr GetControlInvoker(EControlQueue /*queue*/) const override
@@ -254,9 +258,15 @@ public:
         return stub;
     }
 
+    TFairShareTreeJobSchedulerNodeState* GetNodeState(const TExecNodePtr node)
+    {
+        return &GetOrCrash(NodeToState_, node);
+    }
+
 private:
     std::vector<IInvokerPtr> NodeShardInvokers_;
     std::vector<TExecNodePtr> ExecNodes_;
+    THashMap<TExecNodePtr, TFairShareTreeJobSchedulerNodeState> NodeToState_;
     NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 };
 
@@ -544,12 +554,8 @@ protected:
     TFairShareTreeElementHostMockPtr FairShareTreeElementHostMock_ = New<TFairShareTreeElementHostMock>(TreeConfig_);
     NConcurrency::TActionQueuePtr NodeShardActionQueue_ = New<NConcurrency::TActionQueue>("NodeShard");
 
-    TScheduleJobsStage NonPreemptiveSchedulingStage_{
-        .Type = EJobSchedulingStage::RegularMediumPriority,
-        .ProfilingCounters = TScheduleJobsProfilingCounters(NProfiling::TProfiler{"/non_preemptive_test_scheduling_stage"})};
-    TScheduleJobsStage PreemptiveSchedulingStage_{
-        .Type = EJobSchedulingStage::PreemptiveNormal,
-        .ProfilingCounters = TScheduleJobsProfilingCounters(NProfiling::TProfiler{"/preemptive_test_scheduling_stage"})};
+    TSchedulingStageProfilingCounters RegularSchedulingProfilingCounters_{NProfiling::TProfiler("/regular_test_scheduling_stage")};
+    TSchedulingStageProfilingCounters PreemptiveSchedulingProfilingCounters_{NProfiling::TProfiler("/preemptive_test_scheduling_stage")};
 
     int SlotIndex_ = 0;
     NNodeTrackerClient::TNodeId ExecNodeId_ = 0;
@@ -826,11 +832,11 @@ protected:
         TScheduleJobsContext scheduleJobsContext(
             schedulingContext,
             treeSnapshot,
-            /*registeredSchedulingTagFilters*/ {},
-            /*nodeSchedulingSegment*/ ESchedulingSegment::Default,
-            /*operationCountByPreemptionPriority*/ {},
-            /*enableSchedulingInfoLogging*/ true,
+            /*now*/ GetCpuInstant(),
+            strategyHost->GetNodeState(execNode),
+            /*schedulingInfoLoggingEnabled*/ true,
             strategyHost,
+            /*scheduleJobsDeadlineReachedCounter*/ {},
             SchedulerLogger);
 
         return TScheduleJobsContextWithDependencies{
@@ -849,7 +855,7 @@ protected:
         auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost, treeSnapshot, execNode);
         auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
 
-        context.StartStage(&NonPreemptiveSchedulingStage_);
+        context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
 
         context.PrepareForScheduling();
         context.PrescheduleJob();
@@ -945,7 +951,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, DontSuggestMoreResourcesThanOperationNeed
         execNodes[i] = CreateTestExecNode(nodeResources);
     }
 
-    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(execNodes.size(), nodeResources));
+    auto strategyHost = CreateTestStrategyHost(execNodes);
     auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
     auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
 
@@ -1012,7 +1018,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, DoNotPreemptJobsIfFairShareRatioEqualToDe
 
     auto execNode = CreateTestExecNode(nodeResources);
 
-    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(1, nodeResources));
+    auto strategyHost = CreateTestStrategyHost({execNode});
     auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
     auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
 
@@ -1070,7 +1076,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
     nodeResources.SetMemory(300_MB);
     auto execNode = CreateTestExecNode(nodeResources);
 
-    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(1, nodeResources));
+    auto strategyHost = CreateTestStrategyHost({execNode});
     auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
     auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
 
@@ -1164,7 +1170,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
     auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
     auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
 
-    context.StartStage(&PreemptiveSchedulingStage_);
+    context.StartStage(EJobSchedulingStage::PreemptiveNormal, &PreemptiveSchedulingProfilingCounters_);
     context.PrepareForScheduling();
 
     for (int jobIndex = 0; jobIndex < 10; ++jobIndex) {
@@ -1227,7 +1233,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableOperationsOrder)
     nodeResources.SetDiskQuota(CreateDiskQuota(100));
     auto execNode = CreateTestExecNode(nodeResources);
 
-    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(1, nodeResources));
+    auto strategyHost = CreateTestStrategyHost({execNode});
     auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
     auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
 
@@ -1295,7 +1301,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableOperationsOrder)
         auto doCheckOrderDuringSchedulingStage = [&] (auto getBestOperation) {
             auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
             auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
-            context.StartStage(&NonPreemptiveSchedulingStage_);
+            context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
             context.PrepareForScheduling();
             context.PrescheduleJob(consideredOperations);
             auto finally = Finally([&] {
@@ -1389,7 +1395,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithPrioritizedSch
     nodeResources.SetDiskQuota(CreateDiskQuota(100));
     auto execNode = CreateTestExecNode(nodeResources);
 
-    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(1, nodeResources));
+    auto strategyHost = CreateTestStrategyHost({execNode});
     auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
     auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
 
@@ -1470,7 +1476,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithPrioritizedSch
         {
             // High priority.
 
-            context.StartStage(&NonPreemptiveSchedulingStage_);
+            context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
             context.PrepareForScheduling();
             context.PrescheduleJob(schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium]);
 
@@ -1509,7 +1515,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithPrioritizedSch
 
             // NB(eshcherbin): It is impossible to have two consecutive non-preemptive scheduling stages, however
             // here we only need to trigger the second PrescheduleJob call so that the child heap is rebuilt.
-            context.StartStage(&NonPreemptiveSchedulingStage_);
+            context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
             context.PrepareForScheduling();
             context.PrescheduleJob(schedulableOperationsPerPriority[EOperationSchedulingPriority::Low]);
 
@@ -1569,7 +1575,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithPrioritizedSch
         ASSERT_EQ(0, std::ssize(schedulableOperationsPerPriority[EOperationSchedulingPriority::Low]));
 
         {
-            context.StartStage(&NonPreemptiveSchedulingStage_);
+            context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
             context.PrepareForScheduling();
             context.PrescheduleJob(schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium]);
 
@@ -1579,7 +1585,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithPrioritizedSch
         }
 
         {
-            context.StartStage(&NonPreemptiveSchedulingStage_);
+            context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
             context.PrepareForScheduling();
             context.PrescheduleJob(schedulableOperationsPerPriority[EOperationSchedulingPriority::Low]);
 
@@ -1599,7 +1605,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithoutPrioritized
     nodeResources.SetDiskQuota(CreateDiskQuota(100));
     auto execNode = CreateTestExecNode(nodeResources);
 
-    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(1, nodeResources));
+    auto strategyHost = CreateTestStrategyHost({execNode});
     auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
     auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
 
@@ -1648,7 +1654,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithoutPrioritized
         auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
         auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
 
-        context.StartStage(&NonPreemptiveSchedulingStage_);
+        context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
         context.PrepareForScheduling();
         context.PrescheduleJob();
 
@@ -1681,7 +1687,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithoutPrioritized
 
         // NB(eshcherbin): It is impossible to have two consecutive non-preemptive scheduling stages, however
         // here we only need to trigger the second PrescheduleJob call so that the child heap is rebuilt.
-        context.StartStage(&NonPreemptiveSchedulingStage_);
+        context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
         context.PrepareForScheduling();
         context.PrescheduleJob();
 
@@ -1715,7 +1721,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithoutPrioritized
         auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
         auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
 
-        context.StartStage(&NonPreemptiveSchedulingStage_);
+        context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
         context.PrepareForScheduling();
         context.PrescheduleJob();
 
@@ -1735,7 +1741,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestCollectConsideredSchedulableChildrenP
     nodeResources.SetDiskQuota(CreateDiskQuota(100));
     auto execNode = CreateTestExecNode(nodeResources);
 
-    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(1, nodeResources));
+    auto strategyHost = CreateTestStrategyHost({execNode});
     auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
     auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
 
@@ -1794,7 +1800,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestCollectConsideredSchedulableChildrenP
         auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
         auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
         auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
-        context.StartStage(&NonPreemptiveSchedulingStage_);
+        context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
         auto finally = Finally([&] {
             context.FinishStage();
         });
@@ -1962,7 +1968,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestCollectConsideredSchedulableChildrenP
         auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
         auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
         auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
-        context.StartStage(&NonPreemptiveSchedulingStage_);
+        context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
         auto finally = Finally([&] {
             context.FinishStage();
         });
@@ -1988,7 +1994,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestBuildDynamicAttributesListFromSnapsho
     nodeResources.SetDiskQuota(CreateDiskQuota(100));
     auto execNode = CreateTestExecNode(nodeResources);
 
-    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(1, nodeResources));
+    auto strategyHost = CreateTestStrategyHost({execNode});
     auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
     auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
 

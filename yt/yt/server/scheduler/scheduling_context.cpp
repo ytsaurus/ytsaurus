@@ -13,7 +13,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(eshcherbin): Why do we need |TSchedulingContextBase|, if it's used only here?
 class TSchedulingContext
     : public TSchedulingContextBase
 {
@@ -32,6 +31,7 @@ public:
             mediumDirectory)
     { }
 
+    // TODO(eshcherbin): Remove this method, as it is misleading.
     NProfiling::TCpuInstant GetNow() const override
     {
         return NProfiling::GetCpuInstant();

@@ -828,7 +828,7 @@ void TFairShareTreeSchedulingSnapshot::UpdateDynamicAttributesListSnapshot(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
+TSchedulingStageProfilingCounters::TSchedulingStageProfilingCounters(
     const NProfiling::TProfiler& profiler)
     : PrescheduleJobCount(profiler.Counter("/preschedule_job_count"))
     , UselessPrescheduleJobCount(profiler.Counter("/useless_preschedule_job_count"))
@@ -891,22 +891,44 @@ TString ToString(const TJobWithPreemptionInfo& jobInfo)
 TScheduleJobsContext::TScheduleJobsContext(
     ISchedulingContextPtr schedulingContext,
     TFairShareTreeSnapshotPtr treeSnapshot,
-    std::vector<TSchedulingTagFilter> knownSchedulingTagFilters,
-    ESchedulingSegment nodeSchedulingSegment,
-    const TOperationCountByPreemptionPriority& operationCountByPreemptionPriority,
-    bool enableSchedulingInfoLogging,
+    TCpuInstant now,
+    const TFairShareTreeJobSchedulerNodeState* nodeState,
+    bool schedulingInfoLoggingEnabled,
     ISchedulerStrategyHost* strategyHost,
+    const NProfiling::TCounter& scheduleJobsDeadlineReachedCounter,
     const NLogging::TLogger& logger)
     : SchedulingContext_(std::move(schedulingContext))
     , TreeSnapshot_(std::move(treeSnapshot))
-    , KnownSchedulingTagFilters_(std::move(knownSchedulingTagFilters))
-    , NodeSchedulingSegment_(nodeSchedulingSegment)
-    , OperationCountByPreemptionPriority_(operationCountByPreemptionPriority)
-    , EnableSchedulingInfoLogging_(enableSchedulingInfoLogging)
+    , Now_(now)
+    , SsdPriorityPreemptionEnabled_(TreeSnapshot_->TreeConfig()->SsdPriorityPreemption->Enable &&
+        SchedulingContext_->CanSchedule(TreeSnapshot_->TreeConfig()->SsdPriorityPreemption->NodeTagFilter))
+    , SchedulingDeadline_(Now_ + DurationToCpuDuration(TreeSnapshot_->ControllerConfig()->ScheduleJobsTimeout))
+    , NodeSchedulingSegment_(nodeState->SchedulingSegment)
+    , OperationCountByPreemptionPriority_(GetOrCrash(
+        TreeSnapshot_->SchedulingSnapshot()->OperationCountsByPreemptionPriorityParameters(),
+        TOperationPreemptionPriorityParameters{
+            TreeSnapshot_->TreeConfig()->SchedulingPreemptionPriorityScope,
+            SsdPriorityPreemptionEnabled_,
+        }))
+    , SsdPriorityPreemptionMedia_(TreeSnapshot_->SchedulingSnapshot()->SsdPriorityPreemptionMedia())
+    , SchedulingInfoLoggingEnabled_(schedulingInfoLoggingEnabled)
+    , DynamicAttributesListSnapshot_(TreeSnapshot_->TreeConfig()->EnableResourceUsageSnapshot
+        ? TreeSnapshot_->SchedulingSnapshot()->GetDynamicAttributesListSnapshot()
+        : nullptr)
     , StrategyHost_(strategyHost)
+    , ScheduleJobsDeadlineReachedCounter_(scheduleJobsDeadlineReachedCounter)
     , Logger(logger)
     , DynamicAttributesManager_(TreeSnapshot_->SchedulingSnapshot())
-{ }
+{
+    YT_LOG_DEBUG_IF(DynamicAttributesListSnapshot_ && SchedulingInfoLoggingEnabled_,
+        "Using dynamic attributes snapshot for job scheduling");
+
+    SchedulingStatistics_.ResourceUsage = SchedulingContext_->ResourceUsage();
+    SchedulingStatistics_.ResourceLimits = SchedulingContext_->ResourceLimits();
+    SchedulingStatistics_.SsdPriorityPreemptionEnabled = SsdPriorityPreemptionEnabled_;
+    SchedulingStatistics_.SsdPriorityPreemptionMedia = SsdPriorityPreemptionMedia_;
+    SchedulingStatistics_.OperationCountByPreemptionPriority = OperationCountByPreemptionPriority_;
+}
 
 void TScheduleJobsContext::PrepareForScheduling()
 {
@@ -916,8 +938,9 @@ void TScheduleJobsContext::PrepareForScheduling()
     if (!Initialized_) {
         Initialized_ = true;
 
-        CanSchedule_.reserve(KnownSchedulingTagFilters_.size());
-        for (const auto& filter : KnownSchedulingTagFilters_) {
+        const auto& knownSchedulingTagFilters = TreeSnapshot_->SchedulingSnapshot()->KnownSchedulingTagFilters();
+        CanSchedule_.reserve(knownSchedulingTagFilters.size());
+        for (const auto& filter : knownSchedulingTagFilters) {
             CanSchedule_.push_back(SchedulingContext_->CanSchedule(filter));
         }
 
@@ -947,6 +970,12 @@ void TScheduleJobsContext::PrescheduleJob(
     StageState_->PrescheduleExecuted = true;
 }
 
+bool TScheduleJobsContext::ShouldContinueScheduling(const std::optional<TJobResources>& customMinSpareJobResources) const
+{
+    return SchedulingContext_->CanStartMoreJobs(customMinSpareJobResources) &&
+        SchedulingContext_->GetNow() < SchedulingDeadline_;
+}
+
 TScheduleJobsContext::TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJob(bool ignorePacking)
 {
     ++StageState_->ScheduleJobAttemptCount;
@@ -963,6 +992,10 @@ TScheduleJobsContext::TFairShareScheduleJobResult TScheduleJobsContext::Schedule
 
     if (scheduled) {
         ReactivateBadPackingOperations();
+    }
+
+    if (SchedulingContext_->GetNow() >= SchedulingDeadline_) {
+        ScheduleJobsDeadlineReachedCounter_.Increment();
     }
 
     return TFairShareScheduleJobResult{
@@ -1270,13 +1303,21 @@ void TScheduleJobsContext::PreemptJob(
     SchedulingContext_->PreemptJob(job, treeConfig->JobInterruptTimeout, preemptionReason);
 }
 
-void TScheduleJobsContext::StartStage(TScheduleJobsStage* schedulingStage)
+TNonOwningOperationElementList TScheduleJobsContext::ExtractBadPackingOperations()
+{
+    TNonOwningOperationElementList badPackingOperations;
+    std::swap(BadPackingOperations_, badPackingOperations);
+
+    return badPackingOperations;
+}
+
+void TScheduleJobsContext::StartStage(EJobSchedulingStage stage, TSchedulingStageProfilingCounters* profilingCounters)
 {
     YT_VERIFY(!StageState_);
 
     StageState_.emplace(TStageState{
-        .SchedulingStage = schedulingStage,
-        .Timer = TWallTimer(),
+        .Stage = stage,
+        .ProfilingCounters = profilingCounters,
     });
 }
 
@@ -1299,11 +1340,6 @@ int TScheduleJobsContext::GetStageMaxSchedulingIndex() const
 bool TScheduleJobsContext::GetStagePrescheduleExecuted() const
 {
     return StageState_->PrescheduleExecuted;
-}
-
-void TScheduleJobsContext::SetDynamicAttributesListSnapshot(TDynamicAttributesListSnapshotPtr snapshot)
-{
-    DynamicAttributesListSnapshot_ = std::move(snapshot);
 }
 
 const TSchedulerElement* TScheduleJobsContext::FindPreemptionBlockingAncestor(
@@ -2206,7 +2242,7 @@ bool TScheduleJobsContext::CanSchedule(int schedulingTagFilterIndex) const
 
 EJobSchedulingStage TScheduleJobsContext::GetStageType() const
 {
-    return StageState_->SchedulingStage->Type;
+    return StageState_->Stage;
 }
 
 void TScheduleJobsContext::ProfileAndLogStatisticsOfStage()
@@ -2217,7 +2253,7 @@ void TScheduleJobsContext::ProfileAndLogStatisticsOfStage()
 
     ProfileStageStatistics();
 
-    if (StageState_->ScheduleJobAttemptCount > 0 && EnableSchedulingInfoLogging_) {
+    if (StageState_->ScheduleJobAttemptCount > 0 && SchedulingInfoLoggingEnabled_) {
         LogStageStatistics();
     }
 }
@@ -2230,7 +2266,7 @@ void TScheduleJobsContext::ProfileStageStatistics()
 
     YT_VERIFY(StageState_);
 
-    auto* profilingCounters = &StageState_->SchedulingStage->ProfilingCounters;
+    auto* profilingCounters = StageState_->ProfilingCounters;
 
     profilingCounters->PrescheduleJobTime.Record(StageState_->PrescheduleDuration);
     profilingCounters->CumulativePrescheduleJobTime.Add(StageState_->PrescheduleDuration);
@@ -2292,7 +2328,7 @@ void TScheduleJobsContext::LogStageStatistics()
     YT_LOG_DEBUG(
         "Scheduling statistics (SchedulingStage: %v, ActiveTreeSize: %v, ActiveOperationCount: %v, TotalHeapElementCount: %v, "
         "DeactivationReasons: %v, CanStartMoreJobs: %v, Address: %v, SchedulingSegment: %v, MaxSchedulingIndex: %v)",
-        StageState_->SchedulingStage->Type,
+        StageState_->Stage,
         StageState_->ActiveTreeSize,
         StageState_->ActiveOperationCount,
         StageState_->TotalHeapElementCount,
@@ -2361,7 +2397,7 @@ TFairShareTreeJobScheduler::TFairShareTreeJobScheduler(
     , OperationCountByPreemptionPriorityBufferedProducer_(New<TBufferedProducer>())
     , SchedulingSegmentManager_(TreeId_, Config_->SchedulingSegments, Logger, Profiler_)
 {
-    InitSchedulingStages();
+    InitSchedulingProfilingCounters();
 
     Profiler_.AddProducer("/operation_count_by_preemption_priority", OperationCountByPreemptionPriorityBufferedProducer_);
 
@@ -2455,164 +2491,42 @@ void TFairShareTreeJobScheduler::ProcessSchedulingHeartbeat(
     PreemptJobsGracefully(schedulingContext, treeSnapshot);
 
     if (!skipScheduleJobs) {
-        ScheduleJobs(schedulingContext, nodeState->SchedulingSegment, treeSnapshot);
+        bool enableSchedulingInfoLogging = false;
+        auto now = schedulingContext->GetNow();
+        const auto& config = treeSnapshot->TreeConfig();
+        if (LastSchedulingInformationLoggedTime_ + DurationToCpuDuration(config->HeartbeatTreeSchedulingInfoLogBackoff) < now) {
+            enableSchedulingInfoLogging = true;
+            LastSchedulingInformationLoggedTime_ = now;
+        }
+
+        TScheduleJobsContext context(
+            schedulingContext,
+            treeSnapshot,
+            now,
+            nodeState,
+            enableSchedulingInfoLogging,
+            StrategyHost_,
+            ScheduleJobsDeadlineReachedCounter_,
+            Logger);
+        ScheduleJobs(&context);
     }
 }
 
-void TFairShareTreeJobScheduler::ScheduleJobs(
-    const ISchedulingContextPtr& schedulingContext,
-    ESchedulingSegment nodeSchedulingSegment,
-    const TFairShareTreeSnapshotPtr& treeSnapshot)
+void TFairShareTreeJobScheduler::ScheduleJobs(TScheduleJobsContext* context)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     NProfiling::TWallTimer scheduleJobsTimer;
 
-    bool enableSchedulingInfoLogging = false;
-    auto now = schedulingContext->GetNow();
-    const auto& config = treeSnapshot->TreeConfig();
-    if (LastSchedulingInformationLoggedTime_ + DurationToCpuDuration(config->HeartbeatTreeSchedulingInfoLogBackoff) < now) {
-        enableSchedulingInfoLogging = true;
-        LastSchedulingInformationLoggedTime_ = now;
-    }
-
-    auto ssdPriorityPreemptionConfig = treeSnapshot->TreeConfig()->SsdPriorityPreemption;
-    bool ssdPriorityPreemptionEnabled = ssdPriorityPreemptionConfig->Enable &&
-        schedulingContext->CanSchedule(ssdPriorityPreemptionConfig->NodeTagFilter);
-    const auto& operationCountByPreemptionPriority = GetOrCrash(
-        treeSnapshot->SchedulingSnapshot()->OperationCountsByPreemptionPriorityParameters(),
-        TOperationPreemptionPriorityParameters{
-            treeSnapshot->TreeConfig()->SchedulingPreemptionPriorityScope,
-            ssdPriorityPreemptionEnabled,
-        });
-
-    // TODO(eshcherbin): Create context outside of this method to avoid passing scheduling segment as an argument.
-    TScheduleJobsContext context(
-        schedulingContext,
-        treeSnapshot,
-        treeSnapshot->SchedulingSnapshot()->KnownSchedulingTagFilters(),
-        nodeSchedulingSegment,
-        operationCountByPreemptionPriority,
-        enableSchedulingInfoLogging,
-        StrategyHost_,
-        Logger);
-
-    context.SchedulingStatistics().ResourceUsage = schedulingContext->ResourceUsage();
-    context.SchedulingStatistics().ResourceLimits = schedulingContext->ResourceLimits();
-
-    if (config->EnableResourceUsageSnapshot) {
-        if (auto snapshot = treeSnapshot->SchedulingSnapshot()->GetDynamicAttributesListSnapshot()) {
-            YT_LOG_DEBUG_IF(enableSchedulingInfoLogging, "Using dynamic attributes snapshot for job scheduling");
-
-            context.SetDynamicAttributesListSnapshot(std::move(snapshot));
-        }
-    }
-
-    // NB(eshcherbin): We check whether SSD priority preemption is enabled even if there will be no preemptive scheduling stages,
-    // because we also need to prevent scheduling jobs of production critical operations on SSD nodes.
-    context.SetSsdPriorityPreemptionEnabled(ssdPriorityPreemptionEnabled);
-    context.SsdPriorityPreemptionMedia() = treeSnapshot->SchedulingSnapshot()->SsdPriorityPreemptionMedia();
-    context.SchedulingStatistics().SsdPriorityPreemptionEnabled = context.GetSsdPriorityPreemptionEnabled();
-    context.SchedulingStatistics().SsdPriorityPreemptionMedia = context.SsdPriorityPreemptionMedia();
-
-    auto runRegularSchedulingStage = [&] (
-        EJobSchedulingStage stageType,
-        const std::optional<TNonOwningOperationElementList>& consideredOperations = {},
-        const std::optional<TJobResources>& customMinSpareJobResources = {},
-        bool ignorePacking = false,
-        bool oneJobOnly = false)
-    {
-        context.StartStage(&SchedulingStages_[stageType]);
-        ScheduleJobsWithoutPreemption(
-            treeSnapshot,
-            &context,
-            consideredOperations,
-            customMinSpareJobResources,
-            now,
-            ignorePacking,
-            oneJobOnly);
-        context.FinishStage();
-    };
-
-    if (const auto& priorityConfig = config->PrioritizedRegularScheduling) {
-        const auto& schedulableOperationsPerPriority = treeSnapshot->SchedulingSnapshot()->SchedulableOperationsPerPriority();
-        runRegularSchedulingStage(
-            EJobSchedulingStage::RegularMediumPriority,
-            schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium]);
-
-        auto customLowPriorityMinSpareJobResources = !context.SchedulingContext()->StartedJobs().empty()
-            ? std::make_optional(ToJobResources(priorityConfig->LowPriorityFallbackMinSpareJobResources, TJobResources{}))
-            : std::nullopt;
-        runRegularSchedulingStage(
-            EJobSchedulingStage::RegularLowPriority,
-            schedulableOperationsPerPriority[EOperationSchedulingPriority::Low],
-            customLowPriorityMinSpareJobResources);
-    } else {
-        runRegularSchedulingStage(EJobSchedulingStage::RegularMediumPriority);
-    }
-
-    bool needPackingFallback = schedulingContext->StartedJobs().empty() && !context.BadPackingOperations().empty();
-    if (needPackingFallback) {
-        runRegularSchedulingStage(
-            EJobSchedulingStage::RegularPackingFallback,
-            context.BadPackingOperations(),
-            /*customMinSpareJobResources*/ {},
-            /*ignorePacking*/ true,
-            /*oneJobOnly*/ true);
-    }
-
-    auto nodeId = schedulingContext->GetNodeDescriptor().Id;
-
-    bool scheduleJobsWithPreemption = false;
-    {
-        bool nodeIsMissing = false;
-        {
-            auto guard = ReaderGuard(NodeIdToLastPreemptiveSchedulingTimeLock_);
-            auto it = NodeIdToLastPreemptiveSchedulingTime_.find(nodeId);
-            if (it == NodeIdToLastPreemptiveSchedulingTime_.end()) {
-                nodeIsMissing = true;
-                scheduleJobsWithPreemption = true;
-            } else if (it->second + DurationToCpuDuration(config->PreemptiveSchedulingBackoff) <= now) {
-                scheduleJobsWithPreemption = true;
-                it->second = now;
-            }
-        }
-        if (nodeIsMissing) {
-            auto guard = WriterGuard(NodeIdToLastPreemptiveSchedulingTimeLock_);
-            NodeIdToLastPreemptiveSchedulingTime_[nodeId] = now;
-        }
-    }
-
-    context.SchedulingStatistics().ScheduleWithPreemption = scheduleJobsWithPreemption;
-    if (scheduleJobsWithPreemption) {
-        context.SchedulingStatistics().OperationCountByPreemptionPriority = operationCountByPreemptionPriority;
-
-        for (const auto& preemptiveStage : BuildPreemptiveSchedulingStageList(&context)) {
-            // We allow to schedule at most one job using preemption.
-            if (context.SchedulingStatistics().ScheduledDuringPreemption > 0) {
-                break;
-            }
-
-            context.StartStage(preemptiveStage.Stage);
-            ScheduleJobsWithPreemption(
-                treeSnapshot,
-                &context,
-                now,
-                preemptiveStage.TargetOperationPreemptionPriority,
-                preemptiveStage.MinJobPreemptionLevel,
-                preemptiveStage.ForcePreemptionAttempt);
-            context.FinishStage();
-        }
-    } else {
-        YT_LOG_DEBUG("Skip preemptive scheduling");
-    }
+    DoRegularJobScheduling(context);
+    DoPreemptiveJobScheduling(context);
 
     // Interrupt some jobs if usage is greater that limit.
-    if (schedulingContext->ShouldAbortJobsSinceResourcesOvercommit()) {
-        context.AbortJobsSinceResourcesOvercommit();
+    if (context->SchedulingContext()->ShouldAbortJobsSinceResourcesOvercommit()) {
+        context->AbortJobsSinceResourcesOvercommit();
     }
 
-    schedulingContext->SetSchedulingStatistics(context.SchedulingStatistics());
+    context->SchedulingContext()->SetSchedulingStatistics(context->SchedulingStatistics());
 
     auto elapsedTime = scheduleJobsTimer.GetElapsedTime();
     CumulativeScheduleJobsTime_.Add(elapsedTime);
@@ -3152,14 +3066,10 @@ EJobPreemptionStatus TFairShareTreeJobScheduler::GetJobPreemptionStatusInTest(co
     return operationSharedState->GetJobPreemptionStatus(jobId);
 }
 
-// TODO(eshcherbin): Refactor regular scheduling stages alike preemptive scheduling stages and initialize all of them here.
-void TFairShareTreeJobScheduler::InitSchedulingStages()
+void TFairShareTreeJobScheduler::InitSchedulingProfilingCounters()
 {
     for (auto stage : TEnumTraits<EJobSchedulingStage>::GetDomainValues()) {
-        SchedulingStages_[stage] = TScheduleJobsStage{
-            .Type = stage,
-            .ProfilingCounters = TScheduleJobsProfilingCounters(Profiler_.WithTag("scheduling_stage", FormatEnum(stage))),
-        };
+        SchedulingStageProfilingCounters_[stage] = TSchedulingStageProfilingCounters(Profiler_.WithTag("scheduling_stage", FormatEnum(stage)));
     }
 }
 
@@ -3191,90 +3101,155 @@ TRunningJobStatistics TFairShareTreeJobScheduler::ComputeRunningJobStatistics(
     return runningJobStatistics;
 }
 
-TPreemptiveScheduleJobsStageList TFairShareTreeJobScheduler::BuildPreemptiveSchedulingStageList(TScheduleJobsContext* context)
+void TFairShareTreeJobScheduler::DoRegularJobScheduling(TScheduleJobsContext* context)
 {
-    TPreemptiveScheduleJobsStageList preemptiveStages;
+    auto runRegularSchedulingStage = [&] (EJobSchedulingStage stageType, const TRegularSchedulingParameters& parameters = {}) {
+        context->StartStage(stageType, &SchedulingStageProfilingCounters_[stageType]);
+        RunRegularSchedulingStage(parameters, context);
+        context->FinishStage();
+    };
 
-    if (context->GetSsdPriorityPreemptionEnabled()) {
-        preemptiveStages.push_back(TPreemptiveScheduleJobsStage{
-            .Stage = &SchedulingStages_[EJobSchedulingStage::PreemptiveSsdAggressive],
-            .TargetOperationPreemptionPriority = EOperationPreemptionPriority::SsdAggressive,
-            .MinJobPreemptionLevel = EJobPreemptionLevel::SsdAggressivelyPreemptible,
-        });
-        preemptiveStages.push_back(TPreemptiveScheduleJobsStage{
-            .Stage = &SchedulingStages_[EJobSchedulingStage::PreemptiveSsdNormal],
-            .TargetOperationPreemptionPriority = EOperationPreemptionPriority::SsdNormal,
-            .MinJobPreemptionLevel = EJobPreemptionLevel::NonPreemptible,
-        });
+    if (const auto& priorityConfig = context->TreeSnapshot()->TreeConfig()->PrioritizedRegularScheduling) {
+        const auto& schedulableOperationsPerPriority = context->TreeSnapshot()->SchedulingSnapshot()->SchedulableOperationsPerPriority();
+        runRegularSchedulingStage(
+            EJobSchedulingStage::RegularMediumPriority,
+            TRegularSchedulingParameters{
+                .ConsideredOperations = schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium],
+            });
+
+        auto customLowPriorityMinSpareJobResources = !context->SchedulingContext()->StartedJobs().empty()
+            ? std::make_optional(ToJobResources(priorityConfig->LowPriorityFallbackMinSpareJobResources, TJobResources{}))
+            : std::nullopt;
+        runRegularSchedulingStage(
+            EJobSchedulingStage::RegularLowPriority,
+            TRegularSchedulingParameters{
+                .ConsideredOperations = schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium],
+                .CustomMinSpareJobResources = customLowPriorityMinSpareJobResources,
+            });
+    } else {
+        runRegularSchedulingStage(EJobSchedulingStage::RegularMediumPriority);
     }
 
-    preemptiveStages.push_back(TPreemptiveScheduleJobsStage{
-        .Stage = &SchedulingStages_[EJobSchedulingStage::PreemptiveAggressive],
-        .TargetOperationPreemptionPriority = EOperationPreemptionPriority::Aggressive,
-        .MinJobPreemptionLevel = EJobPreemptionLevel::AggressivelyPreemptible,
-    });
-    preemptiveStages.push_back(TPreemptiveScheduleJobsStage{
-        .Stage = &SchedulingStages_[EJobSchedulingStage::PreemptiveNormal],
-        .TargetOperationPreemptionPriority = EOperationPreemptionPriority::Normal,
-        .MinJobPreemptionLevel = EJobPreemptionLevel::Preemptible,
-        .ForcePreemptionAttempt = true,
-    });
-
-    return preemptiveStages;
+    auto badPackingOperations = context->ExtractBadPackingOperations();
+    bool needPackingFallback = context->SchedulingContext()->StartedJobs().empty() && !badPackingOperations.empty();
+    if (needPackingFallback) {
+        runRegularSchedulingStage(
+            EJobSchedulingStage::RegularPackingFallback,
+            TRegularSchedulingParameters{
+                .ConsideredOperations = badPackingOperations,
+                .IgnorePacking = true,
+                .OneJobOnly = true,
+            });
+    }
 }
 
-void TFairShareTreeJobScheduler::ScheduleJobsWithoutPreemption(
-    const TFairShareTreeSnapshotPtr& treeSnapshot,
-    TScheduleJobsContext* context,
-    const std::optional<TNonOwningOperationElementList>& consideredOperations,
-    const std::optional<TJobResources>& customMinSpareJobResources,
-    TCpuInstant startTime,
-    bool ignorePacking,
-    bool oneJobOnly)
+void TFairShareTreeJobScheduler::DoPreemptiveJobScheduling(TScheduleJobsContext* context)
 {
-    const auto& controllerConfig = treeSnapshot->ControllerConfig();
-
+    auto nodeId = context->SchedulingContext()->GetNodeDescriptor().Id;
+    bool scheduleJobsWithPreemption = false;
     {
-        TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(controllerConfig->ScheduleJobsTimeout);
-
-        while (
-            context->SchedulingContext()->CanStartMoreJobs(customMinSpareJobResources) &&
-            context->SchedulingContext()->GetNow() < schedulingDeadline)
+        bool nodeIsMissing = false;
         {
-            if (!context->GetStagePrescheduleExecuted()) {
-                context->PrepareForScheduling();
-                context->PrescheduleJob(consideredOperations);
-            }
-            auto scheduleJobResult = context->ScheduleJob(ignorePacking);
-            if (scheduleJobResult.Finished || (oneJobOnly && scheduleJobResult.Scheduled)) {
-                break;
+            auto guard = ReaderGuard(NodeIdToLastPreemptiveSchedulingTimeLock_);
+
+            auto backoff = DurationToCpuDuration(context->TreeSnapshot()->TreeConfig()->PreemptiveSchedulingBackoff);
+            auto it = NodeIdToLastPreemptiveSchedulingTime_.find(nodeId);
+            if (it == NodeIdToLastPreemptiveSchedulingTime_.end()) {
+                nodeIsMissing = true;
+                scheduleJobsWithPreemption = true;
+            } else if (it->second + backoff <= context->GetNow()) {
+                scheduleJobsWithPreemption = true;
+                it->second = context->GetNow();
             }
         }
 
-        if (context->SchedulingContext()->GetNow() >= schedulingDeadline) {
-            ScheduleJobsDeadlineReachedCounter_.Increment();
+        if (nodeIsMissing) {
+            auto guard = WriterGuard(NodeIdToLastPreemptiveSchedulingTimeLock_);
+            NodeIdToLastPreemptiveSchedulingTime_[nodeId] = context->GetNow();
+        }
+    }
+
+    context->SchedulingStatistics().ScheduleWithPreemption = scheduleJobsWithPreemption;
+    if (!scheduleJobsWithPreemption) {
+        YT_LOG_DEBUG("Skip preemptive scheduling");
+        return;
+    }
+
+    for (const auto& [stage, parameters] : BuildPreemptiveSchedulingStageList(context)) {
+        // We allow to schedule at most one job using preemption.
+        if (context->SchedulingStatistics().ScheduledDuringPreemption > 0) {
+            break;
+        }
+
+        context->StartStage(stage, &SchedulingStageProfilingCounters_[stage]);
+        RunPreemptiveSchedulingStage(parameters, context);
+        context->FinishStage();
+    }
+}
+
+TPreemptiveStageWithParametersList TFairShareTreeJobScheduler::BuildPreemptiveSchedulingStageList(TScheduleJobsContext* context)
+{
+    TPreemptiveStageWithParametersList stages;
+
+    if (context->GetSsdPriorityPreemptionEnabled()) {
+        stages.emplace_back(
+            EJobSchedulingStage::PreemptiveSsdAggressive,
+            TPreemptiveSchedulingParameters{
+                .TargetOperationPreemptionPriority = EOperationPreemptionPriority::SsdAggressive,
+                .MinJobPreemptionLevel = EJobPreemptionLevel::SsdAggressivelyPreemptible,
+            });
+        stages.emplace_back(
+            EJobSchedulingStage::PreemptiveSsdNormal,
+            TPreemptiveSchedulingParameters{
+                .TargetOperationPreemptionPriority = EOperationPreemptionPriority::SsdNormal,
+                .MinJobPreemptionLevel = EJobPreemptionLevel::NonPreemptible,
+            });
+    }
+
+    stages.emplace_back(
+        EJobSchedulingStage::PreemptiveAggressive,
+        TPreemptiveSchedulingParameters{
+            .TargetOperationPreemptionPriority = EOperationPreemptionPriority::Aggressive,
+            .MinJobPreemptionLevel = EJobPreemptionLevel::AggressivelyPreemptible,
+        });
+    stages.emplace_back(
+        EJobSchedulingStage::PreemptiveNormal,
+        TPreemptiveSchedulingParameters{
+            .TargetOperationPreemptionPriority = EOperationPreemptionPriority::Normal,
+            .MinJobPreemptionLevel = EJobPreemptionLevel::Preemptible,
+            .ForcePreemptionAttempt = true,
+        });
+
+    return stages;
+}
+
+void TFairShareTreeJobScheduler::RunRegularSchedulingStage(const TRegularSchedulingParameters& parameters, TScheduleJobsContext* context)
+{
+    while (context->ShouldContinueScheduling(parameters.CustomMinSpareJobResources)) {
+        if (!context->GetStagePrescheduleExecuted()) {
+            context->PrepareForScheduling();
+            context->PrescheduleJob(parameters.ConsideredOperations);
+        }
+
+        auto scheduleJobResult = context->ScheduleJob(parameters.IgnorePacking);
+        if (scheduleJobResult.Finished || (parameters.OneJobOnly && scheduleJobResult.Scheduled)) {
+            break;
         }
     }
 
     context->SchedulingStatistics().MaxNonPreemptiveSchedulingIndex = context->GetStageMaxSchedulingIndex();
 }
 
-// TODO(eshcherbin): Maybe receive a set of preemptible job levels instead of max level.
-void TFairShareTreeJobScheduler::ScheduleJobsWithPreemption(
-    const TFairShareTreeSnapshotPtr& treeSnapshot,
-    TScheduleJobsContext* context,
-    TCpuInstant startTime,
-    EOperationPreemptionPriority targetOperationPreemptionPriority,
-    EJobPreemptionLevel minJobPreemptionLevel,
-    bool forcePreemptionAttempt)
+void TFairShareTreeJobScheduler::RunPreemptiveSchedulingStage(const TPreemptiveSchedulingParameters& parameters, TScheduleJobsContext* context)
 {
-    YT_VERIFY(targetOperationPreemptionPriority != EOperationPreemptionPriority::None);
+    YT_VERIFY(parameters.TargetOperationPreemptionPriority != EOperationPreemptionPriority::None);
 
     // NB(eshcherbin): We might want to analyze jobs and attempt preemption even if there are no candidate operations of target priority.
     // For example, we preempt jobs in pools or operations which exceed their specified resource limits.
-    auto operationWithPreemptionPriorityCount = context->GetOperationWithPreemptionPriorityCount(targetOperationPreemptionPriority);
+    auto operationWithPreemptionPriorityCount = context->GetOperationWithPreemptionPriorityCount(
+        parameters.TargetOperationPreemptionPriority);
     bool shouldAttemptScheduling = operationWithPreemptionPriorityCount > 0;
-    bool shouldAttemptPreemption = forcePreemptionAttempt || shouldAttemptScheduling;
+    bool shouldAttemptPreemption = parameters.ForcePreemptionAttempt || shouldAttemptScheduling;
     if (!shouldAttemptPreemption) {
         return;
     }
@@ -3287,8 +3262,8 @@ void TFairShareTreeJobScheduler::ScheduleJobsWithPreemption(
     std::vector<TJobWithPreemptionInfo> unconditionallyPreemptibleJobs;
     TNonOwningJobSet forcefullyPreemptibleJobs;
     context->AnalyzePreemptibleJobs(
-        targetOperationPreemptionPriority,
-        minJobPreemptionLevel,
+        parameters.TargetOperationPreemptionPriority,
+        parameters.MinJobPreemptionLevel,
         &unconditionallyPreemptibleJobs,
         &forcefullyPreemptibleJobs);
 
@@ -3302,17 +3277,13 @@ void TFairShareTreeJobScheduler::ScheduleJobsWithPreemption(
             "(UnconditionallyPreemptibleJobs: %v, UnconditionalResourceUsageDiscount: %v, TargetOperationPreemptionPriority: %v)",
             unconditionallyPreemptibleJobs,
             FormatResources(context->SchedulingContext()->UnconditionalResourceUsageDiscount()),
-            targetOperationPreemptionPriority);
+            parameters.TargetOperationPreemptionPriority);
 
-        const auto& controllerConfig = treeSnapshot->ControllerConfig();
-        TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(controllerConfig->ScheduleJobsTimeout);
-
-        while (context->SchedulingContext()->CanStartMoreJobs() && context->SchedulingContext()->GetNow() < schedulingDeadline)
-        {
+        while (context->ShouldContinueScheduling()) {
             if (!context->GetStagePrescheduleExecuted()) {
                 context->PrescheduleJob(
                     /*consideredSchedulableOperations*/ std::nullopt,
-                    targetOperationPreemptionPriority);
+                    parameters.TargetOperationPreemptionPriority);
             }
 
             auto scheduleJobResult = context->ScheduleJob(/*ignorePacking*/ true);
@@ -3324,17 +3295,13 @@ void TFairShareTreeJobScheduler::ScheduleJobsWithPreemption(
                 break;
             }
         }
-
-        if (context->SchedulingContext()->GetNow() >= schedulingDeadline) {
-            ScheduleJobsDeadlineReachedCounter_.Increment();
-        }
     }
 
     int startedAfterPreemption = context->SchedulingContext()->StartedJobs().size();
     context->SchedulingStatistics().ScheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
 
     context->PreemptJobsAfterScheduling(
-        targetOperationPreemptionPriority,
+        parameters.TargetOperationPreemptionPriority,
         std::move(unconditionallyPreemptibleJobs),
         forcefullyPreemptibleJobs,
         jobStartedUsingPreemption);
