@@ -2946,6 +2946,48 @@ class TestChaos(ChaosTestBase):
             for tablet_index in range(tablet_count):
                 _check(tablet_index, values[tablet_index])
 
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("mode", ["data/ordered", "ordered/replication_log"])
+    def test_content_type_incompatibility(self, mode):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        content_type = "queue" if mode == "ordered/replication_log" else "data"
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": content_type, "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, create_replica_tables=False, sync_replication_era=False)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        if mode == "ordered/replication_log":
+            self._create_replica_tables(replicas[:1], replica_ids[:1], ordered=True)
+            self._create_replica_tables(replicas[1:], replica_ids[1:])
+        else:
+            self._create_replica_tables(replicas[:1], replica_ids[:1])
+            self._create_replica_tables(replicas[1:], replica_ids[1:], ordered=True)
+
+        self._sync_replication_era(card_id, replicas)
+
+        def _values():
+            if mode == "ordered/replication_log":
+                return [{"key": 0, "value": "0"}]
+            else:
+                return [{"key": 0, "value": "0", "$tablet_index": 0}]
+
+        insert_rows("//tmp/q", _values())
+
+        def _check():
+            tablet_infos = get_tablet_infos("//tmp/t", [0], request_errors=True)
+            errors = tablet_infos["tablets"][0]["tablet_errors"]
+            if len(errors) == 0 or errors[0]["attributes"]["background_activity"] != "pull":
+                return False
+            message = errors[0]["message"]
+            if message.startswith("Table schemas are incompatible"):
+                return True
+            return False
+        wait(_check)
+
     @authors("savrus")
     @pytest.mark.parametrize("schemas", [
         ("sorted_simple", "sorted_value2"),
