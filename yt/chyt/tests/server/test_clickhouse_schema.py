@@ -344,15 +344,26 @@ class TestClickHouseSchema(ClickHouseTestBase):
             query = "select * from concatYtTables('//tmp/t1', '//tmp/t2') order by a"
             assert clique.make_query(query, settings=settings) == expected_data
 
-    @authors("max42")
+    @authors("max42", "dakovalkov")
     def test_nulls_in_primary_key(self):
-        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
 
         content = [{"a": None}, {"a": -1}, {"a": 42}]
-        write_table("//tmp/t", content)
+        write_table("//tmp/t1", content)
+
+        # CHYT-957
+        create("table", "//tmp/t2", attributes={"schema": [
+            {"name": "b", "type": "int64", "sort_order": "ascending"},
+            {"name": "a", "type": "int64", "sort_order": "ascending"},
+        ]})
+        write_table("//tmp/t2", [
+            {"b": 1, "a": -1},
+            {"b": 2, "a": None},
+            {"b": 3, "a": 42},
+        ])
 
         with Clique(1) as clique:
-            for source in ['"//tmp/t"', "concatYtTables('//tmp/t')"]:
-                assert clique.make_query("select * from {}".format(source)) == content
-                assert clique.make_query("select * from {} where isNull(a)".format(source)) == [{"a": None}]
-                assert clique.make_query("select * from {} where isNotNull(a)".format(source)) == [{"a": -1}, {"a": 42}]
+            for source in ['"//tmp/t1"', '"//tmp/t2"', "concatYtTables('//tmp/t1')"]:
+                assert clique.make_query("select a from {} order by a nulls first".format(source)) == content
+                assert clique.make_query("select a from {} where isNull(a)".format(source)) == [{"a": None}]
+                assert clique.make_query("select a from {} where isNotNull(a)".format(source)) == [{"a": -1}, {"a": 42}]
