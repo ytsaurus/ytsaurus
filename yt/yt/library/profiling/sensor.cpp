@@ -125,13 +125,17 @@ TEventTimerGuard::~TEventTimerGuard()
         return;
     }
 
-    auto duration = CpuDurationToDuration(GetCpuInstant() - StartTime_);
+    auto duration = GetElapsedTime();
     if (Timer_) {
         Timer_.Record(duration);
     }
     if (TimeGauge_) {
         TimeGauge_.Update(duration);
     }
+}
+
+TDuration TEventTimerGuard::GetElapsedTime() const {
+    return CpuDurationToDuration(GetCpuInstant() - StartTime_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

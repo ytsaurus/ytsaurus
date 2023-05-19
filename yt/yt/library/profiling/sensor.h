@@ -123,6 +123,8 @@ public:
     TEventTimerGuard(TEventTimerGuard&& other) = default;
     ~TEventTimerGuard();
 
+    TDuration GetElapsedTime() const;
+
 private:
     TEventTimer Timer_;
     TTimeGauge TimeGauge_;

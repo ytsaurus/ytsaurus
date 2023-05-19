@@ -55,6 +55,8 @@
 
 #include <yt/yt/core/misc/finally.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <yt/yt/core/utilex/random.h>
 
 namespace NYT::NTabletNode {
@@ -65,6 +67,7 @@ using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NHydra;
@@ -166,6 +169,7 @@ private:
     void FiberMain()
     {
         while (true) {
+            TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("TableReplicator"));
             NProfiling::TWallTimer timer;
             FiberIteration();
             TDelayedExecutor::WaitForDuration(MountConfig_->ReplicationTickPeriod - timer.GetElapsedTime());
@@ -204,25 +208,34 @@ private:
                 }
             });
 
+            std::optional<TDuration> ThrottleTime;
+            std::optional<TDuration> RelativeThrottleTime;
+            std::optional<TDuration> TransactionStartTime;
+            std::optional<TDuration> TransactionCommitTime;
+            std::optional<TDuration> RowsReadTime;
+            std::optional<TDuration> RowsWriteTime;
+
             {
                 auto throttleFuture = Throttler_->Throttle(1);
                 if (!throttleFuture.IsSet()) {
-                    TEventTimerGuard timerGuard(counters.ReplicationTransactionCommitTime);
+                    TEventTimerGuard timerGuard(counters.ReplicationThrottleTime);
                     YT_LOG_DEBUG("Started waiting for replication throttling");
                     WaitFor(throttleFuture)
                         .ThrowOnError();
                     YT_LOG_DEBUG("Finished waiting for replication throttling");
+                    ThrottleTime = timerGuard.GetElapsedTime();
                 }
             }
 
             {
                 auto throttleFuture = RelativeThrottler_->Throttle();
                 if (!throttleFuture.IsSet()) {
-                    TEventTimerGuard timerGuard(counters.ReplicationTransactionCommitTime);
+                    TEventTimerGuard timerGuard(counters.ReplicationThrottleTime);
                     YT_LOG_DEBUG("Started waiting for relative replication throttling");
                     WaitFor(throttleFuture)
                         .ThrowOnError();
                     YT_LOG_DEBUG("Finished waiting for relative replication throttling");
+                    RelativeThrottleTime = timerGuard.GetElapsedTime();
                 }
             }
 
@@ -316,6 +329,7 @@ private:
 
                 YT_LOG_DEBUG("Replication transactions started (TransactionId: %v)",
                     localTransaction->GetId());
+                TransactionStartTime = timerGuard.GetElapsedTime();
             }
 
             TRowBufferPtr rowBuffer;
@@ -369,6 +383,8 @@ private:
                     startRowIndex = *startRowIndexOrNullopt;
                     YT_VERIFY(readReplicationBatch());
                 }
+
+                RowsReadTime = timerGuard.GetElapsedTime();
             }
 
             RelativeThrottler_->OnReplicationBatchProcessed(newReplicationTimestamp);
@@ -389,6 +405,8 @@ private:
                     NameTable_,
                     MakeSharedRange(std::move(replicationRows), std::move(rowBuffer)),
                     options);
+
+                RowsWriteTime = timerGuard.GetElapsedTime();
             }
 
             {
@@ -419,6 +437,7 @@ private:
                     .ThrowOnError();
 
                 YT_LOG_DEBUG("Finished committing replication transaction");
+                TransactionCommitTime = timerGuard.GetElapsedTime();
             }
 
             if (lastReplicationTimestamp > newReplicationTimestamp) {
@@ -434,6 +453,16 @@ private:
             counters.ReplicationBatchDataWeight.Record(batchDataWeight);
             counters.ReplicationRowCount.Increment(batchRowCount);
             counters.ReplicationDataWeight.Increment(batchDataWeight);
+            YT_LOG_DEBUG("Rows replicated (RowCount: %v, DataWeigth: %v, ThrottleTime: %v, RelativeThrottleTime: %v, "
+                "TransactionStartTime: %v, RowsReadTime: %v, RowsWriteTime: %v, TransactionCommitTime: %v)",
+                batchRowCount,
+                batchDataWeight,
+                ThrottleTime,
+                RelativeThrottleTime,
+                TransactionStartTime,
+                RowsReadTime,
+                RowsWriteTime,
+                TransactionCommitTime);
         } catch (const std::exception& ex) {
             TError error(ex);
             if (replicaSnapshot) {
