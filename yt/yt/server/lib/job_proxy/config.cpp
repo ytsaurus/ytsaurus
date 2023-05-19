@@ -23,6 +23,11 @@ void TJobThrottlerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("rps_prefetch", &TThis::RpsPrefetch)
         .DefaultNew();
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->BandwidthPrefetch->MaxPrefetchAmount = 16_MB;
+        config->RpsPrefetch->MaxPrefetchAmount = 20;
+    });
 }
 
 void TCoreWatcherConfig::Register(TRegistrar registrar)
