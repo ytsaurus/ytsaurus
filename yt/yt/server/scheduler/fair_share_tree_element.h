@@ -476,6 +476,7 @@ public:
     virtual std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const = 0;
 
     //! Schedule jobs related methods.
+    bool ShouldUseFifoSchedulingOrder() const;
     bool HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
 
     NYPath::TYPath GetFullPath(bool explicitOnly, bool withTreeId = true) const;

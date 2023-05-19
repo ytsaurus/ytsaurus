@@ -220,14 +220,6 @@ bool IsRegularPreemptionAllowed(const TSchedulerElement* element)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ShouldUseFifoSchedulingOrder(const TSchedulerCompositeElement* element)
-{
-    return element->GetMode() == ESchedulingMode::Fifo &&
-        element->GetEffectiveFifoPoolSchedulingOrder() == EFifoPoolSchedulingOrder::Fifo;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -239,7 +231,7 @@ TSchedulableChildSet::TSchedulableChildSet(
     bool useHeap)
     : OwningElement_(owningElement)
     , DynamicAttributesList_(dynamicAttributesList)
-    , UseFifoSchedulingOrder_(ShouldUseFifoSchedulingOrder(OwningElement_))
+    , UseFifoSchedulingOrder_(OwningElement_->ShouldUseFifoSchedulingOrder())
     , UseHeap_(useHeap)
     , Children_(std::move(children))
 {
@@ -635,7 +627,7 @@ TSchedulerElement* TDynamicAttributesManager::GetBestActiveChild(TSchedulerCompo
     }
 
     // COMPAT(eshcherbin)
-    if (ShouldUseFifoSchedulingOrder(element)) {
+    if (element->ShouldUseFifoSchedulingOrder()) {
         return GetBestActiveChildFifo(element);
     }
 

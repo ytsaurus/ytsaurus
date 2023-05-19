@@ -811,14 +811,11 @@ void TSchedulerCompositeElement::ComputeSatisfactionRatioAtUpdate()
     TSchedulerElement::ComputeSatisfactionRatioAtUpdate();
 
     auto isBetterChild = [&] (const TSchedulerElement* lhs, const TSchedulerElement* rhs) {
-        switch (GetMode()) {
-            case ESchedulingMode::Fifo:
-                return HasHigherPriorityInFifoMode(lhs, rhs);
-            case ESchedulingMode::FairShare:
-                return lhs->PostUpdateAttributes().SatisfactionRatio < rhs->PostUpdateAttributes().SatisfactionRatio;
-            default:
-                YT_ABORT();
+        if (ShouldUseFifoSchedulingOrder()) {
+            return HasHigherPriorityInFifoMode(lhs, rhs);
         }
+
+        return lhs->PostUpdateAttributes().SatisfactionRatio < rhs->PostUpdateAttributes().SatisfactionRatio;
     };
 
     TSchedulerElement* bestChild = nullptr;
@@ -834,8 +831,15 @@ void TSchedulerCompositeElement::ComputeSatisfactionRatioAtUpdate()
         }
     }
 
-    if (bestChild) {
-        PostUpdateAttributes_.SatisfactionRatio = std::min(bestChild->PostUpdateAttributes().SatisfactionRatio, PostUpdateAttributes_.SatisfactionRatio);
+    if (!bestChild) {
+        return;
+    }
+
+    PostUpdateAttributes_.SatisfactionRatio = bestChild->PostUpdateAttributes().SatisfactionRatio;
+    if (EffectiveUsePoolSatisfactionForScheduling_) {
+        PostUpdateAttributes_.SatisfactionRatio  = std::min(
+            PostUpdateAttributes_.SatisfactionRatio,
+            PostUpdateAttributes_.LocalSatisfactionRatio);
     }
 }
 
@@ -1051,6 +1055,12 @@ bool TSchedulerCompositeElement::ContainsChild(
     const TSchedulerElementPtr& child)
 {
     return map.find(child) != map.end();
+}
+
+bool TSchedulerCompositeElement::ShouldUseFifoSchedulingOrder() const
+{
+    return Mode_ == ESchedulingMode::Fifo &&
+        EffectiveFifoPoolSchedulingOrder_ == EFifoPoolSchedulingOrder::Fifo;
 }
 
 bool TSchedulerCompositeElement::HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const
@@ -2243,11 +2253,11 @@ void TSchedulerRootElement::PostUpdate(TFairSharePostUpdateContext* postUpdateCo
     YT_VERIFY(schedulableElementCount == SchedulableElementCount_);
     TreeSize_ = EnumerateElements(/*startIndex*/ schedulableElementCount, /*isSchedulableValueFilter*/ false);
 
-    ComputeSatisfactionRatioAtUpdate();
-
     BuildElementMapping(postUpdateContext);
 
     UpdateEffectiveRecursiveAttributes();
+
+    ComputeSatisfactionRatioAtUpdate();
 }
 
 const TSchedulingTagFilter& TSchedulerRootElement::GetSchedulingTagFilter() const
