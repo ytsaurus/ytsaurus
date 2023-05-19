@@ -80,6 +80,7 @@ extern const TString EmptyCpuSet;
 
 DECLARE_REFCOUNTED_CLASS(TSlotLocationConfig)
 DECLARE_REFCOUNTED_CLASS(TNumaNodeConfig)
+DECLARE_REFCOUNTED_CLASS(TJobThrashingDetectorConfig)
 DECLARE_REFCOUNTED_CLASS(TJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TSimpleJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TTestingJobEnvironmentConfig)

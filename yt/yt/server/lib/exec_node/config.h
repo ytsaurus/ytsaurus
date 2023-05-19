@@ -20,6 +20,26 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobThrashingDetectorConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enabled;
+
+    TDuration CheckPeriod;
+
+    int MajorPageFaultCountLimit;
+
+    // Job will be aborted upon violating MajorPageFaultCountLimit this number of times in a row.
+    int LimitOverflowCountThresholdToAbortJob;
+
+    REGISTER_YSON_STRUCT(TJobThrashingDetectorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobThrashingDetectorConfig)
+
 //! Describes configuration of a single environment.
 class TJobEnvironmentConfig
     : public virtual NYTree::TYsonStruct
@@ -32,6 +52,8 @@ public:
     int StartUid;
 
     TDuration MemoryWatchdogPeriod;
+
+    TJobThrashingDetectorConfigPtr JobThrashingDetector;
 
     REGISTER_YSON_STRUCT(TJobEnvironmentConfig);
 

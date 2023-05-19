@@ -9,6 +9,20 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobThrashingDetectorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(false);
+    registrar.Parameter("check_period", &TThis::CheckPeriod)
+        .Default(TDuration::Seconds(60));
+    registrar.Parameter("major_page_fault_count_threshold", &TThis::MajorPageFaultCountLimit)
+        .Default(500);
+    registrar.Parameter("limit_overflow_count_threshold_to_abort_job", &TThis::LimitOverflowCountThresholdToAbortJob)
+        .Default(5);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobEnvironmentConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("type", &TThis::Type)
@@ -19,6 +33,9 @@ void TJobEnvironmentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("memory_watchdog_period", &TThis::MemoryWatchdogPeriod)
         .Default(TDuration::Seconds(1));
+
+    registrar.Parameter("job_thrashing_detector", &TThis::JobThrashingDetector)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

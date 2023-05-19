@@ -15,7 +15,7 @@ class TSupervisorServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TSupervisorServiceProxy, SupervisorService,
-        .SetProtocolVersion(3));
+        .SetProtocolVersion(4));
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetJobSpec);
     DEFINE_RPC_PROXY_METHOD(NProto, OnJobProxySpawned);
@@ -28,6 +28,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, UpdateResourceUsage);
     DEFINE_RPC_PROXY_METHOD(NProto, ThrottleJob);
     DEFINE_RPC_PROXY_METHOD(NProto, PollThrottlingRequest);
+    DEFINE_RPC_PROXY_METHOD(NProto, OnJobMemoryThrashing);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

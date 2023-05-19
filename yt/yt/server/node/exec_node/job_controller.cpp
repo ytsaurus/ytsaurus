@@ -431,6 +431,15 @@ public:
         }
     }
 
+    void OnJobMemoryThrashing(TJobId jobId) override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        auto job = GetJobOrThrow(jobId);
+        job->Abort(TError("Aborting job due to extensive memory thrashing in job container")
+            << TErrorAttribute("abort_reason", NScheduler::EAbortReason::JobMemoryThrashing));
+    }
+
     TFuture<void> RemoveSchedulerJobs() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);

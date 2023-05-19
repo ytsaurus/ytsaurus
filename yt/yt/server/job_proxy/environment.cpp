@@ -445,6 +445,11 @@ public:
         return true;
     }
 
+    i64 GetMajorPageFaultCount() const override
+    {
+        return GetUserJobInstance()->GetMajorPageFaultCount();
+    }
+
 private:
     const TJobId JobId_;
     const TPortoJobEnvironmentConfigPtr Config_;
@@ -643,6 +648,11 @@ public:
         return emptyEnvironment;
     }
 
+    i64 GetMajorPageFaultCount() const override
+    {
+        return 0;
+    }
+
 private:
     TAtomicIntrusivePtr<TProcessBase> Process_;
 };
@@ -707,6 +717,70 @@ DEFINE_REFCOUNTED_TYPE(TSimpleJobProxyEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTestingUserJobEnvironment
+    : public TSimpleUserJobEnvironment
+{
+public:
+    TTestingUserJobEnvironment(
+        TTestingJobEnvironmentConfigPtr config)
+        : Config_(std::move(config))
+    { }
+
+    i64 GetMajorPageFaultCount() const override
+    {
+        if (Config_->TestingJobEnvironmentScenario == ETestingJobEnvironmentScenario::IncreasingMajorPageFaultCount) {
+            MajorPageFaultCount_ += 1000;
+        }
+
+        return MajorPageFaultCount_;
+    }
+
+private:
+    const TTestingJobEnvironmentConfigPtr Config_;
+
+    mutable i64 MajorPageFaultCount_ = 0;
+};
+
+DECLARE_REFCOUNTED_CLASS(TTestingUserJobEnvironment)
+DEFINE_REFCOUNTED_TYPE(TTestingUserJobEnvironment)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTestingJobProxyEnvironment
+    : public TSimpleJobProxyEnvironment
+{
+public:
+    TTestingJobProxyEnvironment(
+        TTestingJobEnvironmentConfigPtr config)
+        : Config_(std::move(config))
+    { }
+
+    IUserJobEnvironmentPtr CreateUserJobEnvironment(
+        TGuid /* jobId */,
+        const TUserJobEnvironmentOptions& options) override
+    {
+        if (options.RootFS) {
+            THROW_ERROR_EXCEPTION("Root FS isolation is not supported in testing job environment");
+        }
+
+        if (!options.GpuDevices.empty()) {
+            // This could only happen in tests, e.g. TestSchedulerGpu.
+            YT_LOG_WARNING("GPU devices are not supported in testing job environment");
+        }
+
+        if (options.EnablePortoMemoryTracking) {
+            THROW_ERROR_EXCEPTION("Porto memory tracking is not supported in testing job environment");
+        }
+
+        return New<TTestingUserJobEnvironment>(Config_);
+    }
+
+private:
+    const TTestingJobEnvironmentConfigPtr Config_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(NYTree::INodePtr config)
 {
     auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(config);
@@ -718,6 +792,9 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(NYTree::INodePtr config)
 
         case EJobEnvironmentType::Simple:
             return New<TSimpleJobProxyEnvironment>();
+
+        case EJobEnvironmentType::Testing:
+            return New<TTestingJobProxyEnvironment>(ConvertTo<TTestingJobEnvironmentConfigPtr>(config));
 
         default:
             THROW_ERROR_EXCEPTION("Unable to create resource controller for %Qlv environment",

@@ -82,6 +82,8 @@ struct IJobHost
         const TString& artifactPath,
         const TError& error) = 0;
 
+    virtual void OnJobMemoryThrashing() = 0;
+
     virtual NChunkClient::TChunkReaderHostPtr GetChunkReaderHost() const = 0;
 
     virtual NChunkClient::IBlockCachePtr GetReaderBlockCache() const = 0;

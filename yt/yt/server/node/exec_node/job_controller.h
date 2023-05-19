@@ -96,6 +96,8 @@ public:
 
     virtual void OnAgentIncarnationOutdated(const TControllerAgentDescriptor& controllerAgentDescriptor) = 0;
 
+    virtual void OnJobMemoryThrashing(TJobId jobId) = 0;
+
     DECLARE_INTERFACE_SIGNAL(void(const TJobPtr&), JobRegistered);
     DECLARE_INTERFACE_SIGNAL(
         void(TAllocationId, TOperationId, const TControllerAgentDescriptor&, const TError&),

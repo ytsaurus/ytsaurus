@@ -74,6 +74,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollThrottlingRequest)
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobMemoryThrashing));
     }
 
 private:
@@ -399,6 +400,17 @@ private:
         }
         response->set_completed(optionalResult.has_value());
         context->SetResponseInfo("Completed: %v", response->completed());
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, OnJobMemoryThrashing)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        Bootstrap_->GetJobController()->OnJobMemoryThrashing(jobId);
+
         context->Reply();
     }
 };

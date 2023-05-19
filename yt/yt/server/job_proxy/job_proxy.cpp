@@ -1168,6 +1168,15 @@ void TJobProxy::OnArtifactPreparationFailed(
         .ThrowOnError();
 }
 
+void TJobProxy::OnJobMemoryThrashing()
+{
+    auto req = SupervisorProxy_->OnJobMemoryThrashing();
+    ToProto(req->mutable_job_id(), JobId_);
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
 NApi::NNative::IClientPtr TJobProxy::GetClient() const
 {
     return Client_;

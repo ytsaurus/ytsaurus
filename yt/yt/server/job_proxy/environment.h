@@ -141,6 +141,8 @@ struct IUserJobEnvironment
 
     //! Returns the list of environment-specific environment variables in key=value format.
     virtual const std::vector<TString>& GetEnvironmentVariables() const = 0;
+
+    virtual i64 GetMajorPageFaultCount() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserJobEnvironment)

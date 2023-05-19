@@ -210,6 +210,8 @@ private:
         const TString& artifactPath,
         const TError& error) override;
 
+    void OnJobMemoryThrashing() override;
+
     NChunkClient::TChunkReaderHostPtr GetChunkReaderHost() const override;
 
     NChunkClient::IBlockCachePtr GetReaderBlockCache() const override;

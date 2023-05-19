@@ -168,6 +168,17 @@ message TRspPollThrottlingRequest
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqOnJobMemoryThrashing
+{
+    optional NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspOnJobMemoryThrashing
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Describes the resource usage of job proxy (possibly, combined with user job resource usage).
 message TJobProxyResources
 {
