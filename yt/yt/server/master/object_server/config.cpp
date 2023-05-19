@@ -78,35 +78,23 @@ DEFINE_REFCOUNTED_TYPE(TObjectServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReadRequestComplexityLimitsConfig::RegisterParameters(
-    TRegistrar registrar,
-    const TReadRequestComplexity& defaults)
+void TMaxReadRequestComplexityLimitsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("node_count", &TThis::NodeCount)
-        .Default(defaults.NodeCount);
+        .Default(5'000'000)
+        .GreaterThanOrEqual(0);
     registrar.Parameter("result_size", &TThis::ResultSize)
-        .Default(defaults.ResultSize);
+        .Default(5'000'000'000)
+        .GreaterThanOrEqual(0);
 }
 
-void TReadRequestComplexityLimitsConfig::ToReadRequestComplexity(TReadRequestComplexity& limits) const
+void TMaxReadRequestComplexityLimitsConfig::ToReadRequestComplexity(TReadRequestComplexity& limits) const
 {
     limits.NodeCount = NodeCount;
     limits.ResultSize = ResultSize;
 }
 
-void TDefaultReadRequestComplexityLimitsConfig::Register(TRegistrar registrar)
-{
-    RegisterParameters(
-        registrar,
-        TReadRequestComplexity(/*nodeCount*/ 100'000, /*resultSize*/ 50'000'000));
-}
-
-void TMaxReadRequestComplexityLimitsConfig::Register(TRegistrar registrar)
-{
-    RegisterParameters(
-        registrar,
-        TReadRequestComplexity(/*nodeCount*/ 1'000'000, /*resultSize*/ 5000000000ULL));
-}
+DEFINE_REFCOUNTED_TYPE(TMaxReadRequestComplexityLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -128,11 +116,8 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
     registrar.Parameter("process_sessions_period", &TThis::ProcessSessionsPeriod)
         .Default(TDuration::MilliSeconds(10));
 
-    registrar.Parameter("default_read_request_complexity_limits", &TThis::DefaultReadRequestComlexityLimits)
-        .DefaultCtor([] { return New<TDefaultReadRequestComplexityLimitsConfig>(); });
-
     registrar.Parameter("max_read_request_complexity_limits", &TThis::MaxReadRequestComplexityLimits)
-        .DefaultCtor([] { return New<TMaxReadRequestComplexityLimitsConfig>(); });
+        .DefaultNew();
 }
 
 DEFINE_REFCOUNTED_TYPE(TDynamicObjectServiceConfig)

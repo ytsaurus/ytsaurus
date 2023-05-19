@@ -73,6 +73,8 @@ DECLARE_REFCOUNTED_CLASS(TObjectServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicObjectServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TMutationIdempotizerConfig)
 
+DECLARE_REFCOUNTED_CLASS(TMaxReadRequestComplexityLimitsConfig)
+
 class TObject;
 
 template <class T, class C>

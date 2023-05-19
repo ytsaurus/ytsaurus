@@ -122,41 +122,15 @@ DECLARE_REFCOUNTED_CLASS(TObjectServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: This config must not be used directly. Use one of it's derivations instead.
-class TReadRequestComplexityLimitsConfig
+class TMaxReadRequestComplexityLimitsConfig
     : public NYTree::TYsonStruct
 {
 public:
-    std::optional<ui64> NodeCount;
-    std::optional<ui64> ResultSize;
+    std::optional<i64> NodeCount;
+    std::optional<i64> ResultSize;
 
     void ToReadRequestComplexity(NYTree::TReadRequestComplexity& limits) const;
 
-    REGISTER_YSON_STRUCT(TReadRequestComplexityLimitsConfig);
-
-    static void Register(TRegistrar /*registrar*/)
-    { }
-
-protected:
-    static void RegisterParameters(
-        TRegistrar registrar,
-        const NYTree::TReadRequestComplexity& defaults);
-};
-
-class TDefaultReadRequestComplexityLimitsConfig
-    : public TReadRequestComplexityLimitsConfig
-{
-public:
-    REGISTER_YSON_STRUCT(TDefaultReadRequestComplexityLimitsConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-
-class TMaxReadRequestComplexityLimitsConfig
-    : public TReadRequestComplexityLimitsConfig
-{
-public:
     REGISTER_YSON_STRUCT(TMaxReadRequestComplexityLimitsConfig);
 
     static void Register(TRegistrar registrar);
@@ -168,8 +142,6 @@ class TDynamicObjectServiceConfig
     : public NYTree::TYsonStruct
 {
 public:
-    using TReadRequestComplexityLimitsPtr = TIntrusivePtr<TReadRequestComplexityLimitsConfig>;
-
     bool EnableTwoLevelCache;
     bool EnableLocalReadExecutor;
     int LocalReadWorkerCount;
@@ -179,8 +151,7 @@ public:
 
     TDuration ProcessSessionsPeriod;
 
-    TReadRequestComplexityLimitsPtr DefaultReadRequestComlexityLimits;
-    TReadRequestComplexityLimitsPtr MaxReadRequestComplexityLimits;
+    TMaxReadRequestComplexityLimitsConfigPtr MaxReadRequestComplexityLimits;
 
     REGISTER_YSON_STRUCT(TDynamicObjectServiceConfig);
 

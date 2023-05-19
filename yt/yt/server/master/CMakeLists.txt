@@ -484,6 +484,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/cypress_integration.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/features.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/garbage_collector.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/map_object.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/map_object_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/map_object_type_handler.cpp
@@ -502,7 +503,6 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/sys_node_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/sys_node_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/request_profiling_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/yson_intern_registry.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/scheduler_pool_server/config.cpp

@@ -144,6 +144,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixHunkChunksAttach)                                          (2329))  // gritukan
     ((ExportMasterTableSchemas)                                     (2330))  // h0pless
     ((SupportAccountChunkMergerCriteria)                            (2331))  // danilalexeev
+    ((PerUserReadRequestComplexityLimits)                           (2332))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

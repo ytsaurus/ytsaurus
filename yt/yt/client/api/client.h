@@ -56,7 +56,6 @@
 
 #include <yt/yt/core/profiling/public.h>
 
-#include <yt/yt/core/ytree/request_complexity_limiter.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -725,7 +724,6 @@ struct TGetNodeOptions
     NYTree::IAttributeDictionaryPtr Options;
     NYTree::TAttributeFilter Attributes;
     std::optional<i64> MaxSize;
-    NYTree::TReadRequestComplexity ComplexityLimits;
 };
 
 struct TSetNodeOptions
@@ -766,7 +764,6 @@ struct TListNodeOptions
 {
     NYTree::TAttributeFilter Attributes;
     std::optional<i64> MaxSize;
-    NYTree::TReadRequestComplexity ComplexityLimits;
 };
 
 struct TCreateObjectOptions

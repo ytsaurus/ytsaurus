@@ -1650,9 +1650,9 @@ class TYPathServiceContext
 {
 public:
     template <class... TArgs>
-    TYPathServiceContext(const TReadRequestComplexity& limits, TArgs&&... args)
+    TYPathServiceContext(TArgs&&... args)
         : TServiceContextBase(std::forward<TArgs>(args)...)
-        , ReadComplexityLimiter_(New<TReadRequestComplexityLimiter>(limits))
+        , ReadComplexityLimiter_(New<TReadRequestComplexityLimiter>())
     { }
 
     void SetRequestHeader(std::unique_ptr<NRpc::NProto::TRequestHeader> header) override
@@ -1673,7 +1673,6 @@ protected:
     std::optional<NProfiling::TWallTimer> Timer_;
     const NProto::TYPathHeaderExt* CachedYPathExt_ = nullptr;
 
-
     const NProto::TYPathHeaderExt& GetYPathExt()
     {
         if (!CachedYPathExt_) {
@@ -1681,7 +1680,6 @@ protected:
         }
         return *CachedYPathExt_;
     }
-
 
     void DoReply() override
     { }
@@ -1780,13 +1778,11 @@ protected:
 IYPathServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
     NLogging::TLogger logger,
-    NLogging::ELogLevel logLevel,
-    const TReadRequestComplexity* readComplexityLimits)
+    NLogging::ELogLevel logLevel)
 {
     YT_ASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
-        readComplexityLimits ? *readComplexityLimits : TReadRequestComplexity{},
         std::move(requestMessage),
         std::move(logger),
         logLevel);
@@ -1796,13 +1792,11 @@ IYPathServiceContextPtr CreateYPathContext(
     std::unique_ptr<TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
     NLogging::TLogger logger,
-    NLogging::ELogLevel logLevel,
-    const TReadRequestComplexity* readComplexityLimits)
+    NLogging::ELogLevel logLevel)
 {
     YT_ASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
-        readComplexityLimits ? *readComplexityLimits : TReadRequestComplexity{},
         std::move(requestHeader),
         std::move(requestMessage),
         std::move(logger),

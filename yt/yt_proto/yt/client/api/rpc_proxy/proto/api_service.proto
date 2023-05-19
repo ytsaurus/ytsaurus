@@ -9,7 +9,6 @@ option go_package = "go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
-import "yt_proto/yt/core/ytree/proto/request_complexity_limits.proto";
 import "yt_proto/yt/client/hive/proto/timestamp_map.proto";
 import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
 import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
@@ -1123,14 +1122,14 @@ message TReqGetNode
 
     optional int64 max_size = 3;
 
-    optional NYT.NYTree.NProto.TReadRequestComplexityLimits complexity_limits = 5;
-
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
     optional TMasterReadOptions master_read_options = 102;
     optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
 
     optional NYT.NYTree.NProto.TAttributeDictionary options = 200;
+
+    reserved 5;
 }
 
 message TRspGetNode
@@ -1150,12 +1149,12 @@ message TReqListNode
 
     optional int64 max_size = 3;
 
-    optional NYT.NYTree.NProto.TReadRequestComplexityLimits complexity_limits = 5;
-
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
     optional TMasterReadOptions master_read_options = 102;
     optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
+
+    reserved 5;
 }
 
 message TRspListNode
