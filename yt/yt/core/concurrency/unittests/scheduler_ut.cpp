@@ -866,12 +866,6 @@ TEST_W(TSchedulerTest, CancelDelayedFuture)
     EXPECT_EQ(NYT::EErrorCode::Generic, error.InnerErrors()[0].GetCode());
 }
 
-#if !defined(_asan_enabled_) && !defined(_msan_enabled_) && defined (YT_ALLOC_ENABLED)
-
-using TMemoryTag;
-using NYTAlloc::SetCurrentMemoryTag;
-using NYTAlloc::GetCurrentMemoryTag;
-
 class TVerifyingMemoryTagGuard
 {
 public:
@@ -949,9 +943,9 @@ TEST_W(TSchedulerTest, MemoryTagAndResumer)
     auto invoker2 = New<TVerifyingMemoryTaggingInvoker>(actionQueue->GetInvoker(), 2);
 
     auto asyncResult = BIND([=] {
-        EXPECT_EQ(NYTAlloc::GetCurrentMemoryTag(), 1u);
+        EXPECT_EQ(GetCurrentMemoryTag(), 1u);
         SwitchTo(invoker2);
-        EXPECT_EQ(NYTAlloc::GetCurrentMemoryTag(), 1u);
+        EXPECT_EQ(GetCurrentMemoryTag(), 1u);
     })
         .AsyncVia(invoker1)
         .Run();
@@ -959,8 +953,6 @@ TEST_W(TSchedulerTest, MemoryTagAndResumer)
     WaitFor(asyncResult)
         .ThrowOnError();
 }
-
-#endif
 
 void CheckTraceContextTime(const NTracing::TTraceContextPtr& traceContext, TDuration lo, TDuration hi)
 {
