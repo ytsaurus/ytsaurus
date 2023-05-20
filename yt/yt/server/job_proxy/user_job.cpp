@@ -891,7 +891,7 @@ private:
         if (UserJobSpec_.signal_root_process_only()) {
             if (ExecutorInfo_) {
                 auto processPid = ExecutorInfo_->ProcessPid;
-                if (UserJobEnvironment_->PidNamespaceIsolationEnabled()) {
+                if (UserJobEnvironment_->IsPidNamespaceIsolationEnabled()) {
                     if (auto pid = GetPidByChildNamespacePid(processPid)) {
                         pids.push_back(*pid);
                     }
@@ -917,7 +917,7 @@ private:
         if (!InterruptionSignalSent_.exchange(true) && UserJobSpec_.has_interruption_signal()) {
             auto signal = UserJobSpec_.interruption_signal();
             try {
-                if (UserJobEnvironment_->PidNamespaceIsolationEnabled() && UserJobSpec_.signal_root_process_only() && Config_->UsePortoKillForSignalling) {
+                if (UserJobEnvironment_->IsPidNamespaceIsolationEnabled() && UserJobSpec_.signal_root_process_only() && Config_->UsePortoKillForSignalling) {
 #ifdef _linux_
                     if (auto signalNumber = FindSignalIdBySignalName(signal)) {
                         UserJobEnvironment_->GetUserJobInstance()->Kill(*signalNumber);

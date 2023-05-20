@@ -137,7 +137,7 @@ struct IUserJobEnvironment
     virtual std::optional<pid_t> GetJobRootPid() const = 0;
     virtual std::vector<pid_t> GetJobPids() const = 0;
 
-    virtual bool PidNamespaceIsolationEnabled() const = 0;
+    virtual bool IsPidNamespaceIsolationEnabled() const = 0;
 
     //! Returns the list of environment-specific environment variables in key=value format.
     virtual const std::vector<TString>& GetEnvironmentVariables() const = 0;

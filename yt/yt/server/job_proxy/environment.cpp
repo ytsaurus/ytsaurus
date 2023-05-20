@@ -440,7 +440,7 @@ public:
         }
     }
 
-    bool PidNamespaceIsolationEnabled() const override
+    bool IsPidNamespaceIsolationEnabled() const override
     {
         return true;
     }
@@ -636,7 +636,7 @@ public:
         return {};
     }
 
-    bool PidNamespaceIsolationEnabled() const override
+    bool IsPidNamespaceIsolationEnabled() const override
     {
         return false;
     }
