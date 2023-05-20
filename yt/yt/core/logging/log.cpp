@@ -5,6 +5,8 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
+#include <library/cpp/yt/misc/thread_name.h>
+
 #include <util/system/thread.h>
 
 namespace NYT::NLogging {
@@ -20,7 +22,7 @@ TLoggingContext GetLoggingContext()
     return TLoggingContext{
         .Instant = GetCpuInstant(),
         .ThreadId = TThread::CurrentThreadId(),
-        .ThreadName = GetLoggingThreadName(),
+        .ThreadName = GetCurrentThreadName(),
         .FiberId = NConcurrency::GetCurrentFiberId(),
         .TraceId = traceContext ? traceContext->GetTraceId() : TTraceId{},
         .RequestId = traceContext ? traceContext->GetRequestId() : NTracing::TRequestId(),

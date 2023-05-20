@@ -21,6 +21,8 @@
 
 #include <library/cpp/yt/exception/exception.h>
 
+#include <library/cpp/yt/misc/thread_name.h>
+
 #include <util/system/error.h>
 #include <util/system/thread.h>
 
@@ -92,6 +94,7 @@ public:
         , Datetime_(other.Datetime_)
         , Pid_(other.Pid_)
         , Tid_(other.Tid_)
+        , ThreadName_(other.ThreadName_)
         , Fid_(other.Fid_)
         , TraceId_(other.TraceId_)
         , SpanId_(other.SpanId_)
@@ -170,6 +173,11 @@ public:
         return Tid_;
     }
 
+    const TString& GetThreadName() const
+    {
+        return ThreadName_;
+    }
+
     NConcurrency::TFiberId GetFid() const
     {
         return Fid_;
@@ -239,6 +247,7 @@ public:
         Datetime_ = other.Datetime_;
         Pid_ = other.Pid_;
         Tid_ = other.Tid_;
+        ThreadName_ = other.ThreadName_;
         Fid_ = other.Fid_;
         TraceId_ = other.TraceId_;
         SpanId_ = other.SpanId_;
@@ -255,6 +264,7 @@ private:
     TInstant Datetime_;
     TProcessId Pid_ = 0;
     NConcurrency::TThreadId Tid_ = NConcurrency::InvalidThreadId;
+    TString ThreadName_;
     NConcurrency::TFiberId Fid_ = NConcurrency::InvalidFiberId;
     NTracing::TTraceId TraceId_ = NTracing::InvalidTraceId;
     NTracing::TSpanId SpanId_ = NTracing::InvalidSpanId;
@@ -273,6 +283,7 @@ private:
         Datetime_ = TInstant::Now();
         Pid_ = GetPID();
         Tid_ = TThread::CurrentThreadId();
+        ThreadName_ = GetCurrentThreadName().ToString();
         Fid_ = NConcurrency::GetCurrentFiberId();
         if (const auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
             TraceId_ = traceContext->GetTraceId();
@@ -298,6 +309,9 @@ private:
 
         static const TString TidKey("tid");
         Tid_ = Attributes_->GetAndRemove<NConcurrency::TThreadId>(TidKey, NConcurrency::InvalidThreadId);
+
+        static const TString ThreadNameKey("thread");
+        ThreadName_ = Attributes_->GetAndRemove<TString>(ThreadNameKey, TString());
 
         static const TString FidKey("fid");
         Fid_ = Attributes_->GetAndRemove<NConcurrency::TFiberId>(FidKey, NConcurrency::InvalidFiberId);
@@ -498,6 +512,15 @@ NConcurrency::TThreadId TError::GetTid() const
     return Impl_->GetTid();
 }
 
+const TString& TError::GetThreadName() const
+{
+    if (!Impl_) {
+        static TString empty;
+        return empty;
+    }
+    return Impl_->GetThreadName();
+}
+
 NConcurrency::TFiberId TError::GetFid() const
 {
     if (!Impl_) {
@@ -684,7 +707,7 @@ void TError::Save(TStreamSaveContext& context) const
     auto attributePairs = Attributes().ListPairs();
     size_t attributeCount = attributePairs.size();
     if (HasOriginAttributes()) {
-        attributeCount += 4;
+        attributeCount += 5;
     }
     if (HasDatetime()) {
         attributeCount += 1;
@@ -713,6 +736,9 @@ void TError::Save(TStreamSaveContext& context) const
 
             static const TString TidKey("tid");
             saveAttribute(TidKey, GetTid());
+
+            static const TString ThreadNameKey("thread");
+            saveAttribute(ThreadNameKey, GetThreadName());
 
             static const TString FidKey("fid");
             saveAttribute(FidKey, GetFid());
@@ -843,10 +869,10 @@ void AppendError(TStringBuilderBase* builder, const TError& error, int indent)
         AppendAttribute(
             builder,
             "origin",
-            Format("%v (pid %v, tid %v, fid %x)",
+            Format("%v (pid %v, thread %v, fid %x)",
                 error.GetHost(),
                 error.GetPid(),
-                error.GetTid(),
+                (!error.GetThreadName().empty() ? error.GetThreadName() : ToString(error.GetTid())),
                 error.GetFid()),
             indent);
     }
@@ -960,6 +986,9 @@ void ToProto(NYT::NProto::TError* protoError, const TError& error)
         static const TString TidKey("tid");
         addAttribute(TidKey, error.GetTid());
 
+        static const TString ThreadName("thread");
+        addAttribute(ThreadName, error.GetThreadName());
+
         static const TString FidKey("fid");
         addAttribute(FidKey, error.GetFid());
     }
@@ -1061,6 +1090,7 @@ void Serialize(
                         .Item("host").Value(error.GetHost())
                         .Item("pid").Value(error.GetPid())
                         .Item("tid").Value(error.GetTid())
+                        .Item("thread").Value(error.GetThreadName())
                         .Item("fid").Value(error.GetFid());
                 }
                 if (error.HasOriginAttributes()) {

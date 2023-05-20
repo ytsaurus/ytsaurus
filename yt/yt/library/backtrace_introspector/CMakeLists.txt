@@ -21,6 +21,7 @@ target_link_libraries(yt-library-backtrace_introspector PUBLIC
   backtrace-cursors-interop
   backtrace-cursors-libunwind
   backtrace-cursors-frame_pointer
+  cpp-yt-misc
 )
 target_sources(yt-library-backtrace_introspector PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/backtrace_introspector/introspect.cpp

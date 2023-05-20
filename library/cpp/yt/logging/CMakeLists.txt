@@ -17,6 +17,7 @@ target_link_libraries(cpp-yt-logging PUBLIC
   yutil
   cpp-yt-assert
   cpp-yt-memory
+  cpp-yt-misc
   cpp-yt-yson_string
 )
 target_sources(cpp-yt-logging PRIVATE

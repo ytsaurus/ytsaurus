@@ -12,6 +12,8 @@
 
 #include <library/cpp/yt/misc/guid.h>
 
+#include <library/cpp/yt/misc/thread_name.h>
+
 #include <library/cpp/yt/memory/leaky_singleton.h>
 
 #include <util/system/src_location.h>
@@ -60,17 +62,6 @@ struct TLoggingAnchor
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TLoggingThreadName
-{
-    static constexpr int BufferCapacity = 16; // including zero terminator
-    std::array<char, BufferCapacity> Buffer; // zero-terminated
-    int Length; // not including zero terminator
-};
-
-TLoggingThreadName GetLoggingThreadName();
-
-////////////////////////////////////////////////////////////////////////////////
 // Declare some type aliases to avoid circular dependencies.
 using TThreadId = size_t;
 using TFiberId = size_t;
@@ -97,7 +88,7 @@ struct TLogEvent
     TCpuInstant Instant = 0;
 
     TThreadId ThreadId = {};
-    TLoggingThreadName ThreadName = {};
+    TThreadName ThreadName = {};
 
     TFiberId FiberId = {};
 
@@ -136,7 +127,7 @@ struct TLoggingContext
 {
     TCpuInstant Instant;
     TThreadId ThreadId;
-    TLoggingThreadName ThreadName;
+    TThreadName ThreadName;
     TFiberId FiberId;
     TTraceId TraceId;
     TRequestId RequestId;

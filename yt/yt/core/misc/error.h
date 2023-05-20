@@ -122,6 +122,7 @@ public:
     bool HasOriginAttributes() const;
     TStringBuf GetHost() const;
     TProcessId GetPid() const;
+    const TString& GetThreadName() const;
     NConcurrency::TThreadId GetTid() const;
     NConcurrency::TFiberId GetFid() const;
 

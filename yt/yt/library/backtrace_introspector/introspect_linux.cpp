@@ -20,6 +20,8 @@
 
 #include <library/cpp/yt/backtrace/cursors/interop/interop.h>
 
+#include <library/cpp/yt/misc/thread_name.h>
+
 #include <util/system/yield.h>
 
 #include <sys/syscall.h>
@@ -79,7 +81,7 @@ struct TSignalHandlerContext
     TTraceId TraceId = {};
     TStaticString TraceLoggingTag;
     TStaticBacktrace Backtrace;
-    NLogging::TLoggingThreadName ThreadName = {};
+    TThreadName ThreadName = {};
 
     TSafeMemoryReader* MemoryReader = Singleton<TSafeMemoryReader>();
 
@@ -115,7 +117,7 @@ void SignalHandler(int sig, siginfo_t* /*info*/, void* threadContext)
     YT_VERIFY(sig == SIGUSR1);
 
     SignalHandlerContext->FiberId = GetCurrentFiberId();
-    SignalHandlerContext->ThreadName = NLogging::GetLoggingThreadName();
+    SignalHandlerContext->ThreadName = GetCurrentThreadName();
     if (const auto* traceContext = TryGetCurrentTraceContext()) {
         SignalHandlerContext->TraceId = traceContext->GetTraceId();
         SignalHandlerContext->TraceLoggingTag = TStaticString(traceContext->GetLoggingTag());

@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <util/stream/str.h>
+
 namespace NYT {
 namespace {
 
@@ -169,6 +171,21 @@ TEST(TErrorTest, ErrorSanitizer)
 
     auto error5 = TError("error5");
     checkNotSanitized(error5);
+}
+
+TEST(TErrorTest, SimpleLoadAfterSave)
+{
+    TStringStream stream;
+
+    TStreamSaveContext saveContext(&stream);
+    TError savedError("error");
+    savedError.Save(saveContext);
+
+    TStreamLoadContext loadContext(&stream);
+    TError loadedError;
+    loadedError.Load(loadContext);
+
+    EXPECT_EQ(ToString(savedError), ToString(loadedError));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

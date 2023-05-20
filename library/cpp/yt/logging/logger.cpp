@@ -4,6 +4,8 @@
 
 #include <library/cpp/yt/cpu_clock/clock.h>
 
+#include <library/cpp/yt/misc/thread_name.h>
+
 #include <util/system/compiler.h>
 #include <util/system/thread.h>
 
@@ -113,28 +115,13 @@ Y_WEAK TLoggingContext GetLoggingContext()
     return {
         .Instant = GetCpuInstant(),
         .ThreadId = TThread::CurrentThreadId(),
-        .ThreadName = GetLoggingThreadName(),
+        .ThreadName = GetCurrentThreadName(),
     };
 }
 
 Y_WEAK ILogManager* GetDefaultLogManager()
 {
     return nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TLoggingThreadName GetLoggingThreadName()
-{
-    static thread_local TLoggingThreadName loggingThreadName;
-    if (loggingThreadName.Length == 0) {
-        if (auto name = TThread::CurrentThreadName()) {
-            auto length = std::min(TLoggingThreadName::BufferCapacity - 1, static_cast<int>(name.length()));
-            loggingThreadName.Length = length;
-            ::memcpy(loggingThreadName.Buffer.data(), name.data(), length);
-        }
-    }
-    return loggingThreadName;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
