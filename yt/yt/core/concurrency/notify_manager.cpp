@@ -10,6 +10,7 @@ static const auto& Logger = ConcurrencyLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr auto WaitLimit = TDuration::MicroSeconds(64);
+constexpr auto WaitTimeWarningThreshold = TDuration::Seconds(30);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,7 +71,7 @@ void TNotifyManager::NotifyFromInvoke(TCpuInstant cpuInstant, bool force)
         force,
         needNotify,
         waitTime,
-        minEnqueuedAt);
+        CpuInstantToInstant(minEnqueuedAt));
 
     if (needNotify) {
         NotifyOne(cpuInstant);
@@ -87,7 +88,7 @@ void TNotifyManager::NotifyAfterFetch(TCpuInstant cpuInstant, TCpuInstant newMin
     if (waitTime > WaitLimit) {
         YT_LOG_TRACE("Notify after fetch (WaitTime: %v, MinEnqueuedAt: %v)",
             waitTime,
-            minEnqueuedAt);
+            CpuInstantToInstant(minEnqueuedAt));
 
         NotifyOne(cpuInstant);
     }
@@ -122,7 +123,7 @@ void TNotifyManager::Wait(NThreading::TEventCount::TCookie cookie, std::function
             if (waitTime > WaitLimit) {
                 YT_LOG_DEBUG("Wake up by timeout (WaitTime: %v, MinEnqueuedAt: %v)",
                     waitTime,
-                    minEnqueuedAt);
+                    CpuInstantToInstant(minEnqueuedAt));
 
                 WakeupByTimeoutCounter_.Increment();
 
@@ -183,16 +184,16 @@ void TNotifyManager::NotifyOne(TCpuInstant cpuInstant)
 {
     if (!NotifyLock_.exchange(true)) {
         LockedInstant_ = cpuInstant;
-        YT_LOG_TRACE("Futex Wake (MinEnqueuedAt: %v)",
-            GetMinEnqueuedAt());
+        YT_LOG_TRACE("Notify futex (MinEnqueuedAt: %v)",
+            CpuInstantToInstant(GetMinEnqueuedAt()));
         EventCount_->NotifyOne();
     } else {
         auto lockedInstant = LockedInstant_.load();
         auto waitTime = CpuDurationToDuration(cpuInstant - lockedInstant);
-        if (waitTime > TDuration::Seconds(30)) {
+        if (waitTime > WaitTimeWarningThreshold) {
             // Notifications are locked during more than 30 seconds.
             YT_LOG_WARNING("Action is probably stuck (MinEnqueuedAt: %v, LockedInstant: %v, WaitTime: %v)",
-                GetMinEnqueuedAt(),
+                CpuInstantToInstant(GetMinEnqueuedAt()),
                 lockedInstant,
                 waitTime);
         }

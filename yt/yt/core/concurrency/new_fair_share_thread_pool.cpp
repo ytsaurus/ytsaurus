@@ -980,7 +980,7 @@ private:
             CpuDurationToDuration(endInstant - cpuInstant),
             requests,
             fetchedActions,
-            newMinEnqueuedAt);
+            CpuInstantToInstant(newMinEnqueuedAt));
 
         NotifyAfterFetch(endInstant, newMinEnqueuedAt);
 
