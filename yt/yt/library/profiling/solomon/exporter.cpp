@@ -17,6 +17,8 @@
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <yt/yt/core/misc/proc.h>
+
 #include <library/cpp/monlib/encode/json/json.h>
 #include <library/cpp/monlib/encode/spack/spack_v1.h>
 #include <library/cpp/monlib/encode/prometheus/prometheus.h>
@@ -85,6 +87,9 @@ void TSolomonExporterConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("report_build_info", &TThis::ReportBuildInfo)
+        .Default(true);
+
+    registrar.Parameter("report_kernel_version", &TThis::ReportKernelVersion)
         .Default(true);
 
     registrar.Parameter("report_restart", &TThis::ReportRestart)
@@ -200,6 +205,14 @@ TSolomonExporter::TSolomonExporter(
         profiler
             .WithRequiredTag("version", GetVersion())
             .AddFuncGauge("/build/version", MakeStrong(this), [] { return 1.0; });
+    }
+
+    if (Config_->ReportKernelVersion) {
+        TProfiler profiler{registry, ""};
+
+        profiler
+            .WithRequiredTag("kernel_version", GetLinuxKernelVersion())
+            .AddFuncGauge("/host/kernel_version", MakeStrong(this), [] { return 1.0; });
     }
 
     if (Config_->ReportRestart) {

@@ -65,6 +65,8 @@ struct TSolomonExporterConfig
 
     bool ReportBuildInfo;
 
+    bool ReportKernelVersion;
+
     bool ReportRestart;
 
     TDuration ResponseCacheTtl;

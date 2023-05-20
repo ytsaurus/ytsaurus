@@ -47,6 +47,7 @@
     #include <sys/prctl.h>
     #include <sys/sysmacros.h>
     #include <sys/ttydefaults.h>
+    #include <sys/utsname.h>
 #endif
 #ifdef _darwin_
     #include <util.h>
@@ -1554,6 +1555,28 @@ TFile MemfdCreate(const TString& name)
     Y_UNUSED(name);
 
     THROW_ERROR_EXCEPTION("Not implemented");
+#endif
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TString& GetLinuxKernelVersion()
+{
+#ifdef _linux_
+    static TString release = []() -> TString {
+        utsname buf{};
+        if (uname(&buf) != 0) {
+            return "unknown";
+        }
+
+        // buf.release is a '\0' terminated string.
+        return buf.release;
+    }();
+
+    return release;
+#else
+    static TString release = "unknown";
+    return release;
 #endif
 }
 
