@@ -225,7 +225,7 @@ IListenerPtr CreateListener(
         }
         acceptor->Arm(serverSocket, listener, EPollControl::Read | EPollControl::EdgeTriggered);
         return listener;
-    } catch (const std::exception& ) {
+    } catch (...) {
         YT_VERIFY(TryClose(serverSocket, false));
         throw;
     }

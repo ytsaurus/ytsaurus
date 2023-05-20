@@ -98,12 +98,7 @@ DECLARE_REFCOUNTED_CLASS(TFDConnectionImpl)
 struct TIOResult
 {
     bool Retry;
-    i64 ByteCount;
-
-    TIOResult(bool retry, i64 byteCount)
-        : Retry(retry)
-        , ByteCount(byteCount)
-    { }
+    size_t ByteCount;
 };
 
 struct IIOOperation
@@ -130,27 +125,27 @@ public:
     TErrorOr<TIOResult> PerformIO(TFileDescriptor fd) override
     {
         size_t bytesRead = 0;
-        while (true) {
+        while (Position_ < Buffer_.Size()) {
             ssize_t size = ReadFromFD(
                 fd,
                 Buffer_.Begin() + Position_,
                 Buffer_.Size() - Position_);
             if (size == -1) {
                 if (GetLastNetworkError() == EWOULDBLOCK || bytesRead > 0) {
-                    return TIOResult(Position_ == 0, bytesRead);
+                    return TIOResult{.Retry = Position_ == 0, .ByteCount = bytesRead};
                 }
 
                 return TError("Read failed")
                     << TError::FromSystem();
             }
+            if (size == 0) {
+                break;
+            }
 
             bytesRead += size;
             Position_ += size;
-
-            if (Position_ == Buffer_.Size() || size == 0) {
-                return TIOResult(false, bytesRead);
-            }
         }
+        return TIOResult{.Retry = false, .ByteCount = bytesRead};
     }
 
     void Abort(const TError& error) override
@@ -198,7 +193,7 @@ public:
 
         if (size == -1) {
             if (GetLastNetworkError() == EWOULDBLOCK) {
-                return TIOResult(true, 0);
+                return TIOResult{.Retry = true, .ByteCount = 0};
             }
 
             return TError("Read failed")
@@ -206,7 +201,8 @@ public:
         }
 
         Position_ += size;
-        return TIOResult(false, size);
+
+        return TIOResult{.Retry = false, .ByteCount = static_cast<size_t>(size)};
     }
 
     void Abort(const TError& error) override
@@ -245,17 +241,15 @@ public:
     TErrorOr<TIOResult> PerformIO(TFileDescriptor fd) override
     {
         size_t bytesWritten = 0;
-        while (true) {
-            YT_VERIFY(Position_ < Buffer_.Size());
+        while (Position_ < Buffer_.Size()) {
             ssize_t size = WriteToFD(
                 fd,
                 Buffer_.Begin() + Position_,
                 Buffer_.Size() - Position_);
             if (size == -1) {
                 if (GetLastNetworkError() == EWOULDBLOCK) {
-                    return TIOResult(true, bytesWritten);
+                    return TIOResult{.Retry = true, .ByteCount = bytesWritten};
                 }
-
                 return TError("Write failed")
                     << TError::FromSystem();
             }
@@ -263,11 +257,8 @@ public:
             YT_VERIFY(size > 0);
             bytesWritten += size;
             Position_ += size;
-
-            if (Position_ == Buffer_.Size()) {
-                return TIOResult(false, bytesWritten);
-            }
         }
+        return TIOResult{.Retry = false, .ByteCount = bytesWritten};
     }
 
     void Abort(const TError& error) override
@@ -305,7 +296,7 @@ public:
     TErrorOr<TIOResult> PerformIO(TFileDescriptor fd) override
     {
         size_t bytesWritten = 0;
-        while (true) {
+        while (Index_ < Buffers_.Size()) {
             constexpr int MaxEntries = 128;
             iovec ioVectors[MaxEntries];
 
@@ -324,7 +315,7 @@ public:
 
             if (size == -1) {
                 if (GetLastNetworkError() == EWOULDBLOCK) {
-                    return TIOResult(true, bytesWritten);
+                    return TIOResult{.Retry = true, .ByteCount = bytesWritten};
                 }
 
                 return TError("Write failed")
@@ -339,11 +330,8 @@ public:
                 Position_ -= Buffers_[Index_].Size();
                 Index_++;
             }
-
-            if (Index_ == Buffers_.Size()) {
-                return TIOResult(false, bytesWritten);
-            }
         }
+        return TIOResult{.Retry = false, .ByteCount = bytesWritten};
     }
 
     void Abort(const TError& error) override
@@ -386,7 +374,7 @@ public:
             return TError("Shutdown failed")
                 << TError::FromSystem();
         }
-        return TIOResult(false, 0);
+        return TIOResult{.Retry = false, .ByteCount = 0};
     }
 
     void Abort(const TError& error) override
