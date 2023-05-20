@@ -26,6 +26,9 @@
 
 #include <yt/yt/library/tracing/jaeger/tracer.h>
 
+#include <library/cpp/yt/stockpile/stockpile.h>
+
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,6 +66,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(THeapSizeLimit)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TTCMallocConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -94,6 +99,20 @@ DEFINE_REFCOUNTED_TYPE(TTCMallocConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStockpileConfig
+    : public TStockpileOptions
+    , public NYTree::TYsonStruct
+{
+public:
+    REGISTER_YSON_STRUCT(TStockpileConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TStockpileConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSingletonsConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -111,6 +130,7 @@ public:
     NTracing::TJaegerTracerConfigPtr Jaeger;
     TRpcConfigPtr Rpc;
     TTCMallocConfigPtr TCMalloc;
+    TStockpileConfigPtr Stockpile;
     bool EnableRefCountedTrackerProfiling;
     bool EnableResourceTracker;
     bool EnablePortoResourceTracker;

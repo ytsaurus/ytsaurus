@@ -34,7 +34,7 @@ void TMasterCacheProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResu
     ConfigureCrashHandler();
     ConfigureExitZeroOnSigterm();
     EnablePhdrCache();
-    ConfigureAllocator({});
+    ConfigureAllocator();
 
     if (HandleSetsidOptions()) {
         return;

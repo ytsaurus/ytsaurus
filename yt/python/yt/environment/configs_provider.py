@@ -1572,6 +1572,9 @@ def get_at(config, path, default_value=None):
 
 
 def init_singletons(config, yt_config, index):
+    set_at(config, "stockpile", {
+        "thread_count": 0,
+    })
     set_at(config, "yp_service_discovery", {
         "enable": False,
     })

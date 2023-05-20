@@ -32,7 +32,7 @@ void TCypressProxyProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseRes
     ConfigureCrashHandler();
     ConfigureExitZeroOnSigterm();
     EnablePhdrCache();
-    ConfigureAllocator({});
+    ConfigureAllocator();
 
     if (HandleSetsidOptions()) {
         return;

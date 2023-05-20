@@ -49,6 +49,18 @@ void TTCMallocConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TStockpileConfig::Register(TRegistrar registrar)
+{
+    registrar.BaseClassParameter("buffer_size", &TThis::BufferSize)
+        .Default(DefaultBufferSize);
+    registrar.BaseClassParameter("thread_count", &TThis::ThreadCount)
+        .Default(DefaultThreadCount);
+    registrar.BaseClassParameter("period", &TThis::Period)
+        .Default(DefaultPeriod);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSingletonsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("spin_wait_slow_path_logging_threshold", &TThis::SpinWaitSlowPathLoggingThreshold)
@@ -76,6 +88,8 @@ void TSingletonsConfig::Register(TRegistrar registrar)
     registrar.Parameter("rpc", &TThis::Rpc)
         .DefaultNew();
     registrar.Parameter("tcmalloc", &TThis::TCMalloc)
+        .DefaultNew();
+    registrar.Parameter("stockpile", &TThis::Stockpile)
         .DefaultNew();
     registrar.Parameter("enable_ref_counted_tracker_profiling", &TThis::EnableRefCountedTrackerProfiling)
         .Default(true);

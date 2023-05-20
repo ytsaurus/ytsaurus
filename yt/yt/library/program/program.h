@@ -128,8 +128,6 @@ void ConfigureExitZeroOnSigterm();
 
 struct TAllocatorOptions
 {
-    std::optional<TStockpileOptions> Stockpile = TStockpileOptions();
-
     bool YTAllocEagerMemoryRelease = false;
 
     bool TCMallocOptimizeSize = false;

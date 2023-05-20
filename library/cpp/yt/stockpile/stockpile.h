@@ -12,12 +12,17 @@ namespace NYT {
 
 struct TStockpileOptions
 {
-    i64 BufferSize = 4_GB;
-    int ThreadCount = 4;
-    TDuration Period = TDuration::MilliSeconds(10);
+    static constexpr i64 DefaultBufferSize = 4_GBs;
+    i64 BufferSize = DefaultBufferSize;
+
+    static constexpr int DefaultThreadCount = 4;
+    int ThreadCount = DefaultThreadCount;
+
+    static constexpr TDuration DefaultPeriod = TDuration::MilliSeconds(10);
+    TDuration Period = DefaultPeriod;
 };
 
-void StockpileMemory(const TStockpileOptions& options);
+void ConfigureStockpile(const TStockpileOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

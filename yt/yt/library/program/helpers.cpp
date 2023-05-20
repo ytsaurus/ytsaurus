@@ -217,6 +217,8 @@ void ConfigureSingletonsImpl(const TConfig& config)
 
     ConfigureTCMalloc(config->TCMalloc);
 
+    ConfigureStockpile(*config->Stockpile);
+
     if (config->EnableRefCountedTrackerProfiling) {
         EnableRefCountedTrackerProfiling();
     }

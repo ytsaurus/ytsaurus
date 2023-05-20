@@ -344,10 +344,6 @@ void ConfigureAllocator(const TAllocatorOptions& options)
     NYTAlloc::InitializeLibunwindInterop();
     NYTAlloc::SetEnableEagerMemoryRelease(options.YTAllocEagerMemoryRelease);
 
-    if (options.Stockpile) {
-        StockpileMemory(*options.Stockpile);
-    }
-
     if (tcmalloc::MallocExtension::NeedsProcessBackgroundActions()) {
         std::thread backgroundThread([] {
             TThread::SetCurrentThreadName("TCAllocBack");

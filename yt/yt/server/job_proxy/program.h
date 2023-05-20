@@ -67,7 +67,6 @@ protected:
         ConfigureCrashHandler();
         CloseAllDescriptors();
         ConfigureAllocator({
-            .Stockpile = {},
             .TCMallocOptimizeSize = true,
         });
 

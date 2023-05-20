@@ -108,7 +108,7 @@ protected:
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
-        ConfigureAllocator({});
+        ConfigureAllocator();
         MlockFileMappings();
 
         if (HandleSetsidOptions()) {

@@ -34,7 +34,7 @@ void TClusterDiscoveryServerProgram::DoRun(const NLastGetopt::TOptsParseResult& 
     ConfigureCrashHandler();
     ConfigureExitZeroOnSigterm();
     EnablePhdrCache();
-    ConfigureAllocator({});
+    ConfigureAllocator();
 
     if (HandleSetsidOptions()) {
         return;

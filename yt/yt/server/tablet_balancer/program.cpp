@@ -28,7 +28,7 @@ void TTabletBalancerProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseR
     ConfigureCrashHandler();
     ConfigureExitZeroOnSigterm();
     EnablePhdrCache();
-    ConfigureAllocator({});
+    ConfigureAllocator();
 
     if (HandleSetsidOptions()) {
         return;

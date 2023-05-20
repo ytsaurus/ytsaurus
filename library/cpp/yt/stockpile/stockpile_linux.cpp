@@ -27,7 +27,7 @@ void RunStockpile(const TStockpileOptions& options)
 
 } // namespace
 
-void StockpileMemory(const TStockpileOptions& options)
+void ConfigureStockpile(const TStockpileOptions& options)
 {
     static std::once_flag OnceFlag;
     std::call_once(OnceFlag, [options] {
