@@ -417,6 +417,9 @@ public:
 
     bool UsePoolSatisfactionForScheduling;
 
+    THistogramDigestConfigPtr PerPoolSatisfactionDigest;
+    std::vector<double> PerPoolSatisfactionProfilingQuantiles;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);

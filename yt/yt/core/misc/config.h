@@ -39,9 +39,9 @@ class THistogramDigestConfig
     : public NYTree::TYsonStruct
 {
 public:
-    // We will round each sample x to the range from [x - AbsolutePrecision, x + AbsolutePrecision].
-    // This parameter affects the memory usage of the digest, it is proportional to
-    // (UpperBound - LowerBound) / AbsolutePrecision.
+    // We will round each sample x to a value from [x - AbsolutePrecision / 2, x + AbsolutePrecision / 2].
+    // More precisely, size of each bucket in the histogram will be equal to AbsolutePrecision.
+    // This parameter affects the memory usage of the digest, it is proportional to ((UpperBound - LowerBound) / AbsolutePrecision).
     double AbsolutePrecision;
 
     // The bounds of the range operated by the class.

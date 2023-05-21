@@ -17,6 +17,7 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
+#include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/historic_usage_aggregator.h>
 
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
@@ -129,6 +130,9 @@ struct TSchedulerElementPostUpdateAttributes
 
     double SatisfactionRatio = 0.0;
     double LocalSatisfactionRatio = 0.0;
+
+    // Only for pools.
+    std::shared_ptr<IDigest> SatisfactionDigest;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -959,6 +963,8 @@ public:
 
     std::optional<EFifoPoolSchedulingOrder> GetSpecifiedFifoPoolSchedulingOrder() const override;
     std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const override;
+
+    void BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext);
 
     //! Other methods.
     THashSet<TString> GetAllowedProfilingTags() const override;

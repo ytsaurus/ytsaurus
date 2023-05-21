@@ -108,19 +108,22 @@ public:
     explicit THistogramDigest(THistogramDigestConfigPtr config)
         : Config_(std::move(config))
         , Step_(Config_->AbsolutePrecision)
-        , BucketCount_(static_cast<int>((Config_->UpperBound - Config_->LowerBound) / Step_) + 1)
+        , BucketCount_(static_cast<int>(std::round((Config_->UpperBound - Config_->LowerBound) / Step_)) + 1)
         , Buckets_(BucketCount_)
     { }
 
     void AddSample(double value) override
     {
-        double bucketId = (value - Config_->LowerBound) / Step_;
-        if (std::isnan(bucketId) || bucketId < std::numeric_limits<i32>::min() || bucketId > std::numeric_limits<i32>::max()) {
-            // Discard all incorrect values (those that are non-positive, too small or too large).
+        if (!std::isfinite(value)) {
             return;
         }
+
+        value = std::clamp(value, Config_->LowerBound, Config_->UpperBound);
+        int bucketId = static_cast<int>(std::round((value - Config_->LowerBound) / Step_));
+        YT_ASSERT(bucketId < BucketCount_);
+
         // Note that due to round, i-th bucket corresponds to range [LowerBound + i*Step - Step/2; LowerBound + i*Step + Step/2).
-        ++Buckets_[std::clamp(static_cast<int>(std::round(bucketId)), 0, BucketCount_ - 1)];
+        ++Buckets_[bucketId];
         ++SampleCount_;
     }
 
@@ -160,9 +163,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IDigest> CreateHistogramDigest(THistogramDigestConfigPtr config)
+std::shared_ptr<IDigest> CreateHistogramDigest(THistogramDigestConfigPtr config)
 {
-    return std::make_unique<THistogramDigest>(std::move(config));
+    return std::make_shared<THistogramDigest>(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

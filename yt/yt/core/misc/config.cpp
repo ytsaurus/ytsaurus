@@ -62,9 +62,9 @@ void THistogramDigestConfig::Register(TRegistrar registrar)
                 << TErrorAttribute("upper_bound", config->UpperBound);
         }
 
-        // If there are more than 1000 buckets, the implementation of THistogramDigest
+        // If there are more buckets, the implementation of THistogramDigest
         // becomes inefficient since it stores information about at least that many buckets.
-        const int MaxBucketCount = 1000;
+        const int MaxBucketCount = 10000;
         double bucketCount = (config->UpperBound - config->LowerBound) / config->AbsolutePrecision;
         if (bucketCount > MaxBucketCount) {
             THROW_ERROR_EXCEPTION("Bucket count is too large")

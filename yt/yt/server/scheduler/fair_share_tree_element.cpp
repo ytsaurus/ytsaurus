@@ -10,7 +10,7 @@
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/core/misc/finally.h>
-#include <yt/yt/core/misc/historic_usage_aggregator.h>
+#include <yt/yt/core/misc/digest.h>
 #include <yt/yt/core/misc/string_builder.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -2258,6 +2258,7 @@ void TSchedulerRootElement::PostUpdate(TFairSharePostUpdateContext* postUpdateCo
     UpdateEffectiveRecursiveAttributes();
 
     ComputeSatisfactionRatioAtUpdate();
+    BuildPoolSatisfactionDigests(postUpdateContext);
 }
 
 const TSchedulingTagFilter& TSchedulerRootElement::GetSchedulingTagFilter() const
@@ -2313,6 +2314,26 @@ std::optional<EFifoPoolSchedulingOrder> TSchedulerRootElement::GetSpecifiedFifoP
 std::optional<bool> TSchedulerRootElement::ShouldUsePoolSatisfactionForScheduling() const
 {
     return TreeConfig_->UsePoolSatisfactionForScheduling;
+}
+
+void TSchedulerRootElement::BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext)
+{
+    PostUpdateAttributes_.SatisfactionDigest = CreateHistogramDigest(TreeConfig_->PerPoolSatisfactionDigest);
+    for (const auto& [_, pool] : postUpdateContext->PoolNameToElement) {
+        pool->PostUpdateAttributes_.SatisfactionDigest = CreateHistogramDigest(TreeConfig_->PerPoolSatisfactionDigest);
+    }
+
+    for (const auto& [_, operation] : postUpdateContext->EnabledOperationIdToElement) {
+        double operationSatisfaction = operation->PostUpdateAttributes().SatisfactionRatio;
+        auto* ancestor = operation->GetMutableParent();
+        while (ancestor) {
+            const auto& digest = ancestor->PostUpdateAttributes().SatisfactionDigest;
+            YT_ASSERT(digest);
+            digest->AddSample(operationSatisfaction);
+
+            ancestor = ancestor->GetMutableParent();
+        }
+    }
 }
 
 void TSchedulerRootElement::CheckForStarvation(TInstant /*now*/)

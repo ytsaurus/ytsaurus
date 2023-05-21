@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
+#include <yt/yt/core/misc/digest.h>
+
 namespace NYT::NScheduler {
 
 using namespace NProfiling;
@@ -481,6 +483,14 @@ void TFairShareTreeProfileManager::ProfilePool(
             &buffer,
             element->Attributes().VolumeOverflow,
             "/volume_overflow");
+    }
+
+    for (auto quantile : treeConfig->PerPoolSatisfactionProfilingQuantiles) {
+        const auto& digest = element->PostUpdateAttributes().SatisfactionDigest;
+        YT_ASSERT(digest);
+
+        TWithTagGuard guard(&buffer, "quantile", ToString(quantile));
+        buffer.AddGauge("/operation_satisfaction_distribution", digest->GetQuantile(quantile));
     }
 
     producer->Update(std::move(buffer));

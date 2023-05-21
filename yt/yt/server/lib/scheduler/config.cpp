@@ -45,6 +45,17 @@ TJobResourcesConfigPtr GetDefaultLowPriorityFallbackMinSpareJobResources()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THistogramDigestConfigPtr GetDefaultPerPoolSatisfactionDigestConfig()
+{
+    auto config = New<THistogramDigestConfig>();
+    config->LowerBound = 0.0;
+    config->UpperBound = 2.0;
+    config->AbsolutePrecision = 0.001;
+    return config;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -484,6 +495,12 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_pool_satisfaction_for_scheduling", &TThis::UsePoolSatisfactionForScheduling)
         .Default(true);
 
+    registrar.Parameter("per_pool_satisfaction_digest", &TThis::PerPoolSatisfactionDigest)
+        .DefaultCtor(&GetDefaultPerPoolSatisfactionDigestConfig);
+
+    registrar.Parameter("per_pool_satisfaction_profiling_quantiles", &TThis::PerPoolSatisfactionProfilingQuantiles)
+        .Default({0.01, 0.05, 0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 0.95, 0.99});
+
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")
@@ -505,6 +522,24 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         auto& nonPreemptibleUserSlotsUsage = config->NonPreemptibleResourceUsageThreshold->UserSlots;
         if (!nonPreemptibleUserSlotsUsage) {
             nonPreemptibleUserSlotsUsage = config->MaxUnpreemptibleRunningJobCount;
+        }
+    });
+
+    registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
+        static const int MaxPerPoolProfilingQuantileCount = 20;
+
+        int quantileCount = std::ssize(config->PerPoolSatisfactionProfilingQuantiles);
+        if (quantileCount > MaxPerPoolProfilingQuantileCount) {
+            THROW_ERROR_EXCEPTION("Too many per pool profiling quantiles specified")
+                << TErrorAttribute("max_quantile_count", MaxPerPoolProfilingQuantileCount)
+                << TErrorAttribute("quantile_count", quantileCount);
+        }
+
+        for (auto quantile : config->PerPoolSatisfactionProfilingQuantiles) {
+            if (quantile < 0.0 || quantile > 1.0) {
+                THROW_ERROR_EXCEPTION("Per pool satisfaction profiling quantiles must be from range [0.0, 1.0]")
+                    << TErrorAttribute("out_of_range_quantile", quantile);
+            }
         }
     });
 }

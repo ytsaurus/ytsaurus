@@ -3307,6 +3307,98 @@ class TestSatisfactionRatio(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_operation_path(op2.id) + "/scheduling_index") == 2)
         wait(lambda: get(scheduler_orchid_operation_path(op3.id) + "/scheduling_index") == 0)
 
+    @authors("eshcherbin")
+    def test_operation_satisfaction_distribution_profiling(self):
+        UPPER_BOUND = 2.0
+        PRECISION = 0.001
+        QUANTILES = [0.2, 0.25, 0.4, 0.5, 0.6, 0.75, 0.8, 1.0]
+        update_pool_tree_config("default", {
+            "per_pool_satisfaction_digest": {
+                "lower_bound": 0.0,
+                "upper_bound": UPPER_BOUND,
+                "absolute_precision": PRECISION,
+            },
+            "per_pool_satisfaction_profiling_quantiles": QUANTILES,
+            "non_preemptible_resource_usage_threshold": {
+                "user_slots": 10,
+            },
+        })
+
+        create_pool("pool", attributes={"strong_guarantee_resources": {"cpu": 8.0}})
+
+        OP_USAGE_AND_DEMANDS = [
+            (0, 1),
+            (1, 2),
+            (2, 2),
+            (2, 3),
+        ]
+
+        ops = []
+        blocking_demand = 0
+        for usage, demand in OP_USAGE_AND_DEMANDS:
+            op = run_sleeping_vanilla(
+                job_count=demand,
+                spec={
+                    "scheduling_options_per_pool_tree": {
+                        "default": {
+                            "resource_limits": {"user_slots": usage}
+                        },
+                    },
+                    "pool": "pool",
+                }
+            )
+            ops.append(op)
+
+            blocking_demand += demand - usage
+
+        for i, op in enumerate(ops):
+            wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/user_slots", default=None) == OP_USAGE_AND_DEMANDS[i][0])
+        wait(lambda: are_almost_equal(get(scheduler_orchid_pool_path("pool") + "/demand_share/user_slots"), 1.0))
+
+        blocking_op = run_sleeping_vanilla(job_count=blocking_demand)
+        wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/resource_usage/user_slots", default=None) == blocking_demand)
+
+        for i, op in enumerate(ops):
+            update_op_parameters(op.id, parameters={"scheduling_options_per_pool_tree": {
+                "default": {"resource_limits": {"user_slots": OP_USAGE_AND_DEMANDS[i][1]}}},
+            })
+
+        for i, op in enumerate(ops):
+            satisfaction = OP_USAGE_AND_DEMANDS[i][0] / OP_USAGE_AND_DEMANDS[i][1]
+            wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/local_satisfaction_ratio") == satisfaction)
+        wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/local_satisfaction_ratio") >= UPPER_BOUND)
+
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
+        root_satisfaction_distribution_sensor = profiler.gauge(
+            "scheduler/pools/operation_satisfaction_distribution",
+            fixed_tags={"pool": "<Root>"})
+        pool_satisfaction_distribution_sensor = profiler.gauge(
+            "scheduler/pools/operation_satisfaction_distribution",
+            fixed_tags={"pool": "pool"})
+
+        def format_quantile(q):
+            if q == 1.0:
+                return '1'
+            return str(q)
+
+        satisfactions = sorted(usage / demand for usage, demand in OP_USAGE_AND_DEMANDS)
+        for i, satisfaction in enumerate(satisfactions):
+            quantile = (i + 1) / len(satisfactions)
+            wait(lambda: are_almost_equal(
+                pool_satisfaction_distribution_sensor.get(tags={"quantile": format_quantile(quantile)}),
+                satisfaction,
+                absolute_error=PRECISION,
+            ))
+
+        satisfactions.append(UPPER_BOUND)
+        for i, satisfaction in enumerate(satisfactions):
+            quantile = (i + 1) / len(satisfactions)
+            wait(lambda: are_almost_equal(
+                root_satisfaction_distribution_sensor.get(tags={"quantile": format_quantile(quantile)}),
+                satisfaction,
+                absolute_error=PRECISION,
+            ))
+
 
 ##################################################################
 
