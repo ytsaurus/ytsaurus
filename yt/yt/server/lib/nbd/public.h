@@ -1,0 +1,16 @@
+#pragma once
+
+#include <library/cpp/yt/memory/ref_counted.h>
+
+namespace NYT::NNbd {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(IBlockDevice)
+DECLARE_REFCOUNTED_STRUCT(INbdServer)
+
+DECLARE_REFCOUNTED_CLASS(TNbdServerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NNbd
