@@ -443,7 +443,7 @@ private:
             return false;
         }
 
-        // It is possible that the results has already been moved out by, e.g., GetUnique.
+        // It is possible that the result has already been moved out by, e.g., GetUnique.
         // Hence GetResult must only be called when we actually have handlers to invoke.
         if (!ResultHandlers_.IsEmpty()) {
             ResultHandlers_.RunAndClear(GetResult());
