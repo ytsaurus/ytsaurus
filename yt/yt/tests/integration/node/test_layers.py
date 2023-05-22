@@ -347,9 +347,10 @@ class TestProbingLayer(TestLayers):
         assert try_count < self.MAX_TRIES
 
     @pytest.mark.parametrize("options", [
-        {"max_speculative_job_count_per_task": 0},
         {"fail_on_job_restart": True},
         {"mapper": {"layer_paths": ["//tmp/layer2"]}},
+        {"max_speculative_job_count_per_task": 0},
+        {"try_avoid_duplicating_jobs": True},
     ])
     @authors("galtsev")
     def test_probing_layer_disabled(self, options):

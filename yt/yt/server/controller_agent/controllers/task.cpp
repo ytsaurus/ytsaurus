@@ -88,11 +88,11 @@ TTask::TTask(
     , SpeculativeJobManager_(
         this,
         Logger,
-        taskHost->GetSpec()->MaxSpeculativeJobCountPerTask)
+        taskHost->GetSpec()->TryAvoidDuplicatingJobs ? 0 : taskHost->GetSpec()->MaxSpeculativeJobCountPerTask)
     , ProbingJobManager_(
         this,
         Logger,
-        taskHost->GetSpec()->MaxProbingJobCountPerTask,
+        taskHost->GetSpec()->TryAvoidDuplicatingJobs ? 0 : taskHost->GetSpec()->MaxProbingJobCountPerTask,
         taskHost->GetSpec()->ProbingRatio,
         taskHost->GetSpec()->ProbingPoolTree)
     , LayerProbingJobManager_(

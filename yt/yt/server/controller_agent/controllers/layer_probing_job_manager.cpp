@@ -25,10 +25,10 @@ TLayerProbingJobManager::TLayerProbingJobManager(
 
 void TLayerProbingJobManager::SetUserJobSpec(TOperationSpecBasePtr operationSpec, TUserJobSpecPtr userJobSpec)
 {
-    auto competitiveJobsAllowed =
+    auto competitiveJobsAllowed = !operationSpec->TryAvoidDuplicatingJobs &&
+        !operationSpec->FailOnJobRestart &&
         operationSpec->MaxProbingJobCountPerTask != 0 &&
-        operationSpec->MaxSpeculativeJobCountPerTask != 0 &&
-        !operationSpec->FailOnJobRestart;
+        operationSpec->MaxSpeculativeJobCountPerTask != 0;
     UserJobSpec_ = competitiveJobsAllowed
         ? userJobSpec
         : nullptr;

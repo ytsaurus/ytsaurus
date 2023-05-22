@@ -2118,6 +2118,8 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
     registrar.Parameter("max_unpreemptible_job_count", &TThis::MaxUnpreemptibleRunningJobCount)
         .Alias("max_unpreemptable_job_count")
         .Default();
+    registrar.Parameter("try_avoid_duplicating_jobs", &TThis::TryAvoidDuplicatingJobs)
+        .Default();
     registrar.Parameter("max_speculative_job_count_per_task", &TThis::MaxSpeculativeJobCountPerTask)
         .Default(10);
     registrar.Parameter("max_probing_job_count_per_task", &TThis::MaxProbingJobCountPerTask)

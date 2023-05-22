@@ -446,6 +446,8 @@ public:
 
     std::optional<int> MaxUnpreemptibleRunningJobCount;
 
+    bool TryAvoidDuplicatingJobs;
+
     int MaxSpeculativeJobCountPerTask;
     int MaxProbingJobCountPerTask;
 
