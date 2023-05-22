@@ -92,7 +92,7 @@ ytsaurus-ytop-chart-controller-manager-5765c5f995-dntph   2/2     Running    0  
 
 #### Starting {{product-name}} cluster
 
-Download [specification](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_minikube_without_yql.yaml) to the cluster via `kubectl apply -f cluster_v1_minikube_without_yql.yaml`.
+Download [specification](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_minikube.yaml) to the cluster via `kubectl apply -f cluster_v1_minikube.yaml`.
 
 If the download was successful, after a while the list of running hearths will look like this:
 
@@ -139,5 +139,5 @@ yt map cat --src //home/t1 --dst //home/t2 --format json
 
 To delete a {{product-name}} cluster, run the command:
 ```
-kubectl delete -f cluster_v1_minikube_without_yql.yaml
+kubectl delete -f cluster_v1_minikube.yaml
 ```
