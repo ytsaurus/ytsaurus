@@ -21,7 +21,6 @@ struct IAsyncInputStream
     //! Starts reading another block of data.
     /*!
      *  Call #Read and provide a buffer to start reading.
-     *  Buffer passed to #Read must remain valid until the returned future is set.
      *  One must not call #Read again before the previous call is complete.
      *  Returns number of bytes read or an error.
      */
@@ -32,10 +31,10 @@ DEFINE_REFCOUNTED_TYPE(IAsyncInputStream)
 
 //! Creates a synchronous adapter from a given asynchronous stream.
 /*!
- * NB: in order to ensure memory safety with WaitFor strategy, data is read to an
- * intermediate shared buffer and then copied to the destination buffer.
- * Do not use this wrapper in throughput-critical code, prefer using
- * async or async zero-copy input stream interface instead.
+ *  NB: in order to ensure memory safety with WaitFor strategy, data is read to an
+ *  intermediate shared buffer and then copied to the destination buffer.
+ *  Do not use this wrapper in throughput-critical code, prefer using
+ *  async or async zero-copy input stream interface instead.
  */
 std::unique_ptr<IInputStream> CreateSyncAdapter(
     IAsyncInputStreamPtr underlyingStream,

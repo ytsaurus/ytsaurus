@@ -4,7 +4,7 @@ namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TContentEncoding> SupportedCompressions = {
+const std::vector<TContentEncoding> SupportedCompressions = {
     "gzip",
     IdentityContentEncoding,
     "br",

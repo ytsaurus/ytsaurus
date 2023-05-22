@@ -194,14 +194,15 @@ public:
 
     TFuture<size_t> Read(const TSharedMutableRef& buffer) override
     {
-        CreateDecompressor();
+        CreateDecompressorIfNeeded();
         return MakeFuture<size_t>(Decompressor_->Read(buffer.Begin(), buffer.Size()));
     }
 
 private:
     const IAsyncZeroCopyInputStreamPtr Underlying_;
     const TContentEncoding ContentEncoding_;
-    std::unique_ptr<IInputStream> Decompressor_;
+
+   std::unique_ptr<IInputStream> Decompressor_;
 
     TSharedRef LastRead_;
     bool IsEnd_ = false;
@@ -228,7 +229,7 @@ private:
         return readSize;
     }
 
-    void CreateDecompressor()
+    void CreateDecompressorIfNeeded()
     {
         if (Decompressor_) {
             return;
@@ -264,7 +265,7 @@ DEFINE_REFCOUNTED_TYPE(TDecompressingInputStream)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TContentEncoding IdentityContentEncoding = "identity";
+const TContentEncoding IdentityContentEncoding = "identity";
 
 bool IsCompressionSupported(const TContentEncoding& contentEncoding)
 {
