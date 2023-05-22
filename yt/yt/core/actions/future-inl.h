@@ -6,6 +6,7 @@
 #undef FUTURE_INL_H_
 
 #include "bind.h"
+#include "invoker_util.h"
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
