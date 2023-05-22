@@ -1093,7 +1093,7 @@ void Serialize(
                         .Item("thread").Value(error.GetThreadName())
                         .Item("fid").Value(error.GetFid());
                 }
-                if (error.HasOriginAttributes()) {
+                if (error.HasDatetime()) {
                     fluent
                         .Item("datetime").Value(error.GetDatetime());
                 }
