@@ -4,25 +4,11 @@ USER root
 
 WORKDIR /tmp
 
-ARG YTSERVER_ALL_PATH=ytserver-all
-ARG CHYT_CONTROLLER_PATH=chyt-controller
-ARG CLICKHOUSE_TRAMPOLINE_PATH=clickhouse-trampoline
-ARG YTSERVER_CLICKHOUSE_PATH=ytserver-clickhouse
-ARG YTSERVER_LOG_TAILER_PATH=ytserver-log-tailer
-ARG INIT_OPERATION_ARCHIVE_PATH=init_operation_archive
-
-ARG YTSERVER_ALL_CREDITS_PATH=credits/ytserver-all.CREDITS
-ARG CHYT_CONTROLLER_CREDITS_PATH=credits/chyt-controller.CREDITS
-ARG YTSERVER_CLICKHOUSE_CREDITS_PATH=credits/ytserver-clickhouse.CREDITS
-ARG YTSERVER_LOG_TAILER_CREDITS_PATH=credits/ytserver-log-tailer.CREDITS
-
-ARG DRIVER_BINDINGS_PACKAGE_PATH=ytsaurus_native_driver-1.0.0-cp39-cp39-linux_x86_64.whl
-
 ARG SPYT_VERSION=1.69.3
 ARG SPARK_VERSION=1.69.0
 
 # Main binary.
-COPY ${YTSERVER_ALL_PATH} /usr/bin/ytserver-all
+COPY ./ytserver-all /usr/bin/ytserver-all
 
 # If this list changes, also update yt_nightly/Dockerfile
 RUN ln /usr/bin/ytserver-all /usr/bin/ytserver-master && \
@@ -39,29 +25,28 @@ RUN ln /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln /usr/bin/ytserver-all /usr/bin/ytserver-query-tracker
 
 # CHYT bits and pieces.
-COPY ${CHYT_CONTROLLER_PATH} /usr/bin/chyt-controller
-COPY ${CLICKHOUSE_TRAMPOLINE_PATH} /usr/bin/clickhouse-trampoline
-COPY ${YTSERVER_CLICKHOUSE_PATH} /usr/bin/ytserver-clickhouse
-COPY ${YTSERVER_LOG_TAILER_PATH} /usr/bin/ytserver-log-tailer
+COPY ./chyt-controller /usr/bin/chyt-controller
+COPY ./clickhouse-trampoline.py /usr/bin/clickhouse-trampoline
+COPY ./ytserver-clickhouse /usr/bin/ytserver-clickhouse
+COPY ./ytserver-log-tailer /usr/bin/ytserver-log-tailer
 
-# Python script
-COPY ${INIT_OPERATION_ARCHIVE_PATH} /usr/bin/init_operation_archive
+COPY ./init_operation_archive.py /usr/bin/init_operation_archive
 
 # SPYT pieces.
-COPY spyt_release/home/spark/conf/releases/${SPARK_VERSION}/metrics.properties /usr/bin/metrics.properties
-COPY spyt_release/home/spark/conf/releases/${SPARK_VERSION}/solomon-agent.template.conf /usr/bin/solomon-agent.template.conf
-COPY spyt_release/home/spark/conf/releases/${SPARK_VERSION}/solomon-service-master.template.conf /usr/bin/solomon-service-master.template.conf
-COPY spyt_release/home/spark/conf/releases/${SPARK_VERSION}/solomon-service-worker.template.conf /usr/bin/solomon-service-worker.template.conf
-COPY spyt_release/home/spark/spark/releases/${SPARK_VERSION}/spark.tgz /usr/bin/spark.tgz
-COPY spyt_release/home/spark/spyt/releases/${SPYT_VERSION}/spark-yt-data-source.jar /usr/bin/spark-yt-data-source.jar
-COPY spyt_release/home/spark/spyt/releases/${SPYT_VERSION}/spyt.zip /usr/bin/spyt.zip
-COPY spyt_release/home/spark/bin/releases/${SPARK_VERSION}/spark-yt-launcher.jar /usr/bin/spark-yt-launcher.jar
+COPY ./spyt_release/home/spark/conf/releases/${SPARK_VERSION}/metrics.properties /usr/bin/metrics.properties
+COPY ./spyt_release/home/spark/conf/releases/${SPARK_VERSION}/solomon-agent.template.conf /usr/bin/solomon-agent.template.conf
+COPY ./spyt_release/home/spark/conf/releases/${SPARK_VERSION}/solomon-service-master.template.conf /usr/bin/solomon-service-master.template.conf
+COPY ./spyt_release/home/spark/conf/releases/${SPARK_VERSION}/solomon-service-worker.template.conf /usr/bin/solomon-service-worker.template.conf
+COPY ./spyt_release/home/spark/spark/releases/${SPARK_VERSION}/spark.tgz /usr/bin/spark.tgz
+COPY ./spyt_release/home/spark/spyt/releases/${SPYT_VERSION}/spark-yt-data-source.jar /usr/bin/spark-yt-data-source.jar
+COPY ./spyt_release/home/spark/spyt/releases/${SPYT_VERSION}/spyt.zip /usr/bin/spyt.zip
+COPY ./spyt_release/home/spark/bin/releases/${SPARK_VERSION}/spark-yt-launcher.jar /usr/bin/spark-yt-launcher.jar
 
 # CREDITS files with licenses for all binaries.
-COPY ${YTSERVER_ALL_CREDITS_PATH} /usr/bin/ytserver-all.CREDITS
-COPY ${CHYT_CONTROLLER_CREDITS_PATH} /usr/bin/chyt-controller.CREDITS
-COPY ${YTSERVER_CLICKHOUSE_CREDITS_PATH} /usr/bin/ytserver-clickhouse.CREDITS
-COPY ${YTSERVER_LOG_TAILER_CREDITS_PATH} /usr/bin/ytserver-log-tailer.CREDITS
+COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
+COPY ./credits/chyt-controller.CREDITS  /usr/bin/chyt-controller.CREDITS
+COPY ./credits/ytserver-clickhouse.CREDITS /usr/bin/ytserver-clickhouse.CREDITS
+COPY ./credits/ytserver-log-tailer.CREDITS  /usr/bin/ytserver-log-tailer.CREDITS
 
 RUN apt-get update && apt-get install -y \
   curl \
@@ -89,9 +74,8 @@ RUN /opt/conda/bin/python3.7 -m pip install -i https://pypi.org/simple/ \
     ytsaurus-spyt==${SPYT_VERSION}
 
 # Local built package with native driver bindings.
-COPY ${DRIVER_BINDINGS_PACKAGE_PATH} ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl
-RUN /opt/conda/bin/python3.7 -m pip install /tmp/ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl \
-    --extra-index-url https://pypi.org/simple/
+COPY ./ytsaurus_native_driver-1.0.0-cp34-abi3-linux_x86_64.whl /tmp/ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl
+RUN /opt/conda/bin/python3.7 -m pip install /tmp/ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl
 RUN rm /tmp/ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl
 
 # Add symlink for yt.
@@ -107,6 +91,6 @@ RUN sed -i 's/python3/python3.8/' /usr/bin/lsb_release
 # In order to obtain them, run the following command in yt/yql/package:
 #   ya package package.json --raw-package-path yql_package
 # And move the resulting directory to the context of docker build.
-COPY yql_package/ytserver-yql-agent /usr/bin/
-COPY yql_package/mrjob /usr/bin/
-COPY yql_package/lib*.so /usr/lib/yql/
+COPY ./yql_package/ytserver-yql-agent /usr/bin/
+COPY ./yql_package/mrjob /usr/bin/
+COPY ./yql_package/lib*.so /usr/lib/yql/
