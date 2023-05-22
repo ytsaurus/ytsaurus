@@ -665,3 +665,33 @@ class TestNodeDynamicConfig(YTEnvSetup):
             return gauge1 == gauge2 == 1.0 and not profiler_b.get_all("cluster_node/alerts")
 
         wait(check2)
+
+    @authors("danilalexeev")
+    def test_dynamic_hydra_manager_config(self):
+        nodes = ls("//sys/cluster_nodes")
+        set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[0]), ["nodeA"])
+
+        config = {
+            "nodeA": {
+                "cellar_node": {
+                    "cellar_manager": {
+                        "cellars": {
+                            "tablet": {
+                                "type": "tablet",
+                                "hydra_manager": {
+                                    "restart_backoff_time": 100
+                                },
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        set("//sys/cluster_nodes/@config", config)
+
+        key = (
+            "//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/effective_config/"
+            "cellar_node/cellar_manager/cellars/tablet/hydra_manager/restart_backoff_time"
+        )
+        wait(lambda: get(key.format(nodes[0])) == 100, ignore_exceptions=True)

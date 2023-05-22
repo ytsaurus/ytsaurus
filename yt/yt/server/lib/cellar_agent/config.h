@@ -55,6 +55,8 @@ class TCellarDynamicConfig
 public:
     std::optional<int> Size;
 
+    NHydra::TDynamicDistributedHydraManagerConfigPtr HydraManager;
+
     REGISTER_YSON_STRUCT(TCellarDynamicConfig);
 
     static void Register(TRegistrar registrar);

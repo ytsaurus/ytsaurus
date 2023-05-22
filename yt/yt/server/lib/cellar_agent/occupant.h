@@ -45,6 +45,7 @@ struct ICellarOccupant
 
     virtual int GetDynamicConfigVersion() const = 0;
     virtual void UpdateDynamicConfig(const NCellarNodeTrackerClient::NProto::TUpdateCellSlotInfo& updateInfo) = 0;
+    virtual void Reconfigure(NHydra::TDynamicDistributedHydraManagerConfigPtr config) = 0;
 
     virtual TFuture<void> Finalize() = 0;
 

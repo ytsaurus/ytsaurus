@@ -563,6 +563,15 @@ public:
         }
     }
 
+    void Reconfigure(NHydra::TDynamicDistributedHydraManagerConfigPtr dynamicConfig) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (CanConfigure()) {
+            HydraManager_.Load()->Reconfigure(dynamicConfig);
+        }
+    }
+
     TFuture<void> Finalize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);

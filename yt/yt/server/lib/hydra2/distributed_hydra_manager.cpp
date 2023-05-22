@@ -349,11 +349,14 @@ public:
 
     TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr dynamicConfig) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&TDistributedHydraManager::ReconfigureControl, MakeStrong(this), std::move(dynamicConfig))
-            .AsyncVia(AutomatonEpochContext_->EpochControlInvoker)
-            .Run();
+        if (auto epochContext = AtomicEpochContext_.Acquire()) {
+            return BIND(&TDistributedHydraManager::ReconfigureControl, MakeStrong(this), std::move(dynamicConfig))
+                .AsyncVia(epochContext->EpochControlInvoker)
+                .Run();
+        }
+        return VoidFuture;
     }
 
     TFuture<int> BuildSnapshot(bool setReadOnly, bool waitForSnapshotCompletion) override

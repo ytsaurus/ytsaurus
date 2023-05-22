@@ -66,6 +66,14 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         SetCellarSize(config->Size.value_or(Config_->Size));
+
+        HydraDynamicConfig_ = config->HydraManager;
+
+        for (auto& occupant : Occupants_) {
+            if (occupant) {
+                occupant->Reconfigure(HydraDynamicConfig_);
+            }
+        }
     }
 
     int GetAvailableSlotCount() const override
@@ -140,6 +148,9 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         occupant->Configure(configureInfo);
+        if (HydraDynamicConfig_) {
+            occupant->Reconfigure(HydraDynamicConfig_);
+        }
     }
 
     void UpdateOccupant(
@@ -277,6 +288,8 @@ private:
     ICellarOccupierProviderPtr OccupierProvider_;
 
     const IYPathServicePtr OrchidService_;
+
+    NHydra::TDynamicDistributedHydraManagerConfigPtr HydraDynamicConfig_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
