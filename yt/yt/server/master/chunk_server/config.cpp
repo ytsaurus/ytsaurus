@@ -174,7 +174,7 @@ void TDynamicMasterCellChunkStatisticsCollectorConfig::Register(TRegistrar regis
 
     registrar.Postprocessor([] (TThis* config) {
         if (std::ssize(config->CreationTimeHistogramBucketBounds) > MaxChunkCreationTimeHistogramBuckets) {
-            THROW_ERROR_EXCEPTION("creation_time_histogram_bucket_bounds is too large")
+            THROW_ERROR_EXCEPTION("\"creation_time_histogram_bucket_bounds\" is too large")
                 << TErrorAttribute("size", std::ssize(config->CreationTimeHistogramBucketBounds))
                 << TErrorAttribute("limit", MaxChunkCreationTimeHistogramBuckets);
         }

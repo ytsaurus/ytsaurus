@@ -165,7 +165,7 @@ TChunkScanner::TChunkScanner(
     EChunkScanKind kind,
     bool journal)
     : TGlobalChunkScanner(
-        std::move(objectManager),//
+        std::move(objectManager),
         journal,
         ChunkServerLogger.WithTag("Kind: %v, Journal: %v",
             Kind_,

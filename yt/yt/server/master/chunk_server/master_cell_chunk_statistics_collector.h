@@ -19,8 +19,6 @@ class TReqUpdateMasterCellChunkStatistics;
 struct IMasterCellChunkStatisticsPieceCollector
     : public TRefCounted
 {
-    virtual ~IMasterCellChunkStatisticsPieceCollector() = default;
-
     virtual void PersistentClear() noexcept = 0;
     virtual void TransientClear() noexcept = 0;
 

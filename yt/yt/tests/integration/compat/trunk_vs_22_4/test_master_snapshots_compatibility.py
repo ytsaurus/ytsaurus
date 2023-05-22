@@ -155,7 +155,7 @@ def check_chunk_creation_time_histogram():
         if histogram != true_histogram:
             print_debug(f"actual:   {histogram}")
             print_debug(f"expected: {true_histogram}")
-            print_debug(f"verbose: {verbose_true_histogram}")
+            print_debug(f"verbose:  {verbose_true_histogram}")
 
         return histogram == true_histogram
 

@@ -241,6 +241,8 @@ struct IChunkManager
         TChunkList* chunkList,
         TChunkTree* child,
         EChunkDetachPolicy policy) = 0;
+    // NB: Keep in mind that cumulative chunk list statistics will not be
+    // recalculated.
     virtual void ReplaceChunkListChild(
         TChunkList* chunkList,
         int childIndex,

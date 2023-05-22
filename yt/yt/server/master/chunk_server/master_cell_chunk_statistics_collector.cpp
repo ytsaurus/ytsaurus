@@ -34,7 +34,7 @@ class TMasterCellChunkStatisticsCollector
     , public TMasterAutomatonPart
 {
 public:
-    explicit TMasterCellChunkStatisticsCollector(
+    TMasterCellChunkStatisticsCollector(
         TBootstrap* bootstrap,
         std::vector<IMasterCellChunkStatisticsPieceCollectorPtr> statisticsPieceCollectors)
         : TMasterAutomatonPart(
@@ -158,7 +158,7 @@ private:
 
     // Persistent fields.
 
-    bool Running_;
+    bool Running_ = false;
 
     // Transient fields.
 
@@ -373,6 +373,7 @@ private:
     {
         using NYT::Save;
 
+        // TODO(kvk1920): Use TSizeSerializer.
         Save<size_t>(context, StatisticsPieceCollectors_.size());
         for (const auto& statisticsPieceCollector : StatisticsPieceCollectors_) {
             statisticsPieceCollector->Save(context);

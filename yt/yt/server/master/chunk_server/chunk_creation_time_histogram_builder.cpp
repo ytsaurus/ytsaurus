@@ -248,4 +248,6 @@ IMasterCellChunkStatisticsPieceCollectorPtr CreateChunkCreationTimeHistogramBuil
     return New<TChunkCreationTimeHistogramBuilder>(bootstrap);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkServer
