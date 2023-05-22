@@ -281,6 +281,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(int, NextDisposedLocationIndex);
     DEFINE_BYVAL_RW_PROPERTY(bool, DisposalTickScheduled);
+
 public:
     explicit TNode(NObjectServer::TObjectId objectId);
 
