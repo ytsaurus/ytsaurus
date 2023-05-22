@@ -110,6 +110,8 @@ public:
 
     bool ResetUuid;
 
+    bool EnableUring;
+
     void ApplyDynamicInplace(const TChunkLocationDynamicConfig& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TChunkLocationConfig);

@@ -310,6 +310,7 @@ TChunkLocation::TChunkLocation(
     DynamicIOEngine_ = CreateDynamicIOEngine(
         StaticConfig_->IOEngineType,
         StaticConfig_->IOConfig,
+        StaticConfig_->EnableUring,
         Id_,
         Profiler_,
         DataNodeLogger.WithTag("LocationId: %v", Id_));

@@ -19,6 +19,7 @@ DEFINE_REFCOUNTED_TYPE(IDynamicIOEngine)
 IDynamicIOEnginePtr CreateDynamicIOEngine(
     EIOEngineType defaultEngineType,
     NYTree::INodePtr ioConfig,
+    bool enableUring,
     TString locationId = "default",
     NProfiling::TProfiler profiler = {},
     NLogging::TLogger logger = {});

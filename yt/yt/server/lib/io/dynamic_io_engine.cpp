@@ -14,6 +14,7 @@ public:
     TDynamicIOEngine(
         EIOEngineType defaultEngineType,
         NYTree::INodePtr ioConfig,
+        bool enableUring,
         TString locationId,
         NProfiling::TProfiler profiler,
         NLogging::TLogger logger)
@@ -23,7 +24,7 @@ public:
     {
         for (auto engineType : GetSupportedIOEngineTypes()) {
             // We have to check available system resources each time we create new io_uring engine.
-            if (IsUringBasedIOEngine(engineType) && !IsUringIOEngineSupported()) {
+            if (IsUringBasedIOEngine(engineType) && !enableUring) {
                 continue;
             }
 
@@ -257,6 +258,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicIOEngine)
 IDynamicIOEnginePtr CreateDynamicIOEngine(
     EIOEngineType defaultEngineType,
     NYTree::INodePtr ioConfig,
+    bool enableUring,
     TString locationId,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger)
@@ -264,6 +266,7 @@ IDynamicIOEnginePtr CreateDynamicIOEngine(
     return New<TDynamicIOEngine>(
         defaultEngineType,
         ioConfig,
+        enableUring,
         locationId,
         profiler,
         logger);
