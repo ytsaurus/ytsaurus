@@ -557,7 +557,7 @@ std::optional<TUnversionedValue> FoldConstants(
                         }
 
                         if (lhs.Data.Int64 == std::numeric_limits<i64>::min() && rhs.Data.Int64 == -1) {
-                            THROW_ERROR_EXCEPTION("Division INT_MIN by -1");
+                            THROW_ERROR_EXCEPTION("Division of INT_MIN by -1");
                         }
 
                         lhs.Data.Int64 /= rhs.Data.Int64;
@@ -584,7 +584,7 @@ std::optional<TUnversionedValue> FoldConstants(
                         }
 
                         if (lhs.Data.Int64 == std::numeric_limits<i64>::min() && rhs.Data.Int64 == -1) {
-                            THROW_ERROR_EXCEPTION("Division INT_MIN by -1");
+                            THROW_ERROR_EXCEPTION("Division of INT_MIN by -1");
                         }
 
                         lhs.Data.Int64 %= rhs.Data.Int64;

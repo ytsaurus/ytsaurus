@@ -349,14 +349,14 @@ TEST_F(TQueryPrepareTest, IncorrectDivision)
 
     ExpectPrepareThrowsWithDiagnostics(
         "* from [//t] where a = -9223372036854775808 / -1",
-        ContainsRegex("Division INT_MIN by -1"));
+        ContainsRegex("Division of INT_MIN by -1"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "* from [//t] where a = -9223372036854775808 % -1",
-        ContainsRegex("Division INT_MIN by -1"));
+        ContainsRegex("Division of INT_MIN by -1"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));

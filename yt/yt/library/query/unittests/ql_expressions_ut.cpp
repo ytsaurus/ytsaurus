@@ -1836,7 +1836,7 @@ TEST_F(TExpressionErrorTest, Int64_DivisionIntMinByMinusOne)
 
     EXPECT_THROW_THAT(
         EvaluateExpression(expr, "i1=-9223372036854775808; i2=-1", schema, &result, buffer),
-        HasSubstr("Division INT_MIN by -1"));
+        HasSubstr("Division of INT_MIN by -1"));
 }
 
 TEST_F(TExpressionErrorTest, ConvertFromAny)
