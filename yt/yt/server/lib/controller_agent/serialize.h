@@ -20,10 +20,10 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ChunkFormat)                          (301103))
     ((ProbingBaseLayer)                     (301105))
     ((ProbingBaseLayerPersistLostJobs)      (301106))
+    ((ProbingBaseLayerPersistAlertCounts)   (301107))
     // 23.1 starts here
     ((InputStreamDescriptors)               (301200))
     ((DoNotPersistJobReleaseFlags)          (301201))
-    ((ProbingBaseLayerPersistAlertCounts)   (301202))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
