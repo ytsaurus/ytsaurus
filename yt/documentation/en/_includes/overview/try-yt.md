@@ -26,8 +26,6 @@ Go to [link](https://ytsaurus.tech/#demo ) to get access to it.
 
 ## Kubernetes
 
-Currently, a version of {{product-name}} is available for self-installation without support for the SQL query language. The corresponding code will be made freely available in the near future.
-
 To deploy {{product-name}} in Kubernetes, it is recommended to use the [operator](https://github.com/ytsaurus/yt-k8s-operator). Ready-made docker images with operator, UI, server components and examples can be found on [dockerhub](https://hub.docker.com/u/ytsaurus).
 
 ### Deployment in a Kubernetes cluster
@@ -37,7 +35,7 @@ This section describes the installation of {{product-name}} in a Kubernetes clus
 #### Installing the operator
 
 1. Install the [helm utility](https://helm.sh/docs/intro/install/).
-2. Download the chart `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.1.6 --untar`.
+2. Download the chart `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.1.9 --untar`.
 3. Install the `helm install ytsaurus ytop-chart/` operator.
 4. Check the result:
 
@@ -55,7 +53,7 @@ kubectl create namespace <namespace>
 kubectl create secret generic ytadminsec --from-literal=login=admin --from-literal=password=<password> --from-literal=token=<password>  -n <namespace>
 ```
 
-Download [specification](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_demo_without_yql.yaml) , correct as necessary and upload to the cluster `kubectl apply -f cluster_v1_demo_without_yql.yaml -n <namespace>`.
+Download [specification](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_demo.yaml) , correct as necessary and upload to the cluster `kubectl apply -f cluster_v1_demo.yaml -n <namespace>`.
 
 It is necessary to specify guarantees or resource limits in the `execNodes` section, the specified values will be reflected in the node configuration, and will be visible to the scheduler. For reliable data storage, be sure to allocate persistent volumes.
 
@@ -82,7 +80,7 @@ As a result, the `kubectl cluster-info` command should be executed successfully.
 #### Installing the operator
 
 1. Install the [helm utility](https://help.sh/docs/intro/install/).
-2. Download the chart `helm pull oci://docker.io/ytsaurus/top-chart --version 0.1.6 --untar'.
+2. Download the chart `helm pull oci://docker.io/ytsaurus/top-chart --version 0.1.9 --untar'.
 3. Install the `helm install ytsaurus ytop-chart/` operator.
 4. Check the result:
 

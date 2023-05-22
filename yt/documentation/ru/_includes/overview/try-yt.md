@@ -26,8 +26,6 @@ token=""
 
 ## Kubernetes
 
-В настоящее время для самостоятельной установки доступна версия {{product-name}} без поддержки языка запросов YQL. Соответствующий код будет выложен в свободный доступ в ближайшее время.
-
 Для разворачивания {{product-name}} в Kubernetes рекомендуется воспользоваться [оператором](https://github.com/ytsaurus/yt-k8s-operator). Готовые docker-образы с оператором, UI, серверными компонентами и примерами можно найти на [dockerhub](https://hub.docker.com/u/ytsaurus).
 
 ### Развёртывание в кластере Kubernetes
@@ -37,7 +35,7 @@ token=""
 #### Установка оператора
 
 1. Установите утилиту [helm](https://helm.sh/docs/intro/install/).
-2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.1.6 --untar`.
+2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.1.9 --untar`.
 3. Установите оператор `helm install ytsaurus ytop-chart/`.
 4. Проверьте результат:
 
@@ -55,7 +53,7 @@ kubectl create namespace <namespace>
 kubectl create secret generic ytadminsec --from-literal=login=admin --from-literal=password=<password> --from-literal=token=<password>  -n <namespace> 
 ```
 
-Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_demo_without_yql.yaml), поправьте по необходимости и загрузите в кластер `kubectl apply -f cluster_v1_demo_without_yql.yaml -n <namespace>`.
+Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_demo.yaml), поправьте по необходимости и загрузите в кластер `kubectl apply -f cluster_v1_demo.yaml -n <namespace>`.
 
 Необходимо прописать гарантии или лимиты ресурсов в секции `execNodes`, указанные значения будут отражены в конфигурации нод, и будут видны планировщику. Для надёжного хранения данных, обязательно выделите персистентные тома.
 
@@ -81,7 +79,7 @@ https://kubernetes.io/ru/docs/tasks/tools/install-minikube/
 #### Установка оператора
 
 1. Установите утилиту [helm](https://helm.sh/docs/intro/install/).
-2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.1.6 --untar`.
+2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.1.9 --untar`.
 3. Установите оператор `helm install ytsaurus ytop-chart/`.
 4. Проверьте результат:
 
