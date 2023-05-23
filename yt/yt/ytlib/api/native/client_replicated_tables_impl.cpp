@@ -218,7 +218,9 @@ std::vector<TTableReplicaId> TClient::GetChaosTableInSyncReplicas(
     std::vector<TTableReplicaId> replicaIds;
 
     auto isTimestampInSync = [&] (const auto& replica, auto timestamp) {
-        if (auto item = replica.History.back(); IsReplicaReallySync(item.Mode, item.State) && timestamp >= item.Timestamp) {
+        if (const auto& item = replica.History.back();
+            IsReplicaReallySync(item.Mode, item.State) && timestamp >= item.Timestamp)
+        {
             return true;
         }
         if (userTimestamp >= MinTimestamp &&
