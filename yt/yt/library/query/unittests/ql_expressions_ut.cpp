@@ -1589,6 +1589,18 @@ INSTANTIATE_TEST_SUITE_P(
             "-i1",
             MakeInt64(-33)),
         std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "-----1",
+            MakeInt64(-1)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "~~~~42",
+            MakeInt64(42)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "42 ++ --2 ---2",
+            MakeInt64(42)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
             "i1=0",
             "uint64(i1)",
             MakeUint64(0)),

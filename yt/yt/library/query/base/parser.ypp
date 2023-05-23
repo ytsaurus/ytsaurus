@@ -550,7 +550,7 @@ comma-expr
 ;
 
 unary-expr
-    : unary-op[opcode] atomic-expr[rhs]
+    : unary-op[opcode] unary-expr[rhs]
         {
             $$ = MakeExpression<TUnaryOpExpression>(head, @$, $opcode, $rhs);
         }
@@ -633,7 +633,7 @@ literal-value
 ;
 
 const-value
-    : unary-op[op] literal-value[value]
+    : unary-op[op] const-value[value]
         {
             switch ($op) {
                 case EUnaryOp::Minus: {
