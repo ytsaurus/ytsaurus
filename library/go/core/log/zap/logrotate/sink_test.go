@@ -4,7 +4,7 @@
 package logrotate
 
 import (
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,7 +22,7 @@ func TestLogrotateSink(t *testing.T) {
 	testDir := "testLogrotate"
 
 	// use test dir in default temp files location
-	tempDir, err := ioutil.TempDir("", testDir)
+	tempDir, err := os.MkdirTemp("", testDir)
 	require.NoError(t, err, "failed to create temporary directory %s", testDir)
 
 	testLogPath := filepath.Join(tempDir, testLogFilename)
@@ -80,7 +80,7 @@ func requireLineCount(t *testing.T, path string, lines int) {
 	file, err := os.OpenFile(path, os.O_RDONLY, 0)
 	require.NoError(t, err, "failed to open log file for reading")
 	defer func() { _ = file.Close() }()
-	dataRead, err := ioutil.ReadAll(file)
+	dataRead, err := io.ReadAll(file)
 	require.NoError(t, err, "failed to read log file")
 	require.Equal(t, lines, strings.Count(string(dataRead), "\n"))
 }

@@ -1,7 +1,7 @@
 package logrus
 
 import (
-	"io/ioutil"
+	"io"
 	"runtime"
 	"strings"
 	"sync"
@@ -193,7 +193,7 @@ func AdaptLogrus(logr *logrus.Logger, logger log.Logger, level log.Level, opts .
 	}
 
 	logr.SetFormatter(adapter)
-	logr.SetOutput(ioutil.Discard)
+	logr.SetOutput(io.Discard)
 }
 
 // AdaptStandardLogger replaces logrus.StandardLogger() formatter by wrapped logger

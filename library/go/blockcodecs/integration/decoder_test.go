@@ -3,7 +3,6 @@ package integration
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -22,7 +21,7 @@ func TestDecoder_CheckEOF(t *testing.T) {
 	require.NoError(t, w.Close())
 
 	checkOK := func(r io.Reader) {
-		buf, err := ioutil.ReadAll(r)
+		buf, err := io.ReadAll(r)
 		require.NoError(t, err)
 		require.Equal(t, buf, data)
 	}
@@ -40,6 +39,6 @@ func TestDecoder_CheckEOF(t *testing.T) {
 
 	d = blockcodecs.NewDecoder(withTail)
 	d.SetCheckUnderlyingEOF(true)
-	_, err = ioutil.ReadAll(d)
+	_, err = io.ReadAll(d)
 	require.Error(t, err)
 }
