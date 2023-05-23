@@ -243,7 +243,7 @@ object SpytRelease {
   }
   private lazy val sparkMvnDeployProcess: Seq[ReleaseStep] = Seq(
     setSparkForkSnapshotVersionMvn,
-    ReleaseStep(releaseStepTask(spytMvnDeploySparkFork)),
+    ReleaseStep(releaseStepTask(deploySparkFork)),
     unsetSparkForkSnapshotVersionMvn,
     updateSparkForkDependency
   )

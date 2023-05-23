@@ -189,6 +189,8 @@ object YtPublishPlugin extends AutoPlugin {
       }
     }
 
+    def limitTtlEnabled: Boolean = Option(System.getProperty("limitTtl")).forall(_.toBoolean)
+
     val publishYt = taskKey[Unit]("Publish to yt directory")
     val publishYtArtifacts = taskKey[Seq[YtPublishArtifact]]("Yt publish artifacts")
     val publishYtCredentials = settingKey[YTsaurusClientAuth]("Yt publish credentials")

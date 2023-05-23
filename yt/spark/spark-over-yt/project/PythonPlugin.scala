@@ -18,6 +18,7 @@ object PythonPlugin extends AutoPlugin {
     val pythonClean = taskKey[Unit]("")
     val pythonWheel = taskKey[Unit]("")
     val pythonUpload = taskKey[Unit]("")
+    val pythonBuild = taskKey[Unit]("")
     val pythonBuildAndUpload = taskKey[Unit]("")
 
     val pythonDeps = taskKey[Seq[(String, File)]]("")
@@ -68,9 +69,12 @@ object PythonPlugin extends AutoPlugin {
         runCommand(command, pythonBuildDir.value)
       }
     },
-    pythonBuildAndUpload := Def.sequential(
+    pythonBuild := Def.sequential(
       pythonClean,
-      pythonWheel,
+      pythonWheel
+    ).value,
+    pythonBuildAndUpload := Def.sequential(
+      pythonBuild,
       pythonUpload
     ).value,
     pythonDeps := Nil

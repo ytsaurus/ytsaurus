@@ -1,5 +1,6 @@
 import CommonPlugin.autoImport._
 import Dependencies._
+import sbtassembly.AssemblyKeys.assembly
 import spyt.PythonPlugin.autoImport._
 import spyt.SparkPackagePlugin.autoImport._
 import spyt.SparkPaths._
@@ -35,7 +36,8 @@ lazy val `spark-fork` = (project in file("spark-fork"))
   )
   .settings(
     tarArchiveMapping += sparkPackage.value -> "spark",
-    tarArchivePath := Some(target.value / s"spark.tgz")
+    tarArchivePath := Some(target.value / s"spark.tgz"),
+    tarSparkArchiveBuild := tarArchiveBuild.value
   )
   .settings(
     pythonSetupName := "setup-ytsaurus.py",
@@ -46,9 +48,10 @@ lazy val `spark-fork` = (project in file("spark-fork"))
       val versionValue = (ThisBuild / spytSparkVersion).value
       val basePath = versionPath(sparkYtSparkForkPath, versionValue)
       val isSnapshotValue = isSnapshotVersion(versionValue)
+      val isTtlLimited = isSnapshotValue && limitTtlEnabled
 
       Seq(
-        YtPublishFile(tarArchiveBuild.value, basePath, None, isTtlLimited = isSnapshotValue)
+        YtPublishFile(tarSparkArchiveBuild.value, basePath, None, isTtlLimited = isTtlLimited)
       )
     }
   )
@@ -68,21 +71,23 @@ lazy val `cluster` = (project in file("spark-cluster"))
     assembly / test := {}
   )
   .settings(
+    clusterSpytBuild := Def.sequential(assembly).value,
     publishYtArtifacts ++= {
       val versionValue = (ThisBuild / spytClusterVersion).value
       val sparkVersionValue = (ThisBuild / spytSparkVersion).value
       val isSnapshotValue = isSnapshotVersion(versionValue)
+      val isTtlLimited = isSnapshotValue && limitTtlEnabled
 
       val basePath = versionPath(sparkYtClusterPath, versionValue)
       val sparkPath = versionPath(sparkYtSparkForkPath, sparkVersionValue)
 
-      val sparkLink = Seq(YtPublishLink(s"$sparkPath/spark.tgz", basePath, None, "spark.tgz", isSnapshotValue))
+      val sparkLink = Seq(YtPublishLink(s"$sparkPath/spark.tgz", basePath, None, "spark.tgz", isTtlLimited))
 
       val clusterConfigArtifacts = spyt.ClusterConfig.artifacts(streams.value.log, versionValue,
         (Compile / resourceDirectory).value)
 
       sparkLink ++ Seq(
-        YtPublishFile(assembly.value, basePath, None, isTtlLimited = isSnapshotValue),
+        YtPublishFile(assembly.value, basePath, None, isTtlLimited = isTtlLimited),
       ) ++ clusterConfigArtifacts
     }
   )
@@ -121,13 +126,15 @@ lazy val `data-source` = (project in file("data-source"))
     zipIgnore := { file: File =>
       file.getName.contains("__pycache__") || file.getName.endsWith(".pyc")
     },
+    clientSpytBuild := Def.sequential(assembly, zip).value,
     publishYtArtifacts ++= {
       val subdir = if (isSnapshot.value) "snapshots" else "releases"
       val publishDir = s"$sparkYtClientPath/$subdir/${version.value}"
+      val isTtlLimited = isSnapshot.value && limitTtlEnabled
 
       Seq(
-        YtPublishFile(assembly.value, publishDir, proxy = None, isTtlLimited = isSnapshot.value),
-        YtPublishFile(zip.value, publishDir, proxy = None, isTtlLimited = isSnapshot.value)
+        YtPublishFile(assembly.value, publishDir, proxy = None, isTtlLimited = isTtlLimited),
+        YtPublishFile(zip.value, publishDir, proxy = None, isTtlLimited = isTtlLimited)
       )
     },
     assembly / assemblyShadeRules ++= clientShadeRules,
@@ -243,15 +250,44 @@ lazy val root = (project in file("."))
     `spark-submit`
   )
   .settings(
-    spytPublishCluster := (cluster / publishYt).value,
-    spytPublishClient := Def.sequential(
-      `data-source` / publishYt,
-      `data-source` / pythonBuildAndUpload
-    ).value,
-    spytPublishSparkFork := Def.sequential(
-      `spark-fork` / publishYt,
-      `spark-fork` / pythonBuildAndUpload
-    ).value,
+    spytPublishCluster := {
+      if (publishYtEnabled) {
+        (cluster / publishYt).value
+      } else {
+        streams.value.log.info("Publishing cluster files to YT is skipped because of disabled publishYt")
+        (cluster / clusterSpytBuild).value
+      }
+    },
+    spytPublishClient := Def.taskDyn {
+      val task1 = if (publishYtEnabled) {
+        `data-source` / publishYt
+      } else {
+        streams.value.log.info("Publishing client files to YT is skipped because of disabled publishYt")
+        `data-source` / clientSpytBuild
+      }
+      val task2 = if (publishRepoEnabled) {
+        `data-source` / pythonBuildAndUpload
+      } else {
+        streams.value.log.info("Publishing spyt client to pypi is skipped because of disabled publishRepo")
+        `data-source` / pythonBuild
+      }
+      Def.sequential(task1, task2)
+    }.value,
+    spytPublishSparkFork := Def.taskDyn {
+      val task1 = if (publishYtEnabled) {
+        `spark-fork` / publishYt
+      } else {
+        streams.value.log.info("Publishing spark fork to YT is skipped because of disabled publishYt")
+        `spark-fork` / tarSparkArchiveBuild
+      }
+      val task2 = if (publishRepoEnabled) {
+        `spark-fork` / pythonBuildAndUpload
+      } else {
+        streams.value.log.info("Publishing pyspark fork to pypi is skipped because of disabled publishRepo")
+        `spark-fork` / pythonBuild
+      }
+      Def.sequential(task1, task2)
+    }.value,
     spytMvnInstallSparkFork := (`spark-fork` / sparkMvnInstall).value,
     spytMvnDeploySparkFork := (`spark-fork` / sparkMvnDeploy).value,
     spytPublishLibraries := Def.sequential(

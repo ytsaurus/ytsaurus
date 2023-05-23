@@ -38,6 +38,7 @@ object SparkPackagePlugin extends AutoPlugin {
     val sparkReleaseLinks = settingKey[Boolean]("If true, links in //sys/spark will be created, default is !sparkIsSnapshot")
     val sparkYtServerProxyPath = settingKey[Option[String]]("YT path of ytserver-proxy binary")
 
+    val tarSparkArchiveBuild = taskKey[File]("Build Spark .tgz archive")
     val sparkMvnInstall = taskKey[Unit]("")
     val sparkMvnDeploy = taskKey[Unit]("")
 

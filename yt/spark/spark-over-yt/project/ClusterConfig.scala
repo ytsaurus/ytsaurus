@@ -12,6 +12,7 @@ object ClusterConfig {
     val isSnapshot = isSnapshotVersion(version)
     val clusterBasePath = versionPath(sparkYtClusterPath, version)
     val versionConfPath = versionPath(sparkYtConfPath, version)
+    val isTtlLimited = isSnapshot && limitTtlEnabled
 
     val sidecarConfigs = (baseConfigDir / "sidecar-config").listFiles()
     val sidecarConfigsClusterPaths = sidecarConfigs.map(file => s"$versionConfPath/${file.getName}")
@@ -31,9 +32,11 @@ object ClusterConfig {
       versionConfPath,
       None,
       "spark-launch-conf",
-      isSnapshot
+      isTtlLimited
     )
-    val configsPublish = sidecarConfigs.map(file => YtPublishFile(file, versionConfPath, None, isTtlLimited = isSnapshot))
+    val configsPublish = sidecarConfigs.map(
+      file => YtPublishFile(file, versionConfPath, None, isTtlLimited = isTtlLimited)
+    )
 
     val globalConfigPublish = if (!isSnapshot) {
       log.info(s"Prepare configs for ${ytProxies.mkString(", ")}")
@@ -43,7 +46,7 @@ object ClusterConfig {
         val proxyDefaults = readSparkDefaults(proxyDefaultsFile)
         val globalConfig = SparkGlobalConfig(proxyDefaults, version)
 
-        YtPublishDocument(globalConfig, sparkYtConfPath, Some(proxy), "global", isSnapshot)
+        YtPublishDocument(globalConfig, sparkYtConfPath, Some(proxy), "global", isTtlLimited)
       }
     } else Nil
 

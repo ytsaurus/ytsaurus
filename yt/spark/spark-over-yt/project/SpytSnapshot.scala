@@ -195,7 +195,7 @@ object SpytSnapshot {
   }
   private lazy val sparkInstallProcess: Seq[ReleaseStep] = Seq(
     setSparkForkSnapshotVersionMvn,
-    ReleaseStep(releaseStepTask(spytMvnDeploySparkFork)),
+    ReleaseStep(releaseStepTask(deploySparkFork)),
     unsetSparkForkSnapshotVersionMvn,
     updateSparkForkDependency
   ).filter(_ => sparkInstallEnabled)

@@ -1,6 +1,6 @@
 package spyt
 
-import sbt.{IO, SettingKey, State, StateTransform, ThisBuild}
+import sbt.{IO, SettingKey, State, StateTransform, TaskKey, ThisBuild}
 import sbtrelease.ReleasePlugin.autoImport._
 import sbtrelease.ReleaseStateTransformations.reapply
 import sbtrelease.Utilities._
@@ -131,6 +131,14 @@ object ReleaseUtils {
       nextProcess.foldLeft(processState) { case (stepState, nextStep) =>
         StateTransform(nextStep).transform(stepState)
       }
+    }
+  }
+
+  def deploySparkFork: TaskKey[Unit] = {
+    if (Option(System.getProperty("publishRepo")).forall(_.toBoolean)) {
+      spytMvnInstallSparkFork
+    } else {
+      spytMvnDeploySparkFork
     }
   }
 }
