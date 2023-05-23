@@ -4,6 +4,7 @@
 #include "bootstrap.h"
 #include "chaos_cell_synchronizer.h"
 #include "chaos_slot.h"
+#include "foreign_migrated_replication_card_remover.h"
 #include "migrated_replication_card_remover.h"
 #include "private.h"
 #include "replication_card.h"
@@ -100,6 +101,10 @@ public:
             Config_->EraCommencingPeriod))
         , ReplicationCardObserver_(CreateReplicationCardObserver(Config_->ReplicationCardObserver, slot))
         , MigratedReplicationCardRemover_(CreateMigratedReplicationCardRemover(Config_->MigratedReplicationCardRemover, slot, bootstrap))
+        , ForeignMigratedReplicationCardRemover_(CreateForeignMigratedReplicationCardRemover(
+            Config_->ForeignMigratedReplicationCardRemover,
+            slot,
+            HydraManager_))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -140,6 +145,7 @@ public:
         RegisterMethod(BIND(&TChaosManager::HydraResumeChaosCell, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraChaosNodeMigrateReplicationCards, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraCreateReplicationCardCollocation, Unretained(this)));
+        RegisterMethod(BIND(&TChaosManager::HydraChaosNodeRemoveMigratedReplicationCards, Unretained(this)));
     }
 
     void Initialize() override
@@ -377,6 +383,7 @@ private:
     const TPeriodicExecutorPtr CommencerExecutor_;
     const IReplicationCardObserverPtr ReplicationCardObserver_;
     const IMigratedReplicationCardRemoverPtr MigratedReplicationCardRemover_;
+    const IForeignMigratedReplicationCardRemoverPtr ForeignMigratedReplicationCardRemover_;
 
     TEntityMap<TReplicationCard> ReplicationCardMap_;
     TEntityMap<TReplicationCardCollocation> CollocationMap_;
@@ -491,6 +498,7 @@ private:
         CoordinatorCellIds_.clear();
         SuspendedCoordinators_.clear();
         NeedRecomputeReplicationCardState_ = false;
+        MigratedReplicationCardRemover_->Clear();
     }
 
 
@@ -504,6 +512,7 @@ private:
         CommencerExecutor_->Start();
         ReplicationCardObserver_->Start();
         MigratedReplicationCardRemover_->Start();
+        ForeignMigratedReplicationCardRemover_->Start();
         Slot_->GetReplicatedTableTracker()->EnableTracking();
     }
 
@@ -517,6 +526,7 @@ private:
         YT_UNUSED_FUTURE(CommencerExecutor_->Stop());
         ReplicationCardObserver_->Stop();
         MigratedReplicationCardRemover_->Stop();
+        ForeignMigratedReplicationCardRemover_->Stop();
         Slot_->GetReplicatedTableTracker()->DisableTracking();
     }
 
@@ -760,7 +770,7 @@ private:
             return;
         }
 
-        if (!IsDomesticReplicationCard(replicationCard->GetId())) {
+        if (!IsDomesticReplicationCard(replicationCardId)) {
             YT_LOG_ALERT("Trying to remove emmigrated replication card but it is not domestic "
                 "(ReplicationCardId: %v, OriginCellId: %v)",
                 replicationCardId,
@@ -784,6 +794,29 @@ private:
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card removed (ReplicationCardId: %v)",
             replicationCardId);
+    }
+
+    void HydraChaosNodeRemoveMigratedReplicationCards(NChaosNode::NProto::TReqRemoveMigratedReplicationCards* request)
+    {
+        int cardsRemoved = 0;
+        for (const auto& protoMigratedCard : request->migrated_cards()) {
+            auto replicationCardId = FromProto<TReplicationCardId>(protoMigratedCard.replication_card_id());
+            auto migrationTimestamp = FromProto<TTimestamp>(protoMigratedCard.migration_timestamp());
+
+            const auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
+            if (!replicationCard || IsDomesticReplicationCard(replicationCardId) ||
+                !replicationCard->IsMigrated() || replicationCard->GetCurrentTimestamp() != migrationTimestamp)
+            {
+                continue;
+            }
+
+            ReplicationCardMap_.Remove(replicationCardId);
+            ++cardsRemoved;
+        }
+
+        YT_LOG_DEBUG("Removed foreign migrated replication cards (Requested: %v, Removed: %v)",
+            request->migrated_cards_size(),
+            cardsRemoved);
     }
 
     void HydraCreateTableReplica(

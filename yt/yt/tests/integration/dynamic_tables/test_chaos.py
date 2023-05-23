@@ -3327,6 +3327,17 @@ class TestChaosMetaCluster(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 3
     NUM_CHAOS_NODES = 2
 
+    DELTA_CHAOS_NODE_CONFIG = {
+        "chaos_node": {
+            "chaos_manager": {
+                "foreign_migrated_replication_card_remover": {
+                    "remove_period": 1000,
+                    "replication_card_keep_alive_period": 0,
+                },
+            },
+        },
+    }
+
     def _create_dedicated_areas_and_cells(self, name="c"):
         align_chaos_cell_tag()
 
@@ -3500,10 +3511,21 @@ class TestChaosMetaCluster(ChaosTestBase):
                 resume_chaos_cells([cell_id])
                 assert not get(suspended_path, driver=driver)
 
+        def _migrated(migrated_card_path, origin, driver=None):
+            def _checkable():
+                try:
+                    return get("{0}/state".format(migrated_card_path), driver=driver) == "migrated"
+                except YtError as err:
+                    if not origin and err.contains_text("Node has no child with key \"{0}\"".format(card_id)):
+                        return True
+                    raise err
+
+            return _checkable
+
         _migrate(cells[0], [card_id], drivers[-2])
 
-        migration_path = "{0}/chaos_manager/replication_cards/{1}/state".format(_get_orchid_path(cells[0], driver=drivers[-2]), card_id)
-        wait(lambda: get(migration_path, driver=drivers[-2]) == "migrated")
+        migration_path = "{0}/chaos_manager/replication_cards/{1}".format(_get_orchid_path(cells[0], driver=drivers[-2]), card_id)
+        wait(_migrated(migration_path, origin=True, driver=drivers[-2]))
 
         migrated_card_path = "{0}/chaos_manager/replication_cards/{1}".format(_get_orchid_path(cells[1], driver=drivers[-1]), card_id)
         wait(lambda: exists(migrated_card_path, driver=drivers[-1]))
@@ -3516,8 +3538,9 @@ class TestChaosMetaCluster(ChaosTestBase):
         wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=drivers[2]) == values)
 
         _migrate(cells[1], [card_id], drivers[-1])
-        wait(lambda: get(migration_path, driver=drivers[-2]) == "normal")
-        wait(lambda: get("{0}/state".format(migrated_card_path), driver=drivers[-1]) == "migrated")
+        wait(lambda: get("{0}/state".format(migration_path), driver=drivers[-2]) == "normal")
+        wait(_migrated(migrated_card_path, origin=False, driver=drivers[-1]))
+        wait(lambda: not exists(migrated_card_path, driver=drivers[-1]))
 
         self._sync_replication_era(card_id, replicas)
 
