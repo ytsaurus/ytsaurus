@@ -214,6 +214,7 @@ class TestLayers(YTEnvSetup):
             assert b"static-bin" in op.read_stderr(job_id)
 
     @authors("galtsev")
+    @pytest.mark.timeout(600)
     def test_default_base_layer(self):
         self.setup_files()
 
@@ -289,6 +290,7 @@ class TestProbingLayer(TestLayers):
         return op
 
     @authors("galtsev")
+    @pytest.mark.timeout(600)
     def test_probing_layer_success(self):
         self.setup_files()
 
@@ -316,6 +318,7 @@ class TestProbingLayer(TestLayers):
         assert try_count < self.MAX_TRIES
 
     @authors("galtsev")
+    @pytest.mark.timeout(600)
     def test_probing_layer_failure(self):
         self.setup_files()
 
@@ -346,13 +349,14 @@ class TestProbingLayer(TestLayers):
 
         assert try_count < self.MAX_TRIES
 
+    @authors("galtsev")
     @pytest.mark.parametrize("options", [
         {"fail_on_job_restart": True},
         {"mapper": {"layer_paths": ["//tmp/layer2"]}},
         {"max_speculative_job_count_per_task": 0},
         {"try_avoid_duplicating_jobs": True},
     ])
-    @authors("galtsev")
+    @pytest.mark.timeout(600)
     def test_probing_layer_disabled(self, options):
         self.setup_files()
 
