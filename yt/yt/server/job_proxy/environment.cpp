@@ -721,7 +721,7 @@ class TTestingUserJobEnvironment
     : public TSimpleUserJobEnvironment
 {
 public:
-    TTestingUserJobEnvironment(
+    explicit TTestingUserJobEnvironment(
         TTestingJobEnvironmentConfigPtr config)
         : Config_(std::move(config))
     { }
@@ -750,13 +750,13 @@ class TTestingJobProxyEnvironment
     : public TSimpleJobProxyEnvironment
 {
 public:
-    TTestingJobProxyEnvironment(
+    explicit TTestingJobProxyEnvironment(
         TTestingJobEnvironmentConfigPtr config)
         : Config_(std::move(config))
     { }
 
     IUserJobEnvironmentPtr CreateUserJobEnvironment(
-        TGuid /* jobId */,
+        TJobId /* jobId */,
         const TUserJobEnvironmentOptions& options) override
     {
         if (options.RootFS) {
