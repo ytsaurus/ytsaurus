@@ -8,15 +8,16 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TId>
 class TServiceTicketAuth
     : public IServiceTicketAuth
 {
 public:
     TServiceTicketAuth(
         ITvmServicePtr tvmService,
-        TTvmId destServiceId)
+        TId destServiceId)
         : TvmService_(std::move(tvmService))
-        , DstServiceId_(destServiceId)
+        , DstServiceId_(std::move(destServiceId))
     { }
 
     TString IssueServiceTicket() override
@@ -26,7 +27,7 @@ public:
 
 private:
     ITvmServicePtr TvmService_;
-    TTvmId DstServiceId_;
+    TId DstServiceId_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,7 +38,16 @@ IServiceTicketAuthPtr CreateServiceTicketAuth(
 {
     YT_VERIFY(tvmService);
 
-    return New<TServiceTicketAuth>(std::move(tvmService), dstServiceId);
+    return New<TServiceTicketAuth<TTvmId>>(std::move(tvmService), dstServiceId);
+}
+
+IServiceTicketAuthPtr CreateServiceTicketAuth(
+    ITvmServicePtr tvmService,
+    TString dstServiceAlias)
+{
+    YT_VERIFY(tvmService);
+
+    return New<TServiceTicketAuth<TString>>(std::move(tvmService), std::move(dstServiceAlias));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

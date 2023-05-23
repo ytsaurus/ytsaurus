@@ -60,6 +60,10 @@ IServiceTicketAuthPtr CreateServiceTicketAuth(
     ITvmServicePtr tvmService,
     TTvmId dstServiceId);
 
+IServiceTicketAuthPtr CreateServiceTicketAuth(
+    ITvmServicePtr tvmService,
+    TString dstServiceAlias);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStringBuf RemoveTicketSignature(TStringBuf ticketBody);
