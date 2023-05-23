@@ -134,7 +134,8 @@ TEventTimerGuard::~TEventTimerGuard()
     }
 }
 
-TDuration TEventTimerGuard::GetElapsedTime() const {
+TDuration TEventTimerGuard::GetElapsedTime() const
+{
     return CpuDurationToDuration(GetCpuInstant() - StartTime_);
 }
 
