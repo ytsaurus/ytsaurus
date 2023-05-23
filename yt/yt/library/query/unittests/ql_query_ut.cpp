@@ -5092,6 +5092,33 @@ TEST_F(TQueryEvaluateTest, UnversionedValueUdf2)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, AnyToYsonString)
+{
+    auto split = MakeSplit({
+        {"any", EValueType::Any},
+    });
+
+    std::vector<TString> source = {
+        "any={}",
+        "any={a=42;}",
+        "any={a={b=c}}",
+        "any={a={b=3.14};d=[1;2];e=#}",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::String}
+    });
+
+    auto result = YsonToRows({
+        R"(result="{}")",
+        R"(result="{\"a\"=42;}")",
+        R"(result="{\"a\"={\"b\"=\"c\";};}")",
+        R"(result="{\"a\"={\"b\"=3.14;};\"d\"=[1;2;];\"e\"=#;}")",
+    }, resultSplit);
+
+    Evaluate("any_to_yson_string(any) as result FROM [//t]", split, source, ResultMatcher(result));
+}
+
 TEST_F(TQueryEvaluateTest, YPathTryGetInt64)
 {
     auto split = MakeSplit({
@@ -6313,6 +6340,7 @@ TEST_F(TQueryEvaluateTest, MakeMapSuccess)
         "  k_uint=2u;"
         "  k_bool=%true;"
         "  k_double=3.14;"
+        "  k_string=abc;"
         "  k_any={hello=world};"
         "  k_null=#;"
         "}",
@@ -6324,6 +6352,7 @@ TEST_F(TQueryEvaluateTest, MakeMapSuccess)
         "  \"k_uint\", 2u, "
         "  \"k_bool\", %true, "
         "  \"k_double\", 3.14, "
+        "  \"k_string\", \"abc\", "
         "  \"k_any\", v_any, "
         "  \"k_null\", v_null"
         ") as x FROM [//t]", split, source, ResultMatcher(result));

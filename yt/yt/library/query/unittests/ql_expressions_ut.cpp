@@ -1646,11 +1646,19 @@ INSTANTIATE_TEST_SUITE_P(
             MakeString("hello")),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "any=#",
+            "int64(any)",
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "any=#",
             "list_contains(any, \"1\")",
             MakeNull()),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "any=[7; 9; 3]",
             "list_contains(any, 5)",
+            MakeBoolean(false)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "any=[7;9;3;%false]",
+            "list_contains(any, %true)",
             MakeBoolean(false)),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "any=[7; 9; 3]",
@@ -1882,6 +1890,20 @@ TEST_F(TExpressionErrorTest, ConvertFromAny)
         HasSubstr("Cannot convert value"));
 }
 
+TEST_F(TExpressionErrorTest, ListContainsAny)
+{
+    auto schema = New<TTableSchema>();
+    auto buffer = New<TRowBuffer>();
+    TUnversionedValue result{};
+
+    EXPECT_THROW_THAT(
+        [&] {
+            auto expr = PrepareExpression("list_contains(to_any(\"a\"), to_any(42))", *schema);
+            EvaluateExpression(expr, "", schema, &result, buffer);
+        }(),
+        HasSubstr("Wrong type for argument"));
+}
+
 class TExpressionStrConvTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<const char*, const char*, TUnversionedValue>>
@@ -1942,6 +1964,10 @@ INSTANTIATE_TEST_SUITE_P(
             "string=\"1.0\"",
             "parse_int64(string)",
             MakeInt64(1)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "string=#",
+            "parse_int64(string)",
+            MakeNull()),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "string=\"1u\"",
             "parse_uint64(string)",
