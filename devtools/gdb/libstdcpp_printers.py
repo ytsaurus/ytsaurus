@@ -412,6 +412,9 @@ class RbtreeIterator(Iterator):
     def __len__(self):
         return int(self.size)
 
+    def next(self):
+        return self.__next__()
+
     def __next__(self):
         if self.count == self.size:
             raise StopIteration
