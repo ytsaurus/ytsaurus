@@ -301,7 +301,7 @@ class TestJobTracker(YTEnvSetup):
     @authors("pogorelov")
     @pytest.mark.parametrize("mode", ["unconfirmed", "confirmation_timeout"])
     def test_unconfirmed_jobs(self, mode):
-        (job_confirmation_timeout, job_abort_reason) = (30000, "unconfirmed") if mode == "unconfirmed" else (1, "revival_confirmation_timeout")
+        (job_confirmation_timeout, job_abort_reason) = (30000, "unconfirmed") if mode == "unconfirmed" else (5000, "revival_confirmation_timeout")
 
         aborted_job_profiler = JobCountProfiler("aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": job_abort_reason})
 
@@ -320,20 +320,28 @@ class TestJobTracker(YTEnvSetup):
 
         op.wait_for_fresh_snapshot()
 
-        if mode == "confirmation_timeout":
-            update_nodes_dynamic_config({
-                "exec_agent": {
-                    "controller_agent_connector": {
-                        "test_heartbeat_delay": 5000,
-                    },
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "controller_agent_connector": {
+                    "test_heartbeat_delay": 5000,
                 },
-            })
+            },
+        })
 
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
+
+        if mode != "confirmation_timeout":
+            update_nodes_dynamic_config({
+                "exec_agent": {
+                    "controller_agent_connector": {
+                        "test_heartbeat_delay": 0,
+                    },
+                },
+            })
 
         wait(lambda: aborted_job_profiler.get_job_count_delta() == 1)
 
