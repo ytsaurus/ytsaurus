@@ -891,7 +891,6 @@ TString ToString(const TJobWithPreemptionInfo& jobInfo)
 TScheduleJobsContext::TScheduleJobsContext(
     ISchedulingContextPtr schedulingContext,
     TFairShareTreeSnapshotPtr treeSnapshot,
-    TCpuInstant now,
     const TFairShareTreeJobSchedulerNodeState* nodeState,
     bool schedulingInfoLoggingEnabled,
     ISchedulerStrategyHost* strategyHost,
@@ -899,10 +898,9 @@ TScheduleJobsContext::TScheduleJobsContext(
     const NLogging::TLogger& logger)
     : SchedulingContext_(std::move(schedulingContext))
     , TreeSnapshot_(std::move(treeSnapshot))
-    , Now_(now)
     , SsdPriorityPreemptionEnabled_(TreeSnapshot_->TreeConfig()->SsdPriorityPreemption->Enable &&
         SchedulingContext_->CanSchedule(TreeSnapshot_->TreeConfig()->SsdPriorityPreemption->NodeTagFilter))
-    , SchedulingDeadline_(Now_ + DurationToCpuDuration(TreeSnapshot_->ControllerConfig()->ScheduleJobsTimeout))
+    , SchedulingDeadline_(SchedulingContext_->GetNow() + DurationToCpuDuration(TreeSnapshot_->ControllerConfig()->ScheduleJobsTimeout))
     , NodeSchedulingSegment_(nodeState->SchedulingSegment)
     , OperationCountByPreemptionPriority_(GetOrCrash(
         TreeSnapshot_->SchedulingSnapshot()->OperationCountsByPreemptionPriorityParameters(),
@@ -2502,7 +2500,6 @@ void TFairShareTreeJobScheduler::ProcessSchedulingHeartbeat(
         TScheduleJobsContext context(
             schedulingContext,
             treeSnapshot,
-            now,
             nodeState,
             enableSchedulingInfoLogging,
             StrategyHost_,
@@ -3145,29 +3142,24 @@ void TFairShareTreeJobScheduler::DoRegularJobScheduling(TScheduleJobsContext* co
 
 void TFairShareTreeJobScheduler::DoPreemptiveJobScheduling(TScheduleJobsContext* context)
 {
-    auto nodeId = context->SchedulingContext()->GetNodeDescriptor().Id;
-    bool scheduleJobsWithPreemption = false;
-    {
-        bool nodeIsMissing = false;
-        {
-            auto guard = ReaderGuard(NodeIdToLastPreemptiveSchedulingTimeLock_);
+    bool scheduleJobsWithPreemption = [&] {
+        NLogging::TLogger Logger("TestDebug");
 
-            auto backoff = DurationToCpuDuration(context->TreeSnapshot()->TreeConfig()->PreemptiveSchedulingBackoff);
-            auto it = NodeIdToLastPreemptiveSchedulingTime_.find(nodeId);
-            if (it == NodeIdToLastPreemptiveSchedulingTime_.end()) {
-                nodeIsMissing = true;
-                scheduleJobsWithPreemption = true;
-            } else if (it->second + backoff <= context->GetNow()) {
-                scheduleJobsWithPreemption = true;
-                it->second = context->GetNow();
-            }
+        auto nodeId = context->SchedulingContext()->GetNodeDescriptor().Id;
+        auto nodeShardId = StrategyHost_->GetNodeShardId(nodeId);
+        auto& nodeIdToLastPreemptiveSchedulingTime = NodeStateShards_[nodeShardId].NodeIdToLastPreemptiveSchedulingTime;
+
+        auto now = context->SchedulingContext()->GetNow();
+        auto [it, wasMissing] = nodeIdToLastPreemptiveSchedulingTime.emplace(nodeId, now);
+
+        auto deadline = it->second + DurationToCpuDuration(context->TreeSnapshot()->TreeConfig()->PreemptiveSchedulingBackoff);
+        if (!wasMissing && now > deadline) {
+            it->second = now;
+            return true;
         }
 
-        if (nodeIsMissing) {
-            auto guard = WriterGuard(NodeIdToLastPreemptiveSchedulingTimeLock_);
-            NodeIdToLastPreemptiveSchedulingTime_[nodeId] = context->GetNow();
-        }
-    }
+        return wasMissing;
+    }();
 
     context->SchedulingStatistics().ScheduleWithPreemption = scheduleJobsWithPreemption;
     if (!scheduleJobsWithPreemption) {

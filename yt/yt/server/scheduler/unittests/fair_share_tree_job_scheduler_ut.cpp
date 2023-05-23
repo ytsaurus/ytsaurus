@@ -832,7 +832,6 @@ protected:
         TScheduleJobsContext scheduleJobsContext(
             schedulingContext,
             treeSnapshot,
-            /*now*/ GetCpuInstant(),
             strategyHost->GetNodeState(execNode),
             /*schedulingInfoLoggingEnabled*/ true,
             strategyHost,

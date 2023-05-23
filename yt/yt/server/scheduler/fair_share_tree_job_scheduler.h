@@ -314,7 +314,6 @@ class TScheduleJobsContext
 public:
     DEFINE_BYREF_RO_PROPERTY(ISchedulingContextPtr, SchedulingContext);
     DEFINE_BYREF_RO_PROPERTY(TFairShareTreeSnapshotPtr, TreeSnapshot);
-    DEFINE_BYVAL_RO_PROPERTY(TCpuInstant, Now);
     DEFINE_BYVAL_RO_PROPERTY(bool, SsdPriorityPreemptionEnabled);
 
     DEFINE_BYREF_RW_PROPERTY(TScheduleJobsStatistics, SchedulingStatistics);
@@ -326,7 +325,6 @@ public:
     TScheduleJobsContext(
         ISchedulingContextPtr schedulingContext,
         TFairShareTreeSnapshotPtr treeSnapshot,
-        TCpuInstant now,
         const TFairShareTreeJobSchedulerNodeState* nodeState,
         bool schedulingInfoLoggingEnabled,
         ISchedulerStrategyHost* strategyHost,
@@ -757,10 +755,6 @@ private:
     TFairShareTreeJobSchedulerOperationStateMap OperationIdToState_;
     TFairShareTreeJobSchedulerSharedOperationStateMap OperationIdToSharedState_;
 
-    // TODO(eshcherbin): Make it sharded.
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, NodeIdToLastPreemptiveSchedulingTimeLock_);
-    THashMap<NNodeTrackerClient::TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime_;
-
     NProfiling::TTimeCounter CumulativeScheduleJobsTime_;
     NProfiling::TEventTimer ScheduleJobsTime_;
 
@@ -782,6 +776,7 @@ private:
     struct alignas(CacheLineSize) TNodeStateShard
     {
         TFairShareTreeJobSchedulerNodeStateMap NodeIdToState;
+        THashMap<NNodeTrackerClient::TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime;
     };
     std::array<TNodeStateShard, MaxNodeShardCount> NodeStateShards_;
 

@@ -31,7 +31,6 @@ public:
             mediumDirectory)
     { }
 
-    // TODO(eshcherbin): Remove this method, as it is misleading.
     NProfiling::TCpuInstant GetNow() const override
     {
         return NProfiling::GetCpuInstant();
