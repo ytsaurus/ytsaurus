@@ -49,7 +49,8 @@ Value* CodegenForEachRow(
     TCGContext& builder,
     Value* rows,
     Value* size,
-    const TCodegenConsumer& codegenConsumer)
+    const TCodegenConsumer& codegenConsumer,
+    const std::vector<int>& convertableColumnIndices = {})
 {
     auto* loopBB = builder->CreateBBHere("loop");
     auto* condBB = builder->CreateBBHere("cond");
@@ -77,6 +78,34 @@ Value* CodegenForEachRow(
     Value* rowPointer = builder->CreateGEP(rowPointerType, rows, index, "rowPointer");
     Type* rowType = TTypeBuilder<TUnversionedValue*>::Get(builder->getContext());
     Value* row = builder->CreateLoad(rowType, rowPointer, "row");
+
+    // convert row to PI
+    for (auto convertableColumnIndex : convertableColumnIndices) {
+        // value = row[convertableColumnIndex]
+        Value* valueToConvert = builder->CreateConstInBoundsGEP1_32(
+            TValueTypeBuilder::Get(builder->getContext()),
+            row,
+            convertableColumnIndex,
+            "unversionedValueToConvert");
+
+        // convert value.Data to PI
+        Value* dataPtr = builder->CreateConstInBoundsGEP2_32(
+            TValueTypeBuilder::Get(builder->getContext()),
+            valueToConvert,
+            0,
+            TValueTypeBuilder::Data,
+            ".dataPointer");
+        Value* data = builder->CreateLoad(
+            TDataTypeBuilder::Get(builder->getContext()),
+            dataPtr,
+            ".nonPIData");
+        Value* dataPtrAsInt = builder->CreatePtrToInt(
+            dataPtr,
+            data->getType(),
+            ".nonPIDataAsInt");
+        data = builder->CreateSub(data, dataPtrAsInt, ".PIdata");  // Similar to SetStringPosition.
+        builder->CreateStore(data, dataPtr);
+    }
 
     // consume(row)
     Value* finished = codegenConsumer(builder, row);
@@ -2000,19 +2029,58 @@ TLlvmClosure MakeConsumer(TCGOperatorContext& builder, llvm::Twine name, size_t 
         });
 }
 
+TLlvmClosure MakeConsumerWithPIConversion(
+    TCGOperatorContext& builder,
+    llvm::Twine name,
+    size_t consumerSlot,
+    const std::vector<int>& convertableColumnIndices)
+{
+
+    return MakeClosure<bool(TExpressionContext*, TValue**, i64)>(builder, name, [
+            consumerSlot,
+            convertableColumnIndices = std::move(convertableColumnIndices)
+        ] (
+            TCGOperatorContext& builder,
+            Value* buffer,
+            Value* rows,
+            Value* size
+        ) {
+            TCGContext innerBuilder(builder, buffer);
+            Value* more = CodegenForEachRow(
+                innerBuilder,
+                rows,
+                size,
+                builder[consumerSlot],
+                convertableColumnIndices);
+
+            Value* casted = innerBuilder->CreateIntCast(
+                more,
+                innerBuilder->getInt8Ty(),
+                false);
+
+            innerBuilder->CreateRet(casted);
+        });
+}
+
 size_t MakeCodegenScanOp(
     TCodegenSource* codegenSource,
-    size_t* slotCount)
+    size_t* slotCount,
+    const std::vector<int>& convertableColumnIndices)
 {
     size_t consumerSlot = (*slotCount)++;
 
     *codegenSource = [
         consumerSlot,
-        codegenSource = std::move(*codegenSource)
+        codegenSource = std::move(*codegenSource),
+        convertableColumnIndices
     ] (TCGOperatorContext& builder) {
         codegenSource(builder);
 
-        auto consume = MakeConsumer(builder, "ScanOpInner", consumerSlot);
+        auto consume = MakeConsumerWithPIConversion(
+            builder,
+            "ScanOpInner",
+            consumerSlot,
+            convertableColumnIndices);
 
         builder->CreateCall(
             builder.Module->GetRoutine("ScanOpHelper"),

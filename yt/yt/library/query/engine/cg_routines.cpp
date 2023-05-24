@@ -106,6 +106,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef bool (*TRowsConsumer)(void** closure, TExpressionContext*, const TPIValue** rows, i64 size);
+typedef bool (*TUnversionedRowsConsumer)(void** closure, TExpressionContext*, const TValue** rows, i64 size);
 
 bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* values)
 {
@@ -162,7 +163,7 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* va
 void ScanOpHelper(
     TExecutionContext* context,
     void** consumeRowsClosure,
-    TRowsConsumer consumeRows)
+    TUnversionedRowsConsumer consumeRows)
 {
     auto finalLogger = Finally([&] () {
         YT_LOG_DEBUG("Finalizing scan helper");
@@ -177,7 +178,7 @@ void ScanOpHelper(
         .MaxRowsPerRead = context->Ordered ? std::min(startBatchSize, RowsetProcessingSize) : RowsetProcessingSize
     };
 
-    std::vector<const TPIValue*> values;
+    std::vector<const TValue*> values;
     values.reserve(readOptions.MaxRowsPerRead);
 
     auto& reader = context->Reader;
@@ -226,8 +227,7 @@ void ScanOpHelper(
         statistics->RowsRead += rows.size();
         for (auto row : rows) {
             statistics->DataWeightRead += GetDataWeight(row);
-            auto asPositionIndependent = InplaceConvertToPI(row);
-            values.push_back(asPositionIndependent.Begin());
+            values.push_back(row.Begin());
         }
 
         interrupt |= consumeRows(consumeRowsClosure, rowBuffer.Get(), values.data(), values.size());
