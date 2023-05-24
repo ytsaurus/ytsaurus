@@ -132,6 +132,16 @@ struct TDevice
     bool Enabled;
 };
 
+struct TInstanceLimits
+{
+    double Cpu = 0;
+    i64 Memory = 0;
+    i64 NetTx = 0;
+    i64 NetRx = 0;
+
+    bool operator==(const TInstanceLimits&) const = default;
+};
+
 DECLARE_REFCOUNTED_STRUCT(IContainerManager)
 DECLARE_REFCOUNTED_STRUCT(IInstanceLauncher)
 DECLARE_REFCOUNTED_STRUCT(IInstance)

@@ -605,6 +605,11 @@ TFairThrottler::TFairThrottler(
     Profiler_.AddFuncGauge("/shared_quota", MakeStrong(this), [this] {
         return SharedBucket_->Limit.Value->load();
     });
+
+    Profiler_.AddFuncGauge("/total_limit", MakeStrong(this), [this] {
+        auto guard = Guard(Lock_);
+        return Config_->TotalLimit;
+    });
 }
 
 IThroughputThrottlerPtr TFairThrottler::CreateBucketThrottler(

@@ -148,14 +148,14 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
     {EStatField::IOTotalTime, {"io_time", GetIOStatExtractor()}},
     {EStatField::IOWaitTime, {"io_wait", GetIOStatExtractor()}},
 
-    {EStatField::NetTxBytes, {"net_tx_bytes[Uplink]", LongExtractor}},
-    {EStatField::NetTxPackets, {"net_tx_packets[Uplink]", LongExtractor}},
-    {EStatField::NetTxDrops, {"net_tx_drops[Uplink]", LongExtractor}},
-    {EStatField::NetTxLimit, {"net_limit[Uplink]", LongExtractor}},
-    {EStatField::NetRxBytes, {"net_rx_bytes[Uplink]", LongExtractor}},
-    {EStatField::NetRxPackets, {"net_rx_packets[Uplink]", LongExtractor}},
-    {EStatField::NetRxDrops, {"net_rx_drops[Uplink]", LongExtractor}},
-    {EStatField::NetRxLimit, {"net_rx_limit[Uplink]", LongExtractor}},
+    {EStatField::NetTxBytes, {"net_tx_bytes[veth]", LongExtractor}},
+    {EStatField::NetTxPackets, {"net_tx_packets[veth]", LongExtractor}},
+    {EStatField::NetTxDrops, {"net_tx_drops[veth]", LongExtractor}},
+    {EStatField::NetTxLimit, {"net_limit[veth]", LongExtractor}},
+    {EStatField::NetRxBytes, {"net_rx_bytes[veth]", LongExtractor}},
+    {EStatField::NetRxPackets, {"net_rx_packets[veth]", LongExtractor}},
+    {EStatField::NetRxDrops, {"net_rx_drops[veth]", LongExtractor}},
+    {EStatField::NetRxLimit, {"net_rx_limit[veth]", LongExtractor}},
 };
 
 std::optional<TString> GetParentName(const TString& name)

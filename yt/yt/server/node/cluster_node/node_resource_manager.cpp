@@ -47,30 +47,27 @@ TNodeResourceManager::TNodeResourceManager(IBootstrap* bootstrap)
         Bootstrap_->GetControlInvoker(),
         BIND(&TNodeResourceManager::UpdateLimits, MakeWeak(this)),
         Bootstrap_->GetConfig()->ResourceLimitsUpdatePeriod))
-    , CpuLimit_(Bootstrap_->GetConfig()->ResourceLimits->TotalCpu)
-    , TotalMemory_(Bootstrap_->GetConfig()->ResourceLimits->TotalMemory)
-{ }
+{
+    const auto& staticLimits = Bootstrap_->GetConfig()->ResourceLimits;
+    auto networkLimit = Bootstrap_->GetConfig()->NetworkBandwidth;
+    Limits_.Store(NContainers::TInstanceLimits{
+        .Cpu = staticLimits->TotalCpu.value_or(0),
+        .Memory = staticLimits->TotalMemory,
+        .NetTx = networkLimit,
+        .NetRx = networkLimit,
+    });
+}
 
 void TNodeResourceManager::Start()
 {
     UpdateExecutor_->Start();
 }
 
-void TNodeResourceManager::OnInstanceLimitsUpdated(double cpuLimit, double cpuGuarantee, i64 memoryLimit)
+void TNodeResourceManager::OnInstanceLimitsUpdated(const NContainers::TInstanceLimits& limits)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    YT_LOG_INFO("Instance limits updated (OldCpuLimit: %v, NewCpuLimit: %v, OldCpuGuarantee: %v, NewCpuGuarantee: %v, OldMemoryLimit: %v, NewMemoryLimit: %v)",
-        CpuLimit_,
-        cpuLimit,
-        CpuGuarantee_,
-        cpuGuarantee,
-        TotalMemory_,
-        memoryLimit);
-
-    CpuLimit_ = cpuLimit;
-    CpuGuarantee_ = cpuGuarantee;
-    TotalMemory_ = memoryLimit;
+    Limits_.Store(limits);
 }
 
 IYPathServicePtr TNodeResourceManager::GetOrchidService()
@@ -85,14 +82,22 @@ std::optional<double> TNodeResourceManager::GetCpuGuarantee() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return CpuGuarantee_;
+    if (auto cpu = Limits_.Load().Cpu) {
+        return cpu;
+    }
+
+    return {};
 }
 
 std::optional<double> TNodeResourceManager::GetCpuLimit() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return CpuLimit_;
+    if (auto memory = Limits_.Load().Memory) {
+        return memory;
+    }
+
+    return {};
 }
 
 double TNodeResourceManager::GetJobsCpuLimit() const
@@ -165,6 +170,24 @@ i64 TNodeResourceManager::GetMemoryDemand() const
     return memoryDemand;
 }
 
+std::optional<i64> TNodeResourceManager::GetNetTxLimit() const
+{
+    if (auto tx = Limits_.Load().NetTx) {
+        return tx;
+    }
+
+    return {};
+}
+
+std::optional<i64> TNodeResourceManager::GetNetRxLimit() const
+{
+    if (auto rx = Limits_.Load().NetRx) {
+        return rx;
+    }
+
+    return {};
+}
+
 void TNodeResourceManager::SetResourceLimitsOverride(const TNodeResourceLimitsOverrides& resourceLimitsOverride)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -193,7 +216,7 @@ void TNodeResourceManager::UpdateMemoryLimits()
     auto limits = GetMemoryLimits();
 
     // TODO(gritukan): Subtract watermark?
-    memoryUsageTracker->SetTotalLimit(TotalMemory_);
+    memoryUsageTracker->SetTotalLimit(Limits_.Load().Memory);
 
     for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
         const auto& limit = limits[category];
@@ -218,7 +241,7 @@ void TNodeResourceManager::UpdateMemoryLimits()
         memoryUsageTracker->GetUsed(EMemoryCategory::UserJobs));
     auto selfMemoryGuarantee = std::max(
         static_cast<i64>(0),
-        TotalMemory_ - externalMemory - config->MemoryAccountingGap);
+        Limits_.Load().Memory - externalMemory - config->MemoryAccountingGap);
     if (std::abs(selfMemoryGuarantee - SelfMemoryGuarantee_) > config->MemoryAccountingTolerance) {
         SelfMemoryGuarantee_ = selfMemoryGuarantee;
         SelfMemoryGuaranteeUpdated_.Fire(SelfMemoryGuarantee_);
@@ -272,8 +295,8 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
     if (ResourceLimitsOverride_.has_cpu()) {
         newJobsCpuLimit = ResourceLimitsOverride_.cpu();
     } else {
-        if (CpuLimit_) {
-            newJobsCpuLimit = *CpuLimit_ - GetNodeDedicatedCpu();
+        if (auto cpu = Limits_.Load().Cpu) {
+            newJobsCpuLimit = cpu - GetNodeDedicatedCpu();
         } else {
             newJobsCpuLimit = Bootstrap_->GetConfig()->ExecNode->JobController->ResourceLimits->Cpu;
         }
@@ -355,7 +378,7 @@ TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> TNodeResourceManager::GetMe
     };
 
     i64 freeMemoryWatermark = dynamicConfig->FreeMemoryWatermark.value_or(*config->FreeMemoryWatermark);
-    i64 totalDynamicMemory = TotalMemory_ - freeMemoryWatermark;
+    i64 totalDynamicMemory = Limits_.Load().Memory - freeMemoryWatermark;
 
     const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
 
@@ -413,12 +436,14 @@ void TNodeResourceManager::BuildOrchid(IYsonConsumer* consumer) const
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto memoryLimits = GetMemoryLimits();
+    auto limits = Limits_.Load();
 
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("cpu_limit").Value(CpuLimit_)
-            .Item("cpu_guarantee").Value(CpuGuarantee_)
-            .Item("total_memory").Value(TotalMemory_)
+            .Item("cpu_limit").Value(limits.Cpu)
+            .Item("net_tx_limit").Value(limits.NetTx)
+            .Item("net_rx_limit").Value(limits.NetRx)
+            .Item("total_memory").Value(limits.Memory)
             .Item("jobs_cpu_limit").Value(JobsCpuLimit_)
             .Item("tablet_slot_cpu").Value(GetTabletSlotCpu())
             .Item("node_dedicated_cpu").Value(GetNodeDedicatedCpu())

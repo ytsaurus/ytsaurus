@@ -794,14 +794,14 @@ private:
             "StorageLight");
 
         if (Config_->EnableFairThrottler) {
-            Config_->InThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr);
+            Config_->InThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr, {});
             InThrottler_ = New<TFairThrottler>(
                 Config_->InThrottler,
                 ClusterNodeLogger.WithTag("Direction: %v", "In"),
                 ClusterNodeProfiler.WithPrefix("/in_throttler"));
             DefaultInThrottler_ = GetInThrottler("default");
 
-            Config_->OutThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr);
+            Config_->OutThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr, {});
             OutThrottler_ = New<TFairThrottler>(
                 Config_->OutThrottler,
                 ClusterNodeLogger.WithTag("Direction: %v", "Out"),
@@ -1000,17 +1000,24 @@ private:
 
             auto self = GetSelfPortoInstance(portoExecutor);
             if (Config_->InstanceLimitsUpdatePeriod) {
+                auto root = GetRootPortoInstance(portoExecutor);
                 auto instance = portoEnvironmentConfig->UseDaemonSubcontainer
                     ? GetPortoInstance(portoExecutor, *self->GetParentName())
                     : self;
 
                 InstanceLimitsTracker_ = New<TInstanceLimitsTracker>(
                     instance,
+                    root,
                     GetControlInvoker(),
                     *Config_->InstanceLimitsUpdatePeriod);
 
-                InstanceLimitsTracker_->SubscribeLimitsUpdated(BIND(&TNodeResourceManager::OnInstanceLimitsUpdated, NodeResourceManager_)
-                    .Via(GetControlInvoker()));
+                InstanceLimitsTracker_->SubscribeLimitsUpdated(BIND([this] (const NContainers::TInstanceLimits& limits) {
+                    NodeResourceManager_->OnInstanceLimitsUpdated(limits);
+
+                    auto config = GetDynamicConfigManager()->GetConfig();
+                    ReconfigureThrottlers(config, limits.NetTx, limits.NetRx);
+                })
+                .Via(GetControlInvoker()));
             }
 
             if (portoEnvironmentConfig->UseDaemonSubcontainer) {
@@ -1221,10 +1228,13 @@ private:
         return OutThrottler_->CreateBucketThrottler(bucket, Config_->OutThrottlers[bucket]);
     }
 
-    void ReconfigureThrottlers(const TClusterNodeDynamicConfigPtr& newConfig)
+    void ReconfigureFairThrottlers(
+        const TClusterNodeDynamicConfigPtr& newConfig,
+        std::optional<i64> netTxLimit,
+        std::optional<i64> netRxLimit)
     {
         auto throttlerConfig = New<TFairThrottlerConfig>();
-        throttlerConfig->TotalLimit = GetNetworkThrottlerLimit(newConfig);
+        throttlerConfig->TotalLimit = GetNetworkThrottlerLimit(newConfig, netRxLimit);
 
         THashMap<TString, TFairThrottlerBucketConfigPtr> inBucketsConfig;
         for (const auto& bucket : EnabledInThrottlers_) {
@@ -1235,6 +1245,7 @@ private:
         }
         InThrottler_->Reconfigure(throttlerConfig, inBucketsConfig);
 
+        throttlerConfig->TotalLimit = GetNetworkThrottlerLimit(newConfig, netTxLimit);
         THashMap<TString, TFairThrottlerBucketConfigPtr> outBucketsConfig;
         for (const auto& bucket : EnabledOutThrottlers_) {
             outBucketsConfig[bucket] = Config_->OutThrottlers[bucket];
@@ -1275,6 +1286,25 @@ private:
         ReconfigureCaches(newConfig, nodeConfig);
     }
 
+    void ReconfigureThrottlers(
+        const TClusterNodeDynamicConfigPtr& newConfig,
+        std::optional<i64> netTxLimit,
+        std::optional<i64> netRxLimit)
+    {
+        if (Config_->EnableFairThrottler) {
+            ReconfigureFairThrottlers(newConfig, netTxLimit, netRxLimit);
+        } else {
+            auto getThrottlerConfig = [&] (EDataNodeThrottlerKind kind) {
+                auto config = newConfig->DataNode->Throttlers[kind]
+                    ? newConfig->DataNode->Throttlers[kind]
+                    : Config_->DataNode->Throttlers[kind];
+                return PatchRelativeNetworkThrottlerConfig(std::move(config));
+            };
+            LegacyRawTotalInThrottler_->Reconfigure(getThrottlerConfig(EDataNodeThrottlerKind::TotalIn));
+            LegacyRawTotalOutThrottler_->Reconfigure(getThrottlerConfig(EDataNodeThrottlerKind::TotalOut));
+        }
+    }
+
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
@@ -1286,18 +1316,9 @@ private:
         StorageLightThreadPool_->Configure(
             newConfig->DataNode->StorageLightThreadCount.value_or(Config_->DataNode->StorageLightThreadCount));
 
-        if (Config_->EnableFairThrottler) {
-            ReconfigureThrottlers(newConfig);
-        } else {
-            auto getThrottlerConfig = [&] (EDataNodeThrottlerKind kind) {
-                auto config = newConfig->DataNode->Throttlers[kind]
-                    ? newConfig->DataNode->Throttlers[kind]
-                    : Config_->DataNode->Throttlers[kind];
-                return PatchRelativeNetworkThrottlerConfig(std::move(config));
-            };
-            LegacyRawTotalInThrottler_->Reconfigure(getThrottlerConfig(EDataNodeThrottlerKind::TotalIn));
-            LegacyRawTotalOutThrottler_->Reconfigure(getThrottlerConfig(EDataNodeThrottlerKind::TotalOut));
-        }
+        auto netTxLimit = NodeResourceManager_->GetNetTxLimit();
+        auto netRxLimit = NodeResourceManager_->GetNetRxLimit();
+        ReconfigureThrottlers(newConfig, netTxLimit, netRxLimit);
 
         RawReadRpsOutThrottler_->Reconfigure(newConfig->DataNode->ReadRpsOutThrottler
                 ? newConfig->DataNode->ReadRpsOutThrottler
@@ -1382,12 +1403,12 @@ private:
         }
     }
 
-    i64 GetNetworkThrottlerLimit(const TClusterNodeDynamicConfigPtr& dynamicConfig) const
+    i64 GetNetworkThrottlerLimit(const TClusterNodeDynamicConfigPtr& dynamicConfig, std::optional<i64> netLimit) const
     {
         auto throttlerFreeBandwidthRatio = dynamicConfig
             ? dynamicConfig->ThrottlerFreeBandwidthRatio.value_or(Config_->ThrottlerFreeBandwidthRatio)
             : Config_->ThrottlerFreeBandwidthRatio;
-        return Config_->NetworkBandwidth * (1. - throttlerFreeBandwidthRatio);
+        return netLimit.value_or(Config_->NetworkBandwidth) * (1. - throttlerFreeBandwidthRatio);
     }
 };
 

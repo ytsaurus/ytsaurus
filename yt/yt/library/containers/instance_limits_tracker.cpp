@@ -1,6 +1,7 @@
 #include "public.h"
 #include "instance_limits_tracker.h"
 #include "instance.h"
+#include "porto_resource_tracker.h"
 #include "private.h"
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -20,15 +21,23 @@ static const auto& Logger = ContainersLogger;
 
 TInstanceLimitsTracker::TInstanceLimitsTracker(
     IInstancePtr instance,
+    IInstancePtr root,
     IInvokerPtr invoker,
     TDuration updatePeriod)
-    : Instance_(std::move(instance))
-    , Invoker_(std::move(invoker))
+    : Invoker_(std::move(invoker))
     , Executor_(New<NConcurrency::TPeriodicExecutor>(
         Invoker_,
         BIND(&TInstanceLimitsTracker::DoUpdateLimits, MakeWeak(this)),
         updatePeriod))
-{ }
+{
+#ifdef _linux_
+    SelfTracker_ = New<TPortoResourceTracker>(std::move(instance), updatePeriod / 2);
+    RootTracker_ = New<TPortoResourceTracker>(std::move(root), updatePeriod / 2);
+#else
+    Y_UNUSED(instance);
+    Y_UNUSED(root);
+#endif
+}
 
 void TInstanceLimitsTracker::Start()
 {
@@ -52,55 +61,60 @@ void TInstanceLimitsTracker::DoUpdateLimits()
 {
     VERIFY_INVOKER_AFFINITY(Invoker_);
 
+#ifdef _linux_
     YT_LOG_DEBUG("Checking for instance limits update");
 
-    try {
-        auto resourceUsage = Instance_->GetResourceUsage({ EStatField::Rss });
-        auto it = resourceUsage.find(EStatField::Rss);
-        if (it != resourceUsage.end()) {
-            const auto& errorOrValue = it->second;
-            if (errorOrValue.IsOK()) {
-                MemoryUsage_ = errorOrValue.Value();
-            } else {
-                YT_LOG_ALERT(errorOrValue, "Failed to get container rss");
-            }
+    auto setIfOk = [] (auto* destination, const auto& valueOrError, const TString& fieldName, bool alert = true) {
+        if (valueOrError.IsOK()) {
+            *destination = valueOrError.Value();
         } else {
-            YT_LOG_ALERT("Failed to get container rss, property not found");
+            YT_LOG_ALERT_IF(alert, valueOrError, "Failed to get container limit (Field: %v)",
+                fieldName);
+
+            YT_LOG_DEBUG(valueOrError, "Failed to get container limit (Field: %v)",
+                fieldName);
         }
+    };
 
-        auto limits = Instance_->GetResourceLimits();
-        bool limitsUpdated = false;
+    try {
+        auto memoryStatistics = SelfTracker_->GetMemoryStatistics();
+        auto netStatistics = RootTracker_->GetNetworkStatistics();
+        auto cpuStatistics = SelfTracker_->GetCpuStatistics();
 
-        if (CpuGuarantee_ != limits.CpuGuarantee) {
+        setIfOk(&MemoryUsage_, memoryStatistics.Rss, "MemoryRss");
+
+        TDuration cpuGuarantee;
+        TDuration cpuLimit;
+        setIfOk(&cpuGuarantee, cpuStatistics.GuaranteeTime, "CpuGuarantee");
+        setIfOk(&cpuLimit, cpuStatistics.LimitTime, "CpuLimit");
+
+        if (CpuGuarantee_ != cpuGuarantee) {
             YT_LOG_INFO("Instance CPU guarantee updated (OldCpuGuarantee: %v, NewCpuGuarantee: %v)",
                 CpuGuarantee_,
-                limits.CpuGuarantee);
-            CpuGuarantee_ = limits.CpuGuarantee;
-            // NB: We do not set limitsUpdated since this value used only for diagnostics.
+                cpuGuarantee);
+            CpuGuarantee_ = cpuGuarantee;
+            // NB: We do not fire LimitsUpdated since this value used only for diagnostics.
         }
 
-        if (CpuLimit_ != limits.CpuLimit) {
-            YT_LOG_INFO("Instance CPU limit updated (OldCpuLimit: %v, NewCpuLimit: %v)",
-                CpuLimit_,
-                limits.CpuLimit);
-            CpuLimit_ = limits.CpuLimit;
-            limitsUpdated = true;
-        }
+        TInstanceLimits limits;
+        limits.Cpu = cpuLimit.SecondsFloat();
+        setIfOk(&limits.Memory, memoryStatistics.MemoryLimit, "MemoryLimit");
 
-        if (MemoryLimit_ != limits.Memory) {
-            YT_LOG_INFO("Instance memory limit updated (OldMemoryLimit: %v, NewMemoryLimit: %v)",
-                MemoryLimit_,
-                limits.Memory);
-            MemoryLimit_ = limits.Memory;
-            limitsUpdated = true;
-        }
+        static constexpr bool DontFireAlertOnError = {};
+        setIfOk(&limits.NetTx, netStatistics.TxLimit, "NetTxLimit", DontFireAlertOnError);
+        setIfOk(&limits.NetRx, netStatistics.RxLimit, "NetRxLimit", DontFireAlertOnError);
 
-        if (limitsUpdated) {
-            LimitsUpdated_.Fire(*CpuLimit_, *CpuGuarantee_, *MemoryLimit_);
+        if (InstanceLimits_ != limits) {
+            YT_LOG_INFO("Instance limits updated (OldLimits: %v, NewLimits: %v)",
+                InstanceLimits_,
+                limits);
+            InstanceLimits_ = limits;
+            LimitsUpdated_.Fire(limits);
         }
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to get instance limits");
     }
+#endif
 }
 
 IYPathServicePtr TInstanceLimitsTracker::GetOrchidService()
@@ -113,19 +127,31 @@ void TInstanceLimitsTracker::DoBuildOrchid(NYson::IYsonConsumer* consumer) const
 {
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
-            .DoIf(static_cast<bool>(CpuLimit_), [&] (auto fluent) {
-                fluent.Item("cpu_limit").Value(*CpuLimit_);
+            .DoIf(static_cast<bool>(InstanceLimits_), [&] (auto fluent) {
+                fluent.Item("cpu_limit").Value(InstanceLimits_->Cpu);
             })
             .DoIf(static_cast<bool>(CpuGuarantee_), [&] (auto fluent) {
                 fluent.Item("cpu_guarantee").Value(*CpuGuarantee_);
             })
-            .DoIf(static_cast<bool>(MemoryLimit_), [&] (auto fluent) {
-                fluent.Item("memory_limit").Value(*MemoryLimit_);
+            .DoIf(static_cast<bool>(InstanceLimits_), [&] (auto fluent) {
+                fluent.Item("memory_limit").Value(InstanceLimits_->Memory);
             })
             .DoIf(static_cast<bool>(MemoryUsage_), [&] (auto fluent) {
                 fluent.Item("memory_usage").Value(*MemoryUsage_);
             })
         .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, const TInstanceLimits& limits, TStringBuf /*format*/)
+{
+    builder->AppendFormat(
+        "{Cpu: %v, Memory: %v, NetTx: %v, NetRx: %v}",
+        limits.Cpu,
+        limits.Memory,
+        limits.NetTx,
+        limits.NetRx);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
