@@ -171,6 +171,51 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TOAuthCookieAuthenticatorConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    // TString Domain;
+    // TString ClientId;
+    // TString ClientSecret;
+
+    REGISTER_YSON_STRUCT(TOAuthCookieAuthenticatorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOAuthCookieAuthenticatorConfig) 
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOAuthServiceConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    NHttps::TClientConfigPtr HttpClient;
+    TString Host;
+    int Port;
+    bool Secure;
+
+    TString UserInfoEndpoint;
+    TString UserInfoLoginField;
+
+    TString ClientId;
+    TString ClientSecret;
+
+    TDuration RequestTimeout;
+    TDuration AttemptTimeout;
+    TDuration BackoffTimeout;
+
+    REGISTER_YSON_STRUCT(TOAuthServiceConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOAuthServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCachingCookieAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -197,6 +242,20 @@ class TCachingBlackboxCookieAuthenticatorConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingBlackboxCookieAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingOAuthCookieAuthenticatorConfig
+    : public TOAuthCookieAuthenticatorConfig
+    , public TCachingCookieAuthenticatorConfig
+{
+    REGISTER_YSON_STRUCT(TCachingOAuthCookieAuthenticatorConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachingOAuthCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -338,6 +397,9 @@ public:
     TCachingCypressTokenAuthenticatorConfigPtr CypressTokenAuthenticator;
     TTvmServiceConfigPtr TvmService;
     TBlackboxTicketAuthenticatorConfigPtr BlackboxTicketAuthenticator;
+    TCachingOAuthCookieAuthenticatorConfigPtr OAuthCookieAuthenticator;
+    // TOAuthCookieAuthenticatorConfigPtr OAuthCookieAuthenticator;
+    TOAuthServiceConfigPtr OAuthService;
 
     TCypressCookieManagerConfigPtr CypressCookieManager;
 

@@ -9,6 +9,8 @@
 #include "token_authenticator.h"
 #include "config.h"
 #include "private.h"
+#include "oauth_service.h"
+#include "oauth_cookie_authenticator.h"
 
 #include <yt/yt/core/rpc/authenticator.h>
 
@@ -50,6 +52,14 @@ public:
                 TvmService_,
                 poller,
                 AuthProfiler.WithPrefix("/blackbox"));
+        }
+
+        IOAuthServicePtr oauthService;
+        if (config->OAuthService && poller) {
+            oauthService = CreateOAuthService(
+                config->OAuthService,
+                poller,
+                profiler.WithPrefix("/oauth"));
         }
 
         if (config->CypressCookieManager) {
@@ -104,6 +114,15 @@ public:
                     config->BlackboxCookieAuthenticator,
                     blackboxService),
                 AuthProfiler.WithPrefix("/blackbox_cookie_authenticator/cache")));
+        }
+
+        if (config->OAuthCookieAuthenticator && oauthService) {
+            cookieAuthenticators.push_back(CreateCachingCookieAuthenticator(
+                config->OAuthCookieAuthenticator,
+                CreateOAuthCookieAuthenticator(
+                    config->OAuthCookieAuthenticator,
+                    oauthService),
+                profiler.WithPrefix("/oauth_cookie_authenticator/cache")));
         }
 
         if (blackboxService && config->BlackboxTicketAuthenticator) {

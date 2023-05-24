@@ -1,5 +1,6 @@
 #pragma once
 
+#include "library/cpp/yt/memory/ref_counted.h"
 #include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/core/net/address.h>
@@ -26,6 +27,10 @@ DECLARE_REFCOUNTED_CLASS(TBatchingSecretVaultServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TCachingSecretVaultServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TAuthenticationManagerConfig)
 
+DECLARE_REFCOUNTED_CLASS(TOAuthCookieAuthenticatorConfig)
+DECLARE_REFCOUNTED_CLASS(TCachingOAuthCookieAuthenticatorConfig)
+DECLARE_REFCOUNTED_CLASS(TOAuthServiceConfig)
+
 DECLARE_REFCOUNTED_STRUCT(TCypressCookie)
 
 DECLARE_REFCOUNTED_STRUCT(TCypressCookieStoreConfig)
@@ -38,6 +43,7 @@ DECLARE_REFCOUNTED_STRUCT(ICypressCookieManager)
 DECLARE_REFCOUNTED_STRUCT(IAuthenticationManager)
 
 DECLARE_REFCOUNTED_STRUCT(IBlackboxService)
+DECLARE_REFCOUNTED_STRUCT(IOAuthService)
 
 DECLARE_REFCOUNTED_STRUCT(ICookieAuthenticator)
 DECLARE_REFCOUNTED_STRUCT(ITokenAuthenticator)
@@ -128,6 +134,7 @@ inline bool operator ==(
 constexpr TStringBuf BlackboxSessionIdCookieName = "Session_id";
 constexpr TStringBuf BlackboxSslSessionIdCookieName = "sessionid2";
 constexpr TStringBuf CypressCookieName = "YTCypressCookie";
+constexpr TStringBuf OAuthAccessTokenCookieName = "access_token";
 
 ////////////////////////////////////////////////////////////////////////////////
 

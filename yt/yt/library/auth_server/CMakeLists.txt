@@ -43,4 +43,6 @@ target_sources(yt-library-auth_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/secret_vault_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/ticket_authenticator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/token_authenticator.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/oauth_cookie_authenticator.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/oauth_service.cpp
 )

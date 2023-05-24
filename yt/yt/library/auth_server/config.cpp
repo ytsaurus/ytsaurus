@@ -102,6 +102,48 @@ void TBlackboxCookieAuthenticatorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TOAuthCookieAuthenticatorConfig::Register(TRegistrar registrar)
+{
+    // registrar.Parameter("domain", &TThis::Domain)
+    //     .NonEmpty();
+    // registrar.Parameter("client_id", &TThis::ClientId)
+    //     .NonEmpty();
+    // registrar.Parameter("client_secret", &TThis::ClientSecret)
+    //     .NonEmpty();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TOAuthServiceConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("http_client", &TThis::HttpClient)
+        .DefaultNew();
+    registrar.Parameter("host", &TThis::Host)
+        .NonEmpty();
+    registrar.Parameter("port", &TThis::Port)
+        .Default(80);
+    registrar.Parameter("secure", &TThis::Secure)
+        .Default(false);
+    registrar.Parameter("user_info_endpoint", &TThis::UserInfoEndpoint)
+        .Default("user/info");
+    registrar.Parameter("user_info_login_field", &TThis::UserInfoLoginField)
+        .Default("nickname");
+    
+    registrar.Parameter("client_id", &TThis::ClientId)
+        .NonEmpty();
+    registrar.Parameter("client_secret", &TThis::ClientSecret)
+        .NonEmpty();
+    
+    registrar.Parameter("request_timeout", &TThis::RequestTimeout)
+        .Default(TDuration::Seconds(15));
+    registrar.Parameter("attempt_timeout", &TThis::AttemptTimeout)
+        .Default(TDuration::Seconds(10));
+    registrar.Parameter("backoff_timeout", &TThis::BackoffTimeout)
+        .Default(TDuration::Seconds(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCachingCookieAuthenticatorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cache", &TThis::Cache)
