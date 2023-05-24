@@ -184,15 +184,13 @@ public:
             auto tabletId = tablet->GetId();
 
             TTransaction* transaction = nullptr;
-            bool transactionIsFresh = false;
             bool updateReplicationProgress = false;
             if (atomicity == EAtomicity::Full) {
                 transaction = transactionManager->GetOrCreateTransactionOrThrow(
                     params.TransactionId,
                     params.TransactionStartTimestamp,
                     params.TransactionTimeout,
-                    true,
-                    &transactionIsFresh);
+                    /*transient*/ true);
                 ValidateTransactionActive(transaction);
 
                 if (params.Generation > transaction->GetTransientGeneration()) {
@@ -333,9 +331,6 @@ public:
                 auto counters = tablet->GetTableProfiler()->GetWriteCounters(GetCurrentProfilingUser());
                 counters->RowCount.Increment(writeRecord.RowCount);
                 counters->DataWeight.Increment(writeRecord.DataWeight);
-            } else if (transactionIsFresh) {
-                OnTransactionFinished(transaction);
-                transactionManager->DropTransaction(transaction);
             }
 
             // NB: Yielding is now possible.

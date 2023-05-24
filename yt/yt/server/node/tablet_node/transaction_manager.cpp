@@ -188,13 +188,8 @@ public:
         TTransactionId transactionId,
         TTimestamp startTimestamp,
         TDuration timeout,
-        bool transient,
-        bool* fresh = nullptr) override
+        bool transient) override
     {
-        if (fresh) {
-            *fresh = false;
-        }
-
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
             return transaction;
         }
@@ -205,10 +200,6 @@ public:
         if (transient && AbortTransactionIdPool_.IsRegistered(transactionId)) {
             THROW_ERROR_EXCEPTION("Abort was requested for transaction %v",
                 transactionId);
-        }
-
-        if (fresh) {
-            *fresh = true;
         }
 
         auto transactionHolder = std::make_unique<TTransaction>(transactionId);
@@ -261,23 +252,6 @@ public:
         }
 
         YT_ABORT();
-    }
-
-    void DropTransaction(TTransaction* transaction) override
-    {
-        YT_VERIFY(transaction->GetTransient());
-
-        if (IsLeader()) {
-            CloseLease(transaction);
-        }
-
-        transaction->SetFinished();
-
-        auto transactionId = transaction->GetId();
-        TransientTransactionMap_.Remove(transactionId);
-
-        YT_LOG_DEBUG("Transaction dropped (TransactionId: %v)",
-            transactionId);
     }
 
     std::vector<TTransaction*> GetTransactions() override
@@ -1019,7 +993,7 @@ private:
             transactionId,
             transactionStartTimestamp,
             transactionTimeout,
-            false);
+            /*transient*/ false);
 
         auto state = transaction->GetPersistentState();
         if (state != ETransactionState::Active) {

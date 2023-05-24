@@ -84,7 +84,8 @@ public:
         YT_VERIFY(Slot_);
         YT_VERIFY(Bootstrap_);
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Write));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Write)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterTransactionActions));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Trim));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendTabletCell));
