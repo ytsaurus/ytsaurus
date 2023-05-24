@@ -284,11 +284,12 @@ private:
             auto [request, response] = StartAndWriteHeaders(method, url, headers);
 
             if (body) {
-                WaitFor(request->Write(*body))
+                WaitFor(request->WriteBody(*body))
+                    .ThrowOnError();
+            } else {
+                WaitFor(request->Close())
                     .ThrowOnError();
             }
-            WaitFor(request->Close())
-                .ThrowOnError();
 
             // Waits for response headers internally.
             response->GetStatusCode();
