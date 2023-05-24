@@ -154,6 +154,9 @@ static constexpr auto LoggerDefaultMinLevel = ELogLevel::Trace;
 class TLogger
 {
 public:
+    using TStructuredValidator = std::function<void(NYson::TYsonString)>;
+    using TStructuredValidators = std::vector<TStructuredValidator>;
+
     using TStructuredTag = std::pair<TString, NYson::TYsonString>;
     // TODO(max42): switch to TCompactVector after YT-15430.
     using TStructuredTags = std::vector<TStructuredTag>;
@@ -197,12 +200,16 @@ public:
     template <class TType>
     TLogger WithStructuredTag(TStringBuf key, TType value) const;
 
+    TLogger WithStructuredValidator(TStructuredValidator validator) const;
+
     TLogger WithMinLevel(ELogLevel minLevel) const;
 
     TLogger WithEssential(bool essential = true) const;
 
     const TString& GetTag() const;
     const TStructuredTags& GetStructuredTags() const;
+
+    const TStructuredValidators& GetStructuredValidators() const;
 
 protected:
     // These fields are set only during logger creation, so they are effectively const
@@ -213,6 +220,7 @@ protected:
     ELogLevel MinLevel_ = NullLoggerMinLevel;
     TString Tag_;
     TStructuredTags StructuredTags_;
+    TStructuredValidators StructuredValidators_;
 
 private:
     //! This method checks level against category's min level.

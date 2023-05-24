@@ -1,3 +1,4 @@
+#include <gtest/gtest-spi.h>
 
 #include "yt/yt/core/misc/string_builder.h"
 #include <yt/yt/core/test_framework/framework.h>
@@ -7,6 +8,7 @@
 #include <yt/yt/core/logging/log_writer.h>
 #include <yt/yt/core/logging/log_writer_factory.h>
 #include <yt/yt/core/logging/file_log_writer.h>
+#include <yt/yt/core/logging/fluent_log.h>
 #include <yt/yt/core/logging/stream_log_writer.h>
 #include <yt/yt/core/logging/random_access_gzip.h>
 #include <yt/yt/core/logging/compression.h>
@@ -550,6 +552,50 @@ TEST_F(TLoggingTest, StructuredLoggingJsonFormat)
     EXPECT_EQ(message->GetChildOrThrow("long_string_value")->AsString()->GetValue(), longStringPrefix);
     EXPECT_EQ(message->GetChildOrThrow("level")->AsString()->GetValue(), FormatEnum(ELogLevel::Debug));
     EXPECT_EQ(message->GetChildOrThrow("category")->AsString()->GetValue(), Logger.GetCategory()->Name);
+}
+
+TEST_F(TLoggingTest, StructuredLoggingWithValidator)
+{
+    TTempFile logFile(GenerateLogFileName());
+    Configure(Format(R"({
+        rules = [
+            {
+                "family" = "structured";
+                "min_level" = "info";
+                "writers" = [ "test" ];
+            };
+        ];
+        "writers" = {
+            "test" = {
+                "format" = "structured";
+                "file_name" = "%v";
+                "type" = "file";
+            };
+        };
+    })", logFile.Name()));
+
+    auto logger = Logger.WithStructuredValidator([] (TYsonString yson) {
+        auto message = ConvertToNode(yson)->AsMap();
+        auto testField = message->FindChild("test_field");
+        if (!testField) {
+            ADD_FAILURE();
+        }
+    });
+
+    auto sendValidMessage = [&logger] () {
+        LogStructuredEventFluently(logger, ELogLevel::Info)
+            .Item("test_field").Value("test_value");
+    };
+    sendValidMessage();
+
+    auto sendInvalidMessage = [&logger] () {
+        LogStructuredEventFluently(logger, ELogLevel::Info);
+    };
+    EXPECT_NONFATAL_FAILURE(sendInvalidMessage(), "");
+
+    TLogManager::Get()->Synchronize();
+    auto lines = ReadPlainTextEvents(logFile.Name());
+    EXPECT_EQ(2, std::ssize(lines));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -207,6 +207,13 @@ TLogger TLogger::WithEssential(bool essential) const
     return result;
 }
 
+TLogger TLogger::WithStructuredValidator(TStructuredValidator validator) const
+{
+    auto result = *this;
+    result.StructuredValidators_.push_back(std::move(validator));
+    return result;
+}
+
 TLogger TLogger::WithMinLevel(ELogLevel minLevel) const
 {
     auto result = *this;
@@ -226,6 +233,11 @@ const TLogger::TStructuredTags& TLogger::GetStructuredTags() const
     return StructuredTags_;
 }
 
+const TLogger::TStructuredValidators& TLogger::GetStructuredValidators() const
+{
+    return StructuredValidators_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void LogStructuredEvent(
@@ -234,6 +246,10 @@ void LogStructuredEvent(
     ELogLevel level)
 {
     YT_VERIFY(message.GetType() == NYson::EYsonType::MapFragment);
+    for (const auto& validator : logger.GetStructuredValidators()) {
+        validator(message);
+    }
+
     auto loggingContext = GetLoggingContext();
     auto event = NDetail::CreateLogEvent(
         loggingContext,
