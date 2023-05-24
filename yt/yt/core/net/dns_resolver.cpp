@@ -111,28 +111,6 @@ static const auto& Logger = NetLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TOptions>
-void ApplyYandexPrivateOptions(TOptions& options, int& mask, TDuration maxResolveTimeout, std::optional<double> jitter)
-{
-    // A little bit of concept magic in order to make this code work both with vanilla c-ares
-    // and with Yandex privately patched (05-ttl, 07-timeouts) version of c-ares.
-    constexpr int AresOptMaxTimeoutMs = 1 << 18;
-    constexpr int AresOptJitter = 1 << 19;
-
-    if constexpr (requires { options.maxtimeout; }) {
-        options.maxtimeout = static_cast<int>(maxResolveTimeout.MilliSeconds());
-        mask |= AresOptMaxTimeoutMs;
-    }
-
-    if constexpr (requires { options.jitter; }) {
-        if (jitter) {
-            options.jitter = llround(*jitter * 1000.0);
-            options.jitter_rand_seed = TGuid::Create().Parts32[0];
-            mask |= AresOptJitter;
-        }
-    }
-}
-
 class TDnsResolver::TImpl
 {
 public:
@@ -172,7 +150,20 @@ public:
         Options_.timeout = static_cast<int>(ResolveTimeout_.MilliSeconds());
         mask |= ARES_OPT_TIMEOUTMS;
 
-        ApplyYandexPrivateOptions(Options_, mask, MaxResolveTimeout_, Jitter_);
+        // ARES_OPT_MAXTIMEOUTMS and ARES_OPT_JITTER are options from
+        // yandex privately patched (05-ttl, 07-timeouts) version of c-ares.
+    #ifdef ARES_OPT_MAXTIMEOUTMS
+        Options_.maxtimeout = static_cast<int>(MaxResolveTimeout_.MilliSeconds());
+        mask |= ARES_OPT_MAXTIMEOUTMS;
+    #endif
+
+    #ifdef ARES_OPT_JITTER
+        if (Jitter_) {
+            Options_.jitter = llround(*Jitter_ * 1000.0);
+            Options_.jitter_rand_seed = TGuid::Create().Parts32[0];
+            mask |= ARES_OPT_JITTER;
+        }
+    #endif
 
         Options_.tries = Retries_;
         mask |= ARES_OPT_TRIES;
