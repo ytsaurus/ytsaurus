@@ -50,8 +50,6 @@ class TUserJobSpec;
 class TResourceLimits;
 class TQuerySpec;
 class TDiskQuota;
-class TJobResources;
-class TJobResourcesWithQuota;
 
 } // namespace NProto
 
