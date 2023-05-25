@@ -91,7 +91,7 @@ ytsaurus-ytop-chart-controller-manager-5765c5f995-dntph   2/2     Running    0  
 
 #### Запуск кластера {{product-name}}
 
-Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_minikube.yaml)  в кластер `kubectl apply -f cluster_v1_minikube.yaml`.
+Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_minikube.yaml) в кластер `kubectl apply -f cluster_v1_minikube.yaml`.
 
 Если загрузка прошла успешно, через некоторое время список запущенных подов будет выглядеть следующим образом:
 
