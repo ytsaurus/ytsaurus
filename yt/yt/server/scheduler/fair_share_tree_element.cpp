@@ -94,7 +94,6 @@ void TSchedulerElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* 
     HasSpecifiedResourceLimits_ = GetSpecifiedResourceLimits() != TJobResources::Infinite();
 
     auto specifiedResourceLimits = GetSpecifiedResourceLimits();
-
     if (PersistentAttributes_.AppliedResourceLimits != specifiedResourceLimits) {
         std::vector<TResourceTreeElementPtr> descendantOperationElements;
         if (!IsOperation() && PersistentAttributes_.AppliedResourceLimits == TJobResources::Infinite() && specifiedResourceLimits != TJobResources::Infinite()) {
@@ -262,7 +261,7 @@ TInstant TSchedulerElement::GetStartTime() const
     return StartTime_;
 }
 
-int TSchedulerElement::GetPendingJobCount() const
+i64 TSchedulerElement::GetPendingJobCount() const
 {
     return PendingJobCount_;
 }
@@ -1732,6 +1731,18 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
     Tentative_ = RuntimeParameters_->Tentative;
     StartTime_ = OperationHost_->GetStartTime();
 
+    TSchedulerElement::PreUpdateBottomUp(context);
+
+    // NB(eshcherbin): This is a hotfix, see YT-19127.
+    if (Spec_->ApplySpecifiedResourceLimitsToDemand && HasSpecifiedResourceLimits_) {
+        auto specifiedResourceLimits = GetSpecifiedResourceLimits();
+        TotalNeededResources_ = Max(
+            Min(ResourceDemand_, specifiedResourceLimits) - ResourceUsageAtUpdate_,
+            TJobResources());
+        ResourceDemand_ = ResourceUsageAtUpdate_ + TotalNeededResources_;
+        PendingJobCount_ = TotalNeededResources_.GetUserSlots();
+    }
+
     // NB: It was moved from regular fair share update for performing split.
     // It can be performed in fair share thread as second step of preupdate.
     if (PersistentAttributes_.LastBestAllocationRatioUpdateTime + TreeConfig_->BestAllocationRatioUpdatePeriod > context->Now) {
@@ -1748,8 +1759,6 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
             DiskRequestMedia_.insert(index);
         }
     }
-
-    TSchedulerElement::PreUpdateBottomUp(context);
 }
 
 void TSchedulerOperationElement::BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context)

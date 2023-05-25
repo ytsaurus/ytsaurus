@@ -460,6 +460,65 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         # Resource usage in parent pool wasn't transfered and new jobs weren't scheduled as resource_limits exceeded.
         wait(lambda: op2.get_running_jobs())
 
+    @authors("eshcherbin")
+    def test_apply_specified_resource_limits_to_demand(self):
+        update_scheduler_config("operation_hangup_safe_timeout", 100000000)
+
+        create_pool("pool", attributes={"resource_limits": {"cpu": 0}})
+
+        op = run_sleeping_vanilla(job_count=3, spec={
+            "pool": "pool",
+            "apply_specified_resource_limits_to_demand": True,
+        })
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/cpu", default=None) == 3.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/user_slots") == 3)
+
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "resource_limits": {"cpu": 3.0, "user_slots": 2},
+                },
+            }
+        })
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/cpu") == 3.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/user_slots") == 2)
+
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "resource_limits": {"cpu": 1.0, "user_slots": 2},
+                },
+            }
+        })
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/cpu") == 1.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/user_slots") == 2)
+
+        set("//sys/pool_trees/default/pool/@non_preemptible_resource_usage_threshold", {"user_slots": 3})
+        set("//sys/pool_trees/default/pool/@resource_limits", {"cpu": 2.0})
+
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "resource_limits": {"cpu": 3.0, "user_slots": 3},
+                },
+            }
+        })
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/cpu") == 3.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/user_slots") == 3)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/user_slots") == 2)
+
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "resource_limits": {"cpu": 1.0, "user_slots": 0},
+                },
+            }
+        })
+        time.sleep(3.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/cpu") == 2.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/user_slots") == 2)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/user_slots") == 2)
+
 
 ##################################################################
 

@@ -2147,6 +2147,8 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("erase_trees_with_pool_limit_violations", &TThis::EraseTreesWithPoolLimitViolations)
         .Default(false);
+    registrar.Parameter("apply_specified_resource_limits_to_demand", &TThis::ApplySpecifiedResourceLimitsToDemand)
+        .Default(false);
 
     registrar.Postprocessor([] (TStrategyOperationSpec* spec) {
         if (spec->SchedulingSegmentModules && spec->SchedulingSegmentModules->size() >= MaxSchedulingSegmentModuleCount) {

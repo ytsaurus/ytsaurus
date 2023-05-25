@@ -466,6 +466,8 @@ public:
 
     bool EraseTreesWithPoolLimitViolations;
 
+    bool ApplySpecifiedResourceLimitsToDemand;
+
     REGISTER_YSON_STRUCT(TStrategyOperationSpec);
 
     static void Register(TRegistrar registrar);

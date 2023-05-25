@@ -198,7 +198,7 @@ protected:
 
     // Assigned in preupdate, used in fair share update.
     TJobResources TotalResourceLimits_;
-    int PendingJobCount_ = 0;
+    i64 PendingJobCount_ = 0;
     TInstant StartTime_;
 
     const TString TreeId_;
@@ -370,7 +370,7 @@ protected:
 private:
     // Update methods.
     virtual std::optional<double> GetSpecifiedWeight() const = 0;
-    int GetPendingJobCount() const;
+    i64 GetPendingJobCount() const;
 
     friend class TSchedulerCompositeElement;
     friend class TSchedulerOperationElement;
