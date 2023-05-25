@@ -17,18 +17,18 @@ MAX_DECIMAL_PRECISION = 35
 
 
 class JobCountProfiler:
-    def __init__(self, state, tags=None):
+    def __init__(self, state, tags=None, **kwargs):
         assert state in ["started", "failed", "aborted", "completed"]
         path = "controller_agent/jobs/{}_job_count".format(state)
         self._counters = [
-            profiler_factory().at_controller_agent(agent, fixed_tags=tags).counter(path)
+            profiler_factory().at_controller_agent(agent, fixed_tags=tags, **kwargs).counter(path)
             for agent in ls("//sys/controller_agents/instances")
         ]
 
-    def get_job_count_delta(self, tags=None):
+    def get_job_count_delta(self, **kwargs):
         delta = 0
         for counter in self._counters:
-            delta += counter.get_delta(tags=tags, verbose=True)
+            delta += counter.get_delta(verbose=True, **kwargs)
 
         return delta
 

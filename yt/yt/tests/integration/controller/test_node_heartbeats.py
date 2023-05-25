@@ -88,9 +88,13 @@ class TestNodeHeartbeats(YTEnvSetup):
 
         wait_breakpoint()
 
-        aborted_job_profiler = JobCountProfiler("aborted", tags={"tree": "default", "job_type": "map"})
+        aborted_job_profilers = dict()
+        aborted_job_profilers["node_offline"] = JobCountProfiler(
+            "aborted", tags={"tree": "default", "job_type": "map", "abort_reason": "node_offline"})
+        aborted_job_profilers["job_statistics_wait_timeout"] = JobCountProfiler(
+            "aborted", tags={"tree": "default", "job_type": "map", "abort_reason": "job_statistics_wait_timeout"})
 
         with Restarter(self.Env, NODES_SERVICE):
             wait(lambda: op.get_job_count("aborted") == 1)
-            wait(lambda: aborted_job_profiler.get_job_count_delta(tags={"abort_reason": "node_offline"}) == 1)
-            assert aborted_job_profiler.get_job_count_delta(tags={"abort_reason": "job_statistics_wait_timeout"}) == 0
+            wait(lambda: aborted_job_profilers["node_offline"].get_job_count_delta() == 1)
+            assert aborted_job_profilers["job_statistics_wait_timeout"].get_job_count_delta() == 0

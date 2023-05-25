@@ -850,11 +850,15 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         cpu_demand_sensor = profiler.gauge(metric_prefix + "resource_demand/cpu")
         user_slots_demand_sensor = profiler.gauge(metric_prefix + "resource_demand/user_slots")
 
-        accumulated_resource_usage_cpu_sensor = profiler.counter(metric_prefix + "accumulated_resource_usage/cpu")
-        accumulated_resource_usage_user_slots_sensor = profiler.counter(metric_prefix + "accumulated_resource_usage/user_slots")
-
         tags1 = {"slot_index": "0"}
         tags2 = {"slot_index": "1"}
+
+        accumulated_resource_usage_cpu_sensors = dict()
+        accumulated_resource_usage_user_slots_sensors = dict()
+
+        for name, tags in (("tags1", tags1), ("tags2", tags2)):
+            accumulated_resource_usage_cpu_sensors[name] = profiler.counter(metric_prefix + "accumulated_resource_usage/cpu", tags=tags)
+            accumulated_resource_usage_user_slots_sensors[name] = profiler.counter(metric_prefix + "accumulated_resource_usage/user_slots", tags=tags)
 
         op1 = run_sleeping_vanilla(spec={"pool": "some_pool"})
         wait(lambda: op1.get_job_count("running") == 1)
@@ -876,8 +880,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: cpu_demand_sensor.get(tags=tags1) == 1)
         wait(lambda: user_slots_demand_sensor.get(tags=tags1) == 1)
         # Some non-trivial lower bound on resource consumption.
-        wait(lambda: accumulated_resource_usage_cpu_sensor.get_delta(tags=tags1) > 2.0)
-        wait(lambda: accumulated_resource_usage_user_slots_sensor.get_delta(tags=tags1) > 2.0)
+        wait(lambda: accumulated_resource_usage_cpu_sensors["tags1"].get_delta() > 2.0)
+        wait(lambda: accumulated_resource_usage_user_slots_sensors["tags1"].get_delta() > 2.0)
 
         wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(tags=tags2), 0.5))
         wait(lambda: dominant_usage_share_sensor.get(tags=tags2) == 0)
@@ -887,8 +891,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: user_slots_usage_sensor.get(tags=tags2) == 0)
         wait(lambda: cpu_demand_sensor.get(tags=tags2) == 1)
         wait(lambda: user_slots_demand_sensor.get(tags=tags2) == 1)
-        wait(lambda: accumulated_resource_usage_cpu_sensor.get_delta(tags=tags2) == 0.0)
-        wait(lambda: accumulated_resource_usage_user_slots_sensor.get_delta(tags=tags2) == 0.0)
+        wait(lambda: accumulated_resource_usage_cpu_sensors["tags2"].get_delta() == 0.0)
+        wait(lambda: accumulated_resource_usage_user_slots_sensors["tags2"].get_delta() == 0.0)
 
         op1.abort(wait_until_finished=True)
 
@@ -1030,14 +1034,14 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
     @authors("eshcherbin")
     def test_aborted_job_count_profiling_per_tree(self):
-        aborted_job_profiler = JobCountProfiler("aborted")
+        default_tree_aborted_job_profiler = JobCountProfiler("aborted", tags={"tree": "default"})
+        other_tree_aborted_job_profiler = JobCountProfiler("aborted", tags={"tree": "other"})
 
         op1 = run_sleeping_vanilla()
         wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/resource_usage/cpu", default=None) == 1.0)
         op1.abort()
 
-        wait(lambda: aborted_job_profiler.get_job_count_delta(tags={"tree": "default"}) == 1)
-        wait(lambda: aborted_job_profiler.get_job_count_delta() == 1)
+        wait(lambda: default_tree_aborted_job_profiler.get_job_count_delta() == 1)
 
         set("//sys/pool_trees/default/@config/nodes_filter", "!other")
         create_pool_tree("other", config={"nodes_filter": "other"})
@@ -1049,9 +1053,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: get(scheduler_orchid_operation_path(op2.id, tree="other") + "/resource_usage/cpu", default=None) == 1.0)
         op2.abort()
 
-        wait(lambda: aborted_job_profiler.get_job_count_delta(tags={"tree": "other"}) == 1)
-        wait(lambda: aborted_job_profiler.get_job_count_delta(tags={"tree": "default"}) == 1)
-        wait(lambda: aborted_job_profiler.get_job_count_delta() == 2)
+        wait(lambda: other_tree_aborted_job_profiler.get_job_count_delta() == 1)
+        wait(lambda: default_tree_aborted_job_profiler.get_job_count_delta() == 1)
 
     @authors("ignat")
     def test_scheduling_index_profiling(self):
