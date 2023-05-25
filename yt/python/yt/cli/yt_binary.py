@@ -353,10 +353,10 @@ def add_exists_parser(add_parser):
     add_read_from_arguments(parser)
 
 
-LONG_FORMAT_ATTRIBUTES = ("type", "target_path", "account", "resource_usage", "modification_time")
+LONG_FORMAT_ATTRIBUTES = ("type", "target_path", "account", "resource_usage")
 
 
-def formatted_print(obj, path, long_format, recursive_resource_usage):
+def formatted_print(obj, path, long_format, recursive_resource_usage, time_type):
     attributes = getattr(obj, "attributes", {})
 
     def get_attr(attr_name):
@@ -373,7 +373,7 @@ def formatted_print(obj, path, long_format, recursive_resource_usage):
         else:
             resource_usage = get_attr("resource_usage")
         size = get_disk_space_from_resources(resource_usage)
-        date, time = get_attr("modification_time").split("T")
+        date, time = get_attr(time_type).split("T")
         time = time[:5]
         sys.stdout.write("%10s %20s %10s %10s %5s %s%s\n" %
                          (type, user, format_disk_space(size), date, time, str(obj), link_tail))
@@ -386,9 +386,10 @@ def list(**kwargs):
     list_args = dict(kwargs)
     list_args.pop("long_format")
     list_args.pop("recursive_resource_usage")
+    time_type = kwargs.get("time_type", "modification_time")
     if kwargs["long_format"]:
         assert kwargs["format"] is None
-        list_args["attributes"] = LONG_FORMAT_ATTRIBUTES
+        list_args["attributes"] = LONG_FORMAT_ATTRIBUTES + [time_type]
     list = yt.list(**list_args)
     if kwargs["format"] is None:
         if kwargs["attributes"] is not None:
@@ -398,7 +399,8 @@ def list(**kwargs):
                 elem,
                 yt.ypath_join(kwargs["path"], yt.escape_ypath_literal(elem)),
                 kwargs["long_format"],
-                kwargs["recursive_resource_usage"])
+                kwargs["recursive_resource_usage"],
+                time_type)
         if list.attributes.get("incomplete", False):
             print("WARNING: list is incomplete, check --max-size option", file=sys.stderr)
     else:
@@ -428,7 +430,7 @@ def add_list_parser(add_parser):
 def find(**kwargs):
     path_filter = None
     if kwargs["name"] is not None:
-        path_filter = lambda path: fnmatch.fnmatch(os.path.basename(path), kwargs["name"])
+        path_filter = lambda path: fnmatch.fnmatch(os.path.basename(path), kwargs["name"]) # noqa
 
     attributes = dict([(x, kwargs[x]) for x in ["account", "owner"] if kwargs[x] is not None])
     if kwargs["attribute_filter"] is not None:
@@ -441,7 +443,7 @@ def find(**kwargs):
     long_format_attributes = builtins.list(LONG_FORMAT_ATTRIBUTES) if kwargs["long_format"] else []
 
     object_filter = lambda obj: \
-        all([obj.attributes.get(attr) == attributes[attr] for attr in attributes])
+        all([obj.attributes.get(attr) == attributes[attr] for attr in attributes]) # noqa
 
     result = yt.search(kwargs["path"],
                        node_type=kwargs["type"],
@@ -454,7 +456,7 @@ def find(**kwargs):
                        cache_sticky_group_size=kwargs["cache_sticky_group_size"])
 
     for elem in result:
-        formatted_print(elem, elem, kwargs["long_format"], kwargs["recursive_resource_usage"])
+        formatted_print(elem, elem, kwargs["long_format"], kwargs["recursive_resource_usage"], kwargs["time_type"])
 
 
 def add_find_parser(add_parser):
@@ -470,6 +472,9 @@ def add_find_parser(add_parser):
     parser.add_argument("-l", "--long-format", action="store_true", help="print some extra information about nodes")
     parser.add_argument("--recursive-resource-usage", action="store_true",
                         help="use recursive resource usage for in long format mode")
+    parser.add_argument("--time-type", choices=['access_time', 'modification_time', 'creation_time'],
+                        default='modification_time',
+                        help="type of time to use in long-format")
     add_read_from_arguments(parser)
     parser.set_defaults(func=find)
 
