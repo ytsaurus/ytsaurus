@@ -148,6 +148,9 @@ def is_msan_build():
 
 
 def is_debug_build():
+    if arcadia_interop.yatest_common is None:
+        return False
+
     return "debug" in arcadia_interop.yatest_common.context.build_type
 
 
@@ -370,7 +373,11 @@ class YTEnvSetup(object):
 
         yt.logger.info("Creating cluster instance")
 
-        use_native_auth = not hasattr(cls, "USE_NATIVE_AUTH") or getattr(cls, "USE_NATIVE_AUTH")
+        if hasattr(cls, "USE_NATIVE_AUTH"):
+            use_native_auth = getattr(cls, "USE_NATIVE_AUTH")
+        else:
+            # Use native auth by default in arcadia.
+            use_native_auth = arcadia_interop.yatest_common is not None
 
         yt_config = LocalYtConfig(
             use_porto_for_servers=cls.USE_PORTO,

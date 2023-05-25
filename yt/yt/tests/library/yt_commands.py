@@ -32,6 +32,7 @@ import sys
 import tempfile
 import time
 import traceback
+import warnings
 import logging
 try:
     from string import letters as ascii_letters
@@ -64,6 +65,8 @@ _events_on_fs = None
 
 
 def authors(*the_authors):
+    # pytest perform test collection before processing all pytest_configure calls.
+    warnings.filterwarnings("ignore", category=pytest.PytestUnknownMarkWarning)
     return pytest.mark.authors(the_authors)
 
 
