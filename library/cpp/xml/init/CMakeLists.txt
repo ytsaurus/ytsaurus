@@ -6,9 +6,16 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(base64)
-add_subdirectory(quote)
-add_subdirectory(relaxed_escaper)
-add_subdirectory(scan)
-add_subdirectory(url)
-add_subdirectory(ztstrbuf)
+
+add_library(cpp-xml-init)
+target_link_libraries(cpp-xml-init PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  contrib-libs-libxml
+  library-cpp-charset
+)
+target_sources(cpp-xml-init PRIVATE
+  ${CMAKE_SOURCE_DIR}/library/cpp/xml/init/ptr.cpp
+  ${CMAKE_SOURCE_DIR}/library/cpp/xml/init/init.cpp
+)

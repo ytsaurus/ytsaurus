@@ -94,6 +94,8 @@ TString GetSha256HexDigestLowerCase(TStringBuf data);
 ////////////////////////////////////////////////////////////////////////////////
 
 TString CreateSha256Hmac(const TString& key, const TString& message);
+TString CreateSha256HmacRaw(const TString& key, const TString& message);
+
 bool ConstantTimeCompare(const TString& trusted, const TString& untrusted);
 
 ////////////////////////////////////////////////////////////////////////////////

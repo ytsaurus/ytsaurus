@@ -210,9 +210,11 @@ TString GetSha256HexDigestLowerCase(TStringBuf data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString CreateSha256Hmac(const TString& key, const TString& message)
+using TSha256Hmac = std::array<char, 256 / 8>;
+
+TSha256Hmac CreateSha256HmacImpl(const TString& key, const TString& message)
 {
-    std::array<char, 256 / 8> hmac;
+    TSha256Hmac hmac;
     unsigned int opensslIsInsane;
     auto result = HMAC(
         EVP_sha256(),
@@ -223,7 +225,19 @@ TString CreateSha256Hmac(const TString& key, const TString& message)
         reinterpret_cast<unsigned char*>(hmac.data()),
         &opensslIsInsane);
     YT_VERIFY(nullptr != result);
+    return hmac;
+}
+
+TString CreateSha256Hmac(const TString& key, const TString& message)
+{
+    auto hmac = CreateSha256HmacImpl(key, message);
     return to_lower(HexEncode(hmac.data(), hmac.size()));
+}
+
+TString CreateSha256HmacRaw(const TString& key, const TString& message)
+{
+    auto hmac = CreateSha256HmacImpl(key, message);
+    return TString(hmac.data(), hmac.size());
 }
 
 bool ConstantTimeCompare(const TString& trusted, const TString& untrusted)

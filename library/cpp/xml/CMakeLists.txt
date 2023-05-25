@@ -6,9 +6,5 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(base64)
-add_subdirectory(quote)
-add_subdirectory(relaxed_escaper)
-add_subdirectory(scan)
-add_subdirectory(url)
-add_subdirectory(ztstrbuf)
+add_subdirectory(document)
+add_subdirectory(init)

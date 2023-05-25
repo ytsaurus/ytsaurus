@@ -6,9 +6,13 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(base64)
-add_subdirectory(quote)
-add_subdirectory(relaxed_escaper)
-add_subdirectory(scan)
-add_subdirectory(url)
-add_subdirectory(ztstrbuf)
+
+add_library(cpp-string_utils-ztstrbuf)
+target_link_libraries(cpp-string_utils-ztstrbuf PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+)
+target_sources(cpp-string_utils-ztstrbuf PRIVATE
+  ${CMAKE_SOURCE_DIR}/library/cpp/string_utils/ztstrbuf/ztstrbuf.cpp
+)
