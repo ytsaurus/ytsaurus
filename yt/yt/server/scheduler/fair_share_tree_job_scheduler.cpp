@@ -3143,8 +3143,6 @@ void TFairShareTreeJobScheduler::DoRegularJobScheduling(TScheduleJobsContext* co
 void TFairShareTreeJobScheduler::DoPreemptiveJobScheduling(TScheduleJobsContext* context)
 {
     bool scheduleJobsWithPreemption = [&] {
-        NLogging::TLogger Logger("TestDebug");
-
         auto nodeId = context->SchedulingContext()->GetNodeDescriptor().Id;
         auto nodeShardId = StrategyHost_->GetNodeShardId(nodeId);
         auto& nodeIdToLastPreemptiveSchedulingTime = NodeStateShards_[nodeShardId].NodeIdToLastPreemptiveSchedulingTime;
