@@ -108,7 +108,7 @@ template <class T, size_t Capacity>
 class TStaticRingQueue
 {
 private:
-    static_assert(std::is_pod<T>::value, "T must be POD.");
+    static_assert(std::is_standard_layout_v<T> && std::is_trivial_v<T>, "T must be POD.");
 
     T Buffer_[Capacity];
     size_t EndOffset_ = 0;
@@ -764,7 +764,7 @@ public:
         static const TStringBuf falseString = "false";
 
         auto throwIncorrectBoolean = [&] () {
-            THROW_ERROR CreateLiteralError(ETokenType::Boolean, Buffer_.begin(), Buffer_.size());
+            THROW_ERROR CreateLiteralError(ETokenType::Boolean, Buffer_.data(), Buffer_.size());
         };
 
         PushBack(TBaseStream::template GetChar<AllowFinish>());

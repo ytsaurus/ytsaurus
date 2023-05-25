@@ -25,11 +25,11 @@ void FinishOrDie(T* pThis, const char* className) noexcept
     try {
         pThis->Finish();
     } catch (const std::exception& ex) {
-        if (!std::uncaught_exception()) {
+        if (!std::uncaught_exceptions()) {
             fail(ex.what());
         }
     } catch (...) {
-        if (!std::uncaught_exception()) {
+        if (!std::uncaught_exceptions()) {
             fail("<unknown exception>");
         }
     }

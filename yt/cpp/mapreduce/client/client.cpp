@@ -50,7 +50,6 @@
 #include <util/system/env.h>
 
 #include <exception>
-#include <format>
 
 using namespace NYT::NDetail::NRawClient;
 
