@@ -710,6 +710,8 @@ public:
 
     bool AbortVanishedJobs;
 
+    TDuration DurationBeforeJobConsideredVanished;
+
     REGISTER_YSON_STRUCT(TJobTrackerConfig);
 
     static void Register(TRegistrar registrar);

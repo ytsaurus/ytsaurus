@@ -651,7 +651,13 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
                         newJobStage);
                     YT_VERIFY(jobIt->second == operationId);
                     nodeJobs.JobsToConfirm.erase(jobIt);
-                    EmplaceOrCrash(nodeJobs.Jobs, jobId, TJobInfo{newJobStage, operationId});
+                    EmplaceOrCrash(
+                        nodeJobs.Jobs,
+                        jobId,
+                        TJobInfo{
+                            .Stage = newJobStage,
+                            .OperationId = operationId
+                        });
 
                     acceptJobSummaryForOperationControllerProcessing();
 
@@ -711,20 +717,34 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
     }
 
     if (Config_->AbortVanishedJobs) {
+        auto now = TInstant::Now();
+
         TOperationIdToJobIds jobIdsToAbort;
-        for (const auto& [jobId, jobInfo] : nodeJobs.Jobs) {
+        for (auto& [jobId, jobInfo] : nodeJobs.Jobs) {
             if (jobInfo.Stage != EJobStage::Running) {
                 continue;
             }
 
-            if (!allocationIdsRunningOnNode.contains(AllocationIdFromJobId(jobId))) {
-                YT_LOG_DEBUG(
-                    "Job vanished, aborting it (JobId: %v, OperationId: %v)",
-                    jobId,
-                    jobInfo.OperationId);
-
-                jobIdsToAbort[jobInfo.OperationId].push_back(jobId);
+            if (allocationIdsRunningOnNode.contains(AllocationIdFromJobId(jobId))) {
+                continue;
             }
+
+            if (!jobInfo.VanishedSince) {
+                jobInfo.VanishedSince = now;
+                continue;
+            }
+
+            if (now - jobInfo.VanishedSince < Config_->DurationBeforeJobConsideredVanished) {
+                continue;
+            }
+
+            YT_LOG_DEBUG(
+                "Job vanished, aborting it (JobId: %v, OperationId: %v, VanishedSince: %v)",
+                jobId,
+                jobInfo.OperationId,
+                jobInfo.VanishedSince);
+
+            jobIdsToAbort[jobInfo.OperationId].push_back(jobId);
         }
 
         for (const auto& [operationId, jobIds] : jobIdsToAbort) {
@@ -964,7 +984,13 @@ void TJobTracker::DoRegisterJob(TStartedJobInfo jobInfo, TOperationId operationI
         nodeId,
         nodeAddress);
 
-    EmplaceOrCrash(nodeJobs.Jobs, jobInfo.JobId, TJobInfo{EJobStage::Running, operationId});
+    EmplaceOrCrash(
+        nodeJobs.Jobs,
+        jobInfo.JobId,
+        TJobInfo{
+            .Stage = EJobStage::Running,
+            .OperationId = operationId
+        });
 
     auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
     EmplaceOrCrash(operationInfo.TrackedJobIds, jobInfo.JobId);

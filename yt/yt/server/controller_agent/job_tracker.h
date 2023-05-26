@@ -90,6 +90,7 @@ private:
     struct TJobInfo
     {
         EJobStage Stage;
+        TInstant VanishedSince;
         const TOperationId OperationId;
     };
 

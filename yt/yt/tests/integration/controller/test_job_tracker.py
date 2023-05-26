@@ -399,6 +399,7 @@ class TestJobTracker(YTEnvSetup):
     @authors("pogorelov")
     def test_abort_vanished_job(self):
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 100000)
+        update_controller_agent_config("job_tracker/duration_before_job_considered_vanished", 100)
 
         update_scheduler_config("nodes_attributes_update_period", 1000000)
         time.sleep(0.5)

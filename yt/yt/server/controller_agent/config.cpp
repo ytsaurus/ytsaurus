@@ -514,6 +514,8 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0);
     registrar.Parameter("abort_vanished_jobs", &TThis::AbortVanishedJobs)
         .Default(false);
+    registrar.Parameter("duration_before_job_considered_vanished", &TThis::DurationBeforeJobConsideredVanished)
+        .Default(TDuration::Seconds(5));
 }
 
 void TControllerAgentConfig::Register(TRegistrar registrar)
