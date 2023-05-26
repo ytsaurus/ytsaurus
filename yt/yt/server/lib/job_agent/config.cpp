@@ -240,6 +240,10 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("unknown_operation_jobs_removal_delay", &TThis::UnknownOperationJobsRemovalDelay)
         .Default();
 
+    registrar.Parameter("disabled_jobs_interruption_timeout", &TThis::DisabledJobsInterruptionTimeout)
+        .Default(TDuration::Minutes(1))
+        .GreaterThan(TDuration::Zero());
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->CpuToVCpuFactor && *config->CpuToVCpuFactor <= 0) {
             THROW_ERROR_EXCEPTION("`cpu_to_vcpu_factor` must be greated than 0")

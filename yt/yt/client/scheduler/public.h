@@ -140,6 +140,7 @@ DEFINE_ENUM(EInterruptReason,
     ((UserRequest)        (2))
     ((JobSplit)           (3))
     ((Unknown)            (4))
+    ((JobsDisabledOnNode) (5))
 );
 
 DEFINE_ENUM(EAutoMergeMode,

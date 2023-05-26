@@ -222,6 +222,8 @@ public:
 
     std::optional<TDuration> UnknownOperationJobsRemovalDelay;
 
+    TDuration DisabledJobsInterruptionTimeout;
+
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);

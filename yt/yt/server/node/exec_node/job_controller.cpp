@@ -1993,8 +1993,8 @@ private:
             try {
                 YT_LOG_DEBUG(error, "Trying to interrupt job");
                 job->Interrupt(
-                    /*timeout*/ {},
-                    EInterruptReason::Unknown,
+                    DynamicConfig_.Load()->DisabledJobsInterruptionTimeout,
+                    EInterruptReason::JobsDisabledOnNode,
                     /*preemptionReason*/ {},
                     /*preemptedFor*/ {});
             } catch (const std::exception& ex) {
