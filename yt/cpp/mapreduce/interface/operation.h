@@ -528,6 +528,11 @@ struct TOperationSpecBase
     /// @brief Pool to be used for this operation.
     FLUENT_FIELD_OPTION(TString, Pool);
 
+    /// @brief Weight of operation.
+    ///
+    /// Coefficient defining how much resources operation gets relative to its siblings in the same pool.
+    FLUENT_FIELD_OPTION(double, Weight);
+
     /// @breif Pool tree list that operation will use.
     FLUENT_OPTIONAL_VECTOR_FIELD_ENCAPSULATED(TString, PoolTree);
 

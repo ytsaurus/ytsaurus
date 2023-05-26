@@ -761,6 +761,9 @@ void BuildCommonOperationPart(const TConfigPtr& config, const TOperationSpecBase
         .DoIf(!pool.empty(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("pool").Value(pool);
         })
+        .DoIf(baseSpec.Weight_.Defined(), [&] (TFluentMap fluentMap) {
+            fluentMap.Item("weight").Value(*baseSpec.Weight_);
+        })
         .DoIf(baseSpec.TimeLimit_.Defined(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("time_limit").Value(baseSpec.TimeLimit_->MilliSeconds());
         })
