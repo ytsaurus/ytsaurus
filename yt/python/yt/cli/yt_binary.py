@@ -353,6 +353,7 @@ def add_exists_parser(add_parser):
     add_read_from_arguments(parser)
 
 
+DEFAULT_TIME_TYPE = "modification_time"
 LONG_FORMAT_ATTRIBUTES = ("type", "target_path", "account", "resource_usage")
 
 
@@ -386,7 +387,7 @@ def list(**kwargs):
     list_args = dict(kwargs)
     list_args.pop("long_format")
     list_args.pop("recursive_resource_usage")
-    time_type = kwargs.get("time_type", "modification_time")
+    time_type = kwargs.get("time_type", DEFAULT_TIME_TYPE)
     if kwargs["long_format"]:
         assert kwargs["format"] is None
         list_args["attributes"] = LONG_FORMAT_ATTRIBUTES + [time_type]
@@ -456,7 +457,7 @@ def find(**kwargs):
                        cache_sticky_group_size=kwargs["cache_sticky_group_size"])
 
     for elem in result:
-        formatted_print(elem, elem, kwargs["long_format"], kwargs["recursive_resource_usage"], kwargs["time_type"])
+        formatted_print(elem, elem, kwargs["long_format"], kwargs["recursive_resource_usage"], kwargs.get("time_type", DEFAULT_TIME_TYPE))
 
 
 def add_find_parser(add_parser):
@@ -473,7 +474,7 @@ def add_find_parser(add_parser):
     parser.add_argument("--recursive-resource-usage", action="store_true",
                         help="use recursive resource usage for in long format mode")
     parser.add_argument("--time-type", choices=['access_time', 'modification_time', 'creation_time'],
-                        default='modification_time',
+                        default=DEFAULT_TIME_TYPE,
                         help="type of time to use in long-format")
     add_read_from_arguments(parser)
     parser.set_defaults(func=find)
