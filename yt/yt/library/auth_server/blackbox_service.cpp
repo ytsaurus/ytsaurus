@@ -227,7 +227,7 @@ private:
             attempt,
             timeout);
 
-        auto rspOrError = WaitFor(HttpClient_->Get(realUrl, headers));
+        auto rspOrError = WaitFor(HttpClient_->Get(realUrl, headers).WithTimeout(timeout));
         if (!rspOrError.IsOK()) {
             onError(TError("Blackbox call failed")
                 << rspOrError);
