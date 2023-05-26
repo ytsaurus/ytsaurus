@@ -814,7 +814,8 @@ private:
             ++cardsRemoved;
         }
 
-        YT_LOG_DEBUG("Removed foreign migrated replication cards (Requested: %v, Removed: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Removed foreign migrated replication cards (Requested: %v, Removed: %v)",
             request->migrated_cards_size(),
             cardsRemoved);
     }

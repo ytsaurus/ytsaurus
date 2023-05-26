@@ -47,11 +47,11 @@ public:
     TForeignMigratedReplicationCardRemover(
         TForeignMigratedReplicationCardRemoverConfigPtr config,
         IChaosSlotPtr slot,
-        ISimpleHydraManager* hydraManager)
-        : Slot_(slot)
-        , HydraManager_(hydraManager)
+        ISimpleHydraManagerPtr hydraManager)
+        : Slot_(std::move(slot))
+        , HydraManager_(std::move(hydraManager))
         , RemoverExecutor_(New<TPeriodicExecutor>(
-            slot->GetAutomatonInvoker(NChaosNode::EAutomatonThreadQueue::MigratedReplicationCardRemovers),
+            Slot_->GetAutomatonInvoker(NChaosNode::EAutomatonThreadQueue::MigratedReplicationCardRemovers),
             BIND(&TForeignMigratedReplicationCardRemover::PeriodicMigratedReplicationCardsRemoval, MakeWeak(this)),
             config->RemovePeriod))
         , ReplicationCardKeepAlivePeriod_(config->ReplicationCardKeepAlivePeriod)
@@ -71,7 +71,7 @@ public:
 
 private:
     const IChaosSlotPtr Slot_;
-    ISimpleHydraManager* const HydraManager_;
+    const ISimpleHydraManagerPtr HydraManager_;
 
     NConcurrency::TPeriodicExecutorPtr RemoverExecutor_;
     TDuration ReplicationCardKeepAlivePeriod_;
@@ -123,12 +123,12 @@ private:
 IForeignMigratedReplicationCardRemoverPtr CreateForeignMigratedReplicationCardRemover(
     TForeignMigratedReplicationCardRemoverConfigPtr config,
     IChaosSlotPtr slot,
-    ISimpleHydraManager* hydraManager)
+    ISimpleHydraManagerPtr hydraManager)
 {
     return New<TForeignMigratedReplicationCardRemover>(
         std::move(config),
         std::move(slot),
-        hydraManager);
+        std::move(hydraManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
