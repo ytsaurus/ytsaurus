@@ -100,7 +100,7 @@ public class CommandSpec implements Spec, UserJobSpec {
                 && Optional.ofNullable(tmpfsSize).equals(Optional.ofNullable(spec.tmpfsSize))
                 && environment.equals(spec.environment)
                 && Optional.ofNullable(cpuLimit).equals(Optional.ofNullable(spec.cpuLimit))
-                && Optional.ofNullable(jobTimeLimit).equals(Optional.ofNullable(jobTimeLimit))
+                && Optional.ofNullable(jobTimeLimit).equals(Optional.ofNullable(spec.jobTimeLimit))
                 && outputTablePaths.equals(spec.outputTablePaths)
                 && Optional.ofNullable(jobCount).equals(Optional.ofNullable(spec.jobCount));
     }
