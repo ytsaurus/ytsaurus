@@ -86,7 +86,9 @@ void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
 
     auto freeResources = MakeNonnegative(resourceLimits - resourceUsage);
 
-    if (!Dominates(MinSpareResources_, ToJobResources(freeResources)) && !hasWaitingResourceHolders) {
+    if (!Dominates(MinSpareResources_, ToJobResources(ToNodeResources(freeResources))) &&
+        !hasWaitingResourceHolders)
+    {
         scheduleOutOfBandHeartbeat();
     }
 }

@@ -24,8 +24,6 @@
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/net/helpers.h>
 
-#include <yt/yt/library/profiling/producer.h>
-
 namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,7 +35,6 @@ using namespace NNodeTrackerClient;
 using namespace NNet;
 using namespace NLogging;
 
-using NNodeTrackerClient::NProto::TNodeResources;
 using NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides;
 using NNodeTrackerClient::NProto::TDiskResources;
 
@@ -185,11 +182,11 @@ public:
         }
     }
 
-    TNodeResources GetResourceLimits() const override
+    TJobResources GetResourceLimits() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        TNodeResources result;
+        TJobResources result;
 
         // If chunk cache is disabled, we disable all scheduler jobs.
         bool chunkCacheEnabled = false;
@@ -199,20 +196,20 @@ public:
 
             const auto& execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
             auto slotManager = execNodeBootstrap->GetSlotManager();
-            result.set_user_slots(
+            result.UserSlots =
                 chunkCacheEnabled &&
                 !execNodeBootstrap->GetJobController()->AreSchedulerJobsDisabled() &&
                 !Bootstrap_->IsReadOnly() &&
                 slotManager->IsEnabled()
                 ? slotManager->GetSlotCount()
-                : 0);
+                : 0;
         } else {
-            result.set_user_slots(0);
+            result.UserSlots = 0;
         }
 
         auto resourceLimitsOverrides = ResourceLimitsOverrides_.Load();
         #define XX(name, Name) \
-            result.set_##name(resourceLimitsOverrides.has_##name() \
+            result.Name = (resourceLimitsOverrides.has_##name() \
                 ? resourceLimitsOverrides.name() \
                 : Config_->ResourceLimits->Name);
         ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
@@ -220,9 +217,9 @@ public:
 
         if (Bootstrap_->IsExecNode()) {
             const auto& gpuManager = Bootstrap_->GetExecNodeBootstrap()->GetGpuManager();
-            result.set_gpu(gpuManager->GetTotalGpuCount());
+            result.Gpu = gpuManager->GetTotalGpuCount();
         } else {
-            result.set_gpu(0);
+            result.Gpu = 0;
         }
 
         // NB: Some categories can have no explicit limit.
@@ -232,21 +229,21 @@ public:
                 0,
                 memoryUsageTracker->GetUsed() + NodeMemoryUsageTracker_->GetTotalFree() - GetFreeMemoryWatermark());
         };
-        result.set_user_memory(std::min(
+        result.UserMemory = std::min(
             UserMemoryUsageTracker_->GetLimit(),
-            getUsedMemory(UserMemoryUsageTracker_.Get())));
-        result.set_system_memory(std::min(
+            getUsedMemory(UserMemoryUsageTracker_.Get()));
+        result.SystemMemory = std::min(
             SystemMemoryUsageTracker_->GetLimit(),
-            getUsedMemory(SystemMemoryUsageTracker_.Get())));
+            getUsedMemory(SystemMemoryUsageTracker_.Get()));
 
         const auto& nodeResourceManager = Bootstrap_->GetNodeResourceManager();
-        result.set_cpu(nodeResourceManager->GetJobsCpuLimit());
-        result.set_vcpu(static_cast<double>(NVectorHdrf::TCpuResource(result.cpu() * GetCpuToVCpuFactor())));
+        result.Cpu = nodeResourceManager->GetJobsCpuLimit();
+        result.VCpu = static_cast<double>(NVectorHdrf::TCpuResource(result.Cpu * GetCpuToVCpuFactor()));
 
         return result;
     }
 
-    TNodeResources GetResourceUsage(bool includeWaiting = false) const override
+    TJobResources GetResourceUsage(bool includeWaiting = false) const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -261,27 +258,27 @@ public:
 
             // TSlotManager::ReleaseSlot is async, so TSlotManager::GetUsedSlotCount() may be greater than ResourceUsage_.user_slots().
             YT_LOG_FATAL_IF(
-                ResourceUsage_.user_slots() != userSlotCount,
+                ResourceUsage_.UserSlots != userSlotCount,
                 "Unexpected user slot count (JobResourcesManagerValue: %v, SlotManagerValue: %v, SlotManagerEnabled: %v)",
-                ResourceUsage_.user_slots(),
+                ResourceUsage_.UserSlots,
                 userSlotCount,
                 slotManager->IsEnabled());
 
-            result.set_user_slots(slotManager->IsEnabled() ? userSlotCount : 0);
+            result.UserSlots = slotManager->IsEnabled() ? userSlotCount : 0;
 
             const auto& gpuManager = Bootstrap_->GetExecNodeBootstrap()->GetGpuManager();
-            result.set_gpu(gpuManager->GetUsedGpuCount());
+            result.Gpu = gpuManager->GetUsedGpuCount();
         } else {
-            result.set_user_slots(0);
-            result.set_gpu(0);
+            result.UserSlots = 0;
+            result.Gpu = 0;
         }
 
-        result.set_vcpu(static_cast<double>(NVectorHdrf::TCpuResource(result.cpu() * GetCpuToVCpuFactor())));
+        result.VCpu = static_cast<double>(NVectorHdrf::TCpuResource(result.Cpu * GetCpuToVCpuFactor()));
 
         return result;
     }
 
-    bool CheckMemoryOverdraft(const TNodeResources& delta) override
+    bool CheckMemoryOverdraft(const TJobResources& delta) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -289,13 +286,13 @@ public:
         // Network decreases by design. Cpu increasing is handled in AdjustResources.
         // Other resources are not reported by job proxy (see TSupervisorService::UpdateResourceUsage).
 
-        if (delta.user_memory() > 0) {
+        if (delta.UserMemory > 0) {
             bool watermarkReached = NodeMemoryUsageTracker_->GetTotalFree() <= GetFreeMemoryWatermark();
             if (watermarkReached) {
                 return true;
             }
 
-            auto error = UserMemoryUsageTracker_->TryAcquire(delta.user_memory());
+            auto error = UserMemoryUsageTracker_->TryAcquire(delta.UserMemory);
             if (!error.IsOK()) {
                 return true;
             }
@@ -328,9 +325,9 @@ public:
             }
         };
 
-        auto memoryToRelease = UserMemoryUsageTracker_->GetUsed() - usedResources.user_memory();
+        auto memoryToRelease = UserMemoryUsageTracker_->GetUsed() - usedResources.UserMemory;
         releaseMemoryIfNeeded(memoryToRelease, UserMemoryUsageTracker_.Get());
-        memoryToRelease = SystemMemoryUsageTracker_->GetUsed() - usedResources.system_memory();
+        memoryToRelease = SystemMemoryUsageTracker_->GetUsed() - usedResources.SystemMemory;
         releaseMemoryIfNeeded(memoryToRelease, SystemMemoryUsageTracker_.Get());
     }
 
@@ -346,7 +343,7 @@ public:
         }
     }
 
-    void OnResourceHolderCreated(const TLogger& Logger, const TNodeResources& resources)
+    void OnResourceHolderCreated(const TLogger& Logger, const TJobResources& resources)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -358,7 +355,7 @@ public:
             FormatResources(WaitingResources_));
     }
 
-    void OnResourcesAcquired(const TLogger& Logger, const TNodeResources& resources)
+    void OnResourcesAcquired(const TLogger& Logger, const TJobResources& resources)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -378,7 +375,7 @@ public:
     void OnResourcesReleased(
         EResourcesConsumerType resourcesConsumerType,
         const TLogger& Logger,
-        const TNodeResources& resources,
+        const TJobResources& resources,
         const std::vector<int>& ports,
         bool resourceHolderStarted)
     {
@@ -407,7 +404,7 @@ public:
     void OnResourcesUpdated(
         EResourcesConsumerType resourcesConsumerType,
         const TLogger& Logger,
-        const TNodeResources& resourceDelta)
+        const TJobResources& resourceDelta)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -418,7 +415,7 @@ public:
             FormatResources(ResourceUsage_),
             FormatResources(WaitingResources_));
 
-        if (!Dominates(resourceDelta, ZeroNodeResources())) {
+        if (!Dominates(resourceDelta, ZeroJobResources())) {
             NotifyResourcesReleased(resourcesConsumerType, /*fullyReceived*/ false);
         }
     }
@@ -466,8 +463,7 @@ public:
         return 1.0;
     }
 
-    bool AcquireResourcesFor(
-        TResourceHolder* resourceHolder)
+    bool AcquireResourcesFor(TResourceHolder* resourceHolder)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -489,8 +485,8 @@ public:
             return false;
         }
 
-        i64 userMemory = neededResources.user_memory();
-        i64 systemMemory = neededResources.system_memory();
+        i64 userMemory = neededResources.UserMemory;
+        i64 systemMemory = neededResources.SystemMemory;
         if (userMemory > 0 || systemMemory > 0) {
             bool reachedWatermark = NodeMemoryUsageTracker_->GetTotalFree() <= GetFreeMemoryWatermark();
             if (reachedWatermark) {
@@ -614,8 +610,8 @@ private:
     TGauge FreeMemoryWatermarkAddedMemoryGauge_;
     TGauge FreeMemoryWatermarkIsIncreasedGauge_;
 
-    TNodeResources ResourceUsage_ = ZeroNodeResources();
-    TNodeResources WaitingResources_ = ZeroNodeResources();
+    TJobResources ResourceUsage_ = ZeroJobResources();
+    TJobResources WaitingResources_ = ZeroJobResources();
     int WaitingResourceHolderCount_ = 0;
 
     TPeriodicExecutorPtr ReservedMappedMemoryChecker_;
@@ -729,17 +725,17 @@ private:
     //! an arbitrary large overdraft for the
     //! first acquiring.
     bool HasEnoughResources(
-        const TNodeResources& neededResources,
-        const TNodeResources& usedResources)
+        const TJobResources& neededResources,
+        const TJobResources& usedResources)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         auto totalResources = GetResourceLimits();
         auto spareResources = MakeNonnegative(totalResources - usedResources);
         // Allow replication/repair/merge data size overcommit.
-        spareResources.set_replication_data_size(InfiniteNodeResources().replication_data_size());
-        spareResources.set_repair_data_size(InfiniteNodeResources().repair_data_size());
-        spareResources.set_merge_data_size(InfiniteNodeResources().merge_data_size());
+        spareResources.ReplicationDataSize = InfiniteJobResources().ReplicationDataSize;
+        spareResources.RepairDataSize = InfiniteJobResources().RepairDataSize;
+        spareResources.MergeDataSize = InfiniteJobResources().MergeDataSize;
         return Dominates(spareResources, neededResources);
     }
 };
@@ -787,7 +783,7 @@ TResourceHolder::TResourceHolder(
     IJobResourceManager* jobResourceManager,
     EResourcesConsumerType resourceConsumerType,
     TLogger logger,
-    const TNodeResources& resources,
+    const TJobResources& resources,
     int portCount)
     : Logger(std::move(logger))
     , ResourceManagerImpl_(static_cast<IJobResourceManager::TImpl*>(jobResourceManager))
@@ -836,7 +832,7 @@ void TResourceHolder::ReleaseResources()
         GetPorts(),
         /*resourceHolderStarted*/ State_ == EResourcesState::Acquired);
     State_ = EResourcesState::Released;
-    Resources_ = ZeroNodeResources();
+    Resources_ = ZeroJobResources();
 }
 
 const std::vector<int>& TResourceHolder::GetPorts() const noexcept
@@ -844,7 +840,7 @@ const std::vector<int>& TResourceHolder::GetPorts() const noexcept
     return Ports_;
 }
 
-TNodeResources TResourceHolder::SetResourceUsage(TNodeResources newResourceUasge)
+TJobResources TResourceHolder::SetResourceUsage(TJobResources newResourceUasge)
 {
     YT_VERIFY(State_ == EResourcesState::Acquired);
 
@@ -856,7 +852,7 @@ TNodeResources TResourceHolder::SetResourceUsage(TNodeResources newResourceUasge
     return resourceDelta;
 }
 
-const TNodeResources& TResourceHolder::GetResourceUsage() const noexcept
+const TJobResources& TResourceHolder::GetResourceUsage() const noexcept
 {
     return Resources_;
 }

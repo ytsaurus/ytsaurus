@@ -4,6 +4,8 @@
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -15,6 +17,99 @@
 #include <yt/yt/library/containers/public.h>
 
 namespace NYT::NClusterNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define ITERATE_JOB_RESOURCE_FIELDS(XX) \
+    XX(user_slots,            UserSlots) \
+    XX(cpu,                   Cpu) \
+    XX(gpu,                   Gpu) \
+    XX(vcpu,                  VCpu) \
+    XX(user_memory,           UserMemory) \
+    XX(system_memory,         SystemMemory) \
+    XX(network,               Network) \
+    XX(replication_data_size, ReplicationDataSize) \
+    XX(merge_data_size,       MergeDataSize) \
+    XX(repair_data_size,      RepairDataSize) \
+    XX(replication_slots,     ReplicationSlots) \
+    XX(removal_slots,         RemovalSlots) \
+    XX(repair_slots,          RepairSlots) \
+    XX(seal_slots,            SealSlots) \
+    XX(merge_slots,           MergeSlots) \
+    XX(autotomy_slots,        AutotomySlots) \
+    XX(reincarnation_slots,   ReincarnationSlots)
+
+struct TJobResources
+{
+    double Cpu = 0.0;
+    double VCpu = 0.0;
+    bool AllowCpuIdlePolicy = false;
+
+    i32 Gpu = 0;
+    std::optional<TString> CudaToolkitVersion;
+
+    i32 Network = 0;
+
+    i64 SystemMemory = 0;
+    i64 UserMemory = 0;
+
+    i64 MinRequiredDiskSpace = 0;
+    i64 DiskSpaceRequest = 0;
+    i64 DiskSpaceLimit = 0;
+
+    i32 UserSlots = 0;
+
+    i32 ReplicationSlots = 0;
+    i32 RemovalSlots = 0;
+    i32 RepairSlots = 0;
+    i32 SealSlots = 0;
+    i32 MergeSlots = 0;
+    i32 AutotomySlots = 0;
+    i32 ReincarnationSlots = 0;
+
+    i64 ReplicationDataSize = 0;
+    i64 RepairDataSize = 0;
+    i64 MergeDataSize = 0;
+};
+
+TString FormatResourceUsage(
+    const TJobResources& usage,
+    const TJobResources& limits);
+TString FormatResources(const TJobResources& resources);
+
+NNodeTrackerClient::NProto::TNodeResources ToNodeResources(const TJobResources& jobResources);
+TJobResources FromNodeResources(const NNodeTrackerClient::NProto::TNodeResources& jobResources);
+
+void ProfileResources(NProfiling::ISensorWriter* writer, const TJobResources& resources);
+
+const TJobResources& ZeroJobResources();
+const TJobResources& InfiniteJobResources();
+
+TJobResources  operator + (const TJobResources& lhs, const TJobResources& rhs);
+TJobResources& operator += (TJobResources& lhs, const TJobResources& rhs);
+
+TJobResources  operator - (const TJobResources& lhs, const TJobResources& rhs);
+TJobResources& operator -= (TJobResources& lhs, const TJobResources& rhs);
+
+TJobResources  operator * (const TJobResources& lhs, i64 rhs);
+TJobResources  operator * (const TJobResources& lhs, double rhs);
+TJobResources& operator *= (TJobResources& lhs, i64 rhs);
+TJobResources& operator *= (TJobResources& lhs, double rhs);
+
+TJobResources  operator - (const TJobResources& resources);
+
+bool operator == (const TJobResources& a, const TJobResources& b);
+bool operator != (const TJobResources& a, const TJobResources& b);
+
+TJobResources MakeNonnegative(const TJobResources& resources);
+bool Dominates(const TJobResources& lhs, const TJobResources& rhs);
+
+TJobResources Max(const TJobResources& a, const TJobResources& b);
+TJobResources Min(const TJobResources& a, const TJobResources& b);
+
+void Serialize(
+    const TJobResources& resources,
+    NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,7 +170,7 @@ private:
     void UpdateMemoryFootprint();
     void UpdateJobsCpuLimit();
 
-    NNodeTrackerClient::NProto::TNodeResources GetJobResourceUsage() const;
+    TJobResources GetJobResourceUsage() const;
 
     void BuildOrchid(NYson::IYsonConsumer* consumer) const;
 

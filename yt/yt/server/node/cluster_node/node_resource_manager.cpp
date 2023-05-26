@@ -30,6 +30,7 @@
 namespace NYT::NClusterNode {
 
 using namespace NConcurrency;
+using namespace NProfiling;
 using namespace NYson;
 using namespace NYTree;
 using namespace NNodeTrackerClient;
@@ -38,6 +39,316 @@ using namespace NNodeTrackerClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ClusterNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString FormatMemoryUsage(i64 memoryUsage)
+{
+    TStringBuf prefix = "";
+    if (memoryUsage < 0) {
+        prefix = "-";
+        memoryUsage *= -1;
+    }
+    if (memoryUsage < static_cast<i64>(1_KB)) {
+        return Format("%v%vB", prefix, memoryUsage);
+    }
+    if (memoryUsage < static_cast<i64>(1_MB)) {
+        return Format("%v%vKB", prefix, memoryUsage / 1_KB);
+    }
+    return Format("%v%vMB", prefix, memoryUsage / 1_MB);
+}
+
+TString FormatResources(
+    const TJobResources& usage,
+    const TJobResources& limits)
+{
+    return Format(
+        "UserSlots: %v/%v, Cpu: %v/%v, Gpu: %v/%v, UserMemory: %v/%v, SystemMemory: %v/%v, Network: %v/%v, "
+        "ReplicationSlots: %v/%v, ReplicationDataSize: %v/%v, "
+        "RemovalSlots: %v/%v, "
+        "RepairSlots: %v/%v, RepairDataSize: %v/%v, "
+        "SealSlots: %v/%v, "
+        "MergeSlots: %v/%v, MergeDataSize: %v/%v, "
+        "AutotomySlots: %v/%v, ReincarnationSlots %v/%v",
+        // User slots
+        usage.UserSlots,
+        limits.UserSlots,
+        // Cpu
+        usage.Cpu,
+        limits.Cpu,
+        // Gpu,
+        usage.Gpu,
+        limits.Gpu,
+        // User memory
+        FormatMemoryUsage(usage.UserMemory),
+        FormatMemoryUsage(limits.UserMemory),
+        // System memory
+        FormatMemoryUsage(usage.SystemMemory),
+        FormatMemoryUsage(limits.SystemMemory),
+        // Network
+        usage.Network,
+        limits.Network,
+        // Replication slots
+        usage.ReplicationSlots,
+        limits.ReplicationSlots,
+        // Replication data size
+        usage.ReplicationDataSize,
+        limits.ReplicationDataSize,
+        // Removal slots
+        usage.RemovalSlots,
+        limits.RemovalSlots,
+        // Repair slots
+        usage.RepairSlots,
+        limits.RepairSlots,
+        // Repair data size
+        usage.RepairDataSize,
+        limits.RepairSlots,
+        // Seal slots
+        usage.SealSlots,
+        limits.SealSlots,
+        // Merge slots
+        usage.MergeSlots,
+        limits.MergeSlots,
+        // Merge data size
+        usage.MergeDataSize,
+        limits.MergeDataSize,
+        // Autotomy slots
+        usage.AutotomySlots,
+        limits.AutotomySlots,
+        // Reincarnation slots
+        usage.ReincarnationSlots,
+        limits.ReincarnationSlots);
+}
+
+TString FormatResourceUsage(
+    const TJobResources& usage,
+    const TJobResources& limits)
+{
+    return Format("{%v}", FormatResources(usage, limits));
+}
+
+TString FormatResources(const TJobResources& resources)
+{
+    return Format(
+        "{"
+        "UserSlots: %v, Cpu: %v, Gpu: %v, UserMemory: %v, SystemMemory: %v, Network: %v, "
+        "ReplicationSlots: %v, ReplicationDataSize: %v, "
+        "RemovalSlots: %v, "
+        "RepairSlots: %v, RepairDataSize: %v, "
+        "SealSlots: %v, "
+        "MergeSlots: %v, MergeDataSize: %v, "
+        "AutotomySlots: %v, "
+        "ReincarnationSlots: %v"
+        "}",
+        resources.UserSlots,
+        resources.Cpu,
+        resources.Gpu,
+        FormatMemoryUsage(resources.UserMemory),
+        FormatMemoryUsage(resources.SystemMemory),
+        resources.Network,
+        resources.ReplicationSlots,
+        FormatMemoryUsage(resources.ReplicationDataSize),
+        resources.RemovalSlots,
+        resources.RepairSlots,
+        FormatMemoryUsage(resources.RepairDataSize),
+        resources.SealSlots,
+        resources.MergeSlots,
+        FormatMemoryUsage(resources.MergeDataSize),
+        resources.AutotomySlots,
+        resources.ReincarnationSlots);
+}
+
+void ProfileResources(ISensorWriter* writer, const TJobResources& resources)
+{
+    #define XX(name, Name) writer->AddGauge("/" #name, resources.Name);
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+}
+
+TJobResources GetZeroJobResources()
+{
+    TJobResources result;
+    #define XX(name, Name) result.Name = 0;
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+    return result;
+}
+
+const TJobResources& ZeroJobResources()
+{
+    static auto value = GetZeroJobResources();
+    return value;
+}
+
+TJobResources GetInfiniteJobResources()
+{
+    TJobResources result;
+    #define XX(name, Name) result.Name = (std::numeric_limits<decltype(result.Name)>::max() / 4);
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+    return result;
+}
+
+const TJobResources& InfiniteJobResources()
+{
+    static auto result = GetInfiniteJobResources();
+    return result;
+}
+
+NNodeTrackerClient::NProto::TNodeResources ToNodeResources(const TJobResources& jobResources)
+{
+    TNodeResources result;
+    #define XX(name, Name) result.set_##name(jobResources.Name);
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+    return result;
+}
+
+TJobResources FromNodeResources(const NNodeTrackerClient::NProto::TNodeResources& jobResources)
+{
+    TJobResources result;
+    #define XX(name, Name) result.Name = jobResources.name();
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+    return result;
+}
+
+TJobResources operator + (const TJobResources& lhs, const TJobResources& rhs)
+{
+    TJobResources result;
+    #define XX(name, Name) result.Name = lhs.Name + rhs.Name;
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+    return result;
+}
+
+TJobResources& operator += (TJobResources& lhs, const TJobResources& rhs)
+{
+    #define XX(name, Name) lhs.Name = lhs.Name + rhs.Name;
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+    return lhs;
+}
+
+TJobResources operator - (const TJobResources& lhs, const TJobResources& rhs)
+{
+    TJobResources result;
+    #define XX(name, Name) result.Name = lhs.Name - rhs.Name;
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+    return result;
+}
+
+TJobResources& operator -= (TJobResources& lhs, const TJobResources& rhs)
+{
+    #define XX(name, Name) lhs.Name = lhs.Name - rhs.Name;
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+    return lhs;
+}
+
+TJobResources operator * (const TJobResources& lhs, i64 rhs)
+{
+    TJobResources result;
+    #define XX(name, Name) result.Name = lhs.Name * rhs;
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+    return result;
+}
+
+TJobResources operator * (const TJobResources& lhs, double rhs)
+{
+    TJobResources result;
+    #define XX(name, Name) result.Name = static_cast<decltype(lhs.Name)>(lhs.Name * rhs + 0.5);
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+    return result;
+}
+
+TJobResources& operator *= (TJobResources& lhs, i64 rhs)
+{
+    #define XX(name, Name) lhs.Name = lhs.Name * rhs;
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+    return lhs;
+}
+
+TJobResources& operator *= (TJobResources& lhs, double rhs)
+{
+    #define XX(name, Name) lhs.Name = static_cast<decltype(lhs.Name)>(lhs.Name * rhs + 0.5);
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+    return lhs;
+}
+
+TJobResources  operator - (const TJobResources& resources)
+{
+    TJobResources result;
+    #define XX(name, Name) result.Name = -resources.Name;
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+    return result;
+}
+
+bool operator == (const TJobResources& lhs, const TJobResources& rhs)
+{
+    return
+        #define XX(name, Name) lhs.Name == rhs.Name &&
+        ITERATE_JOB_RESOURCE_FIELDS(XX)
+        #undef XX
+        true;
+}
+
+bool operator != (const TJobResources& lhs, const TJobResources& rhs)
+{
+    return !(lhs == rhs);
+}
+
+TJobResources MakeNonnegative(const TJobResources& resources)
+{
+    TJobResources result;
+    #define XX(name, Name) result.Name = std::max(resources.Name, static_cast<decltype(resources.Name)>(0));
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+    return result;
+}
+
+bool Dominates(const TJobResources& lhs, const TJobResources& rhs)
+{
+    return
+        #define XX(name, Name) lhs.Name >= rhs.Name &&
+        ITERATE_JOB_RESOURCE_FIELDS(XX)
+        #undef XX
+        true;
+}
+
+TJobResources Max(const TJobResources& a, const TJobResources& b)
+{
+    TJobResources result;
+    #define XX(name, Name) result.Name = std::max(a.Name, b.Name);
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+    return result;
+}
+
+TJobResources Min(const TJobResources& a, const TJobResources& b)
+{
+    TJobResources result;
+    #define XX(name, Name) result.Name = std::min(a.Name, b.Name);
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+    return result;
+}
+
+void Serialize(const TJobResources& resources, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            #define XX(name, Name) .Item(#name).Value(resources.Name)
+            ITERATE_JOB_RESOURCE_FIELDS(XX)
+            #undef XX
+        .EndMap();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,7 +431,7 @@ double TNodeResourceManager::GetCpuUsage() const
     cpuUsage += dynamicConfig->NodeDedicatedCpu.value_or(*config->NodeDedicatedCpu);
 
     // User jobs.
-    cpuUsage += GetJobResourceUsage().cpu();
+    cpuUsage += GetJobResourceUsage().Cpu;
 
     // Tablet cells.
     cpuUsage += GetTabletSlotCpu();
@@ -309,7 +620,7 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
     JobsCpuLimitUpdated_.Fire();
 }
 
-NNodeTrackerClient::NProto::TNodeResources TNodeResourceManager::GetJobResourceUsage() const
+TJobResources TNodeResourceManager::GetJobResourceUsage() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

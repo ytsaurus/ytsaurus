@@ -240,7 +240,7 @@ public:
         auto createMasterJob = BIND([this] (
             NJobAgent::TJobId jobId,
             const TString& jobTrackerAddress,
-            const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+            const NClusterNode::TJobResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec) -> TMasterJobBasePtr
         {
             return CreateJob(

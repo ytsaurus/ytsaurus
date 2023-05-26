@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/node/cluster_node/node_resource_manager.h>
+
 #include <yt/yt/server/node/cluster_node/public.h>
 
 #include <yt/yt/core/actions/signal.h>
@@ -34,7 +36,7 @@ public:
     virtual void Start() = 0;
 
     //! Returns the maximum allowed resource usage.
-    virtual NNodeTrackerClient::NProto::TNodeResources GetResourceLimits() const = 0;
+    virtual NClusterNode::TJobResources GetResourceLimits() const = 0;
 
     virtual NNodeTrackerClient::NProto::TDiskResources GetDiskResources() const = 0;
 
@@ -44,10 +46,10 @@ public:
     virtual double GetCpuToVCpuFactor() const = 0;
 
     //! Returns resource usage of running jobs.
-    virtual NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(bool includeWaiting = false) const = 0;
+    virtual NClusterNode::TJobResources GetResourceUsage(bool includeWaiting = false) const = 0;
 
     //! Compares new usage with resource limits. Detects resource overdraft.
-    virtual bool CheckMemoryOverdraft(const NNodeTrackerClient::NProto::TNodeResources& delta) = 0;
+    virtual bool CheckMemoryOverdraft(const NClusterNode::TJobResources& delta) = 0;
 
     virtual TResourceAcquiringContext GetResourceAcquiringContext() = 0;
 
@@ -92,6 +94,8 @@ DEFINE_ENUM(EResourcesState,
     ((Released)  (2))
 );
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TResourceHolder
 {
 public:
@@ -99,7 +103,7 @@ public:
         IJobResourceManager* jobResourceManager,
         EResourcesConsumerType resourceConsumerType,
         NLogging::TLogger logger,
-        const NNodeTrackerClient::NProto::TNodeResources& jobResources,
+        const NClusterNode::TJobResources& jobResources,
         int portCount);
 
     TResourceHolder(const TResourceHolder&) = delete;
@@ -111,10 +115,9 @@ public:
     const std::vector<int>& GetPorts() const noexcept;
 
     //! Returns resource usage delta.
-    NNodeTrackerClient::NProto::TNodeResources SetResourceUsage(
-        NNodeTrackerClient::NProto::TNodeResources newResourceUsage);
+    NClusterNode::TJobResources SetResourceUsage(NClusterNode::TJobResources newResourceUsage);
 
-    const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const noexcept;
+    const NClusterNode::TJobResources& GetResourceUsage() const noexcept;
 
     const NLogging::TLogger& GetLogger() const noexcept;
 
@@ -128,7 +131,7 @@ private:
     IJobResourceManager::TImpl* const ResourceManagerImpl_;
 
     const int PortCount_;
-    NNodeTrackerClient::NProto::TNodeResources Resources_;
+    NClusterNode::TJobResources Resources_;
 
     std::vector<int> Ports_;
 

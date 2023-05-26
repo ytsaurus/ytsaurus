@@ -129,7 +129,7 @@ static const TString SlotIndexPattern("\%slot_index\%");
 TJob::TJob(
     TJobId jobId,
     TOperationId operationId,
-    const TNodeResources& resourceUsage,
+    const NClusterNode::TJobResources& resourceUsage,
     TJobSpec&& jobSpec,
     IBootstrap* bootstrap,
     TControllerAgentDescriptor agentDescriptor)
@@ -163,9 +163,9 @@ TJob::TJob(
         : New<TJobTestingOptions>())
     , Interruptible_(SchedulerJobSpecExt_->interruptible())
     , AbortJobIfAccountLimitExceeded_(SchedulerJobSpecExt_->abort_job_if_account_limit_exceeded())
-    , IsGpuRequested_(resourceUsage.gpu() > 0)
-    , RequestedCpu_(resourceUsage.cpu())
-    , RequestedMemory_(resourceUsage.user_memory())
+    , IsGpuRequested_(resourceUsage.Gpu > 0)
+    , RequestedCpu_(resourceUsage.Cpu)
+    , RequestedMemory_(resourceUsage.UserMemory)
     , TraceContext_(CreateTraceContextFromCurrent("Job"))
     , FinishGuard_(TraceContext_)
 {
@@ -270,7 +270,7 @@ void TJob::Start()
         }
 
         if (NeedGpu()) {
-            int gpuCount = GetResourceUsage().gpu();
+            int gpuCount = GetResourceUsage().Gpu;
             YT_LOG_DEBUG("Acquiring GPU slots (Count: %v)", gpuCount);
             GpuSlots_ = Bootstrap_->GetGpuManager()->AcquireGpuSlots(gpuCount);
             for (int index = 0; index < gpuCount; ++index) {
@@ -595,7 +595,7 @@ void TJob::Finalize(
         currentError,
         "Setting final job state (JobState: %v, ResourceUsage: %v)",
         GetState(),
-        GetResourceUsage());
+        FormatResources(GetResourceUsage()));
 
     YT_VERIFY(IsFinished());
 
@@ -803,7 +803,7 @@ int TJob::GetSlotIndex() const
     return Slot_->GetSlotIndex();
 }
 
-const TNodeResources& TJob::GetResourceUsage() const
+const NClusterNode::TJobResources& TJob::GetResourceUsage() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -855,7 +855,7 @@ double TJob::GetProgress() const
     return Progress_;
 }
 
-void TJob::SetResourceUsage(const TNodeResources& newUsage)
+void TJob::SetResourceUsage(const NClusterNode::TJobResources& newUsage)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -867,7 +867,7 @@ void TJob::SetResourceUsage(const TNodeResources& newUsage)
 
 bool TJob::ResourceUsageOverdrafted() const
 {
-    return TResourceHolder::GetResourceUsage().user_memory() > RequestedMemory_;
+    return TResourceHolder::GetResourceUsage().UserMemory > RequestedMemory_;
 }
 
 void TJob::SetProgress(double progress)
@@ -1906,8 +1906,8 @@ void TJob::Cleanup()
     GpuStatistics_.clear();
 
     if (IsStarted()) {
-        auto oneUserSlotResources = ZeroNodeResources();
-        oneUserSlotResources.set_user_slots(1);
+        auto oneUserSlotResources = ZeroJobResources();
+        oneUserSlotResources.UserSlots = 1;
 
         TResourceHolder::SetResourceUsage(oneUserSlotResources);
     }
@@ -2814,12 +2814,12 @@ bool TJob::NeedGpuLayers()
         }
     }
 
-    return GetResourceUsage().gpu() > 0;
+    return NeedGpu();
 }
 
 bool TJob::NeedGpu()
 {
-    return GetResourceUsage().gpu() > 0;
+    return GetResourceUsage().Gpu > 0;
 }
 
 void TJob::ProfileSensor(const TUserJobSensorPtr& sensor, ISensorWriter* writer, double value)
@@ -2967,7 +2967,7 @@ bool TJob::NeedsGpuCheck() const
 TJobPtr CreateJob(
     TJobId jobId,
     TOperationId operationId,
-    const TNodeResources& resourceUsage,
+    const NClusterNode::TJobResources& resourceUsage,
     TJobSpec&& jobSpec,
     IBootstrap* bootstrap,
     TControllerAgentDescriptor agentDescriptor)

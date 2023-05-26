@@ -124,7 +124,7 @@ public:
         auto createSchedulerJob = BIND([this] (
             TJobId jobId,
             TOperationId operationId,
-            const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+            const NClusterNode::TJobResources& resourceLimits,
             NControllerAgent::NProto::TJobSpec&& jobSpec,
             const TControllerAgentDescriptor& agentDescriptor) ->
             TJobPtr

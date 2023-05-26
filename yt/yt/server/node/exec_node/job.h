@@ -67,7 +67,7 @@ class TJob
     , public TRefCounted
 {
 public:
-    DEFINE_SIGNAL(void(const NNodeTrackerClient::NProto::TNodeResources&), ResourcesUpdated);
+    DEFINE_SIGNAL(void(const NClusterNode::TJobResources&), ResourcesUpdated);
     DEFINE_SIGNAL(void(), JobPrepared);
     DEFINE_SIGNAL(void(), JobFinished);
 
@@ -75,7 +75,7 @@ public:
     TJob(
         TJobId jobId,
         TOperationId operationId,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
+        const NClusterNode::TJobResources& resourceUsage,
         NControllerAgent::NProto::TJobSpec&& jobSpec,
         IBootstrap* bootstrap,
         TControllerAgentDescriptor agentDescriptor);
@@ -131,7 +131,7 @@ public:
 
     int GetSlotIndex() const;
 
-    const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const;
+    const NClusterNode::TJobResources& GetResourceUsage() const;
     bool IsGpuRequested() const;
 
     const TError& GetJobError() const;
@@ -139,7 +139,7 @@ public:
 
     double GetProgress() const;
 
-    void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& newUsage);
+    void SetResourceUsage(const NClusterNode::TJobResources& newUsage);
 
     bool ResourceUsageOverdrafted() const;
 
@@ -512,7 +512,7 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 TJobPtr CreateJob(
     NJobTrackerClient::TJobId jobId,
     NJobTrackerClient::TOperationId operationId,
-    const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
+    const NClusterNode::TJobResources& resourceUsage,
     NControllerAgent::NProto::TJobSpec&& jobSpec,
     IBootstrap* bootstrap,
     TControllerAgentDescriptor agentDescriptor);
@@ -527,7 +527,7 @@ void FillJobStatus(TStatus* status, const TJobPtr& schedulerJob);
 using TJobFactory = TCallback<TJobPtr(
     NJobTrackerClient::TJobId jobid,
     NJobTrackerClient::TOperationId operationId,
-    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+    const NClusterNode::TJobResources& resourceLimits,
     NControllerAgent::NProto::TJobSpec&& jobSpec,
     const NExecNode::TControllerAgentDescriptor& agentInfo)>;
 

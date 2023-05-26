@@ -168,8 +168,8 @@ public:
         WaitFor(BIND(
             [this, &heartbeat, this_ = MakeStrong(this)] {
                 const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
-                *heartbeat.mutable_resource_limits() = jobResourceManager->GetResourceLimits();
-                *heartbeat.mutable_resource_usage() = jobResourceManager->GetResourceUsage(/*includeWaiting*/ true);
+                *heartbeat.mutable_resource_limits() = ToNodeResources(jobResourceManager->GetResourceLimits());
+                *heartbeat.mutable_resource_usage() = ToNodeResources(jobResourceManager->GetResourceUsage(/*includeWaiting*/ true));
             })
             .AsyncVia(Bootstrap_->GetJobInvoker())
             .Run())

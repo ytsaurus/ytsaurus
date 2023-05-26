@@ -168,9 +168,9 @@ private:
         auto resourceUsage = job->GetResourceUsage();
 
         auto* resourceUsageProto = response->mutable_resource_usage();
-        resourceUsageProto->set_cpu(resourceUsage.cpu());
-        resourceUsageProto->set_memory(resourceUsage.user_memory());
-        resourceUsageProto->set_network(resourceUsage.network());
+        resourceUsageProto->set_cpu(resourceUsage.Cpu);
+        resourceUsageProto->set_memory(resourceUsage.UserMemory);
+        resourceUsageProto->set_network(resourceUsage.Network);
 
         ToProto(response->mutable_ports(), job->GetPorts());
 
@@ -344,12 +344,12 @@ private:
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
 
-        auto resourceUsage = job->GetResourceUsage();
-        resourceUsage.set_user_memory(reportedResourceUsage.memory());
-        resourceUsage.set_cpu(reportedResourceUsage.cpu());
-        resourceUsage.set_network(reportedResourceUsage.network());
         const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
-        resourceUsage.set_vcpu(resourceUsage.cpu() * jobResourceManager->GetCpuToVCpuFactor());
+        auto resourceUsage = job->GetResourceUsage();
+        resourceUsage.UserMemory = reportedResourceUsage.memory();
+        resourceUsage.Cpu = reportedResourceUsage.cpu();
+        resourceUsage.Network = reportedResourceUsage.network();
+        resourceUsage.VCpu = resourceUsage.Cpu * jobResourceManager->GetCpuToVCpuFactor();
 
         job->SetResourceUsage(resourceUsage);
 

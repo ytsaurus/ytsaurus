@@ -33,7 +33,7 @@ class TMasterJobBase
     , public TRefCounted
 {
 public:
-    DEFINE_SIGNAL(void(const NNodeTrackerClient::NProto::TNodeResources& resourcesDelta), ResourcesUpdated);
+    DEFINE_SIGNAL(void(const NClusterNode::TJobResources& resourcesDelta), ResourcesUpdated);
     DEFINE_SIGNAL(void(), JobPrepared);
     DEFINE_SIGNAL(void(), JobFinished);
 
@@ -42,7 +42,7 @@ public:
         NJobTrackerClient::TJobId jobId,
         const NJobTrackerClient::NProto::TJobSpec& jobSpec,
         TString jobTrackerAddress,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+        const NClusterNode::TJobResources& resourceLimits,
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap);
 
@@ -64,7 +64,7 @@ public:
 
     NJobAgent::EJobState GetState() const;
 
-    const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const;
+    const NClusterNode::TJobResources& GetResourceUsage() const;
 
     NJobTrackerClient::NProto::TJobResult GetResult() const;
 
@@ -119,7 +119,7 @@ TMasterJobBasePtr CreateJob(
     NJobTrackerClient::TJobId jobId,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
     TString jobTrackerAddress,
-    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+    const NClusterNode::TJobResources& resourceLimits,
     TDataNodeConfigPtr config,
     IBootstrap* bootstrap,
     const TMasterJobSensors& sensors);
@@ -129,7 +129,7 @@ TMasterJobBasePtr CreateJob(
 using TJobFactory = TCallback<TMasterJobBasePtr(
     NJobTrackerClient::TJobId jobId,
     const TString& jobTrackerAddress,
-    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+    const NClusterNode::TJobResources& resourceLimits,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec)>;
 
 ////////////////////////////////////////////////////////////////////////////////

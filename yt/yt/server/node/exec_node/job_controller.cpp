@@ -680,7 +680,7 @@ private:
                 // TODO(pogorelov): Send jobId with spec.
                 FromAllocationId(allocationId),
                 operationId,
-                startInfoProto.resource_limits(),
+                FromNodeResources(startInfoProto.resource_limits()),
                 std::move(jobSpec),
                 controllerAgentDescriptor);
         }
@@ -809,7 +809,7 @@ private:
         resources.clear_vcpu();
     }
 
-    void OnJobResourcesUpdated(const TWeakPtr<TJob>& weakCurrentJob, const TNodeResources& resourceDelta)
+    void OnJobResourcesUpdated(const TWeakPtr<TJob>& weakCurrentJob, const NClusterNode::TJobResources& resourceDelta)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1210,8 +1210,8 @@ private:
 
         request->set_node_id(Bootstrap_->GetNodeId());
         ToProto(request->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
-        *request->mutable_resource_limits() = JobResourceManager_->GetResourceLimits();
-        *request->mutable_resource_usage() = JobResourceManager_->GetResourceUsage(/*includeWaiting*/ true);
+        *request->mutable_resource_limits() = ToNodeResources(JobResourceManager_->GetResourceLimits());
+        *request->mutable_resource_usage() = ToNodeResources(JobResourceManager_->GetResourceUsage(/*includeWaiting*/ true));
 
         *request->mutable_disk_resources() = JobResourceManager_->GetDiskResources();
 
@@ -1278,7 +1278,7 @@ private:
             switch (job->GetState()) {
                 case EJobState::Running: {
                     auto& resourceUsage = *allocationStatus->mutable_resource_usage();
-                    resourceUsage = job->GetResourceUsage();
+                    resourceUsage = ToNodeResources(job->GetResourceUsage());
                     ReplaceCpuWithVCpu(resourceUsage);
                     break;
                 }
@@ -1597,7 +1597,7 @@ private:
     TJobPtr CreateJob(
         TJobId jobId,
         TOperationId operationId,
-        const TNodeResources& resourceLimits,
+        const NClusterNode::TJobResources& resourceLimits,
         TJobSpec&& jobSpec,
         const TControllerAgentDescriptor& controllerAgentDescriptor)
     {
@@ -1874,7 +1874,7 @@ private:
         const auto limits = JobResourceManager_->GetResourceLimits();
         auto schedulerJobs = GetRunningJobsSortedByStartTime();
 
-        while (usage.user_memory() + mappedMemory > limits.user_memory() &&
+        while (usage.UserMemory + mappedMemory > limits.UserMemory &&
             !schedulerJobs.empty())
         {
             usage -= schedulerJobs.back()->GetResourceUsage();
@@ -1894,7 +1894,7 @@ private:
 
         bool preemptMemoryOverdraft = false;
         bool preemptCpuOverdraft = false;
-        if (usage.user_memory() > limits.user_memory()) {
+        if (usage.UserMemory > limits.UserMemory) {
             if (UserMemoryOverdraftInstant_) {
                 preemptMemoryOverdraft = *UserMemoryOverdraftInstant_ + GetMemoryOverdraftTimeout() <
                     TInstant::Now();
@@ -1905,7 +1905,7 @@ private:
             UserMemoryOverdraftInstant_ = std::nullopt;
         }
 
-        if (usage.cpu() > limits.cpu()) {
+        if (usage.Cpu > limits.Cpu) {
             if (CpuOverdraftInstant_) {
                 preemptCpuOverdraft = *CpuOverdraftInstant_ + GetCpuOverdraftTimeout() <
                     TInstant::Now();
@@ -1926,8 +1926,8 @@ private:
         if (preemptCpuOverdraft || preemptMemoryOverdraft) {
             auto jobs = GetRunningJobsSortedByStartTime();
 
-            while ((preemptCpuOverdraft && usage.cpu() > limits.cpu()) ||
-                (preemptMemoryOverdraft && usage.user_memory() > limits.user_memory()))
+            while ((preemptCpuOverdraft && usage.Cpu > limits.Cpu) ||
+                (preemptMemoryOverdraft && usage.UserMemory > limits.UserMemory))
             {
                 if (jobs.empty()) {
                     break;

@@ -125,7 +125,7 @@ TMasterJobBase::TMasterJobBase(
     NJobTrackerClient::TJobId jobId,
     const NJobTrackerClient::NProto::TJobSpec& jobSpec,
     TString jobTrackerAddress,
-    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+    const TJobResources& resourceLimits,
     TDataNodeConfigPtr config,
     IBootstrap* bootstrap)
     : TResourceHolder(
@@ -233,7 +233,7 @@ EJobState TMasterJobBase::GetState() const
     return JobState_;
 }
 
-const TNodeResources& TMasterJobBase::GetResourceUsage() const
+const TJobResources& TMasterJobBase::GetResourceUsage() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -348,7 +348,7 @@ public:
         TJobId jobId,
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
-        const TNodeResources& resourceLimits,
+        const TJobResources& resourceLimits,
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap)
         : TMasterJobBase(
@@ -421,7 +421,7 @@ public:
         TJobId jobId,
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
-        const TNodeResources& resourceLimits,
+        const TJobResources& resourceLimits,
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap)
         : TMasterJobBase(
@@ -616,7 +616,7 @@ public:
         TJobId jobId,
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
-        const TNodeResources& resourceLimits,
+        const TJobResources& resourceLimits,
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap,
         TMasterJobSensors sensors)
@@ -910,7 +910,7 @@ public:
         TJobId jobId,
         TJobSpec&& jobSpec,
         TString jobTrackerAddress,
-        const TNodeResources& resourceLimits,
+        const TJobResources& resourceLimits,
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap)
         : TMasterJobBase(
@@ -1088,7 +1088,7 @@ public:
         TJobId jobId,
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
-        const TNodeResources& resourceLimits,
+        const TJobResources& resourceLimits,
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap)
         : TMasterJobBase(
@@ -1702,7 +1702,7 @@ public:
         TJobId jobId,
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
-        const TNodeResources& resourceLimits,
+        const TJobResources& resourceLimits,
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap)
         : TMasterJobBase(
@@ -1905,7 +1905,7 @@ public:
         TJobId jobId,
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
-        const TNodeResources& resourceLimits,
+        const TJobResources& resourceLimits,
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap)
         : TMasterJobBase(
@@ -2510,7 +2510,7 @@ TMasterJobBasePtr CreateJob(
     TJobId jobId,
     TJobSpec&& jobSpec,
     TString jobTrackerAddress,
-    const TNodeResources& resourceLimits,
+    const TJobResources& resourceLimits,
     TDataNodeConfigPtr config,
     IBootstrap* bootstrap,
     const TMasterJobSensors& sensors)

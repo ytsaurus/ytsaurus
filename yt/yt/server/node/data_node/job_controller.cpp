@@ -277,7 +277,7 @@ private:
     TMasterJobBasePtr CreateJob(
         TJobId jobId,
         const TString& jobTrackerAddress,
-        const TNodeResources& resourceLimits,
+        const TJobResources& resourceLimits,
         TJobSpec&& jobSpec)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -425,8 +425,8 @@ private:
 
         request->set_node_id(Bootstrap_->GetNodeId());
         ToProto(request->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
-        *request->mutable_resource_limits() = JobResourceManager_->GetResourceLimits();
-        *request->mutable_resource_usage() = JobResourceManager_->GetResourceUsage(/*includeWaiting*/ true);
+        *request->mutable_resource_limits() = ToNodeResources(JobResourceManager_->GetResourceLimits());
+        *request->mutable_resource_usage() = ToNodeResources(JobResourceManager_->GetResourceUsage(/*includeWaiting*/ true));
 
         *request->mutable_disk_resources() = JobResourceManager_->GetDiskResources();
 
@@ -443,7 +443,7 @@ private:
             FillJobStatus(jobStatus, job);
             switch (job->GetState()) {
                 case EJobState::Running:
-                    *jobStatus->mutable_resource_usage() = job->GetResourceUsage();
+                    *jobStatus->mutable_resource_usage() = ToNodeResources(job->GetResourceUsage());
                     break;
 
                 case EJobState::Completed:
@@ -506,7 +506,7 @@ private:
             CreateJob(
                 jobId,
                 jobTrackerAddress,
-                resourceLimits,
+                FromNodeResources(resourceLimits),
                 std::move(spec));
 
             ++attachmentIndex;
@@ -537,7 +537,7 @@ private:
             IsJobFinished(job->GetState()),
             "Removing job in unexpected state (State: %v)",
             job->GetState());
-        YT_VERIFY(job->GetResourceUsage() == ZeroNodeResources());
+        YT_VERIFY(job->GetResourceUsage() == ZeroJobResources());
 
         auto& jobMap = JobMaps_[job->GetJobTrackerAddress()];
 
