@@ -512,6 +512,12 @@ void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason)
     auto* activeStore = GetActiveStore();
 
     if (activeStore) {
+        if (createNewStore && activeStore->GetRowCount() == 0 && reason != EStoreRotationReason::Discard) {
+            YT_LOG_ALERT("Empty dynamic store rotated (StoreId: %v, Reason: %v)",
+                activeStore->GetId(),
+                reason);
+        }
+
         activeStore->SetStoreState(EStoreState::PassiveDynamic);
         auto nonActiveStoresUnmergedRowCount = Tablet_->GetNonActiveStoresUnmergedRowCount();
         Tablet_->SetNonActiveStoresUnmergedRowCount(nonActiveStoresUnmergedRowCount + activeStore->GetRowCount());

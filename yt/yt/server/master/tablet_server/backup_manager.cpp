@@ -18,6 +18,7 @@
 #include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
+#include <yt/yt/server/master/chunk_server/dynamic_store.h>
 
 #include <yt/yt/server/lib/hydra_common/mutation_context.h>
 
@@ -40,11 +41,13 @@ using namespace NHydra;
 using namespace NObjectServer;
 using namespace NTableServer;
 using namespace NTabletClient;
+using namespace NTabletNode::NProto;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
-using namespace NTabletNode::NProto;
 
 using NTransactionServer::TTransaction;
+
+using NTabletNode::DynamicStoreCountLimit;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -194,6 +197,20 @@ public:
                 req.set_timestamp(timestamp);
                 req.set_backup_mode(ToProto<int>(backupMode));
 
+                TDynamicStoreId allocatedDynamicStoreId;
+
+                if (ssize(tablet->DynamicStores()) + 1 < NTabletNode::DynamicStoreCountLimit) {
+                    // COMPAT(ifsmirnov)
+                    if (config->SendDynamicStoreIdInBackup) {
+                        const auto& tabletManager = Bootstrap_->GetTabletManager();
+                        const auto& tabletChunkManager = tabletManager->GetTabletChunkManager();
+                        auto* dynamicStore = tabletChunkManager->CreateDynamicStore(tablet);
+                        allocatedDynamicStoreId = dynamicStore->GetId();
+                        tabletManager->AttachDynamicStoreToTablet(tablet, dynamicStore);
+                        ToProto(req.mutable_dynamic_store_id(), allocatedDynamicStoreId);
+                    }
+                }
+
                 if (clockClusterTag) {
                     req.set_clock_cluster_tag(*clockClusterTag);
                 }
@@ -201,11 +218,12 @@ public:
                 ToProto(req.mutable_replicas(), replicaBackupDescriptors);
 
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                    "Setting backup checkpoint (TableId: %v, TabletId: %v, TransactionId: %v, CellId: %v)",
+                    "Setting backup checkpoint (TableId: %v, TabletId: %v, TransactionId: %v, CellId: %v, AllocatedDynamicStoreId: %v)",
                     table->GetId(),
                     tablet->GetId(),
                     transaction->GetId(),
-                    cell->GetId());
+                    cell->GetId(),
+                    allocatedDynamicStoreId);
 
                 const auto& hiveManager = Bootstrap_->GetHiveManager();
                 auto* mailbox = hiveManager->GetMailbox(cell->GetId());

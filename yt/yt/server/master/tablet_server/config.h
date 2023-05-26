@@ -280,6 +280,8 @@ public:
 
     bool EnableBackups;
 
+    bool SendDynamicStoreIdInBackup;
+
     // COMPAT(ifsmirnov)
     bool IncludeMountConfigAttributesInUserAttributes;
 
