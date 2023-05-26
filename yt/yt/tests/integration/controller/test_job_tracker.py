@@ -3,6 +3,7 @@ from yt_env_setup import (
     Restarter,
     SCHEDULERS_SERVICE,
     NODES_SERVICE,
+    CONTROLLER_AGENTS_SERVICE,
 )
 
 from yt_commands import (
@@ -90,6 +91,9 @@ class TestJobTracker(YTEnvSetup):
 
     @authors("pogorelov")
     def test_job_tracker_orchid(self):
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
         op = run_sleeping_vanilla(job_count=1)
 
         op.ensure_running()
@@ -265,6 +269,8 @@ class TestJobTracker(YTEnvSetup):
         op.ensure_running()
 
         (job_id, ) = wait_breakpoint()
+
+        op.wait_for_fresh_snapshot()
 
         update_controller_agent_config("job_tracker/job_confirmation_timeout", 30000)
 
