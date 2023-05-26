@@ -1,4 +1,4 @@
-from yt_tests_common.chaos_test_base import ChaosTestBase
+from yt_chaos_test_base import ChaosTestBase
 
 from yt_commands import (authors, wait, get, set, create, sync_mount_table, create_table_replica, get_driver,
                          sync_enable_table_replica, select_rows, print_debug, check_permission, register_queue_consumer,

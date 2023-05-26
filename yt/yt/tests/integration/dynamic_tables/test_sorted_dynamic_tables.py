@@ -1,4 +1,4 @@
-from yt_tests_common.dynamic_tables_base import DynamicTablesBase
+from yt_dynamic_tables_base import DynamicTablesBase
 
 from yt_env_setup import parametrize_external, Restarter, NODES_SERVICE
 

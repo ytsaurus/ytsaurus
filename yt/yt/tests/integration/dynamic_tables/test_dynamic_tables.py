@@ -5,7 +5,7 @@ from yt_env_setup import (
     is_asan_build,
 )
 
-from yt_tests_common.dynamic_tables_base import DynamicTablesBase
+from yt_dynamic_tables_base import DynamicTablesBase
 
 from yt_helpers import profiler_factory
 

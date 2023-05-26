@@ -1,4 +1,4 @@
-from yt_tests_common.dynamic_tables_base import DynamicTablesBase
+from yt_dynamic_tables_base import DynamicTablesBase
 
 from yt_commands import (
     authors, wait, get, set, remount_table,

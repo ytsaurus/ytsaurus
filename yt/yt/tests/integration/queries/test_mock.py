@@ -2,9 +2,9 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (authors, raises_yt_error, wait, create_user, print_debug, select_rows)
 
-from yt.test_helpers import assert_items_equal
+from yt_queries import start_query, list_queries
 
-from queries.environment import start_query, list_queries
+from yt.test_helpers import assert_items_equal
 
 from collections import Counter
 

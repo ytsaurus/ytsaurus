@@ -1,4 +1,4 @@
-from yt_tests_common.dynamic_tables_base import DynamicTablesBase
+from yt_dynamic_tables_base import DynamicTablesBase
 
 from yt_commands import (
     print_debug, wait, get_driver, get, set, ls, exists, create, sync_create_cells, sync_mount_table, alter_table, insert_rows,

@@ -3,13 +3,13 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (authors, raises_yt_error, create_dynamic_table,
                          sync_mount_table, insert_rows)
 
-from yt.test_helpers import assert_items_equal
+from yt_queries import start_query
 
 from yt_type_helpers import decimal_type
 
-from decimal_helpers import encode_decimal
+from yt.test_helpers import assert_items_equal
 
-from queries.environment import start_query
+from decimal_helpers import encode_decimal
 
 from yt.wrapper import yson
 

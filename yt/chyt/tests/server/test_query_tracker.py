@@ -8,7 +8,7 @@ from yt_type_helpers import decimal_type
 
 from decimal_helpers import encode_decimal
 
-from queries.environment import start_query
+from yt_queries import start_query
 
 from base import ClickHouseTestBase, Clique
 

@@ -1,4 +1,4 @@
-from yt_tests_common.dynamic_tables_base import DynamicTablesBase
+from yt_dynamic_tables_base import DynamicTablesBase
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from .test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
 

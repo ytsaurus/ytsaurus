@@ -1,4 +1,4 @@
-from yt_tests_common.dynamic_tables_base import DynamicTablesBase
+from yt_dynamic_tables_base import DynamicTablesBase
 from .test_tablet_actions import TabletBalancerBase
 
 from yt_commands import (

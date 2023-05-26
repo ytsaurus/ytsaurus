@@ -1,4 +1,4 @@
-from yt_tests_common.chaos_test_base import ChaosTestBase
+from yt_chaos_test_base import ChaosTestBase
 
 from yt_env_setup import (
     Restarter,

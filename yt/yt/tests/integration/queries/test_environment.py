@@ -1,10 +1,10 @@
+from conftest_lib.conftest_queries import QueryTracker
+
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import wait, authors, ls, YtError
 
 import yt_error_codes
-
-from queries.environment import QueryTracker
 
 
 class TestEnvironment(YTEnvSetup):
