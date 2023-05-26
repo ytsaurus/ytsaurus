@@ -1204,34 +1204,47 @@ private:
 
         // This should be done before processing mutations, otherwise we might apply a mutation
         // with a greater sequence number.
-        if (controlState == EPeerState::Following && request->has_snapshot_request()) {
+        if (request->has_snapshot_request()) {
             const auto& snapshotRequest = request->snapshot_request();
             auto snapshotId = snapshotRequest.snapshot_id();
+
             if (snapshotId < SnapshotId_) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::Unavailable,
                     "Received a snapshot request with a snapshot id %v while last snapshot id %v is greater",
                     snapshotId,
                     SnapshotId_);
-            } else if (snapshotId == SnapshotId_) {
-                YT_LOG_DEBUG("Received a redundant snapshot request, ignoring (SnapshotId: %v)",
-                    SnapshotId_);
-            } else {
-                auto readOnly = snapshotRequest.read_only();
-                auto snapshotSequenceNumber = snapshotRequest.sequence_number();
-                SetReadOnly(readOnly);
+            }
 
-                SnapshotId_ = snapshotRequest.snapshot_id();
-                YT_LOG_INFO("Received a new snapshot request (SnapshotId: %v, SequenceNumber: %v, ReadOnly: %v)",
-                    SnapshotId_,
-                    snapshotSequenceNumber,
-                    readOnly);
-                if (Options_.WriteSnapshotsAtFollowers) {
-                    SnapshotFuture_ = BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
-                        .AsyncVia(epochContext->EpochUserAutomatonInvoker)
-                        .Run(SnapshotId_, snapshotSequenceNumber);
+            if (controlState == EPeerState::Following) {
+                if (snapshotId == SnapshotId_) {
+                    YT_LOG_DEBUG("Received a redundant snapshot request, ignoring (SnapshotId: %v)",
+                        SnapshotId_);
                 } else {
-                    SnapshotFuture_ = MakeFuture<TRemoteSnapshotParams>(TError("Followers cannot build snapshot"));
+                    auto readOnly = snapshotRequest.read_only();
+                    auto snapshotSequenceNumber = snapshotRequest.sequence_number();
+                    SetReadOnly(readOnly);
+
+                    SnapshotId_ = snapshotId;
+                    YT_LOG_INFO("Received a new snapshot request (SnapshotId: %v, SequenceNumber: %v, ReadOnly: %v)",
+                        SnapshotId_,
+                        snapshotSequenceNumber,
+                        readOnly);
+                    if (Options_.WriteSnapshotsAtFollowers) {
+                        SnapshotFuture_ = BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
+                            .AsyncVia(epochContext->EpochUserAutomatonInvoker)
+                            .Run(SnapshotId_, snapshotSequenceNumber);
+                    } else {
+                        SnapshotFuture_ = MakeFuture<TRemoteSnapshotParams>(TError("Followers cannot build snapshot"));
+                    }
+                }
+            } else {
+                YT_VERIFY(controlState == EPeerState::FollowerRecovery);
+                YT_VERIFY(SnapshotId_ <= snapshotId);
+
+                if (SnapshotId_ < snapshotId) {
+                    SnapshotId_ = snapshotId;
+                    SnapshotFuture_ = MakeFuture<TRemoteSnapshotParams>(TError("Cannot build snapshot during recovery"));
                 }
             }
 
