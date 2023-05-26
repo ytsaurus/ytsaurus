@@ -914,7 +914,13 @@ private:
             agentDescriptor);
 
         auto sendFinishedJob = [&request, &finishedJobsStatisticsSize, &getJobStatistics] (const TJobPtr& job) {
-            auto* const jobStatus = request->add_jobs();
+            YT_LOG_DEBUG(
+                "Add finished job info to heartbeat to agent (JobId: %v, JobState: %v, AgentDescriptor: %v",
+                job->GetId(),
+                job->GetState(),
+                job->GetControllerAgentDescriptor());
+
+            auto* jobStatus = request->add_jobs();
             FillJobStatus(jobStatus, job);
 
             *jobStatus->mutable_result() = job->GetResult();
@@ -1036,6 +1042,11 @@ private:
         int reportedRunningJobCount = 0;
         i64 runningJobsStatisticsSize = 0;
         for (const auto& job : runningJobs) {
+            YT_LOG_DEBUG(
+                "Add running job info to heartbeat to agent (JobId: %v, AgentDescriptor: %v",
+                job->GetId(),
+                job->GetControllerAgentDescriptor());
+
             addAllocationInfoToHeartbeatRequest(job->GetAllocationId());
 
             auto* jobStatus = request->add_jobs();

@@ -1999,10 +1999,12 @@ void TNodeShard::ProcessHeartbeatJobs(
             continue;
         }
 
-        YT_LOG_DEBUG("Aborting unconfirmed job (JobId: %v, OperationId: %v)", jobId, job->GetOperationId());
-        OnJobAborted(job, error);
+        if (GetOperationState(job->GetOperationId()).ControlJobLifetimeAtScheduler) {
+            YT_LOG_DEBUG("Aborting unconfirmed job (JobId: %v, OperationId: %v)", jobId, job->GetOperationId());
+            OnJobAborted(job, error);
 
-        ResetJobWaitingForConfirmation(job);
+            ResetJobWaitingForConfirmation(job);
+        }
     }
 }
 

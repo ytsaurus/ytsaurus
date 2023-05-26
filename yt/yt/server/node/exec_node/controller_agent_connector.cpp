@@ -230,13 +230,13 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
 
     auto context = New<TAgentHeartbeatContext>();
 
-    PrepareHeartbeatRequest(request, context);
-
-    HeartbeatInfo_.LastSentHeartbeatTime = TInstant::Now();
-
     if (ControllerAgentConnectorPool_->TestHeartbeatDelay_) {
         TDelayedExecutor::WaitForDuration(ControllerAgentConnectorPool_->TestHeartbeatDelay_);
     }
+
+    PrepareHeartbeatRequest(request, context);
+
+    HeartbeatInfo_.LastSentHeartbeatTime = TInstant::Now();
 
     auto requestFuture = request->Invoke();
     YT_LOG_INFO(
@@ -604,6 +604,12 @@ void TControllerAgentConnectorPool::OnJobFinished(const TJobPtr& job)
 {
     if (auto controllerAgentConnector = job->GetControllerAgentConnector()) {
         controllerAgentConnector->EnqueueFinishedJob(job);
+
+        YT_LOG_DEBUG(
+            "Job finished, send out of band heartbeat to controller agent (JobId: %v, ControllerAgentDescriptor: %v)",
+            job->GetId(),
+            controllerAgentConnector->GetDescriptor());
+
         controllerAgentConnector->SendOutOfBandHeartbeatIfNeeded();
     }
 }
