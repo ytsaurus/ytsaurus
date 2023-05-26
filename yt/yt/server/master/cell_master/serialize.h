@@ -145,6 +145,7 @@ DEFINE_ENUM(EMasterReign,
     ((ExportMasterTableSchemas)                                     (2330))  // h0pless
     ((SupportAccountChunkMergerCriteria)                            (2331))  // danilalexeev
     ((PerUserReadRequestComplexityLimits)                           (2332))  // kvk1920
+    ((SimplerChunkExportDataSaveLoad)                               (2333))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
