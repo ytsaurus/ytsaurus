@@ -121,6 +121,7 @@ struct TSchedulerMutations
     THashMap<TString, bool> ChangedEnableBundleBalancerFlag;
 
     THashMap<TString, TString> ChangedProxyRole;
+    THashSet<TString> RemovedProxyRole;
 
     std::vector<TString> CellsToRemove;
 

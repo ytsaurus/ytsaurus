@@ -66,7 +66,7 @@ void TryReleaseSpareProxies(
     auto proxiesToRelease = std::span(usingSpareProxies.begin(), usingSpareProxies.begin() + excessProxyCount);
 
     for (const auto& proxyName : proxiesToRelease) {
-        mutations->ChangedProxyRole[proxyName] = {};
+        mutations->RemovedProxyRole.insert(proxyName);
 
         YT_LOG_INFO("Releasing spare proxy for bundle (Bundle: %v, ProxyName: %v)",
             bundleName,
