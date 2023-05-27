@@ -3,8 +3,6 @@
 
 #include <yt/yt/core/http/server.h>
 
-#include <yt/yt/core/rpc/grpc/dispatcher.h>
-
 #include <yt/yt/core/crypto/tls.h>
 
 #include <yt/yt/core/net/address.h>
@@ -24,11 +22,8 @@ class TServer
     : public IServer
 {
 public:
-    TServer(
-        NRpc::NGrpc::TGrpcLibraryLockPtr libraryLock,
-        IServerPtr underlying)
-        : LibraryLock_(std::move(libraryLock))
-        , Underlying_(std::move(underlying))
+    explicit TServer(IServerPtr underlying)
+        : Underlying_(std::move(underlying))
     { }
 
     void AddHandler(
@@ -66,7 +61,6 @@ public:
     }
 
 private:
-    const NRpc::NGrpc::TGrpcLibraryLockPtr LibraryLock_;
     const IServerPtr Underlying_;
 };
 
@@ -75,9 +69,6 @@ IServerPtr CreateServer(
     const IPollerPtr& poller,
     const IPollerPtr& acceptor)
 {
-    // Initialize SSL.
-    auto libraryLock = NRpc::NGrpc::TDispatcher::Get()->GetLibraryLock();
-
     auto sslContext =  New<TSslContext>();
     if (config->Credentials->CertChain->FileName) {
         sslContext->AddCertificateChainFromFile(*config->Credentials->CertChain->FileName);
@@ -101,7 +92,7 @@ IServerPtr CreateServer(
     configCopy->IsHttps = true;
     auto httpServer = NHttp::CreateServer(configCopy, tlsListener, poller, acceptor);
 
-    return New<TServer>(std::move(libraryLock), std::move(httpServer));
+    return New<TServer>(std::move(httpServer));
 }
 
 IServerPtr CreateServer(const TServerConfigPtr& config, const IPollerPtr& poller)

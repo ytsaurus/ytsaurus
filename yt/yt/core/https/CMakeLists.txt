@@ -18,7 +18,6 @@ target_link_libraries(yt-core-https PUBLIC
   yt-yt-core
   yt-core-http
   yt-core-crypto
-  core-rpc-grpc
   cpp-http-io
 )
 target_sources(yt-core-https PRIVATE

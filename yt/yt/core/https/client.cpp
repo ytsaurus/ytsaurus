@@ -7,8 +7,6 @@
 #include <yt/yt/core/net/config.h>
 #include <yt/yt/core/net/address.h>
 
-#include <yt/yt/core/rpc/grpc/dispatcher.h>
-
 #include <yt/yt/core/crypto/tls.h>
 
 #include <yt/yt/core/concurrency/poller.h>
@@ -28,11 +26,8 @@ class TClient
     : public IClient
 {
 public:
-    TClient(
-        NRpc::NGrpc::TGrpcLibraryLockPtr libraryLock,
-        IClientPtr underlying)
-        : LibraryLock_(std::move(libraryLock))
-        , Underlying_(std::move(underlying))
+    explicit TClient(IClientPtr underlying)
+        : Underlying_(std::move(underlying))
     { }
 
     TFuture<IResponsePtr> Get(
@@ -95,7 +90,6 @@ public:
     }
 
 private:
-    const NRpc::NGrpc::TGrpcLibraryLockPtr LibraryLock_;
     const IClientPtr Underlying_;
 };
 
@@ -103,9 +97,6 @@ IClientPtr CreateClient(
     const TClientConfigPtr& config,
     const IPollerPtr& poller)
 {
-    // Initialize SSL.
-    auto libraryLock = NRpc::NGrpc::TDispatcher::Get()->GetLibraryLock();
-
     auto sslContext =  New<TSslContext>();
     if (config->Credentials) {
         if (config->Credentials->CertChain) {
@@ -140,9 +131,7 @@ IClientPtr CreateClient(
         tlsDialer,
         poller->GetInvoker());
 
-    return New<TClient>(
-        std::move(libraryLock),
-        std::move(httpClient));
+    return New<TClient>(std::move(httpClient));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
