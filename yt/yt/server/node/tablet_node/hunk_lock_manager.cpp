@@ -78,7 +78,7 @@ struct THunkStoreLockingState
 
 void FormatValue(TStringBuilderBase* builder, const THunkStoreLockingState& ref, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("PersistentLockCount: %v, TransientLockCount}",
+    builder->AppendFormat("PersistentLockCount: %v, TransientLockCount: %v}",
         ref.PersistentLockCount,
         ref.TransientLockCount);
 }

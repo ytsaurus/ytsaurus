@@ -71,6 +71,8 @@ bool TReplicatedStoreManager::ExecuteWrites(
 {
     auto tableSchema = Tablet_->GetTableSchema();
 
+    LogStoreManager_->LockHunkStores(context);
+
     YT_ASSERT(context->Phase == EWritePhase::Commit);
     while (!reader->IsFinished()) {
         auto modifyRow = [&] (

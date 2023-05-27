@@ -1222,7 +1222,8 @@ TTableSchemaPtr TTableSchema::ToReplicationLog() const
             columns.push_back(
                 TColumnSchema(
                     TReplicationLogTable::ValueColumnNamePrefix + column.Name(),
-                    MakeOptionalIfNot(column.LogicalType())));
+                    MakeOptionalIfNot(column.LogicalType()))
+                .SetMaxInlineHunkSize(column.MaxInlineHunkSize()));
         }
         columns.push_back(TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + TabletIndexColumnName, ESimpleLogicalValueType::Int64));
     }

@@ -33,6 +33,7 @@ public:
         bool createDynamicStore,
         const NTabletNode::NProto::TMountHint& mountHint) override;
 
+    void LockHunkStores(TWriteContext* context) override;
     bool ExecuteWrites(
         NTableClient::IWireProtocolReader* reader,
         TWriteContext* context) override;
