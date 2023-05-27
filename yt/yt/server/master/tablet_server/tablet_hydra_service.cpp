@@ -190,7 +190,7 @@ private:
 
                     if (auto* cell = tablet->GetCell()) {
                         ToProto(protoTablet->mutable_cell_id(), cell->GetId());
-                        protoTablet->set_mount_time(ToProto<i64>(tablet->GetMountTime()));
+                        protoTablet->set_mount_time(ToProto<i64>(tablet->Servant().GetMountTime()));
                     }
 
                     protoTablet->set_state(ToProto<int>(tablet->GetState()));

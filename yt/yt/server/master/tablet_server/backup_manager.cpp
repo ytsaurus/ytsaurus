@@ -193,7 +193,7 @@ public:
 
                 TReqSetBackupCheckpoint req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
-                req.set_mount_revision(tablet->GetMountRevision());
+                req.set_mount_revision(tablet->Servant().GetMountRevision());
                 req.set_timestamp(timestamp);
                 req.set_backup_mode(ToProto<int>(backupMode));
 
@@ -300,7 +300,7 @@ public:
                 if (cell) {
                     TReqReleaseBackupCheckpoint req;
                     ToProto(req.mutable_tablet_id(), tablet->GetId());
-                    req.set_mount_revision(tablet->GetMountRevision());
+                    req.set_mount_revision(tablet->Servant().GetMountRevision());
 
                     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                         "Releasing backup checkpoint (TableId: %v, TabletId: %v, "
@@ -732,7 +732,7 @@ private:
         YT_VERIFY(tabletBase->GetType() == EObjectType::Tablet);
         auto* tablet = tabletBase->As<TTablet>();
 
-        if (tablet->GetMountRevision() != response->mount_revision()) {
+        if (tablet->Servant().GetMountRevision() != response->mount_revision()) {
             return;
         }
 

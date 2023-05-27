@@ -165,10 +165,18 @@ void TTablet::Load(TLoadContext& context)
     if (context.GetVersion() < EMasterReign::TabletBase) {
         Load(context, Index_);
         SetStateCompat(Load<ETabletState>(context));
-        Load(context, MountRevision_);
+
+        // COMPAT(ifsmirnov)
+        auto mountRevision = Load<NHydra::TRevision>(context);
+        Servant_.SetMountRevision(mountRevision);
+
         Load(context, StoresUpdatePreparedTransaction_);
         SetOwnerCompat(Load<TTableNode*>(context));
-        Load(context, Cell_);
+
+        // COMPAT(ifsmirnov)
+        auto* cell = Load<TTabletCell*>(context);
+        Servant_.SetCell(cell);
+
         Load(context, Action_);
     }
     Load(context, PivotKey_);

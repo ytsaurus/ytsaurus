@@ -22,6 +22,39 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTabletServant::operator bool() const
+{
+    return static_cast<bool>(Cell_);
+}
+
+void TTabletServant::Clear()
+{
+    Cell_ = nullptr;
+    State_ = ETabletState::Unmounted;
+    MountRevision_ = {};
+    MountTime_ = {};
+}
+
+void TTabletServant::Swap(TTabletServant* other)
+{
+    std::swap(Cell_, other->Cell_);
+    std::swap(State_, other->State_);
+    std::swap(MountRevision_, other->MountRevision_);
+    std::swap(MountTime_, other->MountTime_);
+}
+
+void TTabletServant::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Cell_);
+    Persist(context, State_);
+    Persist(context, MountRevision_);
+    Persist(context, MountTime_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTabletBase::Save(TSaveContext& context) const
 {
     TObject::Save(context);
@@ -29,10 +62,8 @@ void TTabletBase::Save(TSaveContext& context) const
     using NYT::Save;
     Save(context, Index_);
     Save(context, InMemoryMode_);
-    Save(context, Cell_);
-    Save(context, MountRevision_);
+    Save(context, Servant_);
     Save(context, SettingsRevision_);
-    Save(context, MountTime_);
     Save(context, WasForcefullyUnmounted_);
     Save(context, Action_);
     Save(context, StoresUpdatePreparedTransaction_);
@@ -54,16 +85,32 @@ void TTabletBase::Load(TLoadContext& context)
     using NYT::Load;
     Load(context, Index_);
     Load(context, InMemoryMode_);
-    Load(context, Cell_);
-    Load(context, MountRevision_);
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::RemountNeededNotification) {
-        Load(context, SettingsRevision_);
+    if (context.GetVersion() < EMasterReign::TabletServants) {
+        auto* cell = Load<TTabletCell*>(context);
+        Servant_.SetCell(cell);
+
+        auto mountRevision = Load<NHydra::TRevision>(context);
+        Servant_.SetMountRevision(mountRevision);
+
+        // COMPAT(ifsmirnov)
+        if (context.GetVersion() >= EMasterReign::RemountNeededNotification) {
+            Load(context, SettingsRevision_);
+        }
+
+        // COMPAT(alexelexa)
+        if (context.GetVersion() >= EMasterReign::AddTabletMountTime) {
+            Servant_.SetMountTime(Load<TInstant>(context));
+        }
+    } else {
+        Load(context, Servant_);
+
+        // COMPAT(ifsmirnov)
+        if (context.GetVersion() >= EMasterReign::RemountNeededNotification) {
+            Load(context, SettingsRevision_);
+        }
     }
-    // COMPAT(alexelexa)
-    if (context.GetVersion() >= EMasterReign::AddTabletMountTime) {
-        Load(context, MountTime_);
-    }
+
     Load(context, WasForcefullyUnmounted_);
     Load(context, Action_);
     Load(context, StoresUpdatePreparedTransaction_);
@@ -71,6 +118,11 @@ void TTabletBase::Load(TLoadContext& context)
     Load(context, State_);
     Load(context, ExpectedState_);
     Load(context, TabletErrorCount_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() < EMasterReign::TabletServants) {
+        Servant_.SetState(State_);
+    }
 }
 
 ETabletState TTabletBase::GetState() const
@@ -156,22 +208,20 @@ void TTabletBase::SetOwnerCompat(TTabletOwnerBase* owner)
 void TTabletBase::CopyFrom(const TTabletBase& other)
 {
     YT_VERIFY(State_ == ETabletState::Unmounted);
-    YT_VERIFY(!Cell_);
+    YT_VERIFY(!Servant_.GetCell());
 
     Index_ = other.Index_;
-    MountRevision_ = other.MountRevision_;
     InMemoryMode_ = other.InMemoryMode_;
-    MountTime_ = other.MountTime_;
 }
 
 void TTabletBase::ValidateMountRevision(NHydra::TRevision mountRevision)
 {
-    if (MountRevision_ != mountRevision) {
+    if (Servant_.GetMountRevision() != mountRevision) {
         THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::Unavailable,
             "Invalid mount revision of tablet %v: expected %x, received %x",
             Id_,
-            MountRevision_,
+            Servant_.GetMountRevision(),
             mountRevision);
     }
 }
@@ -219,6 +269,40 @@ TChunkList* TTabletBase::GetChunkList(EChunkListContentType type)
 const TChunkList* TTabletBase::GetChunkList(EChunkListContentType type) const
 {
     return const_cast<TTabletBase*>(this)->GetChunkList(type);
+}
+
+
+TTabletServant* TTabletBase::FindServant(TTabletCellId cellId)
+{
+    if (GetObjectId(Servant_.GetCell()) == cellId) {
+        return &Servant_;
+    } else {
+        return nullptr;
+    }
+}
+
+const TTabletServant* TTabletBase::FindServant(TTabletCellId cellId) const
+{
+    return const_cast<TTabletBase*>(this)->FindServant(cellId);
+}
+
+TTabletServant* TTabletBase::FindServant(NHydra::TRevision mountRevision)
+{
+    if (Servant_.GetMountRevision() == mountRevision) {
+        return &Servant_;
+    } else {
+        return nullptr;
+    }
+}
+
+const TTabletServant* TTabletBase::FindServant(NHydra::TRevision mountRevision) const
+{
+    return const_cast<TTabletBase*>(this)->FindServant(mountRevision);
+}
+
+TTabletCell* TTabletBase::GetCell() const
+{
+    return Servant_.GetCell();
 }
 
 i64 TTabletBase::GetTabletStaticMemorySize(EInMemoryMode mode) const
@@ -346,6 +430,13 @@ void TTabletBase::SetTabletErrorCount(int tabletErrorCount)
     }
 
     TabletErrorCount_ = tabletErrorCount;
+}
+
+void TTabletBase::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
+{
+    TObject::CheckInvariants(bootstrap);
+
+    YT_VERIFY(GetState() == Servant().GetState());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

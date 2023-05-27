@@ -14,6 +14,26 @@ namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTabletServant
+{
+public:
+    DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
+    DEFINE_BYVAL_RW_PROPERTY(ETabletState, State, ETabletState::Unmounted);
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, MountRevision);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, MountTime);
+
+public:
+    operator bool() const;
+
+    void Clear();
+
+    void Swap(TTabletServant* other);
+
+    void Persist(const NCellMaster::TPersistenceContext& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletBase
     : public NObjectServer::TObject
 {
@@ -23,10 +43,8 @@ public:
     //! Only makes sense for mounted tablets.
     DEFINE_BYVAL_RW_PROPERTY(NTabletClient::EInMemoryMode, InMemoryMode);
 
-    DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
-    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, MountRevision);
+    DEFINE_BYREF_RW_PROPERTY(TTabletServant, Servant);
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, SettingsRevision);
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, MountTime);
 
     //! Only makes sense for unmounted tablets.
     DEFINE_BYVAL_RW_PROPERTY(bool, WasForcefullyUnmounted);
@@ -71,6 +89,14 @@ public:
     NChunkServer::TChunkList* GetChunkList(NChunkServer::EChunkListContentType type);
     const NChunkServer::TChunkList* GetChunkList(NChunkServer::EChunkListContentType type) const;
 
+    TTabletServant* FindServant(TTabletCellId cellId);
+    const TTabletServant* FindServant(TTabletCellId cellId) const;
+
+    TTabletServant* FindServant(NHydra::TRevision mountRevision);
+    const TTabletServant* FindServant(NHydra::TRevision mountRevision) const;
+
+    TTabletCell* GetCell() const;
+
     i64 GetTabletStaticMemorySize(NTabletClient::EInMemoryMode inMemoryMode) const;
     i64 GetTabletStaticMemorySize() const;
 
@@ -89,6 +115,8 @@ public:
 
     int GetTabletErrorCount() const;
     void SetTabletErrorCount(int tabletErrorCount);
+
+    void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
 
 private:
     TTabletOwnerBase* Owner_ = nullptr;

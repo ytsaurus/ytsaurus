@@ -97,6 +97,7 @@ void TTabletProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ActionId)
         .SetPresent(tablet->GetAction()));
     descriptors->push_back(EInternedAttributeKey::ErrorCount);
+    descriptors->push_back(EInternedAttributeKey::Servants);
 }
 
 bool TTabletProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -143,7 +144,7 @@ bool TTabletProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(tablet->GetMountRevision());
+                .Value(tablet->Servant().GetMountRevision());
             return true;
 
         case EInternedAttributeKey::MountTime:
@@ -151,7 +152,7 @@ bool TTabletProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(tablet->GetMountTime());
+                .Value(tablet->Servant().GetMountTime());
             return true;
 
         case EInternedAttributeKey::StoresUpdatePreparedTransactionId:
@@ -216,6 +217,21 @@ bool TTabletProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
             BuildYsonFluently(consumer)
                 .Value(tablet->GetTabletErrorCount());
             return true;
+
+        case EInternedAttributeKey::Servants: {
+            auto onServant = [] (const TTabletServant& servant, TFluentMap fluent) {
+                fluent
+                    .Item("cell_id").Value(GetObjectId(servant.GetCell()))
+                    .Item("state").Value(servant.GetState())
+                    .Item("mount_revision").Value(servant.GetMountRevision())
+                    .Item("mount_time").Value(servant.GetMountTime());
+            };
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("main").DoMap(BIND(onServant, tablet->Servant()))
+                .EndMap();
+            return true;
+        }
 
         default:
             break;

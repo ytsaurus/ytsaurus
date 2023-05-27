@@ -146,6 +146,8 @@ DEFINE_ENUM(EMasterReign,
     ((SupportAccountChunkMergerCriteria)                            (2331))  // danilalexeev
     ((PerUserReadRequestComplexityLimits)                           (2332))  // kvk1920
     ((SimplerChunkExportDataSaveLoad)                               (2333))  // shakurov
+    // 23.2 starts here.
+    ((TabletServants)                                               (2400))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

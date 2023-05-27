@@ -429,6 +429,7 @@
     XX(SchemaMode, schema_mode) \
     XX(ScionId, scion_id) \
     XX(Sealed, sealed) \
+    XX(Servants, servants) \
     XX(Sequoia, sequoia) \
     XX(SharedToSkynet, shared_to_skynet) \
     XX(ReplicatedToCellTags, replicated_to_cell_tags) \

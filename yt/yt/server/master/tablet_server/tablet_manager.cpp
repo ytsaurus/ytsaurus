@@ -1586,7 +1586,7 @@ public:
             TReqUnlockTablet req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_transaction_id(), transaction->GetId());
-            req.set_mount_revision(tablet->GetMountRevision());
+            req.set_mount_revision(tablet->Servant().GetMountRevision());
             req.set_commit_timestamp(static_cast<i64>(
                 transactionManager->GetTimestampHolderTimestamp(transaction->GetId())));
             req.set_update_mode(ToProto<int>(updateMode));
@@ -3461,13 +3461,18 @@ private:
                 }
             }
 
-            tablet->SetCell(cell);
-            YT_VERIFY(cell->Tablets().insert(tablet).second);
+            tablet->Servant().SetCell(cell);
+            InsertOrCrash(cell->Tablets(), tablet);
             objectManager->RefObject(cell);
 
             table->DiscountTabletStatistics(tablet->GetTabletStatistics());
 
-            tablet->SetState(freeze ? ETabletState::FrozenMounting : ETabletState::Mounting);
+            {
+                auto newState = freeze ? ETabletState::FrozenMounting : ETabletState::Mounting;
+                tablet->Servant().SetState(newState);
+                tablet->SetState(newState);
+            }
+
             tablet->SetInMemoryMode(table->GetInMemoryMode());
             resourceUsageDelta.TabletStaticMemory += tablet->GetTabletStaticMemorySize();
 
@@ -3475,10 +3480,10 @@ private:
             table->AccountTabletStatistics(tablet->GetTabletStatistics());
 
             const auto* context = GetCurrentMutationContext();
-            tablet->SetMountRevision(context->GetVersion().ToRevision());
+            tablet->Servant().SetMountRevision(context->GetVersion().ToRevision());
             tablet->SetSettingsRevision(context->GetVersion().ToRevision());
             tablet->SetWasForcefullyUnmounted(false);
-            tablet->SetMountTime(context->GetTimestamp());
+            tablet->Servant().SetMountTime(context->GetTimestamp());
 
             switch (tablet->GetType()) {
                 case EObjectType::Tablet:
@@ -3528,7 +3533,7 @@ private:
             req.set_retained_timestamp(tablet->GetRetainedTimestamp());
             req.set_path(table->GetMountPath());
             ToProto(req.mutable_tablet_id(), tablet->GetId());
-            req.set_mount_revision(tablet->GetMountRevision());
+            req.set_mount_revision(tablet->Servant().GetMountRevision());
             ToProto(req.mutable_table_id(), table->GetId());
 
             ToProto(req.mutable_schema_id(), table->GetSchema()->GetId());
@@ -3701,7 +3706,7 @@ private:
 
         TReqMountHunkTablet request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
-        request.set_mount_revision(tablet->GetMountRevision());
+        request.set_mount_revision(tablet->Servant().GetMountRevision());
 
         FillHunkStorageSettings(&request, serializedSettings);
 
@@ -3738,6 +3743,7 @@ private:
                 tablet->GetId(),
                 cell->GetId());
 
+            tablet->Servant().SetState(ETabletState::Freezing);
             tablet->SetState(ETabletState::Freezing);
 
             TReqFreezeTablet request;
@@ -3766,6 +3772,7 @@ private:
                 tablet->GetId(),
                 cell->GetId());
 
+            tablet->Servant().SetState(ETabletState::Unfreezing);
             tablet->SetState(ETabletState::Unfreezing);
 
             TReqUnfreezeTablet request;
@@ -3839,7 +3846,7 @@ private:
                 TReqUnlockTablet req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 ToProto(req.mutable_transaction_id(), transaction->GetId());
-                req.set_mount_revision(tablet->GetMountRevision());
+                req.set_mount_revision(tablet->Servant().GetMountRevision());
                 // Aborted bulk insert should not conflict with concurrent tablet transactions.
                 req.set_commit_timestamp(static_cast<i64>(MinTimestamp));
 
@@ -3865,13 +3872,12 @@ private:
             if (tablet->GetState() == ETabletState::Unmounted) {
                 continue;
             }
-            if (tablet->GetSettingsRevision() >= table->GetSettingsUpdateRevision()) {
-                continue;
-            }
 
-            int newCount = table->GetRemountNeededTabletCount() - 1;
-            YT_ASSERT(newCount >= 0);
-            table->SetRemountNeededTabletCount(newCount);
+            if (tablet->GetSettingsRevision() < table->GetSettingsUpdateRevision()) {
+                int newCount = table->GetRemountNeededTabletCount() - 1;
+                YT_ASSERT(newCount >= 0);
+                table->SetRemountNeededTabletCount(newCount);
+            }
 
             tablet->SetSettingsRevision(currentRevision);
         }
@@ -4618,17 +4624,20 @@ private:
             auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
             auto mountRevision = tabletInfo.mount_revision();
 
-            auto* tabletBase = FindTablet(tabletId);
-            if (!IsObjectAlive(tabletBase) ||
-                tabletBase->GetState() == ETabletState::Unmounted ||
-                mountRevision != tabletBase->GetMountRevision())
-            {
+            auto* tabletBase = FindTablet(tabletId)->As<TTablet>();
+            if (!IsObjectAlive(tabletBase)) {
+                continue;
+            }
+
+            auto* servant = tabletBase->FindServant(mountRevision);
+            if (!servant || servant->GetState() == ETabletState::Unmounted) {
                 continue;
             }
 
             YT_VERIFY(tabletBase->GetType() == EObjectType::Tablet);
             auto* tablet = tabletBase->As<TTablet>();
-            auto* cell = tablet->GetCell();
+
+            auto* cell = servant->GetCell();
             if (!IsObjectAlive(cell)){
                 continue;
             }
@@ -4884,6 +4893,27 @@ private:
         }
     }
 
+    TTabletServant* GetServantForStateTransition(
+        TTabletBase* tablet,
+        TCellId senderCellId,
+        TStringBuf changeType)
+    {
+        auto* servant = tablet->FindServant(senderCellId);
+        if (!servant) {
+            YT_LOG_ALERT(
+                "%v notification received from unexpected cell, ignored "
+                "(TabletId: %v, State: %v, SenderCellId: %v, TabletCellId: %v)",
+                changeType,
+                tablet->GetId(),
+                tablet->GetState(),
+                senderCellId,
+                GetObjectId(tablet->Servant().GetCell()));
+            return nullptr;
+        }
+
+        return servant;
+    }
+
     void HydraOnTabletMounted(NProto::TRspMountTablet* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
@@ -4904,6 +4934,15 @@ private:
     {
         auto* tablet = FindTablet(tabletId);
         if (!IsObjectAlive(tablet)) {
+            return;
+        }
+
+        auto senderCellId = GetHiveMutationSenderId();
+        auto* servant = GetServantForStateTransition(
+            tablet,
+            senderCellId,
+            "Mounted");
+        if (!servant) {
             return;
         }
 
@@ -4931,11 +4970,15 @@ private:
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %x, CellId: %v, Frozen: %v)",
             table->GetId(),
             tablet->GetId(),
-            tablet->GetMountRevision(),
+            tablet->Servant().GetMountRevision(),
             cell->GetId(),
             frozen);
 
-        tablet->SetState(frozen ? ETabletState::Frozen : ETabletState::Mounted);
+        {
+            auto newState = frozen ? ETabletState::Frozen : ETabletState::Mounted;
+            servant->SetState(newState);
+            tablet->SetState(newState);
+        }
 
         OnTabletActionStateChanged(tablet->GetAction());
         UpdateTabletState(table);
@@ -4951,7 +4994,16 @@ private:
             return;
         }
 
-        if (!ValidateTabletUnmounted(tablet)) {
+        auto senderCellId = GetHiveMutationSenderId();
+        auto* servant = GetServantForStateTransition(
+            tablet,
+            senderCellId,
+            "Unmounted");
+        if (!servant) {
+            return;
+        }
+
+        if (!ValidateTabletServantUnmounted(tablet, servant, senderCellId)) {
             return;
         }
 
@@ -4965,7 +5017,7 @@ private:
             FromProto<std::vector<TStoreId>>(response->mount_hint().eden_store_ids()));
         DiscardDynamicStores(typedTablet);
 
-        DoTabletUnmounted(typedTablet, /*force*/ false);
+        DoTabletServantUnmounted(tablet, servant, /*force*/ false);
 
         OnTabletActionStateChanged(tablet->GetAction());
     }
@@ -4980,12 +5032,12 @@ private:
             return;
         }
 
-        if (!ValidateTabletUnmounted(tablet)) {
+        if (!ValidateTabletServantUnmounted(tablet, &tablet->Servant(), GetHiveMutationSenderId())) {
             return;
         }
 
         auto* hunkTablet = tablet->As<THunkTablet>();
-        DoTabletUnmounted(hunkTablet, /*force*/ false);
+        DoTabletServantUnmounted(hunkTablet, &hunkTablet->Servant(), /*force*/ false);
     }
 
     void HydraOnTabletFrozen(NProto::TRspFreezeTablet* response)
@@ -4994,6 +5046,15 @@ private:
         YT_VERIFY(TypeFromId(tabletId) == EObjectType::Tablet);
         auto* tablet = FindTablet(tabletId)->As<TTablet>();
         if (!IsObjectAlive(tablet)) {
+            return;
+        }
+
+        auto senderCellId = GetHiveMutationSenderId();
+        auto* servant = GetServantForStateTransition(
+            tablet,
+            senderCellId,
+            "Frozen");
+        if (!servant) {
             return;
         }
 
@@ -5021,6 +5082,7 @@ private:
             tablet->GetId(),
             cell->GetId());
 
+        servant->SetState(ETabletState::Frozen);
         tablet->SetState(ETabletState::Frozen);
         OnTabletActionStateChanged(tablet->GetAction());
         UpdateTabletState(table);
@@ -5032,6 +5094,15 @@ private:
         YT_VERIFY(TypeFromId(tabletId) == EObjectType::Tablet);
         auto* tablet = FindTablet(tabletId);
         if (!IsObjectAlive(tablet)) {
+            return;
+        }
+
+        auto senderCellId = GetHiveMutationSenderId();
+        auto* servant = GetServantForStateTransition(
+            tablet,
+            senderCellId,
+            "Unfrozen");
+        if (!servant) {
             return;
         }
 
@@ -5053,6 +5124,7 @@ private:
             tablet->GetId(),
             cell->GetId());
 
+        servant->SetState(ETabletState::Mounted);
         tablet->SetState(ETabletState::Mounted);
         OnTabletActionStateChanged(tablet->GetAction());
         UpdateTabletState(table);
@@ -5076,7 +5148,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != mountRevision) {
+        if (tablet->Servant().GetMountRevision() != mountRevision) {
             return;
         }
 
@@ -5109,7 +5181,7 @@ private:
         }
 
         auto mountRevision = response->mount_revision();
-        if (tablet->GetMountRevision() != mountRevision) {
+        if (tablet->Servant().GetMountRevision() != mountRevision) {
             return;
         }
 
@@ -5145,7 +5217,7 @@ private:
         }
 
         auto mountRevision = response->mount_revision();
-        if (tablet->GetMountRevision() != mountRevision) {
+        if (tablet->Servant().GetMountRevision() != mountRevision) {
             return;
         }
 
@@ -5262,8 +5334,10 @@ private:
 
         TTabletStatistics statisticsDelta;
         statisticsDelta.ChunkCount = -ssize(dynamicStores);
-        tablet->GetCell()->GossipStatistics().Local() += statisticsDelta;
         table->AccountTabletStatisticsDelta(statisticsDelta);
+
+        YT_VERIFY(tablet->Servant());
+        tablet->Servant().GetCell()->GossipStatistics().Local() += statisticsDelta;
     }
 
     void AbandonDynamicStores(TTablet* tablet)
@@ -5276,14 +5350,20 @@ private:
         }
     }
 
-    bool ValidateTabletUnmounted(TTabletBase* tablet)
+    bool ValidateTabletServantUnmounted(
+        const TTabletBase* tablet,
+        const TTabletServant* servant,
+        TTabletCellId senderCellId) const
     {
-        auto state = tablet->GetState();
+        auto state = servant->GetState();
         if (state != ETabletState::Unmounting) {
             if (!tablet->GetWasForcefullyUnmounted()) {
-                YT_LOG_ALERT("Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+                YT_LOG_ALERT(
+                    "Unmounted notification received for a tablet in %Qlv state, ignored "
+                    "(TabletId: %v, SenderCellId: %v)",
                     state,
-                    tablet->GetId());
+                    tablet->GetId(),
+                    senderCellId);
             }
             return false;
         }
@@ -5291,55 +5371,70 @@ private:
         return true;
     }
 
-    void DoTabletUnmountedBase(TTabletBase* tablet, bool force)
+    void DoTabletServantUnmounted(TTabletBase* tablet, TTabletServant* servant, bool force)
     {
         auto* table = tablet->GetOwner();
-        auto* cell = tablet->GetCell();
+        auto* cell = servant->GetCell();
+        YT_VERIFY(cell);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet unmounted (TableId: %v, TabletId: %v, CellId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Tablet unmounted from servant (TableId: %v, TabletId: %v, CellId: %v)",
             table->GetId(),
             tablet->GetId(),
             cell->GetId());
 
+        auto tabletStatistics = tablet->GetTabletStatistics();
+        cell->GossipStatistics().Local() -= tabletStatistics;
+
         CheckIfFullyUnmounted(cell);
+
+        EraseOrCrash(cell->Tablets(), tablet);
+
+        servant->Clear();
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->UnrefObject(cell);
+
+        switch (tablet->GetType()) {
+            case EObjectType::Tablet:
+                DoTabletUnmounted(tablet->As<TTablet>(), force);
+                break;
+
+            case EObjectType::HunkTablet:
+                DoTabletUnmounted(tablet->As<THunkTablet>(), force);
+                break;
+
+            default:
+                YT_ABORT();
+        }
+    }
+
+    void DoTabletUnmountedBase(TTabletBase* tablet, bool force)
+    {
+        auto* table = tablet->GetOwner();
 
         auto resourceUsageDelta = TTabletResources()
             .SetTabletStaticMemory(tablet->GetTabletStaticMemorySize());
+
+        tablet->SetInMemoryMode(EInMemoryMode::None);
+        tablet->SetState(ETabletState::Unmounted);
+        tablet->SetStoresUpdatePreparedTransaction(nullptr);
+        tablet->SetWasForcefullyUnmounted(force);
 
         if (tablet->GetSettingsRevision() < table->GetSettingsUpdateRevision()) {
             int newCount = table->GetRemountNeededTabletCount() - 1;
             YT_ASSERT(newCount >= 0);
             table->SetRemountNeededTabletCount(newCount);
-
         }
-
-        tablet->SetInMemoryMode(EInMemoryMode::None);
-        tablet->SetState(ETabletState::Unmounted);
-        tablet->SetCell(nullptr);
-        tablet->SetStoresUpdatePreparedTransaction(nullptr);
-        tablet->SetMountRevision(NullRevision);
         tablet->SetSettingsRevision(NullRevision);
-        tablet->SetWasForcefullyUnmounted(force);
-        tablet->SetMountTime(TInstant::Zero());
 
         UpdateResourceUsage(table, -resourceUsageDelta);
         UpdateTabletState(table);
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        YT_VERIFY(cell->Tablets().erase(tablet) == 1);
-        objectManager->UnrefObject(cell);
     }
 
     void DoTabletUnmounted(TTablet* tablet, bool force)
     {
-        // NB: Cell may die in DoTabletUnmountedBase.
-        auto cellId = tablet->GetCell()->GetId();
-
         auto tabletStatistics = tablet->GetTabletStatistics();
-        {
-            auto* cell = tablet->GetCell();
-            cell->GossipStatistics().Local() -= tabletStatistics;
-        }
         tablet->GetOwner()->DiscountTabletStatistics(tabletStatistics);
         tablet->NodeStatistics().Clear();
         tablet->PerformanceCounters() = TTabletPerformanceCounters();
@@ -5361,11 +5456,10 @@ private:
                 if (tablet->GetTrimmedRowCount() > chunkListStatistics.LogicalRowCount) {
                     auto message = Format(
                         "Trimmed row count exceeds total row count of the tablet "
-                        "and will be rolled back (TableId: %v, TabletId: %v, CellId: %v, "
+                        "and will be rolled back (TableId: %v, TabletId: %v, "
                         "TrimmedRowCount: %v, LogicalRowCount: %v)",
                         table->GetId(),
                         tablet->GetId(),
-                        cellId,
                         tablet->GetTrimmedRowCount(),
                         chunkListStatistics.LogicalRowCount);
                     if (force) {
@@ -5375,7 +5469,6 @@ private:
                         YT_LOG_ALERT(message);
                     }
                 }
-
             }
         }
 
@@ -5562,7 +5655,8 @@ private:
         NHydra::TRevision mountRevision)
     {
         if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet stores update commit for an improperly prepared tablet; ignored "
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Tablet stores update commit for an improperly prepared tablet; ignored "
                 "(TabletId: %v, ExpectedTransactionId: %v, ActualTransactionId: %v)",
                 tablet->GetId(),
                 transaction->GetId(),
@@ -5572,13 +5666,16 @@ private:
 
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
-        if (tablet->GetMountRevision() != mountRevision) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Invalid mount revision on tablet stores update commit; ignored "
+        auto* servant = tablet->FindServant(mountRevision);
+
+        if (!servant) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Invalid mount revision on tablet stores update commit; ignored "
                 "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %x, ActualMountRevision: %x)",
                 tablet->GetId(),
                 transaction->GetId(),
                 mountRevision,
-                tablet->GetMountRevision());
+                tablet->Servant().GetMountRevision());
             return false;
         }
 
@@ -5625,8 +5722,7 @@ private:
         auto deltaStatistics = newStatistics - oldStatistics;
 
         // Update cell and table statistics.
-        auto* cell = tablet->GetCell();
-        cell->GossipStatistics().Local() += deltaStatistics;
+        tablet->Servant().GetCell()->GossipStatistics().Local() += deltaStatistics;
         table->DiscountTabletStatistics(oldStatistics);
         table->AccountTabletStatistics(newStatistics);
 
@@ -5733,7 +5829,7 @@ private:
         YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != mountRevision) {
+        if (tablet->Servant().GetMountRevision() != mountRevision) {
             return;
         }
 
@@ -5761,7 +5857,7 @@ private:
         YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != mountRevision) {
+        if (tablet->Servant().GetMountRevision() != mountRevision) {
             return;
         }
 
@@ -5771,7 +5867,7 @@ private:
         TRspAllocateDynamicStore rsp;
         ToProto(rsp.mutable_dynamic_store_id(), dynamicStore->GetId());
         ToProto(rsp.mutable_tablet_id(), tabletId);
-        rsp.set_mount_revision(tablet->GetMountRevision());
+        rsp.set_mount_revision(tablet->Servant().GetMountRevision());
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dynamic store allocated (StoreId: %v, TabletId: %v, TableId: %v)",
             dynamicStore->GetId(),
@@ -6282,13 +6378,14 @@ private:
 
         auto* table = tablet->GetOwner();
 
-        auto* cell = tablet->GetCell();
+        auto* cell = tablet->Servant().GetCell();
         YT_VERIFY(cell);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unmounting tablet (TableId: %v, TabletId: %v, CellId: %v, Force: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Unmounting tablet (TableId: %v, TabletId: %v, CellId: %v, Force: %v)",
             table->GetId(),
             tablet->GetId(),
-            cell->GetId(),
+            GetObjectId(tablet->Servant().GetCell()),
             force);
 
         tablet->SetState(ETabletState::Unmounting);
@@ -6303,19 +6400,28 @@ private:
             return;
         }
 
-        // NB: Cell can be destroyed.
-        auto cellId = tablet->GetCell()->GetId();
-
         DoUnmountTabletBase(tablet, force);
 
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-        {
+        YT_VERIFY(tablet->Servant());
+
+        auto unmountServant = [&] (TTabletServant& servant) {
+            auto* cell = servant.GetCell();
+            if (!cell) {
+                return;
+            }
+
+            servant.SetState(ETabletState::Unmounting);
+
+            const auto& hiveManager = Bootstrap_->GetHiveManager();
+
             TReqUnmountTablet request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
             request.set_force(force);
-            auto* mailbox = hiveManager->GetMailbox(cellId);
+            auto* mailbox = hiveManager->GetMailbox(servant.GetCell()->GetId());
             hiveManager->PostMessage(mailbox, request);
-        }
+        };
+
+        unmountServant(tablet->Servant());
 
         for (auto it : GetIteratorsSortedByKey(tablet->Replicas())) {
             auto* replica = it->first;
@@ -6334,7 +6440,9 @@ private:
                 DiscardDynamicStores(tablet);
             }
             TabletChunkManager_->SetTabletEdenStoreIds(tablet, {});
-            DoTabletUnmounted(tablet, /*force*/ true);
+
+            YT_VERIFY(tablet->Servant().GetState() != ETabletState::Unmounted);
+            DoTabletServantUnmounted(tablet, &tablet->Servant(), /*force*/ true);
         }
     }
 
@@ -6349,6 +6457,13 @@ private:
 
         DoUnmountTabletBase(tablet, force);
 
+        auto& servant = tablet->Servant();
+        if (!servant) {
+            return;
+        }
+
+        servant.SetState(ETabletState::Unmounting);
+
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         {
             TReqUnmountHunkTablet request;
@@ -6359,7 +6474,7 @@ private:
         }
 
         if (force) {
-            DoTabletUnmounted(tablet, force);
+            DoTabletServantUnmounted(tablet, &tablet->Servant(), force);
         }
     }
 
