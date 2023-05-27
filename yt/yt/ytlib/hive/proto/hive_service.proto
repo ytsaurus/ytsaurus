@@ -53,15 +53,20 @@ message TRspSyncCells
 
 message TReqPostMessages
 {
-    required NYT.NProto.TGuid src_cell_id = 1;
+    required NYT.NProto.TGuid src_endpoint_id = 1;
+
     required int64 first_message_id = 2;
     repeated TEncapsulatedMessage messages = 3;
+
+    repeated TReqPostMessages avenue_subrequests = 4;
 }
 
 message TRspPostMessages
 {
     optional int64 next_persistent_incoming_message_id = 1;
     required int64 next_transient_incoming_message_id = 2;
+
+    repeated TRspPostMessages avenue_subresponses = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,4 +91,3 @@ message TRspSyncWithOthers
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
-

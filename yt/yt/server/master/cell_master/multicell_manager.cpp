@@ -917,7 +917,7 @@ private:
 
         auto cellId = GetCellId(cellTag);
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
+        TMailbox* mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
 
         YT_VERIFY(CellTagToMasterMailbox_.emplace(cellTag, mailbox).second);
         if (cellTag == GetPrimaryCellTag()) {

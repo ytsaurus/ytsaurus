@@ -525,7 +525,9 @@ public:
         YT_VERIFY(cell->RefObject() == 1);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        hiveManager->CreateMailbox(cellId, cell->GetCellarType() == ECellarType::Chaos);
+        hiveManager->CreateCellMailbox(
+            cellId,
+            /*allowResurrection*/ cell->GetCellarType() == ECellarType::Chaos);
 
         auto cellMapNodeProxy = GetCellMapNode(cellId);
         auto cellNodePath = "/" + ToString(cellId);
@@ -612,8 +614,8 @@ public:
         auto cellId = cell->GetId();
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        if (auto* mailbox = hiveManager->FindMailbox(cellId)) {
-            hiveManager->RemoveMailbox(mailbox);
+        if (auto* mailbox = hiveManager->FindCellMailbox(cellId)) {
+            hiveManager->RemoveCellMailbox(mailbox);
         }
 
         for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {

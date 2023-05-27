@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/rpc/public.h>
 
+#include <yt/yt/core/ytree/public.h>
+
 #include <library/cpp/yt/memory/ref.h>
 
 #include <variant>

@@ -41,61 +41,56 @@ DEFINE_REFCOUNTED_TYPE(TSerializedMessage)
 /*!
  *  \note Thread affinity: single (unless noted otherwise)
  */
-class THiveManager
-    : public TRefCounted
+struct IHiveManager
+    : public virtual TRefCounted
 {
 public:
-    THiveManager(
-        THiveManagerConfigPtr config,
-        NHiveClient::ICellDirectoryPtr cellDirectory,
-        TCellId selfCellId,
-        IInvokerPtr automatonInvoker,
-        NHydra::IHydraManagerPtr hydraManager,
-        NHydra::TCompositeAutomatonPtr automaton,
-        NHydra::IUpstreamSynchronizerPtr upstreamSynchronizer,
-        NRpc::IAuthenticatorPtr authenticator);
-
-    ~THiveManager();
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual NRpc::IServicePtr GetRpcService() = 0;
 
     /*!
      *  \note Thread affinity: any
      */
-    NRpc::IServicePtr GetRpcService();
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
     /*!
      *  \note Thread affinity: any
      */
-    NYTree::IYPathServicePtr GetOrchidService();
+    virtual TCellId GetSelfCellId() const = 0;
 
-    /*!
-     *  \note Thread affinity: any
-     */
-    TCellId GetSelfCellId() const;
+    virtual TCellMailbox* CreateCellMailbox(TCellId cellId, bool allowResurrection = false) = 0;
+    virtual TMailbox* FindMailbox(TEndpointId endpointId) const = 0;
+    virtual TMailbox* GetMailbox(TEndpointId endpointId) const = 0;
+    virtual TCellMailbox* GetOrCreateCellMailbox(TCellId cellId) = 0;
+    virtual TMailbox* GetMailboxOrThrow(TEndpointId endpointId) const = 0;
 
-    TMailbox* CreateMailbox(TCellId cellId, bool allowResurrection = false);
-    TMailbox* FindMailbox(TCellId cellId);
-    TMailbox* GetOrCreateMailbox(TCellId cellId);
-    TMailbox* GetMailboxOrThrow(TCellId cellId);
+    virtual void RemoveCellMailbox(TCellMailbox* mailbox) = 0;
 
-    void RemoveMailbox(TMailbox* mailbox);
+    virtual void RegisterAvenueEndpoint(
+        TAvenueEndpointId selfEndpointId,
+        TPersistentMailboxState&& cookie) = 0;
+
+    virtual TPersistentMailboxState UnregisterAvenueEndpoint(TAvenueEndpointId selfEndpointId) = 0;
 
     //! Posts a message for delivery (either reliable or not).
-    void PostMessage(
+    virtual void PostMessage(
         TMailbox* mailbox,
         const TSerializedMessagePtr& message,
-        bool reliable = true);
-    void PostMessage(
+        bool reliable = true) = 0;
+    virtual void PostMessage(
         const TMailboxList& mailboxes,
         const TSerializedMessagePtr& message,
-        bool reliable = true);
-    void PostMessage(
+        bool reliable = true) = 0;
+    virtual void PostMessage(
         TMailbox* mailbox,
         const ::google::protobuf::MessageLite& message,
-        bool reliable = true);
-    void PostMessage(
+        bool reliable = true) = 0;
+    virtual void PostMessage(
         const TMailboxList& mailboxes,
         const ::google::protobuf::MessageLite& message,
-        bool reliable = true);
+        bool reliable = true) = 0;
 
     //! When called at instant T, returns a future which gets set
     //! when all mutations enqueued at the remote side (represented by #mailbox)
@@ -104,16 +99,26 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    TFuture<void> SyncWith(TCellId cellId, bool enableBatching);
+    virtual TFuture<void> SyncWith(TCellId cellId, bool enableBatching) = 0;
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(CellMailbox, TCellMailbox);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(AvenueMailbox, TAvenueMailbox);
 };
 
-DEFINE_REFCOUNTED_TYPE(THiveManager)
+DEFINE_REFCOUNTED_TYPE(IHiveManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IHiveManagerPtr CreateHiveManager(
+    THiveManagerConfigPtr config,
+    NHiveClient::ICellDirectoryPtr cellDirectory,
+    IAvenueDirectoryPtr avenueDirectory,
+    TCellId selfCellId,
+    IInvokerPtr automatonInvoker,
+    NHydra::IHydraManagerPtr hydraManager,
+    NHydra::TCompositeAutomatonPtr automaton,
+    NHydra::IUpstreamSynchronizerPtr upstreamSynchronizer,
+    NRpc::IAuthenticatorPtr authenticator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

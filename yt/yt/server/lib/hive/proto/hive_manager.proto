@@ -4,6 +4,21 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TPersistentMailboxState
+{
+    message TSerializedMessage
+    {
+        required bytes type = 1;
+        required bytes data = 2;
+    }
+
+    required int64 first_outcoming_message_id = 1;
+    required int64 next_persistent_incoming_message_id = 2;
+    repeated TSerializedMessage outcoming_messages = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqAcknowledgeMessages
 {
     required NYT.NProto.TGuid cell_id = 1;

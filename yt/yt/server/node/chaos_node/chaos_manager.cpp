@@ -730,7 +730,7 @@ private:
             NChaosNode::NProto::TReqRemoveReplicationCard req;
             ToProto(req.mutable_replication_card_id(), replicationCard->GetId());
 
-            auto* mailbox = hiveManager->GetMailbox(replicationCard->Migration().OriginCellId);
+            auto* mailbox = hiveManager->GetCellMailbox(replicationCard->Migration().OriginCellId);
             hiveManager->PostMessage(mailbox, req);
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removing migrated replication card at origin cell (ReplicationCardId: %v, OriginCellId: %v)",
@@ -1223,7 +1223,7 @@ private:
             }
 
             coordinator->State = EShortcutState::Revoking;
-            auto* mailbox = hiveManager->GetMailbox(cellId);
+            auto* mailbox = hiveManager->GetCellMailbox(cellId);
             hiveManager->PostMessage(mailbox, req);
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Revoking shortcut (ReplicationCardId: %v, Era: %v CoordinatorCellId: %v)",
@@ -1275,7 +1275,7 @@ private:
             }
 
             replicationCard->Coordinators().insert(std::make_pair(cellId, TCoordinatorInfo{EShortcutState::Granting}));
-            auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
+            auto* mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
             hiveManager->PostMessage(mailbox, req);
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Granting shortcut to coordinator (ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v",
@@ -1502,7 +1502,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto* mailbox = hiveManager->GetOrCreateMailbox(immigratedToCellId);
+        auto* mailbox = hiveManager->GetOrCreateCellMailbox(immigratedToCellId);
         hiveManager->PostMessage(mailbox, req);
 
         replicationCard->SetState(EReplicationCardState::Migrated);
@@ -1843,7 +1843,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(coordinatorCellId);
+        auto* mailbox = hiveManager->GetCellMailbox(coordinatorCellId);
         hiveManager->PostMessage(mailbox, req);
     }
 
@@ -1881,7 +1881,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(coordinatorCellId);
+        auto* mailbox = hiveManager->GetCellMailbox(coordinatorCellId);
         hiveManager->PostMessage(mailbox, req);
     }
 

@@ -143,7 +143,7 @@ public:
     const NTabletServer::IBackupManagerPtr& GetBackupManager() const;
     const NChaosServer::IChaosManagerPtr& GetChaosManager() const;
     const NSequoiaServer::ISequoiaManagerPtr& GetSequoiaManager() const;
-    const NHiveServer::THiveManagerPtr& GetHiveManager() const;
+    const NHiveServer::IHiveManagerPtr& GetHiveManager() const;
     const NHiveClient::ICellDirectoryPtr& GetCellDirectory() const;
     const IInvokerPtr& GetControlInvoker() const;
     const IInvokerPtr& GetSnapshotIOInvoker() const;
@@ -237,7 +237,7 @@ protected:
     NTabletServer::IReplicatedTableTrackerPtr NewReplicatedTableTracker_;
     NChaosServer::IChaosManagerPtr ChaosManager_;
     NSequoiaServer::ISequoiaManagerPtr SequoiaManager_;
-    NHiveServer::THiveManagerPtr HiveManager_;
+    NHiveServer::IHiveManagerPtr HiveManager_;
     NHiveClient::ICellDirectoryPtr CellDirectory_;
     NHiveServer::ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NConcurrency::TActionQueuePtr ControlQueue_;

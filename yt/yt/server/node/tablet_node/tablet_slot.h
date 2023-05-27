@@ -63,7 +63,7 @@ struct ITabletSlot
     virtual IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
     virtual IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
 
-    virtual const NHiveServer::THiveManagerPtr& GetHiveManager() = 0;
+    virtual const NHiveServer::IHiveManagerPtr& GetHiveManager() = 0;
     virtual NHiveServer::TMailbox* GetMasterMailbox() = 0;
 
     virtual void CommitTabletMutation(const ::google::protobuf::MessageLite& message) = 0;

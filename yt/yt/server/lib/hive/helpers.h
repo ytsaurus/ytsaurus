@@ -11,4 +11,9 @@ TSerializedMessagePtr SerializeOutcomingMessage(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsAvenueEndpointType(NObjectClient::EObjectType type);
+TAvenueEndpointId GetSiblingAvenueEndpointId(TAvenueEndpointId endpointId);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NHiveServer

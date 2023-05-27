@@ -58,7 +58,7 @@ struct IChaosSlot
     virtual IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const = 0;
     virtual IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const = 0;
 
-    virtual const NHiveServer::THiveManagerPtr& GetHiveManager() const = 0;
+    virtual const NHiveServer::IHiveManagerPtr& GetHiveManager() const = 0;
     virtual NHiveServer::TMailbox* GetMasterMailbox() = 0;
 
     virtual const IChaosManagerPtr& GetChaosManager() const = 0;

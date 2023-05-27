@@ -224,7 +224,7 @@ public:
         return Occupant_->GetAutomaton();
     }
 
-    const THiveManagerPtr& GetHiveManager() override
+    const IHiveManagerPtr& GetHiveManager() override
     {
         return Occupant_->GetHiveManager();
     }
@@ -247,7 +247,7 @@ public:
         YT_VERIFY(HasMutationContext());
 
         const auto& hiveManager = GetHiveManager();
-        auto* mailbox = hiveManager->GetOrCreateMailbox(Bootstrap_->GetCellId(CellTagFromId(tabletId)));
+        TMailbox* mailbox = hiveManager->GetOrCreateCellMailbox(Bootstrap_->GetCellId(CellTagFromId(tabletId)));
         if (!mailbox) {
             mailbox = GetMasterMailbox();
         }

@@ -215,7 +215,7 @@ public:
         return Automaton_;
     }
 
-    const THiveManagerPtr& GetHiveManager() const override
+    const IHiveManagerPtr& GetHiveManager() const override
     {
         return HiveManager_;
     }
@@ -234,7 +234,7 @@ public:
     {
         // Create master mailbox lazily.
         auto masterCellId = Bootstrap_->GetCellId();
-        return HiveManager_->GetOrCreateMailbox(masterCellId);
+        return HiveManager_->GetOrCreateCellMailbox(masterCellId);
     }
 
     TObjectId GenerateId(EObjectType type) const override
@@ -453,9 +453,10 @@ public:
 
             ElectionManagerThunk_->SetUnderlying(ElectionManager_);
 
-            HiveManager_ = New<THiveManager>(
+            HiveManager_ = CreateHiveManager(
                 Config_->HiveManager,
                 connection->GetCellDirectory(),
+                /*avenueDirectory*/ nullptr,
                 GetCellId(),
                 occupier->GetOccupierAutomatonInvoker(),
                 hydraManager,
@@ -651,7 +652,7 @@ private:
 
     IResponseKeeperPtr ResponseKeeper_;
 
-    THiveManagerPtr HiveManager_;
+    IHiveManagerPtr HiveManager_;
 
     ITimestampProviderPtr TimestampProvider_;
 

@@ -511,7 +511,7 @@ const ISequoiaManagerPtr& TBootstrap::GetSequoiaManager() const
     return SequoiaManager_;
 }
 
-const THiveManagerPtr& TBootstrap::GetHiveManager() const
+const IHiveManagerPtr& TBootstrap::GetHiveManager() const
 {
     return HiveManager_;
 }
@@ -831,9 +831,10 @@ void TBootstrap::DoInitialize()
 
     IncumbentManager_ = CreateIncumbentManager(this);
 
-    HiveManager_ = New<THiveManager>(
+    HiveManager_ = CreateHiveManager(
         Config_->HiveManager,
         CellDirectory_,
+        /*avenueDirectory*/ nullptr,
         CellId_,
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::HiveManager),
         HydraFacade_->GetHydraManager(),

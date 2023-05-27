@@ -245,7 +245,7 @@ private:
             ToProto(req.mutable_coordinator_cell_id(), Slot_->GetCellId());
 
             const auto& hiveManager = Slot_->GetHiveManager();
-            if (auto* mailbox = hiveManager->FindMailbox(cellId)) {
+            if (auto* mailbox = hiveManager->FindCellMailbox(cellId)) {
                 hiveManager->PostMessage(mailbox, req);
             }
         }
@@ -268,7 +268,7 @@ private:
             ToProto(req.mutable_coordinator_cell_id(), Slot_->GetCellId());
 
             const auto& hiveManager = Slot_->GetHiveManager();
-            if (auto* mailbox = hiveManager->FindMailbox(cellId)) {
+            if (auto* mailbox = hiveManager->FindCellMailbox(cellId)) {
                 hiveManager->PostMessage(mailbox, req);
             }
         }
@@ -312,7 +312,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(chaosCellId);
+        auto* mailbox = hiveManager->GetCellMailbox(chaosCellId);
         hiveManager->PostMessage(mailbox, rsp);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Shortcuts granted (Shortcuts: %v)",
@@ -480,7 +480,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(chaosCellId);
+        auto* mailbox = hiveManager->GetCellMailbox(chaosCellId);
         hiveManager->PostMessage(mailbox, rsp);
     }
 

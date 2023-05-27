@@ -1,7 +1,9 @@
 #include "hive_manager.h"
+
+#include "avenue_directory.h"
 #include "config.h"
-#include "mailbox.h"
 #include "helpers.h"
+#include "mailbox.h"
 #include "private.h"
 
 #include <yt/yt/server/lib/election/election_manager.h>
@@ -18,6 +20,8 @@
 #include <yt/yt/ytlib/hydra/config.h>
 #include <yt/yt/ytlib/hydra/peer_channel.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/fls.h>
 #include <yt/yt/core/concurrency/async_batcher.h>
@@ -33,6 +37,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <library/cpp/iterator/enumerate.h>
+
 namespace NYT::NHiveServer {
 
 using namespace NNet;
@@ -46,6 +52,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NTracing;
 using namespace NProfiling;
+using namespace NObjectClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -88,14 +95,16 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THiveManager::TImpl
-    : public THydraServiceBase
+class THiveManager
+    : public IHiveManager
+    , public THydraServiceBase
     , public TCompositeAutomatonPart
 {
 public:
-    TImpl(
+    THiveManager(
         THiveManagerConfigPtr config,
         ICellDirectoryPtr cellDirectory,
+        IAvenueDirectoryPtr avenueDirectory,
         TCellId selfCellId,
         IInvokerPtr automatonInvoker,
         IHydraManagerPtr hydraManager,
@@ -117,6 +126,7 @@ public:
         , SelfCellId_(selfCellId)
         , Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
+        , AvenueDirectory_(std::move(avenueDirectory))
         , AutomatonInvoker_(std::move(automatonInvoker))
         , GuardedAutomatonInvoker_(hydraManager->CreateGuardedAutomatonInvoker(AutomatonInvoker_))
         , HydraManager_(std::move(hydraManager))
@@ -136,53 +146,59 @@ public:
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithOthers)
             .SetHeavy(true));
 
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAcknowledgeMessages, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPostMessages, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraSendMessages, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterMailbox, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraUnregisterMailbox, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&THiveManager::HydraAcknowledgeMessages, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&THiveManager::HydraPostMessages, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&THiveManager::HydraSendMessages, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&THiveManager::HydraRegisterMailbox, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&THiveManager::HydraUnregisterMailbox, Unretained(this)));
 
         RegisterLoader(
             "HiveManager.Keys",
-            BIND(&TImpl::LoadKeys, Unretained(this)));
+            BIND(&THiveManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "HiveManager.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
+            BIND(&THiveManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "HiveManager.Keys",
-            BIND(&TImpl::SaveKeys, Unretained(this)));
+            BIND(&THiveManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "HiveManager.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND(&THiveManager::SaveValues, Unretained(this)));
 
         OrchidService_ = CreateOrchidService();
+
+        if (AvenueDirectory_) {
+            AvenueDirectory_->SubscribeEndpointUpdated(
+                BIND(&THiveManager::OnAvenueDirectoryEndpointUpdated, MakeWeak(this))
+                    .Via(AutomatonInvoker_));
+        }
     }
 
-    IServicePtr GetRpcService()
+    IServicePtr GetRpcService() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return this;
     }
 
-    IYPathServicePtr GetOrchidService()
+    IYPathServicePtr GetOrchidService() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return OrchidService_;
     }
 
-    TCellId GetSelfCellId() const
+    TCellId GetSelfCellId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return SelfCellId_;
     }
 
-    TMailbox* CreateMailbox(TCellId cellId, bool allowResurrection = false)
+    TCellMailbox* CreateCellMailbox(TCellId cellId, bool allowResurrection = false) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -192,8 +208,8 @@ public:
                 cellId);
         }
 
-        auto mailboxHolder = std::make_unique<TMailbox>(cellId);
-        auto* mailbox = MailboxMap_.Insert(cellId, std::move(mailboxHolder));
+        auto mailboxHolder = std::make_unique<TCellMailbox>(cellId);
+        auto* mailbox = CellMailboxMap_.Insert(cellId, std::move(mailboxHolder));
 
         {
             auto guard = WriterGuard(MailboxRuntimeDataMapLock_);
@@ -210,11 +226,22 @@ public:
         return mailbox;
     }
 
-    TMailbox* FindMailbox(TCellId cellId)
+    TMailbox* FindMailbox(TEndpointId endpointId) const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return MailboxMap_.Find(cellId);
+        if (IsAvenueEndpointType(TypeFromId(endpointId))) {
+            return AvenueMailboxMap_.Find(endpointId);
+        } else {
+            return CellMailboxMap_.Find(endpointId);
+        }
+    }
+
+    TMailbox* GetMailbox(TEndpointId endpointId) const override
+    {
+        auto* mailbox = FindMailbox(endpointId);
+        YT_VERIFY(mailbox);
+        return mailbox;
     }
 
     TMailboxRuntimeDataPtr FindMailboxRuntimeData(TCellId cellId)
@@ -228,40 +255,46 @@ public:
             : it->second;
     }
 
-    TMailbox* GetOrCreateMailbox(TCellId cellId)
+    TCellMailbox* GetOrCreateCellMailbox(TCellId cellId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* mailbox = MailboxMap_.Find(cellId);
+        auto* mailbox = CellMailboxMap_.Find(cellId);
         if (!mailbox) {
-            mailbox = CreateMailbox(cellId);
+            mailbox = CreateCellMailbox(cellId);
         }
         return mailbox;
     }
 
-    TMailbox* GetMailboxOrThrow(TCellId cellId)
+    TMailbox* GetMailboxOrThrow(TEndpointId endpointId) const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* mailbox = FindMailbox(cellId);
+        auto* mailbox = FindMailbox(endpointId);
         if (!mailbox) {
             THROW_ERROR_EXCEPTION("No such mailbox %v",
-                cellId);
+                endpointId);
         }
         return mailbox;
     }
 
-    void RemoveMailbox(TMailbox* mailbox)
+    void RemoveCellMailbox(TCellMailbox* mailbox) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = mailbox->GetCellId();
 
-        MailboxMap_.Remove(cellId);
+        CellMailboxMap_.Remove(cellId);
+
+        // Following updates will change the map so we make a copy.
+        auto registeredAvenues = mailbox->RegisteredAvenues();
+        for (auto [id, avenueMailbox] : registeredAvenues) {
+            UpdateAvenueCellConnection(avenueMailbox, /*cellMailbox*/ nullptr);
+        }
 
         {
             auto guard = WriterGuard(MailboxRuntimeDataMapLock_);
-            YT_VERIFY(MailboxRuntimeDataMap_.erase(cellId) == 1);
+            EraseOrCrash(MailboxRuntimeDataMap_, cellId);
         }
 
         if (!RemovedCellIds_.insert(cellId).second) {
@@ -275,14 +308,101 @@ public:
             cellId);
     }
 
-    void PostMessage(TMailbox* mailbox, const TSerializedMessagePtr& message, bool reliable)
+    void RegisterAvenueEndpoint(
+        TAvenueEndpointId selfEndpointId,
+        TPersistentMailboxState&& cookie) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        auto otherEndpointId = GetSiblingAvenueEndpointId(selfEndpointId);
+
+        if (AvenueMailboxMap_.Find(otherEndpointId)) {
+            YT_LOG_ALERT("Attempted to register already existing avenue endpoint, ignored "
+                "(SelfCellId: %v, SelfEnpointId: %v)",
+                SelfCellId_,
+                selfEndpointId);
+            return;
+        }
+
+        auto holder = std::make_unique<TAvenueMailbox>(otherEndpointId);
+        auto* mailbox = AvenueMailboxMap_.Insert(otherEndpointId, std::move(holder));
+
+        *static_cast<TPersistentMailboxState*>(mailbox) = std::move(cookie);
+
+        {
+            auto guard = WriterGuard(MailboxRuntimeDataMapLock_);
+            EmplaceOrCrash(MailboxRuntimeDataMap_, otherEndpointId, mailbox->GetRuntimeData());
+        }
+
+        mailbox->UpdateLastOutcomingMessageId();
+        mailbox->SetNextTransientIncomingMessageId(mailbox->GetNextPersistentIncomingMessageId());
+
+        UpdateAvenueCellConnection(
+            mailbox,
+            AvenueDirectory_->FindCellIdByEndpointId(mailbox->GetEndpointId()));
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Avenue mailbox registered "
+            "(SelfCellId: %v, SelfEndpointId: %v, OtherEndpointId: %v, "
+            "FirstOutcomingMessageId: %v, OutcomingMessageCount: %v, "
+            "NextPersistentIncomingMessageId: %v)",
+            SelfCellId_,
+            selfEndpointId,
+            otherEndpointId,
+            mailbox->GetFirstOutcomingMessageId(),
+            mailbox->OutcomingMessages().size(),
+            mailbox->GetNextPersistentIncomingMessageId());
+    }
+
+    TPersistentMailboxState UnregisterAvenueEndpoint(TAvenueEndpointId selfEndpointId) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        auto otherEndpointId = GetSiblingAvenueEndpointId(selfEndpointId);
+
+        auto* mailbox = AvenueMailboxMap_.Find(otherEndpointId);
+        if (!mailbox) {
+            YT_LOG_ALERT("Attempted to remove a non-existing avenue endpoint, ignored "
+                "(SelfCellId: %v, SelfEnpointId: %v)",
+                SelfCellId_,
+                selfEndpointId);
+            return {};
+        }
+
+        {
+            auto guard = WriterGuard(MailboxRuntimeDataMapLock_);
+            EraseOrCrash(MailboxRuntimeDataMap_, otherEndpointId);
+        }
+
+        UpdateAvenueCellConnection(mailbox, /*cellMailbox*/ nullptr);
+
+        auto cookie = std::move(*static_cast<TPersistentMailboxState*>(mailbox));
+
+        AvenueMailboxMap_.Remove(otherEndpointId);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Avenue mailbox unregistered "
+            "(SelfCellId: %v, SelfEndpointId: %v, OtherEndpointId: %v, "
+            "FirstOutcomingMessageId: %v, OutcomingMessageCount: %v, "
+            "NextPersistentIncomingMessageId: %v)",
+            SelfCellId_,
+            selfEndpointId,
+            otherEndpointId,
+            cookie.GetFirstOutcomingMessageId(),
+            cookie.OutcomingMessages().size(),
+            cookie.GetNextPersistentIncomingMessageId());
+
+        return cookie;
+    }
+
+    void PostMessage(TMailbox* mailbox, const TSerializedMessagePtr& message, bool reliable) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         PostMessage(TMailboxList{mailbox}, message, reliable);
     }
 
-    void PostMessage(const TMailboxList& mailboxes, const TSerializedMessagePtr& message, bool reliable)
+    void PostMessage(const TMailboxList& mailboxes, const TSerializedMessagePtr& message, bool reliable) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -293,21 +413,21 @@ public:
         }
     }
 
-    void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message, bool reliable)
+    void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message, bool reliable) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         PostMessage(mailbox, SerializeOutcomingMessage(message), reliable);
     }
 
-    void PostMessage(const TMailboxList& mailboxes, const ::google::protobuf::MessageLite& message, bool reliable)
+    void PostMessage(const TMailboxList& mailboxes, const ::google::protobuf::MessageLite& message, bool reliable) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         PostMessage(mailboxes, SerializeOutcomingMessage(message), reliable);
     }
 
-    TFuture<void> SyncWith(TCellId cellId, bool enableBatching)
+    TFuture<void> SyncWith(TCellId cellId, bool enableBatching) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -327,20 +447,22 @@ public:
         }
     }
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(CellMailbox, TCellMailbox);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(AvenueMailbox, TAvenueMailbox);
 
 private:
     const TCellId SelfCellId_;
     const THiveManagerConfigPtr Config_;
     const ICellDirectoryPtr CellDirectory_;
+    const IAvenueDirectoryPtr AvenueDirectory_;
     const IInvokerPtr AutomatonInvoker_;
     const IInvokerPtr GuardedAutomatonInvoker_;
     const IHydraManagerPtr HydraManager_;
 
     IYPathServicePtr OrchidService_;
 
-    TEntityMap<TMailbox> MailboxMap_;
-    THashMap<TCellId, TMessageId> CellIdToNextTransientIncomingMessageId_;
+    TEntityMap<TCellMailbox> CellMailboxMap_;
+    TEntityMap<TAvenueMailbox> AvenueMailboxMap_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MailboxRuntimeDataMapLock_);
     THashMap<TCellId, TMailboxRuntimeDataPtr> MailboxRuntimeDataMap_;
@@ -419,11 +541,49 @@ private:
         context->Reply();
     }
 
+    bool DoPostMessages(
+        const NHiveClient::NProto::TReqPostMessages* request,
+        NHiveClient::NProto::TRspPostMessages* response)
+    {
+        auto srcEndpointId = FromProto<TCellId>(request->src_endpoint_id());
+        auto firstMessageId = request->first_message_id();
+        int messageCount = request->messages_size();
+
+        auto* mailbox = FindMailbox(srcEndpointId);
+        if (!mailbox) {
+            YT_LOG_DEBUG("Received a message to a non-registered avenue mailbox "
+                "(SrcEndpointId: %v, DstEndpointId: %v)",
+                srcEndpointId,
+                GetSiblingAvenueEndpointId(srcEndpointId));
+            response->set_next_transient_incoming_message_id(-1);
+            return false;
+        }
+
+        auto nextTransientIncomingMessageId = mailbox->GetNextTransientIncomingMessageId();
+        YT_VERIFY(nextTransientIncomingMessageId >= 0);
+
+        bool shouldCommit = nextTransientIncomingMessageId == firstMessageId && messageCount > 0;
+        if (shouldCommit) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing reliable incoming messages (%v, "
+                "MessageIds: %v-%v)",
+                FormatIncomingMailboxEndpoints(mailbox),
+                firstMessageId,
+                firstMessageId + messageCount - 1);
+
+            mailbox->SetNextTransientIncomingMessageId(nextTransientIncomingMessageId + messageCount);
+        }
+
+        response->set_next_transient_incoming_message_id(nextTransientIncomingMessageId);
+        response->set_next_persistent_incoming_message_id(mailbox->GetNextPersistentIncomingMessageId());
+
+        return shouldCommit;
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, PostMessages)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto srcCellId = FromProto<TCellId>(request->src_cell_id());
+        auto srcCellId = FromProto<TCellId>(request->src_endpoint_id());
         auto firstMessageId = request->first_message_id();
         int messageCount = request->messages_size();
 
@@ -450,25 +610,26 @@ private:
                 srcCellId);
         }
 
-        auto nextTransientIncomingMessageId = mailbox->GetNextTransientIncomingMessageId();
-        YT_VERIFY(nextTransientIncomingMessageId >= 0);
-        if (nextTransientIncomingMessageId == firstMessageId && messageCount > 0) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing reliable incoming messages (SrcCellId: %v, DstCellId: %v, "
-                "MessageIds: %v-%v)",
-                srcCellId,
-                SelfCellId_,
-                firstMessageId,
-                firstMessageId + messageCount - 1);
+        bool shouldCommit = DoPostMessages(request, response);
+        if (!shouldCommit) {
+            request->clear_messages();
+        }
 
-            mailbox->SetNextTransientIncomingMessageId(nextTransientIncomingMessageId + messageCount);
+        for (auto& subrequest : *request->mutable_avenue_subrequests()) {
+            if (DoPostMessages(&subrequest, response->add_avenue_subresponses())) {
+                shouldCommit = true;
+            } else {
+                subrequest.clear_messages();
+            }
+        }
+
+        if (shouldCommit) {
             YT_UNUSED_FUTURE(CreatePostMessagesMutation(*request)
                 ->CommitAndLog(Logger));
         }
-        response->set_next_transient_incoming_message_id(nextTransientIncomingMessageId);
 
+        auto nextTransientIncomingMessageId = mailbox->GetNextTransientIncomingMessageId();
         auto nextPersistentIncomingMessageId = mailbox->GetNextPersistentIncomingMessageId();
-        response->set_next_persistent_incoming_message_id(nextPersistentIncomingMessageId);
-
         context->SetResponseInfo("NextPersistentIncomingMessageId: %v, NextTransientIncomingMessageId: %v",
             nextPersistentIncomingMessageId,
             nextTransientIncomingMessageId);
@@ -537,10 +698,9 @@ private:
         auto nextPersistentIncomingMessageId = request->next_persistent_incoming_message_id();
         auto acknowledgeCount = nextPersistentIncomingMessageId - mailbox->GetFirstOutcomingMessageId();
         if (acknowledgeCount <= 0) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "No messages acknowledged (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "No messages acknowledged (%v, "
                 "NextPersistentIncomingMessageId: %v, FirstOutcomingMessageId: %v)",
-                SelfCellId_,
-                mailbox->GetCellId(),
+                FormatOutgoingMailboxEndpoints(mailbox),
                 nextPersistentIncomingMessageId,
                 mailbox->GetFirstOutcomingMessageId());
             return;
@@ -548,10 +708,9 @@ private:
 
         auto& outcomingMessages = mailbox->OutcomingMessages();
         if (acknowledgeCount > std::ssize(outcomingMessages)) {
-            YT_LOG_ALERT("Requested to acknowledge too many messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ALERT("Requested to acknowledge too many messages (%v, "
                 "NextPersistentIncomingMessageId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v)",
-                SelfCellId_,
-                mailbox->GetCellId(),
+                FormatOutgoingMailboxEndpoints(mailbox),
                 nextPersistentIncomingMessageId,
                 mailbox->GetFirstOutcomingMessageId(),
                 outcomingMessages.size());
@@ -562,18 +721,32 @@ private:
         mailbox->SetFirstOutcomingMessageId(mailbox->GetFirstOutcomingMessageId() + acknowledgeCount);
         mailbox->UpdateLastOutcomingMessageId();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Messages acknowledged (SrcCellId: %v, DstCellId: %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Messages acknowledged (%v, "
             "FirstOutcomingMessageId: %v)",
-            SelfCellId_,
-            mailbox->GetCellId(),
+            FormatOutgoingMailboxEndpoints(mailbox),
             mailbox->GetFirstOutcomingMessageId());
+
+        if (mailbox->IsAvenue()) {
+            auto* avenueMailbox = mailbox->AsAvenue();
+            auto* cellMailbox = avenueMailbox->GetCellMailbox();
+
+            if (!avenueMailbox->IsActive() && cellMailbox) {
+                if (auto* cellMailbox = avenueMailbox->GetCellMailbox()) {
+                    cellMailbox->ActiveAvenues().erase(avenueMailbox->GetEndpointId());
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                        "Avenue became inactive at cell (AvenueEndpointId: %v, CellId: %v)",
+                        avenueMailbox->GetEndpointId(),
+                        cellMailbox->GetCellId());
+                }
+            }
+        }
     }
 
     void HydraPostMessages(NHiveClient::NProto::TReqPostMessages* request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto srcCellId = FromProto<TCellId>(request->src_cell_id());
+        auto srcCellId = FromProto<TCellId>(request->src_endpoint_id());
 
         ValidateCellNotRemoved(srcCellId);
 
@@ -586,10 +759,23 @@ private:
                     firstMessageId);
                 return;
             }
-            mailbox = CreateMailbox(srcCellId);
+            mailbox = CreateCellMailbox(srcCellId);
         }
 
         ApplyReliableIncomingMessages(mailbox, request);
+
+        for (const auto& subrequest : request->avenue_subrequests()) {
+            auto srcId = FromProto<TAvenueEndpointId>(subrequest.src_endpoint_id());
+            auto* mailbox = FindMailbox(srcId);
+            if (!mailbox) {
+                YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
+                    "Received a message to a missing avenue mailbox (SrcId: %v, MessageId: %v)",
+                    srcId,
+                    firstMessageId);
+                continue;
+            }
+            ApplyReliableIncomingMessages(mailbox, &subrequest);
+        }
     }
 
     void HydraSendMessages(
@@ -600,7 +786,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
-        auto* mailbox = GetMailboxOrThrow(srcCellId);
+        auto* mailbox = GetMailboxOrThrow(srcCellId)->AsCell();
         ApplyUnreliableIncomingMessages(mailbox, request);
     }
 
@@ -616,7 +802,7 @@ private:
             return;
         }
 
-        GetOrCreateMailbox(cellId);
+        GetOrCreateCellMailbox(cellId);
     }
 
     void HydraUnregisterMailbox(NHiveServer::NProto::TReqUnregisterMailbox* request)
@@ -624,13 +810,13 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = FromProto<TCellId>(request->cell_id());
-        if (auto* mailbox = FindMailbox(cellId)) {
-            RemoveMailbox(mailbox);
+        if (auto* mailbox = FindCellMailbox(cellId)) {
+            RemoveCellMailbox(mailbox);
         }
     }
 
 
-    NRpc::IChannelPtr FindMailboxChannel(TMailbox* mailbox)
+    NRpc::IChannelPtr FindMailboxChannel(TCellMailbox* mailbox)
     {
         auto now = GetCpuInstant();
         auto cachedChannel = mailbox->GetCachedChannel();
@@ -655,7 +841,7 @@ private:
         YT_VERIFY(HasHydraContext());
 
         TStringBuilder logMessageBuilder;
-        logMessageBuilder.AppendFormat("Reliable outcoming message added (MutationType: %v, SrcCellId: %v, DstCellIds: {",
+        logMessageBuilder.AppendFormat("Reliable outcoming message added (MutationType: %v, SrcCellId: %v, DstIds: {",
             message->Type,
             SelfCellId_);
 
@@ -673,7 +859,7 @@ private:
                 mailbox->OutcomingMessages().size();
 
             if (mutationContext) {
-                mutationContext->CombineStateHash(messageId, mailbox->GetCellId());
+                mutationContext->CombineStateHash(messageId, mailbox->GetEndpointId());
             }
 
             mailbox->OutcomingMessages().push_back({
@@ -686,8 +872,22 @@ private:
                 logMessageBuilder.AppendString(TStringBuf(", "));
             }
             logMessageBuilder.AppendFormat("%v=>%v",
-                mailbox->GetCellId(),
+                mailbox->GetEndpointId(),
                 messageId);
+
+            if (mailbox->IsAvenue()) {
+                if (auto* cellMailbox = mailbox->AsAvenue()->GetCellMailbox()) {
+                    if (cellMailbox->ActiveAvenues().emplace(
+                        mailbox->GetEndpointId(),
+                        mailbox->AsAvenue()).second)
+                    {
+                        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                            "Avenue became active at cell (AvenueEndpointId: %v, CellId: %v)",
+                            mailbox->GetEndpointId(),
+                            cellMailbox->GetCellId());
+                    }
+                }
+            }
 
             SchedulePostOutcomingMessages(mailbox);
         }
@@ -710,7 +910,13 @@ private:
 
         auto* traceContext = NTracing::TryGetCurrentTraceContext();
 
-        for (auto* mailbox : mailboxes) {
+        for (auto* mailboxBase : mailboxes) {
+            if (!mailboxBase->IsCell()) {
+                THROW_ERROR_EXCEPTION("Cannot post unreliable messages to a non-cell mailbox %v",
+                    mailboxBase->GetEndpointId());
+            }
+            auto* mailbox = mailboxBase->AsCell();
+
             if (!mailbox->GetConnected()) {
                 continue;
             }
@@ -738,7 +944,7 @@ private:
             }
 
             req->Invoke().Subscribe(
-                BIND(&TImpl::OnSendMessagesResponse, MakeStrong(this), mailbox->GetCellId())
+                BIND(&THiveManager::OnSendMessagesResponse, MakeStrong(this), mailbox->GetCellId())
                     .Via(EpochAutomatonInvoker_));
         }
 
@@ -747,7 +953,7 @@ private:
     }
 
 
-    void SetMailboxConnected(TMailbox* mailbox)
+    void SetMailboxConnected(TCellMailbox* mailbox)
     {
         if (mailbox->GetConnected()) {
             return;
@@ -765,7 +971,7 @@ private:
         PostOutcomingMessages(mailbox, true);
     }
 
-    void MaybeDisconnectMailboxOnError(TMailbox* mailbox, const TError& error)
+    void MaybeDisconnectMailboxOnError(TCellMailbox* mailbox, const TError& error)
     {
         if (error.FindMatching(NHydra::EErrorCode::ReadOnly)) {
             return;
@@ -774,8 +980,13 @@ private:
         SetMailboxDisconnected(mailbox);
     }
 
-    void SetMailboxDisconnected(TMailbox* mailbox)
+    void SetMailboxDisconnected(TMailbox* mailboxBase)
     {
+        if (!mailboxBase->IsCell()) {
+            return;
+        }
+
+        auto* mailbox = mailboxBase->AsCell();
         if (!mailbox->GetConnected()) {
             return;
         }
@@ -797,6 +1008,10 @@ private:
         mailbox->SetFirstInFlightOutcomingMessageId(mailbox->GetFirstOutcomingMessageId());
         mailbox->SetInFlightOutcomingMessageCount(0);
         TDelayedExecutor::CancelAndClear(mailbox->IdlePostCookie());
+
+        for (auto [avenueEndpointId, avenueMailbox] : mailbox->ActiveAvenues()) {
+            avenueMailbox->SetPostInProgress(false);
+        }
 
         YT_LOG_INFO("Mailbox disconnected (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
@@ -827,7 +1042,7 @@ private:
     {
         CancelSyncBatchers(TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped"));
 
-        for (auto [id, mailbox] : MailboxMap_) {
+        for (auto [id, mailbox] : CellMailboxMap_) {
             SetMailboxDisconnected(mailbox);
             mailbox->SetNextTransientIncomingMessageId(-1);
             mailbox->SetAcknowledgeInProgress(false);
@@ -835,12 +1050,21 @@ private:
             mailbox->SetPostBatchingCookie(nullptr);
         }
 
+        for (auto [id, mailbox] : AvenueMailboxMap_) {
+            mailbox->SetNextTransientIncomingMessageId(-1);
+            mailbox->SetAcknowledgeInProgress(false);
+        }
+
         ReadOnlyCheckExecutor_.Reset();
     }
 
     void PrepareLeaderMailboxes()
     {
-        for (auto [id, mailbox] : MailboxMap_) {
+        for (auto [id, mailbox] : CellMailboxMap_) {
+            mailbox->SetNextTransientIncomingMessageId(mailbox->GetNextPersistentIncomingMessageId());
+        }
+
+        for (auto [id, mailbox] : AvenueMailboxMap_) {
             mailbox->SetNextTransientIncomingMessageId(mailbox->GetNextPersistentIncomingMessageId());
         }
     }
@@ -855,10 +1079,10 @@ private:
     }
 
 
-    void SchedulePeriodicPing(TMailbox* mailbox)
+    void SchedulePeriodicPing(TCellMailbox* mailbox)
     {
         TDelayedExecutor::Submit(
-            BIND(&TImpl::OnPeriodicPingTick, MakeWeak(this), mailbox->GetCellId())
+            BIND(&THiveManager::OnPeriodicPingTick, MakeWeak(this), mailbox->GetCellId())
                 .Via(EpochAutomatonInvoker_),
             Config_->PingPeriod);
     }
@@ -867,21 +1091,21 @@ private:
     {
         InitSyncBatchers();
 
-        for (auto [id, mailbox] : MailboxMap_) {
+        for (auto [id, mailbox] : CellMailboxMap_) {
             YT_VERIFY(!mailbox->GetConnected());
             SendPeriodicPing(mailbox);
         }
 
         ReadOnlyCheckExecutor_ = New<TPeriodicExecutor>(
             EpochAutomatonInvoker_,
-            BIND(&TImpl::OnReadOnlyCheck, MakeWeak(this)),
+            BIND(&THiveManager::OnReadOnlyCheck, MakeWeak(this)),
             ReadOnlyCheckPeriod);
         ReadOnlyCheckExecutor_->Start();
     }
 
     void OnPeriodicPingTick(TCellId cellId)
     {
-        auto* mailbox = FindMailbox(cellId);
+        auto* mailbox = FindCellMailbox(cellId);
         if (!mailbox) {
             return;
         }
@@ -889,7 +1113,7 @@ private:
         SendPeriodicPing(mailbox);
     }
 
-    void SendPeriodicPing(TMailbox* mailbox)
+    void SendPeriodicPing(TCellMailbox* mailbox)
     {
         auto cellId = mailbox->GetCellId();
 
@@ -927,13 +1151,13 @@ private:
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
 
         req->Invoke().Subscribe(
-            BIND(&TImpl::OnPeriodicPingResponse, MakeStrong(this), mailbox->GetCellId())
+            BIND(&THiveManager::OnPeriodicPingResponse, MakeStrong(this), mailbox->GetCellId())
                 .Via(EpochAutomatonInvoker_));
     }
 
     void OnPeriodicPingResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspPingPtr& rspOrError)
     {
-        auto* mailbox = FindMailbox(cellId);
+        auto* mailbox = FindCellMailbox(cellId);
         if (!mailbox) {
             return;
         }
@@ -970,7 +1194,7 @@ private:
         }
 
         auto batcher = New<TAsyncBatcher<void>>(
-            BIND(&TImpl::DoSyncWith, MakeWeak(this), cellId),
+            BIND(&THiveManager::DoSyncWith, MakeWeak(this), cellId),
             Config_->SyncDelay);
 
         {
@@ -984,7 +1208,7 @@ private:
         }
     }
 
-    static TFuture<void> DoSyncWith(const TWeakPtr<TImpl>& weakThis, TCellId cellId)
+    static TFuture<void> DoSyncWith(const TWeakPtr<THiveManager>& weakThis, TCellId cellId)
     {
         auto this_ = weakThis.Lock();
         if (!this_) {
@@ -1020,7 +1244,7 @@ private:
 
         return req->Invoke()
             .Apply(
-                BIND(&TImpl::OnSyncPingResponse, MakeStrong(this), cellId)
+                BIND(&THiveManager::OnSyncPingResponse, MakeStrong(this), cellId)
                     .AsyncViaGuarded(
                         GuardedAutomatonInvoker_,
                         TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped")))
@@ -1044,7 +1268,7 @@ private:
                 << rspOrError;
         }
 
-        auto* mailbox = GetMailboxOrThrow(cellId);
+        auto* mailbox = GetMailboxOrThrow(cellId)->AsCell();
         if (!mailbox->GetConnected()) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
@@ -1081,7 +1305,7 @@ private:
         return RegisterSyncRequest(mailbox, messageId);
     }
 
-    TFuture<void> RegisterSyncRequest(TMailbox* mailbox, TMessageId messageId)
+    TFuture<void> RegisterSyncRequest(TCellMailbox* mailbox, TMessageId messageId)
     {
         auto& syncRequests = mailbox->SyncRequests();
 
@@ -1095,7 +1319,7 @@ private:
         return promise.ToFuture();
     }
 
-    void FlushSyncRequests(TMailbox* mailbox)
+    void FlushSyncRequests(TCellMailbox* mailbox)
     {
         NTracing::TNullTraceContextGuard guard;
         auto& syncRequests = mailbox->SyncRequests();
@@ -1123,7 +1347,7 @@ private:
             SyncPostingTimeCounter_.Add(timer.GetElapsedTime());
         });
 
-        auto* mailbox = FindMailbox(cellId);
+        auto* mailbox = FindCellMailbox(cellId);
         if (!mailbox) {
             return;
         }
@@ -1131,8 +1355,18 @@ private:
         PostOutcomingMessages(mailbox, true);
     }
 
-    void SchedulePostOutcomingMessages(TMailbox* mailbox)
+    void SchedulePostOutcomingMessages(TMailbox* mailboxBase)
     {
+        if (mailboxBase->IsAvenue()) {
+            if (auto* cellMailbox = mailboxBase->AsAvenue()->GetCellMailbox()) {
+                SchedulePostOutcomingMessages(cellMailbox);
+            }
+
+            return;
+        }
+
+        auto* mailbox = mailboxBase->AsCell();
+
         if (mailbox->GetPostBatchingCookie()) {
             return;
         }
@@ -1150,7 +1384,7 @@ private:
                     SyncPostingTimeCounter_.Add(timer.GetElapsedTime());
                 });
 
-                auto* mailbox = FindMailbox(cellId);
+                auto* mailbox = FindCellMailbox(cellId);
                 if (!mailbox) {
                     return;
                 }
@@ -1161,7 +1395,7 @@ private:
             Config_->PostBatchingPeriod));
     }
 
-    void PostOutcomingMessages(TMailbox* mailbox, bool allowIdle)
+    void PostOutcomingMessages(TCellMailbox* mailbox, bool allowIdle)
     {
         if (!IsLeader()) {
             return;
@@ -1177,19 +1411,36 @@ private:
 
         NTracing::TNullTraceContextGuard guard;
 
-        auto firstInFlightOutcomingMessageId = mailbox->GetFirstInFlightOutcomingMessageId();
-        auto firstOutcomingMessageId = mailbox->GetFirstOutcomingMessageId();
-        const auto& outcomingMessages = mailbox->OutcomingMessages();
+        bool hasOutcomingMessages = false;
 
-        YT_VERIFY(firstInFlightOutcomingMessageId >= firstOutcomingMessageId);
-        YT_VERIFY(firstInFlightOutcomingMessageId <= firstOutcomingMessageId + std::ssize(outcomingMessages));
+        auto checkOutcomingMessages = [&] (TMailbox* mailbox) {
+            if (mailbox->GetInFlightOutcomingMessageCount() > 0) {
+                return;
+            }
+
+            auto firstInFlightOutcomingMessageId = mailbox->GetFirstInFlightOutcomingMessageId();
+            auto firstOutcomingMessageId = mailbox->GetFirstOutcomingMessageId();
+            const auto& outcomingMessages = mailbox->OutcomingMessages();
+
+            YT_VERIFY(firstInFlightOutcomingMessageId >= firstOutcomingMessageId);
+            YT_VERIFY(firstInFlightOutcomingMessageId <= firstOutcomingMessageId + std::ssize(outcomingMessages));
+
+            if (firstInFlightOutcomingMessageId != mailbox->GetFirstOutcomingMessageId() + std::ssize(outcomingMessages)) {
+                hasOutcomingMessages = true;
+            }
+        };
+
+        checkOutcomingMessages(mailbox);
+        for (auto [id, avenueMailbox] : mailbox->ActiveAvenues()) {
+            checkOutcomingMessages(avenueMailbox);
+        }
 
         auto dstCellId = mailbox->GetCellId();
 
         TDelayedExecutor::CancelAndClear(mailbox->IdlePostCookie());
-        if (!allowIdle && firstInFlightOutcomingMessageId == mailbox->GetFirstOutcomingMessageId() + std::ssize(outcomingMessages)) {
+        if (!allowIdle && !hasOutcomingMessages) {
             mailbox->IdlePostCookie() = TDelayedExecutor::Submit(
-                BIND(&TImpl::OnIdlePostOutcomingMessages, MakeWeak(this), dstCellId)
+                BIND(&THiveManager::OnIdlePostOutcomingMessages, MakeWeak(this), dstCellId)
                     .Via(EpochAutomatonInvoker_),
                 Config_->IdlePostPeriod);
             return;
@@ -1200,34 +1451,100 @@ private:
             return;
         }
 
+        struct TEnvelope
+        {
+            TEndpointId SrcEndpointId;
+            i64 FirstMessageId;
+            std::vector<TCellMailbox::TOutcomingMessage> MessagesToPost;
+        };
+
+        TEnvelope cellEnvelope;
+        std::vector<TEnvelope> avenueEnvelopes;
+        std::vector<TAvenueEndpointId> avenueSrcIds;
+
         i64 messageBytesToPost = 0;
         int messageCountToPost = 0;
-        std::vector<TMailbox::TOutcomingMessage> messagesToPost;
-        int currentMessageIndex = firstInFlightOutcomingMessageId - firstOutcomingMessageId;
-        while (currentMessageIndex < std::ssize(outcomingMessages) &&
-               messageCountToPost < Config_->MaxMessagesPerPost &&
-               messageBytesToPost < Config_->MaxBytesPerPost)
-        {
-            const auto& message = outcomingMessages[currentMessageIndex];
-            messagesToPost.push_back(message);
-            messageBytesToPost += message.SerializedMessage->Data.size();
-            ++messageCountToPost;
-            ++currentMessageIndex;
+
+        auto isOverflown = [&] {
+            return !(messageCountToPost < Config_->MaxMessagesPerPost &&
+               messageBytesToPost < Config_->MaxBytesPerPost);
+        };
+
+        auto fillEnvelope = [&] (TMailbox* mailbox, TEnvelope* envelope) {
+            int localMessageCountToPost = 0;
+            auto firstInFlightOutcomingMessageId = mailbox->GetFirstInFlightOutcomingMessageId();
+            auto firstOutcomingMessageId = mailbox->GetFirstOutcomingMessageId();
+            auto& outcomingMessages = mailbox->OutcomingMessages();
+
+            int currentMessageIndex = firstInFlightOutcomingMessageId - firstOutcomingMessageId;
+            while (currentMessageIndex < std::ssize(outcomingMessages) && !isOverflown()) {
+                const auto& message = outcomingMessages[currentMessageIndex];
+                envelope->MessagesToPost.push_back(message);
+                messageBytesToPost += message.SerializedMessage->Data.size();
+                ++messageCountToPost;
+                ++currentMessageIndex;
+                ++localMessageCountToPost;
+            }
+
+            envelope->FirstMessageId = firstInFlightOutcomingMessageId;
+
+            mailbox->SetInFlightOutcomingMessageCount(localMessageCountToPost);
+            mailbox->SetPostInProgress(true);
+        };
+
+        cellEnvelope.SrcEndpointId = SelfCellId_;
+        fillEnvelope(mailbox, &cellEnvelope);
+        int cellMessageCountToPost = messageCountToPost;
+
+        for (auto [avenueEndpointId, avenueMailbox] : mailbox->ActiveAvenues()) {
+            if (isOverflown()) {
+                break;
+            }
+
+            if (avenueMailbox->GetInFlightOutcomingMessageCount() > 0) {
+                continue;
+            }
+
+            auto srcEndpointId = GetSiblingAvenueEndpointId(avenueEndpointId);
+            avenueEnvelopes.push_back({
+                .SrcEndpointId = srcEndpointId,
+            });
+            avenueSrcIds.push_back(srcEndpointId);
+
+            fillEnvelope(avenueMailbox, &avenueEnvelopes.back());
         }
 
-        mailbox->SetInFlightOutcomingMessageCount(messageCountToPost);
-        mailbox->SetPostInProgress(true);
-
         if (messageCountToPost == 0) {
-            YT_LOG_DEBUG("Checking mailbox synchronization (SrcCellId: %v, DstCellId: %v)",
-                SelfCellId_,
-                dstCellId);
-        } else {
-            YT_LOG_DEBUG("Posting reliable outcoming messages (SrcCellId: %v, DstCellId: %v, MessageIds: %v-%v)",
+            YT_LOG_DEBUG("Checking mailbox synchronization (SrcCellId: %v, DstCellId: %v, AvenueEndpointIds: %v)",
                 SelfCellId_,
                 dstCellId,
-                firstInFlightOutcomingMessageId,
-                firstInFlightOutcomingMessageId + messageCountToPost - 1);
+                MakeFormattableView(
+                    avenueEnvelopes,
+                    [] (auto* builder, const auto& envelope) {
+                        builder->AppendFormat("%v", GetSiblingAvenueEndpointId(envelope.SrcEndpointId));
+                    }
+                ));
+        } else {
+            YT_LOG_DEBUG("Posting reliable outcoming messages "
+                "(SrcCellId: %v, DstCellId: %v, MessageIds: %v-%v, Avenues: %v)",
+                SelfCellId_,
+                dstCellId,
+                cellEnvelope.FirstMessageId,
+                cellEnvelope.FirstMessageId + cellMessageCountToPost - 1,
+                MakeFormattableView(
+                    avenueEnvelopes,
+                    [] (auto* builder, const auto& envelope) {
+                        builder->AppendFormat("%v:", GetSiblingAvenueEndpointId(envelope.SrcEndpointId));
+                        if (envelope.MessagesToPost.empty()) {
+                            builder->AppendString("sync");
+                        } else {
+                            builder->AppendFormat(
+                                "%v-%v",
+                                envelope.FirstMessageId,
+                                envelope.FirstMessageId + ssize(envelope.MessagesToPost) - 1);
+                        }
+                    }
+                ));
         }
 
         NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(BIND(
@@ -1235,9 +1552,10 @@ private:
                 =,
                 this,
                 this_ = MakeStrong(this),
-                messagesToPost = std::move(messagesToPost),
+                cellEnvelope = std::move(cellEnvelope),
+                avenueEnvelopes = std::move(avenueEnvelopes),
                 epochAutomatonInvoker = EpochAutomatonInvoker_
-            ] {
+            ] () mutable {
                 TWallTimer timer;
                 auto finally = Finally([&] {
                     AsyncPostingTimeCounter_.Add(timer.GetElapsedTime());
@@ -1247,33 +1565,74 @@ private:
 
                 auto req = proxy.PostMessages();
                 req->SetTimeout(Config_->PostRpcTimeout);
-                ToProto(req->mutable_src_cell_id(), SelfCellId_);
-                req->set_first_message_id(firstInFlightOutcomingMessageId);
-                for (const auto& message : messagesToPost) {
-                    auto* protoMessage = req->add_messages();
-                    protoMessage->set_type(message.SerializedMessage->Type);
-                    protoMessage->set_data(message.SerializedMessage->Data);
-                    if (message.TraceContext) {
-                        ToProto(protoMessage->mutable_tracing_ext(), message.TraceContext);
+
+                auto fillSubrequest = [] (auto* req, const auto& envelope) {
+                    ToProto(req->mutable_src_endpoint_id(), envelope.SrcEndpointId);
+                    req->set_first_message_id(envelope.FirstMessageId);
+                    for (const auto& message : envelope.MessagesToPost) {
+                        auto* protoMessage = req->add_messages();
+                        protoMessage->set_type(message.SerializedMessage->Type);
+                        protoMessage->set_data(message.SerializedMessage->Data);
+                        if (message.TraceContext) {
+                            ToProto(protoMessage->mutable_tracing_ext(), message.TraceContext);
+                        }
                     }
+                };
+
+                fillSubrequest(req.Get(), cellEnvelope);
+                for (const auto& avenueEnvelope : avenueEnvelopes) {
+                    fillSubrequest(req->add_avenue_subrequests(), avenueEnvelope);
                 }
 
                 req->Invoke().Subscribe(
-                    BIND(&TImpl::OnPostMessagesResponse, MakeStrong(this), dstCellId)
+                    BIND(&THiveManager::OnPostMessagesResponse, MakeStrong(this), dstCellId, Passed(std::move(avenueSrcIds)))
                         .Via(epochAutomatonInvoker));
             }));
     }
 
-    void OnPostMessagesResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
+    void OnPostMessagesResponse(
+        TCellId cellId,
+        std::vector<TAvenueEndpointId> avenueSrcIds,
+        const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
     {
         TWallTimer timer;
         auto finally = Finally([&] {
             SyncPostingTimeCounter_.Add(timer.GetElapsedTime());
         });
 
-        auto* mailbox = FindMailbox(cellId);
+        auto* mailbox = FindCellMailbox(cellId);
         if (!mailbox) {
+            // All relevant avenue mailboxes are unbound, posting has been already cancelled.
             return;
+        }
+
+        if (!mailbox->GetPostInProgress()) {
+            // Posting has been already cancelled for all relevant avenue mailboxes.
+            return;
+        }
+
+        DoPostMessagesResponse(mailbox, rspOrError);
+        for (auto [index, srcEndpointId] : Enumerate(avenueSrcIds)) {
+            auto dstEndpointId = GetSiblingAvenueEndpointId(srcEndpointId);
+            DoPostMessagesResponse(mailbox, rspOrError, dstEndpointId, index);
+        }
+    }
+
+    void DoPostMessagesResponse(
+        TCellMailbox* cellMailbox,
+        const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError,
+        TAvenueEndpointId dstEndpointId = {},
+        std::optional<int> avenueSubrequestIndex = {})
+    {
+        TMailbox* mailbox;
+        if (avenueSubrequestIndex) {
+            if (auto* avenueMailbox = FindAvenueMailbox(dstEndpointId)) {
+                mailbox = avenueMailbox;
+            } else {
+                return;
+            }
+        } else {
+            mailbox = cellMailbox;
         }
 
         if (!mailbox->GetPostInProgress()) {
@@ -1284,28 +1643,39 @@ private:
         mailbox->SetPostInProgress(false);
 
         if (rspOrError.GetCode() == NHiveClient::EErrorCode::MailboxNotCreatedYet) {
+            YT_VERIFY(mailbox->IsCell());
             YT_LOG_DEBUG(rspOrError, "Mailbox is not created yet; will retry (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
-                mailbox->GetCellId());
-            SchedulePostOutcomingMessages(mailbox);
+                cellMailbox->GetCellId());
+            SchedulePostOutcomingMessages(cellMailbox);
             return;
         }
 
         if (!rspOrError.IsOK()) {
-            YT_LOG_DEBUG(rspOrError, "Failed to post reliable outcoming messages (SrcCellId: %v, DstCellId: %v)",
-                SelfCellId_,
-                mailbox->GetCellId());
-            MaybeDisconnectMailboxOnError(mailbox, rspOrError);
+            if (mailbox->IsCell()) {
+                YT_LOG_DEBUG(rspOrError, "Failed to post reliable outcoming messages (SrcCellId: %v, DstCellId: %v)",
+                    SelfCellId_,
+                    cellMailbox->GetCellId());
+                MaybeDisconnectMailboxOnError(cellMailbox, rspOrError);
+            }
             return;
         }
 
-        const auto& rsp = rspOrError.Value();
-        auto nextPersistentIncomingMessageId = rsp->next_persistent_incoming_message_id();
-        auto nextTransientIncomingMessageId = rsp->next_transient_incoming_message_id();
-        YT_LOG_DEBUG("Outcoming reliable messages posted (SrcCellId: %v, DstCellId: %v, "
+        const auto& rsp = avenueSubrequestIndex
+            ? rspOrError.Value()->avenue_subresponses(*avenueSubrequestIndex)
+            : *rspOrError.Value();
+
+        if (rsp.next_transient_incoming_message_id() == -1) {
+            YT_LOG_DEBUG("Destination mailbox does not exist, post cancelled (%v)",
+                FormatOutgoingMailboxEndpoints(mailbox));
+            return;
+        }
+
+        auto nextPersistentIncomingMessageId = rsp.next_persistent_incoming_message_id();
+        auto nextTransientIncomingMessageId = rsp.next_transient_incoming_message_id();
+        YT_LOG_DEBUG("Outcoming reliable messages posted (%v, "
             "NextPersistentIncomingMessageId: %v, NextTransientIncomingMessageId: %v)",
-            SelfCellId_,
-            mailbox->GetCellId(),
+            FormatOutgoingMailboxEndpoints(mailbox),
             nextPersistentIncomingMessageId,
             nextTransientIncomingMessageId);
 
@@ -1327,7 +1697,7 @@ private:
             SyncPostingTimeCounter_.Add(timer.GetElapsedTime());
         });
 
-        auto* mailbox = FindMailbox(cellId);
+        auto* mailbox = FindCellMailbox(cellId);
         if (!mailbox) {
             return;
         }
@@ -1351,7 +1721,7 @@ private:
         return CreateMutation(
             HydraManager_,
             req,
-            &TImpl::HydraAcknowledgeMessages,
+            &THiveManager::HydraAcknowledgeMessages,
             this);
     }
 
@@ -1360,7 +1730,7 @@ private:
         return CreateMutation(
             HydraManager_,
             request,
-            &TImpl::HydraPostMessages,
+            &THiveManager::HydraPostMessages,
             this);
     }
 
@@ -1369,7 +1739,7 @@ private:
         return CreateMutation(
             HydraManager_,
             context,
-            &TImpl::HydraSendMessages,
+            &THiveManager::HydraSendMessages,
             this);
     }
 
@@ -1378,7 +1748,7 @@ private:
         return CreateMutation(
             HydraManager_,
             req,
-            &TImpl::HydraRegisterMailbox,
+            &THiveManager::HydraRegisterMailbox,
             this);
     }
 
@@ -1387,7 +1757,7 @@ private:
         return CreateMutation(
             HydraManager_,
             req,
-            &TImpl::HydraUnregisterMailbox,
+            &THiveManager::HydraUnregisterMailbox,
             this);
     }
 
@@ -1395,10 +1765,9 @@ private:
     bool CheckRequestedMessageIdAgainstMailbox(TMailbox* mailbox, TMessageId requestedMessageId)
     {
         if (requestedMessageId < mailbox->GetFirstOutcomingMessageId()) {
-            YT_LOG_ALERT("Destination is out of sync: requested to receive already truncated messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ALERT("Destination is out of sync: requested to receive already truncated messages (%v, "
                 "RequestedMessageId: %v, FirstOutcomingMessageId: %v)",
-                SelfCellId_,
-                mailbox->GetCellId(),
+                FormatOutgoingMailboxEndpoints(mailbox),
                 requestedMessageId,
                 mailbox->GetFirstOutcomingMessageId());
             SetMailboxDisconnected(mailbox);
@@ -1406,10 +1775,9 @@ private:
         }
 
         if (requestedMessageId > mailbox->GetFirstOutcomingMessageId() + std::ssize(mailbox->OutcomingMessages())) {
-            YT_LOG_ALERT("Destination is out of sync: requested to receive nonexisting messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ALERT("Destination is out of sync: requested to receive nonexisting messages (%v, "
                 "RequestedMessageId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v)",
-                SelfCellId_,
-                mailbox->GetCellId(),
+                FormatOutgoingMailboxEndpoints(mailbox),
                 requestedMessageId,
                 mailbox->GetFirstOutcomingMessageId(),
                 mailbox->OutcomingMessages().size());
@@ -1435,15 +1803,14 @@ private:
         }
 
         NHiveServer::NProto::TReqAcknowledgeMessages req;
-        ToProto(req.mutable_cell_id(), mailbox->GetCellId());
+        ToProto(req.mutable_cell_id(), mailbox->GetEndpointId());
         req.set_next_persistent_incoming_message_id(nextPersistentIncomingMessageId);
 
         mailbox->SetAcknowledgeInProgress(true);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing reliable messages acknowledgement (SrcCellId: %v, DstCellId: %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing reliable messages acknowledgement (%v, "
             "MessageIds: %v-%v)",
-            SelfCellId_,
-            mailbox->GetCellId(),
+            FormatOutgoingMailboxEndpoints(mailbox),
             mailbox->GetFirstOutcomingMessageId(),
             nextPersistentIncomingMessageId - 1);
 
@@ -1475,10 +1842,9 @@ private:
     void ApplyReliableIncomingMessage(TMailbox* mailbox, TMessageId messageId, const TEncapsulatedMessage& message)
     {
         if (messageId != mailbox->GetNextPersistentIncomingMessageId()) {
-            YT_LOG_ALERT("Attempt to apply an out-of-order message (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ALERT("Attempt to apply an out-of-order message (%v, "
                 "ExpectedMessageId: %v, ActualMessageId: %v, MutationType: %v)",
-                mailbox->GetCellId(),
-                SelfCellId_,
+                FormatIncomingMailboxEndpoints(mailbox),
                 mailbox->GetNextPersistentIncomingMessageId(),
                 messageId,
                 message.type());
@@ -1493,27 +1859,28 @@ private:
             traceContextGuard.emplace(std::move(traceContext));
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Applying reliable incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
-            mailbox->GetCellId(),
-            SelfCellId_,
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Applying reliable incoming message (%v, MessageId: %v, MutationType: %v)",
+            FormatIncomingMailboxEndpoints(mailbox),
             messageId,
             message.type());
 
-        ApplyMessage(message, mailbox->GetCellId());
+        ApplyMessage(message, mailbox->GetEndpointId());
 
         mailbox->SetNextPersistentIncomingMessageId(messageId + 1);
 
-        FlushSyncRequests(mailbox);
+        if (mailbox->IsCell()) {
+            FlushSyncRequests(mailbox->AsCell());
+        }
     }
 
-    void ApplyUnreliableIncomingMessages(TMailbox* mailbox, const NHiveClient::NProto::TReqSendMessages* req)
+    void ApplyUnreliableIncomingMessages(TCellMailbox* mailbox, const NHiveClient::NProto::TReqSendMessages* req)
     {
         for (const auto& message : req->messages()) {
             ApplyUnreliableIncomingMessage(mailbox, message);
         }
     }
 
-    void ApplyUnreliableIncomingMessage(TMailbox* mailbox, const TEncapsulatedMessage& message)
+    void ApplyUnreliableIncomingMessage(TCellMailbox* mailbox, const TEncapsulatedMessage& message)
     {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Applying unreliable incoming message (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
             mailbox->GetCellId(),
@@ -1522,7 +1889,7 @@ private:
         ApplyMessage(message, mailbox->GetCellId());
     }
 
-    void ApplyMessage(const TEncapsulatedMessage& message, TCellId senderId)
+    void ApplyMessage(const TEncapsulatedMessage& message, TEndpointId endpointId)
     {
         TMutationRequest request{
             .Reign = GetCurrentMutationContext()->Request().Reign,
@@ -1533,11 +1900,113 @@ private:
         TMutationContext mutationContext(GetCurrentMutationContext(), &request);
         TMutationContextGuard mutationContextGuard(&mutationContext);
 
-        THiveMutationGuard hiveMutationGuard(senderId);
+        THiveMutationGuard hiveMutationGuard(endpointId);
 
         static_cast<IAutomaton*>(Automaton_)->ApplyMutation(&mutationContext);
     }
 
+    void OnAvenueDirectoryEndpointUpdated(TAvenueEndpointId endpointId, TCellId newCellId)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (auto* mailbox = FindAvenueMailbox(endpointId)) {
+            UpdateAvenueCellConnection(mailbox, newCellId);
+        }
+    }
+
+    void UpdateAvenueCellConnection(TAvenueMailbox* avenueMailbox, TCellId cellId)
+    {
+        UpdateAvenueCellConnection(avenueMailbox, FindCellMailbox(cellId));
+    }
+
+    void UpdateAvenueCellConnection(TAvenueMailbox* avenueMailbox, TCellMailbox* cellMailbox)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (cellMailbox == avenueMailbox->GetCellMailbox()) {
+            return;
+        }
+
+        avenueMailbox->SetPostInProgress(false);
+        avenueMailbox->SetFirstInFlightOutcomingMessageId(avenueMailbox->GetFirstOutcomingMessageId());
+        avenueMailbox->SetInFlightOutcomingMessageCount(0);
+
+        if (auto* formerCellMailbox = avenueMailbox->GetCellMailbox()) {
+            EraseOrCrash(formerCellMailbox->RegisteredAvenues(), avenueMailbox->GetEndpointId());
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Avenue disconnected from cell (AvenueEndpointId: %v, CellId: %v)",
+                avenueMailbox->GetEndpointId(),
+                formerCellMailbox ? formerCellMailbox->GetCellId() : NullObjectId);
+        }
+
+        if (avenueMailbox->IsActive()) {
+            if (auto* formerCellMailbox = avenueMailbox->GetCellMailbox()) {
+                formerCellMailbox->ActiveAvenues().erase(avenueMailbox->GetEndpointId());
+            }
+
+            if (cellMailbox) {
+                cellMailbox->ActiveAvenues().emplace(
+                    avenueMailbox->GetEndpointId(),
+                    avenueMailbox);
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Active avenue registered at cell (AvenueEndpointId: %v, CellId: %v)",
+                    avenueMailbox->GetEndpointId(),
+                    cellMailbox->GetCellId());
+                SchedulePostOutcomingMessages(cellMailbox);
+            }
+        }
+
+        if (!avenueMailbox->IsActive()) {
+            if (auto* formerCellMailbox = avenueMailbox->GetCellMailbox()) {
+                YT_VERIFY(!formerCellMailbox->ActiveAvenues().contains(avenueMailbox->GetEndpointId()));
+            }
+        }
+
+        avenueMailbox->SetCellMailbox(cellMailbox);
+        if (cellMailbox) {
+            EmplaceOrCrash(
+                cellMailbox->RegisteredAvenues(),
+                avenueMailbox->GetEndpointId(),
+                avenueMailbox);
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Avenue connected to cell "
+                "(AvenueEndpointId: %v, CellId: %v)",
+                avenueMailbox->GetEndpointId(),
+                cellMailbox->GetCellId());
+        }
+    }
+
+    TString FormatIncomingMailboxEndpoints(TMailbox* mailbox) const
+    {
+        return FormatMailboxEndpoints(mailbox, /*outgoing*/ false);
+    }
+
+    TString FormatOutgoingMailboxEndpoints(TMailbox* mailbox) const
+    {
+        return FormatMailboxEndpoints(mailbox, /*outgoing*/ true);
+    }
+
+    TString FormatMailboxEndpoints(TMailbox* mailbox, bool outgoing) const
+    {
+        if (mailbox->IsCell()) {
+            auto srcId = SelfCellId_;
+            auto dstId = mailbox->GetEndpointId();
+
+            if (!outgoing) {
+                std::swap(srcId, dstId);
+            }
+
+            return Format("SrcCellId: %v, DstCellId: %v", srcId, dstId);
+        } else {
+            auto dstId = mailbox->GetEndpointId();
+            auto srcId = GetSiblingAvenueEndpointId(dstId);
+
+            if (!outgoing) {
+                std::swap(srcId, dstId);
+            }
+
+            return Format("SrcEndpointId: %v, DstEndpointId: %v", srcId, dstId);
+        }
+    }
 
     void OnReadOnlyCheck()
     {
@@ -1553,7 +2022,7 @@ private:
 
         CancelSyncBatchers(error);
 
-        for (auto [_, mailbox] : MailboxMap_) {
+        for (auto [_, mailbox] : CellMailboxMap_) {
             auto requests = std::exchange(mailbox->SyncRequests(), {});
             for (const auto& [_, promise] : requests) {
                 promise.Set(error);
@@ -1592,12 +2061,14 @@ private:
 
     bool ValidateSnapshotVersion(int version) override
     {
-        return version == 5;
+        return version == 5 ||
+            version == 6 || // COMPAT(ifsmirnov): Avenues.
+            false;
     }
 
     int GetCurrentSnapshotVersion() override
     {
-        return 5;
+        return 6;
     }
 
 
@@ -1605,40 +2076,56 @@ private:
     {
         TCompositeAutomatonPart::Clear();
 
-        MailboxMap_.Clear();
+        CellMailboxMap_.Clear();
+        AvenueMailboxMap_.Clear();
 
         {
             auto guard = WriterGuard(MailboxRuntimeDataMapLock_);
             MailboxRuntimeDataMap_.clear();
         }
+
+        RemovedCellIds_.clear();
     }
 
     void SaveKeys(TSaveContext& context) const
     {
-        MailboxMap_.SaveKeys(context);
+        CellMailboxMap_.SaveKeys(context);
+        AvenueMailboxMap_.SaveKeys(context);
     }
 
     void SaveValues(TSaveContext& context) const
     {
-        MailboxMap_.SaveValues(context);
+        CellMailboxMap_.SaveValues(context);
+        AvenueMailboxMap_.SaveValues(context);
         Save(context, RemovedCellIds_);
     }
 
     void LoadKeys(TLoadContext& context)
     {
-        MailboxMap_.LoadKeys(context);
+        CellMailboxMap_.LoadKeys(context);
+        // COMPAT(ifsmirnov)
+        if (context.GetVersion() >= 6) {
+            AvenueMailboxMap_.LoadKeys(context);
+        }
     }
 
     void LoadValues(TLoadContext& context)
     {
-        MailboxMap_.LoadValues(context);
+        CellMailboxMap_.LoadValues(context);
+        // COMPAT(ifsmirnov)
+        if (context.GetVersion() >= 6) {
+            AvenueMailboxMap_.LoadValues(context);
+        }
         Load(context, RemovedCellIds_);
 
         {
             auto guard = WriterGuard(MailboxRuntimeDataMapLock_);
             MailboxRuntimeDataMap_.clear();
-            for (auto [id, mailbox] : MailboxMap_) {
-                YT_VERIFY(MailboxRuntimeDataMap_.emplace(id, mailbox->GetRuntimeData()).second);
+            for (auto [id, mailbox] : CellMailboxMap_) {
+                EmplaceOrCrash(MailboxRuntimeDataMap_, id, mailbox->GetRuntimeData());
+            }
+            for (auto [id, mailbox] : AvenueMailboxMap_) {
+                EmplaceOrCrash(MailboxRuntimeDataMap_, id, mailbox->GetRuntimeData());
             }
         }
     }
@@ -1647,16 +2134,17 @@ private:
     IYPathServicePtr CreateOrchidService()
     {
         auto invoker = HydraManager_->CreateGuardedAutomatonInvoker(AutomatonInvoker_);
-        auto producer = BIND(&TImpl::BuildOrchidYson, MakeWeak(this));
+        auto producer = BIND(&THiveManager::BuildOrchidYson, MakeWeak(this));
         return IYPathService::FromProducer(producer, TDuration::Seconds(1))
             ->Via(invoker);
     }
 
     void BuildOrchidYson(IYsonConsumer* consumer)
     {
+        // TODO(ifsmirnov): add avenue mailboxes to orchid.
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("mailboxes").DoMapFor(MailboxMap_, [&] (TFluentMap fluent, const std::pair<TCellId, TMailbox*>& pair) {
+                .Item("mailboxes").DoMapFor(CellMailboxMap_, [&] (TFluentMap fluent, const std::pair<TCellId, TCellMailbox*>& pair) {
                     auto* mailbox = pair.second;
                     fluent
                         .Item(ToString(mailbox->GetCellId())).BeginMap()
@@ -1675,99 +2163,33 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(THiveManager::TImpl, Mailbox, TMailbox, MailboxMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(THiveManager, CellMailbox, TCellMailbox, CellMailboxMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(THiveManager, AvenueMailbox, TAvenueMailbox, AvenueMailboxMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THiveManager::THiveManager(
+IHiveManagerPtr CreateHiveManager(
     THiveManagerConfigPtr config,
     ICellDirectoryPtr cellDirectory,
+    IAvenueDirectoryPtr avenueDirectory,
     TCellId selfCellId,
     IInvokerPtr automatonInvoker,
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
     IUpstreamSynchronizerPtr upstreamSynchronizer,
     IAuthenticatorPtr authenticator)
-    : Impl_(New<TImpl>(
+{
+    return New<THiveManager>(
         std::move(config),
         std::move(cellDirectory),
+        std::move(avenueDirectory),
         selfCellId,
         std::move(automatonInvoker),
         std::move(hydraManager),
         std::move(automaton),
         std::move(upstreamSynchronizer),
-        std::move(authenticator)))
-{ }
-
-THiveManager::~THiveManager()
-{ }
-
-IServicePtr THiveManager::GetRpcService()
-{
-    return Impl_->GetRpcService();
+        std::move(authenticator));
 }
-
-IYPathServicePtr THiveManager::GetOrchidService()
-{
-    return Impl_->GetOrchidService();
-}
-
-TCellId THiveManager::GetSelfCellId() const
-{
-    return Impl_->GetSelfCellId();
-}
-
-TMailbox* THiveManager::CreateMailbox(TCellId cellId, bool allowResurrection)
-{
-    return Impl_->CreateMailbox(cellId, allowResurrection);
-}
-
-TMailbox* THiveManager::FindMailbox(TCellId cellId)
-{
-    return Impl_->FindMailbox(cellId);
-}
-
-TMailbox* THiveManager::GetOrCreateMailbox(TCellId cellId)
-{
-    return Impl_->GetOrCreateMailbox(cellId);
-}
-
-TMailbox* THiveManager::GetMailboxOrThrow(TCellId cellId)
-{
-    return Impl_->GetMailboxOrThrow(cellId);
-}
-
-void THiveManager::RemoveMailbox(TMailbox* mailbox)
-{
-    Impl_->RemoveMailbox(mailbox);
-}
-
-void THiveManager::PostMessage(TMailbox* mailbox, const TSerializedMessagePtr& message, bool reliable)
-{
-    Impl_->PostMessage(mailbox, message, reliable);
-}
-
-void THiveManager::PostMessage(const TMailboxList& mailboxes, const TSerializedMessagePtr& message, bool reliable)
-{
-    Impl_->PostMessage(mailboxes, message, reliable);
-}
-
-void THiveManager::PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message, bool reliable)
-{
-    Impl_->PostMessage(mailbox, message, reliable);
-}
-
-void THiveManager::PostMessage(const TMailboxList& mailboxes, const ::google::protobuf::MessageLite& message, bool reliable)
-{
-    Impl_->PostMessage(mailboxes, message, reliable);
-}
-
-TFuture<void> THiveManager::SyncWith(TCellId cellId, bool enableBatching)
-{
-    return Impl_->SyncWith(cellId, enableBatching);
-}
-
-DELEGATE_ENTITY_MAP_ACCESSORS(THiveManager, Mailbox, TMailbox, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

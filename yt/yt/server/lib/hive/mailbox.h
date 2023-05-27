@@ -6,10 +6,6 @@
 
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
 
-#include <yt/yt/ytlib/hive/proto/hive_service.pb.h>
-
-#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
-
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/ref_tracked.h>
 
@@ -23,14 +19,8 @@ namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMailbox
-    : public NHydra::TEntityBase
-    , public TRefTracked<TMailbox>
+struct TPersistentMailboxState
 {
-public:
-    // Persistent state.
-    DEFINE_BYVAL_RO_PROPERTY(TCellId, CellId);
-
     //! The id of the first message in |OutcomingMessages|.
     DEFINE_BYVAL_RW_PROPERTY(TMessageId, FirstOutcomingMessageId);
 
@@ -49,9 +39,28 @@ public:
     //! The id of the next incoming message to be handled by Hydra.
     DEFINE_BYVAL_RW_PROPERTY(TMessageId, NextPersistentIncomingMessageId);
 
+    void Save(NHydra::TSaveContext& context) const;
+    void Load(NHydra::TLoadContext& context);
+};
+
+void ToProto(
+    NProto::TPersistentMailboxState* protoMailbox,
+    const TPersistentMailboxState& mailbox);
+
+void FromProto(
+    TPersistentMailboxState* mailbox,
+    const NProto::TPersistentMailboxState& protoMailbox);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMailbox
+    : public TPersistentMailboxState
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(TEndpointId, EndpointId);
+
     // Transient state.
     DEFINE_BYVAL_RO_PROPERTY(TMailboxRuntimeDataPtr, RuntimeData);
-    DEFINE_BYVAL_RW_PROPERTY(bool, Connected);
     DEFINE_BYVAL_RW_PROPERTY(bool, AcknowledgeInProgress);
     DEFINE_BYVAL_RW_PROPERTY(bool, PostInProgress);
     DEFINE_BYVAL_RW_PROPERTY(TMessageId, NextTransientIncomingMessageId);
@@ -64,6 +73,34 @@ public:
     //! If this value is zero then there is no in-flight request.
     DEFINE_BYVAL_RW_PROPERTY(int, InFlightOutcomingMessageCount);
 
+public:
+    explicit TMailbox(TEndpointId endpointId);
+
+    void Save(NHydra::TSaveContext& context) const;
+    void Load(NHydra::TLoadContext& context);
+
+    void UpdateLastOutcomingMessageId();
+
+    bool IsCell() const;
+    bool IsAvenue() const;
+
+    TCellMailbox* AsCell();
+    const TCellMailbox* AsCell() const;
+
+    TAvenueMailbox* AsAvenue();
+    const TAvenueMailbox* AsAvenue() const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCellMailbox
+    : public TMailbox
+    , public NHydra::TEntityBase
+    , public TRefTracked<TCellMailbox>
+{
+public:
+    DEFINE_BYVAL_RW_PROPERTY(bool, Connected);
+
     DEFINE_BYREF_RW_PROPERTY(NConcurrency::TDelayedExecutorCookie, IdlePostCookie);
 
     using TSyncRequestMap = std::map<TMessageId, TPromise<void>>;
@@ -74,13 +111,30 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TDelayedExecutorCookie, PostBatchingCookie);
 
+    using TAvenueMailboxMap = THashMap<TAvenueEndpointId, TAvenueMailbox*>;
+    DEFINE_BYREF_RW_PROPERTY(TAvenueMailboxMap, RegisteredAvenues);
+    DEFINE_BYREF_RW_PROPERTY(TAvenueMailboxMap, ActiveAvenues);
+
 public:
-    explicit TMailbox(TCellId cellId);
+    using TMailbox::TMailbox;
 
-    void Save(NHydra::TSaveContext& context) const;
-    void Load(NHydra::TLoadContext& context);
+    TCellId GetCellId() const;
+};
 
-    void UpdateLastOutcomingMessageId();
+////////////////////////////////////////////////////////////////////////////////
+
+class TAvenueMailbox
+    : public TMailbox
+    , public NHydra::TEntityBase
+    , public TRefTracked<TCellMailbox>
+{
+public:
+    DEFINE_BYVAL_RW_PROPERTY(TCellMailbox*, CellMailbox);
+
+public:
+    using TMailbox::TMailbox;
+
+    bool IsActive() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

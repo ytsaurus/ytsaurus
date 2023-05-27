@@ -130,7 +130,7 @@ public:
         return Occupant_->GetAutomaton();
     }
 
-    const THiveManagerPtr& GetHiveManager() const override
+    const IHiveManagerPtr& GetHiveManager() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

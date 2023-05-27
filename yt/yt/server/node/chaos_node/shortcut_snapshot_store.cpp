@@ -6,6 +6,8 @@
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
+#include <library/cpp/yt/string/guid.h>
+
 namespace NYT::NChaosNode {
 
 using namespace NChaosClient;
