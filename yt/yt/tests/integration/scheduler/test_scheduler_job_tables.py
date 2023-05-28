@@ -2,6 +2,7 @@ from yt_env_setup import (
     YTEnvSetup,
     skip_if_porto,
     is_asan_build,
+    search_binary_path,
     Restarter,
     SCHEDULERS_SERVICE,
 )
@@ -32,8 +33,8 @@ import builtins
 from queue import Queue
 
 if arcadia_interop.yatest_common is not None:
-    YT_CUDA_CORE_DUMP_SIMULATOR = arcadia_interop.search_binary_path("cuda_core_dump_simulator")
-    YT_LIB_CUDA_CORE_DUMP_INJECTION = arcadia_interop.search_binary_path("libcuda_core_dump_injection.so")
+    YT_CUDA_CORE_DUMP_SIMULATOR = search_binary_path("cuda_core_dump_simulator")
+    YT_LIB_CUDA_CORE_DUMP_INJECTION = search_binary_path("libcuda_core_dump_injection.so")
 else:
     YT_CUDA_CORE_DUMP_SIMULATOR = None
     YT_LIB_CUDA_CORE_DUMP_INJECTION = None

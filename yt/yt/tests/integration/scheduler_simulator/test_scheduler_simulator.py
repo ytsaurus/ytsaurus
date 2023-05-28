@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, search_binary_path
 
 from yt_commands import (
     authors, wait, create, create_user, create_pool, read_table, write_table,
@@ -6,7 +6,6 @@ from yt_commands import (
 
 import yt.yson as yson
 from yt.common import date_string_to_datetime
-from yt.environment import arcadia_interop
 
 import os
 import subprocess
@@ -214,8 +213,8 @@ def resources_equal(lhs, rhs):
 
 ##################################################################
 
-CONVERTER_BINARY = arcadia_interop.search_binary_path("convert_operations_to_binary_format")
-SIMULATOR_BINARY = arcadia_interop.search_binary_path("scheduler_simulator")
+CONVERTER_BINARY = search_binary_path("convert_operations_to_binary_format")
+SIMULATOR_BINARY = search_binary_path("scheduler_simulator")
 
 ONE_GB = 1024 * 1024 * 1024
 

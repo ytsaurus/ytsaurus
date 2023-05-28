@@ -93,6 +93,10 @@ def prepare_yatest_environment(need_suid, artifact_components=None, force_create
     return bin_path
 
 
+def search_binary_path(binary_name):
+    return arcadia_interop.search_binary_path(binary_name, binary_root=get_build_root())
+
+
 def _retry_with_gc_collect(func, driver=None):
     while True:
         try:

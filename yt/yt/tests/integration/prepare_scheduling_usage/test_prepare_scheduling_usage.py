@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, is_asan_build
+from yt_env_setup import YTEnvSetup, is_asan_build, search_binary_path
 
 from yt_commands import authors, create_pool, run_test_vanilla, ls, create, exists, get
 
@@ -6,7 +6,6 @@ from yt_helpers import read_structured_log, write_log_barrier
 
 import yt.wrapper as yt
 import yt.yson as yson
-from yt.environment import arcadia_interop
 from yt.wrapper.schema import yt_dataclass, OtherColumns
 from yt.wrapper.schema import YsonBytes, TableSchema
 
@@ -19,7 +18,7 @@ import subprocess
 import time
 import typing
 
-PREPARE_SCHEDULING_USAGE_BINARY = arcadia_interop.search_binary_path("prepare_scheduling_usage")
+PREPARE_SCHEDULING_USAGE_BINARY = search_binary_path("prepare_scheduling_usage")
 
 
 @yt_dataclass
