@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yt/yt/core/yson/public.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NOrm::NAttributes {
