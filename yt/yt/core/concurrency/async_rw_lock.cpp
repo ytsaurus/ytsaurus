@@ -4,7 +4,53 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFuture<void> TAsyncLockReaderTraits::Acquire(const TAsyncReaderWriterLock::TImplPtr& impl)
+{
+    return impl->AcquireReader();
+}
+
+void TAsyncLockReaderTraits::Release(const TAsyncReaderWriterLock::TImplPtr& impl)
+{
+    impl->ReleaseReader();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> TAsyncLockWriterTraits::Acquire(const TAsyncReaderWriterLock::TImplPtr& impl)
+{
+    return impl->AcquireWriter();
+}
+
+void TAsyncLockWriterTraits::Release(const TAsyncReaderWriterLock::TImplPtr& impl)
+{
+    impl->ReleaseWriter();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFuture<void> TAsyncReaderWriterLock::AcquireReader()
+{
+    return Impl_->AcquireReader();
+}
+
+void TAsyncReaderWriterLock::ReleaseReader()
+{
+    Impl_->ReleaseReader();
+}
+
+TFuture<void> TAsyncReaderWriterLock::AcquireWriter()
+{
+    return Impl_->AcquireWriter();
+}
+
+void TAsyncReaderWriterLock::ReleaseWriter()
+{
+    Impl_->ReleaseWriter();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> TAsyncReaderWriterLock::TImpl::AcquireReader()
 {
     auto guard = Guard(SpinLock_);
 
@@ -18,7 +64,7 @@ TFuture<void> TAsyncReaderWriterLock::AcquireReader()
     return promise;
 }
 
-void TAsyncReaderWriterLock::ReleaseReader()
+void TAsyncReaderWriterLock::TImpl::ReleaseReader()
 {
     auto guard = Guard(SpinLock_);
 
@@ -34,7 +80,7 @@ void TAsyncReaderWriterLock::ReleaseReader()
     }
 }
 
-TFuture<void> TAsyncReaderWriterLock::AcquireWriter()
+TFuture<void> TAsyncReaderWriterLock::TImpl::AcquireWriter()
 {
     auto guard = Guard(SpinLock_);
 
@@ -48,7 +94,7 @@ TFuture<void> TAsyncReaderWriterLock::AcquireWriter()
     return promise;
 }
 
-void TAsyncReaderWriterLock::ReleaseWriter()
+void TAsyncReaderWriterLock::TImpl::ReleaseWriter()
 {
     auto guard = Guard(SpinLock_);
 

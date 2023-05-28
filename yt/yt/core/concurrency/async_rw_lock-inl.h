@@ -11,29 +11,30 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TOperationTraits>
-TAsyncReaderWriterLockGuard<TOperationTraits>::~TAsyncReaderWriterLockGuard()
+template <typename TTraits>
+TAsyncReaderWriterLockGuard<TTraits>::~TAsyncReaderWriterLockGuard()
 {
     Release();
 }
 
-template <typename TOperationTraits>
-TFuture<typename TAsyncReaderWriterLockGuard<TOperationTraits>::TThisPtr>
-    TAsyncReaderWriterLockGuard<TOperationTraits>::Acquire(TAsyncReaderWriterLock* lock)
+template <typename TTraits>
+TFuture<TIntrusivePtr<TAsyncReaderWriterLockGuard<TTraits>>>
+    TAsyncReaderWriterLockGuard<TTraits>::Acquire(TAsyncReaderWriterLock* lock)
 {
-    return TOperationTraits::Acquire(lock).Apply(BIND([=] () {
-        auto guard = New<TThis>();
-        guard->Lock_ = lock;
+    const auto& impl = lock->Impl_;
+    return TTraits::Acquire(impl).Apply(BIND([impl = impl] () mutable {
+        auto guard = New<TAsyncReaderWriterLockGuard>();
+        guard->LockImpl_ = std::move(impl);
         return guard;
     }));
 }
 
-template <typename TOperationTraits>
-void TAsyncReaderWriterLockGuard<TOperationTraits>::Release()
+template <typename TTraits>
+void TAsyncReaderWriterLockGuard<TTraits>::Release()
 {
-    if (Lock_) {
-        TOperationTraits::Release(Lock_);
-        Lock_ = nullptr;
+    if (LockImpl_) {
+        TTraits::Release(LockImpl_);
+        LockImpl_ = nullptr;
     }
 }
 

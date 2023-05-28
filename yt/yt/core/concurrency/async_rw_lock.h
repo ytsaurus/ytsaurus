@@ -21,63 +21,64 @@ public:
     void ReleaseWriter();
 
 private:
-    int ActiveReaderCount_ = 0;
-    bool HasActiveWriter_ = false;
+    class TImpl final
+    {
+    public:
+        TFuture<void> AcquireReader();
+        void ReleaseReader();
 
-    std::vector<TPromise<void>> ReaderPromiseQueue_;
-    std::queue<TPromise<void>> WriterPromiseQueue_;
+        TFuture<void> AcquireWriter();
+        void ReleaseWriter();
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    private:
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+
+        int ActiveReaderCount_ = 0;
+        bool HasActiveWriter_ = false;
+
+        std::vector<TPromise<void>> ReaderPromiseQueue_;
+        std::queue<TPromise<void>> WriterPromiseQueue_;
+    };
+
+    using TImplPtr = TIntrusivePtr<TImpl>;
+
+    const TImplPtr Impl_ = New<TImpl>();
+
+    template <class TTraits>
+    friend class TAsyncReaderWriterLockGuard;
+
+    friend struct TAsyncLockReaderTraits;
+    friend struct TAsyncLockWriterTraits;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TOperationTraits>
+template <class TTraits>
 class TAsyncReaderWriterLockGuard
     : public TRefCounted
 {
-private:
-    using TThis = TAsyncReaderWriterLockGuard;
-    using TThisPtr = TIntrusivePtr<TThis>;
-
 public:
     ~TAsyncReaderWriterLockGuard();
 
-    static TFuture<TThisPtr> Acquire(TAsyncReaderWriterLock* lock);
-
+    static TFuture<TIntrusivePtr<TAsyncReaderWriterLockGuard>> Acquire(TAsyncReaderWriterLock* lock);
     void Release();
 
 private:
-    TAsyncReaderWriterLock* Lock_ = nullptr;
-
+    TAsyncReaderWriterLock::TImplPtr LockImpl_;
 };
 
-class TAsyncLockReaderTraits
-{
-public:
-    static TFuture<void> Acquire(TAsyncReaderWriterLock* lock)
-    {
-        return lock->AcquireReader();
-    }
+////////////////////////////////////////////////////////////////////////////////
 
-    static void Release(TAsyncReaderWriterLock* lock)
-    {
-        lock->ReleaseReader();
-    }
+struct TAsyncLockReaderTraits
+{
+    static TFuture<void> Acquire(const TAsyncReaderWriterLock::TImplPtr& impl);
+    static void Release(const TAsyncReaderWriterLock::TImplPtr& impl);
 };
 
-class TAsyncLockWriterTraits
+struct TAsyncLockWriterTraits
 {
-public:
-    static TFuture<void> Acquire(TAsyncReaderWriterLock* lock)
-    {
-        return lock->AcquireWriter();
-    }
-
-    static void Release(TAsyncReaderWriterLock* lock)
-    {
-        lock->ReleaseWriter();
-    }
+    static TFuture<void> Acquire(const TAsyncReaderWriterLock::TImplPtr& impl);
+    static void Release(const TAsyncReaderWriterLock::TImplPtr& impl);
 };
 
 using TAsyncLockReaderGuard = TAsyncReaderWriterLockGuard<TAsyncLockReaderTraits>;
