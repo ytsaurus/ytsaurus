@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from yt.wrapper.schema import (
     yt_dataclass,
     OtherColumns,
