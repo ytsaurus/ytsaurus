@@ -247,6 +247,11 @@ void TMasterTableSchema::SetChargedMasterMemoryUsage(TAccount* account, i64 usag
     }
 }
 
+void TMasterTableSchema::SetId(TMasterTableSchemaId id)
+{
+    Id_ = id;
+}
+
 TMasterTableSchema::TNativeTableSchemaToObjectMapIterator TMasterTableSchema::GetNativeTableSchemaToObjectMapIterator() const
 {
     const auto* it = std::get_if<TNativeTableSchemaToObjectMapIterator>(&TableSchemaToObjectMapIterator_);

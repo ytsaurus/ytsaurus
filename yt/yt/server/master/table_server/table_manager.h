@@ -149,6 +149,9 @@ public:
 
     virtual TFuture<NYson::TYsonString> GetQueueAgentObjectRevisionsAsync() const = 0;
 
+    // COMPAT(h0pless): Remove this after schema migration is complete.
+    virtual void TransformForeignSchemaIdsToNative() = 0;
+
     DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TTableCollocationData), ReplicationCollocationUpdated);
     DECLARE_INTERFACE_SIGNAL(void(NTableClient::TTableCollocationId), ReplicationCollocationDestroyed);
 };

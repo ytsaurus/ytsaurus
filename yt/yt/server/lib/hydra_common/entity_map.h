@@ -78,6 +78,7 @@ public:
     {
     public:
         const std::pair<const TKey, TValue*>& operator*() const;
+        const std::pair<const TKey, TValue*>* operator->() const;
 
         TIterator& operator++();
         TIterator& operator--();

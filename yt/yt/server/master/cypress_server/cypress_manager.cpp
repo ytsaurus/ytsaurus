@@ -2715,6 +2715,8 @@ private:
         // COMPAT(h0pless): Remove this after schema migration is complete.
         if (NeedExportSchemas_) {
             const auto& tableManager = Bootstrap_->GetTableManager();
+            tableManager->TransformForeignSchemaIdsToNative();
+
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             auto* emptySchema = Bootstrap_->GetTableManager()->GetEmptyMasterTableSchema();
 
@@ -2730,7 +2732,7 @@ private:
             THashMap<TVersionedNodeId, TMasterTableSchema*> nodeIdToSchema;
             THashMap<TCellTag, std::vector<TVersionedNodeId>> cellTagToNodeIds;
             for (auto [nodeId, node] : NodeMap_) {
-                if (!IsObjectAlive(node)) {
+                if (!IsObjectAlive(node) && node->IsTrunk()) {
                     continue;
                 }
                 if (!node->IsNative()) {
@@ -4392,13 +4394,21 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         const auto& tableManager = Bootstrap_->GetTableManager();
+        auto* emptySchema = tableManager->GetEmptyMasterTableSchema();
+
         for (const auto& subrequest : request->subrequests()) {
             auto nodeId = FromProto<TNodeId>(subrequest.table_node_id());
             auto transactionId = FromProto<TTransactionId>(subrequest.transaction_id());
             auto schemaId = FromProto<TMasterTableSchemaId>(subrequest.schema_id());
 
-            auto* node = FindNode(TVersionedNodeId{nodeId, transactionId});
-            YT_VERIFY(IsObjectAlive(node));
+            auto externalizingCellTag = CellTagFromId(nodeId);
+            auto effectiveTransactionId = transactionId;
+            if (externalizingCellTag != CellTagFromId(transactionId)) {
+                effectiveTransactionId = NTransactionClient::MakeExternalizedTransactionId(transactionId, externalizingCellTag);
+            }
+
+            auto* node = FindNode(TVersionedNodeId{nodeId, effectiveTransactionId});
+            YT_VERIFY(IsObjectAlive(node) || !node->IsTrunk());
             YT_VERIFY(IsTableType(node->GetType()));
             auto* table = node->As<TTableNode>();
 
@@ -4407,7 +4417,16 @@ private:
                 auto schema = FromProto<TTableSchema>(subrequest.schema());
 
                 // Just a sanity check.
-                YT_VERIFY(*oldSchema->AsTableSchema() == schema);
+                if (*oldSchema->AsTableSchema() != schema) {
+                    YT_LOG_ALERT(
+                        "Schemas between native and external cells differ "
+                        "(NativeSchemaId: %v, ExternalSchemaId: %v, NativeSchema: %v, ExternalSchema: %v)",
+                        schemaId,
+                        oldSchema->GetId(),
+                        schema,
+                        oldSchema->AsTableSchema());
+                    YT_VERIFY(*oldSchema->AsTableSchema() == *emptySchema->AsTableSchema());
+                }
 
                 tableManager->CreateImportedMasterTableSchema(schema, table, schemaId);
             } else {
@@ -4415,7 +4434,16 @@ private:
                 YT_VERIFY(IsObjectAlive(existingSchema));
 
                 // Just a sanity check.
-                YT_VERIFY(*oldSchema->AsTableSchema() == *existingSchema->AsTableSchema());
+                if (*oldSchema->AsTableSchema() != *existingSchema->AsTableSchema()) {
+                    YT_LOG_ALERT(
+                        "Schemas between native and external cells differ "
+                        "(NativeSchemaId: %v, ExternalSchemaId: %v, NativeSchema: %v, ExternalSchema: %v)",
+                        schemaId,
+                        oldSchema->GetId(),
+                        *existingSchema->AsTableSchema(),
+                        oldSchema->AsTableSchema());
+                    YT_VERIFY(*oldSchema->AsTableSchema() == *emptySchema->AsTableSchema());
+                }
 
                 tableManager->SetTableSchema(table, existingSchema);
             }

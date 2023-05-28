@@ -80,6 +80,9 @@ public:
     i64 GetChargedMasterMemoryUsage(NSecurityServer::TAccount* account) const;
     void SetChargedMasterMemoryUsage(NSecurityServer::TAccount* account, i64 usage);
 
+    // COMPAT(h0pless): Remove this after schema migration is complete.
+    void SetId(TMasterTableSchemaId id);
+
 private:
     friend class TTableManager;
 

@@ -518,6 +518,9 @@ public:
         YT_VERIFY(!schema->IsDisposed());
         YT_VERIFY(FindMasterTableSchema(schema->GetId()));
 
+        YT_LOG_DEBUG("Resurrecting master table schema object (SchemaId: %v)",
+            schema->GetId());
+
         const auto& tableSchema = schema->TableSchema_;
         if (schema->IsNative()) {
             auto it = EmplaceOrCrash(
@@ -1078,6 +1081,36 @@ public:
         }
     }
 
+    void TransformForeignSchemaIdsToNative() override
+    {
+        std::vector<std::unique_ptr<TMasterTableSchema>> schemasToUpdate;
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellTag = multicellManager->GetCellTag();
+        for (auto it = MasterTableSchemaMap_.begin(); it != MasterTableSchemaMap_.end();) {
+            auto schemaId = it->first;
+            ++it;
+
+            if (CellTagFromId(schemaId) != cellTag && schemaId != EmptyMasterTableSchemaId_) {
+                auto schemaPtr = MasterTableSchemaMap_.Release(schemaId);
+
+                auto newSchemaId = GenerateNativeSchemaIdFromForeign(schemaPtr->GetId(), cellTag);
+                schemaPtr->SetId(newSchemaId);
+
+                YT_LOG_ALERT("Updating schema ID for a native schema (NewSchemaId: %v, SchemaId: %v, Schema: %v)",
+                    schemaId,
+                    schemaPtr->AsTableSchema(),
+                    newSchemaId);
+
+                schemasToUpdate.push_back(std::move(schemaPtr));
+            }
+        }
+
+        for (auto i = 0; i < std::ssize(schemasToUpdate); ++i) {
+            auto schemaId = schemasToUpdate[i]->GetId();
+            MasterTableSchemaMap_.Insert(schemaId, std::move(schemasToUpdate[i]));
+        }
+    }
+
     DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationData), ReplicationCollocationUpdated);
     DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationId), ReplicationCollocationDestroyed);
 
@@ -1154,6 +1187,18 @@ private:
         return IsTableType(type) || type == EObjectType::File || type == EObjectType::HunkStorage;
     }
 
+    TMasterTableSchemaId GenerateNativeSchemaIdFromForeign(TMasterTableSchemaId oldSchemaId, TCellTag cellTag) {
+        YT_VERIFY(oldSchemaId);
+
+        auto imposterCellTag = CellTagFromId(oldSchemaId);
+        auto type = TypeFromId(oldSchemaId);
+        YT_VERIFY(type == EObjectType::MasterTableSchema);
+        return TMasterTableSchemaId(
+            (oldSchemaId.Parts32[0] & 0xffff) | (imposterCellTag << 16),   // keep the original cell tag
+            (cellTag << 16) | static_cast<ui32>(type),                     // keep type and replace native cell tag
+            oldSchemaId.Parts32[2],
+            oldSchemaId.Parts32[3]);
+    }
 
     void InitBuiltins()
     {

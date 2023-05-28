@@ -56,6 +56,12 @@ auto TReadOnlyEntityMap<TValue>::TIterator::operator*() const -> const std::pair
 }
 
 template <class TValue>
+auto TReadOnlyEntityMap<TValue>::TIterator::operator->() const -> const std::pair<const TKey, TValue*>*
+{
+    return Iterator_.operator->();
+}
+
+template <class TValue>
 auto TReadOnlyEntityMap<TValue>::TIterator::operator++() -> TIterator&
 {
     ++Iterator_;

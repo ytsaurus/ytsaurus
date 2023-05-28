@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (
     authors, create_tablet_cell_bundle, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells,
-    ls, get, set, retry, start_transaction, commit_transaction, create, exists, wait, write_table, get_driver)
+    ls, get, set, retry, start_transaction, commit_transaction, create, exists, wait, write_table, get_driver, lock)
 
 from yt_helpers import profiler_factory
 
@@ -244,6 +244,13 @@ class TestBundleControllerAttribute(MasterSnapshotsCompatibilityBase):
 
 class TestSchemaMigration(MasterSnapshotsCompatibilityBase):
     def _check_table_schemas(self):
+        def make_externalized_transaction_id(tx, cell_tag):
+            parts = list(str(tx).split("-"))
+            tmp = "0000" + parts[3][-4:]
+            parts[3] = parts[2][:-4] + tmp[-4:]
+            parts[2] = f"{cell_tag:0x}" + "0005"
+            return "-".join(parts)
+
         table_path = "//tmp/empty_schema_holder_primary1"
         assert self.empty_schema_primary_id == get("{}/@schema_id".format(table_path))
         assert self.empty_schema_content == get("{}/@schema".format(table_path))
@@ -279,6 +286,20 @@ class TestSchemaMigration(MasterSnapshotsCompatibilityBase):
         table_path = "//tmp/schema4_holder_primary"
         assert self.schema4_primary_id == get("{}/@schema_id".format(table_path))
         assert self.schema4_content == get("{}/@schema".format(table_path))
+
+        table_path = "//tmp/empty_schema_holder_primary3_tx"
+        assert self.empty_schema_primary_id == get("{}/@schema_id".format(table_path), tx=self.tx)
+        assert self.empty_schema_content == get("{}/@schema".format(table_path), tx=self.tx)
+        table_id = get("{}/@id".format(table_path))
+        assert self.empty_schema_primary_id == get("#{}/@schema_id".format(table_id), driver=get_driver(2), tx=self.tx)
+        assert self.empty_schema_content == get("#{}/@schema".format(table_id), driver=get_driver(2), tx=self.tx)
+
+        table_path = "//tmp/schema1_holder_primary_tx"
+        assert self.schema1_primary_id == get("{}/@schema_id".format(table_path), tx=self.tx)
+        assert self.schema1_content == get("{}/@schema".format(table_path), tx=self.tx)
+        table_id = get("{}/@id".format(table_path))
+        assert self.schema1_primary_id == get("#{}/@schema_id".format(table_id), driver=get_driver(1), tx=self.tx)
+        assert self.schema1_content == get("#{}/@schema".format(table_id), driver=get_driver(1), tx=self.tx)
 
         table_path = "//tmp/portal_to_11/empty_schema_holder_secondary1"
         assert self.empty_schema_primary_id == get("{}/@schema_id".format(table_path))
@@ -316,6 +337,14 @@ class TestSchemaMigration(MasterSnapshotsCompatibilityBase):
         assert self.schema3_11_id == get("#{}/@schema_id".format(table_id), driver=get_driver(2))
         assert self.schema3_content == get("#{}/@schema".format(table_id), driver=get_driver(2))
 
+        table_path = "//tmp/portal_to_11/schema1_holder_secondary3_tx"
+        assert self.schema1_11_id == get("{}/@schema_id".format(table_path), tx=self.tx)
+        assert self.schema1_content == get("{}/@schema".format(table_path), tx=self.tx)
+        table_id = get("{}/@id".format(table_path))
+        externalized_tx = make_externalized_transaction_id(self.tx, 11)
+        assert self.schema1_11_id == get("#{}/@schema_id".format(table_id), driver=get_driver(3), tx=externalized_tx)
+        assert self.schema1_content == get("#{}/@schema".format(table_id), driver=get_driver(3), tx=externalized_tx)
+
     @authors("h0pless")
     def test(self):
         create("portal_entrance", "//tmp/portal_to_11", attributes={"exit_cell_tag": 11})
@@ -331,6 +360,8 @@ class TestSchemaMigration(MasterSnapshotsCompatibilityBase):
             {"name": "subkey", "type": "string", "sort_order": "ascending"},
             {"name": "value", "type": "string"}]
 
+        self.tx = start_transaction()
+
         # Primary cell native schemas
         create("table", "//tmp/empty_schema_holder_primary1", attributes={"external": False})
         create("table", "//tmp/empty_schema_holder_primary2", attributes={"external_cell_tag": 11})
@@ -338,6 +369,12 @@ class TestSchemaMigration(MasterSnapshotsCompatibilityBase):
         create("table", "//tmp/schema1_holder_primary", attributes={"schema": schema1, "external_cell_tag": 11})
         create("table", "//tmp/schema2_holder_primary", attributes={"schema": schema2, "external_cell_tag": 12})
         create("table", "//tmp/schema4_holder_primary", attributes={"schema": schema4, "external": False})
+        # Testing branched nodes
+        create("table", "//tmp/empty_schema_holder_primary3_tx", attributes={"external_cell_tag": 12})
+        create("table", "//tmp/schema1_holder_primary_tx", attributes={"schema": schema1, "external_cell_tag": 11})
+
+        lock("//tmp/empty_schema_holder_primary3_tx", mode="snapshot", tx=self.tx)
+        lock("//tmp/schema1_holder_primary_tx", mode="exclusive", tx=self.tx)
 
         # Secondary cell native schemas
         create("table", "//tmp/portal_to_11/empty_schema_holder_secondary1", attributes={"external": False})
@@ -346,6 +383,10 @@ class TestSchemaMigration(MasterSnapshotsCompatibilityBase):
         create("table", "//tmp/portal_to_11/schema1_holder_secondary2", attributes={"schema": schema1, "external_cell_tag": 12})
         create("table", "//tmp/portal_to_11/schema1_holder_secondary3", attributes={"schema": schema1, "external_cell_tag": 13})
         create("table", "//tmp/portal_to_11/schema3_holder_secondary", attributes={"schema": schema3, "external_cell_tag": 12})
+        # Testing branched nodes
+        create("table", "//tmp/portal_to_11/schema1_holder_secondary3_tx", attributes={"schema": schema1, "external_cell_tag": 13})
+
+        lock("//tmp/portal_to_11/schema1_holder_secondary3_tx", mode="shared", tx=self.tx)
 
         # Schema content
         self.empty_schema_content = get("//tmp/empty_schema_holder_primary1/@schema")
