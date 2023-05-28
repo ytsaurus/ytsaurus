@@ -26,8 +26,8 @@ public:
     }
 
 private:
-    ITvmServicePtr TvmService_;
-    TId DstServiceId_;
+    const ITvmServicePtr TvmService_;
+    const TId DstServiceId_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
