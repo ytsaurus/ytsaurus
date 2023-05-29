@@ -6,6 +6,7 @@
 #include <yt/yt/server/controller_agent/job_size_constraints.h>
 #include <yt/yt/server/controller_agent/operation_controller.h>
 
+#include <yt/yt/server/lib/chunk_pools/unittests/chunk_pools_helpers.h>
 #include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -346,20 +347,6 @@ protected:
                 }
             }
         }
-    }
-
-    TCompletedJobSummary SummaryWithSplitJobCount(TChunkStripeListPtr stripeList, int splitJobCount)
-    {
-        TCompletedJobSummary jobSummary;
-        for (const auto& stripe : stripeList->Stripes) {
-            std::copy(
-                stripe->DataSlices.begin(),
-                stripe->DataSlices.end(),
-                std::back_inserter(jobSummary.UnreadInputDataSlices));
-        }
-        jobSummary.SplitJobCount = splitJobCount;
-        jobSummary.InterruptReason = EInterruptReason::JobSplit;
-        return jobSummary;
     }
 
     void SplitJob(IChunkPoolOutput::TCookie cookie, int splitJobCount)

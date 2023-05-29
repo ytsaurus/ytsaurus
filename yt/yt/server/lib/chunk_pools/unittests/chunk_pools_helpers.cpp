@@ -4,6 +4,7 @@
 
 namespace NYT {
 
+using namespace NControllerAgent;
 using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,6 +29,22 @@ TLogger GetTestLogger()
     return ChunkPoolLogger
         .WithTag("OperationId: %v, Name: %v::%v", TGuid::Create(), testInfo->name(), testInfo->test_suite_name())
         .WithMinLevel(ELogLevel::Trace);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCompletedJobSummary SummaryWithSplitJobCount(TChunkStripeListPtr stripeList, int splitJobCount)
+{
+    TCompletedJobSummary jobSummary;
+    for (const auto& stripe : stripeList->Stripes) {
+        std::copy(
+            stripe->DataSlices.begin(),
+            stripe->DataSlices.end(),
+            std::back_inserter(jobSummary.UnreadInputDataSlices));
+    }
+    jobSummary.SplitJobCount = splitJobCount;
+    jobSummary.InterruptReason = EInterruptReason::JobSplit;
+    return jobSummary;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

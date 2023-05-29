@@ -1,6 +1,9 @@
+#include <yt/yt/server/lib/controller_agent/structs.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
 #pragma once
 
@@ -18,6 +21,10 @@ namespace NChunkPools {
 ////////////////////////////////////////////////////////////////////////////////
 
 NLogging::TLogger GetTestLogger();
+
+////////////////////////////////////////////////////////////////////////////////
+
+NControllerAgent::TCompletedJobSummary SummaryWithSplitJobCount(TChunkStripeListPtr stripeList, int splitJobCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
