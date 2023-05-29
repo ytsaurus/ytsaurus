@@ -28,7 +28,7 @@ spark-submit-yt \
   --proxy <cluster-name> \
   --discovery-path //my_discovery_path \
   --deploy-mode cluster \
-  YT_path_to_file
+  YTsaurus_path_to_file
 ```
 
 ## Запуск с зависимостями  { #dependencies }
@@ -75,8 +75,8 @@ spark-submit-yt \
     --proxy <cluster-name> \
     --discovery-path //my_discovery_path \
     --deploy-mode cluster \
-    --py-files YT_path_to_lib \
-    YT_path_to_file
+    --py-files YTsaurus_path_to_lib \
+    YTsaurus_path_to_file
 
 ```
 ## Запуск с конфигурациями
@@ -121,7 +121,7 @@ spark-submit-yt \
     --conf spark.sql.shuffle.partitions=1 \
     --conf spark.cores.max=1 \
     --conf spark.executor.cores=1 \
-    YT_path_to_file
+    YTsaurus_path_to_file
   ```
 
 
@@ -165,7 +165,7 @@ with java_gateway() as gateway:
 
 ```
 
-1. Клиент работает через `Py4J`, вызывает нужные методы у `RestSubmissionClient`. Строчка `with java_gateway() as gateway`  поднимает `JVM` с нужным `Classpath` и корректно завершает работу.
+1. Клиент работает через `Py4J`, вызывает нужные методы у `RestSubmissionClient`. Строка `with java_gateway() as gateway`  поднимает `JVM` с нужным `Classpath` и корректно завершает работу.
 
 2. Можно использовать методы `launch_gateway` и `shutdown_gateway` и управлять созданием `JVM` самостоятельно.
 

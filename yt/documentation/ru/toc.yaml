@@ -228,7 +228,7 @@ items:
               href: user-guide/data-processing/chyt/cliques/ui.md
             - name: Администрирование приватной клики
               href: user-guide/data-processing/chyt/cliques/administration.md
-            - name: Производительность и рекомендации
+            - name: Ресурсы и вытеснение
               href: user-guide/data-processing/chyt/cliques/resources.md
           - name: CLI и Python API
             href: user-guide/data-processing/chyt/cli-and-api.md
@@ -261,9 +261,9 @@ items:
               href: user-guide/data-processing/spyt/quick-start.md
             - name: Кластер SPYT
               items:
-              - name: Описание кластера Spark
+              - name: Описание кластера
                 href: user-guide/data-processing/spyt/cluster/cluster-desc.md
-              - name: Запуск кластера Spark
+              - name: Запуск кластера
                 href: user-guide/data-processing/spyt/cluster/cluster-start.md
               # - name: Метрики в Prometheus
               #   href: user-guide/data-processing/spyt/cluster/prometheus.md
