@@ -46,7 +46,7 @@ class TestNodeHeartbeats(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        wait(lambda: op.get_job_count("aborted") >= 3)
+        wait(lambda: op.get_job_count("aborted") >= 3, ignore_exceptions=True)
         assert op.get_state() == "running"
 
         fixup()
