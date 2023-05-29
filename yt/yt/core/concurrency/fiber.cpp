@@ -1,6 +1,5 @@
 #include "fiber.h"
 
-#include "atomic_flag_spinlock.h"
 #include "execution_stack.h"
 
 #include <yt/yt/core/profiling/timing.h>
