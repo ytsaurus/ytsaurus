@@ -48,7 +48,7 @@ type InstanceMemory struct {
 	CompressedBlockCache   *uint64 `yson:"compressed_cache"`
 	UncompressedBlockCache *uint64 `yson:"uncompressed_cache"`
 	Reader                 *uint64 `yson:"reader"`
-	// Some less usefull fields.
+	// Some less useful fields.
 	ClickHouseWatermark        *uint64 `yson:"clickhouse_watermark"`
 	WatchdogOOMWatermark       *uint64 `yson:"watchdog_oom_watermark"`
 	WatchdogOOMWindowWatermark *uint64 `yson:"watchdog_oom_window_watermark"`

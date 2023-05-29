@@ -390,7 +390,7 @@ void TLeaderCommitter::FlushMutations()
                 // This is ok, it actually means that follower hasn't received initial ping (and hasn't recovered) yet,
                 // Lets just wait for him to recover.
 
-                // Something usefull might or might not happen here.
+                // Something useful might or might not happen here.
             } else {
                 TError error("Follower %v needs a mutation %v that was already lost",
                     followerId,

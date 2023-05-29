@@ -49,7 +49,7 @@ from .http_helpers import get_retriable_errors  # noqa
 from .common import get_version, is_inside_job, escape_c  # noqa
 __version__ = VERSION = get_version()
 
-# Some usefull parts of private API.
+# Some useful parts of private API.
 from .http_helpers import (  # noqa
     _cleanup_http_session,
     get_token as _get_token,
