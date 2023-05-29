@@ -390,7 +390,7 @@ def list(**kwargs):
     time_type = kwargs.get("time_type", DEFAULT_TIME_TYPE)
     if kwargs["long_format"]:
         assert kwargs["format"] is None
-        list_args["attributes"] = LONG_FORMAT_ATTRIBUTES + [time_type]
+        list_args["attributes"] = LONG_FORMAT_ATTRIBUTES + (time_type,)
     list = yt.list(**list_args)
     if kwargs["format"] is None:
         if kwargs["attributes"] is not None:
