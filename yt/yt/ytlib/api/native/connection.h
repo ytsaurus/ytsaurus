@@ -77,7 +77,7 @@ struct IConnection
 
     virtual const NChunkClient::IChunkReplicaCachePtr& GetChunkReplicaCache() = 0;
 
-    virtual std::pair<IClientPtr, TString> GetQueryTrackerStage(const TString& stage) = 0;
+    virtual std::pair<IClientPtr, NYPath::TYPath> GetQueryTrackerStage(const TString& stage) = 0;
 
     virtual const NHiveClient::TCellTrackerPtr& GetDownedCellTracker() = 0;
 

@@ -40,7 +40,7 @@ using namespace NChunkClient::NProto;
 
 TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const TStartQueryOptions& options)
 {
-    const auto& [client, root] = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
+    auto [client, root] = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
 
     static const TYsonString EmptyMap = TYsonString(TString("{}"));
 
@@ -129,12 +129,12 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
 
 void TClient::DoAbortQuery(TQueryId queryId, const TAbortQueryOptions& options)
 {
-    const auto& [client, root] = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
+    auto [client, root] = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
 
     auto abortError = TError(
         "Query was aborted by user %Qv%v",
         Options_.User,
-        options.AbortMessage ? " with message \"" + *options.AbortMessage + "\"" : "");
+        options.AbortMessage ? Format(" with message %Qv", *options.AbortMessage) : TString());
 
     TActiveQueryPartial newRecord{
         .Key = {.QueryId = queryId},
@@ -171,12 +171,14 @@ void TClient::DoAbortQuery(TQueryId queryId, const TAbortQueryOptions& options)
         if (!optionalRecords[0]) {
             THROW_ERROR_EXCEPTION(
                 NQueryTrackerClient::EErrorCode::QueryNotFound,
-                "Query %Qv not found or is not running",
+                "Query %v not found or is not running",
                 queryId);
         }
         const auto& record = *optionalRecords[0];
         if (record.State != EQueryState::Pending && record.State != EQueryState::Running) {
-            THROW_ERROR_EXCEPTION("Cannot abort query %Qv which is in state %Qlv", queryId, record.State);
+            THROW_ERROR_EXCEPTION("Cannot abort query %v which is in state %Qlv",
+                queryId,
+                record.State);
         }
     }
 
@@ -199,7 +201,7 @@ void TClient::DoAbortQuery(TQueryId queryId, const TAbortQueryOptions& options)
 
 TQueryResult TClient::DoGetQueryResult(TQueryId queryId, i64 resultIndex, const TGetQueryResultOptions& options)
 {
-    const auto& [client, root] = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
+    auto [client, root] = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
 
     TQueryResult queryResult;
     {
@@ -222,7 +224,7 @@ TQueryResult TClient::DoGetQueryResult(TQueryId queryId, i64 resultIndex, const 
         if (!optionalRecords[0]) {
             THROW_ERROR_EXCEPTION(
                 NQueryTrackerClient::EErrorCode::QueryResultNotFound,
-                "Query %Qv result %v not found or is expired",
+                "Query %v result %v not found or is expired",
                 queryId,
                 resultIndex);
         }
@@ -275,7 +277,7 @@ IUnversionedRowsetPtr FilterRowsetColumns(IUnversionedRowsetPtr rowset, std::vec
 
 IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultIndex, const TReadQueryResultOptions& options)
 {
-    const auto& [client, root] = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
+    auto [client, root] = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
 
     YT_LOG_DEBUG(
         "Reading query result (QueryId: %v, ResultIndex: %v, LowerRowIndex: %v, UpperRowIndex: %v)",
@@ -306,7 +308,7 @@ IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultInd
         if (!optionalRecords[0]) {
             THROW_ERROR_EXCEPTION(
                 NQueryTrackerClient::EErrorCode::QueryResultNotFound,
-                "Query %Qv result %v not found or is expired",
+                "Query %v result %v not found or is expired",
                 queryId,
                 resultIndex);
         }
@@ -318,7 +320,7 @@ IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultInd
             // This should not normally happen, but better this than abort.
             THROW_ERROR_EXCEPTION(
                 NQueryTrackerClient::EErrorCode::QueryResultNotFound,
-                "Query %Qv result %v rowset is missing",
+                "Query %v result %v rowset is missing",
                 queryId,
                 resultIndex);
         }
@@ -448,7 +450,9 @@ TQuery TClient::DoGetQuery(TQueryId queryId, const TGetQueryOptions& options)
             auto optionalRecords = ToOptionalRecords<typename TRecordDescriptor::TRecordPartial>(rowset);
             YT_VERIFY(optionalRecords.size() == 1);
             if (!optionalRecords[0]) {
-                THROW_ERROR_EXCEPTION("Query %Qv is not found in %Qv query table", queryId, tableKind);
+                THROW_ERROR_EXCEPTION("Query %v is not found in %Qv query table",
+                    queryId,
+                    tableKind);
             }
             return *optionalRecords[0];
         }));
@@ -462,7 +466,7 @@ TQuery TClient::DoGetQuery(TQueryId queryId, const TGetQueryOptions& options)
     if (!error.IsOK()) {
         THROW_ERROR_EXCEPTION(
             NQueryTrackerClient::EErrorCode::QueryNotFound,
-            "Query %Qv is not found neither in active nor in finished query tables",
+            "Query %v is not found neither in active nor in finished query tables",
             queryId)
             << error;
     }
@@ -494,8 +498,8 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
         .ValueOrThrow();
 
     YT_LOG_DEBUG(
-        "Listing queries (Timestamp: %v, State: %Qv, CursorDirection: %v, FromTime: %v, ToTime: %v, CursorTime: %v,"
-        "Substr: %Qv, User: %Qv, Engine: %v, Limit: %v, Attributes: %v)",
+        "Listing queries (Timestamp: %v, State: %v, CursorDirection: %v, FromTime: %v, ToTime: %v, CursorTime: %v,"
+        "Substr: %v, User: %v, Engine: %v, Limit: %v, Attributes: %v)",
         timestamp,
         options.StateFilter,
         options.CursorDirection,
@@ -566,7 +570,7 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
             TSelectRowsOptions options;
             options.Timestamp = timestamp;
             auto query = builder.Build();
-            YT_LOG_DEBUG("Selecting active queries (Query: %Qv)", query);
+            YT_LOG_DEBUG("Selecting active queries (Query: %v)", query);
             auto selectResult = WaitFor(client->SelectRows(query, options))
                 .ValueOrThrow();
             auto records = ToRecords<TActiveQueryPartial>(selectResult.Rowset);
@@ -588,7 +592,7 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
                 TSelectRowsOptions options;
                 options.Timestamp = timestamp;
                 auto query = builder.Build();
-                YT_LOG_DEBUG("Selecting finished queries by start time (Query: %Qv)", query);
+                YT_LOG_DEBUG("Selecting finished queries by start time (Query: %v)", query);
                 auto selectResult = WaitFor(client->SelectRows(query, options))
                     .ValueOrThrow();
                 bool isFirst = true;
@@ -612,7 +616,7 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
                 TSelectRowsOptions options;
                 options.Timestamp = timestamp;
                 auto query = builder.Build();
-                YT_LOG_DEBUG("Selecting admitted finished queries (Query: %Qv)", query);
+                YT_LOG_DEBUG("Selecting admitted finished queries (Query: %v)", query);
                 auto selectResult = WaitFor(client->SelectRows(query, options))
                     .ValueOrThrow();
                 auto records = ToRecords<TFinishedQueryPartial>(selectResult.Rowset);
@@ -681,9 +685,7 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
 
 void TClient::DoAlterQuery(TQueryId queryId, const TAlterQueryOptions& options)
 {
-    IClientPtr client;
-    TString root;
-    std::tie(client, root) = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
+    auto [client, root] = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
 
     auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, {}))
         .ValueOrThrow();
