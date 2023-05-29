@@ -1347,6 +1347,14 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         return false;
     }
 
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    auto* chunkRequisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+    auto* outputChunk = chunkManager->FindChunk(jobInfo.OutputChunkId);
+    if (!IsObjectAlive(outputChunk)) {
+        return false;
+    }
+    auto erasureCodec = outputChunk->GetErasureCodec();
+
     TChunkMergerWriterOptions chunkMergerWriterOptions;
     if (chunkOwner->GetType() == EObjectType::Table) {
         const auto* table = chunkOwner->As<TTableNode>();
@@ -1354,7 +1362,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         chunkMergerWriterOptions.set_optimize_for(ToProto<int>(table->GetOptimizeFor()));
     }
     chunkMergerWriterOptions.set_compression_codec(ToProto<int>(chunkOwner->GetCompressionCodec()));
-    chunkMergerWriterOptions.set_erasure_codec(ToProto<int>(chunkOwner->GetErasureCodec()));
+    chunkMergerWriterOptions.set_erasure_codec(ToProto<int>(erasureCodec));
     chunkMergerWriterOptions.set_enable_skynet_sharing(chunkOwner->GetEnableSkynetSharing());
     chunkMergerWriterOptions.set_merge_mode(ToProto<int>(jobInfo.MergeMode));
     chunkMergerWriterOptions.set_max_heavy_columns(Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->MaxHeavyColumns);
@@ -1363,7 +1371,6 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
     TMergeJob::TChunkVector inputChunks;
     inputChunks.reserve(jobInfo.InputChunkIds.size());
 
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (auto chunkId : jobInfo.InputChunkIds) {
         auto* chunk = chunkManager->FindChunk(chunkId);
         if (!IsObjectAlive(chunk)) {
@@ -1372,18 +1379,11 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         inputChunks.emplace_back(chunk);
     }
 
-    auto* chunkRequisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
-    auto* outputChunk = chunkManager->FindChunk(jobInfo.OutputChunkId);
-    if (!IsObjectAlive(outputChunk)) {
-        return false;
-    }
-
     const auto& requisition = outputChunk->GetAggregatedRequisition(chunkRequisitionRegistry);
     TChunkIdWithIndexes chunkIdWithIndexes(
         jobInfo.OutputChunkId,
         GenericChunkReplicaIndex,
         requisition.begin()->MediumIndex);
-    auto erasureCodec = outputChunk->GetErasureCodec();
     int targetCount = erasureCodec == NErasure::ECodec::None
         ? outputChunk->GetAggregatedReplicationFactor(
             chunkIdWithIndexes.MediumIndex,
