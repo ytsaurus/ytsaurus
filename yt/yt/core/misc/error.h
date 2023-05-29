@@ -284,20 +284,11 @@ private:
 
 };
 
-// Make it template to avoid type erasure during throw.
+// Make these templates to avoid type erasure during throw.
 template <class TException>
-TException&& operator <<= (TException&& ex, const TError& error)
-{
-    ex.Error() = error;
-    return std::move(ex);
-}
-
+TException&& operator <<= (TException&& ex, const TError& error);
 template <class TException>
-TException&& operator <<= (TException&& ex, TError&& error)
-{
-    ex.Error() = std::move(error);
-    return std::move(ex);
-}
+TException&& operator <<= (TException&& ex, TError&& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 

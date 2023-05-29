@@ -360,6 +360,7 @@ TError::TErrorOr(const std::exception& ex)
     } else {
         *this = TError(NYT::EErrorCode::Generic, ex.what());
     }
+    YT_VERIFY(!IsOK());
 }
 
 TError::TErrorOr(TString message)
