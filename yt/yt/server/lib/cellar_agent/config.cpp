@@ -68,7 +68,7 @@ void TCellarOccupantConfig::Register(TRegistrar registrar)
     registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
         .DefaultNew();
     registrar.Parameter("use_new_hydra", &TThis::UseNewHydra)
-        .Default(false);
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
