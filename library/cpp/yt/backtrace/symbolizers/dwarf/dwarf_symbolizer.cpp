@@ -22,6 +22,13 @@ void SymbolizeBacktrace(
         formatter.AppendNumber(info.Address, 16, width, '0');
         formatter.AppendString(" in ");
         formatter.AppendString(info.FunctionName);
+        const int bytesToAppendEstimate = 4 + info.FileName.Size() + 1 + 4 /* who cares about line numbers > 9999 */ + 1;
+        if (formatter.GetBytesRemaining() < bytesToAppendEstimate) {
+            const int offset = formatter.GetBytesRemaining() - bytesToAppendEstimate;
+            if (formatter.GetBytesWritten() + offset >= 0) {
+                formatter.Advance(offset);
+            }
+        }
         formatter.AppendString(" at ");
         formatter.AppendString(info.FileName);
         formatter.AppendChar(':');

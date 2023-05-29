@@ -25,7 +25,7 @@ void CrashSignalHandler(int signal);
 #endif
 
 template <class TCallback>
-void DumpStackTrace(TCallback flushCallback);
+void DumpStackTrace(TCallback flushCallback, void* startPC = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

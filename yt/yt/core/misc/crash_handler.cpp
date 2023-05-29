@@ -450,6 +450,7 @@ void DumpSigcontext(void* uc)
     formatter.AppendNumber(context->uc_mcontext.gregs[REG_OLDMASK], 16);
     formatter.AppendString("\nCR2 0x");
     formatter.AppendNumber(context->uc_mcontext.gregs[REG_CR2], 16);
+    formatter.AppendChar('\n');
 
     WriteToStderr(formatter);
 #else
@@ -525,7 +526,7 @@ void CrashSignalHandler(int /*signal*/, siginfo_t* si, void* uc)
     NDetail::DumpSigcontext(uc);
 
     // The easiest way to choose proper overload...
-    DumpStackTrace([] (TStringBuf str) { WriteToStderr(str); });
+    DumpStackTrace([] (TStringBuf str) { WriteToStderr(str); }, NDetail::GetPC(uc));
 
     NDetail::DumpUndumpableBlocksInfo();
 
