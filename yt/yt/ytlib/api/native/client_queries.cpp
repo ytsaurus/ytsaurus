@@ -188,11 +188,12 @@ void TClient::DoAbortQuery(TQueryId queryId, const TAbortQueryOptions& options)
         MakeSharedRange(std::move(rows), std::move(rowBuffer)));
 
     auto error = WaitFor(transaction->Commit());
-    if (error.FindMatching(NTabletClient::EErrorCode::TransactionLockConflict)) {
-        // TODO(max42): retry such errors automatically?
-        THROW_ERROR_EXCEPTION("Cannot abort query because its state is being changed at the moment; please try again")
-            << error;
-    } else {
+    if (!error.IsOK()) {
+        if (error.FindMatching(NTabletClient::EErrorCode::TransactionLockConflict)) {
+            // TODO(max42): retry such errors automatically?
+            THROW_ERROR_EXCEPTION("Cannot abort query because its state is being changed at the moment; please try again")
+                << error;
+        }
         THROW_ERROR error;
     }
 }
