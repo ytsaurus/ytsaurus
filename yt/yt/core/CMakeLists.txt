@@ -204,12 +204,13 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/net/connection.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/net/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/net/dialer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/net/dns_resolver.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/net/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/net/listener.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/net/local_address.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/net/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/net/socket.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/dns/ares_dns_resolver.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/dns/dns_resolver.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/profiling/timing.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/authentication_identity.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/authenticator.cpp

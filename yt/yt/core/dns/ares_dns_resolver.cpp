@@ -102,20 +102,22 @@ void FormatValue(NYT::TStringBuilderBase* builder, struct hostent* hostent, TStr
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NYT::NNet {
+namespace NYT::NDns {
 
 using namespace NConcurrency;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = NetLogger;
+static const auto& Logger = DnsLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDnsResolver::TImpl
+class TAresDnsResolver
+    : public IDnsResolver
 {
 public:
-    TImpl(
+    TAresDnsResolver(
         int retries,
         TDuration resolveTimeout,
         TDuration maxResolveTimeout,
@@ -141,8 +143,8 @@ public:
         // c-ares 1.10+ provides recursive behaviour of init/cleanup.
         YT_VERIFY(ares_library_init(ARES_LIB_INIT_ALL) == ARES_SUCCESS);
 
-        memset(&Channel_, 0, sizeof(Channel_));
-        memset(&Options_, 0, sizeof(Options_));
+        Zero(Channel_);
+        Zero(Options_);
 
         // See https://c-ares.haxx.se/ares_init_options.html for full details.
         int mask = 0;
@@ -169,7 +171,7 @@ public:
         Options_.tries = Retries_;
         mask |= ARES_OPT_TRIES;
 
-        Options_.sock_state_cb = &TDnsResolver::TImpl::OnSocketStateChanged;
+        Options_.sock_state_cb = &TAresDnsResolver::OnSocketStateChanged;
         Options_.sock_state_cb_data = this;
         mask |= ARES_OPT_SOCK_STATE_CB;
 
@@ -179,10 +181,10 @@ public:
 
         YT_VERIFY(ares_init_options(&Channel_, &Options_, mask) == ARES_SUCCESS);
 
-        ares_set_socket_callback(Channel_, &TDnsResolver::TImpl::OnSocketCreated, this);
+        ares_set_socket_callback(Channel_, &TAresDnsResolver::OnSocketCreated, this);
     }
 
-    ~TImpl()
+    ~TAresDnsResolver()
     {
         ResolverThread_->Stop();
 
@@ -197,36 +199,35 @@ public:
     #endif
     }
 
-    TFuture<TNetworkAddress> ResolveName(
-        TString hostName,
-        bool enableIPv4,
-        bool enableIPv6)
+    TFuture<TNetworkAddress> Resolve(
+        const TString& hostName,
+        const TDnsResolveOptions& options) override
     {
         auto promise = NewPromise<TNetworkAddress>();
         auto future = promise.ToFuture();
 
         auto requestId = TGuid::Create();
         auto timeoutCookie = TDelayedExecutor::Submit(
-            BIND([promise, requestId] () mutable {
-                YT_LOG_WARNING("Resolve timed out (RequestId: %v)",
+            BIND([promise, requestId] {
+                YT_LOG_WARNING("Ares DNS resolve timed out (RequestId: %v)",
                     requestId);
-                promise.TrySet(TError(EErrorCode::ResolveTimedOut, "Resolve timed out"));
+                promise.TrySet(TError(NNet::EErrorCode::ResolveTimedOut, "Resolve timed out"));
             }),
             MaxResolveTimeout_);
 
-        YT_LOG_DEBUG("Resolving host name (RequestId: %v, Host: %v, EnableIPv4: %v, EnableIPv6: %v)",
+        RequestCounter_.Increment();
+
+        YT_LOG_DEBUG("Started resolving host name via Ares (RequestId: %v, HostName: %v, Options: %v)",
             requestId,
             hostName,
-            enableIPv4,
-            enableIPv6);
+            options);
 
-        auto request = std::unique_ptr<TNameRequest>{new TNameRequest{
+        auto request = std::unique_ptr<TResolveRequest>{new TResolveRequest{
             this,
             requestId,
             std::move(promise),
-            std::move(hostName),
-            enableIPv4,
-            enableIPv6,
+            hostName,
+            options,
             {},
             std::move(timeoutCookie)
         }};
@@ -236,9 +237,9 @@ public:
         WakeupHandle_.Raise();
 
         if (!ResolverThread_->Start()) {
-            std::unique_ptr<TNameRequest> request;
+            std::unique_ptr<TResolveRequest> request;
             while (Queue_.try_dequeue(request)) {
-                request->Promise.Set(TError(NYT::EErrorCode::Canceled, "DNS resolver is stopped"));
+                request->Promise.Set(TError(NYT::EErrorCode::Canceled, "Ares DNS resolver is stopped"));
             }
         }
 
@@ -252,19 +253,24 @@ private:
     const TDuration WarningTimeout_;
     const std::optional<double> Jitter_;
 
-    struct TNameRequest
+    const NProfiling::TProfiler Profiler_ = DnsProfiler.WithPrefix("/ares_resolver");
+    const NProfiling::TCounter RequestCounter_ = Profiler_.Counter("/request_count");
+    const NProfiling::TCounter FailureCounter_ = Profiler_.Counter("/failure_count");
+    const NProfiling::TCounter TimeoutCounter_ = Profiler_.Counter("/timeout_count");
+    const NProfiling::TTimeGauge RequestTimeGauge_ = Profiler_.TimeGauge("/request_time");
+
+    struct TResolveRequest
     {
-        TImpl* Owner;
+        TAresDnsResolver* Owner;
         TGuid RequestId;
         TPromise<TNetworkAddress> Promise;
         TString HostName;
-        bool EnableIPv4;
-        bool EnableIPv6;
+        TDnsResolveOptions Options;
         NProfiling::TWallTimer Timer;
         TDelayedExecutorCookie TimeoutCookie;
     };
 
-    moodycamel::ConcurrentQueue<std::unique_ptr<TNameRequest>> Queue_;
+    moodycamel::ConcurrentQueue<std::unique_ptr<TResolveRequest>> Queue_;
 
 #ifdef YT_DNS_RESOLVER_USE_EPOLL
     int EpollFD_ = -1;
@@ -278,13 +284,13 @@ private:
         : public NThreading::TThread
     {
     public:
-        explicit TResolverThread(TImpl* owner)
-            : TThread("DnsResolver")
+        explicit TResolverThread(TAresDnsResolver* owner)
+            : TThread("AresDnsResolver")
             , Owner_(owner)
         { }
 
     private:
-        TImpl* const Owner_;
+        TAresDnsResolver* const Owner_;
 
         void StopPrologue() override
         {
@@ -297,17 +303,17 @@ private:
 
             auto drainQueue = [&] {
                 for (size_t iteration = 0; iteration < MaxRequestsPerDrain; ++iteration) {
-                    std::unique_ptr<TNameRequest> request;
+                    std::unique_ptr<TResolveRequest> request;
                     if (!Owner_->Queue_.try_dequeue(request)) {
                         return true;
                     }
 
                     // Try to reduce number of lookups to save some time.
                     int family = AF_UNSPEC;
-                    if (request->EnableIPv4 && !request->EnableIPv6) {
+                    if (request->Options.EnableIPv4 && !request->Options.EnableIPv6) {
                         family = AF_INET;
                     }
-                    if (request->EnableIPv6 && !request->EnableIPv4) {
+                    if (request->Options.EnableIPv6 && !request->Options.EnableIPv4) {
                         family = AF_INET6;
                     }
 
@@ -315,12 +321,12 @@ private:
                         Owner_->Channel_,
                         request->HostName.c_str(),
                         family,
-                        &OnNameResolution,
+                        &OnNamedResolvedThunk,
                         request.get());
 
                     // Releasing unique_ptr on a separate line,
                     // because argument evaluation order is not specified.
-                    request.release();
+                    Y_UNUSED(request.release());
                 }
                 return false;
             };
@@ -406,12 +412,12 @@ private:
     {
         int result = 0;
     #ifdef YT_DNS_RESOLVER_USE_EPOLL
-        auto this_ = static_cast<TDnsResolver::TImpl*>(opaque);
+        auto this_ = static_cast<TAresDnsResolver*>(opaque);
         struct epoll_event event{0, {0}};
         event.data.fd = socket;
         result = epoll_ctl(this_->EpollFD_, EPOLL_CTL_ADD, socket, &event);
         if (result != 0) {
-            YT_LOG_WARNING(TError::FromSystem(), "epoll_ctl() failed");
+            YT_LOG_WARNING(TError::FromSystem(), "epoll_ctl() failed in Ares DNS resolver");
             result = -1;
         }
     #else
@@ -431,7 +437,7 @@ private:
     static void OnSocketStateChanged(void* opaque, ares_socket_t socket, int readable, int writable)
     {
     #ifdef YT_DNS_RESOLVER_USE_EPOLL
-        auto this_ = static_cast<TDnsResolver::TImpl*>(opaque);
+        auto this_ = static_cast<TAresDnsResolver*>(opaque);
         struct epoll_event event{0, {0}};
         event.data.fd = socket;
         int op = EPOLL_CTL_MOD;
@@ -453,16 +459,33 @@ private:
     #endif
     }
 
-    static void OnNameResolution(void* opaque, int status, int timeouts, struct hostent* hostent)
+    static void OnNamedResolvedThunk(
+        void* opaque,
+        int status,
+        int timeouts,
+        struct hostent* hostent)
     {
-        // TODO(sandello): Protect against exceptions here?
-        auto request = std::unique_ptr<TNameRequest>{static_cast<TNameRequest*>(opaque)};
+        auto* request = static_cast<TResolveRequest*>(opaque);
+        request->Owner->OnNamedResolved(
+            std::unique_ptr<TResolveRequest>(request),
+            status,
+            timeouts,
+            hostent);
+    }
 
+    void OnNamedResolved(
+        std::unique_ptr<TResolveRequest> request,
+        int status,
+        int timeouts,
+        struct hostent* hostent)
+    {
         TDelayedExecutor::CancelAndClear(request->TimeoutCookie);
 
         auto elapsed = request->Timer.GetElapsedTime();
-        if (elapsed > request->Owner->WarningTimeout_ || timeouts > 0) {
-            YT_LOG_WARNING("Resolve took too long (RequestId: %v, HostName: %v, Duration: %v, Timeouts: %v)",
+        RequestTimeGauge_.Update(elapsed);
+
+        if (elapsed > WarningTimeout_ || timeouts > 0) {
+            YT_LOG_WARNING("Ares DNS resolve took too long (RequestId: %v, HostName: %v, Duration: %v, Timeouts: %v)",
                 request->RequestId,
                 request->HostName,
                 elapsed,
@@ -470,12 +493,13 @@ private:
         }
 
         if (status != ARES_SUCCESS) {
-            YT_LOG_WARNING("Resolve failed (RequestId: %v, HostName: %v)",
+            YT_LOG_WARNING("Ares DNS resolve failed (RequestId: %v, HostName: %v)",
                 request->RequestId,
                 request->HostName);
-            request->Promise.TrySet(TError("DNS resolve failed for %Qv",
+            request->Promise.TrySet(TError("Ares DNS resolve failed for %Qv",
                 request->HostName)
                 << TError(ares_strerror(status)));
+            FailureCounter_.Increment();
             return;
         }
 
@@ -483,7 +507,7 @@ private:
         YT_VERIFY(hostent->h_addr_list && hostent->h_addr_list[0]);
 
         TNetworkAddress result(hostent->h_addrtype, hostent->h_addr, hostent->h_length);
-        YT_LOG_DEBUG("Host name resolved (RequestId: %v, HostName: %v, Result: %v, Hostent: %v)",
+        YT_LOG_DEBUG("Ares DNS resolve completed (RequestId: %v, HostName: %v, Result: %v, Hostent: %v)",
             request->RequestId,
             request->HostName,
             result,
@@ -495,33 +519,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDnsResolver::TDnsResolver(
+std::unique_ptr<IDnsResolver> CreateAresDnsResolver(
     int retries,
     TDuration resolveTimeout,
     TDuration maxResolveTimeout,
     TDuration warningTimeout,
     std::optional<double> jitter)
-    : Impl_(std::make_unique<TImpl>(
+{
+    return std::unique_ptr<IDnsResolver>(std::make_unique<TAresDnsResolver>(
         retries,
         resolveTimeout,
         maxResolveTimeout,
         warningTimeout,
-        jitter))
-{ }
-
-TDnsResolver::~TDnsResolver() = default;
-
-TFuture<TNetworkAddress> TDnsResolver::ResolveName(
-    TString hostName,
-    bool enableIPv4,
-    bool enableIPv6)
-{
-    return Impl_->ResolveName(
-        std::move(hostName),
-        enableIPv4,
-        enableIPv6);
+        jitter));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNet
+} // namespace NYT::NDns
