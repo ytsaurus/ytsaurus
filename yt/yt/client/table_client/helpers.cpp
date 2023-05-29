@@ -162,7 +162,8 @@ TUnversionedOwningRow YsonToSchemafulRow(
     const TString& yson,
     const TTableSchema& tableSchema,
     bool treatMissingAsNull,
-    NYson::EYsonType ysonType)
+    NYson::EYsonType ysonType,
+    bool validateValues)
 {
     auto nameTable = TNameTable::FromSchema(tableSchema);
 
@@ -170,27 +171,41 @@ TUnversionedOwningRow YsonToSchemafulRow(
         TYsonString(yson, ysonType));
 
     TUnversionedOwningRowBuilder rowBuilder;
+    auto validateAndAddValue = [&rowBuilder, &validateValues] (const TUnversionedValue& value, const TColumnSchema& column) {
+        if (validateValues) {
+            ValidateValueType(
+                value,
+                column,
+                /*typeAnyAcceptsAllValues*/ true,
+                /*ignoreRequired*/ false,
+                /*validateAnyIsValidYson*/ true);
+        }
+
+        rowBuilder.AddValue(value);
+    };
+
     auto addValue = [&] (int id, INodePtr value) {
         try {
+            auto column = tableSchema.Columns()[id];
             if (value->GetType() == ENodeType::Entity) {
-                rowBuilder.AddValue(MakeUnversionedSentinelValue(
-                    value->Attributes().Get<EValueType>("type", EValueType::Null), id));
+                validateAndAddValue(MakeUnversionedSentinelValue(
+                    value->Attributes().Get<EValueType>("type", EValueType::Null), id), column);
                 return;
             }
 
-            auto type = tableSchema.Columns()[id].GetWireType();
+            auto type = column.GetWireType();
             switch (type) {
                 #define XX(type, cppType) \
                 case EValueType::type: \
-                    rowBuilder.AddValue(MakeUnversioned ## type ## Value(value->As ## type()->GetValue(), id)); \
+                    validateAndAddValue(MakeUnversioned ## type ## Value(value->As ## type()->GetValue(), id), column); \
                     break;
                 ITERATE_SCALAR_YTREE_NODE_TYPES(XX)
                 #undef XX
                 case EValueType::Any:
-                    rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id));
+                    validateAndAddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id), column);
                     break;
                 case EValueType::Composite:
-                    rowBuilder.AddValue(MakeUnversionedCompositeValue(ConvertToYsonString(value).AsStringBuf(), id));
+                    validateAndAddValue(MakeUnversionedCompositeValue(ConvertToYsonString(value).AsStringBuf(), id), column);
                     break;
                 default:
                     THROW_ERROR_EXCEPTION("Unsupported value type %Qlv",
@@ -209,7 +224,7 @@ TUnversionedOwningRow YsonToSchemafulRow(
     for (int id = 0; id < std::ssize(keyColumns); ++id) {
         auto it = rowParts.find(nameTable->GetName(id));
         if (it == rowParts.end()) {
-            rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
+            validateAndAddValue(MakeUnversionedSentinelValue(EValueType::Null, id), tableSchema.Columns()[id]);
         } else {
             addValue(id, it->second);
         }
@@ -221,7 +236,13 @@ TUnversionedOwningRow YsonToSchemafulRow(
         if (it != rowParts.end()) {
             addValue(id, it->second);
         } else if (treatMissingAsNull) {
-            rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
+            validateAndAddValue(MakeUnversionedSentinelValue(EValueType::Null, id), tableSchema.Columns()[id]);
+        } else if (validateValues && tableSchema.Columns()[id].Required()) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::SchemaViolation,
+                "Required column %v cannot have %Qlv value",
+                tableSchema.Columns()[id].GetDiagnosticNameString(),
+                EValueType::Null);
         }
     }
 
@@ -229,6 +250,12 @@ TUnversionedOwningRow YsonToSchemafulRow(
     for (const auto& [name, value] : rowParts) {
         int id = nameTable->GetIdOrRegisterName(name);
         if (id >= std::ssize(tableSchema.Columns())) {
+            if (validateValues && tableSchema.GetStrict()) {
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::SchemaViolation,
+                    "Unknown column %Qv in strict schema",
+                    name);
+            }
             YTreeNodeToUnversionedValue(&rowBuilder, value, id, EValueFlags::None);
         }
     }

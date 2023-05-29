@@ -37,7 +37,8 @@ TUnversionedOwningRow YsonToSchemafulRow(
     const TString& yson,
     const TTableSchema& tableSchema,
     bool treatMissingAsNull,
-    NYson::EYsonType ysonType = NYson::EYsonType::MapFragment);
+    NYson::EYsonType ysonType = NYson::EYsonType::MapFragment,
+    bool validateValues = false);
 TUnversionedOwningRow YsonToSchemalessRow(
     const TString& yson);
 TVersionedRow YsonToVersionedRow(
