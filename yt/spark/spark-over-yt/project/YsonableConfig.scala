@@ -31,7 +31,7 @@ object YsonableConfig {
   private def toYson(value: Any, builder: YTreeBuilder): YTreeBuilder = {
     value match {
       case Some(value) => toYson(value, builder)
-      case None => builder
+      case None => builder.entity()
       case m: Map[_, _] => m.foldLeft(builder.beginMap()) { case (res, (k: String, v)) => res.key(k).value(v) }.endMap()
       case ss: Seq[_] => ss.foldLeft(builder.beginList()) { case (res, next) => res.value(next) }.endList()
       case c: YsonableConfig => c.toYson(builder)

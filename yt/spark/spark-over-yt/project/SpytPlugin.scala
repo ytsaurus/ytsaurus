@@ -10,6 +10,7 @@ import spyt.SpytRelease._
 import spyt.SpytSnapshot._
 
 import java.io.File
+import java.nio.file.{Files, StandardCopyOption}
 
 object SpytPlugin extends AutoPlugin {
   override def trigger = NoTrigger
@@ -50,8 +51,8 @@ object SpytPlugin extends AutoPlugin {
 
     val spytUpdatePythonVersion = taskKey[Unit]("Update versions in data-source/version.py")
 
-    val clientSpytBuild = taskKey[File]("Build Spyt .zip archive")
-    val clusterSpytBuild = taskKey[File]("Build Spyt binary")
+    val clientSpytBuild = taskKey[Unit]("Build Spyt .zip archive")
+    val clusterSpytBuild = taskKey[Unit]("Build Spyt binary")
 
     val spytClusterVersionFile = settingKey[File]("Spyt cluster version")
     val spytClientVersionFile = settingKey[File]("Spyt client version")
@@ -60,6 +61,7 @@ object SpytPlugin extends AutoPlugin {
     val spytSparkVersionPyFile = settingKey[File]("ytsaurus-spark version")
     val spytSparkPomFile = settingKey[File]("ytsaurus-spark version")
     val spytSparkDependencyFile = settingKey[File]("ytsaurus-spark version")
+    val spytBuildDirectory = settingKey[File]("Build directory")
 
     val spytSparkForkDependency = settingKey[Seq[ModuleID]]("")
 
@@ -68,6 +70,52 @@ object SpytPlugin extends AutoPlugin {
     val releaseClientCommitMessage = taskKey[String]("")
     val releaseNextClientCommitMessage = taskKey[String]("")
     val releaseSparkForkCommitMessage = taskKey[String]("")
+
+    def publishRepoEnabled: Boolean = Option(System.getProperty("publishRepo")).exists(_.toBoolean)
+    def publishYtEnabled: Boolean = Option(System.getProperty("publishYt")).forall(_.toBoolean)
+
+    private def getBuildDirectory(rootDirectory: File): File = {
+      rootDirectory / "build_output"
+    }
+
+    def makeLinkToBuildDirectory(target: File, rootDirectory: File, linkName: String): File = {
+      val linksDirectory = getBuildDirectory(rootDirectory)
+      linksDirectory.mkdirs()
+      val linkFile = linksDirectory / linkName
+      if (linkFile.exists()) linkFile.delete()
+      val linkFile2 = Files.createSymbolicLink(linkFile.toPath, target.toPath)
+      linkFile2.toFile
+    }
+
+    def dumpYsonToConfBuildDirectory(config: YsonableConfig, rootDirectory: File, fileName: String): File = {
+      val confDirectory = getBuildDirectory(rootDirectory) / "conf"
+      confDirectory.mkdirs()
+      val confFile = confDirectory / fileName
+      val confFile2 = Files.writeString(confFile.toPath, config.toYson).toFile
+      confFile2
+    }
+
+    def dumpVersionsToBuildDirectory(versions: Map[String, String], rootDirectory: File, fileName: String): File = {
+      val versionsDirectory = getBuildDirectory(rootDirectory)
+      versionsDirectory.mkdirs()
+      val confFile = versionsDirectory / fileName
+      val serializedPairs = versions.toSeq.map {
+        case (key, value) => s""""$key":"$value""""
+      }
+      val json = serializedPairs.mkString("{", ",", "}")
+      val confFile2 = Files.writeString(confFile.toPath, json).toFile
+      confFile2
+    }
+
+    def copySidecarConfigsToBuildDirectory(rootDirectory: File, files: Seq[File]): Unit = {
+      val sidecarConfDirectory = getBuildDirectory(rootDirectory) / "conf" / "sidecar_configs"
+      sidecarConfDirectory.mkdirs()
+      files.foreach {
+        file =>
+          val targetFile = sidecarConfDirectory / file.getName
+          Files.copy(file.toPath, targetFile.toPath, StandardCopyOption.REPLACE_EXISTING)
+      }
+    }
   }
 
   sealed abstract class ReleaseComponent(val name: String)
@@ -91,7 +139,7 @@ object SpytPlugin extends AutoPlugin {
     spytSparkPomFile := baseDirectory.value.getParentFile / "spark" / "pom.xml",
     spytSparkDependencyFile := baseDirectory.value / "project" / "SparkForkVersion.scala",
 
-    pypiRegistry := "https://upload.pypi.org/legacy/",
+    pypiRegistry := "https://pypi.org/simple",
 
     spytClientVersionPyFile := baseDirectory.value / "data-source" / "src" / "main" / "python" / "spyt" / "version.py",
     spytSparkVersionPyFile := (ThisBuild / sparkVersionPyFile).value,

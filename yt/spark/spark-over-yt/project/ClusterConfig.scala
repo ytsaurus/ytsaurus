@@ -8,16 +8,15 @@ import java.io.{FileInputStream, InputStreamReader}
 import java.util.Properties
 
 object ClusterConfig {
-  def artifacts(log: sbt.Logger, version: String, baseConfigDir: File): Seq[YtPublishArtifact] = {
-    val isSnapshot = isSnapshotVersion(version)
+  def sidecarConfigs(baseConfigDir: File): Seq[File] = {
+    (baseConfigDir / "sidecar-config").listFiles()
+  }
+
+  def launchConfig(version: String, sidecarConfigs: Seq[File]): SparkLaunchConfig = {
     val clusterBasePath = versionPath(sparkYtClusterPath, version)
     val versionConfPath = versionPath(sparkYtConfPath, version)
-    val isTtlLimited = isSnapshot && limitTtlEnabled
-
-    val sidecarConfigs = (baseConfigDir / "sidecar-config").listFiles()
     val sidecarConfigsClusterPaths = sidecarConfigs.map(file => s"$versionConfPath/${file.getName}")
-
-    val launchConfig = SparkLaunchConfig(
+    SparkLaunchConfig(
       clusterBasePath,
       ytserver_proxy_path = Option(System.getProperty("proxyVersion")).map(version =>
         s"$defaultYtServerProxyPath-$version"
@@ -27,18 +26,11 @@ object ClusterConfig {
         s"$clusterBasePath/spark-yt-launcher.jar"
       ) ++ sidecarConfigsClusterPaths
     )
-    val launchConfigPublish = YtPublishDocument(
-      launchConfig,
-      versionConfPath,
-      None,
-      "spark-launch-conf",
-      isTtlLimited
-    )
-    val configsPublish = sidecarConfigs.map(
-      file => YtPublishFile(file, versionConfPath, None, isTtlLimited = isTtlLimited)
-    )
+  }
 
-    val globalConfigPublish = if (!isSnapshot) {
+  def globalConfig(log: sbt.Logger, version: String, baseConfigDir: File): Seq[(String, SparkGlobalConfig)] = {
+    val isSnapshot = isSnapshotVersion(version)
+    if (!isSnapshot) {
       log.info(s"Prepare configs for ${ytProxies.mkString(", ")}")
       ytProxies.map { proxy =>
         val proxyShort = proxy.split("\\.").head
@@ -46,9 +38,29 @@ object ClusterConfig {
         val proxyDefaults = readSparkDefaults(proxyDefaultsFile)
         val globalConfig = SparkGlobalConfig(proxyDefaults, version)
 
-        YtPublishDocument(globalConfig, sparkYtConfPath, Some(proxy), "global", isTtlLimited)
+        (proxy, globalConfig)
       }
     } else Nil
+  }
+
+  def artifacts(log: sbt.Logger, version: String, baseConfigDir: File): Seq[YtPublishArtifact] = {
+    val isSnapshot = isSnapshotVersion(version)
+    val versionConfPath = versionPath(sparkYtConfPath, version)
+    val isTtlLimited = isSnapshot && limitTtlEnabled
+
+    val sidecarConfigsFiles = sidecarConfigs(baseConfigDir)
+    val launchConfigYson = launchConfig(version, sidecarConfigsFiles)
+    val globalConfigYsons = globalConfig(log, version, baseConfigDir)
+
+    val launchConfigPublish = YtPublishDocument(
+      launchConfigYson, versionConfPath, None, "spark-launch-conf", isTtlLimited
+    )
+    val configsPublish = sidecarConfigsFiles.map(
+      file => YtPublishFile(file, versionConfPath, None, isTtlLimited = isTtlLimited)
+    )
+    val globalConfigPublish = globalConfigYsons.map {
+      case (proxy, config) => YtPublishDocument(config, sparkYtConfPath, Some(proxy), "global", isTtlLimited)
+    }
 
     configsPublish ++ (launchConfigPublish +: globalConfigPublish)
   }

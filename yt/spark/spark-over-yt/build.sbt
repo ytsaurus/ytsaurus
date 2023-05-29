@@ -37,7 +37,10 @@ lazy val `spark-fork` = (project in file("spark-fork"))
   .settings(
     tarArchiveMapping += sparkPackage.value -> "spark",
     tarArchivePath := Some(target.value / s"spark.tgz"),
-    tarSparkArchiveBuild := tarArchiveBuild.value
+    tarSparkArchiveBuild := {
+      val tarFile = tarArchiveBuild.value // Forces build
+      makeLinkToBuildDirectory(tarFile,  baseDirectory.value.getParentFile, tarFile.getName)
+    }
   )
   .settings(
     pythonSetupName := "setup-ytsaurus.py",
@@ -51,7 +54,7 @@ lazy val `spark-fork` = (project in file("spark-fork"))
       val isTtlLimited = isSnapshotValue && limitTtlEnabled
 
       Seq(
-        YtPublishFile(tarSparkArchiveBuild.value, basePath, None, isTtlLimited = isTtlLimited)
+        YtPublishFile(tarArchiveBuild.value, basePath, None, isTtlLimited = isTtlLimited)
       )
     }
   )
@@ -71,7 +74,21 @@ lazy val `cluster` = (project in file("spark-cluster"))
     assembly / test := {}
   )
   .settings(
-    clusterSpytBuild := Def.sequential(assembly).value,
+    clusterSpytBuild := {
+      val rootDirectory = baseDirectory.value.getParentFile
+      val assemblyFile = assembly.value // Forces build
+      makeLinkToBuildDirectory(assemblyFile, rootDirectory, assemblyFile.getName)
+      val versionValue = (ThisBuild / spytClusterVersion).value
+      val baseConfigDir = (Compile / resourceDirectory).value
+      val sidecarConfigsFiles = spyt.ClusterConfig.sidecarConfigs(baseConfigDir)
+      val launchConfigYson = spyt.ClusterConfig.launchConfig(versionValue, sidecarConfigsFiles)
+      val globalConfigYsons = spyt.ClusterConfig.globalConfig(streams.value.log, versionValue, baseConfigDir)
+      copySidecarConfigsToBuildDirectory(rootDirectory, sidecarConfigsFiles)
+      dumpYsonToConfBuildDirectory(launchConfigYson, rootDirectory, "spark-launch-conf")
+      globalConfigYsons.foreach {
+        case (proxy, config) => dumpYsonToConfBuildDirectory(config, rootDirectory, s"global-$proxy")
+      }
+    },
     publishYtArtifacts ++= {
       val versionValue = (ThisBuild / spytClusterVersion).value
       val sparkVersionValue = (ThisBuild / spytSparkVersion).value
@@ -126,7 +143,12 @@ lazy val `data-source` = (project in file("data-source"))
     zipIgnore := { file: File =>
       file.getName.contains("__pycache__") || file.getName.endsWith(".pyc")
     },
-    clientSpytBuild := Def.sequential(assembly, zip).value,
+    clientSpytBuild := {
+      val assemblyFile = assembly.value // Forces build
+      makeLinkToBuildDirectory(assemblyFile, baseDirectory.value.getParentFile, assemblyFile.getName)
+      val zipFile = zip.value // Forces build
+      makeLinkToBuildDirectory(zipFile, baseDirectory.value.getParentFile, zipFile.getName)
+    },
     publishYtArtifacts ++= {
       val subdir = if (isSnapshot.value) "snapshots" else "releases"
       val publishDir = s"$sparkYtClientPath/$subdir/${version.value}"
@@ -265,11 +287,14 @@ lazy val root = (project in file("."))
         streams.value.log.info("Publishing client files to YT is skipped because of disabled publishYt")
         `data-source` / clientSpytBuild
       }
-      val task2 = if (publishRepoEnabled) {
-        `data-source` / pythonBuildAndUpload
-      } else {
-        streams.value.log.info("Publishing spyt client to pypi is skipped because of disabled publishRepo")
-        `data-source` / pythonBuild
+      val task2 = Def.task {
+        if (publishRepoEnabled) {
+          (`data-source` / pythonBuildAndUpload).value
+        } else {
+          streams.value.log.info("Publishing spyt client to pypi is skipped because of disabled publishRepo")
+          val pythonDist = (`data-source` / pythonBuild).value
+          makeLinkToBuildDirectory(pythonDist, baseDirectory.value, "ytsaurus-spyt")
+        }
       }
       Def.sequential(task1, task2)
     }.value,
@@ -280,11 +305,14 @@ lazy val root = (project in file("."))
         streams.value.log.info("Publishing spark fork to YT is skipped because of disabled publishYt")
         `spark-fork` / tarSparkArchiveBuild
       }
-      val task2 = if (publishRepoEnabled) {
-        `spark-fork` / pythonBuildAndUpload
-      } else {
-        streams.value.log.info("Publishing pyspark fork to pypi is skipped because of disabled publishRepo")
-        `spark-fork` / pythonBuild
+      val task2 = Def.task {
+        if (publishRepoEnabled) {
+          (`spark-fork` / pythonBuildAndUpload).value
+        } else {
+          streams.value.log.info("Publishing pyspark fork to pypi is skipped because of disabled publishRepo")
+          val pythonDist = (`spark-fork` / pythonBuild).value
+          makeLinkToBuildDirectory(pythonDist, baseDirectory.value, "ytsaurus-pyspark")
+        }
       }
       Def.sequential(task1, task2)
     }.value,

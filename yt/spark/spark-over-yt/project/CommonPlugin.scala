@@ -53,9 +53,6 @@ object CommonPlugin extends AutoPlugin {
       "NYT.**" -> "shadeddatasource.NYT.@1"
     ).inAll)
 
-    def publishRepoEnabled: Boolean = Option(System.getProperty("publishRepo")).exists(_.toBoolean)
-    def publishYtEnabled: Boolean = Option(System.getProperty("publishYt")).exists(_.toBoolean)
-
     lazy val printTestClasspath = taskKey[Unit]("")
     lazy val commonDependencies = settingKey[Seq[ModuleID]]("")
   }

@@ -18,6 +18,7 @@ object SpytSnapshot {
     setSnapshotClientVersion,
     releaseStepTask(spytUpdatePythonVersion),
     releaseStepTask(spytPublishClient),
+    dumpClientVersion,
     logClientVersion
   )
 
@@ -29,8 +30,8 @@ object SpytSnapshot {
     releaseStepTask(spytUpdatePythonVersion),
     releaseStepTask(spytPublishCluster),
     releaseStepTask(spytPublishClient),
-    logClusterVersion,
-    logClientVersion
+    dumpClusterVersion,
+    dumpClientVersion,
   )
 
   lazy val sparkForkSnapshotProcess: Seq[ReleaseStep] = Seq(
@@ -45,9 +46,9 @@ object SpytSnapshot {
     ReleaseStep(releaseStepTask(spytPublishSparkFork)),
     ReleaseStep(releaseStepTask(spytPublishCluster)),
     ReleaseStep(releaseStepTask(spytPublishClient)),
-    logSparkForkVersion,
-    logClusterVersion,
-    logClientVersion
+    dumpSparkForkVersion,
+    dumpClusterVersion,
+    dumpClientVersion
   )
 
   case class SnapshotVersion(main: String,

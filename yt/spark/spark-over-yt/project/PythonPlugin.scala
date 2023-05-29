@@ -16,9 +16,9 @@ object PythonPlugin extends AutoPlugin {
     val pythonBuildDir = settingKey[File]("")
 
     val pythonClean = taskKey[Unit]("")
-    val pythonWheel = taskKey[Unit]("")
+    val pythonWheel = taskKey[File]("")
     val pythonUpload = taskKey[Unit]("")
-    val pythonBuild = taskKey[Unit]("")
+    val pythonBuild = taskKey[File]("")
     val pythonBuildAndUpload = taskKey[Unit]("")
 
     val pythonDeps = taskKey[Seq[(String, File)]]("")
@@ -59,6 +59,7 @@ object PythonPlugin extends AutoPlugin {
       val command = s"${pythonCommand.value} ${pythonSetupName.value} sdist bdist_wheel"
       runCommand(command, pythonBuildDir.value)
       FileUtils.deleteDirectory(deps, recursive = true)
+      pythonBuildDir.value / "dist"
     },
     pythonUpload := {
       val log = streams.value.log
