@@ -255,6 +255,17 @@ func (e *Encoder) BuildMasterSnapshots(
 	return
 }
 
+func (e *Encoder) BuildSnapshot(
+	ctx context.Context,
+	options *yt.BuildSnapshotOptions,
+) (response *yt.BuildSnapshotResponse, err error) {
+	call := e.newCall(NewBuildSnapshotParams(options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decode(&response)
+	})
+	return
+}
+
 func (e *Encoder) TransferPoolResources(
 	ctx context.Context,
 	srcPool string,

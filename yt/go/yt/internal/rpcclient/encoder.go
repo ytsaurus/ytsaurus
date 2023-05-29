@@ -1245,6 +1245,13 @@ func (e *Encoder) BuildMasterSnapshots(
 	return nil, xerrors.Errorf("Unimplemented method: BuildMasterSnapshots")
 }
 
+func (e *Encoder) BuildSnapshot(
+	ctx context.Context,
+	opts *yt.BuildSnapshotOptions,
+) (response *yt.BuildSnapshotResponse, err error) {
+	return nil, xerrors.Errorf("Unimplemented method: BuildSnapshot")
+}
+
 func (e *Encoder) CheckPermission(
 	ctx context.Context,
 	user string,

@@ -630,6 +630,24 @@ func writeBuildMasterSnapshots(w *yson.Writer, o *yt.BuildMasterSnapshotsOptions
 	}
 }
 
+func writeBuildSnapshot(w *yson.Writer, o *yt.BuildSnapshotOptions) {
+	if o == nil {
+		return
+	}
+	if o.CellID != nil {
+		w.MapKeyString("cell_id")
+		w.Any(o.CellID)
+	}
+	if o.SetReadOnly != nil {
+		w.MapKeyString("set_read_only")
+		w.Any(o.SetReadOnly)
+	}
+	if o.WaitForSnapshotCompletion != nil {
+		w.MapKeyString("wait_for_snapshot_completion")
+		w.Any(o.WaitForSnapshotCompletion)
+	}
+}
+
 func writeCheckPermissionOptions(w *yson.Writer, o *yt.CheckPermissionOptions) {
 	if o == nil {
 		return
@@ -2557,6 +2575,39 @@ func (p *BuildMasterSnapshotsParams) MarshalHTTP(w *yson.Writer) {
 	writeBuildMasterSnapshots(w, p.options)
 }
 
+
+type BuildSnapshotParams struct {
+	verb Verb
+	options *yt.BuildSnapshotOptions
+}
+
+func NewBuildSnapshotParams(
+	options *yt.BuildSnapshotOptions,
+) *BuildSnapshotParams {
+	if options == nil {
+		options = &yt.BuildSnapshotOptions{}
+	}
+	return &BuildSnapshotParams{
+		VerbBuildSnapshot,
+		options,
+	}
+}
+
+func (p* BuildSnapshotParams) HTTPVerb() Verb {
+	return p.verb
+}
+
+func (p *BuildSnapshotParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+
+func (p *BuildSnapshotParams) Log() []log.Field {
+	return []log.Field{}
+}
+
+func (p *BuildSnapshotParams) MarshalHTTP(w *yson.Writer) {
+	writeBuildSnapshot(w, p.options)
+}
 
 type DisableChunkLocationsParams struct {
 	verb          Verb

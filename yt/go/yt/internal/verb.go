@@ -37,6 +37,7 @@ const (
 	VerbRemoveMember Verb = "remove_member"
 
 	VerbBuildMasterSnapshots Verb = "build_master_snapshots"
+	VerbBuildSnapshot        Verb = "build_snapshot"
 
 	VerbDisableChunkLocations   Verb = "disable_chunk_locations"
 	VerbDestroyChunkLocations   Verb = "destroy_chunk_locations"
