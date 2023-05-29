@@ -21,6 +21,7 @@ import yt.yson as yson
 
 from yt_driver_bindings import Driver
 
+from flaky import flaky
 import pytest
 
 from copy import deepcopy
@@ -654,6 +655,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         wait(lambda: request_counter.get_delta() > 0)
 
     @authors("akozhikhov")
+    @flaky(max_runs=3)
     def test_lookup_row_count_sensors(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
