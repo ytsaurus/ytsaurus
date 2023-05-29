@@ -1265,7 +1265,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/partition_chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/partition_sort_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/partitioner.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/performance_counting.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/performance_counters.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/remote_dynamic_store_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/row_merger.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/samples_fetcher.cpp

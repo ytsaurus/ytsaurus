@@ -30,7 +30,7 @@
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/key_filter.h>
-#include <yt/yt/ytlib/table_client/performance_counting.h>
+#include <yt/yt/ytlib/table_client/performance_counters.h>
 #include <yt/yt/ytlib/table_client/versioned_offloading_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_reader_adapter.h>
@@ -670,7 +670,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     bool needKeyFilteringReader = false;
     std::vector<ui8> missingKeyMask;
 
-    auto wrapReader = [&] (
+    auto wrapReaderWithTimestamp = [&] (
         IVersionedReaderPtr underlyingReader,
         bool needSetTimestamp) -> IVersionedReaderPtr
     {
@@ -692,10 +692,12 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         }
     };
 
-    auto wrapReaderWithPerformanceCounting = [&] (IVersionedReaderPtr underlyingReader)
+    auto wrapReader = [&] (
+        IVersionedReaderPtr underlyingReader,
+        bool needSetTimestamp) -> IVersionedReaderPtr
     {
         return CreateVersionedPerformanceCountingReader(
-            underlyingReader,
+            wrapReaderWithTimestamp(underlyingReader, needSetTimestamp),
             PerformanceCounters_,
             NTableClient::EDataSource::ChunkStore,
             ERequestType::Lookup);
@@ -713,8 +715,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         chunkReadOptions,
         enableNewScanReader))
     {
-        return wrapReaderWithPerformanceCounting(
-            wrapReader(std::move(reader), /*needSetTimestamp*/ true));
+        return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
     }
 
     // Another fast lane: check for backing store.
@@ -745,12 +746,12 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             .OverrideTimestamp = OverrideTimestamp_,
             .EnableHashChunkIndex = mountConfig->EnableHashChunkIndexForLookup
         });
-        return wrapReaderWithPerformanceCounting(wrapReader(
+        return wrapReader(
             CreateVersionedOffloadingLookupReader(
                 std::move(backendReaders.OffloadingReader),
                 std::move(options),
                 filteredKeys),
-            /*needSetTimestamp*/ true));
+            /*needSetTimestamp*/ true);
     }
 
     auto chunkState = PrepareChunkState(
@@ -788,13 +789,13 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             /*testingOptions*/ std::nullopt,
             TabletNodeLogger);
 
-        return wrapReaderWithPerformanceCounting(wrapReader(
+        return wrapReader(
             CreateIndexedVersionedChunkReader(
                 chunkReadOptions,
                 std::move(controller),
                 std::move(backendReaders.ChunkReader),
                 tabletSnapshot->ChunkFragmentReader),
-            /*needSetTimestamp*/ true));
+            /*needSetTimestamp*/ true);
     }
 
     if (enableNewScanReader && chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
@@ -814,8 +815,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             chunkState->ChunkColumnMapping,
             blockManagerFactory,
             produceAllVersions);
-        return wrapReaderWithPerformanceCounting(
-            wrapReader(std::move(reader), /*needSetTimestamp*/ true));
+        return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
     }
 
     auto reader = CreateVersionedChunkReader(
@@ -831,8 +831,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     // Reader can handle chunk timestamp itself if needed, no need to wrap with
     // timestamp resetting adapter.
-    return wrapReaderWithPerformanceCounting(
-        wrapReader(std::move(reader), /*needSetTimestamp*/ false));
+    return wrapReader(std::move(reader), /*needSetTimestamp*/ false);
 }
 
 TSharedRange<TLegacyKey> TSortedChunkStore::FilterKeysByReadRange(

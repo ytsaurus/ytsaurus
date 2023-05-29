@@ -13,7 +13,7 @@
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
-#include <yt/yt/ytlib/table_client/performance_counting.h>
+#include <yt/yt/ytlib/table_client/performance_counters.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/schemaful_chunk_reader.h>
 
@@ -522,7 +522,8 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateReader(
     const NChunkClient::TClientChunkReadOptions& /*chunkReadOptions*/,
     std::optional<EWorkloadCategory> /*workloadCategory*/)
 {
-    return CreateSchemafulPerformanceCountingReader(DoCreateReader(
+    return CreateSchemafulPerformanceCountingReader(
+        DoCreateReader(
             tabletIndex,
             lowerRowIndex,
             upperRowIndex,
