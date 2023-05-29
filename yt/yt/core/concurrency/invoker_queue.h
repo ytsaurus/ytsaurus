@@ -135,7 +135,7 @@ public:
         const std::vector<NYTProf::TProfilerTagPtr>& profilerTags,
         const NProfiling::TTagSet& cumulativeCounterTagSet);
 
-    void SetThreadId(TThreadId threadId);
+    void SetThreadId(NThreading::TThreadId threadId);
 
     void Invoke(TClosure callback) override;
 
@@ -162,7 +162,7 @@ public:
         NProfiling::TTagId profilingTag = 0,
         NYTProf::TProfilerTagPtr profilerTag = nullptr);
 
-    TThreadId GetThreadId() const override;
+    NThreading::TThreadId GetThreadId() const override;
     bool CheckAffinity(const IInvokerPtr& invoker) const override;
     bool IsSerialized() const override;
 
@@ -186,7 +186,7 @@ private:
 
     TQueueImpl QueueImpl_;
 
-    NConcurrency::TThreadId ThreadId_ = NConcurrency::InvalidThreadId;
+    NThreading::TThreadId ThreadId_ = NThreading::InvalidThreadId;
     std::atomic<bool> Running_ = true;
 
     struct TCounters

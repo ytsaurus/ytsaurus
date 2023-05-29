@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/core/threading/public.h>
+
 #include <library/cpp/yt/yson_string/convert.h>
 
 #include <util/system/getpid.h>
@@ -123,7 +125,7 @@ public:
     TStringBuf GetHost() const;
     TProcessId GetPid() const;
     const TString& GetThreadName() const;
-    NConcurrency::TThreadId GetTid() const;
+    NThreading::TThreadId GetTid() const;
     NConcurrency::TFiberId GetFid() const;
 
     bool HasDatetime() const;

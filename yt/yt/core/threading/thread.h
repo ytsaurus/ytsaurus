@@ -9,7 +9,7 @@
 
 #include <util/system/thread.h>
 
-namespace NYT::NConcurrency {
+namespace NYT::NThreading {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,7 +60,7 @@ private:
 
     const TThreadId UniqueThreadId_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     std::atomic<bool> Started_ = false;
     std::atomic<bool> Stopping_ = false;
     TShutdownCookie ShutdownCookie_;
@@ -85,7 +85,7 @@ DEFINE_REFCOUNTED_TYPE(TThread)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NConcurrency
+} // namespace NYT::NThreading
 
 #define THREAD_INL_H_
 #include "thread-inl.h"

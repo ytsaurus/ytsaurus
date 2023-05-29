@@ -10,6 +10,7 @@ namespace NYT::NConcurrency {
 
 using namespace NProfiling;
 using namespace NYTProf;
+using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 

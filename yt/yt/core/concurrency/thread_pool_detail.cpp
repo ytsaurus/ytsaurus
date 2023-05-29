@@ -15,7 +15,7 @@ static const auto& Logger = ConcurrencyLogger;
 
 TThreadPoolBase::TThreadPoolBase(
     TString threadNamePrefix,
-    EThreadPriority threadPriority)
+    NThreading::EThreadPriority threadPriority)
     : ThreadNamePrefix_(std::move(threadNamePrefix))
     , ThreadPriority_(threadPriority)
     , ShutdownCookie_(RegisterShutdownCallback(

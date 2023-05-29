@@ -10,8 +10,9 @@
 
 #include <yt/yt/core/concurrency/notification_handle.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
-#include <yt/yt/core/concurrency/thread.h>
 #include <yt/yt/core/concurrency/moody_camel_concurrent_queue.h>
+
+#include <yt/yt/core/threading/thread.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -274,7 +275,7 @@ private:
     ares_options Options_;
 
     class TResolverThread
-        : public TThread
+        : public NThreading::TThread
     {
     public:
         explicit TResolverThread(TImpl* owner)

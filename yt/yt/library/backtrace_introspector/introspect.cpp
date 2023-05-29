@@ -25,6 +25,7 @@
 namespace NYT::NBacktraceIntrospector {
 
 using namespace NConcurrency;
+using namespace NThreading;
 using namespace NTracing;
 using namespace NBacktrace;
 

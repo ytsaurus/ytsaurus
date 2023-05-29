@@ -7,9 +7,10 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/new_fair_share_thread_pool.h>
-#include <yt/yt/core/concurrency/thread.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/notification_handle.h>
+
+#include <yt/yt/core/threading/thread.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 

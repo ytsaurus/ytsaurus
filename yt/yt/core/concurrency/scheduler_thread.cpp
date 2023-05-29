@@ -16,7 +16,7 @@ TSchedulerThreadBase::TSchedulerThreadBase(
     TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
     const TString& threadGroupName,
     const TString& threadName,
-    EThreadPriority threadPriority,
+    NThreading::EThreadPriority threadPriority,
     int shutdownPriority)
     : TFiberSchedulerThread(
         threadGroupName,

@@ -3,7 +3,7 @@
 #include "callback.h"
 #include "bind.h"
 
-#include <yt/yt/core/concurrency/public.h>
+#include <yt/yt/core/threading/public.h>
 
 #include <type_traits>
 
@@ -23,7 +23,7 @@ struct IInvoker
     //! Returns the thread id this invoker is bound to.
     //! For invokers not bound to any particular thread,
     //! returns |InvalidThreadId|.
-    virtual NConcurrency::TThreadId GetThreadId() const = 0;
+    virtual NThreading::TThreadId GetThreadId() const = 0;
 
     //! Returns true if this invoker is either equal to #invoker or wraps it,
     //! in some sense.

@@ -36,7 +36,7 @@ public:
 
     ~TFairShareInvokerQueue();
 
-    void SetThreadId(TThreadId threadId);
+    void SetThreadId(NThreading::TThreadId threadId);
 
     const IInvokerPtr& GetInvoker(int bucketIndex, int queueIndex) const;
 

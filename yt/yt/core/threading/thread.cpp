@@ -10,14 +10,14 @@
     #include <sched.h>
 #endif
 
-namespace NYT::NConcurrency {
+namespace NYT::NThreading {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static thread_local TThreadId CurrentUniqueThreadId;
 static std::atomic<TThreadId> UniqueThreadIdGenerator;
 
-static const auto& Logger = ConcurrencyLogger;
+static const auto& Logger = ThreadingLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -265,4 +265,4 @@ void TThread::SetThreadPriority()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NThreading

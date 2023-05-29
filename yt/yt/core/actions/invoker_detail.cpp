@@ -20,7 +20,7 @@ void TInvokerWrapper::Invoke(TMutableRange<TClosure> callbacks)
     return UnderlyingInvoker_->Invoke(callbacks);
 }
 
-NConcurrency::TThreadId TInvokerWrapper::GetThreadId() const
+NThreading::TThreadId TInvokerWrapper::GetThreadId() const
 {
     return UnderlyingInvoker_->GetThreadId();
 }

@@ -2,7 +2,7 @@
 
 #include "mpsc_sharded_queue.h"
 
-#include <yt/yt/core/concurrency/thread.h>
+#include <yt/yt/core/threading/thread.h>
 
 #include <yt/yt/core/profiling/public.h>
 
@@ -10,8 +10,10 @@
 #include <yt/yt/core/misc/ring_queue.h>
 
 namespace NYT {
-namespace NMpscFSQueue
-{
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NMpscFSQueue {
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -195,9 +195,9 @@ private:
             }
         }
 
-        NConcurrency::TThreadId GetThreadId() const override
+        NThreading::TThreadId GetThreadId() const override
         {
-            return NConcurrency::InvalidThreadId;
+            return NThreading::InvalidThreadId;
         }
 
         bool CheckAffinity(const IInvokerPtr& invoker) const override

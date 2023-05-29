@@ -18,7 +18,7 @@ public:
 
     explicit TThreadPoolBase(
         TString threadNamePrefix,
-        EThreadPriority threadPriority = EThreadPriority::Normal);
+        NThreading::EThreadPriority threadPriority = NThreading::EThreadPriority::Normal);
 
     void Configure(int threadCount);
     void Shutdown();
@@ -28,7 +28,7 @@ public:
 
 protected:
     const TString ThreadNamePrefix_;
-    const EThreadPriority ThreadPriority_;
+    const NThreading::EThreadPriority ThreadPriority_;
 
     const TShutdownCookie ShutdownCookie_;
 

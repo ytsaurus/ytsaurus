@@ -35,7 +35,7 @@ TFairShareInvokerQueue::TFairShareInvokerQueue(
 
 TFairShareInvokerQueue::~TFairShareInvokerQueue() = default;
 
-void TFairShareInvokerQueue::SetThreadId(TThreadId threadId)
+void TFairShareInvokerQueue::SetThreadId(NThreading::TThreadId threadId)
 {
     for (auto& bucket : Buckets_) {
         bucket.Queue->SetThreadId(threadId);

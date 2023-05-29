@@ -834,7 +834,7 @@ private:
 TFiberSchedulerThread::TFiberSchedulerThread(
     const TString& threadGroupName,
     const TString& threadName,
-    EThreadPriority threadPriority,
+    NThreading::EThreadPriority threadPriority,
     int shutdownPriority)
     : TThread(threadName, threadPriority, shutdownPriority)
     , ThreadGroupName_(threadGroupName)

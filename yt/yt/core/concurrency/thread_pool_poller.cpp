@@ -24,6 +24,8 @@
 
 namespace NYT::NConcurrency {
 
+using namespace NThreading;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto PollerThreadQuantum = TDuration::MilliSeconds(100);
@@ -131,7 +133,7 @@ TString PollablePriorityToPollerThreadNameSuffix(EPollablePriority priority)
 
 class TThreadPoolPoller
     : public IThreadPoolPoller
-    , public TThread
+    , public NThreading::TThread
 {
 public:
     TThreadPoolPoller(int threadCount, const TString& threadNamePrefix, const TDuration pollingPeriod)

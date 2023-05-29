@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/core/threading/public.h>
+
 #include <yt/yt/core/tracing/public.h>
 
 namespace NYT::NBacktraceIntrospector {
@@ -13,7 +15,7 @@ namespace NYT::NBacktraceIntrospector {
 
 struct TThreadIntrospectionInfo
 {
-    NConcurrency::TThreadId ThreadId;
+    NThreading::TThreadId ThreadId;
     NConcurrency::TFiberId FiberId;
     TString ThreadName;
     NTracing::TTraceId TraceId;
@@ -34,7 +36,7 @@ struct TFiberIntrospectionInfo
     //! Zero if fiber is not waiting.
     TInstant WaitingSince;
     //! |InvalidThreadId| is fiber is not running.
-    NConcurrency::TThreadId ThreadId;
+    NThreading::TThreadId ThreadId;
     //! Empty if fiber is not running.
     TString ThreadName;
     NTracing::TTraceId TraceId;

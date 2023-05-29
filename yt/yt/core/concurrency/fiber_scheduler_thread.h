@@ -1,8 +1,10 @@
 #pragma once
 
-#include "thread.h"
+#include "public.h"
 
 #include <yt/yt/core/actions/callback.h>
+
+#include <yt/yt/core/threading/thread.h>
 
 namespace NYT::NConcurrency {
 
@@ -10,13 +12,13 @@ namespace NYT::NConcurrency {
 
 //! Executes actions in fiber context.
 class TFiberSchedulerThread
-    : public TThread
+    : public NThreading::TThread
 {
 public:
     TFiberSchedulerThread(
         const TString& threadGroupName,
         const TString& threadName,
-        EThreadPriority threadPriority = EThreadPriority::Normal,
+        NThreading::EThreadPriority threadPriority = NThreading::EThreadPriority::Normal,
         int shutdownPriority = 0);
 
     //! Empty callback signals about stopping.

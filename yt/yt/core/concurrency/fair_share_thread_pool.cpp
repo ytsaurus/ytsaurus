@@ -56,9 +56,9 @@ public:
         Queue.clear();
     }
 
-    NConcurrency::TThreadId GetThreadId() const override
+    NThreading::TThreadId GetThreadId() const override
     {
-        return InvalidThreadId;
+        return NThreading::InvalidThreadId;
     }
 
     bool CheckAffinity(const IInvokerPtr& invoker) const override
@@ -462,7 +462,7 @@ public:
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TString& threadGroupName,
         const TString& threadName,
-        EThreadPriority threadPriority,
+        NThreading::EThreadPriority threadPriority,
         int index)
         : TSchedulerThread(
             std::move(callbackEventCount),

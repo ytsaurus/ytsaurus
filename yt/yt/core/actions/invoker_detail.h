@@ -15,7 +15,7 @@ public:
 
     void Invoke(TMutableRange<TClosure> callbacks) override;
 
-    NConcurrency::TThreadId GetThreadId() const override;
+    NThreading::TThreadId GetThreadId() const override;
     bool CheckAffinity(const IInvokerPtr& invoker) const override;
     bool IsSerialized() const override;
 

@@ -99,7 +99,7 @@ public:
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TString& threadGroupName,
         const TString& threadName,
-        EThreadPriority threadPriority)
+        NThreading::EThreadPriority threadPriority)
         : TSchedulerThread(
             callbackEventCount,
             threadGroupName,
@@ -141,7 +141,7 @@ public:
     TThreadPool(
         int threadCount,
         const TString& threadNamePrefix,
-        EThreadPriority threadPriority,
+        NThreading::EThreadPriority threadPriority,
         const TDuration pollingPeriod)
         : TThreadPoolBase(threadNamePrefix, threadPriority)
         , Queue_(New<TInvokerQueueAdapter>(
@@ -214,10 +214,14 @@ private:
 IThreadPoolPtr CreateThreadPool(
     int threadCount,
     const TString& threadNamePrefix,
-    EThreadPriority threadPriority,
-    const TDuration pollingPeriod)
+    NThreading::EThreadPriority threadPriority,
+    TDuration pollingPeriod)
 {
-    return New<TThreadPool>(threadCount, threadNamePrefix, threadPriority, pollingPeriod);
+    return New<TThreadPool>(
+        threadCount,
+        threadNamePrefix,
+        threadPriority,
+        pollingPeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

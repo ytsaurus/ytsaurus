@@ -8,8 +8,9 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <yt/yt/core/concurrency/thread.h>
-#include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/public.h>
+
+#include <yt/yt/core/threading/public.h>
 
 #ifdef _linux_
     #ifndef FALLOC_FL_CONVERT_UNWRITTEN

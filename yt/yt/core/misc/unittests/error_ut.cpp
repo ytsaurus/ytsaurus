@@ -128,7 +128,7 @@ TEST(TErrorTest, ErrorSanitizer)
 
         EXPECT_EQ("", error.GetHost());
         EXPECT_EQ(0, error.GetPid());
-        EXPECT_EQ(NConcurrency::InvalidThreadId, error.GetTid());
+        EXPECT_EQ(NThreading::InvalidThreadId, error.GetTid());
         EXPECT_EQ(NConcurrency::InvalidFiberId, error.GetFid());
         EXPECT_EQ(NTracing::InvalidTraceId, error.GetTraceId());
         EXPECT_EQ(NTracing::InvalidSpanId, error.GetSpanId());

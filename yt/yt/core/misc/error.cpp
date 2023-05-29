@@ -168,7 +168,7 @@ public:
         return Pid_;
     }
 
-    NConcurrency::TThreadId GetTid() const
+    NThreading::TThreadId GetTid() const
     {
         return Tid_;
     }
@@ -263,7 +263,7 @@ private:
     TSharedRef HostHolder_;
     TInstant Datetime_;
     TProcessId Pid_ = 0;
-    NConcurrency::TThreadId Tid_ = NConcurrency::InvalidThreadId;
+    NThreading::TThreadId Tid_ = NThreading::InvalidThreadId;
     TString ThreadName_;
     NConcurrency::TFiberId Fid_ = NConcurrency::InvalidFiberId;
     NTracing::TTraceId TraceId_ = NTracing::InvalidTraceId;
@@ -308,7 +308,7 @@ private:
         Pid_ = Attributes_->GetAndRemove<TProcessId>(PidKey, 0);
 
         static const TString TidKey("tid");
-        Tid_ = Attributes_->GetAndRemove<NConcurrency::TThreadId>(TidKey, NConcurrency::InvalidThreadId);
+        Tid_ = Attributes_->GetAndRemove<NThreading::TThreadId>(TidKey, NThreading::InvalidThreadId);
 
         static const TString ThreadNameKey("thread");
         ThreadName_ = Attributes_->GetAndRemove<TString>(ThreadNameKey, TString());
@@ -504,10 +504,10 @@ TProcessId TError::GetPid() const
     return Impl_->GetPid();
 }
 
-NConcurrency::TThreadId TError::GetTid() const
+NThreading::TThreadId TError::GetTid() const
 {
     if (!Impl_) {
-        return NConcurrency::InvalidThreadId;
+        return NThreading::InvalidThreadId;
     }
     return Impl_->GetTid();
 }

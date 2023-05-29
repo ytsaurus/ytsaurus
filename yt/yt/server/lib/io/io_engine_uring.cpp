@@ -9,6 +9,8 @@
 #include <yt/yt/core/concurrency/moody_camel_concurrent_queue.h>
 #include <yt/yt/core/concurrency/notification_handle.h>
 
+#include <yt/yt/core/threading/thread.h>
+
 #include <yt/yt/core/misc/mpsc_fair_share_queue.h>
 
 #include <library/cpp/yt/containers/intrusive_linked_list.h>
@@ -442,7 +444,7 @@ DEFINE_REFCOUNTED_TYPE(IUringThreadPool)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUringThread
-    : public TThread
+    : public NThreading::TThread
 {
 public:
     TUringThread(IUringThreadPool* threadPool, TUringConfigProviderPtr config, int index, TIOEngineSensorsPtr sensors)

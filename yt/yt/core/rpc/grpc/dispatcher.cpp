@@ -3,7 +3,8 @@
 #include "config.h"
 
 #include <yt/yt/core/concurrency/count_down_latch.h>
-#include <yt/yt/core/concurrency/thread.h>
+
+#include <yt/yt/core/threading/thread.h>
 
 #include <yt/yt/core/misc/shutdown_priorities.h>
 
@@ -83,13 +84,13 @@ public:
 
 private:
     class TDispatcherThread
-        : public TThread
+        : public NThreading::TThread
     {
     public:
         TDispatcherThread(TGrpcLibraryLockPtr libraryLock, int index)
             : TThread(
                 Format("Grpc/%v", index),
-                EThreadPriority::Normal,
+                NThreading::EThreadPriority::Normal,
                 GrpcDispatcherThreadShutdownPriority)
             , LibraryLock_(std::move(libraryLock))
             , GuardedCompletionQueue_(TGrpcCompletionQueuePtr(grpc_completion_queue_create_for_next(nullptr)))

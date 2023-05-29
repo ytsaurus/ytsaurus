@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/actions/callback.h>
 
+#include <yt/yt/core/threading/public.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,8 +28,8 @@ DEFINE_REFCOUNTED_TYPE(IThreadPool)
 IThreadPoolPtr CreateThreadPool(
     int threadCount,
     const TString& threadNamePrefix,
-    EThreadPriority threadPriority = EThreadPriority::Normal,
-    const TDuration pollingPeriod = TDuration::MilliSeconds(10));
+    NThreading::EThreadPriority threadPriority = NThreading::EThreadPriority::Normal,
+    TDuration pollingPeriod = TDuration::MilliSeconds(10));
 
 ////////////////////////////////////////////////////////////////////////////////
 

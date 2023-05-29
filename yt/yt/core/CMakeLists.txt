@@ -129,7 +129,6 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/quantized_executor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/scheduler_thread.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/single_queue_scheduler_thread.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/thread.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/suspendable_action_queue.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/system_invokers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/thread_affinity.cpp
@@ -247,6 +246,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/bus/channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/service_discovery/service_discovery.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/threading/spin_wait_slow_path_logger.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/threading/thread.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/allocation_tags.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/public.cpp

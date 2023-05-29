@@ -144,7 +144,7 @@ i64 TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TL
 
     if (event.ThreadName.Length > 0) {
         buffer->AppendString(TStringBuf(event.ThreadName.Buffer.data(), event.ThreadName.Length));
-    } else if (event.ThreadId != NConcurrency::InvalidThreadId) {
+    } else if (event.ThreadId != NThreading::InvalidThreadId) {
         buffer->AppendNumber(event.ThreadId, 16);
     }
 

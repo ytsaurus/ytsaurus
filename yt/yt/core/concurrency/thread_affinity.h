@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/actions/public.h>
 
+#include <yt/yt/core/threading/public.h>
+
 #include <library/cpp/yt/misc/preprocessor.h>
 
 #include <atomic>
@@ -36,17 +38,17 @@ class TThreadAffinitySlot
 {
 public:
     //! Checks if the slot matches the given thread id.
-    void Check(TThreadId threadId);
+    void Check(NThreading::TThreadId threadId);
 
     //! Checks if the slot matches the current thread id.
     void Check();
 
     //! Returns thread id used for affinity check
     //! or #InvalidThreadId if bound thread is still undefined.
-    TThreadId GetBoundThreadId() const;
+    NThreading::TThreadId GetBoundThreadId() const;
 
 private:
-    std::atomic<TThreadId> BoundId_ = {InvalidThreadId};
+    std::atomic<NThreading::TThreadId> BoundId_ = NThreading::InvalidThreadId;
 };
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK

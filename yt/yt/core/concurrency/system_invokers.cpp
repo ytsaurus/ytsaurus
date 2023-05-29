@@ -27,7 +27,7 @@ public:
             CallbackEventCount_,
             threadName,
             threadName,
-            EThreadPriority::Normal,
+            NThreading::EThreadPriority::Normal,
             /*shutdownPriority*/ shutdownPriority - 1))
         , ShutdownCookie_(RegisterShutdownCallback(
             Format("SystemInvokerThread:%v", threadName),

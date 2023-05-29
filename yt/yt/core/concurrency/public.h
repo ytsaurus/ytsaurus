@@ -87,9 +87,6 @@ DECLARE_REFCOUNTED_STRUCT(IThreadPoolPoller)
 
 DECLARE_REFCOUNTED_CLASS(TThread)
 
-using TThreadId = size_t;
-constexpr size_t InvalidThreadId = 0;
-
 using TFiberId = size_t;
 constexpr size_t InvalidFiberId = 0;
 
@@ -100,11 +97,6 @@ DEFINE_ENUM(EFiberState,
     (Waiting)
     (Idle)
     (Finished)
-);
-
-DEFINE_ENUM(EThreadPriority,
-    (Normal)
-    (RealTime)
 );
 
 using TFairShareThreadPoolTag = TString;

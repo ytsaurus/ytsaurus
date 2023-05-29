@@ -1,11 +1,12 @@
 #include "delayed_executor.h"
 #include "action_queue.h"
 #include "scheduler.h"
-#include "thread.h"
 #include "private.h"
 
 #include <yt/yt/core/misc/relaxed_mpsc_queue.h>
 #include <yt/yt/core/misc/singleton.h>
+
+#include <yt/yt/core/threading/thread.h>
 
 #include <util/datetime/base.h>
 
@@ -165,13 +166,13 @@ public:
 
 private:
     class TPollerThread
-        : public TThread
+        : public NThreading::TThread
     {
     public:
         TPollerThread()
             : TThread(
                 "DelayedPoller",
-                EThreadPriority::Normal,
+                NThreading::EThreadPriority::Normal,
                 /*shutdownPriority*/ 200)
         { }
 

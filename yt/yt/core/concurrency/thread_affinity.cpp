@@ -8,6 +8,8 @@
 
 namespace NYT::NConcurrency {
 
+using namespace NThreading;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TThreadAffinitySlot::Check(TThreadId threadId)
