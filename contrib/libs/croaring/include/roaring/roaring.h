@@ -800,6 +800,15 @@ bool roaring_bitmap_select(const roaring_bitmap_t *r, uint32_t rank,
 uint64_t roaring_bitmap_rank(const roaring_bitmap_t *r, uint32_t x);
 
 /**
+ * Returns the index of x in the given roaring bitmap.
+ * If the roaring bitmap doesn't contain x , this function will return -1.
+ * The difference with rank function is that this function will return -1 when x
+ * is not the element of roaring bitmap, but the rank function will return a
+ * non-negative number.
+ */
+int64_t roaring_bitmap_get_index(const roaring_bitmap_t *r, uint32_t x);
+
+/**
  * Returns the smallest value in the set, or UINT32_MAX if the set is empty.
  */
 uint32_t roaring_bitmap_minimum(const roaring_bitmap_t *r);

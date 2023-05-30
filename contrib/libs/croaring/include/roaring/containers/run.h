@@ -559,6 +559,9 @@ inline uint16_t run_container_maximum(const run_container_t *run) {
 /* Returns the number of values equal or smaller than x */
 int run_container_rank(const run_container_t *arr, uint16_t x);
 
+/* Returns the index of x, if not exsist return -1 */
+int run_container_get_index(const run_container_t *arr, uint16_t x);
+
 /* Returns the index of the first run containing a value at least as large as x, or -1 */
 inline int run_container_index_equalorlarger(const run_container_t *arr, uint16_t x) {
     int32_t index = interleavedBinarySearch(arr->runs, arr->n_runs, x);

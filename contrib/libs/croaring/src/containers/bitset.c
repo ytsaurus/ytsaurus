@@ -1212,6 +1212,25 @@ int bitset_container_rank(const bitset_container_t *container, uint16_t x) {
   return sum;
 }
 
+/* Returns the index of x , if not exsist return -1 */
+int bitset_container_get_index(const bitset_container_t *container, uint16_t x) {
+  if (bitset_container_get(container, x)) {
+    // credit: aqrit
+    int sum = 0;
+    int i = 0;
+    for (int end = x / 64; i < end; i++){
+      sum += roaring_hamming(container->words[i]);
+    }
+    uint64_t lastword = container->words[i];
+    uint64_t lastpos = UINT64_C(1) << (x % 64);
+    uint64_t mask = lastpos + lastpos - 1; // smear right
+    sum += roaring_hamming(lastword & mask);
+    return sum - 1;
+  } else {
+    return -1;
+  }
+}
+
 /* Returns the index of the first value equal or larger than x, or -1 */
 int bitset_container_index_equalorlarger(const bitset_container_t *container, uint16_t x) {
   uint32_t x32 = x;

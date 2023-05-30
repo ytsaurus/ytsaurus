@@ -95,7 +95,7 @@ static inline int32_t advanceUntil(const uint16_t *array, int32_t pos,
 }
 
 /**
- * Returns number of elements which are less then $ikey.
+ * Returns number of elements which are less than ikey.
  * Array elements must be unique and sorted.
  */
 static inline int32_t count_less(const uint16_t *array, int32_t lenarray,
@@ -106,7 +106,7 @@ static inline int32_t count_less(const uint16_t *array, int32_t lenarray,
 }
 
 /**
- * Returns number of elements which are greater then $ikey.
+ * Returns number of elements which are greater than ikey.
  * Array elements must be unique and sorted.
  */
 static inline int32_t count_greater(const uint16_t *array, int32_t lenarray,

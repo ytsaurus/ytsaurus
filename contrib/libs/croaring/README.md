@@ -698,6 +698,15 @@ Our AVX-512 code is only enabled on recent hardware (Intel Ice Lake or better an
 
 Like, for example, STL containers or Java's default data structures, the CRoaring library has no built-in thread support. Thus whenever you modify a bitmap in one thread, it is unsafe to query it in others. It is safe however to query bitmaps (without modifying them) from several distinct threads,  as long as you do not use the copy-on-write attribute. For example, you can safely copy a bitmap and use both copies in concurrently. One should probably avoid the use of the copy-on-write attribute in a threaded environment.
 
+Some of our users rely on "copy-on-write" (default to disabled). A bitmap with the copy-on-write flag
+set to true might generate shared containers. A shared container is just a reference to a single
+container with reference counting (we keep track of the number of shallow copies). If you copy shared
+containers over several threads, this might be unsafe due to the need to update the counter concurrently.
+Thus for shared containers, we use reference counting with an atomic counter. If the library is compiled
+as a C library (the default), we use C11 atomics. Unfortunately, Visual Studio does not support C11
+atomics at this times (though this is subject to change). To compensate, we
+use Windows-specific code in such instances (`_InterlockedDecrement` `_InterlockedIncrement`).
+
 
 # How to best aggregate bitmaps?
 

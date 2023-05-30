@@ -55,11 +55,10 @@ extern "C" { namespace roaring { namespace internal {
  * A shared container is a wrapper around a container
  * with reference counting.
  */
-
 STRUCT_CONTAINER(shared_container_s) {
     container_t *container;
     uint8_t typecode;
-    uint32_t counter;  // to be managed atomically
+    croaring_refcount_t counter;  // to be managed atomically
 };
 
 typedef struct shared_container_s shared_container_t;
@@ -2320,6 +2319,26 @@ static inline int container_rank(
             return array_container_rank(const_CAST_array(c), x);
         case RUN_CONTAINER_TYPE:
             return run_container_rank(const_CAST_run(c), x);
+        default:
+            assert(false);
+            roaring_unreachable;
+    }
+    assert(false);
+    roaring_unreachable;
+    return false;
+}
+
+// return the index of x, if not exsist return -1
+static inline int container_get_index(const container_t *c, uint8_t type,
+                                    uint16_t x) {
+    c = container_unwrap_shared(c, &type);
+    switch (type) {
+        case BITSET_CONTAINER_TYPE:
+            return bitset_container_get_index(const_CAST_bitset(c), x);
+        case ARRAY_CONTAINER_TYPE:
+            return array_container_get_index(const_CAST_array(c), x);
+        case RUN_CONTAINER_TYPE:
+            return run_container_get_index(const_CAST_run(c), x);
         default:
             assert(false);
             roaring_unreachable;

@@ -837,6 +837,27 @@ int run_container_rank(const run_container_t *container, uint16_t x) {
     return sum;
 }
 
+int run_container_get_index(const run_container_t *container, uint16_t x) {
+    if (run_container_contains(container, x)) {
+        int sum = 0;
+        uint32_t x32 = x;
+        for (int i = 0; i < container->n_runs; i++) {
+            uint32_t startpoint = container->runs[i].value;
+            uint32_t length = container->runs[i].length;
+            uint32_t endpoint = length + startpoint;
+            if (x <= endpoint) {
+                if (x < startpoint) break;
+                return sum + (x32 - startpoint);
+            } else {
+                sum += length + 1;
+            }
+        }
+        return sum - 1;
+    } else {
+        return -1;
+    }
+}
+
 #if defined(CROARING_IS_X64) && CROARING_COMPILER_SUPPORTS_AVX512
 
 CROARING_TARGET_AVX512

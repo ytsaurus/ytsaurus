@@ -48,7 +48,6 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <stdbool.h>
 #include <stdlib.h>
 
-
 // We need portability.h to be included first, see
 // https://github.com/RoaringBitmap/CRoaring/issues/394
 #include <roaring/portability.h>
@@ -97,7 +96,7 @@ static inline void cpuid(uint32_t *eax, uint32_t *ebx, uint32_t *ecx,
                          uint32_t *edx) {
 #if CROARING_REGULAR_VISUAL_STUDIO
   int cpu_info[4];
-  __cpuid(cpu_info, *eax);
+  __cpuidex(cpu_info, *eax, *ecx);
   *eax = cpu_info[0];
   *ebx = cpu_info[1];
   *ecx = cpu_info[2];
@@ -112,6 +111,17 @@ static inline void cpuid(uint32_t *eax, uint32_t *ebx, uint32_t *ecx,
   *ebx = b;
   *ecx = c;
   *edx = d;
+#endif
+}
+
+
+static inline uint64_t xgetbv() {
+#if defined(_MSC_VER)
+  return _xgetbv(0);
+#else
+  uint32_t xcr0_lo, xcr0_hi;
+  __asm__("xgetbv\n\t" : "=a" (xcr0_lo), "=d" (xcr0_hi) : "c" (0));
+  return xcr0_lo | ((uint64_t)xcr0_hi << 32);
 #endif
 }
 
@@ -133,8 +143,39 @@ static inline uint32_t dynamic_croaring_detect_supported_architectures() {
   static uint32_t cpuid_avx512vbmi2_bit = 1 << 6; ///< @private bit 6 of ECX for EAX=0x7
   static uint32_t cpuid_avx512bitalg_bit = 1 << 12; ///< @private bit 12 of ECX for EAX=0x7
   static uint32_t cpuid_avx512vpopcntdq_bit = 1 << 14; ///< @private bit 14 of ECX for EAX=0x7
+  static uint64_t cpuid_avx256_saved = 1 << 2; ///< @private bit 2 = AVX
+  static uint64_t cpuid_avx512_saved = 7 << 5; ///< @private bits 5,6,7 = opmask, ZMM_hi256, hi16_ZMM
   static uint32_t cpuid_sse42_bit = 1 << 20;    ///< @private bit 20 of ECX for EAX=0x1
+  static uint32_t cpuid_osxsave = (1 << 26) | (1 << 27); ///< @private bits 26+27 of ECX for EAX=0x1
   static uint32_t cpuid_pclmulqdq_bit = 1 << 1; ///< @private bit  1 of ECX for EAX=0x1
+
+
+  // EBX for EAX=0x1
+  eax = 0x1;
+  ecx = 0x0;
+  cpuid(&eax, &ebx, &ecx, &edx);
+
+  if (ecx & cpuid_sse42_bit) {
+    host_isa |= CROARING_SSE42;
+  } else {
+    return host_isa; // everything after is redundant
+  }
+
+  if (ecx & cpuid_pclmulqdq_bit) {
+    host_isa |= CROARING_PCLMULQDQ;
+  }
+
+  if ((ecx & cpuid_osxsave) != cpuid_osxsave) {
+    return host_isa;
+  }
+
+  // xgetbv for checking if the OS saves registers
+  uint64_t xcr0 = xgetbv();
+
+  if ((xcr0 & cpuid_avx256_saved) == 0) {
+    return host_isa;
+  }
+
   // ECX for EAX=0x7
   eax = 0x7;
   ecx = 0x0;
@@ -149,7 +190,11 @@ static inline uint32_t dynamic_croaring_detect_supported_architectures() {
   if (ebx & cpuid_bmi2_bit) {
     host_isa |= CROARING_BMI2;
   }
-  
+
+  if (!((xcr0 & cpuid_avx512_saved) == cpuid_avx512_saved)) {
+     return host_isa;
+  }
+
   if (ebx & cpuid_avx512f_bit) {
     host_isa |= CROARING_AVX512F;
   }
@@ -173,18 +218,6 @@ static inline uint32_t dynamic_croaring_detect_supported_architectures() {
   if (ecx & cpuid_avx512vpopcntdq_bit) {
     host_isa |= CROARING_AVX512VPOPCNTDQ;
   }
-  
-  // EBX for EAX=0x1
-  eax = 0x1;
-  cpuid(&eax, &ebx, &ecx, &edx);
-
-  if (ecx & cpuid_sse42_bit) {
-    host_isa |= CROARING_SSE42;
-  }
-
-  if (ecx & cpuid_pclmulqdq_bit) {
-    host_isa |= CROARING_PCLMULQDQ;
-  }
 
   return host_isa;
 }
@@ -194,24 +227,14 @@ static inline uint32_t dynamic_croaring_detect_supported_architectures() {
 
 #if defined(__x86_64__) || defined(_M_AMD64) // x64
 
-#if defined(__cplusplus)
+#if CROARING_ATOMIC_IMPL == CROARING_ATOMIC_IMPL_CPP
 static inline uint32_t croaring_detect_supported_architectures() {
     // thread-safe as per the C++11 standard.
     static uint32_t buffer = dynamic_croaring_detect_supported_architectures();
     return buffer;
 }
-#elif CROARING_VISUAL_STUDIO
-// Visual Studio does not support C11 atomics.
-static inline uint32_t croaring_detect_supported_architectures() {
-    static int buffer = CROARING_UNINITIALIZED;
-    if (buffer == CROARING_UNINITIALIZED) {
-      buffer = dynamic_croaring_detect_supported_architectures();
-    }
-    return buffer;
-}
-#else // CROARING_VISUAL_STUDIO
-#include <stdatomic.h>
-uint32_t croaring_detect_supported_architectures() {
+#elif CROARING_ATOMIC_IMPL == CROARING_ATOMIC_IMPL_C
+static uint32_t croaring_detect_supported_architectures() {
     // we use an atomic for thread safety
     static _Atomic uint32_t buffer = CROARING_UNINITIALIZED;
     if (buffer == CROARING_UNINITIALIZED) {
@@ -220,7 +243,16 @@ uint32_t croaring_detect_supported_architectures() {
     }
     return buffer;
 }
-#endif // CROARING_REGULAR_VISUAL_STUDIO
+#else
+// If we do not have atomics, we do the best we can.
+static inline uint32_t croaring_detect_supported_architectures() {
+    static uint32_t buffer = CROARING_UNINITIALIZED;
+    if (buffer == CROARING_UNINITIALIZED) {
+      buffer = dynamic_croaring_detect_supported_architectures();
+    }
+    return buffer;
+}
+#endif // CROARING_C_ATOMIC
 
 #ifdef ROARING_DISABLE_AVX
 

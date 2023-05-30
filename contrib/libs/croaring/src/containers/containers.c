@@ -137,7 +137,7 @@ container_t *get_copy_of_container(
         shared_container_t *shared_container;
         if (*typecode == SHARED_CONTAINER_TYPE) {
             shared_container = CAST_shared(c);
-            shared_container->counter += 1;
+            croaring_refcount_inc(&shared_container->counter);
             return shared_container;
         }
         assert(*typecode != SHARED_CONTAINER_TYPE);
@@ -149,7 +149,10 @@ container_t *get_copy_of_container(
 
         shared_container->container = c;
         shared_container->typecode = *typecode;
-
+        // At this point, we are creating new shared container
+        // so there should be no other references, and setting
+        // the counter to 2 - even non-atomically - is safe as
+        // long as the value is set before the return statement.
         shared_container->counter = 2;
         *typecode = SHARED_CONTAINER_TYPE;
 
@@ -188,12 +191,10 @@ container_t *container_clone(const container_t *c, uint8_t typecode) {
 container_t *shared_container_extract_copy(
     shared_container_t *sc, uint8_t *typecode
 ){
-    assert(sc->counter > 0);
     assert(sc->typecode != SHARED_CONTAINER_TYPE);
-    sc->counter--;
     *typecode = sc->typecode;
     container_t *answer;
-    if (sc->counter == 0) {
+    if (croaring_refcount_dec(&sc->counter)) {
         answer = sc->container;
         sc->container = NULL;  // paranoid
         roaring_free(sc);
@@ -205,9 +206,7 @@ container_t *shared_container_extract_copy(
 }
 
 void shared_container_free(shared_container_t *container) {
-    assert(container->counter > 0);
-    container->counter--;
-    if (container->counter == 0) {
+    if (croaring_refcount_dec(&container->counter)) {
         assert(container->typecode != SHARED_CONTAINER_TYPE);
         container_free(container->container, container->typecode);
         container->container = NULL;  // paranoid

@@ -38,6 +38,15 @@
 #define CROARING_REGULAR_VISUAL_STUDIO 1
 #endif // __clang__
 #endif // _MSC_VER
+#ifndef CROARING_VISUAL_STUDIO
+#define CROARING_VISUAL_STUDIO 0
+#endif
+#ifndef CROARING_CLANG_VISUAL_STUDIO
+#define CROARING_CLANG_VISUAL_STUDIO 0
+#endif
+#ifndef CROARING_REGULAR_VISUAL_STUDIO
+#define CROARING_REGULAR_VISUAL_STUDIO 0
+#endif
 
 #if defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE < 200809L)
 #undef _POSIX_C_SOURCE
@@ -59,11 +68,6 @@
 
 #ifdef __cplusplus
 extern "C" {  // portability definitions are in global scope, not a namespace
-#endif
-
-#if CROARING_REGULAR_VISUAL_STUDIO && !defined(_WIN64) && !defined(CROARING_ACK_32BIT)
-#pragma message( \
-    "You appear to be attempting a 32-bit build under Visual Studio. We recommend a 64-bit build instead.")
 #endif
 
 #if defined(__SIZEOF_LONG_LONG__) && __SIZEOF_LONG_LONG__ != 8
@@ -366,7 +370,7 @@ static inline int roaring_hamming(uint64_t x) {
 
 #if defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__)
  #define CROARING_IS_BIG_ENDIAN (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
- #elif defined(_WIN32)
+#elif defined(_WIN32)
  #define CROARING_IS_BIG_ENDIAN 0
  #else
  #if defined(__APPLE__) || defined(__FreeBSD__) // defined __BYTE_ORDER__ && defined __ORDER_BIG_ENDIAN__
@@ -394,6 +398,130 @@ static inline int roaring_hamming(uint64_t x) {
  #define CROARING_IS_BIG_ENDIAN 1
  #endif // __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #endif
+
+// Defines for the possible CROARING atomic implementations
+#define CROARING_ATOMIC_IMPL_NONE          1
+#define CROARING_ATOMIC_IMPL_CPP           2
+#define CROARING_ATOMIC_IMPL_C             3
+#define CROARING_ATOMIC_IMPL_C_WINDOWS     4
+
+// If the use has forced a specific implementation, use that, otherwise,
+// figure out the best implementation we can use.
+#if !defined(CROARING_ATOMIC_IMPL)
+  #if defined(__cplusplus) && __cplusplus >= 201103L
+    #ifdef __has_include
+      #if __has_include(<atomic>)
+        #define CROARING_ATOMIC_IMPL CROARING_ATOMIC_IMPL_CPP
+      #endif //__has_include(<atomic>)
+    #else
+      // We lack __has_include to check:
+      #define CROARING_ATOMIC_IMPL CROARING_ATOMIC_IMPL_CPP
+    #endif //__has_include
+  #elif __STDC_VERSION__ >= 201112L && !defined(__STDC_NO_ATOMICS__)
+    #define CROARING_ATOMIC_IMPL CROARING_ATOMIC_IMPL_C
+  #elif CROARING_REGULAR_VISUAL_STUDIO
+    // https://www.technetworkhub.com/c11-atomics-in-visual-studio-2022-version-17/
+    #define CROARING_ATOMIC_IMPL CROARING_ATOMIC_IMPL_C_WINDOWS
+  #endif
+#endif // !defined(CROARING_ATOMIC_IMPL)
+
+#if !defined(CROARING_ATOMIC_IMPL)
+  #pragma message ( "No atomic implementation found, copy on write bitmaps will not be threadsafe" )
+  #define CROARING_ATOMIC_IMPL CROARING_ATOMIC_IMPL_NONE
+#endif
+
+#if CROARING_ATOMIC_IMPL == CROARING_ATOMIC_IMPL_C
+#include <stdatomic.h>
+typedef _Atomic(uint32_t) croaring_refcount_t;
+
+static inline void croaring_refcount_inc(croaring_refcount_t *val) {
+    // Increasing the reference counter can always be done with
+    // memory_order_relaxed: New references to an object can only be formed from
+    // an existing reference, and passing an existing reference from one thread to
+    // another must already provide any required synchronization.
+    atomic_fetch_add_explicit(val, 1, memory_order_relaxed);
+}
+
+static inline bool croaring_refcount_dec(croaring_refcount_t *val) {
+    // It is important to enforce any possible access to the object in one thread
+    // (through an existing reference) to happen before deleting the object in a
+    // different thread. This is achieved by a "release" operation after dropping
+    // a reference (any access to the object through this reference must obviously
+    // happened before), and an "acquire" operation before deleting the object.
+    bool is_zero = atomic_fetch_sub_explicit(val, 1, memory_order_release) == 1;
+    if (is_zero) {
+        atomic_thread_fence(memory_order_acquire);
+    }
+    return is_zero;
+}
+
+static inline uint32_t croaring_refcount_get(croaring_refcount_t *val) {
+    return atomic_load_explicit(val, memory_order_relaxed);
+}
+#elif CROARING_ATOMIC_IMPL == CROARING_ATOMIC_IMPL_CPP
+#include <atomic>
+typedef std::atomic<uint32_t> croaring_refcount_t;
+
+static inline void croaring_refcount_inc(croaring_refcount_t *val) {
+    val->fetch_add(1, std::memory_order_relaxed);
+}
+
+static inline bool croaring_refcount_dec(croaring_refcount_t *val) {
+    // See above comments on the c11 atomic implementation for memory ordering
+    bool is_zero = val->fetch_sub(1, std::memory_order_release) == 1;
+    if (is_zero) {
+        std::atomic_thread_fence(std::memory_order_acquire);
+    }
+    return is_zero;
+}
+
+static inline uint32_t croaring_refcount_get(croaring_refcount_t *val) {
+    return val->load(std::memory_order_relaxed);
+}
+#elif CROARING_ATOMIC_IMPL == CROARING_ATOMIC_IMPL_C_WINDOWS
+#include <intrin.h>
+#pragma intrinsic(_InterlockedIncrement)
+#pragma intrinsic(_InterlockedDecrement)
+
+// _InterlockedIncrement and _InterlockedDecrement take a (signed) long, and
+// overflow is defined to wrap, so we can pretend it is a uint32_t for our case
+typedef volatile long croaring_refcount_t;
+
+static inline void croaring_refcount_inc(croaring_refcount_t *val) {
+    _InterlockedIncrement(val);
+}
+
+static inline bool croaring_refcount_dec(croaring_refcount_t *val) {
+    return _InterlockedDecrement(val) == 0;
+}
+
+static inline uint32_t croaring_refcount_get(croaring_refcount_t *val) {
+    // Per https://learn.microsoft.com/en-us/windows/win32/sync/interlocked-variable-access
+    // > Simple reads and writes to properly-aligned 32-bit variables are atomic
+    // > operations. In other words, you will not end up with only one portion
+    // > of the variable updated; all bits are updated in an atomic fashion.
+    return *val;
+}
+#elif CROARING_ATOMIC_IMPL == CROARING_ATOMIC_IMPL_NONE
+typedef uint32_t croaring_refcount_t;
+
+static inline void croaring_refcount_inc(croaring_refcount_t *val) {
+    *val += 1;
+}
+
+static inline bool croaring_refcount_dec(croaring_refcount_t *val) {
+    assert(*val > 0);
+    *val -= 1;
+    return val == 0;
+}
+
+static inline uint32_t croaring_refcount_get(croaring_refcount_t *val) {
+    return *val;
+}
+#else
+#error "Unknown atomic implementation"
+#endif
+
 
 // We need portability.h to be included first,
 // but we also always want isadetection.h to be
