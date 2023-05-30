@@ -21,6 +21,8 @@ target_link_libraries(unittester-core-actions PUBLIC
   yt-yt-core
   yt-core-test_framework
   cpp-testing-common
+  yt-library-profiling
+  library-profiling-solomon
 )
 target_link_options(unittester-core-actions PRIVATE
   -ldl

@@ -115,19 +115,23 @@ const IInvokerPtr& TActionQueue::GetInvoker()
 
 class TSerializedInvoker
     : public TInvokerWrapper
+    , public TProfileWrapper
 {
 public:
-    explicit TSerializedInvoker(IInvokerPtr underlyingInvoker)
+    TSerializedInvoker(IInvokerPtr underlyingInvoker, const TString& invokerName, NProfiling::IRegistryImplPtr registry)
         : TInvokerWrapper(std::move(underlyingInvoker))
+        , TProfileWrapper(std::move(registry), "/serialized_invoker", invokerName)
     { }
 
     void Invoke(TClosure callback) override
     {
+        auto wrappedCallback = WrapCallback(std::move(callback));
+
         auto guard = Guard(Lock_);
         if (Dead_) {
             return;
         }
-        Queue_.push(std::move(callback));
+        Queue_.push(std::move(wrappedCallback));
         TrySchedule(std::move(guard));
     }
 
@@ -241,27 +245,35 @@ private:
     }
 };
 
-IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker)
+IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker, const TString& invokerName, NProfiling::IRegistryImplPtr registry)
 {
     if (underlyingInvoker->IsSerialized()) {
         return underlyingInvoker;
     }
 
-    return New<TSerializedInvoker>(std::move(underlyingInvoker));
+    return New<TSerializedInvoker>(std::move(underlyingInvoker), invokerName, registry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPrioritizedInvoker
     : public TInvokerWrapper
+    , public TProfileWrapper
     , public virtual IPrioritizedInvoker
 {
 public:
-    explicit TPrioritizedInvoker(IInvokerPtr underlyingInvoker)
+    TPrioritizedInvoker(IInvokerPtr underlyingInvoker, const TString& invokerName, NProfiling::IRegistryImplPtr registry)
         : TInvokerWrapper(std::move(underlyingInvoker))
+        , TProfileWrapper(std::move(registry), "/prioritized_invoker", invokerName)
     { }
 
     using TInvokerWrapper::Invoke;
+
+    void Invoke(TClosure callback) override
+    {
+        auto wrappedCallback = WrapCallback(std::move(callback));
+        UnderlyingInvoker_->Invoke(std::move(wrappedCallback));
+    }
 
     void Invoke(TClosure callback, i64 priority) override
     {
@@ -270,7 +282,8 @@ public:
             Heap_.push_back({std::move(callback), priority, Counter_--});
             std::push_heap(Heap_.begin(), Heap_.end());
         }
-        UnderlyingInvoker_->Invoke(BIND_NO_PROPAGATE(&TPrioritizedInvoker::DoExecute, MakeStrong(this)));
+        auto wrappedCallback = WrapCallback(BIND_NO_PROPAGATE(&TPrioritizedInvoker::DoExecute, MakeStrong(this)));
+        UnderlyingInvoker_->Invoke(std::move(wrappedCallback));
     }
 
 private:
@@ -302,9 +315,9 @@ private:
 
 };
 
-IPrioritizedInvokerPtr CreatePrioritizedInvoker(IInvokerPtr underlyingInvoker)
+IPrioritizedInvokerPtr CreatePrioritizedInvoker(IInvokerPtr underlyingInvoker, const TString& invokerName, NProfiling::IRegistryImplPtr registry)
 {
-    return New<TPrioritizedInvoker>(std::move(underlyingInvoker));
+    return New<TPrioritizedInvoker>(std::move(underlyingInvoker), invokerName, registry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

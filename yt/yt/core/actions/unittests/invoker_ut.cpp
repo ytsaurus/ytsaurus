@@ -6,6 +6,12 @@
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
+
+#include <yt/yt/library/profiling/public.h>
+
+#include <yt/yt/library/profiling/solomon/registry.h>
+#include <yt/yt/library/profiling/solomon/sensor_dump.pb.h>
 
 namespace NYT {
 namespace {
@@ -136,6 +142,100 @@ TEST(TestSyncInvoker, SleepyFiber)
     };
 
     EXPECT_EQ(expectedEvents, events);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns the aggregated summary of all duration-like time series with sensor name #sensorName within #sensorDump.
+const NProfiling::NProto::TSummaryDuration& GetSummaryDuration(
+    const NProfiling::NProto::TSensorDump& sensorDump,
+    const TString& sensorName)
+{
+    for (const auto& cube : sensorDump.cubes()) {
+        if (cube.Getname() == sensorName) {
+            for (const auto& projection : cube.projections()) {
+                if (projection.has_value() && projection.has_timer() && projection.tag_ids_size() == 0) {
+                    return projection.timer();
+                }
+            }
+        }
+    }
+
+    static NProfiling::NProto::TSummaryDuration empty;
+    return empty;
+}
+
+TEST(TestInvokersWaitTime, SerializedInvoker)
+{
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    registry->SetWindowSize(5);
+
+    auto threadPool = CreateThreadPool(2, "Test");
+    auto serializedInvoker = CreateSerializedInvoker(threadPool->GetInvoker(), "test", registry);
+
+    const auto actionWaitTimeMcs = 2'000'000ll;
+
+    auto action = [] {
+        Sleep(TDuration::MicroSeconds(actionWaitTimeMcs));
+    };
+
+    auto async1 = BIND(action)
+        .AsyncVia(serializedInvoker).Run();
+
+    auto async2 = BIND(action)
+        .AsyncVia(serializedInvoker).Run();
+
+    auto async3 = BIND(action)
+        .AsyncVia(serializedInvoker).Run();
+
+    AllSucceeded(std::vector<TFuture<void>>{async1, async2, async3})
+        .Get()
+        .ThrowOnError();
+
+    registry->ProcessRegistrations();
+    registry->Collect();
+
+    auto sensorDump = registry->DumpSensors();
+    const auto& summary = GetSummaryDuration(sensorDump, "yt/invoker/serialized_invoker/wait");
+
+    // The action has been executed 3 times.
+    EXPECT_EQ(summary.count(), 3);
+    // The first action had to wait for 0 seconds, the second for 2 seconds, the third for 4 seconds.
+    EXPECT_NEAR(summary.sum(), 0 * actionWaitTimeMcs + 1 * actionWaitTimeMcs + 2 * actionWaitTimeMcs, 100'000ll);
+    EXPECT_NEAR(summary.max(), 2 * actionWaitTimeMcs, 100'000ll);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TestInvokersWaitTime, PrioritizedInvoker)
+{
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    registry->SetWindowSize(5);
+
+    auto threadPool = CreateThreadPool(2, "Test");
+    auto invoker = CreatePrioritizedInvoker(threadPool->GetInvoker(), "test", registry);
+
+    const auto actionWaitTimeMcs = 2'000'000ll;
+
+    auto action = [] {
+        Sleep(TDuration::MicroSeconds(actionWaitTimeMcs));
+    };
+
+    auto async = BIND(action)
+        .AsyncVia(invoker).Run();
+
+    AllSucceeded(std::vector<TFuture<void>>{async})
+        .Get()
+        .ThrowOnError();
+
+    registry->ProcessRegistrations();
+    registry->Collect();
+
+    auto sensorDump = registry->DumpSensors();
+    const auto& summary = GetSummaryDuration(sensorDump, "yt/invoker/prioritized_invoker/wait");
+
+    // The action has been executed 1 time.
+    EXPECT_EQ(summary.count(), 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

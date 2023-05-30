@@ -16,6 +16,13 @@ using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IPrioritizedInvokerPtr CreatePrioritizedInvokerTest(IInvokerPtr underlyingInvoker)
+{
+    return CreatePrioritizedInvoker(std::move(underlyingInvoker));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 IInvokerPoolPtr CreateDummyInvokerPool(IInvokerPtr underlyingInvoker, int invokerCount)
 {
     YT_VERIFY(invokerCount > 0);
@@ -171,7 +178,7 @@ TEST_F(TTransformInvokerPoolTest, InstantiateForWellKnownTypes)
 
     IInvokerPoolPtr x = testOne(CreateIdenticalInvoker);
     ISuspendableInvokerPoolPtr y = testOne(CreateSuspendableInvoker);
-    IPrioritizedInvokerPoolPtr z = testOne(CreatePrioritizedInvoker);
+    IPrioritizedInvokerPoolPtr z = testOne(CreatePrioritizedInvokerTest);
     IInvokerPoolPtr w = testOne(CreateIdenticalInvokerByConstReference);
 
     const auto testPair = [this] (auto firstInvokerFunctor, auto secondInvokerFunctor) {
@@ -182,15 +189,15 @@ TEST_F(TTransformInvokerPoolTest, InstantiateForWellKnownTypes)
 
     testPair(CreateIdenticalInvoker, CreateIdenticalInvoker);
     testPair(CreateIdenticalInvoker, CreateSuspendableInvoker);
-    testPair(CreateIdenticalInvoker, CreatePrioritizedInvoker);
+    testPair(CreateIdenticalInvoker, CreatePrioritizedInvokerTest);
 
     testPair(CreateSuspendableInvoker, CreateIdenticalInvoker);
     testPair(CreateSuspendableInvoker, CreateSuspendableInvoker);
-    testPair(CreateSuspendableInvoker, CreatePrioritizedInvoker);
+    testPair(CreateSuspendableInvoker, CreatePrioritizedInvokerTest);
 
-    testPair(CreatePrioritizedInvoker, CreateIdenticalInvoker);
-    testPair(CreatePrioritizedInvoker, CreateSuspendableInvoker);
-    testPair(CreatePrioritizedInvoker, CreatePrioritizedInvoker);
+    testPair(CreatePrioritizedInvokerTest, CreateIdenticalInvoker);
+    testPair(CreatePrioritizedInvokerTest, CreateSuspendableInvoker);
+    testPair(CreatePrioritizedInvokerTest, CreatePrioritizedInvokerTest);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -203,7 +210,7 @@ TEST_F(TTransformInvokerPoolTest, Chaining)
     IMockInvokerPoolPtr invokerPool = TransformInvokerPool(TransformInvokerPool(TransformInvokerPool(
         CreateDummyInvokerPool(Queue_->GetInvoker(), InvokerCount),
         CreateSuspendableInvoker),
-        CreatePrioritizedInvoker),
+        CreatePrioritizedInvokerTest),
         CreateMockInvoker);
 
     const auto getCallbackCount = [] (int invokerIndex) {
@@ -223,7 +230,7 @@ TEST_F(TTransformInvokerPoolTest, ReturnTypeConvertability)
 {
     auto invokerPool = CreateDummyInvokerPool(Queue_->GetInvoker(), /* invokerCount */ 10);
     auto suspendableInvokerPool = TransformInvokerPool(invokerPool, CreateSuspendableInvoker);
-    auto prioritizedInvokerPool = TransformInvokerPool(suspendableInvokerPool, CreatePrioritizedInvoker);
+    auto prioritizedInvokerPool = TransformInvokerPool(suspendableInvokerPool, CreatePrioritizedInvokerTest);
 
     EXPECT_TRUE((std::is_convertible<decltype(invokerPool), IInvokerPoolPtr>::value));
     EXPECT_FALSE((std::is_convertible<decltype(invokerPool), ISuspendableInvokerPoolPtr>::value));

@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/actions/callback.h>
 
+#include <yt/yt/library/profiling/public.h>
+
 #include <library/cpp/yt/memory/public.h>
 
 namespace NYT::NConcurrency {
@@ -35,13 +37,17 @@ DEFINE_REFCOUNTED_TYPE(TActionQueue)
 //! context of #underlyingInvoker (possibly in different threads)
 //! but in a serialized fashion (i.e. all queued callbacks are executed
 //! in the proper order and no two callbacks are executed in parallel).
-IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker);
+//! #invokerName is used as a profiling tag.
+//! #registry is needed for testing purposes only.
+IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker, const TString& invokerName = "default", NProfiling::IRegistryImplPtr registry = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates a wrapper around IInvoker that supports callback reordering.
 //! Callbacks with the highest priority are executed first.
-IPrioritizedInvokerPtr CreatePrioritizedInvoker(IInvokerPtr underlyingInvoker);
+//! #invokerName is used as a profiling tag.
+//! #registry is needed for testing purposes only.
+IPrioritizedInvokerPtr CreatePrioritizedInvoker(IInvokerPtr underlyingInvoker, const TString& invokerName = "default", NProfiling::IRegistryImplPtr registry = nullptr);
 
 //! Creates a wrapper around IInvoker that implements IPrioritizedInvoker but
 //! does not perform any actual reordering. Priorities passed to #IPrioritizedInvoker::Invoke
