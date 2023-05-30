@@ -475,14 +475,14 @@ public:
     {
         using NYT::Save;
 
-        TMapSerializer<TDefaultSerializer, TNonNullableIntrusivePtrSerializer<TDefaultSerializer>, TUnsortedTag>::Save(context, TransactionIdToPersistentWriteState_);
+        TMapSerializer<TDefaultSerializer, TNonNullableIntrusivePtrSerializer<TDefaultSerializer>, TSortedTag>::Save(context, TransactionIdToPersistentWriteState_);
     }
 
     void Load(TLoadContext& context) override
     {
         using NYT::Load;
 
-        TMapSerializer<TDefaultSerializer, TNonNullableIntrusivePtrSerializer<TDefaultSerializer>, TUnsortedTag>::Load(context, TransactionIdToPersistentWriteState_);
+        TMapSerializer<TDefaultSerializer, TNonNullableIntrusivePtrSerializer<TDefaultSerializer>, TSortedTag>::Load(context, TransactionIdToPersistentWriteState_);
     }
 
     TCallback<void(TSaveContext&)> AsyncSave() override

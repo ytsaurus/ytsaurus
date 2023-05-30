@@ -798,6 +798,9 @@ private:
         for (auto [tabletId, tablet] : TabletMap_) {
             capturedTablets.emplace_back(tabletId, tablet->AsyncSave());
         }
+        SortBy(capturedTablets, [&] (const auto& pair) {
+            return pair.first;
+        });
 
         return BIND(
             [
