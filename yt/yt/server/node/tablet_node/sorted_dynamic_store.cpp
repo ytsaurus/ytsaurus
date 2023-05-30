@@ -394,8 +394,35 @@ protected:
             }
         }
 
-        // NB: During snapshot building we have to store rows that were only read locked.
-        if (!snapshotMode && WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
+        auto shouldProduce = !WriteTimestamps_.empty() || !DeleteTimestamps_.empty();
+        if (snapshotMode && !shouldProduce) {
+            // Row is empty but it may be read locked.
+            for (int index = 0; index < ColumnLockCount_; ++index) {
+                auto& lock = dynamicRow.BeginLocks(KeyColumnCount_)[index];
+                for (auto list = dynamicRow.GetReadLockRevisionList(lock);
+                    list;
+                    list = list.GetSuccessor())
+                {
+                    for (int itemIndex = UpperBoundByTimestamp(list, Timestamp_) - 1; itemIndex >= 0; --itemIndex) {
+                        auto revision = list[itemIndex];
+                        auto timestamp = Store_->TimestampFromRevision(revision);
+                        if (revision <= Revision_ && timestamp != NullTimestamp && timestamp != MinTimestamp) {
+                            shouldProduce = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (shouldProduce) {
+                    break;
+                }
+            }
+        }
+
+        // In snapshot mode it means that row is transient (i.e. was not affected by any mutations).
+        // We do not store such rows for the sake of determenism.
+        // In non-snapshot mode it means that there are no values and delete timestamps in row.
+        if (!shouldProduce) {
             return TVersionedRow();
         }
 
@@ -410,11 +437,11 @@ protected:
         ProduceKeys(dynamicRow, versionedRow.BeginKeys());
 
         // Timestamps (sorted in descending order).
-        ::memcpy(versionedRow.BeginWriteTimestamps(), WriteTimestamps_.data(), sizeof (TTimestamp) * WriteTimestamps_.size());
-        ::memcpy(versionedRow.BeginDeleteTimestamps(), DeleteTimestamps_.data(), sizeof (TTimestamp) * DeleteTimestamps_.size());
+        ::memcpy(versionedRow.BeginWriteTimestamps(), WriteTimestamps_.data(), sizeof(TTimestamp) * WriteTimestamps_.size());
+        ::memcpy(versionedRow.BeginDeleteTimestamps(), DeleteTimestamps_.data(), sizeof(TTimestamp) * DeleteTimestamps_.size());
 
         // Values.
-        ::memcpy(versionedRow.BeginValues(), VersionedValues_.data(), sizeof (TVersionedValue) * VersionedValues_.size());
+        ::memcpy(versionedRow.BeginValues(), VersionedValues_.data(), sizeof(TVersionedValue) * VersionedValues_.size());
 
         return versionedRow;
     }

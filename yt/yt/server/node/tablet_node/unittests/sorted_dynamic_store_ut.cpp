@@ -1360,7 +1360,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot1)
 
     EndReserializeStore(snapshot);
 
-    EXPECT_EQ(1, Store_->GetRowCount());
+    EXPECT_EQ(0, Store_->GetRowCount());
     EXPECT_EQ(0, Store_->GetValueCount());
     EXPECT_EQ(MaxTimestamp, Store_->GetMinTimestamp());
     EXPECT_EQ(MinTimestamp, Store_->GetMaxTimestamp());
@@ -1389,13 +1389,12 @@ TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot2)
 
     // Values written after serialization are not saved and restored.
     TString expectedDump2 =
-        Format("RowCount=2 ValueCount=1 MinTimestamp=%v MaxTimestamp=%v\n", ts1, ts1) +
-        Format("[ 0#1 ] -> [ 1#1#1@%x] wts#0: [ %v ] dts: [ ]\n", ts1, ts1) +
-        "[ 0#2 ] -> [] wts#0: [ ] dts: [ ]\n";
+        Format("RowCount=1 ValueCount=1 MinTimestamp=%v MaxTimestamp=%v\n", ts1, ts1) +
+        Format("[ 0#1 ] -> [ 1#1#1@%x] wts#0: [ %v ] dts: [ ]\n", ts1, ts1);
 
     EXPECT_EQ(expectedDump2, DumpStore());
 
-    EXPECT_EQ(2, Store_->GetRowCount());
+    EXPECT_EQ(1, Store_->GetRowCount());
     EXPECT_EQ(1, Store_->GetValueCount());
     EXPECT_EQ(ts1, Store_->GetMinTimestamp());
     EXPECT_EQ(ts1, Store_->GetMaxTimestamp());
