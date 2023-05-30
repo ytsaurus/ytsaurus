@@ -72,6 +72,7 @@ Adding user information to the specification root is not recommended: it leads t
    - `io_block_size` (16 MB) — minimum sampling block size. Changing the default value is not recommended.
 - `max_speculative_job_count_per_task` — limit on the number of speculative jobs (currently supported for Map, Reduce, MapReduce, Sort, and Merge operations).
 - `job_speculation_timeout` — timeout in milliseconds, after which a speculative job is launched for the executing one.
+- `try_avoid_duplicating_jobs` — (false) if possible, do not run jobs with the same input, if this is not required. In particular, it disables speculative jobs. But it is impossible to guarantee that jobs with the same input will not be launched. For example, if the node on which the first instance of the job was launched has lost connectivity with the cluster, then the job on it will continue to run and potentially create observable side effects. But the cluster will have to restart the job with the same input on another node.
 
 
 You can configure [I/O parameters](../../../../user-guide/storage/io-configuration.md) for each type of job in the operation. If the operation has one job type, the specification section is called `job_io`. If the operation features job multiple (applies to MapReduce and Sort operations), then each type has its own section. The names of these sections are listed in the settings of the corresponding operations.
