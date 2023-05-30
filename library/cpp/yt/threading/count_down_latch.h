@@ -7,7 +7,7 @@
     #include <util/system/mutex.h>
 #endif
 
-namespace NYT::NConcurrency {
+namespace NYT::NThreading {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,18 +19,17 @@ namespace NYT::NConcurrency {
 class TCountDownLatch final
 {
 public:
-    explicit TCountDownLatch(size_t count);
+    explicit TCountDownLatch(int count);
 
     void CountDown();
 
     void Wait() const;
-
     bool TryWait() const;
 
-    size_t GetCount() const;
+    int GetCount() const;
 
 private:
-    std::atomic<size_t> Count_;
+    std::atomic<int> Count_;
 
 #ifndef _linux_
     mutable TCondVar ConditionVariable_;
@@ -40,4 +39,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NConcurrency
+} // namespace NYT::NThreading

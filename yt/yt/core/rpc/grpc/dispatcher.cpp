@@ -2,8 +2,6 @@
 
 #include "config.h"
 
-#include <yt/yt/core/concurrency/count_down_latch.h>
-
 #include <yt/yt/core/threading/thread.h>
 
 #include <yt/yt/core/misc/shutdown_priorities.h>

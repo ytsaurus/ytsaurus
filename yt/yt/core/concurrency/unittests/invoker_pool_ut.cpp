@@ -1,17 +1,18 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/count_down_latch.h>
 
 #include <yt/yt/core/actions/invoker.h>
 #include <yt/yt/core/actions/invoker_detail.h>
 #include <yt/yt/core/actions/invoker_pool.h>
 #include <yt/yt/core/actions/invoker_util.h>
 
-namespace NYT {
+#include <library/cpp/yt/threading/count_down_latch.h>
+
+namespace NYT::NConcurrency {
 namespace {
 
-using namespace NConcurrency;
+using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -280,4 +281,4 @@ TEST(TPrioritizedInvokerTest, SamePriorityOrder)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT
+} // namespace NYT::NConcurrency

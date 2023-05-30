@@ -1,7 +1,6 @@
 #include "thread_pool.h"
 #include "poller.h"
 #include "thread_pool_poller.h"
-#include "count_down_latch.h"
 #include "private.h"
 #include "profiling_helpers.h"
 #include "notification_handle.h"

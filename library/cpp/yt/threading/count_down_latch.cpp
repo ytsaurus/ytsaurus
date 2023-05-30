@@ -1,16 +1,18 @@
 #include "count_down_latch.h"
 
-#include <yt/yt/core/misc/error.h>
+#include "futex.h"
 
 #include <library/cpp/yt/threading/futex.h>
 
+#include <library/cpp/yt/assert/assert.h>
+
 #include <cerrno>
 
-namespace NYT::NConcurrency {
+namespace NYT::NThreading {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCountDownLatch::TCountDownLatch(size_t count)
+TCountDownLatch::TCountDownLatch(int count)
     : Count_(count)
 { }
 
@@ -58,12 +60,12 @@ bool TCountDownLatch::TryWait() const
     return Count_.load(std::memory_order::acquire) == 0;
 }
 
-size_t TCountDownLatch::GetCount() const
+int TCountDownLatch::GetCount() const
 {
     return Count_.load(std::memory_order::relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NConcurrency
+} // namespace NYT::NThreading
 

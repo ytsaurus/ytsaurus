@@ -138,7 +138,6 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/throughput_throttler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/two_level_fair_share_thread_pool.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/lease_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/count_down_latch.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/compression.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/formatter.cpp

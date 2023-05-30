@@ -1,13 +1,11 @@
-#include <yt/yt/core/test_framework/framework.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
 #include <library/cpp/yt/threading/count_down_latch.h>
 
 #include <thread>
 
-namespace NYT::NConcurrency {
+namespace NYT::NThreading {
 namespace {
-
-using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,5 +75,4 @@ TEST(TCountDownLatch, TwoThreadsTwoLatches)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NConcurrency
-
+} // namespace NYT::NThreading

@@ -22,6 +22,7 @@ target_link_libraries(cpp-yt-threading PUBLIC
 )
 target_sources(cpp-yt-threading PRIVATE
   ${CMAKE_SOURCE_DIR}/library/cpp/yt/threading/at_fork.cpp
+  ${CMAKE_SOURCE_DIR}/library/cpp/yt/threading/count_down_latch.cpp
   ${CMAKE_SOURCE_DIR}/library/cpp/yt/threading/event_count.cpp
   ${CMAKE_SOURCE_DIR}/library/cpp/yt/threading/fork_aware_spin_lock.cpp
   ${CMAKE_SOURCE_DIR}/library/cpp/yt/threading/fork_aware_rw_spin_lock.cpp
