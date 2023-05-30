@@ -31,7 +31,7 @@ protected:
     static constexpr double Epsilon = 0.01;
     static constexpr int SampleCount = 10000;
 
-    std::unique_ptr<IDigest> LogDigest_;
+    IDigestPtr LogDigest_;
 };
 
 TEST_F(TLogDigestTest, TestStrictFixtureInRange)
@@ -148,7 +148,7 @@ protected:
     static constexpr int SampleCount = 10000;
     static constexpr int Seed = 225;
 
-    std::shared_ptr<IDigest> Digest_;
+    IDigestPtr Digest_;
 };
 
 TEST_F(THistogramDigestTest, TestStrictFixtureInRange)

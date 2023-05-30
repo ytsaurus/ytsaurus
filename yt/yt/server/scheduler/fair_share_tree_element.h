@@ -132,7 +132,7 @@ struct TSchedulerElementPostUpdateAttributes
     double LocalSatisfactionRatio = 0.0;
 
     // Only for pools.
-    std::shared_ptr<IDigest> SatisfactionDigest;
+    IDigestPtr SatisfactionDigest;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

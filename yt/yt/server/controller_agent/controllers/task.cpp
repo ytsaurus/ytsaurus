@@ -1369,7 +1369,7 @@ IDigest* TTask::GetUserJobMemoryDigest() const
         UserJobMemoryDigest_ = CreateLogDigest(std::move(config));
     }
 
-    return UserJobMemoryDigest_.get();
+    return UserJobMemoryDigest_.Get();
 }
 
 IDigest* TTask::GetJobProxyMemoryDigest() const
@@ -1382,7 +1382,7 @@ IDigest* TTask::GetJobProxyMemoryDigest() const
         }
     }
 
-    return JobProxyMemoryDigest_.get();
+    return JobProxyMemoryDigest_.Get();
 }
 
 std::unique_ptr<TNodeDirectoryBuilder> TTask::MakeNodeDirectoryBuilder(

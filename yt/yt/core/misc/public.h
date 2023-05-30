@@ -83,8 +83,8 @@ class TBlobOutput;
 class TStringBuilderBase;
 class TStringBuilder;
 
-struct IDigest;
-struct IPersistentDigest;
+DECLARE_REFCOUNTED_STRUCT(IDigest)
+DECLARE_REFCOUNTED_STRUCT(IPersistentDigest)
 
 DECLARE_REFCOUNTED_CLASS(TSlruCacheDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TSlruCacheConfig)

@@ -269,8 +269,8 @@ protected:
 
     TTentativeTreeEligibility TentativeTreeEligibility_;
 
-    mutable std::unique_ptr<IPersistentDigest> JobProxyMemoryDigest_;
-    mutable std::unique_ptr<IPersistentDigest> UserJobMemoryDigest_;
+    mutable IPersistentDigestPtr JobProxyMemoryDigest_;
+    mutable IPersistentDigestPtr UserJobMemoryDigest_;
 
     std::unique_ptr<IJobSplitter> JobSplitter_;
 

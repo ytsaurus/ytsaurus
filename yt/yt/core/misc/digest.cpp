@@ -94,9 +94,9 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TLogDigest);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IPersistentDigest> CreateLogDigest(TLogDigestConfigPtr config)
+IPersistentDigestPtr CreateLogDigest(TLogDigestConfigPtr config)
 {
-    return std::make_unique<TLogDigest>(std::move(config));
+    return New<TLogDigest>(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -163,9 +163,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<IDigest> CreateHistogramDigest(THistogramDigestConfigPtr config)
+IDigestPtr CreateHistogramDigest(THistogramDigestConfigPtr config)
 {
-    return std::make_shared<THistogramDigest>(std::move(config));
+    return New<THistogramDigest>(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
