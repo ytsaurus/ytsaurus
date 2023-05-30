@@ -1,4 +1,4 @@
-FROM jupyter/minimal-notebook:1aac87eb7fa5
+FROM ubuntu:focal
 
 USER root
 
@@ -24,13 +24,13 @@ RUN ln /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln /usr/bin/ytserver-all /usr/bin/ytserver-controller-agent && \
     ln /usr/bin/ytserver-all /usr/bin/ytserver-query-tracker
 
+COPY ./init_operation_archive.py /usr/bin/init_operation_archive
+
 # CHYT bits and pieces.
 COPY ./chyt-controller /usr/bin/chyt-controller
 COPY ./clickhouse-trampoline.py /usr/bin/clickhouse-trampoline
 COPY ./ytserver-clickhouse /usr/bin/ytserver-clickhouse
 COPY ./ytserver-log-tailer /usr/bin/ytserver-log-tailer
-
-COPY ./init_operation_archive.py /usr/bin/init_operation_archive
 
 # SPYT pieces.
 COPY ./spyt_release/home/spark/conf/releases/${SPARK_VERSION}/metrics.properties /usr/bin/metrics.properties
@@ -48,7 +48,10 @@ COPY ./credits/chyt-controller.CREDITS  /usr/bin/chyt-controller.CREDITS
 COPY ./credits/ytserver-clickhouse.CREDITS /usr/bin/ytserver-clickhouse.CREDITS
 COPY ./credits/ytserver-log-tailer.CREDITS  /usr/bin/ytserver-log-tailer.CREDITS
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y software-properties-common
+RUN add-apt-repository ppa:deadsnakes/ppa
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
   curl \
   less \
   gdb \
@@ -58,31 +61,26 @@ RUN apt-get update && apt-get install -y \
   dnsutils \
   iputils-ping \
   lsb-release \
-  openjdk-11-jdk
+  openjdk-11-jdk \
+  python3.7 \
+  python3-pip \
+  python3.7-distutils
 
-RUN pip install -i https://pypi.org/simple/ \
+RUN python3.7 -m pip install \
     ytsaurus-client \
     ytsaurus-yson \
-    ytsaurus-spyt==${SPYT_VERSION}
-
-# Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
-RUN ln -s /opt/conda/bin/python3.7 /usr/bin/python3 -f
-
-RUN /opt/conda/bin/python3.7 -m pip install -i https://pypi.org/simple/ \
-    ytsaurus-client \
     ytsaurus-local \
     ytsaurus-spyt==${SPYT_VERSION}
 
 # Local built package with native driver bindings.
 COPY ./ytsaurus_native_driver-1.0.0-cp34-abi3-linux_x86_64.whl /tmp/ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl
-RUN /opt/conda/bin/python3.7 -m pip install /tmp/ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl
+RUN python3.7 -m pip install /tmp/ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl
 RUN rm /tmp/ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl
-
-# Add symlink for yt.
-RUN ln -s /opt/conda/bin/yt /usr/bin/yt -f
 
 RUN ln -s /usr/lib/jvm/java-11-openjdk-amd64 /opt/jdk11
 
+# Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
+RUN ln -s /usr/bin/python3.7 /usr/bin/python3 -f
 # Force lsb_release to use python it was born to use.
 RUN sed -i 's/python3/python3.8/' /usr/bin/lsb_release
 
