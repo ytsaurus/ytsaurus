@@ -915,7 +915,7 @@ private:
 
         auto sendFinishedJob = [&request, &finishedJobsStatisticsSize, &getJobStatistics] (const TJobPtr& job) {
             YT_LOG_DEBUG(
-                "Add finished job info to heartbeat to agent (JobId: %v, JobState: %v, AgentDescriptor: %v",
+                "Add finished job info to heartbeat to agent (JobId: %v, JobState: %v, AgentDescriptor: %v)",
                 job->GetId(),
                 job->GetState(),
                 job->GetControllerAgentDescriptor());
@@ -1043,7 +1043,7 @@ private:
         i64 runningJobsStatisticsSize = 0;
         for (const auto& job : runningJobs) {
             YT_LOG_DEBUG(
-                "Add running job info to heartbeat to agent (JobId: %v, AgentDescriptor: %v",
+                "Add running job info to heartbeat to agent (JobId: %v, AgentDescriptor: %v)",
                 job->GetId(),
                 job->GetControllerAgentDescriptor());
 
@@ -1370,8 +1370,8 @@ private:
             jobStatus->mutable_time_statistics();
 
             TAllocationResult jobResult;
-            auto error = (TError("Failed to get job spec")
-                << TErrorAttribute("abort_reason", EAbortReason::GetSpecFailed))
+            auto error = TError("Failed to get job spec")
+                << TErrorAttribute("abort_reason", EAbortReason::GetSpecFailed)
                 << info.Error;
             ToProto(jobResult.mutable_error(), error);
             *jobStatus->mutable_result() = jobResult;
@@ -2152,7 +2152,7 @@ private:
                     removalDelay,
                     Bootstrap_->GetJobInvoker());
             } else {
-                auto error = TError{"Operation %v is not running", operationId}
+                auto error = TError("Operation %v is not running", operationId)
                     << TErrorAttribute("abort_reason", EAbortReason::OperationFinished);
                 job->Abort(std::move(error));
             }

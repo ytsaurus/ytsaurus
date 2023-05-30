@@ -189,10 +189,10 @@ TErrorOr<TString> TryParseControllerAgentAddress(
     try {
         return GetAddressOrThrow(addresses, localNetworks);
     } catch (const std::exception& ex) {
-        return TError{
-            "No suitable controller agent address exists (SpecServiceAddresses: %v)",
-            GetValues(addresses)}
-            << TError{ex};
+        return TError(
+            "No suitable controller agent address exists from %v",
+            GetValues(addresses))
+            << TError(ex);
     }
 }
 

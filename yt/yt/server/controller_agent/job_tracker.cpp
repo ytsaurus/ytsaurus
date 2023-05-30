@@ -924,8 +924,6 @@ void TJobTracker::HandleRunningJobInfo(
         });
 
     jobInfo.Status = TFinishedJobStatus();
-
-    return;
 }
 
 void TJobTracker::HandleFinishedJobInfo(
@@ -955,8 +953,6 @@ void TJobTracker::HandleFinishedJobInfo(
 
     YT_LOG_DEBUG(
         "Finished job info received again, do not process it in operation controller");
-
-    return;
 }
 
 void TJobTracker::ProcessInterruptionRequest(

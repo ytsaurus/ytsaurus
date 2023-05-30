@@ -2000,7 +2000,11 @@ void TNodeShard::ProcessHeartbeatJobs(
         }
 
         if (GetOperationState(job->GetOperationId()).ControlJobLifetimeAtScheduler) {
-            YT_LOG_DEBUG("Aborting unconfirmed job (JobId: %v, OperationId: %v)", jobId, job->GetOperationId());
+            YT_LOG_DEBUG(
+                "Aborting unconfirmed job (JobId: %v, OperationId: %v)",
+                jobId,
+                job->GetOperationId());
+
             OnJobAborted(job, error);
 
             ResetJobWaitingForConfirmation(job);
@@ -2398,8 +2402,8 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
 
     auto timeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
     UpdateJobTimeStatisticsIfNeeded(job, TRunningJobTimeStatistics{
-        timeStatistics.ExecDuration.value_or(TDuration{}) +
-        timeStatistics.PrepareDuration.value_or(TDuration{})});
+        timeStatistics.ExecDuration.value_or(TDuration::Zero()) +
+        timeStatistics.PrepareDuration.value_or(TDuration::Zero())});
 
     auto now = GetCpuInstant();
     if (now < job->GetRunningJobUpdateDeadline()) {

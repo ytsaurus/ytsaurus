@@ -631,7 +631,7 @@ public:
 
         auto groupedJobUpdates = RunInMessageOffloadInvoker(
             agent,
-            [agent, nodeManager, request, response, context, config{Config_}] () -> std::vector<TNodeShardJobUpdates> {
+            [agent, nodeManager, request, response, context, config{Config_}] () {
                 std::vector<TNodeShardJobUpdates> groupedJobUpdates(nodeManager->GetNodeShardCount());
 
                 agent->GetJobEventsInbox()->HandleIncoming(
