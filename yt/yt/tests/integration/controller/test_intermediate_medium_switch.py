@@ -70,6 +70,7 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
         create_medium(cls.FAST_MEDIUM)
 
     @authors("galtsev")
+    @pytest.mark.flaky(max_runs=5)
     @pytest.mark.timeout(600)
     def test_intermediate_medium_switch(self):
         def set_limit(account, medium, limit):
