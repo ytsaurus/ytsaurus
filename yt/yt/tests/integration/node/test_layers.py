@@ -5,12 +5,10 @@ from yt_commands import (
     write_file, write_table, get_job, abort_job,
     raises_yt_error, read_table, run_test_vanilla, map, wait_for_nodes, update_nodes_dynamic_config)
 
-from yt.common import YtError
+from yt.common import YtError, update
 import yt.yson as yson
 
 from yt_helpers import profiler_factory
-
-from pydantic.utils import deep_update
 
 import pytest
 
@@ -272,7 +270,7 @@ class TestProbingLayer(TestLayers):
             },
             "max_failed_job_count": 0,
         }
-        return deep_update(spec, options)
+        return update(spec, options)
 
     @staticmethod
     def run_map(command, job_count, user_slots, **options):
