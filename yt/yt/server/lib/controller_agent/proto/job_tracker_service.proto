@@ -33,6 +33,18 @@ message TJobToAbort
     optional int32 abort_reason = 2;
 }
 
+message TJobToInterrupt
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required int64 timeout = 2;
+    required int32 reason = 3; // NScheduler::EInterruptReason
+}
+
+message TJobToFail
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
 message TJobToStore
 {
     required NYT.NProto.TGuid job_id = 1;
@@ -49,6 +61,8 @@ message TRspHeartbeat
     repeated TJobToRemove jobs_to_remove = 2;
     repeated TJobToConfirm jobs_to_confirm = 3;
     repeated TJobToAbort jobs_to_abort = 4;
+    repeated TJobToInterrupt jobs_to_interrupt = 6;
+    repeated TJobToFail jobs_to_fail = 7;
     repeated NYT.NProto.TGuid unknown_operation_ids = 5;
 }
 

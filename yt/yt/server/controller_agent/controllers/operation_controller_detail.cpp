@@ -5049,6 +5049,8 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
         OperationTimedOut_ = true;
     }
 
+    YT_LOG_DEBUG("Operation timed out");
+
     auto error = GetTimeLimitError();
 
     bool hasJobsToFail = false;
@@ -5064,7 +5066,9 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
             case EJobType::PartitionReduce:
             case EJobType::Vanilla:
                 hasJobsToFail = true;
-                Host->FailJob(jobId);
+                Host->FailJob(
+                    jobId,
+                    /*viaScheduler*/ ControlJobLifetimeAtScheduler || Config->InterruptJobsViaScheduler);
                 break;
             default:
                 Host->AbortJob(jobId, error);
@@ -5072,6 +5076,8 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
     }
 
     if (hasJobsToFail) {
+        YT_LOG_DEBUG("Postpone operation failure to handle failed jobs");
+
         YT_UNUSED_FUTURE(TDelayedExecutor::MakeDelayed(Spec_->TimeLimitJobFailTimeout)
             .Apply(BIND(
                 &TOperationControllerBase::OnOperationFailed,
@@ -10272,7 +10278,11 @@ bool TOperationControllerBase::CanInterruptJobs() const
 
 void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason reason)
 {
-    Host->InterruptJob(jobId, reason);
+    Host->InterruptJob(
+        jobId,
+        reason,
+        /*timeout*/ TDuration::Zero(),
+        /*viaScheduler*/ ControlJobLifetimeAtScheduler || Config->InterruptJobsViaScheduler);
 }
 
 void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport)

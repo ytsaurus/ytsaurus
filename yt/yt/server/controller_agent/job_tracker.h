@@ -87,19 +87,49 @@ private:
         THashSet<TJobId> TrackedJobIds;
     };
 
+
+    struct TInterruptionRequestOptions
+    {
+        EInterruptReason Reason;
+        TDuration Timeout;
+    };
+
+    struct TFailureRequestOptions { };
+
+    using TRequestedActionInfo = std::variant<
+        std::monostate,
+        TInterruptionRequestOptions,
+        TFailureRequestOptions>;
+
+    struct TFinishedJobStatus { };
+    struct TRunningJobStatus
+    {
+        TRequestedActionInfo RequestedActionInfo;
+        TInstant VanishedSince;
+    };
+
     struct TJobInfo
     {
-        EJobStage Stage;
-        TInstant VanishedSince;
+        using TJobStatus = std::variant<
+            TRunningJobStatus,
+            TFinishedJobStatus>;
+
+        TJobStatus Status;
+        const TOperationId OperationId;
+    };
+
+    struct TJobToConfirmInfo
+    {
+        TRequestedActionInfo RequestedActionInfo;
         const TOperationId OperationId;
     };
 
     struct TNodeJobs
     {
         THashMap<TJobId, TJobInfo> Jobs;
-        THashMap<TJobId, TOperationId> JobsToConfirm;
+        THashMap<TJobId, TJobToConfirmInfo> JobsToConfirm;
         THashMap<TJobId, TReleaseJobFlags> JobsToRelease;
-        THashMap<TJobId, NScheduler::EAbortReason> JobsToAbort;
+        THashMap<TJobId, EAbortReason> JobsToAbort;
     };
 
     struct TNodeInfo
@@ -116,6 +146,42 @@ private:
     THashMap<TOperationId, TOperationInfo> RegisteredOperations_;
 
     NYTree::IYPathServicePtr OrchidService_;
+
+    bool IsJobRunning(const TJobInfo& jobInfo) const;
+
+    bool HandleJobInfo(
+        TJobInfo& jobInfo,
+        TCtxHeartbeat::TTypedResponse* response,
+        TJobId jobId,
+        EJobStage newJobStage,
+        const NLogging::TLogger& Logger);
+
+    void HandleRunningJobInfo(
+        TJobInfo& jobInfo,
+        TCtxHeartbeat::TTypedResponse* response,
+        const TRunningJobStatus& jobStatus,
+        TJobId jobId,
+        EJobStage newJobStage,
+        const NLogging::TLogger& Logger);
+    void HandleFinishedJobInfo(
+        TJobInfo& jobInfo,
+        TCtxHeartbeat::TTypedResponse* response,
+        const TFinishedJobStatus& jobStatus,
+        TJobId jobId,
+        EJobStage newJobStage,
+        const NLogging::TLogger& Logger);
+
+    void ProcessInterruptionRequest(
+        TJobTracker::TCtxHeartbeat::TTypedResponse* response,
+        const TInterruptionRequestOptions& requestOptions,
+        TJobId jobId,
+        const NLogging::TLogger& Logger);
+
+    void ProcessFailureRequest(
+        TJobTracker::TCtxHeartbeat::TTypedResponse* response,
+        const TFailureRequestOptions& requestOptions,
+        TJobId jobId,
+        const NLogging::TLogger& Logger);
 
     IInvokerPtr GetInvoker() const;
     IInvokerPtr TryGetCancelableInvoker() const;
@@ -147,7 +213,34 @@ private:
         TOperationId operationId,
         const std::vector<TJobToRelease>& jobs);
 
-    void DoAbortJobOnNode(TJobId jobId, TOperationId operationId, NScheduler::EAbortReason abortReason);
+    void DoAbortJobOnNode(TJobId jobId, TOperationId operationId, EAbortReason reason);
+
+    template <class TAction>
+    void TryRequestJobAction(
+        TJobId jobId,
+        TOperationId operationId,
+        TAction action,
+        TStringBuf actionName);
+
+    void TryInterruptJob(
+        TJobId jobId,
+        TOperationId operationId,
+        EInterruptReason reason,
+        TDuration timeout);
+    void DoInterruptJob(
+        TRequestedActionInfo& requestedActionInfo,
+        TJobId jobId,
+        TOperationId operationId,
+        EInterruptReason reason,
+        TDuration timeout);
+
+    void TryFailJob(
+        TJobId jobId,
+        TOperationId operationId);
+    void DoFailJob(
+        TRequestedActionInfo& requestedActionInfo,
+        TJobId jobId,
+        TOperationId operationId);
 
     TNodeInfo& GetOrRegisterNode(TNodeId nodeId, const TString& nodeAddress);
     TNodeInfo& RegisterNode(TNodeId nodeId, TString nodeAddress);
@@ -161,7 +254,7 @@ private:
     const TString& GetNodeAddressForLogging(TNodeId nodeId);
 
     using TOperationIdToJobIds = THashMap<TOperationId, std::vector<TJobId>>;
-    void AbortJobs(TOperationIdToJobIds operationIdToJobIds, NScheduler::EAbortReason abortReason) const;
+    void AbortJobs(TOperationIdToJobIds operationIdToJobIds, EAbortReason abortReason) const;
 
     void AbortUnconfirmedJobs(TOperationId operationId, std::vector<TJobId> jobs);
 
@@ -203,7 +296,14 @@ public:
 
     void AbortJobOnNode(
         TJobId jobId,
-        NScheduler::EAbortReason abortReason);
+        EAbortReason reason);
+
+    void InterruptJob(
+        TJobId jobId,
+        EInterruptReason reason,
+        TDuration timeout);
+
+    void FailJob(TJobId jobId);
 
 private:
     TJobTracker* const JobTracker_;

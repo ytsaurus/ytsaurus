@@ -1138,6 +1138,47 @@ private:
             ConfirmJobs(jobIdsToConfirm, context->ControllerAgentConnector);
         }
 
+        for (const auto& protoJobToInterrupt : response->jobs_to_interrupt()) {
+            auto jobId = FromProto<TJobId>(protoJobToInterrupt.job_id());
+            auto interruptionReason = CheckedEnumCast<EInterruptReason>(protoJobToInterrupt.reason());
+            auto timeout = FromProto<TDuration>(protoJobToInterrupt.timeout());
+
+            if (auto job = FindJob(jobId)) {
+                YT_LOG_DEBUG(
+                    "Agent requested to interrupt job (JobId: %v, InterruptionReason: %v, AgentDescriptor: %v)",
+                    jobId,
+                    interruptionReason,
+                    agentDescriptor);
+
+                job->Interrupt(
+                    timeout,
+                    interruptionReason,
+                    /*preemptionReason*/ std::nullopt,
+                    /*preemptedFor*/ std::nullopt);
+            } else {
+                YT_LOG_WARNING(
+                    "Agent requested to interrupt a non-existent job (JobId: %v, AgentDescriptor: %v)",
+                    jobId,
+                    agentDescriptor);
+            }
+        }
+
+        for (const auto& protoJobToFail : response->jobs_to_fail()) {
+            auto jobId = FromProto<TJobId>(protoJobToFail.job_id());
+
+            if (auto job = FindJob(jobId)) {
+                YT_LOG_DEBUG(
+                    "Agent requested to fail job (JobId: %v)",
+                    jobId);
+
+                job->Fail();
+            } else {
+                YT_LOG_WARNING(
+                    "Agent requested to fail a non-existent job (JobId: %v)",
+                    jobId);
+            }
+        }
+
         for (const auto& protoJobToAbort : response->jobs_to_abort()) {
             auto jobToAbort = FromProto<NControllerAgent::TJobToAbort>(protoJobToAbort);
 
@@ -1417,9 +1458,9 @@ private:
             }
         }
 
-        for (const auto& jobToInterrupt : response->allocations_to_interrupt()) {
-            auto timeout = FromProto<TDuration>(jobToInterrupt.timeout());
-            auto jobId = FromAllocationId(FromProto<TAllocationId>(jobToInterrupt.allocation_id()));
+        for (const auto& allocationToInterrupt : response->allocations_to_interrupt()) {
+            auto timeout = FromProto<TDuration>(allocationToInterrupt.timeout());
+            auto jobId = FromAllocationId(FromProto<TAllocationId>(allocationToInterrupt.allocation_id()));
 
             YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
 
@@ -1429,18 +1470,18 @@ private:
                     jobId);
 
                 std::optional<TString> preemptionReason;
-                if (jobToInterrupt.has_preemption_reason()) {
-                    preemptionReason = jobToInterrupt.preemption_reason();
+                if (allocationToInterrupt.has_preemption_reason()) {
+                    preemptionReason = allocationToInterrupt.preemption_reason();
                 }
 
                 EInterruptReason interruptionReason = EInterruptReason::None;
-                if (jobToInterrupt.has_interruption_reason()) {
-                    interruptionReason = CheckedEnumCast<EInterruptReason>(jobToInterrupt.interruption_reason());
+                if (allocationToInterrupt.has_interruption_reason()) {
+                    interruptionReason = CheckedEnumCast<EInterruptReason>(allocationToInterrupt.interruption_reason());
                 }
 
                 std::optional<NScheduler::TPreemptedFor> preemptedFor;
-                if (jobToInterrupt.has_preempted_for()) {
-                    preemptedFor = FromProto<NScheduler::TPreemptedFor>(jobToInterrupt.preempted_for());
+                if (allocationToInterrupt.has_preempted_for()) {
+                    preemptedFor = FromProto<NScheduler::TPreemptedFor>(allocationToInterrupt.preempted_for());
                 }
 
                 job->Interrupt(timeout, interruptionReason, preemptionReason, preemptedFor);
@@ -1457,7 +1498,7 @@ private:
             YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
 
             if (auto job = FindJob(jobId)) {
-                YT_LOG_WARNING(
+                YT_LOG_DEBUG(
                     "Scheduler requested to fail job (JobId: %v)",
                     jobId);
 
@@ -2072,7 +2113,7 @@ private:
         YT_LOG_DEBUG("Removing jobs of operation (OperationId: %v)", operationId);
 
         auto operationJobsIt = OperationIdToJobs_.find(operationId);
-        if (operationJobsIt == std::cend(OperationIdToJobs_)) {
+        if (operationJobsIt == std::end(OperationIdToJobs_)) {
             YT_LOG_DEBUG("There are no operation jobs on node (OperationId: %v)", operationId);
             return;
         }
@@ -2132,7 +2173,7 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         auto operationJobsIt = OperationIdToJobs_.find(operationId);
-        if (operationJobsIt == std::cend(OperationIdToJobs_)) {
+        if (operationJobsIt == std::end(OperationIdToJobs_)) {
             return;
         }
 

@@ -213,16 +213,21 @@ void TOperationControllerHost::Disconnect(const TError& error)
     Bootstrap_->GetControlInvoker()->Invoke(BIND(&TControllerAgent::Disconnect, Bootstrap_->GetControllerAgent(), error));
 }
 
-void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reason)
+void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout, bool viaScheduler)
 {
-    JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
-        .EventType = EAgentToSchedulerJobEventType::Interrupted,
-        .JobId = jobId,
-        .ControllerEpoch = ControllerEpoch_,
-        .Error = {},
-        .InterruptReason = reason,
-        .ReleaseFlags = {},
-    });
+    if (viaScheduler) {
+        JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
+            .EventType = EAgentToSchedulerJobEventType::Interrupted,
+            .JobId = jobId,
+            .ControllerEpoch = ControllerEpoch_,
+            .Error = {},
+            .InterruptReason = reason,
+            .ReleaseFlags = {},
+        });
+    } else {
+        JobTrackerOperationHandler_->InterruptJob(jobId, reason, timeout);
+    }
+
     YT_LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
         jobId);
@@ -243,16 +248,21 @@ void TOperationControllerHost::AbortJob(TJobId jobId, const TError& error)
         jobId);
 }
 
-void TOperationControllerHost::FailJob(TJobId jobId)
+void TOperationControllerHost::FailJob(TJobId jobId, bool viaScheduler)
 {
-    JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
-        .EventType = EAgentToSchedulerJobEventType::Failed,
-        .JobId = jobId,
-        .ControllerEpoch = ControllerEpoch_,
-        .Error = {},
-        .InterruptReason = {},
-        .ReleaseFlags = {},
-    });
+    if (viaScheduler) {
+        JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
+            .EventType = EAgentToSchedulerJobEventType::Failed,
+            .JobId = jobId,
+            .ControllerEpoch = ControllerEpoch_,
+            .Error = {},
+            .InterruptReason = {},
+            .ReleaseFlags = {},
+        });
+    } else {
+        JobTrackerOperationHandler_->FailJob(jobId);
+    }
+
     YT_LOG_DEBUG("Job failure request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
         jobId);

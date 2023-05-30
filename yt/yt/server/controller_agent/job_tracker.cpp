@@ -24,6 +24,8 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <library/cpp/yt/misc/variant.h>
+
 namespace NYT::NControllerAgent {
 
 static const NLogging::TLogger Logger("JobTracker");
@@ -37,6 +39,7 @@ using namespace NYTree;
 using namespace NYson;
 
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -124,7 +127,8 @@ public:
 
         auto producer = TYsonProducer(BIND([
             jobTracker = JobTracker_,
-            nodeId
+            nodeId,
+            this
         ] (IYsonConsumer* consumer) {
             auto nodeIt = jobTracker->RegisteredNodes_.find(nodeId);
 
@@ -136,21 +140,24 @@ public:
 
             BuildYsonFluently(consumer)
                 .BeginMap()
-                    .Item("jobs").DoMapFor(nodeJobs.Jobs, [] (TFluentMap fluent, const auto& pair) {
+                    .Item("jobs").DoMapFor(nodeJobs.Jobs, [this] (TFluentMap fluent, const auto& pair) {
                         const auto& [jobId, jobInfo] = pair;
 
                         fluent
                             .Item(ToString(jobId)).BeginMap()
                                 .Item("operation_id").Value(jobInfo.OperationId)
-                                .Item("stage").Value(jobInfo.Stage)
+                                .Item("stage").Value(
+                                    JobTracker_->IsJobRunning(jobInfo)
+                                    ? EJobStage::Running
+                                    : EJobStage::Finished)
                             .EndMap();
                     })
                     .Item("jobs_waiting_for_confirmation").DoMapFor(nodeJobs.JobsToConfirm, [] (TFluentMap fluent, const auto& pair) {
-                        const auto& [jobId, operationId] = pair;
+                        const auto& [jobId, jobToConfirmInfo] = pair;
 
                         fluent
                             .Item(ToString(jobId)).BeginMap()
-                                .Item("operation_id").Value(operationId)
+                                .Item("operation_id").Value(jobToConfirmInfo.OperationId)
                             .EndMap();
                     })
                     .Item("jobs_to_release").DoMapFor(nodeJobs.JobsToRelease, [] (TFluentMap fluent, const auto& pair) {
@@ -266,7 +273,10 @@ public:
             jobIt != std::end(nodeJobs.Jobs))
         {
             jobYson = BuildYsonStringFluently().BeginMap()
-                    .Item("stage").Value(jobIt->second.Stage)
+                    .Item("stage").Value(
+                        JobTracker_->IsJobRunning(jobIt->second)
+                        ? EJobStage::Running
+                        : EJobStage::Finished)
                     .Item("operation_id").Value(jobIt->second.OperationId)
                     .Item("node_address").Value(nodeAddress)
                 .EndMap();
@@ -275,7 +285,7 @@ public:
         {
             jobYson = BuildYsonStringFluently().BeginMap()
                     .Item("stage").Value("confirmation")
-                    .Item("operation_id").Value(jobToConfirmIt->second)
+                    .Item("operation_id").Value(jobToConfirmIt->second.OperationId)
                     .Item("node_address").Value(nodeAddress)
                 .EndMap();
         } else if (auto jobToAbortIt = nodeJobs.JobsToAbort.find(jobId);
@@ -447,7 +457,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
     auto* request = &context->Request();
     auto* response = &context->Response();
 
-    auto incarnationId = FromProto<NScheduler::TIncarnationId>(request->controller_agent_incarnation_id());
+    auto incarnationId = FromProto<TIncarnationId>(request->controller_agent_incarnation_id());
     auto nodeDescriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
 
     TNodeId nodeId = request->node_id();
@@ -505,14 +515,14 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
             if (auto jobToConfirmIt = nodeJobs.JobsToConfirm.find(jobId);
                 jobToConfirmIt != std::end(nodeJobs.JobsToConfirm))
             {
-                auto operationId = jobToConfirmIt->second;
+                auto operationId = jobToConfirmIt->second.OperationId;
                 YT_LOG_DEBUG(
                     "Job unconfirmed, abort it (JobId: %v, OperationId: %v)",
                     jobId,
                     operationId);
                 jobsToAbort[operationId].push_back(jobId);
 
-                auto& operationInfo = GetOrCrash(RegisteredOperations_, jobToConfirmIt->second);
+                auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
                 EraseOrCrash(operationInfo.TrackedJobIds, jobId);
 
                 nodeJobs.JobsToConfirm.erase(jobToConfirmIt);
@@ -594,8 +604,14 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
         if (operationInfo.ControlJobLifetimeAtControllerAgent) {
             jobSummariesToSendToOperationController.reserve(std::size(jobSummaries));
 
+            const auto& operationLogger = Logger;
+
             for (auto& jobSummary : jobSummaries) {
                 auto jobId = jobSummary->Id;
+
+                auto Logger = operationLogger.WithTag(
+                    "JobId: %v",
+                    jobId);
 
                 if (jobsToSkip.contains(jobId)) {
                     continue;
@@ -612,52 +628,40 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
 
                 if (auto jobIt = nodeJobs.Jobs.find(jobId); jobIt != std::end(nodeJobs.Jobs)) {
                     auto& jobInfo = jobIt->second;
-                    if (newJobStage == jobInfo.Stage) {
-                        if (newJobStage == EJobStage::Finished) {
-                            ToProto(response->add_jobs_to_store(), TJobToStore{jobId});
 
-                            YT_LOG_DEBUG(
-                                "Finished job info received again, do not process it in operation controller (JobId: %v)",
-                                jobId);
-                        } else {
-                            acceptJobSummaryForOperationControllerProcessing();
-                        }
-
-                        continue;
-                    }
-
-                    if (jobInfo.Stage < newJobStage) {
-                        jobInfo.Stage = newJobStage;
-                        ToProto(response->add_jobs_to_store(), TJobToStore{jobId});
-
+                    if (bool shouldProcessEvent = HandleJobInfo(jobInfo, response, jobId, newJobStage, Logger)) {
                         acceptJobSummaryForOperationControllerProcessing();
-
-                        continue;
                     }
-
-                    YT_LOG_DEBUG(
-                        "Stale job info received (JobId: %v, CurrentJobStage: %v, ReceivedJobState: %v)",
-                        jobId,
-                        jobInfo.Stage,
-                        jobSummary->State);
 
                     continue;
                 }
 
-                if (auto jobIt = nodeJobs.JobsToConfirm.find(jobId); jobIt != std::end(nodeJobs.JobsToConfirm)) {
+                if (auto jobToConfirmIt = nodeJobs.JobsToConfirm.find(jobId);
+                    jobToConfirmIt != std::end(nodeJobs.JobsToConfirm))
+                {
                     YT_LOG_DEBUG(
-                        "Job confirmed (JobId: %v, JobStage: %v)",
-                        jobId,
+                        "Job confirmed (JobStage: %v)",
                         newJobStage);
-                    YT_VERIFY(jobIt->second == operationId);
-                    nodeJobs.JobsToConfirm.erase(jobIt);
-                    EmplaceOrCrash(
-                        nodeJobs.Jobs,
-                        jobId,
-                        TJobInfo{
-                            .Stage = newJobStage,
-                            .OperationId = operationId
-                        });
+                    YT_VERIFY(jobToConfirmIt->second.OperationId == operationId);
+
+                    auto jobIt = [&, operationId = operationId] {
+                        auto requestedAction = std::move(jobToConfirmIt->second.RequestedActionInfo);
+
+                        nodeJobs.JobsToConfirm.erase(jobToConfirmIt);
+                        return EmplaceOrCrash(
+                            nodeJobs.Jobs,
+                            jobId,
+                            TJobInfo{
+                                .Status = TRunningJobStatus{
+                                    .RequestedActionInfo = std::move(requestedAction),
+                                },
+                                .OperationId = operationId,
+                            });
+                    }();
+
+                    auto& jobInfo = jobIt->second;
+
+                    HandleJobInfo(jobInfo, response, jobId, newJobStage, Logger);
 
                     acceptJobSummaryForOperationControllerProcessing();
 
@@ -667,9 +671,8 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
                 bool shouldAbortJob = newJobStage == EJobStage::Running;
 
                 YT_LOG_DEBUG(
-                    "Request node to %v unknown job (JobId: %v, JobState: %v)",
+                    "Request node to %v unknown job (JobState: %v)",
                     shouldAbortJob ? "abort" : "remove",
-                    jobId,
                     jobSummary->State);
 
                 // Remove or abort unknown job.
@@ -721,7 +724,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
 
         TOperationIdToJobIds jobIdsToAbort;
         for (auto& [jobId, jobInfo] : nodeJobs.Jobs) {
-            if (jobInfo.Stage != EJobStage::Running) {
+            if (!IsJobRunning(jobInfo)) {
                 continue;
             }
 
@@ -729,12 +732,14 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
                 continue;
             }
 
-            if (!jobInfo.VanishedSince) {
-                jobInfo.VanishedSince = now;
+            auto& jobStatus = std::get<TRunningJobStatus>(jobInfo.Status);
+
+            if (!jobStatus.VanishedSince) {
+                jobStatus.VanishedSince = now;
                 continue;
             }
 
-            if (now - jobInfo.VanishedSince < Config_->DurationBeforeJobConsideredVanished) {
+            if (now - jobStatus.VanishedSince < Config_->DurationBeforeJobConsideredVanished) {
                 continue;
             }
 
@@ -742,7 +747,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
                 "Job vanished, aborting it (JobId: %v, OperationId: %v, VanishedSince: %v)",
                 jobId,
                 jobInfo.OperationId,
-                jobInfo.VanishedSince);
+                jobStatus.VanishedSince);
 
             jobIdsToAbort[jobInfo.OperationId].push_back(jobId);
         }
@@ -759,7 +764,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
         AbortJobs(jobIdsToAbort, EAbortReason::Vanished);
     }
 
-    for (auto [jobId, operationId] : nodeJobs.JobsToConfirm) {
+    for (auto [jobId, jobToConfirmInfo] : nodeJobs.JobsToConfirm) {
         YT_LOG_DEBUG(
             "Request node to confirm job (JobId: %v)",
             jobId);
@@ -849,6 +854,142 @@ void TJobTracker::ProfileHeartbeatRequest(const NProto::TReqHeartbeat* request)
     HeartbeatDataStatisticsBytes_.Increment(totalJobDataStatisticsSize);
     HeartbeatJobResultBytes_.Increment(totalJobResultSize);
     HeartbeatCount_.Increment();
+}
+
+bool TJobTracker::IsJobRunning(const TJobInfo& jobInfo) const
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    return std::holds_alternative<TRunningJobStatus>(jobInfo.Status);
+}
+
+bool TJobTracker::HandleJobInfo(
+    TJobInfo& jobInfo,
+    TCtxHeartbeat::TTypedResponse* response,
+    TJobId jobId,
+    EJobStage newJobStage,
+    const NLogging::TLogger& Logger)
+{
+    return Visit(
+        jobInfo.Status,
+        [&] (const TRunningJobStatus& jobStatus) {
+            HandleRunningJobInfo(jobInfo, response, jobStatus, jobId, newJobStage, Logger);
+            return true;
+        },
+        [&] (const TFinishedJobStatus& jobStatus) {
+            HandleFinishedJobInfo(jobInfo, response, jobStatus, jobId, newJobStage, Logger);
+            return false;
+        });
+}
+
+void TJobTracker::HandleRunningJobInfo(
+    TJobInfo& jobInfo,
+    TCtxHeartbeat::TTypedResponse* response,
+    const TRunningJobStatus& jobStatus,
+    TJobId jobId,
+    EJobStage newJobStage,
+    const NLogging::TLogger& Logger)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    if (newJobStage == EJobStage::Running) {
+        Visit(
+            jobStatus.RequestedActionInfo,
+            [] (std::monostate) {},
+            [&] (const TInterruptionRequestOptions& requestOptions) {
+                ProcessInterruptionRequest(response, requestOptions, jobId, Logger);
+            },
+            [&] (const TFailureRequestOptions& requestOptions) {
+                ProcessFailureRequest(response, requestOptions, jobId, Logger);
+            });
+        return;
+    }
+
+    YT_VERIFY(newJobStage == EJobStage::Finished);
+
+    Visit(
+        jobStatus.RequestedActionInfo,
+        [] (std::monostate) {},
+        [&] (const TInterruptionRequestOptions& /*requestOptions*/) {
+            YT_LOG_DEBUG("Job is already finished; interruption request ignored");
+        },
+        [&] (const TFailureRequestOptions& /*requestOptions*/) {
+            YT_LOG_DEBUG("Job is already finished; failure request ignored");
+        });
+
+    ToProto(
+        response->add_jobs_to_store(),
+        TJobToStore{
+            .JobId = jobId
+        });
+
+    jobInfo.Status = TFinishedJobStatus();
+
+    return;
+}
+
+void TJobTracker::HandleFinishedJobInfo(
+    TJobInfo& /*jobInfo*/,
+    TCtxHeartbeat::TTypedResponse* response,
+    const TFinishedJobStatus& /*jobStatus*/,
+    TJobId jobId,
+    EJobStage newJobStage,
+    const NLogging::TLogger& Logger)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    if (newJobStage < EJobStage::Finished) {
+        YT_LOG_DEBUG(
+            "Stale job info received (CurrentJobStage: %v, ReceivedJobState: %v)",
+            EJobStage::Finished,
+            newJobStage);
+
+        return;
+    }
+
+    ToProto(
+        response->add_jobs_to_store(),
+        TJobToStore{
+            .JobId = jobId
+        });
+
+    YT_LOG_DEBUG(
+        "Finished job info received again, do not process it in operation controller");
+
+    return;
+}
+
+void TJobTracker::ProcessInterruptionRequest(
+    TCtxHeartbeat::TTypedResponse* response,
+    const TInterruptionRequestOptions& requestOptions,
+    TJobId jobId,
+    const NLogging::TLogger& Logger)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    YT_LOG_DEBUG(
+        "Request node to interrupt job (InterruptionReason: %v, InterruptionTimeout: %v)",
+        requestOptions.Reason,
+        requestOptions.Timeout);
+
+    auto* protoJobToInterrupt = response->add_jobs_to_interrupt();
+    ToProto(protoJobToInterrupt->mutable_job_id(), jobId);
+    protoJobToInterrupt->set_timeout(ToProto<i64>(requestOptions.Timeout));
+    protoJobToInterrupt->set_reason(ToProto<i32>(requestOptions.Reason));
+}
+
+void TJobTracker::ProcessFailureRequest(
+    TCtxHeartbeat::TTypedResponse* response,
+    const TFailureRequestOptions& /*requestOptions*/,
+    TJobId jobId,
+    const NLogging::TLogger& Logger)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    YT_LOG_DEBUG("Request node to fail job");
+
+    auto* protoJobToFail = response->add_jobs_to_fail();
+    ToProto(protoJobToFail->mutable_job_id(), jobId);
 }
 
 IInvokerPtr TJobTracker::GetInvoker() const
@@ -988,8 +1129,8 @@ void TJobTracker::DoRegisterJob(TStartedJobInfo jobInfo, TOperationId operationI
         nodeJobs.Jobs,
         jobInfo.JobId,
         TJobInfo{
-            .Stage = EJobStage::Running,
-            .OperationId = operationId
+            .Status = TRunningJobStatus(),
+            .OperationId = operationId,
         });
 
     auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
@@ -1035,7 +1176,13 @@ void TJobTracker::DoReviveJobs(
     for (auto& jobInfo : jobs) {
         auto nodeId = NodeIdFromJobId(jobInfo.JobId);
         auto& nodeJobs = GetOrRegisterNode(nodeId, jobInfo.NodeAddress).Jobs;
-        EmplaceOrCrash(nodeJobs.JobsToConfirm, jobInfo.JobId, operationId);
+        EmplaceOrCrash(
+            nodeJobs.JobsToConfirm,
+            jobInfo.JobId,
+            TJobToConfirmInfo{
+                .RequestedActionInfo = TRequestedActionInfo(),
+                .OperationId = operationId,
+            });
 
         jobIds.push_back(jobInfo.JobId);
         trackedJobIds.emplace(jobInfo.JobId);
@@ -1118,7 +1265,7 @@ void TJobTracker::DoReleaseJobs(
     }
 }
 
-void TJobTracker::DoAbortJobOnNode(TJobId jobId, TOperationId operationId, EAbortReason abortReason)
+void TJobTracker::DoAbortJobOnNode(TJobId jobId, TOperationId operationId, EAbortReason reason)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -1127,11 +1274,11 @@ void TJobTracker::DoAbortJobOnNode(TJobId jobId, TOperationId operationId, EAbor
     auto* nodeInfo = FindNodeInfo(nodeId);
     if (!nodeInfo) {
         YT_LOG_DEBUG(
-            "Node is not registered, skip job abort request (JobId: %v, NodeId: %v, NodeAddress: %v, AbortReason: %v, OperationId: %v)",
+            "Node is not registered, skip job abortion request (JobId: %v, NodeId: %v, NodeAddress: %v, Reason: %v, OperationId: %v)",
             jobId,
             nodeId,
             GetNodeAddressForLogging(nodeId),
-            abortReason,
+            reason,
             operationId);
         return;
     }
@@ -1142,7 +1289,7 @@ void TJobTracker::DoAbortJobOnNode(TJobId jobId, TOperationId operationId, EAbor
     YT_LOG_DEBUG(
         "Abort job (JobId: %v, AbortReason: %v, OperationId: %v, NodeId: %v, NodeAddress: %v)",
         jobId,
-        abortReason,
+        reason,
         operationId,
         nodeId,
         nodeAddress);
@@ -1163,7 +1310,181 @@ void TJobTracker::DoAbortJobOnNode(TJobId jobId, TOperationId operationId, EAbor
     }
 
     // NB(pogorelov): AbortJobOnNode may be called twice on operation finishing.
-    nodeJobs.JobsToAbort.emplace(jobId, abortReason);
+    nodeJobs.JobsToAbort.emplace(jobId, reason);
+}
+
+template <class TAction>
+void TJobTracker::TryRequestJobAction(
+    TJobId jobId,
+    TOperationId operationId,
+    TAction action,
+    TStringBuf actionName)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    auto nodeId = NodeIdFromJobId(jobId);
+
+    auto* nodeInfo = FindNodeInfo(nodeId);
+    if (!nodeInfo) {
+        YT_LOG_DEBUG(
+            "Node is not registered, skip action request "
+            "(ActionName: %v, JobId: %v, NodeId: %v, NodeAddress: %v, OperationId: %v)",
+            actionName,
+            jobId,
+            nodeId,
+            GetNodeAddressForLogging(nodeId),
+            operationId);
+        return;
+    }
+
+    auto& nodeJobs = nodeInfo->Jobs;
+    const auto& nodeAddress = nodeInfo->NodeAddress;
+
+    if (auto jobIt = nodeJobs.Jobs.find(jobId); jobIt != std::end(nodeJobs.Jobs)) {
+        Visit(
+            jobIt->second.Status,
+            [&] (TRunningJobStatus& status) {
+                YT_LOG_DEBUG(
+                    "Requesting action (ActionName: %v, JobId: %v, OperationId: %v, NodeId: %v, NodeAddress: %v)",
+                    actionName,
+                    jobId,
+                    operationId,
+                    nodeId,
+                    nodeAddress);
+
+                action(status.RequestedActionInfo);
+            },
+            [&] (const TFinishedJobStatus& /*status*/) {
+                YT_LOG_DEBUG(
+                    "Job is already finished; skip action request (JobId: %v, OperationId: %v)",
+                    jobId,
+                    operationId);
+            });
+    } else if (auto jobToConfirmIt = nodeJobs.JobsToConfirm.find(jobId);
+        jobToConfirmIt != std::end(nodeJobs.JobsToConfirm))
+    {
+        YT_LOG_DEBUG(
+            "Job waiting for confirmation, requesting action "
+            "(ActionName: %v, JobId: %v, OperationId: %v, NodeId: %v, NodeAddress: %v)",
+            actionName,
+            jobId,
+            operationId,
+            nodeId,
+            nodeAddress);
+
+        action(jobToConfirmIt->second.RequestedActionInfo);
+    } else {
+        YT_LOG_DEBUG(
+            "Job not found; skip action request "
+            "(ActionName: %v, JobId: %v, OperationId: %v, NodeId: %v, NodeAddress: %v)",
+            actionName,
+            jobId,
+            operationId,
+            nodeId,
+            nodeAddress);
+    }
+}
+
+void TJobTracker::TryInterruptJob(
+    TJobId jobId,
+    TOperationId operationId,
+    EInterruptReason reason,
+    TDuration timeout)
+{
+    TryRequestJobAction(
+        jobId,
+        operationId,
+        [&] (TRequestedActionInfo& requestedActionInfo) {
+            DoInterruptJob(requestedActionInfo, jobId, operationId, reason, timeout);
+        },
+        /*actionName*/ "interruption");
+}
+
+void TJobTracker::DoInterruptJob(
+    TRequestedActionInfo& requestedActionInfo,
+    TJobId jobId,
+    TOperationId operationId,
+    NScheduler::EInterruptReason reason,
+    TDuration timeout)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    Visit(
+        requestedActionInfo,
+        [&] (std::monostate) {
+            requestedActionInfo = TInterruptionRequestOptions{
+                .Reason = reason,
+                .Timeout = timeout,
+            };
+        },
+        [&] (const TInterruptionRequestOptions& requestOptions) {
+            if (timeout < requestOptions.Timeout) {
+                YT_LOG_DEBUG(
+                    "Updating interruption request "
+                    "(JobId: %v, OperationId: %v, OldTimeout: %v, OldReason: %v, NewTimeout: %v, NewReason: %v)",
+                    jobId,
+                    operationId,
+                    requestOptions.Timeout,
+                    requestOptions.Reason,
+                    timeout,
+                    reason);
+
+                requestedActionInfo = TInterruptionRequestOptions{
+                    .Reason = reason,
+                    .Timeout = timeout,
+                };
+
+                return;
+            }
+
+            YT_LOG_DEBUG(
+                "Job interruption is already requested with lower timeout; skip new request (JobId: %v, OperationId: %v)",
+                jobId,
+                operationId);
+        },
+        [&] (TFailureRequestOptions& /*requestOptions*/) {
+            YT_LOG_FATAL(
+                "Unexpected interruption request after failure request (JobId: %v, OperationId: %v)",
+                jobId,
+                operationId);
+        });
+}
+
+
+void TJobTracker::TryFailJob(TJobId jobId, TOperationId operationId)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    TryRequestJobAction(
+        jobId,
+        operationId,
+        [&] (TRequestedActionInfo& requestedActionInfo) {
+            DoFailJob(requestedActionInfo, jobId, operationId);
+        },
+        /*actionName*/ "failure");
+}
+
+void TJobTracker::DoFailJob(
+    TRequestedActionInfo& requestedActionInfo,
+    TJobId jobId,
+    TOperationId operationId)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    Visit(
+        requestedActionInfo,
+        [&] (std::monostate) {
+            requestedActionInfo = TFailureRequestOptions();
+        },
+        [&] (const TInterruptionRequestOptions& /*requestOptions*/) {
+            YT_LOG_DEBUG(
+                "Fail job despite interruption request (JobId: %v, OperationId: %v)",
+                jobId,
+                operationId);
+
+            requestedActionInfo = TFailureRequestOptions();
+        },
+        [&] (TFailureRequestOptions& /*requestOptions*/) { });
 }
 
 TJobTracker::TNodeInfo& TJobTracker::GetOrRegisterNode(TNodeId nodeId, const TString& nodeAddress)
@@ -1268,7 +1589,7 @@ void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress)
 
         for (const auto& [jobId, jobInfo] : nodeJobs.Jobs) {
             if (GetOrCrash(RegisteredOperations_, jobInfo.OperationId).ControlJobLifetimeAtControllerAgent) {
-                if (jobInfo.Stage == EJobStage::Running) {
+                if (IsJobRunning(jobInfo)) {
                     YT_LOG_DEBUG(
                         "Abort job since node unregistered (NodeId: %v, JobId: %v, OperationId: %v)",
                         nodeId,
@@ -1286,14 +1607,14 @@ void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress)
             }
         }
 
-        for (auto [jobId, operationId] : nodeJobs.JobsToConfirm) {
+        for (auto [jobId, jobToConfirmInfo] : nodeJobs.JobsToConfirm) {
             YT_LOG_DEBUG(
                 "Abort unconfirmed job since node unregistered (NodeId: %v, JobId: %v, OperationId: %v)",
                 nodeId,
                 jobId,
-                operationId);
+                jobToConfirmInfo.OperationId);
 
-            jobIdsToAbort[operationId].push_back(jobId);
+            jobIdsToAbort[jobToConfirmInfo.OperationId].push_back(jobId);
         }
 
         for (const auto& [operationId, jobIds] : jobIdsToAbort) {
@@ -1435,7 +1756,7 @@ void TJobTracker::AbortUnconfirmedJobs(TOperationId operationId, std::vector<TJo
             YT_LOG_DEBUG(
                 "Job was not confirmed within timeout, abort it (JobId: %v, OperationId: %v, NodeId: %v, NodeAddress: %v)",
                 jobId,
-                unconfirmedJobIt->second,
+                unconfirmedJobIt->second.OperationId,
                 nodeId,
                nodeAddress);
             nodeJobs.JobsToConfirm.erase(unconfirmedJobIt);
@@ -1555,7 +1876,7 @@ void TJobTrackerOperationHandler::ReleaseJobs(std::vector<TJobToRelease> jobs)
 
 void TJobTrackerOperationHandler::AbortJobOnNode(
     TJobId jobId,
-    NScheduler::EAbortReason abortReason)
+    EAbortReason reason)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1568,7 +1889,42 @@ void TJobTrackerOperationHandler::AbortJobOnNode(
         MakeStrong(JobTracker_),
         jobId,
         OperationId_,
-        abortReason));
+        reason));
+}
+
+void TJobTrackerOperationHandler::InterruptJob(
+    TJobId jobId,
+    EInterruptReason reason,
+    TDuration timeout)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!ControlJobLifetimeAtControllerAgent_) {
+        return;
+    }
+
+    CancelableInvoker_->Invoke(BIND(
+        &TJobTracker::TryInterruptJob,
+        MakeStrong(JobTracker_),
+        jobId,
+        OperationId_,
+        reason,
+        timeout));
+}
+
+void TJobTrackerOperationHandler::FailJob(TJobId jobId)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!ControlJobLifetimeAtControllerAgent_) {
+        return;
+    }
+
+    CancelableInvoker_->Invoke(BIND(
+        &TJobTracker::TryFailJob,
+        MakeStrong(JobTracker_),
+        jobId,
+        OperationId_));
 }
 
 ////////////////////////////////////////////////////////////////////

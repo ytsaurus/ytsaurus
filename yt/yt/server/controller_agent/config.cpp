@@ -1008,8 +1008,12 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("running_job_time_statistics_updates_send_period", &TThis::RunningJobTimeStatisticsUpdatesSendPeriod)
         .Default(TDuration::Seconds(2));
+
     registrar.Parameter("control_job_lifetime_at_scheduler", &TThis::ControlJobLifetimeAtScheduler)
         .Default(true);
+
+    registrar.Parameter("interrupt_jobs_via_scheduler", &TThis::InterruptJobsViaScheduler)
+        .Default(false);
 
     registrar.Parameter("job_tracker", &TThis::JobTracker)
         .DefaultNew();

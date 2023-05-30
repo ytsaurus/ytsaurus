@@ -113,9 +113,9 @@ public:
 
     void Disconnect(const TError& error) override;
 
-    void InterruptJob(TJobId jobId, EInterruptReason reason) override;
+    void InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout, bool viaScheduler) override;
     void AbortJob(TJobId jobId, const TError& error) override;
-    void FailJob(TJobId jobId) override;
+    void FailJob(TJobId jobId, bool viaScheduler) override;
     void UpdateRunningJobsStatistics(std::vector<TAgentToSchedulerRunningJobStatistics> runningJobStatisticsUpdates) override;
 
     void RegisterJob(TStartedJobInfo jobInfo) override;

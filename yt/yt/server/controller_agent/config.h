@@ -1147,6 +1147,8 @@ public:
 
     bool ControlJobLifetimeAtScheduler;
 
+    bool InterruptJobsViaScheduler;
+
     TJobTrackerConfigPtr JobTracker;
 
     THashSet<TString> NetworkProjectsAllowedForOffloading;
