@@ -183,12 +183,6 @@ public:
             BIND_NO_PROPAGATE(&TJobController::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    void RegisterJobFactory(EJobType type, TJobFactory factory) override
-    {
-        YT_VERIFY(type < EJobType::SchedulerUnknown);
-        EmplaceOrCrash(JobFactoryMap_, type, factory);
-    }
-
     TJobPtr FindJob(TJobId jobId) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -485,8 +479,6 @@ private:
 
     TAtomicObject<TJobControllerDynamicConfigPtr> DynamicConfig_ = New<TJobControllerDynamicConfig>();
 
-    THashMap<EJobType, TJobFactory> JobFactoryMap_;
-
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobMapLock_);
     THashMap<TJobId, TJobPtr> JobMap_;
     THashMap<TOperationId, THashSet<TJobPtr>> OperationIdToJobs_;
@@ -535,13 +527,6 @@ private:
     TInstant LastOperationInfosRequestTime_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
-
-    const TJobFactory& GetJobFactory(EJobType type) const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return GetOrCrash(JobFactoryMap_, type);
-    }
 
     TFuture<std::vector<TErrorOr<NControllerAgent::NProto::TJobSpec>>>
     RequestJobSpecs(
@@ -1644,8 +1629,12 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto type = CheckedEnumCast<EJobType>(jobSpec.type());
-        auto factory = GetJobFactory(type);
+        auto jobType = CheckedEnumCast<EJobType>(jobSpec.type());
+        YT_LOG_FATAL_IF(
+            jobType >= EJobType::SchedulerUnknown,
+            "Trying to create job with unexpected type (JobId: %v, JobType: %v)",
+            jobId,
+            jobType);
 
         auto jobSpecExtId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
         auto waitingJobTimeout = Config_->WaitingJobsTimeout;
@@ -1656,17 +1645,18 @@ private:
             waitingJobTimeout = FromProto<TDuration>(jobSpecExt.waiting_job_timeout());
         }
 
-        auto job = factory(
+        auto job = NExecNode::CreateJob(
             jobId,
             operationId,
             resourceLimits,
             std::move(jobSpec),
-            controllerAgentDescriptor);
+            controllerAgentDescriptor,
+            Bootstrap_->GetExecNodeBootstrap());
 
         YT_LOG_INFO("Scheduler job created (JobId: %v, OperationId: %v, JobType: %v)",
             jobId,
             operationId,
-            type);
+            jobType);
 
         RegisterJob(jobId, job, waitingJobTimeout);
 

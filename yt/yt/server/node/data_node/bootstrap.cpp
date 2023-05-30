@@ -232,34 +232,6 @@ public:
 
         GetRpcServer()->RegisterService(CreateDataNodeService(GetConfig()->DataNode, this));
 
-        auto jobsProfiler = DataNodeProfiler.WithPrefix("/master_jobs");
-        MasterJobSensors_.AdaptivelyRepairedChunksCounter = jobsProfiler.Counter("/adaptively_repaired_chunks");
-        MasterJobSensors_.TotalRepairedChunksCounter = jobsProfiler.Counter("/total_repaired_chunks");
-        MasterJobSensors_.FailedRepairChunksCounter = jobsProfiler.Counter("/failed_repair_chunks");
-
-        auto createMasterJob = BIND([this] (
-            NJobAgent::TJobId jobId,
-            const TString& jobTrackerAddress,
-            const NClusterNode::TJobResources& resourceLimits,
-            NJobTrackerClient::NProto::TJobSpec&& jobSpec) -> TMasterJobBasePtr
-        {
-            return CreateJob(
-                jobId,
-                std::move(jobSpec),
-                jobTrackerAddress,
-                resourceLimits,
-                GetConfig()->DataNode,
-                this,
-                MasterJobSensors_);
-        });
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::RemoveChunk, createMasterJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::ReplicateChunk, createMasterJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::RepairChunk, createMasterJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::SealChunk, createMasterJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::MergeChunks, createMasterJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::AutotomizeChunk, createMasterJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::ReincarnateChunk, createMasterJob);
-
         IOThroughputMeter_ = CreateIOThroughputMeter(
             GetDynamicConfigManager(),
             ChunkStore_,
@@ -484,8 +456,6 @@ private:
     TLocationManagerPtr LocationManager_;
     TLocationHealthCheckerPtr LocationHealthChecker_;
     TActiveDiskCheckerPtr ActiveDiskChecker_;
-
-    TMasterJobSensors MasterJobSensors_;
 
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,

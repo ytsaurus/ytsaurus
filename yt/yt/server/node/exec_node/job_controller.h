@@ -34,11 +34,6 @@ class IJobController
 public:
     virtual void Initialize() = 0;
 
-    //! Registers a factory for a given job type.
-    virtual void RegisterJobFactory(
-        EJobType type,
-        TJobFactory factory) = 0;
-
     virtual void ScheduleStartJobs() = 0;
 
     //! Finds the job by its id, returns |nullptr| if no job is found.

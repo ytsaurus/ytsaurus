@@ -43,7 +43,6 @@ public:
         const NJobTrackerClient::NProto::TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const NClusterNode::TJobResources& resourceLimits,
-        TDataNodeConfigPtr config,
         IBootstrap* bootstrap);
 
     void Start();
@@ -73,13 +72,16 @@ public:
     TInstant GetStartTime() const;
 
 protected:
+    IBootstrap* const Bootstrap_;
+    const TDataNodeConfigPtr Config_;
+
     const NJobTrackerClient::TJobId JobId_;
     const NJobTrackerClient::NProto::TJobSpec JobSpec_;
     const TString JobTrackerAddress_;
-    const TDataNodeConfigPtr Config_;
-    const TInstant StartTime_;
-    IBootstrap* const Bootstrap_;
+
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+
+    const TInstant StartTime_;
 
     bool Started_ = false;
 
@@ -120,17 +122,8 @@ TMasterJobBasePtr CreateJob(
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
     TString jobTrackerAddress,
     const NClusterNode::TJobResources& resourceLimits,
-    TDataNodeConfigPtr config,
     IBootstrap* bootstrap,
     const TMasterJobSensors& sensors);
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TJobFactory = TCallback<TMasterJobBasePtr(
-    NJobTrackerClient::TJobId jobId,
-    const TString& jobTrackerAddress,
-    const NClusterNode::TJobResources& resourceLimits,
-    NJobTrackerClient::NProto::TJobSpec&& jobSpec)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

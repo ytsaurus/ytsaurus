@@ -120,42 +120,6 @@ public:
             }
         }
 
-        // TODO(pogorelov): Remove this.
-        auto createSchedulerJob = BIND([this] (
-            TJobId jobId,
-            TOperationId operationId,
-            const NClusterNode::TJobResources& resourceLimits,
-            NControllerAgent::NProto::TJobSpec&& jobSpec,
-            const TControllerAgentDescriptor& agentDescriptor) ->
-            TJobPtr
-        {
-            return CreateJob(
-                jobId,
-                operationId,
-                resourceLimits,
-                std::move(jobSpec),
-                this,
-                agentDescriptor);
-        });
-
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::Map, createSchedulerJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::PartitionMap, createSchedulerJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::SortedMerge, createSchedulerJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::OrderedMerge, createSchedulerJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::UnorderedMerge, createSchedulerJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::Partition, createSchedulerJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::SimpleSort, createSchedulerJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::IntermediateSort, createSchedulerJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::FinalSort, createSchedulerJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::SortedReduce, createSchedulerJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::PartitionReduce, createSchedulerJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::ReduceCombiner, createSchedulerJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::RemoteCopy, createSchedulerJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::OrderedMap, createSchedulerJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::JoinReduce, createSchedulerJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::Vanilla, createSchedulerJob);
-        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::ShallowMerge, createSchedulerJob);
-
         GetRpcServer()->RegisterService(CreateJobProberService(this));
 
         GetRpcServer()->RegisterService(CreateSupervisorService(this));

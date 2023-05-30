@@ -28,13 +28,8 @@ class IJobController
 public:
     virtual void Initialize() = 0;
 
-    //! Registers a factory for a given job type.
-    virtual void RegisterJobFactory(
-        NJobAgent::EJobType type,
-        TJobFactory factory) = 0;
-    
     virtual void ScheduleStartJobs() = 0;
-    
+
     DECLARE_INTERFACE_SIGNAL(void(const TMasterJobBasePtr&), JobFinished);
 
     using TRspHeartbeat = NRpc::TTypedClientResponse<
@@ -55,7 +50,7 @@ public:
     virtual TFuture<void> ProcessHeartbeatResponse(
         const TString& jobTrackerAddress,
         const TRspHeartbeatPtr& response) = 0;
-    
+
     virtual void BuildJobsInfo(NYTree::TFluentAny fluent) const = 0;
 
     virtual int GetActiveJobCount() const = 0;

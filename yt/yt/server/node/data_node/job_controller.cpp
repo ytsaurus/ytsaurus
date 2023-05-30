@@ -78,15 +78,15 @@ public:
             Config_->ProfilingPeriod);
         ProfilingExecutor_->Start();
 
+        auto jobsProfiler = DataNodeProfiler.WithPrefix("/master_jobs");
+
+        MasterJobSensors_.AdaptivelyRepairedChunksCounter = jobsProfiler.Counter("/adaptively_repaired_chunks");
+        MasterJobSensors_.TotalRepairedChunksCounter = jobsProfiler.Counter("/total_repaired_chunks");
+        MasterJobSensors_.FailedRepairChunksCounter = jobsProfiler.Counter("/failed_repair_chunks");
+
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(
             BIND_NO_PROPAGATE(&TJobController::OnDynamicConfigChanged, MakeWeak(this)));
-    }
-
-    void RegisterJobFactory(EJobType type, TJobFactory factory) override
-    {
-        YT_VERIFY(type >= FirstMasterJobType && type <= LastMasterJobType);
-        EmplaceOrCrash(JobFactoryMap_, type, factory);
     }
 
     std::vector<TMasterJobBasePtr> GetJobs() const
@@ -220,7 +220,7 @@ private:
 
     TAtomicObject<TJobControllerDynamicConfigPtr> DynamicConfig_ = New<TJobControllerDynamicConfig>();
 
-    THashMap<EJobType, TJobFactory> JobFactoryMap_;
+    TMasterJobSensors MasterJobSensors_;
 
     THashMap<TString, THashMap<TJobId, TMasterJobBasePtr>> JobMaps_;
 
@@ -239,13 +239,6 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         ScheduleStartJobs();
-    }
-
-    const TJobFactory& GetJobFactory(EJobType type) const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return GetOrCrash(JobFactoryMap_, type);
     }
 
     void StartWaitingJobs()
@@ -282,18 +275,23 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto type = CheckedEnumCast<EJobType>(jobSpec.type());
-        auto factory = GetJobFactory(type);
-
-        auto job = factory(
+        auto jobType = CheckedEnumCast<EJobType>(jobSpec.type());
+        YT_LOG_FATAL_IF(
+            jobType < FirstMasterJobType || jobType > LastMasterJobType,
+            "Trying to create job with unexpected type (JobId: %v, JobType: %v)",
             jobId,
-            jobTrackerAddress,
-            resourceLimits,
-            std::move(jobSpec));
+            jobType);
+
+        auto job = NDataNode::CreateJob(jobId,
+                std::move(jobSpec),
+                jobTrackerAddress,
+                resourceLimits,
+                Bootstrap_->GetDataNodeBootstrap(),
+                MasterJobSensors_);
 
         YT_LOG_INFO("Master job created (JobId: %v, JobType: %v, JobTrackerAddress: %v)",
             jobId,
-            type,
+            jobType,
             jobTrackerAddress);
 
         auto waitingJobTimeout = Config_->WaitingJobsTimeout;

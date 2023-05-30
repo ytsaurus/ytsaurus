@@ -77,8 +77,8 @@ public:
         TOperationId operationId,
         const NClusterNode::TJobResources& resourceUsage,
         NControllerAgent::NProto::TJobSpec&& jobSpec,
-        IBootstrap* bootstrap,
-        TControllerAgentDescriptor agentDescriptor);
+        TControllerAgentDescriptor agentDescriptor,
+        IBootstrap* bootstrap);
 
     ~TJob();
 
@@ -514,22 +514,13 @@ TJobPtr CreateJob(
     NJobTrackerClient::TOperationId operationId,
     const NClusterNode::TJobResources& resourceUsage,
     NControllerAgent::NProto::TJobSpec&& jobSpec,
-    IBootstrap* bootstrap,
-    TControllerAgentDescriptor agentDescriptor);
+    TControllerAgentDescriptor agentDescriptor,
+    IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TStatus>
 void FillJobStatus(TStatus* status, const TJobPtr& schedulerJob);
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TJobFactory = TCallback<TJobPtr(
-    NJobTrackerClient::TJobId jobid,
-    NJobTrackerClient::TOperationId operationId,
-    const NClusterNode::TJobResources& resourceLimits,
-    NControllerAgent::NProto::TJobSpec&& jobSpec,
-    const NExecNode::TControllerAgentDescriptor& agentInfo)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

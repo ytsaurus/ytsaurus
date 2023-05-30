@@ -131,8 +131,8 @@ TJob::TJob(
     TOperationId operationId,
     const NClusterNode::TJobResources& resourceUsage,
     TJobSpec&& jobSpec,
-    IBootstrap* bootstrap,
-    TControllerAgentDescriptor agentDescriptor)
+    TControllerAgentDescriptor agentDescriptor,
+    IBootstrap* bootstrap)
     : TResourceHolder(
         bootstrap->GetJobResourceManager().Get(),
         EResourcesConsumerType::SchedulerJob,
@@ -2969,16 +2969,16 @@ TJobPtr CreateJob(
     TOperationId operationId,
     const NClusterNode::TJobResources& resourceUsage,
     TJobSpec&& jobSpec,
-    IBootstrap* bootstrap,
-    TControllerAgentDescriptor agentDescriptor)
+    TControllerAgentDescriptor agentDescriptor,
+    IBootstrap* bootstrap)
 {
     return New<TJob>(
         jobId,
         operationId,
         resourceUsage,
         std::move(jobSpec),
-        bootstrap,
-        std::move(agentDescriptor));
+        std::move(agentDescriptor),
+        bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
