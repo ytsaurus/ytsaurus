@@ -15,6 +15,7 @@ target_link_libraries(server-controller_agent-controllers PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  library-query-engine
   ytserver
   server-lib-chunk_pools
   server-lib-tablet_server
