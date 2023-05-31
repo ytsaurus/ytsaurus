@@ -812,7 +812,7 @@ protected:
 
         auto chunkState = New<TChunkState>(GetNullBlockCache());
         chunkState->TableSchema = readSchema;
-        chunkState->ChunkColumnMapping = New<TChunkColumnMapping>(readSchema, chunkMeta->GetChunkSchema());
+        chunkState->ChunkColumnMapping = New<TChunkColumnMapping>(readSchema, chunkMeta->ChunkSchema());
 
         YT_VERIFY(!GetTestOptions().UseIndexedReaderForLookup);
 
@@ -916,7 +916,7 @@ protected:
 
         auto chunkState = New<TChunkState>(GetNullBlockCache());
         chunkState->TableSchema = readSchema;
-        chunkState->ChunkColumnMapping = New<TChunkColumnMapping>(readSchema, chunkMeta->GetChunkSchema());
+        chunkState->ChunkColumnMapping = New<TChunkColumnMapping>(readSchema, chunkMeta->ChunkSchema());
         chunkState->LookupHashTable = lookupHashTable;
 
         YT_VERIFY(!GetTestOptions().UseNewReader || !GetTestOptions().UseIndexedReaderForLookup);

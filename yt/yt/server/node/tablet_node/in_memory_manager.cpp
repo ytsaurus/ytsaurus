@@ -517,11 +517,11 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     auto dataBlockCount = versionedChunkMeta->DataBlockMeta()->data_blocks_size();
 
     int commonKeyPrefix = GetCommonKeyPrefix(
-        versionedChunkMeta->GetChunkSchema()->GetKeyColumns(),
+        versionedChunkMeta->ChunkSchema()->GetKeyColumns(),
         tabletSnapshot->PhysicalSchema->GetKeyColumns());
 
     // Expected to be equal for dynamic tables.
-    YT_VERIFY(commonKeyPrefix == versionedChunkMeta->GetChunkSchema()->GetKeyColumnCount());
+    YT_VERIFY(commonKeyPrefix == versionedChunkMeta->ChunkSchema()->GetKeyColumnCount());
 
     auto sortOrders = GetSortOrders(tabletSnapshot->PhysicalSchema->GetSortColumns());
 

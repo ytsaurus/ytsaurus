@@ -134,7 +134,7 @@ public:
         return UnderlyingReader_->IsFetchingCompleted();
     }
 
-    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return UnderlyingReader_->GetFailedChunkIds();
     }
@@ -221,7 +221,7 @@ public:
         return UnderlyingReader_->IsFetchingCompleted();
     }
 
-    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return UnderlyingReader_->GetFailedChunkIds();
     }
@@ -278,14 +278,14 @@ private:
 
 // TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
 bool PrepareKeyFilteringReader(
-    const TCustomTableMountConfigPtr& mountConfig,
+    const TTabletSnapshotPtr& tabletSnapshot,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const IChunkReaderPtr& chunkReader,
     const TClientChunkReadOptions& chunkReadOptions,
     TSharedRange<TLegacyKey>* keys,
     std::vector<ui8> *missingKeyMask)
 {
-    if (!mountConfig->TestingOnlyUseKeyFilter) {
+    if (!tabletSnapshot->Settings.MountConfig->TestingOnlyUseKeyFilter) {
         return false;
     }
 
@@ -361,7 +361,7 @@ bool PrepareKeyFilteringReader(
 TSortedChunkStore::TSortedChunkStore(
     TTabletManagerConfigPtr config,
     TStoreId id,
-    NChunkClient::TChunkId chunkId,
+    TChunkId chunkId,
     const NChunkClient::TLegacyReadRange& readRange,
     TTimestamp overrideTimestamp,
     TTimestamp maxClipTimestamp,
@@ -492,17 +492,18 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     };
 
     // Fast lane: check for in-memory reads.
-    if (auto reader = TryCreateCacheBasedReader(
-        ranges,
-        timestamp,
-        produceAllVersions,
-        columnFilter,
-        chunkReadOptions,
-        ReadRange_,
-        enableNewScanReader))
-    {
+    if (auto chunkState = FindPreloadedChunkState()) {
         return wrapReaderWithPerformanceCounting(
-            MaybeWrapWithTimestampResettingAdapter(std::move(reader)));
+            MaybeWrapWithTimestampResettingAdapter(
+                CreateCacheBasedReader(
+                    chunkState,
+                    ranges,
+                    timestamp,
+                    produceAllVersions,
+                    columnFilter,
+                    chunkReadOptions,
+                    ReadRange_,
+                    enableNewScanReader)));
     }
 
     // Another fast lane: check for backing store.
@@ -528,16 +529,20 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             chunkReadOptions.MemoryReferenceTracker);
     }
 
-    auto chunkState = PrepareChunkState(
-        std::move(chunkReader),
-        chunkReadOptions,
-        enableNewScanReader);
+    auto chunkMeta = FindCachedVersionedChunkMeta(enableNewScanReader);
+    if (!chunkMeta) {
+        chunkMeta = WaitForFast(GetCachedVersionedChunkMeta(
+            backendReaders.ChunkReader,
+            chunkReadOptions,
+            enableNewScanReader))
+            .ValueOrThrow();
+    }
 
-    const auto& chunkMeta = chunkState->ChunkMeta;
+    auto chunkState = PrepareChunkState(std::move(chunkMeta));
 
-    ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
+    ValidateBlockSize(tabletSnapshot, chunkState->ChunkMeta, chunkReadOptions.WorkloadDescriptor);
 
-    if (enableNewScanReader && chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
+    if (enableNewScanReader && chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
         // Chunk view support.
         ranges = NNewTableClient::ClipRanges(
             ranges,
@@ -550,7 +555,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             std::move(backendReaders.ChunkReader),
             chunkState->BlockCache,
             chunkReadOptions,
-            chunkMeta,
+            chunkState->ChunkMeta,
             // Enable current invoker for range reads.
             GetCurrentInvoker());
 
@@ -559,7 +564,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
                 NNewTableClient::CreateVersionedChunkReader(
                     std::move(ranges),
                     timestamp,
-                    chunkMeta,
+                    chunkState->ChunkMeta,
                     Schema_,
                     columnFilter,
                     chunkState->ChunkColumnMapping,
@@ -574,7 +579,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             std::move(backendReaders.ReaderConfig),
             std::move(backendReaders.ChunkReader),
             chunkState,
-            chunkMeta,
+            chunkState->ChunkMeta,
             chunkReadOptions,
             std::move(ranges),
             columnFilter,
@@ -585,21 +590,17 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             GetCurrentInvoker()));
 }
 
-IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
+IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
+    const TChunkStatePtr& chunkState,
     TSharedRange<TRowRange> ranges,
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const TClientChunkReadOptions& chunkReadOptions,
     const TSharedRange<TRowRange>& singletonClippingRange,
-    bool enableNewScanReader)
+    bool enableNewScanReader) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-
-    auto chunkState = FindPreloadedChunkState();
-    if (!chunkState) {
-        return nullptr;
-    }
 
     const auto& chunkMeta = chunkState->ChunkMeta;
 
@@ -639,9 +640,339 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
         singletonClippingRange);
 }
 
+class TSortedChunkStore::TSortedChunkStoreVersionedReader
+    : public IVersionedReader
+{
+public:
+    TSortedChunkStoreVersionedReader(
+        int skippedBefore,
+        int skippedAfter,
+        TSortedChunkStore* const chunk,
+        const TTabletSnapshotPtr& tabletSnapshot,
+        TSharedRange<TLegacyKey> keys,
+        TTimestamp timestamp,
+        bool produceAllVersions,
+        const TColumnFilter& columnFilter,
+        const TClientChunkReadOptions& chunkReadOptions,
+        std::optional<EWorkloadCategory> workloadCategory)
+        : SkippedBefore_(skippedBefore)
+        , SkippedAfter_(skippedAfter)
+    {
+        InitializationFuture_ = InitializeUnderlyingReader(
+            chunk,
+            tabletSnapshot,
+            std::move(keys),
+            timestamp,
+            produceAllVersions,
+            columnFilter,
+            chunkReadOptions,
+            workloadCategory);
+    }
+
+    TDataStatistics GetDataStatistics() const override
+    {
+        YT_VERIFY(UnderlyingReaderInitialized_.load());
+        return UnderlyingReader_->GetDataStatistics();
+    }
+
+    TCodecStatistics GetDecompressionStatistics() const override
+    {
+        YT_VERIFY(UnderlyingReaderInitialized_.load());
+        return UnderlyingReader_->GetDecompressionStatistics();
+    }
+
+    TFuture<void> Open() override
+    {
+        if (UnderlyingReaderInitialized_.load()) {
+            // InitializationFuture_ may actually be unset yet.
+            return UnderlyingReader_->Open();
+        }
+
+        return InitializationFuture_.Apply(BIND([=, this, this_ = MakeStrong(this)] {
+            YT_VERIFY(UnderlyingReaderInitialized_.load());
+            return UnderlyingReader_->Open();
+        })
+            .AsyncVia(GetCurrentInvoker()));
+    }
+
+    TFuture<void> GetReadyEvent() const override
+    {
+        YT_VERIFY(UnderlyingReaderInitialized_.load());
+        return UnderlyingReader_->GetReadyEvent();
+    }
+
+    bool IsFetchingCompleted() const override
+    {
+        YT_ABORT();
+    }
+
+    std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        return {};
+    }
+
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    {
+        YT_VERIFY(UnderlyingReaderInitialized_.load());
+        return UnderlyingReader_->Read(options);
+    }
+
+private:
+    const int SkippedBefore_;
+    const int SkippedAfter_;
+
+    TFuture<void> InitializationFuture_;
+    std::atomic<bool> UnderlyingReaderInitialized_ = false;
+    IVersionedReaderPtr UnderlyingReader_;
+
+    bool NeedKeyFilteringReader_ = false;
+    std::vector<ui8> MissingKeyMask_;
+
+
+    TFuture<void> InitializeUnderlyingReader(
+        TSortedChunkStore* const chunk,
+        const TTabletSnapshotPtr& tabletSnapshot,
+        TSharedRange<TLegacyKey> keys,
+        TTimestamp timestamp,
+        bool produceAllVersions,
+        const TColumnFilter& columnFilter,
+        const TClientChunkReadOptions& chunkReadOptions,
+        std::optional<EWorkloadCategory> workloadCategory)
+    {
+        const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+        bool enableNewScanReader = IsNewScanReaderEnabled(mountConfig);
+
+        // Check for in-memory reads.
+        if (auto chunkState = chunk->FindPreloadedChunkState()) {
+            MaybeWrapUnderlyingReader(
+                chunk,
+                chunk->CreateCacheBasedReader(
+                    chunkState,
+                    std::move(keys),
+                    timestamp,
+                    produceAllVersions,
+                    columnFilter,
+                    chunkReadOptions,
+                    enableNewScanReader));
+            return VoidFuture;
+        }
+
+        // Check for backing store.
+        if (auto backingStore = chunk->GetSortedBackingStore()) {
+            YT_VERIFY(!chunk->HasNontrivialReadRange());
+            YT_VERIFY(!chunk->OverrideTimestamp_);
+            UnderlyingReader_ = backingStore->CreateReader(
+                std::move(tabletSnapshot),
+                std::move(keys),
+                timestamp,
+                produceAllVersions,
+                columnFilter,
+                chunkReadOptions,
+                /*workloadCategory*/ std::nullopt);
+            UnderlyingReaderInitialized_.store(true);
+            return VoidFuture;
+        }
+
+        auto backendReaders = chunk->GetBackendReaders(workloadCategory);
+
+        if (mountConfig->EnableDataNodeLookup && backendReaders.OffloadingReader) {
+            auto options = New<TOffloadingReaderOptions>(TOffloadingReaderOptions{
+                .ChunkReadOptions = chunkReadOptions,
+                .TableId = tabletSnapshot->TableId,
+                .MountRevision = tabletSnapshot->MountRevision,
+                .TableSchema = tabletSnapshot->TableSchema,
+                .ColumnFilter = columnFilter,
+                .Timestamp = timestamp,
+                .ProduceAllVersions = produceAllVersions,
+                .OverrideTimestamp = chunk->OverrideTimestamp_,
+                .EnableHashChunkIndex = mountConfig->EnableHashChunkIndexForLookup
+            });
+            MaybeWrapUnderlyingReader(
+                chunk,
+                CreateVersionedOffloadingLookupReader(
+                    std::move(backendReaders.OffloadingReader),
+                    std::move(options),
+                    std::move(keys)));
+            return VoidFuture;
+        }
+
+        if (auto chunkMeta = chunk->FindCachedVersionedChunkMeta(enableNewScanReader)) {
+            OnGotChunkMeta(
+                chunk,
+                tabletSnapshot,
+                std::move(keys),
+                timestamp,
+                produceAllVersions,
+                columnFilter,
+                chunkReadOptions,
+                std::move(backendReaders),
+                std::move(chunkMeta));
+            return VoidFuture;
+        } else {
+            return chunk->GetCachedVersionedChunkMeta(
+                backendReaders.ChunkReader,
+                chunkReadOptions,
+                enableNewScanReader)
+                .ApplyUnique(BIND([
+                    =,
+                    this,
+                    this_ = MakeStrong(this),
+                    // NB: We need to ref it here.
+                    chunk = MakeStrong(chunk),
+                    keys = std::move(keys),
+                    backendReaders = std::move(backendReaders)
+                ] (TCachedVersionedChunkMetaPtr&& chunkMeta) mutable {
+                    OnGotChunkMeta(
+                        chunk.Get(),
+                        tabletSnapshot,
+                        std::move(keys),
+                        timestamp,
+                        produceAllVersions,
+                        // FIXME(akozhikhov): Heavy copy here.
+                        columnFilter,
+                        chunkReadOptions,
+                        std::move(backendReaders),
+                        std::move(chunkMeta));
+                })
+                .AsyncVia(GetCurrentInvoker()));
+        }
+    }
+
+    void OnGotChunkMeta(
+        TSortedChunkStore* const chunk,
+        const TTabletSnapshotPtr& tabletSnapshot,
+        TSharedRange<TLegacyKey> keys,
+        TTimestamp timestamp,
+        bool produceAllVersions,
+        const TColumnFilter& columnFilter,
+        const TClientChunkReadOptions& chunkReadOptions,
+        TBackendReaders backendReaders,
+        TCachedVersionedChunkMetaPtr chunkMeta)
+    {
+        // TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
+        NeedKeyFilteringReader_ = PrepareKeyFilteringReader(
+            tabletSnapshot,
+            chunkMeta,
+            backendReaders.ChunkReader,
+            chunkReadOptions,
+            &keys,
+            &MissingKeyMask_);
+
+        if (NeedKeyFilteringReader_ && std::count(MissingKeyMask_.begin(), MissingKeyMask_.end(), 0) == 0) {
+            int initialKeyCount = SkippedBefore_ + SkippedAfter_ + keys.Size();
+            UnderlyingReader_ = CreateEmptyVersionedReader(initialKeyCount);
+            UnderlyingReaderInitialized_.store(true);
+            return;
+        }
+
+        chunk->ValidateBlockSize(tabletSnapshot, chunkMeta, chunkReadOptions.WorkloadDescriptor);
+
+        const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+
+        if (mountConfig->EnableHashChunkIndexForLookup && chunkMeta->HashTableChunkIndexMeta()) {
+            auto controller = CreateChunkIndexReadController(
+                chunk->ChunkId_,
+                columnFilter,
+                std::move(chunkMeta),
+                std::move(keys),
+                chunk->GetKeyComparer(),
+                tabletSnapshot->TableSchema,
+                timestamp,
+                produceAllVersions,
+                chunk->BlockCache_,
+                /*testingOptions*/ std::nullopt,
+                TabletNodeLogger);
+
+            MaybeWrapUnderlyingReader(
+                chunk,
+                CreateIndexedVersionedChunkReader(
+                    std::move(chunkReadOptions),
+                    std::move(controller),
+                    std::move(backendReaders.ChunkReader),
+                    tabletSnapshot->ChunkFragmentReader));
+            return;
+        }
+
+        auto chunkState = chunk->PrepareChunkState(chunkMeta);
+
+        if (IsNewScanReaderEnabled(mountConfig) &&
+            chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar)
+        {
+            auto blockManagerFactory = NNewTableClient::CreateAsyncBlockWindowManagerFactory(
+                std::move(backendReaders.ReaderConfig),
+                std::move(backendReaders.ChunkReader),
+                chunkState->BlockCache,
+                std::move(chunkReadOptions),
+                chunkMeta);
+
+            MaybeWrapUnderlyingReader(
+                chunk,
+                NNewTableClient::CreateVersionedChunkReader(
+                    std::move(keys),
+                    timestamp,
+                    std::move(chunkMeta),
+                    chunkState->TableSchema,
+                    std::move(columnFilter),
+                    chunkState->ChunkColumnMapping,
+                    std::move(blockManagerFactory),
+                    produceAllVersions));
+            return;
+        }
+
+        MaybeWrapUnderlyingReader(
+            chunk,
+            CreateVersionedChunkReader(
+                std::move(backendReaders.ReaderConfig),
+                std::move(backendReaders.ChunkReader),
+                std::move(chunkState),
+                std::move(chunkMeta),
+                chunkReadOptions,
+                std::move(keys),
+                columnFilter,
+                timestamp,
+                produceAllVersions),
+            /*needSetTimestamp*/ false);
+        return;
+    }
+
+    void MaybeWrapUnderlyingReader(
+        TSortedChunkStore* const chunk,
+        IVersionedReaderPtr underlyingReader,
+        bool needSetTimestamp = true)
+    {
+        // TODO(akozhikhov): Avoid extra wrappers TKeyFilteringReader and TFilteringReader,
+        // implement their logic in this reader.
+        if (NeedKeyFilteringReader_) {
+            underlyingReader = New<TKeyFilteringReader>(
+                std::move(underlyingReader),
+                MissingKeyMask_);
+        }
+
+        if (SkippedBefore_ > 0 || SkippedAfter_ > 0) {
+            underlyingReader = New<TFilteringReader>(
+                std::move(underlyingReader),
+                SkippedBefore_,
+                SkippedAfter_);
+        }
+
+        if (needSetTimestamp && chunk->OverrideTimestamp_) {
+            underlyingReader = CreateTimestampResettingAdapter(
+                std::move(underlyingReader),
+                chunk->OverrideTimestamp_);
+        }
+
+        UnderlyingReader_ = CreateVersionedPerformanceCountingReader(
+            std::move(underlyingReader),
+            chunk->PerformanceCounters_,
+            NTableClient::EDataSource::ChunkStore,
+            ERequestType::Lookup);
+        UnderlyingReaderInitialized_.store(true);
+    }
+};
+
 IVersionedReaderPtr TSortedChunkStore::CreateReader(
     const TTabletSnapshotPtr& tabletSnapshot,
-    const TSharedRange<TLegacyKey>& keys,
+    TSharedRange<TLegacyKey> keys,
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
@@ -654,192 +985,77 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         timestamp = std::min(timestamp, MaxClipTimestamp_);
     }
 
+    int initialKeyCount = keys.Size();
+
     if (OverrideTimestamp_ && OverrideTimestamp_ > timestamp) {
-        return CreateEmptyVersionedReader(keys.Size());
+        return CreateEmptyVersionedReader(initialKeyCount);
     }
 
     int skippedBefore = 0;
     int skippedAfter = 0;
-    auto filteredKeys = FilterKeysByReadRange(keys, &skippedBefore, &skippedAfter);
+    auto filteredKeys = FilterKeysByReadRange(std::move(keys), &skippedBefore, &skippedAfter);
+    YT_VERIFY(skippedBefore + skippedAfter + std::ssize(filteredKeys) == initialKeyCount);
 
     if (filteredKeys.Empty()) {
-        return CreateEmptyVersionedReader(keys.Size());
+        return CreateEmptyVersionedReader(initialKeyCount);
     }
 
-    // TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
-    bool needKeyFilteringReader = false;
-    std::vector<ui8> missingKeyMask;
-
-    auto wrapReaderWithTimestamp = [&] (
-        IVersionedReaderPtr underlyingReader,
-        bool needSetTimestamp) -> IVersionedReaderPtr
-    {
-        if (needKeyFilteringReader) {
-            underlyingReader = New<TKeyFilteringReader>(
-                std::move(underlyingReader),
-                missingKeyMask);
+    // NB: This is a fast path for in-memory readers to avoid extra wrapper.
+    // We could do the same for ext-memory readers but there is no need.
+    bool needKeyRangeFiltering = skippedBefore > 0 || skippedAfter > 0;
+    bool needTimestampResetting = OverrideTimestamp_;
+    if (!needKeyRangeFiltering && !needTimestampResetting) {
+        // Check for in-memory reads.
+        if (auto chunkState = FindPreloadedChunkState()) {
+            return CreateVersionedPerformanceCountingReader(
+                CreateCacheBasedReader(
+                    chunkState,
+                    std::move(filteredKeys),
+                    timestamp,
+                    produceAllVersions,
+                    columnFilter,
+                    chunkReadOptions,
+                    IsNewScanReaderEnabled(tabletSnapshot->Settings.MountConfig)),
+                PerformanceCounters_,
+                NTableClient::EDataSource::ChunkStore,
+                ERequestType::Lookup);
         }
-        if (skippedBefore > 0 || skippedAfter > 0) {
-            underlyingReader = New<TFilteringReader>(
-                std::move(underlyingReader),
-                skippedBefore,
-                skippedAfter);
+
+        // Check for backing store.
+        if (auto backingStore = GetSortedBackingStore()) {
+            YT_VERIFY(!HasNontrivialReadRange());
+            YT_VERIFY(!OverrideTimestamp_);
+            // NB: Performance counting reader is created within this call.
+            return backingStore->CreateReader(
+                std::move(tabletSnapshot),
+                std::move(filteredKeys),
+                timestamp,
+                produceAllVersions,
+                columnFilter,
+                chunkReadOptions,
+                /*workloadCategory*/ std::nullopt);
         }
-        if (needSetTimestamp) {
-            return MaybeWrapWithTimestampResettingAdapter(std::move(underlyingReader));
-        } else {
-            return underlyingReader;
-        }
-    };
+    }
 
-    auto wrapReader = [&] (
-        IVersionedReaderPtr underlyingReader,
-        bool needSetTimestamp) -> IVersionedReaderPtr
-    {
-        return CreateVersionedPerformanceCountingReader(
-            wrapReaderWithTimestamp(underlyingReader, needSetTimestamp),
-            PerformanceCounters_,
-            NTableClient::EDataSource::ChunkStore,
-            ERequestType::Lookup);
-    };
-
-    const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
-    bool enableNewScanReader = IsNewScanReaderEnabled(mountConfig);
-
-    // Fast lane: check for in-memory reads.
-    if (auto reader = TryCreateCacheBasedReader(
-        filteredKeys,
+    return New<TSortedChunkStoreVersionedReader>(
+        skippedBefore,
+        skippedAfter,
+        this,
+        tabletSnapshot,
+        std::move(filteredKeys),
         timestamp,
         produceAllVersions,
         columnFilter,
         chunkReadOptions,
-        enableNewScanReader))
-    {
-        return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
-    }
-
-    // Another fast lane: check for backing store.
-    if (auto backingStore = GetSortedBackingStore()) {
-        YT_VERIFY(!HasNontrivialReadRange());
-        YT_VERIFY(!OverrideTimestamp_);
-        return backingStore->CreateReader(
-            std::move(tabletSnapshot),
-            filteredKeys,
-            timestamp,
-            produceAllVersions,
-            columnFilter,
-            chunkReadOptions,
-            /*workloadCategory*/ std::nullopt);
-    }
-
-    auto backendReaders = GetBackendReaders(workloadCategory);
-
-    if (mountConfig->EnableDataNodeLookup && backendReaders.OffloadingReader) {
-        auto options = New<TOffloadingReaderOptions>(TOffloadingReaderOptions{
-            .ChunkReadOptions = chunkReadOptions,
-            .TableId = tabletSnapshot->TableId,
-            .MountRevision = tabletSnapshot->MountRevision,
-            .TableSchema = tabletSnapshot->TableSchema,
-            .ColumnFilter = columnFilter,
-            .Timestamp = timestamp,
-            .ProduceAllVersions = produceAllVersions,
-            .OverrideTimestamp = OverrideTimestamp_,
-            .EnableHashChunkIndex = mountConfig->EnableHashChunkIndexForLookup
-        });
-        return wrapReader(
-            CreateVersionedOffloadingLookupReader(
-                std::move(backendReaders.OffloadingReader),
-                std::move(options),
-                filteredKeys),
-            /*needSetTimestamp*/ true);
-    }
-
-    auto chunkState = PrepareChunkState(
-        backendReaders.ChunkReader,
-        chunkReadOptions,
-        enableNewScanReader);
-    const auto& chunkMeta = chunkState->ChunkMeta;
-
-    // TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
-    needKeyFilteringReader = PrepareKeyFilteringReader(
-        mountConfig,
-        chunkMeta,
-        backendReaders.ChunkReader,
-        chunkReadOptions,
-        &filteredKeys,
-        &missingKeyMask);
-
-    if (needKeyFilteringReader && std::count(missingKeyMask.begin(), missingKeyMask.end(), 0) == 0) {
-        return CreateEmptyVersionedReader(keys.Size());
-    }
-
-    ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
-
-    if (mountConfig->EnableHashChunkIndexForLookup && chunkMeta->HashTableChunkIndexMeta()) {
-        auto controller = CreateChunkIndexReadController(
-            ChunkId_,
-            columnFilter,
-            chunkMeta,
-            filteredKeys,
-            chunkState->KeyComparer,
-            tabletSnapshot->TableSchema,
-            timestamp,
-            produceAllVersions,
-            chunkState->BlockCache,
-            /*testingOptions*/ std::nullopt,
-            TabletNodeLogger);
-
-        return wrapReader(
-            CreateIndexedVersionedChunkReader(
-                chunkReadOptions,
-                std::move(controller),
-                std::move(backendReaders.ChunkReader),
-                tabletSnapshot->ChunkFragmentReader),
-            /*needSetTimestamp*/ true);
-    }
-
-    if (enableNewScanReader && chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
-        auto blockManagerFactory = NNewTableClient::CreateAsyncBlockWindowManagerFactory(
-            std::move(backendReaders.ReaderConfig),
-            std::move(backendReaders.ChunkReader),
-            chunkState->BlockCache,
-            chunkReadOptions,
-            chunkMeta);
-
-        auto reader = NNewTableClient::CreateVersionedChunkReader(
-            filteredKeys,
-            timestamp,
-            chunkMeta,
-            Schema_,
-            columnFilter,
-            chunkState->ChunkColumnMapping,
-            blockManagerFactory,
-            produceAllVersions);
-        return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
-    }
-
-    auto reader = CreateVersionedChunkReader(
-        std::move(backendReaders.ReaderConfig),
-        std::move(backendReaders.ChunkReader),
-        chunkState,
-        chunkMeta,
-        chunkReadOptions,
-        filteredKeys,
-        columnFilter,
-        timestamp,
-        produceAllVersions);
-
-    // Reader can handle chunk timestamp itself if needed, no need to wrap with
-    // timestamp resetting adapter.
-    return wrapReader(std::move(reader), /*needSetTimestamp*/ false);
+        workloadCategory);
 }
 
 TSharedRange<TLegacyKey> TSortedChunkStore::FilterKeysByReadRange(
-    const TSharedRange<TLegacyKey>& keys,
+    TSharedRange<TLegacyKey> keys,
     int* skippedBefore,
     int* skippedAfter) const
 {
-    return NTabletNode::FilterKeysByReadRange(ReadRange_.Front(), keys, skippedBefore, skippedAfter);
+    return NTabletNode::FilterKeysByReadRange(ReadRange_.Front(), std::move(keys), skippedBefore, skippedAfter);
 }
 
 TSharedRange<TRowRange> TSortedChunkStore::FilterRowRangesByReadRange(
@@ -848,19 +1064,15 @@ TSharedRange<TRowRange> TSortedChunkStore::FilterRowRangesByReadRange(
     return NTabletNode::FilterRowRangesByReadRange(ReadRange_.Front(), ranges);
 }
 
-IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
-    const TSharedRange<TLegacyKey>& keys,
+IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
+    const TChunkStatePtr& chunkState,
+    TSharedRange<TLegacyKey> keys,
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const TClientChunkReadOptions& chunkReadOptions,
-    bool enableNewScanReader)
+    bool enableNewScanReader) const
 {
-    auto chunkState = FindPreloadedChunkState();
-    if (!chunkState) {
-        return nullptr;
-    }
-
     const auto& chunkMeta = chunkState->ChunkMeta;
 
     if (enableNewScanReader && chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
@@ -871,7 +1083,6 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
 
         if (InMemoryMode_ == NTabletClient::EInMemoryMode::Uncompressed) {
             if (auto* lookupHashTable = chunkState->LookupHashTable.Get()) {
-
                 auto keysWithHints = NNewTableClient::BuildKeyHintsUsingLookupTable(
                     *lookupHashTable,
                     std::move(keys));
@@ -904,7 +1115,7 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
         chunkState,
         chunkState->ChunkMeta,
         chunkReadOptions,
-        keys,
+        std::move(keys),
         columnFilter,
         timestamp,
         produceAllVersions);
@@ -995,38 +1206,34 @@ NTableClient::TChunkColumnMappingPtr TSortedChunkStore::GetChunkColumnMapping(
     return chunkColumnMapping;
 }
 
-TChunkStatePtr TSortedChunkStore::PrepareChunkState(
-    const IChunkReaderPtr& chunkReader,
-    const TClientChunkReadOptions& chunkReadOptions,
-    bool prepareColumnarMeta)
+TChunkStatePtr TSortedChunkStore::PrepareChunkState(TCachedVersionedChunkMetaPtr meta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), ChunkId_);
 
-    auto chunkMeta = GetCachedVersionedChunkMeta(chunkReader, chunkReadOptions, prepareColumnarMeta);
+    auto chunkColumnMapping = GetChunkColumnMapping(Schema_, meta->ChunkSchema());
 
     auto chunkState = New<TChunkState>(
         BlockCache_,
         std::move(chunkSpec),
-        chunkMeta,
+        std::move(meta),
         OverrideTimestamp_,
         /*lookupHashTable*/ nullptr,
         GetKeyComparer(),
         /*virtualValueDirectory*/ nullptr,
         Schema_,
-        GetChunkColumnMapping(Schema_, chunkMeta->GetChunkSchema()));
+        std::move(chunkColumnMapping));
 
     return chunkState;
 }
 
 void TSortedChunkStore::ValidateBlockSize(
     const TTabletSnapshotPtr& tabletSnapshot,
-    const TChunkStatePtr& chunkState,
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TWorkloadDescriptor& workloadDescriptor)
 {
-    auto chunkMeta = chunkState->ChunkMeta;
     auto chunkFormat = chunkMeta->GetChunkFormat();
 
     if ((workloadDescriptor.Category == EWorkloadCategory::UserInteractive ||
@@ -1037,24 +1244,24 @@ void TSortedChunkStore::ValidateBlockSize(
         // For unversioned chunks verify that block size is correct.
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
         if (auto blockSizeLimit = mountConfig->MaxUnversionedBlockSize) {
-            auto miscExt = FindProtoExtension<TMiscExt>(chunkState->ChunkSpec.chunk_meta().extensions());
-            if (miscExt && miscExt->max_data_block_size() > *blockSizeLimit) {
+            const auto& miscExt = chunkMeta->Misc();
+            if (miscExt.max_data_block_size() > *blockSizeLimit) {
                 THROW_ERROR_EXCEPTION("Maximum block size limit violated")
                     << TErrorAttribute("tablet_id", TabletId_)
                     << TErrorAttribute("chunk_id", GetId())
-                    << TErrorAttribute("block_size", miscExt->max_data_block_size())
+                    << TErrorAttribute("block_size", miscExt.max_data_block_size())
                     << TErrorAttribute("block_size_limit", *blockSizeLimit);
             }
         }
     }
 }
 
-TKeyComparer TSortedChunkStore::GetKeyComparer() const
+const TKeyComparer& TSortedChunkStore::GetKeyComparer() const
 {
     return KeyComparer_;
 }
 
-ISortedStorePtr TSortedChunkStore::GetSortedBackingStore()
+ISortedStorePtr TSortedChunkStore::GetSortedBackingStore() const
 {
     auto backingStore = GetBackingStore();
     return backingStore ? backingStore->AsSorted() : nullptr;
@@ -1064,7 +1271,7 @@ ISortedStorePtr TSortedChunkStore::GetSortedBackingStore()
 
 TSharedRange<TLegacyKey> FilterKeysByReadRange(
     const NTableClient::TRowRange& readRange,
-    const TSharedRange<TLegacyKey>& keys,
+    TSharedRange<TLegacyKey> keys,
     int* skippedBefore,
     int* skippedAfter)
 {
@@ -1088,7 +1295,9 @@ TSharedRange<TLegacyKey> FilterKeysByReadRange(
     *skippedBefore = begin;
     *skippedAfter = keys.Size() - end;
 
-    return keys.Slice(begin, end);
+    return MakeSharedRange(
+        static_cast<TRange<TLegacyKey>>(keys).Slice(begin, end),
+        std::move(keys.ReleaseHolder()));
 }
 
 TSharedRange<NTableClient::TRowRange> FilterRowRangesByReadRange(

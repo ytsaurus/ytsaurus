@@ -331,11 +331,9 @@ protected:
         // When using lookup cache we must read all versions.
         // It is safe to change fixed timestamp to SyncLastCommitted and drop newer than timestamp versions
         // in row merger.
-        auto readTimestamp = Timestamp_ != AsyncLastCommittedTimestamp
+        return Timestamp_ != AsyncLastCommittedTimestamp
             ? SyncLastCommittedTimestamp
             : Timestamp_;
-
-        return readTimestamp;
     }
 
     bool IsLookupInChunkNeeded(int keyIndex) const

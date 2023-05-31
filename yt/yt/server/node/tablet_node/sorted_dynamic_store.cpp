@@ -755,7 +755,7 @@ public:
     TLookupReader(
         TSortedDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot,
-        const TSharedRange<TLegacyKey>& keys,
+        TSharedRange<TLegacyKey> keys,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter)
@@ -766,7 +766,7 @@ public:
             produceAllVersions,
             MaxRevision,
             columnFilter)
-        , Keys_(keys)
+        , Keys_(std::move(keys))
     { }
 
     TFuture<void> Open() override
@@ -1876,7 +1876,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
 
 IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     const TTabletSnapshotPtr& tabletSnapshot,
-    const TSharedRange<TLegacyKey>& keys,
+    TSharedRange<TLegacyKey> keys,
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
@@ -1887,7 +1887,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
         New<TLookupReader>(
             this,
             tabletSnapshot,
-            keys,
+            std::move(keys),
             timestamp,
             produceAllVersions,
             columnFilter),

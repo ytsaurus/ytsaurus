@@ -21,7 +21,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TRefCountedSystemBlockMetaPtr, SystemBlockMeta);
     DEFINE_BYREF_RO_PROPERTY(TRefCountedColumnMetaPtr, ColumnMeta);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
-    DEFINE_BYVAL_RO_PROPERTY(TTableSchemaPtr, ChunkSchema);
+    DEFINE_BYREF_RO_PROPERTY(TTableSchemaPtr, ChunkSchema);
     DEFINE_BYREF_RO_PROPERTY(TNameTablePtr, ChunkNameTable);
     DEFINE_BYREF_RO_PROPERTY(TSharedRange<TUnversionedRow>, BlockLastKeys);
     DEFINE_BYREF_RO_PROPERTY(NTableClient::NProto::THunkChunkRefsExt, HunkChunkRefsExt);

@@ -628,7 +628,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TCpuDurationIncrementingGuard timingGuard(&readerStatistics->InitTime);
 
     auto chunkKeyColumnCount = chunkMeta->GetChunkKeyColumnCount();
-    const auto& chunkSchema = chunkMeta->GetChunkSchema();
+    const auto& chunkSchema = chunkMeta->ChunkSchema();
 
     TCpuDuration lastCpuInstant = GetCpuInstant();
     auto getDurationAndReset = [&] {

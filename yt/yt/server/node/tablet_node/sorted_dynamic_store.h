@@ -132,7 +132,7 @@ public:
 
     NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
-        const TSharedRange<TLegacyKey>& keys,
+        TSharedRange<TLegacyKey> keys,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,

@@ -49,7 +49,7 @@ public:
         , KeyComparer_(std::move(keyComparer))
         , BlockCache_(std::move(blockCache))
         , GroupReorderingEnabled_(false)
-        , SchemaIdMapping_(TChunkColumnMapping(tableSchema, ChunkMeta_->GetChunkSchema())
+        , SchemaIdMapping_(TChunkColumnMapping(tableSchema, ChunkMeta_->ChunkSchema())
             .BuildVersionedSimpleSchemaIdMapping(columnFilter))
         , GroupCount_(
             ChunkMeta_->HashTableChunkIndexMeta()->IndexedBlockFormatDetail.GetGroupCount())
@@ -65,7 +65,7 @@ public:
             SchemaIdMapping_,
             timestamp,
             produceAllVersions,
-            ChunkMeta_->GetChunkSchema(),
+            ChunkMeta_->ChunkSchema(),
             GroupIndexesToRead_);
 
         auto chunkKeyColumnCount = ChunkMeta_->GetChunkKeyColumnCount();

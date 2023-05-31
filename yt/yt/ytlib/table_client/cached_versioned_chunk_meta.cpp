@@ -116,7 +116,7 @@ TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> TCachedVersionedChunkMeta::Ge
         if (!newPreparedMeta) {
             newPreparedMeta = New<NNewTableClient::TPreparedChunkMeta>();
             newPreparedMeta->FullNewMeta = blockProvider;
-            newPreparedMeta->Prepare(GetChunkSchema(), ColumnMeta(), DataBlockMeta(), blockProvider);
+            newPreparedMeta->Prepare(ChunkSchema_, ColumnMeta(), DataBlockMeta(), blockProvider);
         }
 
         void* rawCurrentMeta = currentMeta.Get();
@@ -139,7 +139,7 @@ TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> TCachedVersionedChunkMeta::Ge
 
 int TCachedVersionedChunkMeta::GetChunkKeyColumnCount() const
 {
-    return GetChunkSchema()->GetKeyColumnCount();
+    return ChunkSchema_->GetKeyColumnCount();
 }
 
 void TCachedVersionedChunkMeta::ParseHashTableChunkIndexMeta(
@@ -161,7 +161,7 @@ void TCachedVersionedChunkMeta::ParseHashTableChunkIndexMeta(
         return;
     }
 
-    HashTableChunkIndexMeta_.emplace(GetChunkSchema());
+    HashTableChunkIndexMeta_.emplace(ChunkSchema_);
     HashTableChunkIndexMeta_->ChunkIndexBlockMetas.reserve(blockMetas.size());
     for (const auto& [blockIndex, blockMeta] : blockMetas) {
         HashTableChunkIndexMeta_->ChunkIndexBlockMetas.emplace_back(

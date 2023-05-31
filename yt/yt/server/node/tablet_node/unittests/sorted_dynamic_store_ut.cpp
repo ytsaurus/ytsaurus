@@ -2026,10 +2026,9 @@ protected:
     TVersionedOwningRow VersionedLookupRow(const TLegacyOwningKey& key)
     {
         std::vector<TLegacyKey> lookupKeys(1, key.Get());
-        auto sharedLookupKeys = MakeSharedRange(std::move(lookupKeys), key);
         auto lookupReader = Store_->CreateReader(
             Tablet_->BuildSnapshot(nullptr),
-            sharedLookupKeys,
+            MakeSharedRange(std::move(lookupKeys), key),
             AllCommittedTimestamp,
             true,
             TColumnFilter(),
