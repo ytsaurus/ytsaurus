@@ -1062,6 +1062,12 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_heavy_runtime_parameters", &TThis::EnableHeavyRuntimeParameters)
         .Default(false);
 
+    registrar.Parameter("enable_operation_heavy_attributes_archivation", &TThis::EnableOperationHeavyAttributesArchivation)
+        .Default(false);
+
+    registrar.Parameter("operation_heavy_attributes_archivation_timeout", &TThis::OperationHeavyAttributesArchivationTimeout)
+        .Default(TDuration::Seconds(3));
+
     registrar.Parameter("schedule_job_entry_removal_timeout", &TThis::ScheduleJobEntryRemovalTimeout)
         .Default(TDuration::Minutes(2));
 

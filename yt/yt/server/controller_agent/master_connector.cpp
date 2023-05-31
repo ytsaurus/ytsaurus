@@ -325,13 +325,10 @@ private:
         return Bootstrap_->GetControllerAgent()->IsConnected();
     }
 
-    // TODO: move this function and its copy from ytlib/api/native/client.cpp to common place
     bool DoesOperationsArchiveExist()
     {
         if (!ArchiveExists_) {
-            ArchiveExists_ = WaitFor(
-                Bootstrap_->GetClient()->NodeExists("//sys/operations_archive", TNodeExistsOptions()))
-                .ValueOrThrow();
+            ArchiveExists_ = Bootstrap_->GetClient()->DoesOperationsArchiveExist();
         }
         return *ArchiveExists_;
     }

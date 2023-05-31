@@ -95,6 +95,8 @@ public:
 
     void Terminate() override;
 
+    bool DoesOperationsArchiveExist() override;
+
     // Transactions
     TFuture<ITransactionPtr> StartNativeTransaction(
         NTransactionClient::ETransactionType type,
@@ -1372,7 +1374,6 @@ private:
     // Operation info
     //
 
-    bool DoesOperationsArchiveExist();
     int DoGetOperationsArchiveVersion();
 
     struct TGetOperationFromCypressResult

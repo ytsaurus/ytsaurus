@@ -35,6 +35,9 @@
 #include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/operation_archive_schema.h>
+
+#include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
@@ -273,6 +276,62 @@ public:
             operationId);
     }
 
+    bool TryReportOperationHeavyAttributesInArchive(const TOperationPtr& operation)
+    {
+        const auto& initializationAttributes = operation->ControllerAttributes().InitializeAttributes;
+
+        if (!initializationAttributes) {
+            return false;
+        }
+
+        const auto& fullSpec = initializationAttributes->FullSpec;
+        const auto& unrecognizedSpec = initializationAttributes->UnrecognizedSpec;
+
+        auto operationId = operation->GetId();
+
+        const auto& client = Bootstrap_->GetClient();
+        auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
+           .ValueOrThrow();
+
+        YT_LOG_DEBUG("Operation heavy attributes report transaction started (TransactionId: %v, OperationId: %v)",
+           transaction->GetId(),
+           operationId);
+
+        TOrderedByIdTableDescriptor tableDescriptor;
+        TUnversionedRowBuilder builder;
+        builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.IdHi));
+        builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.IdLo));
+        builder.AddValue(MakeUnversionedAnyValue(fullSpec.ToString(), tableDescriptor.Index.FullSpec));
+        builder.AddValue(MakeUnversionedAnyValue(unrecognizedSpec.ToString(), tableDescriptor.Index.UnrecognizedSpec));
+
+        auto rowBuffer = New<TRowBuffer>();
+        auto row = rowBuffer->CaptureRow(builder.GetRow());
+        i64 orderedByIdRowsDataWeight = GetDataWeight(row);
+
+        transaction->WriteRows(
+            GetOperationsArchiveOrderedByIdPath(),
+            tableDescriptor.NameTable,
+            MakeSharedRange(TCompactVector<TUnversionedRow, 1>{1, row}, std::move(rowBuffer)));
+
+        auto error = WaitFor(transaction->Commit()
+            .ToUncancelable()
+            .WithTimeout(Config_->OperationHeavyAttributesArchivationTimeout));
+
+        if (!error.IsOK()) {
+            YT_LOG_WARNING(
+                error,
+                "Operation heavy attributes report in archive failed (TransactionId: %v, OperationId: %v)",
+                transaction->GetId(),
+                operationId);
+        } else {
+            YT_LOG_DEBUG("Operation heavy attributes reported successfully (TransactionId: %v, DataWeight: %v, OperationId: %v)",
+                transaction->GetId(),
+                orderedByIdRowsDataWeight,
+                operationId);
+        }
+        return error.IsOK();
+    }
+
     TFuture<void> CreateOperationNode(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -296,8 +355,13 @@ public:
 
         auto batchReq = StartObjectBatchRequest();
 
+        bool heavyAttributesArchived = false;
+        if (Config_->EnableOperationHeavyAttributesArchivation && DoesOperationsArchiveExist()) {
+            heavyAttributesArchived = TryReportOperationHeavyAttributesInArchive(operation);
+        }
+
         auto attributes = BuildAttributeDictionaryFluently()
-            .Do(BIND(&BuildFullOperationAttributes, operation, /*includeOperationId*/ true))
+            .Do(BIND(&BuildFullOperationAttributes, operation, /*includeOperationId*/ true, /*includeHeavyAttributes*/ !heavyAttributesArchived))
             .Item("brief_spec").Value(operation->BriefSpecString())
             .Finish();
 
@@ -605,6 +669,8 @@ private:
 
     TEnumIndexedVector<ESchedulerAlertType, TError> Alerts_;
 
+    std::optional<bool> ArchiveExists_;
+
     struct TOperationNodeUpdate
     {
         explicit TOperationNodeUpdate(TOperationPtr operation)
@@ -738,6 +804,14 @@ private:
 
         Disconnect(TError("Lock transaction aborted")
             << error);
+    }
+
+    bool DoesOperationsArchiveExist()
+    {
+        if (!ArchiveExists_) {
+            ArchiveExists_ = Bootstrap_->GetClient()->DoesOperationsArchiveExist();
+        }
+        return *ArchiveExists_;
     }
 
 

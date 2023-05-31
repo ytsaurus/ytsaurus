@@ -89,6 +89,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             },
             "static_orchid_cache_update_period": 100,
             "alerts_update_period": 100,
+            "enable_operation_heavy_attributes_archivation": True,
         }
     }
 
@@ -142,6 +143,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             assert "start_time" in row
             assert "alerts" in row
             assert row["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"] == "root"
+            assert row["full_spec"] != {}
 
     @authors("asaitgalin")
     def test_operations_archive_is_not_initialized(self):

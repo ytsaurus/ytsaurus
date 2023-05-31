@@ -64,7 +64,7 @@ void BuildMinimalOperationAttributes(TOperationPtr operation, TFluentMap fluent)
         .Item("suspended").Value(operation->GetSuspended());
 }
 
-void BuildFullOperationAttributes(TOperationPtr operation, bool includeOperationId, TFluentMap fluent)
+void BuildFullOperationAttributes(TOperationPtr operation, bool includeOperationId, bool includeHeavyAttributes, TFluentMap fluent)
 {
     const auto& initializationAttributes = operation->ControllerAttributes().InitializeAttributes;
     const auto& prepareAttributes = operation->ControllerAttributes().PrepareAttributes;
@@ -81,7 +81,7 @@ void BuildFullOperationAttributes(TOperationPtr operation, bool includeOperation
         .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
         .Item("mutation_id").Value(operation->GetMutationId())
         .Item("user_transaction_id").Value(operation->GetUserTransactionId())
-        .DoIf(static_cast<bool>(initializationAttributes), [&] (TFluentMap fluent) {
+        .DoIf(initializationAttributes && includeHeavyAttributes, [&] (TFluentMap fluent) {
             fluent
                 .Item("unrecognized_spec").Value(initializationAttributes->UnrecognizedSpec)
                 .Item("full_spec").Value(initializationAttributes->FullSpec);

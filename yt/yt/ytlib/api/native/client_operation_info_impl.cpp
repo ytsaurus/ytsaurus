@@ -537,6 +537,13 @@ TOperation TClient::DoGetOperationImpl(
             (*cypressResult)->BriefProgress = std::move(briefProgress);
         }
         (*cypressResult)->AlertEvents = archiveResult->AlertEvents;
+
+        if (auto fullSpec = archiveResult->FullSpec) {
+            (*cypressResult)->FullSpec = std::move(fullSpec);
+        }
+        if (auto unrecognizedSpec = archiveResult->UnrecognizedSpec) {
+            (*cypressResult)->UnrecognizedSpec = std::move(unrecognizedSpec);
+        }
     };
 
     if (cypressResult && archiveResultOrError.IsOK()) {

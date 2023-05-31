@@ -930,6 +930,9 @@ public:
 
     bool EnableHeavyRuntimeParameters;
 
+    bool EnableOperationHeavyAttributesArchivation;
+    TDuration OperationHeavyAttributesArchivationTimeout;
+
     TDuration ScheduleJobEntryRemovalTimeout;
     TDuration ScheduleJobEntryCheckPeriod;
 

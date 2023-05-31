@@ -110,6 +110,8 @@ struct IClient
     virtual TFuture<TSyncAlienCellsResult> SyncAlienCells(
         const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
         const TSyncAlienCellOptions& options = {}) = 0;
+
+    virtual bool DoesOperationsArchiveExist() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

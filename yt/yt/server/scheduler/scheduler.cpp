@@ -2890,7 +2890,7 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Do(BIND(&NScheduler::BuildFullOperationAttributes, operation, /*includeOperationId*/ false))
+                .Do(BIND(&NScheduler::BuildFullOperationAttributes, operation, /*includeOperationId*/ false, /*includeHeavyAttributes*/ true))
                 .DoIf(static_cast<bool>(agent), [&] (TFluentMap fluent) {
                     fluent
                         .Item("agent_id").Value(agent->GetId());

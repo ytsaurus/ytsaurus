@@ -11,7 +11,7 @@ from yt_commands import (
     ls, get,
     set, remove, exists, create_account, create_tmpdir, create_user, create_pool, create_pool_tree,
     start_transaction, abort_transaction,
-    read_table, write_table, map, sort,
+    read_table, write_table, map, reduce, sort,
     run_test_vanilla, run_sleeping_vanilla,
     abort_job, get_job, get_job_fail_context, list_jobs, get_operation,
     abandon_job, sync_create_cells, update_controller_agent_config, update_scheduler_config,
@@ -1376,6 +1376,127 @@ class TestSafeAssertionsMode(YTEnvSetup):
             op.track()
         print_debug(op.get_error())
         assert op.get_error().contains_code(213)  # NScheduler::EErrorCode::TestingError
+
+
+class TestSchedulerAttributes(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "event_log": {"retry_backoff_time": 7, "flush_period": 5000},
+            "enable_operation_heavy_attributes_archivation": True,
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_options": {"spec_template": {"data_weight_per_job": 1000}},
+            "map_operation_options": {
+                "spec_template": {
+                    "data_weight_per_job": 2000,
+                    "max_failed_job_count": 10,
+                }
+            },
+        },
+    }
+
+    @authors("ignat")
+    def test_specs(self):
+        create("table", "//tmp/t_in")
+        write_table("<append=true;sorted_by=[foo]>//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out")
+
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False, fail_fast=False)
+
+        full_spec_path = "//sys/scheduler/orchid/scheduler/operations/{0}/full_spec".format(op.id)
+        wait(lambda: exists(full_spec_path))
+
+        assert get("{}/data_weight_per_job".format(full_spec_path)) == 2000
+        assert get("{}/max_failed_job_count".format(full_spec_path)) == 10
+
+        op.abort()
+
+        op = reduce(
+            command="sleep 1000",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            reduce_by=["foo"],
+            track=False,
+            fail_fast=False,
+        )
+        wait(lambda: op.get_state() == "running")
+
+        full_spec_path = "//sys/scheduler/orchid/scheduler/operations/{0}/full_spec".format(op.id)
+        wait(lambda: exists(full_spec_path))
+
+        assert get("{}/data_weight_per_job".format(full_spec_path)) == 1000
+        assert get("{}/max_failed_job_count".format(full_spec_path)) == 10
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        op.ensure_running()
+
+        assert get("{}/data_weight_per_job".format(full_spec_path)) == 1000
+        assert get("{}/max_failed_job_count".format(full_spec_path)) == 10
+
+        op.abort()
+
+    @authors("ignat")
+    def test_unrecognized_spec(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"a": "b"}])
+        create("table", "//tmp/t_out")
+        op = map(
+            command="sleep 1000",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            track=False,
+            spec={"xxx": "yyy"},
+        )
+
+        wait(lambda: exists(op.get_path() + "/@unrecognized_spec"))
+        assert get(op.get_path() + "/@unrecognized_spec") == {"xxx": "yyy"}
+
+    @authors("ignat")
+    def test_brief_progress(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"a": "b"}])
+        create("table", "//tmp/t_out")
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False)
+
+        wait(lambda: exists(op.get_path() + "/@brief_progress"))
+        assert "jobs" in list(get(op.get_path() + "/@brief_progress"))
+
+    @authors("omgronny")
+    @pytest.mark.parametrize("enable_spec_archivation", [True, False])
+    def test_specs_in_archive(self, enable_spec_archivation):
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default",
+        )
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        update_scheduler_config("enable_operation_heavy_attributes_archivation", enable_spec_archivation)
+
+        op = run_test_vanilla(
+            command="sleep 1000",
+            track=False,
+            spec={"xxx": "yyy"}
+        )
+
+        if enable_spec_archivation:
+            wait(lambda: "unrecognized_spec" in get_operation(op.id, attributes=["unrecognized_spec"]))
+            assert not exists(op.get_path() + "/@unrecognized_spec")
+            assert get_operation(op.id, attributes=["unrecognized_spec"])["unrecognized_spec"]["xxx"] == "yyy"
+        else:
+            wait(lambda: exists(op.get_path() + "/@unrecognized_spec"))
+            assert get(op.get_path() + "/@unrecognized_spec")["xxx"] == "yyy"
 
 
 ##################################################################
