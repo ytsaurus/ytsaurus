@@ -406,16 +406,16 @@ void Serialize(const TQueryResult& queryResult, NYson::IYsonConsumer* consumer)
 
 std::optional<EJobState> TJob::GetState() const
 {
-    if (ArchiveState && ControllerAgentState) {
+    if (ArchiveState && ControllerState) {
         if (IsJobInProgress(*ArchiveState)) {
-            return *ControllerAgentState;
+            return ControllerState;
         } else {
-            return *ArchiveState;
+            return ArchiveState;
         }
     } else if (ArchiveState) {
-        return *ArchiveState;
-    } else if (ControllerAgentState) {
-        return *ControllerAgentState;
+        return ArchiveState;
+    } else if (ControllerState) {
+        return ControllerState;
     }
     return std::nullopt;
 }
@@ -454,7 +454,7 @@ void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey
             .OptionalItem("operation_id", job.OperationId)
             .OptionalItem("type", job.Type)
             .OptionalItem("state", job.GetState())
-            .OptionalItem("controller_agent_state", job.ControllerAgentState)
+            .OptionalItem("controller_state", job.ControllerState)
             .OptionalItem("archive_state", job.ArchiveState)
             .OptionalItem("address", job.Address)
             .OptionalItem("start_time", job.StartTime)

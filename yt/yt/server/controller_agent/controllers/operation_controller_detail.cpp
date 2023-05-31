@@ -2880,6 +2880,7 @@ void TOperationControllerBase::SafeOnJobStarted(TJobId jobId)
     IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, joblet->DiskQuota);
 
     ReportJobCookieToArchive(joblet);
+    ReportControllerStateToArchive(joblet, EJobState::Running);
 
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(jobId)
@@ -5204,6 +5205,8 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
     if (!joblet->StartTime) {
         return;
     }
+
+    ReportControllerStateToArchive(joblet, summary->State);
 
     bool shouldRetainJob =
         (retainJob && RetainedJobCount_ < Config->MaxRetainedJobsPerOperation) ||
@@ -10539,6 +10542,12 @@ void TOperationControllerBase::ReportJobCookieToArchive(const TJobletPtr& joblet
 {
     HandleJobReport(joblet, TControllerJobReport()
         .JobCookie(joblet->OutputCookie));
+}
+
+void TOperationControllerBase::ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state)
+{
+    HandleJobReport(joblet, TControllerJobReport()
+        .ControllerState(state));
 }
 
 void TOperationControllerBase::SendRunningJobTimeStatisticsUpdates()

@@ -1075,7 +1075,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(47);
+        .Default(48);
 
     registrar.Parameter("control_unknown_operation_jobs_lifetime", &TThis::ControlUnknownOperationJobsLifetime)
         .Default(true);

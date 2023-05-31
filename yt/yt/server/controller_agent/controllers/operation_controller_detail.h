@@ -1453,6 +1453,7 @@ private:
     void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary);
 
     void ReportJobCookieToArchive(const TJobletPtr& joblet);
+    void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state);
 
     //! Helper class that implements IPersistentChunkPoolInput interface for output tables.
     class TSink

@@ -45,6 +45,12 @@ TControllerJobReport TControllerJobReport::Address(std::optional<TString> addres
     return std::move(*this);
 }
 
+TControllerJobReport TControllerJobReport::ControllerState(EJobState controllerState)
+{
+    ControllerState_ = FormatEnum(controllerState);
+    return std::move(*this);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent

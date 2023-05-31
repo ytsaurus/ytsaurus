@@ -115,7 +115,7 @@ bool TJobReport::IsEmpty() const
 {
     bool somethingSpecified =
         Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ ||
-        Statistics_ || Events_ || Stderr_ || StderrSize_ || FailContext_ || Profile_ || JobCookie_ ||
+        Statistics_ || Events_ || Stderr_ || StderrSize_ || FailContext_ || Profile_ || JobCookie_ || ControllerState_ ||
         CoreInfos_ || HasCompetitors_ || HasProbingCompetitors_ || MonitoringDescriptor_ || ExecAttributes_;
     return !somethingSpecified;
 }

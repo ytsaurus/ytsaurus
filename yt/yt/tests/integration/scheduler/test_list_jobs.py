@@ -544,7 +544,7 @@ class TestListJobsBase(YTEnvSetup):
         completed_map_job = completed_map_job_list[0]
 
         check_times(completed_map_job)
-        assert completed_map_job["controller_agent_state"] == "completed"
+        assert completed_map_job["controller_state"] == "completed"
         assert completed_map_job["archive_state"] == "running"
         assert completed_map_job["type"] == "partition_map"
         assert "slot_index" in completed_map_job["exec_attributes"]
@@ -772,6 +772,8 @@ class TestListJobs(TestListJobsBase):
         release_breakpoint()
         op.track()
 
+        wait(lambda: get_job_from_table(op.id, job_id)["controller_state"] == "completed")
+
         def has_job_state_converged():
             set_job_in_table(op.id, job_id, {"transient_state": "running"})
             time.sleep(1)
@@ -784,7 +786,7 @@ class TestListJobs(TestListJobsBase):
         assert len(res_jobs) == 1
         res_job = res_jobs[0]
 
-        assert res_job.get("controller_agent_state") is None
+        assert res_job.get("controller_state") == "completed"
         assert res_job["archive_state"] == "running"
         assert res_job.get("is_stale")
 
@@ -810,7 +812,7 @@ class TestListJobs(TestListJobsBase):
         assert len(res_jobs) == 1
         res_job = res_jobs[0]
 
-        assert res_job.get("controller_agent_state") == "running"
+        assert res_job.get("controller_state") == "running"
         assert res_job.get("archive_state") == "running"
         assert not res_job.get("is_stale")
 

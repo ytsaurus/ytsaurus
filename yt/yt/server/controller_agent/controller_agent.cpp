@@ -272,7 +272,7 @@ public:
             Config_,
             std::move(configNode),
             Bootstrap_))
-        , JobTracker_(New<TJobTracker>(Bootstrap_))
+        , JobTracker_(New<TJobTracker>(Bootstrap_, JobReporter_))
         , JobProfiler_(New<TJobProfiler>())
         , JobEventsInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()))
         , CachedExecNodeDescriptorsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TFilteredExecNodeDescriptors>>(

@@ -119,6 +119,7 @@ TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     , PoolTree(nameTable->RegisterName("pool_tree"))
     , MonitoringDescriptor(nameTable->RegisterName("monitoring_descriptor"))
     , JobCookie(nameTable->RegisterName("job_cookie"))
+    , ControllerState(nameTable->RegisterName("controller_state"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

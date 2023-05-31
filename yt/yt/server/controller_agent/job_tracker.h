@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/controller_agent/proto/job_tracker_service.pb.h>
 
+#include <yt/yt/server/lib/misc/job_reporter.h>
+
 #include <yt/yt/core/rpc/service_detail.h>
 
 #include <yt/yt/library/profiling/sensor.h>
@@ -32,7 +34,7 @@ public:
         NProto::TRspHeartbeat>;
     using TCtxHeartbeatPtr = TIntrusivePtr<TCtxHeartbeat>;
 
-    explicit TJobTracker(TBootstrap* bootstrap);
+    TJobTracker(TBootstrap* bootstrap, TJobReporterPtr jobReporter);
 
     TFuture<void> Initialize();
     void OnSchedulerConnected(TIncarnationId incarnationId);
@@ -55,6 +57,8 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
+
+    TJobReporterPtr JobReporter_;
 
     TJobTrackerConfigPtr Config_;
 
@@ -241,6 +245,8 @@ private:
         TRequestedActionInfo& requestedActionInfo,
         TJobId jobId,
         TOperationId operationId);
+
+    void ReportUnknownJobInArchive(TJobId jobId, TOperationId operationId, const TString& nodeAddress);
 
     TNodeInfo& GetOrRegisterNode(TNodeId nodeId, const TString& nodeAddress);
     TNodeInfo& RegisterNode(TNodeId nodeId, TString nodeAddress);

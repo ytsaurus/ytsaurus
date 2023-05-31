@@ -84,6 +84,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, MonitoringDescriptor);
     DEFINE_BYREF_RO_PROPERTY(std::optional<ui64>, JobCookie);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Address);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, ControllerState);
 
 protected:
     TJobReport() = default;

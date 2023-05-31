@@ -7,6 +7,7 @@
 #include "private.h"
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
+#include <yt/yt/server/lib/controller_agent/job_report.h>
 
 #include <yt/yt/server/lib/controller_agent/proto/job_tracker_service.pb.h>
 
@@ -400,8 +401,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
-TJobTracker::TJobTracker(TBootstrap* bootstrap)
+TJobTracker::TJobTracker(TBootstrap* bootstrap, TJobReporterPtr jobReporter)
     : Bootstrap_(bootstrap)
+    , JobReporter_(std::move(jobReporter))
     , Config_(bootstrap->GetConfig()->ControllerAgent->JobTracker)
     , JobEventsControllerQueue_(bootstrap->GetConfig()->ControllerAgent->JobEventsControllerQueue)
     , HeartbeatStatisticsBytes_(ControllerAgentProfiler.WithHot().Counter("/node_heartbeat/statistics_bytes"))
@@ -678,6 +680,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
                 // Remove or abort unknown job.
                 if (shouldAbortJob) {
                     NProto::ToProto(response->add_jobs_to_abort(), TJobToAbort{jobId, EAbortReason::Unknown});
+                    ReportUnknownJobInArchive(jobId, operationId, nodeInfo.NodeAddress);
                 } else {
                     ToProto(response->add_jobs_to_remove(), TJobToRelease{jobId});
                 }
@@ -1481,6 +1484,18 @@ void TJobTracker::DoFailJob(
             requestedActionInfo = TFailureRequestOptions();
         },
         [&] (TFailureRequestOptions& /*requestOptions*/) { });
+}
+
+void TJobTracker::ReportUnknownJobInArchive(TJobId jobId, TOperationId operationId, const TString& nodeAddress)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    JobReporter_->HandleJobReport(
+        TControllerJobReport()
+            .OperationId(operationId)
+            .JobId(jobId)
+            .Address(nodeAddress)
+            .ControllerState(EJobState::Aborted));
 }
 
 TJobTracker::TNodeInfo& TJobTracker::GetOrRegisterNode(TNodeId nodeId, const TString& nodeAddress)

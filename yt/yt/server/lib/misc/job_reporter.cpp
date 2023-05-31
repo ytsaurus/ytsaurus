@@ -169,6 +169,10 @@ public:
         if (archiveVersion >= 47 && Report_.JobCookie()) {
             builder.AddValue(MakeUnversionedInt64Value(*Report_.JobCookie(), index.JobCookie));
         }
+        // COMPAT(omgronny)
+        if (archiveVersion >= 48 && Report_.ControllerState()) {
+            builder.AddValue(MakeUnversionedStringValue(*Report_.ControllerState(), index.ControllerState));
+        }
 
         return builder.FinishRow();
     }

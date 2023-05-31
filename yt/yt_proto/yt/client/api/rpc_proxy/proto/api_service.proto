@@ -2651,7 +2651,7 @@ message TJob
     optional bytes input_paths = 13; // YSON
     optional bytes core_infos = 14; // YSON
     optional NYT.NProto.TGuid operation_id = 15;
-    optional EJobState controller_agent_state = 16;
+    optional EJobState controller_state = 16;
     optional EJobState archive_state = 17;
     optional NYT.NProto.TGuid job_competition_id = 18;
     optional bool has_competitors = 19;

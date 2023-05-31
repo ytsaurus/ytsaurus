@@ -103,6 +103,7 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "monitoring_descriptor",
     "core_infos",
     "job_cookie",
+    "controller_state",
 };
 
 static const auto DefaultGetJobAttributes = [] {
@@ -1051,6 +1052,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
     auto poolTreeIndex = findColumnIndex("pool_tree");
     auto monitoringDescriptorIndex = findColumnIndex("monitoring_descriptor");
     auto jobCookieIndex = findColumnIndex("job_cookie");
+    auto controllerStateIndex = findColumnIndex("controller_state");
 
     std::vector<TJob> jobs;
     auto rows = rowset->GetRows();
@@ -1077,6 +1079,10 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
         if (typeIndex) {
             ValidateNonNull(row[*typeIndex], "type", operationId, job.Id);
             job.Type = ParseEnum<EJobType>(FromUnversionedValue<TStringBuf>(row[*typeIndex]));
+        }
+
+        if (controllerStateIndex && row[*controllerStateIndex].Type != EValueType::Null) {
+            job.ControllerState = ParseEnum<EJobState>(FromUnversionedValue<TStringBuf>(row[*controllerStateIndex]));
         }
 
         if (stateIndex) {
@@ -1248,6 +1254,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     builder.AddSelectExpression("monitoring_descriptor");
     builder.AddSelectExpression("core_infos");
     builder.AddSelectExpression("job_cookie");
+    builder.AddSelectExpression("controller_state");
 
     if (options.WithStderr) {
         if (*options.WithStderr) {
@@ -1390,7 +1397,7 @@ static void ParseJobsFromControllerAgentResponse(
             job.Type = jobMapNode->GetChildValueOrThrow<EJobType>("job_type");
         }
         if (needState) {
-            job.ControllerAgentState = jobMapNode->GetChildValueOrThrow<EJobState>("state");
+            job.ControllerState = jobMapNode->GetChildValueOrThrow<EJobState>("state");
         }
         if (needStartTime) {
             job.StartTime = jobMapNode->GetChildValueOrThrow<TInstant>("start_time");
@@ -1663,7 +1670,7 @@ static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
     };
 
     mergeNullableField(&TJob::Type);
-    mergeNullableField(&TJob::ControllerAgentState);
+    mergeNullableField(&TJob::ControllerState);
     mergeNullableField(&TJob::ArchiveState);
     mergeNullableField(&TJob::Progress);
     mergeNullableField(&TJob::StartTime);
@@ -1709,10 +1716,11 @@ static void UpdateJobsAndAddMissing(std::vector<std::vector<TJob>>&& controllerA
         std::make_move_iterator(newJobs.end()));
 }
 
-static bool IsJobStale(std::optional<EJobState> controllerAgentState, std::optional<EJobState> archiveState)
+static bool IsJobStale(std::optional<EJobState> controllerState, std::optional<EJobState> archiveState)
 {
     return
-        !controllerAgentState &&
+        (!controllerState ||
+            IsJobFinished(*controllerState)) &&
         archiveState &&
         IsJobInProgress(*archiveState);
 }
@@ -1883,7 +1891,7 @@ TListJobsResult TClient::DoListJobs(
 
     // Compute job staleness.
     for (auto& job : result.Jobs) {
-        job.IsStale = IsJobStale(job.ControllerAgentState, job.ArchiveState);
+        job.IsStale = IsJobStale(job.ControllerState, job.ArchiveState);
     }
 
     return result;
@@ -2112,7 +2120,7 @@ TYsonString TClient::DoGetJob(
             operationId);
     }
 
-    job.IsStale = IsJobStale(job.ControllerAgentState, job.ArchiveState);
+    job.IsStale = IsJobStale(job.ControllerState, job.ArchiveState);
 
     if (attributes.contains("pool")) {
         auto error = TryFillJobPools(this, operationId, TMutableRange(&job, 1), Logger);
