@@ -610,6 +610,23 @@ public:
     void Merge(const TFormatHints& patch);
 };
 
+/// Options that control which control attributes (like row_index) are added to rows during read.
+class TControlAttributes
+{
+public:
+    /// @cond Doxygen_Suppress
+    using TSelf = TControlAttributes;
+    /// @endcond
+
+    ///
+    /// @brief Whether to add "row_index" attribute to rows read.
+    FLUENT_FIELD_DEFAULT(bool, EnableRowIndex, true);
+
+    ///
+    /// @brief Whether to add "range_index" attribute to rows read.
+    FLUENT_FIELD_DEFAULT(bool, EnableRangeIndex, true);
+};
+
 /// Options for @ref NYT::IClient::CreateTableReader
 struct TTableReaderOptions
     : public TIOOptions<TTableReaderOptions>
@@ -622,6 +639,11 @@ struct TTableReaderOptions
     ///
     /// Has no effect when used with raw-reader.
     FLUENT_FIELD_OPTION(TFormatHints, FormatHints);
+
+    ///
+    /// @brief Allows to tune which attributes are added to rows while reading tables.
+    ///
+    FLUENT_FIELD_DEFAULT(TControlAttributes, ControlAttributes, TControlAttributes());
 };
 
 /// Options for @ref NYT::IClient::CreateTableWriter

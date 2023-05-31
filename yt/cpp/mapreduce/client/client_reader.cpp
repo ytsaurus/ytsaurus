@@ -156,9 +156,11 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
         }
         auto transactionId = (ReadTransaction_ ? ReadTransaction_->GetId() : ParentTransactionId_);
         header.AddTransactionId(transactionId);
+
+        const auto& controlAttributes = Options_.ControlAttributes_;
         header.AddParameter("control_attributes", TNode()
-            ("enable_row_index", true)
-            ("enable_range_index", true));
+            ("enable_row_index", controlAttributes.EnableRowIndex_)
+            ("enable_range_index", controlAttributes.EnableRangeIndex_));
         header.SetOutputFormat(Format_);
 
         header.SetResponseCompression(ToString(Context_.Config->AcceptEncoding));
