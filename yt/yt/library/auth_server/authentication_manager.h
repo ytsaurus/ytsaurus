@@ -37,8 +37,7 @@ DEFINE_REFCOUNTED_TYPE(IAuthenticationManager)
 IAuthenticationManagerPtr CreateAuthenticationManager(
     TAuthenticationManagerConfigPtr config,
     NConcurrency::IPollerPtr poller,
-    NApi::IClientPtr client,
-    NProfiling::TProfiler profiler = AuthProfiler);
+    NApi::IClientPtr client);
 
 ////////////////////////////////////////////////////////////////////////////////
 

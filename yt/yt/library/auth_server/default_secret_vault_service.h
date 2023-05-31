@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////

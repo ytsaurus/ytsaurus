@@ -8,6 +8,7 @@
 #include "ticket_authenticator.h"
 #include "token_authenticator.h"
 #include "config.h"
+#include "private.h"
 
 #include <yt/yt/core/rpc/authenticator.h>
 
@@ -30,8 +31,7 @@ public:
     TAuthenticationManager(
         TAuthenticationManagerConfigPtr config,
         IPollerPtr poller,
-        NApi::IClientPtr client,
-        TProfiler profiler)
+        NApi::IClientPtr client)
     {
         std::vector<NRpc::IAuthenticatorPtr> rpcAuthenticators;
         std::vector<ITokenAuthenticatorPtr> tokenAuthenticators;
@@ -40,7 +40,7 @@ public:
         if (config->TvmService && poller) {
             TvmService_ = CreateTvmService(
                 config->TvmService,
-                profiler.WithPrefix("/tvm/remote"));
+                AuthProfiler.WithPrefix("/tvm/remote"));
         }
 
         IBlackboxServicePtr blackboxService;
@@ -49,14 +49,14 @@ public:
                 config->BlackboxService,
                 TvmService_,
                 poller,
-                profiler.WithPrefix("/blackbox"));
+                AuthProfiler.WithPrefix("/blackbox"));
         }
 
         if (config->CypressCookieManager) {
             CypressCookieManager_ = CreateCypressCookieManager(
                 config->CypressCookieManager,
                 client,
-                profiler);
+                AuthProfiler);
             cookieAuthenticators.push_back(CypressCookieManager_->GetCookieAuthenticator());
         }
 
@@ -72,8 +72,8 @@ public:
                     CreateBlackboxTokenAuthenticator(
                         config->BlackboxTokenAuthenticator,
                         blackboxService,
-                        profiler.WithPrefix("/blackbox_token_authenticator/remote")),
-                    profiler.WithPrefix("/blackbox_token_authenticator/cache")));
+                        AuthProfiler.WithPrefix("/blackbox_token_authenticator/remote")),
+                    AuthProfiler.WithPrefix("/blackbox_token_authenticator/cache")));
         }
 
         if (config->CypressTokenAuthenticator && client) {
@@ -83,13 +83,13 @@ public:
                     CreateLegacyCypressTokenAuthenticator(
                         config->CypressTokenAuthenticator,
                         client),
-                    profiler.WithPrefix("/legacy_cypress_token_authenticator/cache")));
+                    AuthProfiler.WithPrefix("/legacy_cypress_token_authenticator/cache")));
 
             tokenAuthenticators.push_back(
                 CreateCachingTokenAuthenticator(
                     config->CypressTokenAuthenticator,
                     CreateCypressTokenAuthenticator(client),
-                    profiler.WithPrefix("/cypress_token_authenticator/cache")));
+                    AuthProfiler.WithPrefix("/cypress_token_authenticator/cache")));
         }
 
         if (config->BlackboxCookieAuthenticator && blackboxService) {
@@ -103,7 +103,7 @@ public:
                 CreateBlackboxCookieAuthenticator(
                     config->BlackboxCookieAuthenticator,
                     blackboxService),
-                profiler.WithPrefix("/blackbox_cookie_authenticator/cache")));
+                AuthProfiler.WithPrefix("/blackbox_cookie_authenticator/cache")));
         }
 
         if (blackboxService && config->BlackboxTicketAuthenticator) {
@@ -194,14 +194,12 @@ private:
 IAuthenticationManagerPtr CreateAuthenticationManager(
     TAuthenticationManagerConfigPtr config,
     IPollerPtr poller,
-    NApi::IClientPtr client,
-    TProfiler profiler)
+    NApi::IClientPtr client)
 {
     return New<TAuthenticationManager>(
         std::move(config),
         std::move(poller),
-        std::move(client),
-        std::move(profiler));
+        std::move(client));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
