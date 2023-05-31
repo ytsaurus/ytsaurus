@@ -59,11 +59,11 @@ public class SkiffParser {
         return new BigInteger(sign, data);
     }
 
-    public short parseUint8() {
-        return (short) (reader.readByte() & 0xff);
+    public long parseUint8() {
+        return reader.readByte() & 0xff;
     }
 
-    public int parseUint16() {
+    public long parseUint16() {
         getDataInLittleEndian(2);
         byte[] buffer = bufferReference.getBuffer();
         int bufferOffset = bufferReference.getOffset();
@@ -75,8 +75,8 @@ public class SkiffParser {
         return new BigInteger(1, getDataInBigEndian(4)).longValue();
     }
 
-    public BigInteger parseUint64() {
-        return new BigInteger(1, getDataInBigEndian(8));
+    public long parseUint64() {
+        return new BigInteger(1, getDataInBigEndian(8)).longValue();
     }
 
     public BigInteger parseUint128() {
@@ -107,11 +107,11 @@ public class SkiffParser {
     }
 
     public short parseVariant8Tag() {
-        return parseUint8();
+        return (short) (reader.readByte() & 0xff);
     }
 
     public int parseVariant16Tag() {
-        return parseUint16();
+        return (int) parseUint16();
     }
 
     public byte[] getDataInBigEndian(int length) {

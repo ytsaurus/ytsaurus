@@ -1,36 +1,10 @@
 package tech.ytsaurus.client.rows;
 
-import java.util.Map;
-
 import tech.ytsaurus.skiff.WireType;
 import tech.ytsaurus.typeinfo.TiType;
-import tech.ytsaurus.ysontree.YTreeNode;
 
 class WireTypeUtil {
-    private static final Map<Class<?>, WireType> CLASS_WIRE_TYPE_MAP = Map.ofEntries(
-            Map.entry(byte.class, WireType.INT_8),
-            Map.entry(Byte.class, WireType.INT_8),
-            Map.entry(short.class, WireType.INT_16),
-            Map.entry(Short.class, WireType.INT_16),
-            Map.entry(int.class, WireType.INT_32),
-            Map.entry(Integer.class, WireType.INT_32),
-            Map.entry(long.class, WireType.INT_64),
-            Map.entry(Long.class, WireType.INT_64),
-            Map.entry(double.class, WireType.DOUBLE),
-            Map.entry(Double.class, WireType.DOUBLE),
-            Map.entry(boolean.class, WireType.BOOLEAN),
-            Map.entry(Boolean.class, WireType.BOOLEAN),
-            Map.entry(String.class, WireType.STRING_32)
-    );
-
     private WireTypeUtil() {
-    }
-
-    static WireType getWireTypeOf(Class<?> clazz) {
-        if (YTreeNode.class.isAssignableFrom(clazz)) {
-            return WireType.YSON_32;
-        }
-        return CLASS_WIRE_TYPE_MAP.getOrDefault(clazz, WireType.TUPLE);
     }
 
     static WireType getWireTypeOf(TiType tiType) {
@@ -42,6 +16,14 @@ class WireTypeUtil {
             return WireType.INT_32;
         } else if (tiType.isInt64()) {
             return WireType.INT_64;
+        } else if (tiType.isUint8()) {
+            return WireType.UINT_8;
+        } else if (tiType.isUint16()) {
+            return WireType.UINT_16;
+        } else if (tiType.isUint32()) {
+            return WireType.UINT_32;
+        } else if (tiType.isUint64()) {
+            return WireType.UINT_64;
         } else if (tiType.isDouble()) {
             return WireType.DOUBLE;
         } else if (tiType.isBool()) {

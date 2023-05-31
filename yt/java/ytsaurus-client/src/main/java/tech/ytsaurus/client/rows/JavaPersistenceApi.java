@@ -5,6 +5,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
+import static tech.ytsaurus.core.utils.ClassUtils.anyMatchWithAnnotation;
 import static tech.ytsaurus.core.utils.ClassUtils.getValueOfAnnotationProperty;
 
 class JavaPersistenceApi {
@@ -19,6 +22,7 @@ class JavaPersistenceApi {
     private static final String COLUMN_NULLABLE = "nullable";
     private static final String COLUMN_PRECISION = "precision";
     private static final String COLUMN_SCALE = "scale";
+    private static final String COLUMN_DEFINITION = "columnDefinition";
     private static final Set<String> ENTITY_ANNOTATIONS = getAnnotationsFor(ENTITY);
     private static final Set<String> TRANSIENT_ANNOTATIONS = getAnnotationsFor(TRANSIENT);
     private static final Set<String> COLUMN_ANNOTATIONS = getAnnotationsFor(COLUMN);
@@ -36,6 +40,11 @@ class JavaPersistenceApi {
 
     static Set<String> columnAnnotations() {
         return COLUMN_ANNOTATIONS;
+    }
+
+    static boolean isColumnAnnotationPresent(@Nullable Annotation annotation) {
+        return annotation != null &&
+                anyMatchWithAnnotation(annotation, JavaPersistenceApi.columnAnnotations());
     }
 
     static String getEntityName(Annotation entityAnnotation) {
@@ -56,6 +65,10 @@ class JavaPersistenceApi {
 
     static int getColumnScale(Annotation columnAnnotation) {
         return getValueOfAnnotationProperty(columnAnnotation, COLUMN_SCALE);
+    }
+
+    static String getColumnDefinition(Annotation columnAnnotation) {
+        return getValueOfAnnotationProperty(columnAnnotation, COLUMN_DEFINITION);
     }
 
     private static Set<String> getAnnotationsFor(String annotationName) {

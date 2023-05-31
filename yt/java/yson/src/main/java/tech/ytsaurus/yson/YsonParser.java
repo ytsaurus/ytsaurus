@@ -654,10 +654,6 @@ public class YsonParser {
     }
 }
 
-interface ZeroCopyInput {
-    boolean next(BufferReference out);
-}
-
 class ByteZeroCopyInput implements ZeroCopyInput {
     @Nullable
     byte[] buffer;

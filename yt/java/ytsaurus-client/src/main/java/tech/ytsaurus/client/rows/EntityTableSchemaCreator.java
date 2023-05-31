@@ -61,8 +61,7 @@ public class EntityTableSchemaCreator {
                                                          @Nullable Annotation annotation,
                                                          List<Type> genericTypeParameters) {
         boolean isNullable = true;
-        if (annotation != null &&
-                anyMatchWithAnnotation(annotation, JavaPersistenceApi.columnAnnotations())) {
+        if (JavaPersistenceApi.isColumnAnnotationPresent(annotation)) {
             var columnName = JavaPersistenceApi.getColumnName(annotation);
             name = columnName.isEmpty() ? name : columnName;
             isNullable = JavaPersistenceApi.isColumnNullable(annotation);
@@ -80,7 +79,12 @@ public class EntityTableSchemaCreator {
     private static <T> TiType getClassTiType(Class<T> clazz,
                                              @Nullable Annotation annotation,
                                              List<Type> genericTypeParameters) {
-        Optional<TiType> tiTypeIfSimple = getTiTypeIfSimple(clazz);
+        Optional<TiType> tiTypeIfSimple = getTiTypeIfSimple(
+                clazz,
+                JavaPersistenceApi.isColumnAnnotationPresent(annotation) ?
+                        JavaPersistenceApi.getColumnDefinition(annotation) :
+                        ""
+        );
         if (Collection.class.isAssignableFrom(clazz)) {
             return getCollectionTiType(genericTypeParameters.get(0));
         }

@@ -4,20 +4,20 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.NoSuchElementException;
 
 import tech.ytsaurus.client.request.Format;
-import tech.ytsaurus.client.rows.EntitySkiffSchemaCreator;
 import tech.ytsaurus.client.rows.EntitySkiffSerializer;
 import tech.ytsaurus.client.rows.EntityTableSchemaCreator;
+import tech.ytsaurus.client.rows.SchemaConverter;
 import tech.ytsaurus.core.operations.CloseableIterator;
 import tech.ytsaurus.core.operations.OperationContext;
 import tech.ytsaurus.core.operations.Yield;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.skiff.SkiffParser;
 import tech.ytsaurus.skiff.SkiffSchema;
+import tech.ytsaurus.skiff.SkiffSerializer;
 import tech.ytsaurus.skiff.WireType;
 import tech.ytsaurus.ysontree.YTreeStringNode;
 
@@ -31,7 +31,8 @@ public class EntityTableEntryType<T> implements YTableEntryType<T> {
 
     public EntityTableEntryType(Class<T> entityClass, boolean trackIndices, boolean isInputType) {
         this.entityClass = entityClass;
-        this.entitySchema = EntitySkiffSchemaCreator.create(entityClass);
+        this.tableSchema = EntityTableSchemaCreator.create(entityClass);
+        this.entitySchema = SchemaConverter.toSkiffSchema(tableSchema);
         if (trackIndices) {
             this.entitySchema.getChildren().add(
                     SkiffSchema.variant8(List.of(
@@ -41,7 +42,6 @@ public class EntityTableEntryType<T> implements YTableEntryType<T> {
                             .setName("$row_index")
             );
         }
-        this.tableSchema = EntityTableSchemaCreator.create(entityClass);
         this.trackIndices = trackIndices;
         this.isInputType = isInputType;
     }
@@ -95,29 +95,25 @@ public class EntityTableEntryType<T> implements YTableEntryType<T> {
 
     @Override
     public Yield<T> yield(OutputStream[] output) {
-        var bufferedOutput = new BufferedOutputStream[output.length];
+        var skiffSerializers = new SkiffSerializer[output.length];
         for (int i = 0; i < output.length; i++) {
-            bufferedOutput[i] = new BufferedOutputStream(output[i], 1 << 16);
+            skiffSerializers[i] = new SkiffSerializer(new BufferedOutputStream(output[i], 1 << 16));
         }
         return new Yield<>() {
-            private final EntitySkiffSerializer<T> skiffSerializer =
+            private final EntitySkiffSerializer<T> entitySerializer =
                     new EntitySkiffSerializer<>(entityClass);
 
             @Override
             public void yield(int index, T value) {
-                try {
-                    bufferedOutput[index].write(FIRST_TABLE_INDEX);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-                skiffSerializer.serialize(value, bufferedOutput[index]);
+                skiffSerializers[index].write(FIRST_TABLE_INDEX);
+                entitySerializer.serialize(value, skiffSerializers[index]);
             }
 
             @Override
             public void close() throws IOException {
-                for (int i = 0; i < output.length; ++i) {
-                    bufferedOutput[i].flush();
-                    bufferedOutput[i].close();
+                for (var serializer : skiffSerializers) {
+                    serializer.flush();
+                    serializer.close();
                 }
             }
         };
