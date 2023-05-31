@@ -27,7 +27,7 @@ class TestNodeHeartbeats(YTEnvSetup):
         update_nodes_dynamic_config({
             "exec_agent": {
                 "controller_agent_connector": {
-                    "test_heartbeat_delay": 3000,
+                    "test_heartbeat_delay": 10000,
                 }
             }
         })
