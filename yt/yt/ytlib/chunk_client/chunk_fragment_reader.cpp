@@ -827,6 +827,7 @@ private:
                 if (it != Reader_->ChunkIdToChunkInfo_.end()) {
                     auto entryGuard = Guard(it->second->Lock);
                     if (IsChunkInfoExpired(it->second, now)) {
+                        entryGuard.Release();
                         Reader_->ChunkIdToChunkInfo_.erase(it);
                     }
                 }
