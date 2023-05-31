@@ -242,7 +242,7 @@ public:
         const TSharedRef& recordData,
         TFuture<void>* localFlushFuture);
 
-    TFuture<TRemoteSnapshotParams> BuildSnapshot();
+    TFuture<TRemoteSnapshotParams> BuildSnapshot(bool readOnly);
 
     TFuture<void> RotateChangelog();
 
@@ -257,6 +257,7 @@ public:
 
     bool IsBuildingSnapshotNow() const;
     int GetLastSuccessfulSnapshotId() const;
+    bool GetLastSuccessfulSnapshotReadOnly() const;
 
 private:
     friend class TUserLockGuard;
@@ -312,10 +313,12 @@ private:
 
     //! AutomatonVersion_ <= SnapshotVersion_
     TVersion SnapshotVersion_;
+    bool SnapshotReadOnly_ = false;
     TPromise<TRemoteSnapshotParams> SnapshotParamsPromise_;
     std::atomic<bool> BuildingSnapshot_ = false;
     TInstant SnapshotBuildDeadline_ = TInstant::Max();
     std::atomic<int> LastSuccessfulSnapshotId_ = -1;
+    std::atomic<bool> LastSuccessfulSnapshotReadOnly_ = false;
 
     NProto::TMutationHeader MutationHeader_; // pooled instance
     TRingQueue<TPendingMutation> PendingMutations_;

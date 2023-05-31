@@ -134,7 +134,7 @@ private:
             }
         }
         asyncResults.push_back(
-            Owner_->DecoratedAutomaton_->BuildSnapshot().Apply(
+            Owner_->DecoratedAutomaton_->BuildSnapshot(SetReadOnly_).Apply(
                 BIND(&TSession::OnLocalSnapshotBuilt, MakeStrong(this))
                     .AsyncVia(Owner_->EpochContext_->EpochControlInvoker)));
 
@@ -361,20 +361,24 @@ TCheckpointer::TRotateChangelogResult TCheckpointer::RotateChangelog()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(CanRotateChangelogs());
 
-    auto session = New<TSession>(this, false, false);
+    auto session = New<TSession>(this, /*buildSnapshot*/ false, /*readOnly*/ false);
     session->Run();
     return session->GetChangelogResult();
 }
 
-TCheckpointer::TBuildSnapshotResult TCheckpointer::BuildSnapshot(bool setReadOnly)
+TCheckpointer::TBuildSnapshotResult TCheckpointer::BuildSnapshot(bool readOnly)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(CanBuildSnapshot());
 
-    auto session = New<TSession>(this, true, setReadOnly);
+    auto session = New<TSession>(this, /*buildSnapshot*/ true, readOnly);
     session->Run();
 
-    return TBuildSnapshotResult{session->GetChangelogResult(), session->GetSnapshotResult(), session->GetSnapshotId()};
+    return TBuildSnapshotResult{
+        session->GetChangelogResult(),
+        session->GetSnapshotResult(),
+        session->GetSnapshotId(),
+    };
 }
 
 bool TCheckpointer::CanBuildSnapshot() const

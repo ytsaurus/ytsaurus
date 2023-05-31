@@ -693,7 +693,7 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
                     default=None,
                     suppress_transaction_coordinator_sync=True,
                     suppress_upstream_sync=True)
-                if monitoring is None or not monitoring["read_only"]:
+                if monitoring is None or not monitoring["read_only"] or not monitoring["last_snapshot_read_only"]:
                     return False
 
             return True

@@ -416,6 +416,7 @@ public:
                     .Item("grace_delay_status").Value(GraceDelayStatus_.load())
                     .Item("building_snapshot").Value(DecoratedAutomaton_->IsBuildingSnapshotNow())
                     .Item("last_snapshot_id").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotId())
+                    .Item("last_snapshot_read_only").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotReadOnly())
                 .EndMap();
         });
     }
@@ -834,7 +835,7 @@ private:
 
         SetReadOnly(setReadOnly);
 
-        auto result = WaitFor(DecoratedAutomaton_->BuildSnapshot())
+        auto result = WaitFor(DecoratedAutomaton_->BuildSnapshot(setReadOnly))
             .ValueOrThrow();
 
         response->set_checksum(result.Checksum);
@@ -1860,7 +1861,7 @@ private:
                 if (isLeader || Options_.WriteSnapshotsAtFollowers) {
                     YT_LOG_INFO("Building compatibility snapshot");
                     DecoratedAutomaton_->RotateAutomatonVersionAfterRecovery();
-                    auto resultOrError = WaitFor(DecoratedAutomaton_->BuildSnapshot());
+                    auto resultOrError = WaitFor(DecoratedAutomaton_->BuildSnapshot(/*setReadOnly*/ false));
                     if (resultOrError.IsOK()) {
                         const auto& result = resultOrError.Value();
                         YT_LOG_INFO(resultOrError, "Compatibility snapshot built (SnapshotId: %v)",

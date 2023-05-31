@@ -257,6 +257,7 @@ public:
         : Owner_(owner)
         , SequenceNumber_(Owner_->SequenceNumber_)
         , SnapshotId_(Owner_->NextSnapshotId_)
+        , SnapshotReadOnly_(Owner_->NextSnapshotReadOnly_)
         , RandomSeed_(Owner_->RandomSeed_)
         , StateHash_(Owner_->StateHash_)
         , Timestamp_(Owner_->Timestamp_)
@@ -307,6 +308,7 @@ protected:
     const TDecoratedAutomatonPtr Owner_;
     const i64 SequenceNumber_;
     const int SnapshotId_;
+    const bool SnapshotReadOnly_;
     const ui64 RandomSeed_;
     const ui64 StateHash_;
     const TInstant Timestamp_;
@@ -357,9 +359,11 @@ private:
 
         const auto& params = SnapshotWriter_->GetParams();
 
-        TRemoteSnapshotParams remoteParams;
-        remoteParams.PeerId = SelfPeerId_;
-        remoteParams.SnapshotId = SnapshotId_;
+        TRemoteSnapshotParams remoteParams{
+            .PeerId = SelfPeerId_,
+            .SnapshotId = SnapshotId_,
+            .SnapshotReadOnly = SnapshotReadOnly_,
+        };
         static_cast<TSnapshotParams&>(remoteParams) = params;
         return remoteParams;
     }
@@ -866,6 +870,7 @@ void TDecoratedAutomaton::LoadSnapshot(
     // After recovery leader may still ask us to build snapshot N, but we already downloaded it from another peer,
     // so just refuse.
     LastSuccessfulSnapshotId_ = snapshotId;
+    LastSuccessfulSnapshotReadOnly_ = false;
     LastMutationTerm_ = lastMutationTerm;
     MutationCountSinceLastSnapshot_ = 0;
     MutationSizeSinceLastSnapshot_ = 0;
@@ -937,7 +942,10 @@ TFuture<TMutationResponse> TDecoratedAutomaton::TryBeginKeptRequest(const TMutat
     }));
 }
 
-TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot(int snapshotId, i64 sequenceNumber)
+TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot(
+    int snapshotId,
+    i64 sequenceNumber,
+    bool readOnly)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -968,12 +976,14 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot(int snapshotId
 
     YT_VERIFY(NextSnapshotId_ < snapshotId);
 
-    YT_LOG_INFO("Will build snapshot (SnapshotId: %v, SequenceNumber: %v)",
+    YT_LOG_INFO("Will build snapshot (SnapshotId: %v, SequenceNumber: %v, ReadOnly: %v)",
         snapshotId,
-        sequenceNumber);
+        sequenceNumber,
+        readOnly);
 
     NextSnapshotSequenceNumber_ = sequenceNumber;
     NextSnapshotId_ = snapshotId;
+    NextSnapshotReadOnly_ = readOnly;
     SnapshotParamsPromise_ = NewPromise<TRemoteSnapshotParams>();
 
     MaybeStartSnapshotBuilder();
@@ -1251,8 +1261,12 @@ void TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemot
         return;
     }
 
-    auto snapshotId = snapshotInfoOrError.Value().SnapshotId;
-    LastSuccessfulSnapshotId_ = std::max(LastSuccessfulSnapshotId_.load(), snapshotId);
+    const auto& snapshotInfo = snapshotInfoOrError.Value();
+    auto snapshotId = snapshotInfo.SnapshotId;
+    if (snapshotId > LastSuccessfulSnapshotId_.load()) {
+        LastSuccessfulSnapshotId_ = snapshotId;
+        LastSuccessfulSnapshotReadOnly_ = snapshotInfo.SnapshotReadOnly;
+    }
 
     MutationCountSinceLastSnapshot_ = 0;
     MutationSizeSinceLastSnapshot_ = 0;
@@ -1264,9 +1278,10 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
         return;
     }
 
-    YT_LOG_INFO("Building snapshot (SnapshotId: %v, SequenceNumber: %v)",
+    YT_LOG_INFO("Building snapshot (SnapshotId: %v, SequenceNumber: %v, ReadOnly: %v)",
         NextSnapshotId_,
-        NextSnapshotSequenceNumber_);
+        NextSnapshotSequenceNumber_,
+        NextSnapshotReadOnly_);
 
     auto builder =
         // XXX(babenko): ASAN + fork = possible deadlock; cf. https://st.yandex-team.ru/DEVTOOLS-5425
@@ -1328,6 +1343,13 @@ int TDecoratedAutomaton::GetLastSuccessfulSnapshotId() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return LastSuccessfulSnapshotId_.load();
+}
+
+bool TDecoratedAutomaton::GetLastSuccessfulSnapshotReadOnly() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return LastSuccessfulSnapshotReadOnly_.load();
 }
 
 TReign TDecoratedAutomaton::GetCurrentReign() const

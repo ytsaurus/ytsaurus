@@ -229,7 +229,10 @@ public:
 
     TFuture<NHydra::TMutationResponse> TryBeginKeptRequest(const NHydra::TMutationRequest& request);
 
-    TFuture<NHydra::TRemoteSnapshotParams> BuildSnapshot(int snapshotId, i64 sequenceNumber);
+    TFuture<NHydra::TRemoteSnapshotParams> BuildSnapshot(
+        int snapshotId,
+        i64 sequenceNumber,
+        bool readOnly);
 
     void CheckInvariants();
 
@@ -242,6 +245,7 @@ public:
 
     bool IsBuildingSnapshotNow() const;
     int GetLastSuccessfulSnapshotId() const;
+    bool GetLastSuccessfulSnapshotReadOnly() const;
 
 private:
     friend class TUserLockGuard;
@@ -291,11 +295,13 @@ private:
     TInstant Timestamp_;
 
     int NextSnapshotId_ = -1;
+    bool NextSnapshotReadOnly_ = false;
     // SequenceNumber_ <= NextSnapshotSequenceNumber_
     i64 NextSnapshotSequenceNumber_ = -1;
     TPromise<NHydra::TRemoteSnapshotParams> SnapshotParamsPromise_;
     std::atomic<bool> BuildingSnapshot_ = false;
     std::atomic<int> LastSuccessfulSnapshotId_ = NHydra::InvalidSegmentId;
+    std::atomic<bool> LastSuccessfulSnapshotReadOnly_ = false;
 
     NProfiling::TTimeGauge SnapshotLoadTime_;
 

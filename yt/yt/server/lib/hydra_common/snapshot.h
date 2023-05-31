@@ -59,6 +59,7 @@ struct TRemoteSnapshotParams
 {
     TPeerId PeerId = InvalidPeerId;
     int SnapshotId = InvalidSegmentId;
+    bool SnapshotReadOnly = false;
 };
 
 //! Manages a collection of snapshots on a peer.

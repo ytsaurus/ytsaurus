@@ -965,7 +965,7 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
 
     BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
         .AsyncVia(EpochContext_->EpochUserAutomatonInvoker)
-        .Run(Changelog_->GetId(), snapshotSequenceNumber)
+        .Run(Changelog_->GetId(), snapshotSequenceNumber, ReadOnly_)
         .Subscribe(
             BIND(&TLeaderCommitter::OnLocalSnapshotBuilt, MakeStrong(this), Changelog_->GetId())
                 .Via(EpochContext_->EpochControlInvoker));
