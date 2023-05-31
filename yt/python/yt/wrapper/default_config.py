@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from . import common
-from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL
+from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION
 from .mappings import VerifiedDict
 
 import yt.yson as yson
@@ -299,7 +299,7 @@ default_config = {
         # ldd command (and not filtered by "library_filter") will be added to special dir in
         # job sandbox and LD_LIBRARY_PATH will be set accordingly.
         "dynamic_libraries": {
-            "enable_auto_collection": False,
+            "enable_auto_collection": PICKLING_DL_ENABLE_AUTO_COLLECTION,
             "library_filter": None
         },
         # Ignore client yt_yson_bindings if platform on the cluster differs from client platform.

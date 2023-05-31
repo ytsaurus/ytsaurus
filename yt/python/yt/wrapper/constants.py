@@ -10,6 +10,7 @@ try:
         TUTORIAL_DOC_URL,
         YSON_PACKAGE_INSTALLATION_TEXT,
         RPC_PACKAGE_INSTALLATION_TEXT,
+        PICKLING_DL_ENABLE_AUTO_COLLECTION,
     )
 except ImportError:
     DEFAULT_HOST_SUFFIX = ""
@@ -22,3 +23,4 @@ except ImportError:
     TUTORIAL_DOC_URL = "<TODO>"
     YSON_PACKAGE_INSTALLATION_TEXT = 'as pip package "ytsaurus-yson"'
     RPC_PACKAGE_INSTALLATION_TEXT = 'as pip package "ytsaurus-rpc-driver"'
+    PICKLING_DL_ENABLE_AUTO_COLLECTION = True
