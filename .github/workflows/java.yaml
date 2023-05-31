@@ -60,6 +60,9 @@ jobs:
       - name: Run tests
         run: ./gradlew test
 
+      - name: Publish snapshot
+        run: ./gradlew -PossrhUsername=${{ secrets.OSSRH_USERNAME }} -PossrhPassword=${{ secrets.OSSRH_PASSWORD }} publish
+
   stop-vm:
     name: Stop VM
     needs:

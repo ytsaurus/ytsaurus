@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "tech.ytsaurus"
-version = "1.0.1"
+version = "1.0.1-SNAPSHOT"
 
 repositories {
     mavenCentral()
@@ -125,5 +125,8 @@ publishing {
 }
 
 signing {
+    setRequired({
+        !version.toString().endsWith("SNAPSHOT")
+    })
     sign(publishing.publications["mavenJava"])
 }
