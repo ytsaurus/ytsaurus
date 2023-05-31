@@ -1,5 +1,5 @@
 PACKAGE_NAME = "ytsaurus-client"
-VERSION = "0.13.1"
+VERSION = "0.13.4"
 
 
 def main():
