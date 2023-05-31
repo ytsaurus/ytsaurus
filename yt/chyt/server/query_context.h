@@ -77,6 +77,13 @@ public:
     std::optional<TString> HttpUserAgent;
     std::optional<TString> DataLensRequestId;
     std::optional<TString> YqlOperationId;
+
+    // Transactionality
+    //! ReadTransactionId is the id of the query transaction in which snapshot locks are taken.
+    NTransactionClient::TTransactionId ReadTransactionId;
+    //! Snapshot of the used node ids. If snapshot locks are acquired, node ids should
+    //! be used during data fetching.
+    THashMap<NYPath::TYPath, NCypressClient::TNodeId> PathToNodeId;
     //! WriteTransactionId is the id of the query transaction in which all write operations should be performed.
     NTransactionClient::TTransactionId WriteTransactionId;
     //! CreatedTablePath is the path of the table created in write transaction.
@@ -113,7 +120,7 @@ public:
     // TODO(dakovalkov): Try to eliminate this.
     //! Create fake query context.
     //! Fake context is used only to fetch tables in dictionary source
-    //! becasuse real query context is not available through ClickHouse interface.
+    //! because real query context is not available through ClickHouse interface.
     //! Fake context initializes only fields which are used in fetching tables.
     //! Fake context has QueryKind = EQueryKind::NoQuery.
     static TQueryContextPtr CreateFake(THost* host, NApi::NNative::IClientPtr client);
@@ -139,6 +146,7 @@ public:
         const std::vector<NYPath::TYPath>& paths);
     void DeleteObjectAttributesFromSnapshot(const std::vector<NYPath::TYPath>& paths);
 
+    // Transactionality
     void InitializeQueryWriteTransaction();
     void CommitWriteTransaction();
 
@@ -169,15 +177,29 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StorageToStorageContextLock_);
     THashMap<const DB::IStorage*, TStorageContextPtr> StorageToStorageContext_;
 
-    //! InitialQueryWriteTransaction is initialized only on the initiator to ping the transaction during the query execution.
+    // Transactionality
+
+    //! InitialQueryReadTransaction and InitialQueryWriteTransaction are initialized
+    //! only on the initiator to ping the transactions during the query execution.
+    NApi::NNative::ITransactionPtr InitialQueryReadTransaction_;
     NApi::NNative::ITransactionPtr InitialQueryWriteTransaction_;
+
+    void InitializeQueryReadTransaction();
+    TFuture<THashMap<NYPath::TYPath, NCypressClient::TNodeId>> AcquireSnapshotLocks(
+        const THashSet<NYPath::TYPath>& paths);
 
     //! Constructs fake query context.
     //! It's private to avoid creating it accidently.
     TQueryContext(THost* host, NApi::NNative::IClientPtr client);
 
-    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> DoGetTableAttributes(
+    //! Get table attributes according to existing transactions.
+    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetTableAttributes(
         const std::vector<NYPath::TYPath>& missingPaths);
+
+    //! Fetch table attributes from master.
+    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> FetchTableAttributes(
+        const std::vector<NYPath::TYPath>& paths,
+        NTransactionClient::TTransactionId transactionId);
 
     DECLARE_NEW_FRIEND()
 };

@@ -123,10 +123,12 @@ public:
         const TQueryAnalysisResult& queryAnalysisResult,
         const std::vector<TString>& realColumnNames,
         const std::vector<TString>& virtualColumnNames,
-        const TClickHouseIndexBuilder& indexBuilder)
+        const TClickHouseIndexBuilder& indexBuilder,
+        TTransactionId transactionId)
         : StorageContext_(storageContext)
         , QueryContext_(StorageContext_->QueryContext)
         , Client_(QueryContext_->Client())
+        , TransactionId_(transactionId)
         , Invoker_(CreateSerializedInvoker(QueryContext_->Host->GetClickHouseFetcherInvoker()))
         , OperandSchemas_(queryAnalysisResult.TableSchemas)
         , KeyConditions_(queryAnalysisResult.KeyConditions)
@@ -163,6 +165,8 @@ private:
     TQueryContext* QueryContext_;
 
     NApi::NNative::IClientPtr Client_;
+
+    TTransactionId TransactionId_;
 
     IInvokerPtr Invoker_;
 
@@ -572,7 +576,7 @@ private:
                 if (!QueryContext_->Settings->DynamicTable->EnableDynamicStoreRead) {
                     req->set_omit_dynamic_stores(true);
                 }
-                SetTransactionId(req, NullTransactionId);
+                SetTransactionId(req, TransactionId_);
                 SetSuppressAccessTracking(req, true);
                 SetSuppressExpirationTimeoutRenewal(req, true);
             },
@@ -798,14 +802,16 @@ TQueryInput FetchInput(
     const TQueryAnalysisResult& queryAnalysisResult,
     const std::vector<TString>& realColumnNames,
     const std::vector<TString>& virtualColumnNames,
-    const TClickHouseIndexBuilder& indexBuilder)
+    const TClickHouseIndexBuilder& indexBuilder,
+    NTransactionClient::TTransactionId transactionId)
 {
     auto inputFetcher = New<TInputFetcher>(
         storageContext,
         queryAnalysisResult,
         realColumnNames,
         virtualColumnNames,
-        indexBuilder);
+        indexBuilder,
+        transactionId);
 
     WaitFor(inputFetcher->Fetch())
         .ThrowOnError();

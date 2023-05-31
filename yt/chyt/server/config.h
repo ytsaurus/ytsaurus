@@ -93,6 +93,8 @@ public:
 
     bool CheckCHYTBanned;
 
+    TDuration PreparerSleepDuration;
+
     REGISTER_YSON_STRUCT(TTestingSettings);
 
     static void Register(TRegistrar registrar);
@@ -158,6 +160,9 @@ public:
 
     //! The minimum query stage to enable distributed insert.
     EDistributedInsertStage DistributedInsertStage;
+
+    //! Mode defines how tables are locked for reading during the query execution.
+    ETableReadLockMode TableReadLockMode;
 
     REGISTER_YSON_STRUCT(TExecutionSettings);
 

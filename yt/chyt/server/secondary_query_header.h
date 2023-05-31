@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
+#include <yt/yt/client/cypress_client/public.h>
+
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -33,6 +35,8 @@ public:
     TQueryId QueryId;
     TQueryId ParentQueryId;
     TSerializableSpanContextPtr SpanContext;
+    THashMap<NYPath::TYPath, NCypressClient::TNodeId> PathToNodeId;
+    NTransactionClient::TTransactionId ReadTransactionId;
     NTransactionClient::TTransactionId WriteTransactionId;
     std::optional<NYPath::TYPath> CreatedTablePath;
     // These values should always be initialized explicitly.

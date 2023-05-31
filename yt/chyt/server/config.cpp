@@ -61,6 +61,9 @@ void TTestingSettings::Register(TRegistrar registrar)
 
     registrar.Parameter("check_chyt_banned", &TThis::CheckCHYTBanned)
         .Default(true);
+
+    registrar.Parameter("preparer_sleep_duration", &TThis::PreparerSleepDuration)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,6 +113,9 @@ void TExecutionSettings::Register(TRegistrar registrar)
 
     registrar.Parameter("distributed_insert_stage", &TThis::DistributedInsertStage)
         .Default(EDistributedInsertStage::WithMergeableState);
+
+    registrar.Parameter("table_read_lock_mode", &TThis::TableReadLockMode)
+        .Default(ETableReadLockMode::None);
 }
 ////////////////////////////////////////////////////////////////////////////////
 

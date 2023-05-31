@@ -198,6 +198,13 @@ DEFINE_ENUM(EInvalidateCacheMode,
     ((Sync)  (3))
 );
 
+DEFINE_ENUM(ETableReadLockMode,
+    // Snapshot lock for table is not acquired.
+    ((None) (0))
+    // Table info is fetched after the snapshot lock is acquired.
+    ((Sync) (1))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using TQueryId = TGuid;

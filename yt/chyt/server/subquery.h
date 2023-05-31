@@ -39,7 +39,8 @@ TQueryInput FetchInput(
     const TQueryAnalysisResult& queryAnalysisResult,
     const std::vector<TString>& realColumnNames,
     const std::vector<TString>& virtualColumnNames,
-    const TClickHouseIndexBuilder& indexBuilder);
+    const TClickHouseIndexBuilder& indexBuilder,
+    NTransactionClient::TTransactionId transactionId);
 
 std::vector<TSubquery> BuildThreadSubqueries(
     const NChunkPools::TChunkStripeListPtr& inputStripeList,

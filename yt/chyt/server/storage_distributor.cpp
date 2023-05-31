@@ -199,6 +199,8 @@ DB::Pipe CreateRemoteSource(
     static_cast<TSpanContext&>(*queryHeader->SpanContext) = traceContext->GetSpanContext();
     queryHeader->StorageIndex = storageIndex;
     queryHeader->QueryDepth = queryContext->QueryDepth + 1;
+    queryHeader->PathToNodeId = queryContext->PathToNodeId;
+    queryHeader->ReadTransactionId = queryContext->ReadTransactionId;
     queryHeader->WriteTransactionId = queryContext->WriteTransactionId;
     queryHeader->CreatedTablePath = queryContext->CreatedTablePath;
 
@@ -562,6 +564,11 @@ private:
 
     void PrepareInput()
     {
+        if (auto sleepDuration = QueryContext_->Settings->Testing->PreparerSleepDuration) {
+            TDelayedExecutor::WaitForDuration(sleepDuration);
+            YT_LOG_DEBUG("Input preparer slept (Duration: %v)", sleepDuration);
+        }
+
         SpecTemplate_ = TSubquerySpec();
         SpecTemplate_.InitialQuery = DB::serializeAST(*QueryInfo_.query);
         SpecTemplate_.QuerySettings = StorageContext_->Settings;
@@ -574,7 +581,8 @@ private:
             *QueryAnalysisResult_,
             RealColumnNames_,
             VirtualColumnNames_,
-            TClickHouseIndexBuilder(&QueryInfo_, Context_));
+            TClickHouseIndexBuilder(&QueryInfo_, Context_),
+            QueryContext_->ReadTransactionId);
 
         YT_VERIFY(!SpecTemplate_.DataSourceDirectory);
         SpecTemplate_.DataSourceDirectory = std::move(input.DataSourceDirectory);

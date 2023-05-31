@@ -10,6 +10,11 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -28,10 +33,54 @@ using namespace NTracing;
 using namespace NLogging;
 using namespace NTransactionClient;
 using namespace NApi;
+using namespace NCypressClient;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TLogger QueryLogger("Query");
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+THashMap<TYPath, TNodeId> DoAcquireSnapshotLocks(
+    const THashSet<TYPath>& paths,
+    NNative::IClientPtr client,
+    TTransactionId readTransactionId,
+    const TLogger& logger)
+{
+    const auto& Logger = logger;
+
+    auto proxy = CreateObjectServiceWriteProxy(client);
+    auto batchReq = proxy.ExecuteBatch();
+
+    for (const auto& path : paths) {
+        auto req = TCypressYPathProxy::Lock(path);
+        req->Tag() = path;
+        req->set_mode(static_cast<int>(ELockMode::Snapshot));
+        SetTransactionId(req, readTransactionId);
+        batchReq->AddRequest(req);
+    }
+
+    auto batchRsp = WaitFor(batchReq->Invoke())
+        .ValueOrThrow();
+
+    THashMap<TYPath, TNodeId> pathToNodeId;
+    for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TCypressYPathProxy::TRspLock>()) {
+        auto rsp = rspOrError.ValueOrThrow();
+        auto path = std::any_cast<TYPath>(tag);
+        pathToNodeId[path] = FromProto<NCypressClient::TNodeId>(rsp->node_id());
+        YT_LOG_INFO("Snapshot lock is acquired (LockId: %v, NodeId: %v, ReadTransactionId: %v)",
+            rsp->lock_id(),
+            rsp->node_id(),
+            readTransactionId);
+    }
+
+    return pathToNodeId;
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,6 +140,8 @@ TQueryContext::TQueryContext(
         YT_VERIFY(secondaryQueryHeader);
         ParentQueryId = secondaryQueryHeader->ParentQueryId;
         SelectQueryIndex = secondaryQueryHeader->StorageIndex;
+        ReadTransactionId = secondaryQueryHeader->ReadTransactionId;
+        PathToNodeId = secondaryQueryHeader->PathToNodeId;
         WriteTransactionId = secondaryQueryHeader->WriteTransactionId;
         CreatedTablePath = secondaryQueryHeader->CreatedTablePath;
 
@@ -284,16 +335,38 @@ const TClusterNodes& TQueryContext::GetClusterNodesSnapshot()
 std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> TQueryContext::GetObjectAttributesSnapshot(
     const std::vector<NYPath::TYPath>& paths)
 {
+    if (Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync) {
+        InitializeQueryReadTransaction();
+    }
+
     THashSet<NYPath::TYPath> missingPathSet;
+    bool lockingTables = (Settings->Execution->TableReadLockMode != ETableReadLockMode::None);
+    THashSet<NYPath::TYPath> tablesToLock;
 
     for (const auto& path : paths) {
         if (!ObjectAttributesSnapshot_.contains(path)) {
             missingPathSet.insert(path);
+
+            // Lock will be taken if read transaction exists, no node id was saved
+            // and the node is not created during the query.
+            if (lockingTables && path != CreatedTablePath && !PathToNodeId.contains(path)) {
+                tablesToLock.insert(path);
+            }
         }
     }
 
     std::vector<NYPath::TYPath> missingPaths = {missingPathSet.begin(), missingPathSet.end()};
-    auto missingAttributes = DoGetTableAttributes(missingPaths);
+
+    if (Settings->Execution->TableReadLockMode != ETableReadLockMode::None && !paths.empty()) {
+        auto future = AcquireSnapshotLocks(tablesToLock);
+        if (Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync) {
+            auto acquiredPathToNodeId = WaitFor(future)
+                .ValueOrThrow();
+            PathToNodeId.insert(acquiredPathToNodeId.begin(), acquiredPathToNodeId.end());
+        }
+    }
+
+    auto missingAttributes = GetTableAttributes(missingPaths);
     YT_VERIFY(missingAttributes.size() == missingPaths.size());
 
     for (int index = 0; index < std::ssize(missingPaths); ++index) {
@@ -326,6 +399,7 @@ void TQueryContext::DeleteObjectAttributesFromSnapshot(
 {
     for (const auto& path : paths) {
         ObjectAttributesSnapshot_.erase(path);
+        PathToNodeId.erase(path);
     }
 }
 
@@ -335,13 +409,17 @@ void TQueryContext::InitializeQueryWriteTransaction()
         return;
     }
     if (QueryKind != EQueryKind::InitialQuery || WriteTransactionId) {
-        THROW_ERROR_EXCEPTION("Unexpected transaction initialization")
+        THROW_ERROR_EXCEPTION(
+            "Unexpected transaction initialization; "
+            "this is a bug; please, file an issue in CHYT queue")
             << TErrorAttribute("transaction_id", WriteTransactionId)
             << TErrorAttribute("query_kind", QueryKind);
     }
     InitialQueryWriteTransaction_ = WaitFor(Client()->StartNativeTransaction(ETransactionType::Master))
         .ValueOrThrow();
     WriteTransactionId = InitialQueryWriteTransaction_->GetId();
+
+    YT_LOG_INFO("Write transaction started (WriteTransactionId: %v)", WriteTransactionId);
 }
 
 void TQueryContext::CommitWriteTransaction()
@@ -352,26 +430,81 @@ void TQueryContext::CommitWriteTransaction()
     }
 }
 
-std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::DoGetTableAttributes(const std::vector<TYPath>& missingPaths)
+void TQueryContext::InitializeQueryReadTransaction()
 {
+    if (ReadTransactionId) {
+        return;
+    }
+
+    InitialQueryReadTransaction_ = WaitFor(Client()->StartNativeTransaction(ETransactionType::Master))
+        .ValueOrThrow();
+    ReadTransactionId = InitialQueryReadTransaction_->GetId();
+
+    YT_LOG_INFO("Read transaction is started (ReadTransactionId: %v)", ReadTransactionId);
+}
+
+TFuture<THashMap<TYPath, TNodeId>> TQueryContext::AcquireSnapshotLocks(const THashSet<TYPath>& paths)
+{
+    return BIND(&DoAcquireSnapshotLocks, paths, Client(), ReadTransactionId, Logger)
+        .AsyncVia(Host->GetControlInvoker())
+        .Run();
+}
+
+std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetTableAttributes(const std::vector<TYPath>& missingPaths)
+{
+    auto transactionId = ReadTransactionId;
+    // If we are fetching attributes for a table created in this query
+    // write transaction should be used.
     if (WriteTransactionId
         && missingPaths.size() == 1
-        && missingPaths.front() == CreatedTablePath) {
-        // TODO(gudqeit): add batch attribute fetching for multiple tables.
-        auto path = missingPaths.front();
-        TGetNodeOptions options;
-        options.TransactionId = WriteTransactionId;
-        options.Attributes = TableAttributesToFetch;
-        auto attributesFuture = Client()->GetNode(path, options)
-            .Apply(BIND([] (const TYsonString& nodeYson) {
-                auto node = ConvertToNode(nodeYson);
-                return node->Attributes().Clone();
-            }));
-        auto attributesOrError = WaitFor(attributesFuture);
-        return std::vector{std::move(attributesOrError)};
+        && missingPaths.front() == CreatedTablePath)
+    {
+        transactionId = WriteTransactionId;
+    }
+
+    if (transactionId) {
+        return FetchTableAttributes(missingPaths, transactionId);
     } else {
         return Host->GetObjectAttributes(missingPaths, Client());
     }
+}
+
+// TODO(gudqeit): use TBatchAttributeFetcher.
+std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::FetchTableAttributes(
+    const std::vector<TYPath>& paths,
+    TTransactionId transactionId)
+{
+    if (paths.empty()) {
+        return {};
+    }
+    auto proxy = CreateObjectServiceWriteProxy(Client());
+    auto batchReq = proxy.ExecuteBatch();
+
+    for (int index = 0; index < std::ssize(paths); ++index) {
+        const auto& path = paths[index];
+        auto maybeNodeId = PathToNodeId.find(path);
+        auto nodeIdOrPath = (maybeNodeId != PathToNodeId.end()) ? Format("#%v", maybeNodeId->second) : path;
+        auto req = TYPathProxy::Get(Format("%v/@", nodeIdOrPath));
+        req->Tag() = index;
+        ToProto(req->mutable_attributes()->mutable_keys(), TableAttributesToFetch);
+        SetTransactionId(req, transactionId);
+        batchReq->AddRequest(req);
+    }
+
+    auto batchRsp = WaitFor(batchReq->Invoke())
+        .ValueOrThrow();
+
+    std::vector<TErrorOr<IAttributeDictionaryPtr>> attributes(paths.size());
+    for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TYPathProxy::TRspGet>()) {
+        auto index = std::any_cast<int>(tag);
+        if (rspOrError.IsOK()) {
+            attributes[index] = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
+        } else {
+            attributes[index] = TError(rspOrError);
+        }
+    }
+
+    return attributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
