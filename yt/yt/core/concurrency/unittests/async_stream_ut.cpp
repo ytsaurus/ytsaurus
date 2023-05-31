@@ -3,6 +3,7 @@
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/async_stream_pipe.h>
 
+#include <util/stream/mem.h>
 
 namespace NYT::NConcurrency {
 namespace {
@@ -107,6 +108,41 @@ TEST(TAsyncOutputStreamTest, TestEmptyString)
     ASSERT_TRUE(writeResult1.IsSet());
     ASSERT_TRUE(writeResult2.IsSet());
     ASSERT_TRUE(closeResult.IsSet());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! This class restricts max size of a read.
+class TMaxBlockSizeInputStream
+    : public IInputStream
+{
+public:
+    TMaxBlockSizeInputStream(IInputStream* inputStream, size_t maxBlockSize)
+        : InputStream(inputStream)
+        , MaxBlockSize(maxBlockSize)
+    { }
+
+protected:
+    virtual size_t DoRead(void* buf, size_t len) override
+    {
+        return InputStream->Read(buf, std::min(len, MaxBlockSize));
+    }
+
+private:
+    IInputStream* InputStream = nullptr;
+    size_t MaxBlockSize = 0;
+};
+
+//! This test creates a big block size async zero copy input stream
+//! over a small block size async input stream to provoke a stack overflow.
+TEST(IAsyncZeroCopyInputStreamTest, NoStackOverflow)
+{
+    TString buf(512_KB, 'a');
+    TMemoryInput memoryInput(buf.data(), buf.size());
+    TMaxBlockSizeInputStream maxBlockSizeInputStream(&memoryInput, 1);
+    auto asyncInputStream = CreateAsyncAdapter(&maxBlockSizeInputStream);
+    auto asyncZeroCopyInputStream = CreateZeroCopyAdapter(asyncInputStream, 256_KB);
+    asyncZeroCopyInputStream->ReadAll();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

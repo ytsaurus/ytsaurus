@@ -363,7 +363,7 @@ private:
                 MakeStrong(this),
                 std::move(promise),
                 std::move(block),
-                offset));
+                offset).Via(GetSyncInvoker()));
     }
 
     void OnRead(
