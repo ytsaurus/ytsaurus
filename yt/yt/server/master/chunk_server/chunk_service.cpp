@@ -650,15 +650,13 @@ private:
         }
         SortUnique(transactionIds);
 
-        const auto& configManager = Bootstrap_->GetConfigManager();
-
         // COMPAT(kvk1920)
-        if (!configManager->GetConfig()->ChunkManager->EnableChunkConfirmationWithoutLocationUuid) {
-            for (const auto& subrequest : request->confirm_chunk_subrequests()) {
-                YT_LOG_ALERT_UNLESS(subrequest.location_uuids_supported(), "Chunk confirmation request without location uuids is received");
-            }
+        for (const auto& subrequest : request->confirm_chunk_subrequests()) {
+            YT_LOG_ALERT_UNLESS(subrequest.location_uuids_supported(),
+                "Chunk confirmation request without location uuids is received");
         }
 
+        const auto& configManager = Bootstrap_->GetConfigManager();
         if (!configManager->GetConfig()->SequoiaManager->Enable) {
             // TODO(shakurov): use mutation idempotizer for all mutations (not
             // just the Object Service ones), then enable boomerangs here.
