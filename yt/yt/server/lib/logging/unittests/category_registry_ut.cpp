@@ -56,6 +56,7 @@ TEST(TSchemafulLoggerTest, LogWithNullField)
 {
     auto config = TLogManagerConfig::CreateDefault();
     config->AbortOnAlert = true;
+    config->StructuredValidationSamplingRate = 1.0;
     TLogManager::Get()->Configure(config, /*sync*/ true);
 
     auto schemafulLogger = CreateSchemafulLogger("LogWithNullFieldSchemafulLogger", New<TTableSchema>(std::vector{
@@ -83,6 +84,7 @@ TEST(TSchemafulLoggerTest, LogWithNotSpecifiedField)
 {
     auto config = TLogManagerConfig::CreateDefault();
     config->AbortOnAlert = true;
+    config->StructuredValidationSamplingRate = 1.0;
     TLogManager::Get()->Configure(config, /*sync*/ true);
 
     auto schemafulLogger = CreateSchemafulLogger("LogWithNotSpecifiedFieldSchemafulLogger", New<TTableSchema>(std::vector{
@@ -104,6 +106,7 @@ TEST(TSchemafulLoggerTest, LogWithWrongFieldType)
 {
     auto config = TLogManagerConfig::CreateDefault();
     config->AbortOnAlert = true;
+    config->StructuredValidationSamplingRate = 1.0;
     TLogManager::Get()->Configure(config, /*sync*/ true);
 
     auto schemafulLogger = CreateSchemafulLogger("LogWithWrongFieldTypeSchemafulLogger", New<TTableSchema>(std::vector{

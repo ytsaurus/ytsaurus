@@ -605,6 +605,7 @@ TEST_F(TLoggingTest, StructuredLoggingWithValidator)
                 "type" = "file";
             };
         };
+        "structured_validation_sampling_rate" = 1.0;
     })", logFile.Name()));
 
     auto logger = Logger.WithStructuredValidator([] (TYsonString yson) {
@@ -629,6 +630,42 @@ TEST_F(TLoggingTest, StructuredLoggingWithValidator)
     TLogManager::Get()->Synchronize();
     auto lines = ReadPlainTextEvents(logFile.Name());
     EXPECT_EQ(2, std::ssize(lines));
+}
+
+TEST_F(TLoggingTest, StructuredValidationWithSamplingRate)
+{
+    int counter = 0;
+    auto logger = Logger.WithStructuredValidator([&counter] (TYsonString /*yson*/) {
+        counter++;
+    });
+
+    TTempFile logFile(GenerateLogFileName());
+    Configure(Format(R"({
+        rules = [
+            {
+                "family" = "structured";
+                "min_level" = "info";
+                "writers" = [ "test" ];
+            };
+        ];
+        "writers" = {
+            "test" = {
+                "file_name" = "%v";
+                "format" = "structured";
+                "type" = "file";
+            }
+        };
+        "structured_validation_sampling_rate" = 0.5;
+    })", logFile.Name()));
+    EXPECT_NEAR(TLogManager::Get()->GetCategory("Test")->StructuredValidationSamplingRate, 0.5, 0.001);
+
+    int iterations = 100;
+    for (int i = 0; i < iterations; i++) {
+        LogStructuredEventFluently(logger, ELogLevel::Info);
+    }
+
+    EXPECT_LT(counter, iterations);
+    EXPECT_GT(counter, 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

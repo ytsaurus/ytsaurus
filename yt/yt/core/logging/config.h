@@ -137,6 +137,8 @@ public:
 
     bool AbortOnAlert;
 
+    double StructuredValidationSamplingRate;
+
     int CompressionThreadCount;
 
     TLogManagerConfigPtr ApplyDynamic(const TLogManagerDynamicConfigPtr& dynamicConfig) const;
@@ -189,6 +191,8 @@ public:
     std::optional<double> MinLoggedMessageRateToProfile;
 
     std::optional<bool> AbortOnAlert;
+
+    std::optional<double> StructuredValidationSamplingRate;
 
     std::optional<int> CompressionThreadCount;
 

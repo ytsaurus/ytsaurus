@@ -906,6 +906,9 @@ private:
                 NotificationWatches_.push_back(std::move(watch));
             }
         }
+        for (const auto& [_, category] : NameToCategory_) {
+            category->StructuredValidationSamplingRate.store(config->StructuredValidationSamplingRate, std::memory_order::relaxed);
+        }
 
         Config_ = config;
         ConfiguredFromEnv_.store(fromEnv);
@@ -1324,6 +1327,7 @@ private:
 
         category->MinPlainTextLevel.store(minPlainTextLevel, std::memory_order::relaxed);
         category->CurrentVersion.store(GetVersion(), std::memory_order::relaxed);
+        category->StructuredValidationSamplingRate.store(Config_->StructuredValidationSamplingRate, std::memory_order::relaxed);
     }
 
     void DoRegisterAnchor(TLoggingAnchor* anchor)

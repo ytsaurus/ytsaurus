@@ -26,6 +26,8 @@ namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr double DefaultStructuredValidationSamplingRate = 0.01;
+
 struct TLoggingCategory
 {
     TString Name;
@@ -37,6 +39,7 @@ struct TLoggingCategory
     std::atomic<ELogLevel> MinPlainTextLevel;
     std::atomic<int> CurrentVersion;
     std::atomic<int>* ActualVersion;
+    std::atomic<double> StructuredValidationSamplingRate = DefaultStructuredValidationSamplingRate;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

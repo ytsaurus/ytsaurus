@@ -167,6 +167,9 @@ void TLogManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_alert", &TThis::AbortOnAlert)
         .Default(false);
 
+    registrar.Parameter("structured_validation_sampling_rate", &TThis::StructuredValidationSamplingRate)
+        .Default(0.01);
+
     registrar.Parameter("compression_thread_count", &TThis::CompressionThreadCount)
         .Default(1);
 
@@ -219,6 +222,7 @@ TLogManagerConfigPtr TLogManagerConfig::ApplyDynamic(const TLogManagerDynamicCon
     mergedConfig->EnableAnchorProfiling = dynamicConfig->EnableAnchorProfiling.value_or(EnableAnchorProfiling);
     mergedConfig->MinLoggedMessageRateToProfile = dynamicConfig->MinLoggedMessageRateToProfile.value_or(MinLoggedMessageRateToProfile);
     mergedConfig->AbortOnAlert = dynamicConfig->AbortOnAlert.value_or(AbortOnAlert);
+    mergedConfig->StructuredValidationSamplingRate = dynamicConfig->StructuredValidationSamplingRate.value_or(StructuredValidationSamplingRate);
     mergedConfig->CompressionThreadCount = dynamicConfig->CompressionThreadCount.value_or(CompressionThreadCount);
     mergedConfig->Postprocess();
     return mergedConfig;
@@ -465,6 +469,8 @@ void TLogManagerDynamicConfig::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Parameter("abort_on_alert", &TThis::AbortOnAlert)
+        .Optional();
+    registrar.Parameter("structured_validation_sampling_rate", &TThis::StructuredValidationSamplingRate)
         .Optional();
 
     registrar.Parameter("compression_thread_count", &TThis::CompressionThreadCount)
