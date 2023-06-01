@@ -15,6 +15,11 @@ TServerConfigPtr MakeConfig()
     return config;
 }
 
+TMockHeaders DumpHeadersSafe(const THeadersPtr& headers)
+{
+    return headers ? headers->Dump() : TMockHeaders();
+}
+
 class THandler
     : public IHttpHandler
 {
@@ -126,34 +131,34 @@ ui16 TMockServer::GetPort()
 
 TFuture<IResponsePtr> TMockClient::Get(const TString& url, const THeadersPtr& headers)
 {
-    auto mockRsp = Get(url, headers->Dump());
+    auto mockRsp = Get(url, DumpHeadersSafe(headers));
     return MakeFuture<IResponsePtr>(New<TMockResponseStream>(mockRsp));
 }
 
 TFuture<IResponsePtr> TMockClient::Post(
     const TString& url, const TSharedRef& body, const THeadersPtr& headers)
 {
-    auto mockRsp = Post(url, ToString(body), headers->Dump());
+    auto mockRsp = Post(url, ToString(body), DumpHeadersSafe(headers));
     return MakeFuture<IResponsePtr>(New<TMockResponseStream>(mockRsp));
 }
 
 TFuture<IResponsePtr> TMockClient::Patch(
     const TString& url, const TSharedRef& body, const THeadersPtr& headers)
 {
-    auto mockRsp = Patch(url, ToString(body), headers->Dump());
+    auto mockRsp = Patch(url, ToString(body), DumpHeadersSafe(headers));
     return MakeFuture<IResponsePtr>(New<TMockResponseStream>(mockRsp));
 }
 
 TFuture<IResponsePtr> TMockClient::Put(
     const TString& url, const TSharedRef& body, const THeadersPtr& headers)
 {
-    auto mockRsp = Put(url, ToString(body), headers->Dump());
+    auto mockRsp = Put(url, ToString(body), DumpHeadersSafe(headers));
     return MakeFuture<IResponsePtr>(New<TMockResponseStream>(mockRsp));
 }
 
 TFuture<IResponsePtr> TMockClient::Delete(const TString& url, const THeadersPtr& headers)
 {
-    auto mockRsp = Delete(url, headers->Dump());
+    auto mockRsp = Delete(url, DumpHeadersSafe(headers));
     return MakeFuture<IResponsePtr>(New<TMockResponseStream>(mockRsp));
 }
 
