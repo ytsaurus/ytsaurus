@@ -777,6 +777,8 @@ private:
 
         auto multisetReq = TYPathProxy::MultisetAttributes(operationPath + "/@");
 
+        bool hasSubrequests = false;
+
         if (shouldUpdateProgress) {
             controller->SetProgressAttributesUpdated();
             auto progress = controller->GetProgress();
@@ -791,6 +793,8 @@ private:
                 archiveUpdated = TryUpdateOperationProgressInArchive(operationId, progress, briefProgress);
             }
             if (!archiveUpdated) {
+                hasSubrequests = true;
+
                 auto progress_req = multisetReq->add_subrequests();
                 progress_req->set_attribute("progress");
                 progress_req->set_value(progress.ToString());
@@ -802,15 +806,19 @@ private:
         }
 
         if (shouldUpdateLightOperationAttributes) {
+            hasSubrequests = true;
+
             bool operationHasFailedJobs = controller->GetFailedJobCount() > 0;
             auto has_failed_jobs = multisetReq->add_subrequests();
             has_failed_jobs->set_attribute("has_failed_jobs");
             has_failed_jobs->set_value(ConvertToYsonStringNestingLimited(operationHasFailedJobs).ToString());
         }
 
-        batchReq->AddRequest(multisetReq, "update_op_node");
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+        if (hasSubrequests) {
+            batchReq->AddRequest(multisetReq, "update_op_node");
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+        }
 
         YT_LOG_DEBUG("Operation progress and failed jobs existence updated (OperationId: %v)",
             operationId);
