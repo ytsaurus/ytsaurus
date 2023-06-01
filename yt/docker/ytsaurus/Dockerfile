@@ -84,6 +84,8 @@ RUN ln -s /usr/bin/python3.7 /usr/bin/python3 -f
 # Force lsb_release to use python it was born to use.
 RUN sed -i 's/python3/python3.8/' /usr/bin/lsb_release
 
+RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
+
 # TODO: add opportunity to get this files in opensource
 # Static binaries & shared libraries built in arcadia.
 # In order to obtain them, run the following command in yt/yql/package:
