@@ -1,5 +1,5 @@
 from .conftest import authors
-from .helpers import TEST_DIR
+from .helpers import TEST_DIR, wait
 
 from yt.wrapper.batch_helpers import create_batch_client
 from yt.wrapper.batch_response import apply_function_to_result
@@ -188,6 +188,96 @@ class TestBatchExecution(object):
 
         while yt.get("{0}/@tablets/0/state".format(table)) != "unmounted":
             time.sleep(0.1)
+
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("all_keys", [True, False])
+    def test_get_in_sync_replicas(self, all_keys):
+        client = create_batch_client()
+
+        def _get_in_sync_replicas(table, ts, keys):
+            return client.get_in_sync_replicas(
+                table,
+                ts,
+                [] if all_keys else keys,
+                all_keys=all_keys,
+            )
+
+        schema = [{"name": "x", "type": "string", "sort_order": "ascending"},
+                  {"name": "y", "type": "string"}]
+
+        def _create_replicas(table, replicas):
+            return [
+                yt.create(
+                    "table_replica",
+                    attributes={
+                        "table_path": table,
+                        "cluster_name": "primary",
+                        "mode": "sync",
+                        "replica_path": replica,
+                    }
+                ) for replica in replicas
+            ]
+
+        def _create_supertable(table):
+            yt.create("replicated_table", table, attributes={"dynamic": True, "schema": schema})
+            yt.mount_table(table, sync=True)
+            table_replicas = [table + "_replica_" + str(i) for i in range(2)]
+            table_replica_ids = _create_replicas(table, table_replicas)
+            return table_replicas, table_replica_ids
+
+        def _create_tables(replicas, replica_ids):
+            assert len(replicas) == len(replica_ids)
+            for i in range(len(replicas)):
+                yt.create("table", replicas[i], attributes={
+                    "dynamic": True,
+                    "schema": schema,
+                    "upstream_replica_id": replica_ids[i]
+                })
+                yt.mount_table(replicas[i], sync=True)
+
+        def _get_in_sync_replicas_checker(expected_table_replica_ids, expected_table2_replica_ids):
+            def _equal_as_sets(lhs, rhs):
+                return set(lhs) == set(rhs)
+
+            ts = yt.generate_timestamp()
+
+            def _checkable():
+                sync_replicas = _get_in_sync_replicas(table, ts, [{"x": "a"}])
+                sync_replicas2 = _get_in_sync_replicas(table2, ts, [{"x": "b"}])
+                client.commit_batch()
+                return (
+                    _equal_as_sets(sync_replicas.get_result(), expected_table_replica_ids)
+                    and
+                    _equal_as_sets(sync_replicas2.get_result(), expected_table2_replica_ids)
+                )
+            return _checkable
+
+        def _sync_enable(replica_ids):
+            for replica_id in replica_ids:
+                yt.alter_table_replica(replica_id, enabled=True)
+                wait(lambda: yt.get("#{0}/@state".format(replica_id)) == "enabled")
+
+        cell_id = yt.create("tablet_cell", attributes={"size": 1})
+        wait(lambda: yt.get("//sys/tablet_cells/{0}/@health".format(cell_id)) == "good")
+
+        table = TEST_DIR + "/test_get_in_sync_replicas"
+        table2 = TEST_DIR + "/test_get_in_sync_replicas2"
+
+        table_replicas, table_replica_ids = _create_supertable(table)
+        table2_replicas, table2_replica_ids = _create_supertable(table2)
+
+        wait(_get_in_sync_replicas_checker([], []))
+
+        _create_tables(table_replicas, table_replica_ids)
+        _create_tables(table2_replicas, table2_replica_ids)
+
+        wait(_get_in_sync_replicas_checker([], []))
+
+        _sync_enable(table_replica_ids)
+        wait(_get_in_sync_replicas_checker(table_replica_ids, []))
+
+        _sync_enable(table2_replica_ids)
+        wait(_get_in_sync_replicas_checker(table_replica_ids, table2_replica_ids))
 
     @authors("ostyakov")
     def test_transactions(self):

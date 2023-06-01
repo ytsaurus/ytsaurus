@@ -14,6 +14,7 @@ from yt.local import start, stop
 
 import yt.wrapper as yt
 from yt.wrapper.dynamic_table_commands import BackupManifest, ClusterBackupManifest
+from yt.wrapper.batch_helpers import create_batch_client
 
 import os
 import pytest
@@ -334,12 +335,28 @@ class TestDynamicTableCommands(object):
 
     @authors("ponasenko-rs")
     @pytest.mark.parametrize("all_keys", [True, False])
-    def test_get_in_sync_replicas(self, all_keys):
+    @pytest.mark.parametrize("batch", ["batch", "plain"])
+    @pytest.mark.parametrize("input_format", [None, "yson", "json"])
+    def test_get_in_sync_replicas(self, all_keys, batch, input_format):
         def _get_in_sync_replicas(table, ts):
-            if all_keys:
-                return yt.get_in_sync_replicas(table, ts, [], all_keys=True)
-            else:
-                return yt.get_in_sync_replicas(table, ts, [{"x": "a"}], all_keys=False)
+            client = create_batch_client() if batch == "batch" else yt
+
+            keys = [] if all_keys else [{"x": "a"}]
+
+            sync_replicas = client.get_in_sync_replicas(
+                table,
+                ts,
+                keys,
+                all_keys=all_keys,
+                format=input_format
+            )
+
+            if batch == "batch":
+                client.commit_batch()
+                assert sync_replicas.get_error() is None
+                sync_replicas = sync_replicas.get_result()
+
+            return sync_replicas
 
         self._sync_create_tablet_cell()
         table = TEST_DIR + "/test_get_in_sync_replicas"

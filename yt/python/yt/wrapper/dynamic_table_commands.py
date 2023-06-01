@@ -784,8 +784,11 @@ def get_in_sync_replicas(path, timestamp, input_stream, all_keys=False, cached_s
         "timestamp": timestamp,
         "all_keys": all_keys,
         "cached_sync_replicas_timeout": cached_sync_replicas_timeout,
-        "input_format": format
+        "input_format": format,
     }
+
+    if get_option("_client_type", client) == "batch":
+        params["is_batch_input_raw"] = True
 
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
     if chunk_size is None:

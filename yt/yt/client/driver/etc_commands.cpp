@@ -252,7 +252,8 @@ public:
             Descriptor_ = driver->GetCommandDescriptorOrThrow(Request_->Command);
 
             if (Descriptor_.InputType != EDataType::Null &&
-                Descriptor_.InputType != EDataType::Structured)
+                Descriptor_.InputType != EDataType::Structured &&
+                Descriptor_.InputType != EDataType::Tabular)
             {
                 THROW_ERROR_EXCEPTION("Command %Qv cannot be part of a batch since it has inappropriate input type %Qlv",
                     Request_->Command,
@@ -278,6 +279,13 @@ public:
                 }
                 Input_ = ConvertToYsonString(Request_->Input).ToString();
                 parameters->Set("input_format", TFormat(EFormatType::Yson));
+                driverRequest.InputStream = AsyncInput_;
+            } else if (Descriptor_.InputType == EDataType::Tabular) {
+                if (!Request_->Input) {
+                    THROW_ERROR_EXCEPTION("Command %Qv requires input",
+                        Descriptor_.CommandName);
+                }
+                Input_ = Request_->Input->AsString()->GetValue();
                 driverRequest.InputStream = AsyncInput_;
             }
             if (Descriptor_.OutputType == EDataType::Structured) {

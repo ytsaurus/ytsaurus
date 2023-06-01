@@ -82,7 +82,10 @@ class BatchExecutor(object):
 
         if input is not None:
             format = create_format(parameters.get("input_format", "yson"))
-            task["input"] = format.loads_node(input)
+            if parameters.get("is_batch_input_raw", False):
+                task["input"] = input
+            else:
+                task["input"] = format.loads_node(input)
 
         self._tasks.append(task)
         self._responses.append(BatchResponse())
