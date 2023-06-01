@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
 
 from yt_commands import (
     authors, wait, events_on_fs, create, ls, get, set, exists,
-    create_medium, create_account, read_table,
+    create_domestic_medium, create_account, read_table,
     write_table, map,
     start_transaction, abort_transaction,
     create_account_resource_usage_lease, update_controller_agent_config,
@@ -281,7 +281,7 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
 
     @classmethod
     def on_masters_started(cls):
-        create_medium("ssd")
+        create_domestic_medium("ssd")
 
     @authors("ignat")
     def test_ssd_request(self):
@@ -509,7 +509,7 @@ class TestDiskMediumRenamePorto(YTEnvSetup, DiskMediumTestConfiguration):
 
     @classmethod
     def on_masters_started(cls):
-        create_medium("ssd")
+        create_domestic_medium("ssd")
 
     @authors("ignat")
     def test_media_rename(self):
@@ -611,8 +611,8 @@ class TestDefaultDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
 
     @classmethod
     def on_masters_started(cls):
-        create_medium("hdd")
-        create_medium("ssd")
+        create_domestic_medium("hdd")
+        create_domestic_medium("ssd")
 
     @authors("ignat")
     def test_default_medium_on_node(self):
@@ -704,8 +704,8 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
 
     @classmethod
     def on_masters_started(cls):
-        create_medium("hdd")
-        create_medium("ssd")
+        create_domestic_medium("hdd")
+        create_domestic_medium("ssd")
 
     @authors("ignat")
     def test_default_medium_on_node(self):
@@ -848,8 +848,8 @@ class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup
 
     @classmethod
     def on_masters_started(cls):
-        create_medium("hdd")
-        create_medium("ssd")
+        create_domestic_medium("hdd")
+        create_domestic_medium("ssd")
 
     @authors("ignat")
     def test_slot_index(self):
@@ -950,8 +950,8 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
 
     @classmethod
     def on_masters_started(cls):
-        create_medium("hdd")
-        create_medium("ssd")
+        create_domestic_medium("hdd")
+        create_domestic_medium("ssd")
 
     @authors("ignat")
     def test_accounting(self):

@@ -1,7 +1,7 @@
 #include "chunk_location.h"
 
 #include "chunk.h"
-#include "medium.h"
+#include "domestic_medium.h"
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 

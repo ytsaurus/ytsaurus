@@ -55,7 +55,7 @@ DEFINE_REFCOUNTED_TYPE(TChunkManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMediumConfig
+class TDomesticMediumConfig
     : public NYTree::TYsonStruct
 {
 public:
@@ -79,12 +79,12 @@ public:
     //! Default behavior for dynamic tables, living on this medium.
     bool PreferLocalHostForDynamicTables;
 
-    REGISTER_YSON_STRUCT(TMediumConfig);
+    REGISTER_YSON_STRUCT(TDomesticMediumConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TMediumConfig)
+DEFINE_REFCOUNTED_TYPE(TDomesticMediumConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

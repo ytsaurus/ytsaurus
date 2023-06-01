@@ -26,7 +26,7 @@
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/data_node_tracker.h>
 #include <yt/yt/server/master/chunk_server/job.h>
-#include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/domestic_medium.h>
 #include <yt/yt/server/master/chunk_server/chunk_location.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>

@@ -4,7 +4,7 @@
 #include "chunk_location.h"
 #include "chunk_tree_statistics.h"
 #include "helpers.h"
-#include "medium.h"
+#include "domestic_medium.h"
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
@@ -325,7 +325,7 @@ bool TChunk::HasParents() const
 
 void TChunk::AddReplica(
     TChunkLocationPtrWithReplicaInfo replica,
-    const TMedium* medium,
+    const TDomesticMedium* medium,
     bool approved)
 {
     auto* data = MutableReplicasData();

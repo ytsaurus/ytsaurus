@@ -863,8 +863,20 @@ private:
             return;
         }
 
+        if (medium->IsOffshore()) {
+            YT_LOG_ALERT("Cannot schedule reincarnation job; medium is offshore "
+                "(OldChunkId: %v, NewChunkId: %v, MediumIndex: %v, MediumName: %v, MediumType: %v)",
+                oldChunkId,
+                newChunkId,
+                mediumIndex,
+                medium->GetName(),
+                medium->GetType());
+            OnReincarnationFinished(EReincarnationResult::GenericPermanentFailure);
+            return;
+        }
+
         auto targetNodes = chunkManager->AllocateWriteTargets(
-            chunkManager->GetMediumByIndexOrThrow(mediumIndex),
+            medium->AsDomestic(),
             newChunk,
             GenericChunkReplicaIndex,
             targetCount,

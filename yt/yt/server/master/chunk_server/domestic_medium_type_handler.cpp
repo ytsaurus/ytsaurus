@@ -1,6 +1,8 @@
-#include "medium_type_handler.h"
-#include "medium.h"
-#include "medium_proxy.h"
+#include "domestic_medium_type_handler.h"
+
+#include "domestic_medium.h"
+#include "domestic_medium_proxy.h"
+#include "medium_type_handler_base.h"
 #include "chunk_manager.h"
 
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
@@ -19,15 +21,11 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMediumTypeHandler
-    : public TObjectTypeHandlerWithMapBase<TMedium>
+class TDomesticMediumTypeHandler
+    : public TMediumTypeHandlerBase<TDomesticMedium>
 {
 public:
-    explicit TMediumTypeHandler(TBootstrap* bootstrap)
-        : TObjectTypeHandlerWithMapBase(
-            bootstrap,
-            &bootstrap->GetChunkManager()->MutableMedia())
-    { }
+    using TMediumTypeHandlerBase::TMediumTypeHandlerBase;
 
     ETypeFlags GetFlags() const override
     {
@@ -54,41 +52,36 @@ public:
         auto index = attributes->FindAndRemove<int>("index");
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        return chunkManager->CreateMedium(name, transient, priority, index, hintId);
+        return chunkManager->CreateDomesticMedium(
+            name,
+            transient,
+            priority,
+            index,
+            hintId);
     }
 
 private:
-    TCellTagList DoGetReplicationCellTags(const TMedium* /*medium*/) override
+    TCellTagList DoGetReplicationCellTags(const TDomesticMedium* /*medium*/) override
     {
         return AllSecondaryCellTags();
     }
 
-    TAccessControlDescriptor* DoFindAcd(TMedium* medium) override
+    TAccessControlDescriptor* DoFindAcd(TDomesticMedium* medium) override
     {
         return &medium->Acd();
     }
 
-    IObjectProxyPtr DoGetProxy(TMedium* medium, TTransaction* /*transaction*/) override
+    IObjectProxyPtr DoGetProxy(TDomesticMedium* medium, TTransaction* /*transaction*/) override
     {
-        return CreateMediumProxy(Bootstrap_, &Metadata_, medium);
-    }
-
-    void DoZombifyObject(TMedium* medium) override
-    {
-        TObjectTypeHandlerWithMapBase::DoZombifyObject(medium);
-        // NB: Destroying arbitrary media is not currently supported.
-        // This handler, however, is needed to destroy just-created media
-        // for which attribute initialization has failed.
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager->DestroyMedium(medium);
+        return CreateDomesticMediumProxy(Bootstrap_, &Metadata_, medium);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IObjectTypeHandlerPtr CreateMediumTypeHandler(TBootstrap* bootstrap)
+IObjectTypeHandlerPtr CreateDomesticMediumTypeHandler(TBootstrap* bootstrap)
 {
-    return New<TMediumTypeHandler>(bootstrap);
+    return New<TDomesticMediumTypeHandler>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

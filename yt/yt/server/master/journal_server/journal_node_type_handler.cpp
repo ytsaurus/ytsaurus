@@ -9,7 +9,7 @@
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_owner_type_handler.h>
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
-#include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/medium_base.h>
 #include <yt/yt/server/master/chunk_server/helpers.h>
 
 #include <yt/yt/server/master/cypress_server/config.h>

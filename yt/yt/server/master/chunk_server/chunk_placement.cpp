@@ -41,7 +41,7 @@ class TChunkPlacement::TTargetCollector
 public:
     TTargetCollector(
         const TChunkPlacement* chunkPlacement,
-        const TMedium* medium,
+        const TDomesticMedium* medium,
         const TChunk* chunk,
         std::optional<int> replicationFactorOverride,
         bool allowMultipleReplicasPerNode,
@@ -136,7 +136,7 @@ public:
 private:
     const TChunkPlacement* const ChunkPlacement_;
 
-    const TMedium* const Medium_;
+    const TDomesticMedium* const Medium_;
     const TChunk* const Chunk_;
 
     const int MaxReplicasPerRack_;
@@ -291,7 +291,7 @@ bool TChunkPlacement::IsDataCenterFeasible(const TDataCenter* dataCenter) const
 }
 
 TNodeList TChunkPlacement::AllocateWriteTargets(
-    TMedium* medium,
+    TDomesticMedium* medium,
     TChunk* chunk,
     int desiredCount,
     int minCount,
@@ -338,8 +338,12 @@ void TChunkPlacement::InsertToLoadFactorMaps(TNode* node)
     // Iterate through IOWeights because IsValidWriteTargetToInsert check if IOWeights contains medium.
     for (const auto& [mediumIndex, _] : node->IOWeights()) {
         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+        if (medium->IsOffshore()) {
+            continue;
+        }
+        auto* domesticMedium = medium->AsDomestic();
 
-        if (!IsValidWriteTargetToInsert(medium, node)) {
+        if (!IsValidWriteTargetToInsert(domesticMedium, node)) {
             continue;
         }
 
@@ -348,7 +352,7 @@ void TChunkPlacement::InsertToLoadFactorMaps(TNode* node)
             continue;
         }
 
-        auto it = MediumToLoadFactorToNode_[medium].emplace(*loadFactor, node);
+        auto it = MediumToLoadFactorToNode_[domesticMedium].emplace(*loadFactor, node);
         node->SetLoadFactorIterator(mediumIndex, it);
     }
 }
@@ -358,11 +362,11 @@ void TChunkPlacement::RemoveFromLoadFactorMaps(TNode* node)
     for (const auto& [mediumIndex, factorMapIter] : node->LoadFactorIterators()) {
         auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
 
-        if (!factorMapIter || !medium) {
+        if (!factorMapIter || !medium || medium->IsOffshore()) {
             continue;
         }
 
-        auto mediumToFactorMapIter = MediumToLoadFactorToNode_.find(medium);
+        auto mediumToFactorMapIter = MediumToLoadFactorToNode_.find(medium->AsDomestic());
         YT_VERIFY(mediumToFactorMapIter != MediumToLoadFactorToNode_.end());
 
         auto& factorMap = mediumToFactorMapIter->second;
@@ -376,7 +380,7 @@ void TChunkPlacement::RemoveFromLoadFactorMaps(TNode* node)
 }
 
 TNodeList TChunkPlacement::GetWriteTargets(
-    TMedium* medium,
+    TDomesticMedium* medium,
     TChunk* chunk,
     const TChunkReplicaIndexList& replicaIndexes,
     int desiredCount,
@@ -487,7 +491,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
 
 TNode* TChunkPlacement::FindPreferredNode(
     const std::optional<TString>& preferredHostName,
-    TMedium* medium)
+    TDomesticMedium* medium)
 {
     if (!preferredHostName) {
         return nullptr;
@@ -518,7 +522,7 @@ TNode* TChunkPlacement::FindPreferredNode(
 }
 
 std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
-    TMedium* medium,
+    TDomesticMedium* medium,
     TChunk* chunk,
     const TChunkReplicaIndexList& replicaIndexes,
     int desiredCount,
@@ -695,7 +699,7 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
 }
 
 TNodeList TChunkPlacement::AllocateWriteTargets(
-    TMedium* medium,
+    TDomesticMedium* medium,
     TChunk* chunk,
     const TChunkReplicaIndexList& replicaIndexes,
     int desiredCount,
@@ -846,7 +850,7 @@ TChunkLocation* TChunkPlacement::GetRemovalTarget(TChunkPtrWithReplicaAndMediumI
     }
 }
 
-bool TChunkPlacement::IsValidWriteTargetToInsert(TMedium* medium, TNode* node)
+bool TChunkPlacement::IsValidWriteTargetToInsert(TDomesticMedium* medium, TNode* node)
 {
     if (!node->IsWriteEnabled(medium->GetIndex())) {
         // Do not write anything to nodes not accepting writes.
@@ -856,7 +860,7 @@ bool TChunkPlacement::IsValidWriteTargetToInsert(TMedium* medium, TNode* node)
     return IsValidWriteTargetCore(node);
 }
 
-bool TChunkPlacement::IsValidPreferredWriteTargetToAllocate(TNode* node, TMedium* medium)
+bool TChunkPlacement::IsValidPreferredWriteTargetToAllocate(TNode* node, TDomesticMedium* medium)
 {
     if (!node->IsWriteEnabled(medium->GetIndex())) {
         return false;
@@ -931,15 +935,20 @@ void TChunkPlacement::AddSessionHint(TNode* node, int mediumIndex, ESessionType 
 }
 
 int TChunkPlacement::GetMaxReplicasPerRack(
-    const TMedium* medium,
+    const TMediumBase* medium,
     const TChunk* chunk,
     std::optional<int> replicationFactorOverride) const
 {
+    // For now, replication factor on offshore medium is always 1.
+    if (medium->IsOffshore()) {
+        return 1;
+    }
+
     auto result = chunk->GetMaxReplicasPerFailureDomain(
         medium->GetIndex(),
         replicationFactorOverride,
         Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry());
-    const auto& config = medium->Config();
+    const auto& config = medium->AsDomestic()->Config();
     result = std::min(result, config->MaxReplicasPerRack);
 
     switch (chunk->GetType()) {
@@ -972,7 +981,7 @@ int TChunkPlacement::GetMaxReplicasPerRack(
 }
 
 int TChunkPlacement::GetMaxReplicasPerDataCenter(
-    const TMedium* medium,
+    const TDomesticMedium* medium,
     const TChunk* chunk,
     const TDataCenter* dataCenter,
     std::optional<int> replicationFactorOverride) const
@@ -1028,7 +1037,7 @@ const std::vector<TError>& TChunkPlacement::GetAlerts() const
     return DataCenterSetErrors_;
 }
 
-void TChunkPlacement::PrepareLoadFactorIterator(const TMedium* medium)
+void TChunkPlacement::PrepareLoadFactorIterator(const TDomesticMedium* medium)
 {
     LoadFactorToNodeIterator_.Reset();
     auto it = MediumToLoadFactorToNode_.find(medium);

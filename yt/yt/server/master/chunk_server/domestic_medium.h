@@ -1,7 +1,9 @@
 #pragma once
 
 #include "public.h"
+
 #include "config.h"
+#include "medium_base.h"
 
 #include <yt/yt/server/master/object_server/object.h>
 
@@ -15,33 +17,29 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 /// Represents a storage type (e.g. HDD, SSD, RAM).
-class TMedium
-    : public NObjectServer::TObject
-    , public TRefTracked<TMedium>
+class TDomesticMedium
+    : public TMediumBase
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
-    DEFINE_BYVAL_RW_PROPERTY(int, Index, -1);
-    DEFINE_BYVAL_RW_PROPERTY(int, Priority, MediumDefaultPriority);
     DEFINE_BYVAL_RW_PROPERTY(bool, Transient, false);
     // TODO(savrus): Switch to BYVAL when generic property getter will return reference.
-    DEFINE_BYREF_RW_PROPERTY(TMediumConfigPtr, Config, New<TMediumConfig>());
-
-    DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
+    DEFINE_BYREF_RW_PROPERTY(TDomesticMediumConfigPtr, Config, New<TDomesticMediumConfig>());
 
     DEFINE_BYREF_RW_PROPERTY(std::optional<std::vector<TString>>, DiskFamilyWhitelist);
 
 public:
-    explicit TMedium(TMediumId id);
+    using TMediumBase::TMediumBase;
+
+    bool IsDomestic() const override;
 
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+    void Save(NCellMaster::TSaveContext& context) const override;
+    void Load(NCellMaster::TLoadContext& context) override;
 };
 
-DEFINE_MASTER_OBJECT_TYPE(TMedium)
+DEFINE_MASTER_OBJECT_TYPE(TDomesticMedium)
 
 ////////////////////////////////////////////////////////////////////////////////
 

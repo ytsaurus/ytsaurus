@@ -11,7 +11,7 @@ from yt_commands import (
     create, ls, get, set, remove, exists, create_pool, read_table, write_table,
     map, run_test_vanilla, run_sleeping_vanilla, get_job,
     sync_create_cells, update_controller_agent_config, update_pool_tree_config, update_pool_tree_config_option,
-    update_scheduler_config, update_op_parameters, create_test_tables, retry, create_medium,
+    update_scheduler_config, update_op_parameters, create_test_tables, retry, create_domestic_medium,
     disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node)
 
 from yt_scheduler_helpers import (
@@ -1652,7 +1652,7 @@ class TestSsdPriorityPreemption(YTEnvSetup):
 
     @classmethod
     def on_masters_started(cls):
-        create_medium(TestSsdPriorityPreemption.SSD_MEDIUM)
+        create_domestic_medium(TestSsdPriorityPreemption.SSD_MEDIUM)
 
     @classmethod
     def setup_class(cls):

@@ -2,7 +2,7 @@
 #include "private.h"
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/medium_base.h>
 
 #include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
 

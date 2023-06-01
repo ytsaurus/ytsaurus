@@ -380,9 +380,12 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/master_cell_chunk_statistics_collector.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_proxy.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_type_handler.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/domestic_medium.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/domestic_medium_proxy.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/domestic_medium_type_handler.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_base.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_proxy_base.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_type_handler_base.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/job_controller.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/job_registry.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/job_tracker_service.cpp

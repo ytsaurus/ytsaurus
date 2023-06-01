@@ -10,10 +10,10 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NObjectServer::IObjectProxyPtr CreateMediumProxy(
+NObjectServer::IObjectProxyPtr CreateDomesticMediumProxy(
     NCellMaster::TBootstrap* bootstrap,
     NObjectServer::TObjectTypeMetadata* metadata,
-    TMedium* medium);
+    TDomesticMedium* medium);
 
 ////////////////////////////////////////////////////////////////////////////////
 

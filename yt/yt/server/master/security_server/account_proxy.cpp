@@ -1,4 +1,5 @@
 #include "account_proxy.h"
+
 #include "account.h"
 #include "config.h"
 #include "helpers.h"
@@ -15,7 +16,7 @@
 #include <yt/yt/server/master/object_server/object_detail.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/medium_base.h>
 
 #include <yt/yt/ytlib/security_client/proto/account_ypath.pb.h>
 

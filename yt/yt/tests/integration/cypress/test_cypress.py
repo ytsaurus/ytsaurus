@@ -7,7 +7,7 @@ from yt_type_helpers import (
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, move,
     remove, link,
-    exists, multiset_attributes, create_account, create_user, create_group, create_medium,
+    exists, multiset_attributes, create_account, create_user, create_group, create_domestic_medium,
     create_tablet_cell_bundle, remove_tablet_cell_bundle, create_dynamic_table,
     make_ace, remove_user, make_batch_request,
     execute_batch,
@@ -2610,7 +2610,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("shakurov")
     def test_inheritable_attributes2(self):
-        create_medium("hdd")
+        create_domestic_medium("hdd")
         create_tablet_cell_bundle("b")
 
         create("map_node", "//tmp/dir1")
@@ -2716,7 +2716,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("shakurov")
     def test_inheritable_attributes_media_validation(self):
-        create_medium("ssd")
+        create_domestic_medium("ssd")
 
         create("map_node", "//tmp/dir1")
         assert not exists("//tmp/dir1/@media")
@@ -2940,7 +2940,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("shakurov")
     def test_inheritable_attributes_yt_14207(self):
-        create_medium("m1")
+        create_domestic_medium("m1")
         create("map_node", "//tmp/d1", attributes={"primary_medium": "m1"})
         create("map_node", "//tmp/d1/d2/d3", recursive=True, attributes={"primary_medium": "default"})
 

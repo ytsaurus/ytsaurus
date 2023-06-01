@@ -61,7 +61,7 @@ public:
     const TImaginaryChunkLocation* AsImaginary() const;
     TImaginaryChunkLocation* AsImaginary();
 
-    // TODO(kvk1920): Use TMedium* here.
+    // TODO(kvk1920): Use TDomesticMedium* here.
     virtual int GetEffectiveMediumIndex() const = 0;
 
     void ReserveReplicas(int sizeHint);
@@ -102,7 +102,7 @@ protected:
     void Load(NCellMaster::TLoadContext& context);
 
 private:
-    // TODO(kvk1920): TStrongObjectPtr<TMedium> EffectiveMedium.
+    // TODO(kvk1920): TStrongObjectPtr<TDomesticMedium> EffectiveMedium.
     TReplicaSet::iterator RandomReplicaIter_;
     TDestroyedReplicaSet::const_iterator DestroyedReplicasIterator_;
 
@@ -174,7 +174,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TChunkLocationUuid, Uuid);
     DEFINE_BYVAL_RW_PROPERTY(EChunkLocationState, State, EChunkLocationState::Offline);
-    DEFINE_BYREF_RW_PROPERTY(TMediumPtr, MediumOverride);
+    DEFINE_BYREF_RW_PROPERTY(TDomesticMediumPtr, MediumOverride);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TChunkLocationStatistics, Statistics);
 
 public:

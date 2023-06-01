@@ -1,10 +1,12 @@
 #pragma once
 
 #include "public.h"
+
 #include "chunk_placement.h"
 #include "chunk_replica.h"
 #include "chunk_view.h"
 #include "chunk_requisition.h"
+#include "medium_base.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -182,7 +184,7 @@ struct IChunkManager
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
     virtual TChunkList* GetChunkListOrThrow(TChunkListId id) = 0;
 
-    DECLARE_INTERFACE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium);
+    DECLARE_INTERFACE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMediumBase);
 
     virtual TChunkTree* FindChunkTree(TChunkTreeId id) = 0;
     virtual TChunkTree* GetChunkTree(TChunkTreeId id) = 0;
@@ -191,7 +193,7 @@ struct IChunkManager
     //! This function returns a list of nodes where the replicas can be allocated
     //! or an empty list if the search has not succeeded.
     virtual TNodeList AllocateWriteTargets(
-        TMedium* medium,
+        TDomesticMedium* medium,
         TChunk* chunk,
         int desiredCount,
         int minCount,
@@ -201,7 +203,7 @@ struct IChunkManager
         const std::optional<TString>& preferredHostName) = 0;
 
     virtual TNodeList AllocateWriteTargets(
-        TMedium* medium,
+        TDomesticMedium* medium,
         TChunk* chunk,
         int replicaIndex,
         int desiredCount,
@@ -258,7 +260,7 @@ struct IChunkManager
         NSecurityServer::TAccount* account,
         int replicationFactor,
         NErasure::ECodec erasureCodecId,
-        TMedium* medium,
+        TMediumBase* medium,
         int readQuorum,
         int writeQuorum,
         bool movable,
@@ -322,31 +324,31 @@ struct IChunkManager
         const std::vector<NJournalClient::TChunkReplicaDescriptor>& replicaDescriptors) = 0;
 
     //! Returns the medium with a given id (throws if none).
-    virtual TMedium* GetMediumOrThrow(TMediumId id) const = 0;
+    virtual TMediumBase* GetMediumOrThrow(TMediumId id) const = 0;
 
     //! Returns the medium with a given index (|nullptr| if none).
-    virtual TMedium* FindMediumByIndex(int index) const = 0;
+    virtual TMediumBase* FindMediumByIndex(int index) const = 0;
 
     //! Returns the medium with a given index (fails if none).
-    virtual TMedium* GetMediumByIndex(int index) const = 0;
+    virtual TMediumBase* GetMediumByIndex(int index) const = 0;
 
     //! Returns the medium with a given index (throws if none).
-    virtual TMedium* GetMediumByIndexOrThrow(int index) const = 0;
+    virtual TMediumBase* GetMediumByIndexOrThrow(int index) const = 0;
 
     //! Renames an existing medium. Throws on name conflict.
-    virtual void RenameMedium(TMedium* medium, const TString& newName) = 0;
+    virtual void RenameMedium(TMediumBase* medium, const TString& newName) = 0;
 
     //! Validates and changes medium priority.
-    virtual void SetMediumPriority(TMedium* medium, int priority) = 0;
+    virtual void SetMediumPriority(TMediumBase* medium, int priority) = 0;
 
     //! Changes medium config. Triggers global chunk refresh if necessary.
-    virtual void SetMediumConfig(TMedium* medium, TMediumConfigPtr newConfig) = 0;
+    virtual void SetMediumConfig(TDomesticMedium* medium, TDomesticMediumConfigPtr newConfig) = 0;
 
     //! Returns the medium with a given name (|nullptr| if none).
-    virtual TMedium* FindMediumByName(const TString& name) const = 0;
+    virtual TMediumBase* FindMediumByName(const TString& name) const = 0;
 
     //! Returns the medium with a given name (throws if none).
-    virtual TMedium* GetMediumByNameOrThrow(const TString& name) const = 0;
+    virtual TMediumBase* GetMediumByNameOrThrow(const TString& name) const = 0;
 
     //! Returns chunk replicas "ideal" from CRP point of view.
     //! This reflects the target chunk placement, not the actual one.
@@ -375,12 +377,14 @@ struct IChunkManager
     virtual void DisposeNode(TNode* node) = 0;
     virtual void DisposeLocation(NChunkServer::TChunkLocation* location) = 0;
 
+    virtual void DestroyMedium(TMediumBase* medium) = 0;
+
 private:
     friend class TChunkTypeHandler;
     friend class TChunkListTypeHandler;
     friend class TChunkViewTypeHandler;
     friend class TDynamicStoreTypeHandler;
-    friend class TMediumTypeHandler;
+    friend class TDomesticMediumTypeHandler;
 
     virtual NHydra::TEntityMap<TChunk>& MutableChunks() = 0;
     virtual void DestroyChunk(TChunk* chunk) = 0;
@@ -396,14 +400,12 @@ private:
     virtual NHydra::TEntityMap<TDynamicStore>& MutableDynamicStores() = 0;
     virtual void DestroyDynamicStore(TDynamicStore* dynamicStore) = 0;
 
-    virtual NHydra::TEntityMap<TMedium>& MutableMedia() = 0;
-    virtual TMedium* CreateMedium(
+    virtual TDomesticMedium* CreateDomesticMedium(
         const TString& name,
         std::optional<bool> transient,
         std::optional<int> priority,
         std::optional<int> hintIndex,
         NObjectClient::TObjectId hintId) = 0;
-    virtual void DestroyMedium(TMedium* medium) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkManager)

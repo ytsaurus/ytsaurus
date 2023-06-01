@@ -46,7 +46,7 @@
 #include <yt/yt/server/master/chunk_server/config.h>
 #include <yt/yt/server/master/chunk_server/dynamic_store.h>
 #include <yt/yt/server/master/chunk_server/helpers.h>
-#include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/domestic_medium.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 

@@ -2,7 +2,7 @@
 
 #include "public.h"
 #include "chunk_replica.h"
-#include "medium.h"
+#include "domestic_medium.h"
 #include "consistent_chunk_placement.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
@@ -102,7 +102,7 @@ public:
     bool IsDataCenterFeasible(const NNodeTrackerServer::TDataCenter* dataCenter) const;
 
     TNodeList AllocateWriteTargets(
-        TMedium* medium,
+        TDomesticMedium* medium,
         TChunk* chunk,
         int desiredCount,
         int minCount,
@@ -113,7 +113,7 @@ public:
         NChunkClient::ESessionType sessionType);
 
     TNodeList AllocateWriteTargets(
-        TMedium* medium,
+        TDomesticMedium* medium,
         TChunk* chunk,
         const TChunkReplicaIndexList& replicaIndexes,
         int desiredCount,
@@ -129,7 +129,7 @@ public:
     TChunkLocation* GetRemovalTarget(TChunkPtrWithReplicaAndMediumIndex replica);
 
     int GetMaxReplicasPerRack(
-        const TMedium* medium,
+        const TMediumBase* medium,
         const TChunk* chunk,
         std::optional<int> replicationFactorOverride = std::nullopt) const;
     int GetMaxReplicasPerRack(
@@ -138,7 +138,7 @@ public:
         std::optional<int> replicationFactorOverride = std::nullopt) const;
 
     int GetMaxReplicasPerDataCenter(
-        const TMedium* medium,
+        const TDomesticMedium* medium,
         const TChunk* chunk,
         const NNodeTrackerServer::TDataCenter* dataCenter,
         std::optional<int> replicationFactorOverride = std::nullopt) const;
@@ -159,7 +159,7 @@ private:
 
     TReusableMergeIterator<TLoadFactorToNodeIterator, TLoadFactorToNodeMapItemComparator> LoadFactorToNodeIterator_;
 
-    using TLoadFactorToNodeMaps = THashMap<const TMedium*, TLoadFactorToNodeMap>;
+    using TLoadFactorToNodeMaps = THashMap<const TDomesticMedium*, TLoadFactorToNodeMap>;
 
     //! Nodes listed here must pass #IsValidWriteTargetToInsert test.
     TLoadFactorToNodeMaps MediumToLoadFactorToNode_;
@@ -180,7 +180,7 @@ private:
     void RemoveFromLoadFactorMaps(TNode* node);
 
     TNodeList GetWriteTargets(
-        TMedium* medium,
+        TDomesticMedium* medium,
         TChunk* chunk,
         const TChunkReplicaIndexList& replicaIndexes,
         int desiredCount,
@@ -193,7 +193,7 @@ private:
         TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica = {});
 
     std::optional<TNodeList> FindConsistentPlacementWriteTargets(
-        TMedium* medium,
+        TDomesticMedium* medium,
         TChunk* chunk,
         const TChunkReplicaIndexList& replicaIndexes,
         int desiredCount,
@@ -204,9 +204,9 @@ private:
 
     TNode* FindPreferredNode(
         const std::optional<TString>& preferredHostName,
-        TMedium* medium);
+        TDomesticMedium* medium);
 
-    bool IsValidWriteTargetToInsert(TMedium* medium, TNode* node);
+    bool IsValidWriteTargetToInsert(TDomesticMedium* medium, TNode* node);
     bool IsValidWriteTargetToAllocate(
         TNode* node,
         TTargetCollector* collector,
@@ -216,7 +216,7 @@ private:
     // Preferred nodes are special: they don't come from load-factor maps and
     // thus may not have been vetted by #IsValidWriteTargetToInsert. Thus,
     // additional checking of their media is required.
-    bool IsValidPreferredWriteTargetToAllocate(TNode* node, TMedium* medium);
+    bool IsValidPreferredWriteTargetToAllocate(TNode* node, TDomesticMedium* medium);
 
     bool IsValidRemovalTarget(TNode* node);
 
@@ -225,7 +225,7 @@ private:
         int mediumIndex,
         NChunkClient::ESessionType sessionType);
 
-    void PrepareLoadFactorIterator(const TMedium* medium);
+    void PrepareLoadFactorIterator(const TDomesticMedium* medium);
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const;
     bool IsConsistentChunkPlacementEnabled() const;

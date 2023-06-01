@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, create, create_medium, get, get_account_disk_space_limit,
+    authors, create, create_domestic_medium, get, get_account_disk_space_limit,
     map_reduce, release_breakpoint, set, set_account_disk_space_limit,
     wait, wait_breakpoint, with_breakpoint, write_table,
 )
@@ -67,7 +67,7 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
 
     @classmethod
     def on_masters_started(cls):
-        create_medium(cls.FAST_MEDIUM)
+        create_domestic_medium(cls.FAST_MEDIUM)
 
     @authors("galtsev")
     @pytest.mark.flaky(max_runs=5)

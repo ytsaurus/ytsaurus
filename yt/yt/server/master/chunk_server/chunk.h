@@ -167,7 +167,10 @@ public:
     //! For erasure chunks, this array is directly addressed by replica indexes; at most one replica is kept per part.
     TRange<TNodeId> LastSeenReplicas() const;
 
-    void AddReplica(TChunkLocationPtrWithReplicaInfo replica, const TMedium* medium, bool approved);
+    void AddReplica(
+        TChunkLocationPtrWithReplicaInfo replica,
+        const TDomesticMedium* medium,
+        bool approved);
     void RemoveReplica(TChunkLocationPtrWithReplicaIndex replica, bool approved);
 
     void ApproveReplica(TChunkLocationPtrWithReplicaInfo replica);

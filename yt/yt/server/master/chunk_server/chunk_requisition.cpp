@@ -1,7 +1,7 @@
 #include "chunk_requisition.h"
 
 #include "chunk_manager.h"
-#include "medium.h"
+#include "domestic_medium.h"
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
@@ -163,7 +163,12 @@ bool TChunkReplication::IsDurabilityRequired(const IChunkManagerPtr& chunkManage
 
     for (auto entry : Entries_) {
         auto* medium = chunkManager->GetMediumByIndex(entry.GetMediumIndex());
-        if (!medium->GetTransient() && entry.Policy().GetReplicationFactor() > 1) {
+        if (medium->IsOffshore()) {
+            return true;
+        }
+
+        YT_VERIFY(medium->IsDomestic());
+        if (!medium->AsDomestic()->GetTransient() && entry.Policy().GetReplicationFactor() > 1) {
             return true;
         }
     }

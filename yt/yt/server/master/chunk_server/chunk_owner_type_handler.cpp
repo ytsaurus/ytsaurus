@@ -1,6 +1,7 @@
 #include "chunk_owner_type_handler.h"
+
 #include "chunk_manager.h"
-#include "medium.h"
+#include "medium_base.h"
 #include "helpers.h"
 // COMPAT(kvk1920)
 #include "config.h"
@@ -622,7 +623,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoEndCopy(
 
     using NYT::Load;
 
-    auto* medium = Load<TMedium*>(*context);
+    auto* medium = Load<TMediumBase*>(*context);
     trunkNode->SetPrimaryMediumIndex(medium->GetIndex());
 
     Load(*context, trunkNode->Replication());

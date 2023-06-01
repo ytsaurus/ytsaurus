@@ -12,7 +12,7 @@
 #include "job_registry.h"
 #include "chunk_scanner.h"
 #include "chunk_replica.h"
-#include "medium.h"
+#include "domestic_medium.h"
 #include "helpers.h"
 #include "data_node_tracker.h"
 #include "chunk_manager.h"
@@ -602,8 +602,17 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
     for (const auto& entry : chunkReplication) {
         auto mediumIndex = entry.GetMediumIndex();
-        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        YT_VERIFY(IsObjectAlive(medium));
+        auto* mediumBase = chunkManager->FindMediumByIndex(mediumIndex);
+        YT_VERIFY(IsObjectAlive(mediumBase));
+
+        // TODO(gritukan): Check replica presence here when
+        // chunk will store offshore replicas.
+        // For now, we just ignore such media.
+        if (mediumBase->IsOffshore()) {
+            continue;
+        }
+
+        auto* medium = mediumBase->AsDomestic();
 
         auto mediumTransient = medium->GetTransient();
 
@@ -806,7 +815,9 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
     } else {
         for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
             auto* medium = mediumIdAndPtrPair.second;
-            transientMedia.set(medium->GetIndex(), medium->GetTransient());
+            if (medium->IsDomestic()) {
+                transientMedia.set(medium->GetIndex(), medium->AsDomestic()->GetTransient());
+            }
         }
     }
 
@@ -1017,8 +1028,15 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
         YT_VERIFY(IsObjectAlive(medium));
 
+        // TODO(gritukan): Check replica presence here when
+        // chunk will store offshore replicas.
+        // For now, we just ignore such media.
+        if (medium->IsOffshore()) {
+            continue;
+        }
+
         auto& mediumStatistics = results.PerMediumStatistics[mediumIndex];
-        auto mediumTransient = medium->GetTransient();
+        auto mediumTransient = medium->AsDomestic()->GetTransient();
 
         auto mediumReplicationPolicy = entry.Policy();
         auto mediumReplicaCount = replicaCount[mediumIndex];
@@ -1283,7 +1301,7 @@ void TChunkReplicator::UnrefChunkBeingPulled(
 bool TChunkReplicator::TryScheduleReplicationJob(
     IJobSchedulingContext* context,
     TChunkPtrWithReplicaIndex chunkWithIndex,
-    TMedium* targetMedium,
+    TDomesticMedium* targetMedium,
     TNodeId targetNodeId)
 {
     auto* sourceNode = context->GetNode();
@@ -1454,11 +1472,6 @@ bool TChunkReplicator::TryScheduleRepairJob(
     YT_VERIFY(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
 
     auto* chunk = chunkWithIndexes.GetPtr();
-    int mediumIndex = chunkWithIndexes.GetMediumIndex();
-
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
-    auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
-
     YT_VERIFY(chunk->IsErasure());
 
     if (!IsObjectAlive(chunk)) {
@@ -1470,6 +1483,28 @@ bool TChunkReplicator::TryScheduleRepairJob(
     }
 
     if (chunk->HasJobs()) {
+        return true;
+    }
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    int mediumIndex = chunkWithIndexes.GetMediumIndex();
+    auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+    if (!IsObjectAlive(medium)) {
+        YT_LOG_ALERT(
+            "Attempted to schedule repair job for non-existent medium, ignored "
+            "(ChunkId: %v, MediumIndex: %v)",
+            chunk->GetId(),
+            mediumIndex);
+        return true;
+    }
+    if (medium->IsOffshore()) {
+        YT_LOG_ALERT(
+            "Attempted to schedule repair job for offshore medium, ignored "
+            "(ChunkId: %v, MediumIndex: %v, MediumName: %v, MediumType: %v)",
+            chunk->GetId(),
+            medium->GetIndex(),
+            medium->GetName(),
+            medium->GetType());
         return true;
     }
 
@@ -1518,7 +1553,7 @@ bool TChunkReplicator::TryScheduleRepairJob(
     }
 
     auto targetNodes = ChunkPlacement_->AllocateWriteTargets(
-        medium,
+        medium->AsDomestic(),
         chunk,
         {erasedPartIndexes.begin(), erasedPartIndexes.end()},
         std::ssize(erasedPartIndexes),
@@ -1680,11 +1715,45 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
 
             for (int mediumIndex = 0; mediumIndex < std::ssize(mediumIndexSet); ++mediumIndex) {
                 if (mediumIndexSet.test(mediumIndex)) {
-                    auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
+                    auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                    if (!IsObjectAlive(medium)) {
+                        YT_LOG_ALERT(
+                            "Attempted to schedule replication job for non-existent medium, ignored "
+                            "(ChunkId: %v, MediumIndex: %v)",
+                            chunk->GetId(),
+                            mediumIndex);
+                        ++misscheduledReplicationJobs;
+                        // Something bad happened, let's try to forget it.
+                        mediumIndexSet.reset(mediumIndex);
+                        ScheduleChunkRefresh(chunk);
+
+                        continue;
+                    }
+                    if (medium->IsOffshore()) {
+                        YT_LOG_ALERT(
+                            "Attempted to schedule replication job for offshore medium, ignored "
+                            "(ChunkId: %v, MediumIndex: %v, MediumName: %v, MediumType: %v)",
+                            chunk->GetId(),
+                            medium->GetIndex(),
+                            medium->GetName(),
+                            medium->GetType());
+                        ++misscheduledReplicationJobs;
+                        // Something bad happened, let's try to forget it.
+                        mediumIndexSet.reset(mediumIndex);
+                        ScheduleChunkRefresh(chunk);
+
+                        continue;
+                    }
+
                     auto nodeId = node->GetTargetReplicationNodeId(chunkId, mediumIndex);
                     node->RemoveTargetReplicationNodeId(chunkId, mediumIndex);
 
-                    if (TryScheduleReplicationJob(context, chunkWithIndex, medium, nodeId)) {
+                    if (TryScheduleReplicationJob(
+                        context,
+                        chunkWithIndex,
+                        medium->AsDomestic(),
+                        nodeId))
+                    {
                         mediumIndexSet.reset(mediumIndex);
                     } else {
                         ++misscheduledReplicationJobs;
@@ -2219,7 +2288,11 @@ TChunkReplication TChunkReplicator::GetChunkAggregatedReplication(const TChunk* 
 
         auto* medium = chunkManager->FindMediumByIndex(entry.GetMediumIndex());
         YT_VERIFY(IsObjectAlive(medium));
-        auto cap = medium->Config()->MaxReplicationFactor;
+        // For now, all offshore media have replication parameters in settings, so
+        // from replicator's point of view chunk has single replica.
+        auto cap = medium->IsDomestic()
+            ? medium->AsDomestic()->Config()->MaxReplicationFactor
+            : 1;
 
         entry.Policy().SetReplicationFactor(std::min(cap, entry.Policy().GetReplicationFactor()));
     }
@@ -2244,7 +2317,11 @@ int TChunkReplicator::GetChunkAggregatedReplicationFactor(const TChunk* chunk, i
 
     auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
     YT_VERIFY(IsObjectAlive(medium));
-    auto cap = medium->Config()->MaxReplicationFactor;
+    // For now, all offshore media have replication parameters in settings, so
+    // from replicator's point of view chunk has single replica.
+    auto cap = medium->IsDomestic()
+        ? medium->AsDomestic()->Config()->MaxReplicationFactor
+        : 1;
 
     return std::min(cap, result);
 }

@@ -7,7 +7,7 @@
 #include "chunk_replicator.h"
 #include "helpers.h"
 #include "chunk_owner_base.h"
-#include "medium.h"
+#include "domestic_medium.h"
 #include "dynamic_store.h"
 #include "chunk_owner_node_proxy.h"
 
@@ -463,6 +463,13 @@ private:
             try {
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 auto* medium = chunkManager->GetMediumByIndexOrThrow(sessionId.MediumIndex);
+                if (medium->IsOffshore()) {
+                    THROW_ERROR_EXCEPTION("Write targets allocation for offshore media is forbidden")
+                        << TErrorAttribute("chunk_id", sessionId.ChunkId)
+                        << TErrorAttribute("medium_index", medium->GetIndex())
+                        << TErrorAttribute("medium_name", medium->GetName())
+                        << TErrorAttribute("medium_type", medium->GetType());
+                }
                 auto* chunk = chunkManager->GetChunkOrThrow(sessionId.ChunkId);
 
                 const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -483,7 +490,7 @@ private:
                 std::sort(allocatedNodes.begin(), allocatedNodes.end());
 
                 auto targets = chunkManager->AllocateWriteTargets(
-                    medium,
+                    medium->AsDomestic(),
                     chunk,
                     desiredTargetCount,
                     minTargetCount,

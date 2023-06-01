@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, wait, create, ls, get, set, exists, remove,
-    create_medium, write_file,
+    create_domestic_medium, write_file,
     read_table, write_table, write_journal, wait_until_sealed,
     get_singular_chunk_id, set_account_disk_space_limit, get_account_disk_space_limit,
     get_media, ban_node)
@@ -44,11 +44,11 @@ class TestMedia(YTEnvSetup):
 
     @classmethod
     def on_masters_started(cls):
-        create_medium(cls.NON_DEFAULT_MEDIUM)
-        create_medium(cls.NON_DEFAULT_TRANSIENT_MEDIUM, attributes={"transient": True})
+        create_domestic_medium(cls.NON_DEFAULT_MEDIUM)
+        create_domestic_medium(cls.NON_DEFAULT_TRANSIENT_MEDIUM, attributes={"transient": True})
         medium_count = len(get_media())
         while medium_count < 120:
-            create_medium("hdd" + str(medium_count))
+            create_domestic_medium("hdd" + str(medium_count))
             medium_count += 1
 
     def _check_all_chunks_on_medium(self, tbl, medium):
@@ -131,6 +131,10 @@ class TestMedia(YTEnvSetup):
     def test_default_store_medium_index(self):
         assert get("//sys/media/default/@index") == 0
 
+    @authors("gritukan")
+    def test_default_store_medium_domestic(self):
+        assert get("//sys/media/default/@domestic")
+
     @authors("shakurov")
     def test_create_simple(self):
         assert get("//sys/media/hdd4/@name") == "hdd4"
@@ -139,7 +143,7 @@ class TestMedia(YTEnvSetup):
     @authors()
     def test_create_too_many_fails(self):
         with pytest.raises(YtError):
-            create_medium("excess_medium")
+            create_domestic_medium("excess_medium")
 
     @authors("aozeritsky", "shakurov")
     def test_rename(self):
@@ -165,12 +169,12 @@ class TestMedia(YTEnvSetup):
     @authors()
     def test_create_empty_name_fails(self):
         with pytest.raises(YtError):
-            create_medium("")
+            create_domestic_medium("")
 
     @authors()
     def test_create_duplicate_name_fails(self):
         with pytest.raises(YtError):
-            create_medium(TestMedia.NON_DEFAULT_MEDIUM)
+            create_domestic_medium(TestMedia.NON_DEFAULT_MEDIUM)
 
     @authors("babenko")
     def test_new_table_attributes(self):
@@ -472,7 +476,7 @@ class TestMedia(YTEnvSetup):
     @authors("babenko")
     def test_create_with_invalid_attrs_yt_7093(self):
         with pytest.raises(YtError):
-            create_medium("x", attributes={"priority": "hello"})
+            create_domestic_medium("x", attributes={"priority": "hello"})
         assert not exists("//sys/media/x")
 
     @authors("shakurov")
@@ -695,9 +699,9 @@ class TestDynamicMedia(YTEnvSetup):
                 return location_uuid
         assert False, "BINGO!!!"
 
-    def _create_medium(self, medium):
+    def _create_domestic_medium(self, medium):
         if not exists(f"//sys/media/{medium}"):
-            create_medium(medium)
+            create_domestic_medium(medium)
 
     def _sync_set_medium_overrides(self, overrides):
         for location, medium in overrides:
@@ -713,7 +717,7 @@ class TestDynamicMedia(YTEnvSetup):
 
         medium_name = "testmedium"
         if not exists("//sys/media/" + medium_name):
-            create_medium(medium_name)
+            create_domestic_medium(medium_name)
 
         table = "//tmp/t"
         create("table", table, attributes={"replication_factor": 1})
@@ -759,7 +763,7 @@ class TestDynamicMedia(YTEnvSetup):
         self._validate_empty_medium_overrides()
         medium = "testmedium"
         if not exists(f"//sys/media/{medium}"):
-            create_medium(medium)
+            create_domestic_medium(medium)
 
         location = ls("//sys/chunk_locations")[0]
         assert get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == "default"
@@ -772,9 +776,9 @@ class TestDynamicMedia(YTEnvSetup):
     def test_replica_collision1(self):
         self._validate_empty_medium_overrides()
         medium = "testmedium"
-        self._create_medium("testmedium")
+        self._create_domestic_medium("testmedium")
         tombstone = "tombstone"
-        self._create_medium("tombstone")
+        self._create_domestic_medium("tombstone")
 
         locations = ls("//sys/chunk_locations")
         location = locations[0]
@@ -817,8 +821,8 @@ class TestDynamicMedia(YTEnvSetup):
     def test_replica_collision2(self):
         self._validate_empty_medium_overrides()
         m1, m2 = "m1", "m2"
-        self._create_medium(m1)
-        self._create_medium(m2)
+        self._create_domestic_medium(m1)
+        self._create_domestic_medium(m2)
         disk_space_limit = get_account_disk_space_limit("tmp", "default")
         for m in (m1, m2):
             set_account_disk_space_limit("tmp", disk_space_limit, m)

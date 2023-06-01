@@ -1,7 +1,7 @@
 #include "node_statistics_helpers.h"
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/medium_base.h>
 
 namespace NYT::NNodeTrackerServer {
 

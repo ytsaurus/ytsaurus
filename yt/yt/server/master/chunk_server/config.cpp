@@ -42,7 +42,7 @@ void TChunkManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMediumConfig::Register(TRegistrar registrar)
+void TDomesticMediumConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_replication_factor", &TThis::MaxReplicationFactor)
         .GreaterThanOrEqual(NChunkClient::DefaultReplicationFactor)

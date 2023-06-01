@@ -540,9 +540,20 @@ private:
                 mediumIndex);
             return;
         }
-        const auto& diskFamilyWhitelist = medium->DiskFamilyWhitelist();
+        if (medium->IsOffshore()) {
+            YT_LOG_ALERT(
+                "Location medium is offshore "
+                "(LocationUuid: %v, MediumIndex: %v, MediumName: %v, MediumType: %v)",
+                locationUuid,
+                medium->GetIndex(),
+                medium->GetName(),
+                medium->GetType());
+            return;
+        }
+
+        const auto& diskFamilyWhitelist = medium->AsDomestic()->DiskFamilyWhitelist();
         auto diskFamily = location->Statistics().disk_family();
-        if (medium->DiskFamilyWhitelist() &&
+        if (diskFamilyWhitelist &&
             !std::binary_search(
                 diskFamilyWhitelist->begin(),
                 diskFamilyWhitelist->end(),

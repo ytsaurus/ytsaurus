@@ -39,6 +39,8 @@ using namespace NTableClient;
 using namespace NTableServer;
 using namespace NObjectServer;
 using namespace NNodeTrackerServer;
+using namespace NSecurityServer;
+using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -291,8 +293,8 @@ bool TCellBundleProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
 }
 
 void TCellBundleProxy::DoSerializeAccountViolatedResourceLimits(
-    NSecurityServer::TAccount* account,
-    NChunkServer::TMedium* medium,
+    TAccount* account,
+    TMediumBase* medium,
     IYsonConsumer* consumer) const
 {
     auto enableTabletResourceValidation =

@@ -1,12 +1,13 @@
 #include "chunk_merger.h"
+
 #include "chunk_owner_base.h"
 #include "chunk_list.h"
 #include "chunk_manager.h"
 #include "chunk_tree_traverser.h"
 #include "config.h"
+#include "domestic_medium.h"
 #include "job_registry.h"
 #include "job.h"
-#include "medium.h"
 
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -1389,8 +1390,21 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
             chunkRequisitionRegistry)
         : NErasure::GetCodec(erasureCodec)->GetTotalPartCount();
 
+    // TODO(gritukan): Support external media in chunk merger.
+    auto* medium = chunkManager->GetMediumByIndexOrThrow(chunkIdWithIndexes.MediumIndex);
+    if (medium->IsOffshore()) {
+        YT_LOG_ALERT(
+            "Chunk merger was run for table with offshore medium, ignored "
+            "(ChunkId: %v, MediumIndex: %v, MediumName: %v, MediumType: %v)",
+            jobInfo.OutputChunkId,
+            medium->GetIndex(),
+            medium->GetName(),
+            medium->GetType());
+        return false;
+    }
+
     auto targetNodes = chunkManager->AllocateWriteTargets(
-        chunkManager->GetMediumByIndexOrThrow(chunkIdWithIndexes.MediumIndex),
+        medium->AsDomestic(),
         outputChunk,
         GenericChunkReplicaIndex,
         targetCount,

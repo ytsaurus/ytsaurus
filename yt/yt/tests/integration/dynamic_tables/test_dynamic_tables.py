@@ -25,7 +25,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
     sync_remove_tablet_cells, set_node_decommissioned, create_dynamic_table, build_snapshot, get_driver,
-    AsyncLastCommittedTimestamp, create_medium, raises_yt_error, get_tablet_errors,
+    AsyncLastCommittedTimestamp, create_domestic_medium, raises_yt_error, get_tablet_errors,
     suspend_tablet_cells, resume_tablet_cells,
     ban_node, unban_node, decommission_node, recommission_node, disable_tablet_cells_on_node, enable_tablet_cells_on_node)
 
@@ -2648,7 +2648,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         _validate(disk_space, "default")
 
         if "test_medium" not in ls("//sys/media"):
-            create_medium("test_medium")
+            create_domestic_medium("test_medium")
         set("//tmp/t/@primary_medium", "test_medium")
         _validate(disk_space, "test_medium")
 

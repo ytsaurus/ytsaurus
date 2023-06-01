@@ -13,7 +13,7 @@
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
 #include <yt/yt/server/master/chunk_server/config.h>
-#include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/medium_base.h>
 
 #include <yt/yt/server/master/object_server/yson_intern_registry.h>
 
@@ -1212,7 +1212,7 @@ void TNontemplateCypressNodeProxyBase::ValidateMediaChange(
 }
 
 bool TNontemplateCypressNodeProxyBase::ValidatePrimaryMediumChange(
-    TMedium* newPrimaryMedium,
+    TMediumBase* newPrimaryMedium,
     const TChunkReplication& oldReplication,
     std::optional<int> oldPrimaryMediumIndex,
     TChunkReplication* newReplication)

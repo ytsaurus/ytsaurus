@@ -6,7 +6,7 @@
 #include "chunk_replicator.h"
 #include "job.h"
 #include "job_registry.h"
-#include "medium.h"
+#include "domestic_medium.h"
 #include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>

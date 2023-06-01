@@ -139,6 +139,7 @@
     XX(DisableWriteSessions, disable_write_sessions) \
     XX(DiskFamilyWhitelist, disk_family_whitelist) \
     XX(DiskSpace, disk_space) \
+    XX(Domestic, domestic) \
     XX(Dynamic, dynamic) \
     XX(DynamicConfigVersion, dynamic_config_version) \
     XX(DynamicOptions, dynamic_options) \

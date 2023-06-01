@@ -224,6 +224,12 @@ bool IsCollocationType(EObjectType type)
         type == EObjectType::ReplicationCardCollocation;
 }
 
+bool IsMediumType(EObjectType type)
+{
+    return
+        type == EObjectType::Medium;
+}
+
 bool HasSchema(EObjectType type)
 {
     if (type == EObjectType::Master) {

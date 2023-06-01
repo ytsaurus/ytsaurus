@@ -22,7 +22,7 @@
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
-#include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/medium_base.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/node_detail.h>
@@ -1414,8 +1414,8 @@ TObject* TObjectManager::CreateObject(
     auto* object = handler->CreateObject(hintId, attributes);
 
     // COMPAT(aleksandra-zh): medium replication hotfix.
-    if (replicate && type == EObjectType::Medium) {
-        auto* medium = object->As<TMedium>();
+    if (replicate && IsMediumType(type)) {
+        auto* medium = object->As<TMediumBase>();
         replicatedAttributes->Set("index", medium->GetIndex());
     }
 

@@ -2136,7 +2136,7 @@ def remove_host(name, **kwargs):
     remove("//sys/hosts/" + name, **kwargs)
 
 
-def create_medium(name, **kwargs):
+def create_domestic_medium(name, **kwargs):
     kwargs["type"] = "medium"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()

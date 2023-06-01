@@ -27,8 +27,8 @@
 #include "job_controller.h"
 #include "job_registry.h"
 #include "master_cell_chunk_statistics_collector.h"
-#include "medium.h"
-#include "medium_type_handler.h"
+#include "domestic_medium.h"
+#include "domestic_medium_type_handler.h"
 #include "chunk_location.h"
 
 #include <yt/yt/server/master/cell_master/alert_manager.h>
@@ -386,6 +386,7 @@ public:
             CreateMasterCellChunkStatisticsCollector(
                 Bootstrap_,
                 {CreateChunkCreationTimeHistogramBuilder(bootstrap)}))
+        , MediumMap_(TEntityMapTypeTraits<TMediumBase>(Bootstrap_))
     {
         RegisterMethod(BIND(&TChunkManager::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
         RegisterMethod(BIND(&TChunkManager::HydraUpdateChunkRequisition, Unretained(this)));
@@ -457,7 +458,7 @@ public:
         objectManager->RegisterHandler(CreateDynamicStoreTypeHandler(Bootstrap_, EObjectType::SortedDynamicTabletStore));
         objectManager->RegisterHandler(CreateDynamicStoreTypeHandler(Bootstrap_, EObjectType::OrderedDynamicTabletStore));
         objectManager->RegisterHandler(CreateChunkListTypeHandler(Bootstrap_));
-        objectManager->RegisterHandler(CreateMediumTypeHandler(Bootstrap_));
+        objectManager->RegisterHandler(CreateDomesticMediumTypeHandler(Bootstrap_));
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeNodeRegistered(BIND_NO_PROPAGATE(&TChunkManager::OnNodeRegistered, MakeWeak(this)));
@@ -841,7 +842,7 @@ public:
     }
 
     TNodeList AllocateWriteTargets(
-        TMedium* medium,
+        TDomesticMedium* medium,
         TChunk* chunk,
         int desiredCount,
         int minCount,
@@ -863,7 +864,7 @@ public:
     }
 
     TNodeList AllocateWriteTargets(
-        TMedium* medium,
+        TDomesticMedium* medium,
         TChunk* chunk,
         int replicaIndex,
         int desiredCount,
@@ -962,7 +963,22 @@ public:
 
                 int mediumIndex = location->GetEffectiveMediumIndex();
                 const auto* medium = GetMediumByIndexOrThrow(mediumIndex);
-                AddChunkReplica(location, medium, replicaWithState, EAddReplicaReason::Confirmation);
+                if (medium->IsOffshore()) {
+                    YT_LOG_ALERT(
+                        "Tried to confirm chunk replica with location on offshore medium "
+                        "(ChunkId: %v, MediumName: %v, MediumIndex: %v, MediumType: %v)",
+                        chunk->GetId(),
+                        medium->GetName(),
+                        medium->GetIndex(),
+                        medium->GetType());
+                    continue;
+                }
+
+                AddChunkReplica(
+                    location,
+                    medium->AsDomestic(),
+                    replicaWithState,
+                    EAddReplicaReason::Confirmation);
 
                 location->AddUnapprovedReplica(chunkWithReplicaIndex, mutationTimestamp);
             }
@@ -1090,7 +1106,7 @@ public:
         TAccount* account,
         int replicationFactor,
         NErasure::ECodec erasureCodecId,
-        TMedium* medium,
+        TMediumBase* medium,
         int readQuorum,
         int writeQuorum,
         bool movable,
@@ -2241,7 +2257,7 @@ public:
         return chunkList;
     }
 
-    TMedium* CreateMedium(
+    TDomesticMedium* CreateDomesticMedium(
         const TString& name,
         std::optional<bool> transient,
         std::optional<int> priority,
@@ -2265,7 +2281,7 @@ public:
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Medium, hintId);
         auto mediumIndex = hintIndex ? *hintIndex : GetFreeMediumIndex();
-        return DoCreateMedium(
+        return DoCreateDomesticMedium(
             id,
             mediumIndex,
             name,
@@ -2273,12 +2289,14 @@ public:
             priority);
     }
 
-    void DestroyMedium(TMedium* medium) override
+    void DestroyMedium(TMediumBase* medium) override
     {
         UnregisterMedium(medium);
+
+        MediumMap_.Release(medium->GetId());
     }
 
-    void RenameMedium(TMedium* medium, const TString& newName) override
+    void RenameMedium(TMediumBase* medium, const TString& newName) override
     {
         if (medium->GetName() == newName) {
             return;
@@ -2296,12 +2314,12 @@ public:
         }
 
         // Update name.
-        YT_VERIFY(NameToMediumMap_.erase(medium->GetName()) == 1);
-        YT_VERIFY(NameToMediumMap_.emplace(newName, medium).second);
+        EraseOrCrash(NameToMediumMap_, medium->GetName());
+        EmplaceOrCrash(NameToMediumMap_, newName, medium);
         medium->SetName(newName);
     }
 
-    void SetMediumPriority(TMedium* medium, int priority) override
+    void SetMediumPriority(TMediumBase* medium, int priority) override
     {
         if (medium->GetPriority() == priority) {
             return;
@@ -2312,7 +2330,9 @@ public:
         medium->SetPriority(priority);
     }
 
-    void SetMediumConfig(TMedium* medium, TMediumConfigPtr newConfig) override
+    void SetMediumConfig(
+        TDomesticMedium* medium,
+        TDomesticMediumConfigPtr newConfig) override
     {
         auto oldMaxReplicationFactor = medium->Config()->MaxReplicationFactor;
 
@@ -2327,13 +2347,13 @@ public:
         ChunkReplicator_->ScheduleGlobalChunkRefresh();
     }
 
-    TMedium* FindMediumByName(const TString& name) const override
+    TMediumBase* FindMediumByName(const TString& name) const override
     {
         auto it = NameToMediumMap_.find(name);
         return it == NameToMediumMap_.end() ? nullptr : it->second;
     }
 
-    TMedium* GetMediumByNameOrThrow(const TString& name) const override
+    TMediumBase* GetMediumByNameOrThrow(const TString& name) const override
     {
         auto* medium = FindMediumByName(name);
         if (!IsObjectAlive(medium)) {
@@ -2345,7 +2365,7 @@ public:
         return medium;
     }
 
-    TMedium* GetMediumOrThrow(TMediumId id) const override
+    TMediumBase* GetMediumOrThrow(TMediumId id) const override
     {
         auto* medium = FindMedium(id);
         if (!IsObjectAlive(medium)) {
@@ -2357,14 +2377,14 @@ public:
         return medium;
     }
 
-    TMedium* FindMediumByIndex(int index) const override
+    TMediumBase* FindMediumByIndex(int index) const override
     {
         return index >= 0 && index < MaxMediumCount
             ? IndexToMediumMap_[index]
             : nullptr;
     }
 
-    TMedium* GetMediumByIndexOrThrow(int index) const override
+    TMediumBase* GetMediumByIndexOrThrow(int index) const override
     {
         auto* medium = FindMediumByIndex(index);
         if (!IsObjectAlive(medium)) {
@@ -2376,7 +2396,7 @@ public:
         return medium;
     }
 
-    TMedium* GetMediumByIndex(int index) const override
+    TMediumBase* GetMediumByIndex(int index) const override
     {
         auto* medium = FindMediumByIndex(index);
         YT_VERIFY(medium);
@@ -2518,7 +2538,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkView, TChunkView);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(DynamicStore, TDynamicStore);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkList, TChunkList);
-    DECLARE_ENTITY_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(Medium, Media, TMedium);
+    DECLARE_ENTITY_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(Medium, Media, TMediumBase);
 
     TEntityMap<TChunk>& MutableChunks() override
     {
@@ -2540,12 +2560,28 @@ public:
         return DynamicStoreMap_;
     }
 
-    TEntityMap<TMedium>& MutableMedia() override
-    {
-        return MediumMap_;
-    }
-
 private:
+    template <class T>
+    class TEntityMapTypeTraits
+    {
+    public:
+        explicit TEntityMapTypeTraits(TBootstrap* bootstrap)
+            : Bootstrap_(bootstrap)
+        { }
+
+        std::unique_ptr<T> Create(TObjectId id) const
+        {
+            auto type = TypeFromId(id);
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            const auto& handler = objectManager->FindHandler(type);
+            auto objectHolder = handler->InstantiateObject(id);
+            return std::unique_ptr<T>(objectHolder.release()->As<T>());
+        }
+
+    private:
+        TBootstrap* const Bootstrap_;
+    };
+
     const TChunkManagerConfigPtr Config_;
 
     TChunkTreeBalancer ChunkTreeBalancer_;
@@ -2626,13 +2662,13 @@ private:
 
     THashSet<TChunk*> ForeignChunks_;
 
-    NHydra::TEntityMap<TMedium> MediumMap_;
-    THashMap<TString, TMedium*> NameToMediumMap_;
-    std::vector<TMedium*> IndexToMediumMap_;
+    NHydra::TEntityMap<TMediumBase, TEntityMapTypeTraits<TMediumBase>> MediumMap_;
+    THashMap<TString, TMediumBase*> NameToMediumMap_;
+    std::vector<TMediumBase*> IndexToMediumMap_;
     TMediumSet UsedMediumIndexes_;
 
     TMediumId DefaultStoreMediumId_;
-    TMedium* DefaultStoreMedium_ = nullptr;
+    TMediumBase* DefaultStoreMedium_ = nullptr;
 
     TChunkRequisitionRegistry ChunkRequisitionRegistry_;
 
@@ -4525,7 +4561,7 @@ private:
 
         MediumMap_.Clear();
         NameToMediumMap_.clear();
-        IndexToMediumMap_ = std::vector<TMedium*>(MaxMediumCount, nullptr);
+        IndexToMediumMap_ = std::vector<TMediumBase*>(MaxMediumCount, nullptr);
         UsedMediumIndexes_.reset();
 
         ChunksCreated_ = 0;
@@ -4596,7 +4632,7 @@ private:
     }
 
     bool EnsureBuiltinMediumInitialized(
-        TMedium*& medium,
+        TMediumBase*& medium,
         TMediumId id,
         int mediumIndex,
         const TString& name)
@@ -4608,7 +4644,7 @@ private:
         if (medium) {
             return false;
         }
-        medium = DoCreateMedium(
+        medium = DoCreateDomesticMedium(
             id,
             mediumIndex,
             name,
@@ -4915,7 +4951,7 @@ private:
 
     void AddChunkReplica(
         TChunkLocation* chunkLocation,
-        const TMedium* medium,
+        const TDomesticMedium* medium,
         TChunkPtrWithReplicaInfo replica,
         EAddReplicaReason reason)
     {
@@ -5042,7 +5078,7 @@ private:
         }
     }
 
-    std::pair<TChunkLocation*, TMedium*> FindLocationAndMediumOnProcessChunk(
+    std::pair<TChunkLocation*, TDomesticMedium*> FindLocationAndMediumOnProcessChunk(
         TNode* node,
         TChunkIdWithIndexes chunkIdWithIndexes,
         EChunkReplicaEventType reason,
@@ -5060,8 +5096,20 @@ private:
                     reason);
                 return {nullptr, nullptr};
             }
+            if (medium->IsOffshore()) {
+                YT_LOG_ALERT(
+                    "Cannot process chunk event with offshore medium "
+                    "(NodeId: %v, Address: %v, ChunkId: %v, MediumIndex: %v, "
+                    "MediumType: %v, ChunkEventType: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress(),
+                    chunkIdWithIndexes,
+                    medium->GetType(),
+                    reason);
+                return {nullptr, nullptr};
+            }
             auto* location = node->GetOrCreateImaginaryChunkLocation(chunkIdWithIndexes.MediumIndex);
-            return {location, medium};
+            return {location, medium->AsDomestic()};
         }
 
         if (!locationUuid.has_value()) {
@@ -5102,8 +5150,20 @@ private:
                 reason);
             return {nullptr, nullptr};
         };
+        if (medium->IsOffshore()) {
+            YT_LOG_ALERT(
+                "Cannot process chunk event with offshore medium "
+                "(NodeId: %v, Address: %v, ChunkId: %v, MediumIndex: %v, "
+                "MediumType: %v, ChunkEventType: %v)",
+                node->GetId(),
+                node->GetDefaultAddress(),
+                chunkIdWithIndexes,
+                medium->GetType(),
+                reason);
+            return {nullptr, nullptr};
+        }
 
-        return {location, medium};
+        return {location, medium->AsDomestic()};
     }
 
     TChunk* ProcessAddedChunk(
@@ -5400,14 +5460,14 @@ private:
         YT_ABORT();
     }
 
-    TMedium* DoCreateMedium(
+    TDomesticMedium* DoCreateDomesticMedium(
         TMediumId id,
         int mediumIndex,
         const TString& name,
         std::optional<bool> transient,
         std::optional<int> priority)
     {
-        auto mediumHolder = TPoolAllocator::New<TMedium>(id);
+        auto mediumHolder = TPoolAllocator::New<TDomesticMedium>(id);
         mediumHolder->SetName(name);
         mediumHolder->SetIndex(mediumIndex);
         if (transient) {
@@ -5418,7 +5478,8 @@ private:
             mediumHolder->SetPriority(*priority);
         }
 
-        auto* medium = MediumMap_.Insert(id, std::move(mediumHolder));
+        auto* medium = mediumHolder.get();
+        MediumMap_.Insert(id, std::move(mediumHolder));
         RegisterMedium(medium);
         InitializeMediumConfig(medium);
 
@@ -5428,9 +5489,9 @@ private:
         return medium;
     }
 
-    void RegisterMedium(TMedium* medium)
+    void RegisterMedium(TMediumBase* medium)
     {
-        YT_VERIFY(NameToMediumMap_.emplace(medium->GetName(), medium).second);
+        EmplaceOrCrash(NameToMediumMap_, medium->GetName(), medium);
 
         auto mediumIndex = medium->GetIndex();
         YT_VERIFY(!UsedMediumIndexes_[mediumIndex]);
@@ -5440,9 +5501,9 @@ private:
         IndexToMediumMap_[mediumIndex] = medium;
     }
 
-    void UnregisterMedium(TMedium* medium)
+    void UnregisterMedium(TMediumBase* medium)
     {
-        YT_VERIFY(NameToMediumMap_.erase(medium->GetName()) == 1);
+        EraseOrCrash(NameToMediumMap_, medium->GetName());
 
         auto mediumIndex = medium->GetIndex();
         YT_VERIFY(UsedMediumIndexes_[mediumIndex]);
@@ -5452,13 +5513,13 @@ private:
         IndexToMediumMap_[mediumIndex] = nullptr;
     }
 
-    void InitializeMediumConfig(TMedium* medium)
+    void InitializeMediumConfig(TDomesticMedium* medium)
     {
         InitializeMediumMaxReplicasPerRack(medium);
         InitializeMediumMaxReplicationFactor(medium);
     }
 
-    void InitializeMediumMaxReplicasPerRack(TMedium* medium)
+    void InitializeMediumMaxReplicasPerRack(TDomesticMedium* medium)
     {
         medium->Config()->MaxReplicasPerRack = Config_->MaxReplicasPerRack;
         medium->Config()->MaxRegularReplicasPerRack = Config_->MaxRegularReplicasPerRack;
@@ -5467,7 +5528,7 @@ private:
     }
 
     // COMPAT(shakurov)
-    void InitializeMediumMaxReplicationFactor(TMedium* medium)
+    void InitializeMediumMaxReplicationFactor(TDomesticMedium* medium)
     {
         medium->Config()->MaxReplicationFactor = Config_->MaxReplicationFactor;
     }
@@ -5629,7 +5690,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, ChunkMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkView, TChunkView, ChunkViewMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, DynamicStore, TDynamicStore, DynamicStoreMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, ChunkListMap_);
-DEFINE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(TChunkManager, Medium, Media, TMedium, MediumMap_);
+DEFINE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(TChunkManager, Medium, Media, TMediumBase, MediumMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

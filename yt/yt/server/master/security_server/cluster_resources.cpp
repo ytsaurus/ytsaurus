@@ -1,12 +1,13 @@
-#include "private.h"
 #include "cluster_resources.h"
+
+#include "private.h"
 #include "cluster_resource_limits.h"
 #include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/medium_base.h>
 
 #include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
 
@@ -345,12 +346,12 @@ void DoSerializeClusterResources(
             }));
 
     auto compareByMediumIndexes =
-        [] (std::pair<const TMedium*, i64> a, std::pair<const TMedium*, i64> b) {
+        [] (std::pair<const TMediumBase*, i64> a, std::pair<const TMediumBase*, i64> b) {
             return a.first->GetIndex() < b.first->GetIndex();
         };
 
     // Disk space patched with additional media.
-    TCompactVector<std::pair<const TMedium*, i64>, 4> diskSpace;
+    TCompactVector<std::pair<const TMediumBase*, i64>, 4> diskSpace;
     auto totalDiskSpace = i64(0);
     auto addMediumIndex = [&] (int mediumIndex, i64 mediumDiskSpace) {
         const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
@@ -361,7 +362,7 @@ void DoSerializeClusterResources(
         auto [it, ite] = std::equal_range(
             diskSpace.begin(),
             diskSpace.end(),
-            std::pair<const TMedium*, i64>(medium, mediumDiskSpace),
+            std::pair<const TMediumBase*, i64>(medium, mediumDiskSpace),
             compareByMediumIndexes);
 
         if (auto distance = std::distance(it, ite); distance > 0) {

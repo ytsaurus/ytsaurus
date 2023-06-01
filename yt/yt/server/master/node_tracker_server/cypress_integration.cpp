@@ -9,7 +9,7 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/medium_base.h>
 
 #include <yt/yt/server/master/cypress_server/node_proxy_detail.h>
 #include <yt/yt/server/master/cypress_server/virtual.h>

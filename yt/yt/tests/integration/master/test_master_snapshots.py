@@ -12,7 +12,7 @@ from yt_commands import (
     lookup_rows, alter_table, write_table, read_table, wait_for_cells,
     sync_create_cells, sync_mount_table, sync_freeze_table, sync_reshard_table, get_singular_chunk_id,
     get_account_disk_space, create_dynamic_table, build_snapshot,
-    build_master_snapshots, clear_metadata_caches, create_pool_tree, create_pool, move, create_medium,
+    build_master_snapshots, clear_metadata_caches, create_pool_tree, create_pool, move, create_domestic_medium,
     create_chaos_cell_bundle, sync_create_chaos_cell, generate_chaos_cell_id, select_rows)
 
 from yt.common import YtError
@@ -450,7 +450,7 @@ def check_chunk_locations():
         location_uuids = node.attributes["chunk_locations"].keys()
         node_to_location_uuids[node_address] = location_uuids
 
-    create_medium("nvme_override")
+    create_domestic_medium("nvme_override")
     overridden_node_address = str(nodes[0])
     overridden_location_uuids = node_to_location_uuids[overridden_node_address]
     for location_uuid in overridden_location_uuids:

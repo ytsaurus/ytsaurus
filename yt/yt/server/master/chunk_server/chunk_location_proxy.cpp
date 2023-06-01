@@ -1,7 +1,8 @@
 #include "chunk_location_proxy.h"
+
 #include "chunk_location.h"
 #include "chunk_manager.h"
-#include "medium.h"
+#include "domestic_medium.h"
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -124,19 +125,30 @@ private:
                 auto mediumName = ConvertTo<TString>(value);
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-                const auto& whitelist = medium->DiskFamilyWhitelist();
+                if (medium->IsOffshore()) {
+                    THROW_ERROR_EXCEPTION("Chunk location medium cannot be overridden with offshore medium")
+                        << TErrorAttribute("location_id", location->GetId())
+                        << TErrorAttribute("medium_index", medium->GetIndex())
+                        << TErrorAttribute("medium_name", medium->GetName())
+                        << TErrorAttribute("medium_type", medium->GetType());
+                }
+
+                auto* domesticMedium = medium->AsDomestic();
+                const auto& whitelist = domesticMedium->DiskFamilyWhitelist();
                 if (whitelist.has_value() &&
                     !std::binary_search(
                         whitelist->begin(),
                         whitelist->end(),
-                        location->Statistics().disk_family())) {
+                        location->Statistics().disk_family()))
+                {
                     THROW_ERROR_EXCEPTION("Inconsistent medium override: location's disk family %Qv is absent from medium %Qv whitelist",
                         location->Statistics().disk_family(),
                         mediumName)
                         << TErrorAttribute("location_id", location->GetId())
-                        << TErrorAttribute("medium_family_whitelist", medium->DiskFamilyWhitelist());
+                        << TErrorAttribute("medium_family_whitelist", whitelist);
                 }
-                location->MediumOverride() = TMediumPtr(medium);
+                location->MediumOverride() = TDomesticMediumPtr(domesticMedium);
+
                 return true;
             }
 

@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, set, get, ls, remove, exists, wait, get_driver, raises_yt_error,
-    create_medium, create, write_table, read_table,
+    create_domestic_medium, create, write_table, read_table,
     ban_node, unban_node, build_snapshot, get_active_primary_master_leader_address)
 
 from yt_helpers import profiler_factory
@@ -264,7 +264,7 @@ class TestMediumOverrideSafety(YTEnvSetup):
     @classmethod
     def setup_class(cls):
         super(TestMediumOverrideSafety, cls).setup_class()
-        create_medium(cls.NON_DEFAULT_MEDIUM)
+        create_domestic_medium(cls.NON_DEFAULT_MEDIUM)
         set("//sys/@config/cell_master/alert_update_period", 100)
 
     @authors("kvk1920")

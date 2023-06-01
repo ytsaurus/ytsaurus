@@ -148,6 +148,7 @@ DEFINE_ENUM(EMasterReign,
     ((SimplerChunkExportDataSaveLoad)                               (2333))  // shakurov
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
+    ((MediumBase)                                                   (2401))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

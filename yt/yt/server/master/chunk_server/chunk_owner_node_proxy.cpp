@@ -7,7 +7,7 @@
 #include "chunk_visitor.h"
 #include "config.h"
 #include "helpers.h"
-#include "medium.h"
+#include "medium_base.h"
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
@@ -1251,7 +1251,7 @@ void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
         node->Replication());
  }
 
-void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
+void TChunkOwnerNodeProxy::SetPrimaryMedium(TMediumBase* medium)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->IsTrunk());

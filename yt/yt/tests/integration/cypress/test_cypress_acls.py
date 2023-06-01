@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, wait
 
 from yt_commands import (
-    authors, create, ls, get, set, copy, move, remove, create_medium,
+    authors, create, ls, get, set, copy, move, remove, create_domestic_medium,
     exists, create_account,
     create_user, create_group, make_ace, check_permission, check_permission_by_acl, add_member, remove_group, remove_user, start_transaction, lock,
     read_table, write_table, alter_table,
@@ -1589,7 +1589,7 @@ class TestCypressAcls(CheckPermissionBase):
 
     @authors("kvk1920")
     def test_medium_permission_validation(self):
-        create_medium("prohibited")
+        create_domestic_medium("prohibited")
         create_user("u")
 
         with raises_yt_error("Access denied"):

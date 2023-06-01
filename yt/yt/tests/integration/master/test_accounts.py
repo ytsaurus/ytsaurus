@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, move,
     remove, exists,
-    create_account, remove_account, transfer_account_resources, create_user, create_medium, make_ace,
+    create_account, remove_account, transfer_account_resources, create_user, create_domestic_medium, make_ace,
     start_transaction, abort_transaction, commit_transaction, ping_transaction,
     lock, insert_rows, alter_table,
     write_file, write_table, merge, sync_create_cells, sync_mount_table,
@@ -1066,8 +1066,8 @@ class TestAccounts(AccountsTestSuiteBase):
 
     @authors("shakurov", "kiselyovp")
     def test_chunk_wise_accounting1(self):
-        create_medium("hdd2")
-        create_medium("hdd3")
+        create_domestic_medium("hdd2")
+        create_domestic_medium("hdd3")
         create_account("a")
 
         gc_collect()
@@ -1245,8 +1245,8 @@ class TestAccounts(AccountsTestSuiteBase):
 
     @authors("shakurov", "kiselyovp")
     def test_chunk_wise_accounting2(self):
-        create_medium("hdd4")
-        create_medium("hdd5")
+        create_domestic_medium("hdd4")
+        create_domestic_medium("hdd5")
         create_account("a")
 
         gc_collect()
@@ -1850,7 +1850,7 @@ class TestAccounts(AccountsTestSuiteBase):
 
     @authors("shakurov", "kiselyovp")
     def test_requisitions(self):
-        create_medium("hdd6")
+        create_domestic_medium("hdd6")
         create_account("a")
 
         create("table", "//tmp/t")
@@ -3459,7 +3459,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
     @authors("akozhikhov")
     def test_error_upon_resource_limit_violation(self):
-        create_medium("nvme1")
+        create_domestic_medium("nvme1")
 
         create_account("yt", attributes={"resource_limits": {"disk_space_per_medium": {"default": 1}}})
         create_account("yt2", attributes={"resource_limits": {"disk_space_per_medium": {"default": 2, "nvme1": 1}}})
@@ -3480,7 +3480,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
     @authors("shakurov")
     def test_recursive_violated_resource_limits(self):
-        create_medium("hdd7")
+        create_domestic_medium("hdd7")
         limits_x = self._build_resource_limits(
             node_count=1000,
             chunk_count=1000,
@@ -3806,7 +3806,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
     @authors("kiselyovp")
     def test_overcommit_disk_space_with_zero_limit(self):
-        create_medium("hdd8")
+        create_domestic_medium("hdd8")
         limits = {"disk_space_per_medium": {"hdd8": 1024}}
         create_account("yt", attributes={"resource_limits": {"disk_space": 1000}})
 

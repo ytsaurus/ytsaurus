@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE, 
 
 from yt_commands import (
     authors, wait, create, get, set, ls, copy, move, remove,
-    exists, create_medium, raises_yt_error,
+    exists, create_domestic_medium, raises_yt_error,
     abort_transaction, commit_transaction, build_master_snapshots, update_nodes_dynamic_config,
     read_journal, write_journal, truncate_journal, wait_until_sealed, get_singular_chunk_id,
     set_node_banned, set_banned_flag, start_transaction,
@@ -725,7 +725,7 @@ class TestJournalsChangeMedia(TestJournalsBase):
         node_to_patch = str(get("#{0}/@stored_replicas".format(chunk_id))[0])
 
         with Restarter(self.Env, NODES_SERVICE):
-            create_medium("ssd")
+            create_domestic_medium("ssd")
 
             patched_node_config = False
             for i in range(0, len(self.Env.configs["node"])):

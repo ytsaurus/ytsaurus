@@ -1,7 +1,9 @@
+#include "domestic_medium_proxy.h"
+
 #include "chunk_manager.h"
 #include "config.h"
-#include "medium.h"
-#include "medium_proxy.h"
+#include "domestic_medium.h"
+#include "medium_proxy_base.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
@@ -19,34 +21,24 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMediumProxy
-    : public TNonversionedObjectProxyBase<TMedium>
+class TDomesticMediumProxy
+    : public TMediumProxyBase
 {
 public:
-    using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
+    using TMediumProxyBase::TMediumProxyBase;
 
 private:
-    using TBase = TNonversionedObjectProxyBase<TMedium>;
+    using TBase = TMediumProxyBase;
 
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
-        auto* medium = GetThisImpl();
+        auto* medium = GetThisImpl<TDomesticMedium>();
 
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Name)
-            .SetWritable(true)
-            .SetReplicated(true)
-            .SetMandatory(true));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Index)
-            .SetReplicated(true)
-            .SetMandatory(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Transient)
             .SetReplicated(true)
             .SetMandatory(true));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Priority)
-            .SetWritable(true)
-            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Config)
             .SetWritable(true)
             .SetReplicated(true));
@@ -59,27 +51,12 @@ private:
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
-        const auto* medium = GetThisImpl();
+        const auto* medium = GetThisImpl<TDomesticMedium>();
 
         switch (key) {
-            case EInternedAttributeKey::Name:
-                BuildYsonFluently(consumer)
-                    .Value(medium->GetName());
-                return true;
-
-            case EInternedAttributeKey::Index:
-                BuildYsonFluently(consumer)
-                    .Value(medium->GetIndex());
-                return true;
-
             case EInternedAttributeKey::Transient:
                 BuildYsonFluently(consumer)
                     .Value(medium->GetTransient());
-                return true;
-
-            case EInternedAttributeKey::Priority:
-                BuildYsonFluently(consumer)
-                    .Value(medium->GetPriority());
                 return true;
 
             case EInternedAttributeKey::Config:
@@ -107,24 +84,12 @@ private:
 
     bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
-        auto* medium = GetThisImpl();
+        auto* medium = GetThisImpl<TDomesticMedium>();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         switch (key) {
-            case EInternedAttributeKey::Name: {
-                auto newName = ConvertTo<TString>(value);
-                chunkManager->RenameMedium(medium, newName);
-                return true;
-            }
-
-            case EInternedAttributeKey::Priority: {
-                auto newPriority = ConvertTo<int>(value);
-                chunkManager->SetMediumPriority(medium, newPriority);
-                return true;
-            }
-
             case EInternedAttributeKey::Config: {
-                auto config = ConvertTo<TMediumConfigPtr>(value);
+                auto config = ConvertTo<TDomesticMediumConfigPtr>(value);
                 chunkManager->SetMediumConfig(medium, std::move(config));
                 return true;
             }
@@ -148,7 +113,7 @@ private:
     }
 
     bool RemoveBuiltinAttribute(TInternedAttributeKey key) override {
-        auto* medium = GetThisImpl();
+        auto* medium = GetThisImpl<TDomesticMedium>();
 
         switch (key) {
             case EInternedAttributeKey::DiskFamilyWhitelist:
@@ -159,18 +124,18 @@ private:
                 break;
         }
 
-        return TNonversionedObjectProxyBase::RemoveBuiltinAttribute(key);
+        return TBase::RemoveBuiltinAttribute(key);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IObjectProxyPtr CreateMediumProxy(
+IObjectProxyPtr CreateDomesticMediumProxy(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
-    TMedium* medium)
+    TDomesticMedium* medium)
 {
-    return New<TMediumProxy>(bootstrap, metadata, medium);
+    return New<TDomesticMediumProxy>(bootstrap, metadata, medium);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

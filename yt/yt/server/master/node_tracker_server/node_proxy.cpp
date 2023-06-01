@@ -16,7 +16,7 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_location.h>
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/medium_base.h>
 
 #include <yt/yt/server/master/node_tracker_server/config.h>
 
@@ -519,10 +519,10 @@ private:
                 BuildYsonFluently(consumer)
                     .DoMapFor(chunkManager->Media(), [&] (
                         TFluentMap fluent,
-                        const std::pair<const TGuid, NChunkServer::TMedium*>& pair)
+                        const std::pair<const TGuid, NChunkServer::TMediumBase*>& pair)
                     {
                         const auto* medium = pair.second;
-                        if (IsObjectAlive(medium)) {
+                        if (IsObjectAlive(medium) && medium->IsDomestic()) {
                             fluent
                                 .Item(medium->GetName())
                                 .Value(GetOrDefault(statistics.ChunkReplicaCount, medium->GetIndex()));

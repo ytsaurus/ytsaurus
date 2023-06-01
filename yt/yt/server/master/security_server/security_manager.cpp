@@ -1,4 +1,5 @@
 #include "security_manager.h"
+
 #include "private.h"
 #include "account.h"
 #include "account_proxy.h"
@@ -32,7 +33,7 @@
 #include <yt/yt/server/master/chunk_server/chunk_requisition.h>
 #include <yt/yt/server/master/chunk_server/chunk_view.h>
 #include <yt/yt/server/master/chunk_server/dynamic_store.h>
-#include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/medium_base.h>
 
 #include <yt/yt/server/master/cypress_server/node.h>
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
@@ -2087,7 +2088,7 @@ public:
             const auto& usage,
             const auto& increase,
             const auto& limit,
-            const TMedium* medium = nullptr)
+            const TMediumBase* medium = nullptr)
         {
             auto errorMessage = Format("%v %Qv is over %v limit%v%v",
                 overdrawnAccount == initialAccount
@@ -3980,14 +3981,14 @@ private:
 
         // Sort media by index to make sure they have the same indexing in the secondary
         // cell. Also, this makes the code deterministic which is a must.
-        std::vector<TMedium*> media;
+        std::vector<TMediumBase*> media;
         media.reserve(chunkManager->Media().size());
         for (auto [mediumId, medium] : chunkManager->Media()) {
             if (IsObjectAlive(medium)) {
                 media.push_back(medium);
             }
         }
-        auto indexLess = [] (TMedium* lhs, TMedium* rhs) {
+        auto indexLess = [] (TMediumBase* lhs, TMediumBase* rhs) {
             return lhs->GetIndex() < rhs->GetIndex();
         };
         std::sort(media.begin(), media.end(), indexLess);

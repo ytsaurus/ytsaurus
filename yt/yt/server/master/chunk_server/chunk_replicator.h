@@ -228,7 +228,7 @@ private:
     bool TryScheduleReplicationJob(
         IJobSchedulingContext* context,
         TChunkPtrWithReplicaIndex chunkWithIndex,
-        TMedium* targetMedium,
+        TDomesticMedium* targetMedium,
         TNodeId targetNodeId);
     bool TryScheduleBalancingJob(
         IJobSchedulingContext* context,

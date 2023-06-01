@@ -10,7 +10,7 @@ from yt_env_setup import (
 from yt_commands import (
     authors, wait,
     exists, get, set, ls, create, remove,
-    create_account, create_medium, remove_account,
+    create_account, create_domestic_medium, remove_account,
     start_transaction, abort_transaction,
     create_area, remove_area,
     create_rack, create_data_center,
@@ -129,7 +129,7 @@ class TestMasterCellAddition(YTEnvSetup):
         return callback(get_driver(cell_index))
 
     def check_media(self):
-        create_medium("ssd")
+        create_domestic_medium("ssd")
         create_account("a")
         set("//sys/accounts/a/@resource_limits/disk_space_per_medium/ssd", 42)
 
@@ -322,7 +322,7 @@ class TestMasterCellAddition(YTEnvSetup):
             location_uuids = node.attributes["chunk_locations"].keys()
             node_to_location_uuids[node_address] = location_uuids
 
-        create_medium("nvme_override")
+        create_domestic_medium("nvme_override")
         overridden_node_address = str(nodes[0])
         overridden_location_uuids = node_to_location_uuids[overridden_node_address]
         for location_uuid in overridden_location_uuids:

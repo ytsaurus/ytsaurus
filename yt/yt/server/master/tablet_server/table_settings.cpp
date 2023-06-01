@@ -150,7 +150,10 @@ TTableSettings GetTableSettings(
     // Parse and prepare store writer config.
     try {
         auto config = CloneYsonStruct(dynamicConfig->StoreChunkWriter);
-        config->PreferLocalHost = primaryMedium->Config()->PreferLocalHostForDynamicTables;
+        if (primaryMedium->IsDomestic()) {
+            const auto& mediumConfig = primaryMedium->AsDomestic()->Config();
+            config->PreferLocalHost = mediumConfig->PreferLocalHostForDynamicTables;
+        }
         if (dynamicConfig->IncreaseUploadReplicationFactor ||
             table->TabletCellBundle()->GetDynamicOptions()->IncreaseUploadReplicationFactor)
         {
@@ -169,7 +172,10 @@ TTableSettings GetTableSettings(
     // Parse and prepare hunk writer config.
     try {
         auto config = CloneYsonStruct(dynamicConfig->HunkChunkWriter);
-        config->PreferLocalHost = primaryMedium->Config()->PreferLocalHostForDynamicTables;
+        if (primaryMedium->IsDomestic()) {
+            const auto& mediumConfig = primaryMedium->AsDomestic()->Config();
+            config->PreferLocalHost = mediumConfig->PreferLocalHostForDynamicTables;
+        }
         config->UploadReplicationFactor = replicationFactor;
 
         result.Provided.HunkWriterConfig = UpdateYsonStruct(

@@ -4,10 +4,10 @@
 #include "chunk_list.h"
 #include "chunk_manager.h"
 #include "config.h"
+#include "domestic_medium.h"
 #include "helpers.h"
 #include "job.h"
 #include "job_registry.h"
-#include "medium.h"
 #include "private.h"
 
 #include <yt/yt/server/lib/hydra_common/mutation_context.h>

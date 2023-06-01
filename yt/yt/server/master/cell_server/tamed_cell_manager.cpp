@@ -25,8 +25,8 @@
 #include <yt/yt/server/master/chunk_server/chunk_view.h>
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_tree_traverser.h>
+#include <yt/yt/server/master/chunk_server/domestic_medium.h>
 #include <yt/yt/server/master/chunk_server/helpers.h>
-#include <yt/yt/server/master/chunk_server/medium.h>
 
 #include <yt/yt/server/master/chaos_server/chaos_cell.h>
 #include <yt/yt/server/master/chaos_server/chaos_cell_bundle.h>

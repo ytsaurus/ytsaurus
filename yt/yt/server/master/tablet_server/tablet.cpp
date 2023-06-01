@@ -1,4 +1,5 @@
 #include "tablet.h"
+
 #include "tablet_cell.h"
 #include "table_replica.h"
 #include "tablet_action.h"
@@ -11,7 +12,7 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/medium_base.h>
 #include <yt/yt/server/master/chunk_server/dynamic_store.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
