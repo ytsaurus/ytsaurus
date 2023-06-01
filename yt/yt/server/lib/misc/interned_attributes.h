@@ -526,6 +526,7 @@
     XX(Value, value) \
     XX(ValueCount, value_count) \
     XX(Version, version) \
+    XX(VersionedResourceUsage, versioned_resource_usage) \
     XX(ViolatedResourceLimits, violated_resource_limits) \
     XX(Vital, vital) \
     XX(VitalQueueConsumer, vital_queue_consumer) \

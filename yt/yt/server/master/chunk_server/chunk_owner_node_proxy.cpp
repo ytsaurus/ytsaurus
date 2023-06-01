@@ -91,6 +91,7 @@ using namespace NYTree;
 
 using NChunkClient::NProto::TReqFetch;
 using NChunkClient::NProto::TRspFetch;
+using NChunkClient::NProto::TDataStatistics;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -625,6 +626,7 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
 
     const auto* node = GetThisImpl<TChunkOwnerBase>();
     auto isExternal = node->IsExternal();
+    auto isTrunk = node->IsTrunk();
 
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkListId)
         .SetExternal(isExternal)
@@ -696,6 +698,8 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkMergerTraversalInfo)
         .SetExternal(isExternal)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::VersionedResourceUsage)
+        .SetPresent(!isTrunk));
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
@@ -722,6 +726,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
             if (isExternal) {
                 break;
             }
+
             BuildYsonFluently(consumer)
                 .Value(GetObjectId(hunkChunkList));
             return true;
@@ -855,6 +860,48 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
                     .Item("chunk_count").Value(traversalInfo.ChunkCount)
                     .Item("config_version").Value(traversalInfo.ConfigVersion)
                 .EndMap();
+            return true;
+        }
+
+        case EInternedAttributeKey::VersionedResourceUsage: {
+            if (node->IsTrunk()) {
+                break;
+            }
+
+            TDataStatistics extraResourceUsage;
+            auto* originator = node->GetOriginator()->As<TChunkOwnerBase>();
+            switch (node->GetUpdateMode()) {
+                case EUpdateMode::Overwrite:
+                    extraResourceUsage = node->ComputeTotalStatistics();
+                    break;
+
+                case EUpdateMode::Append:
+                    extraResourceUsage = node->DeltaStatistics();
+                    break;
+
+                case EUpdateMode::None:
+                    switch (originator->GetUpdateMode()) {
+                        case EUpdateMode::Overwrite:
+                        case EUpdateMode::None:
+                            if (node->GetRevision() != originator->GetRevision()) {
+                                extraResourceUsage = node->ComputeTotalStatistics();
+                            }
+                            break;
+
+                        case EUpdateMode::Append:
+                            break;
+
+                        default:
+                            YT_ABORT();
+                    }
+                    break;
+
+                default:
+                    YT_ABORT();
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(extraResourceUsage);
             return true;
         }
 
