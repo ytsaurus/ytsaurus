@@ -2190,13 +2190,22 @@ ui32 TSortedDynamicStore::RegisterRevision(TTimestamp timestamp)
 {
     YT_VERIFY(timestamp >= MinTimestamp && timestamp <= MaxTimestamp);
 
+    i64 mutationSequenceNumber = 0;
+    if (auto* mutationContext = TryGetCurrentMutationContext()) {
+        mutationSequenceNumber = mutationContext->GetSequenceNumber();
+    }
+
     auto latestRevision = GetLatestRevision();
-    if (TimestampFromRevision(latestRevision) == timestamp) {
+    if (mutationSequenceNumber == LatestRevisionMutationSequenceNumber_ &&
+        TimestampFromRevision(latestRevision) == timestamp)
+    {
         return latestRevision;
     }
 
     YT_VERIFY(RevisionToTimestamp_.Size() < HardRevisionsPerDynamicStoreLimit);
     RevisionToTimestamp_.PushBack(timestamp);
+    LatestRevisionMutationSequenceNumber_ = mutationSequenceNumber;
+
     return GetLatestRevision();
 }
 
