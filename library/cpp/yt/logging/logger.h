@@ -138,6 +138,14 @@ TLoggingContext GetLoggingContext();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Sets the minimum logging level for messages in current thread.
+// NB: In fiber environment, min log level is attached to a fiber,
+// so after context switch thread min log level might change.
+void SetThreadMinLogLevel(ELogLevel minLogLevel);
+ELogLevel GetThreadMinLogLevel();
+
+////////////////////////////////////////////////////////////////////////////////
+
 static constexpr auto NullLoggerMinLevel = ELogLevel::Maximum;
 
 // Min level for non-null logger depends on whether we are in debug or release build.

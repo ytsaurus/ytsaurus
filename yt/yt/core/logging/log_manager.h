@@ -78,6 +78,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Sets the minimum logging level for all messages in current fiber.
+class TFiberMinLogLevelGuard
+{
+public:
+    explicit TFiberMinLogLevelGuard(ELogLevel minLogLevel);
+    ~TFiberMinLogLevelGuard();
+
+private:
+    const ELogLevel OldMinLogLevel_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NLogging
 
 template <>

@@ -431,6 +431,39 @@ TEST_F(TLoggingTest, LogManager)
     }
 }
 
+TEST_F(TLoggingTest, ThreadMinLogLevel)
+{
+    TTempFile debugFile(GenerateLogFileName());
+
+    Configure(Format(R"({
+        rules = [
+            {
+                "min_level" = "debug";
+                "writers" = [ "debug" ];
+            };
+        ];
+        "writers" = {
+            "debug" = {
+                "file_name" = "%v";
+                "type" = "file";
+            };
+        };
+    })", debugFile.Name()));
+
+    YT_LOG_DEBUG("Debug message 1");
+
+    SetThreadMinLogLevel(ELogLevel::Info);
+    YT_LOG_DEBUG("Debug message 2");
+    YT_LOG_INFO("Info message 1");
+
+    TLogManager::Get()->Synchronize();
+
+    {
+        auto infoLines = ReadPlainTextEvents(debugFile.Name());
+        EXPECT_EQ(2, std::ssize(infoLines));
+    }
+}
+
 TEST_F(TLoggingTest, StructuredLogging)
 {
     TLogEvent event;

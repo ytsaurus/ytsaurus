@@ -23,6 +23,7 @@
 
 namespace NYT::NConcurrency {
 
+using namespace NLogging;
 using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,6 +133,13 @@ Y_FORCE_INLINE TFiberId SwapCurrentFiberId(TFiberId fiberId)
 {
     auto result = GetCurrentFiberId();
     SetCurrentFiberId(fiberId);
+    return result;
+}
+
+Y_FORCE_INLINE ELogLevel SwapMinLogLevel(ELogLevel minLogLevel)
+{
+    auto result = GetThreadMinLogLevel();
+    SetThreadMinLogLevel(minLogLevel);
     return result;
 }
 
@@ -624,6 +632,7 @@ protected:
         FiberId_ = SwapCurrentFiberId(FiberId_);
         MemoryTag_ = SwapMemoryTag(MemoryTag_);
         Fls_ = SwapCurrentFls(Fls_);
+        MinLogLevel_ = SwapMinLogLevel(MinLogLevel_);
     }
 
     ~TBaseSwitchHandler()
@@ -631,12 +640,14 @@ protected:
         YT_VERIFY(FiberId_ == InvalidFiberId);
         YT_VERIFY(MemoryTag_ == NullMemoryTag);
         YT_VERIFY(!Fls_);
+        YT_VERIFY(MinLogLevel_ == ELogLevel::Minimum);
     }
 
 private:
     TMemoryTag MemoryTag_ = NullMemoryTag;
     TFls* Fls_ = nullptr;
     TFiberId FiberId_ = InvalidFiberId;
+    ELogLevel MinLogLevel_ = ELogLevel::Minimum;
 };
 
 class TFiberSwitchHandler

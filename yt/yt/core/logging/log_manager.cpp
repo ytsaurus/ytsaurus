@@ -1,4 +1,5 @@
 #include "log_manager.h"
+
 #include "private.h"
 #include "config.h"
 #include "log.h"
@@ -1559,6 +1560,19 @@ void TLogManager::Synchronize(TInstant deadline)
 void TLogManager::Initialize()
 {
     Impl_->Initialize();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFiberMinLogLevelGuard::TFiberMinLogLevelGuard(ELogLevel minLogLevel)
+    : OldMinLogLevel_(GetThreadMinLogLevel())
+{
+    SetThreadMinLogLevel(minLogLevel);
+}
+
+TFiberMinLogLevelGuard::~TFiberMinLogLevelGuard()
+{
+    SetThreadMinLogLevel(OldMinLogLevel_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

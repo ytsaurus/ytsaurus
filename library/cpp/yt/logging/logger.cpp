@@ -126,6 +126,20 @@ Y_WEAK ILogManager* GetDefaultLogManager()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+thread_local ELogLevel ThreadMinLogLevel = ELogLevel::Minimum;
+
+void SetThreadMinLogLevel(ELogLevel minLogLevel)
+{
+    ThreadMinLogLevel = minLogLevel;
+}
+
+ELogLevel GetThreadMinLogLevel()
+{
+    return ThreadMinLogLevel;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TLogger::TLogger(ILogManager* logManager, TStringBuf categoryName)
     : LogManager_(logManager)
     , Category_(LogManager_ ? LogManager_->GetCategory(categoryName) : nullptr)
@@ -157,7 +171,9 @@ bool TLogger::IsLevelEnabledHeavy(ELogLevel level) const
         LogManager_->UpdateCategory(const_cast<TLoggingCategory*>(Category_));
     }
 
-    return level >= Category_->MinPlainTextLevel;
+    return
+        level >= Category_->MinPlainTextLevel &&
+        level >= ThreadMinLogLevel;
 }
 
 bool TLogger::GetAbortOnAlert() const
