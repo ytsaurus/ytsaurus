@@ -429,7 +429,7 @@ public:
 
         YT_LOG_ACCESS("StartTransaction", transaction);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
+        YT_LOG_DEBUG("Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
             "ReplicatedToCellTags: %v, Timeout: %v, Deadline: %v, User: %v, Title: %v, WallTime: %v)",
             transactionId,
             GetObjectId(parent),
@@ -471,7 +471,7 @@ public:
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction is already committed (TransactionId: %v)",
+            YT_LOG_DEBUG("Transaction is already committed (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -497,7 +497,7 @@ public:
             transaction->NestedTransactions().end());
         std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectIdComparer());
         for (auto* nestedTransaction : nestedTransactions) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
+            YT_LOG_DEBUG("Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
                 nestedTransaction->GetId(),
                 transactionId);
             TTransactionAbortOptions options{
@@ -572,7 +572,7 @@ public:
 
         auto time = timer.GetElapsedTime();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Transaction committed (TransactionId: %v, User: %v, CommitTimestamp: %v@%v, WallTime: %v)",
             transactionId,
             user->GetName(),
@@ -690,7 +690,7 @@ public:
 
         auto time = timer.GetElapsedTime();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction aborted (TransactionId: %v, User: %v, Force: %v, Title: %v, WallTime: %v)",
+        YT_LOG_DEBUG("Transaction aborted (TransactionId: %v, User: %v, Force: %v, Title: %v, WallTime: %v)",
             transactionId,
             user->GetName(),
             options.Force,
@@ -786,14 +786,14 @@ public:
                 effectiveTransactionId = MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag());
                 effectiveParentTransactionId = MakeExternalizedTransactionId(parentTransactionId, multicellManager->GetCellTag());
 
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Externalizing transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTags: %v, ExternalizedTransactionId: %v, ExternalizedParentTransactionId: %v)",
+                YT_LOG_DEBUG("Externalizing transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTags: %v, ExternalizedTransactionId: %v, ExternalizedParentTransactionId: %v)",
                     transactionId,
                     parentTransactionId,
                     cellTags,
                     effectiveTransactionId,
                     effectiveParentTransactionId);
             } else {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replicating transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTags: %v)",
+                YT_LOG_DEBUG("Replicating transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTags: %v)",
                     transactionId,
                     parentTransactionId,
                     cellTags);
@@ -1074,7 +1074,7 @@ public:
             transaction->SetTransientState(ETransactionState::TransientCommitPrepared);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %v@%v)",
             transaction->GetId(),
             persistent,
@@ -1565,7 +1565,7 @@ private:
             auto data = FromProto<TTransactionActionData>(protoData);
             transaction->Actions().push_back(data);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
+            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v)",
                 transactionId,
                 data.Type);
         }
@@ -1641,7 +1641,7 @@ private:
             };
             CommitTransaction(transaction, commitOptions);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Failed to commit transaction, aborting (TransactionId: %v)",
+            YT_LOG_DEBUG(ex, "Failed to commit transaction, aborting (TransactionId: %v)",
                 transactionId);
 
             TTransactionAbortOptions abortOptions{

@@ -91,7 +91,7 @@ public:
                 continue;
             }
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing cellar heartbeat (CellarType: %v, Statistics: %v)",
+            YT_LOG_DEBUG("Processing cellar heartbeat (CellarType: %v, Statistics: %v)",
                 cellarType,
                 statistics);
 
@@ -128,7 +128,7 @@ private:
         node->ValidateRegistered();
 
         YT_PROFILE_TIMING("/cell_server/cellar_node_heartbeat_time") {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing cellar node heartbeat (NodeId: %v, Address: %v, State: %v, ReportedCellarNodeHeartbeat: %v)",
+            YT_LOG_DEBUG("Processing cellar node heartbeat (NodeId: %v, Address: %v, State: %v, ReportedCellarNodeHeartbeat: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 node->GetLocalState(),

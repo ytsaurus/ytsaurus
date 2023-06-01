@@ -498,7 +498,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
+        YT_LOG_INFO(
             "Updating chunk autotomizer transactions "
             "(TransactionId: %v, PreviousTransactionId: %v)",
             TransactionRotator_.GetTransactionId(),
@@ -506,7 +506,7 @@ private:
 
         TransactionRotator_.Rotate();
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
+        YT_LOG_INFO(
             "Chunk autotomizer transactions updated "
             "(TransactionId: %v, PreviousTransactionId: %v)",
             TransactionRotator_.GetTransactionId(),
@@ -527,14 +527,14 @@ private:
         auto chunksToAllocateTail = ::NYT::FromProto<std::vector<TChunkId>>(request->chunks_to_allocate_tail());
         for (auto bodyChunkId : chunksToAllocateTail) {
             if (!IsChunkRegistered(bodyChunkId)) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Tail chunk allocation is requested for unregistered chunk, ignored (BodyChunkId: %v)",
                     bodyChunkId);
                 continue;
             }
 
             if (!IsChunkAutotomizable(bodyChunkId)) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Tail chunk allocation is requested for non-autotomizable chunk, ignored "
                     "(BodyChunkId: %v, NonAutotomicityReason: %v)",
                     bodyChunkId,
@@ -562,7 +562,7 @@ private:
         auto tailChunkId = ::NYT::FromProto<TChunkId>(request->tail_chunk_id());
         const auto& tailChunkSealInfo = request->tail_chunk_seal_info();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Chunk autotomy completed "
             "(BodyChunkId: %v, BodyLogicalRowCount: %v, TailChunkId: %v, TailLogicalRowCount: %v)",
             bodyChunkId,
@@ -571,14 +571,14 @@ private:
             tailChunkSealInfo.row_count());
 
         if (!IsChunkRegistered(bodyChunkId)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Chunk is not registered, ignoring autotomy result (BodyChunkId: %v)",
                 bodyChunkId);
             return;
         }
 
         if (!IsChunkAutotomizable(bodyChunkId)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Chunk is no longer autotomizable, ignoring autotomy result "
                 "(BodyChunkId: %v, NonAutotomicityReason: %v)",
                 bodyChunkId,
@@ -597,7 +597,7 @@ private:
 
         // NB: Tail might be dead.
         if (!IsObjectAlive(tailChunk)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Tail chunk is dead, restarting autotomy (BodyChunkId: %v, TailChunkId: %v)",
                 bodyChunkId,
                 tailChunkId);
@@ -804,7 +804,7 @@ private:
         YT_VERIFY(IsJournalChunkId(bodyChunkId));
 
         if (!IsChunkAutotomizable(bodyChunkId)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Attempted to register non-autotomizable chunk, ignored (BodyChunkId: %v, NonAutotomicityReason: %v)",
                 bodyChunkId,
                 GetChunkNonAutotomicityReason(bodyChunkId));
@@ -812,7 +812,7 @@ private:
         }
 
         if (RegisteredChunks_.contains(bodyChunkId)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Chunk is already registered (BodyChunkId: %v)",
                 bodyChunkId);
             return false;
@@ -823,7 +823,7 @@ private:
         };
         YT_VERIFY(RegisteredChunks_.emplace(bodyChunkId, autotomyState).second);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Registered chunk (BodyChunkId: %v, RowCount: %v, FirstOverlayedRowIndex: %v)",
             bodyChunkId,
             chunkSealInfo.row_count(),
@@ -862,7 +862,7 @@ private:
         // Persistent actions.
         YT_VERIFY(RegisteredChunks_.erase(bodyChunkId) > 0);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Unregistered chunk (BodyChunkId: %v)",
             bodyChunkId);
 
@@ -897,7 +897,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Chunk autotomizer transaction finished "
             "(FinishedTransactionId: %v, ChunkAutotomizerTransactionId: %v, ChunkAutotomizerPreviousTransactionId: %v)",
             transaction->GetId(),
@@ -952,7 +952,7 @@ private:
             bodyChunk->GetReplicaLagLimit());
         YT_VERIFY(IsObjectAlive(tailChunk));
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Tail chunk allocated for chunk autotomy (BodyChunkId: %v, TailChunkId: %v)",
             bodyChunkId,
             tailChunk->GetId());
@@ -969,7 +969,7 @@ private:
 
         auto tailChunkCount = GetDynamicConfig()->TailChunksPerAllocation;
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Allocating tail chunks (BodyChunkId: %v, TailChunkCount: %v)",
             bodyChunkId,
             tailChunkCount);

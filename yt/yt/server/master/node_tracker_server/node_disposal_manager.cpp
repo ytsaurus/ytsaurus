@@ -275,7 +275,7 @@ private:
 
             node->SetDisposalTickScheduled(false);
 
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Starting node disposal tick (NodeId: %v, Address: %v)",
+            YT_LOG_INFO("Starting node disposal tick (NodeId: %v, Address: %v)",
                 node->GetId(),
                 node->GetDefaultAddress());
 
@@ -291,7 +291,7 @@ private:
             if (locationIndex < std::ssize(node->RealChunkLocations())) {
                 YT_VERIFY(!node->UseImaginaryChunkLocations());
                 auto* location = node->RealChunkLocations()[locationIndex];
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Disposing location (NodeId: %v, Address: %v, Location: %v)",
+                YT_LOG_INFO("Disposing location (NodeId: %v, Address: %v, Location: %v)",
                     node->GetId(),
                     node->GetDefaultAddress(),
                     location->GetUuid());
@@ -332,7 +332,7 @@ private:
         YT_VERIFY(HasMutationContext());
 
         YT_VERIFY(node->GetLocalState() == ENodeState::Unregistered);
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Starting node disposal (NodeId: %v, Address: %v)",
+        YT_LOG_INFO("Starting node disposal (NodeId: %v, Address: %v)",
             node->GetId(),
             node->GetDefaultAddress());
 
@@ -348,7 +348,7 @@ private:
 
         node->SetLocalState(ENodeState::Offline);
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node offline (NodeId: %v, Address: %v)",
+        YT_LOG_INFO("Node offline (NodeId: %v, Address: %v)",
             node->GetId(),
             node->GetDefaultAddress());
     }

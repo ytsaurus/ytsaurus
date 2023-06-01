@@ -469,12 +469,12 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     }
 
     if (mutationType.empty()) {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Skipping heartbeat mutation (Version: %v)",
+        YT_LOG_DEBUG("Skipping heartbeat mutation (Version: %v)",
             version);
     } else {
         NProfiling::TWallTimer timer;
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Applying mutation (Version: %v, SequenceNumber: %v, RandomSeed: %x, PrevRandomSeed: %x, StateHash: %x, MutationType: %v, MutationId: %v, WaitTime: %v)",
+        YT_LOG_DEBUG("Applying mutation (Version: %v, SequenceNumber: %v, RandomSeed: %x, PrevRandomSeed: %x, StateHash: %x, MutationType: %v, MutationId: %v, WaitTime: %v)",
             version,
             context->GetSequenceNumber(),
             context->GetRandomSeed(),
@@ -621,7 +621,7 @@ void TCompositeAutomaton::HydraResetStateHash(NProto::TReqResetStateHash* reques
 
     auto* mutationContext = GetCurrentMutationContext();
 
-    YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
+    YT_LOG_INFO(
         "Resetting state hash (CurrrentStateHash: %x, NewStateHash: %x)",
         mutationContext->GetStateHash(),
         newStateHash);

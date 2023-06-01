@@ -428,7 +428,7 @@ private:
         IncrementTabletInFlightMutationCount(tablet, replicatorWrite, -1);
 
         if (mountRevision != tablet->GetMountRevision()) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Mount revision mismatch; write ignored "
+            YT_LOG_DEBUG("Mount revision mismatch; write ignored "
                 "(%v, TransactionId: %v, MutationMountRevision: %x, CurrentMountRevision: %x)",
                 tablet->GetLoggingTag(),
                 transactionId,
@@ -449,7 +449,7 @@ private:
             }
 
             if (!lostHunkStoreIds.empty()) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Hunk store locks are lost; write ignored "
+                YT_LOG_DEBUG("Hunk store locks are lost; write ignored "
                     "(%v, TransactionId: %v, HunkStoreIds: %v)",
                     tablet->GetLoggingTag(),
                     transactionId,
@@ -466,7 +466,7 @@ private:
                     // NB: May throw if tablet cell is decommissioned or suspended.
                     transaction = transactionManager->MakeTransactionPersistentOrThrow(transactionId);
                 } catch (const std::exception& ex) {
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Failed to make transaction persistent (TabletId: %v, TransactionId: %v)",
+                    YT_LOG_DEBUG(ex, "Failed to make transaction persistent (TabletId: %v, TransactionId: %v)",
                         writeRecord.TabletId,
                         transactionId);
                     return;
@@ -474,8 +474,7 @@ private:
 
                 AddPersistentAffectedTablet(transaction, tablet);
 
-                YT_LOG_DEBUG_IF(
-                    IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Performing atomic write as leader (TabletId: %v, TransactionId: %v, BatchGeneration: %x, "
                     "TransientGeneration: %x, PersistentGeneration: %x)",
                     writeRecord.TabletId,
@@ -512,7 +511,7 @@ private:
             case EAtomicity::None: {
                 const auto& transactionManager = Host_->GetTransactionManager();
                 if (transactionManager->GetDecommission()) {
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell is decommissioning, skip non-atomic write");
+                    YT_LOG_DEBUG("Tablet cell is decommissioning, skip non-atomic write");
                     return;
                 }
 
@@ -520,7 +519,7 @@ private:
                 YT_VERIFY(generation == InitialTransactionGeneration);
 
                 if (tablet->GetState() == ETabletState::Orphaned) {
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet is orphaned; non-atomic write ignored "
+                    YT_LOG_DEBUG("Tablet is orphaned; non-atomic write ignored "
                         "(%v, TransactionId: %v)",
                         tablet->GetLoggingTag(),
                         transactionId);
@@ -613,7 +612,7 @@ private:
                         transactionTimeout,
                         false);
                 } catch (const std::exception& ex) {
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Failed to create transaction (TransactionId: %v, TabletId: %v)",
+                    YT_LOG_DEBUG(ex, "Failed to create transaction (TransactionId: %v, TabletId: %v)",
                         transactionId,
                         tabletId);
                     return;
@@ -623,8 +622,7 @@ private:
 
                 AddPersistentAffectedTablet(transaction, tablet);
 
-                YT_LOG_DEBUG_IF(
-                    IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Performing atomic write as follower (TabletId: %v, TransactionId: %v, BatchGeneration: %x, PersistentGeneration: %x)",
                     tabletId,
                     transactionId,
@@ -663,7 +661,7 @@ private:
             case EAtomicity::None: {
                 const auto& transactionManager = Host_->GetTransactionManager();
                 if (transactionManager->GetDecommission()) {
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell is decommissioning, skip non-atomic write");
+                    YT_LOG_DEBUG("Tablet cell is decommissioning, skip non-atomic write");
                     return;
                 }
 
@@ -698,8 +696,7 @@ private:
         auto* tablet = Host_->FindTablet(tabletId);
         if (!tablet) {
             // NB: Tablet could be missing if it was, e.g., forcefully removed.
-            YT_LOG_DEBUG_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Received delayed rows for unexistent tablet; ignored ",
                 "(TabletId: %v, TransactionId: %v)",
                 tabletId,
@@ -709,8 +706,7 @@ private:
 
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (tablet->GetMountRevision() != mountRevision) {
-            YT_LOG_DEBUG_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Received delayed rows with invalid mount revision; ignored "
                 "(TabletId: %v, TransactionId: %v, TabletMountRevision: %x, RequestMountRevision: %x)",
                 tabletId,
@@ -741,7 +737,7 @@ private:
         auto* transaction = transactionManager->FindPersistentTransaction(transactionId);
 
         if (!transaction) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+            YT_LOG_ALERT(
                 "Delayed rows sent for absent transaction, ignored "
                 "(TransactionId: %v, TabletId: %v, RowCount: %v, DataWeight: %v, CommitSignature: %x)",
                 transactionId,
@@ -752,8 +748,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Writing transaction delayed rows (TabletId: %v, TransactionId: %v, RowCount: %v, Lockless: %v, CommitSignature: %x)",
             tablet->GetId(),
             transaction->GetId(),
@@ -883,8 +878,7 @@ private:
     {
         YT_VERIFY(HasMutationContext());
 
-        YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Promoting transaction persistent generation (TransactionId: %v, PersistentGeneration: %x -> %x)",
             transaction->GetId(),
             transaction->GetPersistentGeneration(),
@@ -1071,7 +1065,7 @@ private:
         auto tabletId = tablet->GetId();
         if (transaction->TransientAffectedTabletIds().emplace(tabletId).second) {
             auto lockCount = LockTablet(tablet, ETabletLockType::TransientTransaction);
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Transaction transiently affects tablet (TransactionId: %v, TabletId: %v, LockCount: %v)",
                 transaction->GetId(),
                 tablet->GetId(),
@@ -1088,7 +1082,7 @@ private:
         auto tabletId = tablet->GetId();
         if (transaction->PersistentAffectedTabletIds().emplace(tabletId).second) {
             auto lockCount = LockTablet(tablet, ETabletLockType::PersistentTransaction);
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Transaction persistently affects tablet (TransactionId: %v, TabletId: %v, LockCount: %v)",
                 transaction->GetId(),
                 tablet->GetId(),

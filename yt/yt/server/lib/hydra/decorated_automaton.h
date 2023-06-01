@@ -352,7 +352,6 @@ private:
     void MaybeStartSnapshotBuilder();
 
     bool IsRecovery() const;
-    bool IsMutationLoggingEnabled() const;
 
     void UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemoteSnapshotParams>& snapshotInfoOrError);
     void UpdateSnapshotBuildDeadline();

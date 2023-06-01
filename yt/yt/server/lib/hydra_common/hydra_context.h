@@ -17,14 +17,12 @@ public:
     THydraContext(
         TVersion version,
         TInstant timestamp,
-        ui64 randomSeed,
-        bool isMutationLoggingEnabled);
+        ui64 randomSeed);
 
     THydraContext(
         TVersion version,
         TInstant timestamp,
         ui64 randomSeed,
-        bool isMutationLoggingEnabled,
         TIntrusivePtr<TRandomGenerator> randomGenerator);
 
     TVersion GetVersion() const;
@@ -34,8 +32,6 @@ public:
     ui64 GetRandomSeed() const;
     const TIntrusivePtr<TRandomGenerator>& RandomGenerator();
 
-    bool IsMutationLoggingEnabled() const;
-
 private:
     const TVersion Version_;
 
@@ -43,8 +39,6 @@ private:
 
     const ui64 RandomSeed_;
     const TIntrusivePtr<TRandomGenerator> RandomGenerator_;
-
-    const bool IsMutationLoggingEnabled_;
 
     //! Makes all errors inside mutation deterministic.
     const TErrorSanitizerGuard ErrorSanitizerGuard_;
@@ -70,10 +64,6 @@ THydraContext* TryGetCurrentHydraContext();
 THydraContext* GetCurrentHydraContext();
 void SetCurrentHydraContext(THydraContext* context);
 bool HasHydraContext();
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsMutationLoggingEnabled();
 
 ////////////////////////////////////////////////////////////////////////////////
 

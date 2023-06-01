@@ -728,7 +728,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Chunk reincarnator transaction finished "
             "(FinishedTransactionId: %v, ChunkReincarnatorCurrentTransactionId: %v, ChunkReincarnatorPreviousTransactionId: %v)",
             transactionId,
@@ -1162,7 +1162,7 @@ private:
 
         TransactionRotator_.Rotate();
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
+        YT_LOG_INFO(
             "Chunk reincarnator transactions updated "
             "(TransactionId: %v, PreviousTransactionId: %v)",
             TransactionRotator_.GetTransactionId(),
@@ -1172,7 +1172,7 @@ private:
     void HydraCreateReincarnatedChunks(NProto::TReqCreateReincarnatedChunks* request)
     {
         if (!IsObjectAlive(TransactionRotator_.GetTransaction())) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Chunk reincarnation transaction is not alive (TransactionId: %v)",
                 TransactionRotator_.GetTransactionId());
 
@@ -1221,7 +1221,7 @@ private:
             }
 
             if (oldChunk->IsExported()) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Chunk was teleported after reincarnated chunks creation has been scheduled (ChunkId: %v)",
                     oldChunkId);
                 OnReincarnationFinished(EReincarnationResult::Teleportations);
@@ -1279,7 +1279,7 @@ private:
 
         auto rescheduleChunkIfNeeded = [&] (TChunk* chunk) {
             if (IsLeader()) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Rescheduling chunk reincarnation (ChunkId: %v)",
                     chunk->GetId());
                 RescheduleReincarnation(chunk);
@@ -1293,7 +1293,7 @@ private:
             auto oldChunkId = FromProto<TChunkId>(subrequest.old_chunk_id());
             auto* oldChunk = chunkManager->FindChunk(oldChunkId);
             if (!IsObjectAlive(oldChunk)) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Chunk reincarnation skipped because old chunk is not alive (ChunkId: %v)",
                     oldChunkId);
                 continue;
@@ -1301,7 +1301,7 @@ private:
 
             if (oldChunk->IsExported()) {
                 OnReincarnationFinished(EReincarnationResult::Teleportations);
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Chunk was teleported after reincarnation had been scheduled; chunk reincarnation skipped (ChunkId: %v)",
                     oldChunkId);
                 continue;
@@ -1311,7 +1311,7 @@ private:
             auto* newChunk = chunkManager->FindChunk(newChunkId);
             if (!IsObjectAlive(newChunk)) {
                 OnReincarnationFinished(EReincarnationResult::Transient);
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "New chunk is not alive; chunk reincarnation skipped (OldChunkId: %v, NewChunkId: %v)",
                     oldChunk->GetId(),
                     newChunkId);
@@ -1322,7 +1322,7 @@ private:
 
             if (!newChunk->IsConfirmed()) {
                 OnReincarnationFinished(EReincarnationResult::Transient);
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "New chunk is not confirmed; chunk reincarnation skipped (OldChunkId: %v, NewChunkId: %v)",
                     oldChunk->GetId(),
                     newChunkId);
@@ -1352,7 +1352,7 @@ private:
                 case EReincarnationResult::OK:
                     traverser.CommitChunkReincarnation(oldChunk, newChunk);
 
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk was successfully reincarnated (OldChunkId: %v, NewChunkId: %v)",
+                    YT_LOG_DEBUG("Chunk was successfully reincarnated (OldChunkId: %v, NewChunkId: %v)",
                         oldChunk->GetId(),
                         newChunk->GetId());
                     break;

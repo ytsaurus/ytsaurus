@@ -55,7 +55,7 @@ public:
 
         trunkNode->SnapshotStatistics() = *statistics;
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Journal node statistics updated (NodeId: %v, Statistics: %v)",
+        YT_LOG_DEBUG("Journal node statistics updated (NodeId: %v, Statistics: %v)",
             trunkNode->GetId(),
             trunkNode->SnapshotStatistics());
     }
@@ -79,7 +79,7 @@ public:
             chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Journal node sealed (NodeId: %v)",
+        YT_LOG_DEBUG("Journal node sealed (NodeId: %v)",
             trunkNode->GetId());
 
         if (trunkNode->IsForeign()) {
@@ -116,7 +116,7 @@ public:
             DoTruncateJournal(trunkNode, desiredRowCount);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Journal node truncated (NodeId: %v, RowCount: %v)",
+        YT_LOG_DEBUG("Journal node truncated (NodeId: %v, RowCount: %v)",
             trunkNode->GetId(),
             desiredRowCount);
 
@@ -137,8 +137,7 @@ private:
 
         auto totalRowCount = chunkList->Statistics().RowCount;
         if (totalRowCount < desiredRowCount) {
-            YT_LOG_DEBUG_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Journal has less rows than requested for truncation (TotalRowCount: %v, DesiredRowCount: %v)",
                 totalRowCount,
                 desiredRowCount);
@@ -154,8 +153,7 @@ private:
         for (auto* child : chunkList->Children()) {
             YT_VERIFY(appendedRowCount <= desiredRowCount);
             if (appendedRowCount == desiredRowCount) {
-                YT_LOG_DEBUG_IF(
-                    IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Dropping chunk when truncating journal (NodeId: %v, ChunkId: %v)",
                     trunkNode->GetId(),
                     child->GetId());
@@ -167,8 +165,7 @@ private:
             auto chunkRowCount = chunk->GetRowCount();
             auto newRowCount = GetJournalRowCount(appendedRowCount, firstOverlayedRowIndex, chunkRowCount);
             if (newRowCount <= appendedRowCount) {
-                YT_LOG_DEBUG_IF(
-                    IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Dropping nested chunk (NodeId: %v, ChunkId: %v, AppendedRowCount: %v, ChunkRowCount: %v)",
                     trunkNode->GetId(),
                     child->GetId(),
@@ -179,8 +176,7 @@ private:
 
             if (newRowCount > desiredRowCount) {
                 auto rowCountToTrim = newRowCount - desiredRowCount;
-                YT_LOG_DEBUG_IF(
-                    IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Truncating trailing journal chunk (NodeId: %v, ChunkId: %v, PrevRowCount: %v, NewRowCount: %v)",
                     trunkNode->GetId(),
                     child->GetId(),

@@ -321,7 +321,7 @@ private:
 
         ScheduleScanTablet(tablet->GetId());
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Hunk tablet mounted (TabletId: %v, MountRevision: %x)",
             tabletId,
             mountRevision);
@@ -346,7 +346,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Unmounting hunk tablet (TabletId: %v, Force: %v)",
             tabletId,
             force);
@@ -404,7 +404,7 @@ private:
             store->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Hunk tablet store update transaction prepared (TransactionId: %v)",
             transactionId);
     }
@@ -471,7 +471,7 @@ private:
             store->Unlock(transaction->GetId(), EObjectLockMode::Exclusive);
             store->SetMarkedSealable(true);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Hunk tablet store marked as sealable "
                 "(TransactionId: %v, StoreId: %v)",
                 transactionId,
@@ -480,7 +480,7 @@ private:
 
         ScheduleScanTablet(tablet->GetId());
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Hunk tablet store update transaction committed (TransactionId: %v)",
             transactionId);
 
@@ -530,7 +530,7 @@ private:
 
         ScheduleScanTablet(tabletId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Hunk tablet store update transaction aborted "
             "(TransactionId: %v, TabletId: %v)",
             transactionId,
@@ -573,7 +573,7 @@ private:
                 lockerTabletId);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Hunk tablet store lock toggle prepared "
             "(TransactionId: %v, TabletId: %v, StoreId: %v, LockerTabletId: %v, Lock: %v)",
             transaction->GetId(),
@@ -640,7 +640,7 @@ private:
 
         store->Unlock(transaction->GetId(), EObjectLockMode::Shared);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Hunk tablet store lock toggle committed "
             "(TransactionId: %v, TabletId: %v, StoreId: %v, LockerTabletId: %v, Lock: %v)",
             transaction->GetId(),
@@ -680,7 +680,7 @@ private:
 
         store->Unlock(transaction->GetId(), EObjectLockMode::Shared);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Hunk tablet store lock toggle aborted "
             "(TransactionId: %v, TabletId: %v, StoreId: %v, LockerTabletId: %v, Lock: %v)",
             transaction->GetId(),
@@ -711,16 +711,16 @@ private:
         auto tabletId = tablet->GetId();
         auto tabletHolder = TabletMap_.Release(tabletId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Tablet unmounted (TabletId: %v)",
             tabletId);
 
         if (tablet->IsFullyUnlocked()) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Tablet destroyed (TabletId: %v)",
                 tabletId);
         } else {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Tablet became orphaned (TabletId: %v)",
                 tabletId);
             OrphanedTabletMap_.Insert(tabletId, std::move(tabletHolder));
@@ -775,7 +775,7 @@ private:
         try {
             return ConvertTo<THunkStorageMountConfigPtr>(str);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex,
+            YT_LOG_ERROR(ex,
                 "Error deserializing hunk storage mount config (TabletId: %v)",
                  tabletId);
             return New<THunkStorageMountConfig>();
@@ -787,7 +787,7 @@ private:
         try {
             return ConvertTo<THunkStoreWriterConfigPtr>(str);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex,
+            YT_LOG_ERROR(ex,
                 "Error deserializing hunk store writer config (TabletId: %v)",
                  tabletId);
             return New<THunkStoreWriterConfig>();
@@ -799,7 +799,7 @@ private:
         try {
             return ConvertTo<THunkStoreWriterOptionsPtr>(str);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex,
+            YT_LOG_ERROR(ex,
                 "Error deserializing hunk store writer options (TabletId: %v)",
                  tabletId);
             return New<THunkStoreWriterOptions>();

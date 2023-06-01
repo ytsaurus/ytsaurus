@@ -1729,7 +1729,7 @@ public:
             PostUnlockForeignNodeRequest(trunkNode, transaction, explicitOnly);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node explicitly unlocked (NodeId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG("Node explicitly unlocked (NodeId: %v, TransactionId: %v)",
             trunkNode->GetId(),
             transaction->GetId());
 
@@ -2006,7 +2006,7 @@ public:
         handler->Destroy(branchedNode);
         NodeMap_.Remove(branchedNodeId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Branched node removed (NodeId: %v)", branchedNodeId);
+        YT_LOG_DEBUG("Branched node removed (NodeId: %v)", branchedNodeId);
     }
 
     TCreateLockResult CreateLock(
@@ -2917,12 +2917,12 @@ private:
         node->RememberAevum();
 
         if (node->IsExternal()) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "External node registered (NodeId: %v, Type: %v, ExternalCellTag: %v)",
+            YT_LOG_DEBUG("External node registered (NodeId: %v, Type: %v, ExternalCellTag: %v)",
                 node->GetId(),
                 node->GetType(),
                 node->GetExternalCellTag());
         } else {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "%v node registered (NodeId: %v, Type: %v)",
+            YT_LOG_DEBUG("%v node registered (NodeId: %v, Type: %v)",
                 node->IsForeign() ? "Foreign" : "Local",
                 node->GetId(),
                 node->GetType());
@@ -2952,7 +2952,7 @@ private:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto* lock : lockingState.PendingLocks) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Lock orphaned due to node removal (LockId: %v, NodeId: %v)",
+            YT_LOG_DEBUG("Lock orphaned due to node removal (LockId: %v, NodeId: %v)",
                 lock->GetId(),
                 trunkNode->GetId());
             lock->SetTrunkNode(nullptr);
@@ -3413,7 +3413,7 @@ private:
         auto* transaction = lock->GetTransaction();
         const auto& request = lock->Request();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Lock acquired (LockId: %v)",
+        YT_LOG_DEBUG("Lock acquired (LockId: %v)",
             lock->GetId());
 
         YT_VERIFY(lock->GetState() == ELockState::Pending);
@@ -3430,7 +3430,7 @@ private:
         RegisterLock(lock);
 
         if (transaction->LockedNodes().insert(trunkNode).second) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node locked (NodeId: %v, TransactionId: %v)",
+            YT_LOG_DEBUG("Node locked (NodeId: %v, TransactionId: %v)",
                 trunkNode->GetId(),
                 transaction->GetId());
         }
@@ -3563,7 +3563,7 @@ private:
 
         transaction->AttachLock(lock, objectManager);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Lock created (LockId: %v, Mode: %v, Key: %v, NodeId: %v, Implicit: %v, TransactionRecursiveLockCount: %v)",
             id,
             request.Mode,
@@ -3600,7 +3600,7 @@ private:
         }
 
         for (auto* trunkNode : lockedNodes) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node unlocked (NodeId: %v, TransactionId: %v)",
+            YT_LOG_DEBUG("Node unlocked (NodeId: %v, TransactionId: %v)",
                 trunkNode->GetId(),
                 transaction->GetId());
         }
@@ -3667,7 +3667,7 @@ private:
             // NB: Node could be locked more than once.
             parentTransaction->LockedNodes().insert(trunkNode);
         }
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Lock promoted (LockId: %v, TransactionId: %v -> %v)",
+        YT_LOG_DEBUG("Lock promoted (LockId: %v, TransactionId: %v -> %v)",
             lock->GetId(),
             transaction->GetId(),
             parentTransaction->GetId());
@@ -3721,7 +3721,7 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         transaction->DetachLock(lock, objectManager);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Lock released (LockId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG("Lock released (LockId: %v, TransactionId: %v)",
             lock->GetId(),
             transaction->GetId());
     }
@@ -3927,7 +3927,7 @@ private:
             handler->Zombify(branchedNode);
             handler->Destroy(branchedNode);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node snapshot destroyed (NodeId: %v)", branchedNodeId);
+            YT_LOG_DEBUG("Node snapshot destroyed (NodeId: %v)", branchedNodeId);
         }
 
         // Drop the implicit reference to the trunk.
@@ -3936,7 +3936,7 @@ private:
         // Remove the branched copy.
         NodeMap_.Remove(branchedNodeId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Branched node removed (NodeId: %v)", branchedNodeId);
+        YT_LOG_DEBUG("Branched node removed (NodeId: %v)", branchedNodeId);
     }
 
     void MergeNodes(TTransaction* transaction)
@@ -4145,7 +4145,7 @@ private:
             ? transactionManager->FindTransaction(sourceTransactionId)
             : nullptr;
         if (sourceTransactionId && !IsObjectAlive(sourceTransaction)) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), "Source transaction is not alive (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
+            YT_LOG_ERROR("Source transaction is not alive (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
                 sourceNodeId,
                 clonedNodeId,
                 sourceTransactionId,
@@ -4169,7 +4169,7 @@ private:
 
         auto* sourceTrunkNode = FindNode(TVersionedObjectId(sourceNodeId));
         if (!IsObjectAlive(sourceTrunkNode)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Attempted to clone a non-alive foreign node (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
+            YT_LOG_DEBUG("Attempted to clone a non-alive foreign node (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
                 sourceNodeId,
                 clonedNodeId,
                 sourceTransactionId,
@@ -4217,7 +4217,7 @@ private:
 
         factory->Commit();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Foreign node cloned (SourceNodeId: %v, ClonedNodeId: %v, Account: %v)",
+        YT_LOG_DEBUG("Foreign node cloned (SourceNodeId: %v, ClonedNodeId: %v, Account: %v)",
             TVersionedNodeId(sourceNodeId, sourceTransactionId),
             TVersionedNodeId(clonedNodeId, clonedTransactionId),
             account->GetName());
@@ -4245,7 +4245,7 @@ private:
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             auto path = cypressManager->GetNodePath(trunkNode, nullptr);
             try {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removing expired node (NodeId: %v, Path: %v)",
+                YT_LOG_DEBUG("Removing expired node (NodeId: %v, Path: %v)",
                     nodeId,
                     path);
                 auto nodeProxy = GetNodeProxy(trunkNode, nullptr);
@@ -4258,7 +4258,7 @@ private:
                     nullptr,
                     "TtlRemove");
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Cannot remove an expired node; backing off and retrying (NodeId: %v, Path: %v)",
+                YT_LOG_DEBUG(ex, "Cannot remove an expired node; backing off and retrying (NodeId: %v, Path: %v)",
                     nodeId,
                     path);
                 ExpirationTracker_->OnNodeRemovalFailed(trunkNode);

@@ -232,7 +232,7 @@ public:
 
         YT_VERIFY(EntranceNodes_.emplace(trunkNode->GetId(), trunkNode).second);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Portal entrance registered (EntranceNodeId: %v, ExitCellTag: %v, Account: %v, Path: %v)",
             trunkNode->GetId(),
             trunkNode->GetExitCellTag(),
@@ -254,7 +254,7 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, trunkNode->GetExitCellTag());
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Portal entrance unregistered (NodeId: %v)",
+        YT_LOG_DEBUG("Portal entrance unregistered (NodeId: %v)",
             trunkNode->GetId());
     }
 
@@ -272,7 +272,7 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, trunkNode->GetEntranceCellTag());
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Portal exit unregistered (NodeId: %v)",
+        YT_LOG_DEBUG("Portal exit unregistered (NodeId: %v)",
             trunkNode->GetId());
     }
 
@@ -361,7 +361,7 @@ private:
         auto* sourceNode = cypressManager->FindNode(TVersionedNodeId(sourceNodeId));
         auto* destinationNode = cypressManager->FindNode(TVersionedNodeId(destinationNodeId));
         if (!sourceNode || !destinationNode) {
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Failed to copy synchronizable portal attributes; %v node does not exist"
+            YT_LOG_INFO("Failed to copy synchronizable portal attributes; %v node does not exist"
                 "(TransactionId: %v, SourceNodeId: %v, DestinationNodeId: %v)",
                 sourceNode ? "destination" : "source",
                 transaction->GetId(),
@@ -394,7 +394,7 @@ private:
             auto nodeId = FromProto<TObjectId>(portalExitInfo.node_id());
             auto it = ExitNodes_.find(nodeId);
             if (it == ExitNodes_.end()) {
-                YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), "Skipping unknown portal exit synchronization (NodeId: %v)",
+                YT_LOG_ERROR("Skipping unknown portal exit synchronization (NodeId: %v)",
                     nodeId);
                 continue;
             }
@@ -452,7 +452,7 @@ private:
             }
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Portals were synchronized (SuccessCount: %v, FailureCount: %v)",
+        YT_LOG_DEBUG("Portals were synchronized (SuccessCount: %v, FailureCount: %v)",
             synchronizedPortalsCount,
             request->portal_infos().size() - synchronizedPortalsCount);;
     }
@@ -584,7 +584,7 @@ private:
 
         EmplaceOrCrash(ExitNodes_, node->GetId(), node);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Portal exit registered (ExitNodeId: %v, ShardId: %v, Account: %v, Path: %v)",
+        YT_LOG_DEBUG("Portal exit registered (ExitNodeId: %v, ShardId: %v, Account: %v, Path: %v)",
             exitNodeId,
             shard->GetId(),
             account->GetName(),
@@ -600,21 +600,21 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->FindNode(TVersionedObjectId(entranceNodeId));
         if (!IsObjectAlive(node)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Attempt to remove a non-existing portal entrance node (EntranceNodeId: %v)",
+            YT_LOG_DEBUG("Attempt to remove a non-existing portal entrance node (EntranceNodeId: %v)",
                 entranceNodeId);
             return;
         }
 
         auto* entranceNode = node->As<TPortalEntranceNode>();
         if (entranceNode->GetRemovalStarted()) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Attempt to remove a portal entrance node for which removal is already started (EntranceNodeId: %v)",
+            YT_LOG_DEBUG("Attempt to remove a portal entrance node for which removal is already started (EntranceNodeId: %v)",
                 entranceNodeId);
             return;
         }
 
         entranceNode->SetRemovalStarted(true);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Portal entrance removal started (EntranceNodeId: %v)",
+        YT_LOG_DEBUG("Portal entrance removal started (EntranceNodeId: %v)",
             entranceNodeId);
 
         // XXX(babenko)
@@ -633,21 +633,21 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->FindNode(TVersionedObjectId(exitNodeId));
         if (!IsObjectAlive(node)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Attempt to remove a non-existing portal exit node (ExitNodeId: %v)",
+            YT_LOG_DEBUG("Attempt to remove a non-existing portal exit node (ExitNodeId: %v)",
                 exitNodeId);
             return;
         }
 
         auto* exitNode = node->As<TPortalExitNode>();
         if (exitNode->GetRemovalStarted()) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Attempt to remove a portal exit node for which removal is already started (EntranceNodeId: %v)",
+            YT_LOG_DEBUG("Attempt to remove a portal exit node for which removal is already started (EntranceNodeId: %v)",
                 exitNodeId);
             return;
         }
 
         exitNode->SetRemovalStarted(true);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Portal exit removal started (EntranceNodeId: %)",
+        YT_LOG_DEBUG("Portal exit removal started (EntranceNodeId: %)",
             exitNodeId);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();

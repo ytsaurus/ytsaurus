@@ -91,7 +91,7 @@ private:
 
     void OnAreaCreated(TArea* area)
     {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Bundle node tracker caught area create signal (CellBundle: %v, Area: %v, AreaId: %v)",
+        YT_LOG_DEBUG("Bundle node tracker caught area create signal (CellBundle: %v, Area: %v, AreaId: %v)",
             area->GetCellBundle()->GetName(),
             area->GetName(),
             area->GetId());
@@ -103,7 +103,7 @@ private:
 
     void OnAreaChanged(TArea* area)
     {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Bundle node tracker caught area change signal (CellBundle: %v, Area: %v, AreaId: %v)",
+        YT_LOG_DEBUG("Bundle node tracker caught area change signal (CellBundle: %v, Area: %v, AreaId: %v)",
             area->GetCellBundle()->GetName(),
             area->GetName(),
             area->GetId());
@@ -121,7 +121,7 @@ private:
 
     void OnAreaRemoved(TArea* area)
     {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Bundle node tracker caught area remove signal (CellBundle: %v, Area: %v, AreaId: %v)",
+        YT_LOG_DEBUG("Bundle node tracker caught area remove signal (CellBundle: %v, Area: %v, AreaId: %v)",
             area->GetCellBundle()->GetName(),
             area->GetName(),
             area->GetId());
@@ -153,7 +153,7 @@ private:
         bool good = CheckIfNodeCanHostCells(node);
         bool satisfy = area->NodeTagFilter().IsSatisfiedBy(node->Tags());
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Bundle node tracker is checking node (NodeAddress: %v, CellBundle: %v, Area: %v, AreaId: %v, "
+        YT_LOG_DEBUG("Bundle node tracker is checking node (NodeAddress: %v, CellBundle: %v, Area: %v, AreaId: %v, "
             "State: %v, ReportedTabletNodeHeartbeat: %v, IsGood: %v, Satisfy: %v)",
             node->GetDefaultAddress(),
             area->GetCellBundle()->GetName(),
@@ -166,7 +166,7 @@ private:
 
         if (good & satisfy) {
             if (!nodeSet->contains(node)) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node added to area (NodeAddress: %v, CellBundle: %v, Area: %v, AreaId: %v)",
+                YT_LOG_DEBUG("Node added to area (NodeAddress: %v, CellBundle: %v, Area: %v, AreaId: %v)",
                     node->GetDefaultAddress(),
                     area->GetCellBundle()->GetName(),
                     area->GetName(),
@@ -176,7 +176,7 @@ private:
             }
         } else {
             if (auto it = nodeSet->find(node); it != nodeSet->end()) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node removed from area (NodeAddress: %v, CellBundle: %v, Area: %v, AreaId: %v)",
+                YT_LOG_DEBUG("Node removed from area (NodeAddress: %v, CellBundle: %v, Area: %v, AreaId: %v)",
                     node->GetDefaultAddress(),
                     area->GetCellBundle()->GetName(),
                     area->GetName(),

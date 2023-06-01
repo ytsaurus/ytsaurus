@@ -156,7 +156,7 @@ void THunkTablet::AddStore(THunkStorePtr store)
         InsertOrCrash(PassiveStores_, store);
     }
 
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+    YT_LOG_DEBUG(
         "Store added (StoreId: %v, StoreState: %v)",
         store->GetId(),
         store->GetState());
@@ -176,7 +176,7 @@ void THunkTablet::RemoveStore(const THunkStorePtr& store)
     auto storeState = store->GetState();
     EraseOrCrash(IdToStore_, storeId);
 
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+    YT_LOG_DEBUG(
         "Store removed (StoreId: %v, StoreState: %v)",
         storeId,
         storeState);
@@ -275,7 +275,7 @@ void THunkTablet::RotateActiveStore()
         newActiveStoreId = newActiveStore->GetId();
     }
 
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+    YT_LOG_DEBUG(
         "Active store rotated (ActiveStoreId: %v -> %v)",
         oldActiveStoreId,
         newActiveStoreId);

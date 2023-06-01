@@ -53,7 +53,7 @@ void TLockingState::Lock(TTransactionId transactionId, EObjectLockMode lockMode)
             YT_ABORT();
     };
 
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+    YT_LOG_DEBUG(
         "Object is locked by transaction (ObjectId: %v, TransactionId: %v, LockMode: %v)",
         ObjectId_,
         transactionId,
@@ -78,7 +78,7 @@ bool TLockingState::Unlock(TTransactionId transactionId, EObjectLockMode lockMod
     }
 
     if (unlocked) {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Object is unlocked by transaction (ObjectId: %v, TransactionId: %v, LockMode: %v)",
             ObjectId_,
             transactionId,

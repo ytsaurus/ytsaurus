@@ -1169,8 +1169,7 @@ void TChunkMerger::ScheduleSessionFinalization(TObjectId nodeId, EMergeSessionRe
     session.Result = std::max(session.Result, result);
 
     YT_VERIFY(session.ChunkListIdToRunningJobs.empty() && session.ChunkListIdToCompletedJobs.empty());
-    YT_LOG_DEBUG_IF(
-        IsMutationLoggingEnabled(),
+    YT_LOG_DEBUG(
         "Finalizing chunk merge session (NodeId: %v, Result: %v, TraversalInfo: %v)",
         nodeId,
         session.Result,
@@ -1606,7 +1605,7 @@ void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
         };
 
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk merger cannot create chunks: no such transaction (JobId: %v, TransactionId: %v)",
+            YT_LOG_DEBUG("Chunk merger cannot create chunks: no such transaction (JobId: %v, TransactionId: %v)",
                 jobId,
                 transactionId);
             eraseFromQueue();
@@ -1618,7 +1617,7 @@ void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
         auto mediumIndex = subrequest.medium_index();
         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
         if (!IsObjectAlive(medium)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk merger cannot create chunks: no such medium (JobId: %v, MediumIndex: %v)",
+            YT_LOG_DEBUG("Chunk merger cannot create chunks: no such medium (JobId: %v, MediumIndex: %v)",
                 jobId,
                 mediumIndex);
             eraseFromQueue();
@@ -1628,7 +1627,7 @@ void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
         const auto& accountName = subrequest.account();
         auto* account = securityManager->FindAccountByName(accountName, /*activeLifeStageOnly*/ true);
         if (!IsObjectAlive(account)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk merger cannot create chunks: no such account (JobId: %v, Account: %v)",
+            YT_LOG_DEBUG("Chunk merger cannot create chunks: no such account (JobId: %v, Account: %v)",
                 jobId,
                 accountName);
             eraseFromQueue();
@@ -1685,7 +1684,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     auto replacementCount = request->replacements_size();
     auto* chunkOwner = FindChunkOwner(nodeId);
     if (!chunkOwner) {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: no such chunk owner node (NodeId: %v)",
+        YT_LOG_DEBUG("Cannot replace chunks after merge: no such chunk owner node (NodeId: %v)",
             nodeId);
         updateFailedReplacements(replacementCount);
         FinalizeReplacement(nodeId, chunkListId, EMergeSessionResult::PermanentFailure);
@@ -1695,7 +1694,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     if (chunkOwner->GetType() == EObjectType::Table) {
         auto* table = chunkOwner->As<TTableNode>();
         if (table->IsDynamic()) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: table is dynamic (NodeId: %v)",
+            YT_LOG_DEBUG("Cannot replace chunks after merge: table is dynamic (NodeId: %v)",
                 chunkOwner->GetId());
             updateFailedReplacements(replacementCount);
             FinalizeReplacement(nodeId, chunkListId, EMergeSessionResult::PermanentFailure);
@@ -1704,14 +1703,13 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     }
 
     auto* rootChunkList = chunkOwner->GetChunkList();
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replacing chunks after merge (NodeId: %v, ChunkListId: %v)",
+    YT_LOG_DEBUG("Replacing chunks after merge (NodeId: %v, ChunkListId: %v)",
         nodeId,
         chunkListId);
 
     TChunkReplacer chunkReplacer(ChunkReplacerCallbacks_, Logger);
     if (!chunkReplacer.FindChunkList(rootChunkList, chunkListId)) {
-        YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Cannot replace chunks after merge: parent chunk list is no longer there (NodeId: %v, ParentChunkListId: %v)",
             nodeId,
             chunkListId);
@@ -1727,7 +1725,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
         auto newChunkId = FromProto<TChunkId>(replacement.new_chunk_id());
         auto* newChunk = chunkManager->FindChunk(newChunkId);
         if (!IsObjectAlive(newChunk)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: no such chunk (NodeId: %v, ChunkId: %v)",
+            YT_LOG_DEBUG("Cannot replace chunks after merge: no such chunk (NodeId: %v, ChunkId: %v)",
                 nodeId,
                 newChunkId);
             updateFailedReplacements(1);
@@ -1744,8 +1742,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
 
         auto chunkIds = FromProto<std::vector<TChunkId>>(replacement.old_chunk_ids());
         if (chunkReplacer.ReplaceChunkSequence(newChunk, chunkIds)) {
-            YT_LOG_DEBUG_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Replaced chunks after merge (NodeId: %v, InputChunkIds: %v, ChunkId: %v)",
                 nodeId,
                 chunkIds,
@@ -1767,8 +1764,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
                 }
             }
         } else {
-            YT_LOG_DEBUG_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Cannot replace chunks after merge: input chunk sequence is no longer there (NodeId: %v, InputChunkIds: %v, ChunkId: %v)",
                 nodeId,
                 chunkIds,
@@ -1797,8 +1793,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     chunkManager->ScheduleChunkRequisitionUpdate(rootChunkList);
     chunkManager->ScheduleChunkRequisitionUpdate(newRootChunkList);
 
-    YT_LOG_DEBUG_IF(
-        IsMutationLoggingEnabled(),
+    YT_LOG_DEBUG(
         "Chunk list replaced after merge (NodeId: %v, OldChunkListId: %v, NewChunkListId: %v)",
         nodeId,
         rootChunkList->GetId(),
@@ -1847,8 +1842,7 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         YT_VERIFY(chunkOwner->GetType() == EObjectType::Table);
         auto* table = chunkOwner->As<TTableNode>();
         if (table->IsDynamic()) {
-            YT_LOG_DEBUG_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Table became dynamic between chunk replacement and "
                 "merge session finalization, ignored (TableId: %v)",
                 table->GetId());
@@ -1860,8 +1854,7 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         }
         auto jobCount = subrequest.job_count();
 
-        YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Finalizing merge session (NodeId: %v, NodeTouched: %v, Result: %v, JobCount: %v)",
             nodeId,
             nodeTouched,
@@ -1930,7 +1923,7 @@ void TChunkMerger::HydraStartMergeTransaction(NProto::TReqStartMergeTransaction*
 {
     TransactionRotator_.Rotate();
 
-    YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Merge transaction updated (NewTransactionId: %v, PreviousTransactionId: %v)",
+    YT_LOG_INFO("Merge transaction updated (NewTransactionId: %v, PreviousTransactionId: %v)",
         TransactionRotator_.GetTransactionId(),
         TransactionRotator_.GetPreviousTransactionId());
 }

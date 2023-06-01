@@ -105,12 +105,12 @@ void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNode* trunkNode)
     }
 
     if (auto expirationTime = trunkNode->TryGetExpirationTime()) {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node expiration time set (NodeId: %v, ExpirationTime: %v)",
+        YT_LOG_DEBUG("Node expiration time set (NodeId: %v, ExpirationTime: %v)",
             trunkNode->GetId(),
             *expirationTime);
         RegisterNodeExpirationTime(trunkNode, *expirationTime);
     } else {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node expiration time reset (NodeId: %v)",
+        YT_LOG_DEBUG("Node expiration time reset (NodeId: %v)",
             trunkNode->GetId());
     }
 }
@@ -129,14 +129,14 @@ void TExpirationTracker::OnNodeExpirationTimeoutUpdated(TCypressNode* trunkNode)
     }
 
     if (auto expirationTimeout = trunkNode->TryGetExpirationTimeout()) {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node expiration timeout set (NodeId: %v, ExpirationTimeout: %v)",
+        YT_LOG_DEBUG("Node expiration timeout set (NodeId: %v, ExpirationTimeout: %v)",
             trunkNode->GetId(),
             *expirationTimeout);
         if (!IsNodeLocked(trunkNode)) {
             RegisterNodeExpirationTimeout(trunkNode);
         }
     } else {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node expiration timeout reset (NodeId: %v)",
+        YT_LOG_DEBUG("Node expiration timeout reset (NodeId: %v)",
             trunkNode->GetId());
     }
 }
@@ -161,7 +161,7 @@ void TExpirationTracker::OnNodeTouched(TCypressNode* trunkNode)
     if (trunkNode->TryGetExpirationTimeout() && !IsNodeLocked(trunkNode)) {
         auto expirationTimeout = trunkNode->GetExpirationTimeout();
         auto expirationTime = trunkNode->GetTouchTime() + expirationTimeout;
-        YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Node is scheduled to expire by timeout (NodeId: %v, ExpirationTimeout: %v, AnticipatedExpirationTime: %v)",
+        YT_LOG_TRACE("Node is scheduled to expire by timeout (NodeId: %v, ExpirationTimeout: %v, AnticipatedExpirationTime: %v)",
             trunkNode->GetId(),
             expirationTimeout,
             expirationTime);

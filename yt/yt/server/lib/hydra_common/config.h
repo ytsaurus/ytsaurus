@@ -380,8 +380,8 @@ public:
     //! Abandon leader lease request timeout.
     TDuration AbandonLeaderLeaseRequestTimeout;
 
-    //! Enables logging in mutation handlers even during recovery.
-    bool ForceMutationLogging;
+    //! Sets minimal logging level for mutation handlers during recovery.
+    NLogging::ELogLevel RecoveryMinLogLevel;
 
     //! Enables state hash checker.
     //! It checks that after applying each N-th mutation, automaton state hash is the same on all peers.

@@ -409,7 +409,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto areaId = objectManager->GenerateId(EObjectType::Area, hintId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Creating area (CellBundle: %v, Area: %v, AreaId: %v)",
+        YT_LOG_DEBUG("Creating area (CellBundle: %v, Area: %v, AreaId: %v)",
             cellBundle->GetName(),
             name,
             areaId);
@@ -590,8 +590,7 @@ public:
                 }
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_ERROR(
                 ex,
                 "Error registering cell in Cypress (CellId: %v)",
                 cell->GetId());
@@ -697,8 +696,7 @@ public:
     void UpdatePeerCount(TCellBase* cell, std::optional<int> peerCount) override
     {
         if (cell->IsIndependent()) {
-            YT_LOG_WARNING_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_WARNING(
                 "Attempted to update peer count of independent cell (CellId: %v)",
                 cell->GetId());
             return;
@@ -829,7 +827,7 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster());
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removing cell (CellId: %v, Force: %v)",
+        YT_LOG_DEBUG("Removing cell (CellId: %v, Force: %v)",
             cell->GetId(),
             force);
 
@@ -883,7 +881,7 @@ public:
 
         // Decommission cell on node.
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Requesting cell decommission on node (CellId: %v)",
+        YT_LOG_DEBUG("Requesting cell decommission on node (CellId: %v)",
             cell->GetId());
 
         cell->SetCellLifeStage(ECellLifeStage::DecommissioningOnNode);
@@ -909,8 +907,7 @@ public:
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto* cell = FindCell(cellId);
         if (!IsObjectAlive(cell)) {
-            YT_LOG_WARNING_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_WARNING(
                 "Attempted to update peer count of non-existing cell (CellId: %v)",
                 cellId);
             return;
@@ -920,8 +917,7 @@ public:
             if (request->peer_count() >= 1) {
                 UpdatePeerCount(cell, request->peer_count());
             } else {
-                YT_LOG_WARNING_IF(
-                    IsMutationLoggingEnabled(),
+                YT_LOG_WARNING(
                     "Attempted to update cell with incorrect peer count (CellId: %v, PeerCount: %v)",
                     cellId,
                     request->peer_count());
@@ -965,7 +961,7 @@ public:
 
         cell->SetCellLifeStage(ECellLifeStage::Decommissioned);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell decommissioned (CellId: %v)",
+        YT_LOG_DEBUG("Cell decommissioned (CellId: %v)",
             cell->GetId());
     }
 
@@ -983,11 +979,11 @@ public:
         }
 
         if (suspended) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Tablet cell is suspended (CellId: %v)",
                 cellId);
         } else {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Tablet cell is resumed (CellId: %v)",
                 cellId);
         }
@@ -1446,12 +1442,12 @@ private:
         YT_VERIFY(multicellManager->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), "Received cell status gossip message from unknown cell (CellTag: %v)",
+            YT_LOG_ERROR("Received cell status gossip message from unknown cell (CellTag: %v)",
                 cellTag);
             return;
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received cell status gossip message (CellTag: %v, EntryCount: %v)",
+        YT_LOG_INFO("Received cell status gossip message (CellTag: %v, EntryCount: %v)",
             cellTag,
             request->entries_size());
 
@@ -1549,7 +1545,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node cellar size changed (Address: %v, CellarType: %v, OldCellarSize: %v, NewCellarSize: %v)",
+        YT_LOG_DEBUG("Node cellar size changed (Address: %v, CellarType: %v, OldCellarSize: %v, NewCellarSize: %v)",
             node->GetDefaultAddress(),
             cellarType,
             oldSize,
@@ -1562,7 +1558,7 @@ private:
                 const auto& slot = cellar[index];
                 auto* cell = slot.Cell;
                 if (cell) {
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Slot destroyed, detaching cell peer (Address: %v, CellarType: %v, CellId: %v, PeerId: %v)",
+                    YT_LOG_DEBUG("Slot destroyed, detaching cell peer (Address: %v, CellarType: %v, CellId: %v, PeerId: %v)",
                         node->GetDefaultAddress(),
                         cellarType,
                         cell->GetId(),
@@ -1583,7 +1579,7 @@ private:
 
     void OnNodeUnregistered(TNode* node)
     {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node unregistered (Address: %v)",
+        YT_LOG_DEBUG("Node unregistered (Address: %v)",
             node->GetDefaultAddress());
 
         for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
@@ -1656,7 +1652,7 @@ private:
 
             protoInfo->set_cell_bundle(cellBundle->GetName());
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Occupant creation requested (Address: %v, CellId: %v, PeerId: %v)",
+            YT_LOG_DEBUG("Occupant creation requested (Address: %v, CellId: %v, PeerId: %v)",
                 node->GetDefaultAddress(),
                 cellId,
                 peerId);
@@ -1690,7 +1686,7 @@ private:
             protoInfo->set_abandon_leader_lease_during_recovery(GetDynamicConfig()->AbandonLeaderLeaseDuringRecovery);
             protoInfo->set_options(ConvertToYsonString(cell->CellBundle()->GetOptions()).ToString());
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Occupant configuration update requested "
+            YT_LOG_DEBUG("Occupant configuration update requested "
                 "(Address: %v, CellId: %v, PeerId: %v, Version: %v, PrerequisiteTransactionId: %v, AbandonLeaderLeaseDuringRecovery: %v)",
                 node->GetDefaultAddress(),
                 cellId,
@@ -1720,7 +1716,7 @@ private:
             protoInfo->set_dynamic_config_version(cellBundle->GetDynamicConfigVersion());
             protoInfo->set_dynamic_options(ConvertToYsonString(cellBundle->GetDynamicOptions()).ToString());
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Occupant update requested (Address: %v, CellId: %v, DynamicConfigVersion: %v)",
+            YT_LOG_DEBUG("Occupant update requested (Address: %v, CellId: %v, DynamicConfigVersion: %v)",
                 node->GetDefaultAddress(),
                 cellId,
                 cellBundle->GetDynamicConfigVersion());
@@ -1739,7 +1735,7 @@ private:
             auto* protoInfo = response->add_slots_to_remove();
             ToProto(protoInfo->mutable_cell_id(), cellId);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Occupant removal requested (Address: %v, CellId: %v)",
+            YT_LOG_DEBUG("Occupant removal requested (Address: %v, CellId: %v)",
                 node->GetDefaultAddress(),
                 cellId);
         };
@@ -1753,7 +1749,7 @@ private:
 
         auto* cellar = node->FindCellar(cellarType);
         if (!cellar) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Received heartbeat for unexisting cellar, skipped (Address: %v, CellarType: %v)",
+            YT_LOG_DEBUG("Received heartbeat for unexisting cellar, skipped (Address: %v, CellarType: %v)",
                 node->GetDefaultAddress(),
                 cellarType);
             return;
@@ -1787,7 +1783,7 @@ private:
             auto cellId = cellInfo.CellId;
             auto* cell = FindCell(cellId);
             if (!IsObjectAlive(cell)) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unknown cell is running (Address: %v, CellId: %v)",
+                YT_LOG_DEBUG("Unknown cell is running (Address: %v, CellId: %v)",
                     address,
                     cellId);
                 requestRemoveSlot(cellId);
@@ -1795,7 +1791,7 @@ private:
             }
 
             if (GetCellarTypeFromCellId(cellId) != cellarType) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell with unexpected cellar type is running (Address: %v, CellId: %v, CellarType: %v, CellarType: %v)",
+                YT_LOG_DEBUG("Cell with unexpected cellar type is running (Address: %v, CellId: %v, CellarType: %v, CellarType: %v)",
                     address,
                     cellId,
                     GetCellarTypeFromCellId(cellId),
@@ -1806,7 +1802,7 @@ private:
 
             auto peerId = cell->FindPeerId(address);
             if (peerId == InvalidPeerId) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unexpected cell is running (Address: %v, CellId: %v)",
+                YT_LOG_DEBUG("Unexpected cell is running (Address: %v, CellId: %v)",
                     address,
                     cellId);
                 requestRemoveSlot(cellId);
@@ -1814,8 +1810,7 @@ private:
             }
 
             if (CountVotingPeers(cell) > 1 && slotInfo.peer_id() != InvalidPeerId && slotInfo.peer_id() != peerId) {
-                YT_LOG_DEBUG_IF(
-                    IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Invalid peer id for cell: %v instead of %v (Address: %v, CellId: %v)",
                     slotInfo.peer_id(),
                     peerId,
@@ -1826,7 +1821,7 @@ private:
             }
 
             if (state == EPeerState::Stopped) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell peer is stopped, removing (PeerId: %v, Address: %v, CellId: %v)",
+                YT_LOG_DEBUG("Cell peer is stopped, removing (PeerId: %v, Address: %v, CellId: %v)",
                     slotInfo.peer_id(),
                     address,
                     cellId);
@@ -1837,7 +1832,7 @@ private:
             auto expectedIt = expectedCells.find(cell);
             if (expectedIt == expectedCells.end()) {
                 cell->AttachPeer(node, peerId);
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell peer online (Address: %v, CellId: %v, PeerId: %v)",
+                YT_LOG_DEBUG("Cell peer online (Address: %v, CellId: %v, PeerId: %v)",
                     address,
                     cellId,
                     peerId);
@@ -1855,7 +1850,7 @@ private:
             slot.PreloadCompletedStoreCount = slotInfo.preload_completed_store_count();
             slot.PreloadFailedStoreCount = slotInfo.preload_failed_store_count();
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell is running (Address: %v, CellId: %v, PeerId: %v, State: %v, ConfigVersion: %v)",
+            YT_LOG_DEBUG("Cell is running (Address: %v, CellId: %v, PeerId: %v, State: %v, ConfigVersion: %v)",
                 address,
                 cell->GetId(),
                 slot.PeerId,
@@ -1863,7 +1858,7 @@ private:
                 cellInfo.ConfigVersion);
 
             if (cellInfo.ConfigVersion != cell->GetConfigVersion()) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Occupant should be reconfigured "
+                YT_LOG_DEBUG("Occupant should be reconfigured "
                     "(CellId: %v, PeerId: %v, ExpectedConfingVersion: %v, ActualConfigVersion: %v)",
                     cell->GetId(),
                     slot.PeerId,
@@ -1882,7 +1877,7 @@ private:
         // Check for expected slots that are missing.
         for (auto* cell : expectedCells) {
             if (actualCells.find(cell) == actualCells.end()) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell peer offline: slot is missing (CellId: %v, Address: %v)",
+                YT_LOG_DEBUG("Cell peer offline: slot is missing (CellId: %v, Address: %v)",
                     cell->GetId(),
                     address);
                 cell->DetachPeer(node);
@@ -1951,8 +1946,7 @@ private:
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto* cell = FindCell(cellId);
         if (!IsObjectAlive(cell)) {
-            YT_LOG_WARNING_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_WARNING(
                 "Attempted to assigning peer on non-existing cell (CellId: %v)",
                 cellId);
             return;
@@ -1969,8 +1963,7 @@ private:
             auto descriptor = FromProto<TNodeDescriptor>(peerInfo.node_descriptor());
 
             if (!cell->IsValidPeer(peerId)) {
-                YT_LOG_WARNING_IF(
-                    IsMutationLoggingEnabled(),
+                YT_LOG_WARNING(
                     "Attempted to assigning invalid peer (CellId: %v, PeerId: %v, PeerCount: %v)",
                     cellId,
                     peerId,
@@ -1980,8 +1973,7 @@ private:
             if (descriptor.IsNull() ||
                 !Bootstrap_->GetNodeTracker()->FindNodeByAddress(descriptor.GetDefaultAddress()))
             {
-                YT_LOG_WARNING_IF(
-                    IsMutationLoggingEnabled(),
+                YT_LOG_WARNING(
                     "Attempted to assign peer on non-existing node (CellId: %v, PeerId: %v, Address: %v)",
                     cellId,
                     peerId,
@@ -1989,8 +1981,7 @@ private:
                 continue;
             }
             if (assignedPeersSet.contains(peerId)) {
-                YT_LOG_WARNING_IF(
-                    IsMutationLoggingEnabled(),
+                YT_LOG_WARNING(
                     "Peer is assigned multiple times (CellId: %v, PeerId: %v, PeerCount: %v)",
                     cellId,
                     peerId,
@@ -2000,7 +1991,7 @@ private:
 
             auto& peer = cell->Peers()[peerId];
             if (!peer.Descriptor.IsNull()) {
-                YT_LOG_WARNING_IF(IsMutationLoggingEnabled(),
+                YT_LOG_WARNING(
                     "Peer is already assigned to node (CellId: %v, PeerId: %v, CurrentAddress: %v, AssignedAddress: %v)",
                     cellId,
                     peerId,
@@ -2010,7 +2001,7 @@ private:
             }
 
             if (!AddToAddressToCellMap(descriptor, cell, peerId)) {
-                YT_LOG_WARNING_IF(IsMutationLoggingEnabled(),
+                YT_LOG_WARNING(
                     "Cell already has peer on node (CellId: %v, PeerId: %v, Address: %v)",
                     cellId,
                     peerId,
@@ -2026,7 +2017,7 @@ private:
             cell->AssignPeer(descriptor, peerId);
             cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell peer assigned (CellId: %v, PeerId: %v, Address: %v)",
+            YT_LOG_DEBUG("Cell peer assigned (CellId: %v, PeerId: %v, Address: %v)",
                 cellId,
                 peerId,
                 descriptor.GetDefaultAddress());
@@ -2047,8 +2038,7 @@ private:
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto* cell = FindCell(cellId);
         if (!IsObjectAlive(cell)) {
-            YT_LOG_WARNING_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_WARNING(
                 "Attempted to revoking peer of non-existing cell (CellId: %v)",
                 cellId);
             return;
@@ -2058,8 +2048,7 @@ private:
         std::vector<int> revokedPeers;
         for (auto peerId : request->peer_ids()) {
             if (!cell->IsValidPeer(peerId)) {
-                YT_LOG_WARNING_IF(
-                    IsMutationLoggingEnabled(),
+                YT_LOG_WARNING(
                     "Attempted to revoking invalid peer (CellId: %v, PeerId: %v, PeerCount: %v)",
                     cellId,
                     peerId,
@@ -2067,8 +2056,7 @@ private:
                 continue;
             }
             if (revokedPeersSet.contains(peerId)) {
-                YT_LOG_WARNING_IF(
-                    IsMutationLoggingEnabled(),
+                YT_LOG_WARNING(
                     "Peer is revoked multiple times (CellId: %v, PeerId: %v, PeerCount: %v)",
                     cellId,
                     peerId,
@@ -2124,23 +2112,20 @@ private:
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto* cell = FindCell(cellId);
         if (!IsObjectAlive(cell)) {
-            YT_LOG_WARNING_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_WARNING(
                 "Attempted to set leading peer of non-existing cell (CellId: %v)",
                 cellId);
             return;
         }
         if (cell->IsIndependent()) {
-            YT_LOG_WARNING_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_WARNING(
                 "Attempted to set leading peer of independent cell (CellId: %v)",
                 cell->GetId());
             return;
         }
         auto peerId = request->peer_id();
         if (!cell->IsValidPeer(peerId)) {
-            YT_LOG_WARNING_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_WARNING(
                 "Attempted to set invalide peer to lead (CellId: %v, PeerId: %v, PeerCount: %v)",
                 cellId,
                 peerId,
@@ -2154,7 +2139,7 @@ private:
         cell->SetLeadingPeerId(peerId);
 
         const auto& descriptor = cell->Peers()[peerId].Descriptor;
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell leading peer updated (CellId: %v, Address: %v, PeerId: %v)",
+        YT_LOG_DEBUG("Cell leading peer updated (CellId: %v, Address: %v, PeerId: %v)",
             cellId,
             descriptor.GetDefaultAddress(),
             peerId);
@@ -2222,8 +2207,7 @@ private:
     {
         cell->SetConfigVersion(cell->GetConfigVersion() + 1);
 
-        YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Cell reconfigured (CellId: %v, Version: %v)",
             cell->GetId(),
             cell->GetConfigVersion());
@@ -2352,7 +2336,7 @@ private:
         }
         multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction started (CellId: %v, PeerId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG("Cell prerequisite transaction started (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),
             peerId,
             transaction->GetId());
@@ -2375,7 +2359,7 @@ private:
         auto transaction = transactionManager->FindTransaction(transactionId);
 
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Prerequisite transaction is not found on secondary master (CellId: %v, PeerId: %v, TransactionId: %v)",
+            YT_LOG_INFO("Prerequisite transaction is not found on secondary master (CellId: %v, PeerId: %v, TransactionId: %v)",
                 cellId,
                 peerId,
                 transactionId);
@@ -2385,7 +2369,7 @@ private:
         EmplaceOrCrash(TransactionToCellMap_, transaction, std::make_pair(cell, peerId));
         cell->SetPrerequisiteTransaction(peerId, transaction);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction attached (CellId: %v, PeerId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG("Cell prerequisite transaction attached (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),
             peerId,
             transaction->GetId());
@@ -2410,7 +2394,7 @@ private:
 
         auto* transaction = cell->GetPrerequisiteTransaction(peerId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Aborting cell prerequisite transaction (CellId: %v, PeerId: %v, transactionId: %v)",
+        YT_LOG_DEBUG("Aborting cell prerequisite transaction (CellId: %v, PeerId: %v, transactionId: %v)",
             cell->GetId(),
             peerId,
             GetObjectId(transaction));
@@ -2442,7 +2426,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->AbortMasterTransaction(transaction, options);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction aborted (CellId: %v, PeerId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG("Cell prerequisite transaction aborted (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),
             peerId,
             transactionId);
@@ -2478,7 +2462,7 @@ private:
         TransactionToCellMap_.erase(it);
         cell->SetPrerequisiteTransaction(peerId, nullptr);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction aborted (CellId: %v, PeerId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG("Cell prerequisite transaction aborted (CellId: %v, PeerId: %v, TransactionId: %v)",
             cellId,
             peerId,
             transactionId);
@@ -2499,7 +2483,7 @@ private:
 
         cell->SetPrerequisiteTransaction(peerId, nullptr);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction finished (CellId: %v, PeerId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG("Cell prerequisite transaction finished (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),
             peerId,
             transaction->GetId());
@@ -2520,15 +2504,14 @@ private:
         const auto& peer = cell->Peers()[peerId];
         const auto& descriptor = peer.Descriptor;
         if (descriptor.IsNull()) {
-            YT_LOG_WARNING_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_WARNING(
                 "Peer is not assigned to node (CellId: %v, PeerId: %v)",
                 cell->GetId(),
                 peerId);
             return;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), reason, "Cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
+        YT_LOG_DEBUG(reason, "Cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
             cell->GetId(),
             descriptor.GetDefaultAddress(),
             peerId);

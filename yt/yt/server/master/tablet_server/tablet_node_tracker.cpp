@@ -97,7 +97,7 @@ private:
         node->ValidateRegistered();
 
         YT_PROFILE_TIMING("/tablet_server/tablet_node_heartbeat_time") {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing tablet node heartbeat (NodeId: %v, Address: %v, State: %v, ReportedTabletNodeHeartbeat: %v)",
+            YT_LOG_DEBUG("Processing tablet node heartbeat (NodeId: %v, Address: %v, State: %v, ReportedTabletNodeHeartbeat: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 node->GetLocalState(),

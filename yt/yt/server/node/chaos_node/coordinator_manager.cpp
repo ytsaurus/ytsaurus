@@ -252,7 +252,7 @@ private:
 
         Suspended_ = true;
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Coordinator suspended (SuspendedAtCells: %v)",
+        YT_LOG_DEBUG("Coordinator suspended (SuspendedAtCells: %v)",
             cellIds);
     }
 
@@ -275,7 +275,7 @@ private:
 
         Suspended_ = false;
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Coordinator resumed (ResumedAtCells: %v)",
+        YT_LOG_DEBUG("Coordinator resumed (ResumedAtCells: %v)",
             cellIds);
     }
 
@@ -315,7 +315,7 @@ private:
         auto* mailbox = hiveManager->GetCellMailbox(chaosCellId);
         hiveManager->PostMessage(mailbox, rsp);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Shortcuts granted (Shortcuts: %v)",
+        YT_LOG_DEBUG("Shortcuts granted (Shortcuts: %v)",
             MakeFormattableView(grantedShortcuts, [] (auto* builder, const auto& grantedShortcut) {
                 builder->AppendFormat("<%v, %v>", grantedShortcut.first, grantedShortcut.second);
             }));
@@ -363,7 +363,7 @@ private:
             SendRevokeShortcutsResponse(chaosCellId, inactiveShortcuts);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Shortcuts revoked (Shortcuts: %v, Inactive: %v)",
+        YT_LOG_DEBUG("Shortcuts revoked (Shortcuts: %v, Inactive: %v)",
             MakeFormattableView(revokedShortcuts, [] (auto* builder, const auto& shortcut) {
                 builder->AppendFormat("<%v, %v>", shortcut.first, shortcut.second);
             }),
@@ -401,7 +401,7 @@ private:
 
         InsertOrCrash(it->second.AliveTransactions, transaction->GetId());
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication batch prepared (ReplicationCardId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG("Replication batch prepared (ReplicationCardId: %v, TransactionId: %v)",
             replicationCardId,
             transaction->GetId());
     }
@@ -414,7 +414,7 @@ private:
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         DiscardAliveTransaction(replicationCardId, transaction->GetId(), false);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication batch committed (ReplicationCardId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG("Replication batch committed (ReplicationCardId: %v, TransactionId: %v)",
             replicationCardId,
             transaction->GetId());
     }
@@ -427,7 +427,7 @@ private:
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         DiscardAliveTransaction(replicationCardId, transaction->GetId(), true);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication batch aborted (ReplicationCardId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG("Replication batch aborted (ReplicationCardId: %v, TransactionId: %v)",
             replicationCardId,
             transaction->GetId());
     }
@@ -436,7 +436,7 @@ private:
     {
         auto it = Shortcuts_.find(replicationCardId);
         if (it == Shortcuts_.end()) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Trying to decrease transaction count for absent shortcut (ReplicationCardId: %v, TransactionId: %v)",
+            YT_LOG_DEBUG("Trying to decrease transaction count for absent shortcut (ReplicationCardId: %v, TransactionId: %v)",
                 replicationCardId,
                 transactionId);
             YT_VERIFY(isAbort);
@@ -444,7 +444,7 @@ private:
         }
 
         if (!it->second.AliveTransactions.contains(transactionId)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Trying to decrease transaction count for transaction absent shortcut (ReplicationCardId: %v, TransactionId: %v)",
+            YT_LOG_DEBUG("Trying to decrease transaction count for transaction absent shortcut (ReplicationCardId: %v, TransactionId: %v)",
                 replicationCardId,
                 transactionId);
             YT_VERIFY(isAbort);
@@ -460,7 +460,7 @@ private:
             SendRevokeShortcutsResponse(chaosCellId, {{replicationCardId, era}});
             EraseShortcut(replicationCardId);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Shortcut revoked (ReplicationCardId: %v, Era: %v)",
+            YT_LOG_DEBUG("Shortcut revoked (ReplicationCardId: %v, Era: %v)",
                 replicationCardId,
                 era);
         }

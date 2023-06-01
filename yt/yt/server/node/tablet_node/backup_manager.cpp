@@ -228,7 +228,7 @@ public:
             return;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Replication transaction overlaps backup checkpoint timestamp, aborting backup "
             "(%v, StartTimestamp: %v, CheckpointTimestamp: %v, CommitTimestamp: %v)",
             tablet->GetLoggingTag(),
@@ -412,7 +412,7 @@ private:
             tablet->PushDynamicStoreIdToPool(allocatedDynamicStoreId);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Backup checkpoint set (TabletId: %v, CheckpointTimestamp: %v, BackupMode: %v, "
             "BackupableReplicaIds: %v, AllocatedDynamicStoreId: %v)",
             tabletId,
@@ -430,7 +430,7 @@ private:
                 error = error
                   << TErrorAttribute("tablet_id", tablet->GetId())
                   << TErrorAttribute("table_path", tablet->GetTablePath());
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error,
+                YT_LOG_DEBUG(error,
                     "Replica statuses do not allow backup");
                 RejectCheckpoint(tablet, error, EBackupStage::TimestampReceived);
                 return;
@@ -460,7 +460,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Backup checkpoint released (%v, BackupMode: %v, BackupStage: %v)",
             tablet->GetLoggingTag(),
             tablet->GetBackupMode(),
@@ -512,7 +512,7 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Persistently confirmed backup checkpoint feasibility "
                 "(TabletId: %v, CheckpointTimestamp: %v)",
                 tablet->GetId(),
@@ -538,7 +538,7 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Persistently rejected backup checkpoint feasibility "
                 "(TabletId: %v, CheckpointTimestamp: %v)",
                 tablet->GetId(),
@@ -819,7 +819,7 @@ private:
             if (NeedsImmediateCutoffRotation(tablet)) {
                 if (tablet->GetState() != ETabletState::Mounted) {
                     // Tablet may be in freeze/unmount workflow. We abort the backup in this case.
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    YT_LOG_DEBUG(
                         "Tablet with nonempty active store is not mounted "
                         "during backup checkpoint passing (%v, TabletState: %v)",
                         tablet->GetLoggingTag(),
@@ -837,7 +837,7 @@ private:
                 }
 
                 if (tablet->DynamicStoreIdPool().empty()) {
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    YT_LOG_DEBUG(
                         "Cannot perform backup cutoff due to empty "
                         "dynamic store id pool (%v)",
                         tablet->GetLoggingTag());
@@ -856,7 +856,7 @@ private:
 
                 tablet->GetStoreManager()->Rotate(/*createNewStore*/ true, EStoreRotationReason::None);
 
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Store rotated to perform backup cutoff (%v, PreviousStoreId: %v, "
                     "NextStoreId: %v, BackupMode: %v)",
                     tablet->GetLoggingTag(),
@@ -868,7 +868,7 @@ private:
                 tabletManager->UpdateTabletSnapshot(tablet);
 
                 if (tabletManager->AllocateDynamicStoreIfNeeded(tablet)) {
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    YT_LOG_DEBUG(
                         "Dynamic store id for ordered tablet allocated "
                         "after backup cutoff (%v)",
                         tablet->GetLoggingTag());
@@ -888,7 +888,7 @@ private:
                 nextDynamicStoreId = activeStore->GetId();
             }
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Backup row index cutoff descriptor generated (%v, RowIndex: %v, NextDynamicStoreId: %v)",
                 tablet->GetLoggingTag(),
                 tablet->GetTotalRowCount(),
@@ -897,7 +897,7 @@ private:
             auto* cutoffDescriptor = req.mutable_cutoff_descriptor()->mutable_dynamic_store_list_descriptor();
             ToProto(cutoffDescriptor->mutable_dynamic_store_ids_to_keep(), capturedDynamicStoreIds);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Backup dynamic store list cutoff descriptor generated (%v, DynamicStoreIdsToKeep: %v)",
                 tablet->GetLoggingTag(),
                 capturedDynamicStoreIds);
@@ -935,7 +935,7 @@ private:
             }
 
             if (pendingAsyncReplicaCount > 0) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Backup checkpoint confirmation is delayed by replication in progress "
                     "(%v, PendingAsyncReplicaCount: %v)",
                     tablet->GetLoggingTag(),
@@ -988,7 +988,7 @@ private:
                 tablet->CheckedSetBackupStage(
                     EBackupStage::FeasibilityConfirmed,
                     EBackupStage::AwaitingReplicationFinish);
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Tablet has passed backup checkpoint but still has replicator writes "
                     "in progress (%v, PreparedTransactionIds: %v)",
                     tablet->GetLoggingTag(),
@@ -1000,7 +1000,7 @@ private:
 
             OnCheckpointPassed(tablet);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Reported backup checkpoint passage by barrier timestamp "
                 "(TabletId: %v, CheckpointTimestamp: %v, BarrierTimestamp: %v)",
                 tablet->GetId(),
@@ -1040,7 +1040,7 @@ private:
 
                 OnCheckpointPassed(tablet);
 
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Reported backup checkpoint passage due to a transaction "
                     "with later timestamp (%v, CheckpointTimestamp: %v, "
                     "NextTransactionCommitTimestamp: %v)",
@@ -1049,7 +1049,7 @@ private:
                     commitTimestamp);
 
             } else if (tablet->GetBackupStage() == EBackupStage::TimestampReceived) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Rejected backup checkpoint timestamp due to a transaction "
                     "with later timestamp (%v, CheckpointTimestamp: %v, "
                     "CommitTimestamp: %v)",
@@ -1083,7 +1083,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "All replicator write transactions finished (%v)",
             tablet->GetLoggingTag());
 

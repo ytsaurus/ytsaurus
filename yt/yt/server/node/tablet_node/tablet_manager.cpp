@@ -1036,7 +1036,7 @@ private:
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet mounted (%v, MountRevision: %x, Keys: %v .. %v, "
+        YT_LOG_INFO("Tablet mounted (%v, MountRevision: %x, Keys: %v .. %v, "
             "StoreCount: %v, HunkChunkCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
             "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v, RetainedTimestamp: %v, SchemaId: %v)",
             tablet->GetLoggingTag(),
@@ -1062,7 +1062,7 @@ private:
         if (request->has_replication_progress()) {
             auto replicationCardId = tablet->GetReplicationCardId();
             auto progress = FromProto<TReplicationProgress>(request->replication_progress());
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet bound for chaos replication (%v, ReplicationCardId: %v, ReplicationProgress: %v)",
+            YT_LOG_DEBUG("Tablet bound for chaos replication (%v, ReplicationCardId: %v, ReplicationProgress: %v)",
                 tablet->GetLoggingTag(),
                 replicationCardId,
                 progress);
@@ -1101,7 +1101,7 @@ private:
         }
 
         if (request->force()) {
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet is forcefully unmounted (%v)",
+            YT_LOG_INFO("Tablet is forcefully unmounted (%v)",
                 tablet->GetLoggingTag());
 
             auto tabletHolder = TabletMap_.Release(tabletId);
@@ -1128,18 +1128,18 @@ private:
         } else {
             auto state = tablet->GetState();
             if (IsInUnmountWorkflow(state)) {
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Requested to unmount a tablet in a wrong state, ignored (State: %v, %v)",
+                YT_LOG_INFO("Requested to unmount a tablet in a wrong state, ignored (State: %v, %v)",
                     state,
                     tablet->GetLoggingTag());
                 return;
             }
 
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Unmounting tablet (%v)",
+            YT_LOG_INFO("Unmounting tablet (%v)",
                 tablet->GetLoggingTag());
 
             tablet->SetState(ETabletState::UnmountWaitingForLocks);
 
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Waiting for all tablet locks to be released (%v)",
+            YT_LOG_INFO("Waiting for all tablet locks to be released (%v)",
                 tablet->GetLoggingTag());
 
             CheckIfTabletFullyUnlocked(tablet);
@@ -1184,7 +1184,7 @@ private:
 
         ReconfigureTablet(tablet, std::move(rawSettings));
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet remounted (%v)",
+        YT_LOG_INFO("Tablet remounted (%v)",
             tablet->GetLoggingTag());
     }
 
@@ -1258,12 +1258,12 @@ private:
             return;
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Freezing tablet (%v)",
+        YT_LOG_INFO("Freezing tablet (%v)",
             tablet->GetLoggingTag());
 
         tablet->SetState(ETabletState::FreezeWaitingForLocks);
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Waiting for all tablet locks to be released (%v)",
+        YT_LOG_INFO("Waiting for all tablet locks to be released (%v)",
             tablet->GetLoggingTag());
 
         CheckIfTabletFullyUnlocked(tablet);
@@ -1279,13 +1279,13 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Frozen)  {
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Requested to unfreeze a tablet in a wrong state, ignored (State: %v, %v)",
+            YT_LOG_INFO("Requested to unfreeze a tablet in a wrong state, ignored (State: %v, %v)",
                 state,
                 tablet->GetLoggingTag());
             return;
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet unfrozen (%v)",
+        YT_LOG_INFO("Tablet unfrozen (%v)",
             tablet->GetLoggingTag());
 
         tablet->SetState(ETabletState::Mounted);
@@ -1316,7 +1316,7 @@ private:
         const auto& lockManager = tablet->GetLockManager();
         lockManager->Lock(lockTimestamp, transactionId, /*confirmed*/ false);
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet locked (TabletId: %v, TransactionId: %v)",
+        YT_LOG_INFO("Tablet locked (TabletId: %v, TransactionId: %v)",
             tabletId,
             transactionId);
 
@@ -1337,7 +1337,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet lock confirmed (TabletId: %v, TransactionIds: %v)",
+        YT_LOG_INFO("Tablet lock confirmed (TabletId: %v, TransactionIds: %v)",
             tabletId,
             transactionIds);
 
@@ -1381,7 +1381,7 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
 
         if (updateMode == EUpdateMode::Overwrite) {
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
+            YT_LOG_INFO(
                 "All stores of tablet are going to be discarded (%v)",
                 tablet->GetLoggingTag());
 
@@ -1414,7 +1414,7 @@ private:
             UpdateTabletSnapshot(tablet);
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
+        YT_LOG_INFO(
             "Tablet unlocked (%v, TransactionId: %v, AddedStoreIds: %v, LockManagerEpoch: %v)",
             tablet->GetLoggingTag(),
             transactionId,
@@ -1441,7 +1441,7 @@ private:
             case ETabletState::FreezeFlushing: {
                 auto state = tablet->GetState();
                 if (IsInUnmountWorkflow(state)) {
-                    YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Improper tablet state transition requested, ignored (CurrentState: %v, RequestedState: %v, %v)",
+                    YT_LOG_INFO("Improper tablet state transition requested, ignored (CurrentState: %v, RequestedState: %v, %v)",
                         state,
                         requestedState,
                         tablet->GetLoggingTag());
@@ -1456,7 +1456,7 @@ private:
                 const auto& storeManager = tablet->GetStoreManager();
                 storeManager->Rotate(false, EStoreRotationReason::None);
 
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Waiting for all tablet stores to be flushed (%v, NewState: %v)",
+                YT_LOG_INFO("Waiting for all tablet stores to be flushed (%v, NewState: %v)",
                     tablet->GetLoggingTag(),
                     requestedState);
 
@@ -1467,7 +1467,7 @@ private:
             case ETabletState::Unmounted: {
                 tablet->SetState(ETabletState::Unmounted);
 
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet unmounted (%v)",
+                YT_LOG_INFO("Tablet unmounted (%v)",
                     tablet->GetLoggingTag());
 
                 if (!IsRecovery()) {
@@ -1494,7 +1494,7 @@ private:
             case ETabletState::Frozen: {
                 auto state = tablet->GetState();
                 if (IsInUnmountWorkflow(state)) {
-                    YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Improper tablet state transition requested, ignored (CurrentState %v, RequestedState: %v, %v)",
+                    YT_LOG_INFO("Improper tablet state transition requested, ignored (CurrentState %v, RequestedState: %v, %v)",
                         state,
                         requestedState,
                         tablet->GetLoggingTag());
@@ -1510,7 +1510,7 @@ private:
                     }
                 }
 
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet frozen (%v)",
+                YT_LOG_INFO("Tablet frozen (%v)",
                     tablet->GetLoggingTag());
 
                 TRspFreezeTablet response;
@@ -1578,7 +1578,7 @@ private:
                 expectedActiveStoreId &&
                 tablet->GetActiveStore()->GetId() != expectedActiveStoreId)
             {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Active store id mismatch in rotation attempt "
                     "(ExpectedActiveStoreId: %v, ActualActiveStoreId: %v, Reason: %v, %v)",
                     expectedActiveStoreId,
@@ -1605,7 +1605,7 @@ private:
 
         if (tablet->IsPhysicallyOrdered()) {
             if (AllocateDynamicStoreIfNeeded(tablet)) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Dynamic store id for ordered tablet allocated after rotation (%v)",
                     tablet->GetLoggingTag());
 
@@ -1727,8 +1727,7 @@ private:
 
                 hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
 
-                YT_LOG_DEBUG_IF(
-                    IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Hunk chunk added (%v, ChunkId: %v)",
                     tablet->GetLoggingTag(),
                     chunkId);
@@ -1760,7 +1759,7 @@ private:
             updateReason,
             transaction->GetId());
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet stores update prepared "
+        YT_LOG_INFO("Tablet stores update prepared "
             "(%v, TransactionId: %v, StoreIdsToAdd: %v, HunkChunkIdsToAdd: %v, StoreIdsToRemove: %v, HunkChunkIdsToRemove: %v, "
             "UpdateReason: %v)",
             tablet->GetLoggingTag(),
@@ -1961,7 +1960,7 @@ private:
 
         CheckIfTabletFullyFlushed(tablet);
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet stores update aborted "
+        YT_LOG_INFO("Tablet stores update aborted "
             "(%v, TransactionId: %v)",
             tablet->GetLoggingTag(),
             transaction->GetId());
@@ -1993,7 +1992,7 @@ private:
         if (auto discardStoresRevision = tablet->GetLastDiscardStoresRevision()) {
             auto prepareRevision = transaction->GetPrepareRevision();
             if (prepareRevision < discardStoresRevision) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Tablet stores update commit interrupted by stores discard, ignored "
                     "(%v, TransactionId: %v, DiscardStoresRevision: %x, "
                     "PrepareUpdateTabletStoresRevision: %x)",
@@ -2006,7 +2005,7 @@ private:
                 for (const auto& descriptor : request->stores_to_remove()) {
                     auto storeId = FromProto<TStoreId>(descriptor.store_id());
                     if (const auto& store = tablet->FindStore(storeId)) {
-                        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                        YT_LOG_ALERT(
                             "Store prepared for removal was not discarded while tablet "
                             "stores update commit was interrupted by the discard "
                             "(%v, StoreId: %v, TransactionId: %v, DiscardStoresRevision: %x, "
@@ -2064,7 +2063,7 @@ private:
                 hunkChunk->Initialize();
                 tablet->AddHunkChunk(hunkChunk);
 
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Hunk chunk added (%v, ChunkId: %v)",
+                YT_LOG_DEBUG("Hunk chunk added (%v, ChunkId: %v)",
                     tablet->GetLoggingTag(),
                     chunkId);
                 InsertOrCrash(addedHunkChunks, hunkChunk);
@@ -2079,7 +2078,7 @@ private:
             auto store = tablet->GetStore(storeId);
             storeManager->RemoveStore(store);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Store removed (%v, StoreId: %v, DynamicMemoryUsage: %v)",
+            YT_LOG_DEBUG("Store removed (%v, StoreId: %v, DynamicMemoryUsage: %v)",
                 tablet->GetLoggingTag(),
                 storeId,
                 store->GetDynamicMemoryUsage());
@@ -2091,7 +2090,7 @@ private:
 
                     const auto& hunkChunk = ref.HunkChunk;
 
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Hunk chunk unreferenced (%v, StoreId: %v, HunkChunkRef: %v, StoreRefCount: %v)",
+                    YT_LOG_DEBUG("Hunk chunk unreferenced (%v, StoreId: %v, HunkChunkRef: %v, StoreRefCount: %v)",
                         tablet->GetLoggingTag(),
                         storeId,
                         ref,
@@ -2112,7 +2111,7 @@ private:
             if (request->create_hunk_chunks_during_prepare()) {
                 hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Exclusive);
             }
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Hunk chunk removed (%v, ChunkId: %v)",
+            YT_LOG_DEBUG("Hunk chunk removed (%v, ChunkId: %v)",
                 tablet->GetLoggingTag(),
                 chunkId);
         }
@@ -2134,7 +2133,7 @@ private:
                 SetBackingStore(tablet, store, backingStore);
             }
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk store added (%v, StoreId: %v, MaxTimestamp: %v, BackingStoreId: %v)",
+            YT_LOG_DEBUG("Chunk store added (%v, StoreId: %v, MaxTimestamp: %v, BackingStoreId: %v)",
                 tablet->GetLoggingTag(),
                 storeId,
                 store->GetMaxTimestamp(),
@@ -2155,7 +2154,7 @@ private:
                         }
                     }
 
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Hunk chunk referenced (%v, StoreId: %v, HunkChunkRef: %v, StoreRefCount: %v)",
+                    YT_LOG_DEBUG("Hunk chunk referenced (%v, StoreId: %v, HunkChunkRef: %v, StoreRefCount: %v)",
                         tablet->GetLoggingTag(),
                         storeId,
                         ref,
@@ -2177,14 +2176,14 @@ private:
                     ? EObjectType::SortedDynamicTabletStore
                     : EObjectType::OrderedDynamicTabletStore);
             tablet->PushDynamicStoreIdToPool(storeId);
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dynamic store id added to the pool (%v, StoreId: %v)",
+            YT_LOG_DEBUG("Dynamic store id added to the pool (%v, StoreId: %v)",
                 tablet->GetLoggingTag(),
                 storeId);
 
             allocatedDynamicStoreId = storeId;
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet stores update committed "
+        YT_LOG_INFO("Tablet stores update committed "
             "(%v, TransactionId: %v, AddedStoreIds: %v, RemovedStoreIds: %v, AddedHunkChunkIds: %v, RemovedHunkChunkIds: %v, "
             "RetainedTimestamp: %v, UpdateReason: %v)",
             tablet->GetLoggingTag(),
@@ -2236,7 +2235,7 @@ private:
         auto storeManager = tablet->GetStoreManager()->AsSorted();
         bool result = storeManager->SplitPartition(partition->GetIndex(), pivotKeys);
         if (!result) {
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Partition split failed (%v, PartitionId: %v, Keys: %v)",
+            YT_LOG_INFO("Partition split failed (%v, PartitionId: %v, Keys: %v)",
                 tablet->GetLoggingTag(),
                 partitionId,
                 JoinToString(pivotKeys, TStringBuf(" .. ")));
@@ -2245,7 +2244,7 @@ private:
 
         UpdateTabletSnapshot(tablet);
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Partition split (%v, OriginalPartitionId: %v, "
+        YT_LOG_INFO("Partition split (%v, OriginalPartitionId: %v, "
             "ResultingPartitionIds: %v, DataSize: %v, Keys: %v)",
             tablet->GetLoggingTag(),
             partitionId,
@@ -2299,7 +2298,7 @@ private:
 
         UpdateTabletSnapshot(tablet);
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Partitions merged (%v, OriginalPartitionIds: %v, "
+        YT_LOG_INFO("Partitions merged (%v, OriginalPartitionIds: %v, "
             "ResultingPartitionId: %v, DataSize: %v)",
             tablet->GetLoggingTag(),
             originalPartitionIds,
@@ -2336,7 +2335,7 @@ private:
 
         UpdateTabletSnapshot(tablet);
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Partition sample keys updated (%v, PartitionId: %v, SampleKeyCount: %v)",
+        YT_LOG_INFO("Partition sample keys updated (%v, PartitionId: %v, SampleKeyCount: %v)",
             tablet->GetLoggingTag(),
             partition->GetId(),
             sampleKeys.Size());
@@ -2426,7 +2425,7 @@ private:
             replicaInfo->SetPreserveTimestamps(*preserveTimestamps);
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Table replica updated (%v, ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v)",
+        YT_LOG_INFO("Table replica updated (%v, ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v)",
             tablet->GetLoggingTag(),
             replicaInfo->GetId(),
             enabled,
@@ -2469,7 +2468,7 @@ private:
         const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
         tabletCellWriteManager->AddPersistentAffectedTablet(transaction, tablet);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows prepared (TabletId: %v, TransactionId: %v, ReplicationRound: %v)",
+        YT_LOG_DEBUG("Write pulled rows prepared (TabletId: %v, TransactionId: %v, ReplicationRound: %v)",
             tabletId,
             transaction->GetId(),
             round);
@@ -2488,7 +2487,7 @@ private:
         }
 
         if (transaction->IsSerializationNeeded()) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pull rows committed and is waiting for serialization (TabletId: %v, TransactionId: %v, ReplicationRound: %v)",
+            YT_LOG_DEBUG("Write pull rows committed and is waiting for serialization (TabletId: %v, TransactionId: %v, ReplicationRound: %v)",
                 tabletId,
                 transaction->GetId(),
                 round);
@@ -2514,7 +2513,7 @@ private:
 
         const auto& chaosData = tablet->ChaosData();
         if (chaosData->PreparedWritePulledRowsTransactionId != transaction->GetId()) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+            YT_LOG_ALERT(
                 "Unexpected write pull rows transaction finalized, ignored "
                 "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
                 transaction->GetId(),
@@ -2541,7 +2540,7 @@ private:
         chaosData->CurrentReplicationRowIndexes.Store(currentReplicationRowIndexes);
         chaosData->ReplicationRound = round + 1;
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows %v (TabletId: %v, TransactionId: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, NewReplicationRound: %v)",
+        YT_LOG_DEBUG("Write pulled rows %v (TabletId: %v, TransactionId: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, NewReplicationRound: %v)",
             inCommit ? "committed" : "serialized",
             tabletId,
             transaction->GetId(),
@@ -2569,7 +2568,7 @@ private:
 
         expectedTransactionId = NullTransactionId;
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows aborted (TabletId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG("Write pulled rows aborted (TabletId: %v, TransactionId: %v)",
             tabletId,
             transaction->GetId());
     }
@@ -2621,7 +2620,7 @@ private:
 
         transaction->ForceSerialization(tabletId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Prepared replication progress advance transaction (TabletId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG("Prepared replication progress advance transaction (TabletId: %v, TransactionId: %v)",
             tabletId,
             transaction->GetId());
     }
@@ -2643,7 +2642,7 @@ private:
         YT_VERIFY(!round || replicationRound == *round);
 
         if (chaosData->PreparedAdvanceReplicationProgressTransactionId != transaction->GetId()) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+            YT_LOG_ALERT(
                 "Unexpected replication progress advance transaction serialized, ignored "
                 "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
                 transaction->GetId(),
@@ -2662,7 +2661,7 @@ private:
         auto tabletProgress = tablet->RuntimeData()->ReplicationProgress.Load();
         bool isStrictlyAdvanced = IsReplicationProgressGreaterOrEqual(*progress, *tabletProgress);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Serializing advance replication progress transaction "
+        YT_LOG_DEBUG("Serializing advance replication progress transaction "
             "(TabletId: %v, TransactionId: %v, IsStrictlyAdvanced: %v, CurrentProgress: %v, NewProgress: %v, ReplicationRound: %v)",
             tabletId,
             transaction->GetId(),
@@ -2674,7 +2673,7 @@ private:
         if (isStrictlyAdvanced) {
             tablet->RuntimeData()->ReplicationProgress.Store(progress);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updated tablet replication progress (TabletId: %v, TransactionId: %v, ReplicationProgress: %v)",
+            YT_LOG_DEBUG("Updated tablet replication progress (TabletId: %v, TransactionId: %v, ReplicationProgress: %v)",
                 tabletId,
                 transaction->GetId(),
                 static_cast<NChaosClient::TReplicationProgress>(*progress));
@@ -2691,7 +2690,7 @@ private:
             chaosData->ReplicationRound = *round + 1;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Serialized replication progress advance transaction (TabletId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG("Serialized replication progress advance transaction (TabletId: %v, TransactionId: %v)",
             tabletId,
             transaction->GetId());
     }
@@ -2715,7 +2714,7 @@ private:
 
         expectedTransactionId = NullTransactionId;
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Replication progress advance aborted (TabletId: %v, TransactionId: %v)",
             tabletId,
             transaction->GetId());
@@ -2818,7 +2817,7 @@ private:
         const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
         tabletCellWriteManager->AddPersistentAffectedTablet(transaction, tablet);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Async replicated rows prepared (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
+        YT_LOG_DEBUG("Async replicated rows prepared (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v -> %v, TotalRowCount: %v, CurrentReplicationTimestamp: %v -> %v)",
             tabletId,
             replicaId,
@@ -2848,7 +2847,7 @@ private:
         }
 
         if (replicaInfo->GetPreparedReplicationTransactionId() != transaction->GetId()) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+            YT_LOG_ALERT(
                 "Unexpected replication transaction finalized, ignored "
                 "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
                 transaction->GetId(),
@@ -2904,7 +2903,7 @@ private:
 
         AdvanceReplicatedTrimmedRowCount(tablet, transaction);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Async replicated rows committed (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
+        YT_LOG_DEBUG("Async replicated rows committed (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v -> %v, CommittedReplicationRowIndex: %v -> %v, CurrentReplicationTimestamp: %v -> %v, "
             "TrimmedRowCount: %v -> %v, TotalRowCount: %v)",
             tabletId,
@@ -2947,7 +2946,7 @@ private:
         replicaInfo->SetPreparedReplicationRowIndex(-1);
         replicaInfo->SetPreparedReplicationTransactionId(NullTransactionId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Async replicated rows aborted (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
+        YT_LOG_DEBUG("Async replicated rows aborted (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v -> %v, TotalRowCount: %v, CurrentReplicationTimestamp: %v -> %v)",
             tabletId,
             replicaId,
@@ -2963,7 +2962,7 @@ private:
 
     void HydraDecommissionTabletCell(TReqDecommissionTabletCellOnNode* /*request*/)
     {
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet cell is decommissioning");
+        YT_LOG_INFO("Tablet cell is decommissioning");
 
         CellLifeStage_ = ETabletCellLifeStage::DecommissioningOnNode;
         SetTabletCellSuspend(/*suspend*/ true);
@@ -2975,7 +2974,7 @@ private:
     {
         YT_VERIFY(HasHydraContext());
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Suspending tablet cell");
+        YT_LOG_INFO("Suspending tablet cell");
 
         SetTabletCellSuspend(/*suspend*/ true);
         Suspending_ = true;
@@ -2985,7 +2984,7 @@ private:
     {
         YT_VERIFY(HasHydraContext());
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Resuming tablet cell");
+        YT_LOG_INFO("Resuming tablet cell");
 
         SetTabletCellSuspend(/*suspend*/ false);
         Suspending_ = false;
@@ -3023,7 +3022,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Checking if tablet cell is decommissioned "
+        YT_LOG_INFO("Checking if tablet cell is decommissioned "
             "(LifeStage: %v, TabletMapEmpty: %v, TransactionManagerDecommissined: %v, TransactionSupervisorDecommissioned: %v)",
             CellLifeStage_,
             TabletMap_.empty(),
@@ -3052,7 +3051,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet cell decommissioned");
+        YT_LOG_INFO("Tablet cell decommissioned");
 
         CellLifeStage_ = ETabletCellLifeStage::Decommissioned;
 
@@ -3069,7 +3068,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
+        YT_LOG_INFO(
             "Checking if tablet cell is suspended"
             "(TransactionManagerDecommissined: %v, TransactionSupervisorDecommissioned: %v)",
             Slot_->GetTransactionManager()->IsDecommissioned(),
@@ -3087,7 +3086,7 @@ private:
     {
         YT_VERIFY(HasHydraContext());
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
+        YT_LOG_INFO(
             "Tablet cell is suspended (Suspending: %v, TransactionManagerDecommissioned: %v, TransactionSupervisorDecommissioned: %v)",
             Suspending_,
             Slot_->GetTransactionManager()->IsDecommissioned(),
@@ -3138,7 +3137,7 @@ private:
             state == ETabletState::Unmounted ||
             state == ETabletState::Orphaned)
         {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Dynamic store id sent to a tablet in a wrong state, ignored (%v, State: %v)",
                 tablet->GetLoggingTag(),
                 state);
@@ -3150,7 +3149,7 @@ private:
         tablet->SetDynamicStoreIdRequested(false);
         UpdateTabletSnapshot(tablet);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dynamic store allocated for a tablet (%v, DynamicStoreId: %v)",
+        YT_LOG_DEBUG("Dynamic store allocated for a tablet (%v, DynamicStoreId: %v)",
             tablet->GetLoggingTag(),
             dynamicStoreId);
     }
@@ -3171,7 +3170,7 @@ private:
         auto lockCount = dynamicStore->GetLockCount();
         if (lockCount > 0) {
             YT_VERIFY(OrphanedStores_.insert(dynamicStore).second);
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Dynamic memory store is orphaned and will be kept "
+            YT_LOG_INFO("Dynamic memory store is orphaned and will be kept "
                 "(StoreId: %v, TabletId: %v, LockCount: %v)",
                 store->GetId(),
                 tablet->GetId(),
@@ -3194,7 +3193,7 @@ private:
 
         auto lockCount = store->Unlock();
         if (lockCount == 0) {
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Store unlocked and will be dropped (StoreId: %v)",
+            YT_LOG_INFO("Store unlocked and will be dropped (StoreId: %v)",
                 store->GetId());
             YT_VERIFY(OrphanedStores_.erase(store) == 1);
         }
@@ -3207,7 +3206,7 @@ private:
     {
         auto id = tabletHolder->GetId();
         tabletHolder->SetState(ETabletState::Orphaned);
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet is orphaned and will be kept (TabletId: %v, LockCount: %v)",
+        YT_LOG_DEBUG("Tablet is orphaned and will be kept (TabletId: %v, LockCount: %v)",
             id,
             tabletHolder->GetTotalTabletLockCount());
         YT_VERIFY(OrphanedTablets_.emplace(id, std::move(tabletHolder)).second);
@@ -3218,7 +3217,7 @@ private:
         CheckIfTabletFullyUnlocked(tablet);
         if (tablet->GetState() == ETabletState::Orphaned && tablet->GetTotalTabletLockCount() == 0) {
             auto id = tablet->GetId();
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet unlocked and will be dropped (TabletId: %v)",
+            YT_LOG_INFO("Tablet unlocked and will be dropped (TabletId: %v)",
                 id);
             YT_VERIFY(OrphanedTablets_.erase(id) == 1);
         }
@@ -3278,7 +3277,7 @@ private:
         }
         tablet->SetState(newTransientState);
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "All tablet locks released (%v, NewState: %v)",
+        YT_LOG_INFO("All tablet locks released (%v, NewState: %v)",
             tablet->GetLoggingTag(),
             newTransientState);
 
@@ -3326,7 +3325,7 @@ private:
         }
         tablet->SetState(newTransientState);
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "All tablet stores flushed (%v, NewState: %v)",
+        YT_LOG_INFO("All tablet stores flushed (%v, NewState: %v)",
             tablet->GetLoggingTag(),
             newTransientState);
 
@@ -3808,13 +3807,13 @@ private:
             try {
                 return ConvertTo<TTableMountConfigPtr>(patchedMountConfigMap);
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex,
+                YT_LOG_ERROR(ex,
                     "Error deserializing tablet mount config with extra attributes patch (TabletId: %v)",
                      tabletId);
                 return ConvertTo<TTableMountConfigPtr>(mountConfigMap);
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing tablet mount config (TabletId: %v)",
+            YT_LOG_ERROR(ex, "Error deserializing tablet mount config (TabletId: %v)",
                  tabletId);
             return New<TTableMountConfig>();
         }
@@ -3825,7 +3824,7 @@ private:
         try {
             return ConvertTo<TTabletStoreReaderConfigPtr>(str);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing store reader config (TabletId: %v)",
+            YT_LOG_ERROR(ex, "Error deserializing store reader config (TabletId: %v)",
                  tabletId);
             return New<TTabletStoreReaderConfig>();
         }
@@ -3836,7 +3835,7 @@ private:
         try {
             return ConvertTo<TTabletHunkReaderConfigPtr>(str);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing hunk reader config (TabletId: %v)",
+            YT_LOG_ERROR(ex, "Error deserializing hunk reader config (TabletId: %v)",
                  tabletId);
             return New<TTabletHunkReaderConfig>();
         }
@@ -3847,7 +3846,7 @@ private:
         try {
             return ConvertTo<TTabletStoreWriterConfigPtr>(str);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing store writer config (TabletId: %v)",
+            YT_LOG_ERROR(ex, "Error deserializing store writer config (TabletId: %v)",
                  tabletId);
             return New<TTabletStoreWriterConfig>();
         }
@@ -3858,7 +3857,7 @@ private:
         try {
             return ConvertTo<TTabletStoreWriterOptionsPtr>(str);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing store writer options (TabletId: %v)",
+            YT_LOG_ERROR(ex, "Error deserializing store writer options (TabletId: %v)",
                  tabletId);
             return New<TTabletStoreWriterOptions>();
         }
@@ -3869,7 +3868,7 @@ private:
         try {
             return ConvertTo<TTabletHunkWriterConfigPtr>(str);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing hunk writer config (TabletId: %v)",
+            YT_LOG_ERROR(ex, "Error deserializing hunk writer config (TabletId: %v)",
                  tabletId);
             return New<TTabletHunkWriterConfig>();
         }
@@ -3880,7 +3879,7 @@ private:
         try {
             return ConvertTo<TTabletHunkWriterOptionsPtr>(str);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing hunk writer options (TabletId: %v)",
+            YT_LOG_ERROR(ex, "Error deserializing hunk writer options (TabletId: %v)",
                  tabletId);
             return New<TTabletHunkWriterOptions>();
         }
@@ -4032,7 +4031,7 @@ private:
         auto replicaId = FromProto<TTableReplicaId>(descriptor.replica_id());
         auto& replicas = tablet->Replicas();
         if (replicas.find(replicaId) != replicas.end()) {
-            YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), "Requested to add an already existing table replica (TabletId: %v, ReplicaId: %v)",
+            YT_LOG_WARNING("Requested to add an already existing table replica (TabletId: %v, ReplicaId: %v)",
                 tablet->GetId(),
                 replicaId);
             return nullptr;
@@ -4059,7 +4058,7 @@ private:
         tablet->UpdateReplicaCounters();
         UpdateTabletSnapshot(tablet);
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Table replica added (%v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v, "
+        YT_LOG_INFO("Table replica added (%v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v, "
             "Mode: %v, StartReplicationTimestamp: %v, CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %v)",
             tablet->GetLoggingTag(),
             replicaId,
@@ -4078,7 +4077,7 @@ private:
         auto& replicas = tablet->Replicas();
         auto it = replicas.find(replicaId);
         if (it == replicas.end()) {
-            YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), "Requested to remove a non-existing table replica (TabletId: %v, ReplicaId: %v)",
+            YT_LOG_WARNING("Requested to remove a non-existing table replica (TabletId: %v, ReplicaId: %v)",
                 tablet->GetId(),
                 replicaId);
             return;
@@ -4095,7 +4094,7 @@ private:
         AdvanceReplicatedTrimmedRowCount(tablet, nullptr);
         UpdateTabletSnapshot(tablet);
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Table replica removed (%v, ReplicaId: %v)",
+        YT_LOG_INFO("Table replica removed (%v, ReplicaId: %v)",
             tablet->GetLoggingTag(),
             replicaId);
     }
@@ -4103,7 +4102,7 @@ private:
 
     void EnableTableReplica(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Table replica enabled (%v, ReplicaId: %v)",
+        YT_LOG_INFO("Table replica enabled (%v, ReplicaId: %v)",
             tablet->GetLoggingTag(),
             replicaInfo->GetId());
 
@@ -4124,7 +4123,7 @@ private:
 
     void DisableTableReplica(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Table replica disabled (%v, ReplicaId: %v, "
+        YT_LOG_INFO("Table replica disabled (%v, ReplicaId: %v, "
             "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %v)",
             tablet->GetLoggingTag(),
             replicaInfo->GetId(),
@@ -4176,7 +4175,7 @@ private:
             PostMasterMessage(tablet->GetId(), masterRequest);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Rows trimmed (TabletId: %v, TrimmedRowCount: %v -> %v)",
+        YT_LOG_DEBUG("Rows trimmed (TabletId: %v, TrimmedRowCount: %v -> %v)",
             tablet->GetId(),
             prevTrimmedRowCount,
             trimmedRowCount);

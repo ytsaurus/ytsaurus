@@ -714,8 +714,7 @@ void TDecoratedAutomaton::Initialize()
         THydraContext hydraContext(
             TVersion(),
             TInstant::Zero(),
-            /*randomSeed*/ 0,
-            /*isMutationLoggingEnabled*/ true);
+            /*randomSeed*/ 0);
         THydraContextGuard hydraContextGuard(&hydraContext);
 
         Automaton_->Clear();
@@ -838,8 +837,7 @@ void TDecoratedAutomaton::LoadSnapshot(
             THydraContext hydraContext(
                 hydraContextVersion,
                 timestamp,
-                hydraContextRandomSeed,
-                /*isMutationLoggingEnabled*/ true);
+                hydraContextRandomSeed);
             THydraContextGuard hydraContextGuard(&hydraContext);
 
             Automaton_->PrepareState();
@@ -903,8 +901,9 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
         header.prev_random_seed(),
         header.sequence_number(),
         StateHash_,
-        header.term(),
-        IsMutationLoggingEnabled());
+        header.term());
+
+    TFiberMinLogLevelGuard minLogLevelGuard(Config_->RecoveryMinLogLevel);
 
     DoApplyMutation(&mutationContext);
 }
@@ -1184,8 +1183,7 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
             pendingMutation.PrevRandomSeed,
             pendingMutation.SequenceNumber,
             StateHash_,
-            /*term*/ 0,
-            IsMutationLoggingEnabled());
+            /*term*/ 0);
 
         {
             NTracing::TTraceContextGuard traceContextGuard(mutationContext.Request().TraceContext);
@@ -1567,13 +1565,6 @@ bool TDecoratedAutomaton::IsRecovery() const
     return
         State_ == EPeerState::LeaderRecovery ||
         State_ == EPeerState::FollowerRecovery;
-}
-
-bool TDecoratedAutomaton::IsMutationLoggingEnabled() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return !IsRecovery() || Config_->ForceMutationLogging;
 }
 
 bool TDecoratedAutomaton::IsBuildingSnapshotNow() const

@@ -711,7 +711,7 @@ private:
 
             ValidateSecondaryMasterRegistration_.Fire(cellTag);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), ex, "Error registering secondary master (CellTag: %v)",
+            YT_LOG_WARNING(ex, "Error registering secondary master (CellTag: %v)",
                 cellTag);
             NProto::TRspRegisterSecondaryMasterAtPrimary response;
             ToProto(response.mutable_error(), TError(ex));
@@ -757,14 +757,14 @@ private:
 
         auto error = FromProto<TError>(response->error());
         if (!error.IsOK()) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), error, "Error registering at primary master, will retry");
+            YT_LOG_ERROR(error, "Error registering at primary master, will retry");
             RegisterState_ = EPrimaryRegisterState::None;
             return;
         }
 
         RegisterState_ = EPrimaryRegisterState::Registered;
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Successfully registered at primary master");
+        YT_LOG_INFO("Successfully registered at primary master");
     }
 
     void HydraRegisterSecondaryMasterAtSecondary(NProto::TReqRegisterSecondaryMasterAtSecondary* request) noexcept
@@ -798,7 +798,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Registering at primary master");
+        YT_LOG_INFO("Registering at primary master");
 
         RegisterState_ = EPrimaryRegisterState::Registering;
         RegisterMasterMailbox(GetPrimaryCellTag());
@@ -817,14 +817,14 @@ private:
             auto cellTag = request->cell_tag();
 
             if (cellTag == GetPrimaryCellTag()) {
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Persisted primary cell statistics (%v)",
+                YT_LOG_INFO("Persisted primary cell statistics (%v)",
                     request->statistics());
 
                 LocalCellStatistics_ = request->statistics();
 
                 RecomputeClusterCellStatistics();
             } else {
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received cell statistics gossip message (CellTag: %v, %v)",
+                YT_LOG_INFO("Received cell statistics gossip message (CellTag: %v, %v)",
                     cellTag,
                     request->statistics());
 
@@ -833,7 +833,7 @@ private:
                 }
             }
         } else {
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received cell statistics gossip message (%v)",
+            YT_LOG_INFO("Received cell statistics gossip message (%v)",
                 request->statistics());
             ClusterCellStatisics_ = request->statistics();
         }
@@ -847,7 +847,7 @@ private:
         // probably be a bit too fragile.
         YT_VERIFY(IsSecondaryMaster());
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received multicell statistics gossip message (%v)",
+        YT_LOG_INFO("Received multicell statistics gossip message (%v)",
             request->statistics());
 
         for (const auto& cellStatistics : request->statistics()) {
@@ -946,7 +946,7 @@ private:
         RecomputeMasterCellRoles();
         RecomputeMasterCellNames();
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Master cell registered (CellTag: %v, CellIndex: %v)",
+        YT_LOG_INFO("Master cell registered (CellTag: %v, CellIndex: %v)",
             cellTag,
             index);
     }

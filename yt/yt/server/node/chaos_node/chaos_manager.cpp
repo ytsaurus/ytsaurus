@@ -598,7 +598,7 @@ private:
 
         ReplicationCardMap_.Insert(replicationCardId, std::move(replicationCardHolder));
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card created (ReplicationCardId: %v, ReplicationCard: %v)",
+        YT_LOG_DEBUG("Replication card created (ReplicationCardId: %v, ReplicationCard: %v)",
             replicationCardId,
             *replicationCard);
 
@@ -681,7 +681,7 @@ private:
             collocation->ValidateNotMigrating();
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Alter replication card "
             "(ReplicationCardId: %v, ReplicatedTableOptions: %v, EnableReplicatedTableTracker: %v)",
             replicationCardId,
@@ -733,7 +733,7 @@ private:
             auto* mailbox = hiveManager->GetCellMailbox(replicationCard->Migration().OriginCellId);
             hiveManager->PostMessage(mailbox, req);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removing migrated replication card at origin cell (ReplicationCardId: %v, OriginCellId: %v)",
+            YT_LOG_DEBUG("Removing migrated replication card at origin cell (ReplicationCardId: %v, OriginCellId: %v)",
                 replicationCardId,
                 replicationCard->Migration().OriginCellId);
         }
@@ -745,7 +745,7 @@ private:
         ReplicationCardMap_.Remove(replicationCardId);
         MigratedReplicationCardRemover_->ConfirmRemoval(replicationCardId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card removed (ReplicationCardId: %v)",
+        YT_LOG_DEBUG("Replication card removed (ReplicationCardId: %v)",
             replicationCardId);
     }
 
@@ -792,7 +792,7 @@ private:
         ReplicationCardMap_.Remove(replicationCardId);
         MigratedReplicationCardRemover_->ConfirmRemoval(replicationCardId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card removed (ReplicationCardId: %v)",
+        YT_LOG_DEBUG("Replication card removed (ReplicationCardId: %v)",
             replicationCardId);
     }
 
@@ -814,7 +814,7 @@ private:
             ++cardsRemoved;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Removed foreign migrated replication cards (Requested: %v, Removed: %v)",
             request->migrated_cards_size(),
             cardsRemoved);
@@ -915,7 +915,7 @@ private:
             });
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica created (ReplicationCardId: %v, ReplicaId: %v, ReplicaInfo: %v)",
+        YT_LOG_DEBUG("Table replica created (ReplicationCardId: %v, ReplicaId: %v, ReplicaInfo: %v)",
             replicationCardId,
             newReplicaId,
             replicaInfo);
@@ -965,7 +965,7 @@ private:
 
         ReplicaDestroyed_.Fire(replicaId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica removed (ReplicationCardId: %v, ReplicaId: %v)",
+        YT_LOG_DEBUG("Table replica removed (ReplicationCardId: %v, ReplicaId: %v)",
             replicationCardId,
             replicaId);
     }
@@ -1093,7 +1093,7 @@ private:
             ReplicaTrackingPolicyUpdated_.Fire(replicaId, *enableReplicatedTableTracker);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica altered (ReplicationCardId: %v, ReplicaId: %v, Replica: %v)",
+        YT_LOG_DEBUG("Table replica altered (ReplicationCardId: %v, ReplicaId: %v, Replica: %v)",
             replicationCardId,
             replicaId,
             *replicaInfo);
@@ -1115,7 +1115,7 @@ private:
 
             auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
             if (!replicationCard) {
-                YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), "Got grant shortcut response for an unknown replication card (ReplicationCardId: %v)",
+                YT_LOG_WARNING("Got grant shortcut response for an unknown replication card (ReplicationCardId: %v)",
                     replicationCardId);
                 continue;
             }
@@ -1129,7 +1129,7 @@ private:
             }
 
             if (auto it = replicationCard->Coordinators().find(coordinatorCellId); !it || it->second.State != EShortcutState::Granting) {
-                YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), "Got grant shortcut response but shortcut is not waiting for it"
+                YT_LOG_WARNING("Got grant shortcut response but shortcut is not waiting for it"
                     "(ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v, ShortcutState: %v)",
                     replicationCardId,
                     era,
@@ -1149,7 +1149,7 @@ private:
             ResumeCoordinator(coordinatorCellId);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Shortcuts granted (CoordinatorCellId: %v, Suspended: %v, ReplicationCardIds: %v)",
+        YT_LOG_DEBUG("Shortcuts granted (CoordinatorCellId: %v, Suspended: %v, ReplicationCardIds: %v)",
             coordinatorCellId,
             suspended,
             replicationCardIds);
@@ -1166,7 +1166,7 @@ private:
 
             auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
             if (!replicationCard) {
-                YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), "Got revoke shortcut response for an unknown replication card (ReplicationCardId: %v)",
+                YT_LOG_WARNING("Got revoke shortcut response for an unknown replication card (ReplicationCardId: %v)",
                     replicationCardId);
                 continue;
             }
@@ -1180,7 +1180,7 @@ private:
             }
 
             if (auto it = replicationCard->Coordinators().find(coordinatorCellId); it && it->second.State != EShortcutState::Revoking) {
-                YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), "Got revoke shortcut response but shortcut is not waiting for it"
+                YT_LOG_WARNING("Got revoke shortcut response but shortcut is not waiting for it"
                     "(ReplicationCardId: %v, Era: %v CoordinatorCellId: %v, ShortcutState: %v)",
                     replicationCard->GetId(),
                     replicationCard->GetEra(),
@@ -1195,7 +1195,7 @@ private:
             HandleReplicationCardStateTransition(replicationCard);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Shortcuts revoked (CoordinatorCellId: %v, ReplicationCardIds: %v)",
+        YT_LOG_DEBUG("Shortcuts revoked (CoordinatorCellId: %v, ReplicationCardIds: %v)",
             coordinatorCellId,
             replicationCardIds);
     }
@@ -1213,7 +1213,7 @@ private:
 
         for (auto [cellId, coordinator] : GetValuesSortedByKey(replicationCard->Coordinators())) {
             if (coordinator->State == EShortcutState::Revoking) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Will not revoke shortcut since it already is revoking "
+                YT_LOG_DEBUG("Will not revoke shortcut since it already is revoking "
                     "(ReplicationCardId: %v, Era: %v CoordinatorCellId: %v)",
                     replicationCard->GetId(),
                     replicationCard->GetEra(),
@@ -1226,13 +1226,13 @@ private:
             auto* mailbox = hiveManager->GetCellMailbox(cellId);
             hiveManager->PostMessage(mailbox, req);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Revoking shortcut (ReplicationCardId: %v, Era: %v CoordinatorCellId: %v)",
+            YT_LOG_DEBUG("Revoking shortcut (ReplicationCardId: %v, Era: %v CoordinatorCellId: %v)",
                 replicationCard->GetId(),
                 replicationCard->GetEra(),
                 cellId);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Finished revoking shortcuts (ReplicationCardId: %v, Era; %v)",
+        YT_LOG_DEBUG("Finished revoking shortcuts (ReplicationCardId: %v, Era; %v)",
             replicationCard->GetId(),
             replicationCard->GetEra());
     }
@@ -1278,13 +1278,13 @@ private:
             auto* mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
             hiveManager->PostMessage(mailbox, req);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Granting shortcut to coordinator (ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v",
+            YT_LOG_DEBUG("Granting shortcut to coordinator (ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v",
                 replicationCard->GetId(),
                 replicationCard->GetEra(),
                 cellId);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Finished granting shortcuts (ReplicationCardId: %v, Era; %v, SuspendedCoordinators: %v)",
+        YT_LOG_DEBUG("Finished granting shortcuts (ReplicationCardId: %v, Era; %v, SuspendedCoordinators: %v)",
             replicationCard->GetId(),
             replicationCard->GetEra(),
             suspendedCoordinators);
@@ -1345,7 +1345,7 @@ private:
         }
 
         if (suspendChaosCell) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Suspending chaos cell");
+            YT_LOG_DEBUG("Suspending chaos cell");
 
             Suspended_ = true;
         }
@@ -1393,7 +1393,7 @@ private:
             if (!replicationCard) {
                 if (IsDomesticReplicationCard(replicationCardId)) {
                     // Seems like card has been removed.
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unexpected replication card returned from emmigration (ReplicationCardId: %v)",
+                    YT_LOG_DEBUG("Unexpected replication card returned from emmigration (ReplicationCardId: %v)",
                         replicationCardId);
                     continue;
                 }
@@ -1403,7 +1403,7 @@ private:
 
                 ReplicationCardMap_.Insert(replicationCardId, std::move(replicationCardHolder));
 
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card created for immigration (ReplicationCardId: %v)",
+                YT_LOG_DEBUG("Replication card created for immigration (ReplicationCardId: %v)",
                     replicationCardId);
             }
 
@@ -1438,7 +1438,7 @@ private:
 
             replicationCard->SetState(EReplicationCardState::GeneratingTimestampForNewEra);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card migration started (ReplicationCardId: %v, Domestic: %v, ReplicationCard: %v)",
+            YT_LOG_DEBUG("Replication card migration started (ReplicationCardId: %v, Domestic: %v, ReplicationCard: %v)",
                 replicationCardId,
                 IsDomesticReplicationCard(replicationCardId),
                 *replicationCard);
@@ -1462,7 +1462,7 @@ private:
         YT_VERIFY(replicationCard->Coordinators().empty());
         auto immigratedToCellId = replicationCard->Migration().ImmigratedToCellId;
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Migrating replication card to different cell "
+        YT_LOG_DEBUG("Migrating replication card to different cell "
             "(ReplicationCardId: %v, ImmigratedToCellId: %v, Domestic: %v)",
             replicationCard->GetId(),
             immigratedToCellId,
@@ -1531,7 +1531,7 @@ private:
         NChaosClient::NProto::TReqResumeChaosCell* /*request*/,
         NChaosClient::NProto::TRspResumeChaosCell* /*response*/)
     {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Resuming chaos cell");
+        YT_LOG_DEBUG("Resuming chaos cell");
 
         Suspended_ = false;
     }
@@ -1574,7 +1574,7 @@ private:
     {
         auto timestamp = request->timestamp();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Started periodic current timestamp propagation (Timestamp: %v)",
+        YT_LOG_DEBUG("Started periodic current timestamp propagation (Timestamp: %v)",
             timestamp);
 
         for (auto* replicationCard : GetValuesSortedByKey(ReplicationCardMap_)) {
@@ -1585,7 +1585,7 @@ private:
             MaybeCommenceNewReplicationEra(replicationCard, timestamp);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Finished periodic current timestamp propagation (Timestamp: %v)",
+        YT_LOG_DEBUG("Finished periodic current timestamp propagation (Timestamp: %v)",
             timestamp);
     }
 
@@ -1605,7 +1605,7 @@ private:
                     RevokeShortcuts(replicationCard);
                     HandleReplicationCardStateTransition(replicationCard);
                 } else {
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Skipping replication card state update (ReplicationCardId: %v, State: %v, NewState: %v)",
+                    YT_LOG_DEBUG("Skipping replication card state update (ReplicationCardId: %v, State: %v, NewState: %v)",
                         replicationCard->GetId(),
                         replicationCard->GetState(),
                         newState);
@@ -1700,19 +1700,19 @@ private:
 
         auto* replicationCard = FindReplicationCard(replicationCardId);
         if (!replicationCard) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Will not commence new replication era because replication card is not found (ReplicationCardId: %v)",
+            YT_LOG_DEBUG("Will not commence new replication era because replication card is not found (ReplicationCardId: %v)",
                 replicationCardId);
             return;
         }
 
         if (IsReplicationCardMigrated(replicationCard)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Will not commence new replication card era since replication card has been migrated (ReplicationCardId: %v)",
+            YT_LOG_DEBUG("Will not commence new replication card era since replication card has been migrated (ReplicationCardId: %v)",
                 replicationCardId);
             return;
         }
 
         if (replicationCard->GetEra() != era) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Will not commence new replication card era because of era mismatch (ReplicationCardId: %v, ExpectedEra: %v, ActualEra: %v)",
+            YT_LOG_DEBUG("Will not commence new replication card era because of era mismatch (ReplicationCardId: %v, ExpectedEra: %v, ActualEra: %v)",
                 era,
                 replicationCard->GetEra(),
                 replicationCardId);
@@ -1727,7 +1727,7 @@ private:
         YT_VERIFY(HasMutationContext());
 
         bool willUpdate = timestamp > replicationCard->GetCurrentTimestamp();
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updating replication card current timestamp "
+        YT_LOG_DEBUG("Updating replication card current timestamp "
             "(ReplicationCardId: %v, Era: %v, State: %v, CurrentTimestamp: %v, NewTimestamp: %v, WillUpdate: %v)",
             replicationCard->GetId(),
             replicationCard->GetEra(),
@@ -1759,7 +1759,7 @@ private:
         }();
 
         if (!hasSyncQueue) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Will not commence new replication era since there would be no sync queue replicas (ReplicationCard: %v)",
+            YT_LOG_DEBUG("Will not commence new replication era since there would be no sync queue replicas (ReplicationCard: %v)",
                 *replicationCard);
             return;
         }
@@ -1805,7 +1805,7 @@ private:
 
         replicationCard->SetState(EReplicationCardState::Normal);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Starting new replication era (ReplicationCard: %v, Era: %v, Timestamp: %v)",
+        YT_LOG_DEBUG("Starting new replication era (ReplicationCard: %v, Era: %v, Timestamp: %v)",
             *replicationCard,
             newEra,
             timestamp);
@@ -1889,7 +1889,7 @@ private:
     {
         auto [_, inserted] = SuspendedCoordinators_.emplace(coordinatorCellId, GetCurrentMutationContext()->GetTimestamp());
         if (inserted) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Coordinator suspended (CoordinatorCellId: %v)",
+            YT_LOG_DEBUG("Coordinator suspended (CoordinatorCellId: %v)",
                 coordinatorCellId);
         }
     }
@@ -1898,7 +1898,7 @@ private:
     {
         auto removed = SuspendedCoordinators_.erase(coordinatorCellId);
         if (removed > 0) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Coordinator resumed (CoordinatorCellId: %v)",
+            YT_LOG_DEBUG("Coordinator resumed (CoordinatorCellId: %v)",
                 coordinatorCellId);
         }
     }
@@ -1942,7 +1942,7 @@ private:
 
         CoordinatorCellIds_.insert(CoordinatorCellIds_.end(), newCells.begin(), newCells.end());
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Coordinator cells updated (AddedCoordinatorCellIds: %v, RemovedCoordinatorCellIds: %v)",
+        YT_LOG_DEBUG("Coordinator cells updated (AddedCoordinatorCellIds: %v, RemovedCoordinatorCellIds: %v)",
             newCells,
             removedCells);
     }
@@ -1965,7 +1965,7 @@ private:
                 << TErrorAttribute("replica_id", replicaId);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updating replication progress (ReplicationCardId: %v, ReplicaId: %v, OldProgress: %v, NewProgress: %v)",
+        YT_LOG_DEBUG("Updating replication progress (ReplicationCardId: %v, ReplicaId: %v, OldProgress: %v, NewProgress: %v)",
             replicationCardId,
             replicaId,
             replicaInfo->ReplicationProgress,
@@ -1973,7 +1973,7 @@ private:
 
         NChaosClient::UpdateReplicationProgress(&replicaInfo->ReplicationProgress, newProgress);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication progress updated (ReplicationCardId: %v, ReplicaId: %v, Progress: %v)",
+        YT_LOG_DEBUG("Replication progress updated (ReplicationCardId: %v, ReplicaId: %v, Progress: %v)",
             replicationCardId,
             replicaId,
             replicaInfo->ReplicationProgress);
@@ -2001,7 +2001,7 @@ private:
                     replica->History.begin(),
                     replica->History.begin() + historyIndex);
 
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Forsaken old replica history items (ReplicationCardId: %v, ReplicaId: %v, RetainTimestamp: %v, HistoryItemIndex: %v)",
+                YT_LOG_DEBUG("Forsaken old replica history items (ReplicationCardId: %v, ReplicaId: %v, RetainTimestamp: %v, HistoryItemIndex: %v)",
                     replicationCardId,
                     replicaId,
                     retainTimestamp,
@@ -2044,7 +2044,7 @@ private:
 
         FireReplicationCardCollocationUpdated(collocation);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Created replication card collocation (CollocationId: %v, ReplicationCardIds: %v)",
+        YT_LOG_DEBUG("Created replication card collocation (CollocationId: %v, ReplicationCardIds: %v)",
             collocation->GetId(),
             collocation->GetReplicationCardIds());
 

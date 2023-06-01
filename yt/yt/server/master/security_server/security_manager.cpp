@@ -1026,7 +1026,7 @@ public:
         const TDetailedMasterMemory& chargedDetailedMasterMemoryUsage)
     {
         auto delta = currentDetailedMasterMemoryUsage - chargedDetailedMasterMemoryUsage;
-        YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Updating master memory usage (Account: %v, MasterMemoryUsage: %v, Delta: %v)",
+        YT_LOG_TRACE("Updating master memory usage (Account: %v, MasterMemoryUsage: %v, Delta: %v)",
             account->GetName(),
             account->DetailedMasterMemoryUsage(),
             delta);
@@ -1217,8 +1217,7 @@ public:
         // Therefore we should not call RefObject on the transaction object.
         YT_VERIFY(transaction->AccountResourceUsageLeases().insert(accountResourceUsageLease).second);
 
-        YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Account usage lease created (Id: %v, Account: %v, TransactionId: %v)",
             accountResourceUsageLease->GetId(),
             accountResourceUsageLease->Account()->GetName(),
@@ -1238,8 +1237,7 @@ public:
 
         accountResourceUsageLease->SetTransaction(nullptr);
 
-        YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Account resource usage lease zombified (LeaseId: %v)",
             accountResourceUsageLeaseId);
     }
@@ -1484,7 +1482,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::NetworkProject, hintId);
         auto* networkProject = DoCreateNetworkProject(id, name);
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Network project created (NetworkProject: %v)", name);
+        YT_LOG_DEBUG("Network project created (NetworkProject: %v)", name);
         LogStructuredEventFluently(Logger, ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::NetworkProjectCreated)
             .Item("name").Value(networkProject->GetName());
@@ -1495,7 +1493,7 @@ public:
     {
         YT_VERIFY(NetworkProjectNameMap_.erase(networkProject->GetName()) == 1);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Network project destroyed (NetworkProject: %v)",
+        YT_LOG_DEBUG("Network project destroyed (NetworkProject: %v)",
             networkProject->GetName());
         LogStructuredEventFluently(Logger, ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::NetworkProjectDestroyed)
@@ -1595,7 +1593,7 @@ public:
         YT_VERIFY(NetworkProjectNameMap_.erase(networkProject->GetName()) == 1);
         YT_VERIFY(NetworkProjectNameMap_.emplace(newName, networkProject).second);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Network project renamed (NetworkProject: %v, OldName: %v, NewName: %v",
+        YT_LOG_DEBUG("Network project renamed (NetworkProject: %v, OldName: %v, NewName: %v",
             networkProject->GetId(),
             networkProject->GetName(),
             newName);
@@ -1621,7 +1619,7 @@ public:
         auto id = objectManager->GenerateId(EObjectType::ProxyRole, hintId);
         auto* proxyRole = DoCreateProxyRole(id, name, proxyKind);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Proxy role created (Name: %v, ProxyKind: %v)",
+        YT_LOG_DEBUG("Proxy role created (Name: %v, ProxyKind: %v)",
             name,
             proxyKind);
         LogStructuredEventFluently(Logger, ELogLevel::Info)
@@ -1639,7 +1637,7 @@ public:
 
         YT_VERIFY(ProxyRoleNameMaps_[proxyKind].erase(name) == 1);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Proxy role destroyed (Name: %v, ProxyKind: %v)",
+        YT_LOG_DEBUG("Proxy role destroyed (Name: %v, ProxyKind: %v)",
             name,
             proxyKind);
         LogStructuredEventFluently(Logger, ELogLevel::Info)
@@ -1678,7 +1676,7 @@ public:
         DoAddMember(group, member);
         MaybeRecomputeMembershipClosure();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Group member added (Group: %v, Member: %v)",
+        YT_LOG_DEBUG("Group member added (Group: %v, Member: %v)",
             group->GetName(),
             member->GetName());
 
@@ -1705,7 +1703,7 @@ public:
         DoRemoveMember(group, member);
         MaybeRecomputeMembershipClosure();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Group member removed (Group: %v, Member: %v)",
+        YT_LOG_DEBUG("Group member removed (Group: %v, Member: %v)",
             group->GetName(),
             member->GetName());
 
@@ -1828,7 +1826,7 @@ public:
         TPermissionCheckOptions options = {}) override
     {
         if (IsVersionedType(object->GetType()) && object->IsForeign()) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Checking permission for a versioned foreign object (ObjectId: %v)",
+            YT_LOG_DEBUG("Checking permission for a versioned foreign object (ObjectId: %v)",
                 object->GetId());
         }
 
@@ -2263,9 +2261,9 @@ public:
         if (user->GetBanned() != banned) {
             user->SetBanned(banned);
             if (banned) {
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "User is banned (User: %v)", user->GetName());
+                YT_LOG_INFO("User is banned (User: %v)", user->GetName());
             } else {
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "User is no longer banned (User: %v)", user->GetName());
+                YT_LOG_INFO("User is no longer banned (User: %v)", user->GetName());
             }
         }
     }
@@ -2721,7 +2719,7 @@ private:
         if (dynamicConfig->EnableDelayedMembershipClosureRecomputation) {
             if (!MustRecomputeMembershipClosure_) {
                 MustRecomputeMembershipClosure_ = true;
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Will recompute membership closure");
+                YT_LOG_DEBUG("Will recompute membership closure");
             }
         } else {
             DoRecomputeMembershipClosure();
@@ -2730,7 +2728,7 @@ private:
 
     void DoRecomputeMembershipClosure()
     {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Started recomputing membership closure");
+        YT_LOG_DEBUG("Started recomputing membership closure");
 
         for (auto [userId, user] : UserMap_) {
             user->RecursiveMemberOf().clear();
@@ -2748,7 +2746,7 @@ private:
 
         MustRecomputeMembershipClosure_ = false;
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Finished recomputing membership closure");
+        YT_LOG_DEBUG("Finished recomputing membership closure");
     }
 
     void OnRecomputeMembershipClosure()
@@ -3849,12 +3847,12 @@ private:
         YT_VERIFY(multicellManager->IsPrimaryMaster());
 
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), "Received account statistics gossip message from unknown cell (CellTag: %v)",
+            YT_LOG_ERROR("Received account statistics gossip message from unknown cell (CellTag: %v)",
                 cellTag);
             return;
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received account statistics gossip message (CellTag: %v)",
+        YT_LOG_INFO("Received account statistics gossip message (CellTag: %v)",
             cellTag);
 
         for (const auto& entry : request->entries()) {
@@ -3875,7 +3873,7 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsSecondaryMaster());
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received account statistics gossip message");
+        YT_LOG_INFO("Received account statistics gossip message");
 
         for (const auto& entry : request->entries()) {
             auto accountId = FromProto<TAccountId>(entry.account_id());

@@ -92,7 +92,7 @@ private:
         node->ValidateRegistered();
 
         YT_PROFILE_TIMING("/node_tracker/exec_node_heartbeat_time") {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing exec node heartbeat (NodeId: %v, Address: %v, State: %v, JobProxyVersion: %v)",
+            YT_LOG_DEBUG("Processing exec node heartbeat (NodeId: %v, Address: %v, State: %v, JobProxyVersion: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 node->GetLocalState(),

@@ -106,7 +106,7 @@ public:
         YT_VERIFY(HasMutationContext());
 
         if (RootstockNodes_.erase(rootstockNode->GetId()) != 1) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Unknown rootstock destroyed, ignored (RootstockNodeId: %v, ScionNodeId: %v)",
                 rootstockNode->GetId(),
                 rootstockNode->GetScionId());
@@ -125,7 +125,7 @@ public:
             multicellManager->PostToMaster(scionRequest, scionCellTag);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Rootstock unregistered (RootstockNodeId: %v, ScionNodeId: %v)",
             rootstockNode->GetId(),
             scionNodeId);
@@ -137,7 +137,7 @@ public:
         YT_VERIFY(HasMutationContext());
 
         if (ScionNodes_.erase(scionNode->GetId()) != 1) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Unknown scion destroyed, ignored (ScionNodeId: %v, RootstockNodeId: %v)",
                 scionNode->GetId(),
                 scionNode->GetRootstockId());
@@ -145,7 +145,7 @@ public:
         }
 
         if (ScionIdsToRemove_.erase(scionNode->GetId())) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Scion removed from removal queue (ScionNodeId: %v, RootstockNodeId: %v)",
                 scionNode->GetId(),
                 scionNode->GetRootstockId());
@@ -164,7 +164,7 @@ public:
             multicellManager->PostToMaster(rootstockRequest, rootstockCellTag);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Scion unregistered (ScionNodeId: %v, RootstockNodeId: %v)",
             scionNode->GetId(),
             scionNode->GetRootstockId());
@@ -313,7 +313,7 @@ private:
             ->As<TRootstockNode>();
         YT_VERIFY(rootstockNode->GetId() == rootstockNodeId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Rootstock created (RootstockId: %v, ScionId: %v)",
             rootstockNode->GetId(),
             rootstockNode->GetScionId());
@@ -499,7 +499,7 @@ private:
 
         EmplaceOrCrash(ScionNodes_, scionNodeId, scionNode);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Scion created "
+        YT_LOG_DEBUG("Scion created "
             "(RootstockNodeId: %v, ScionNodeId: %v)",
             rootstockNodeId,
             scionNodeId);
@@ -517,7 +517,7 @@ private:
             ->FindNode(TVersionedObjectId(rootstockNodeId))
             ->As<TRootstockNode>();
         if (!IsObjectAlive(rootstockNode)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Attempted to remove a non-existing rootstock, ignored (RootstockNodeId: %v)",
                 rootstockNodeId);
             return;
@@ -525,14 +525,14 @@ private:
 
         auto* parentNode = rootstockNode->GetParent();
         if (!parentNode) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Attempted to remove rootstock that is already detached from a parent, ignored "
                 "(RootstockNodeId: %v)",
                 rootstockNodeId);
             return;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Detaching rootstock from parent for future removal "
             "RootstockNodeId: %v, ParentNodeId: %v)",
             rootstockNode->GetId(),
@@ -555,7 +555,7 @@ private:
             ->FindNode(TVersionedNodeId(scionNodeId))
             ->As<TScionNode>();
         if (!IsObjectAlive(scionNode)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Attempted to remove a non-existing scion, ignored (ScionNodeId: %v)",
                 scionNodeId);
             return;
@@ -571,7 +571,7 @@ private:
 
         scionNode->SetRemovalStarted(true);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Adding scion to removal queue "
             "(ScionNodeId: %v, RootstockNodeId: %v)",
             scionNodeId,

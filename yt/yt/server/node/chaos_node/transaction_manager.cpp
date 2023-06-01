@@ -163,7 +163,7 @@ public:
 
             RunPrepareTransactionActions(transaction, options);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction commit prepared (TransactionId: %v, "
+            YT_LOG_DEBUG("Transaction commit prepared (TransactionId: %v, "
                 "PrepareTimestamp: %v@%v)",
                 transactionId,
                 options.PrepareTimestamp,
@@ -188,7 +188,7 @@ public:
         if (transaction->GetTransientState() == ETransactionState::Active) {
             transaction->SetTransientState(ETransactionState::TransientAbortPrepared);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction abort prepared (TransactionId: %v)",
+            YT_LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
                 transactionId);
         }
     }
@@ -208,7 +208,7 @@ public:
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction is already committed (TransactionId: %v)",
+            YT_LOG_DEBUG("Transaction is already committed (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -228,7 +228,7 @@ public:
 
         RunCommitTransactionActions(transaction, options);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Transaction committed (TransactionId: %v, CommitTimestamp: %v@%v)",
             transactionId,
             options.CommitTimestamp,
@@ -258,7 +258,7 @@ public:
 
         RunAbortTransactionActions(transaction, options);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction aborted (TransactionId: %v, Force: %v)",
+        YT_LOG_DEBUG("Transaction aborted (TransactionId: %v, Force: %v)",
             transactionId,
             options.Force);
 
@@ -504,7 +504,7 @@ private:
             auto data = FromProto<TTransactionActionData>(protoData);
             transaction->Actions().push_back(data);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
+            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v)",
                 transactionId,
                 data.Type);
         }
@@ -564,7 +564,7 @@ private:
             CreateLease(transaction);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction started (TransactionId: %v, StartTimestamp: %v, StartTime: %v, "
+        YT_LOG_DEBUG("Transaction started (TransactionId: %v, StartTimestamp: %v, StartTime: %v, "
             "Timeout: %v)",
             transactionId,
             startTimestamp,

@@ -326,7 +326,6 @@ private:
     void MaybeStartSnapshotBuilder();
 
     bool IsRecovery() const;
-    bool IsMutationLoggingEnabled() const;
 
     void UpdateLastSuccessfulSnapshotInfo(const TErrorOr<NHydra::TRemoteSnapshotParams>& snapshotInfoOrError);
 

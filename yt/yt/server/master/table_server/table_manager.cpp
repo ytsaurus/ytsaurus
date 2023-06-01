@@ -164,7 +164,7 @@ public:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsSecondaryMaster()) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Schedule node statistics update (NodeId: %v, UpdateDataStatistics: %v, UpdateTabletStatistics: %v, UseNativeContentRevisionCas: %v)",
+            YT_LOG_DEBUG("Schedule node statistics update (NodeId: %v, UpdateDataStatistics: %v, UpdateTabletStatistics: %v, UseNativeContentRevisionCas: %v)",
                 chunkOwner->GetId(),
                 updateDataStatistics,
                 updateTabletStatistics,
@@ -192,7 +192,7 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsSecondaryMaster());
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Sending node statistics update (NodeId: %v)",
+        YT_LOG_DEBUG("Sending node statistics update (NodeId: %v)",
             chunkOwner->GetId());
 
         NTableServer::NProto::TReqUpdateTableStatistics req;
@@ -472,7 +472,7 @@ public:
         YT_VERIFY(!schema->CellTagToExportCount_);
         YT_VERIFY(schema->IsNative() == isNative);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Schema created (Id: %v)", id);
+        YT_LOG_DEBUG("Schema created (Id: %v)", id);
 
         return schema;
     }
@@ -789,7 +789,7 @@ public:
                 YT_ABORT();
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table collocation created "
+        YT_LOG_DEBUG("Table collocation created "
             "(CollocationId: %v, CollocationType: %v, ExternalCellTag: %v, TableIds: %v)",
             collocation->GetId(),
             type,
@@ -822,7 +822,7 @@ public:
 
         YT_VERIFY(collocation->GetObjectRefCounter() == 0);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table collocation zombified (TableCollocationId: %v)",
+        YT_LOG_DEBUG("Table collocation zombified (TableCollocationId: %v)",
             collocation->GetId());
     }
 
@@ -900,7 +900,7 @@ public:
                 YT_ABORT();
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Added table to collocation "
+        YT_LOG_DEBUG("Added table to collocation "
             "(CollocationId: %v, CollocationType: %v, TableId: %v, NewCollocationSize: %v)",
             collocation->GetId(),
             collocationType,
@@ -931,7 +931,7 @@ public:
             return;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removed table from collocation "
+        YT_LOG_DEBUG("Removed table from collocation "
             "(CollocationId: %v, CollocationType: %v, TableId: %v, NewCollocationSize: %v)",
             collocation->GetId(),
             collocationType,
@@ -1323,7 +1323,7 @@ private:
             nodeIds.push_back(nodeId);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Sending node statistics update (RequestedNodeCount: %v, NodeIds: %v)",
+        YT_LOG_DEBUG("Sending node statistics update (RequestedNodeCount: %v, NodeIds: %v)",
             request->node_count(),
             nodeIds);
 
@@ -1340,7 +1340,7 @@ private:
             nodeIds.push_back(FromProto<TNodeId>(entry.node_id()));
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Received node statistics update (NodeIds: %v)",
+        YT_LOG_DEBUG("Received node statistics update (NodeIds: %v)",
             nodeIds);
 
         TCompactVector<TTableId, 8> nodeIdsToRetry; // Just for logging.
@@ -1413,7 +1413,7 @@ private:
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(retryRequest, externalCellTag);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Content revision CASes failed, requesting retries (NodeIds: %v)",
+            YT_LOG_DEBUG("Content revision CASes failed, requesting retries (NodeIds: %v)",
                 nodeIdsToRetry);
         }
     }

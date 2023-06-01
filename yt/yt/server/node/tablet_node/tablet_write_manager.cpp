@@ -107,7 +107,7 @@ public:
                 }
             }
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Prelocked rows confirmed (TransactionId: %v, RowCount: %v)",
                 transaction->GetId(),
                 writeRecord.RowCount);
@@ -157,7 +157,7 @@ public:
 
         FinishCommit(/*transaction*/ nullptr, transactionId, context.CommitTimestamp);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Non-atomic rows committed (TransactionId: %v, "
             "RowCount: %v, WriteRecordSize: %v, ActualTimestamp: %v)",
             transactionId,
@@ -276,7 +276,7 @@ public:
                 auto oldCurrentReplicationTimestamp = replicaInfo->GetCurrentReplicationTimestamp();
                 auto newCurrentReplicationTimestamp = std::max(oldCurrentReplicationTimestamp, commitTimestamp);
                 replicaInfo->SetCurrentReplicationTimestamp(newCurrentReplicationTimestamp);
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Sync replicated rows committed (TransactionId: %v, ReplicaId: %v, CurrentReplicationTimestamp: %v -> %v, "
                     "TotalRowCount: %v)",
                     transaction->GetId(),
@@ -294,7 +294,7 @@ public:
         }
 
         if (NeedsSerialization(transaction)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Transaction requires serialization in tablet (TransactionId: %v)",
                 transaction->GetId());
 
@@ -418,7 +418,7 @@ public:
             progress = New<TRefCountedReplicationProgress>(std::move(newProgress));
             Tablet_->RuntimeData()->ReplicationProgress.Store(progress);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication progress updated (TabetId: %v, TrnsactionId: %v, ReplicationProgress: %v)",
+            YT_LOG_DEBUG("Replication progress updated (TabetId: %v, TrnsactionId: %v, ReplicationProgress: %v)",
                 Tablet_->GetId(),
                 transaction->GetId(),
                 static_cast<TReplicationProgress>(*progress));
@@ -458,7 +458,7 @@ public:
         TransactionIdToPersistentWriteState_.erase(transaction->GetId());
         TransactionIdToTransientWriteState_.erase(transaction->GetId());
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Transaction finished in tablet (TransactionId: %v)",
             transaction->GetId());
     }
@@ -706,7 +706,7 @@ private:
 
         UpdateWriteRecordCounters(transaction, writeRecord);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Write record enqueued (TransactionId: %v, Size: %v, RowCount: %v, Lockless: %v)",
             transaction->GetId(),
             writeRecord.DataWeight,
@@ -737,7 +737,7 @@ private:
         auto locklessRowCount = GetWriteLogRowCount(persistentWriteState->LocklessWriteLog);
 
         YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled() && (lockedRowCount > 0 || locklessRowCount > 0),
+            lockedRowCount > 0 || locklessRowCount > 0,
             "Dropping transaction write logs "
             "(TransactionId: %v, LockedRowCount: %v, LocklessRowCount: %v)",
             transaction->GetId(),
@@ -827,7 +827,7 @@ private:
             }
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Lockless rows committed (TransactionId: %v, RowCount: %v)",
             transaction->GetId(),
             committedRowCount);
@@ -837,7 +837,7 @@ private:
             auto newDelayedLocklessRowCount = oldDelayedLocklessRowCount - committedRowCount;
             Tablet_->SetDelayedLocklessRowCount(newDelayedLocklessRowCount);
             Tablet_->RecomputeReplicaStatuses();
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Delayed lockless rows committed (TransactionId: %v, DelayedLocklessRowCount: %v -> %v)",
                 transaction->GetId(),
                 oldDelayedLocklessRowCount,
@@ -848,7 +848,7 @@ private:
                 auto newCommittedReplicationRowIndex = oldCommittedReplicationRowIndex + rowCount;
                 replicaInfo->SetCommittedReplicationRowIndex(newCommittedReplicationRowIndex);
 
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Delayed lockless rows committed "
                     "(TransactionId: %v, TabletId: %v, ReplicaId: %v, CommittedReplicationRowIndex: %v -> %v, TotalRowCount: %v)",
                     transaction->GetId(),
@@ -953,7 +953,7 @@ private:
                 auto oldCurrentReplicationRowIndex = replicaInfo->GetCurrentReplicationRowIndex();
                 auto newCurrentReplicationRowIndex = oldCurrentReplicationRowIndex + rowCount * multiplier;
                 replicaInfo->SetCurrentReplicationRowIndex(newCurrentReplicationRowIndex);
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Sync replicated rows %v (TransactionId: %v, ReplicaId: %v, CurrentReplicationRowIndex: %v -> %v, "
                     "TotalRowCount: %v)",
                     state == ETransactionState::Aborted ? "aborted" : "prepared",
@@ -970,7 +970,7 @@ private:
             auto newDelayedLocklessRowCount = oldDelayedLocklessRowCount + rowCount * multiplier;
             Tablet_->SetDelayedLocklessRowCount(newDelayedLocklessRowCount);
             Tablet_->RecomputeReplicaStatuses();
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Delayed lockless rows %v (TransactionId: %v, DelayedLocklessRowCount: %v -> %v)",
                 state == ETransactionState::Aborted ? "aborted" : "prepared",
                 transaction->GetId(),
@@ -994,7 +994,7 @@ private:
         const auto& storeManager = Tablet_->GetStoreManager();
         YT_VERIFY(storeManager->ExecuteWrites(reader.get(), &context));
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Rows locked (TransactionId: %v, RowCount: %v)",
             transaction->GetId(),
             context.RowCount);
@@ -1020,7 +1020,7 @@ private:
         }
 
         YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled() && std::ssize(lockedRows) > 0,
+            std::ssize(lockedRows) > 0,
             "Locked rows prepared (TransactionId: %v, LockedRowCount: %v)",
             transaction->GetId(),
             lockedRows.size());
@@ -1031,7 +1031,7 @@ private:
         }
 
         YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled() && std::ssize(prelockedRows) > 0,
+            std::ssize(prelockedRows) > 0,
             "Prelocked rows prepared (TransactionId: %v, PrelockedRowCount: %v)",
             transactionId,
             prelockedRows.size());
@@ -1177,7 +1177,7 @@ private:
         DropTransactionWriteLog(transaction, &writeLog);
         lockedRows.clear();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Locked rows committed (TransactionId: %v, LockedRowCount: %v)",
             transaction->GetId(),
             lockedRowCount);
@@ -1228,7 +1228,7 @@ private:
 
         lockedRows.clear();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled() && lockedRowCount > 0,
+        YT_LOG_DEBUG_IF(lockedRowCount > 0,
             "Locked rows aborted (TransactionId: %v, RowCount: %v)",
             transaction->GetId(),
             lockedRowCount);
@@ -1260,14 +1260,14 @@ private:
             auto oldTotalRowCount = Tablet_->GetTotalRowCount();
             Tablet_->UpdateTotalRowCount();
             auto newTotalRowCount = Tablet_->GetTotalRowCount();
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled() && oldTotalRowCount != newTotalRowCount,
+            YT_LOG_DEBUG_IF(oldTotalRowCount != newTotalRowCount,
                 "Tablet total row count updated (TabletId: %v, TotalRowCount: %v -> %v)",
                 Tablet_->GetId(),
                 oldTotalRowCount,
                 newTotalRowCount);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Finished transaction commit in tablet (TabletId: %v, TransactionId: %v, CommitTimestamp: %v)",
             Tablet_->GetId(),
             transactionId,
@@ -1330,7 +1330,7 @@ private:
     void ValidateReplicaStatus(ETableReplicaStatus expected, const TTableReplicaInfo& replicaInfo) const
     {
         YT_LOG_ALERT_IF(
-            IsMutationLoggingEnabled() && replicaInfo.GetStatus() != expected,
+            replicaInfo.GetStatus() != expected,
             "Table replica status mismatch "
             "(Expected: %v, Actual: %v, CurrentReplicationRowIndex: %v, TotalRowCount: %v, DelayedLocklessRowCount: %v, Mode: %v)",
             expected,
@@ -1363,8 +1363,7 @@ private:
                         << TErrorAttribute("delayed_lockless_row_count", delayedLocklessRowCount);
                 }
                 if (currentReplicationRowIndex > totalRowCount + delayedLocklessRowCount) {
-                    YT_LOG_ALERT_IF(
-                        IsMutationLoggingEnabled(),
+                    YT_LOG_ALERT(
                         "Current replication row index is too high (TabletId: %v, ReplicaId: %v, "
                         "CurrentReplicationRowIndex: %v, TotalRowCount: %v, DelayedLocklessRowCount: %v)",
                         Tablet_->GetId(),

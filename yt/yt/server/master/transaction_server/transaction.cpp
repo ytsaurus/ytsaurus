@@ -207,7 +207,7 @@ void TTransaction::AttachLock(NCypressServer::TLock* lock, const IObjectManagerP
     while (currentTransaction) {
         currentTransaction->IncrementRecursiveLockCount();
 
-        YT_LOG_TRACE_IF(IsMutationLoggingEnabled(),
+        YT_LOG_TRACE(
             "Transaction recursive lock count increased (RecursiveLockCount: %v, TransactionId: %v, LockId: %v)",
             currentTransaction->GetRecursiveLockCount(),
             currentTransaction->GetId(),
@@ -232,7 +232,7 @@ void TTransaction::DetachLock(
     while (currentTransaction) {
         currentTransaction->DecrementRecursiveLockCount();
 
-        YT_LOG_TRACE_IF(IsMutationLoggingEnabled(),
+        YT_LOG_TRACE(
             "Transaction recursive lock count decreased (RecursiveLockCount: %v, TransactionId: %v, LockId: %v)",
             currentTransaction->GetRecursiveLockCount(),
             currentTransaction->GetId(),

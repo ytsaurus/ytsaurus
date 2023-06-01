@@ -97,12 +97,12 @@ private:
         auto alerts = FromProto<std::vector<TError>>(request->alerts());
 
         if (cellTag == multicellManager->GetCellTag()) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Updating primary master alerts (CellTag: %v, AlertCount: %v)",
                 cellTag,
                 request->alerts_size());
         } else {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Received alerts from secondary master (CellTag: %v, AlertCount: %v)",
                 cellTag,
                 request->alerts_size());

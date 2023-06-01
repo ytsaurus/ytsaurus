@@ -357,7 +357,7 @@ public:
 
         RegisterChunkLocationUuid(location);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk location created (LocationId: %v, LocationUuid: %v)",
+        YT_LOG_DEBUG("Chunk location created (LocationId: %v, LocationUuid: %v)",
             locationId,
             locationUuid);
 
@@ -368,7 +368,7 @@ public:
     {
         auto* node = location->GetNode();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk location destroyed (LocationId: %v, LocationUuid: %v, NodeAddress: %v)",
+        YT_LOG_DEBUG("Chunk location destroyed (LocationId: %v, LocationUuid: %v, NodeAddress: %v)",
             location->GetId(),
             location->GetUuid(),
             node ? node->GetDefaultAddress() : "<null>");
@@ -463,7 +463,7 @@ private:
         }
 
         YT_PROFILE_TIMING("/node_tracker/incremental_data_node_heartbeat_time") {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing incremental data node heartbeat (NodeId: %v, Address: %v, State: %v)",
+            YT_LOG_DEBUG("Processing incremental data node heartbeat (NodeId: %v, Address: %v, State: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 node->GetLocalState());
@@ -493,7 +493,7 @@ private:
         }
 
         YT_PROFILE_TIMING("/node_tracker/full_data_node_heartbeat_time") {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing full data node heartbeat (NodeId: %v, Address: %v, State: %v)",
+            YT_LOG_DEBUG("Processing full data node heartbeat (NodeId: %v, Address: %v, State: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 node->GetLocalState());

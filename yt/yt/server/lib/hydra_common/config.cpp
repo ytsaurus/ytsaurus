@@ -4,6 +4,7 @@
 
 namespace NYT::NHydra {
 
+using namespace NLogging;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -380,8 +381,8 @@ void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("abandon_leader_lease_request_timeout", &TThis::AbandonLeaderLeaseRequestTimeout)
         .Default(TDuration::Seconds(5));
 
-    registrar.Parameter("force_mutation_logging", &TThis::ForceMutationLogging)
-        .Default(false);
+    registrar.Parameter("recovery_min_log_level", &TThis::RecoveryMinLogLevel)
+        .Default(ELogLevel::Warning);
 
     registrar.Parameter("enable_state_hash_checker", &TThis::EnableStateHashChecker)
         .Default(true);

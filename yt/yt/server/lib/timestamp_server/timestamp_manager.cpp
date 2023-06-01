@@ -361,7 +361,7 @@ private:
 
         PersistentTimestamp_ = request->timestamp();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Persistent timestamp updated (Timestamp: %v)",
+        YT_LOG_DEBUG("Persistent timestamp updated (Timestamp: %v)",
             PersistentTimestamp_);
     }
 

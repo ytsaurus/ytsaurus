@@ -100,7 +100,7 @@ public:
             THROW_ERROR_EXCEPTION("Backups are disabled");
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Setting backup checkpoint (TableId: %v, TransactionId: %v, CheckpointTimestamp: %v, "
             "BackupMode: %v, ClockClusterTag: %v, BackupableReplicaIds: %v)",
             table->GetId(),
@@ -217,7 +217,7 @@ public:
 
                 ToProto(req.mutable_replicas(), replicaBackupDescriptors);
 
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Setting backup checkpoint (TableId: %v, TabletId: %v, TransactionId: %v, CellId: %v, AllocatedDynamicStoreId: %v)",
                     table->GetId(),
                     tablet->GetId(),
@@ -275,7 +275,7 @@ public:
                 tablet->GetBackupState() != ETabletBackupState::CheckpointRejected &&
                 tablet->GetBackupState() != ETabletBackupState::CheckpointInterrupted)
             {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Attempted to release backup checkpoint from a tablet "
                     "in wrong backup state (TableId: %v, TabletId: %v, TransactionId: %v, "
                     "BackupState: %v)",
@@ -287,7 +287,7 @@ public:
             }
 
             if (tablet->GetBackupState() == ETabletBackupState::CheckpointInterrupted) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Will not release backup checkpoint from the tablet whose backup was interrupted "
                     "(TableId: %v, TabletId: %v, BackupState: %v, TransactionId: %v)",
                     table->GetId(),
@@ -302,7 +302,7 @@ public:
                     ToProto(req.mutable_tablet_id(), tablet->GetId());
                     req.set_mount_revision(tablet->Servant().GetMountRevision());
 
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    YT_LOG_DEBUG(
                         "Releasing backup checkpoint (TableId: %v, TabletId: %v, "
                         "BackupState: %v, TransactionId: %v, CellId: %v)",
                         table->GetId(),
@@ -316,7 +316,7 @@ public:
                     hiveManager->PostMessage(mailbox, req);
                 } else {
                     // Backup could start when the tablet was not mounted.
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    YT_LOG_DEBUG(
                         "Attempted to release backup checkpoint from a tablet without cell "
                         "(TableId: %v, TabletId: %v, BackupState: %v, TransactionId: %v)",
                         table->GetId(),
@@ -397,7 +397,7 @@ public:
             if (sourceTablet->GetBackupState() == ETabletBackupState::CheckpointConfirmed) {
                 clonedTablet->SetBackupState(ETabletBackupState::BackupStarted);
             } else {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Failed to clone tablet in backup mode since it is "
                     "in invalid backup state (SourceTabletId: %v, DestinationTabletId: %v, "
                     "SourceTableId: %v, DestinationTableId: %v, ExpectedState: %v, "
@@ -414,7 +414,7 @@ public:
             if (sourceTablet->GetBackupState() == ETabletBackupState::BackupCompleted) {
                 clonedTablet->SetBackupState(ETabletBackupState::RestoreStarted);
             } else {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Failed to clone tablet in restore mode since it is "
                     "in invalid backup state (SourceTabletId: %v, DestinationTabletId: %v, "
                     "SourceTableId: %v, DestinationTableId: %v, ExpectedState: %v, "
@@ -495,7 +495,7 @@ public:
         }
 
         table->SetAggregatedTabletBackupState(*aggregate);
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Updated aggregated backup state (TableId: %v, BackupState: %v)",
             table->GetId(),
             *aggregate);
@@ -542,7 +542,7 @@ private:
 
             auto* tabletBase = tabletManager->FindTablet(tabletId);
             if (!IsObjectAlive(tabletBase)) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Cannot finish backup since tablet is missing (TabletId: %v, TransactionId: %v)",
                     tabletId,
                     transactionId);
@@ -553,7 +553,7 @@ private:
             auto* tablet = tabletBase->As<TTablet>();
 
             if (!tablet->GetTable()) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Cannot finish backup since tablet lacks table "
                     "(TabletId: %v, TransactionId: %v)",
                     tabletId,
@@ -565,7 +565,7 @@ private:
                 YT_VERIFY(table == tablet->GetTable());
             } else {
                 table = tablet->GetTable();
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Finishing table backup (TableId: %v, TransactionId: %v, Timestamp: %v, BackupMode: %v)",
                     table->GetId(),
                     transactionId,
@@ -574,7 +574,7 @@ private:
             }
 
             if (tablet->GetBackupState() != ETabletBackupState::BackupStarted) {
-                YT_LOG_WARNING_IF(IsMutationLoggingEnabled(),
+                YT_LOG_WARNING(
                     "Attempted to finish backup of the tablet in invalid state "
                     "(TableId: %v, TabletId: %v, BackupState: %v, TransactionId: %v, BackupMode: %v)",
                     table->GetId(),
@@ -605,7 +605,7 @@ private:
                     auto error = tabletChunkManager->ApplyBackupCutoff(tablet);
 
                     if (!error.IsOK()) {
-                        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error,
+                        YT_LOG_DEBUG(error,
                             "Failed to apply cutoff row index to tablet (TabletId: %v)",
                             tablet->GetId());
                         RegisterBackupError(table, error);
@@ -644,7 +644,7 @@ private:
 
             auto* tabletBase = tabletManager->FindTablet(tabletId);
             if (!IsObjectAlive(tabletBase)) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Cannot finish restore since tablet is missing (TabletId: %v, TransactionId: %v)",
                     tabletId,
                     transactionId);
@@ -655,7 +655,7 @@ private:
             auto* tablet = tabletBase->As<TTablet>();
 
             if (!tablet->GetTable()) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Cannot finish restore since tablet lacks table "
                     "(TabletId: %v, TransactionId: %v)",
                     tabletId,
@@ -670,7 +670,7 @@ private:
             }
 
             if (tablet->GetBackupState() != ETabletBackupState::RestoreStarted) {
-                YT_LOG_WARNING_IF(IsMutationLoggingEnabled(),
+                YT_LOG_WARNING(
                     "Attempted to finish restore of the tablet in invalid state "
                     "(TableId: %v, TabletId: %v, BackupState: %v, TransactionId: %v)",
                     table->GetId(),
@@ -687,7 +687,7 @@ private:
                     ETabletBackupState::RestoreStarted,
                     ETabletBackupState::None);
             } else {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error,
+                YT_LOG_DEBUG(error,
                     "Failed to restore the tablet from backup (TableId: %v, TabletId: %v, TransactionId: %v)",
                     table->GetId(),
                     tablet->GetId(),
@@ -712,7 +712,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Table backup mode reset (TableId: %v)",
             tableId);
         auto* tableNode = node->As<TTableNode>();
@@ -737,7 +737,7 @@ private:
         }
 
         if (tablet->GetBackupState() != ETabletBackupState::CheckpointRequested) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Backup checkpoint passage reported to a tablet in "
                 "wrong backup state, ignored (TabletId: %v, BackupState: %v)",
                 tablet->GetId(),
@@ -769,7 +769,7 @@ private:
                 }
             }
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Backup checkpoint confirmed by the tablet cell "
                 "(TableId: %v, TabletId: %v, CutoffDescriptor: %v, Replicas: %v)",
                 tablet->GetTable()->GetId(),
@@ -781,7 +781,7 @@ private:
                 ETabletBackupState::CheckpointConfirmed);
         } else {
             auto error = FromProto<TError>(response->error());
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error,
+            YT_LOG_DEBUG(error,
                 "Backup checkpoint rejected by the tablet cell "
                 "(TableId: %v, TabletId: %v)",
                 tablet->GetTable()->GetId(),
@@ -877,7 +877,7 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Releasing backup checkpoint on transaction abort (TableId: %v, "
                 "TransactionId: %v)",
                 table->GetId(),
@@ -902,7 +902,7 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Releasing backup checkpoint on manual transaction commit (TableId: %v, "
                 "TransactionId: %v)",
                 table->GetId(),

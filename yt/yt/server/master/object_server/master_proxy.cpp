@@ -102,7 +102,7 @@ private:
 
             if (*optionalExistingObject) {
                 object = *optionalExistingObject;
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Existing object returned (Id: %v)",
+                YT_LOG_DEBUG("Existing object returned (Id: %v)",
                     object->GetId());
             }
         }
@@ -113,7 +113,7 @@ private:
                 type,
                 attributes.Get());
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Object created (Id: %v, Type: %v)",
+            YT_LOG_DEBUG("Object created (Id: %v, Type: %v)",
                 object->GetId(),
                 type);
         }

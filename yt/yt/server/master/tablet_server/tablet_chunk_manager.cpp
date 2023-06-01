@@ -668,7 +668,7 @@ public:
                         : EObjectType::OrderedDynamicTabletStore);
                 auto* dynamicStore = CreateDynamicStore(tablet, storeId);
                 chunksToAttach.push_back(dynamicStore);
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dynamic store attached to tablet during flush (TableId: %v, TabletId: %v, StoreId: %v)",
+                YT_LOG_DEBUG("Dynamic store attached to tablet during flush (TableId: %v, TabletId: %v, StoreId: %v)",
                     table->GetId(),
                     tablet->GetId(),
                     storeId);
@@ -1449,7 +1449,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Detaching unneeded dynamic stores from tablet after backup "
             "(TabletId: %v, DynamicStoreIds: %v)",
             tablet->GetId(),

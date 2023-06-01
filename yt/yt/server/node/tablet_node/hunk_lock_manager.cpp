@@ -143,8 +143,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
-        YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Hunk store added (HunkStoreId: %v, HunkCellId: %v, HunkTabletId: %v)",
             hunkStoreId,
             hunkCellId,
@@ -172,8 +171,7 @@ public:
         YT_VERIFY(it != HunkStoreIdToLockingState_.end());
         YT_VERIFY(it->second.PersistentLockCount + it->second.TransientLockCount == 0);
 
-        YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Hunk store removed (HunkStoreId: %v)",
             hunkStoreId);
 
@@ -189,8 +187,7 @@ public:
         lockingState.PersistentLockCount += count;
         YT_VERIFY(lockingState.PersistentLockCount >= 0);
 
-        YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Hunk store locked persistently (HunkStoreId: %v, LockingState: %v, Delta: %v)",
             hunkStoreId,
             lockingState,

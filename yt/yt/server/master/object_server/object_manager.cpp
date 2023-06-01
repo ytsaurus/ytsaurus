@@ -920,14 +920,14 @@ int TObjectManager::RefObject(TObject* object)
     YT_ASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Object referenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
+    YT_LOG_DEBUG("Object referenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
         object->GetObjectEphemeralRefCounter(),
         object->GetObjectWeakRefCounter());
 
     if (object->GetLifeStage() >= EObjectLifeStage::RemovalPreCommitted) {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Object referenced after its removal has been pre-committed (ObjectId: %v, LifeStage: %v)",
+        YT_LOG_DEBUG("Object referenced after its removal has been pre-committed (ObjectId: %v, LifeStage: %v)",
             object->GetId(),
             object->GetLifeStage());
     }
@@ -946,7 +946,7 @@ int TObjectManager::UnrefObject(TObject* object, int count)
     YT_ASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject(count);
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Object unreferenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
+    YT_LOG_DEBUG("Object unreferenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
         object->GetObjectEphemeralRefCounter(),
@@ -1218,7 +1218,7 @@ void TObjectManager::RemoveObject(TObject* object)
     if (multicellManager->IsPrimaryMaster() &&
         Any(handler->GetFlags() & ETypeFlags::TwoPhaseRemoval))
     {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Two-phase object removal started (ObjectId: %v, RefCounter: %v)",
+        YT_LOG_DEBUG("Two-phase object removal started (ObjectId: %v, RefCounter: %v)",
             object->GetId(),
             objectRefCounter);
 
@@ -1423,7 +1423,7 @@ TObject* TObjectManager::CreateObject(
         object->SetLifeStage(EObjectLifeStage::CreationStarted);
         object->ResetLifeStageVoteCount();
         YT_VERIFY(object->IncrementLifeStageVoteCount() == 1);
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Two-phase object creation started (ObjectId: %v)",
+        YT_LOG_DEBUG("Two-phase object creation started (ObjectId: %v)",
             object->GetId());
     } else {
         object->SetLifeStage(EObjectLifeStage::CreationCommitted);
@@ -1443,7 +1443,7 @@ TObject* TObjectManager::CreateObject(
     try {
         FillAttributes(object, *attributes);
     } catch (const std::exception& ex) {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Failed to fill object attributes (ObjectId: %v)",
+        YT_LOG_DEBUG(ex, "Failed to fill object attributes (ObjectId: %v)",
             object->GetId());
         // TODO(babenko): think of better way
         UnrefObject(object);
@@ -1544,7 +1544,7 @@ void TObjectManager::ConfirmObjectLifeStageToPrimaryMaster(TObject* object)
         return;
     }
 
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Confirming object life stage to primary master (ObjectId: %v, LifeStage: %v)",
+    YT_LOG_DEBUG("Confirming object life stage to primary master (ObjectId: %v, LifeStage: %v)",
         object->GetId(),
         lifeStage);
 
@@ -1559,7 +1559,7 @@ void TObjectManager::AdvanceObjectLifeStageAtSecondaryMasters(NYT::NObjectServer
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     YT_VERIFY(multicellManager->IsPrimaryMaster());
 
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Advancing object life stage at secondary masters (ObjectId: %v, LifeStage: %v)",
+    YT_LOG_DEBUG("Advancing object life stage at secondary masters (ObjectId: %v, LifeStage: %v)",
         object->GetId(),
         object->GetLifeStage());
 
@@ -1820,7 +1820,7 @@ void TObjectManager::HydraExecuteLeader(
         const auto& responseKeeper = hydraFacade->GetResponseKeeper();
         responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(errorResponse));
 
-        YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), "Duplicate mutation application skipped (MutationId: %v)",
+        YT_LOG_WARNING("Duplicate mutation application skipped (MutationId: %v)",
             mutationId);
 
         return;
@@ -1876,7 +1876,7 @@ void TObjectManager::HydraExecuteFollower(NProto::TReqExecute* request)
 
     auto context = CreateYPathContext(
         std::move(requestMessage),
-        IsMutationLoggingEnabled() ? ObjectServerLogger : NLogging::TLogger(),
+        ObjectServerLogger,
         NLogging::ELogLevel::Debug);
 
     auto identity = ParseAuthenticationIdentityFromProto(*request);
@@ -2010,14 +2010,14 @@ void TObjectManager::DoDestroyObjects(NProto::TReqDestroyObjects* request) noexc
         GarbageCollector_->DestroyZombie(object);
         ++DestroyedObjects_;
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Object destroyed (Type: %v, Id: %v)",
+        YT_LOG_DEBUG("Object destroyed (Type: %v, Id: %v)",
             type,
             id);
     }
 
     for (const auto& [cellTag, perCellRequest] : crossCellRequestMap) {
         multicellManager->PostToMaster(perCellRequest, cellTag);
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Requesting to unreference imported objects (CellTag: %v, Count: %v)",
+        YT_LOG_DEBUG("Requesting to unreference imported objects (CellTag: %v, Count: %v)",
             cellTag,
             perCellRequest.entries_size());
     }
@@ -2044,7 +2044,7 @@ void TObjectManager::HydraCreateForeignObject(NProto::TReqCreateForeignObject* r
         type,
         attributes.Get());
 
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Foreign object created (Id: %v, Type: %v)",
+    YT_LOG_DEBUG("Foreign object created (Id: %v, Type: %v)",
         objectId,
         type);
 }
@@ -2055,7 +2055,7 @@ void TObjectManager::HydraRemoveForeignObject(NProto::TReqRemoveForeignObject* r
 
     auto* object = FindObject(objectId);
     if (!IsObjectAlive(object)) {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Attempt to remove a non-existing foreign object (ObjectId: %v)",
+        YT_LOG_DEBUG("Attempt to remove a non-existing foreign object (ObjectId: %v)",
             objectId);
         return;
     }
@@ -2068,7 +2068,7 @@ void TObjectManager::HydraRemoveForeignObject(NProto::TReqRemoveForeignObject* r
         return;
     }
 
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removing foreign object (ObjectId: %v, RefCounter: %v)",
+    YT_LOG_DEBUG("Removing foreign object (ObjectId: %v, RefCounter: %v)",
         objectId,
         object->GetObjectRefCounter());
 
@@ -2107,7 +2107,7 @@ void TObjectManager::HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects*
         handler->UnexportObject(object, cellTag, importRefCounter);
     }
 
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Exported objects unreferenced (CellTag: %v, Count: %v)",
+    YT_LOG_DEBUG("Exported objects unreferenced (CellTag: %v, Count: %v)",
         cellTag,
         request->entries_size());
 }
@@ -2120,13 +2120,13 @@ void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeSt
     auto objectId = FromProto<TObjectId>(confirmRequest->object_id());
     auto* object = FindObject(objectId);
     if (!object) {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "A non-existing object creation confirmed by secondary cell (ObjectId: %v)",
+        YT_LOG_DEBUG("A non-existing object creation confirmed by secondary cell (ObjectId: %v)",
             objectId);
         return;
     }
 
     auto voteCount = object->IncrementLifeStageVoteCount();
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+    YT_LOG_DEBUG(
         "Object life stage confirmed by secondary cell (ObjectId: %v, CellTag: %v, VoteCount: %v)",
         objectId,
         confirmRequest->cell_tag(),
@@ -2143,14 +2143,14 @@ void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeSt
     auto objectId = FromProto<TObjectId>(request->object_id());
     auto* object = FindObject(objectId);
     if (!object) {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Life stage advancement for a non-existing object requested by the primary cell (ObjectId: %v)",
             objectId);
         return;
     }
 
     if (object->IsNative()) {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Life stage advancement for a non-foreign object requested by primary cell (ObjectId: %v)",
             objectId);
         return;
@@ -2160,7 +2160,7 @@ void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeSt
     auto newLifeStage = CheckedEnumCast<EObjectLifeStage>(request->new_life_stage());
     object->SetLifeStage(newLifeStage);
 
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+    YT_LOG_DEBUG(
         "Object life stage advanced by primary cell (ObjectId: %v, LifeStage: %v -> %v)",
         objectId,
         oldLifeStage,
@@ -2200,7 +2200,7 @@ void TObjectManager::HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::TReqCon
         auto newLifeStage = EObjectLifeStage::RemovalCommitted;
         object->SetLifeStage(newLifeStage);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Object life stage advanced after cells sync (ObjectId: %v, LifeStage: %v -> %v)",
             objectId,
             oldLifeStage,
@@ -2219,7 +2219,7 @@ void TObjectManager::HydraRemoveExpiredRecentlyAppliedMutationIds(NProto::TReqRe
 
 void TObjectManager::DoRemoveObject(TObject* object)
 {
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Object removed (ObjectId: %v)",
+    YT_LOG_DEBUG("Object removed (ObjectId: %v)",
         object->GetId());
     FlushObjectUnrefs();
     if (auto refCounter = UnrefObject(object); refCounter != 0) {
@@ -2242,7 +2242,7 @@ void TObjectManager::CheckRemovingObjectRefCounter(TObject* object)
 
     object->SetLifeStage(newLifeStage);
 
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Object references released (ObjectId: %v, LifeStage: %v -> %v)",
+    YT_LOG_DEBUG("Object references released (ObjectId: %v, LifeStage: %v -> %v)",
         object->GetId(),
         oldLifeStage,
         newLifeStage);
@@ -2291,7 +2291,7 @@ void TObjectManager::CheckObjectLifeStageVoteCount(NYT::NObjectServer::TObject* 
         object->SetLifeStage(newLifeStage);
         object->ResetLifeStageVoteCount();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Object life stage votes collected; advancing life stage (ObjectId: %v, LifeStage: %v -> %v)",
+        YT_LOG_DEBUG("Object life stage votes collected; advancing life stage (ObjectId: %v, LifeStage: %v -> %v)",
             object->GetId(),
             oldLifeStage,
             newLifeStage);

@@ -1133,7 +1133,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             securityTags.Validate();
 
             // TODO(babenko): audit
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node security tags updated; node is switched to \"overwrite\" mode (NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v",
+            YT_LOG_DEBUG("Node security tags updated; node is switched to \"overwrite\" mode (NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v",
                 node->GetVersionedId(),
                 node->ComputeSecurityTags().Items,
                 securityTags.Items);
@@ -1244,8 +1244,7 @@ void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
 
     const auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
 
-    YT_LOG_DEBUG_IF(
-        IsMutationLoggingEnabled(),
+    YT_LOG_DEBUG(
         "Chunk owner replication changed (NodeId: %v, PrimaryMedium: %v, Replication: %v)",
         node->GetId(),
         primaryMedium->GetName(),
@@ -1271,8 +1270,7 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
     node->SetPrimaryMediumIndex(medium->GetIndex());
     OnStorageParametersUpdated();
 
-    YT_LOG_DEBUG_IF(
-        IsMutationLoggingEnabled(),
+    YT_LOG_DEBUG(
         "Chunk owner primary medium changed (NodeId: %v, PrimaryMedium: %v)",
         node->GetId(),
         medium->GetName());

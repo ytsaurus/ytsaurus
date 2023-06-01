@@ -337,7 +337,7 @@ private:
 
                     cell->UpdateAlienPeer(alienPeer.PeerId, alienPeer.NodeDescriptor);
 
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updated alien peer config (ChaosCellId: %v, "
+                    YT_LOG_DEBUG("Updated alien peer config (ChaosCellId: %v, "
                         "AlienCluster: %v, AlienConfigVersion: %v, PeerAddress: %v)",
                         cell->GetId(),
                         clusterName,
@@ -363,7 +363,7 @@ private:
                         }
                     }
 
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updated alien peer config for lost peers (ChaosCellId: %v, AlienCluster: %v)",
+                    YT_LOG_DEBUG("Updated alien peer config for lost peers (ChaosCellId: %v, AlienCluster: %v)",
                         cellId,
                         clusterName);
 
@@ -406,7 +406,7 @@ private:
             if (auto* node = cypressManager->FindNode(trunkTable, transaction)) {
                 auto* tableNode = node->As<TChaosReplicatedTableNode>();
                 tableNode->SetReplicationCardId(replicationCardId);
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card assigned to chaos replicated table (TableId: %v, ReplicationCardId: %v)",
+                YT_LOG_DEBUG("Replication card assigned to chaos replicated table (TableId: %v, ReplicationCardId: %v)",
                     TVersionedNodeId(tableId, GetObjectId(transaction)),
                     replicationCardId);
             }

@@ -203,7 +203,7 @@ private:
             OnMaintenanceUpdated(component, type, target->AsObject());
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Maintenance request added (Component: %v, Address: %v, Id: %v, User: %v, Type: %v, Comment: %v)",
             component,
             address,
@@ -253,7 +253,7 @@ private:
             }
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Maintenance requests removed (Component: %v, Address: %v, Ids: %v)",
             component,
             address,

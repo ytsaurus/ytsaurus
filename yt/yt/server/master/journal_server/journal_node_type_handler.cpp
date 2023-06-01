@@ -134,8 +134,7 @@ protected:
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
-        YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
             "PrimaryMedium: %v, Replication: %v, ErasureCodec: %v, ReadQuorum: %v, WriteQuorum: %v, "
             "Mode: %v, LockTimestamp: %v)",
@@ -174,8 +173,7 @@ protected:
         TJournalNode* originatingNode,
         TJournalNode* branchedNode) override
     {
-        YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Node merged (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
@@ -199,8 +197,7 @@ protected:
         TJournalNode* originatingNode,
         TJournalNode* branchedNode) override
     {
-        YT_LOG_DEBUG_IF(
-            IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Node unbranched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
@@ -259,8 +256,7 @@ protected:
 
         auto* chunkList = trunkNode->GetChunkList();
         if (auto* unsealedChunk = chunkList ? FindFirstUnsealedChild(chunkList)->As<TChunk>() : nullptr) {
-            YT_LOG_DEBUG_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Waiting for journal chunk to become sealed (NodeId: %v, ChunkId: %v)",
                 trunkNode->GetId(),
                 unsealedChunk->GetId());

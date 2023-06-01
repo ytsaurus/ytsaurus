@@ -62,8 +62,7 @@ public:
         ui64 prevRandomSeed,
         i64 sequenceNumber,
         ui64 stateHash,
-        int term,
-        bool isMutationLoggingEnabled);
+        int term);
 
     explicit TMutationContext(TTestingTag);
 

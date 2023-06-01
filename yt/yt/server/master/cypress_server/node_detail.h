@@ -398,8 +398,7 @@ protected:
         const TLockRequest& lockRequest)
     {
         const auto& Logger = CypressServerLogger;
-        YT_LOG_DEBUG_IF(
-            NHydra::IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, Mode: %v, LockTimestamp: %v)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
@@ -419,8 +418,7 @@ protected:
         TImpl* branchedNode)
     {
         const auto& Logger = CypressServerLogger;
-        YT_LOG_DEBUG_IF(
-            NHydra::IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Node merged (OriginatingNodeId: %v, BranchedNodeId: %v)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId());

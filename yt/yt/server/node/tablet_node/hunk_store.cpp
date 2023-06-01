@@ -91,7 +91,7 @@ void THunkStore::Lock(TTabletId tabletId)
 
     auto newLockCount = ++TabletIdToLockCount_[tabletId];
 
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+    YT_LOG_DEBUG(
         "Hunk store is locked by tablet (LockerTabletId: %v, LockCount: %v)",
         tabletId,
         newLockCount);
@@ -107,7 +107,7 @@ void THunkStore::Unlock(TTabletId tabletId)
         EraseOrCrash(TabletIdToLockCount_, tabletId);
     }
 
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+    YT_LOG_DEBUG(
         "Hunk store is unlocked by tablet (LockerTabletId: %v, LockCount: %v)",
         tabletId,
         newLockCount);

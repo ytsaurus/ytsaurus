@@ -219,7 +219,7 @@ public:
             CreateLease(transaction);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction started (TransactionId: %v, StartTimestamp: %v, StartTime: %v, "
+        YT_LOG_DEBUG("Transaction started (TransactionId: %v, StartTimestamp: %v, StartTime: %v, "
             "Timeout: %v, Transient: %v)",
             transactionId,
             startTimestamp,
@@ -241,7 +241,7 @@ public:
             }
             auto transactionHolder = TransientTransactionMap_.Release(transactionId);
             PersistentTransactionMap_.Insert(transactionId, std::move(transactionHolder));
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction became persistent (TransactionId: %v)",
+            YT_LOG_DEBUG("Transaction became persistent (TransactionId: %v)",
                 transactionId);
             return transaction;
         }
@@ -365,7 +365,7 @@ public:
             TransactionPrepared_.Fire(transaction, persistent);
             RunPrepareTransactionActions(transaction, options);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, "
+            YT_LOG_DEBUG("Transaction commit prepared (TransactionId: %v, Persistent: %v, "
                 "PrepareTimestamp: %v@%v)",
                 transactionId,
                 persistent,
@@ -423,7 +423,7 @@ public:
             transaction->SetPersistentState(ETransactionState::CommitPending);
             transaction->CommitOptions() = options;
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Transaction commit signature is incomplete, waiting for additional data "
                 "(TransactionId: %v, CommitSignature: %x, ExpectedSignature: %x)",
                 transaction->GetId(),
@@ -446,7 +446,7 @@ public:
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction is already committed (TransactionId: %v)",
+            YT_LOG_DEBUG("Transaction is already committed (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -482,7 +482,7 @@ public:
         TransactionCommitted_.Fire(transaction);
         RunCommitTransactionActions(transaction, options);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction committed (TransactionId: %v, CommitTimestamp: %v@%v)",
+        YT_LOG_DEBUG("Transaction committed (TransactionId: %v, CommitTimestamp: %v@%v)",
             transactionId,
             options.CommitTimestamp,
             options.CommitTimestampClusterTag);
@@ -496,7 +496,7 @@ public:
             AdjustHeapBack(heap.begin(), heap.end(), SerializingTransactionHeapComparer);
             UpdateMinCommitTimestamp(heap);
         } else {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction removed without serialization (TransactionId: %v)",
+            YT_LOG_DEBUG("Transaction removed without serialization (TransactionId: %v)",
                 transactionId);
 
             transaction->SetFinished();
@@ -543,7 +543,7 @@ public:
             RunAbortTransactionActions(transaction, options);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+        YT_LOG_DEBUG(
             "Transaction aborted (TransactionId: %v, Force: %v, Transient: %v)",
             transactionId,
             options.Force,
@@ -587,7 +587,7 @@ public:
             transaction->CommitSignature() == FinalTransactionSignature)
         {
             const auto& commitOptions = transaction->CommitOptions();
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Transaction commit signature is completed; committing transaction "
                 "(TransactionId: %v, CommitTimestamp: %v@%v)",
                 transaction->GetId(),
@@ -624,9 +624,9 @@ public:
         }
 
         if (decommission) {
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Decommission transaction manager");
+            YT_LOG_INFO("Decommission transaction manager");
         } else {
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Transaction manager is no longer decommissioned");
+            YT_LOG_INFO("Transaction manager is no longer decommissioned");
         }
 
         Decommission_ = decommission;
@@ -641,7 +641,7 @@ public:
     {
         YT_VERIFY(HasHydraContext());
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Transaction manager observes tablet cell removal");
+        YT_LOG_INFO("Transaction manager observes tablet cell removal");
 
         Removing_ = true;
     }
@@ -1004,7 +1004,7 @@ private:
             auto data = FromProto<TTransactionActionData>(protoData);
             transaction->Actions().push_back(data);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
+            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v)",
                 transactionId,
                 data.Type);
         }
@@ -1018,7 +1018,7 @@ private:
     {
         auto barrierTimestamp = request->timestamp();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Handling transaction barrier (Timestamp: %v)",
+        YT_LOG_DEBUG("Handling transaction barrier (Timestamp: %v)",
             barrierTimestamp);
 
         for (auto& [_, heap ]: SerializingTransactionHeaps_) {
@@ -1032,7 +1032,7 @@ private:
                 UpdateLastSerializedCommitTimestamp(transaction);
 
                 auto transactionId = transaction->GetId();
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %v)",
+                YT_LOG_DEBUG("Transaction serialized (TransactionId: %v, CommitTimestamp: %v)",
                     transaction->GetId(),
                     commitTimestamp);
 

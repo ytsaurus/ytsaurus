@@ -220,7 +220,7 @@ public:
             SendPeriodicPing(mailbox);
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Mailbox created (SelfCellId: %v, CellId: %v)",
+        YT_LOG_INFO("Mailbox created (SelfCellId: %v, CellId: %v)",
             SelfCellId_,
             mailbox->GetCellId());
         return mailbox;
@@ -303,7 +303,7 @@ public:
                 cellId);
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Mailbox removed (SrcCellId: %v, DstCellId: %v)",
+        YT_LOG_INFO("Mailbox removed (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             cellId);
     }
@@ -342,7 +342,7 @@ public:
             mailbox,
             AvenueDirectory_->FindCellIdByEndpointId(mailbox->GetEndpointId()));
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Avenue mailbox registered "
+        YT_LOG_DEBUG("Avenue mailbox registered "
             "(SelfCellId: %v, SelfEndpointId: %v, OtherEndpointId: %v, "
             "FirstOutcomingMessageId: %v, OutcomingMessageCount: %v, "
             "NextPersistentIncomingMessageId: %v)",
@@ -381,7 +381,7 @@ public:
 
         AvenueMailboxMap_.Remove(otherEndpointId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Avenue mailbox unregistered "
+        YT_LOG_DEBUG("Avenue mailbox unregistered "
             "(SelfCellId: %v, SelfEndpointId: %v, OtherEndpointId: %v, "
             "FirstOutcomingMessageId: %v, OutcomingMessageCount: %v, "
             "NextPersistentIncomingMessageId: %v)",
@@ -564,7 +564,7 @@ private:
 
         bool shouldCommit = nextTransientIncomingMessageId == firstMessageId && messageCount > 0;
         if (shouldCommit) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing reliable incoming messages (%v, "
+            YT_LOG_DEBUG("Committing reliable incoming messages (%v, "
                 "MessageIds: %v-%v)",
                 FormatIncomingMailboxEndpoints(mailbox),
                 firstMessageId,
@@ -650,7 +650,7 @@ private:
 
         ValidatePeer(EPeerKind::Leader);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing unreliable incoming messages (SrcCellId: %v, DstCellId: %v, "
+        YT_LOG_DEBUG("Committing unreliable incoming messages (SrcCellId: %v, DstCellId: %v, "
             "MessageCount: %v)",
             srcCellId,
             SelfCellId_,
@@ -698,7 +698,7 @@ private:
         auto nextPersistentIncomingMessageId = request->next_persistent_incoming_message_id();
         auto acknowledgeCount = nextPersistentIncomingMessageId - mailbox->GetFirstOutcomingMessageId();
         if (acknowledgeCount <= 0) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "No messages acknowledged (%v, "
+            YT_LOG_DEBUG("No messages acknowledged (%v, "
                 "NextPersistentIncomingMessageId: %v, FirstOutcomingMessageId: %v)",
                 FormatOutgoingMailboxEndpoints(mailbox),
                 nextPersistentIncomingMessageId,
@@ -721,7 +721,7 @@ private:
         mailbox->SetFirstOutcomingMessageId(mailbox->GetFirstOutcomingMessageId() + acknowledgeCount);
         mailbox->UpdateLastOutcomingMessageId();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Messages acknowledged (%v, "
+        YT_LOG_DEBUG("Messages acknowledged (%v, "
             "FirstOutcomingMessageId: %v)",
             FormatOutgoingMailboxEndpoints(mailbox),
             mailbox->GetFirstOutcomingMessageId());
@@ -733,7 +733,7 @@ private:
             if (!avenueMailbox->IsActive() && cellMailbox) {
                 if (auto* cellMailbox = avenueMailbox->GetCellMailbox()) {
                     cellMailbox->ActiveAvenues().erase(avenueMailbox->GetEndpointId());
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    YT_LOG_DEBUG(
                         "Avenue became inactive at cell (AvenueEndpointId: %v, CellId: %v)",
                         avenueMailbox->GetEndpointId(),
                         cellMailbox->GetCellId());
@@ -768,7 +768,7 @@ private:
             auto srcId = FromProto<TAvenueEndpointId>(subrequest.src_endpoint_id());
             auto* mailbox = FindMailbox(srcId);
             if (!mailbox) {
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
+                YT_LOG_INFO(
                     "Received a message to a missing avenue mailbox (SrcId: %v, MessageId: %v)",
                     srcId,
                     firstMessageId);
@@ -796,7 +796,7 @@ private:
 
         auto cellId = FromProto<TCellId>(request->cell_id());
         if (RemovedCellIds_.contains(cellId)) {
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Mailbox is already removed (SrcCellId: %v, DstCellId: %v)",
+            YT_LOG_INFO("Mailbox is already removed (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 cellId);
             return;
@@ -881,7 +881,7 @@ private:
                         mailbox->GetEndpointId(),
                         mailbox->AsAvenue()).second)
                     {
-                        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                        YT_LOG_DEBUG(
                             "Avenue became active at cell (AvenueEndpointId: %v, CellId: %v)",
                             mailbox->GetEndpointId(),
                             cellMailbox->GetCellId());
@@ -893,7 +893,7 @@ private:
         }
 
         logMessageBuilder.AppendString(TStringBuf("})"));
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), logMessageBuilder.Flush());
+        YT_LOG_DEBUG(logMessageBuilder.Flush());
     }
 
     void UnreliablePostMessage(const TMailboxList& mailboxes, const TSerializedMessagePtr& message)
@@ -1808,7 +1808,7 @@ private:
 
         mailbox->SetAcknowledgeInProgress(true);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing reliable messages acknowledgement (%v, "
+        YT_LOG_DEBUG("Committing reliable messages acknowledgement (%v, "
             "MessageIds: %v-%v)",
             FormatOutgoingMailboxEndpoints(mailbox),
             mailbox->GetFirstOutcomingMessageId(),
@@ -1859,7 +1859,7 @@ private:
             traceContextGuard.emplace(std::move(traceContext));
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Applying reliable incoming message (%v, MessageId: %v, MutationType: %v)",
+        YT_LOG_DEBUG("Applying reliable incoming message (%v, MessageId: %v, MutationType: %v)",
             FormatIncomingMailboxEndpoints(mailbox),
             messageId,
             message.type());
@@ -1882,7 +1882,7 @@ private:
 
     void ApplyUnreliableIncomingMessage(TCellMailbox* mailbox, const TEncapsulatedMessage& message)
     {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Applying unreliable incoming message (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
+        YT_LOG_DEBUG("Applying unreliable incoming message (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
             mailbox->GetCellId(),
             SelfCellId_,
             message.type());
@@ -1933,7 +1933,7 @@ private:
 
         if (auto* formerCellMailbox = avenueMailbox->GetCellMailbox()) {
             EraseOrCrash(formerCellMailbox->RegisteredAvenues(), avenueMailbox->GetEndpointId());
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            YT_LOG_DEBUG(
                 "Avenue disconnected from cell (AvenueEndpointId: %v, CellId: %v)",
                 avenueMailbox->GetEndpointId(),
                 formerCellMailbox ? formerCellMailbox->GetCellId() : NullObjectId);
@@ -1948,7 +1948,7 @@ private:
                 cellMailbox->ActiveAvenues().emplace(
                     avenueMailbox->GetEndpointId(),
                     avenueMailbox);
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                YT_LOG_DEBUG(
                     "Active avenue registered at cell (AvenueEndpointId: %v, CellId: %v)",
                     avenueMailbox->GetEndpointId(),
                     cellMailbox->GetCellId());
@@ -1968,7 +1968,7 @@ private:
                 cellMailbox->RegisteredAvenues(),
                 avenueMailbox->GetEndpointId(),
                 avenueMailbox);
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Avenue connected to cell "
+            YT_LOG_DEBUG("Avenue connected to cell "
                 "(AvenueEndpointId: %v, CellId: %v)",
                 avenueMailbox->GetEndpointId(),
                 cellMailbox->GetCellId());
