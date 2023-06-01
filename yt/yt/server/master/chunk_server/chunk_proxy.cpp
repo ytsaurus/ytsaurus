@@ -367,6 +367,7 @@ private:
                             .BeginMap()
                                 .Item("underreplicated").Value(Any(status & EChunkStatus::Underreplicated))
                                 .Item("overreplicated").Value(Any(status & EChunkStatus::Overreplicated))
+                                .Item("unexpected_overreplicated").Value(Any(status & EChunkStatus::UnexpectedOverreplicated))
                                 .Item("lost").Value(Any(status & EChunkStatus::Lost))
                                 .Item("data_missing").Value(Any(status & EChunkStatus::DataMissing))
                                 .Item("parity_missing").Value(Any(status & EChunkStatus::ParityMissing))

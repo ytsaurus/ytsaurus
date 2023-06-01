@@ -1044,6 +1044,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::QuorumMissingChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::UnsafelyPlacedChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::InconsistentlyPlacedChunkMap));
+    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::UnexpectedOverreplicatedChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ForeignChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalLostChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalLostVitalChunkMap));
@@ -1057,6 +1058,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalQuorumMissingChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalUnsafelyPlacedChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalInconsistentlyPlacedChunkMap));
+    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LocalUnexpectedOverreplicatedChunkMap));
     CypressManager_->RegisterHandler(CreateChunkViewMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateChunkListMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateMediumMapTypeHandler(this));

@@ -1605,12 +1605,13 @@ class TestCypress(YTEnvSetup):
         time2 = get("//tmp/m/@modification_time")
         assert time1 == time2
 
-    @authors("babenko", "ignat")
+    @authors("babenko", "ignat", "danilalexeev")
     def test_chunk_maps(self):
         gc_collect()
         assert get("//sys/chunks/@count") == 0
         assert get("//sys/underreplicated_chunks/@count") == 0
         assert get("//sys/overreplicated_chunks/@count") == 0
+        assert get("//sys/unexpected_overreplicated_chunks/@count") == 0
 
     @authors("ignat")
     def test_list_attributes(self):

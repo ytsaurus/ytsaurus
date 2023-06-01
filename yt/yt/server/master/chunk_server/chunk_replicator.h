@@ -76,6 +76,7 @@ public:
     // underreplicated on at least one medium.
     DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, UnderreplicatedChunks);
     DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, OverreplicatedChunks);
+    DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, UnexpectedOverreplicatedChunks);
     DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, QuorumMissingChunks);
     // Rack-wise unsafely placed chunks.
     DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, UnsafelyPlacedChunks);

@@ -736,7 +736,7 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
             }
 
             if (replicaCount > targetReplicationFactor && decommissionedReplicaCount == 0) {
-                result.Status |= EChunkStatus::Overreplicated;
+                result.Status |= EChunkStatus::Overreplicated | EChunkStatus::UnexpectedOverreplicated;
                 result.BalancingRemovalIndexes.push_back(index);
             }
 
@@ -1116,20 +1116,18 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
         }
 
         if (totallySealed) {
-            if (decommissionedReplicaCount > 0 && replicaCount + decommissionedReplicaCount > replicationFactor) {
+            if (replicaCount + decommissionedReplicaCount > replicationFactor) {
                 result.Status |= EChunkStatus::Overreplicated;
+                if (replicaCount > replicationFactor) {
+                    result.Status |= EChunkStatus::UnexpectedOverreplicated;
+                }
                 if (inconsistentlyPlacedReplica.GetPtr()) {
                     result.DecommissionedRemovalReplicas.push_back(inconsistentlyPlacedReplica);
-                } else {
+                } else if (decommissionedReplicaCount > 0) {
                     result.DecommissionedRemovalReplicas.insert(
                         result.DecommissionedRemovalReplicas.end(),
                         decommissionedReplicas.begin(),
                         decommissionedReplicas.end());
-                }
-            } else if (replicaCount > replicationFactor) {
-                result.Status |= EChunkStatus::Overreplicated;
-                if (inconsistentlyPlacedReplica.GetPtr()) {
-                    result.DecommissionedRemovalReplicas.push_back(inconsistentlyPlacedReplica);
                 } else {
                     result.BalancingRemovalIndexes.push_back(GenericChunkReplicaIndex);
                 }
@@ -1947,6 +1945,10 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
             OverreplicatedChunks_.insert(chunk);
         }
 
+        if (Any(statistics.Status & EChunkStatus::UnexpectedOverreplicated)) {
+            UnexpectedOverreplicatedChunks_.insert(chunk);
+        }
+
         if (Any(statistics.Status & EChunkStatus::Underreplicated)) {
             UnderreplicatedChunks_.insert(chunk);
         }
@@ -2121,6 +2123,7 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
 
     UnderreplicatedChunks_.erase(chunk);
     OverreplicatedChunks_.erase(chunk);
+    UnexpectedOverreplicatedChunks_.erase(chunk);
     UnsafelyPlacedChunks_.erase(chunk);
     if (chunk->HasConsistentReplicaPlacementHash()) {
         InconsistentlyPlacedChunks_.erase(chunk);
@@ -2556,6 +2559,7 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer, TSensorBuffer* crpBuff
     buffer->AddGauge("/lost_chunk_count", LostChunks_.size());
     buffer->AddGauge("/lost_vital_chunk_count", LostVitalChunks_.size());
     buffer->AddGauge("/overreplicated_chunk_count", OverreplicatedChunks_.size());
+    buffer->AddGauge("/unexpected_overreplicated_chunk_count", UnexpectedOverreplicatedChunks_.size());
     buffer->AddGauge("/underreplicated_chunk_count", UnderreplicatedChunks_.size());
     buffer->AddGauge("/data_missing_chunk_count", DataMissingChunks_.size());
     buffer->AddGauge("/parity_missing_chunk_count", ParityMissingChunks_.size());
@@ -3230,9 +3234,10 @@ void TChunkReplicator::StopRefresh(int shardIndex)
     clearChunkSetShard(PrecariousVitalChunks_);
     clearChunkSetShard(UnderreplicatedChunks_);
     clearChunkSetShard(OverreplicatedChunks_);
+    clearChunkSetShard(UnexpectedOverreplicatedChunks_);
     clearChunkSetShard(QuorumMissingChunks_);
     clearChunkSetShard(UnsafelyPlacedChunks_);
-    clearChunkSetShard(InconsistentlyPlacedChunks_);
+clearChunkSetShard(InconsistentlyPlacedChunks_);
 
     // |OldestPartMissingChunks| should be ordered, so we use std::set
     // instead of sharded set for it. However this set is always small,

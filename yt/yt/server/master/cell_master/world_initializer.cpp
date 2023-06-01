@@ -547,6 +547,11 @@ private:
                 EObjectType::InconsistentlyPlacedChunkMap);
 
             ScheduleCreateNode(
+                "//sys/unexpected_overreplicated_chunks",
+                transactionId,
+                EObjectType::UnexpectedOverreplicatedChunkMap);
+
+            ScheduleCreateNode(
                 "//sys/foreign_chunks",
                 transactionId,
                 EObjectType::ForeignChunkMap);
@@ -610,6 +615,11 @@ private:
                 "//sys/local_inconsistently_placed_chunks",
                 transactionId,
                 EObjectType::LocalInconsistentlyPlacedChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/local_unexpected_overreplicated_chunks",
+                transactionId,
+                EObjectType::LocalUnexpectedOverreplicatedChunkMap);
 
             ScheduleCreateNode(
                 "//sys/chunk_views",

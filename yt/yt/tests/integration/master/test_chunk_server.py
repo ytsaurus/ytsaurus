@@ -384,6 +384,20 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: chunk_id in get("//sys/lost_chunks"))
         assert chunk_id not in get("//sys/lost_vital_chunks")
 
+    @authors("danilalexeev")
+    def test_unexpected_overreplicated_chuks(self):
+        create("table", "//tmp/t", attributes={"replication_factor": 8})
+        write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 8})
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 8)
+
+        set("//tmp/t/@replication_factor", 3)
+        wait(lambda: chunk_id in get("//sys/unexpected_overreplicated_chunks"))
+
+        gc_collect()
+        wait(lambda: chunk_id not in get("//sys/unexpected_overreplicated_chunks"))
+
 
 ##################################################################
 

@@ -154,18 +154,19 @@ constexpr int ReplicationPriorityCount = 3;
 constexpr int DefaultConsistentReplicaPlacementReplicasPerChunk = 100;
 
 DEFINE_BIT_ENUM(EChunkStatus,
-    ((None)                    (0x0000))
-    ((Underreplicated)         (0x0001))
-    ((Overreplicated)          (0x0002))
-    ((Lost)                    (0x0004))
-    ((DataMissing)             (0x0008))
-    ((ParityMissing)           (0x0010))
-    ((Safe)                    (0x0040))
-    ((UnsafelyPlaced)          (0x0100))
-    ((DataDecommissioned)      (0x0200))
-    ((ParityDecommissioned)    (0x0400))
-    ((SealedMissing)           (0x0800)) // Sealed chunk without sealed replicas (on certain medium).
-    ((InconsistentlyPlaced)    (0x1000)) // For chunks with non-null consistent placement hash.
+    ((None)                            (0x0000))
+    ((Underreplicated)                 (0x0001))
+    ((Overreplicated)                  (0x0002))
+    ((Lost)                            (0x0004))
+    ((DataMissing)                     (0x0008))
+    ((ParityMissing)                   (0x0010))
+    ((UnexpectedOverreplicated)        (0x0020))
+    ((Safe)                            (0x0040))
+    ((UnsafelyPlaced)                  (0x0100))
+    ((DataDecommissioned)              (0x0200))
+    ((ParityDecommissioned)            (0x0400))
+    ((SealedMissing)                   (0x0800)) // Sealed chunk without sealed replicas (on certain medium).
+    ((InconsistentlyPlaced)            (0x1000)) // For chunks with non-null consistent placement hash.
 );
 
 DEFINE_BIT_ENUM(ECrossMediumChunkStatus,

@@ -152,6 +152,8 @@ private:
                 return ToObjectIds(chunkReplicator->UnsafelyPlacedChunks(), sizeLimit);
             case EObjectType::LocalInconsistentlyPlacedChunkMap:
                 return ToObjectIds(chunkReplicator->InconsistentlyPlacedChunks(), sizeLimit);
+            case EObjectType::LocalUnexpectedOverreplicatedChunkMap:
+                return ToObjectIds(chunkReplicator->UnexpectedOverreplicatedChunks(), sizeLimit);
             case EObjectType::ForeignChunkMap:
                 return ToObjectIds(chunkManager->ForeignChunks(), sizeLimit);
             case EObjectType::LocalOldestPartMissingChunkMap:
@@ -251,6 +253,10 @@ private:
                 return checkReplicatorStatus(EChunkStatus::InconsistentlyPlaced, /*localMap*/ false);
             case EObjectType::LocalInconsistentlyPlacedChunkMap:
                 return checkReplicatorStatus(EChunkStatus::InconsistentlyPlaced, /*localMap*/ true);
+            case EObjectType::UnexpectedOverreplicatedChunkMap:
+                return checkReplicatorStatus(EChunkStatus::UnexpectedOverreplicated, /*localMap*/ false);
+            case EObjectType::LocalUnexpectedOverreplicatedChunkMap:
+                return checkReplicatorStatus(EChunkStatus::UnexpectedOverreplicated, /*localMap*/ true);
             case EObjectType::ForeignChunkMap:
                 return chunkManager->ForeignChunks().contains(chunk);
             case EObjectType::OldestPartMissingChunkMap:
@@ -290,6 +296,8 @@ private:
                 return chunkReplicator->UnsafelyPlacedChunks().size();
             case EObjectType::LocalInconsistentlyPlacedChunkMap:
                 return chunkReplicator->InconsistentlyPlacedChunks().size();
+            case EObjectType::LocalUnexpectedOverreplicatedChunkMap:
+                return chunkReplicator->UnexpectedOverreplicatedChunks().size();
             case EObjectType::ForeignChunkMap:
                 return chunkManager->ForeignChunks().size();
             case EObjectType::LocalOldestPartMissingChunkMap:
@@ -439,6 +447,8 @@ private:
                 return "//sys/unsafely_placed_chunks";
             case EObjectType::InconsistentlyPlacedChunkMap:
                 return "//sys/inconsistently_placed_chunks";
+            case EObjectType::UnexpectedOverreplicatedChunkMap:
+                return "//sys/unexpected_overreplicated_chunks";
             case EObjectType::ForeignChunkMap:
                 return "//sys/foreign_chunks";
             case EObjectType::LocalLostChunkMap:
@@ -465,6 +475,8 @@ private:
                 return "//sys/local_unsafely_placed_chunks";
             case EObjectType::LocalInconsistentlyPlacedChunkMap:
                 return "//sys/local_inconsistently_placed_chunks";
+            case EObjectType::LocalUnexpectedOverreplicatedChunkMap:
+                return "//sys/local_unexpected_overreplicated_chunks";
             default:
                 YT_ABORT();
         }
@@ -502,6 +514,8 @@ private:
                 return EObjectType::LocalUnsafelyPlacedChunkMap;
             case EObjectType::InconsistentlyPlacedChunkMap:
                 return EObjectType::LocalInconsistentlyPlacedChunkMap;
+            case EObjectType::UnexpectedOverreplicatedChunkMap:
+                return EObjectType::LocalUnexpectedOverreplicatedChunkMap;
             default:
                 YT_ABORT();
         }
@@ -522,6 +536,7 @@ private:
             case EObjectType::QuorumMissingChunkMap:
             case EObjectType::UnsafelyPlacedChunkMap:
             case EObjectType::InconsistentlyPlacedChunkMap:
+            case EObjectType::UnexpectedOverreplicatedChunkMap:
             case EObjectType::ChunkMap:
             case EObjectType::ForeignChunkMap:
                 return true;
@@ -545,6 +560,7 @@ private:
             case EObjectType::QuorumMissingChunkMap:
             case EObjectType::UnsafelyPlacedChunkMap:
             case EObjectType::InconsistentlyPlacedChunkMap:
+            case EObjectType::UnexpectedOverreplicatedChunkMap:
                 return true;
             default:
                 return false;
