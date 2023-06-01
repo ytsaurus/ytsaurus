@@ -388,11 +388,11 @@ class Format(object):
             return rows
 
     def loads_node(self, string):
-        """Load python object from byte string. Supported obly for structured format (JSON and YSON)."""
+        """Load python object from byte string. Supported only for structured format (JSON and YSON)."""
         raise NotImplementedError("Implemented only for JsonFormat and YsonFormat")
 
     def dumps_node(self):
-        """Load python object from byte string. Supported obly for structured format (JSON and YSON)."""
+        """Load python object from byte string. Supported only for structured format (JSON and YSON)."""
         raise NotImplementedError("Implemented only for JsonFormat and YsonFormat")
 
 
@@ -663,7 +663,7 @@ class YsonFormat(Format):
                  attributes=None, raw=None, always_create_attributes=None, encoding=_ENCODING_SENTINEL,
                  require_yson_bindings=None, lazy=None, sort_keys=None):
         """
-        :param str format: output format (must be one of ["text", "pretty", "binary"], "text" be default).
+        :param str format: output format (must be one of ["text", "pretty", "binary"], "binary" be default).
         :param str control_attributes_mode: mode of processing rows with control attributes, must be one of \
         ["row_fields", "iterator", "none"]. In "row_fields" mode attributes are put in the regular rows with \
         as "@row_index", "@range_index" and "@table_index". Also "@table_index" key is parsed from output rows. \
