@@ -396,14 +396,14 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
-    TReplicationCardCollocation* GetReplicationCardCollocationOrThrow(TReplicationCardCollocationId collcationId)
+    TReplicationCardCollocation* GetReplicationCardCollocationOrThrow(TReplicationCardCollocationId collocationId)
     {
-        auto* collcation = FindReplicationCardCollocation(collcationId);
-        if (!collcation) {
+        auto* collocation = FindReplicationCardCollocation(collocationId);
+        if (!collocation) {
             THROW_ERROR_EXCEPTION("No such replication card collocation")
-                << TErrorAttribute("replication_card_collocation_id", collcationId);
+                << TErrorAttribute("replication_card_collocation_id", collocationId);
         }
-        return collcation;
+        return collocation;
     }
 
     void SaveKeys(TSaveContext& context) const
