@@ -166,9 +166,12 @@ void ExportNode(
         })
         .DoIf(transaction && transaction->GetParent(), [&] (TFluentMap fluent) {
             // For snapshot branch, originator and parent might differ.
+            auto* originatorTransaction = node->GetOriginator()->GetTransaction();
+            auto originatorTransactionId = originatorTransaction ? originatorTransaction->GetId() : NullObjectId;
+
             fluent
                 .Item("originator_cypress_transaction_id")
-                .Value(node->GetOriginator()->GetTransaction()->GetId());
+                .Value(originatorTransactionId);
         })
         .DoIf(config->CalculateExtendedBranchStatistics && !node->GetParent() && node->IsTrunk(), [&] (TFluentMap fluent) {
             auto nodePath = cypressManager->GetNodePath(node, nullptr);
