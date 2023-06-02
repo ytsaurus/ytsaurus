@@ -70,7 +70,6 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
         create_domestic_medium(cls.FAST_MEDIUM)
 
     @authors("galtsev")
-    @pytest.mark.flaky(max_runs=5)
     @pytest.mark.timeout(600)
     def test_intermediate_medium_switch(self):
         def set_limit(account, medium, limit):
@@ -151,10 +150,12 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
 
         while op.get_job_count("completed") != op.get_job_count("total"):
             job_id = wait_breakpoint(job_count=1)[0]
-            if fast_intermediate_medium_usage == get_intermediate_usage(fast_medium):
+            current_fast_intermediate_medium_usage = get_intermediate_usage(fast_medium)
+            if fast_intermediate_medium_usage == current_fast_intermediate_medium_usage:
                 jobs_used_slow_medium += 1
             else:
                 jobs_used_fast_medium += 1
+            fast_intermediate_medium_usage = current_fast_intermediate_medium_usage
             wait_usage_update()
             completed_job_count = op.get_job_count("completed")
             release_breakpoint(job_id=job_id)
