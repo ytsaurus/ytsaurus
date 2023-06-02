@@ -16,6 +16,8 @@
 
 #include <library/cpp/yt/backtrace/backtrace.h>
 
+#include <library/cpp/yt/system/handle_eintr.h>
+
 #ifdef _unix_
 #include <library/cpp/yt/backtrace/cursors/libunwind/libunwind_cursor.h>
 #else

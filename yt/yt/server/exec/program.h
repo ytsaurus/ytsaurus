@@ -16,6 +16,8 @@
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/fs.h>
 
+#include <library/cpp/yt/system/handle_eintr.h>
+
 #include <util/system/thread.h>
 
 #include <sys/ioctl.h>

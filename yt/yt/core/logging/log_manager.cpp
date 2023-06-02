@@ -43,6 +43,8 @@
 
 #include <library/cpp/yt/string/raw_formatter.h>
 
+#include <library/cpp/yt/system/handle_eintr.h>
+
 #include <library/cpp/yt/threading/fork_aware_spin_lock.h>
 
 #include <util/system/defaults.h>

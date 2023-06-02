@@ -7,6 +7,8 @@
 
 #include <library/cpp/yt/threading/fork_aware_spin_lock.h>
 
+#include <library/cpp/yt/system/handle_eintr.h>
+
 #ifdef _unix_
     #include <sys/types.h>
     #include <sys/socket.h>

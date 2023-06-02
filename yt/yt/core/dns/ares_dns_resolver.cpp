@@ -8,13 +8,16 @@
 
 #include <yt/yt/core/misc/proc.h>
 
-#include <yt/yt/core/concurrency/notification_handle.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/moody_camel_concurrent_queue.h>
 
 #include <yt/yt/core/threading/thread.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/threading/notification_handle.h>
+
+#include <library/cpp/yt/system/handle_eintr.h>
 
 #include <ares.h>
 
@@ -275,7 +278,7 @@ private:
 #ifdef YT_DNS_RESOLVER_USE_EPOLL
     int EpollFD_ = -1;
 #endif
-    TNotificationHandle WakeupHandle_;
+    NThreading::TNotificationHandle WakeupHandle_;
 
     ares_channel Channel_;
     ares_options Options_;

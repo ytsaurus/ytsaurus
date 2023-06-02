@@ -26,6 +26,8 @@
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
+#include <library/cpp/yt/system/handle_eintr.h>
+
 #include <util/folder/iterator.h>
 #include <util/folder/path.h>
 

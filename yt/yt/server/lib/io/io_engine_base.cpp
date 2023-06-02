@@ -6,6 +6,8 @@
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
 
+#include <library/cpp/yt/system/handle_eintr.h>
+
 namespace NYT::NIO {
 
 using namespace NConcurrency;

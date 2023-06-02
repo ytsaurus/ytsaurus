@@ -120,7 +120,6 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/notify_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/invoker_alarm.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/invoker_queue.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/notification_handle.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/periodic_executor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/periodic_yielder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/pollable_detail.cpp

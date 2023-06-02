@@ -1,10 +1,12 @@
 #include "socket.h"
 #include "address.h"
 
+#include <yt/yt/core/misc/proc.h>
+
+#include <library/cpp/yt/system/handle_eintr.h>
+
 #include <util/system/env.h>
 #include <util/system/shellcommand.h>
-
-#include <yt/yt/core/misc/proc.h>
 
 #ifdef _unix_
     #include <netinet/ip.h>

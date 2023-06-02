@@ -12,9 +12,11 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/singleton.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <library/cpp/yt/assert/assert.h>
 
-#include <yt/yt/library/profiling/sensor.h>
+#include <library/cpp/yt/system/handle_eintr.h>
 
 namespace NYT::NProfiling {
 

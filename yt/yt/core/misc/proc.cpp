@@ -14,6 +14,8 @@
 
 #include <library/cpp/yt/misc/enum.h>
 
+#include <library/cpp/yt/system/handle_eintr.h>
+
 #include <util/stream/file.h>
 
 #include <util/string/split.h>

@@ -8,16 +8,18 @@
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/new_fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
-#include <yt/yt/core/concurrency/notification_handle.h>
 
 #include <yt/yt/core/threading/thread.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/client/misc/workload.h>
+
+#include <library/cpp/yt/threading/notification_handle.h>
+
+#include <library/cpp/yt/system/handle_eintr.h>
 
 #include <util/generic/size_literals.h>
 #include <util/generic/xrange.h>

@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/misc/proc.h>
 
+#include <library/cpp/yt/system/handle_eintr.h>
+
 #include <util/folder/dirut.h>
 #include <util/folder/iterator.h>
 #include <util/folder/filelist.h>

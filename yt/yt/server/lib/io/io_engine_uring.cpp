@@ -7,13 +7,14 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/moody_camel_concurrent_queue.h>
-#include <yt/yt/core/concurrency/notification_handle.h>
 
 #include <yt/yt/core/threading/thread.h>
 
 #include <yt/yt/core/misc/mpsc_fair_share_queue.h>
 
 #include <library/cpp/yt/containers/intrusive_linked_list.h>
+
+#include <library/cpp/yt/threading/notification_handle.h>
 
 #include <util/generic/size_literals.h>
 #include <util/generic/xrange.h>
@@ -26,6 +27,7 @@
 namespace NYT::NIO {
 
 using namespace NConcurrency;
+using namespace NThreading;
 using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////

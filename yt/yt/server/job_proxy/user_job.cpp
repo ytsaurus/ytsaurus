@@ -67,6 +67,9 @@
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
+#include <yt/yt/library/process/process.h>
+#include <yt/yt/library/process/subprocess.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -76,11 +79,6 @@
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/numeric_helpers.h>
 #include <yt/yt/core/misc/pattern_formatter.h>
-#include <yt/yt/core/misc/proc.h>
-#include <yt/yt/library/process/process.h>
-#include <yt/yt/core/misc/public.h>
-#include <yt/yt/library/process/subprocess.h>
-
 #include <yt/yt/core/misc/statistics.h>
 
 #include <yt/yt/core/net/connection.h>
@@ -88,6 +86,8 @@
 #include <yt/yt/core/rpc/server.h>
 
 #include <yt/yt/core/ypath/tokenizer.h>
+
+#include <library/cpp/yt/system/handle_eintr.h>
 
 #include <util/generic/guid.h>
 

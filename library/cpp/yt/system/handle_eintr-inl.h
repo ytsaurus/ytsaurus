@@ -1,7 +1,7 @@
-#ifndef PROC_INL_H_
-#error "Direct inclusion of this file is not allowed, include proc.h"
+#ifndef HANDLE_EINTR_INL_H_
+#error "Direct inclusion of this file is not allowed, include handle_eintr.h"
 // For the sake of sane code completion.
-#include "proc.h"
+#include "handle_eintr.h"
 #endif
 
 #include <errno.h>

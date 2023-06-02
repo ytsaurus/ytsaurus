@@ -74,10 +74,11 @@
 
 #include <yt/yt/core/net/address.h>
 
-#include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/statistics.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
+
+#include <library/cpp/yt/system/handle_eintr.h>
 
 #include <util/system/env.h>
 

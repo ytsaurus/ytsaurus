@@ -3,11 +3,15 @@
 #include "thread_pool_poller.h"
 #include "private.h"
 #include "profiling_helpers.h"
-#include "notification_handle.h"
 #include "scheduler_thread.h"
 
 #include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/ref_tracked.h>
+
+#include <yt/yt/core/profiling/tscp.h>
+
+#include <library/cpp/yt/threading/notification_handle.h>
 
 #include <util/system/thread.h>
 
@@ -16,10 +20,6 @@
 #include <util/network/pollerimpl.h>
 
 #include <array>
-
-#include <yt/yt/core/profiling/tscp.h>
-
-#include <yt/yt/core/misc/mpsc_stack.h>
 
 namespace NYT::NConcurrency {
 

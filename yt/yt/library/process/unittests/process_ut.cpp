@@ -1,3 +1,5 @@
+#include <yt/yt/library/process/process.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/actions/bind.h>
@@ -6,10 +8,9 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/library/process/process.h>
-#include <yt/yt/core/misc/proc.h>
-
 #include <yt/yt/core/net/connection.h>
+
+#include <library/cpp/yt/system/handle_eintr.h>
 
 namespace NYT {
 namespace {

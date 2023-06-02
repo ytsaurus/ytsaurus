@@ -210,11 +210,6 @@ void ValidateSignalName(const TString& signalName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class F,  class... Args>
-auto HandleEintr(F f, Args&&... args) -> decltype(f(args...));
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! The following structures represents content of /proc/[PID]/smaps.
 //! Look into 'man 5 /proc' for the description.
 struct TMemoryMappingStatistics
@@ -370,6 +365,3 @@ const TString& GetLinuxKernelVersion();
 
 } // namespace NYT
 
-#define PROC_INL_H_
-#include "proc-inl.h"
-#undef PROC_INL_H_

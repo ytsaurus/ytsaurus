@@ -2,11 +2,13 @@
 
 #include "public.h"
 
+#include <util/system/platform.h>
+
 #ifdef _win_
     #include <util/system/pipe.h>
 #endif
 
-namespace NYT::NConcurrency {
+namespace NYT::NThreading {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,4 +46,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NConcurrency
+} // namespace NYT::NThreading

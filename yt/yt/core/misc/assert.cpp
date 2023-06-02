@@ -8,6 +8,8 @@
 
 #include <library/cpp/yt/string/raw_formatter.h>
 
+#include <library/cpp/yt/system/handle_eintr.h>
+
 #ifdef _win_
     #include <io.h>
 #else

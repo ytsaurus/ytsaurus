@@ -19,6 +19,8 @@
 
 #include <library/cpp/yt/misc/enum.h>
 
+#include <library/cpp/yt/system/handle_eintr.h>
+
 #include <util/system/error.h>
 #include <util/system/guard.h>
 

@@ -4,10 +4,11 @@
 
 #include <yt/yt/core/concurrency/pollable_detail.h>
 
-#include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/net/socket.h>
+
+#include <library/cpp/yt/system/handle_eintr.h>
 
 #include <util/network/pollerimpl.h>
 

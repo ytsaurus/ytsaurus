@@ -1,16 +1,24 @@
 #include "notification_handle.h"
 
-#include <yt/yt/core/misc/proc.h>
+#include <library/cpp/yt/system/handle_eintr.h>
+
+#include <library/cpp/yt/assert/assert.h>
 
 #ifdef _linux_
+    #include <unistd.h>
     #include <sys/eventfd.h>
+#endif
+
+#ifdef _darwin_
+    #include <fcntl.h>
+    #include <unistd.h>
 #endif
 
 #ifdef _win_
     #include <util/network/socket.h>
 #endif
 
-namespace NYT::NConcurrency {
+namespace NYT::NThreading {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,4 +112,4 @@ int TNotificationHandle::GetFD() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NConcurrency
+} // namespace NYT::NThreading
