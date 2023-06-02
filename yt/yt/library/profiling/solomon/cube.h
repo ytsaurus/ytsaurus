@@ -53,6 +53,9 @@ struct TReadOptions
 
     // Only makes sense with ExportSummaryAsMax and ReadAllProjections.
     bool SummaryAsMaxForAllTime = false;
+
+    // Drop all prefix before last '/'.
+    bool StripSensorsNamePrefix = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

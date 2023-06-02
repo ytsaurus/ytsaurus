@@ -105,7 +105,14 @@ public:
 
     //! Attempts to read registered sensors in JSON format.
     //! Returns null if exporter is not ready.
-    std::optional<TString> ReadJson(const TReadOptions& options = {});
+    std::optional<TString> ReadJson(const TReadOptions& options = {}, std::optional<TString> shard = {});
+
+    std::optional<TString> ReadSpack(const TReadOptions& options = {}, std::optional<TString> shard = {});
+
+    bool ReadSensors(
+        ::NMonitoring::IMetricEncoderPtr encoder,
+        const TReadOptions& options,
+        std::optional<TString> shard);
 
     void AttachRemoteProcess(TCallback<TFuture<TSharedRef>()> dumpSensors);
 

@@ -186,6 +186,13 @@ int TCube<T>::ReadSensors(
         sensorName.reserve(name.size() + (suffix ? suffix->size() : 0));
         if (options.DisableSensorsRename) {
             sensorName += name;
+        } else if (options.StripSensorsNamePrefix) {
+            auto delimiterPos = name.find_last_of('/');
+            if (TString::npos == delimiterPos) {
+                sensorName.assign(name);
+            } else {
+                sensorName.assign(name, delimiterPos + 1);
+            }
         } else {
             if (name[0] != '/') {
                 sensorName.push_back(name[0]);

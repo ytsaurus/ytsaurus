@@ -493,16 +493,39 @@ void TSolomonExporter::HandleDebugTags(const IRequestPtr&, const IResponseWriter
         .ThrowOnError();
 }
 
-std::optional<TString> TSolomonExporter::ReadJson(const TReadOptions& options)
+std::optional<TString> TSolomonExporter::ReadJson(const TReadOptions& options, std::optional<TString> shard)
+{
+    TStringStream buffer;
+    auto encoder = NMonitoring::BufferedEncoderJson(&buffer);
+    if (ReadSensors(std::move(encoder), options, shard)) {
+        return buffer.Str();
+    }
+    return {};
+}
+
+std::optional<TString> TSolomonExporter::ReadSpack(const TReadOptions& options, std::optional<TString> shard)
+{
+    TStringStream buffer;
+    auto encoder = NMonitoring::EncoderSpackV1(
+        &buffer,
+        NMonitoring::ETimePrecision::SECONDS,
+        NMonitoring::ECompression::ZSTD);
+    if (ReadSensors(std::move(encoder), options, shard)) {
+        return buffer.Str();
+    }
+    return {};
+}
+
+bool TSolomonExporter::ReadSensors(
+    NMonitoring::IMetricEncoderPtr encoder,
+    const TReadOptions& options,
+    std::optional<TString> shard)
 {
     auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Lock_))
         .ValueOrThrow();
 
-    TStringStream buffer;
-    auto encoder = NMonitoring::BufferedEncoderJson(&buffer);
-
     if (Window_.empty()) {
-        return {};
+        return false;
     }
 
     // Read last value.
@@ -523,17 +546,23 @@ std::optional<TString> TSolomonExporter::ReadJson(const TReadOptions& options)
             readOptions.InstanceTags.emplace_back(k, v);
         }
     }
-    readOptions.SensorFilter = [this] (const TString& sensorName) {
-        return FilterDefaultGrid(sensorName);
-    };
+
+    if (shard) {
+        readOptions.SensorFilter = [&, name = shard.value()] (const TString& sensorName) {
+            return Config_->MatchShard(sensorName) == Config_->Shards[name];
+        };
+    } else {
+        readOptions.SensorFilter = [this] (const TString& sensorName) {
+            return FilterDefaultGrid(sensorName);
+        };
+    }
 
     encoder->OnStreamBegin();
     Registry_->ReadSensors(readOptions, encoder.Get());
     encoder->OnStreamEnd();
     guard->Release();
     encoder->Close();
-
-    return buffer.Str();
+    return true;
 }
 
 void TSolomonExporter::HandleShard(
