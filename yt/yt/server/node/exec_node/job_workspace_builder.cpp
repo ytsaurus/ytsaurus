@@ -115,7 +115,8 @@ TFuture<TJobWorkspaceBuildResult> TJobWorkspaceBuilder::Run()
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareRootVolume>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunGpuCheckCommand>())
-        .Apply(BIND([=, this, this_ = MakeStrong(this)] () {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
+            ResultHolder_.Result = result;
             return std::move(ResultHolder_);
         }).AsyncVia(Invoker_));
 }
@@ -456,7 +457,8 @@ private:
 
                     VolumePrepareFinishTime_ = TInstant::Now();
                     UpdateTimers_.Fire(MakeStrong(this));
-                }));
+                })
+                .Via(Invoker_));
         } else {
             return VoidFuture;
         }

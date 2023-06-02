@@ -580,6 +580,16 @@ bool TSlotManager::Disable(const TError& error)
     auto syncResult = WaitFor(Bootstrap_->GetJobController()->RemoveSchedulerJobs()
         .WithTimeout(timeout));
 
+    auto volumeManager = RootVolumeManager_.Load();
+    if (volumeManager) {
+        auto result = WaitFor(volumeManager->GetVolumeReleaseEvent()
+            .WithTimeout(timeout));
+        YT_LOG_FATAL_IF(
+            !result.IsOK(),
+            result,
+            "Free volume synchronization failed");
+    }
+
     YT_LOG_FATAL_IF(!syncResult.IsOK(), syncResult, "Free slot synchronization failed");
 
     YT_LOG_WARNING("Disable slot manager finished");

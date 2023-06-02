@@ -315,6 +315,11 @@ public:
         return layers;
     }
 
+    TFuture<void> GetVolumeReleaseEvent()
+    {
+        return VolumesReleaseEvent_;
+    }
+
     void Disable(const TError& error)
     {
         // TODO(don-dron): Research and fix unconditional Disabled.
@@ -422,6 +427,8 @@ private:
 
     THashMap<TLayerId, TLayerMeta> Layers_;
     THashMap<TVolumeId, TVolumeMeta> Volumes_;
+
+    TPromise<void> VolumesReleaseEvent_ = MakePromise<void>(TError());
 
     mutable i64 AvailableSpace_ = 0;
     i64 UsedSpace_ = 0;
@@ -957,6 +964,10 @@ private:
             {
                 auto guard = Guard(SpinLock_);
                 YT_VERIFY(Volumes_.emplace(id, volumeMeta).second);
+
+                if (VolumesReleaseEvent_.IsSet()) {
+                    VolumesReleaseEvent_ = NewPromise<void>();
+                }
             }
 
             return volumeMeta;
@@ -1008,6 +1019,10 @@ private:
             {
                 auto guard = Guard(SpinLock_);
                 YT_VERIFY(Volumes_.erase(volumeId));
+
+                if (Volumes_.size() == 0) {
+                    VolumesReleaseEvent_ = MakePromise(TError());
+                }
             }
         } catch (const std::exception& ex) {
             auto error = TError("Failed to remove volume %v", volumeId)
@@ -1935,10 +1950,7 @@ public:
 
     ~TLayeredVolume() override
     {
-        YT_LOG_INFO("Destroying volume (VolumeId: %v)",
-            VolumeMeta_.Id);
-
-        Y_UNUSED(WaitFor(Remove()));
+        Remove();
     }
 
     TFuture<void> Remove() override
@@ -2068,6 +2080,17 @@ public:
             MemoryUsageTracker_,
             Bootstrap_);
         return LayerCache_->Initialize();
+    }
+
+    TFuture<void> GetVolumeReleaseEvent() override
+    {
+        std::vector<TFuture<void>> futures;
+        for (const auto& location : Locations_) {
+            futures.push_back(location->GetVolumeReleaseEvent());
+        }
+
+        return AllSet(std::move(futures))
+            .AsVoid();
     }
 
     TFuture<IVolumePtr> PrepareVolume(

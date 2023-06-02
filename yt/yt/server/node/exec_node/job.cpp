@@ -1653,17 +1653,19 @@ void TJob::FinishPrepare(const TErrorOr<TJobWorkspaceBuildResult>& resultOrError
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    GuardedAction([&] {
-        if (resultOrError.IsOK()) {
-            auto result = resultOrError.Value();
-            TmpfsPaths_ = result.TmpfsPaths;
-            RootVolume_ = result.RootVolume;
-            SetupCommandCount_ = result.SetupCommandCount;
+    YT_VERIFY(resultOrError.IsOK());
 
-            RunJobProxy();
-        } else {
-            THROW_ERROR_EXCEPTION(resultOrError);
-        }
+    GuardedAction([&] {
+        auto& holder = resultOrError.Value();
+        TmpfsPaths_ = holder.TmpfsPaths;
+        RootVolume_ = std::move(holder.RootVolume);
+        SetupCommandCount_ = holder.SetupCommandCount;
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            holder.Result,
+            "Job preparation failed");
+
+        RunJobProxy();
     });
 }
 
@@ -1912,7 +1914,15 @@ void TJob::Cleanup()
         TResourceHolder::SetResourceUsage(oneUserSlotResources);
     }
 
-    RootVolume_.Reset();
+    if (RootVolume_) {
+        auto removeResult = WaitFor(RootVolume_->Remove());
+        YT_LOG_ERROR_IF(
+            !removeResult.IsOK(),
+            removeResult,
+            "Volume remove failed (VolumePath: %v)",
+            RootVolume_->GetPath());
+        RootVolume_.Reset();
+    }
 
     if (Slot_) {
         if (ShouldCleanSandboxes()) {

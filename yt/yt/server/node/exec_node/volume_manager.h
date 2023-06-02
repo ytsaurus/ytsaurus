@@ -65,6 +65,8 @@ struct IVolumeManager
     virtual void BuildOrchidYson(NYTree::TFluentMap fluent) const = 0;
 
     virtual void ClearCaches() const = 0;
+
+    virtual TFuture<void> GetVolumeReleaseEvent() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IVolumeManager)

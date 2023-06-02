@@ -62,6 +62,8 @@ struct TJobWorkspaceBuildResult
     std::vector<TString> TmpfsPaths;
     std::vector<NContainers::TBind> RootBinds;
     int SetupCommandCount = 0;
+
+    TError Result;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
