@@ -165,7 +165,7 @@ static constexpr auto LoggerDefaultMinLevel = ELogLevel::Trace;
 class TLogger
 {
 public:
-    using TStructuredValidator = std::function<void(NYson::TYsonString)>;
+    using TStructuredValidator = std::function<void(const NYson::TYsonString&)>;
     using TStructuredValidators = std::vector<TStructuredValidator>;
 
     using TStructuredTag = std::pair<TString, NYson::TYsonString>;

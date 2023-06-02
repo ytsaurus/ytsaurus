@@ -168,7 +168,8 @@ void TLogManagerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("structured_validation_sampling_rate", &TThis::StructuredValidationSamplingRate)
-        .Default(0.01);
+        .Default(0.01)
+        .InRange(0.0, 1.0);
 
     registrar.Parameter("compression_thread_count", &TThis::CompressionThreadCount)
         .Default(1);

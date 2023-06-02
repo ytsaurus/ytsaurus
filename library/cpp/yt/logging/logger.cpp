@@ -263,11 +263,13 @@ void LogStructuredEvent(
 {
     YT_VERIFY(message.GetType() == NYson::EYsonType::MapFragment);
 
-    auto samplingRate = logger.GetCategory()->StructuredValidationSamplingRate.load();
-    auto p = RandomNumber<double>();
-    if (p < samplingRate) {
-        for (const auto& validator : logger.GetStructuredValidators()) {
-            validator(message);
+    if (!logger.GetStructuredValidators().empty()) {
+        auto samplingRate = logger.GetCategory()->StructuredValidationSamplingRate.load();
+        auto p = RandomNumber<double>();
+        if (p < samplingRate) {
+            for (const auto& validator : logger.GetStructuredValidators()) {
+                validator(message);
+            }
         }
     }
 

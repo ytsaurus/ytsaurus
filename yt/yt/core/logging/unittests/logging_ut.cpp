@@ -608,7 +608,7 @@ TEST_F(TLoggingTest, StructuredLoggingWithValidator)
         "structured_validation_sampling_rate" = 1.0;
     })", logFile.Name()));
 
-    auto logger = Logger.WithStructuredValidator([] (TYsonString yson) {
+    auto logger = Logger.WithStructuredValidator([] (const TYsonString& yson) {
         auto message = ConvertToNode(yson)->AsMap();
         auto testField = message->FindChild("test_field");
         if (!testField) {
@@ -616,13 +616,13 @@ TEST_F(TLoggingTest, StructuredLoggingWithValidator)
         }
     });
 
-    auto sendValidMessage = [&logger] () {
+    auto sendValidMessage = [&logger] {
         LogStructuredEventFluently(logger, ELogLevel::Info)
             .Item("test_field").Value("test_value");
     };
     sendValidMessage();
 
-    auto sendInvalidMessage = [&logger] () {
+    auto sendInvalidMessage = [&logger] {
         LogStructuredEventFluently(logger, ELogLevel::Info);
     };
     EXPECT_NONFATAL_FAILURE(sendInvalidMessage(), "");
@@ -635,7 +635,7 @@ TEST_F(TLoggingTest, StructuredLoggingWithValidator)
 TEST_F(TLoggingTest, StructuredValidationWithSamplingRate)
 {
     int counter = 0;
-    auto logger = Logger.WithStructuredValidator([&counter] (TYsonString /*yson*/) {
+    auto logger = Logger.WithStructuredValidator([&counter] (const TYsonString& /*yson*/) {
         counter++;
     });
 
