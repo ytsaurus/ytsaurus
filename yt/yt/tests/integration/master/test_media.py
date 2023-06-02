@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, wait, create, ls, get, set, exists, remove,
-    create_domestic_medium, write_file,
+    create_domestic_medium, create_s3_medium, write_file,
     read_table, write_table, write_journal, wait_until_sealed,
     get_singular_chunk_id, set_account_disk_space_limit, get_account_disk_space_limit,
     get_media, ban_node)
@@ -47,9 +47,16 @@ class TestMedia(YTEnvSetup):
         create_domestic_medium(cls.NON_DEFAULT_MEDIUM)
         create_domestic_medium(cls.NON_DEFAULT_TRANSIENT_MEDIUM, attributes={"transient": True})
         medium_count = len(get_media())
-        while medium_count < 120:
+        while medium_count < 119:
             create_domestic_medium("hdd" + str(medium_count))
             medium_count += 1
+        create_s3_medium("s3", {
+            "url": "http://yt.s3.amazonaws.com",
+            "region": "us‑east‑2",
+            "bucket": "yt",
+            "access_key_id": "lol",
+            "secret_access_key": "nope",
+        })
 
     def _check_all_chunks_on_medium(self, tbl, medium):
         chunk_ids = get("//tmp/{0}/@chunk_ids".format(tbl))
@@ -627,6 +634,13 @@ class TestMedia(YTEnvSetup):
             requisitions = get("#{0}/@requisition".format(chunk_ids[0]))
             return [r["medium"] for r in requisitions] == ["default", TestMedia.NON_DEFAULT_MEDIUM]
         wait(are_requisitions_correct)
+
+    @authors("gritukan")
+    def test_s3_medium(self):
+        assert not get("//sys/media/s3/@domestic")
+        assert get("//sys/media/s3/@config/bucket") == "yt"
+        set("//sys/media/s3/@config/bucket", "ytsaurus")
+        assert get("//sys/media/s3/@config/bucket") == "ytsaurus"
 
 
 ################################################################################

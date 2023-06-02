@@ -2144,6 +2144,15 @@ def create_domestic_medium(name, **kwargs):
     execute_command("create", kwargs)
 
 
+def create_s3_medium(name, config, **kwargs):
+    kwargs["type"] = "s3_medium"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    kwargs["attributes"]["config"] = config
+    execute_command("create", kwargs)
+
+
 def create_replication_card(chaos_cell_id, **kwargs):
     kwargs["type"] = "replication_card"
     if "attributes" not in kwargs:

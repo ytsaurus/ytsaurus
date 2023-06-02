@@ -11,7 +11,7 @@ namespace NYT::NHttp {
 ////////////////////////////////////////////////////////////////////////////////
 
 class THttpIOConfig
-    : public NYTree::TYsonStruct
+    : public virtual NYTree::TYsonStruct
 {
 public:
     int ReadBufferSize;

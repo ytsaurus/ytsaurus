@@ -156,7 +156,7 @@ class TClient
 {
 public:
     TClient(
-        TS3ConnectionConfigPtr config,
+        TS3ClientConfigPtr config,
         IPollerPtr poller,
         IInvokerPtr executionInvoker)
         : Config_(std::move(config))
@@ -224,7 +224,7 @@ public:
 #undef DEFINE_STRUCTURED_COMMAND
 
 private:
-    TS3ConnectionConfigPtr Config_;
+    TS3ClientConfigPtr Config_;
     TNetworkAddress S3Address_;
 
     IPollerPtr Poller_;
@@ -238,7 +238,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IClientPtr CreateClient(
-    TS3ConnectionConfigPtr config,
+    TS3ClientConfigPtr config,
     IPollerPtr poller,
     IInvokerPtr executionInvoker)
 {

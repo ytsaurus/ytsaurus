@@ -1,9 +1,10 @@
-#include "domestic_medium_type_handler.h"
+#include "s3_medium_type_handler.h"
 
-#include "domestic_medium.h"
-#include "domestic_medium_proxy.h"
-#include "medium_type_handler_base.h"
+#include "s3_medium.h"
+#include "s3_medium_proxy.h"
 #include "chunk_manager.h"
+#include "config.h"
+#include "medium_type_handler_base.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
@@ -18,8 +19,8 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDomesticMediumTypeHandler
-    : public TMediumTypeHandlerBase<TDomesticMedium>
+class TS3MediumTypeHandler
+    : public TMediumTypeHandlerBase<TS3Medium>
 {
 public:
     using TMediumTypeHandlerBase::TMediumTypeHandlerBase;
@@ -35,7 +36,7 @@ public:
 
     EObjectType GetType() const override
     {
-        return EObjectType::Medium;
+        return EObjectType::S3Medium;
     }
 
     TObject* CreateObject(
@@ -43,32 +44,32 @@ public:
         IAttributeDictionary* attributes) override
     {
         auto name = attributes->GetAndRemove<TString>("name");
+        auto config = attributes->GetAndRemove<TS3MediumConfigPtr>("config");
         // These three are optional.
         auto priority = attributes->FindAndRemove<int>("priority");
-        auto transient = attributes->FindAndRemove<bool>("transient");
         auto index = attributes->FindAndRemove<int>("index");
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        return chunkManager->CreateDomesticMedium(
+        return chunkManager->CreateS3Medium(
             name,
-            transient,
+            config,
             priority,
             index,
             hintId);
     }
 
 private:
-    IObjectProxyPtr DoGetProxy(TDomesticMedium* medium, TTransaction* /*transaction*/) override
+    IObjectProxyPtr DoGetProxy(TS3Medium* medium, TTransaction* /*transaction*/) override
     {
-        return CreateDomesticMediumProxy(Bootstrap_, &Metadata_, medium);
+        return CreateS3MediumProxy(Bootstrap_, &Metadata_, medium);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IObjectTypeHandlerPtr CreateDomesticMediumTypeHandler(TBootstrap* bootstrap)
+IObjectTypeHandlerPtr CreateS3MediumTypeHandler(TBootstrap* bootstrap)
 {
-    return New<TDomesticMediumTypeHandler>(bootstrap);
+    return New<TS3MediumTypeHandler>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

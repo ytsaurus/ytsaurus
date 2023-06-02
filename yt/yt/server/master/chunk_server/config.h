@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/library/s3/config.h>
+
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -85,6 +87,18 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDomesticMediumConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TS3MediumConfig
+    : public NS3::TS3ConnectionConfig
+{
+    REGISTER_YSON_STRUCT(TS3MediumConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TS3MediumConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

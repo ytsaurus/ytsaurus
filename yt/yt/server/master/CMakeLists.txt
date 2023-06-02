@@ -254,6 +254,7 @@ target_link_libraries(yt-server-master PUBLIC
   server-lib-node_tracker_server
   server-lib-security_server
   server-lib-zookeeper_master
+  yt-library-s3
   cpp-yt-phdr_cache
   server-lib-scheduler
   server-lib-controller_agent
@@ -392,6 +393,9 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/job.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/refresh_epoch.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium_proxy.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cypress_server/access_control_object.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cypress_server/access_control_object_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cypress_server/access_control_object_type_handler.cpp

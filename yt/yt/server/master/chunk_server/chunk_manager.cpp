@@ -30,6 +30,8 @@
 #include "domestic_medium.h"
 #include "domestic_medium_type_handler.h"
 #include "chunk_location.h"
+#include "s3_medium.h"
+#include "s3_medium_type_handler.h"
 
 #include <yt/yt/server/master/cell_master/alert_manager.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -459,6 +461,7 @@ public:
         objectManager->RegisterHandler(CreateDynamicStoreTypeHandler(Bootstrap_, EObjectType::OrderedDynamicTabletStore));
         objectManager->RegisterHandler(CreateChunkListTypeHandler(Bootstrap_));
         objectManager->RegisterHandler(CreateDomesticMediumTypeHandler(Bootstrap_));
+        objectManager->RegisterHandler(CreateS3MediumTypeHandler(Bootstrap_));
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeNodeRegistered(BIND_NO_PROPAGATE(&TChunkManager::OnNodeRegistered, MakeWeak(this)));
@@ -2257,12 +2260,7 @@ public:
         return chunkList;
     }
 
-    TDomesticMedium* CreateDomesticMedium(
-        const TString& name,
-        std::optional<bool> transient,
-        std::optional<int> priority,
-        std::optional<int> hintIndex,
-        TObjectId hintId) override
+    void CreateMediumPrologue(const TString& name)
     {
         ValidateMediumName(name);
 
@@ -2277,6 +2275,16 @@ public:
             THROW_ERROR_EXCEPTION("Medium count limit %v is reached",
                 MaxMediumCount);
         }
+    }
+
+    TDomesticMedium* CreateDomesticMedium(
+        const TString& name,
+        std::optional<bool> transient,
+        std::optional<int> priority,
+        std::optional<int> hintIndex,
+        TObjectId hintId) override
+    {
+        CreateMediumPrologue(name);
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Medium, hintId);
@@ -2286,6 +2294,26 @@ public:
             mediumIndex,
             name,
             transient,
+            priority);
+    }
+
+    TS3Medium* CreateS3Medium(
+        const TString& name,
+        TS3MediumConfigPtr config,
+        std::optional<int> priority,
+        std::optional<int> hintIndex,
+        TObjectId hintId) override
+    {
+        CreateMediumPrologue(name);
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::S3Medium, hintId);
+        auto mediumIndex = hintIndex ? *hintIndex : GetFreeMediumIndex();
+        return DoCreateS3Medium(
+            id,
+            mediumIndex,
+            name,
+            std::move(config),
             priority);
     }
 
@@ -5482,6 +5510,32 @@ private:
         MediumMap_.Insert(id, std::move(mediumHolder));
         RegisterMedium(medium);
         InitializeMediumConfig(medium);
+
+        // Make the fake reference.
+        YT_VERIFY(medium->RefObject() == 1);
+
+        return medium;
+    }
+
+    TS3Medium* DoCreateS3Medium(
+        TMediumId id,
+        int mediumIndex,
+        const TString& name,
+        TS3MediumConfigPtr config,
+        std::optional<int> priority)
+    {
+        auto mediumHolder = TPoolAllocator::New<TS3Medium>(id);
+        mediumHolder->SetName(name);
+        mediumHolder->SetIndex(mediumIndex);
+        mediumHolder->Config() = std::move(config);
+        if (priority) {
+            ValidateMediumPriority(*priority);
+            mediumHolder->SetPriority(*priority);
+        }
+
+        auto* medium = mediumHolder.get();
+        MediumMap_.Insert(id, std::move(mediumHolder));
+        RegisterMedium(medium);
 
         // Make the fake reference.
         YT_VERIFY(medium->RefObject() == 1);

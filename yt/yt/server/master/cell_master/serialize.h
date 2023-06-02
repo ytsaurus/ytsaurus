@@ -149,6 +149,7 @@ DEFINE_ENUM(EMasterReign,
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan
+    ((S3Medium)                                                     (2402))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

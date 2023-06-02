@@ -5,22 +5,15 @@
 #include "config.h"
 #include "medium_base.h"
 
-#include <yt/yt/core/misc/property.h>
-
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/// Represents a storage type (e.g. HDD, SSD, RAM).
-class TDomesticMedium
+class TS3Medium
     : public TMediumBase
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(bool, Transient, false);
-    // TODO(savrus): Switch to BYVAL when generic property getter will return reference.
-    DEFINE_BYREF_RW_PROPERTY(TDomesticMediumConfigPtr, Config, New<TDomesticMediumConfig>());
-
-    DEFINE_BYREF_RW_PROPERTY(std::optional<std::vector<TString>>, DiskFamilyWhitelist);
+    DEFINE_BYREF_RW_PROPERTY(TS3MediumConfigPtr, Config, New<TS3MediumConfig>());
 
 public:
     using TMediumBase::TMediumBase;
@@ -34,7 +27,7 @@ public:
     void Load(NCellMaster::TLoadContext& context) override;
 };
 
-DEFINE_MASTER_OBJECT_TYPE(TDomesticMedium)
+DEFINE_MASTER_OBJECT_TYPE(TS3Medium)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -385,6 +385,7 @@ private:
     friend class TChunkViewTypeHandler;
     friend class TDynamicStoreTypeHandler;
     friend class TDomesticMediumTypeHandler;
+    friend class TS3MediumTypeHandler;
 
     virtual NHydra::TEntityMap<TChunk>& MutableChunks() = 0;
     virtual void DestroyChunk(TChunk* chunk) = 0;
@@ -403,6 +404,13 @@ private:
     virtual TDomesticMedium* CreateDomesticMedium(
         const TString& name,
         std::optional<bool> transient,
+        std::optional<int> priority,
+        std::optional<int> hintIndex,
+        NObjectClient::TObjectId hintId) = 0;
+
+    virtual TS3Medium* CreateS3Medium(
+        const TString& name,
+        TS3MediumConfigPtr config,
         std::optional<int> priority,
         std::optional<int> hintIndex,
         NObjectClient::TObjectId hintId) = 0;

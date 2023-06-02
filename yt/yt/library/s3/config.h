@@ -11,7 +11,7 @@ namespace NYT::NS3 {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TS3ConnectionConfig
-    : public NHttp::TClientConfig
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Url of the S3 server, for example, http://my_bucket.s3.amazonaws.com
@@ -35,6 +35,19 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TS3ConnectionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TS3ClientConfig
+    : public TS3ConnectionConfig
+    , public NHttp::TClientConfig
+{
+    REGISTER_YSON_STRUCT(TS3ClientConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TS3ClientConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

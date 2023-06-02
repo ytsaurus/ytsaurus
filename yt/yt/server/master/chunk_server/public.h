@@ -80,6 +80,7 @@ DECLARE_ENTITY_TYPE(TChunkView, TChunkViewId, NObjectClient::TDirectObjectIdHash
 DECLARE_ENTITY_TYPE(TDynamicStore, TDynamicStoreId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TChunkList, TChunkListId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TDomesticMedium, TMediumId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TS3Medium, TMediumId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TMediumBase, TMediumId, NObjectClient::TDirectObjectIdHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TRealChunkLocation)
@@ -87,6 +88,7 @@ DECLARE_MASTER_OBJECT_TYPE(TChunk)
 DECLARE_MASTER_OBJECT_TYPE(TChunkList)
 DECLARE_MASTER_OBJECT_TYPE(TChunkOwnerBase)
 DECLARE_MASTER_OBJECT_TYPE(TDomesticMedium)
+DECLARE_MASTER_OBJECT_TYPE(TS3Medium)
 
 class TChunkLocation;
 class TRealChunkLocation;
@@ -140,6 +142,7 @@ DECLARE_REFCOUNTED_CLASS(TDynamicChunkServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicAllyReplicaManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicConsistentReplicaPlacementConfig)
 DECLARE_REFCOUNTED_CLASS(TDomesticMediumConfig)
+DECLARE_REFCOUNTED_CLASS(TS3MediumConfig)
 
 //! Used as an expected upper bound in TCompactVector.
 constexpr int TypicalChunkParentCount = 2;

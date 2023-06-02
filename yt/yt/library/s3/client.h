@@ -189,7 +189,7 @@ DEFINE_REFCOUNTED_TYPE(IClient)
 ////////////////////////////////////////////////////////////////////////////////
 
 IClientPtr CreateClient(
-    TS3ConnectionConfigPtr config,
+    TS3ClientConfigPtr config,
     NConcurrency::IPollerPtr poller,
     IInvokerPtr executionInvoker);
 

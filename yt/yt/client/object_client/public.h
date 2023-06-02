@@ -156,6 +156,7 @@ DEFINE_ENUM(EObjectType,
     ((ChunkView)                                (123))
     ((ChunkViewMap)                             (430))
     ((Medium)                                   (408))
+    ((S3Medium)                                 (435))
     ((MediumMap)                                (409))
     ((ErasureJournalChunk)                      (124)) // erasure journal chunk as a whole
     ((ErasureJournalChunkPart_0)                (125)) // erasure chunk parts, mnemonic names are for debugging convenience only

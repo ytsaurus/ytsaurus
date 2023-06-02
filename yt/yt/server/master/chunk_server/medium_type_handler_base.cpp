@@ -2,12 +2,16 @@
 
 #include "chunk_manager.h"
 #include "medium_base.h"
+#include "s3_medium.h"
+
+#include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 namespace NYT::NChunkServer {
 
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,15 +23,27 @@ TObject* TMediumTypeHandlerBase<TImpl>::FindObject(TObjectId id)
 }
 
 template <class TImpl>
-void TMediumTypeHandlerBase<TImpl>::DoZombifyObject(TImpl* tablet) noexcept
+void TMediumTypeHandlerBase<TImpl>::DoZombifyObject(TImpl* medium) noexcept
 {
-    TBase::DoZombifyObject(tablet);
+    TBase::DoZombifyObject(medium);
 
     // NB: Destroying arbitrary media is not currently supported.
     // This handler, however, is needed to destroy just-created media
     // for which attribute initialization has failed.
     const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
-    chunkManager->DestroyMedium(tablet);
+    chunkManager->DestroyMedium(medium);
+}
+
+template <class TImpl>
+TCellTagList TMediumTypeHandlerBase<TImpl>::DoGetReplicationCellTags(const TImpl* /*medium*/)
+{
+    return TConcreteObjectTypeHandlerBase<TImpl>::AllSecondaryCellTags();
+}
+
+template <class TImpl>
+TAccessControlDescriptor* TMediumTypeHandlerBase<TImpl>::DoFindAcd(TImpl* medium)
+{
+    return &medium->Acd();
 }
 
 template <class TImpl>
@@ -44,6 +60,7 @@ void TMediumTypeHandlerBase<TImpl>::CheckInvariants(TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 template class TMediumTypeHandlerBase<TDomesticMedium>;
+template class TMediumTypeHandlerBase<TS3Medium>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

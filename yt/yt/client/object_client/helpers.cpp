@@ -227,7 +227,8 @@ bool IsCollocationType(EObjectType type)
 bool IsMediumType(EObjectType type)
 {
     return
-        type == EObjectType::Medium;
+        type == EObjectType::Medium ||
+        type == EObjectType::S3Medium;
 }
 
 bool HasSchema(EObjectType type)
