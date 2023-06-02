@@ -41,10 +41,11 @@ type UserScript struct {
 	//
 	// This setting results in GOMAXPROCS set to max(1, ceil(CPULimit)).
 	CPULimit            float32 `yson:"cpu_limit,omitempty"`
-	EnableCPUReclaim    *bool   `yson:"enable_cpu_reclaim,omitempty"`
 	MemoryLimit         int64   `yson:"memory_limit,omitempty"`
 	MemoryReserveFactor float64 `yson:"memory_reserve_factor,omitempty"`
 	GPULimit            int     `yson:"gpu_limit,omitempty"`
+
+	JobCPUMonitor *JobCPUMonitor `yson:"job_cpu_monitor,omitempty"`
 
 	NetworkProject string `yson:"network_project,omitempty"`
 
@@ -74,6 +75,18 @@ type JobIO struct {
 	TableReader       interface{}        `yson:"table_reader,omitempty"`
 	TableWriter       interface{}        `yson:"table_writer,omitempty"`
 	ControlAttributes *ControlAttributes `yson:"control_attributes,omitempty"`
+}
+
+type JobCPUMonitor struct {
+	StartDelay            yson.Duration `yson:"start_delay"`
+	CheckPeriod           yson.Duration `yson:"check_period"`
+	IncreaseCoefficient   float64       `yson:"increase_coefficient"`
+	DecreaseCoefficient   float64       `yson:"decrease_coefficient"`
+	SmoothingFactor       float64       `yson:"smoothing_factor"`
+	VoteWindowSize        int           `yson:"vote_window_size"`
+	VoteDecisionThreshold int           `yson:"vote_decision_threshold"`
+	MinCPULimit           float64       `yson:"min_cpu_limit"`
+	EnableCPUReclaim      bool          `yson:"enable_cpu_reclaim"`
 }
 
 const (
