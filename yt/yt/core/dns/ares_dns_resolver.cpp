@@ -211,13 +211,13 @@ public:
             BIND([promise, requestId] {
                 YT_LOG_WARNING("Ares DNS resolve timed out (RequestId: %v)",
                     requestId);
-                promise.TrySet(TError(NNet::EErrorCode::ResolveTimedOut, "Resolve timed out"));
+                promise.TrySet(TError(NNet::EErrorCode::ResolveTimedOut, "Ares DNS resolve timed out"));
             }),
             MaxResolveTimeout_);
 
         RequestCounter_.Increment();
 
-        YT_LOG_DEBUG("Started resolving host name via Ares (RequestId: %v, HostName: %v, Options: %v)",
+        YT_LOG_DEBUG("Started Ares DNS resolve (RequestId: %v, HostName: %v, Options: %v)",
             requestId,
             hostName,
             options);
@@ -485,7 +485,7 @@ private:
         RequestTimeGauge_.Update(elapsed);
 
         if (elapsed > WarningTimeout_ || timeouts > 0) {
-            YT_LOG_WARNING("Ares resolve took too long (RequestId: %v, HostName: %v, Timeouts: %v, Elapsed: %v)",
+            YT_LOG_WARNING("Ares DNS resolve took too long (RequestId: %v, HostName: %v, Timeouts: %v, Elapsed: %v)",
                 request->RequestId,
                 request->HostName,
                 timeouts,
@@ -493,10 +493,10 @@ private:
         }
 
         if (status != ARES_SUCCESS) {
-            YT_LOG_WARNING("Ares resolve failed (RequestId: %v, HostName: %v)",
+            YT_LOG_WARNING("Ares DNS resolve failed (RequestId: %v, HostName: %v)",
                 request->RequestId,
                 request->HostName);
-            request->Promise.TrySet(TError("Ares resolve failed for %Qv",
+            request->Promise.TrySet(TError("Ares DNS resolve failed for %Qv",
                 request->HostName)
                 << TError(ares_strerror(status)));
             FailureCounter_.Increment();
@@ -507,7 +507,7 @@ private:
         YT_VERIFY(hostent->h_addr_list && hostent->h_addr_list[0]);
 
         TNetworkAddress result(hostent->h_addrtype, hostent->h_addr, hostent->h_length);
-        YT_LOG_DEBUG("Ares resolve completed (RequestId: %v, HostName: %v, Result: %v, Hostent: %v, Elapsed: %v)",
+        YT_LOG_DEBUG("Ares DNS resolve completed (RequestId: %v, HostName: %v, Result: %v, Hostent: %v, Elapsed: %v)",
             request->RequestId,
             request->HostName,
             result,
