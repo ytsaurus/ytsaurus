@@ -42,7 +42,7 @@ public:
         return &AttemptTracer_;
     }
 
-    TError GetError() const
+    TError GetError()
     {
         return AttemptTracer_.GetError();
     }
@@ -58,12 +58,11 @@ private:
 
         ~TAttemptTracer() override
         {
-            GRPC_ERROR_UNREF(Error_.load());
+            GRPC_ERROR_UNREF(Error_.get());
         }
 
         void RecordSendInitialMetadata(
-            grpc_metadata_batch* /*send_initial_metadata*/,
-            uint32_t /*flags*/) override
+            grpc_metadata_batch* /*send_initial_metadata*/) override
         { }
 
         void RecordOnDoneSendInitialMetadata(gpr_atm* /*peer_string*/) override
@@ -72,7 +71,7 @@ private:
         void RecordSendTrailingMetadata(grpc_metadata_batch* /*send_trailing_metadata*/) override
         { }
 
-        void RecordSendMessage(const grpc_core::ByteStream& /*send_message*/) override
+        void RecordSendMessage(const grpc_core::SliceBuffer& /*send_message*/) override
         { }
 
         void RecordReceivedInitialMetadata(
@@ -80,7 +79,7 @@ private:
             uint32_t /*flags*/) override
         { }
 
-        void RecordReceivedMessage(const grpc_core::ByteStream& /*recv_message*/) override
+        void RecordReceivedMessage(const grpc_core::SliceBuffer& /*recv_message*/) override
         { }
 
         void RecordReceivedTrailingMetadata(
@@ -91,16 +90,17 @@ private:
 
         void RecordCancel(grpc_error_handle cancelError) override
         {
-            auto current = Error_.exchange(cancelError);
+            auto current = Error_.get();
+            Error_.set(cancelError);
             GRPC_ERROR_UNREF(current);
         }
 
         void RecordEnd(const gpr_timespec& /*latency*/) override
         { }
 
-        TError GetError() const
+        TError GetError()
         {
-            auto error = Error_.load();
+            auto error = Error_.get();
             intptr_t statusCode;
             if (!grpc_error_get_int(error, GRPC_ERROR_INT_GRPC_STATUS, &statusCode)) {
                 statusCode = GRPC_STATUS_UNKNOWN;
@@ -115,7 +115,7 @@ private:
         }
 
     private:
-        std::atomic<grpc_error_handle> Error_;
+      AtomicError Error_;
     };
 
     TAttemptTracer AttemptTracer_;
