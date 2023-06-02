@@ -148,9 +148,21 @@ public:
         using NYT::Load;
 
         Load(context, Bounds_);
+
+        bool validBounds = !Bounds_.empty();
+
+        if (!validBounds) {
+            // NB: It's a temporary measure. This issue only happens if we are
+            // trying to load snapshot which was written between new cluster
+            // start and `OnDynamicConfigChanged()`.
+            // See TODO in `OnAfterSnapshotLoaded()`.
+            YT_LOG_DEBUG("Chunk creation time histogram bounds is empty; using {0} as histogram bounds");
+            Bounds_ = {TInstant::Zero()};
+        }
+
         InitializeHistogram();
 
-        {
+        if (validBounds) {
             THistogramSnapshot snapshot;
             Load(context, snapshot.Bounds);
             Load(context, snapshot.Values);
@@ -164,9 +176,10 @@ public:
             return;
         }
 
+        // TODO(kvk1920): Move all new cluster related code to `SetZeroState()`.
+
         Bounds_ = GetDynamicConfig()->CreationTimeHistogramBucketBounds;
         InitializeHistogram();
-
 
         TGlobalChunkScanner chunkScanner(Bootstrap_->GetObjectManager(), /*journal*/ false);
         const auto& chunkManager = Bootstrap_->GetChunkManager();
