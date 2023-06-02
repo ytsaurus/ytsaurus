@@ -2634,6 +2634,7 @@ void TJob::EnrichStatisticsWithDiskInfo(TStatistics* statistics)
 {
     auto diskStatistics = Slot_->GetDiskStatistics();
     MaxDiskUsage_ = std::max(MaxDiskUsage_, diskStatistics.Usage);
+    statistics->AddSample("/user_job/disk/usage", diskStatistics.Usage);
     statistics->AddSample("/user_job/disk/max_usage", MaxDiskUsage_);
     if (diskStatistics.Limit) {
         statistics->AddSample("/user_job/disk/limit", *diskStatistics.Limit);

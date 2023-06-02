@@ -196,6 +196,7 @@ def is_subdict(lhs, rhs):
         return lhs == rhs
 
 
+# TODO(ignat): replace with wait_no_assert
 def wait_assert(check_fn, *args, **kwargs):
     last_exception = []
     last_exc_info = []
@@ -217,6 +218,28 @@ def wait_assert(check_fn, *args, **kwargs):
             raise
         tb = "\n".join(traceback.format_tb(last_exc_info[0][2]))
         raise AssertionError("waited assertion failed\n{}{}".format(tb, last_exception[0]))
+
+
+def wait_no_assert(predicate, verbose=False):
+    last_exception = None
+
+    def wrapper():
+        nonlocal last_exception
+        try:
+            predicate()
+        except AssertionError as ex:
+            last_exception = ex
+            if verbose:
+                print_debug("Assertion failed, retrying\n{}".format(ex))
+            return False
+        return True
+
+    try:
+        wait(wrapper)
+    except WaitFailed:
+        if not last_exception:
+            raise
+        raise last_exception
 
 
 def wait_drivers():
@@ -1302,6 +1325,9 @@ class Operation(object):
                 raise
 
         return get(self.get_path() + "/@state", **kwargs)
+
+    def get_statistics(self):
+        return get(self.get_path() + "/@progress/job_statistics_v2")
 
     def get_job_statistics(self, job_id):
         # It works only for tests with job archive.
@@ -2467,7 +2493,7 @@ def extract_statistic_v2(
     result = 0
     for tagged_statistic in tagged_statistic_list:
         tags = tagged_statistic["tags"]
-        if tags["job_state"] == job_state and tags["job_type"] == job_type:
+        if tags["job_state"] == job_state and (job_type is None or tags["job_type"] == job_type):
             if pool_tree is None or pool_tree == tags["pool_tree"]:
                 result += tagged_statistic["summary"][summary_type]
 

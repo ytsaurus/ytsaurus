@@ -6,8 +6,8 @@ from yt_commands import (
     write_table, map,
     start_transaction, abort_transaction,
     create_account_resource_usage_lease, update_controller_agent_config,
-    abort_job, run_test_vanilla,
-    with_breakpoint, wait_breakpoint)
+    abort_job, run_test_vanilla, extract_statistic_v2 as extract_statistic,
+    with_breakpoint, wait_breakpoint, wait_no_assert)
 
 from yt.common import YtError, update
 
@@ -199,6 +199,51 @@ class TestDiskUsagePorto(YTEnvSetup):
 
         wait(lambda: op2.get_job_count("running") == 1)
         op2.abort()
+
+    @authors("ignat")
+    def test_statistics(self):
+        op = run_test_vanilla(
+            command=" ; ".join([
+                "dd if=/dev/zero of=zeros.txt count=500 bs=1024",
+                events_on_fs().breakpoint_cmd("file_written"),
+                "rm zeros.txt",
+                events_on_fs().breakpoint_cmd("file_removed"),
+            ]),
+            task_patch={"disk_space_limit": 1024 * 1024},
+            spec={"max_failed_job_count": 1},
+        )
+
+        events_on_fs().wait_breakpoint("file_written")
+
+        def check_disk_statistics(usage, max_usage, limit):
+            statistics = op.get_statistics()
+            assert extract_statistic(
+                statistics,
+                key="user_job.disk.usage",
+                job_state="running",
+                job_type=None,
+                summary_type="max") == usage
+
+            assert extract_statistic(
+                statistics,
+                key="user_job.disk.max_usage",
+                job_state="running",
+                job_type=None,
+                summary_type="max") == max_usage
+
+            assert extract_statistic(
+                statistics,
+                key="user_job.disk.limit",
+                job_state="running",
+                job_type=None,
+                summary_type="max") == limit
+
+        wait_no_assert(lambda: check_disk_statistics(usage=500 * 1024, max_usage=500 * 1024, limit=1024 * 1024))
+
+        events_on_fs().release_breakpoint("file_written")
+        events_on_fs().wait_breakpoint("file_removed")
+
+        wait_no_assert(lambda: check_disk_statistics(usage=0, max_usage=500 * 1024, limit=1024 * 1024))
 
 
 ##################################################################
