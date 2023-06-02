@@ -196,6 +196,11 @@ func (a *API) getOplet(
 		return nil, err
 	}
 
+	// Oplet should observe controller in up to date state.
+	if _, err := a.ctl.UpdateState(); err != nil {
+		return nil, err
+	}
+
 	return oplet, nil
 }
 

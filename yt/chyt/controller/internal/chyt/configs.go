@@ -268,7 +268,7 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		"yt":                 ytConfig,
 		"cpu_limit":          r.InstanceCPU,
 		"memory":             r.InstanceMemory.memoryConfig(),
-		"cluster_connection": c.clusterConnection,
+		"cluster_connection": c.cachedClusterConnection,
 		// TODO(dakovalkov): "profile_manager" is a compat for older CHYT versions.
 		// Remove it when all cliques are 2.09+
 		"profile_manager": map[string]any{
@@ -366,7 +366,7 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 				"cookie":          "$YT_JOB_COOKIE",
 			},
 		},
-		"cluster_connection": c.clusterConnection,
+		"cluster_connection": c.cachedClusterConnection,
 		"log_tailer": map[string]any{
 			"log_rotation": logRotationConfig,
 			"log_files": [2](map[string]any){

@@ -22,20 +22,21 @@ type Controller struct {
 }
 
 func (c Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
-	spec map[string]interface{}, description map[string]interface{}, annotations map[string]interface{}, err error) {
+	spec map[string]any, description map[string]any, annotations map[string]any, err error) {
 	err = nil
-	spec = map[string]interface{}{
-		"tasks": map[string]interface{}{
-			"main": map[string]interface{}{
+	spec = map[string]any{
+		"tasks": map[string]any{
+			"main": map[string]any{
 				"command":   "sleep 10000",
 				"job_count": 1,
 			},
 		}}
-	description = map[string]interface{}{
+	description = map[string]any{
 		"sleeper_foo": "I am sleeper, look at me!",
 	}
-	annotations = map[string]interface{}{
-		"sleeper_bar": "Actually I'd like to wake up :)",
+	annotations = map[string]any{
+		"sleeper_bar":          "Actually I'd like to wake up :)",
+		"controller_parameter": c.controllerParameter,
 	}
 	return
 }
@@ -53,9 +54,9 @@ func (c Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
 	return speclet, nil
 }
 
-func (c *Controller) TryUpdate() (bool, error) {
+func (c *Controller) UpdateState() (changed bool, err error) {
 	var controllerParameter string
-	err := c.ytc.GetNode(context.Background(), c.root.Attr("controller_parameter"), &controllerParameter, nil)
+	err = c.ytc.GetNode(context.Background(), c.root.Attr("controller_parameter"), &controllerParameter, nil)
 	if err != nil {
 		return false, err
 	}

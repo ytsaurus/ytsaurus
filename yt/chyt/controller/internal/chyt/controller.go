@@ -44,13 +44,13 @@ func (c *Config) EnableYandexSpecificLinksOrDefault() bool {
 }
 
 type Controller struct {
-	ytc               yt.Client
-	l                 log.Logger
-	clusterConnection map[string]interface{}
-	root              ypath.Path
-	cluster           string
-	tvmSecret         string
-	config            Config
+	ytc                     yt.Client
+	l                       log.Logger
+	cachedClusterConnection map[string]interface{}
+	root                    ypath.Path
+	cluster                 string
+	tvmSecret               string
+	config                  Config
 }
 
 func (c *Controller) prepareTvmSecret() {
@@ -64,7 +64,7 @@ func (c *Controller) prepareTvmSecret() {
 }
 
 func (c *Controller) getTvmID() (int64, bool) {
-	rawTvmID, ok := c.clusterConnection["tvm_id"]
+	rawTvmID, ok := c.cachedClusterConnection["tvm_id"]
 	if !ok {
 		return 0, false
 	}
@@ -76,17 +76,23 @@ func (c *Controller) getTvmID() (int64, bool) {
 	return tvmID, true
 }
 
-func (c *Controller) getClusterConnection(ctx context.Context) (
-	clusterConnection map[string]interface{}, err error) {
+func (c *Controller) updateClusterConnection(ctx context.Context) (changed bool, err error) {
+	var clusterConnection map[string]interface{}
 	err = c.ytc.GetNode(ctx, ypath.Path("//sys/@cluster_connection"), &clusterConnection, nil)
 	if err != nil {
-		return
+		c.l.Error("failed to update cluster connection", log.Error(err))
+		return false, err
 	}
-	if _, ok := c.clusterConnection["block_cache"]; ok {
-		err = fmt.Errorf("chyt: cluster connection contains block_cache section; looks like a misconfiguration")
-		return
+	if _, ok := clusterConnection["block_cache"]; ok {
+		c.l.Error("failed to update cluster connection: cluster connection contains block_cache section")
+		return false, fmt.Errorf("chyt: cluster connection contains block_cache section; looks like a misconfiguration")
 	}
-	return
+	if !reflect.DeepEqual(clusterConnection, c.cachedClusterConnection) {
+		c.cachedClusterConnection = clusterConnection
+		changed = true
+	}
+	c.l.Error("cluster connection updated", log.Bool("changed", changed))
+	return changed, nil
 }
 
 func (c *Controller) buildCommand(speclet *Speclet) string {
@@ -196,19 +202,8 @@ func (c *Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
 	return speclet, nil
 }
 
-func (c *Controller) TryUpdate() (bool, error) {
-	newClusterConnection, err := c.getClusterConnection(context.Background())
-	if err != nil {
-		c.l.Error("error getting new cluster connection", log.Error(err))
-		return false, err
-	}
-	if reflect.DeepEqual(c.clusterConnection, newClusterConnection) {
-		c.l.Debug("cluster connection is the same")
-		return false, nil
-	}
-	c.clusterConnection = newClusterConnection
-	c.l.Debug("changed cluster connection")
-	return true, nil
+func (c *Controller) UpdateState() (changed bool, err error) {
+	return c.updateClusterConnection(context.Background())
 }
 
 func parseConfig(rawConfig yson.RawValue) Config {
@@ -229,11 +224,10 @@ func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string,
 		cluster: cluster,
 		config:  parseConfig(rawConfig),
 	}
-	clusterConnection, err := c.getClusterConnection(context.Background())
+	_, err := c.updateClusterConnection(context.Background())
 	if err != nil {
 		panic(err)
 	}
-	c.clusterConnection = clusterConnection
 	c.prepareTvmSecret()
 	return c
 }

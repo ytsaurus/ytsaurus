@@ -25,14 +25,16 @@ type RequestParams struct {
 
 // HTTPAPI is a lightweight wrapper of API which handles http requests and transforms them to proper API calls.
 type HTTPAPI struct {
-	api *API
-	l   log.Logger
+	api         *API
+	l           log.Logger
+	disableAuth bool
 }
 
-func NewHTTPAPI(ytc yt.Client, config APIConfig, ctl strawberry.Controller, l log.Logger) HTTPAPI {
+func NewHTTPAPI(ytc yt.Client, config APIConfig, ctl strawberry.Controller, l log.Logger, disableAuth bool) HTTPAPI {
 	return HTTPAPI{
-		api: NewAPI(ytc, config, ctl, l),
-		l:   l,
+		api:         NewAPI(ytc, config, ctl, l),
+		l:           l,
+		disableAuth: disableAuth,
 	}
 }
 

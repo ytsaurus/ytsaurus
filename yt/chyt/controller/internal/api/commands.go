@@ -284,7 +284,7 @@ var StartCmdDescriptor = CmdDescriptor{
 
 func (a HTTPAPI) HandleStart(w http.ResponseWriter, r *http.Request) {
 	userToken, err := auth.GetTokenFromHeader(r)
-	if err != nil {
+	if err != nil && !a.disableAuth {
 		a.replyWithError(w, err)
 		return
 	}
@@ -364,7 +364,7 @@ func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 
 		ctl := apiCfg.ControllerFactory(l, ytc, clusterInfo.StrawberryRoot, clusterInfo.Proxy, apiCfg.ControllerConfig)
 
-		api := NewHTTPAPI(ytc, apiCfg, ctl, l)
+		api := NewHTTPAPI(ytc, apiCfg, ctl, l, cfg.DisableAuth)
 
 		r.Route("/"+clusterInfo.Proxy, func(r chi.Router) {
 			// TODO(dakovalkov): Enable CORS when cookie authentication is supported.

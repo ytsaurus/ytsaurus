@@ -183,13 +183,13 @@ func (a *Agent) pass() {
 
 	a.l.Info("starting pass", log.Int("oplet_count", len(a.aliasToOp)))
 
-	if err := a.tryUpdateController(); err != nil {
-		a.healthState.Store(yterrors.Err("failed to update controller", err))
+	if err := a.updateControllerState(); err != nil {
+		a.healthState.Store(yterrors.Err("failed to update controller's state", err))
 		return
 	}
 
 	if err := a.updateACLs(); err != nil {
-		a.healthState.Store(yterrors.Err("failed to update ACL", err))
+		a.healthState.Store(yterrors.Err("failed to update ACLs", err))
 		return
 	}
 
@@ -211,14 +211,14 @@ func (a *Agent) pass() {
 	a.healthState.Store(nil)
 }
 
-func (a *Agent) tryUpdateController() error {
-	isUpdated, err := a.controller.TryUpdate()
+func (a *Agent) updateControllerState() error {
+	changed, err := a.controller.UpdateState()
 	if err != nil {
 		return err
 	}
-	if isUpdated {
+	if changed {
 		for _, oplet := range a.aliasToOp {
-			oplet.SetPendingRestart("controller update")
+			oplet.SetPendingRestart("controller's state changed")
 		}
 	}
 	return nil

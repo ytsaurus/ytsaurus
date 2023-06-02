@@ -22,15 +22,6 @@ var (
 
 const AccessControlNamespacesPath = ypath.Path("//sys/access_control_object_namespaces")
 
-func requiresRestart(state yt.OperationState) bool {
-	return state == yt.StateAborted ||
-		state == yt.StateAborting ||
-		state == yt.StateCompleted ||
-		state == yt.StateCompleting ||
-		state == yt.StateFailed ||
-		state == yt.StateFailing
-}
-
 func toOperationACL(acl []yt.ACE) []yt.ACE {
 	if acl == nil {
 		return nil
