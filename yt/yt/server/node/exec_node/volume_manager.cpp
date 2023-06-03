@@ -317,6 +317,7 @@ public:
 
     TFuture<void> GetVolumeReleaseEvent()
     {
+        auto guard = Guard(SpinLock_);
         return VolumesReleaseEvent_;
     }
 
