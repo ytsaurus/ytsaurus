@@ -352,7 +352,7 @@ TError::TErrorOr(const std::exception& ex)
         try {
             std::rethrow_exception(compositeException->GetInnerException());
         } catch (const std::exception& innerEx) {
-            *this = TError(NYT::EErrorCode::Generic, compositeException->GetMesage())
+            *this = TError(NYT::EErrorCode::Generic, compositeException->GetMessage())
                 << TError(innerEx);
         }
     } else if (const auto* errorEx = dynamic_cast<const TErrorException*>(&ex)) {
