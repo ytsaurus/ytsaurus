@@ -101,7 +101,7 @@ message TMessageExt
     optional int32 x = 1;
 }
 
-message TNestedMessageWithRequriedFields
+message TNestedMessageWithRequiredFields
 {
     optional int32 optional_field = 1;
     required int32 required_field = 2;
@@ -111,7 +111,7 @@ message TMessageWithRequiredFields
 {
     optional int32 optional_field = 1;
     required int32 required_field = 2;
-    repeated TNestedMessageWithRequriedFields nested_messages = 3;
+    repeated TNestedMessageWithRequiredFields nested_messages = 3;
 }
 
 message TMessageWithReservedFields

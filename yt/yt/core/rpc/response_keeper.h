@@ -14,7 +14,7 @@ namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Helps to remeber previously served requests thus enabling client-side retries
+//! Helps to remember previously served requests thus enabling client-side retries
 //! even for non-idempotent actions.
 /*!
  *  Clients assign a unique (random) mutation id to every retry session.

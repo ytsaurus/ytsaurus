@@ -302,7 +302,7 @@ public:
     template <class U>
     TFuture<U> As() const;
 
-    //! Converts to TFuture<void> by dicarding the value; propagates errors as is.
+    //! Converts to TFuture<void> by discarding the value; propagates errors as is.
     TFuture<void> AsVoid() const;
 
     //! Converts to TCancelable interface.
@@ -461,7 +461,7 @@ public:
      *  \param handler A callback to call when TFuture<T>::Cancel is triggered
      *  by the client.
      *
-     *  Returns true if handler was succesfully registered or was invoked inline.
+     *  Returns true if handler was successfully registered or was invoked inline.
      *
      *  \note
      *  If the value is set before the call to #handlered, then

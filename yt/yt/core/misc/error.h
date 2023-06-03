@@ -64,7 +64,7 @@ constexpr int ErrorSerializationDepthLimit = 16;
 ////////////////////////////////////////////////////////////////////////////////
 
 //! When this guard is set, newly created errors do not have non-deterministic
-//! system attributes and have "datetime" attribute overriden with a given value.
+//! system attributes and have "datetime" attribute overridden with a given value.
 class TErrorSanitizerGuard
     : public TNonCopyable
 {

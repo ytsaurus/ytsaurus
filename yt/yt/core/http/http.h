@@ -161,7 +161,7 @@ struct TUrlRef
 
     TStringBuf Protocol;
     TStringBuf User;
-    //! If host is IPv6 address, Host field will cointain address without square brackets.
+    //! If host is IPv6 address, Host field will contain address without square brackets.
     //! E.g. http://[::1]:80/ -> Host == "::1"
     TStringBuf Host;
     TStringBuf PortStr;

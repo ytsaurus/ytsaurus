@@ -360,7 +360,7 @@ TEST(THazardPtrTest, SupportFork)
         EXPECT_STREQ("AC!DF", output.Str().c_str());
 
         // Do not test hazard pointer manager shutdown
-        // beacuse of broken (after fork) NYT::Shutdown.
+        // because of broken (after fork) NYT::Shutdown.
         ::_exit(0);
     } else {
         Sleep(TDuration::Seconds(1));

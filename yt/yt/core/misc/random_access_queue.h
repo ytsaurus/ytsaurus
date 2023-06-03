@@ -27,7 +27,7 @@ public:
     //! Returns first element in the queue.
     TEntry Pop();
 
-    //! Retruns element with specified key in the queue or null if none exists;
+    //! Returns element with specified key in the queue or null if none exists;
     std::optional<TEntry> Pop(const TKey& key);
 
     //! Accessor to access an element. New element is pushed to the back.

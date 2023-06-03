@@ -54,7 +54,7 @@ struct IPollable
     //! The result need not be stable (i.e. may vary across calls).
     virtual EPollablePriority GetPriority() const = 0;
 
-    //! Called by the poller when the appropriate event is trigged for the FD.
+    //! Called by the poller when the appropriate event is triggered for the FD.
     virtual void OnEvent(EPollControl control) = 0;
 
     //! Called by the poller when the pollable entity is unregistered.

@@ -43,7 +43,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto InifiniteRequestThrottlerConfig = New<TThroughputThrottlerConfig>();
+static const auto InfiniteRequestThrottlerConfig = New<TThroughputThrottlerConfig>();
 static const auto DefaultLoggingSuppressionFailedRequestThrottlerConfig = TThroughputThrottlerConfig::Create(1'000);
 
 constexpr TDuration ServiceLivenessCheckPeriod = TDuration::MilliSeconds(100);
@@ -1169,10 +1169,10 @@ private:
 
 TRequestQueue::TRequestQueue(TString name, NProfiling::TProfiler profiler)
     : Name_(std::move(name))
-    , BytesThrottler_{CreateReconfigurableThroughputThrottler(InifiniteRequestThrottlerConfig,
+    , BytesThrottler_{CreateReconfigurableThroughputThrottler(InfiniteRequestThrottlerConfig,
         NLogging::TLogger(),
         profiler.WithPrefix("/bytes_throttler"))}
-    , WeightThrottler_{CreateReconfigurableThroughputThrottler(InifiniteRequestThrottlerConfig,
+    , WeightThrottler_{CreateReconfigurableThroughputThrottler(InfiniteRequestThrottlerConfig,
         NLogging::TLogger(),
         profiler.WithPrefix("/weight_throttler"))}
 { }

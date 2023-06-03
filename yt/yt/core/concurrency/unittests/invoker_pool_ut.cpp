@@ -148,7 +148,7 @@ TEST_F(TTransformInvokerPoolTest, OutputPoolOutlivesInputPool)
     auto inputInvokerPool = CreateDummyInvokerPool(Queue_->GetInvoker(), InvokerCount);
     auto mockInvokerPool = TransformInvokerPool(inputInvokerPool, CreateMockInvoker);
 
-    // Bound invokers and invoker pool so destruction of the pool breaks invokers functionallity.
+    // Bound invokers and invoker pool so destruction of the pool breaks invokers functionality.
     for (int i = 0; i < InvokerCount; ++i) {
         mockInvokerPool->GetInvoker(i)->Bound(mockInvokerPool);
     }

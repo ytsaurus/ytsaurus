@@ -57,7 +57,7 @@ public:
                 break;
         }
 
-        T result = ConstructYTreeConvertableObject<T>();
+        T result = ConstructYTreeConvertibleObject<T>();
         Deserialize(result, TreeBuilder_->EndTree());
         return result;
     }

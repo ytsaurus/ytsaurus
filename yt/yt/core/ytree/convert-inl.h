@@ -150,7 +150,7 @@ IAttributeDictionaryPtr ConvertToAttributes(const T& value)
 template <class TTo>
 TTo ConvertTo(const INodePtr& node)
 {
-    auto result = ConstructYTreeConvertableObject<TTo>();
+    auto result = ConstructYTreeConvertibleObject<TTo>();
     Deserialize(result, node);
     return result;
 }
@@ -169,7 +169,7 @@ TTo ConvertTo(const TFrom& value)
         TMemoryInput input(value.AsStringBuf());
         NYson::TYsonPullParser parser(&input, type);
         NYson::TYsonPullParserCursor cursor(&parser);
-        TTo result = ConstructYTreeConvertableObject<TTo>();
+        TTo result = ConstructYTreeConvertibleObject<TTo>();
 
         Deserialize(result, &cursor);
         if (!cursor->IsEndOfStream()) {
@@ -218,7 +218,7 @@ IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(ui8)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-T ConstructYTreeConvertableObject()
+T ConstructYTreeConvertibleObject()
 {
     if constexpr (std::is_constructible_v<T>) {
         return T();

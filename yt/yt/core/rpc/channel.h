@@ -56,7 +56,7 @@ struct IClientRequestControl
 {
     //! Cancels the request.
     /*!
-     *  An implementation is free to ignore cancelations.
+     *  An implementation is free to ignore cancellations.
      */
     virtual void Cancel() = 0;
 

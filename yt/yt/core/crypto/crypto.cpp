@@ -30,7 +30,7 @@ TMD5Hash MD5FromString(TStringBuf data)
 
 static_assert(
     sizeof(MD5_CTX) == sizeof(TMD5Hasher),
-    "TMD5Hasher size must be exaclty equal to that of MD5_CTX");
+    "TMD5Hasher size must be exactly equal to that of MD5_CTX");
 
 TMD5Hasher::TMD5Hasher()
 {
@@ -119,7 +119,7 @@ TSha1Hash Sha1FromString(TStringBuf data)
 
 static_assert(
     sizeof(SHA_CTX) == sizeof(TSha1Hasher),
-    "TSha1Hasher size must be exaclty equal to that of SHA1_CTX");
+    "TSha1Hasher size must be exactly equal to that of SHA1_CTX");
 
 TSha1Hasher::TSha1Hasher()
 {

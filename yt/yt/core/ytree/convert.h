@@ -48,7 +48,7 @@ template <class TTo, class TFrom>
 TTo ConvertTo(const TFrom& value);
 
 template <class T>
-T ConstructYTreeConvertableObject();
+T ConstructYTreeConvertibleObject();
 
 ////////////////////////////////////////////////////////////////////////////////
 

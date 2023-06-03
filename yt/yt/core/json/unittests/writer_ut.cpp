@@ -312,7 +312,7 @@ TEST(TJsonConsumerTest, IncorrectUtfWithoutEscaping)
     );
 }
 
-TEST(TJsonConsumerTest, StringStartingWithSpecailSymbol)
+TEST(TJsonConsumerTest, StringStartingWithSpecialSymbol)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);

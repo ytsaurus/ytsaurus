@@ -31,7 +31,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A helper base which makes callbacks track their invokation time and profile their wait time.
+//! A helper base which makes callbacks track their invocation time and profile their wait time.
 class TProfileWrapper
 {
 public:

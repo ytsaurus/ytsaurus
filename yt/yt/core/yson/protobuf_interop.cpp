@@ -1067,7 +1067,7 @@ private:
         FieldStack_.push_back(FieldStack_.back());
         FieldStack_.back().ParsingList = true;
         YPathStack_.Push(index);
-        TryWriteCustomlyConvertableType();
+        TryWriteCustomlyConvertibleType();
     }
 
     void OnMyEndList() override
@@ -1183,7 +1183,7 @@ private:
         const auto* valueField = field->GetYsonMapValueField();
         FieldStack_.emplace_back(valueField);
         YPathStack_.Push(TString(key));
-        TryWriteCustomlyConvertableType();
+        TryWriteCustomlyConvertibleType();
     }
 
     void OnMyKeyedItemRegular(TStringBuf key)
@@ -1258,7 +1258,7 @@ private:
                 });
             });
         } else {
-            TryWriteCustomlyConvertableType();
+            TryWriteCustomlyConvertibleType();
         }
     }
 
@@ -1680,7 +1680,7 @@ private:
         return result;
     }
 
-    void TryWriteCustomlyConvertableType()
+    void TryWriteCustomlyConvertibleType()
     {
         if (FieldStack_.empty()) {
             return;

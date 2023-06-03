@@ -445,11 +445,11 @@ IReconfigurableThroughputThrottlerPtr CreateNamedReconfigurableThroughputThrottl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnlimitedThroughtputThrottler
+class TUnlimitedThroughputThrottler
     : public IThroughputThrottler
 {
 public:
-    explicit TUnlimitedThroughtputThrottler(
+    explicit TUnlimitedThroughputThrottler(
         const NProfiling::TProfiler& profiler = {})
         : ValueCounter_(profiler.Counter("/value"))
     { }
@@ -513,7 +513,7 @@ private:
 
 IThroughputThrottlerPtr GetUnlimitedThrottler()
 {
-    return LeakyRefCountedSingleton<TUnlimitedThroughtputThrottler>();
+    return LeakyRefCountedSingleton<TUnlimitedThroughputThrottler>();
 }
 
 IThroughputThrottlerPtr CreateNamedUnlimitedThroughputThrottler(
@@ -521,16 +521,16 @@ IThroughputThrottlerPtr CreateNamedUnlimitedThroughputThrottler(
     NProfiling::TProfiler profiler)
 {
     profiler = profiler.WithPrefix("/" + CamelCaseToUnderscoreCase(name));
-    return New<TUnlimitedThroughtputThrottler>(profiler);
+    return New<TUnlimitedThroughputThrottler>(profiler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCombinedThroughtputThrottler
+class TCombinedThroughputThrottler
     : public IThroughputThrottler
 {
 public:
-    explicit TCombinedThroughtputThrottler(const std::vector<IThroughputThrottlerPtr>& throttlers)
+    explicit TCombinedThroughputThrottler(const std::vector<IThroughputThrottlerPtr>& throttlers)
         : Throttlers_(throttlers)
     { }
 
@@ -615,7 +615,7 @@ private:
 IThroughputThrottlerPtr CreateCombinedThrottler(
     const std::vector<IThroughputThrottlerPtr>& throttlers)
 {
-    return New<TCombinedThroughtputThrottler>(throttlers);
+    return New<TCombinedThroughputThrottler>(throttlers);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -832,7 +832,7 @@ private:
         i64 Amount;
 
         //! The promise created for the incoming request.
-        //! It will be fullfiled when the Underlying_ will yield enough
+        //! It will be fulfilled when the Underlying_ will yield enough
         //! to satisfy the Amount fields of all the requests upto this one in the IncomingRequests_ queue.
         TPromise<void> Promise;
 
@@ -1045,7 +1045,7 @@ private:
     //! the incoming requests waiting in the queue.
     void SatisfyIncomingRequests(i64 available)
     {
-        std::vector<TIncomingRequest> fullfilled;
+        std::vector<TIncomingRequest> fulfilled;
 
         {
             auto guard = Guard(Lock_);
@@ -1062,14 +1062,14 @@ private:
                 auto& request = IncomingRequests_.front();
                 available -= request.Amount;
                 Balance_ += request.Amount;
-                fullfilled.emplace_back(std::move(request));
+                fulfilled.emplace_back(std::move(request));
                 IncomingRequests_.pop_front();
             }
 
             Available_ = available;
         }
 
-        for (auto& request : fullfilled) {
+        for (auto& request : fulfilled) {
             // The recursive call to #Throttle from #StockUp creates
             // a recursive call to #SatisfyIncomingRequests when the corresponding #promise is set.
             // So that #promise should be set without holding the #Lock_.
@@ -1084,7 +1084,7 @@ private:
     //! Drops all incoming requests propagating an #error received from the underlying throttler.
     void DropAllIncomingRequests(i64 available, const TError& error)
     {
-        std::vector<TIncomingRequest> fullfilled;
+        std::vector<TIncomingRequest> fulfilled;
 
         {
             auto guard = Guard(Lock_);
@@ -1095,12 +1095,12 @@ private:
             while (!IncomingRequests_.empty()) {
                 auto& request = IncomingRequests_.front();
                 Balance_ += request.Amount;
-                fullfilled.emplace_back(std::move(request));
+                fulfilled.emplace_back(std::move(request));
                 IncomingRequests_.pop_front();
             }
         }
 
-        for (auto& request : fullfilled) {
+        for (auto& request : fulfilled) {
             request.Promise.Set(error);
             YT_LOG_DEBUG("Dropped the incoming request (Id: %v, Amount: %v)",
                 request.Id,

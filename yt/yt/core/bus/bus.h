@@ -99,7 +99,7 @@ struct IBus
 
     //! Returns a future indicating the moment when the bus is actually ready to send messages.
     /*!
-     *  Some bus implementaions are not immediately ready upon creation. E.g. a client socket
+     *  Some bus implementations are not immediately ready upon creation. E.g. a client socket
      *  needs to perform a DNS resolve for its underlying address and establish a connection
      *  before messages can actually go through. #IBus::Send can still be invoked before
      *  these background activities are finished but for the sake of diagnostics it is sometimes

@@ -47,7 +47,7 @@ struct TShutdownOptions
  *  decreasing priority.
  *
  *  Safe to call multiple times. All calls after the first one are,
- *  howerver, no ops.
+ *  however, no ops.
  *
  *  This call happens automatically on program exit but on some legacy
  *  systems (e.g. Ubuntu 12) it may be sequenced too late (i.e. when the

@@ -946,7 +946,7 @@ private:
                 direction->StopBusyTimer();
             } else if (result.Value().Retry) {
                 // IO not completed. Retry if have pending backlog.
-                // If dont have pending backlog, just subscribe for futher notifications.
+                // If dont have pending backlog, just subscribe for further notifications.
                 if (direction->Pending) {
                     needRetry = true;
                 } else {

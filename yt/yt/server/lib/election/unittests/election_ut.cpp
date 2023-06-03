@@ -186,8 +186,8 @@ TEST_F(TElectionTest, JoinActiveQuorumNoResponseThenResponse)
 
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
-            .WillOnce(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], { }))
-            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
+            .WillOnce(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [=], { }))
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
                 response->set_state(ToProto<int>(id == 2 ? EPeerState::Leading : EPeerState::Following));
                 response->set_vote_id(2);
                 ToProto(response->mutable_vote_epoch_id(), TEpochId());
@@ -215,7 +215,7 @@ TEST_F(TElectionTest, BecomeLeaderOneHealthyFollower)
 
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
-            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
                 auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
                 TElectionServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(RpcTimeout);
@@ -233,12 +233,12 @@ TEST_F(TElectionTest, BecomeLeaderOneHealthyFollower)
             }));
         if (id == 1) {
             EXPECT_RPC_CALL(*PeerMocks[id], PingFollower)
-                .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, PingFollower, [=], {
+                .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, PingFollower, [=], {
                     context->Reply();
                 }));
         } else {
             EXPECT_RPC_CALL(*PeerMocks[id], PingFollower)
-                .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, PingFollower, [], {
+                .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, PingFollower, [], {
                     // Do not reply.
                 }));
         }
@@ -262,7 +262,7 @@ TEST_F(TElectionTest, BecomeLeaderTwoHealthyFollowers)
 
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
-            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
                 auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
                 TElectionServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(RpcTimeout);
@@ -279,7 +279,7 @@ TEST_F(TElectionTest, BecomeLeaderTwoHealthyFollowers)
                 context->Reply();
             }));
         EXPECT_RPC_CALL(*PeerMocks[id], PingFollower)
-            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, PingFollower, [=], {
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, PingFollower, [=], {
                 context->Reply();
             }));
     }
@@ -303,7 +303,7 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
     int startLeadingCounter = 0;
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
-            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
                 auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
                 TElectionServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(RpcTimeout);
@@ -320,7 +320,7 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
                 context->Reply();
             }));
         EXPECT_RPC_CALL(*PeerMocks[id], PingFollower)
-            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, PingFollower, [=], {
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, PingFollower, [=], {
                 if (startLeadingCounter > 1) {
                     context->Reply();
                 }
@@ -356,7 +356,7 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
 
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
-            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
                 auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
                 TElectionServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(RpcTimeout);
@@ -373,7 +373,7 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
                 context->Reply();
             }));
         EXPECT_RPC_CALL(*PeerMocks[id], PingFollower)
-            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, PingFollower, [], {
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, PingFollower, [], {
                 THROW_ERROR_EXCEPTION(NElection::EErrorCode::InvalidLeader, "Dummy error");
             }));
     }
@@ -444,7 +444,7 @@ TEST_P(TElectionGenericTest, Basic)
 
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
-            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
                 const auto& status = data.Statuses[id - 1];
                 if (status) {
                     response->set_state(ToProto<int>(status->State));
@@ -532,7 +532,7 @@ TEST_P(TElectionDelayedTest, JoinActiveQuorum)
 
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
-            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
                 TDelayedExecutor::Submit(BIND([=] () {
                     response->set_state(ToProto<int>(id == 2 ? EPeerState::Leading : EPeerState::Following));
                     response->set_vote_id(2);

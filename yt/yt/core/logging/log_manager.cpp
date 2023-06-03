@@ -261,9 +261,9 @@ public:
         Reconfigure(TDuration::Zero());
     }
 
-    explicit TExpiringSet(TDuration livetime)
+    explicit TExpiringSet(TDuration lifetime)
     {
-        Reconfigure(livetime);
+        Reconfigure(lifetime);
     }
 
     void Update(std::vector<TElement> elements)
@@ -277,9 +277,9 @@ public:
         return Set_.contains(element);
     }
 
-    void Reconfigure(TDuration livetime)
+    void Reconfigure(TDuration lifetime)
     {
-        Livetime_ = DurationToCpuDuration(livetime);
+        Lifetime_ = DurationToCpuDuration(lifetime);
     }
 
     void Clear()
@@ -301,7 +301,7 @@ private:
         }
     };
 
-    TCpuDuration Livetime_;
+    TCpuDuration Lifetime_;
     THashSet<TElement> Set_;
     std::priority_queue<TPack> ExpirationQueue_;
 
@@ -312,7 +312,7 @@ private:
             Set_.insert(element);
         }
 
-        ExpirationQueue_.push(TPack{std::move(elements), GetCpuInstant() + Livetime_});
+        ExpirationQueue_.push(TPack{std::move(elements), GetCpuInstant() + Lifetime_});
     }
 
     void RemoveExpired()
@@ -1202,7 +1202,7 @@ private:
         }
 
         if (!heap.empty()) {
-            // NB: Messages are not totally ordered beacause of race around high/low watermark check.
+            // NB: Messages are not totally ordered because of race around high/low watermark check.
 
             MakeHeap(heap.begin(), heap.end());
             ExtractHeap(heap.begin(), heap.end());
@@ -1460,7 +1460,7 @@ static thread_local TLocalQueueReclaimer LocalQueueReclaimer;
 TLogManager::TLogManager()
     : Impl_(New<TImpl>())
 {
-    // NB: TLogManager is instanciated before main. We can't rely on global variables here.
+    // NB: TLogManager is instantiated before main. We can't rely on global variables here.
     TProfiler{""}.AddProducer("/logging", Impl_);
 }
 

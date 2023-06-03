@@ -98,7 +98,7 @@ DEFINE_REFCOUNTED_TYPE(IDiagnosableInvokerPool)
 
 namespace NDetail {
 
-//! Helper is provided for step-by-step infering of the TOutputInvoker given template arguments.
+//! Helper is provided for step-by-step inferring of the TOutputInvoker given template arguments.
 template <class TInvokerFunctor, class TInputInvoker>
 struct TTransformInvokerPoolHelper
 {

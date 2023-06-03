@@ -169,7 +169,7 @@ template <class T>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define HANLDE_RPC_CALL(mockType, method, capture, body) \
+#define HANDLE_RPC_CALL(mockType, method, capture, body) \
     ::testing::Invoke(PP_DEPAREN(capture) ( \
         [[maybe_unused]] mockType::TReq##method* request, \
         [[maybe_unused]] mockType::TRsp##method* response, \

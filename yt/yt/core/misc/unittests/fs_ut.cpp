@@ -32,7 +32,7 @@ TEST(TFSTest, TestGetDirectoryName)
     EXPECT_EQ(GetDirectoryName("/a"), NormalizePathSeparators("/"));
 }
 
-TEST(TFSTest, TestIsDirEmtpy)
+TEST(TFSTest, TestIsDirEmpty)
 {
     auto cwd = NFs::CurrentWorkingDirectory();
     auto dir = CombinePaths(cwd, "test");

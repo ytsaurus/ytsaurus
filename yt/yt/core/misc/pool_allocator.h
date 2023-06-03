@@ -13,7 +13,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Allocates blocks of given fixed size with given alignment.
-//! The underyling memory is acquired in chunks of fixed size.
+//! The underlying memory is acquired in chunks of fixed size.
 /*!
  *  \note
  *  Thread affinity: single-threaded.

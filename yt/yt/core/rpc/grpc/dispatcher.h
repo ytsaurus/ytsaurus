@@ -35,7 +35,7 @@ public:
     [[nodiscard]] bool IsConfigured() const noexcept;
 
     TGrpcLibraryLockPtr GetLibraryLock();
-    TGuardedGrpcCompletitionQueuePtr* PickRandomGuardedCompletionQueue();
+    TGuardedGrpcCompletionQueuePtr* PickRandomGuardedCompletionQueue();
 
 private:
     DECLARE_LEAKY_SINGLETON_FRIEND()

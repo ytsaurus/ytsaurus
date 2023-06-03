@@ -259,8 +259,8 @@ private:
                 Options_.Timeout);
 
             {
-                auto completitionQueueGuard = GuardedCompletionQueue_->TryLock();
-                if (!completitionQueueGuard) {
+                auto completionQueueGuard = GuardedCompletionQueue_->TryLock();
+                if (!completionQueueGuard) {
                     NotifyError("Failed to initialize request call", TError{"Completion queue is shut down"});
                     return;
                 }
@@ -270,7 +270,7 @@ private:
                     Owner_->Channel_.Unwrap(),
                     nullptr,
                     0,
-                    completitionQueueGuard->Unwrap(),
+                    completionQueueGuard->Unwrap(),
                     methodSlice,
                     nullptr,
                     GetDeadline(),
@@ -439,7 +439,7 @@ private:
 
         // Completion queue must be accessed under read lock
         // in order to prohibit creating new requests after shutting completion queue down.
-        TGuardedGrpcCompletitionQueuePtr* GuardedCompletionQueue_;
+        TGuardedGrpcCompletionQueuePtr* GuardedCompletionQueue_;
         const NLogging::TLogger& Logger;
 
         NYT::NTracing::TTraceContextHandler TraceContext_;
@@ -635,8 +635,8 @@ private:
         bool TryStartBatch(const TOps& ops)
         {
 
-            auto completitionQueueGuard = GuardedCompletionQueue_->TryLock();
-            if (!completitionQueueGuard) {
+            auto completionQueueGuard = GuardedCompletionQueue_->TryLock();
+            if (!completionQueueGuard) {
                 NotifyError("Failed to enqueue request operations batch", TError{"Completion queue is shut down"});
                 return false;
             }

@@ -472,11 +472,11 @@ std::optional<TString> ParseIssuerFromX509(TStringBuf x509String)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGuardedGrpcCompletitionQueuePtr::TGuardedGrpcCompletitionQueuePtr(TGrpcCompletionQueuePtr completionQueuePtr)
+TGuardedGrpcCompletionQueuePtr::TGuardedGrpcCompletionQueuePtr(TGrpcCompletionQueuePtr completionQueuePtr)
     : CompletionQueuePtr_(std::move(completionQueuePtr))
 { }
 
-std::optional<TGuardedGrpcCompletitionQueuePtr::TLockGuard<NConcurrency::TAsyncLockReaderTraits>> TGuardedGrpcCompletitionQueuePtr::TryLock()
+std::optional<TGuardedGrpcCompletionQueuePtr::TLockGuard<NConcurrency::TAsyncLockReaderTraits>> TGuardedGrpcCompletionQueuePtr::TryLock()
 {
     auto guard = TLockGuard<NConcurrency::TAsyncLockReaderTraits>(*this);
     if (State_ != EState::Opened) {
@@ -485,7 +485,7 @@ std::optional<TGuardedGrpcCompletitionQueuePtr::TLockGuard<NConcurrency::TAsyncL
     return std::optional{std::move(guard)};
 }
 
-void TGuardedGrpcCompletitionQueuePtr::Shutdown()
+void TGuardedGrpcCompletionQueuePtr::Shutdown()
 {
     auto guard = TLockGuard<NConcurrency::TAsyncLockWriterTraits>(*this);
     if (State_ == EState::Shutdown) {
@@ -495,14 +495,14 @@ void TGuardedGrpcCompletitionQueuePtr::Shutdown()
     grpc_completion_queue_shutdown(CompletionQueuePtr_.Unwrap());
 }
 
-void TGuardedGrpcCompletitionQueuePtr::Reset()
+void TGuardedGrpcCompletionQueuePtr::Reset()
 {
     auto guard = TLockGuard<NConcurrency::TAsyncLockWriterTraits>(*this);
     YT_VERIFY(State_ == EState::Shutdown);
     CompletionQueuePtr_.Reset();
 }
 
-grpc_completion_queue* TGuardedGrpcCompletitionQueuePtr::UnwrapUnsafe()
+grpc_completion_queue* TGuardedGrpcCompletionQueuePtr::UnwrapUnsafe()
 {
     return CompletionQueuePtr_.Unwrap();
 }

@@ -231,7 +231,7 @@ private:
             while (true) {
                 auto cookie = EventCount_->PrepareWait();
                 // Reset notificagtion flag before processing queues but after prepare wait.
-                // Otherwise notifies occured after processing queues and before wait
+                // Otherwise notifies occurred after processing queues and before wait
                 // can be lost. No new notifies can happen if notify flag is true before
                 // prepare wait.
                 NotificationScheduled_.store(false);

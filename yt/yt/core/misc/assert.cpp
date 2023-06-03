@@ -24,7 +24,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_WEAK void MaybeThrowSafeAssertionException(const char* /*message*/, int /*lenght*/)
+Y_WEAK void MaybeThrowSafeAssertionException(const char* /*message*/, int /*length*/)
 {
     // A default implementation has no means of safety.
     // Actual implementation lives in yt/yt/library/safe_assert.

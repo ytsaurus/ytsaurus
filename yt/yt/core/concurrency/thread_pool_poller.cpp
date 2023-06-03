@@ -371,7 +371,7 @@ private:
         // Hold this strongly.
         auto this_ = MakeStrong(this);
 
-        std::vector<IPollablePtr> unregiterItems;
+        std::vector<IPollablePtr> unregisterItems;
 
         try {
             YT_LOG_DEBUG("Thread started (Name: %v)",
@@ -384,7 +384,7 @@ private:
                 // thus we try to remove item that has not been inserted in Pollables.
                 // Newely enqueued items in Unregister and Register queues will be processed at the next iteration.
                 UnregisterQueue_.DequeueAll(false, [&] (const auto& pollable) {
-                    unregiterItems.push_back(std::move(pollable));
+                    unregisterItems.push_back(std::move(pollable));
                 });
 
                 RegisterQueue_.DequeueAll(false, [&] (auto& pollable) {
@@ -393,11 +393,11 @@ private:
 
                 HandleEvents();
 
-                for (const auto& pollable : unregiterItems) {
+                for (const auto& pollable : unregisterItems) {
                     EraseOrCrash(Pollables_, pollable);
                 }
 
-                unregiterItems.clear();
+                unregisterItems.clear();
             }
 
             YT_LOG_DEBUG("Thread stopped (Name: %v)",

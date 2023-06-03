@@ -899,7 +899,7 @@ void SafeMakeNonblocking(int fd)
 bool TrySetUid(int uid)
 {
 #ifdef _linux_
-    // NB(psushin): setting real uid is really important, e.g. for acceess() call.
+    // NB(psushin): setting real uid is really important, e.g. for access() call.
     if (setresuid(uid, uid, uid) != 0) {
         return false;
     }

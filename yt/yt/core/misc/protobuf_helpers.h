@@ -165,7 +165,7 @@ struct TEnvelopeFixedHeader
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Serializes a protobuf message to pre-alocated TMutableRef.
+//! Serializes a protobuf message to pre-allocated TMutableRef.
 //! The caller is responsible for providing #ref of a suitable size.
 //! Fails on error.
 void SerializeProtoToRef(

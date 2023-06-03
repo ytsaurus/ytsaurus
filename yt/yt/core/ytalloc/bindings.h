@@ -9,7 +9,7 @@ namespace NYT::NYTAlloc {
 // Installs YTAlloc log handler that pushes event to YT logging infrastructure.
 void EnableYTLogging();
 
-// Enables peroidic push of YTAlloc statistics to YT profiling infrastructure.
+// Enables periodic push of YTAlloc statistics to YT profiling infrastructure.
 void EnableYTProfiling(const TYTProfilingConfigPtr& config = nullptr);
 
 // Installs backtrace provider that invokes libunwind.

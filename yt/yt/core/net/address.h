@@ -209,7 +209,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Class repesenting IPv6 address in MTN model.
+//! Class representing IPv6 address in MTN model.
 //! Refer to (https://wiki.yandex-team.ru/noc/newnetwork/hbf/projectid/)
 //! for model description.
 class TMtnAddress

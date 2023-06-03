@@ -232,7 +232,7 @@ public:
     TYsonStructParameter& Optional();
     // Set default value. It will be copied during instance initialization.
     TYsonStructParameter& Default(TValue defaultValue);
-    // Set empty value as default value. It will be created during instance intitialization.
+    // Set empty value as default value. It will be created during instance initialization.
     TYsonStructParameter& Default();
     // Register constructor for default value. It will be called during instance initialization.
     TYsonStructParameter& DefaultCtor(std::function<TValue()> defaultCtor);

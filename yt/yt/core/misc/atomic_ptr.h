@@ -36,7 +36,7 @@ public:
      *
      *  Returning a hazard pointer avoids contention on ref-counter in read-heavy scenarios.
      *  The user, however, must not keep this hazard pointer alive for longer
-     *  than needed. Currenly there are limits on the number of HPs that a thread
+     *  than needed. Currently there are limits on the number of HPs that a thread
      *  may concurrently maintain.
      */
     THazardPtr<T> AcquireHazard() const;

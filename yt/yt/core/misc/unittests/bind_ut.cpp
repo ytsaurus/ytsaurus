@@ -98,7 +98,7 @@ using TObjectWithExtrinsicRCConstPtr = TIntrusivePtr<const TObjectWithFullRC>;
 using TObjectWithExtrinsicRCWkPtr = TWeakPtr<TObjectWithFullRC>;
 using TObjectWithExtrinsicRCConstWkPtr = TWeakPtr<const TObjectWithFullRC>;
 
-// Below there is a serie of either reference-counted or not classes
+// Below there is a series of either reference-counted or not classes
 // with simple inheritance and both virtual and non-virtual methods.
 
 static const int SomeParentValue = 1;
@@ -366,7 +366,7 @@ TEST_F(TBindTest, CurryingRvalueResultOfBind)
 
     // If we implement BIND() such that the return value has auto_ptr-like
     // semantics, the second call here will fail because ownership of
-    // the internal BindState<> would have been transfered to a *temporary*
+    // the internal BindState<> would have been transferred to a *temporary*
     // constructon of a TCallback object on the first call.
     x = 0;
     cb();

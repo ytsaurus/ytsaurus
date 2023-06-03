@@ -31,7 +31,7 @@ struct IQuantizedExecutor
     /*!
      *  Quantum ends when either #timeout is reached or there are no more
      *  enqueued callbacks in underlying threads.
-     *  Quantum completion is implemented via suspention of underlying
+     *  Quantum completion is implemented via suspension of underlying
      *  suspendable action queue. Timeout corresponds to immediate suspension
      *  and extracted null callback from callback provider corresponds to
      *  non-immediate suspension. Cf. ISuspendableActionQueue::Suspend.

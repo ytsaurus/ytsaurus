@@ -1131,8 +1131,8 @@ TEST_W(TSchedulerTest, FutureUpdatedRaceInWaitFor_YT_18899)
         while (!enteredWaitingAction) {}
 
         BIND([&] {
-            // N.B. wating action is inside WairFor now, because:
-            //   - we know that waiting action had started exectution before this action was scheduled
+            // N.B. waiting action is inside WairFor now, because:
+            //   - we know that waiting action had started execution before this action was scheduled
             //   - this action is executed inside the same serialized invoker.
             promise.Set();
         })

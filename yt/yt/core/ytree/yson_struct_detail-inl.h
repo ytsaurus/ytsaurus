@@ -635,7 +635,7 @@ void TYsonStructParameter<TValue>::SafeLoad(
                 node,
                 options.Path,
                 options.MergeStrategy.value_or(MergeStrategy_),
-                /*recursivelyUnrecoginizedStrategy*/ std::nullopt);
+                /*recursivelyUnrecognizedStrategy*/ std::nullopt);
             validate();
         } catch (const std::exception ex) {
             FieldAccessor_->GetValue(self) = oldValue;
@@ -678,7 +678,7 @@ void TYsonStructParameter<TValue>::SafeLoad(
                 cursor,
                 options.Path,
                 options.MergeStrategy.value_or(MergeStrategy_),
-                /*recursivelyUnrecoginizedStrategy*/ std::nullopt);
+                /*recursivelyUnrecognizedStrategy*/ std::nullopt);
             validate();
         } catch (const std::exception ex) {
             FieldAccessor_->GetValue(self) = oldValue;

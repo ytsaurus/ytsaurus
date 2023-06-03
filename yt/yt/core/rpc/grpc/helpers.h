@@ -65,17 +65,17 @@ using TGrpcAuthContextPtr = TGrpcObjectPtr<grpc_auth_context, grpc_auth_context_
 
 //! Completion queue must be accessed under read lock
 //! in order to prohibit creating new requests after shutting completion queue down.
-class TGuardedGrpcCompletitionQueuePtr
+class TGuardedGrpcCompletionQueuePtr
 {
 public:
-    explicit TGuardedGrpcCompletitionQueuePtr(TGrpcCompletionQueuePtr completionQueuePtr);
+    explicit TGuardedGrpcCompletionQueuePtr(TGrpcCompletionQueuePtr completionQueuePtr);
 
     template <class TOperationTraits>
     class TLockGuard
         : public TNonCopyable
     {
     public:
-        explicit TLockGuard(TGuardedGrpcCompletitionQueuePtr& guardedCompletionQueue)
+        explicit TLockGuard(TGuardedGrpcCompletionQueuePtr& guardedCompletionQueue)
             : GuardedCompletionQueue_(guardedCompletionQueue)
         {
             Guard_ = WaitFor(NConcurrency::TAsyncReaderWriterLockGuard<TOperationTraits>::Acquire(&GuardedCompletionQueue_.Lock_))
@@ -105,7 +105,7 @@ public:
         }
 
     private:
-        TGuardedGrpcCompletitionQueuePtr& GuardedCompletionQueue_;
+        TGuardedGrpcCompletionQueuePtr& GuardedCompletionQueue_;
         TIntrusivePtr<NConcurrency::TAsyncReaderWriterLockGuard<TOperationTraits>> Guard_;
     };
 

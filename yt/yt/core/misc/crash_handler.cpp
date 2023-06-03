@@ -219,7 +219,7 @@ const char* GetSignalCodeName(int signo, int code)
         }
         case SIGBUS: switch (code) {
             XX(BUS_ADRALN, "Invalid address alignment.")
-            XX(BUS_ADRERR, "Non-existant physical address.")
+            XX(BUS_ADRERR, "Non-existent physical address.")
             XX(BUS_OBJERR, "Object specific hardware error.")
 #if 0
             XX(BUS_MCEERR_AR, "Hardware memory error: action required.")

@@ -338,7 +338,7 @@ TEST(TAsyncSlruCacheTest, UpdateWeight)
         // But now '0' should be moved to 'youngest' after Trim() call.
         // Second insert should delete '0' and insert '1' because it's newer.
         cookie = cache->BeginInsert(1);
-        // Cookie is not active becase we still hold value and it can be resurrected.
+        // Cookie is not active because we still hold value and it can be resurrected.
         EXPECT_FALSE(cookie.IsActive());
 
         // '0' is deleted, because it is too big.
