@@ -31,7 +31,6 @@ import stat
 import sys
 import tempfile
 import time
-import traceback
 import warnings
 import logging
 try:
@@ -194,30 +193,6 @@ def is_subdict(lhs, rhs):
         return True
     else:
         return lhs == rhs
-
-
-# TODO(ignat): replace with wait_no_assert
-def wait_assert(check_fn, *args, **kwargs):
-    last_exception = []
-    last_exc_info = []
-
-    def wrapper():
-        try:
-            check_fn(*args, **kwargs)
-        except AssertionError as e:
-            last_exception[:] = [e]
-            last_exc_info[:] = [sys.exc_info()]
-            print_debug("Assertion failed, retrying\n{}".format(e))
-            return False
-        return True
-
-    try:
-        wait(wrapper)
-    except WaitFailed:
-        if not last_exception:
-            raise
-        tb = "\n".join(traceback.format_tb(last_exc_info[0][2]))
-        raise AssertionError("waited assertion failed\n{}{}".format(tb, last_exception[0]))
 
 
 def wait_no_assert(predicate, verbose=False):

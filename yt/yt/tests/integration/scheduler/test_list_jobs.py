@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, CONTROLLER_AGENTS_SERVICE
 
 from yt_commands import (
-    authors, wait, retry, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
+    authors, wait, retry, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     get, create_tmpdir,
     create_pool, insert_rows, select_rows, lookup_rows, write_table, map, map_reduce, vanilla, run_test_vanilla,
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
@@ -570,29 +570,21 @@ class TestListJobsBase(YTEnvSetup):
     def test_list_jobs(self):
         op, job_ids = self._run_op_and_fill_job_ids()
 
-        wait_assert(
-            self._check_during_map,
-            op,
-            job_ids,
-        )
+        wait_no_assert(lambda: self._check_during_map(op, job_ids))
 
         release_breakpoint(breakpoint_name="mapper")
         job_ids["reduce"] = wait_breakpoint(breakpoint_name="reducer", job_count=1)
 
-        wait_assert(
-            self._check_during_reduce,
-            op,
-            job_ids,
-        )
+        wait_no_assert(lambda: self._check_during_reduce(op, job_ids))
 
         release_breakpoint(breakpoint_name="reducer")
         op.track()
 
-        wait_assert(self._check_after_finish, op, job_ids, operation_cleaned=False)
+        wait_no_assert(lambda: self._check_after_finish(op, job_ids, operation_cleaned=False))
 
         clean_operations()
 
-        wait_assert(self._check_after_finish, op, job_ids, operation_cleaned=True)
+        wait_no_assert(lambda: self._check_after_finish(op, job_ids, operation_cleaned=True))
 
 
 class TestListJobsStatisticsLz4(TestListJobsBase):
@@ -644,13 +636,12 @@ class TestListJobs(TestListJobsBase):
         release_breakpoint()
         op.track()
 
+        @wait_no_assert
         def any_has_spec():
             res = checked_list_jobs(
                 op.id,
             )
             assert any("has_spec" in job and job["has_spec"] for job in res["jobs"])
-
-        wait_assert(any_has_spec)
 
     @authors("ignat", "levysotsky")
     def test_aborted_jobs(self):

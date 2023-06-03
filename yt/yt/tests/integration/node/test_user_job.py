@@ -2,7 +2,8 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, is_asan_buil
 
 
 from yt_commands import (
-    authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    authors, print_debug, wait, wait_no_assert,
+    wait_breakpoint, release_breakpoint, with_breakpoint,
     events_on_fs, create,
     ls, get, set, remove, link, exists, create_network_project, create_tmpdir,
     create_user, make_ace, start_transaction, lock,
@@ -2102,7 +2103,7 @@ class TestUserJobMonitoring(YTEnvSetup):
         op = run_op(2)
 
         # No alerts here as limit per operation is 2.
-        @wait_assert
+        @wait_no_assert
         def no_alerts():
             assert len(ls(op.get_path() + "/@alerts")) == 0
             assert len(get_agent_alerts()) == 0
@@ -2113,7 +2114,7 @@ class TestUserJobMonitoring(YTEnvSetup):
         op = run_op(3)
 
         # Expect an alert here as limit per operation is 2.
-        @wait_assert
+        @wait_no_assert
         def op_alert():
             assert ls(op.get_path() + "/@alerts") == ["user_job_monitoring_limited"]
             assert len(get_agent_alerts()) == 0
@@ -2123,7 +2124,7 @@ class TestUserJobMonitoring(YTEnvSetup):
 
         ops = [run_op(2) for _ in range(3)]
 
-        @wait_assert  # noqa: F811
+        @wait_no_assert  # noqa: F811
         def no_alerts():  # noqa: F811
             for op in ops:
                 # Expect no alerts here as limit per agent is 7.
@@ -2133,7 +2134,7 @@ class TestUserJobMonitoring(YTEnvSetup):
         next_op = run_op(2)
 
         # Expect an alert here as limit per agent is 7.
-        @wait_assert
+        @wait_no_assert
         def agent_alert():
             assert ls(next_op.get_path() + "/@alerts") == ["user_job_monitoring_limited"]
             assert len(get_agent_alerts()) == 1
@@ -2147,7 +2148,7 @@ class TestUserJobMonitoring(YTEnvSetup):
             abort_job(job["id"])
         wait_breakpoint(breakpoint_name=next_op.breakpoint_name, job_count=2)
 
-        @wait_assert  # noqa: F811
+        @wait_no_assert  # noqa: F811
         def no_alerts():  # noqa: F811
             assert len(ls(op.get_path() + "/@alerts")) == 0
             assert len(get_agent_alerts()) == 0

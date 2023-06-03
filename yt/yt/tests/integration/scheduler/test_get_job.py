@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE, NODES
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    authors, wait, retry, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
+    authors, wait, retry, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     update_controller_agent_config,
     create_pool, insert_rows,
     lookup_rows, delete_rows, write_table, map, vanilla, run_test_vanilla, abort_job, get_job, sync_create_cells, raises_yt_error)
@@ -163,7 +163,7 @@ class _TestGetJobBase(YTEnvSetup):
             assert job_info.get("has_spec") == has_spec
 
         if has_spec is not None:
-            wait_assert(check_has_spec)
+            wait_no_assert(check_has_spec)
 
 
 class _TestGetJobCommon(_TestGetJobBase):
@@ -336,6 +336,7 @@ class TestGetJob(_TestGetJobCommon):
         del job_from_archive["job_id_partition_hash"]
         del job_from_archive["operation_id_hash"]
 
+        @wait_no_assert
         def _check_get_job():
             _update_job_in_archive(op.id, job_id, job_from_archive)
             job_info = retry(lambda: get_job(op.id, job_id))
@@ -346,7 +347,6 @@ class TestGetJob(_TestGetJobCommon):
                 assert job_info["is_stale"]
             else:
                 assert controller_state == "aborted"
-        wait_assert(_check_get_job)
 
         _delete_job_from_archive(op.id, job_id)
 
