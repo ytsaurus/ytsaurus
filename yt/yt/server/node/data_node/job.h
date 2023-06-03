@@ -30,7 +30,6 @@ struct TMasterJobSensors
 
 class TMasterJobBase
     : public NJobAgent::TResourceHolder
-    , public TRefCounted
 {
 public:
     DEFINE_SIGNAL(void(const NClusterNode::TJobResources& resourcesDelta), ResourcesUpdated);
@@ -43,13 +42,12 @@ public:
         const NJobTrackerClient::NProto::TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const NClusterNode::TJobResources& resourceLimits,
+        const NClusterNode::TJobResourceAttributes& resourceAttributes,
         IBootstrap* bootstrap);
 
     void Start();
 
     bool IsStarted() const noexcept;
-
-    TResourceHolder* AsResourceHolder() noexcept;
 
     void Abort(const TError& error);
 
@@ -122,6 +120,7 @@ TMasterJobBasePtr CreateJob(
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
     TString jobTrackerAddress,
     const NClusterNode::TJobResources& resourceLimits,
+    const NClusterNode::TJobResourceAttributes& resourceAttributes,
     IBootstrap* bootstrap,
     const TMasterJobSensors& sensors);
 

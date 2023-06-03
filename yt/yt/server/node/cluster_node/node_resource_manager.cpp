@@ -30,11 +30,11 @@
 namespace NYT::NClusterNode {
 
 using namespace NConcurrency;
+using namespace NNodeTrackerClient;
+using namespace NNodeTrackerClient::NProto;
 using namespace NProfiling;
 using namespace NYson;
 using namespace NYTree;
-using namespace NNodeTrackerClient;
-using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

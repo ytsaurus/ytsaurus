@@ -11,6 +11,7 @@
 #include <yt/yt/server/node/exec_node/job_controller.h>
 #include <yt/yt/server/node/exec_node/chunk_cache.h>
 #include <yt/yt/server/node/exec_node/gpu_manager.h>
+#include <yt/yt/server/node/exec_node/slot.h>
 #include <yt/yt/server/node/exec_node/slot_manager.h>
 
 #include <yt/yt/server/lib/job_agent/config.h>
@@ -51,11 +52,15 @@ public:
         IJobResourceManager::TImpl* jobResourceManagerImpl,
         TMemoryUsageTrackerGuard&& userMemoryGuard,
         TMemoryUsageTrackerGuard&& systemMemoryGuard,
+        ISlotPtr&& userSlot,
+        std::vector<ISlotPtr>&& gpuSlots,
         std::vector<int> ports) noexcept;
     ~TAcquiredResources();
 
     TMemoryUsageTrackerGuard UserMemoryGuard;
     TMemoryUsageTrackerGuard SystemMemoryGuard;
+    ISlotPtr UserSlot;
+    std::vector<ISlotPtr> GpuSlots;
     std::vector<int> Ports;
 
 private:
@@ -187,27 +192,8 @@ public:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         TJobResources result;
-
-        // If chunk cache is disabled, we disable all scheduler jobs.
-        bool chunkCacheEnabled = false;
-        if (Bootstrap_->IsExecNode()) {
-            const auto& chunkCache = Bootstrap_->GetExecNodeBootstrap()->GetChunkCache();
-            chunkCacheEnabled = chunkCache->IsEnabled();
-
-            const auto& execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
-            auto slotManager = execNodeBootstrap->GetSlotManager();
-            result.UserSlots =
-                chunkCacheEnabled &&
-                !execNodeBootstrap->GetJobController()->AreSchedulerJobsDisabled() &&
-                !Bootstrap_->IsReadOnly() &&
-                slotManager->IsEnabled()
-                ? slotManager->GetSlotCount()
-                : 0;
-        } else {
-            result.UserSlots = 0;
-        }
-
         auto resourceLimitsOverrides = ResourceLimitsOverrides_.Load();
+
         #define XX(name, Name) \
             result.Name = (resourceLimitsOverrides.has_##name() \
                 ? resourceLimitsOverrides.name() \
@@ -216,10 +202,19 @@ public:
         #undef XX
 
         if (Bootstrap_->IsExecNode()) {
-            const auto& gpuManager = Bootstrap_->GetExecNodeBootstrap()->GetGpuManager();
-            result.Gpu = gpuManager->GetTotalGpuCount();
-        } else {
-            result.Gpu = 0;
+            const auto& execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
+            auto slotManager = execNodeBootstrap->GetSlotManager();
+            auto gpuManager = execNodeBootstrap->GetGpuManager();
+            result.UserSlots =
+                execNodeBootstrap->GetChunkCache()->IsEnabled() &&
+                !execNodeBootstrap->GetJobController()->AreSchedulerJobsDisabled() &&
+                !Bootstrap_->IsReadOnly() &&
+                slotManager->IsEnabled()
+                ? slotManager->GetSlotCount()
+                : 0;
+            result.Gpu = resourceLimitsOverrides.has_gpu()
+                ? std::min(gpuManager->GetTotalGpuCount(), resourceLimitsOverrides.gpu())
+                : gpuManager->GetTotalGpuCount();
         }
 
         // NB: Some categories can have no explicit limit.
@@ -252,26 +247,8 @@ public:
             result += WaitingResources_;
         }
 
-        if (Bootstrap_->IsExecNode()) {
-            const auto& slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
-            auto userSlotCount = slotManager->GetUsedSlotCount();
-
-            // TSlotManager::ReleaseSlot is async, so TSlotManager::GetUsedSlotCount() may be greater than ResourceUsage_.user_slots().
-            YT_LOG_FATAL_IF(
-                ResourceUsage_.UserSlots != userSlotCount,
-                "Unexpected user slot count (JobResourcesManagerValue: %v, SlotManagerValue: %v, SlotManagerEnabled: %v)",
-                ResourceUsage_.UserSlots,
-                userSlotCount,
-                slotManager->IsEnabled());
-
-            result.UserSlots = slotManager->IsEnabled() ? userSlotCount : 0;
-
-            const auto& gpuManager = Bootstrap_->GetExecNodeBootstrap()->GetGpuManager();
-            result.Gpu = gpuManager->GetUsedGpuCount();
-        } else {
-            result.UserSlots = 0;
-            result.Gpu = 0;
-        }
+        result.UserSlots = ResourceUsage_.UserSlots;
+        result.Gpu = ResourceUsage_.Gpu;
 
         result.VCpu = static_cast<double>(NVectorHdrf::TCpuResource(result.Cpu * GetCpuToVCpuFactor()));
 
@@ -355,7 +332,7 @@ public:
             FormatResources(WaitingResources_));
     }
 
-    void OnResourcesAcquired(const TLogger& Logger, const TJobResources& resources)
+    void OnResourcesReserved(const TLogger& Logger, const TJobResources& resources)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -463,11 +440,104 @@ public:
         return 1.0;
     }
 
-    bool AcquireResourcesFor(TResourceHolder* resourceHolder)
+    ISlotPtr AcquireUserSlot(
+        const TJobResources& neededResources,
+        const NClusterNode::TJobResourceAttributes& resourceAttributes)
+    {
+        YT_VERIFY(Bootstrap_->IsExecNode());
+
+        NScheduler::NProto::TDiskRequest diskRequest;
+        diskRequest.set_disk_space(neededResources.DiskSpaceRequest);
+        diskRequest.set_inode_count(neededResources.InodeRequest);
+
+        if (resourceAttributes.MediumIndex) {
+            diskRequest.set_medium_index(resourceAttributes.MediumIndex.value());
+        }
+
+        NScheduler::NProto::TCpuRequest cpuRequest;
+        cpuRequest.set_cpu(neededResources.Cpu);
+        cpuRequest.set_allow_cpu_idle_policy(resourceAttributes.AllowCpuIdlePolicy);
+
+        YT_LOG_INFO("Acquiring slot (DiskRequest: %v, CpuRequest: %v)",
+            diskRequest,
+            cpuRequest);
+
+        auto slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
+        auto userSlot = slotManager->AcquireSlot(diskRequest, cpuRequest);
+
+        YT_VERIFY(userSlot);
+
+        return userSlot;
+    }
+
+    std::vector<ISlotPtr> AcquireGpuSlots(const TJobResources& neededResources)
+    {
+        YT_VERIFY(Bootstrap_->IsExecNode());
+
+        int gpuCount = neededResources.Gpu;
+        YT_LOG_DEBUG("Acquiring GPU slots (Count: %v)", gpuCount);
+        auto acquireResult = Bootstrap_
+            ->GetExecNodeBootstrap()
+            ->GetGpuManager()
+            ->AcquireGpuSlots(gpuCount);
+
+        THROW_ERROR_EXCEPTION_IF(
+            !acquireResult.IsOK(),
+            TError("GPU slot acquisition failed (Count: %v)", gpuCount)
+                << acquireResult);
+
+        auto result = acquireResult.Value();
+
+        std::vector<ISlotPtr> slots;
+        std::vector<int> deviceNumbers;
+
+        slots.reserve(result.size());
+        deviceNumbers.reserve(result.size());
+
+        for (auto& slot : result) {
+            deviceNumbers.push_back(slot->GetDeviceNumber());
+            slots.push_back(std::move(slot));
+        }
+
+        YT_LOG_DEBUG("GPU slots acquired (DeviceNumbers: %v)", deviceNumbers);
+
+        return slots;
+    }
+
+    void OnResourcesAcquisitionFailed(
+        TResourceHolderPtr resourceHolder,
+        ISlotPtr&& userSlot,
+        std::vector<ISlotPtr>&& gpuSlots,
+        std::vector<int>&& ports,
+        TJobResources resources)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        const auto& Logger = resourceHolder->GetLogger();
+
+        userSlot.Reset();
+        gpuSlots.clear();
+        ReleasePorts(Logger, ports);
+
+        WaitingResources_ += resources;
+        ResourceUsage_ -= resources;
+
+        ++WaitingResourceHolderCount_;
+
+        YT_LOG_DEBUG("Resources acquiring failed (Resources: %v, ResourceUsage: %v, WaitingResources: %v)",
+            FormatResources(resources),
+            FormatResources(ResourceUsage_),
+            FormatResources(WaitingResources_));
+
+        NotifyResourcesReleased(resourceHolder->ResourcesConsumerType_, /*fullyReleased*/ true);
+    }
+
+    bool AcquireResourcesFor(TResourceHolderPtr resourceHolder)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         const auto& neededResources = resourceHolder->Resources_;
+        const auto& resourceAttributes = resourceHolder->ResourceAttributes_;
         auto portCount = resourceHolder->PortCount_;
 
         const auto& Logger = resourceHolder->GetLogger();
@@ -483,6 +553,15 @@ public:
                 FormatResources(neededResources),
                 FormatResourceUsage(resourceUsage, GetResourceLimits()));
             return false;
+        }
+
+        if (resourceAttributes.CudaToolkitVersion) {
+            YT_VERIFY(Bootstrap_->IsExecNode());
+
+            Bootstrap_
+                ->GetExecNodeBootstrap()
+                ->GetGpuManager()
+                ->VerifyCudaToolkitDriverVersion(resourceAttributes.CudaToolkitVersion.value());
         }
 
         i64 userMemory = neededResources.UserMemory;
@@ -544,13 +623,61 @@ public:
             YT_LOG_DEBUG("Ports allocated (PortCount: %v, Ports: %v)", ports.size(), ports);
         }
 
-        YT_LOG_DEBUG("Resources successfully allocated");
+        if (Bootstrap_->IsExecNode()) {
+            auto slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
+            auto slotManagerCount = slotManager->GetUsedSlotCount();
+            auto slotManagerLimit = slotManager->GetSlotCount();
+            auto jobResourceManagerCount = ResourceUsage_.UserSlots;
 
-        resourceHolder->AcquireResources({
+            YT_LOG_FATAL_IF(
+                slotManagerCount != jobResourceManagerCount,
+                "Used slot count in slot manager must be equal JobResourceManager count (SlotManager: %v/%v, JRM: %v)",
+                slotManagerCount,
+                slotManagerLimit,
+                jobResourceManagerCount);
+        }
+
+        OnResourcesReserved(resourceHolder->GetLogger(), neededResources);
+
+        ISlotPtr userSlot;
+        std::vector<ISlotPtr> gpuSlots;
+
+        try {
+            if (neededResources.UserSlots > 0) {
+                YT_VERIFY(Bootstrap_->IsExecNode());
+
+                userSlot = AcquireUserSlot(neededResources, resourceAttributes);
+            }
+
+            if (neededResources.Gpu > 0) {
+                YT_VERIFY(Bootstrap_->IsExecNode());
+
+                gpuSlots = AcquireGpuSlots(neededResources);
+            }
+        } catch (const std::exception& ex) {
+            BIND(&IJobResourceManager::TImpl::OnResourcesAcquisitionFailed,
+                MakeStrong(this),
+                Passed(std::move(resourceHolder)),
+                Passed(std::move(userSlot)),
+                Passed(std::move(gpuSlots)),
+                Passed(std::move(ports)),
+                resourceHolder->Resources_)
+                .AsyncVia(Bootstrap_->GetJobInvoker())
+                .Run();
+
+            // Provide job abort.
+            THROW_ERROR_EXCEPTION(ex);
+        }
+
+        resourceHolder->SetAcquiredResources({
             this,
             std::move(userMemoryGuard),
             std::move(systemMemoryGuard),
+            std::move(userSlot),
+            std::move(gpuSlots),
             std::move(ports)});
+
+        YT_LOG_DEBUG("Resources successfully allocated");
 
         return true;
     }
@@ -761,19 +888,17 @@ IJobResourceManager::TResourceAcquiringContext::~TResourceAcquiringContext()
     ResourceManagerImpl_->OnResourceAcquiringFinished();
 }
 
-bool IJobResourceManager::TResourceAcquiringContext::TryAcquireResourcesFor(TResourceHolder* resourceHolder) &
+bool IJobResourceManager::TResourceAcquiringContext::TryAcquireResourcesFor(const TResourceHolderPtr& resourceHolder) &
 {
-    if (!ResourceManagerImpl_->AcquireResourcesFor(resourceHolder)) {
-        return false;
-    }
-
     try {
-        resourceHolder->OnResourcesAcquired();
+        if (!ResourceManagerImpl_->AcquireResourcesFor(resourceHolder)) {
+            return false;
+        }
     } catch (const std::exception& ex) {
-        const auto& Logger = resourceHolder->GetLogger();
-        YT_LOG_FATAL(ex, "Failed to acquire resources");
+        THROW_ERROR_EXCEPTION(ex);
     }
 
+    resourceHolder->OnResourcesAcquired();
     return true;
 }
 
@@ -784,11 +909,13 @@ TResourceHolder::TResourceHolder(
     EResourcesConsumerType resourceConsumerType,
     TLogger logger,
     const TJobResources& resources,
+    const TJobResourceAttributes& resourceAttributes,
     int portCount)
     : Logger(std::move(logger))
     , ResourceManagerImpl_(static_cast<IJobResourceManager::TImpl*>(jobResourceManager))
     , PortCount_(portCount)
     , Resources_(resources)
+    , ResourceAttributes_(resourceAttributes)
     , ResourcesConsumerType_(resourceConsumerType)
 {
     ResourceManagerImpl_->OnResourceHolderCreated(Logger, Resources_);
@@ -806,7 +933,7 @@ TResourceHolder::~TResourceHolder()
     }
 }
 
-void TResourceHolder::AcquireResources(TAcquiredResources&& acquiredResources)
+void TResourceHolder::SetAcquiredResources(TAcquiredResources&& acquiredResources)
 {
     YT_VERIFY(State_ == EResourcesState::Waiting);
 
@@ -817,13 +944,41 @@ void TResourceHolder::AcquireResources(TAcquiredResources&& acquiredResources)
     acquiredResources.SystemMemoryGuard.ReleaseNoReclaim();
     acquiredResources.UserMemoryGuard.ReleaseNoReclaim();
 
-    ResourceManagerImpl_->OnResourcesAcquired(GetLogger(), Resources_);
+    UserSlot_ = std::move(acquiredResources.UserSlot);
+    GpuSlots_ = std::move(acquiredResources.GpuSlots);
+
     State_ = EResourcesState::Acquired;
+}
+
+void TResourceHolder::ReleaseCumulativeResources()
+{
+    auto usedSlotResources = ZeroJobResources();
+    usedSlotResources.UserSlots = Resources_.UserSlots;
+    usedSlotResources.Gpu = Resources_.Gpu;
+
+    SetResourceUsage(usedSlotResources);
 }
 
 void TResourceHolder::ReleaseResources()
 {
     YT_VERIFY(State_ != EResourcesState::Released);
+
+    YT_LOG_FATAL_IF(UserSlot_ && UserSlot_->GetRefCount() > 1,
+        "User slot leaked (RefCount: %v)",
+        UserSlot_->GetRefCount());
+
+    YT_LOG_FATAL_IF(UserSlot_ && Resources_.UserSlots != 1,
+        "User slot not matched with UserSlots (UserSlotExist: %v, UserSlots: %v)",
+        UserSlot_ != nullptr,
+        Resources_.UserSlots);
+
+    YT_LOG_FATAL_IF(std::ssize(GpuSlots_) > Resources_.Gpu,
+        "GPU slots not matched with Gpu");
+
+    YT_LOG_DEBUG("Reset resource holder slots");
+
+    UserSlot_.Reset();
+    GpuSlots_.clear();
 
     ResourceManagerImpl_->OnResourcesReleased(
         ResourcesConsumerType_,
@@ -857,6 +1012,11 @@ const TJobResources& TResourceHolder::GetResourceUsage() const noexcept
     return Resources_;
 }
 
+const TJobResourceAttributes& TResourceHolder::GetResourceAttributes() const noexcept
+{
+    return ResourceAttributes_;
+}
+
 const NLogging::TLogger& TResourceHolder::GetLogger() const noexcept
 {
     return Logger;
@@ -868,9 +1028,13 @@ TResourceHolder::TAcquiredResources::TAcquiredResources(
     IJobResourceManager::TImpl* jobResourceManagerImpl,
     TMemoryUsageTrackerGuard&& userMemoryGuard,
     TMemoryUsageTrackerGuard&& systemMemoryGuard,
+    ISlotPtr&& userSlot,
+    std::vector<ISlotPtr>&& gpuSlots,
     std::vector<int> ports) noexcept
     : UserMemoryGuard(std::move(userMemoryGuard))
     , SystemMemoryGuard(std::move(systemMemoryGuard))
+    , UserSlot(std::move(userSlot))
+    , GpuSlots(std::move(gpuSlots))
     , Ports(std::move(ports))
     , JobResourceManagerImpl_(jobResourceManagerImpl)
 { }

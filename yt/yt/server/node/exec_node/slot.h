@@ -35,8 +35,8 @@ struct TDiskStatistics
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISlot
-    : public virtual TRefCounted
+struct IUserSlot
+    : public NClusterNode::ISlot
 {
     //! Kill all possibly running processes and clean sandboxes.
     virtual void CleanProcesses() = 0;
@@ -120,11 +120,11 @@ struct ISlot
         TJobWorkspaceBuildSettings settings) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ISlot)
+DEFINE_REFCOUNTED_TYPE(IUserSlot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISlotPtr CreateSlot(
+IUserSlotPtr CreateSlot(
     TSlotManager* slotManager,
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,

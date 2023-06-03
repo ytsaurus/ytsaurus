@@ -76,7 +76,7 @@ protected:
         TResourceAcquiringContext(const TResourceAcquiringContext&) = delete;
         ~TResourceAcquiringContext();
 
-        bool TryAcquireResourcesFor(TResourceHolder* resourceHolder) &;
+        bool TryAcquireResourcesFor(const TResourceHolderPtr& resourceHolder) &;
 
     private:
         NConcurrency::TForbidContextSwitchGuard Guard_;
@@ -97,6 +97,7 @@ DEFINE_ENUM(EResourcesState,
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResourceHolder
+    : public TRefCounted
 {
 public:
     TResourceHolder(
@@ -104,6 +105,7 @@ public:
         EResourcesConsumerType resourceConsumerType,
         NLogging::TLogger logger,
         const NClusterNode::TJobResources& jobResources,
+        const NClusterNode::TJobResourceAttributes& resourceAttributes,
         int portCount);
 
     TResourceHolder(const TResourceHolder&) = delete;
@@ -117,12 +119,20 @@ public:
     //! Returns resource usage delta.
     NClusterNode::TJobResources SetResourceUsage(NClusterNode::TJobResources newResourceUsage);
 
+    void ReleaseCumulativeResources();
+
     const NClusterNode::TJobResources& GetResourceUsage() const noexcept;
+
+    const NClusterNode::TJobResourceAttributes& GetResourceAttributes() const noexcept;
 
     const NLogging::TLogger& GetLogger() const noexcept;
 
 protected:
     NLogging::TLogger Logger;
+
+    NClusterNode::ISlotPtr UserSlot_;
+
+    std::vector<NClusterNode::ISlotPtr> GpuSlots_;
 
 private:
     friend IJobResourceManager::TResourceAcquiringContext;
@@ -132,6 +142,7 @@ private:
 
     const int PortCount_;
     NClusterNode::TJobResources Resources_;
+    NClusterNode::TJobResourceAttributes ResourceAttributes_;
 
     std::vector<int> Ports_;
 
@@ -140,9 +151,11 @@ private:
     const EResourcesConsumerType ResourcesConsumerType_;
 
     class TAcquiredResources;
-    void AcquireResources(TAcquiredResources&& acquiredResources);
+    void SetAcquiredResources(TAcquiredResources&& acquiredResources);
     virtual void OnResourcesAcquired() = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(TResourceHolder)
 
 ////////////////////////////////////////////////////////////////////////////////
 

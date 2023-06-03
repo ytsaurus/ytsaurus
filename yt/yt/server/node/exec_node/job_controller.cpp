@@ -614,6 +614,52 @@ private:
         return AllSet(asyncResults).As<void>();
     }
 
+    NClusterNode::TJobResources BuildJobResources(
+        const TNodeResources& nodeResources,
+        const TSchedulerJobSpecExt* schedulerSpec)
+    {
+        auto resources = FromNodeResources(nodeResources);
+        auto userJobSpec = schedulerSpec && schedulerSpec->has_user_job_spec()
+            ? &schedulerSpec->user_job_spec()
+            : nullptr;
+
+        resources.DiskSpaceRequest = Bootstrap_->GetConfig()->ExecNode->MinRequiredDiskSpace;
+        if (userJobSpec) {
+            if (userJobSpec->has_disk_space_limit()) {
+                resources.DiskSpaceRequest = userJobSpec->disk_space_limit();
+            }
+
+            if (userJobSpec->has_disk_request()) {
+                resources.DiskSpaceRequest = userJobSpec->disk_request().disk_space();
+                resources.InodeRequest = userJobSpec->disk_request().inode_count();
+            }
+        }
+
+        return std::move(resources);
+    }
+
+    NClusterNode::TJobResourceAttributes BuildJobResourceAttributes(const TSchedulerJobSpecExt* schedulerSpec)
+    {
+        auto userJobSpec = schedulerSpec && schedulerSpec->has_user_job_spec()
+            ? &schedulerSpec->user_job_spec()
+            : nullptr;
+
+        TJobResourceAttributes resourceAttributes;
+        resourceAttributes.AllowCpuIdlePolicy = schedulerSpec->allow_cpu_idle_policy();
+
+        if (userJobSpec) {
+            if (userJobSpec->has_disk_request() && userJobSpec->disk_request().has_medium_index()) {
+                resourceAttributes.MediumIndex = userJobSpec->disk_request().medium_index();
+            }
+
+            if (userJobSpec->has_cuda_toolkit_version()) {
+                resourceAttributes.CudaToolkitVersion = userJobSpec->cuda_toolkit_version();
+            }
+        }
+
+        return resourceAttributes;
+    }
+
     void OnJobSpecsReceived(
         std::vector<TAllocationStartInfo> startInfoProtos,
         const TControllerAgentDescriptor& controllerAgentDescriptor,
@@ -661,11 +707,17 @@ private:
                 static_cast<double>(NVectorHdrf::TCpuResource(
                     startInfoProto.resource_limits().cpu() * JobResourceManager_->GetCpuToVCpuFactor())));
 
+            auto schedulerSpec = &jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+            auto resources = BuildJobResources(startInfoProto.resource_limits(), schedulerSpec);
+            auto resourceAttributes = BuildJobResourceAttributes(schedulerSpec);
+
             CreateJob(
                 // TODO(pogorelov): Send jobId with spec.
                 FromAllocationId(allocationId),
                 operationId,
-                FromNodeResources(startInfoProto.resource_limits()),
+                resources,
+                resourceAttributes,
                 std::move(jobSpec),
                 controllerAgentDescriptor);
         }
@@ -1610,10 +1662,15 @@ private:
             auto jobId = job->GetId();
             YT_LOG_DEBUG("Trying to start job (JobId: %v)", jobId);
 
-            if (!resourceAcquiringContext.TryAcquireResourcesFor(job->AsResourceHolder())) {
-                YT_LOG_DEBUG("Job was not started (JobId: %v)", jobId);
-            } else {
-                YT_LOG_DEBUG("Job started (JobId: %v)", jobId);
+            try {
+                if (!resourceAcquiringContext.TryAcquireResourcesFor(StaticPointerCast<TResourceHolder>(job))) {
+                    YT_LOG_DEBUG("Job was not started (JobId: %v)", jobId);
+                } else {
+                    YT_LOG_DEBUG("Job started (JobId: %v)", jobId);
+                }
+            } catch (const std::exception& ex) {
+                job->Abort(TError("Failed to acquire resources for job")
+                    << ex);
             }
         }
 
@@ -1624,6 +1681,7 @@ private:
         TJobId jobId,
         TOperationId operationId,
         const NClusterNode::TJobResources& resourceLimits,
+        const NClusterNode::TJobResourceAttributes& resourceAttributes,
         TJobSpec&& jobSpec,
         const TControllerAgentDescriptor& controllerAgentDescriptor)
     {
@@ -1649,6 +1707,7 @@ private:
             jobId,
             operationId,
             resourceLimits,
+            resourceAttributes,
             std::move(jobSpec),
             controllerAgentDescriptor,
             Bootstrap_->GetExecNodeBootstrap());
@@ -1997,7 +2056,7 @@ private:
 
     std::vector<TJobPtr> GetRunningJobsSortedByStartTime() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(JobThread);
 
         std::vector<TJobPtr> schedulerJobs;
         for (const auto& job : GetJobs()) {
@@ -2017,6 +2076,8 @@ private:
 
     void InterruptAllJobs(TError error)
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         for (const auto& job : GetJobs()) {
             YT_VERIFY(TypeFromId(job->GetId()) == EObjectType::SchedulerJob);
 

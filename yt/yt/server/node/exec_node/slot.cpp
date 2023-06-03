@@ -34,11 +34,11 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSlot
-    : public ISlot
+class TUserSlot
+    : public IUserSlot
 {
 public:
-    TSlot(
+    TUserSlot(
         TSlotManager* slotManager,
         TSlotLocationPtr location,
         IJobEnvironmentPtr environment,
@@ -335,7 +335,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISlotPtr CreateSlot(
+IUserSlotPtr CreateSlot(
     TSlotManager* slotManager,
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
@@ -346,7 +346,7 @@ ISlotPtr CreateSlot(
     NScheduler::NProto::TDiskRequest diskRequest,
     const std::optional<TNumaNodeInfo>& numaNodeAffinity)
 {
-    auto slot = New<TSlot>(
+    auto slot = New<TUserSlot>(
         slotManager,
         std::move(location),
         std::move(environment),

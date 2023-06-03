@@ -6,6 +6,8 @@
 #include <yt/yt/server/lib/job_agent/gpu_helpers.h>
 
 #include <yt/yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/node_resource_manager.h>
+
 #include <yt/yt/server/node/data_node/artifact.h>
 
 #include <yt/yt/client/hydra/public.h>
@@ -18,17 +20,24 @@ namespace NYT::NExecNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGpuSlot
+    : public NClusterNode::ISlot
 {
 public:
-    explicit TGpuSlot(int deviceNumber);
-    explicit TGpuSlot(TGpuSlot&& gpuSlot) = default;
+    TGpuSlot(
+        TGpuManagerPtr manager,
+        int deviceNumber);
 
     TString GetDeviceName() const;
     int GetDeviceNumber() const;
 
+    ~TGpuSlot();
+
 private:
-    int DeviceNumber_;
+    const TGpuManagerPtr Manager_;
+    const int DeviceNumber_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TGpuSlot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,14 +78,15 @@ public:
     const std::vector<TString>& GetGpuDevices() const;
     THashMap<int, NJobAgent::TGpuInfo> GetGpuInfoMap() const;
 
-    using TGpuSlotPtr = std::unique_ptr<TGpuSlot, std::function<void(TGpuSlot*)>>;
-    TGpuSlotPtr AcquireGpuSlot();
+    TErrorOr<TGpuSlotPtr> AcquireGpuSlot();
 
-    std::vector<TGpuSlotPtr> AcquireGpuSlots(int slotCount);
+    TErrorOr<std::vector<TGpuSlotPtr>> AcquireGpuSlots(int slotCount);
 
     std::vector<NJobAgent::TShellCommandConfigPtr> GetSetupCommands();
     std::vector<NDataNode::TArtifactKey> GetToppingLayers();
     void VerifyCudaToolkitDriverVersion(const TString& toolkitVersion);
+
+    void ReleaseGpuSlot(int deviceNumber);
 
 private:
     IBootstrap* const Bootstrap_;
@@ -93,7 +103,7 @@ private:
     THashSet<int> LostGpuDeviceNumbers_;
 
     THashSet<int> AcquiredGpuDeviceNumbers_;
-    std::vector<TGpuSlot> FreeSlots_;
+    std::vector<int> FreeSlots_;
 
     bool Enabled_ = true;
 
@@ -120,8 +130,6 @@ private:
     TDuration GetHealthCheckTimeout() const;
     TDuration GetHealthCheckFailureBackoff() const;
     THashMap<TString, TString> GetCudaToolkitMinDriverVersion() const;
-
-    void ReleaseGpuSlot(TGpuSlot* slot);
 
     void OnHealthCheck();
     void OnFetchDriverLayerInfo();

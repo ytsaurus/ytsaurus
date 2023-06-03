@@ -27,7 +27,7 @@ namespace NYT::NExecNode
 
 struct TJobGpuCheckerSettings
 {
-    ISlotPtr Slot;
+    IUserSlotPtr Slot;
     TJobPtr Job;
     NContainers::TRootFS RootFs;
     TString CommandUser;

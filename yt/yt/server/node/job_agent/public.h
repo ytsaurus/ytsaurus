@@ -22,9 +22,7 @@ using NJobTrackerClient::EJobState;
 using NJobTrackerClient::EJobPhase;
 
 DECLARE_REFCOUNTED_CLASS(TMappedMemoryControllerConfig)
-
-class TResourceHolder;
-
+DECLARE_REFCOUNTED_CLASS(TResourceHolder)
 DECLARE_REFCOUNTED_CLASS(IJobResourceManager)
 DECLARE_REFCOUNTED_CLASS(IOrchidServiceProvider)
 

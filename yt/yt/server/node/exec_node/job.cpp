@@ -69,6 +69,7 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 
@@ -131,6 +132,7 @@ TJob::TJob(
     TJobId jobId,
     TOperationId operationId,
     const NClusterNode::TJobResources& resourceUsage,
+    const NClusterNode::TJobResourceAttributes& resourceAttributes,
     TJobSpec&& jobSpec,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap)
@@ -143,6 +145,7 @@ TJob::TJob(
             operationId,
             CheckedEnumCast<EJobType>(jobSpec.type())),
         resourceUsage,
+        resourceAttributes,
         jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext).user_job_spec().port_count())
     , Id_(jobId)
     , OperationId_(operationId)
@@ -237,19 +240,7 @@ void TJob::Start()
 
         InitializeArtifacts();
 
-        NScheduler::NProto::TDiskRequest diskRequest;
-        diskRequest.set_disk_space(Config_->MinRequiredDiskSpace);
-
         if (UserJobSpec_) {
-            // COMPAT(ignat).
-            if (UserJobSpec_->has_disk_space_limit()) {
-                diskRequest.set_disk_space(UserJobSpec_->disk_space_limit());
-            }
-
-            if (UserJobSpec_->has_disk_request()) {
-                diskRequest = UserJobSpec_->disk_request();
-            }
-
             if (UserJobSpec_->has_prepare_time_limit()) {
                 auto prepareTimeLimit = FromProto<TDuration>(UserJobSpec_->prepare_time_limit());
                 TDelayedExecutor::Submit(
@@ -271,40 +262,15 @@ void TJob::Start()
         }
 
         if (NeedGpu()) {
-            int gpuCount = GetResourceUsage().Gpu;
-            YT_LOG_DEBUG("Acquiring GPU slots (Count: %v)", gpuCount);
-            GpuSlots_ = Bootstrap_->GetGpuManager()->AcquireGpuSlots(gpuCount);
-            for (int index = 0; index < gpuCount; ++index) {
-                TGpuStatistics statistics;
-                statistics.LastUpdateTime = now;
-                GpuStatistics_.emplace_back(std::move(statistics));
+            for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
+                GpuStatistics_.push_back(TGpuStatistics{
+                    .LastUpdateTime = now
+                });
             }
-
-            if (UserJobSpec_ && UserJobSpec_->has_cuda_toolkit_version()) {
-                Bootstrap_->GetGpuManager()->VerifyCudaToolkitDriverVersion(UserJobSpec_->cuda_toolkit_version());
-            }
-
-            std::vector<int> deviceNumbers;
-            for (const auto& slot : GpuSlots_) {
-                deviceNumbers.push_back(slot->GetDeviceNumber());
-            }
-            YT_LOG_DEBUG("GPU slots acquired (DeviceNumbers: %v)", deviceNumbers);
         }
 
-        NScheduler::NProto::TCpuRequest cpuRequest;
-        cpuRequest.set_cpu(RequestedCpu_);
-        cpuRequest.set_allow_cpu_idle_policy(SchedulerJobSpecExt_->allow_cpu_idle_policy());
-
-        YT_LOG_INFO("Acquiring slot (DiskRequest: %v, CpuRequest: %v)",
-            diskRequest,
-            cpuRequest);
-
-        auto slotManager = Bootstrap_->GetSlotManager();
-        Slot_ = slotManager->AcquireSlot(diskRequest, cpuRequest);
-
-        YT_LOG_INFO("Slot acquired (SlotIndex: %v)", Slot_->GetSlotIndex());
-
         SetJobPhase(EJobPhase::PreparingNodeDirectory);
+
         // This is a heavy part of preparation, offload it to compression invoker.
         BIND(&TJob::PrepareNodeDirectory, MakeWeak(this))
             .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
@@ -324,12 +290,9 @@ bool TJob::IsStarted() const
 
 void TJob::OnResourcesAcquired()
 {
-    Start();
-}
-
-TResourceHolder* TJob::AsResourceHolder()
-{
-    return this;
+    BIND(&TJob::Start, MakeWeak(this))
+        .AsyncVia(Bootstrap_->GetJobInvoker())
+        .Run();
 }
 
 void TJob::Abort(TError error)
@@ -377,7 +340,7 @@ void TJob::Abort(TError error)
         case EJobPhase::PreparingJob:
             // Wait for the next event handler to complete the abortion.
             doAbort();
-            Slot_->CancelPreparation();
+            GetUserSlot()->CancelPreparation();
             break;
 
         default:
@@ -452,7 +415,7 @@ void TJob::PrepareArtifact(
             auto producer = chunkCache->MakeArtifactDownloadProducer(artifact.Key, downloadOptions);
 
             ArtifactPrepareFutures_.push_back(
-                Slot_->MakeFile(
+                GetUserSlot()->MakeFile(
                     Id_,
                     artifact.Name,
                     artifact.SandboxKind,
@@ -468,7 +431,7 @@ void TJob::PrepareArtifact(
                 artifact.Key.GetCompressedDataSize());
 
             ArtifactPrepareFutures_.push_back(
-                Slot_->MakeCopy(
+                GetUserSlot()->MakeCopy(
                     Id_,
                     artifact.Name,
                     artifact.SandboxKind,
@@ -491,7 +454,7 @@ void TJob::OnArtifactPreparationFailed(
     GuardedAction([&] {
         ValidateJobPhase(EJobPhase::PreparingArtifacts);
 
-        Slot_->OnArtifactPreparationFailed(
+        GetUserSlot()->OnArtifactPreparationFailed(
             Id_,
             artifactName,
             ESandboxKind::User,
@@ -797,11 +760,12 @@ int TJob::GetSlotIndex() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (!Slot_) {
+    auto slot = GetUserSlot();
+    if (!slot) {
         return -1;
     }
 
-    return Slot_->GetSlotIndex();
+    return slot->GetSlotIndex();
 }
 
 const NClusterNode::TJobResources& TJob::GetResourceUsage() const
@@ -1546,7 +1510,8 @@ std::vector<TDevice> TJob::GetGpuDevices()
     for (const auto& deviceName : Bootstrap_->GetGpuManager()->GetGpuDevices()) {
         bool deviceFound = false;
         for (const auto& slot : GpuSlots_) {
-            if (slot->GetDeviceName() == deviceName) {
+            auto gpuSlot = StaticPointerCast<TGpuSlot>(slot);
+            if (gpuSlot->GetDeviceName() == deviceName) {
                 deviceFound = true;
                 break;
             }
@@ -1604,7 +1569,7 @@ void TJob::RunWithWorkspaceBuilder()
 
     TJobWorkspaceBuildSettings settings {
         .UserSandboxOptions = options,
-        .Slot = Slot_,
+        .Slot = GetUserSlot(),
         .Job = MakeStrong(this),
         .CommandUser = Config_->JobController->SetupCommandUser,
 
@@ -1627,7 +1592,7 @@ void TJob::RunWithWorkspaceBuilder()
         .GpuDevices = devices
     };
 
-    auto workspaceBuilder = Slot_->CreateJobWorkspaceBuilder(Invoker_, std::move(settings));
+    auto workspaceBuilder = GetUserSlot()->CreateJobWorkspaceBuilder(Invoker_, std::move(settings));
 
     workspaceBuilder->SubscribeUpdateArtifactStatistics(BIND_NO_PROPAGATE([=, this, this_ = MakeWeak(this)] (i64 compressedDataSize, bool cacheHit) {
         UpdateArtifactStatistics(compressedDataSize, cacheHit);
@@ -1723,8 +1688,8 @@ void TJob::RunJobProxy()
     InitializeJobProbe();
 
     BIND(
-        &ISlot::RunJobProxy,
-        Slot_,
+        &IUserSlot::RunJobProxy,
+        GetUserSlot(),
         CreateConfig(),
         Id_,
         OperationId_)
@@ -1784,6 +1749,12 @@ void TJob::OnJobAbortionTimeout()
     }
 }
 
+IUserSlotPtr TJob::GetUserSlot() const
+{
+    const auto& slot = UserSlot_;
+    return StaticPointerCast<IUserSlot>(slot);
+}
+
 void TJob::OnJobProxyFinished(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -1803,7 +1774,7 @@ void TJob::OnJobProxyFinished(const TError& error)
         SetJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
 
         TJobGpuCheckerSettings settings {
-            .Slot = Slot_,
+            .Slot = GetUserSlot(),
             .Job = MakeStrong(this),
             .RootFs = MakeWritableRootFS(),
             .CommandUser = Config_->JobController->SetupCommandUser,
@@ -1884,13 +1855,13 @@ void TJob::Cleanup()
 
     SetJobPhase(EJobPhase::Cleanup);
 
-    if (Slot_) {
+    if (auto slot = GetUserSlot()) {
         try {
-            YT_LOG_DEBUG("Clean processes (SlotIndex: %v)", Slot_->GetSlotIndex());
-            Slot_->CleanProcesses();
+            YT_LOG_DEBUG("Clean processes (SlotIndex: %v)", slot->GetSlotIndex());
+            slot->CleanProcesses();
         } catch (const std::exception& ex) {
             // Errors during cleanup phase do not affect job outcome.
-            YT_LOG_ERROR(ex, "Failed to clean processes (SlotIndex: %v)", Slot_->GetSlotIndex());
+            YT_LOG_ERROR(ex, "Failed to clean processes (SlotIndex: %v)", slot->GetSlotIndex());
         }
     }
 
@@ -1905,14 +1876,10 @@ void TJob::Cleanup()
     }
 
     // Release resources.
-    GpuSlots_.clear();
     GpuStatistics_.clear();
 
     if (IsStarted()) {
-        auto oneUserSlotResources = ZeroJobResources();
-        oneUserSlotResources.UserSlots = 1;
-
-        TResourceHolder::SetResourceUsage(oneUserSlotResources);
+        ReleaseCumulativeResources();
     }
 
     if (RootVolume_) {
@@ -1925,21 +1892,19 @@ void TJob::Cleanup()
         RootVolume_.Reset();
     }
 
-    if (Slot_) {
+    if (auto slot = GetUserSlot()) {
         if (ShouldCleanSandboxes()) {
             try {
-                YT_LOG_DEBUG("Clean sandbox (SlotIndex: %v)", Slot_->GetSlotIndex());
-                Slot_->CleanSandbox();
+                YT_LOG_DEBUG("Clean sandbox (SlotIndex: %v)", slot->GetSlotIndex());
+                slot->CleanSandbox();
             } catch (const std::exception& ex) {
                 // Errors during cleanup phase do not affect job outcome.
-                YT_LOG_ERROR(ex, "Failed to clean sandbox (SlotIndex: %v)", Slot_->GetSlotIndex());
+                YT_LOG_ERROR(ex, "Failed to clean sandbox (SlotIndex: %v)", slot->GetSlotIndex());
             }
         } else {
             YT_LOG_WARNING("Sandbox cleanup is disabled by environment variable %v; should be used for testing purposes only",
                 DisableSandboxCleanupEnv);
         }
-        YT_LOG_DEBUG("Release slot (SlotIndex: %v)", Slot_->GetSlotIndex());
-        Slot_.Reset();
     }
 
     ReleaseResources();
@@ -2047,7 +2012,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
 
     proxyConfig->LocalHostName = Bootstrap_->GetLocalHostName();
 
-    proxyConfig->BusServer = Slot_->GetBusServerConfig();
+    proxyConfig->BusServer = GetUserSlot()->GetBusServerConfig();
 
     proxyConfig->TmpfsManager = New<TTmpfsManagerConfig>();
     proxyConfig->TmpfsManager->TmpfsPaths = TmpfsPaths_;
@@ -2065,15 +2030,13 @@ TJobProxyConfigPtr TJob::CreateConfig()
         ? Config_->SMapsMemoryTrackerCachePeriod
         : Config_->MemoryTrackerCachePeriod;
 
-    proxyConfig->SlotIndex = Slot_->GetSlotIndex();
+    proxyConfig->SlotIndex = GetUserSlot()->GetSlotIndex();
 
     if (RootVolume_) {
         proxyConfig->RootPath = RootVolume_->GetPath();
         proxyConfig->Binds = Config_->RootFSBinds;
 
         if (Config_->UseArtifactBinds) {
-            auto slot = Slot_;
-
             for (const auto& artifact : Artifacts_) {
                 // Artifact is passed into the job via bind.
                 if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
@@ -2104,7 +2067,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
     auto tryReplaceSlotIndex = [&] (TString& str) {
         size_t index = str.find(SlotIndexPattern);
         if (index != TString::npos) {
-            str.replace(index, SlotIndexPattern.size(), ToString(Slot_->GetSlotIndex()));
+            str.replace(index, SlotIndexPattern.size(), ToString(GetUserSlot()->GetSlotIndex()));
         }
     };
 
@@ -2124,7 +2087,8 @@ TJobProxyConfigPtr TJob::CreateConfig()
         tryReplaceSlotIndex(*proxyConfig->StderrPath);
     }
 
-    for (const auto& slot : GpuSlots_) {
+    for (const auto& gpuSlot : GpuSlots_) {
+        auto slot = StaticPointerCast<TGpuSlot>(gpuSlot);
         proxyConfig->GpuDevices.push_back(slot->GetDeviceName());
     }
 
@@ -2138,7 +2102,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
             auto networkAddress = New<TUserJobNetworkAddress>();
             networkAddress->Address = TMtnAddress{address}
                 .SetProjectId(*NetworkProjectId_)
-                .SetHost(Slot_->GetSlotIndex())
+                .SetHost(GetUserSlot()->GetSlotIndex())
                 .ToIP6Address();
             networkAddress->Name = addressName;
 
@@ -2159,7 +2123,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
         }
 
         proxyConfig->HostName = Format("slot_%v.%v",
-            Slot_->GetSlotIndex(),
+            GetUserSlot()->GetSlotIndex(),
             Bootstrap_->GetConfig()->Addresses[0].second);
     } else {
         for (const auto& [addressName, address] : ResolvedNodeAddresses_) {
@@ -2168,9 +2132,10 @@ TJobProxyConfigPtr TJob::CreateConfig()
     }
 
     {
-        ExecAttributes_.SlotIndex = Slot_->GetSlotIndex();
-        ExecAttributes_.SandboxPath = Slot_->GetSandboxPath(ESandboxKind::User);
-        ExecAttributes_.MediumName = Slot_->GetMediumName();
+        auto userSlot = GetUserSlot();
+        ExecAttributes_.SlotIndex = userSlot->GetSlotIndex();
+        ExecAttributes_.SandboxPath = userSlot->GetSandboxPath(ESandboxKind::User);
+        ExecAttributes_.MediumName = userSlot->GetMediumName();
 
         ExecAttributes_.IPAddresses.reserve(ipAddresses.size());
         for (const auto& address : ipAddresses) {
@@ -2179,9 +2144,10 @@ TJobProxyConfigPtr TJob::CreateConfig()
 
         ExecAttributes_.GpuDevices.reserve(GpuSlots_.size());
         for (const auto& gpuSlot : GpuSlots_) {
+            auto slot = StaticPointerCast<TGpuSlot>(gpuSlot);
             auto& gpuDevice = ExecAttributes_.GpuDevices.emplace_back(New<TGpuDevice>());
-            gpuDevice->DeviceNumber = gpuSlot->GetDeviceNumber();
-            gpuDevice->DeviceName = gpuSlot->GetDeviceName();
+            gpuDevice->DeviceNumber = slot->GetDeviceNumber();
+            gpuDevice->DeviceName = slot->GetDeviceName();
         }
     }
 
@@ -2221,7 +2187,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     options.HasRootFsQuota = Config_->UseCommonRootFsQuota;
     options.EnableArtifactBinds = Config_->UseArtifactBinds;
     options.EnableDiskQuota = Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota;
-    options.UserId = Slot_->GetUserId();
+    options.UserId = GetUserSlot()->GetUserId();
 
     if (UserJobSpec_) {
         for (const auto& tmpfsVolumeProto : UserJobSpec_->tmpfs_volumes()) {
@@ -2571,7 +2537,8 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
 
     auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
     for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
-        const auto& slot = GpuSlots_[index];
+        const auto& gpuSlot = GpuSlots_[index];
+        auto slot = StaticPointerCast<TGpuSlot>(gpuSlot);
         auto& slotStatistics = GpuStatistics_[index];
 
         TGpuInfo gpuInfo;
@@ -2632,7 +2599,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
 
 void TJob::EnrichStatisticsWithDiskInfo(TStatistics* statistics)
 {
-    auto diskStatistics = Slot_->GetDiskStatistics();
+    auto diskStatistics = GetUserSlot()->GetDiskStatistics();
     MaxDiskUsage_ = std::max(MaxDiskUsage_, diskStatistics.Usage);
     statistics->AddSample("/user_job/disk/usage", diskStatistics.Usage);
     statistics->AddSample("/user_job/disk/max_usage", MaxDiskUsage_);
@@ -2783,7 +2750,7 @@ void TJob::InitializeJobProbe()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto probe = CreateJobProbe(Slot_->GetBusClientConfig(), Id_);
+    auto probe = CreateJobProbe(GetUserSlot()->GetBusClientConfig(), Id_);
     {
         auto guard = Guard(JobProbeLock_);
         std::swap(JobProbe_, probe);
@@ -2925,7 +2892,8 @@ void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
 
     auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
     for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
-        const auto& slot = GpuSlots_[index];
+        const auto& gpuSlot = GpuSlots_[index];
+        auto slot = StaticPointerCast<TGpuSlot>(gpuSlot);
 
         auto it = gpuInfoMap.find(slot->GetDeviceNumber());
         if (it == gpuInfoMap.end()) {
@@ -2980,14 +2948,17 @@ TJobPtr CreateJob(
     TJobId jobId,
     TOperationId operationId,
     const NClusterNode::TJobResources& resourceUsage,
+    const NClusterNode::TJobResourceAttributes& resourceAttributes,
     TJobSpec&& jobSpec,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap)
 {
-    return New<TJob>(
+    return NewWithOffloadedDtor<TJob>(
+        bootstrap->GetJobInvoker(),
         jobId,
         operationId,
         resourceUsage,
+        resourceAttributes,
         std::move(jobSpec),
         std::move(agentDescriptor),
         bootstrap);

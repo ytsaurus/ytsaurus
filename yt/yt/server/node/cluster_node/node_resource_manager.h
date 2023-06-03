@@ -20,6 +20,14 @@ namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ISlot
+    : public TRefCounted
+{ };
+
+DEFINE_REFCOUNTED_TYPE(ISlot)
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define ITERATE_JOB_RESOURCE_FIELDS(XX) \
     XX(user_slots,            UserSlots) \
     XX(cpu,                   Cpu) \
@@ -39,23 +47,21 @@ namespace NYT::NClusterNode {
     XX(autotomy_slots,        AutotomySlots) \
     XX(reincarnation_slots,   ReincarnationSlots)
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobResources
 {
     double Cpu = 0.0;
     double VCpu = 0.0;
-    bool AllowCpuIdlePolicy = false;
 
     i32 Gpu = 0;
-    std::optional<TString> CudaToolkitVersion;
-
     i32 Network = 0;
 
     i64 SystemMemory = 0;
     i64 UserMemory = 0;
 
-    i64 MinRequiredDiskSpace = 0;
     i64 DiskSpaceRequest = 0;
-    i64 DiskSpaceLimit = 0;
+    i64 InodeRequest = 0;
 
     i32 UserSlots = 0;
 
@@ -98,8 +104,8 @@ TJobResources& operator *= (TJobResources& lhs, double rhs);
 
 TJobResources  operator - (const TJobResources& resources);
 
-bool operator == (const TJobResources& a, const TJobResources& b);
-bool operator != (const TJobResources& a, const TJobResources& b);
+bool operator == (const TJobResources& lhs, const TJobResources& rhs);
+bool operator != (const TJobResources& lhs, const TJobResources& rhs);
 
 TJobResources MakeNonnegative(const TJobResources& resources);
 bool Dominates(const TJobResources& lhs, const TJobResources& rhs);
@@ -110,6 +116,17 @@ TJobResources Min(const TJobResources& a, const TJobResources& b);
 void Serialize(
     const TJobResources& resources,
     NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJobResourceAttributes
+{
+    bool AllowCpuIdlePolicy = false;
+
+    std::optional<TString> CudaToolkitVersion;
+
+    std::optional<i64> MediumIndex;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

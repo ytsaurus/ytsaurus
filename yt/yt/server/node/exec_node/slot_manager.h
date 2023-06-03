@@ -77,7 +77,7 @@ public:
         const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig);
 
     //! Acquires a free slot, throws on error.
-    ISlotPtr AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, NScheduler::NProto::TCpuRequest cpuRequest);
+    IUserSlotPtr AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, NScheduler::NProto::TCpuRequest cpuRequest);
 
     class TSlotGuard
     {

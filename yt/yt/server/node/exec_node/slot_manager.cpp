@@ -272,7 +272,7 @@ void TSlotManager::UpdateAliveLocations()
     }
 }
 
-ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, NScheduler::NProto::TCpuRequest cpuRequest)
+IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, NScheduler::NProto::TCpuRequest cpuRequest)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 

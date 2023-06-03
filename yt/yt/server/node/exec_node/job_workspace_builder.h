@@ -35,7 +35,7 @@ namespace NYT::NExecNode
 struct TJobWorkspaceBuildSettings
 {
     TUserSandboxOptions UserSandboxOptions;
-    ISlotPtr Slot;
+    IUserSlotPtr Slot;
     TJobPtr Job;
     TString CommandUser;
 

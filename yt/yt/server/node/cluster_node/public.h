@@ -13,6 +13,8 @@ namespace NYT::NClusterNode {
 struct IBootstrap;
 struct IBootstrapBase;
 
+DECLARE_REFCOUNTED_STRUCT(ISlot)
+
 DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
 
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)

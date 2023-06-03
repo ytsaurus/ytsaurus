@@ -257,7 +257,7 @@ private:
             auto jobId = job->GetId();
             YT_LOG_DEBUG("Trying to start job (JobId: %v)", jobId);
 
-            if (!resourceAcquiringContext.TryAcquireResourcesFor(job->AsResourceHolder())) {
+            if (!resourceAcquiringContext.TryAcquireResourcesFor(StaticPointerCast<TResourceHolder>(job))) {
                 YT_LOG_DEBUG("Job was not started (JobId: %v)", jobId);
             } else {
                 YT_LOG_DEBUG("Job started (JobId: %v)", jobId);
@@ -271,6 +271,7 @@ private:
         TJobId jobId,
         const TString& jobTrackerAddress,
         const TJobResources& resourceLimits,
+        const TJobResourceAttributes& resourceAttributes,
         TJobSpec&& jobSpec)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -286,6 +287,7 @@ private:
                 std::move(jobSpec),
                 jobTrackerAddress,
                 resourceLimits,
+                resourceAttributes,
                 Bootstrap_->GetDataNodeBootstrap(),
                 MasterJobSensors_);
 
@@ -505,6 +507,7 @@ private:
                 jobId,
                 jobTrackerAddress,
                 FromNodeResources(resourceLimits),
+                TJobResourceAttributes(),
                 std::move(spec));
 
             ++attachmentIndex;

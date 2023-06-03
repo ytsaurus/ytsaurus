@@ -64,7 +64,6 @@ struct TArtifact
 
 class TJob
     : public NJobAgent::TResourceHolder
-    , public TRefCounted
 {
 public:
     DEFINE_SIGNAL(void(const NClusterNode::TJobResources&), ResourcesUpdated);
@@ -76,6 +75,7 @@ public:
         TJobId jobId,
         TOperationId operationId,
         const NClusterNode::TJobResources& resourceUsage,
+        const NClusterNode::TJobResourceAttributes& resourceAttributes,
         NControllerAgent::NProto::TJobSpec&& jobSpec,
         TControllerAgentDescriptor agentDescriptor,
         IBootstrap* bootstrap);
@@ -84,8 +84,6 @@ public:
 
     void Start();
     bool IsStarted() const;
-
-    NJobAgent::TResourceHolder* AsResourceHolder();
 
     void Abort(TError error);
 
@@ -272,6 +270,7 @@ private:
     TInstant InterruptionDeadline_;
 
     NYson::TYsonString StatisticsYson_ = NYson::TYsonString(TStringBuf("{}"));
+    std::vector<TGpuStatistics> GpuStatistics_;
     NChunkClient::NProto::TDataStatistics TotalInputDataStatistics_;
     std::vector<NChunkClient::NProto::TDataStatistics> OutputDataStatistics_;
     TInstant StatisticsLastSendTime_ = TInstant::Now();
@@ -297,16 +296,11 @@ private:
     std::optional<TInstant> ExtraGpuCheckStartTime_;
     std::optional<TInstant> ExtraGpuCheckFinishTime_;
 
-    std::vector<TGpuManager::TGpuSlotPtr> GpuSlots_;
-    std::vector<TGpuStatistics> GpuStatistics_;
-
     i64 MaxDiskUsage_ = 0;
 
     int SetupCommandCount_ = 0;
 
     std::optional<ui32> NetworkProjectId_;
-
-    ISlotPtr Slot_;
     std::vector<TString> TmpfsPaths_;
 
     std::vector<TArtifact> Artifacts_;
@@ -405,6 +399,8 @@ private:
     std::vector<NContainers::TDevice> GetGpuDevices();
 
     void RunWithWorkspaceBuilder();
+
+    IUserSlotPtr GetUserSlot() const;
 
     TFuture<void> RunGpuCheckCommand(
         const TString& gpuCheckBinaryPath,
@@ -513,6 +509,7 @@ TJobPtr CreateJob(
     NJobTrackerClient::TJobId jobId,
     NJobTrackerClient::TOperationId operationId,
     const NClusterNode::TJobResources& resourceUsage,
+    const NClusterNode::TJobResourceAttributes& resourceAttributes,
     NControllerAgent::NProto::TJobSpec&& jobSpec,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap);
