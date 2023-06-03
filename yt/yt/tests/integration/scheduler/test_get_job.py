@@ -207,11 +207,10 @@ class _TestGetJobCommon(_TestGetJobBase):
         self._check_get_job(op.id, job_id, before_start_time, state="running", has_spec=None,
                             pool="my_pool", pool_tree="default")
 
+        @wait_no_assert
         def correct_stderr_size():
             job_info = retry(lambda: get_job(op.id, job_id))
-            return job_info.get("stderr_size", 0) == len("SOME-STDERR\n")
-
-        wait(correct_stderr_size)
+            assert job_info.get("stderr_size", 0) == len("SOME-STDERR\n")
 
         release_breakpoint()
         op.track()
@@ -479,11 +478,10 @@ class TestGetJob(_TestGetJobCommon):
         # still reports "running" to archive.
         _update_job_in_archive(op.id, job_id, {"state": "running", "transient_state": "running"})
 
+        @wait_no_assert
         def is_job_aborted_in_controller_agent():
             job_info = retry(lambda: get_job(op.id, job_id))
-            return job_info.get("controller_state") == "aborted"
-
-        wait(is_job_aborted_in_controller_agent)
+            assert job_info.get("controller_state") == "aborted"
 
         job_info = retry(lambda: get_job(op.id, job_id))
         assert job_info.get("controller_state") == "aborted"

@@ -195,7 +195,10 @@ def is_subdict(lhs, rhs):
         return lhs == rhs
 
 
-def wait_no_assert(predicate, verbose=False):
+def wait_no_assert(predicate, verbose=False, wait_args=None):
+    if wait_args is None:
+        wait_args = {}
+
     last_exception = None
 
     def wrapper():
@@ -210,7 +213,7 @@ def wait_no_assert(predicate, verbose=False):
         return True
 
     try:
-        wait(wrapper)
+        wait(wrapper, **wait_args)
     except WaitFailed:
         if not last_exception:
             raise

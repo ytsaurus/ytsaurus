@@ -1,12 +1,11 @@
 from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
 
 from yt_commands import (
-    authors, wait, create, create_table, get, set, remove, exists,
-    start_transaction, lock, unlock,
+    authors, wait, wait_no_assert, events_on_fs,
+    create, create_table, get, set, remove, exists, start_transaction, lock, unlock,
     lookup_rows, write_table,
     map, list_operations, get_operation_cypress_path, sync_create_cells, clean_operations, run_test_vanilla,
-    update_scheduler_config,
-    events_on_fs)
+    update_scheduler_config)
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -157,13 +156,9 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         wait(lambda: len(self._get_removed_operations(ops)) == 7)
         assert builtins.set(self._get_removed_operations(ops)) == builtins.set(ops[:7])
 
+        @wait_no_assert
         def scheduler_alert_set():
-            for alert in get("//sys/scheduler/@alerts"):
-                if "archivation" in alert["message"]:
-                    return True
-            return False
-
-        wait(scheduler_alert_set)
+            assert any("archivation" in alert["message"] for alert in get("//sys/scheduler/@alerts"))
 
     def _test_start_stop_impl(self, command, lookup_timeout=None, max_failed_job_count=1):
         init_operation_archive.create_tables_latest_version(

@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, set_branch, create, ls, get, set, create_user,
+    authors, wait, wait_no_assert, set_branch, create, ls, get, set, create_user,
     create_group, create_pool, create_pool_tree,
     make_ace, add_member, insert_rows, select_rows, write_table, start_op,
     list_operations, clean_operations, sync_create_cells, sync_mount_table,
@@ -193,13 +193,12 @@ class ListOperationsSetup(YTEnvSetup):
 
         set("//tmp/testing/@acl/end", make_ace("allow", "everyone", ["read", "write"]))
 
+        @wait_no_assert
         def base_operation_acl_has_admins():
-            for ace in get("//sys/scheduler/orchid/scheduler/operation_base_acl"):
-                if "admins" in ace["subjects"]:
-                    return True
-            return False
-
-        wait(base_operation_acl_has_admins)
+            assert any(
+                "admins" in ace["subjects"]
+                for ace in get("//sys/scheduler/orchid/scheduler/operation_base_acl")
+            )
 
         self._create_operations()
 

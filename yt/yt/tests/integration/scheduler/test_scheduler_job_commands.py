@@ -1,8 +1,8 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    get, create_user,
+    authors, print_debug, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    create, get, create_user,
     create_group, add_member, read_table, write_table, map, merge,
     run_test_vanilla, abort_job, abandon_job, update_op_parameters,
     poll_job_shell, raises_yt_error)
@@ -380,6 +380,7 @@ class TestJobProber(YTEnvSetup):
         assert get(op.get_path() + "/@progress/jobs/aborted/scheduled/other") == 0
         assert get(op.get_path() + "/@progress/jobs/failed") == 0
 
+        @wait_no_assert
         def check():
             end_profiling = get_job_count_profiling()
 
@@ -395,8 +396,7 @@ class TestJobProber(YTEnvSetup):
                     count = 1
                 if state == "completed":
                     count = 5
-                if value != count:
-                    return False
+                assert value == count
 
             for abort_reason in end_profiling["abort_reason"]:
                 print_debug(
@@ -405,11 +405,7 @@ class TestJobProber(YTEnvSetup):
                     end_profiling["abort_reason"][abort_reason],
                 )
                 value = end_profiling["abort_reason"][abort_reason] - start_profiling["abort_reason"][abort_reason]
-                if value != (1 if abort_reason == "user_request" else 0):
-                    return False
-            return True
-
-        wait(check)
+                assert value == (1 if abort_reason == "user_request" else 0)
 
 
 ##################################################################

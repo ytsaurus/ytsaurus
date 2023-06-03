@@ -5,8 +5,8 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, get_job, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, ls,
-    get, set, exists,
+    authors, get_job, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    create, ls, get, set, exists,
     create_pool, create_pool_tree, write_table, map, run_test_vanilla, run_sleeping_vanilla, vanilla, abort_job,
     get_operation_cypress_path, extract_statistic_v2, update_pool_tree_config, update_scheduler_config,
     update_controller_agent_config
@@ -399,7 +399,9 @@ class TestPoolMetrics(YTEnvSetup):
         def check_metrics(parent_counter, child_counter):
             parent_delta = parent_counter.get_delta()
             child_delta = child_counter.get_delta()
-            return parent_delta != 0 and child_delta != 0 and parent_delta == child_delta
+            assert parent_delta != 0
+            assert child_delta != 0
+            assert parent_delta == child_delta
 
         # TODO(eshcherbin): This is used for flap diagnostics. Remove when the test is fixed.
         time.sleep(2)
@@ -407,9 +409,9 @@ class TestPoolMetrics(YTEnvSetup):
             total_time_counter[pool].get()
 
         # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
-        wait(lambda: check_metrics(total_time_operation_completed_counter["parent"], total_time_operation_completed_counter["child1"]))
-        wait(lambda: check_metrics(total_time_operation_failed_counter["parent"], total_time_operation_failed_counter["child2"]))
-        wait(lambda: check_metrics(total_time_operation_aborted_counter["parent"], total_time_operation_aborted_counter["child3"]))
+        wait_no_assert(lambda: check_metrics(total_time_operation_completed_counter["parent"], total_time_operation_completed_counter["child1"]))
+        wait_no_assert(lambda: check_metrics(total_time_operation_failed_counter["parent"], total_time_operation_failed_counter["child2"]))
+        wait_no_assert(lambda: check_metrics(total_time_operation_aborted_counter["parent"], total_time_operation_aborted_counter["child3"]))
         wait(
             lambda: total_time_counter["parent"].get()
             == total_time_operation_completed_counter["parent"].get()

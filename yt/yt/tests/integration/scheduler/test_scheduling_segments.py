@@ -9,7 +9,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint,
+    authors, print_debug, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
     ls, get, set, remove, exists, create_pool, create_pool_tree,
     create_data_center, create_rack, make_batch_request,
     execute_batch, get_batch_error,
@@ -751,6 +751,7 @@ class TestSchedulingSegments(YTEnvSetup):
             incarnation_id = None
 
             def check():
+                nonlocal incarnation_id
                 incarnation_id = get("//sys/controller_agents/instances/{}/orchid/controller_agent/incarnation_id".format(agent), default=None)
                 return incarnation_id is not None
 
@@ -1452,15 +1453,13 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         wait(lambda: self._get_operation_module(op) != op_module)
         wait(lambda: op.get_job_count("aborted") >= 3)
 
+        @wait_no_assert
         def check():
             jobs = op.get_running_jobs()
-            if len(jobs) != 3:
-                return False
+            assert len(jobs) == 3
             for _, job in jobs.items():
-                if self._get_node_module(job["address"]) == op_module:
-                    return False
-            return True
-        wait(check)
+                assert self._get_node_module(job["address"]) != op_module
+
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 3.0 / 7.0))
 
 

@@ -489,11 +489,11 @@ class TestListJobsBase(YTEnvSetup):
         aborted_job_index = job_ids["completed_map"].index(job_ids["aborted_map"][0])
         del job_ids["completed_map"][aborted_job_index]
 
+        @wait_no_assert
         def check_running_jobs():
             jobs = op.get_running_jobs()
-            return job_ids["aborted_map"][0] not in jobs and len(jobs) >= 3
-
-        wait(check_running_jobs)
+            assert job_ids["aborted_map"][0] not in jobs
+            assert len(jobs) >= 3
 
         job_ids["map"] = job_ids["completed_map"] + job_ids["failed_map"] + job_ids["aborted_map"]
         return op, job_ids
@@ -521,15 +521,12 @@ class TestListJobsBase(YTEnvSetup):
 
         completed_map_job_id = job_ids["completed_map"][0]
 
+        @wait_no_assert
         def has_job_state_converged():
             set_job_in_table(op.id, completed_map_job_id, {"transient_state": "running"})
             time.sleep(1)
-            return (
-                get_job_from_table(op.id, completed_map_job_id)["transient_state"] == "running"
-                and get_job_from_table(op.id, aborted_map_job_id)["transient_state"] == "aborted"
-            )
-
-        wait(has_job_state_converged)
+            assert get_job_from_table(op.id, completed_map_job_id)["transient_state"] == "running"
+            assert get_job_from_table(op.id, aborted_map_job_id)["transient_state"] == "aborted"
 
         def check_times(job):
             start_time = date_string_to_datetime(completed_map_job["start_time"])
@@ -693,12 +690,12 @@ class TestListJobs(TestListJobsBase):
 
         op.track()
 
+        @wait_no_assert
         def check():
             actual_jobs = checked_list_jobs(op.id, running_jobs_lookbehind_period=1000)["jobs"]
             all_jobs = checked_list_jobs(op.id, running_jobs_lookbehind_period=60 * 1000)["jobs"]
-            return len(actual_jobs) == 1 and len(all_jobs) == 2
-
-        wait(check)
+            assert len(actual_jobs) == 1
+            assert len(all_jobs) == 2
 
     @authors("levysotsky")
     def test_list_jobs_of_vanilla_operation(self):
@@ -765,12 +762,11 @@ class TestListJobs(TestListJobsBase):
 
         wait(lambda: get_job_from_table(op.id, job_id)["controller_state"] == "completed")
 
+        @wait_no_assert
         def has_job_state_converged():
             set_job_in_table(op.id, job_id, {"transient_state": "running"})
             time.sleep(1)
-            return get_job_from_table(op.id, job_id)["transient_state"] == "running"
-
-        wait(has_job_state_converged)
+            assert get_job_from_table(op.id, job_id)["transient_state"] == "running"
 
         res = checked_list_jobs(op.id)
         res_jobs = [job for job in res["jobs"] if job["id"] == job_id]

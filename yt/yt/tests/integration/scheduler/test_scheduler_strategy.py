@@ -6,7 +6,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
+    authors, print_debug, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     create, ls, get, set, move, remove, exists, create_user, create_pool, create_pool_tree,
     make_ace, check_permission,
     read_table, write_table,
@@ -173,16 +173,13 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         create_pool("test_pool", attributes={"resource_limits": resource_limits})
 
         # TODO(renadeen): Do better, I know you can.
+        @wait_no_assert
         def check_limits():
             stats = get(scheduler_orchid_default_pool_tree_path())
             pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
             for resource, limit in resource_limits.items():
                 resource_name = "user_memory" if resource == "memory" else resource
-                if not are_almost_equal(pool_resource_limits[resource_name], limit):
-                    return False
-            return True
-
-        wait(check_limits)
+                assert are_almost_equal(pool_resource_limits[resource_name], limit)
 
         self._prepare_tables()
         data = [{"foo": i} for i in range(3)]
@@ -2010,6 +2007,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
             spec={"pool": "event_log_test_pool"},
         )
 
+        @wait_no_assert
         def check_events():
             events = []
             for row in read_table("//sys/scheduler/event_log"):
@@ -2026,24 +2024,19 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
                     if event_type == "operation_completed":
                         assert row["progress"]["job_statistics"]
                         assert row["progress"]["job_statistics_v2"]
-            return events == ["operation_started", "operation_completed"]
+            assert events == ["operation_started", "operation_completed"]
 
-        wait(lambda: check_events())
-
+        @wait_no_assert
         def check_pools():
             pools_info = [
                 row
                 for row in read_table("//sys/scheduler/event_log")
                 if row["event_type"] == "pools_info" and "event_log_test_pool" in row["pools"]["default"]
             ]
-            if len(pools_info) != 1:
-                return False
+            assert len(pools_info) == 1
             custom_pool_info = pools_info[-1]["pools"]["default"]["event_log_test_pool"]
             assert are_almost_equal(custom_pool_info["strong_guarantee_resources"]["cpu"], 1.0)
             assert custom_pool_info["mode"] == "fair_share"
-            return True
-
-        wait(lambda: check_pools())
 
     @authors("eshcherbin")
     def test_pool_count(self):
@@ -2702,15 +2695,12 @@ class TestIntegralGuarantees(YTEnvSetup):
         path = scheduler_orchid_default_pool_tree_path() + "/pools/" + pool + "/detailed_fair_share"
         wait(lambda: exists(path))
 
+        @wait_no_assert
         def check_pool_fair_share():
             fair_share = get(path, default=-1)
-            return (
-                are_almost_equal(fair_share["strong_guarantee"]["cpu"], strong)
-                and are_almost_equal(fair_share["integral_guarantee"]["cpu"], integral)
-                and are_almost_equal(fair_share["weight_proportional"]["cpu"], weight_proportional)
-            )
-
-        wait(check_pool_fair_share)
+            assert are_almost_equal(fair_share["strong_guarantee"]["cpu"], strong)
+            assert are_almost_equal(fair_share["integral_guarantee"]["cpu"], integral)
+            assert are_almost_equal(fair_share["weight_proportional"]["cpu"], weight_proportional)
 
     def setup_method(self, method):
         super(TestIntegralGuarantees, self).setup_method(method)
@@ -3798,15 +3788,15 @@ class TestFifoPools(YTEnvSetup):
         wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op_a2.id) + "/satisfaction_ratio"), 0.0))
         wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op_b2.id) + "/satisfaction_ratio"), 0.0))
 
+        @wait_no_assert
         def check():
             op_a1_index = get(scheduler_orchid_operation_path(op_a1.id) + "/scheduling_index")
             op_a2_index = get(scheduler_orchid_operation_path(op_a2.id) + "/scheduling_index")
             op_b1_index = get(scheduler_orchid_operation_path(op_b1.id) + "/scheduling_index")
             op_b2_index = get(scheduler_orchid_operation_path(op_b2.id) + "/scheduling_index")
 
-            return (op_a2_index < op_a1_index) and (op_a2_index < op_b1_index < op_b2_index)
-
-        wait(check)
+            assert op_a2_index < op_a1_index
+            assert op_a2_index < op_b1_index < op_b2_index
 
 
 ##################################################################
@@ -3852,7 +3842,7 @@ class TestRaceBetweenOperationUnregistrationAndFairShareUpdate(YTEnvSetup):
 
         op.abort()
 
+        @wait_no_assert
         def check():
             path = scheduler_orchid_operation_path(op.id) + "/starvation_status"
-            return not exists(path) or get(path) == "starving"
-        wait(check)
+            assert not exists(path) or get(path) == "starving"

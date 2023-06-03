@@ -6,7 +6,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
+    authors, print_debug, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     create, ls,
     get, set, move, remove, exists, create_pool, create_pool_tree, remove_pool_tree, create_network_project, write_table, write_file,
     map, map_reduce, run_test_vanilla, run_sleeping_vanilla, abort_job, list_jobs, start_transaction, lock,
@@ -571,9 +571,10 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
         pool_tree_settings = {}
 
+        @wait_no_assert
         def save_settings_and_check_them():
             pool_tree_settings["custom_pool_tree"] = get_from_tree_orchid("custom_pool_tree", "config")
-            return check_dict_is_subdict(
+            assert check_dict_is_subdict(
                 pool_tree_settings["custom_pool_tree"],
                 {
                     "max_running_operation_count_per_pool": 180,
@@ -583,7 +584,6 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
                 }
             )
 
-        wait(save_settings_and_check_them)
         wait(lambda: not get("//sys/scheduler/@alerts"))
 
         set(
@@ -907,6 +907,7 @@ class TestTentativePoolTrees(YTEnvSetup):
 
         dummy = {"jobs": [], "stability_count": 0}  # no "nonlocal" support in python 2
 
+        @wait_no_assert
         def all_jobs_running():
             try:
                 old_job_count = len(dummy["jobs"])
@@ -915,11 +916,9 @@ class TestTentativePoolTrees(YTEnvSetup):
                 if new_job_count == old_job_count:
                     dummy["stability_count"] += 1
 
-                return dummy["stability_count"] > 5
+                assert dummy["stability_count"] > 5
             except YtError:
-                return False
-
-        wait(all_jobs_running)
+                assert False
 
         tentative_job_count = 0
         for job_id in dummy["jobs"]:
@@ -1008,15 +1007,14 @@ class TestTentativePoolTrees(YTEnvSetup):
         def operations_failed_or_aborted():
             return op.get_state() in ["failed", "aborted"]
 
+        @wait_no_assert
         def has_all_tentative_jobs():
             assert not operations_failed_or_aborted()
             tentative_job_count = 0
             for job_id, tentative in self._iter_running_jobs(op, other_nodes):
                 if tentative:
                     tentative_job_count += 1
-            return tentative_job_count == TestTentativePoolTrees.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT
-
-        wait(has_all_tentative_jobs)
+            assert tentative_job_count == TestTentativePoolTrees.TENTATIVE_TREE_ELIGIBILITY_SAMPLE_JOB_COUNT
 
         # Sleep to make job durations long enonugh.
         time.sleep(5)
@@ -1030,12 +1028,12 @@ class TestTentativePoolTrees(YTEnvSetup):
                     print_debug("Complete job {0}".format(job_id))
                     context["completed_jobs"].add(job_id)
                     events.notify_event("continue_job_{0}".format(job_id))
-            return len(context["completed_jobs"]) == 20
+            assert len(context["completed_jobs"]) == 20
 
         # We have 30 jobs overall, 5 should be tentative, 20 regular jobs we complete fast.
         # It must be enough to ban tentative tree.
         context = {"completed_jobs": builtins.set()}
-        wait(lambda: complete_non_tentative_jobs(context))
+        wait_no_assert(lambda: complete_non_tentative_jobs(context))
 
         wait(lambda: op.get_job_count("completed") == 20)
 

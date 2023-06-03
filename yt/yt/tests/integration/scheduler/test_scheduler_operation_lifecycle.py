@@ -7,8 +7,8 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    ls, get,
+    authors, print_debug, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    create, ls, get,
     set, remove, exists, create_account, create_tmpdir, create_user, create_pool, create_pool_tree,
     start_transaction, abort_transaction,
     read_table, write_table, map, reduce, sort,
@@ -1325,16 +1325,15 @@ class TestSafeAssertionsMode(YTEnvSetup):
                 print_debug("size = n/a")
             else:
                 print_debug("size =", os.stat(core_path).st_size)
-            return (
-                get(
-                    "//sys/controller_agents/instances/{}/orchid/core_dumper/active_count".format(
-                        controller_agent_address
-                    )
-                )
-                == 0
-            )
 
-        wait(check_core, iter=200, sleep_backoff=5)
+            active_count = get(
+                "//sys/controller_agents/instances/{}/orchid/core_dumper/active_count".format(
+                    controller_agent_address
+                )
+            )
+            assert active_count == 0
+
+        wait_no_assert(check_core, wait_args=dict(iter=200, sleep_backoff=5))
 
         gdb = arcadia_interop.yatest_common.gdb_path()
 

@@ -7,9 +7,9 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, map_reduce, print_debug, update_op_parameters, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
-    create, ls,
-    get, set, remove, exists, create_user, create_pool, create_pool_tree, abort_transaction, read_table,
+    authors, map_reduce, print_debug, update_op_parameters,
+    wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
+    create, ls, get, set, remove, exists, create_user, create_pool, create_pool_tree, abort_transaction, read_table,
     write_table, map, vanilla, run_test_vanilla, suspend_op,
     get_operation, get_operation_cypress_path, PrepareTables, sorted_dicts,
     update_scheduler_config, update_controller_agent_config)
@@ -329,14 +329,14 @@ class TestSchedulerRestart(YTEnvSetup):
         }
 
         def check_cypress():
-            return exists(annotations_path) and get(annotations_path) == required_annotations
+            assert exists(annotations_path) and get(annotations_path) == required_annotations
 
         def check_get_operation():
             result = get_operation(op.id, attributes=["runtime_parameters"])["runtime_parameters"]
-            return result.get("annotations", None) == required_annotations
+            assert result.get("annotations", None) == required_annotations
 
-        wait(check_cypress)
-        wait(check_get_operation)
+        wait_no_assert(check_cypress)
+        wait_no_assert(check_get_operation)
 
         update_op_parameters(op.id, parameters={
             "annotations": {
@@ -345,14 +345,14 @@ class TestSchedulerRestart(YTEnvSetup):
         })
         required_annotations["abc"] = "ghi"
 
-        wait(check_cypress)
-        wait(check_get_operation)
+        wait_no_assert(check_cypress)
+        wait_no_assert(check_get_operation)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
-        wait(check_cypress)
-        wait(check_get_operation)
+        wait_no_assert(check_cypress)
+        wait_no_assert(check_get_operation)
 
         release_breakpoint()
         op.track()
@@ -1005,9 +1005,9 @@ class OperationReviveBase(YTEnvSetup):
         self._wait_for_state(op, "running")
 
         def failed_jobs_exist():
-            return op.get_job_count("failed") >= 3
+            assert op.get_job_count("failed") >= 3
 
-        wait(failed_jobs_exist)
+        wait_no_assert(failed_jobs_exist)
 
         suspend_op(op.id)
 
@@ -1016,7 +1016,7 @@ class OperationReviveBase(YTEnvSetup):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
-        wait(lambda: op.get_job_count("failed") >= 3)
+        wait_no_assert(failed_jobs_exist)
 
 
 class TestSchedulerReviveForMap(OperationReviveBase):

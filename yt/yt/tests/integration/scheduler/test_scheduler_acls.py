@@ -1,5 +1,6 @@
 from yt_commands import (
-    authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, get, set,
+    authors, wait, wait_no_assert,
+    wait_breakpoint, release_breakpoint, with_breakpoint, create, get, set,
     exists, create_user,
     create_group, make_ace, add_member, read_table, write_table, map, map_reduce, abort_job, abandon_job,
     get_job_fail_context, get_job_input, get_job_stderr, get_job_spec, dump_job_context,
@@ -538,13 +539,11 @@ class TestSchedulerAcls(YTEnvSetup):
 
         wait_breakpoint(breakpoint_name=breakpoint_name)
 
+        @wait_no_assert
         def transaction_and_intermediate_exist():
-            if not exists(op.get_path() + "/@async_scheduler_transaction_id"):
-                return False
+            assert exists(op.get_path() + "/@async_scheduler_transaction_id")
             scheduler_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
-            return exists(op.get_path() + "/intermediate", tx=scheduler_transaction_id)
-
-        wait(transaction_and_intermediate_exist)
+            assert exists(op.get_path() + "/intermediate", tx=scheduler_transaction_id)
 
         scheduler_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
         if allow_access:

@@ -40,8 +40,7 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
     @authors("pogorelov")
     def test_pool_tree_orchid(self):
         create_pool_tree("pool_tree", config={"nodes_filter": "tag"})
-        wait(
-            lambda: exists(scheduler_new_orchid_pool_tree_path("pool_tree")))
+        wait(lambda: exists(scheduler_new_orchid_pool_tree_path("pool_tree")))
 
     @authors("pogorelov")
     def test_pool(self):

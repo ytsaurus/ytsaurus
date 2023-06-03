@@ -8,9 +8,8 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs, create,
-    ls, get,
-    create_account, read_table, write_table, map, reduce, map_reduce, vanilla,
+    authors, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
+    create, ls, get, create_account, read_table, write_table, map, reduce, map_reduce, vanilla,
     select_rows, list_jobs, clean_operations, sync_create_cells,
     set_account_disk_space_limit, raises_yt_error)
 
@@ -1262,11 +1261,11 @@ class TestJobProfiling(YTEnvSetup):
             spec=spec,
         )
 
+        @wait_no_assert
         def profiles_ready():
             profiles = get_profiles_from_table(op.id)
-            return len(builtins.set(row["profile_type"] for row in profiles)) == 2
+            assert len(builtins.set(row["profile_type"] for row in profiles)) == 2
 
-        wait(profiles_ready)
         profiles = get_profiles_from_table(op.id)
 
         assert all(row["profiling_probability"] == 0.5 for row in profiles)

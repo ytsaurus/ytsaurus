@@ -1,7 +1,8 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    assert_statistics, authors, extract_deprecated_statistic, extract_statistic_v2, update_controller_agent_config, wait,
+    assert_statistics, authors, extract_deprecated_statistic, extract_statistic_v2, update_controller_agent_config,
+    wait, wait_no_assert,
     get, create, write_table, map, run_test_vanilla,
     with_breakpoint, wait_breakpoint, release_breakpoint)
 
@@ -215,6 +216,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         op = run_test_vanilla(with_breakpoint('echo "{my_stat=10};" >&5; BREAKPOINT'), job_count=2)
         wait_breakpoint()
 
+        @wait_no_assert
         def check():
             statistics = get(op.get_path() + "/controller_orchid/progress/job_statistics_v2")
             count = extract_statistic_v2(
@@ -235,6 +237,4 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 job_state="running",
                 job_type="task",
                 summary_type="sum")
-            return count == 2 and max == 10 and sum == 20
-
-        wait(check)
+            assert count == 2 and max == 10 and sum == 20

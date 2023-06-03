@@ -4,8 +4,8 @@ from yt_env_setup import (
     SCHEDULERS_SERVICE,
 )
 from yt_commands import (
-    authors, print_debug, wait, create,
-    ls, get, set, exists, create_pool, create_pool_tree,
+    authors, print_debug, wait, wait_no_assert,
+    create, ls, get, set, exists, create_pool, create_pool_tree,
     write_table, run_test_vanilla, update_scheduler_config)
 
 from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
@@ -89,8 +89,8 @@ class TestResourceMetering(YTEnvSetup):
 
     def _validate_metering_records(self, root_key, desired_metering_data, event_key_to_last_record, precision=None):
         if root_key not in event_key_to_last_record:
-            print_debug("Root key is missing")
-            return False
+            assert False, "Root key is missing"
+
         for key, desired_data in desired_metering_data.items():
             for resource_key, desired_value in desired_data.items():
                 tags, usage = event_key_to_last_record.get(key, ({}, {}))
@@ -102,12 +102,8 @@ class TestResourceMetering(YTEnvSetup):
                     is_equal = observed_value == desired_value
                 else:
                     is_equal = abs(observed_value - desired_value) < precision
-                if not is_equal:
-                    print_debug(
-                        "Value mismatch (abc_key: {}, resource_key: {}, observed: {}, desired: {})"
-                        .format(key, resource_key, observed_value, desired_value))
-                    return False
-        return True
+                assert is_equal, "Value mismatch (abc_key: {}, resource_key: {}, observed: {}, desired: {})"\
+                    .format(key, resource_key, observed_value, desired_value)
 
     @authors("ignat")
     def test_resource_metering_log(self):
@@ -216,11 +212,10 @@ class TestResourceMetering(YTEnvSetup):
             },
         }
 
+        @wait_no_assert
         def check_structured():
             event_key_to_last_record = self._extract_metering_records_from_log()
             return self._validate_metering_records(root_key, desired_metering_data, event_key_to_last_record)
-
-        wait(check_structured)
 
     @authors("ignat")
     def test_metering_tags(self):
@@ -269,11 +264,10 @@ class TestResourceMetering(YTEnvSetup):
             },
         }
 
+        @wait_no_assert
         def check_structured():
             event_key_to_last_record = self._extract_metering_records_from_log()
             return self._validate_metering_records(root_key, desired_metering_data, event_key_to_last_record)
-
-        wait(check_structured)
 
     @authors("ignat")
     def test_resource_metering_at_root(self):
@@ -363,11 +357,10 @@ class TestResourceMetering(YTEnvSetup):
             },
         }
 
+        @wait_no_assert
         def check_structured():
             event_key_to_last_record = self._extract_metering_records_from_log()
             return self._validate_metering_records(root_key, desired_metering_data, event_key_to_last_record)
-
-        wait(check_structured)
 
     @authors("ignat")
     def test_metering_with_revive(self):
@@ -405,11 +398,10 @@ class TestResourceMetering(YTEnvSetup):
             },
         }
 
+        @wait_no_assert
         def check_expected_tags():
             event_key_to_last_record = self._extract_metering_records_from_log()
             return self._validate_metering_records(root_key, desired_metering_data, event_key_to_last_record)
-
-        wait(check_expected_tags)
 
         wait(lambda: exists("//sys/scheduler/@last_metering_log_time"))
 
@@ -489,15 +481,13 @@ class TestResourceMetering(YTEnvSetup):
             },
         }
 
+        @wait_no_assert
         def check_expected_guarantee_records():
             event_key_to_last_record = self._extract_metering_records_from_log(schema="yt.scheduler.pools.compute_guarantee.v1")
             return self._validate_metering_records(root_key, desired_guarantees_metering_data, event_key_to_last_record)
 
-        wait(check_expected_guarantee_records)
-
+        @wait_no_assert
         def check_expected_allocation_records():
             event_key_to_last_record = self._extract_metering_records_from_log(schema="yt.scheduler.pools.compute_allocation.v1")
             # Update period equal 100ms, metering period is 1000ms, so we expected the error to be less than or equal to 10%.
-            return self._validate_metering_records(root_key, desired_allocation_metering_data, event_key_to_last_record, precision=0.15)
-
-        wait(check_expected_allocation_records)
+            self._validate_metering_records(root_key, desired_allocation_metering_data, event_key_to_last_record, precision=0.15)

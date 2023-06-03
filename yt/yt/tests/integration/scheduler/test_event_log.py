@@ -1,9 +1,9 @@
 from yt_env_setup import (
     YTEnvSetup)
 from yt_commands import (
-    authors, extract_statistic_v2, extract_deprecated_statistic, wait, create,
-    ls, get,
-    create_pool, read_table, write_table,
+    authors, extract_statistic_v2, extract_deprecated_statistic,
+    wait, wait_no_assert,
+    create, ls, get, create_pool, read_table, write_table,
     map, run_test_vanilla, run_sleeping_vanilla,
     update_pool_tree_config, ban_node, unban_node)
 
@@ -62,7 +62,7 @@ class TestEventLog(YTEnvSetup):
         wait(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics_v2"), extract_statistic_v2))
         wait(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics"), extract_deprecated_statistic))
 
-        # wait for scheduler to dump the event log
+        @wait_no_assert
         def check():
             def get_statistics(statistics, complex_key):
                 result = statistics
@@ -80,22 +80,14 @@ class TestEventLog(YTEnvSetup):
                 if item["event_type"] == "job_completed":
                     stats = item["statistics"]
                     user_time = get_statistics(stats, "user_job.cpu.user")
-                    # our job should burn enough cpu
-                    if user_time == 0:
-                        return False
+                    # Job should burn enough cpu.
+                    assert user_time is not None and user_time["sum"] > 0
                 if item["event_type"] == "job_started":
                     limits = item["resource_limits"]
-                    if limits["cpu"] == 0:
-                        return False
-                    if limits["user_memory"] == 0:
-                        return False
-                    if limits["user_slots"] == 0:
-                        return False
-            if "operation_started" not in event_types:
-                return False
-            return True
-
-        wait(check)
+                    assert limits["cpu"] > 0
+                    assert limits["user_memory"] > 0
+                    assert limits["user_slots"] > 0
+            assert "operation_started" in event_types
 
     @authors("ignat")
     def test_scheduler_event_log_buffering(self):
@@ -115,22 +107,20 @@ class TestEventLog(YTEnvSetup):
 
         op.track()
 
+        @wait_no_assert
         def check():
             try:
                 res = read_table("//sys/scheduler/event_log")
             except YtError:
-                return False
+                assert False
+
             event_types = builtins.set([item["event_type"] for item in res])
             for event in [
                 "scheduler_started",
                 "operation_started",
                 "operation_completed",
             ]:
-                if event not in event_types:
-                    return False
-            return True
-
-        wait(check)
+                assert event in event_types
 
     @authors("ignat")
     def test_structured_event_log(self):
@@ -141,14 +131,13 @@ class TestEventLog(YTEnvSetup):
         op = map(in_="//tmp/t1", out="//tmp/t2", command="cat")
 
         # Let's wait until scheduler dumps the information on our map operation
+        @wait_no_assert
         def check_event_log():
             event_log = read_table("//sys/scheduler/event_log")
             for event in event_log:
                 if event["event_type"] == "operation_completed" and event["operation_id"] == op.id:
-                    return True
-            return False
-
-        wait(check_event_log)
+                    return
+            assert False
 
         event_log = read_table("//sys/scheduler/event_log")
 
