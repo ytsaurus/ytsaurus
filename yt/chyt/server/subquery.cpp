@@ -469,7 +469,7 @@ private:
         columnSchemas.reserve(VirtualColumnNames_.size());
         for (const auto& column : VirtualColumnNames_) {
             auto id = directory->NameTable->GetIdOrThrow(column);
-            columnSchemas.emplace_back(column, MakeLogicalType(GetLogicalType(row[id].Type), /* requried */ true));
+            columnSchemas.emplace_back(column, MakeLogicalType(GetLogicalType(row[id].Type), /* required */ true));
         }
         directory->Schema = New<TTableSchema>(std::move(columnSchemas));
 
@@ -757,9 +757,9 @@ private:
             usedKeyColumnCount,
             StorageContext_->Settings->Testing->MakeUpperBoundInclusive);
 
-        auto toFormattable = [&] (DB::FieldRef* fields, int keyColumUsed) {
+        auto toFormattable = [&] (DB::FieldRef* fields, int keyColumnUsed) {
             return MakeFormattableView(
-                MakeRange(fields, fields + keyColumUsed),
+                MakeRange(fields, fields + keyColumnUsed),
                 [&] (auto* builder, DB::FieldRef field) { builder->AppendString(TString(field.dump())); });
         };
 

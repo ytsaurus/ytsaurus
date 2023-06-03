@@ -104,7 +104,7 @@ int GetUsedKeyPrefixSize(const DB::ASTPtr& keyAst, const TTableSchemaPtr& schema
 }
 
 //! Create an comparisons expression similar to '<cmpFunc>(<expression>, <literal>)'
-//! but the result is correct in terms of YT-comparasion (nulls first).
+//! but the result is correct in terms of YT-comparison (nulls first).
 DB::ASTPtr CreateProperNullableComparator(
     const std::string& cmpFunctionName,
     const DB::ASTPtr& leftExpression,
@@ -358,7 +358,7 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
     THashSet<TString> matchedLeftKeyNames;
     // For better error messages.
     std::vector<std::pair<DB::ASTPtr, DB::ASTPtr>> unmatchedKeyPairs;
-    // Map for every key column from the left table schema to coresponding key expression from right table expression.
+    // Map for every key column from the left table schema to corresponding key expression from right table expression.
     // Make sense only when joined table is not YT-table.
     std::vector<DB::ASTPtr> joinKeyExpressions(leftTableSchema.GetKeyColumnCount());
 
@@ -366,7 +366,7 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
         // Two YT table join always requires sorted pool.
         YT_VERIFY(needSortedPool);
 
-        // Both tables should be sorted and simple (concatYtTables is forbiden).
+        // Both tables should be sorted and simple (concatYtTables is forbidden).
         checkTableSorted(/*tableIndex*/ 0);
         checkTableSorted(/*tableIndex*/ 1);
 
@@ -394,7 +394,7 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
     } else {
         bool leftTableSorted = leftTableSchema.IsSorted() && (leftStorage->GetTables().size() == 1);
 
-        // If sorted pool is not nessesary, prevent throwing an error.
+        // If sorted pool is not necessary, prevent throwing an error.
         // Otherwise, checkTableSorted will produce proper error.
         if (!leftTableSorted && !needSortedPool) {
             return;
@@ -403,7 +403,7 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
 
         for (int index = 0; index < joinKeySize; ++index) {
             const auto* leftKeyColumn = joinLeftKeys[index]->as<DB::ASTIdentifier>();
-            // TODO(dakovalkov): Check that expression is determenistic.
+            // TODO(dakovalkov): Check that expression is deterministic.
             const auto& rightKeyExpression = joinRightKeys[index];
 
             if (!leftKeyColumn) {
@@ -435,7 +435,7 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
     }
 
     if (matchedKeyPrefixSize == 0) {
-        // Prevent error when sored pool is not requried.
+        // Prevent error when sored pool is not required.
         if (!needSortedPool) {
             return;
         }
@@ -601,7 +601,7 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
 
     bool extremes = getContext()->getSettingsRef().extremes;
 
-    // We can always execute query up to WithMergableState.
+    // We can always execute query up to WithMergeableState.
     OptimizedQueryProcessingStage_ = DB::QueryProcessingStage::WithMergeableState;
 
     // Some checks from native CH routine.
@@ -619,7 +619,7 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
     int keyColumnCount = KeyColumnCount_;
 
     auto processAggregationKeyAst = [&] (const DB::ASTPtr& keyAst) {
-        // SortedPool expects non-overlaping sorted chunks. In case of multiple
+        // SortedPool expects non-overlapping sorted chunks. In case of multiple
         // tables (concatYtTablesRange), this condition is broken,
         // so we cannot use SortedPool to optimize aggregation.
         // TODO(dakovalkov): Theoretically, the optimization is still possible,

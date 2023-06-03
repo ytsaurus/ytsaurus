@@ -14,7 +14,7 @@ import (
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
-// API implements all the contorller-api logic.
+// API implements all the controllers-api logic.
 type API struct {
 	ytc yt.Client
 	cfg APIConfig
@@ -210,7 +210,7 @@ func (a *API) getOplet(
 // Anyway, it's guaranteed that in such state the Create command can be retried
 // and that this state can be completely removed via Remove command.
 func (a *API) Create(ctx context.Context, alias string) error {
-	// It's not nessesary to check an operation existence, but we do it to provide better error messages.
+	// It's not necessary to check an operation existence, but we do it to provide better error messages.
 	if err := a.CheckExistence(ctx, alias, false /*shouldExist*/); err != nil {
 		return err
 	}

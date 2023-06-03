@@ -257,7 +257,7 @@ TClusterNodes GetNodesToDistribute(TQueryContext* queryContext, size_t distribut
     // Should we distribute query or process it on local node only?
     bool distribute = true;
     // How many nodes we should use to distribute query.
-    // By default, we distribute to all available cluster nodes, but behavior can be overriden via settings.
+    // By default, we distribute to all available cluster nodes, but behavior can be overridden via settings.
     i64 nodesToChoose = queryContext->GetClusterNodesSnapshot().size();
 
     if (nodesToChoose == 0) {
@@ -881,11 +881,11 @@ public:
      * Query stages in CH:
      *
      * FetchColumns - table engine only needs to read columns.
-     * It can use where/prewhere conditions to filter data, but it's not nessesary.
+     * It can use where/prewhere conditions to filter data, but it's not necessary.
      * Join/Distinct/GroupBy/Limit/OrderBy will be processed by CH itself on the initiator.
      *
-     * WithMergableState - table engine should process Join and do aggregation locally (distinct/group by/limit by).
-     * It returns "mergable state", which allows to aggregate data from several streams.
+     * WithMergeableState - table engine should process Join and do aggregation locally (distinct/group by/limit by).
+     * It returns "mergeable state", which allows to aggregate data from several streams.
      * ClickHouse will complete aggregation and apply Having/Limit/OrderBy clauses on the initiator.
      *
      * WithMergeableStateAfterAggregation - Some legacy stage, do not use it.
@@ -895,7 +895,7 @@ public:
      *
      * Complete - everything is processed on instances locally. Coordinator works as a proxy.
      */
-    //! Calculate the maximum possible queryStage, the engine can proccess to.
+    //! Calculate the maximum possible queryStage, the engine can process to.
     DB::QueryProcessingStage::Enum getQueryProcessingStage(
         DB::ContextPtr context,
         DB::QueryProcessingStage::Enum toStage,

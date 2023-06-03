@@ -145,10 +145,10 @@ DEFINE_ENUM(EDeducedStatementMode,
 );
 
 DEFINE_ENUM(EJoinPolicy,
-    // Always execute join localy.
+    // Always execute join locally.
     // Both left and right tables will be read according to SelectPolicy.
     ((Local)             (0))
-    // Distribute join in Initial Queries, but execute it localy in Secondary Queries
+    // Distribute join in Initial Queries, but execute it locally in Secondary Queries
     // to avoid exponential number of the secondary queries.
     ((DistributeInitial) (1))
     // Always distribute join.
@@ -158,7 +158,7 @@ DEFINE_ENUM(EJoinPolicy,
 DEFINE_ENUM(ESelectPolicy,
     // Always read tables on local node only.
     ((Local)             (0))
-    // Distribute select in initial queries, but read tables localy in secondary queries.
+    // Distribute select in initial queries, but read tables locally in secondary queries.
     ((DistributeInitial) (1))
     // Always distribute select queries.
     ((Distribute)        (2))
@@ -169,8 +169,8 @@ DEFINE_ENUM(EDistributedInsertStage,
     ((None)               (0))
     // Always distribute, even if aggregation is not completed.
     ((WithMergeableState) (1))
-    // Distribute queries if aggregation can be done localy.
-    // Limit/OrderBy statements are processed localy, but the whole result is not sorted
+    // Distribute queries if aggregation can be done locally.
+    // Limit/OrderBy statements are processed locally, but the whole result is not sorted
     // and can contain up to (instance count) * (N limit) rows.
     ((AfterAggregation)   (2))
     // Distribute only when query can be fully processed on workers.

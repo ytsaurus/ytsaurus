@@ -200,7 +200,7 @@ private:
         NFS::MakeDirRecursive(Config_->DataPath);
         ServerContext_->setPath(Config_->DataPath);
 
-        // This function ss used only for thred_count metric per ProtocolServer.
+        // This function ss used only for thread_count metric per ProtocolServer.
         auto dummy_protocol_server_metric_func = [] () {
             return std::vector<DB::ProtocolServerMetrics>{};
         };

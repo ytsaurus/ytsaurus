@@ -12,19 +12,19 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TAST>
-struct TValueFormatter<TAST, std::enable_if_t<std::is_convertible<TAST*, DB::IAST*>::value>>
+template <class TAst>
+struct TValueFormatter<TAst, std::enable_if_t<std::is_convertible<TAst*, DB::IAST*>::value>>
 {
-    static void Do(TStringBuilderBase* builder, const TAST& ast, TStringBuf /* format */)
+    static void Do(TStringBuilderBase* builder, const TAst& ast, TStringBuf /* format */)
     {
         builder->AppendString(DB::serializeAST(ast));
     }
 };
 
-template <class TAST>
-struct TValueFormatter<TAST*, typename std::enable_if_t<std::is_convertible<TAST*, DB::IAST*>::value>>
+template <class TAst>
+struct TValueFormatter<TAst*, typename std::enable_if_t<std::is_convertible<TAst*, DB::IAST*>::value>>
 {
-    static void Do(TStringBuilderBase* builder, const TAST* ast, TStringBuf /* format */)
+    static void Do(TStringBuilderBase* builder, const TAst* ast, TStringBuf /* format */)
     {
         if (ast) {
             builder->AppendString(DB::serializeAST(*ast));
@@ -34,10 +34,10 @@ struct TValueFormatter<TAST*, typename std::enable_if_t<std::is_convertible<TAST
     }
 };
 
-template <class TAST>
-struct TValueFormatter<std::shared_ptr<TAST>, std::enable_if_t<std::is_convertible<TAST*, DB::IAST*>::value>>
+template <class TAst>
+struct TValueFormatter<std::shared_ptr<TAst>, std::enable_if_t<std::is_convertible<TAst*, DB::IAST*>::value>>
 {
-    static void Do(TStringBuilderBase* builder, const std::shared_ptr<TAST>& ast, TStringBuf /* format */)
+    static void Do(TStringBuilderBase* builder, const std::shared_ptr<TAst>& ast, TStringBuf /* format */)
     {
         if (ast) {
             builder->AppendString(DB::serializeAST(*ast));
@@ -53,14 +53,14 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TAST>
-void Serialize(const TAST& ast, NYson::IYsonConsumer* consumer, std::enable_if_t<std::is_convertible<TAST*, DB::IAST*>::value>*)
+template <class TAst>
+void Serialize(const TAst& ast, NYson::IYsonConsumer* consumer, std::enable_if_t<std::is_convertible<TAst*, DB::IAST*>::value>*)
 {
     consumer->OnStringScalar(DB::serializeAST(ast));
 }
 
-template <class TAST>
-void Serialize(const TAST* ast, NYson::IYsonConsumer* consumer, std::enable_if_t<std::is_convertible<TAST*, DB::IAST*>::value>*)
+template <class TAst>
+void Serialize(const TAst* ast, NYson::IYsonConsumer* consumer, std::enable_if_t<std::is_convertible<TAst*, DB::IAST*>::value>*)
 {
     if (ast) {
         consumer->OnStringScalar(DB::serializeAST(*ast));
@@ -69,8 +69,8 @@ void Serialize(const TAST* ast, NYson::IYsonConsumer* consumer, std::enable_if_t
     }
 }
 
-template <class TAST>
-void Serialize(const std::shared_ptr<TAST>& ast, NYson::IYsonConsumer* consumer, std::enable_if_t<std::is_convertible<TAST*, DB::IAST*>::value>*)
+template <class TAst>
+void Serialize(const std::shared_ptr<TAst>& ast, NYson::IYsonConsumer* consumer, std::enable_if_t<std::is_convertible<TAst*, DB::IAST*>::value>*)
 {
     if (ast) {
         consumer->OnStringScalar(DB::serializeAST(*ast));

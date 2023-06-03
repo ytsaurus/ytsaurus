@@ -32,11 +32,11 @@ void RegisterNewUser(DB::AccessControl& accessControl, TString userName);
 
 // These functions help to convert YT key bounds to CH key bounds.
 
-//! Retruns the minimum possible value for given dataType.
+//! Returns the minimum possible value for given dataType.
 //! Throws an error if dataType is unexpected for YT-tables.
 DB::Field GetMinimumTypeValue(const DB::DataTypePtr& dataType);
 
-//! Retruns the maximum possible value for given dataType.
+//! Returns the maximum possible value for given dataType.
 //! If the maximum value is unrepresentable, returns some big value.
 //! Throws an error if dataType is unexpected for YT-tables.
 DB::Field GetMaximumTypeValue(const DB::DataTypePtr& dataType);

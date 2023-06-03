@@ -507,7 +507,7 @@ DB::ColumnUInt8::MutablePtr BuildNullBytemapForCHColumn(const IUnversionedColumn
 
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
 
-    YT_LOG_TRACE("Buliding null bytemap (ValueCount: %v, Rle: %v, Dictionary: %v, NullBitmap: %v, Values: %v)",
+    YT_LOG_TRACE("Building null bytemap (ValueCount: %v, Rle: %v, Dictionary: %v, NullBitmap: %v, Values: %v)",
         ytColumn.ValueCount,
         static_cast<bool>(rleIndexes),
         static_cast<bool>(dictionaryIndexes),

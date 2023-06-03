@@ -8,17 +8,17 @@ import (
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
-type HTTPResponser struct {
+type HTTPResponder struct {
 	Logger log.Logger
 }
 
-func NewHTTPResponser(l log.Logger) HTTPResponser {
-	return HTTPResponser{
+func NewHTTPResponder(l log.Logger) HTTPResponder {
+	return HTTPResponder{
 		Logger: l,
 	}
 }
 
-func (a HTTPResponser) Reply(w http.ResponseWriter, status int, rsp any) {
+func (a HTTPResponder) Reply(w http.ResponseWriter, status int, rsp any) {
 	body, err := yson.Marshal(rsp)
 	if err != nil {
 		a.Logger.Error("failed to marshal response", log.Error(err))
@@ -33,13 +33,13 @@ func (a HTTPResponser) Reply(w http.ResponseWriter, status int, rsp any) {
 	}
 }
 
-func (a HTTPResponser) ReplyWithError(w http.ResponseWriter, err error) {
+func (a HTTPResponder) ReplyWithError(w http.ResponseWriter, err error) {
 	a.Reply(w, http.StatusBadRequest, map[string]any{
 		"to_print": err.Error(),
 		"error":    yterrors.FromError(err),
 	})
 }
 
-func (a HTTPResponser) ReplyOK(w http.ResponseWriter, rsp any) {
+func (a HTTPResponder) ReplyOK(w http.ResponseWriter, rsp any) {
 	a.Reply(w, http.StatusOK, rsp)
 }

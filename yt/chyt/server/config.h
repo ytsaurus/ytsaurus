@@ -144,7 +144,7 @@ public:
     bool OptimizeQueryProcessingStage;
     //! Add bound conditions for second table expression if the main table is sorted by join key.
     //! Useless without AllowSwitchToSortedPool.
-    //! Prefiltering right table lowers memory usage in distirbuted join and can improve performance.
+    //! Prefiltering right table lowers memory usage in distributed join and can improve performance.
     bool FilterJoinedSubqueryBySortKey;
 
     //! Allow StorageDistributor to use sorted pool to optimize aggregation and joins.
@@ -179,7 +179,7 @@ class TConcatTablesSettings
 public:
     //! What to do if a column is missing in some tables (Drop / Throw / ReadAsNull).
     EMissingColumnMode MissingColumnMode;
-    //! What to do if types of the column in diffrent tables do not match (Drop / Throw / ReadAsAny).
+    //! What to do if types of the column in different tables do not match (Drop / Throw / ReadAsAny).
     ETypeMismatchMode TypeMismatchMode;
     //! Disable user-friendly check when there are no columns present in every input table.
     bool AllowEmptySchemaIntersection;

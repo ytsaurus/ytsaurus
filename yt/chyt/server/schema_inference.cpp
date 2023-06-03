@@ -117,8 +117,8 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
 
             // Update commonType if current column type is more general (e.g. i32 -> i64).
             // We will handle incompatible types (e.g. i32 and String) later.
-            auto [compitability, _] = CheckTypeCompatibility(commonType, columnType);
-            if (compitability == ESchemaCompatibility::FullyCompatible) {
+            auto [compatibility, _] = CheckTypeCompatibility(commonType, columnType);
+            if (compatibility == ESchemaCompatibility::FullyCompatible) {
                 commonType = std::move(columnType);
                 tableIndexWithColumn = tableIndex;
             }
@@ -150,7 +150,7 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
 
     // Second pass.
     // We have found 'the most common' type, but it can be incompatible with some columns.
-    // Validate that all types are compatibile with 'the most common' one.
+    // Validate that all types are compatible with 'the most common' one.
     for (int tableIndex = 0; tableIndex < tableCount; ++tableIndex) {
         const auto& tableSchema = tables[tableIndex]->Schema;
         int columnIndex = columnIndices[tableIndex];

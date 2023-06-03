@@ -209,7 +209,7 @@ struct TComputedColumnPopulationMatcher
                     rowBuffer.Get());
                 resultValue.Id = 0;
             } catch (const TErrorException& ex) {
-                YT_LOG_TRACE(ex, "Caught exception while evaluating expresion");
+                YT_LOG_TRACE(ex, "Caught exception while evaluating expression");
                 // Skip this value. We just deduced that it actually can't take supposed value
                 // (YT would not allow writing value which results in exception in computed
                 // column computation).

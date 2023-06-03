@@ -152,7 +152,7 @@ func getPatchedYtConfig(ctx context.Context, ytc yt.Client, oplet *strawberry.Op
 	if _, ok := healthChecker["queries"]; !ok {
 		healthChecker["queries"] = [1]string{"select * from `//sys/clickhouse/sample_table`"}
 	}
-	if _, ok := healthChecker["preiod"]; !ok {
+	if _, ok := healthChecker["period"]; !ok {
 		healthChecker["period"] = 60 * 1000
 	}
 

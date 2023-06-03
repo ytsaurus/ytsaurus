@@ -230,7 +230,7 @@ std::pair<TInstant, TInstant> GetLogTableTimeInterval(TString path)
     auto startTime = TInstant::ParseIso8601(BaseName(path));
     auto scaleString = BaseName(DirPath(path));
     if (scaleString.EndsWith("min")) {
-        // util parses minuts with 'm' suffix.
+        // util parses minutes with 'm' suffix.
         scaleString.resize(scaleString.size() - 2);
     }
     auto scale = TDuration::Parse(scaleString);
@@ -510,8 +510,8 @@ private:
         {"table_chunk_format_statistics", std::make_shared<DB::DataTypeString>()}, // YSON.
         {"hunk_statistics",         std::make_shared<DB::DataTypeString>()}, // YSON.
 
-        {"tablet_count",            std::make_shared<DB::DataTypeInt64>()}, // From resourse_usage.
-        {"master_memory",           std::make_shared<DB::DataTypeInt64>()}, // From resourse_usage.
+        {"tablet_count",            std::make_shared<DB::DataTypeInt64>()}, // From resources_usage.
+        {"master_memory",           std::make_shared<DB::DataTypeInt64>()}, // From resources_usage.
     });
 };
 

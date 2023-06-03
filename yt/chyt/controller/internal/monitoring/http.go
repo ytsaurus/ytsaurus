@@ -10,12 +10,12 @@ import (
 )
 
 type HTTPLeaderMonitoring struct {
-	httpserver.HTTPResponser
+	httpserver.HTTPResponder
 	leader LeaderChecker
 }
 
 type HTTPHealthMonitoring struct {
-	httpserver.HTTPResponser
+	httpserver.HTTPResponder
 	healther                     Healther
 	leader                       LeaderChecker
 	healthStatusExpirationPeriod time.Duration
@@ -23,14 +23,14 @@ type HTTPHealthMonitoring struct {
 
 func NewHTTPLeaderMonitoring(leader LeaderChecker, l log.Logger) HTTPLeaderMonitoring {
 	return HTTPLeaderMonitoring{
-		HTTPResponser: httpserver.NewHTTPResponser(l),
+		HTTPResponder: httpserver.NewHTTPResponder(l),
 		leader:        leader,
 	}
 }
 
 func NewHTTPHealthMonitoring(healther Healther, leader LeaderChecker, c HTTPMonitoringConfig, l log.Logger) HTTPHealthMonitoring {
 	return HTTPHealthMonitoring{
-		HTTPResponser:                httpserver.NewHTTPResponser(l),
+		HTTPResponder:                httpserver.NewHTTPResponder(l),
 		healther:                     healther,
 		leader:                       leader,
 		healthStatusExpirationPeriod: c.HealthStatusExpirationPeriod,

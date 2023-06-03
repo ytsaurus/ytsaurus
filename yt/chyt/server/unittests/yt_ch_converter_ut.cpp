@@ -1265,7 +1265,7 @@ TEST(TTestKeyConversion, TestNulls)
     };
     auto schema = MakeDummySchema(dataTypes);
 
-    // Diffrent prefix
+    // Different prefix
     {
         auto lowerBound = MakeLowerBound({
             MakeUnversionedInt64Value(1),

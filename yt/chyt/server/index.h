@@ -32,7 +32,7 @@ DEFINE_REFCOUNTED_TYPE(TClickHouseIndex)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A helper for creating indexes.
-//! It stores all nessesary information about the query.
+//! It stores all necessary information about the query.
 class TClickHouseIndexBuilder : DB::WithContext
 {
 public:

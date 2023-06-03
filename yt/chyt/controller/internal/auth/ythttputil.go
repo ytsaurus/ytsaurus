@@ -1,7 +1,7 @@
 package auth
 
 // TODO(dakovalkov): This file contains copy-pasted code from ythttputil package.
-// We need to avoid dependecy on ythttputil, because it depends on unwanted
+// We need to avoid dependency on ythttputil, because it depends on unwanted
 // third party packages (e.g. blackblox).
 // The right way is to split ythttputil package into smaller ones.
 

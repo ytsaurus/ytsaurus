@@ -23,7 +23,7 @@ type Config struct {
 	Stage string `yson:"stage"`
 
 	// RobotUsername is the name of the robot from which all the operations are started.
-	// It is used to check permission to the pool during seting "pool" option.
+	// It is used to check permission to the pool during setting "pool" option.
 	RobotUsername string `yson:"robot_username"`
 
 	// PassWorkerNumber is the number of workers used to process oplets.

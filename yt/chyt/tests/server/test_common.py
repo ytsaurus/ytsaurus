@@ -845,7 +845,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     "select 1",
                     settings={"chyt.testing.hang_control_invoker": 1},
                     timeout=0.1)
-            # 🔥 This is fine 🔥, just igore timeout.
+            # 🔥 This is fine 🔥, just ignore timeout.
             except requests.exceptions.ReadTimeout:
                 pass
 

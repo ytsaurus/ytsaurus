@@ -353,7 +353,7 @@ TSharedRange<TUnversionedRow> ToRowRange(
  * Only first usedKeyColumnCount columns are converted, other values are discarded.
  *
  * If a key is shorter than provided usedKeyColumnCount, the rest of the key is
- * filled with min (lower) or max (upper) possible value of the coresponding column.
+ * filled with min (lower) or max (upper) possible value of the corresponding column.
  *
  * If provided bounds are excplusive and tryMakeBoundsInclusive is |true|,
  * this functions will try to convert them to inclusive using some heuristics.
@@ -382,7 +382,7 @@ TClickHouseKeys ToClickHouseKeys(
 
             if (value.Type == EValueType::Null) {
                 // NOTE(dakovalkov): In YT nulls are less than any other value, so replace them with DB::NEGATIVE_INFINITY.
-                // It is a special null value which is treated appropriatly in KeyCondition.
+                // It is a special null value which is treated appropriately in KeyCondition.
                 chKey[index] = DB::NEGATIVE_INFINITY;
             } else {
                 chKey[index] = ToField(value, logicalType);

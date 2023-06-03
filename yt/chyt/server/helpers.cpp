@@ -180,7 +180,7 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
     switch (dataType->getTypeId()) {
         case DB::TypeIndex::Nullable:
             // When the decremented value is unrepresented in removeNullable(dataType),
-            // we theoreticly can represent it as Null, because Null is smaller than any value.
+            // we theoretical can represent it as Null, because Null is smaller than any value.
             // But we do not care since this function declared to help only in 'simple cases'.
             return TryDecrementFieldValue(field, DB::removeNullable(dataType));
 

@@ -74,7 +74,7 @@ type Oplet struct {
 	// flushedInfoState is the last flushed infoState. It used to detect a local change of the state
 	// alongside with flushedPersistentState.
 	flushedInfoState InfoState
-	// flushedStateRevision is the last known revision of a cypress node where persistenState and
+	// flushedStateRevision is the last known revision of a cypress node where persistentState and
 	// infoState are stored. It is used as a prerequisite revision during a flushPersistentState
 	// phase to guarantee that we will not override the cypress state if it was changed externally.
 	flushedStateRevision yt.Revision
@@ -536,7 +536,7 @@ func (oplet *Oplet) UpdateACLFromNode(ctx context.Context) error {
 		oplet.SetState(StateAccessNodeMissing, "acl node is missing")
 		return err
 	} else if err != nil {
-		oplet.l.Error("error geting acl from access node")
+		oplet.l.Error("error getting acl from access node")
 		return err
 	}
 
@@ -777,7 +777,7 @@ func (oplet *Oplet) Pass(ctx context.Context) error {
 	err := oplet.EnsureUpdatedFromCypress(ctx)
 
 	// If something has changed, the error may go away,
-	// so reset backoff and try to proccess op again.
+	// so reset backoff and try to process op again.
 	if oplet.needFlushPersistentState() {
 		oplet.resetBackoff()
 	}
@@ -800,7 +800,7 @@ func (oplet *Oplet) Pass(ctx context.Context) error {
 		oplet.increaseBackoff()
 	}
 
-	// We always try to flush the state, even if the error has occured,
+	// We always try to flush the state, even if the error has occurred,
 	// because we want to persist this error in cypress.
 	flushErr := oplet.EnsurePersistentStateFlushed(ctx)
 

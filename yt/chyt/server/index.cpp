@@ -33,11 +33,11 @@ DB::IndexDescription CreateClickHouseIndexDescription(
         std::make_shared<DB::ActionsDAG>(namesAndTypes));
 
     if (indexType == "set") {
-        // 'max_rows' - how many diffrent values one granule can contain. 0 stands for unlimited.
+        // 'max_rows' - how many different values one granule can contain. 0 stands for unlimited.
         description.arguments.emplace_back(/* max_rows */ 0u);
     }
 
-    // This call is unnessesary. It only validates that we filled arguments in the description correctly.
+    // This call is unnecessary. It only validates that we filled arguments in the description correctly.
     // 'attach' is used only for bloomFilterNew, it's meaningless here.
     DB::MergeTreeIndexFactory::instance().validate(description, /* attach */ false);
 

@@ -12,14 +12,14 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TAST>
-void Serialize(const TAST& ast, NYson::IYsonConsumer* consumer, std::enable_if_t<std::is_convertible<TAST*, DB::IAST*>::value>* = nullptr);
+template <class TAst>
+void Serialize(const TAst& ast, NYson::IYsonConsumer* consumer, std::enable_if_t<std::is_convertible<TAst*, DB::IAST*>::value>* = nullptr);
 
-template <class TAST>
-void Serialize(const TAST* ast, NYson::IYsonConsumer* consumer, std::enable_if_t<std::is_convertible<TAST*, DB::IAST*>::value>* = nullptr);
+template <class TAst>
+void Serialize(const TAst* ast, NYson::IYsonConsumer* consumer, std::enable_if_t<std::is_convertible<TAst*, DB::IAST*>::value>* = nullptr);
 
-template <class TAST>
-void Serialize(const std::shared_ptr<TAST>& ast, NYson::IYsonConsumer* consumer, std::enable_if_t<std::is_convertible<TAST*, DB::IAST*>::value>* = nullptr);
+template <class TAst>
+void Serialize(const std::shared_ptr<TAst>& ast, NYson::IYsonConsumer* consumer, std::enable_if_t<std::is_convertible<TAst*, DB::IAST*>::value>* = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

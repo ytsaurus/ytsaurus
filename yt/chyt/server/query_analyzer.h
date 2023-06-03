@@ -95,7 +95,7 @@ private:
 
     //! Apply modification to query part which can be later rolled back by calling RollbackModifications().
     void ApplyModification(DB::ASTPtr* queryPart, DB::ASTPtr newValue);
-    //! Version with explicit previous value specifiction specially for weird DB::ASTSelect::refWhere() behaviour.
+    //! Version with explicit previous value specification specially for weird DB::ASTSelect::refWhere() behaviour.
     void ApplyModification(DB::ASTPtr* queryPart, DB::ASTPtr newValue, DB::ASTPtr previousValue);
     //! Rollback all modifications to the query.
     void RollbackModifications();

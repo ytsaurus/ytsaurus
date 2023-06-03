@@ -29,16 +29,16 @@ static const NProfiling::TRegistry ReporterProfiler("/statistics_reporter");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDistributedQueriesTableDescirptor
+struct TDistributedQueriesTableDescriptor
 {
-    TDistributedQueriesTableDescirptor()
+    TDistributedQueriesTableDescriptor()
         : NameTable(New<TNameTable>())
         , Index(NameTable)
     { }
 
-    static const TDistributedQueriesTableDescirptor& Get()
+    static const TDistributedQueriesTableDescriptor& Get()
     {
-        static const TDistributedQueriesTableDescirptor descriptor;
+        static const TDistributedQueriesTableDescriptor descriptor;
         return descriptor;
     }
 
@@ -89,16 +89,16 @@ struct TDistributedQueriesTableDescirptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSecondaryQueriesTableDescirptor
+struct TSecondaryQueriesTableDescriptor
 {
-    TSecondaryQueriesTableDescirptor()
+    TSecondaryQueriesTableDescriptor()
         : NameTable(New<TNameTable>())
         , Index(NameTable)
     { }
 
-    static const TSecondaryQueriesTableDescirptor& Get()
+    static const TSecondaryQueriesTableDescriptor& Get()
     {
-        static const TSecondaryQueriesTableDescirptor descriptor;
+        static const TSecondaryQueriesTableDescriptor descriptor;
         return descriptor;
     }
 
@@ -210,7 +210,7 @@ public:
 
     TUnversionedOwningRow ToRow(int /* archiveVersion */) const override
     {
-        const auto& index = TDistributedQueriesTableDescirptor::Get().Index;
+        const auto& index = TDistributedQueriesTableDescriptor::Get().Index;
 
         TUnversionedOwningRowBuilder builder;
         builder.AddValue(MakeUnversionedStringValue(InitialQueryId_, index.InitialQueryId));
@@ -279,7 +279,7 @@ public:
 
     TUnversionedOwningRow ToRow(int /* archiveVersion */) const override
     {
-        const auto& index = TSecondaryQueriesTableDescirptor::Get().Index;
+        const auto& index = TSecondaryQueriesTableDescriptor::Get().Index;
 
         TUnversionedOwningRowBuilder builder;
         builder.AddValue(MakeUnversionedStringValue(InitialQueryId_, index.InitialQueryId));
@@ -360,7 +360,7 @@ public:
                 Version_,
                 Config_,
                 Config_->DistributedQueriesHandler,
-                TDistributedQueriesTableDescirptor::Get().NameTable,
+                TDistributedQueriesTableDescriptor::Get().NameTable,
                 "distributed_queries",
                 client,
                 Reporter_->GetInvoker(),
@@ -370,7 +370,7 @@ public:
                 Version_,
                 Config_,
                 Config_->SecondaryQueriesHandler,
-                TSecondaryQueriesTableDescirptor::Get().NameTable,
+                TSecondaryQueriesTableDescriptor::Get().NameTable,
                 "secondary_queries",
                 client,
                 Reporter_->GetInvoker(),

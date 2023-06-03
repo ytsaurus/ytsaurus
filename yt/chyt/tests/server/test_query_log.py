@@ -42,9 +42,9 @@ class TestQueryLog(ClickHouseTestBase):
     @authors("max42", "dakovalkov")
     def test_query_log_eviction(self):
         query_log_flush_period = 3
-        query_log_older_flush_preiod = 2
+        query_log_older_flush_period = 2
 
-        with Clique(1, config_patch=self._get_query_log_patch(query_log_flush_period, query_log_older_flush_preiod)) as clique:
+        with Clique(1, config_patch=self._get_query_log_patch(query_log_flush_period, query_log_older_flush_period)) as clique:
             timespan = 15
             counter = 0
             start = time.time()
@@ -62,7 +62,7 @@ class TestQueryLog(ClickHouseTestBase):
 
                 all_entries = clique.make_query("select * from system.query_log", verbose=False)
                 # NB: Flushing buffer table is not atomic. Query can be temporary missing from the log
-                # if it's being transfered from query_log to query_log_older during "select * from system.query_log" query.
+                # if it's being transferred from query_log to query_log_older during "select * from system.query_log" query.
                 # To guarantee that all queries are present in the result, we run the query two times.
                 all_entries.extend(clique.make_query("select * from system.query_log", verbose=False))
 
@@ -91,10 +91,10 @@ class TestQueryLog(ClickHouseTestBase):
             if state["state"] in ("seen", "evicted"):
                 assert state["seen_at"] - state["started_at"] <= 0.5
             if state["state"] == "evicted":
-                assert state["evicted_at"] - state["started_at"] >= query_log_older_flush_preiod - 1
-                assert state["evicted_at"] - state["started_at"] <= (query_log_flush_period + query_log_older_flush_preiod) + 3
+                assert state["evicted_at"] - state["started_at"] >= query_log_older_flush_period - 1
+                assert state["evicted_at"] - state["started_at"] <= (query_log_flush_period + query_log_older_flush_period) + 3
 
-            if state["started_at"] <= timespan - (query_log_flush_period + query_log_older_flush_preiod) - 3:
+            if state["started_at"] <= timespan - (query_log_flush_period + query_log_older_flush_period) - 3:
                 assert state["state"] == "evicted"
             if state["started_at"] <= timespan - 2:
                 assert state["state"] in ("seen", "evicted")

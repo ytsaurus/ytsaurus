@@ -271,7 +271,7 @@ class TestStatistisTables(ClickHouseTestBase):
 
             query = 'select a from "//tmp/t0" as a global join "//tmp/t1" as b using a'
             validate_query_statistics(clique, query, expected_structure=[
-                # XXX(dakovalkov): global join reads reduntant column 'b'.
+                # XXX(dakovalkov): global join reads redundant column 'b'.
                 # https://github.com/ClickHouse/ClickHouse/issues/21478
                 ("^SELECT a(, b)? FROM (YT.)?`//tmp/t1`$", []),
                 ("^SELECT a FROM `//tmp/t0` AS a GLOBAL ALL INNER JOIN .* AS b USING \\(a\\)$", []),
