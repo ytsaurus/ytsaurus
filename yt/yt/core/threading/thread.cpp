@@ -200,7 +200,7 @@ void TThread::ThreadMainTrampoline()
     public:
         ~TExitInterceptor()
         {
-            if (Armed_ && !std::uncaught_exception()) {
+            if (Armed_ && !std::uncaught_exceptions()) {
                 if (auto* logFile = TryGetShutdownLogFile()) {
                     ::fprintf(logFile, "Thread exit interceptor triggered (ThreadId: %" PRISZT ")\n",
                         GetCurrentThreadId());

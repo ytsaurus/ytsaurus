@@ -4,6 +4,8 @@
 
 #include <library/cpp/yt/threading/event_count.h>
 
+#include <cmath>
+
 namespace NYT::NConcurrency {
 
 using namespace NProfiling;

@@ -21,6 +21,8 @@
 
 #include <ares.h>
 
+#include <cmath>
+
 #ifdef _unix_
     #ifdef _linux_
         #define YT_DNS_RESOLVER_USE_EPOLL

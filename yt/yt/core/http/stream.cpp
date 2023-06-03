@@ -602,7 +602,7 @@ void THttpOutput::Reset()
     Status_.reset();
     Method_.reset();
     HostHeader_.reset();
-    Path_ = {};
+    Path_.clear();
 
     HeadersFlushed_ = false;
     MessageFinished_ = false;
