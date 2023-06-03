@@ -180,7 +180,7 @@ struct ICellDirectory
 
     //! Registers a cell with empty description.
     /*!
-     *  This call could be used in conjuction with #IsCellUnregistered to make sure that
+     *  This call could be used in conjunction with #IsCellUnregistered to make sure that
      *  a given #cellId is no longer valid.
      */
     virtual void RegisterCell(TCellId cellId) = 0;

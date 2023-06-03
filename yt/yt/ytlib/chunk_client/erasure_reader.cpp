@@ -67,7 +67,7 @@ public:
     TError CheckPartReaderIsSlow(int partIndex, i64 bytesReceived, TDuration timePassed);
 
 private:
-    friend class TErasureReaderWithOverridenThrottlers;
+    friend class TErasureReaderWithOverriddenThrottlers;
 
     TRefCountedChunkMetaPtr DoGetMeta(
         const TClientChunkReadOptions& options,
@@ -258,13 +258,13 @@ IChunkReaderPtr CreateAdaptiveRepairingErasureReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TErasureReaderWithOverridenThrottlers)
+DECLARE_REFCOUNTED_CLASS(TErasureReaderWithOverriddenThrottlers)
 
-class TErasureReaderWithOverridenThrottlers
+class TErasureReaderWithOverriddenThrottlers
     : public IChunkReader
 {
 public:
-    TErasureReaderWithOverridenThrottlers(
+    TErasureReaderWithOverriddenThrottlers(
         TAdaptiveRepairingErasureReaderPtr underlyingReader,
         const IThroughputThrottlerPtr& bandwidthThrottler,
         const IThroughputThrottlerPtr& rpsThrottler)
@@ -323,7 +323,7 @@ private:
     std::vector<IChunkReaderAllowingRepairPtr> ReaderAdapters_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TErasureReaderWithOverridenThrottlers)
+DEFINE_REFCOUNTED_TYPE(TErasureReaderWithOverriddenThrottlers)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -332,11 +332,11 @@ IChunkReaderPtr CreateAdaptiveRepairingErasureReaderThrottlingAdapter(
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
 {
-    auto* underylingErasureReader = dynamic_cast<TAdaptiveRepairingErasureReader*>(underlyingReader.Get());
-    YT_VERIFY(underylingErasureReader);
+    auto* underlyingErasureReader = dynamic_cast<TAdaptiveRepairingErasureReader*>(underlyingReader.Get());
+    YT_VERIFY(underlyingErasureReader);
 
-    return New<TErasureReaderWithOverridenThrottlers>(
-        underylingErasureReader,
+    return New<TErasureReaderWithOverriddenThrottlers>(
+        underlyingErasureReader,
         std::move(bandwidthThrottler),
         std::move(rpsThrottler));
 }

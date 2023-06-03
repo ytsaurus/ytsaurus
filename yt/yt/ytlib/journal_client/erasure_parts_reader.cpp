@@ -341,13 +341,13 @@ private:
         return result;
     }
 
-    TPartIndexList GetErasedIndices(const TPartIndexList& availableIndicies)
+    TPartIndexList GetErasedIndices(const TPartIndexList& availableIndices)
     {
         TPartIndexSet set;
         for (int index = 0; index < Reader_->Codec_->GetTotalPartCount(); ++index) {
             set.insert(index);
         }
-        for (int index : availableIndicies) {
+        for (int index : availableIndices) {
             set.erase(index);
         }
         TPartIndexList list(set.begin(), set.end());
@@ -365,7 +365,7 @@ private:
     TPartIndexList GetFetchIndices(const TPartIndexList& erasedIndices, const TPartIndexList& repairIndices)
     {
         TPartIndexList list;
-        // Repair indicies must come first.
+        // Repair indices must come first.
         for (int index : repairIndices) {
             list.push_back(index);
         }
@@ -383,13 +383,13 @@ private:
         VERIFY_SPINLOCK_AFFINITY(ReplicasLock_);
         YT_VERIFY(CanRunSlowPath());
 
-        auto availableIndicies = GetAvailableIndices();
-        auto erasedIndices = GetErasedIndices(availableIndicies);
+        auto availableIndices = GetAvailableIndices();
+        auto erasedIndices = GetErasedIndices(availableIndices);
         auto repairIndices = GetRepairIndices(erasedIndices);
         auto fetchIndices = GetFetchIndices(erasedIndices, repairIndices);
 
         YT_LOG_DEBUG("Session will run slow path (AvailableIndices: %v, ErasedIndices: %v, RepairIndices: %v, FetchIndices: %v)",
-            availableIndicies,
+            availableIndices,
             erasedIndices,
             repairIndices,
             fetchIndices);

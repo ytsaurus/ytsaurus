@@ -62,7 +62,7 @@ void TPackingStatistics::RecordHeartbeat(
     auto guard = Guard(Lock_);
 
     WindowOfHeartbeats_.push_front(heartbeatSnapshot);
-    if (std::ssize(WindowOfHeartbeats_) > config->MaxHearbeatWindowSize) {
+    if (std::ssize(WindowOfHeartbeats_) > config->MaxHeartbeatWindowSize) {
         WindowOfHeartbeats_.pop_back();
     }
 }

@@ -38,8 +38,8 @@ private:
     THashMap<NTabletClient::TTabletId, TTabletSyncReplicaIds> TabletIdToSyncReplicaIds_;
 
 
-    void ScheduleSweepObsoleteEntires();
-    void DoSweepObsoleteEntires();
+    void ScheduleSweepObsoleteEntries();
+    void DoSweepObsoleteEntries();
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSyncReplicaCache)

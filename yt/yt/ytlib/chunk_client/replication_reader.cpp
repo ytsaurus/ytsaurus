@@ -586,7 +586,7 @@ protected:
         return *GetOrCrash(Peers_, address).NodeDescriptor;
     }
 
-    //! Register peer and install into the peer queue if neccessary.
+    //! Register peer and install into the peer queue if necessary.
     bool AddPeer(
         TNodeId nodeId,
         const TString& address,
@@ -981,7 +981,7 @@ protected:
     }
 
     template <class TResponsePtr>
-    void BanSeedIfUncomplete(const TResponsePtr& rsp, const TString& address)
+    void BanSeedIfIncomplete(const TResponsePtr& rsp, const TString& address)
     {
         if (IsSeed(address) && !rsp->has_complete_chunk()) {
             YT_LOG_DEBUG("Seed does not contain the chunk (Address: %v)", address);
@@ -1991,7 +1991,7 @@ private:
             BanPeer(respondedPeer.Address, false);
         }
 
-        BanSeedIfUncomplete(rsp, respondedPeer.Address);
+        BanSeedIfIncomplete(rsp, respondedPeer.Address);
 
         if (bytesReceived > 0) {
             // Reinstall peer into peer queue, if some data was received.
@@ -2337,7 +2337,7 @@ private:
             FetchedBlocks_.push_back(std::move(block));
         }
 
-        BanSeedIfUncomplete(rsp, peerAddress);
+        BanSeedIfIncomplete(rsp, peerAddress);
 
         if (rsp->net_throttling() || rsp->disk_throttling()) {
             YT_LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
@@ -3055,14 +3055,14 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TReplicationReaderWithOverridenThrottlers)
+DECLARE_REFCOUNTED_CLASS(TReplicationReaderWithOverriddenThrottlers)
 
-class TReplicationReaderWithOverridenThrottlers
+class TReplicationReaderWithOverriddenThrottlers
     : public IChunkReaderAllowingRepair
     , public IOffloadingReader
 {
 public:
-    TReplicationReaderWithOverridenThrottlers(
+    TReplicationReaderWithOverriddenThrottlers(
         TReplicationReaderPtr underlyingReader,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler)
@@ -3164,7 +3164,7 @@ private:
     const IThroughputThrottlerPtr RpsThrottler_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TReplicationReaderWithOverridenThrottlers)
+DEFINE_REFCOUNTED_TYPE(TReplicationReaderWithOverriddenThrottlers)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3197,7 +3197,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReaderThrottlingAdapter(
     auto* underlyingReplicationReader = dynamic_cast<TReplicationReader*>(underlyingReader.Get());
     YT_VERIFY(underlyingReplicationReader);
 
-    return New<TReplicationReaderWithOverridenThrottlers>(
+    return New<TReplicationReaderWithOverriddenThrottlers>(
         underlyingReplicationReader,
         std::move(bandwidthThrottler),
         std::move(rpsThrottler));

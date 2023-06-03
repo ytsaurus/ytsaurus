@@ -667,7 +667,7 @@ private:
                             Modifications_,
                             replicaOptions);
                     } else {
-                        // YT-7571: Local sync replicas must be handled differenly.
+                        // YT-7571: Local sync replicas must be handled differently.
                         // We cannot add more modifications via ITransactions interface since
                         // the transaction is already committing.
 

@@ -352,7 +352,7 @@ public:
 
     //! An option regulating the total data slice count during the sampling job creation procedure.
     //! It should not be used normally and left only for manual setup in marginal cases.
-    //! If not set, it is overriden with MaxTotalSliceCount from controller agent options.
+    //! If not set, it is overridden with MaxTotalSliceCount from controller agent options.
     std::optional<i64> MaxTotalSliceCount;
 
     //! Size of IO block to consider when calculating the lower bound for sampling job size.
@@ -384,7 +384,7 @@ public:
     double AbsoluteMetricValueTolerance;
     double RelativeMetricValueTolerance;
     int MinWindowSizeForSchedule;
-    int MaxHearbeatWindowSize;
+    int MaxHeartbeatWindowSize;
     TDuration MaxHeartbeatAge;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyPackingConfig);
@@ -420,7 +420,7 @@ public:
 
     //! If set and several regular pool trees have been specified, then the scheduler will choose
     //! one of those trees based on some heuristic, and all jobs will be scheduled only in the chosen tree.
-    //! This option can't be used simultaneously with TentativePoolTrees or UseDefaulTentativePoolTrees;
+    //! This option can't be used simultaneously with TentativePoolTrees or UseDefaultTentativePoolTrees;
     bool ScheduleInSingleTree;
 
     //! Tentative pool trees to schedule operation in.

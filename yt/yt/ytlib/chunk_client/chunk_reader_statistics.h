@@ -25,7 +25,7 @@ struct TChunkReaderStatistics
     // COMPAT(babenko): drop
     std::atomic<i64> OmittedSuspiciousNodeCount = 0;
 
-    // TODO(akozhikhov): Examine whether corresponing plot has non-zero values for dynamic tables.
+    // TODO(akozhikhov): Examine whether corresponding plot has non-zero values for dynamic tables.
     std::atomic<i64> P2PActivationCount = 0;
 
     std::atomic<NProfiling::TValue> RemoteCpuTime = 0;
@@ -52,7 +52,7 @@ void UpdateFromProto(
     const NProto::TChunkReaderStatistics& protoChunkReaderStatistics);
 
 void DumpChunkReaderStatistics(
-    TStatistics* jobStatisitcs,
+    TStatistics* jobStatistics,
     const TString& path,
     const TChunkReaderStatisticsPtr& chunkReaderStatisticsPtr);
 

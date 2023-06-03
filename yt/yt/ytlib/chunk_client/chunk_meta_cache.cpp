@@ -151,7 +151,7 @@ public:
 
             // AssembleChunkMeta and OnExtensionsReceived can acquire a Lock_.
             // If all futures have already been set, we will call these methods from this fiber
-            // before WriterGuard is destoyed. To avoid deadlock, release the lock manually.
+            // before WriterGuard is destroyed. To avoid deadlock, release the lock manually.
             guard.Release();
 
             if (!missingExtensionTags.empty()) {

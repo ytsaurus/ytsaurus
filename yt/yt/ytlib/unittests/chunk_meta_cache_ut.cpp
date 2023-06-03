@@ -232,7 +232,7 @@ TEST(TClientChunkMetaCacheTest, Eviction)
         EXPECT_CALL(fetcherMock, Fetch(TTagList(std::vector{1,})))
             .Times(100);
 
-        // 100 items is more than enought to overflow cache capacity, so second pass is not cached.
+        // 100 items is more than enough to overflow cache capacity, so second pass is not cached.
         EXPECT_CALL(fetcherMock, Fetch(TTagList(std::vector{1,})))
             .Times(100);
 

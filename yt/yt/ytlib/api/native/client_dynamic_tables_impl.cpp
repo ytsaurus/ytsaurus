@@ -1263,7 +1263,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     const TSelectRowsOptions& options)
 {
     if (options.RetentionTimestamp > options.Timestamp) {
-        THROW_ERROR_EXCEPTION("Retention timestamp cannot be greater than read timestmap")
+        THROW_ERROR_EXCEPTION("Retention timestamp cannot be greater than read timestamp")
             << TErrorAttribute("retention_timestamp", options.RetentionTimestamp)
             << TErrorAttribute("timestamp", options.Timestamp);
     }
@@ -2858,8 +2858,8 @@ TReplicationCardPtr TClient::GetSyncReplicationCard(const TTableMountInfoPtr& ta
             continue;
         }
 
-        auto cooridnator = replicationCard->CoordinatorCellIds[RandomNumber<size_t>() % replicationCard->CoordinatorCellIds.size()];
-        auto channel = GetChaosChannelByCellId(cooridnator, EPeerKind::Leader);
+        auto coordinator = replicationCard->CoordinatorCellIds[RandomNumber<size_t>() % replicationCard->CoordinatorCellIds.size()];
+        auto channel = GetChaosChannelByCellId(coordinator, EPeerKind::Leader);
         auto proxy = TCoordinatorServiceProxy(channel);
         proxy.SetDefaultTimeout(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout);
         auto req = proxy.GetReplicationCardEra();

@@ -1587,7 +1587,7 @@ private:
             .ThrowOnError();
         const auto& chunkMetas = chunkMetaFetcher->ChunkMetas();
 
-        YT_LOG_DEBUG("Chunk metas fecthed (ChunkMetaCount: %v)",
+        YT_LOG_DEBUG("Chunk metas fetched (ChunkMetaCount: %v)",
             chunkMetas.size());
 
         YT_VERIFY(ChunkSpecs_.size() == chunkMetas.size());

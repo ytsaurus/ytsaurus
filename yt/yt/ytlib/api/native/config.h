@@ -224,7 +224,7 @@ public:
     int MaxRowsPerLookupRequest;
     //! Slack between client-side timeout and timeout of internal subrequests.
     //! Is used if |EnablePartialResult| is set for a lookup request so it
-    //! will not completely timeout becase of slow subrequests.
+    //! will not completely timeout because of slow subrequests.
     TDuration LookupRowsRequestTimeoutSlack;
 
     int DefaultGetTabletErrorsLimit;

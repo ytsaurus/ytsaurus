@@ -76,7 +76,7 @@ struct IUnversionedColumnReader
     virtual void ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) = 0;
 
     //! Returns the number of IUnversionedColumnarRowBatch::TColumn instances needed to represent
-    //! the current segement.
+    //! the current segment.
     virtual int GetBatchColumnCount() = 0;
 
     //! Reads values into #columns (of size #GetBatchColumnCount).

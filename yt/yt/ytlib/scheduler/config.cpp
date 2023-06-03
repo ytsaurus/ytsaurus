@@ -2080,7 +2080,7 @@ void TFairShareStrategyPackingConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_window_size_for_schedule", &TThis::MinWindowSizeForSchedule)
         .Default(0)
         .GreaterThanOrEqual(0);
-    registrar.Parameter("max_heartbeat_window_size", &TThis::MaxHearbeatWindowSize)
+    registrar.Parameter("max_heartbeat_window_size", &TThis::MaxHeartbeatWindowSize)
         .Default(10);
     registrar.Parameter("max_heartbeat_age", &TThis::MaxHeartbeatAge)
         .Default(TDuration::Hours(1));

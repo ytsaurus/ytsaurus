@@ -152,7 +152,7 @@ protected:
         // GetBlockIndex is used in lookup and range readers.
         // In lookup reader key has length equal to table key column count
         // and no sentinel types (Min/Max) in values.
-        // In range reader key can have Min/Max values and aribtrary length.
+        // In range reader key can have Min/Max values and arbitrary length.
         // So we have to create lower bound via ToKeyBoundRef.
         auto lowerBound = ToKeyBoundRef(key, false, ChunkState_->TableSchema->GetKeyColumnCount());
 

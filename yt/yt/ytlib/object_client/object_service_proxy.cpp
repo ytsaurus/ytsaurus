@@ -566,16 +566,16 @@ void TObjectServiceProxy::TReqExecuteBatchWithRetries::Initialize()
 
 void TObjectServiceProxy::TReqExecuteBatchWithRetries::InvokeNextBatch()
 {
-    std::vector<TInnerRequestDescriptor> innerRequestDesciptors;
-    innerRequestDesciptors.reserve(PendingIndexes_.size());
+    std::vector<TInnerRequestDescriptor> innerRequestDescriptors;
+    innerRequestDescriptors.reserve(PendingIndexes_.size());
 
     for (int index : PendingIndexes_) {
         auto& descriptor = InnerRequestDescriptors_[index];
         descriptor.Message = PatchMutationId(descriptor.Message);
-        innerRequestDesciptors.push_back(descriptor);
+        innerRequestDescriptors.push_back(descriptor);
     }
 
-    auto batchRequest = New<TReqExecuteBatch>(*this, std::move(innerRequestDesciptors));
+    auto batchRequest = New<TReqExecuteBatch>(*this, std::move(innerRequestDescriptors));
     CurrentReqFuture_ = batchRequest->Invoke();
     YT_LOG_DEBUG("Batch attempt invoked (BatchRequestId: %v, AttemptRequestId: %v, RequestCount: %v)",
         GetRequestId(),

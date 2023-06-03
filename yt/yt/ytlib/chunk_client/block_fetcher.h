@@ -43,7 +43,7 @@ public:
 
         //! This field is used when accessing block cache.
         //! May be |UncompressedData| or |None|.
-        //! |None| is set to explicitly avoid accesing block cache.
+        //! |None| is set to explicitly avoid accessing block cache.
         //! Block caches for other types of blocks are supported within other reading layers.
         EBlockType BlockType = EBlockType::None;
     };

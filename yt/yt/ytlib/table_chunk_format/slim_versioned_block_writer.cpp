@@ -250,7 +250,7 @@ public:
             if ((FixedSizeDictionaryType_ || StringLikeDictionaryType_) && count >= DictionaryCountThreshold) {
                 return EValueCategory::Frequent;
             }
-            if (StringLikeDictionaryType_ && count >= 2 && value.Length >= DictionaryStringLengthTreshold) {
+            if (StringLikeDictionaryType_ && count >= 2 && value.Length >= DictionaryStringLengthThreshold) {
                 return EValueCategory::Frequent;
             }
         }
@@ -268,7 +268,7 @@ private:
     int TopCountThreshold_ = 0;
 
     static constexpr int DictionaryCountThreshold = 10;
-    static constexpr int DictionaryStringLengthTreshold = 100;
+    static constexpr int DictionaryStringLengthThreshold = 100;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

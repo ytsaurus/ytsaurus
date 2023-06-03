@@ -110,7 +110,7 @@ IChannelFactoryPtr CreateNativeAuthenticationInjectingChannelFactory(
     }
 
     if (!tvmService) {
-        YT_LOG_ERROR("Cluster connection requires TVM authentification, but TVM service is unset");
+        YT_LOG_ERROR("Cluster connection requires TVM authentication, but TVM service is unset");
         return channelFactory;
     }
 
@@ -134,7 +134,7 @@ IChannelPtr CreateNativeAuthenticationInjectingChannel(
     }
 
     if (!tvmService) {
-        YT_LOG_ERROR("Cluster connection requires TVM authentification, but TVM service is unset");
+        YT_LOG_ERROR("Cluster connection requires TVM authentication, but TVM service is unset");
         return channel;
     }
 

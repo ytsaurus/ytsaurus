@@ -538,7 +538,7 @@ TInterruptDescriptor TSchemalessMultiChunkReader::GetInterruptDescriptor(
     TRange<TUnversionedRow> unreadRows) const
 {
     if (!Interruptible_) {
-        THROW_ERROR_EXCEPTION("InterruptDescriptor request from a non-interruptable reader");
+        THROW_ERROR_EXCEPTION("InterruptDescriptor request from a non-interruptible reader");
     }
 
     static TRange<TUnversionedRow> emptyRange;

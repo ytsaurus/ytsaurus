@@ -296,7 +296,7 @@ public:
         std::reverse(WindowsList_.begin(), WindowsList_.end());
     }
 
-    bool ReadRows(std::vector<TMutableVersionedRow>* rows, ui32 readCount, ui64* dataWeigth)
+    bool ReadRows(std::vector<TMutableVersionedRow>* rows, ui32 readCount, ui64* dataWeight)
     {
         TCpuDurationIncrementingGuard timingGuard(&ReaderStatistics_->ReadTime);
 
@@ -313,7 +313,7 @@ public:
                 offset += RowsetBuilder_->ReadRowsByList(
                     rows->data() + offset,
                     readCount - offset,
-                    dataWeigth,
+                    dataWeight,
                     ReaderStatistics_.Get());
                 // Segment limit reached, readCount reached, or read list exhausted.
             } else if (WindowsList_.empty()) {

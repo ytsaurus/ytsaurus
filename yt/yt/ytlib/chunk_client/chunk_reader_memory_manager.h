@@ -53,7 +53,7 @@ public:
     //! Adds information about corresponding chunk reader.
     virtual void AddChunkReaderInfo(TGuid chunkReaderId) = 0;
 
-    //! Adds information abount corresponding read session.
+    //! Adds information about corresponding read session.
     virtual void AddReadSessionInfo(TGuid readSessionId) = 0;
 
     //! Returns unique reader id.

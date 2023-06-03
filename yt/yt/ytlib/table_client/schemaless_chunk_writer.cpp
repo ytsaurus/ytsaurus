@@ -924,7 +924,7 @@ public:
 
     i64 GetCompressedDataSize() const override
     {
-        // Retrun uncompressed data size to make smaller chunks and better balance partition data
+        // Return uncompressed data size to make smaller chunks and better balance partition data
         // between HDDs. Also returning uncompressed data makes chunk switch deterministic,
         // since compression is asynchronous.
         return EncodingChunkWriter_->GetDataStatistics().uncompressed_data_size();
@@ -1422,7 +1422,7 @@ private:
 
     std::function<TPartitionChunkWriterPtr(IChunkWriterPtr)> ChunkWriterFactory_;
 
-    THashSet<int> LargePartitons_;
+    THashSet<int> LargePartitions_;
     std::vector<std::unique_ptr<THorizontalBlockWriter>> BlockWriters_;
 
     TNameTablePtr ChunkNameTable_;
@@ -1491,25 +1491,25 @@ private:
         if (blockWriter->GetRowCount() >= PartitionRowCountThreshold ||
             blockWriter->GetBlockSize() > Config_->BlockSize)
         {
-            LargePartitons_.insert(partitionIndex);
+            LargePartitions_.insert(partitionIndex);
         }
     }
 
     bool DumpLargeBlocks()
     {
         bool readyForMore = true;
-        for (auto partitionIndex : LargePartitons_) {
+        for (auto partitionIndex : LargePartitions_) {
             readyForMore = FlushBlock(partitionIndex);
         }
-        LargePartitons_.clear();
+        LargePartitions_.clear();
 
         while (CurrentBufferCapacity_ > Config_->MaxBufferSize) {
-            i64 largestPartitonSize = -1;
+            i64 largestPartitionSize = -1;
             int largestPartitionIndex = -1;
             for (int partitionIndex = 0; partitionIndex < std::ssize(BlockWriters_); ++partitionIndex) {
                 auto& blockWriter = BlockWriters_[partitionIndex];
-                if (blockWriter->GetBlockSize() > largestPartitonSize) {
-                    largestPartitonSize = blockWriter->GetBlockSize();
+                if (blockWriter->GetBlockSize() > largestPartitionSize) {
+                    largestPartitionSize = blockWriter->GetBlockSize();
                     largestPartitionIndex = partitionIndex;
                 }
             }
@@ -1530,7 +1530,7 @@ private:
         blockWriter.reset(new THorizontalBlockWriter(Schema_, BlockReserveSize_));
         CurrentBufferCapacity_ += blockWriter->GetCapacity();
 
-        YT_LOG_DEBUG("Flushing partition block (PartitonIndex: %v, BlockSize: %v, BlockRowCount: %v, CurrentBufferCapacity: %v)",
+        YT_LOG_DEBUG("Flushing partition block (PartitionIndex: %v, BlockSize: %v, BlockRowCount: %v, CurrentBufferCapacity: %v)",
             partitionIndex,
             block.Meta.uncompressed_size(),
             block.Meta.row_count(),

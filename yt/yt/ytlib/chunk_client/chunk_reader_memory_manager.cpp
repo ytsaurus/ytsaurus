@@ -177,7 +177,7 @@ void TChunkReaderMemoryManager::SetTotalSize(i64 size)
 void TChunkReaderMemoryManager::SetRequiredMemorySize(i64 size)
 {
     // Required memory size should never decrease to prevent many memory rebalancings.
-    // NB: maxmimum update should be performed atomically.
+    // NB: maximum update should be performed atomically.
     while (true) {
         auto oldValue = RequiredMemorySize_.load(std::memory_order::relaxed);
         if (oldValue >= size) {

@@ -47,7 +47,7 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
         auto lhsUpperLimit = GetAbsoluteUpperReadLimit(lhs, versioned);
         auto rhsLowerLimit = GetAbsoluteLowerReadLimit(rhs, versioned);
 
-        // TODO(galtsev): the following upto the return from lambda seem to be equvalent to
+        // TODO(galtsev): the following upto the return from lambda seem to be equivalent to
         // YT_VERIFY(!compareAbsoluteReadLimits(rhsLowerLimit, lhsUpperLimit));
         // return !compareAbsoluteReadLimits(lhsUpperLimit, rhsLowerLimit);
         // See also: https://a.yandex-team.ru/review/2538526/files/2#comment-3497326

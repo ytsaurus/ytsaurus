@@ -91,7 +91,7 @@ class TClientDirectory
 {
 public:
     TClientDirectory(
-        TClusterDirectoryPtr clusterDirecotry,
+        TClusterDirectoryPtr clusterDirectory,
         NApi::TClientOptions clientOptions);
 
     //! Returns the client to the cluster with a given #clusterName.

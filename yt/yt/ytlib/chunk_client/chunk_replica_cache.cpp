@@ -118,7 +118,7 @@ public:
                 return futures;
             }
 
-            for (auto& [cellTag, stillMissingIndicies] : cellTagToStillMissingIndices) {
+            for (auto& [cellTag, stillMissingIndices] : cellTagToStillMissingIndices) {
                 try {
                     auto channel = connection->GetMasterCellDirectory()->GetMasterChannelOrThrow(
                         EMasterChannelKind::Follower,
@@ -148,7 +148,7 @@ public:
                         currentReq.Reset();
                     };
 
-                    for (auto index : stillMissingIndicies) {
+                    for (auto index : stillMissingIndices) {
                         auto chunkId = chunkIds[index];
                         currentChunkIds.push_back(chunkId);
                         currentPromises.push_back(promises[index]);
@@ -170,13 +170,13 @@ public:
                     // NB: GetMasterChannelOrThrow above may throw.
 
                     auto error = TError(ex);
-                    for (auto index : stillMissingIndicies) {
+                    for (auto index : stillMissingIndices) {
                         promises[index].Set(error);
                     }
 
                     // Errors must not be sticky; evict promises.
                     auto mapGuard = WriterGuard(EntriesLock_);
-                    for (auto index : stillMissingIndicies) {
+                    for (auto index : stillMissingIndices) {
                         auto chunkId = chunkIds[index];
                         if (auto it = Entries_.find(chunkId); it != Entries_.end()) {
                             auto& entry = *it->second;

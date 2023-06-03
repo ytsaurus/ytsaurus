@@ -18,7 +18,7 @@ static constexpr auto ObsoleteEntriesSweepPeriod = TDuration::Minutes(1);
 
 TTabletSyncReplicaCache::TTabletSyncReplicaCache()
 {
-    ScheduleSweepObsoleteEntires();
+    ScheduleSweepObsoleteEntries();
 }
 
 std::vector<TTableReplicaIdList> TTabletSyncReplicaCache::Filter(
@@ -92,16 +92,16 @@ void TTabletSyncReplicaCache::Put(
     }
 }
 
-void TTabletSyncReplicaCache::ScheduleSweepObsoleteEntires()
+void TTabletSyncReplicaCache::ScheduleSweepObsoleteEntries()
 {
     TDelayedExecutor::Submit(
         BIND(
-            &TTabletSyncReplicaCache::DoSweepObsoleteEntires,
+            &TTabletSyncReplicaCache::DoSweepObsoleteEntries,
             MakeWeak(this)),
         ObsoleteEntriesSweepPeriod);
 }
 
-void TTabletSyncReplicaCache::DoSweepObsoleteEntires()
+void TTabletSyncReplicaCache::DoSweepObsoleteEntries()
 {
     auto cachedSyncReplicasDeadline = TInstant::Now() - TDuration::Minutes(1);
 
@@ -125,7 +125,7 @@ void TTabletSyncReplicaCache::DoSweepObsoleteEntires()
         }
     }
 
-    ScheduleSweepObsoleteEntires();
+    ScheduleSweepObsoleteEntries();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
