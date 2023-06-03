@@ -338,7 +338,7 @@ Examples:
             ("chunksize",
              "bound for the size of the chunk in write operation"),
             ("codec",
-             "NEW! type of comression used while writing table, "
+             "NEW! type of compression used while writing table, "
              "possible values 'snappy', 'lz4', "
              "'zlib_6', 'zlib_9', 'quick_lz', "
              "by default value depends on yt installation."),
@@ -371,9 +371,9 @@ Examples:
              "NEW! delete the table, this option supports range specifications"),
             ("erasurecodec",
              "NEW! type of erasure algorithm used while writing table. "
-             "Applicable only in trasform and archive commands."),
+             "Applicable only in transform and archive commands."),
             ("exists",
-             "NEW! check table for existance"),
+             "NEW! check table for existence"),
             ("failonemptysrctable",
              "OLD! Error if one of input table does not exist"),
             ("file",

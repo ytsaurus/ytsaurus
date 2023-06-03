@@ -63,7 +63,7 @@ class ChunkToUpload:
                 "offset": self.offset,
                 "filesize": self.file_size
             }
-            if for_sky_share:  # Documentation says that it"s not neccessary, but without that it won"t work with big files (YT-18990)
+            if for_sky_share:  # Documentation says that it"s not necessary, but without that it won"t work with big files (YT-18990)
                 res["md5"] = hashlib.md5(data).digest()
                 res["sha1"] = hashlib.sha1(data).digest()
                 res["data_size"] = self.data_size

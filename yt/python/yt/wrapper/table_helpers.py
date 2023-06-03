@@ -278,7 +278,7 @@ def _prepare_format_from_binary(format, binary, format_type):
         return format_from_binary
     if format_from_binary is None:
         return format
-    raise YtError("'{}' specified both implicitely and as function attribute".format(format_type))
+    raise YtError("'{}' specified both implicitly and as function attribute".format(format_type))
 
 
 def _get_skiff_schema_from_tables(tables, client):

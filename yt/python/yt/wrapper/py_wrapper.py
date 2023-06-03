@@ -126,7 +126,7 @@ class TempfilesManager(object):
 
     def __enter__(self):
         self.tmp_dir = tempfile.mkdtemp(prefix="yt_python_tmp_files", dir=self._root_directory)
-        # NB: directory should be accesible from jobs in local mode.
+        # NB: directory should be accessible from jobs in local mode.
         os.chmod(self.tmp_dir, 0o755)
         return self
 
@@ -142,7 +142,7 @@ class TempfilesManager(object):
         else:
             fd, filepath = tempfile.mkstemp(suffix, prefix, dir)
             os.close(fd)
-        # NB: files should be accesible from jobs in local mode.
+        # NB: files should be accessible from jobs in local mode.
         os.chmod(filepath, 0o755)
         self._tempfiles_pool.append(filepath)
         return filepath
@@ -692,7 +692,7 @@ def initialize_python_job_processing():
     """Checks if program is build as standalone binary or arcadia python used.
     And call enable_python_job_processing_for_standalone_binary if it is the case.
 
-    You should call this function in the beggining of the program.
+    You should call this function in the beginning of the program.
     """
     if getattr(sys, "is_standalone_binary", False) or is_arcadia_python():
         enable_python_job_processing_for_standalone_binary()

@@ -399,7 +399,7 @@ def create_job_tool_parser(parser):
 
     run_job_parser = subparsers.add_parser("run-job", help="runs job binary")
     add_hybrid_argument(run_job_parser, "job_path", help="path to prepared job environment")
-    run_job_parser.add_argument("--env", action=ParseStructuredArgument, help="enviroment to use in script run in YSON format")
+    run_job_parser.add_argument("--env", action=ParseStructuredArgument, help="environment to use in script run in YSON format")
 
 
 def run_prepare_job_environment(**args):

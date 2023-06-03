@@ -1035,7 +1035,7 @@ class YTInstance(object):
             with push_front_env_path(self.bin_path):
                 binary_path = _get_yt_binary_path("ytserver-" + component, custom_paths=custom_paths)
                 if binary_path is None:
-                    logger.error("Coult not start component {}, path env = {}, custom_paths = {}".format(
+                    logger.error("Could not start component {}, path env = {}, custom_paths = {}".format(
                         component, os.environ.get("PATH"), custom_paths))
                     raise YtError("Could not start component '{}', make sure it is available in PATH".format(component),
                                   attributes={"path_env": os.environ.get("PATH").split(":")})

@@ -193,7 +193,7 @@ class YPath(object):
                  client=None):
         """
         :param path: string representing cypress path, possible with YPath-encoded attributes.
-        :param dict attributes: additinal attributes.
+        :param dict attributes: additional attributes.
         :param bool simplify: perform parsing of given path.
         """
 

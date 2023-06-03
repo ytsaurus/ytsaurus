@@ -71,8 +71,8 @@ def execute(query, alias=None, raw=None, format=None, settings=None, traceparent
     if FORMAT_CLAUSE_REGEX.search(query.upper()):
         raise YtError("Do not specify FORMAT clause in query; use format keyword instead")
 
-    proxy_provder = get_heavy_proxy_provider(client)
-    url = "http://{}/query".format(proxy_provder())
+    proxy_provider = get_heavy_proxy_provider(client)
+    url = "http://{}/query".format(proxy_provider())
 
     params = settings
 

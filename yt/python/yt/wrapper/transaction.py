@@ -255,7 +255,7 @@ class Transaction(object):
         if self._finished:
             return
 
-        # Allow abort() and commit() temorary
+        # Allow abort() and commit() temporary
         self._used_with_statement = False
         try:
             if not self._acquire:

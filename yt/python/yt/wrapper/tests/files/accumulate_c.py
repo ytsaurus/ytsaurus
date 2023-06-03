@@ -10,7 +10,7 @@ try:
 except ImportError:  # Python 3
     imap = map
 
-def capitilizeB(rec):
+def capitalizeB(rec):
     if "b" in rec: rec["b"] = rec["b"].upper()
     return rec
 

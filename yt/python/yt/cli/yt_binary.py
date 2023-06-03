@@ -671,7 +671,7 @@ def create_pool(**kwargs):
         try:
             kwargs["attributes"]["pool_tree"] = yt.get("//sys/scheduler/orchid/scheduler/default_pool_tree")
         except yt.YtError as err:
-            raise yt.YtError("Failed to retrive default pool tree from scheduler orchid; "
+            raise yt.YtError("Failed to retrieve default pool tree from scheduler orchid; "
                              "please specify the pool_tree argument",
                              inner_errors=[err])
     print(yt.create("scheduler_pool", **kwargs))
@@ -2213,14 +2213,14 @@ def clickhouse_ctl_handler(**kwards):
     address = kwards.pop("address")
     command_name = kwards.pop("command_name")
     parser = kwards.pop("parser")
-    proxy_choises = kwards.pop("proxy_choises")
+    proxy_choices = kwards.pop("proxy_choices")
     cluster_proxy = yt.config["proxy"]["url"]
     params = kwards
 
-    if cluster_proxy not in proxy_choises:
+    if cluster_proxy not in proxy_choices:
         address = chyt_ctl.get_full_ctl_address(address)
         msg = "bad cluster proxy choice: {}\n".format(cluster_proxy)
-        msg += "controller {} serves only following clusters: {}\n".format(address, proxy_choises)
+        msg += "controller {} serves only following clusters: {}\n".format(address, proxy_choices)
         msg += "set up proper cluster proxy via --proxy option or via YT_PROXY env variable"
         parser.error(msg)
 
@@ -2268,7 +2268,7 @@ def add_clickhouse_ctl_parser(add_parser):
         parser.add_argument("-h", "--help", action="help", default=SUPPRESS,
                             help="show this help message and exit")
 
-        parser.set_defaults(proxy_choises=api_structure["clusters"])
+        parser.set_defaults(proxy_choices=api_structure["clusters"])
 
         for command in api_structure["commands"]:
             subparser = add_cmd_subparser(

@@ -540,7 +540,7 @@ def format_operation_stderrs(jobs_with_stderr):
     return output.getvalue()
 
 
-# TODO(ignat): is it convinient and generic way to get stderrs? Move to tests? Or remove it completely?
+# TODO(ignat): is it convenient and generic way to get stderrs? Move to tests? Or remove it completely?
 def add_failed_operation_stderrs_to_error_message(func):
     def _add_failed_operation_stderrs_to_error_message(func, *args, **kwargs):
         try:
@@ -664,7 +664,7 @@ class Operation(object):
 
     def get_jobs_with_error_or_stderr(self, only_failed_jobs=False):
         """Returns list of objects thar represents jobs with stderrs.
-        Each object is dict with keys "stderr", "error" (if applyable), "host".
+        Each object is dict with keys "stderr", "error" (if applicable), "host".
 
         :param bool only_failed_jobs: consider only failed jobs.
         """

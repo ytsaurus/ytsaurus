@@ -84,9 +84,9 @@ def start_func(**kwargs):
         kwargs["set_pdeath_sig"] = True
 
     for service in SERVICE_LIST:
-        service_undescore = service.replace("-", "_")
-        path_arg_key = service_undescore + "_config_path"
-        arg_key = service_undescore + "_config"
+        service_underscore = service.replace("-", "_")
+        path_arg_key = service_underscore + "_config_path"
+        arg_key = service_underscore + "_config"
         if arg_key in kwargs and kwargs[arg_key] is not None:
             ok = True
             try:

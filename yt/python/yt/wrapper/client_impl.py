@@ -525,7 +525,7 @@ class YtClient(ClientState):
             self,
             node_address, location_uuids):
         """
-        Mark locations for destroing. Disks of these locations can be recovered.
+        Mark locations for destroying. Disks of these locations can be recovered.
 
         :param node_address: node address.
         :param location_uuids: location uuids.
@@ -1865,7 +1865,7 @@ class YtClient(ClientState):
         """
         Runs join-reduce operation.
 
-        .. note:: You should specity at least two input table and all except one     should have set foreign attibute. You should also specify join_by columns.
+        .. note:: You should specity at least two input table and all except one     should have set foreign attribute. You should also specify join_by columns.
 
         .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
 

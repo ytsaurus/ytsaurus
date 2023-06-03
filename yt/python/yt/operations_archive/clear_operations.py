@@ -515,7 +515,7 @@ def request_operations_recursive(yt_client, root_operation_ids, prefixes):
             if not error.is_resolve_error():
                 raise error
 
-    # It is important to make additional existance check due to possible races.
+    # It is important to make additional existence check due to possible races.
     exists_responses = []
     batch_client = yt.create_batch_client(max_batch_size=200, client=yt_client)
     for _, op in candidates_to_remove:

@@ -234,7 +234,7 @@ class YtTestEnvironment(object):
         if yatest_common is not None and yatest_common.context.sanitize == "address":
             self.config["user_job_spec_defaults"] = {"memory_limit": ASAN_USER_JOB_MEMORY_LIMIT}
 
-        # Interrupt main in tests is unrelaible and can cause 'Test crashed' or other errors in case of flaps.
+        # Interrupt main in tests is unreliable and can cause 'Test crashed' or other errors in case of flaps.
         self.config["ping_failed_mode"] = "pass"
 
         self.config["is_local_mode"] = True

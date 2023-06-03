@@ -537,7 +537,7 @@ class Cypress(fuse.Operations):
         return 0
 
     def _get_stat(self, attributes):
-        """Gets stat sturcture for a node based on its attributes."""
+        """Gets stat structure for a node based on its attributes."""
         return {
             "st_dev": 0,
             "st_ino": 0,

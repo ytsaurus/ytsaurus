@@ -237,7 +237,7 @@ class OperationsTrackerBase(object):
             self.operations.clear()
 
         if check_result and inner_errors:
-            raise YtError("All tracked operations finished but {0} operations finished unsucessfully"
+            raise YtError("All tracked operations finished but {0} operations finished unsuccessfully"
                           .format(len(inner_errors)), inner_errors=inner_errors)
 
     def abort_all(self):

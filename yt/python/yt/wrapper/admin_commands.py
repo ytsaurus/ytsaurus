@@ -144,7 +144,7 @@ def disable_chunk_locations(node_address, location_uuids, client=None):
 
 
 def destroy_chunk_locations(node_address, location_uuids, client=None):
-    """Mark locations for destroing. Disks of these locations can be recovered.
+    """Mark locations for destroying. Disks of these locations can be recovered.
 
     :param node_address: node address.
     :param location_uuids: location uuids.

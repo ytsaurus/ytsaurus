@@ -403,7 +403,7 @@ class TestSpecBuilders(object):
         assert update(result_spec, correct_spec) == result_spec
 
     @authors("max42")
-    def test_allow_http_requets_to_yt_from_job_vanilla(self):
+    def test_allow_http_requests_to_yt_from_job_vanilla(self):
         with set_config_option("allow_http_requests_to_yt_from_job", True):
             spec_builder = VanillaSpecBuilder().spec({
                 "tasks": {
@@ -437,7 +437,7 @@ class TestSpecBuilders(object):
         assert update(result_spec2, correct_spec) == result_spec2
 
     @authors("max42")
-    def test_allow_http_requets_to_yt_from_job_map(self):
+    def test_allow_http_requests_to_yt_from_job_map(self):
         with set_config_option("allow_http_requests_to_yt_from_job", True):
             spec_builder = MapSpecBuilder().spec({
                 "mapper": {

@@ -221,7 +221,7 @@ class TestClickhouseFromHost(ClickhouseTestBase):
         check_rows_equality(chyt.execute('SELECT format JSON FROM (SELECT a AS format FROM "//tmp/t")', "*format"), get_content("JSON"))
         check_rows_equality(chyt.execute('SELECT a AS xformat FROM "//tmp/t" ORDER BY xformat ASC', "*format"), get_content("xformat"))
 
-        # TODO(dakovalkov): Tricky cases which are difficult to handle (YQL failes on them as well):
+        # TODO(dakovalkov): Tricky cases which are difficult to handle (YQL fails on them as well):
         # chyt.execute('SELECT a AS format FROM "//tmp/t" ORDER BY format DESC', "*format")
         # Here 'JSON' is an alias for the subquery 'format'
         # chyt.execute('WITH format AS (SELECT * FROM "//tmp/t") SELECT * FROM format JSON', "*format")
@@ -248,7 +248,7 @@ class TestNonTrivialClient(ClickhouseTestBase):
         print("Patching global config", file=sys.stderr)
         with set_config_option("proxy/url", "invalid_url_due_to_forgotten_client", final_action=lambda: print("Reverting global config")):
             chyt.start_clique(1, alias="*e", client=client)
-            print("Clique succesfully started", file=sys.stderr)
+            print("Clique successfully started", file=sys.stderr)
 
 
 # Waiting for real ytserver-clickhouse upload is too long, so we upload fake binary instead.

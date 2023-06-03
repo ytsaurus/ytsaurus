@@ -41,7 +41,7 @@ def complete_attributes(path):
             path + "@" + attribute_path + ("/" if add_slash_after_attribute_path else "") + sub_attribute)
 
     # Try to find all children attributes of a current attribute
-    # by treating it as a map atttribute.
+    # by treating it as a map attribute.
     children_attribute_list = []
     try:
         children_attribute_list = yt.list(path + "@" + attribute)
