@@ -115,7 +115,7 @@ private:
         }
 
     private:
-      AtomicError Error_;
+        AtomicError Error_;
     };
 
     TAttemptTracer AttemptTracer_;
