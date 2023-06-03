@@ -125,10 +125,10 @@ std::pair<ESimpleLogicalValueType, bool> CastToV1Type(const TLogicalTypePtr& log
 
 EValueType GetWireType(const TLogicalTypePtr& logicalType);
 
-// Return true if given type is pure v1 type (i.e. expressable with `type` and `required` fields in schema).
+// Return true if given type is pure v1 type (i.e. expressible with `type` and `required` fields in schema).
 bool IsV1Type(const TLogicalTypePtr& logicalType);
 
-// Return true if this is new type expressable with EValueType::Composite type.
+// Return true if this is new type expressible with EValueType::Composite type.
 bool IsV3Composite(const TLogicalTypePtr& logicalType);
 
 EValueType GetWireType(const TLogicalTypePtr& logicalType);

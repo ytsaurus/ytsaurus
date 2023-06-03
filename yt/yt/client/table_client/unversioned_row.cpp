@@ -701,7 +701,7 @@ void ValidateDynamicValue(const TUnversionedValue& value, bool isKey)
         case EValueType::String:
             if (value.Length > MaxStringValueLength) {
                 THROW_ERROR_EXCEPTION(
-                    NTableClient::EErrorCode::StringLikeValueLenghtLimitExceeded,
+                    NTableClient::EErrorCode::StringLikeValueLengthLimitExceeded,
                     "Value of type %Qlv is too long for dynamic data: length %v, limit %v",
                     value.Type,
                     value.Length,
@@ -712,7 +712,7 @@ void ValidateDynamicValue(const TUnversionedValue& value, bool isKey)
         case EValueType::Any:
             if (value.Length > MaxAnyValueLength) {
                 THROW_ERROR_EXCEPTION(
-                    NTableClient::EErrorCode::StringLikeValueLenghtLimitExceeded,
+                    NTableClient::EErrorCode::StringLikeValueLengthLimitExceeded,
                     "Value of type %Qlv is too long for dynamic data: length %v, limit %v",
                     value.Type,
                     value.Length,
@@ -1115,7 +1115,7 @@ void ValidateStaticValue(const TUnversionedValue& value)
     if (IsStringLikeType(value.Type)) {
         if (value.Length > MaxRowWeightLimit) {
             THROW_ERROR_EXCEPTION(
-                NTableClient::EErrorCode::StringLikeValueLenghtLimitExceeded,
+                NTableClient::EErrorCode::StringLikeValueLengthLimitExceeded,
                 "Value of type %Qlv is too long for static data: length %v, limit %v",
                 value.Type,
                 value.Length,

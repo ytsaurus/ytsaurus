@@ -25,7 +25,7 @@ struct ITableReader
     //! Returns various data statistics.
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const = 0;
 
-    //! Returns an asynchronous flag enabling to wait until data is avilable.
+    //! Returns an asynchronous flag enabling to wait until data is available.
     virtual TFuture<void> GetReadyEvent() = 0;
 
     //! Attempts to read a bunch of #rows. If true is returned but #rows is empty

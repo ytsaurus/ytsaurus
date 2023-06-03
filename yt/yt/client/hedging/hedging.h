@@ -41,7 +41,7 @@ struct THedgingClientOptions;
 // @brief Method for creating HedgingClient with given options.
 NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options);
 
-// @brief Method for creating HedgingClient with given options and abilty to use penalty updater policy.
+// @brief Method for creating HedgingClient with given options and ability to use penalty updater policy.
 //        Currently for experimental usage.
 NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options, const IPenaltyProviderPtr& penaltyProvider);
 

@@ -90,7 +90,7 @@ public:
     // Index of wrapping proto message
     int ParentEmbeddingIndex = TProtobufWriterEmbeddingDescription::InvalidIndex;
 
-    // Whether to fail on writing unkown value to the enumeration.
+    // Whether to fail on writing unknown value to the enumeration.
     EProtobufEnumWritingMode EnumWritingMode = EProtobufEnumWritingMode::CheckValues;
 
     TProtobufWriterTypePtr Type;

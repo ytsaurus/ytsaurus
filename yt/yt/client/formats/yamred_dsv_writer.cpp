@@ -66,7 +66,7 @@ private:
     // this buffer in order to calculate their length.
     TBlobOutput LenvalBuffer_;
 
-    // We capture size of name table at the beginnig of #WriteRows
+    // We capture size of name table at the beginning of #WriteRows
     // and refer to the captured value, since name table may change asynchronously.
     int NameTableSize_ = 0;
 

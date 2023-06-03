@@ -164,7 +164,7 @@ template <int ShardCount>
 int GetShardIndex(TObjectId id);
 
 //! Returns true if #cellId is uniquely identified by its tag component.
-//! Currenly these are master and chaos cells
+//! Currently these are master and chaos cells.
 bool IsGlobalCellId(TCellId cellId);
 
 ////////////////////////////////////////////////////////////////////////////////

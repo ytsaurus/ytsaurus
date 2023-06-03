@@ -1771,7 +1771,7 @@ TIntrusivePtr<NApi::IRowset<TRow>> DeserializeRowset(
     return NApi::CreateRowset(std::move(schema), std::move(rows));
 }
 
-// Instatiate templates.
+// Instantiate templates.
 template NApi::IUnversionedRowsetPtr DeserializeRowset(
     const NProto::TRowsetDescriptor& descriptor,
     const TSharedRef& data);

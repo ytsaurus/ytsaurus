@@ -340,7 +340,7 @@ TEST(THedgingClientTest, MultiThread)
         futures.push_back(BIND([=] () {
             for (int j = 0; j < 100; ++j) {
                 NApi::TListNodeOptions options;
-                // on each 5-th request for 1-st and 2-nd thread, the first client will timeout
+                // on each 5th request for 1st and 2nd thread, the first client will timeout
                 if (i < 2 && (0 == j % 5)) {
                     options.Timeout = TDuration::Seconds(2);
                 }

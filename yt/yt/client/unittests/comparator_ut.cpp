@@ -129,7 +129,7 @@ TEST_F(TComparatorTest, StressNewAndLegacyTestEquivalence)
                     << "Key: " << ToString(key.AsOwningRow()) << Endl
                     << "LegacyTest: " << legacyTest << Endl
                     << "NewTest: " << newTest << Endl;
-                // Somehow ASSERTs do not stop execution in our gtest :(
+                // Somehow ASSERTTs do not stop execution in our gtest :(
                 THROW_ERROR_EXCEPTION("Failure");
             }
         }

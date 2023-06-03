@@ -102,7 +102,7 @@ struct TCommandDescriptor
     //! Whether the command affects the state of the cluster.
     bool Volatile;
 
-    //! Whether the execution of a command is lengthly and/or causes a heavy load.
+    //! Whether the execution of a command is lengthy and/or causes a heavy load.
     bool Heavy;
 };
 

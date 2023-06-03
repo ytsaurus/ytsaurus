@@ -101,7 +101,7 @@ TString ParseCluster(TString str, const IAttributeDictionaryPtr& attributes)
     // call. We can encounter the path with leading spaces here if it didn't have attributes and passed through
     // ParseAttributes() unchanged. In this case, the path is most likely incorrect, so it returns unchanged from
     // this function. For example, " <> cluster://path" will become "cluster://path" after call to ParseAttributes(),
-    // and "//path" after this function. But " cluster://path" will pass unchanged throught ParseAttributes(), and
+    // and "//path" after this function. But " cluster://path" will pass unchanged throughout ParseAttributes(), and
     // will remain " cluster://path" after this function.
     size_t index = 0;
     size_t clusterStart = index;

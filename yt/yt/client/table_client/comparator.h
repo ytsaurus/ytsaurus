@@ -80,7 +80,7 @@ public:
     //! Returns true if at least one column has descending sort order.
     bool HasDescendingSortOrder() const;
 
-    //! Empty comparator is identified with an absense of comparator.
+    //! Empty comparator is identified with an absence of comparator.
     //! This may be used instead of TComparator.
     explicit operator bool() const;
 
@@ -102,7 +102,7 @@ using TPrefixComparer = int(const TUnversionedValue*, const TUnversionedValue*, 
 
 int GetCompareSign(int value);
 
-//! Obeys the usual rule: the result's sign incidates the comparion outcome.
+//! Obeys the usual rule: the result's sign incidates the comparison outcome.
 //! Also |abs(result) - 1| is equal to index of first non-equal component.
 template <typename TComparer>
 int CompareKeys(TUnversionedValueRange lhs, TUnversionedValueRange rhs, const TComparer& prefixComparer);

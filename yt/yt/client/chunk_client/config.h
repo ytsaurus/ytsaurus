@@ -114,7 +114,7 @@ public:
     TDuration BlockRpcTimeout;
 
     //! Delay before sending a hedged block request. If null then hedging is disabled.
-    //! NB: Hedging policy may be overriden via hedging manager.
+    //! NB: Hedging policy may be overridden via hedging manager.
     std::optional<TDuration> BlockRpcHedgingDelay;
 
     //! Same as above but for a LookupRows rpc.
@@ -133,7 +133,7 @@ public:
     TDuration MetaRpcTimeout;
 
     //! Delay before sending for a hedged meta request. If null then hedging is disabled.
-    //! NB: Hedging policy may be overriden via hedging manager.
+    //! NB: Hedging policy may be overridden via hedging manager.
     std::optional<TDuration> MetaRpcHedgingDelay;
 
     //! Timeout for a queue size probing request.
@@ -245,7 +245,7 @@ public:
     //! Prefetch window size (in bytes).
     i64 WindowSize;
 
-    //! Maximum amount of data to be transfered via a single RPC request.
+    //! Maximum amount of data to be transferred via a single RPC request.
     i64 GroupSize;
 
     //! If |True| block fetcher will try to fetch block from local uncompressed block cache.
@@ -457,7 +457,7 @@ public:
     TDuration GetChunkFragmentSetRpcTimeout;
 
     //! Delay before sending a hedged request. If null then hedging is disabled.
-    //! NB: This option may be overriden via hedging manager.
+    //! NB: This option may be overridden via hedging manager.
     std::optional<TDuration> FragmentReadHedgingDelay;
 
     //! Limit on retry count.

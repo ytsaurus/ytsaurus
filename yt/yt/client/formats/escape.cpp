@@ -62,7 +62,7 @@ YT_ATTRIBUTE_NO_SANITIZE_ADDRESS inline const char* FindNextSymbol(
 
     do {
         // In short, PCMPxSTRx instruction takes two 128-bit registers with
-        // packed bytes and performs string comparsion on them with user-defined
+        // packed bytes and performs string comparison on them with user-defined
         // strategy. As the result PCMPxSTRx produces a lot of stuff, i. e.
         // match bit-mask, LSB or MSB of that bit-mask, and a few flags.
         //

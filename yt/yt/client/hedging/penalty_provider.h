@@ -30,7 +30,7 @@ IPenaltyProviderPtr CreateDummyPenaltyProvider();
 // From config.proto.
 class TReplicationLagPenaltyProviderConfig;
 
-// @brief ReplicationLagPenaltyProvider - perodically checks replication lag for given table AND replica cluster.
+// @brief ReplicationLagPenaltyProvider - periodically checks replication lag for given table AND replica cluster.
 //        Based on values from TReplicationLagPenaltyProviderConfig add current number of tablets with lag, it either returns 0 or LagPenalty value.
 //        Master client - main cluster with replicated table. ReplicaCluster + TablePath specifies concrete replica for table from main cluster.
 IPenaltyProviderPtr CreateReplicationLagPenaltyProvider(

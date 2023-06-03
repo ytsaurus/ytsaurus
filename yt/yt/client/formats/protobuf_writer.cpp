@@ -268,7 +268,7 @@ public:
         if (Y_UNLIKELY(!type->EnumerationDescription)) {
             THROW_ERROR_EXCEPTION("Enumeration description not found");
         }
-        if (SuppressUnkownValueError) {
+        if (SuppressUnknownValueError) {
             if (auto enumValue = type->EnumerationDescription->TryGetValue(value)) {
                 EnumValue = *enumValue;
             } else {
@@ -280,7 +280,7 @@ public:
     }
 
 public:
-    bool SuppressUnkownValueError = false;
+    bool SuppressUnknownValueError = false;
     bool InRange = true;
     i32 EnumValue;
 };
@@ -297,7 +297,7 @@ Y_FORCE_INLINE void WriteProtobufEnum(
 
     if ((fieldDescription.Repeated || type->Optional) &&
         fieldDescription.EnumWritingMode == EProtobufEnumWritingMode::SkipUnknownValues) {
-        visitor.SuppressUnkownValueError = true;
+        visitor.SuppressUnknownValueError = true;
     }
 
     extractor.ExtractEnum(&visitor, type);
@@ -309,7 +309,7 @@ Y_FORCE_INLINE void WriteProtobufEnum(
     };
 
     if (Y_UNLIKELY(!visitor.InRange)) {
-        if (visitor.SuppressUnkownValueError) {
+        if (visitor.SuppressUnknownValueError) {
             return;
         } else {
             THROW_ERROR_EXCEPTION("Value out of range for protobuf enumeration %Qv",

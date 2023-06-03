@@ -179,7 +179,7 @@ TListOperationsCommand::TListOperationsCommand()
 void TListOperationsCommand::BuildOperations(const TListOperationsResult& result, TFluentMap fluent)
 {
     bool needType = !Options.Attributes || Options.Attributes->contains("type");
-    // COMPAT(levysotsky): "operation_type" is a deprecated synonim for "type".
+    // COMPAT(levysotsky): "operation_type" is a deprecated synonym for "type".
     bool needOperationType = !Options.Attributes || Options.Attributes->contains("operation_type");
 
     if (EnableUIMode) {

@@ -252,7 +252,7 @@ TEST_F(TYPathTest, Attributes)
 TEST_F(TYPathTest, RemoveAll)
 {
     // from map
-    Set("/map", "{foo=bar;key=vaue}");
+    Set("/map", "{foo=bar;key=value}");
     Remove("/map/*");
     Check("/map", "{}");
 
@@ -262,7 +262,7 @@ TEST_F(TYPathTest, RemoveAll)
     Check("/list", "[]");
 
     // from attributes
-    Set("/attr", "<foo=bar;key=vaue>42");
+    Set("/attr", "<foo=bar;key=value>42");
     Remove("/attr/@*");
     Check("/attr/@", "{}");
 }

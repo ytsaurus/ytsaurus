@@ -95,7 +95,7 @@ TUnversionedOwningRow FromRecord(
     const TRecord& record,
     const typename TRecord::TRecordDescriptor::TIdMapping& idMapping)
 {
-    // TOOD(babenko): optimize
+    // TODO(babenko): optimize
     auto rowBuffer = New<TRowBuffer>(TDefaultRowBufferPoolTag(), 256);
     return TUnversionedOwningRow(FromRecord(record, rowBuffer, idMapping));
 }
@@ -136,7 +136,7 @@ template <class TRecordKey>
 TLegacyOwningKey FromRecordKey(
     const TRecordKey& recordKey)
 {
-    // TOOD(babenko): optimize
+    // TODO(babenko): optimize
     auto rowBuffer = New<TRowBuffer>(TDefaultRowBufferPoolTag(), 256);
     return TUnversionedOwningRow(FromRecordKey(recordKey, rowBuffer));
 }

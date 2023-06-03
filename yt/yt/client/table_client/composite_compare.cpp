@@ -25,7 +25,7 @@ namespace {
 // When we compare composite values we assume that they are well-formed yson representations of same type supporting comparison.
 // And we compare them in following manner:
 //   1. We scan two values simultaneously and look at their yson tokens and find first mismatching token.
-//   2. If one of the token is EndList (this only can happend if we parsing values of list type
+//   2. If one of the token is EndList (this only can happen if we parsing values of list type
 //      and one list is shorter than another) that means that value containing EndList is less that other.
 //   3. Otherwise if one of the values is Entity (other value have to be non null value) that means
 //      that value containing Entity is less than other.
@@ -37,7 +37,7 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECompareClass, ui32,
     ((BeginValue)(3))
 );
 
-// Helper fucntion for GetComparreClass
+// Helper function for GetCompareClass
 static constexpr ui32 SetMask(EYsonItemType type, ECompareClass compareClass)
 {
     return static_cast<ui32>(compareClass) << (static_cast<ui32>(type) * 2);

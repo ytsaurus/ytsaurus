@@ -271,7 +271,7 @@ TIntrusivePtr<NApi::IRowset<NTableClient::TTypeErasedRow>> DeserializeRowset(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Invokes std::stable_sort reordering addesses by the index of the first regex they match;
+//! Invokes std::stable_sort reordering addresses by the index of the first regex they match;
 //! addresses not matching any regex are placed at the very end.
 void SortByRegexes(std::vector<TString>& values, const std::vector<NRe2::TRe2Ptr>& regexes);
 

@@ -3986,10 +3986,10 @@ TEST_P(TProtobufFormatAllFields, Parser)
             ASSERT_EQ(GetString(rowCollector.GetRowValue(rowIndex, "Enum")), "Three");
         }
 
-        TEmbeddedMessage embededMessage;
-        ASSERT_TRUE(embededMessage.ParseFromString(GetString(rowCollector.GetRowValue(rowIndex, "Message"))));
-        ASSERT_EQ(embededMessage.key(), "embedded_key");
-        ASSERT_EQ(embededMessage.value(), "embedded_value");
+        TEmbeddedMessage embeddedMessage;
+        ASSERT_TRUE(embeddedMessage.ParseFromString(GetString(rowCollector.GetRowValue(rowIndex, "Message"))));
+        ASSERT_EQ(embeddedMessage.key(), "embedded_key");
+        ASSERT_EQ(embeddedMessage.value(), "embedded_value");
 
         if (!IsLegacyFormat()) {
             ASSERT_TRUE(AreNodesEqual(GetAny(rowCollector.GetRowValue(rowIndex, "AnyWithMap")), mapNode));

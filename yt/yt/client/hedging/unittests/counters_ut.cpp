@@ -56,7 +56,7 @@ NApi::IClientPtr CreateTestHedgingClient(std::initializer_list<NApi::IClientPtr>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(THedgingClientCountersTest, CountersAfterSuccessFromFristClient)
+TEST(THedgingClientCountersTest, CountersAfterSuccessFromFirstClient)
 {
     NYPath::TYPath path = "/test/1234";
     NApi::TListNodeOptions options;

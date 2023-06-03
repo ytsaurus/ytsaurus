@@ -114,7 +114,7 @@ TEST(TFormatTest, VersionedValue)
     EXPECT_EQ(Format("%v", value), "%&7#123@1234567890abcdef");
 }
 
-TEST(TForamtTest, UnversionedRow)
+TEST(TFormatTest, UnversionedRow)
 {
     auto value1 = MakeUnversionedInt64Value(123, 2, EValueFlags::Aggregate);
     auto value2 = MakeUnversionedInt64Value(234, 3, EValueFlags::Hunk);
