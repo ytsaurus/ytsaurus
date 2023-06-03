@@ -631,7 +631,7 @@ func makePoolCounts(counts *rpc_proxy.TListOperationsResult_TPoolCounts) (map[st
 	ret := make(map[string]int)
 	for _, entry := range counts.GetEntries() {
 		if entry.Pool == nil {
-			return nil, xerrors.Errorf("misssing pool in pool counts entry")
+			return nil, xerrors.Errorf("missing pool in pool counts entry")
 		}
 		ret[entry.GetPool()] = int(entry.GetCount())
 	}
@@ -647,7 +647,7 @@ func makeUserCounts(counts *rpc_proxy.TListOperationsResult_TUserCounts) (map[st
 	ret := make(map[string]int)
 	for _, entry := range counts.GetEntries() {
 		if entry.User == nil {
-			return nil, xerrors.Errorf("misssing user in user counts entry")
+			return nil, xerrors.Errorf("missing user in user counts entry")
 		}
 		ret[entry.GetUser()] = int(entry.GetCount())
 	}

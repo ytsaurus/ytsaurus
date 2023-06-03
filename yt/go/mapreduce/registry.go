@@ -34,7 +34,7 @@ func Register(job Job) {
 	registry[key] = t
 }
 
-// RegisterName registers job type with overriden name.
+// RegisterName registers job type with overridden name.
 func RegisterName(name string, job Job) {
 	gob.RegisterName(name, job)
 	t := reflect.TypeOf(job)

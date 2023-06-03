@@ -20,7 +20,7 @@ func SliceYPathAttrs(ypath []byte) (n int, err error) {
 		c := ypath[i]
 		if depth == 0 && (c == '#' || c == '/') {
 			if !hasAttrs && hasSpace {
-				return 0, fmt.Errorf("ypath: unexpected space in the begining")
+				return 0, fmt.Errorf("ypath: unexpected space in the beginning")
 			}
 
 			return i, nil
