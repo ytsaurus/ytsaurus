@@ -455,7 +455,7 @@ def get_node_config():
         sync_directories_on_connect = %true;
     };
 
-    exec_agent = {
+    exec_node = {
         slot_manager = {
             job_environment = {
                 type = simple;
@@ -601,7 +601,7 @@ def get_chaos_node_config():
         };
     };
 
-    exec_agent = {
+    exec_node = {
         job_controller = {
             resource_limits = {
                 user_slots = 0;
@@ -688,7 +688,7 @@ def get_dynamic_node_config():
 {
     "%true" = {
         config_annotation = "default";
-        exec_agent = {
+        exec_node = {
             abort_on_jobs_disabled = %true;
 
             job_controller = {

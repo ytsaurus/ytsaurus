@@ -65,7 +65,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "user_slots": 5,
@@ -2020,7 +2020,7 @@ class TestInputOutputFormats(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "user_slots": 5,

@@ -34,7 +34,7 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
 
     USE_PORTO = True
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 100},
             "controller_agent_connector": {"heartbeat_period": 100},
         }
@@ -102,7 +102,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {"cpu": 1.5, "user_slots": 2},
                 "cpu_overdraft_timeout": 1000,
@@ -199,7 +199,7 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
-    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"resource_limits": {"cpu": 2.5, "user_slots": 3}}}}
+    DELTA_NODE_CONFIG = {"exec_node": {"job_controller": {"resource_limits": {"cpu": 2.5, "user_slots": 3}}}}
 
     DELTA_SCHEDULER_CONFIG = {"scheduler": {"watchers_update_period": 100}}
 
@@ -235,7 +235,7 @@ class TestNodeAbortsJobOnLackOfMemory(YTEnvSetup):
     NUM_NODES = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {"memory": 512 * 1024 * 1024},
                 "resource_adjustment_period": 1000,

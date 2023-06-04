@@ -120,7 +120,7 @@ class LowCpuUsageSchedulerAlertBase(YTEnvSetup):
     USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 200},
             "controller_agent_connector": {"heartbeat_period": 200},
         },
@@ -184,7 +184,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 200},
             "controller_agent_connector": {"heartbeat_period": 200},
             "slot_manager": {"job_environment": {"block_io_watchdog_period": 100}},

@@ -595,7 +595,7 @@ class ClickHouseTestBase(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "slot_manager": {
                 "job_environment": {
                     "memory_watchdog_period": 100,

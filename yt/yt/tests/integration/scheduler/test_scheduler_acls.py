@@ -48,7 +48,7 @@ class TestSchedulerAcls(YTEnvSetup):
     USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_poll_job_shell": True,
         },
     }

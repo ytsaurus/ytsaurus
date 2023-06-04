@@ -91,7 +91,7 @@ class _TestGetJobBase(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,
@@ -491,7 +491,7 @@ class TestGetJob(_TestGetJobCommon):
 
 class TestGetJobStatisticsLz4(_TestGetJobCommon):
     DELTA_NODE_CONFIG = deepcopy(_TestGetJobBase.DELTA_NODE_CONFIG)
-    DELTA_NODE_CONFIG["exec_agent"]["job_reporter"]["report_statistics_lz4"] = True
+    DELTA_NODE_CONFIG["exec_node"]["job_reporter"]["report_statistics_lz4"] = True
 
 
 class TestGetJobMonitoring(_TestGetJobBase):

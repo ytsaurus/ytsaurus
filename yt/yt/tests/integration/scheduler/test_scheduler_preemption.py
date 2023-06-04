@@ -79,7 +79,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,
@@ -681,7 +681,7 @@ class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 100},
             "controller_agent_connector": {"heartbeat_period": 100},
             "job_controller": {
@@ -889,7 +889,7 @@ class TestPreemptionPriorityScope(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 100},
             "controller_agent_connector": {
                 "heartbeat_period": 100,
@@ -1013,7 +1013,7 @@ class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"resource_limits": {"cpu": 2, "user_slots": 2}}}}
+    DELTA_NODE_CONFIG = {"exec_node": {"job_controller": {"resource_limits": {"cpu": 2, "user_slots": 2}}}}
 
     @authors("renadeen")
     def test_scheduling_bug_of_operation_with_graceful_preemption(self):
@@ -1059,7 +1059,7 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"resource_limits": {"cpu": 2, "user_slots": 2}}}}
+    DELTA_NODE_CONFIG = {"exec_node": {"job_controller": {"resource_limits": {"cpu": 2, "user_slots": 2}}}}
 
     def setup_method(self, method):
         super(TestResourceLimitsOverdraftPreemption, self).setup_method(method)
@@ -1230,7 +1230,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
     @classmethod
     def modify_node_config(cls, config):
         for resource in ["cpu", "user_slots"]:
-            config["exec_agent"]["job_controller"]["resource_limits"][resource] = 2
+            config["exec_node"]["job_controller"]["resource_limits"][resource] = 2
 
     @authors("ignat", "eshcherbin")
     def test_aggressive_preemption(self):
@@ -1375,8 +1375,8 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
 
     @classmethod
     def modify_node_config(cls, config):
-        config["exec_agent"]["job_controller"]["resource_limits"]["cpu"] = 5
-        config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] = 5
+        config["exec_node"]["job_controller"]["resource_limits"]["cpu"] = 5
+        config["exec_node"]["job_controller"]["resource_limits"]["user_slots"] = 5
 
     @authors("eshcherbin")
     def test_allow_aggressive_starvation_preemption_operation(self):
@@ -1495,7 +1495,7 @@ class TestIncreasedStarvationToleranceForFullySatisfiedDemand(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"safe_scheduler_online_time": 1000000000}}
 
-    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"resource_limits": {"cpu": 10, "user_slots": 10}}}}
+    DELTA_NODE_CONFIG = {"exec_node": {"job_controller": {"resource_limits": {"cpu": 10, "user_slots": 10}}}}
 
     def setup_method(self, method):
         super(TestIncreasedStarvationToleranceForFullySatisfiedDemand, self).setup_method(method)
@@ -1575,7 +1575,7 @@ class TestSsdPriorityPreemption(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 100},
             "controller_agent_connector": {"heartbeat_period": 100},
             "slot_manager": {
@@ -1627,7 +1627,7 @@ class TestSsdPriorityPreemption(YTEnvSetup):
                         "disk_usage_watermark": 0,
                         "medium_name": TestSsdPriorityPreemption.SSD_MEDIUM,
                     })
-                config["exec_agent"]["slot_manager"]["locations"] = slot_locations
+                config["exec_node"]["slot_manager"]["locations"] = slot_locations
 
                 if should_add_ssd:
                     tags = config.pop("tags", list())

@@ -154,7 +154,7 @@ def test_environment_job_archive(request):
         request,
         "job_archive",
         delta_node_config={
-            "exec_agent": {
+            "exec_node": {
                 "statistics_reporter": {
                     "enabled": True,
                     "reporting_period": 10,
@@ -183,7 +183,7 @@ def test_environment_job_archive_porto(request):
         "job_archive",
         env_options={"use_porto_for_servers": True},
         delta_node_config={
-            "exec_agent": {
+            "exec_node": {
                 "slot_manager": {
                     "enforce_job_control": True,
                     "job_environment": {
@@ -219,7 +219,7 @@ def test_environment_with_porto(request):
         request.param,
         env_options={"use_porto_for_servers": True},
         delta_node_config={
-            "exec_agent": {
+            "exec_node": {
                 "slot_manager": {
                     "enforce_job_control": True,
                     "job_environment": {

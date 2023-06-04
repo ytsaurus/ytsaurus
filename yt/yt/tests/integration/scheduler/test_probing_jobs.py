@@ -167,7 +167,7 @@ class TestProbingJobs(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "total_confirmation_period": 5000,
             }

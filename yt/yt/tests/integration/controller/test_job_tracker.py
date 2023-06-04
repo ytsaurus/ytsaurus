@@ -225,7 +225,7 @@ class TestJobTracker(YTEnvSetup):
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 30000)
 
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "controller_agent_connector": {
                     "heartbeat_period": 3000,
                 },
@@ -253,7 +253,7 @@ class TestJobTracker(YTEnvSetup):
         assert job_id in completed_job_events
 
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "controller_agent_connector": {
                     "heartbeat_period": 100,
                 },
@@ -277,7 +277,7 @@ class TestJobTracker(YTEnvSetup):
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 30000)
 
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "controller_agent_connector": {
                     "test_heartbeat_delay": 9000,
                 },
@@ -291,7 +291,7 @@ class TestJobTracker(YTEnvSetup):
         wait(lambda: self._get_job_info(op, job_id)["stage"] == "confirmation", ignore_exceptions=True)
 
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "controller_agent_connector": {
                     "test_heartbeat_delay": 0,
                 },
@@ -327,7 +327,7 @@ class TestJobTracker(YTEnvSetup):
         op.wait_for_fresh_snapshot()
 
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "controller_agent_connector": {
                     "test_heartbeat_delay": 5000,
                 },
@@ -342,7 +342,7 @@ class TestJobTracker(YTEnvSetup):
 
         if mode != "confirmation_timeout":
             update_nodes_dynamic_config({
-                "exec_agent": {
+                "exec_node": {
                     "controller_agent_connector": {
                         "test_heartbeat_delay": 0,
                     },
@@ -353,7 +353,7 @@ class TestJobTracker(YTEnvSetup):
 
         if mode == "confirmation_timeout":
             update_nodes_dynamic_config({
-                "exec_agent": {
+                "exec_node": {
                     "controller_agent_connector": {
                         "test_heartbeat_delay": 0,
                     },
@@ -387,7 +387,7 @@ class TestJobTracker(YTEnvSetup):
         (first_job, second_job) = jobs
 
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "controller_agent_connector": {
                     "heartbeat_period": 100000,
                 },

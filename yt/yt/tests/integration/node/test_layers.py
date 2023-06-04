@@ -21,7 +21,7 @@ from collections import Counter
 class TestLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
@@ -548,7 +548,7 @@ class TestTmpfsLayerCache(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
@@ -657,7 +657,7 @@ class TestJobSetup(YTEnvSetup):
     NUM_NODES = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
@@ -717,7 +717,7 @@ class TestJobSetup(YTEnvSetup):
 @authors("prime")
 class TestSquashfsLayers(TestLayers):
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "use_artifact_binds": True,
             "test_root_fs": True,
             "use_common_root_fs_quota": True,
@@ -740,7 +740,7 @@ class TestSquashfsLayers(TestLayers):
 @authors("prime")
 class TestSquashfsTmpfsLayerCache(TestTmpfsLayerCache):
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
@@ -775,7 +775,7 @@ class TestJobAbortDuringVolumePreparation(YTEnvSetup):
     NUM_NODES = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
@@ -803,7 +803,7 @@ class TestJobAbortDuringVolumePreparation(YTEnvSetup):
         self.setup_files()
 
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "volume_manager": {
                     "delay_after_layer_imported": 60000,
                 },

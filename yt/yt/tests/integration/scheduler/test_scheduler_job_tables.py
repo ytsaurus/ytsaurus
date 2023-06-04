@@ -507,7 +507,7 @@ class TestCoreTable(YTEnvSetup):
     CORE_TABLE = "//tmp/t_core"
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
             "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
             "job_reporter": {
@@ -1180,7 +1180,7 @@ class TestJobProfiling(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,

@@ -781,11 +781,11 @@ def _build_node_configs(node_dirs,
         set_at(config, "data_node/cache_locations", [cache_location_config])
 
         start_uid = current_user + config["rpc_port"]
-        set_at(config, "exec_agent/slot_manager/job_environment/start_uid", start_uid)
-        set_at(config, "exec_agent/slot_manager/locations", [
+        set_at(config, "exec_node/slot_manager/job_environment/start_uid", start_uid)
+        set_at(config, "exec_node/slot_manager/locations", [
             {"path": os.path.join(node_dirs[index], "slots"), "disk_usage_watermark": 0}
         ])
-        set_at(config, "exec_agent/root_fs_binds", [
+        set_at(config, "exec_node/root_fs_binds", [
             {"external_path": node_dirs[index], "internal_path": node_dirs[index]}
         ])
 
@@ -841,18 +841,18 @@ def _build_node_configs(node_dirs,
         log_name = "job_proxy-{0}-slot-%slot_index%".format(index)
         set_at(
             config,
-            "exec_agent/job_proxy_logging",
+            "exec_node/job_proxy_logging",
             _init_logging(logs_dir, log_name, yt_config)
         )
         set_at(
             config,
-            "exec_agent/job_proxy_stderr_path",
+            "exec_node/job_proxy_stderr_path",
             os.path.join(logs_dir, "job_proxy-{0}-stderr-slot-%slot_index%".format(index)),
         )
 
         set_at(config, "tablet_node/hydra_manager", _get_hydra_manager_config(), merge=True)
         set_at(config, "tablet_node/hydra_manager/restart_backoff_time", 100)
-        set_at(config, "exec_agent/job_controller/resource_limits", yt_config.jobs_resource_limits, merge=True)
+        set_at(config, "exec_node/job_controller/resource_limits", yt_config.jobs_resource_limits, merge=True)
         set_at(config, "resource_limits", _get_node_resource_limits_config(yt_config), merge=True)
 
         configs.append(config)
@@ -872,11 +872,11 @@ def _build_node_configs(node_dirs,
         port_end = USER_PORT_START + ((index + 1) * (USER_PORT_END - USER_PORT_START)) // node_count
 
         if yt_config.node_port_set_size is None:
-            set_at(config, "exec_agent/job_controller/start_port", port_start)
-            set_at(config, "exec_agent/job_controller/port_count", port_end - port_start)
+            set_at(config, "exec_node/job_controller/start_port", port_start)
+            set_at(config, "exec_node/job_controller/port_count", port_end - port_start)
         else:
             ports = [next(ports_generator) for _ in xrange(yt_config.node_port_set_size)]
-            set_at(config, "exec_agent/job_controller/port_set", ports)
+            set_at(config, "exec_node/job_controller/port_set", ports)
 
     return configs, addresses
 
@@ -1618,7 +1618,7 @@ def init_jaeger_collector(config, name, process_tags):
         })
 
         if name == "node":
-            set_at(config, "exec_agent/job_proxy_jaeger", {
+            set_at(config, "exec_node/job_proxy_jaeger", {
                 "service_name": "job_proxy",
                 "flush_period": 100,
                 "collector_channel_config": {"address": os.environ["JAEGER_COLLECTOR"]},

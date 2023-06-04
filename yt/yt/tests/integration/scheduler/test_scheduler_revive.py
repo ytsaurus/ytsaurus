@@ -68,7 +68,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"total_confirmation_period": 5000}}}
+    DELTA_NODE_CONFIG = {"exec_node": {"job_controller": {"total_confirmation_period": 5000}}}
 
     OP_COUNT = 8
 
@@ -214,7 +214,7 @@ class TestSchedulerRestart(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"total_confirmation_period": 5000}}}
+    DELTA_NODE_CONFIG = {"exec_node": {"job_controller": {"total_confirmation_period": 5000}}}
 
     @authors("ignat")
     def test_live_preview(self):
@@ -701,7 +701,7 @@ class TestRaceBetweenShardAndStrategy(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
             "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
         },
@@ -1120,7 +1120,7 @@ class TestJobRevival(TestJobRevivalBase):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {"user_slots": 5, "cpu": 5},
                 "total_confirmation_period": 5000,
@@ -1698,7 +1698,7 @@ class TestMoveJobRevivalToCA(YTEnvSetup, PrepareTables):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "user_slots": 10,

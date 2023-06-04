@@ -97,7 +97,7 @@ class YtTestEnvironment(object):
             os.environ["PATH"] = os.pathsep.join([self.binaries_path, os.environ.get("PATH", "")])
 
         common_delta_node_config = {
-            "exec_agent": {
+            "exec_node": {
                 "slot_manager": {
                     "enforce_job_control": True,
                 },

@@ -30,7 +30,7 @@ class TestNodeTracker(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "tags": ["config_tag1", "config_tag2"],
-        "exec_agent": {
+        "exec_node": {
             "slot_manager": {
                 "slot_location_statistics_update_period": 100,
             },

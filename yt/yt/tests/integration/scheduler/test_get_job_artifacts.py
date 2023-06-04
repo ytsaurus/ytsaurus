@@ -76,7 +76,7 @@ class TestGetJobInput(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,
@@ -564,7 +564,7 @@ class TestGetJobStderr(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,

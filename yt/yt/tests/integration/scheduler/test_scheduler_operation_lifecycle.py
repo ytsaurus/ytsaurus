@@ -1126,7 +1126,7 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
 
     USE_PORTO = True
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
             "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
         },
@@ -1174,7 +1174,7 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,

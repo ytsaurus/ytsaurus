@@ -27,7 +27,7 @@ class TestDiskUsagePorto(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "slot_manager": {
                 "locations": [{"disk_quota": 1024 * 1024, "disk_usage_watermark": 0}],
                 "disk_resources_update_period": 100,
@@ -60,7 +60,7 @@ class TestDiskUsagePorto(YTEnvSetup):
     @classmethod
     def modify_node_config(cls, config):
         os.makedirs(cls.fake_default_disk_path)
-        config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.fake_default_disk_path
+        config["exec_node"]["slot_manager"]["locations"][0]["path"] = cls.fake_default_disk_path
 
     def _init_tables(self):
         tables = ["//tmp/t1", "//tmp/t2", "//tmp/t3"]
@@ -284,7 +284,7 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
     DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
     DELTA_CONTROLLER_AGENT_CONFIG = DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },
@@ -310,7 +310,7 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
                 shutil.rmtree(disk)
             os.makedirs(disk)
 
-        config["exec_agent"]["slot_manager"]["locations"] = [
+        config["exec_node"]["slot_manager"]["locations"] = [
             {
                 "path": cls.fake_default_disk_path,
                 "disk_quota": 10 * 1024 * 1024,
@@ -512,7 +512,7 @@ class TestDiskMediumRenamePorto(YTEnvSetup, DiskMediumTestConfiguration):
     DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
     DELTA_CONTROLLER_AGENT_CONFIG = DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },
@@ -538,7 +538,7 @@ class TestDiskMediumRenamePorto(YTEnvSetup, DiskMediumTestConfiguration):
                 shutil.rmtree(disk)
             os.makedirs(disk)
 
-        config["exec_agent"]["slot_manager"]["locations"] = [
+        config["exec_node"]["slot_manager"]["locations"] = [
             {
                 "path": cls.fake_default_disk_path,
                 "disk_quota": 10 * 1024 * 1024,
@@ -621,7 +621,7 @@ class TestDefaultDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
     DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
     DELTA_CONTROLLER_AGENT_CONFIG = DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },
@@ -644,7 +644,7 @@ class TestDefaultDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
                 shutil.rmtree(disk)
             os.makedirs(disk)
 
-        config["exec_agent"]["slot_manager"]["locations"] = [
+        config["exec_node"]["slot_manager"]["locations"] = [
             {
                 "path": cls.fake_ssd_disk_path,
                 "disk_quota": 2 * 1024 * 1024,
@@ -652,7 +652,7 @@ class TestDefaultDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
                 "medium_name": "ssd",
             }
         ]
-        config["exec_agent"]["slot_manager"]["default_medium_name"] = "hdd"
+        config["exec_node"]["slot_manager"]["default_medium_name"] = "hdd"
 
     @classmethod
     def on_masters_started(cls):
@@ -714,7 +714,7 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
     DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
     DELTA_CONTROLLER_AGENT_CONFIG = DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },
@@ -737,7 +737,7 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
                 shutil.rmtree(disk)
             os.makedirs(disk)
 
-        config["exec_agent"]["slot_manager"]["locations"] = [
+        config["exec_node"]["slot_manager"]["locations"] = [
             {
                 "path": cls.fake_ssd_disk_path,
                 "disk_quota": 2 * 1024 * 1024,
@@ -745,7 +745,7 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
                 "medium_name": "ssd",
             }
         ]
-        config["exec_agent"]["slot_manager"]["default_medium_name"] = "ssd"
+        config["exec_node"]["slot_manager"]["default_medium_name"] = "ssd"
 
     @classmethod
     def on_masters_started(cls):
@@ -852,7 +852,7 @@ class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup
     DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
     DELTA_CONTROLLER_AGENT_CONFIG = DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },
@@ -875,7 +875,7 @@ class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup
                 shutil.rmtree(disk)
             os.makedirs(disk)
 
-        config["exec_agent"]["slot_manager"]["locations"] = [
+        config["exec_node"]["slot_manager"]["locations"] = [
             {
                 "path": cls.fake_default_disk_path,
                 "disk_quota": 2 * 1024 * 1024,
@@ -889,7 +889,7 @@ class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup
                 "medium_name": "ssd",
             },
         ]
-        config["exec_agent"]["slot_manager"]["default_medium_name"] = "ssd"
+        config["exec_node"]["slot_manager"]["default_medium_name"] = "ssd"
 
     @classmethod
     def on_masters_started(cls):
@@ -954,7 +954,7 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
             },
         })
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },
@@ -977,7 +977,7 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
                 shutil.rmtree(disk)
             os.makedirs(disk)
 
-        config["exec_agent"]["slot_manager"]["locations"] = [
+        config["exec_node"]["slot_manager"]["locations"] = [
             {
                 "path": cls.fake_default_disk_path,
                 "disk_quota": 2 * 1024 * 1024,
@@ -991,7 +991,7 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
                 "medium_name": "ssd",
             },
         ]
-        config["exec_agent"]["slot_manager"]["default_medium_name"] = "ssd"
+        config["exec_node"]["slot_manager"]["default_medium_name"] = "ssd"
 
     @classmethod
     def on_masters_started(cls):

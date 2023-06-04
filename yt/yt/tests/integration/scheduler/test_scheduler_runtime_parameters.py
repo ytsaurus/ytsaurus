@@ -616,7 +616,7 @@ class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "user_slots": 10,
@@ -647,7 +647,7 @@ class TestOperationDetailedLogs(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "user_slots": 2,

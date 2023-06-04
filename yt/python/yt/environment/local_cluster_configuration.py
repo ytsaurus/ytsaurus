@@ -119,7 +119,7 @@ NODE_CONFIG_PATCHES = [
                 "job_heartbeat_period_splay": 50,
             },
         },
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": None
         },
         "tablet_node": None
@@ -152,7 +152,7 @@ NODE_CONFIG_PATCHES = [
                 "update_period": 300,
             },
         },
-        "exec_agent": {
+        "exec_node": {
             "job_proxy_heartbeat_period": 100,
             "scheduler_connector": {
                 "heartbeat_period": 100,
@@ -172,7 +172,7 @@ NODE_CONFIG_PATCHES = [
     },
     {
         "cell_directory_synchronizer": None,
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {
                 "failed_heartbeat_backoff_start_time": 50,
                 "failed_heartbeat_backoff_max_time": 50,

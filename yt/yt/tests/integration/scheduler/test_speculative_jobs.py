@@ -40,7 +40,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "total_confirmation_period": 5000,
             }
@@ -275,7 +275,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
             "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
         },
@@ -382,7 +382,7 @@ class TestListSpeculativeJobs(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,
@@ -577,7 +577,7 @@ class TestSpeculativeJobsOther(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
             "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
             "job_controller": {"resource_limits": {"cpu": 3, "user_slots": 3}},

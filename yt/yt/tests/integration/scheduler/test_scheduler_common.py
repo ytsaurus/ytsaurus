@@ -76,7 +76,7 @@ class TestSchedulerCommon(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "user_slots": 5,
@@ -1377,7 +1377,7 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
             cls.node_counter = 0
         cls.node_counter += 1
         if cls.node_counter == 1:
-            config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] = 0
+            config["exec_node"]["job_controller"]["resource_limits"]["user_slots"] = 0
 
     @authors("renadeen", "ignat")
     def test_job_count(self):
@@ -1439,7 +1439,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
             "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
         },
@@ -1708,7 +1708,7 @@ class TestJobStatisticsPorto(YTEnvSetup):
         assert row_count == 6
 
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "statistics_output_table_count_limit": 1,
             },
         })
@@ -1736,7 +1736,7 @@ class TestSchedulerObjectsDestruction(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 1},  # 1 msec
             "controller_agent_connector": {"heartbeat_period": 1},  # 1 msec
             "job_controller": {
@@ -1786,7 +1786,7 @@ class TestScheduleJobDelayAndRevive(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 1},  # 1 msec
             "controller_agent_connector": {"heartbeat_period": 1},  # 1 msec
         },
@@ -1826,7 +1826,7 @@ class TestDelayInNodeHeartbeat(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 100},
             "controller_agent_connector": {"heartbeat_period": 10},
         },

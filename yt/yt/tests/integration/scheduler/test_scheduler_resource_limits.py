@@ -117,7 +117,7 @@ class TestDisabledMemoryLimit(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "check_user_job_memory_limit": False
         }
     }
@@ -154,7 +154,7 @@ class TestMemoryReserveFactor(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "always_abort_on_memory_reserve_overdraft": True,
             "job_proxy_send_heartbeat_before_abort": True,
         }
@@ -233,7 +233,7 @@ class TestMemoryReserveMultiplier(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "always_abort_on_memory_reserve_overdraft": True,
             "job_proxy_heartbeat_period": 500,
             "job_proxy_send_heartbeat_before_abort": True,
@@ -393,7 +393,7 @@ class TestResourceOverdraftAbort(YTEnvSetup):
     USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "user_slots": 2,
@@ -579,7 +579,7 @@ class TestContainerCpuProperties(YTEnvSetup):
     @authors("prime")
     def test_force_idle_cpu_policy(self):
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "job_controller": {
                     "job_proxy": {
                         "force_idle_cpu_policy": True,
@@ -618,7 +618,7 @@ class TestDaemonSubcontainer(YTEnvSetup):
             "node_dedicated_cpu": 1,
             "node_cpu_weight": 100,
         },
-        "exec_agent": {
+        "exec_node": {
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -661,7 +661,7 @@ class TestUpdateInstanceLimits(YTEnvSetup):
                 },
             },
         },
-        "exec_agent": {
+        "exec_node": {
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -798,9 +798,9 @@ class TestSchedulerGpu(YTEnvSetup):
             cls.node_counter = 0
         cls.node_counter += 1
         if cls.node_counter == 1:
-            config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] = 4
-            config["exec_agent"]["job_controller"]["resource_limits"]["cpu"] = 4
-            config["exec_agent"]["job_controller"]["gpu_manager"] = {
+            config["exec_node"]["job_controller"]["resource_limits"]["user_slots"] = 4
+            config["exec_node"]["job_controller"]["resource_limits"]["cpu"] = 4
+            config["exec_node"]["job_controller"]["gpu_manager"] = {
                 "test_resource": True,
                 "test_gpu_count": 4,
             }
@@ -919,7 +919,7 @@ class TestPorts(YTEnvSetup):
     NUM_NODES = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "start_port": 20000,
                 "port_count": 3,
@@ -1052,5 +1052,5 @@ class TestJobWorkspaceBuilder(TestMemoryReserveFactor):
 
     @classmethod
     def modify_node_config(cls, config):
-        config["exec_agent"]["use_artifact_binds"] = True
-        config["exec_agent"]["use_common_root_fs_quota"] = True
+        config["exec_node"]["use_artifact_binds"] = True
+        config["exec_node"]["use_common_root_fs_quota"] = True

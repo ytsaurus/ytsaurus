@@ -67,7 +67,7 @@ class TestSchedulingSegments(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "cpu": 10,
@@ -909,7 +909,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "cpu": 10,
@@ -1517,7 +1517,7 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
             },
@@ -1674,7 +1674,7 @@ class TestRunningJobStatistics(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "cpu": 2,

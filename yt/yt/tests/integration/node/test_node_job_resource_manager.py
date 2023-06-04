@@ -15,7 +15,7 @@ class TestMemoryPressureDetector(YTEnvSetup):
     FREE_MEMORY_WATERMARK = 1024**3
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "free_memory_watermark": FREE_MEMORY_WATERMARK,
             },
@@ -36,7 +36,7 @@ class TestMemoryPressureDetector(YTEnvSetup):
         memory_before_pressure = get(node_memory)
 
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "job_controller": {
                     "memory_pressure_detector": {
                         "enabled": True,
@@ -60,7 +60,7 @@ class TestMemoryPressureAtJobProxy(YTEnvSetup):
     @authors("renadeen")
     def test_memory_pressure_detector_at_job_proxy(self):
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "job_controller": {
                     "job_proxy": {
                         "job_environment": {

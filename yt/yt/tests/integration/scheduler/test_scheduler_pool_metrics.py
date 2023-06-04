@@ -96,7 +96,7 @@ class TestPoolMetrics(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 100},
             "controller_agent_connector": {
                 "heartbeat_period": 100,
@@ -780,7 +780,7 @@ class TestImproperlyPreemptedResources(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 100},
             "controller_agent_connector": {
                 "heartbeat_period": 100,

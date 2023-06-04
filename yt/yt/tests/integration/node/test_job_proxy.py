@@ -48,7 +48,7 @@ class JobProxyTestBase(YTEnvSetup):
 
 class TestJobProxyBinary(JobProxyTestBase):
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "job_proxy_build_info_update_period": 300,
             }
@@ -141,7 +141,7 @@ class TestJobProxyBinary(JobProxyTestBase):
 
 class TestUnavailableJobProxy(JobProxyTestBase):
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "job_proxy_build_info_update_period": 300,
             },

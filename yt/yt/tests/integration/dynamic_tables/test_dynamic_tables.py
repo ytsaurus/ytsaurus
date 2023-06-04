@@ -68,7 +68,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     NUM_TEST_PARTITIONS = 8
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "cpu_per_tablet_slot": 1.0,
             },

@@ -537,7 +537,7 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
             "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
         },
@@ -1376,8 +1376,8 @@ class TestSchedulerHangingOperations(YTEnvSetup):
 
     @classmethod
     def modify_node_config(cls, config):
-        config["exec_agent"]["job_controller"]["resource_limits"]["cpu"] = 2
-        config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] = 2
+        config["exec_node"]["job_controller"]["resource_limits"]["cpu"] = 2
+        config["exec_node"]["job_controller"]["resource_limits"]["user_slots"] = 2
 
     def setup_method(self, method):
         super(TestSchedulerHangingOperations, self).setup_method(method)
@@ -2180,7 +2180,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
     USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "controller_agent_connector": {"heartbeat_period": 100},  # 100 msec
             "scheduler_connector": {"heartbeat_period": 100},  # 100 msec
             "job_proxy_heartbeat_period": 100,  # 100 msec
@@ -2402,7 +2402,7 @@ class TestMinNeededResources(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "memory": 10 * 1024 * 1024 * 1024,
@@ -2506,7 +2506,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "cpu": NUM_CPUS_PER_NODE,
@@ -2689,7 +2689,7 @@ class TestIntegralGuarantees(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"resource_limits": {"cpu": 10, "user_slots": 10}}}}
+    DELTA_NODE_CONFIG = {"exec_node": {"job_controller": {"resource_limits": {"cpu": 10, "user_slots": 10}}}}
 
     def wait_pool_fair_share(self, pool, strong, integral, weight_proportional):
         path = scheduler_orchid_default_pool_tree_path() + "/pools/" + pool + "/detailed_fair_share"
@@ -3250,7 +3250,7 @@ class TestSatisfactionRatio(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "cpu": 8,
@@ -3458,7 +3458,7 @@ class TestVectorStrongGuarantees(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "cpu": 10,
@@ -3654,7 +3654,7 @@ class TestFifoPools(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "user_slots": 10,

@@ -13,7 +13,7 @@ class TestNodeHeartbeats(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "scheduler_connector": {"heartbeat_period": 100},
             "controller_agent_connector": {"heartbeat_period": 100},
         },
@@ -25,7 +25,7 @@ class TestNodeHeartbeats(YTEnvSetup):
     def _test(self, fixup):
         update_controller_agent_config("full_job_info_wait_timeout", 1000)
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "controller_agent_connector": {
                     "test_heartbeat_delay": 10000,
                 }
@@ -61,7 +61,7 @@ class TestNodeHeartbeats(YTEnvSetup):
     def test_job_abort_on_heartbeat_timeout(self):
         def fixup():
             update_nodes_dynamic_config({
-                "exec_agent": {
+                "exec_node": {
                     "controller_agent_connector": {
                         "test_heartbeat_delay": 0,
                     }

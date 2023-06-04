@@ -2381,7 +2381,7 @@ class TestUserJobIOTracking(TestJobIOTrackingBase):
                 },
             },
         },
-        "exec_agent": {
+        "exec_node": {
             "job_proxy_heartbeat_period": 100,
         },
     }

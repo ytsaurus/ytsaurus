@@ -33,7 +33,7 @@ class TestJobProber(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_poll_job_shell": True,
         },
     }
@@ -413,7 +413,7 @@ class TestJobProber(YTEnvSetup):
 
 class TestJobShellInSubcontainer(TestJobProber):
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_poll_job_shell": True,
             # NB(gritukan): Setting an arbitrary user to user job
             # will end up with problems with permissions during subsubcontainer start.

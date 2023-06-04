@@ -515,7 +515,7 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
     NUM_HTTP_PROXIES = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_poll_job_shell": True,
         },
     }

@@ -714,11 +714,11 @@ class YTEnvSetup(object):
 
             # COMPAT(pogorelov)
             if "node" in cls.ARTIFACT_COMPONENTS.get("22_4", []):
-                config["exec_agent"]["controller_agent_connector"]["running_job_sending_backoff"] = 0
-                config["exec_agent"]["controller_agent_connector"]["use_new_job_tracker_service"] = True
-                config["exec_agent"]["scheduler_connector"]["use_allocation_tracker_service"] = True
+                config["exec_node"]["controller_agent_connector"]["running_job_sending_backoff"] = 0
+                config["exec_node"]["controller_agent_connector"]["use_new_job_tracker_service"] = True
+                config["exec_node"]["scheduler_connector"]["use_allocation_tracker_service"] = True
 
-            config["exec_agent"]["job_proxy_upload_debug_artifact_chunks"] = cls.UPLOAD_DEBUG_ARTIFACT_CHUNKS
+            config["exec_node"]["job_proxy_upload_debug_artifact_chunks"] = cls.UPLOAD_DEBUG_ARTIFACT_CHUNKS
 
             config["ref_counted_tracker_dump_period"] = 5000
 
@@ -1294,7 +1294,7 @@ class YTEnvSetup(object):
 
         # COMPAT(pogorelov)
         if "controller-agent" in self.__class__.ARTIFACT_COMPONENTS.get("22_4", []):
-            config["%true"]["exec_agent"]["controller_agent_connector"]["send_waiting_jobs"] = False
+            config["%true"]["exec_node"]["controller_agent_connector"]["send_waiting_jobs"] = False
 
         yt_commands.set("//sys/cluster_nodes/@config", config, driver=driver)
 
@@ -1455,7 +1455,7 @@ class YTEnvSetup(object):
 
 def get_porto_delta_node_config():
     return {
-        "exec_agent": {
+        "exec_node": {
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -1467,7 +1467,7 @@ def get_porto_delta_node_config():
 
 def get_custom_rootfs_delta_node_config():
     return {
-        "exec_agent": {
+        "exec_node": {
             "do_not_set_user_id": True,
             "slot_manager": {
                 "job_environment": {

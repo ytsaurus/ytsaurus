@@ -27,7 +27,7 @@ class TestGpuJobSetup(YTEnvSetup):
     NUM_NODES = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
@@ -121,7 +121,7 @@ class TestSkipGpuJobSetup(YTEnvSetup):
     NUM_NODES = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
@@ -192,7 +192,7 @@ class TestGpuLayer(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
@@ -300,7 +300,7 @@ class TestGpuLayerUpdate(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
@@ -410,7 +410,7 @@ class TestCudaLayer(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
@@ -503,7 +503,7 @@ class TestCudaLayer(YTEnvSetup):
     def test_dynamic_config_for_cuda_toolkit_version(self):
         self.setup_files(cuda_version="1")
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "job_controller": {
                     "gpu_manager": {
                         "cuda_toolkit_min_driver_version": {"1": "0"},
@@ -548,7 +548,7 @@ class TestForceCudaLayer(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
@@ -657,7 +657,7 @@ class TestSetupUser(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
@@ -825,7 +825,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
     USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
@@ -1012,7 +1012,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         config = {
             "%true": {
-                "exec_agent": {
+                "exec_node": {
                     "slot_manager": {
                         "disable_jobs_on_gpu_check_failure": False
                     }
@@ -1171,7 +1171,7 @@ class TestExtraGpuCheckFailure(YTEnvSetup, GpuCheckBase):
     USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,

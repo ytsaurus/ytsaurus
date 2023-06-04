@@ -68,7 +68,7 @@ class TestSandboxTmpfs(YTEnvSetup):
     def modify_node_config(cls, config):
         if not os.path.exists(cls.default_disk_path):
             os.makedirs(cls.default_disk_path)
-        config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
+        config["exec_node"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
 
     @authors("ignat")
     def test_simple(self):
@@ -729,7 +729,7 @@ class TestTmpfsWithDiskLimit(YTEnvSetup):
     USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },
@@ -751,7 +751,7 @@ class TestTmpfsWithDiskLimit(YTEnvSetup):
     @authors("ignat")
     def test_tmpfs_sandbox_with_disk_space_limit(self):
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "slot_manager": {
                     "check_disk_space_limit": True,
                 },
@@ -785,7 +785,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
     USE_PORTO = True
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "statistics_reporter": {
                 "enabled": True,
                 "reporting_period": 10,
@@ -892,7 +892,7 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {"exec_agent": {"slot_manager": {"enable_tmpfs": False}}}
+    DELTA_NODE_CONFIG = {"exec_node": {"slot_manager": {"enable_tmpfs": False}}}
 
     @authors("ignat")
     def test_simple(self):
@@ -1179,7 +1179,7 @@ class TestUserJobIsolation(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -1981,7 +1981,7 @@ class TestUserJobMonitoring(YTEnvSetup):
     PROFILING_PERIOD = 5 * 1000
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_proxy_heartbeat_period": 100,
             "job_reporter": {
                 "enabled": True,
@@ -2175,7 +2175,7 @@ class TestUserJobMonitoring(YTEnvSetup):
     def test_dynamic_config(self):
         update_nodes_dynamic_config(
             {
-                "exec_agent": {
+                "exec_node": {
                     "user_job_monitoring": {
                         "sensors": {
                             "my_memory_reserve": {
@@ -2237,7 +2237,7 @@ class TestHealExecNode(YTEnvSetup):
 
         node_address = ls("//sys/cluster_nodes")[0]
 
-        locations = get("//sys/cluster_nodes/{0}/orchid/config/exec_agent/slot_manager/locations".format(node_address))
+        locations = get("//sys/cluster_nodes/{0}/orchid/config/exec_node/slot_manager/locations".format(node_address))
 
         for location in locations:
             with open("{}/disabled".format(location["path"]), "w") as f:
@@ -2286,7 +2286,7 @@ class TestHealExecNode(YTEnvSetup):
             shutil.move(job_proxy_path, job_proxy_moved_path)
             wait(has_job_proxy_build_info_missing_alert)
             update_nodes_dynamic_config({
-                "exec_agent": {
+                "exec_node": {
                     "job_controller": {
                         "job_proxy_build_info_update_period": 600000,
                     }
@@ -2310,7 +2310,7 @@ class TestHealExecNode(YTEnvSetup):
         assert not get("//sys/cluster_nodes/{}/@alerts".format(node_address))
 
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "job_abortion_timeout": 500,
             },
         })
@@ -2529,7 +2529,7 @@ class TestConsecutiveJobAborts(YTEnvSetup):
     USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
@@ -2592,7 +2592,7 @@ class TestIdleSlots(YTEnvSetup):
     NUM_NODES = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "cpu": 20,
@@ -2628,7 +2628,7 @@ class TestIdleSlots(YTEnvSetup):
 
     def _update_cpu_fraction(self, fraction=0.1):
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "slot_manager": {
                     "idle_cpu_fraction": fraction,
                 },
@@ -2728,7 +2728,7 @@ class TestCpuSet(YTEnvSetup):
     NUM_NODES = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_controller": {
                 "resource_limits": {
                     "cpu": 20,
@@ -2772,7 +2772,7 @@ class TestCpuSet(YTEnvSetup):
 
     def _enable_numa_node_scheduling(self, enable):
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "slot_manager": {
                     "enable_numa_node_scheduling": enable,
                 },
@@ -2906,7 +2906,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
@@ -2935,7 +2935,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
     def modify_node_config(cls, config):
         if not os.path.exists(cls.default_disk_path):
             os.makedirs(cls.default_disk_path)
-        config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
+        config["exec_node"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
 
     @authors("don-dron")
     def test_simple_job_env_resurrect(self):
@@ -3048,7 +3048,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
         wait(lambda: get_job(op.id, job)["state"] == "running")
 
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "slot_manager": {
                     "job_environment": {
                         "porto_executor": {
@@ -3091,7 +3091,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
         ##################################################################
 
         update_nodes_dynamic_config({
-            "exec_agent": {
+            "exec_node": {
                 "slot_manager": {
                     "job_environment": {
                         "porto_executor": {

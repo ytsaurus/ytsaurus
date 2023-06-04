@@ -234,7 +234,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"resource_limits": {"user_slots": 100, "cpu": 100}}}}
+    DELTA_NODE_CONFIG = {"exec_node": {"job_controller": {"resource_limits": {"user_slots": 100, "cpu": 100}}}}
 
     @classmethod
     def modify_controller_agent_config(cls, config):

@@ -84,7 +84,7 @@ def checked_list_jobs(*args, **kwargs):
 
 class TestListJobsBase(YTEnvSetup):
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
+        "exec_node": {
             "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,
@@ -586,7 +586,7 @@ class TestListJobsBase(YTEnvSetup):
 
 class TestListJobsStatisticsLz4(TestListJobsBase):
     DELTA_NODE_CONFIG = deepcopy(TestListJobsBase.DELTA_NODE_CONFIG)
-    DELTA_NODE_CONFIG["exec_agent"]["job_reporter"]["report_statistics_lz4"] = True
+    DELTA_NODE_CONFIG["exec_node"]["job_reporter"]["report_statistics_lz4"] = True
 
 
 class TestListJobs(TestListJobsBase):
