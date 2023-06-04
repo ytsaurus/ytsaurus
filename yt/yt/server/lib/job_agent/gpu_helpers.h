@@ -13,12 +13,12 @@ namespace NYT::NJobAgent {
 struct TGpuDeviceDescriptor
 {
     TString DeviceName;
-    int DeviceNumber;
+    int DeviceIndex;
 };
 
 std::vector<TGpuDeviceDescriptor> ListGpuDevices();
 
-TString GetGpuDeviceName(int deviceNumber);
+TString GetGpuDeviceName(int deviceIndex);
 
 void ProfileGpuInfo(NProfiling::ISensorWriter* writer, const TGpuInfo& gpuInfo);
 

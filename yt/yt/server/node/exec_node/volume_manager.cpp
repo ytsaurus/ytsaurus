@@ -318,7 +318,9 @@ public:
     TFuture<void> GetVolumeReleaseEvent()
     {
         auto guard = Guard(SpinLock_);
-        return VolumesReleaseEvent_;
+        return VolumesReleaseEvent_
+            .ToFuture()
+            .ToUncancelable();
     }
 
     void Disable(const TError& error)
@@ -2091,7 +2093,8 @@ public:
         }
 
         return AllSet(std::move(futures))
-            .AsVoid();
+            .AsVoid()
+            .ToUncancelable();
     }
 
     TFuture<IVolumePtr> PrepareVolume(

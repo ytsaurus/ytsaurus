@@ -345,7 +345,7 @@ public:
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const TJobResources& resourceLimits,
-        const NClusterNode::TJobResourceAttributes& resourceAttributes,
+        const TJobResourceAttributes& resourceAttributes,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
@@ -418,7 +418,7 @@ public:
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const TJobResources& resourceLimits,
-        const NClusterNode::TJobResourceAttributes& resourceAttributes,
+        const TJobResourceAttributes& resourceAttributes,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
@@ -613,7 +613,7 @@ public:
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const TJobResources& resourceLimits,
-        const NClusterNode::TJobResourceAttributes& resourceAttributes,
+        const TJobResourceAttributes& resourceAttributes,
         IBootstrap* bootstrap,
         TMasterJobSensors sensors)
         : TMasterJobBase(
@@ -907,7 +907,7 @@ public:
         TJobSpec&& jobSpec,
         TString jobTrackerAddress,
         const TJobResources& resourceLimits,
-        const NClusterNode::TJobResourceAttributes& resourceAttributes,
+        const TJobResourceAttributes& resourceAttributes,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
@@ -1085,7 +1085,7 @@ public:
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const TJobResources& resourceLimits,
-        const NClusterNode::TJobResourceAttributes& resourceAttributes,
+        const TJobResourceAttributes& resourceAttributes,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
@@ -1699,7 +1699,7 @@ public:
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const TJobResources& resourceLimits,
-        const NClusterNode::TJobResourceAttributes& resourceAttributes,
+        const TJobResourceAttributes& resourceAttributes,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
@@ -1902,7 +1902,7 @@ public:
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const TJobResources& resourceLimits,
-        const NClusterNode::TJobResourceAttributes& resourceAttributes,
+        const TJobResourceAttributes& resourceAttributes,
         IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,

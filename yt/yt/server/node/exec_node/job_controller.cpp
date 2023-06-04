@@ -619,7 +619,7 @@ private:
         const TSchedulerJobSpecExt* schedulerSpec)
     {
         auto resources = FromNodeResources(nodeResources);
-        auto userJobSpec = schedulerSpec && schedulerSpec->has_user_job_spec()
+        const auto* userJobSpec = schedulerSpec && schedulerSpec->has_user_job_spec()
             ? &schedulerSpec->user_job_spec()
             : nullptr;
 
@@ -635,12 +635,12 @@ private:
             }
         }
 
-        return std::move(resources);
+        return resources;
     }
 
     NClusterNode::TJobResourceAttributes BuildJobResourceAttributes(const TSchedulerJobSpecExt* schedulerSpec)
     {
-        auto userJobSpec = schedulerSpec && schedulerSpec->has_user_job_spec()
+        const auto* userJobSpec = schedulerSpec && schedulerSpec->has_user_job_spec()
             ? &schedulerSpec->user_job_spec()
             : nullptr;
 

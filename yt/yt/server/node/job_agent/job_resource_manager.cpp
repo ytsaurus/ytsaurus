@@ -205,11 +205,14 @@ public:
             const auto& execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
             auto slotManager = execNodeBootstrap->GetSlotManager();
             auto gpuManager = execNodeBootstrap->GetGpuManager();
-            result.UserSlots =
+
+            auto scheduleJobEnabled =
                 execNodeBootstrap->GetChunkCache()->IsEnabled() &&
                 !execNodeBootstrap->GetJobController()->AreSchedulerJobsDisabled() &&
                 !Bootstrap_->IsReadOnly() &&
-                slotManager->IsEnabled()
+                slotManager->IsEnabled();
+
+            result.UserSlots = scheduleJobEnabled
                 ? slotManager->GetSlotCount()
                 : 0;
             result.Gpu = resourceLimitsOverrides.has_gpu()
@@ -483,23 +486,24 @@ public:
 
         THROW_ERROR_EXCEPTION_IF(
             !acquireResult.IsOK(),
-            TError("GPU slot acquisition failed (Count: %v)", gpuCount)
+            TError("GPU slot acquisition failed", gpuCount)
+                << TErrorAttribute("gpu_count", gpuCount)
                 << acquireResult);
 
         auto result = acquireResult.Value();
 
         std::vector<ISlotPtr> slots;
-        std::vector<int> deviceNumbers;
+        std::vector<int> deviceIndices;
 
         slots.reserve(result.size());
-        deviceNumbers.reserve(result.size());
+        deviceIndices.reserve(result.size());
 
         for (auto& slot : result) {
-            deviceNumbers.push_back(slot->GetDeviceNumber());
+            deviceIndices.push_back(slot->GetDeviceIndex());
             slots.push_back(std::move(slot));
         }
 
-        YT_LOG_DEBUG("GPU slots acquired (DeviceNumbers: %v)", deviceNumbers);
+        YT_LOG_DEBUG("GPU slots acquired (DeviceIndices: %v)", deviceIndices);
 
         return slots;
     }
@@ -524,7 +528,7 @@ public:
 
         ++WaitingResourceHolderCount_;
 
-        YT_LOG_DEBUG("Resources acquiring failed (Resources: %v, ResourceUsage: %v, WaitingResources: %v)",
+        YT_LOG_DEBUG("Resources acquisition failed (Resources: %v, ResourceUsage: %v, WaitingResources: %v)",
             FormatResources(resources),
             FormatResources(ResourceUsage_),
             FormatResources(WaitingResources_));
@@ -631,7 +635,7 @@ public:
 
             YT_LOG_FATAL_IF(
                 slotManagerCount != jobResourceManagerCount,
-                "Used slot count in slot manager must be equal JobResourceManager count (SlotManager: %v/%v, JRM: %v)",
+                "Used slot count in slot manager must be equal JobResourceManager count (SlotManagerCount: %v/%v, JobResourceManagerCount: %v)",
                 slotManagerCount,
                 slotManagerLimit,
                 jobResourceManagerCount);

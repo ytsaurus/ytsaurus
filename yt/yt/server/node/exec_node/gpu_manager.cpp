@@ -52,26 +52,26 @@ static const auto& Logger = ExecNodeLogger;
 
 TGpuSlot::TGpuSlot(
     TGpuManagerPtr manager,
-    int deviceNumber)
+    int deviceIndex)
     : Manager_(std::move(manager))
-    , DeviceNumber_(deviceNumber)
+    , DeviceIndex_(deviceIndex)
 {
     YT_VERIFY(Manager_);
 }
 
 TString TGpuSlot::GetDeviceName() const
 {
-    return GetGpuDeviceName(DeviceNumber_);
+    return GetGpuDeviceName(DeviceIndex_);
 }
 
-int TGpuSlot::GetDeviceNumber() const
+int TGpuSlot::GetDeviceIndex() const
 {
-    return DeviceNumber_;
+    return DeviceIndex_;
 }
 
 TGpuSlot::~TGpuSlot()
 {
-    Manager_->ReleaseGpuSlot(DeviceNumber_);
+    Manager_->ReleaseGpuSlot(DeviceIndex_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,13 +149,13 @@ TGpuManager::TGpuManager(
     auto now = TInstant::Now();
     for (const auto& descriptor : descriptors) {
         GpuDevices_.push_back(descriptor.DeviceName);
-        FreeSlots_.emplace_back(descriptor.DeviceNumber);
+        FreeSlots_.emplace_back(descriptor.DeviceIndex);
 
         TGpuInfo info{
             .UpdateTime = now,
-            .Index = descriptor.DeviceNumber
+            .Index = descriptor.DeviceIndex
         };
-        YT_VERIFY(HealthyGpuInfoMap_.emplace(descriptor.DeviceNumber, info).second);
+        YT_VERIFY(HealthyGpuInfoMap_.emplace(descriptor.DeviceIndex, info).second);
     }
 
     if (!Config_->TestResource) {
@@ -229,46 +229,46 @@ void TGpuManager::OnHealthCheck()
     try {
         auto gpuInfos = GpuInfoProvider_.Load()->GetGpuInfos(GetHealthCheckTimeout());
 
-        THashSet<int> deviceNumbers;
+        THashSet<int> deviceIndices;
         for (const auto& info : gpuInfos) {
-            deviceNumbers.insert(info.Index);
+            deviceIndices.insert(info.Index);
         }
 
-        std::vector<int> freeDeviceNumbers;
+        std::vector<int> freeDeviceIndices;
 
-        YT_LOG_DEBUG("Updating healthy GPU devices (DeviceNumbers: %v)",
-            deviceNumbers);
+        YT_LOG_DEBUG("Updating healthy GPU devices (DeviceIndices: %v)",
+            deviceIndices);
 
         {
             auto guard = Guard(SpinLock_);
 
             auto now = TInstant::Now();
 
-            std::vector<int> deviceNumbersToAdd;
-            std::vector<int> deviceNumbersToRemove;
-            for (const auto& [number, _] : HealthyGpuInfoMap_) {
-                if (deviceNumbers.find(number) == deviceNumbers.end()) {
-                    deviceNumbersToRemove.push_back(number);
-                    LostGpuDeviceNumbers_.insert(number);
+            std::vector<int> deviceIndicesToAdd;
+            std::vector<int> deviceIndicesToRemove;
+            for (const auto& [index, _] : HealthyGpuInfoMap_) {
+                if (deviceIndices.find(index) == deviceIndices.end()) {
+                    deviceIndicesToRemove.push_back(index);
+                    LostGpuDeviceIndices_.insert(index);
                 }
             }
 
-            for (int deviceNumber : deviceNumbers) {
-                if (LostGpuDeviceNumbers_.contains(deviceNumber)) {
-                    deviceNumbersToAdd.push_back(deviceNumber);
+            for (int deviceIndex : deviceIndices) {
+                if (LostGpuDeviceIndices_.contains(deviceIndex)) {
+                    deviceIndicesToAdd.push_back(deviceIndex);
                 }
             }
 
-            for (int deviceNumber : deviceNumbersToRemove) {
-                EraseOrCrash(HealthyGpuInfoMap_, deviceNumber);
+            for (int deviceIndex : deviceIndicesToRemove) {
+                EraseOrCrash(HealthyGpuInfoMap_, deviceIndex);
             }
 
-            std::vector<int> newFreeSlots;
-            for (int deviceNumber : deviceNumbersToAdd) {
-                if (!AcquiredGpuDeviceNumbers_.contains(deviceNumber)) {
-                    newFreeSlots.emplace_back(deviceNumber);
+            std::vector<int> newFreeSlotIndices;
+            for (int deviceIndex : deviceIndicesToAdd) {
+                if (!AcquiredGpuDeviceIndices_.contains(deviceIndex)) {
+                    newFreeSlotIndices.emplace_back(deviceIndex);
                 }
-                EraseOrCrash(LostGpuDeviceNumbers_, deviceNumber);
+                EraseOrCrash(LostGpuDeviceIndices_, deviceIndex);
             }
 
             for (auto& gpuInfo : gpuInfos) {
@@ -276,21 +276,21 @@ void TGpuManager::OnHealthCheck()
                 HealthyGpuInfoMap_[gpuInfo.Index] = gpuInfo;
             }
 
-            for (const auto number : FreeSlots_) {
-                if (!HealthyGpuInfoMap_.contains(number)) {
+            for (auto index : FreeSlots_) {
+                if (!HealthyGpuInfoMap_.contains(index)) {
                     YT_LOG_WARNING("Found lost GPU device (DeviceName: %v)",
-                        GetGpuDeviceName(number));
+                        GetGpuDeviceName(index));
                 } else {
-                    freeDeviceNumbers.push_back(number);
-                    newFreeSlots.emplace_back(std::move(number));
+                    freeDeviceIndices.push_back(index);
+                    newFreeSlotIndices.emplace_back(std::move(index));
                 }
             }
 
-            FreeSlots_ = std::move(newFreeSlots);
+            FreeSlots_ = std::move(newFreeSlotIndices);
 
             std::vector<TError> newAlerts;
-            for (auto number : LostGpuDeviceNumbers_) {
-                newAlerts.push_back(TError("GPU device %v is lost", number));
+            for (auto index : LostGpuDeviceIndices_) {
+                newAlerts.push_back(TError("GPU device %v is lost", index));
             }
 
             Enabled_ = true;
@@ -298,15 +298,15 @@ void TGpuManager::OnHealthCheck()
             Alerts_ = newAlerts;
         }
 
-        std::sort(freeDeviceNumbers.begin(), freeDeviceNumbers.end());
+        std::sort(freeDeviceIndices.begin(), freeDeviceIndices.end());
 
         YT_LOG_DEBUG(
             "List of healthy GPU devices updated "
-            "(HealthyDeviceNumbers: %v, FreeDeviceNumbers: %v, AcquiredDeviceNumbers: %v, LostDeviceNumbers: %v)",
-            deviceNumbers,
-            freeDeviceNumbers,
-            AcquiredGpuDeviceNumbers_,
-            LostGpuDeviceNumbers_);
+            "(HealthyDeviceIndices: %v, FreeDeviceIndices: %v, AcquiredDeviceIndices: %v, LostDeviceIndices: %v)",
+            deviceIndices,
+            freeDeviceIndices,
+            AcquiredGpuDeviceIndices_,
+            LostGpuDeviceIndices_);
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to get healthy GPU devices");
         BannedDeadline_ = TInstant::Now() + GetHealthCheckFailureBackoff();
@@ -388,20 +388,20 @@ const std::vector<TString>& TGpuManager::GetGpuDevices() const
     return GpuDevices_;
 }
 
-void TGpuManager::ReleaseGpuSlot(int deviceNumber)
+void TGpuManager::ReleaseGpuSlot(int deviceIndex)
 {
     YT_LOG_DEBUG("Released GPU slot (DeviceName: %v)",
-        GetGpuDeviceName(deviceNumber));
+        GetGpuDeviceName(deviceIndex));
 
     auto guard = Guard(SpinLock_);
 
-    if (AcquiredGpuDeviceNumbers_.erase(deviceNumber)) {
-        if (!HealthyGpuInfoMap_.contains(deviceNumber)) {
-            LostGpuDeviceNumbers_.insert(deviceNumber);
+    if (AcquiredGpuDeviceIndices_.erase(deviceIndex) > 0) {
+        if (!HealthyGpuInfoMap_.contains(deviceIndex)) {
+            LostGpuDeviceIndices_.insert(deviceIndex);
             YT_LOG_WARNING("Found lost GPU device (DeviceName: %v)",
-                deviceNumber);
+                deviceIndex);
         } else {
-            FreeSlots_.push_back(deviceNumber);
+            FreeSlots_.push_back(deviceIndex);
         }
     }
 }
@@ -416,14 +416,14 @@ TErrorOr<TGpuSlotPtr> TGpuManager::AcquireGpuSlot()
         return TError("Cannot find an empty GPU slot");
     }
 
-    auto deviceNumber = FreeSlots_.back();
+    auto deviceIndex = FreeSlots_.back();
     FreeSlots_.pop_back();
 
-    InsertOrCrash(AcquiredGpuDeviceNumbers_, deviceNumber);
+    InsertOrCrash(AcquiredGpuDeviceIndices_, deviceIndex);
 
     YT_LOG_DEBUG("Acquired GPU slot (DeviceName: %v)",
-        GetGpuDeviceName(deviceNumber));
-    return New<TGpuSlot>(MakeStrong(this), deviceNumber);
+        GetGpuDeviceName(deviceIndex));
+    return New<TGpuSlot>(MakeStrong(this), deviceIndex);
 }
 
 TErrorOr<std::vector<TGpuSlotPtr>> TGpuManager::AcquireGpuSlots(int slotCount)
@@ -444,23 +444,23 @@ TErrorOr<std::vector<TGpuSlotPtr>> TGpuManager::AcquireGpuSlots(int slotCount)
     int maxLevelIndex = levelCount - 1;
 
     // NB: std::map used to make the behaviour deterministic.
-    std::vector<std::map<int, std::vector<int>>> freeDeviceNumberPerLevelPerGroup(levelCount);
-    for (const auto number : FreeSlots_) {
-        YT_VERIFY(number < (1 << maxLevelIndex));
+    std::vector<std::map<int, std::vector<int>>> freeDeviceIndexPerLevelPerGroup(levelCount);
+    for (auto index : FreeSlots_) {
+        YT_VERIFY(index < (1 << maxLevelIndex));
         for (int levelIndex = 0; levelIndex < levelCount; ++levelIndex) {
-            int groupIndex = number / (1 << levelIndex);
-            freeDeviceNumberPerLevelPerGroup[levelIndex][groupIndex].push_back(number);
+            int groupIndex = index / (1 << levelIndex);
+            freeDeviceIndexPerLevelPerGroup[levelIndex][groupIndex].push_back(index);
         }
     }
 
-    THashSet<int> resultDeviceNumbers;
+    THashSet<int> resultDeviceIndices;
     bool found = false;
     for (int levelIndex = 0; levelIndex < levelCount && !found; ++levelIndex) {
-        for (const auto& [_, slots] : freeDeviceNumberPerLevelPerGroup[levelIndex]) {
+        for (const auto& [_, slots] : freeDeviceIndexPerLevelPerGroup[levelIndex]) {
             if (std::ssize(slots) >= slotCount) {
                 found = true;
                 for (int index = 0; index < slotCount; ++index) {
-                    YT_VERIFY(resultDeviceNumbers.insert(slots[index]).second);
+                    YT_VERIFY(resultDeviceIndices.insert(slots[index]).second);
                 }
                 break;
             }
@@ -468,26 +468,26 @@ TErrorOr<std::vector<TGpuSlotPtr>> TGpuManager::AcquireGpuSlots(int slotCount)
     }
 
     YT_VERIFY(found);
-    YT_VERIFY(std::ssize(resultDeviceNumbers) == slotCount);
+    YT_VERIFY(std::ssize(resultDeviceIndices) == slotCount);
 
-    YT_LOG_DEBUG("Acquired GPU slots (DeviceNumbers: %v)",
-        resultDeviceNumbers);
+    YT_LOG_DEBUG("Acquired GPU slots (DeviceIndices: %v)",
+        resultDeviceIndices);
 
     std::vector<TGpuSlotPtr> resultSlots;
-    std::vector<int> remainingSlots;
-    for (const auto number : FreeSlots_) {
-        if (resultDeviceNumbers.contains(number)) {
-            resultSlots.push_back(New<TGpuSlot>(MakeStrong(this), number));
+    std::vector<int> remainingSlotIndices;
+    for (   auto index : FreeSlots_) {
+        if (resultDeviceIndices.contains(index)) {
+            resultSlots.push_back(New<TGpuSlot>(MakeStrong(this), index));
         } else {
-            remainingSlots.push_back(number);
+            remainingSlotIndices.push_back(index);
         }
     }
 
-    for (auto deviceNumber : resultDeviceNumbers) {
-        InsertOrCrash(AcquiredGpuDeviceNumbers_, deviceNumber);
+    for (auto deviceIndex : resultDeviceIndices) {
+        InsertOrCrash(AcquiredGpuDeviceIndices_, deviceIndex);
     }
 
-    swap(FreeSlots_, remainingSlots);
+    swap(FreeSlots_, remainingSlotIndices);
 
     return resultSlots;
 }

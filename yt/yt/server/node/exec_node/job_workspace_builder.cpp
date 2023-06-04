@@ -116,7 +116,7 @@ TFuture<TJobWorkspaceBuildResult> TJobWorkspaceBuilder::Run()
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunGpuCheckCommand>())
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
-            ResultHolder_.Result = result;
+            ResultHolder_.LastBuildError = result;
             return std::move(ResultHolder_);
         }).AsyncVia(Invoker_));
 }

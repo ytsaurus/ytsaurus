@@ -1628,7 +1628,7 @@ void TJob::FinishPrepare(const TErrorOr<TJobWorkspaceBuildResult>& resultOrError
         SetupCommandCount_ = holder.SetupCommandCount;
 
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            holder.Result,
+            holder.LastBuildError,
             "Job preparation failed");
 
         RunJobProxy();
@@ -1751,8 +1751,7 @@ void TJob::OnJobAbortionTimeout()
 
 IUserSlotPtr TJob::GetUserSlot() const
 {
-    const auto& slot = UserSlot_;
-    return StaticPointerCast<IUserSlot>(slot);
+    return StaticPointerCast<IUserSlot>(UserSlot_);
 }
 
 void TJob::OnJobProxyFinished(const TError& error)
@@ -1857,7 +1856,7 @@ void TJob::Cleanup()
 
     if (auto slot = GetUserSlot()) {
         try {
-            YT_LOG_DEBUG("Clean processes (SlotIndex: %v)", slot->GetSlotIndex());
+            YT_LOG_DEBUG("Cleaning processes (SlotIndex: %v)", slot->GetSlotIndex());
             slot->CleanProcesses();
         } catch (const std::exception& ex) {
             // Errors during cleanup phase do not affect job outcome.
@@ -1895,7 +1894,7 @@ void TJob::Cleanup()
     if (auto slot = GetUserSlot()) {
         if (ShouldCleanSandboxes()) {
             try {
-                YT_LOG_DEBUG("Clean sandbox (SlotIndex: %v)", slot->GetSlotIndex());
+                YT_LOG_DEBUG("Cleaning sandbox (SlotIndex: %v)", slot->GetSlotIndex());
                 slot->CleanSandbox();
             } catch (const std::exception& ex) {
                 // Errors during cleanup phase do not affect job outcome.
@@ -2146,7 +2145,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
         for (const auto& gpuSlot : GpuSlots_) {
             auto slot = StaticPointerCast<TGpuSlot>(gpuSlot);
             auto& gpuDevice = ExecAttributes_.GpuDevices.emplace_back(New<TGpuDevice>());
-            gpuDevice->DeviceNumber = slot->GetDeviceNumber();
+            gpuDevice->DeviceNumber = slot->GetDeviceIndex();
             gpuDevice->DeviceName = slot->GetDeviceName();
         }
     }
@@ -2543,7 +2542,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
 
         TGpuInfo gpuInfo;
         {
-            auto it = gpuInfoMap.find(slot->GetDeviceNumber());
+            auto it = gpuInfoMap.find(slot->GetDeviceIndex());
             if (it == gpuInfoMap.end()) {
                 continue;
             }
@@ -2895,7 +2894,7 @@ void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
         const auto& gpuSlot = GpuSlots_[index];
         auto slot = StaticPointerCast<TGpuSlot>(gpuSlot);
 
-        auto it = gpuInfoMap.find(slot->GetDeviceNumber());
+        auto it = gpuInfoMap.find(slot->GetDeviceIndex());
         if (it == gpuInfoMap.end()) {
             continue;
         }

@@ -25,16 +25,16 @@ class TGpuSlot
 public:
     TGpuSlot(
         TGpuManagerPtr manager,
-        int deviceNumber);
+        int deviceIndex);
 
     TString GetDeviceName() const;
-    int GetDeviceNumber() const;
+    int GetDeviceIndex() const;
 
     ~TGpuSlot();
 
 private:
     const TGpuManagerPtr Manager_;
-    const int DeviceNumber_;
+    const int DeviceIndex_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TGpuSlot)
@@ -48,7 +48,7 @@ struct TGpuStatistics
     i64 CumulativeUtilizationMemory = 0;
     i64 CumulativeMemory = 0;
     i64 MaxMemoryUsed = 0;
-    // Number of microseconds when GPU was busy.
+    // Index of microseconds when GPU was busy.
     i64 CumulativeLoad = 0;
     i64 CumulativeUtilizationPower = 0;
     i64 CumulativePower = 0;
@@ -86,7 +86,7 @@ public:
     std::vector<NDataNode::TArtifactKey> GetToppingLayers();
     void VerifyCudaToolkitDriverVersion(const TString& toolkitVersion);
 
-    void ReleaseGpuSlot(int deviceNumber);
+    void ReleaseGpuSlot(int deviceIndex);
 
 private:
     IBootstrap* const Bootstrap_;
@@ -100,9 +100,9 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     THashMap<int, NJobAgent::TGpuInfo> HealthyGpuInfoMap_;
-    THashSet<int> LostGpuDeviceNumbers_;
+    THashSet<int> LostGpuDeviceIndices_;
 
-    THashSet<int> AcquiredGpuDeviceNumbers_;
+    THashSet<int> AcquiredGpuDeviceIndices_;
     std::vector<int> FreeSlots_;
 
     bool Enabled_ = true;

@@ -63,7 +63,7 @@ struct TJobWorkspaceBuildResult
     std::vector<NContainers::TBind> RootBinds;
     int SetupCommandCount = 0;
 
-    TError Result;
+    TError LastBuildError;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
