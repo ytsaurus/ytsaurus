@@ -192,7 +192,7 @@ TEST_P(TContinueReadInCaseOfWriteErrorsTest, ContinueReadInCaseOfWriteErrors)
 
     auto data = TSharedRef::FromString(TString(16 * 1024, 'f'));
     bool gracefulConnectionClose = GetParam();
-    // If server closes the connection without reading the entrie request,
+    // If server closes the connection without reading the entire request,
     // it causes an error 'Connection reset by peer' on client's side right after reading response.
     if (!gracefulConnectionClose) {
         b->Write(data).Get().ThrowOnError();

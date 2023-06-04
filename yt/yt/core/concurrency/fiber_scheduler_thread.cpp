@@ -90,7 +90,7 @@ struct TFiberContext
 static thread_local TFiberContext* FiberContext;
 
 // Forbid inlining these accessors to prevent the compiler from
-// mis-optimizing TLS access in presence of fiber context switches.
+// miss-optimizing TLS access in presence of fiber context switches.
 Y_NO_INLINE TFiberContext* TryGetFiberContext()
 {
     return FiberContext;

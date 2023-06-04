@@ -254,7 +254,7 @@ struct TExecutionPool
     const TEventTimer TotalTimeCounter;
     const NProfiling::TTimeCounter CumulativeTimeCounter;
 
-    // Action count is used to decide wether to reset excess time or not.
+    // Action count is used to decide whether to reset excess time or not.
     size_t ActionCountInQueue = 0;
 
     TCpuDuration NextUpdateWeightInstant = 0;

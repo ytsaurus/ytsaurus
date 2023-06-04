@@ -42,7 +42,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 // To hook-up with Serialize/Deserialize framework.
-// For direct calss, use ParseYson instead.
+// For direct calls, use ParseYson instead.
 void Serialize(
     const TYsonInput& input,
     IYsonConsumer* consumer);

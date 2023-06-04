@@ -827,7 +827,7 @@ void TTcpConnection::OnEvent(EPollControl control)
 
     FlushBusStatistics();
 
-    // Finaly, clear Running flag and recheck new pending events.
+    // Finally, clear Running flag and recheck new pending events.
     //
     // Looping here around one pollable could cause starvation for others and
     // increase latency for events already picked by this thread. So, put it

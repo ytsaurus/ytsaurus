@@ -53,7 +53,7 @@ extern "C" uint64_t crc64_yt_norm_by8(
 
 uint64_t IsaCrcImplFast(const void* data, size_t length, uint64_t seed)
 {
-    // These manipulations with seed are neccessary in order to maintain compatibility.
+    // These manipulations with seed are necessary in order to maintain compatibility.
     // Comparing YT's old implenetation to ISA's one, the latter performs `NOT` operations
     // before and after the function call, so we use `NOT` here to neutralize it.
 

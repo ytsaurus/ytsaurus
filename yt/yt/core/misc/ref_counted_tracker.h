@@ -62,7 +62,7 @@ public:
     static void FreeTagInstance(TRefCountedTypeCookie cookie);
 
     static void AllocateSpace(TRefCountedTypeCookie cookie, size_t size);
-    static void FreeSpace(TRefCountedTypeCookie cookie, size_t sie);
+    static void FreeSpace(TRefCountedTypeCookie cookie, size_t size);
 
     TString GetDebugInfo(int sortByColumn = -1) const;
     TRefCountedTrackerStatistics GetStatistics() const;
@@ -128,7 +128,7 @@ private:
     void FreeTagInstanceSlow(TRefCountedTypeCookie cookie);
 
     void AllocateSpaceSlow(TRefCountedTypeCookie cookie, size_t size);
-    void FreeSpaceSlow(TRefCountedTypeCookie cookie, size_t sie);
+    void FreeSpaceSlow(TRefCountedTypeCookie cookie, size_t size);
 
     TLocalSlot* GetLocalSlot(TRefCountedTypeCookie cookie);
     TGlobalSlot* GetGlobalSlot(TRefCountedTypeCookie cookie);

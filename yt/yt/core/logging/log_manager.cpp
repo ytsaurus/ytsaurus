@@ -1248,7 +1248,7 @@ private:
             }
         });
 
-        // TODO(lukyan): To achive total order of messages copy them from GlobalQueue to
+        // TODO(lukyan): To achieve total order of messages copy them from GlobalQueue to
         // separate TThreadLocalQueue sort it and merge it with LocalQueues
         // TODO(lukyan): Reuse nextEvents
         // NB: Messages from global queue are not sorted

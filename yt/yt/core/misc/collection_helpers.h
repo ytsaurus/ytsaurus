@@ -95,7 +95,7 @@ auto EmplaceOrCrash(TContainer&& container, TArgs&&... args);
 
 /*!
  * This function is supposed to replace std::get<T>(variant)
- * for those cases when exception should not be throwed.
+ * for those cases when exception should not be thrown.
  */
 template <class T, class... TVariantArgs>
 T& GetOrCrash(std::variant<TVariantArgs...>& variant);
