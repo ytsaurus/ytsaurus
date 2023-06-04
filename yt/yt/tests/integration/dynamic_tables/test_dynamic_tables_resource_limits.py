@@ -174,7 +174,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         self._create_sorted_table("//tmp/t1", account="test_account")
         self._create_ordered_table("//tmp/t2", account="test_account")
 
-        # Wait for resource usage since tabels can be placed to different cells.
+        # Wait for resource usage since tables can be placed to different cells.
         self._multicell_wait(
             lambda driver: lambda: get(
                 "//sys/accounts/test_account/@resource_usage/tablet_count",

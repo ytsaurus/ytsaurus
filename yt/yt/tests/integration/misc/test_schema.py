@@ -1816,7 +1816,7 @@ class TestErrorCodes(YTEnvSetup):
             insert_rows("//tmp/t", [{"baz": 1}])
         sync_unmount_table("//tmp/t")
 
-    def test_YT_11522_convesion_error(self):
+    def test_YT_11522_conversion_error(self):
         schema = [{"name": "foo", "type": "uint64"}]
 
         create("table", "//tmp/t", attributes={"schema": schema})

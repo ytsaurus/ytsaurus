@@ -98,7 +98,7 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         rows = [{"key": i, "value": str(i)} for i in range(2)]
 
         # Do lookup to clear metadata and master cache.
-        # Unfortunately master cache has old schema and it is retreived in driver where key is constructed.
+        # Unfortunately master cache has old schema and it is retrieved in driver where key is constructed.
         # Client invalidate&retry doesn't rebuild driver's key so this lookup has no chances to be completed.
         try:
             lookup_rows("//tmp/t2", [{"key": 0}])

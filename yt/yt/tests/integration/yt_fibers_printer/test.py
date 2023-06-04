@@ -43,7 +43,7 @@ def gdb(*commands):
     cmd += [gdb_context["gdbtest"]]
     env = os.environ.copy()
 
-    # NB: strings are not printed correctly in gdb overwise.
+    # NB: strings are not printed correctly in gdb otherwise.
     env["LC_ALL"] = "en_US.UTF-8"
     try:
         out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, env=env)

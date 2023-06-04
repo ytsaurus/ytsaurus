@@ -3975,7 +3975,7 @@ class TestCypressApiVersion4(YTEnvSetup):
         assert self._execute("list", path="//tmp/map") == {"value": ["a", "b", "c"]}
 
     @authors("levysotsky")
-    def test_trasaction(self):
+    def test_transaction(self):
         tx_result = self._execute("start_transaction")
         assert "transaction_id" in tx_result
 

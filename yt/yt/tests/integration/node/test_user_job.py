@@ -397,7 +397,7 @@ class TestSandboxTmpfs(YTEnvSetup):
         assert get(op.get_path() + "/@progress/jobs/aborted/total") == 0
 
     @authors("gritukan")
-    def test_mmaped_file_memory_accounting(self):
+    def test_mapped_file_memory_accounting(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
@@ -418,7 +418,7 @@ time.sleep(10)
         write_file("//tmp/mapper.py", mapper)
         set("//tmp/mapper.py/@executable", True)
 
-        # String is in process' memory twice: one copy is a mmaped tmpfs file and one copy is a local variable s.
+        # String is in process' memory twice: one copy is a mapped tmpfs file and one copy is a local variable s.
         # Process' mmap of tmpfs should not be counted.
         op = map(
             command="fallocate -l 200M tmpfs/f; python3 mapper.py",
@@ -462,7 +462,7 @@ time.sleep(10)
                 lambda max_memory: max_memory > memory_limit,
                 job_state="failed"))
 
-        # String is in memory twice: one copy is mmaped non-tmpfs file and one copy is a local variable s.
+        # String is in memory twice: one copy is mapped non-tmpfs file and one copy is a local variable s.
         # Both allocations should be counted.
         with pytest.raises(YtError):
             memory_limit = 300 * 1024 * 1024

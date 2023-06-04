@@ -2344,7 +2344,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         wait(_try_build_snapshot)
 
-        def _get_lastest_snapshot():
+        def _get_latest_snapshot():
             root = "//sys/tablet_cells/{}/snapshots".format(cell_id)
             files = ls(root)
             assert len(files) <= 1
@@ -2352,11 +2352,11 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 return None
             return root + "/" + files[0]
 
-        wait(lambda: _get_lastest_snapshot() is not None)
+        wait(lambda: _get_latest_snapshot() is not None)
 
         set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
 
-        snapshot = _get_lastest_snapshot()
+        snapshot = _get_latest_snapshot()
         chunk_id = get(snapshot + "/@chunk_ids")[0]
         chunk_replica_address = list(
             [str(r) for r in get("#{}/@stored_replicas".format(chunk_id)) if r.attributes["index"] == 0]
@@ -3342,7 +3342,7 @@ class TestTabletOrchid(DynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
         wait(lambda: len(get("//tmp/t/@chunk_ids")) > 0)
 
-        # Execute lookup to triger row cache usage.
+        # Execute lookup to trigger row cache usage.
         expected = [{"key": i, "value": str(i)} for i in range(100, 200, 2)]
         actual = lookup_rows("//tmp/t", [{"key": i} for i in range(100, 200, 2)], use_lookup_cache=True)
         assert_items_equal(actual, expected)

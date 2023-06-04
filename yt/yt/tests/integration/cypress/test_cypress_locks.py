@@ -27,7 +27,7 @@ class TestCypressLocks(YTEnvSetup):
         with pytest.raises(YtError):
             lock("/")
 
-        # at non-existsing node
+        # at non-existing node
         tx = start_transaction()
         with pytest.raises(YtError):
             lock("//tmp/non_existent", tx=tx)

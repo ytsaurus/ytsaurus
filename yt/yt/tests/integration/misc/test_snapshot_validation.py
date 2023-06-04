@@ -56,7 +56,7 @@ class TestSnapshotValidation(YTEnvSetup):
             proc.kill()
             assert False, "Snapshot validation timed out"
 
-        print_debug("Snaphot validation finished (stdout: {}, stderr: {})".format(stdout, stderr))
+        print_debug("Snapshot validation finished (stdout: {}, stderr: {})".format(stdout, stderr))
 
         assert proc.returncode == 0
 
@@ -107,4 +107,4 @@ class TestSnapshotValidation(YTEnvSetup):
             proc.kill()
             assert False, "Snapshot validation timed out"
 
-        print_debug("Snaphot validation finished (stdout: {}, stderr: {})".format(stdout, stderr))
+        print_debug("Snapshot validation finished (stdout: {}, stderr: {})".format(stdout, stderr))

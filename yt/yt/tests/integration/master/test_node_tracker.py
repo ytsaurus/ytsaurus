@@ -92,7 +92,7 @@ class TestNodeTracker(YTEnvSetup):
         wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(test_node)) == 0)
 
     @authors("babenko")
-    def test_resource_limits_overrides_valiation(self):
+    def test_resource_limits_overrides_validation(self):
         node = ls("//sys/cluster_nodes")[0]
         with pytest.raises(YtError):
             remove("//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node))

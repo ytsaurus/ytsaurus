@@ -454,7 +454,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             "//sys/pool_trees/default/pool_without_limits")
 
         op2 = run_sleeping_vanilla(spec={"pool": "pool_with_limits"})
-        # Resource usage in parent pool wasn't transfered and new jobs weren't scheduled as resource_limits exceeded.
+        # Resource usage in parent pool wasn't transferred and new jobs weren't scheduled as resource_limits exceeded.
         wait(lambda: op2.get_running_jobs())
 
     @authors("eshcherbin")

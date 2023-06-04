@@ -3008,7 +3008,7 @@ done
             )
 
     @authors("galtsev")
-    def test_no_segfault_after_abondon_job(self):
+    def test_no_segfault_after_abandon_job(self):
         if self.Env.get_component_version("ytserver-controller-agent").abi < (23, 1):
             pytest.skip("In versions less than 23.1 the controller agent segfaults after an abandon job request")
 

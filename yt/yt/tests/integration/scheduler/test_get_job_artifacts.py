@@ -528,8 +528,8 @@ class TestGetJobInput(YTEnvSetup):
                 get_job_input(job_id)
 
     @authors("iskhakovt")
-    @pytest.mark.parametrize("successfull_jobs", [False, True])
-    def test_archive_job_spec(self, successfull_jobs):
+    @pytest.mark.parametrize("successful_jobs", [False, True])
+    def test_archive_job_spec(self, successful_jobs):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", [{"foo": i} for i in range(25)])
@@ -537,12 +537,12 @@ class TestGetJobInput(YTEnvSetup):
         op = map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            command="cat > {0}/$YT_JOB_ID; exit {1}".format(self._tmpdir, 0 if successfull_jobs else 1),
+            command="cat > {0}/$YT_JOB_ID; exit {1}".format(self._tmpdir, 0 if successful_jobs else 1),
             spec={"data_size_per_job": 1, "max_failed_job_count": 25},
             track=False,
         )
 
-        if successfull_jobs:
+        if successful_jobs:
             op.track()
         else:
             with pytest.raises(YtError):
@@ -550,7 +550,7 @@ class TestGetJobInput(YTEnvSetup):
 
         job_ids = os.listdir(self._tmpdir)
 
-        if successfull_jobs:
+        if successful_jobs:
             wait(lambda: len(get_job_spec_rows_for_jobs(job_ids)) == 10)
         else:
             # TODO(babenko): maybe stricter condition?

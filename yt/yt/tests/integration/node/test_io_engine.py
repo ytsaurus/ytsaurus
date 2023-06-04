@@ -56,7 +56,7 @@ class TestIoEngine(YTEnvSetup):
             self.get_read_sensors(node) for node in nodes
         ]
         assert len(read_table("//tmp/t")) != 0
-        # we should recieve read stats from at least one node
+        # we should receive read stats from at least one node
         wait(lambda: any(self.check_node_sensors(node_sensor) for node_sensor in read_sensors))
 
     @authors("prime")

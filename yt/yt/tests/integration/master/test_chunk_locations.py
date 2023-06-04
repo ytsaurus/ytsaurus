@@ -156,7 +156,7 @@ class TestChunkLocations(YTEnvSetup):
         assert sorted(locations) == sorted(sharded_locations)
 
     @authors("kvk1920")
-    def test_sharded_location_map_attribtues(self):
+    def test_sharded_location_map_attributes(self):
         locations = {
             str(location): location.attributes
             for location in ls("//sys/chunk_locations", attributes=["state", "node_address"])

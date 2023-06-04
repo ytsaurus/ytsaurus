@@ -31,10 +31,10 @@ class TestCrashOnSchedulingJobWithStaleNeededResources(YTEnvSetup):
     # 1. an operation with one job has started, demand = needed_resources = {default_tree: 1 job, cloud_tree: 0 jobs}
     # 2. the scheduler schedules one job, demand = usage = {default_tree: 1 job, cloud_tree: 0 jobs}
     # 3. the agent launches the job and adds probing to cloud_tree, so on agent needed_resources = {default_tree: 0 job, cloud_tree: 1 jobs}
-    # 4. hearbeat period between scheduler and agent is big so needed resources are preserved for a while
+    # 4. heartbeat period between scheduler and agent is big so needed resources are preserved for a while
     # 5. after fair share update demand is recalculated: demand = usage + needed_resources = {default_tree: 2 jobs, cloud_tree: 0 jobs}
     # 6. the scheduler tries to schedule second job
-    # 7. the controller checks that needed_resources are not trivial and proceedes
+    # 7. the controller checks that needed_resources are not trivial and proceeds
     # 8. the controller doesn't find any cookies in chunk pool and it decides that it is speculative job
     # 9. there is no speculative candidates to launch -> CRASH
 
@@ -68,10 +68,10 @@ class TestCrashOnLostProbingJobResult(YTEnvSetup):
     # 1. map reduce operation is started
     # 2. one original and one probing map jobs are scheduled
     # 3. the probing job completes, the original hangs, first reduce job is launched
-    # 4. ban node with intermidiate chunk
+    # 4. ban node with intermediate chunk
     # 5. first reduce job completes
     # 6. second reduce job fails to start due to unavailable chunk, map job is restarted
-    # 7. probing job manager sees original map job running and another non-probing job with the same cookie beeing scheduled
+    # 7. probing job manager sees original map job running and another non-probing job with the same cookie being scheduled
     # 8. CRASH
 
     NUM_MASTERS = 1

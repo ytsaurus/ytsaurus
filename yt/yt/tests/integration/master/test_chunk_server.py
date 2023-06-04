@@ -385,7 +385,7 @@ class TestChunkServer(YTEnvSetup):
         assert chunk_id not in get("//sys/lost_vital_chunks")
 
     @authors("danilalexeev")
-    def test_unexpected_overreplicated_chuks(self):
+    def test_unexpected_overreplicated_chunks(self):
         create("table", "//tmp/t", attributes={"replication_factor": 8})
         write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 8})
 

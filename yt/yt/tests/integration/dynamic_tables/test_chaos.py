@@ -520,9 +520,9 @@ class TestChaos(ChaosTestBase):
     @pytest.mark.parametrize("mode", ["sync", "async"])
     def test_replica_mode_switch(self, mode):
         if mode == "sync":
-            old_mode, new_mode, old_write_mode, new_wirte_mode = "sync", "async", "direct", "pull"
+            old_mode, new_mode, old_write_mode, new_write_mode = "sync", "async", "direct", "pull"
         else:
-            old_mode, new_mode, old_write_mode, new_wirte_mode = "async", "sync", "pull", "direct"
+            old_mode, new_mode, old_write_mode, new_write_mode = "async", "sync", "pull", "direct"
 
         def _check_lookup(keys, values, mode):
             if mode == "sync":
@@ -556,7 +556,7 @@ class TestChaos(ChaosTestBase):
         replica_id = replica_ids[0]
         assert orchid["replication_card"]["replicas"][replica_id]["mode"] == new_mode
         assert orchid["replication_card"]["replicas"][replica_id]["state"] == "enabled"
-        assert orchid["write_mode"] == new_wirte_mode
+        assert orchid["write_mode"] == new_write_mode
 
     @authors("savrus")
     def test_queue_replica_mode_stuck_in_cataclysm(self):
@@ -1583,7 +1583,7 @@ class TestChaos(ChaosTestBase):
 
         _checked_insert_values("//tmp/rt", 1)
 
-        # Chaos intialization.
+        # Chaos initialization.
         create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle", "schema": schema})
         card_id = get("//tmp/crt/@replication_card_id")
 

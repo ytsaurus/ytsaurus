@@ -2688,7 +2688,7 @@ class TestTablesChunkFormats(YTEnvSetup):
             create("table", "//tmp/t", attributes={"optimize_for": "lookup", "chunk_format": "table_unversioned_columnar"})
 
     @authors("babenko")
-    def test_deduce_optmize_for_from_chunk_format_on_create(self):
+    def test_deduce_optimize_for_from_chunk_format_on_create(self):
         create("map_node", "//tmp/m", attributes={"optimize_for": "lookup"})
         create("table", "//tmp/m/t", attributes={"chunk_format": "table_unversioned_columnar"})
         assert get("//tmp/m/t/@optimize_for") == "scan"

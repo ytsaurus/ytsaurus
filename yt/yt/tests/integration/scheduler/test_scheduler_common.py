@@ -967,7 +967,7 @@ class TestSchedulerCommon(YTEnvSetup):
         assert get_controller_throttling_schedule_job_fail_count() == 0
 
     @authors("alexkolodezny")
-    def test_suspention_on_job_failure(self):
+    def test_suspension_on_job_failure(self):
         op = run_test_vanilla(
             "exit 1",
             spec={"suspend_on_job_failure": True},
@@ -1006,7 +1006,7 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
         }
     }
 
-    def _get_scheduler_transation(self):
+    def _get_scheduler_transaction(self):
         while True:
             scheduler_locks = get("//sys/scheduler/lock/@locks", verbose=False)
             if len(scheduler_locks) > 0:
@@ -1022,7 +1022,7 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
 
         op.wait_for_fresh_snapshot()
 
-        transaction_id = self._get_scheduler_transation()
+        transaction_id = self._get_scheduler_transaction()
 
         def get_transaction_title(transaction_id):
             return get("#{0}/@title".format(transaction_id), verbose=False)
@@ -1032,7 +1032,7 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
         while True:
             abort_transaction(transaction_id)
 
-            new_transaction_id = self._get_scheduler_transation()
+            new_transaction_id = self._get_scheduler_transaction()
             new_title = get_transaction_title(new_transaction_id)
             if title != new_title:
                 break

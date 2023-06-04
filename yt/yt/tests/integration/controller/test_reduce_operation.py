@@ -317,7 +317,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         ]
 
         completed = get(op.get_path() + "/@progress/jobs/completed")
-        assert completed["total"] == 1  # Actualy all rows should be in one job despite job_count > 1
+        assert completed["total"] == 1  # Actually all rows should be in one job despite job_count > 1
 
     @authors("dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -481,7 +481,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         ]
 
         completed = get(op.get_path() + "/@progress/jobs/completed")
-        assert completed["total"] == 1  # Actualy all rows should be in one job despite job_count > 1
+        assert completed["total"] == 1  # Actually all rows should be in one job despite job_count > 1
 
     @authors("psushin", "klyachin")
     def test_control_attributes_yson(self):

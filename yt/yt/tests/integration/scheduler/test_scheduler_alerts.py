@@ -27,7 +27,7 @@ class TestSchedulerAlerts(YTEnvSetup):
             "alerts_update_period": 100,
             "watchers_update_period": 100,
             "fair_share_update_period": 100,
-            # Unrecognized alert often interfers with the alerts that
+            # Unrecognized alert often interferes with the alerts that
             # are tested in this test suite.
             "enable_unrecognized_alert": False,
             "validate_node_tags_period": 100,
@@ -413,11 +413,11 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     def test_intermediate_data_skew_alert(self):
         create("table", "//tmp/t_in")
 
-        mutliplier = 1
+        multiplier = 1
         data = []
         for letter in ["a", "b", "c", "d", "e"]:
-            data.extend([{"x": letter} for _ in range(mutliplier)])
-            mutliplier *= 10
+            data.extend([{"x": letter} for _ in range(multiplier)])
+            multiplier *= 10
 
         write_table("//tmp/t_in", data)
 

@@ -209,11 +209,11 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert len(hunk_chunk_ids) == 1
         hunk_chunk_id = hunk_chunk_ids[0]
 
-        def set_ban_for_parts(part_indicies, banned_flag):
+        def set_ban_for_parts(part_indices, banned_flag):
             chunk_replicas = get("#{}/@stored_replicas".format(hunk_chunk_id))
 
             nodes_to_ban = []
-            for part_index in part_indicies:
+            for part_index in part_indices:
                 nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
                 nodes_to_ban += nodes
 
@@ -250,11 +250,11 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert len(hunk_chunk_ids) == 1
         hunk_chunk_id = hunk_chunk_ids[0]
 
-        def set_ban_for_parts(part_indicies, banned_flag):
+        def set_ban_for_parts(part_indices, banned_flag):
             chunk_replicas = get("#{}/@stored_replicas".format(hunk_chunk_id))
 
             nodes_to_ban = []
-            for part_index in part_indicies:
+            for part_index in part_indices:
                 nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
                 nodes_to_ban += nodes
 

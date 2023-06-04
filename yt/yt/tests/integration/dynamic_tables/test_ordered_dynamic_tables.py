@@ -444,7 +444,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         assert read_table("//tmp/t") == [{"a": j * 10, "b": None, "c": None} for j in range(0, 100)]
 
     @authors("babenko")
-    def test_trimmed_rows_perserved_on_unmount(self):
+    def test_trimmed_rows_preserved_on_unmount(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", dynamic=False)
 
