@@ -755,14 +755,14 @@ private:
         auto* replicationCard = FindReplicationCard(replicationCardId);
 
         if (!replicationCard) {
-            YT_LOG_ALERT("Trying to remove emmigrated replication card but it does not exist"
+            YT_LOG_ALERT("Trying to remove emigrated replication card but it does not exist"
                 "(ReplicationCardId: %v)",
                 replicationCardId);
             return;
         }
 
         if (replicationCard->GetState() != EReplicationCardState::Migrated) {
-            YT_LOG_ALERT("Trying to remove emmigrated replication card in unexpected state "
+            YT_LOG_ALERT("Trying to remove emigrated replication card in unexpected state "
                 "(ReplicationCardId: %v, ReplicationCardState: %v)",
                 replicationCardId,
                 replicationCard->GetState());
@@ -771,7 +771,7 @@ private:
         }
 
         if (!IsDomesticReplicationCard(replicationCardId)) {
-            YT_LOG_ALERT("Trying to remove emmigrated replication card but it is not domestic "
+            YT_LOG_ALERT("Trying to remove emigrated replication card but it is not domestic "
                 "(ReplicationCardId: %v, OriginCellId: %v)",
                 replicationCardId,
                 replicationCard->Migration().OriginCellId);
@@ -861,7 +861,7 @@ private:
         }
 
         if (!catchup && replicationProgress) {
-            THROW_ERROR_EXCEPTION("Replication progress specified while replica is not to be catched up")
+            THROW_ERROR_EXCEPTION("Replication progress specified while replica is not to be caught up")
                 << TErrorAttribute("replication_progress", *replicationProgress);
         }
 
@@ -1365,7 +1365,7 @@ private:
 
     void HydraChaosNodeMigrateReplicationCards(NChaosNode::NProto::TReqMigrateReplicationCards* request)
     {
-        auto emmigratedFromCellId = FromProto<TCellId>(request->emmigrated_from_cell_id());
+        auto emigratedFromCellId = FromProto<TCellId>(request->emigrated_from_cell_id());
         auto now = GetCurrentMutationContext()->GetTimestamp();
 
         for (const auto& protoMigrationCard : request->migration_cards()) {
@@ -1432,8 +1432,8 @@ private:
                 migration.ImmigrationTime = TInstant();
             } else {
                 migration.OriginCellId = FromProto<TCellId>(protoMigrationCard.origin_cell_id());
-                migration.EmmigratedFromCellId = emmigratedFromCellId;
-                migration.EmmigrationTime = now;
+                migration.EmigratedFromCellId = emigratedFromCellId;
+                migration.EmigrationTime = now;
             }
 
             replicationCard->SetState(EReplicationCardState::GeneratingTimestampForNewEra);
@@ -1469,7 +1469,7 @@ private:
             IsDomesticReplicationCard(replicationCard->GetId()));
 
         NChaosNode::NProto::TReqMigrateReplicationCards req;
-        ToProto(req.mutable_emmigrated_from_cell_id(), Slot_->GetCellId());
+        ToProto(req.mutable_emigrated_from_cell_id(), Slot_->GetCellId());
         auto protoMigrationCard = req.add_migration_cards();
         auto originCellId = IsDomesticReplicationCard(replicationCard->GetId())
             ? Slot_->GetCellId()
@@ -2282,14 +2282,14 @@ private:
                         .DoIf(static_cast<bool>(migration.ImmigratedToCellId), [&] (TFluentMap fluent) {
                             fluent.Item("immigrated_to_cell_id").Value(migration.ImmigratedToCellId);
                         })
-                        .DoIf(static_cast<bool>(migration.EmmigratedFromCellId), [&] (TFluentMap fluent) {
-                            fluent.Item("emmigrated_from_cell_id").Value(migration.EmmigratedFromCellId);
+                        .DoIf(static_cast<bool>(migration.EmigratedFromCellId), [&] (TFluentMap fluent) {
+                            fluent.Item("emmgrated_from_cell_id").Value(migration.EmigratedFromCellId);
                         })
                         .DoIf(static_cast<bool>(migration.ImmigrationTime), [&] (TFluentMap fluent) {
                             fluent.Item("immigration_time").Value(migration.ImmigrationTime);
                         })
-                        .DoIf(static_cast<bool>(migration.EmmigrationTime), [&] (TFluentMap fluent) {
-                            fluent.Item("emmigration_time").Value(migration.EmmigrationTime);
+                        .DoIf(static_cast<bool>(migration.EmigrationTime), [&] (TFluentMap fluent) {
+                            fluent.Item("emmigration_time").Value(migration.EmigrationTime);
                         })
                     .EndMap()
             .EndMap();

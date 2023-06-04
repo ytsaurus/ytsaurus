@@ -44,8 +44,8 @@ private:
         i64 MaxBlockSize = 0;
     };
 
-    using TStatiticsMap = THashMap<TKey, TStatistics>;
-    TStatiticsMap StatisticsMap_;
+    using TStatisticsMap = THashMap<TKey, TStatistics>;
+    TStatisticsMap StatisticsMap_;
 
     bool OnChunk(
         TChunk* chunk,
@@ -96,7 +96,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto result = NYTree::BuildYsonStringFluently()
-            .DoMapFor(StatisticsMap_, [this] (NYTree::TFluentMap fluent, const typename TStatiticsMap::value_type& pair) {
+            .DoMapFor(StatisticsMap_, [this] (NYTree::TFluentMap fluent, const typename TStatisticsMap::value_type& pair) {
                 const auto& statistics = pair.second;
                 // TODO(panin): maybe use here the same method as in attributes
                 fluent

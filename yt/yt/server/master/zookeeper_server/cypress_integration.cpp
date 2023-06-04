@@ -74,4 +74,4 @@ INodeTypeHandlerPtr CreateZookeeperShardMapTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namepsace NYT::NZookeeperServer
+} // namespace NYT::NZookeeperServer

@@ -735,7 +735,7 @@ private:
                     }
                     const auto& entry = entryOrError.Value();
                     subrequest.Revision = entry->GetRevision();
-                    OnSuccessfullSubresponse(&subrequest, entry->GetResponseMessage());
+                    OnSuccessfulSubresponse(&subrequest, entry->GetResponseMessage());
                 }));
         }
     }
@@ -1101,7 +1101,7 @@ private:
 
             if (subrequest.YPathExt->mutating()) {
                 if (!subrequest.RemoteTransactionReplicationSession) {
-                    // Pre-phase-one or prevously-tentatively-remote-but-no-longer-remote subrequest.
+                    // Pre-phase-one or previously-tentatively-remote-but-no-longer-remote subrequest.
                     std::vector<TTransactionId> writeSubrequestTransactions;
                     addSubrequestTransactions(&writeSubrequestTransactions, subrequest, nullptr);
                     subrequest.RemoteTransactionReplicationSession = New<TTransactionReplicationSessionWithBoomerangs>(
@@ -1347,7 +1347,7 @@ private:
                             auto responseMessage = batchRsp->GetResponseMessage(index);
                             if (responseMessage) {
                                 subrequest->Revision = batchRsp->GetRevision(index);
-                                OnSuccessfullSubresponse(subrequest, std::move(responseMessage));
+                                OnSuccessfulSubresponse(subrequest, std::move(responseMessage));
                             } else {
                                 OnMissingSubresponse(subrequest);
                             }
@@ -1831,7 +1831,7 @@ private:
         // Optimize for the (typical) case of synchronous response.
         const auto& context = subrequest->RpcContext;
         if (context->IsReplied()) {
-            OnSuccessfullSubresponse(subrequest, context->GetResponseMessage());
+            OnSuccessfulSubresponse(subrequest, context->GetResponseMessage());
         } else {
             SubscribeToSubresponse(subrequest, context->GetAsyncResponseMessage());
         }
@@ -1854,7 +1854,7 @@ private:
             return;
         }
 
-        OnSuccessfullSubresponse(subrequest, result.Value());
+        OnSuccessfulSubresponse(subrequest, result.Value());
     }
 
     void MarkSubrequestAsUncertain(int index)
@@ -1866,7 +1866,7 @@ private:
         ReleaseReplyLock();
     }
 
-    void OnSuccessfullSubresponse(TSubrequest* subrequest, TSharedRefArray subresponseMessage)
+    void OnSuccessfulSubresponse(TSubrequest* subrequest, TSharedRefArray subresponseMessage)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

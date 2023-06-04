@@ -487,7 +487,7 @@ private:
         YT_LOG_INFO("Waiting for erasure parts data to be copied (RepairChunk: %v)",
             repairChunk);
 
-        TPartIndexList erasedPartIndicies;
+        TPartIndexList erasedPartIndices;
 
         if (repairChunk) {
             auto copyStarted = TInstant::Now();
@@ -534,7 +534,7 @@ private:
                 auto copyResult = copyResults[partIndex];
                 const auto& writer = writers[partIndex];
                 if (!copyResult.IsOK()) {
-                    erasedPartIndicies.push_back(partIndex);
+                    erasedPartIndices.push_back(partIndex);
                     closeReplicaWriterResults.push_back(writer->Cancel());
                 } else {
                     closeReplicaWriterResults.push_back(writer->Close(ReaderConfig_->WorkloadDescriptor, chunkMeta));
@@ -558,11 +558,11 @@ private:
                 .ThrowOnError();
         }
 
-        if (!erasedPartIndicies.empty()) {
+        if (!erasedPartIndices.empty()) {
             RepairErasureChunk(
                 outputSessionId,
                 erasureCodec,
-                erasedPartIndicies,
+                erasedPartIndices,
                 &writers,
                 targetReplicas);
         } else {
@@ -625,22 +625,22 @@ private:
     void RepairErasureChunk(
         NChunkClient::TSessionId outputSessionId,
         NErasure::ICodec* erasureCodec,
-        const TPartIndexList& erasedPartIndicies,
+        const TPartIndexList& erasedPartIndices,
         std::vector<IChunkWriterPtr>* partWriters,
         const TChunkReplicaWithMediumList& targetReplicas)
     {
         TCurrentTraceContextGuard guard(OutputTraceContext_);
 
-        auto repairPartIndicies = *erasureCodec->GetRepairIndices(erasedPartIndicies);
+        auto repairPartIndices = *erasureCodec->GetRepairIndices(erasedPartIndices);
 
         YT_LOG_INFO("Failed to copy some of the chunk parts, starting repair "
-            "(ErasedPartIndicies: %v, RepairPartIndicies: %v)",
-            erasedPartIndicies,
-            repairPartIndicies);
+            "(ErasedPartIndices: %v, RepairPartIndices: %v)",
+            erasedPartIndices,
+            repairPartIndices);
 
         TChunkReplicaList repairSeedReplicas;
-        repairSeedReplicas.reserve(repairPartIndicies.size());
-        for (auto repairPartIndex : repairPartIndicies) {
+        repairSeedReplicas.reserve(repairPartIndices.size());
+        for (auto repairPartIndex : repairPartIndices) {
             auto replicas = (*partWriters)[repairPartIndex]->GetWrittenChunkReplicas();
             YT_VERIFY(replicas.size() == 1);
             auto replica = TChunkReplica(replicas.front().GetNodeId(), repairPartIndex);
@@ -648,8 +648,8 @@ private:
         }
 
         TChunkReplicaWithMediumList erasedTargetReplicas;
-        erasedTargetReplicas.reserve(erasedPartIndicies.size());
-        for (auto erasedPartIndex : erasedPartIndicies) {
+        erasedTargetReplicas.reserve(erasedPartIndices.size());
+        for (auto erasedPartIndex : erasedPartIndices) {
             erasedTargetReplicas.push_back(targetReplicas[erasedPartIndex]);
         }
 
@@ -659,32 +659,32 @@ private:
             Host_->GetChunkReaderHost(),
             outputSessionId.ChunkId,
             repairSeedReplicas,
-            repairPartIndicies,
+            repairPartIndices,
             EUnavailablePartPolicy::Crash);
-        YT_VERIFY(repairPartReaders.size() == repairPartIndicies.size());
+        YT_VERIFY(repairPartReaders.size() == repairPartIndices.size());
 
         auto erasedPartWriters = CreateErasurePartWriters(
             WriterConfig_,
             New<TRemoteWriterOptions>(),
             outputSessionId,
             Host_->GetClient(),
-            erasedPartIndicies,
+            erasedPartIndices,
             Host_->GetTrafficMeter(),
             Host_->GetOutBandwidthThrottler(),
             /*blockCache*/ GetNullBlockCache(),
             erasedTargetReplicas);
-        YT_VERIFY(erasedPartWriters.size() == erasedPartIndicies.size());
+        YT_VERIFY(erasedPartWriters.size() == erasedPartIndices.size());
 
         WaitFor(RepairErasedParts(
             erasureCodec,
-            erasedPartIndicies,
+            erasedPartIndices,
             repairPartReaders,
             erasedPartWriters,
             /*options*/ {}))
             .ThrowOnError();
 
-        for (int index = 0; index < std::ssize(erasedPartIndicies); ++index) {
-            (*partWriters)[erasedPartIndicies[index]] = erasedPartWriters[index];
+        for (int index = 0; index < std::ssize(erasedPartIndices); ++index) {
+            (*partWriters)[erasedPartIndices[index]] = erasedPartWriters[index];
         }
     }
 

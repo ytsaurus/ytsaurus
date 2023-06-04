@@ -45,7 +45,7 @@ DEFINE_BIT_ENUM(ETypeFlags,
     ((ForbidLocking)          (0x0020)) // no locks can be taken for objects of this (versioned) type
     ((TwoPhaseCreation)       (0x0040)) // employ two-phase creation protocol: CreationStarted -> CreationPreCommitted -> CreationCommitted
     ((Removable)              (0x0080)) // objects of this (unversioned) type can be removed by explicit Remove call
-    ((TwoPhaseRemoval)        (0x0100)) // employ two-phase removal protocol: RemovalStarted -> RemovalPreCommitted -> RemovalComitted
+    ((TwoPhaseRemoval)        (0x0100)) // employ two-phase removal protocol: RemovalStarted -> RemovalPreCommitted -> RemovalCommitted
 );
 
 DEFINE_ENUM(EModificationType,

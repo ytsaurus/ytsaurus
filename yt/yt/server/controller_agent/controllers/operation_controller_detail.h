@@ -717,7 +717,7 @@ protected:
     //! If auto-merge is needed, init auto-merge tasks and auto-merge director and return true, otherwise return false.
     bool TryInitAutoMerge(int outputChunkCountEstimate);
 
-    //! Return stream descriptors adjusted accroding to existing auto-merge tasks.
+    //! Return stream descriptors adjusted according to existing auto-merge tasks.
     std::vector<TOutputStreamDescriptorPtr> GetAutoMergeStreamDescriptors();
 
     void FillPrepareResult(TOperationControllerPrepareResult* result);

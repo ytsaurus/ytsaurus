@@ -66,7 +66,7 @@ class TAutoMergeTask
 public:
     friend class TAutoMergeChunkPoolAdapter;
 
-    //! Used only for persistense.
+    //! Used only for persistence.
     TAutoMergeTask() = default;
 
     TAutoMergeTask(

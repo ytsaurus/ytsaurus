@@ -420,7 +420,7 @@ protected:
         }
 
         // In snapshot mode it means that row is transient (i.e. was not affected by any mutations).
-        // We do not store such rows for the sake of determenism.
+        // We do not store such rows for the sake of determinism.
         // In non-snapshot mode it means that there are no values and delete timestamps in row.
         if (!shouldProduce) {
             return TVersionedRow();

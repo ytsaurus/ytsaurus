@@ -131,7 +131,7 @@ private:
         int endEntryIndex,
         const TErrorOr<std::vector<NChunkClient::TBlock>>& blocksOrError);
 
-    //! Returns `true` if chunk was writen with `sync_on_close` option.
+    //! Returns `true` if chunk was written with `sync_on_close` option.
     //! Default value is `true`.
     bool ShouldSyncOnClose();
 

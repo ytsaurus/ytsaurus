@@ -1270,7 +1270,7 @@ TEST_F(TFairShareTreeElementTest, TestVolumeOverflowDistributionIfPoolDoesNotAcc
     }
 }
 
-TEST_F(TFairShareTreeElementTest, TestVolumeOverflowDisributionWithLimitedAcceptablePool)
+TEST_F(TFairShareTreeElementTest, TestVolumeOverflowDistributionWithLimitedAcceptablePool)
 {
     auto strategyHost = CreateHostWith10NodesAnd10Cpu();
     auto rootElement = CreateTestRootElement(strategyHost.Get());

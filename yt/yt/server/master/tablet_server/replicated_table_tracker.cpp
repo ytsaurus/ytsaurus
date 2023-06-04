@@ -791,7 +791,7 @@ private:
                         }
                         goodSyncReplicas.resize(currentSyncReplicaCount);
 
-                        // NB: We use hash map here so the bizzare case of multiple replicas
+                        // NB: We use hash map here so the bizarre case of multiple replicas
                         // on a single replica cluster would be processed in a more reliable way.
                         THashMap<TString, int> actualSyncReplicaClusterMap;
                         for (const auto& replica : goodSyncReplicas) {
@@ -1185,7 +1185,7 @@ private:
         std::vector<TReplicaPtr> replicas;
         replicas.reserve(object->Replicas().size());
 
-        auto lastestTimestamp = Bootstrap_->GetTimestampProvider()->GetLatestTimestamp();
+        auto latestTimestamp = Bootstrap_->GetTimestampProvider()->GetLatestTimestamp();
 
         int skippedReplicas = 0;
         int syncReplicas = 0;
@@ -1228,7 +1228,7 @@ private:
                 ReplicatorHintConfig_.Load(),
                 std::move(client),
                 CheckerThreadPool_->GetInvoker(),
-                replica->ComputeReplicationLagTime(lastestTimestamp),
+                replica->ComputeReplicationLagTime(latestTimestamp),
                 config->TabletCellBundleNameTtl,
                 config->RetryOnFailureInterval,
                 config->SyncReplicaLagThreshold,

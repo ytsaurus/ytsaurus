@@ -4691,7 +4691,7 @@ private:
 
         auto& cumulativeStatistics = chunkList->CumulativeStatistics();
         cumulativeStatistics.Clear();
-        if (chunkList->HasModifyableCumulativeStatistics()) {
+        if (chunkList->HasModifiableCumulativeStatistics()) {
             cumulativeStatistics.DeclareModifiable();
         } else if (chunkList->HasAppendableCumulativeStatistics()) {
             cumulativeStatistics.DeclareAppendable();

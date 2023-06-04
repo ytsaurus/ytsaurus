@@ -93,7 +93,7 @@ void TSlotManager::OnPortoHealthCheckSuccess()
     if (IsJobEnvironmentResurrectionEnabled() &&
         CanResurrect())
     {
-        YT_LOG_INFO("Porto health check successed, try to resurrect slot manager");
+        YT_LOG_INFO("Porto health check succeeded, try to resurrect slot manager");
 
         YT_VERIFY(Bootstrap_->IsExecNode());
 
@@ -187,8 +187,8 @@ TFuture<void> TSlotManager::InitializeEnvironment()
         Bootstrap_);
 
     // Job environment must be initialized first, since it cleans up all the processes,
-    // which may hold open decsriptors to volumes, layers and files in sandboxes.
-    // It should also be initialized synchronously, since it may prevent delection of chunk cache artifacts.
+    // which may hold open descriptors to volumes, layers and files in sandboxes.
+    // It should also be initialized synchronously, since it may prevent deletion of chunk cache artifacts.
     JobEnvironment_->Init(
         SlotCount_,
         Bootstrap_->GetConfig()->ExecNode->JobController->ResourceLimits->Cpu,

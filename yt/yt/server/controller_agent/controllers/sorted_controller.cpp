@@ -602,7 +602,7 @@ protected:
 
     void PrepareOutputTables() override
     {
-        // NB: we need to do this after locking input tables but before preparing ouput tables.
+        // NB: we need to do this after locking input tables but before preparing output tables.
         AdjustSortColumns();
     }
 

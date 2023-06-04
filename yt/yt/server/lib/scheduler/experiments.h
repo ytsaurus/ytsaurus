@@ -101,7 +101,7 @@ DEFINE_REFCOUNTED_TYPE(TExperimentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Finalized specification of an assignment to a particular experiment including group assigment.
+//! Finalized specification of an assignment to a particular experiment including group assignment.
 struct TExperimentAssignment
     : public NYTree::TYsonStruct
 {

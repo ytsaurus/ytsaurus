@@ -21,7 +21,7 @@ struct IBootstrapProxy
     //! Returns invoker corresponding to automaton thread.
     virtual IInvokerPtr GetAutomatonInvoker() const = 0;
 
-    //! Returns Hydra manager correponding to automaton.
+    //! Returns Hydra manager corresponding to automaton.
     virtual NHydra::IHydraManagerPtr GetHydraManager() const = 0;
 };
 

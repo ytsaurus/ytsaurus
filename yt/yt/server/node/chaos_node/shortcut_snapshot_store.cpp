@@ -23,13 +23,13 @@ class TShortcutSnapshotStore
     : public IShortcutSnapshotStore
 {
 public:
-    void UpdateShortcut(TReplicationCardId replicationCardId, TShortcutSnapshot snaphsot) override
+    void UpdateShortcut(TReplicationCardId replicationCardId, TShortcutSnapshot snapshot) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto* bucket = GetBucket(replicationCardId);
         auto guard = WriterGuard(bucket->Lock);
-        bucket->ShortcutSnapshots[replicationCardId] = snaphsot;
+        bucket->ShortcutSnapshots[replicationCardId] = snapshot;
     }
 
     void RemoveShortcut(TReplicationCardId replicationCardId) override

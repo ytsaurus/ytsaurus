@@ -448,7 +448,7 @@ public:
             key,
             artifactDownloadOptions.TrafficMeter,
             chunkReadOptions,
-            // TODO(babenko): throttle prepartion
+            // TODO(babenko): throttle preparation
             GetUnlimitedThrottler());
     }
 

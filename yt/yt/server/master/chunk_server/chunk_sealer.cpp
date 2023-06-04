@@ -582,7 +582,7 @@ private:
                 chunkId,
                 sealedRowCount);
         } else {
-            // Sealed row count cannot be reliably evaluted. We try to autotomize chunk, if possble,
+            // Sealed row count cannot be reliably evaluated. We try to autotomize chunk, if possible,
             // otherwise just seal chunk unreliably and hope for the best.
             YT_LOG_DEBUG("Sealed row count computed unreliably (ChunkId: %v, SealedRowCount: %v, RowCountConfirmedReplicaCount: %v, WriteQuorum: %v)",
                 chunkId,

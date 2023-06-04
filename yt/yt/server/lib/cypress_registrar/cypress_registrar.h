@@ -14,7 +14,7 @@ namespace NYT {
 
 /*!
  *  The intended use of this class is to register multiple homogeneous instances
- *  in Cypress, where the path of each node is parametrized by corrensponding
+ *  in Cypress, where the path of each node is parametrized by corresponding
  *  instance address. Registrar will create nodes with appropriate expiration
  *  times and issue periodic pings. Orchid child node can be created on demand.
  */

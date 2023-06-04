@@ -14,7 +14,7 @@ namespace NYT::NHydra {
 
 //! Represents a changelog, that is an ordered sequence of records.
 /*!
- *  Except when speficially noted otherwise, all methods are assumed to
+ *  Except when specifically noted otherwise, all methods are assumed to
  *  be invoked from a single thread.
  */
 struct IChangelog
@@ -110,7 +110,7 @@ struct IChangelogStore
      */
     virtual std::optional<int> TryGetTerm() const = 0;
 
-    //! Asynchronously updates the term in persitent storage.
+    //! Asynchronously updates the term in persistent storage.
     /*!
      *  Once the update succeeds, #GetTerm starts returning a new value.
      */

@@ -532,7 +532,7 @@ public:
 
     bool IsReadOnly() const override
     {
-        // TOOD(gritukan): Make node without dynamic config read-only after YT-12933.
+        // TODO(gritukan): Make node without dynamic config read-only after YT-12933.
         return false;
     }
 

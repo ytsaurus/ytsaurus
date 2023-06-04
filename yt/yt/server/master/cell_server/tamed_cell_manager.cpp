@@ -2126,7 +2126,7 @@ private:
         auto peerId = request->peer_id();
         if (!cell->IsValidPeer(peerId)) {
             YT_LOG_WARNING(
-                "Attempted to set invalide peer to lead (CellId: %v, PeerId: %v, PeerCount: %v)",
+                "Attempted to set invalid peer to lead (CellId: %v, PeerId: %v, PeerCount: %v)",
                 cellId,
                 peerId,
                 std::ssize(cell->Peers()));

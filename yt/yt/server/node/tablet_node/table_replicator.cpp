@@ -453,7 +453,7 @@ private:
             counters.ReplicationBatchDataWeight.Record(batchDataWeight);
             counters.ReplicationRowCount.Increment(batchRowCount);
             counters.ReplicationDataWeight.Increment(batchDataWeight);
-            YT_LOG_DEBUG("Rows replicated (RowCount: %v, DataWeigth: %v, ThrottleTime: %v, RelativeThrottleTime: %v, "
+            YT_LOG_DEBUG("Rows replicated (RowCount: %v, DataWeight: %v, ThrottleTime: %v, RelativeThrottleTime: %v, "
                 "TransactionStartTime: %v, RowsReadTime: %v, RowsWriteTime: %v, TransactionCommitTime: %v)",
                 batchRowCount,
                 batchDataWeight,

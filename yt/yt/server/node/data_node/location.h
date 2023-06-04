@@ -377,10 +377,10 @@ public:
     TLockedChunkGuard TryLockChunk(TChunkId chunkId);
 
     //! While chunk is locked, it cannot be initialized twice.
-    //! To resurrect location, all chuncks are unlocked, because they need to be created anew.
+    //! To resurrect location, all chunks are unlocked, because they need to be created anew.
     void UnlockChunk(TChunkId chunkId);
 
-    //! Marks the location as disabled by attempting to create a lock file and marking assinged chunks
+    //! Marks the location as disabled by attempting to create a lock file and marking assigned chunks
     //! as unavailable.
     virtual bool ScheduleDisable(const TError& reason) = 0;
 
@@ -546,7 +546,7 @@ public:
     //! Returns |true| if the location accepts new writes.
     bool IsWritable() const;
 
-    //! Marks the location as disabled by attempting to create a lock file and marking assinged chunks
+    //! Marks the location as disabled by attempting to create a lock file and marking assigned chunks
     //! as unavailable.
     bool ScheduleDisable(const TError& reason) override;
 

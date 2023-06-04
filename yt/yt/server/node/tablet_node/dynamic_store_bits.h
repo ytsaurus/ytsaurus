@@ -47,7 +47,7 @@ struct TLockDescriptor
 
     // Edit list of revision of committed transactions that were holding this read lock.
     // Actually only maximum timestamp in this list is important for conflicts check, edit list
-    // is used here only to deal with asynchronious snapshot serialization. In particular,
+    // is used here only to deal with asynchronous snapshot serialization. In particular,
     // only maximum value in this list is stored into snapshot and other values are lost
     // during reserialization.
     // NB: Timestamps in this list are not monotone since transactions can be committed in

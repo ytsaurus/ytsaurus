@@ -310,7 +310,7 @@ public:
     bool HasTag(const std::optional<TString>& tag) const;
 
     //! Prepares per-cell state map.
-    //! Inserts new entries into the map, fills missing onces with ENodeState::Offline value.
+    //! Inserts new entries into the map, fills missing ones with ENodeState::Offline value.
     void InitializeStates(
         NObjectClient::TCellTag cellTag,
         const NObjectClient::TCellTagList& secondaryCellTags);

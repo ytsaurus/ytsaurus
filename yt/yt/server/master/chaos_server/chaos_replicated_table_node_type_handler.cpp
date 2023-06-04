@@ -74,7 +74,7 @@ private:
 
         auto optionalChaosCellBundleName = combinedAttributes->FindAndRemove<TString>("chaos_cell_bundle");
         if (!optionalChaosCellBundleName) {
-            THROW_ERROR_EXCEPTION("\"chaos_cell_bundle\" is neither speficied nor inherited");
+            THROW_ERROR_EXCEPTION("\"chaos_cell_bundle\" is neither specified nor inherited");
         }
 
         const auto& chaosManager = Bootstrap_->GetChaosManager();

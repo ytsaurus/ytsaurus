@@ -255,7 +255,7 @@ protected:
     {
         YT_VERIFY(EnforceBounds_);
 
-        // Scan to the right of the current child extracing the maximum
+        // Scan to the right of the current child extracting the maximum
         // segment of unsealed chunks.
         const auto& chunkList = entry.ChunkList;
         for (int index = entry.ChildIndex; index < static_cast<int>(chunkList->Children().size()); ++index) {
@@ -1076,7 +1076,7 @@ protected:
 
         // Don't traverse hunks when bounds are enforced.
         if (EnforceBounds_ && chunkList->GetKind() == EChunkListKind::HunkRoot) {
-            auto error = TError("Attemted to traverse hunk root chunk list %v with bounds enforced",
+            auto error = TError("Attempted to traverse hunk root chunk list %v with bounds enforced",
                 chunkList->GetId());
             OnFinish(error);
             return;
@@ -1396,7 +1396,7 @@ protected:
     void PopStack()
     {
         auto& entry = Stack_.back();
-        YT_LOG_TRACE("Poping stack (Entry: %v)", entry);
+        YT_LOG_TRACE("Popping stack (Entry: %v)", entry);
         Stack_.pop_back();
     }
 

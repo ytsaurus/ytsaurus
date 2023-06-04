@@ -3167,7 +3167,7 @@ private:
                 if (recursiveLockCount >= lockCountLimit) {
                     return TError(
                         NCypressClient::EErrorCode::TooManyLocksOnTransaction,
-                        "Cannot create %Qlv lock for node %v since transaction %v and its decendants already have %v locks associated with them",
+                        "Cannot create %Qlv lock for node %v since transaction %v and its descendants already have %v locks associated with them",
                         request.Mode,
                         GetNodePath(trunkNode, transaction),
                         currentTransaction->GetId(),

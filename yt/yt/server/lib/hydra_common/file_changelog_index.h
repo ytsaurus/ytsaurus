@@ -91,7 +91,7 @@ public:
      *  Passed for validation only. The index expects the records to be appended without gaps.
      *
      *  \param range
-     *  Represents the range of data file containting the record (including header and padding).
+     *  Represents the range of data file containing the record (including header and padding).
      */
     void AppendRecord(int recordIndex, std::pair<i64, i64> range);
 

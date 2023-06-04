@@ -261,7 +261,7 @@ public:
     //! Pool tree information for operation controller.
     DEFINE_BYREF_RW_PROPERTY(TPoolTreeControllerSettingsMap, PoolTreeControllerSettingsMap);
 
-    //! YSON describing suspicous jobs of this operation.
+    //! YSON describing suspicious jobs of this operation.
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, SuspiciousJobs);
 
     //! Alias for the operation.

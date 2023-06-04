@@ -109,7 +109,7 @@ public:
             return nullptr;
         }
 
-        YT_LOG_DEBUG("Transaction participant is provided by remote connnection (CellId: %v, ClusterId: %v)",
+        YT_LOG_DEBUG("Transaction participant is provided by remote connection (CellId: %v, ClusterId: %v)",
             cellId,
             connection->GetClusterId());
 

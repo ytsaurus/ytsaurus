@@ -402,7 +402,7 @@ public:
      */
     TChunkReplication ToReplication() const;
 
-    //! Converts this requisition to pyhsical replication.
+    //! Converts this requisition to physical replication.
     //! Unlike #ToReplication(), non-committed entries are included as well.
     TPhysicalReplication ToPhysicalReplication() const;
 

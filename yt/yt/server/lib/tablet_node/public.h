@@ -135,7 +135,7 @@ DEFINE_ENUM(EStoreType,
 );
 
 DEFINE_ENUM(EStoreState,
-    ((Undefined)           (-1)) // not initailized
+    ((Undefined)           (-1)) // not initialized
     ((ActiveDynamic)        (0)) // dynamic, can receive updates
     ((PassiveDynamic)       (1)) // dynamic, rotated and cannot receive more updates
 
@@ -209,9 +209,9 @@ DEFINE_ENUM(EPeriodicCompactionMode,
 
 DEFINE_ENUM(EHunkStoreState,
     ((Undefined)              (0)) // not initialized
-    ((Allocated)              (1)) // ready to recieve data
-    ((Active)                 (2)) // ready to recieve data; used by tablet for new writes
-    ((Passive)                (3)) // rotated and cannot recieve data
+    ((Allocated)              (1)) // ready to receive data
+    ((Active)                 (2)) // ready to receive data; used by tablet for new writes
+    ((Passive)                (3)) // rotated and cannot receive data
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -276,7 +276,7 @@ constexpr i64 SoftRevisionsPerDynamicStoreLimit = 1ULL << 25;
 constexpr int DefaultMaxOverlappingStoreCount = 30;
 
 //! Number of potential dynamic stores per tablet (that is, created stores and
-//! preallocated ids). This number of stores is initialy sent by the master
+//! preallocated ids). This number of stores is initially sent by the master
 //! during mount, then store flusher tries to maintain it further.
 //!
 //! NB: Changing this constant requires promoting master reign.

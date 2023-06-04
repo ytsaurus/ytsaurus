@@ -45,7 +45,7 @@ TFuture<void> TLocationManager::FailDiskByName(
                 if (diskInfo.DeviceName == diskName &&
                     diskInfo.State == NContainers::EDiskState::Ok)
                 {
-                    // Try to fail not accessable disk.
+                    // Try to fail not accessible disk.
                     return DiskInfoProvider_->FailDisk(
                         diskInfo.DiskId,
                         error.GetMessage())
@@ -297,13 +297,13 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
         if (diskWithLivenessLocations.contains(diskId)) {
             error = TError("Disk cannot be repaired, because it contains alive locations");
         } else if (diskWithNotDestroyingLocations.contains(diskId)) {
-            error = TError("Disk contains not destroing locations");
+            error = TError("Disk contains not destroying locations");
         } else {
             error = WaitFor(LocationManager_->RecoverDisk(diskId));
         }
 
         for (const auto& livenessInfo : livenessInfos) {
-            // If disk recover request is successfull than mark locations as destroyed.
+            // If disk recover request is successful than mark locations as destroyed.
             if (livenessInfo.DiskId == diskId &&
                 livenessInfo.LocationState == ELocationState::Destroying)
             {

@@ -24,7 +24,7 @@ class TMasterAutomaton
     : public NHydra::TCompositeAutomaton
 {
 public:
-    explicit TMasterAutomaton(TBootstrap* boostrap);
+    explicit TMasterAutomaton(TBootstrap* bootstrap);
 
 private:
     TBootstrap* const Bootstrap_;

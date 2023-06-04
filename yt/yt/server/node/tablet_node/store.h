@@ -218,7 +218,7 @@ struct ISortedStore
     virtual TLegacyOwningKey GetUpperBoundKey() const = 0;
 
     //! Returns true if min/upper bound keys were overridden and do not match boundary
-    //! keys from chunk meta. In particular, alwais returns false for dynamic stores.
+    //! keys from chunk meta. In particular, always returns false for dynamic stores.
     virtual bool HasNontrivialReadRange() const = 0;
 
     //! Creates a reader for the range from |lowerKey| (inclusive) to |upperKey| (exclusive).

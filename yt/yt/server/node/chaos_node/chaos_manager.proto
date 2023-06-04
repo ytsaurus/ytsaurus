@@ -85,7 +85,7 @@ message TReqMigrateReplicationCards
         optional int32 replication_card_collocation_size = 4;
     }
 
-    required NYT.NProto.TGuid emmigrated_from_cell_id = 1;
+    required NYT.NProto.TGuid emigrated_from_cell_id = 1;
     repeated TMigrationCard migration_cards = 2;
 }
 

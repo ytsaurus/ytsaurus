@@ -933,19 +933,19 @@ public:
         , Logger(DataNodeLogger.WithTag("LocationId: %v", Location_->GetId()))
         , Config_(config)
     {
-        auto journalIndexMemorTracker = nodeMemoryTracker
+        auto journalIndexMemoryTracker = nodeMemoryTracker
             ? nodeMemoryTracker->WithCategory(EMemoryCategory::ChunkJournalIndex)
             : nullptr;
 
         MultiplexedChangelogDispatcher_ = CreateFileChangelogDispatcher(
             Location_->GetIOEngine(),
-            journalIndexMemorTracker,
+            journalIndexMemoryTracker,
             config->MultiplexedChangelog,
             "MFlush:" + Location_->GetId(),
             Location_->GetProfiler().WithPrefix("/multiplexed_changelogs"));
         SplitChangelogDispatcher_ = CreateFileChangelogDispatcher(
             Location_->GetIOEngine(),
-            journalIndexMemorTracker,
+            journalIndexMemoryTracker,
             config->MultiplexedChangelog,
             "SFlush:" + Location_->GetId(),
             Location_->GetProfiler().WithPrefix("/split_changelogs"));

@@ -2104,7 +2104,7 @@ TEST_F(TAtomicSortedDynamicStoreTest, ReadAtomicity)
     thread2.Join();
 }
 
-TEST_F(TAtomicSortedDynamicStoreTest, ReadAllCommitedWriteVersioned)
+TEST_F(TAtomicSortedDynamicStoreTest, ReadAllCommittedWriteVersioned)
 {
     auto row = BuildRow("key=1;a=1;b=2;c=3;d=4;e=5;f=6;g=7;", false);
     WriteVersioned(row);

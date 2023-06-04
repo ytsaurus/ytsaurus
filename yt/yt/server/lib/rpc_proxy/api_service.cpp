@@ -1003,7 +1003,7 @@ private:
                     } catch (const std::exception& ex) {
                         HandleError(ex);
                     } catch (const TFiberCanceledException&) {
-                        // Intentially do nothing.
+                        // Intentionally do nothing.
                     }
                 }));
 

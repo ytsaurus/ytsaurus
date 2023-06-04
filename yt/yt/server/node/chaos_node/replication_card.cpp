@@ -34,9 +34,9 @@ void TMigration::Persist(const TPersistenceContext& context)
 
     Persist(context, OriginCellId);
     Persist(context, ImmigratedToCellId);
-    Persist(context, EmmigratedFromCellId);
+    Persist(context, EmigratedFromCellId);
     Persist(context, ImmigrationTime);
-    Persist(context, EmmigrationTime);
+    Persist(context, EmigrationTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

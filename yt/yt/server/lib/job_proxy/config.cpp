@@ -69,7 +69,7 @@ void TMemoryTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_smaps_memory_tracker", &TThis::UseSMapsMemoryTracker)
         .Default(false);
 
-    registrar.Parameter("memory_statisitcs_cache_period", &TThis::MemoryStatisticsCachePeriod)
+    registrar.Parameter("memory_statistics_cache_period", &TThis::MemoryStatisticsCachePeriod)
         .Default(TDuration::Zero());
 }
 

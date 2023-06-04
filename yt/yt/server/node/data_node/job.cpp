@@ -1634,21 +1634,21 @@ private:
             if (inputChunksRowsRead > inputChunksRowCount) {
                 return TError("Actual number of rows in input chunks is greater than expected")
                     << TErrorAttribute("rows_read", inputChunksRowsRead)
-                    << TErrorAttribute("expectd_rows", inputChunksRowCount);
+                    << TErrorAttribute("expected_rows", inputChunksRowCount);
             } else if (inputExhausted && inputChunksRowsRead < inputChunksRowCount) {
                 return TError("Actual number of rows in input chunks is less than expected")
                     << TErrorAttribute("rows_read", inputChunksRowsRead)
-                    << TErrorAttribute("expectd_rows", inputChunksRowCount);
+                    << TErrorAttribute("expected_rows", inputChunksRowCount);
             }
 
             if (outputChunkRowsRead > outputChunkRowCount) {
                 return TError("Actual number of rows in output chunk is greater than expected")
                     << TErrorAttribute("rows_read", outputChunkRowsRead)
-                    << TErrorAttribute("expectd_rows", outputChunkRowCount);
+                    << TErrorAttribute("expected_rows", outputChunkRowCount);
             } else if (outputExhausted && outputChunkRowsRead < outputChunkRowCount) {
                 return TError("Actual number of rows in output chunk is less than expected")
                     << TErrorAttribute("rows_read", outputChunkRowsRead)
-                    << TErrorAttribute("expectd_rows", outputChunkRowCount);
+                    << TErrorAttribute("expected_rows", outputChunkRowCount);
             }
 
             if (inputExhausted && outputExhausted) {

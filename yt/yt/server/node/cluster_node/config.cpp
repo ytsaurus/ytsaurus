@@ -202,7 +202,7 @@ void TDynamicConfigManagerConfig::Register(TRegistrar registrar)
 
 void TMasterConnectorConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("lease_trascation_timeout", &TThis::LeaseTransactionTimeout)
+    registrar.Parameter("lease_transaction_timeout", &TThis::LeaseTransactionTimeout)
         .Default();
     registrar.Parameter("lease_transaction_ping_period", &TThis::LeaseTransactionPingPeriod)
         .Default();

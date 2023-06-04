@@ -84,7 +84,7 @@ struct ITransactionManager
     //! If a persistent instance is found, just returns it.
     //! If a transient instance is found or no transaction is found
     //! returns |nullptr|.
-    virtual TTransaction* FindPersistentTransaction(TTransactionId transcationId) = 0;
+    virtual TTransaction* FindPersistentTransaction(TTransactionId transactionId) = 0;
 
     //! Finds a transaction by id.
     //! If a persistent instance is found, just returns it.
@@ -132,7 +132,7 @@ struct ITransactionManager
     virtual bool GetDecommission() const = 0;
     virtual void SetRemoving() = 0;
 
-    //! Returns true if transaction manager is decommissioned and threre are
+    //! Returns true if transaction manager is decommissioned and there are
     //! no alive transactions in it, so tablet cell can be safely removed.
     virtual bool IsDecommissioned() const = 0;
 

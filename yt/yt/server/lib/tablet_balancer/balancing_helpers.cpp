@@ -372,7 +372,7 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
         YT_LOG_FATAL_IF(
             table->Tablets[tablets[i]->Index].Get() != tablets[i].Get(),
             "Tablets are expected to be the same, but they are different "
-            "(ExpectedTabletId: %v, ActualTabletId: %v, ExpectedTabletPtr: %v, ActialTabletPtr: %v)",
+            "(ExpectedTabletId: %v, ActualTabletId: %v, ExpectedTabletPtr: %v, ActualTabletPtr: %v)",
             table->Tablets[tablets[i]->Index]->Id,
             tablets[i]->Id,
             table->Tablets[tablets[i]->Index].Get(),

@@ -274,7 +274,7 @@ bool TChunkList::HasCumulativeStatistics() const
 {
     return
         HasAppendableCumulativeStatistics() ||
-        HasModifyableCumulativeStatistics() ||
+        HasModifiableCumulativeStatistics() ||
         HasTrimmableCumulativeStatistics();
 }
 
@@ -285,7 +285,7 @@ bool TChunkList::HasAppendableCumulativeStatistics() const
         Kind_ == EChunkListKind::JournalRoot;
 }
 
-bool TChunkList::HasModifyableCumulativeStatistics() const
+bool TChunkList::HasModifiableCumulativeStatistics() const
 {
     return
         Kind_ == EChunkListKind::SortedDynamicRoot ||

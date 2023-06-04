@@ -622,7 +622,7 @@ void TCompositeAutomaton::HydraResetStateHash(NProto::TReqResetStateHash* reques
     auto* mutationContext = GetCurrentMutationContext();
 
     YT_LOG_INFO(
-        "Resetting state hash (CurrrentStateHash: %x, NewStateHash: %x)",
+        "Resetting state hash (CurrentStateHash: %x, NewStateHash: %x)",
         mutationContext->GetStateHash(),
         newStateHash);
 

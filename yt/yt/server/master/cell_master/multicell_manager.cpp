@@ -774,7 +774,7 @@ private:
 
         auto cellTag = request->cell_tag();
         if (!IsValidSecondaryCellTag(cellTag)) {
-            YT_LOG_ALERT("Receieved registration request for an unknown secondary cell, ignored (CellTag: %v)",
+            YT_LOG_ALERT("Received registration request for an unknown secondary cell, ignored (CellTag: %v)",
                 cellTag);
             return;
         }

@@ -49,7 +49,7 @@ public:
                     EmplaceOrCrash(
                         CellIdToSignatureGenerator_,
                         cellId,
-                        std::make_unique<TTransactionSignatureGenerator>(/*tagetSignature*/ 1u));
+                        std::make_unique<TTransactionSignatureGenerator>(/*targetSignature*/ 1u));
                 }
                 if (!TabletIdToRequestBatcher_.contains(tabletId)) {
                     EmplaceOrCrash(

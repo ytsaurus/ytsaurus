@@ -56,11 +56,11 @@ void TGroupManager::ProcessHeartbeat(
 
     if (memberInfo.Id.empty()) {
         THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::InvalidMemberId,
-            "Member id should not be emtpy");
+            "Member id should not be empty");
     }
 
     auto groups = GetOrCreateGroups({groupId});
-    // If groupId is incorect, GetOrCreateGroups will omit it in result groups.
+    // If groupId is incorrect, GetOrCreateGroups will omit it in result groups.
     if (groups.empty()) {
         THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::InvalidGroupId,
             "Group id %v is incorrect",

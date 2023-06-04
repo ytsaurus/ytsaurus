@@ -225,7 +225,7 @@ void TTabletBalancer::BalancerIteration()
 
     for (auto& [bundleName, bundle] : Bundles_) {
         if (!bundle->GetBundle()->Config) {
-            YT_LOG_DEBUG("Skip balancing iteration since bundle has unparseable tablet balancer config (BundleName: %v)",
+            YT_LOG_DEBUG("Skip balancing iteration since bundle has unparsable tablet balancer config (BundleName: %v)",
                 bundleName);
             continue;
         }

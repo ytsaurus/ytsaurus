@@ -3045,7 +3045,7 @@ private:
                     .ThrowOnError();
                 YT_LOG_DEBUG(
                     "Full heartbeat from agent processed, "
-                    "aborted jobs suppossed to be considered by controller agent (OperationId: %v)",
+                    "aborted jobs supposed to be considered by controller agent (OperationId: %v)",
                     operation->GetId());
             } catch (const std::exception& ex) {
                 YT_LOG_INFO(ex, "Failed to wait full heartbeat from agent (OperationId: %v)", operation->GetId());

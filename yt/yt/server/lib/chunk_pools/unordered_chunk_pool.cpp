@@ -419,7 +419,7 @@ public:
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedChunkPool, 0xbacd26ad);
 
-    //! A mappping between input cookies (that are returned and used by controllers) and internal smaller
+    //! A mapping between input cookies (that are returned and used by controllers) and internal smaller
     //! stripe cookies that are obtained by slicing the input stripes.
     std::vector<std::vector<int>> InputCookieToInternalCookies_;
     std::vector<TSuspendableStripe> Stripes_;

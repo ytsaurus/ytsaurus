@@ -50,7 +50,7 @@ private:
         return CreateMasterProxy(Bootstrap_, &Metadata_, object);
     }
 
-    void CheckInvariants(NCellMaster::TBootstrap* /*bootstap*/) override
+    void CheckInvariants(NCellMaster::TBootstrap* /*bootstrap*/) override
     { }
 };
 

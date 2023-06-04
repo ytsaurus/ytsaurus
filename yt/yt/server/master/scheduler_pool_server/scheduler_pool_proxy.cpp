@@ -230,7 +230,7 @@ DEFINE_YPATH_SERVICE_METHOD(TSchedulerPoolProxy, TransferPoolResources)
     auto* impl = GetThisImpl();
     auto* poolTreeImpl = impl->GetMaybePoolTree();
     if (!poolTreeImpl) {
-        THROW_ERROR_EXCEPTION("Transfering pool resources must be targeted at pool tree")
+        THROW_ERROR_EXCEPTION("Transferring pool resources must be targeted at pool tree")
             << TErrorAttribute("current_scheduler_pool_name", impl->GetName());
     }
 

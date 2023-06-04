@@ -29,7 +29,7 @@ public:
 
     NTabletNode::TCustomTableMountConfigPtr GetEffectiveConfig() const;
 
-    //! Returns two nodes: the first one containes provided options recognized
+    //! Returns two nodes: the first one contains provided options recognized
     //! by TCustomTableMountConfig, the second one contains unrecognized options.
     std::pair<NYTree::IMapNodePtr, NYTree::IMapNodePtr> GetRecognizedConfig() const;
 

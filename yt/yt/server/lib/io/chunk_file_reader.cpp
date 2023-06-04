@@ -533,11 +533,11 @@ void TChunkFileReader::DumpBrokenBlock(
 TBlocksExt::TBlocksExt(const NChunkClient::NProto::TBlocksExt& message)
 {
     Blocks.reserve(message.blocks_size());
-    for (const auto& blokInfo : message.blocks()) {
+    for (const auto& blockInfo : message.blocks()) {
         Blocks.push_back(TBlockInfo{
-            .Offset = blokInfo.offset(),
-            .Size = blokInfo.size(),
-            .Checksum = blokInfo.checksum(),
+            .Offset = blockInfo.offset(),
+            .Size = blockInfo.size(),
+            .Checksum = blockInfo.checksum(),
         });
     }
 

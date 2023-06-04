@@ -82,7 +82,7 @@ private:
 
     struct TTransactionDescriptor;
 
-    struct TTransationDeadlineComparer
+    struct TTransactionDeadlineComparer
     {
         bool operator()(const TTransactionDescriptor* lhs, const TTransactionDescriptor* rhs) const;
     };
@@ -101,7 +101,7 @@ private:
 
     bool Active_ = false;
     THashMap<TTransactionId, TTransactionDescriptor> IdMap_;
-    std::set<TTransactionDescriptor*, TTransationDeadlineComparer> DeadlineMap_;
+    std::set<TTransactionDescriptor*, TTransactionDeadlineComparer> DeadlineMap_;
 
     void OnTick();
     void ProcessRequests();
@@ -132,7 +132,7 @@ static const auto TickPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TTransactionLeaseTracker::TTransationDeadlineComparer::operator()(
+bool TTransactionLeaseTracker::TTransactionDeadlineComparer::operator()(
     const TTransactionDescriptor* lhs,
     const TTransactionDescriptor* rhs) const
 {

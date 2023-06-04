@@ -36,7 +36,7 @@ struct ICellarNodeTracker
     virtual void ProcessHeartbeat(
         NNodeTrackerServer::TNode* node,
         NCellarNodeTrackerClient::NProto::TReqHeartbeat* request,
-        NCellarNodeTrackerClient::NProto::TRspHeartbeat* respose,
+        NCellarNodeTrackerClient::NProto::TRspHeartbeat* response,
         bool legacyFullHeartbeat = false) = 0;
 };
 

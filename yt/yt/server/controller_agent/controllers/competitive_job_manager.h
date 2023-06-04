@@ -24,7 +24,7 @@ class ICompetitiveJobManagerHost
     : public IPersistent
 {
 public:
-    virtual void OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitonType) = 0;
+    virtual void OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType) = 0;
     virtual void AbortJobViaScheduler(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
     virtual void AbortJobByController(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
 };

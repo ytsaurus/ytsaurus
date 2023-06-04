@@ -1098,7 +1098,7 @@ private:
 
         bool abandoned = LeaderLease_->TryAbandon();
         if (abandoned) {
-            YT_LOG_INFO("Leader lease abandonded (RequestingPeerId: %v)",
+            YT_LOG_INFO("Leader lease abandoned (RequestingPeerId: %v)",
                 peerId);
         }
 

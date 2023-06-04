@@ -71,7 +71,7 @@ using TChangelogIndexHeader = TChangelogIndexHeader_5;
 
 struct TChangelogIndexSegmentHeader_5
 {
-    //! Computed for the whole segment excluding the checksum ifself.
+    //! Computed for the whole segment excluding the checksum itself.
     ui64 Checksum;
     //! Number of records in this segment.
     i32 RecordCount;

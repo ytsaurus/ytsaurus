@@ -439,11 +439,11 @@ void TParameterizedReassignSolver:: TryMoveTablet(
     if (newMetric < BestAction_.Metric) {
         BestAction_.Metric = newMetric;
 
-        BestAction_.Callback = [=, this] (int* availiableActionCount) {
+        BestAction_.Callback = [=, this] (int* availableActionCount) {
             tablet->Cell = cell;
             sourceCell->Metric -= tablet->Metric;
             cell->Metric += tablet->Metric;
-            *availiableActionCount -= 1;
+            *availableActionCount -= 1;
 
             if (sourceNode->Address != destonationNode->Address) {
                 sourceNode->Metric -= tablet->Metric;
@@ -593,7 +593,7 @@ void TParameterizedReassignSolver::TrySwapTablets(
     if (newMetric < BestAction_.Metric) {
         BestAction_.Metric = newMetric;
 
-        BestAction_.Callback = [=, this] (int* availiableActionCount) {
+        BestAction_.Callback = [=, this] (int* availableActionCount) {
             lhsTablet->Cell = rhsCell;
             rhsTablet->Cell = lhsCell;
 
@@ -601,7 +601,7 @@ void TParameterizedReassignSolver::TrySwapTablets(
             lhsCell->Metric += rhsTablet->Metric;
             rhsCell->Metric += lhsTablet->Metric;
             rhsCell->Metric -= rhsTablet->Metric;
-            *availiableActionCount -= 2;
+            *availableActionCount -= 2;
 
             if (lhsNode->Address != rhsNode->Address) {
                 lhsNode->Metric -= lhsTablet->Metric;
@@ -686,10 +686,10 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
         return {};
     }
 
-    int availiableActionCount = Config_.MaxMoveActionCount;
-    while (availiableActionCount > 0) {
+    int availableActionCount = Config_.MaxMoveActionCount;
+    while (availableActionCount > 0) {
         LogMessageCount_ = 0;
-        if (TryFindBestAction(/*canMakeSwap*/ availiableActionCount >= 2)) {
+        if (TryFindBestAction(/*canMakeSwap*/ availableActionCount >= 2)) {
             YT_VERIFY(BestAction_.Callback);
             if (BestAction_.Metric >= CurrentMetric_ * (1 - Config_.MinRelativeMetricImprovement)) {
                 YT_LOG_DEBUG(
@@ -699,7 +699,7 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
                 break;
             }
 
-            BestAction_.Callback(&availiableActionCount);
+            BestAction_.Callback(&availableActionCount);
 
             YT_LOG_DEBUG(
                 "Total parameterized metric changed (Old: %v, New: %v)",

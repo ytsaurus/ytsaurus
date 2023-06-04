@@ -60,7 +60,7 @@ public:
     //! Period of incumbents assignment both to leader and followers.
     TDuration AssignPeriod;
 
-    //! If peer does not recieve a heartbeat within this duration,
+    //! If peer does not receive a heartbeat within this duration,
     //! it drops all incumbents.
     TDuration PeerLeaseDuration;
     //! If leader is unable to report a heartbeat to peer within this

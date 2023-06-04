@@ -90,7 +90,7 @@ public:
     void BuildOrchid(NYTree::TFluentMap fluent) const;
 
     //! NB: Alert events recording can be incorrect in case of scheduler crashes.
-    //! E.g. alert turns off, we persist it's absense in operation's Cypress node.
+    //! E.g. alert turns off, we persist it's absence in operation's Cypress node.
     //! Then scheduler crashes without sending alert event to archive.
     //! If alert doesn't appear later, we will end up with infinite alert in alerts history.
     void EnqueueOperationAlertEvent(

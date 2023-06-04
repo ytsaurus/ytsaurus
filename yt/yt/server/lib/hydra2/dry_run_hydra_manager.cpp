@@ -209,11 +209,11 @@ public:
             .ThrowOnError();
 
         YT_LOG_INFO("Started building snapshot in dry run mode");
-        auto sequenceNuber = DecoratedAutomaton_->GetSequenceNumber();
+        auto sequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
         auto nextSnapshotId = DecoratedAutomaton_->GetAutomatonVersion().SegmentId + 1;
         auto buildSnapshotFuture = BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
             .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
-            .Run(nextSnapshotId, sequenceNuber, /*readOnly*/ false);
+            .Run(nextSnapshotId, sequenceNumber, /*readOnly*/ false);
         WaitFor(buildSnapshotFuture)
             .ThrowOnError();
     }

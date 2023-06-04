@@ -69,7 +69,7 @@ public:
 
     //! If not null, take only tables whose paths match the RE.
     NRe2::TRe2Ptr PathRe;
-    //! If not null, take only tables of the specifed tablet cell bundle.
+    //! If not null, take only tables of the specified tablet cell bundle.
     std::optional<TString> TabletCellBundle;
     //! If not null, take only sorted/non-sorted tables respectively.
     std::optional<bool> Sorted;

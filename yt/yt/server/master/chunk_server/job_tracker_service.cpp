@@ -107,9 +107,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateJobTrackerService(TBootstrap* boostrap)
+NRpc::IServicePtr CreateJobTrackerService(TBootstrap* bootstrap)
 {
-    return New<TJobTrackerService>(boostrap);
+    return New<TJobTrackerService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

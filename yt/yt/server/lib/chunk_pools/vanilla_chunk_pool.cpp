@@ -61,7 +61,7 @@ public:
             jobSummary.InterruptReason == EInterruptReason::UserRequest);
         JobManager_->Completed(cookie, jobSummary.InterruptReason);
         if (jobSummary.InterruptReason != EInterruptReason::None || RestartCompletedJobs_) {
-            // NB: it is important to lose this job intead of alloacting new job since we want
+            // NB: it is important to lose this job instead of alloacting new job since we want
             // to keep range of cookies same as before (without growing infinitely). It is
             // significant to some of the vanilla operation applications like CHYT.
             JobManager_->Lost(cookie);

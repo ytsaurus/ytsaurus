@@ -181,7 +181,7 @@ public:
         return multiplexedFlushResult
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (bool skipped) {
                 // We provide the most strong semantic possible.
-                // Concurrent Append()-s are permitted. Successful completetion of last append,
+                // Concurrent Append()-s are permitted. Successful completion of last append,
                 // guarantees that all previous records are committed to disk.
                 if (skipped) {
                     ++RejectedMultiplexedAppends_;

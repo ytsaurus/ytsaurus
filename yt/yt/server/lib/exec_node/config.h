@@ -121,7 +121,7 @@ public:
     //! For testing purposes only.
     bool UseExecFromLayer;
 
-    //! Allow mounting /dev/fuse to user job conatiners.
+    //! Allow mounting /dev/fuse to user job containers.
     bool AllowMountFuseDevice;
 
     //! Backoff time between container destruction attempts.
@@ -256,7 +256,7 @@ public:
     //! Maximum backoff for sending the next heartbeat after a failure.
     std::optional<TDuration> FailedHeartbeatBackoffMaxTime;
 
-    //! Backoff mulitplier for sending the next heartbeat after a failure.
+    //! Backoff multiplier for sending the next heartbeat after a failure.
     std::optional<double> FailedHeartbeatBackoffMultiplier;
 
     REGISTER_YSON_STRUCT(THeartbeatReporterDynamicConfigBase);
@@ -315,7 +315,7 @@ public:
     //! Maximum backoff for sending the next heartbeat after a failure.
     TDuration FailedHeartbeatBackoffMaxTime;
 
-    //! Backoff mulitplier for sending the next heartbeat after a failure.
+    //! Backoff multiplier for sending the next heartbeat after a failure.
     double FailedHeartbeatBackoffMultiplier;
 
     void ApplyDynamicInplace(const THeartbeatReporterDynamicConfigBase& dynamicConfig);

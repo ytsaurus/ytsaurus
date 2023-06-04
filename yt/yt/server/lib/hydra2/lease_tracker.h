@@ -24,7 +24,7 @@ namespace NYT::NHydra2 {
 
 /*!
  * Lease state transitions are as follows:
- * NotAcquired -> Valid (with deadline) -> Abandonded -> NotAcquired -> ...
+ * NotAcquired -> Valid (with deadline) -> Abandoned -> NotAcquired -> ...
  * Some intermediate states could be skipped.
  *
  * \note Thread affinity: Control (unless noted otherwise)
@@ -42,7 +42,7 @@ public:
     //! Switches the lease to unacquired state.
     void Restart();
 
-    //! If the lease was abandonded then does nothing.
+    //! If the lease was abandoned then does nothing.
     //! Otherwise prolongs the lease range up to #deadline.
     void Extend(NProfiling::TCpuInstant deadline);
 
@@ -52,7 +52,7 @@ public:
 
 private:
     static constexpr NProfiling::TCpuInstant NotAcquiredDeadline = 0;
-    static constexpr NProfiling::TCpuInstant AbandondedDeadline = 1;
+    static constexpr NProfiling::TCpuInstant AbandonedDeadline = 1;
     std::atomic<NProfiling::TCpuInstant> Deadline_ = NotAcquiredDeadline;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -66,7 +66,7 @@ DEFINE_REFCOUNTED_TYPE(TLeaderLease)
  * Once created, starts executing a sequence of rounds.
  * Each rounds sends out pings to all followers and collects responses.
  * If a quorum of successful responses is received, the round considered successful as a whole.
- * The local peer is not explicity pinged but is implicitly counted as a success.
+ * The local peer is not explicitly pinged but is implicitly counted as a success.
  * Non-voting peers are pinged but their responses are ignored for the purpose of quorum counting.
  *
  * Additionally, when #EnableTracking is called then round outcomes start affecting the lease as follows:

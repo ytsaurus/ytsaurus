@@ -221,7 +221,7 @@ private:
                     Tablet_->GetId(),
                     std::move(newProgress));
 
-                YT_LOG_DEBUG("Advanced replication progres to replication card current timestamp (CurrentTimestamp: %v)",
+                YT_LOG_DEBUG("Advanced replication progress to replication card current timestamp (CurrentTimestamp: %v)",
                     currentTimestamp);
             }
         }
@@ -300,7 +300,7 @@ bool AdvanceTabletReplicationProgress(
         localTransaction->AddAction(tabletCellId, MakeTransactionActionData(req));
     }
 
-    YT_LOG_DEBUG("Commiting replication progress advance transaction (TransactionId: %v, ReplicationProgress: %v, ReplicationRound: %v)",
+    YT_LOG_DEBUG("Committing replication progress advance transaction (TransactionId: %v, ReplicationProgress: %v, ReplicationRound: %v)",
         localTransaction->GetId(),
         progress,
         replicationRound);

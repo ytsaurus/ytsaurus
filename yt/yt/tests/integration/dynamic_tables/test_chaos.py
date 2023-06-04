@@ -1044,7 +1044,7 @@ class TestChaos(ChaosTestBase):
 
     @authors("babenko")
     def test_chaos_replicated_table_with_implicit_card_id(self):
-        with pytest.raises(YtError, match=".* is neither speficied nor inherited.*"):
+        with pytest.raises(YtError, match=".* is neither specified nor inherited.*"):
             create("chaos_replicated_table", "//tmp/crt")
 
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")

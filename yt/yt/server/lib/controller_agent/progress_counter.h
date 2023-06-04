@@ -26,7 +26,7 @@ DEFINE_ENUM(EProgressCategory,
 //! Can be a part of counter hierarchy: change in a counter affects its parents, grandparents and so on.
 //! Counters have the following semantics:
 //! Total corresponds to all the jobs that are still interesting for controller, Total = Running + Completed + Pending + Blocked + Suspended + Uncategorized.
-//! Running correponds to a job that is executing right now.
+//! Running corresponds to a job that is executing right now.
 //! CompletedTotal corresponds to a job that has successfully finished.
 //! Interrupted corresponds to a job has been interrupted, i.e. forcefully completed before input processing finish.
 //! Interrupted category is contained inside CompletedTotal.
@@ -36,7 +36,7 @@ DEFINE_ENUM(EProgressCategory,
 //! Failed corresponds to jobs that did not complete successfully.
 //! Aborted corresponds to jobs that were aborted by user, scheduler or node.
 //! Lost corresponds to completed jobs whose output was lost and should be recalculated.
-//! Invalidated correponds to completed jobs whose output is not actual anymore.
+//! Invalidated corresponds to completed jobs whose output is not actual anymore.
 //! Blocked corresponds to jobs that are not going to be scheduled in typical case, but can be scheduled under certain circumstances.
 //! For example, small AutoMerge job is blocked until it will become large enough. It will be scheduled if quota is exhausted.
 class TProgressCounter
@@ -79,7 +79,7 @@ public:
     // NB: this method does not check that counter hierarchy does not contain loops.
     void AddParent(TProgressCounterPtr parent);
 
-    // NB: removes at most one occurence of parent in parents list.
+    // NB: removes at most one occurrence of parent in parents list.
     bool RemoveParent(TProgressCounterPtr parent);
 
     void Persist(const TPersistenceContext& context);

@@ -199,7 +199,7 @@ public:
                     // but that is perfectly fine.
                     PromoteTransientGeneration(transaction, params.Generation);
                 } else if (params.Generation < transaction->GetTransientGeneration()) {
-                    // We may get here in two sitations. The first one is when Write RPC call was late to arrive,
+                    // We may get here in two situations. The first one is when Write RPC call was late to arrive,
                     // while the second one is trickier. It happens in the case when next generation arrived while our
                     // fiber was waiting on the blocked row. In both cases we are not going to enqueue any more mutations
                     // in order to ensure monotonicity of mutation generations which is an important invariant.

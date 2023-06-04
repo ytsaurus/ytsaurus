@@ -871,7 +871,7 @@ public:
         auto getOrchidAndCommit = BIND(
             [controller, this_ = MakeStrong(this)] () {
                 controller->Commit();
-                // Orchid servece runs on uncancellable invokers, so it is legal to use it after context cancellation.
+                // Orchid service runs on uncancellable invokers, so it is legal to use it after context cancellation.
                 controller->ZombifyOrchid();
             })
             .AsyncVia(controller->GetInvoker());
@@ -930,7 +930,7 @@ public:
 
         if (!controller->GetCancelableContext()->IsCanceled()) {
             controller->Cancel();
-            // Orchid servece runs on uncancellable invokers, so it is legal to use it after context cancellation.
+            // Orchid service runs on uncancellable invokers, so it is legal to use it after context cancellation.
             controller->ZombifyOrchid();
 
             if (auto orchid = controller->GetOrchid()) {
@@ -1168,7 +1168,7 @@ private:
 
     TAgentToSchedulerOperationEventOutboxPtr OperationEventsOutbox_;
     TAgentToSchedulerJobEventOutboxPtr JobEventsOutbox_;
-    TAgentToSchedulerScheduleJobResponseOutboxPtr ScheduleJobResposesOutbox_;
+    TAgentToSchedulerScheduleJobResponseOutboxPtr ScheduleJobResponsesOutbox_;
     TAgentToSchedulerRunningJobStatisticsOutboxPtr RunningJobStatisticsUpdatesOutbox_;
 
     std::unique_ptr<TMessageQueueInbox> JobEventsInbox_;
@@ -1346,7 +1346,7 @@ private:
                IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "job_events"),
             Bootstrap_->GetControlInvoker());
-        ScheduleJobResposesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>>(
+        ScheduleJobResponsesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>>(
             ControllerAgentLogger.WithTag("Kind: AgentToSchedulerScheduleJobResponses, IncarnationId: %v",
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "schedule_job_responses"),
@@ -1452,7 +1452,7 @@ private:
         MemoryWatchdog_.Reset();
         OperationEventsOutbox_.Reset();
         JobEventsOutbox_.Reset();
-        ScheduleJobResposesOutbox_.Reset();
+        ScheduleJobResponsesOutbox_.Reset();
         RunningJobStatisticsUpdatesOutbox_.Reset();
 
         JobEventsInbox_.reset();
@@ -1741,7 +1741,7 @@ private:
     void BuildOutcomingScheduleJobResponses(
         const TControllerAgentTrackerServiceProxy::TReqScheduleJobHeartbeatPtr&  req)
     {
-        ScheduleJobResposesOutbox_->BuildOutcoming(
+        ScheduleJobResponsesOutbox_->BuildOutcoming(
             req->mutable_agent_to_scheduler_schedule_job_responses(),
             [] (auto* protoResponse, const auto& response) {
                 const auto& scheduleJobResult = *response.Result;
@@ -1771,7 +1771,7 @@ private:
         TRequestId requestId,
         const TRefCountedExecNodeDescriptorMapPtr& execNodeDescriptors)
     {
-        auto outbox = ScheduleJobResposesOutbox_;
+        auto outbox = ScheduleJobResponsesOutbox_;
 
         auto replyWithFailure = [=] (TOperationId operationId, TJobId jobId, EScheduleJobFailReason reason) {
             TAgentToSchedulerScheduleJobResponse response;
@@ -1942,7 +1942,7 @@ private:
 
         const auto& rsp = rspOrError.Value();
 
-        ScheduleJobResposesOutbox_->HandleStatus(rsp->agent_to_scheduler_schedule_job_responses());
+        ScheduleJobResponsesOutbox_->HandleStatus(rsp->agent_to_scheduler_schedule_job_responses());
 
         HandleScheduleJobRequests(rsp, req->GetRequestId(), GetExecNodeDescriptors({}));
     }

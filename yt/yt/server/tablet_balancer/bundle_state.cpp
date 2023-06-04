@@ -503,7 +503,7 @@ THashMap<TNodeAddress, TTabletCellBundle::TNodeMemoryStatistics> TBundleState::F
 
             EmplaceOrCrash(nodeStatistics, address, std::move(statistics));
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to get tablet_static attrubute for node %v",
+            YT_LOG_ERROR(ex, "Failed to get tablet_static attribute for node %v",
                 address);
         }
     }

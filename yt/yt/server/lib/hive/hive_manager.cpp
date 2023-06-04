@@ -319,7 +319,7 @@ public:
 
         if (AvenueMailboxMap_.Find(otherEndpointId)) {
             YT_LOG_ALERT("Attempted to register already existing avenue endpoint, ignored "
-                "(SelfCellId: %v, SelfEnpointId: %v)",
+                "(SelfCellId: %v, SelfEndpointId: %v)",
                 SelfCellId_,
                 selfEndpointId);
             return;
@@ -364,7 +364,7 @@ public:
         auto* mailbox = AvenueMailboxMap_.Find(otherEndpointId);
         if (!mailbox) {
             YT_LOG_ALERT("Attempted to remove a non-existing avenue endpoint, ignored "
-                "(SelfCellId: %v, SelfEnpointId: %v)",
+                "(SelfCellId: %v, SelfEndpointId: %v)",
                 SelfCellId_,
                 selfEndpointId);
             return {};

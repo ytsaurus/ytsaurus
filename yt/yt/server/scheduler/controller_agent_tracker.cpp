@@ -270,7 +270,7 @@ public:
             return nullptr;
         }
 
-        int nonMathcingTagCount = 0;
+        int nonMatchingTagCount = 0;
         int nonRegisteredCount = 0;
         int missingMemoryStatisticsCount = 0;
         int notEnoughMemoryCount = 0;
@@ -282,7 +282,7 @@ public:
                 continue;
             }
             if (!agent->GetTags().contains(controllerAgentTag)) {
-                ++nonMathcingTagCount;
+                ++nonMatchingTagCount;
                 continue;
             }
             aliveAgents.push_back(agent);
@@ -352,11 +352,11 @@ public:
             YT_LOG_INFO(
                 "Failed to pick agent for operation ("
                 "OperationId: %v, ControllerAgentTag: %v, "
-                "NonMathcingTagCount: %v, NonRegisteredCount: %v, "
+                "NonMatchingTagCount: %v, NonRegisteredCount: %v, "
                 "MissingMemoryStatisticsCount: %v, NotEnoughMemoryCount: %v)",
                 operation->GetId(),
                 controllerAgentTag,
-                nonMathcingTagCount,
+                nonMatchingTagCount,
                 nonRegisteredCount,
                 missingMemoryStatisticsCount,
                 notEnoughMemoryCount);

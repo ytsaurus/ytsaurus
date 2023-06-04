@@ -1115,7 +1115,7 @@ void TSlotLocation::UpdateSlotLocationStatistics()
             slotLocationStatistics.set_available_space(locationStatistics.AvailableSpace);
             slotLocationStatistics.set_used_space(locationStatistics.TotalSpace - locationStatistics.AvailableSpace);
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to get slot location statisitcs")
+            auto error = TError("Failed to get slot location statistics")
                 << ex;
             YT_LOG_WARNING(error);
             Disable(error);

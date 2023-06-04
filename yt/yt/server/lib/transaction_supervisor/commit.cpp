@@ -12,13 +12,13 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommit::TCommit(TTransactionId transationId)
-    : TransactionId_(transationId)
+TCommit::TCommit(TTransactionId transactionId)
+    : TransactionId_(transactionId)
     , Persistent_(false)
 { }
 
 TCommit::TCommit(
-    TTransactionId transationId,
+    TTransactionId transactionId,
     TMutationId mutationId,
     std::vector<TCellId> participantCellIds,
     std::vector<TCellId> prepareOnlyParticipantCellIds,
@@ -31,7 +31,7 @@ TCommit::TCommit(
     TTimestamp maxAllowedCommitTimestamp,
     NRpc::TAuthenticationIdentity identity,
     std::vector<TTransactionId> prerequisiteTransactionIds)
-    : TransactionId_(transationId)
+    : TransactionId_(transactionId)
     , MutationId_(mutationId)
     , ParticipantCellIds_(std::move(participantCellIds))
     , PrepareOnlyParticipantCellIds_(std::move(prepareOnlyParticipantCellIds))

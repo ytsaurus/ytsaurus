@@ -44,7 +44,7 @@ TEST(TJobSplittingBaseTest, OnlyChildExpected)
     EXPECT_TRUE(base->IsSplittable(0));
 
     // Recall that emptiness of job input does not affect anything for interrupted jobs.
-    base->Completed(0, CreateSummary(/*splitJobCount*/ 1, /*readRowCount*/ 0, /*isInterruped*/ true));
+    base->Completed(0, CreateSummary(/*splitJobCount*/ 1, /*readRowCount*/ 0, /*isInterrupted*/ true));
     base->RegisterChildCookies(0, {1});
 
     // Pool was asked for a single job, it produced a single job. There is no reason to
@@ -58,7 +58,7 @@ TEST(TJobSplittingBaseTest, OnlyChildUnexpected)
 
     EXPECT_TRUE(base->IsSplittable(0));
 
-    base->Completed(0, CreateSummary(/*splitJobCount*/ 2, /*readRowCount*/ 0, /*isInterruped*/ true));
+    base->Completed(0, CreateSummary(/*splitJobCount*/ 2, /*readRowCount*/ 0, /*isInterrupted*/ true));
     base->RegisterChildCookies(0, {1});
 
     // Pool was asked to split job into two, still it produced a single job.
@@ -72,7 +72,7 @@ TEST(TJobSplittingBaseTest, EmptySiblingsPositive)
     EXPECT_TRUE(base->IsSplittable(std::numeric_limits<int>::max() / 2));
     EXPECT_EQ(base->GetMaxVectorSize(), 0ul);
 
-    base->Completed(0, CreateSummary(/*splitJobCount*/ 3, /*readRowCount*/ 0, /*isInterruped*/ true));
+    base->Completed(0, CreateSummary(/*splitJobCount*/ 3, /*readRowCount*/ 0, /*isInterrupted*/ true));
     base->RegisterChildCookies(0, {1, 2, 3});
     EXPECT_TRUE(base->IsSplittable(1));
     EXPECT_TRUE(base->IsSplittable(2));
@@ -96,7 +96,7 @@ TEST(TJobSplittingBaseTest, EmptySiblingsNegative)
     EXPECT_TRUE(base->IsSplittable(std::numeric_limits<int>::max() / 2));
     EXPECT_EQ(base->GetMaxVectorSize(), 0ul);
 
-    base->Completed(0, CreateSummary(/*splitJobCount*/ 3, /*readRowCount*/ 0, /*isInterruped*/ true));
+    base->Completed(0, CreateSummary(/*splitJobCount*/ 3, /*readRowCount*/ 0, /*isInterrupted*/ true));
     base->RegisterChildCookies(0, {1, 2, 3});
     EXPECT_TRUE(base->IsSplittable(1));
     EXPECT_TRUE(base->IsSplittable(2));

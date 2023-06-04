@@ -63,7 +63,7 @@ void TMediumUpdater::UpdateLocationMedia(
         if (auto it = mediumOverrides.find(location->GetUuid()); it != mediumOverrides.end()) {
             descriptor = mediumDirectory->FindByIndex(it->second);
             if (!descriptor) {
-                YT_LOG_ALERT("Overriden location medium does not exists (LocationId: %v, LocationUuid: %v, MediumIndex: %v)",
+                YT_LOG_ALERT("Overridden location medium does not exists (LocationId: %v, LocationUuid: %v, MediumIndex: %v)",
                     location->GetId(),
                     location->GetUuid(),
                     it->second);

@@ -27,7 +27,7 @@ struct IExecNodeTracker
     virtual void ProcessHeartbeat(
         TNode* node,
         NExecNodeTrackerClient::NProto::TReqHeartbeat* request,
-        NExecNodeTrackerClient::NProto::TRspHeartbeat* respose) = 0;
+        NExecNodeTrackerClient::NProto::TRspHeartbeat* response) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IExecNodeTracker)

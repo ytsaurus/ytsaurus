@@ -490,7 +490,7 @@ void TLeaderCommitter::OnSnapshotReply(int peerId)
         return;
     }
 
-    YT_LOG_INFO("Received a new snapshot reply (PeerId: %v, SnaphotId: %v)",
+    YT_LOG_INFO("Received a new snapshot reply (PeerId: %v, SnapshotId: %v)",
         peerId,
         LastSnapshotInfo_->SnapshotId);
 
@@ -788,7 +788,7 @@ void TLeaderCommitter::OnSnapshotsComplete()
 
     // TODO(aleksandra-zh): remove when we stop building snapshots on all peers.
     if (Config_->Get()->AlertOnSnapshotFailure && successCount == 0) {
-        YT_LOG_ALERT("Not enough successfull snapshots built (SnapshotId: %v, SuccessCount: %v)",
+        YT_LOG_ALERT("Not enough successful snapshots built (SnapshotId: %v, SuccessCount: %v)",
             LastSnapshotInfo_->SnapshotId,
             successCount);
     }

@@ -1488,7 +1488,7 @@ private:
 
         // COMPAT(h0pless)
         if (context.GetVersion() < EMasterReign::ExportMasterTableSchemas) {
-            // Forcefully reseting old empty schema.
+            // Forcefully resetting old empty schema.
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (!multicellManager->IsPrimaryMaster()) {
                 const auto& objectManager = Bootstrap_->GetObjectManager();

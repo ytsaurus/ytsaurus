@@ -206,7 +206,7 @@ public:
 
     void ProcessRegisterNode(const TString& address, TCtxRegisterNodePtr context) override
     {
-        if (PendingRegisterNodeAddreses_.contains(address)) {
+        if (PendingRegisterNodeAddresses_.contains(address)) {
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Node is already being registered"));
@@ -224,7 +224,7 @@ public:
             }
         }
 
-        InsertOrCrash(PendingRegisterNodeAddreses_, address);
+        InsertOrCrash(PendingRegisterNodeAddresses_, address);
         for (auto* group : groups) {
             ++group->PendingRegisterNodeMutationCount;
         }
@@ -244,7 +244,7 @@ public:
         mutation->CommitAndReply(context)
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& /*error*/) {
                 // NB: May be missing if OnLeadingStopped was called prior to mutation failure.
-                PendingRegisterNodeAddreses_.erase(address);
+                PendingRegisterNodeAddresses_.erase(address);
 
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
                 if (multicellManager->IsPrimaryMaster() && IsLeader()) {
@@ -905,7 +905,7 @@ private:
 
     std::vector<TNodeGroup> NodeGroups_;
     TNodeGroup* DefaultNodeGroup_ = nullptr;
-    THashSet<TString> PendingRegisterNodeAddreses_;
+    THashSet<TString> PendingRegisterNodeAddresses_;
     TNodeDiscoveryManagerPtr MasterCacheManager_;
     TNodeDiscoveryManagerPtr TimestampProviderManager_;
 
@@ -1590,7 +1590,7 @@ private:
             FullNodeStatesGossipExecutor_.Reset();
         }
 
-        PendingRegisterNodeAddreses_.clear();
+        PendingRegisterNodeAddresses_.clear();
     }
 
 
@@ -2186,7 +2186,7 @@ private:
             group.PendingRegisterNodeMutationCount = 0;
         }
 
-        for (const auto& address : PendingRegisterNodeAddreses_) {
+        for (const auto& address : PendingRegisterNodeAddresses_) {
             auto groups = GetGroupsForNode(address);
             for (auto* group : groups) {
                 ++group->PendingRegisterNodeMutationCount;

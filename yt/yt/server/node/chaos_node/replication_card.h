@@ -38,9 +38,9 @@ struct TMigration
 {
     NObjectClient::TCellId OriginCellId;
     NObjectClient::TCellId ImmigratedToCellId;
-    NObjectClient::TCellId EmmigratedFromCellId;
+    NObjectClient::TCellId EmigratedFromCellId;
     TInstant ImmigrationTime;
-    TInstant EmmigrationTime;
+    TInstant EmigrationTime;
 
     void Persist(const TPersistenceContext& context);
 };

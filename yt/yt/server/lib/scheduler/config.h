@@ -482,7 +482,7 @@ public:
     //! Operation that has less than this number of schedule job calls can not be considered as unschedulable.
     int OperationHangupMinScheduleJobAttempts;
 
-    //! Reasons that consider as unsuccessfull in schedule job attempts.
+    //! Reasons that consider as unsuccessful in schedule job attempts.
     THashSet<EDeactivationReason> OperationHangupDeactivationReasons;
 
     //! During this timeout after activation operation can not be considered as unschedulable due to limiting ancestor.

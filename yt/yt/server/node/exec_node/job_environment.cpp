@@ -512,10 +512,10 @@ private:
 
     const TPortoJobEnvironmentConfigPtr Config_;
 
-    //! Main porto connection for contaner creation and lightweight operations.
+    //! Main porto connection for container creation and lightweight operations.
     IPortoExecutorPtr PortoExecutor_;
 
-    //! Porto connection used for contaner destruction, which is
+    //! Porto connection used for container destruction, which is
     //! possibly a long operation and requires additional retries.
     IPortoExecutorPtr DestroyPortoExecutor_;
     NProfiling::TCounter ContainerDestroyFailureCounter;
@@ -536,7 +536,7 @@ private:
         // Retry destruction until success.
         bool destroyed = false;
         while (!destroyed) {
-            YT_LOG_DEBUG("Start containter destruction attempt (RootContainer: %v)",
+            YT_LOG_DEBUG("Start container destruction attempt (RootContainer: %v)",
                 rootContainer);
 
             auto containers = WaitFor(DestroyPortoExecutor_->ListSubcontainers(rootContainer, false))

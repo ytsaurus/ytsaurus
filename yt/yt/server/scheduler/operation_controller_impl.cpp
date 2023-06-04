@@ -390,7 +390,7 @@ TFuture<void> TOperationControllerImpl::Register(const TOperationPtr& operation)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto agent = Agent_.Lock();
-    // Called synchronously just after assinging agent.
+    // Called synchronously just after assigning agent.
     YT_VERIFY(agent);
 
     YT_LOG_DEBUG("Registering operation at agent (AgentId: %v, OperationId: %v)",

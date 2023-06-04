@@ -34,7 +34,7 @@ void TLeaderLease::Extend(NProfiling::TCpuInstant deadline)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto curDeadline = Deadline_.load();
-    if (curDeadline == AbandondedDeadline) {
+    if (curDeadline == AbandonedDeadline) {
         return;
     }
     YT_VERIFY(curDeadline < deadline);
@@ -48,7 +48,7 @@ bool TLeaderLease::TryAbandon()
     if (NProfiling::GetCpuInstant() >= Deadline_.load()) {
         return false;
     }
-    Deadline_.store(AbandondedDeadline);
+    Deadline_.store(AbandonedDeadline);
     return true;
 }
 

@@ -20,7 +20,7 @@ void TTableIOConfigPatch::Register(TRegistrar registrar)
     registrar.Parameter("hunk_writer_config", &TThis::HunkWriterConfig)
         .Default();
 
-    // Unrecognized parameteres are undesired at the top level. We keep them and
+    // Unrecognized parameters are undesired at the top level. We keep them and
     // validate their absence during postprocessing.
     registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Keep);
 
@@ -126,7 +126,7 @@ void TTableConfigExperiment::Register(TRegistrar registrar)
 
         constexpr static double AbsoluteError = 1e-6;
         if (std::abs(numerator - experiment->FractionNumerator) > AbsoluteError) {
-            THROW_ERROR_EXCEPTION("Fraction must be a mutiple of 1/%v",
+            THROW_ERROR_EXCEPTION("Fraction must be a multiple of 1/%v",
                 experiment->FractionDenominator);
         }
     });

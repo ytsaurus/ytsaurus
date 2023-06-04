@@ -476,7 +476,7 @@ struct IOperationController
         const NScheduler::TJobResources& jobLimits,
         const TString& treeId) = 0;
 
-    //! Called during schedule job when failure happens even before calling #IOpertionController::ScheduleJob().
+    //! Called during schedule job when failure happens even before calling #IOperationController::ScheduleJob().
     //! Used to account such failures in operation progress.
     /*!
      *  \note Thread affinity: any
@@ -587,7 +587,7 @@ struct IOperationController
      */
     virtual void OnJobInfoReceivedFromNode(std::unique_ptr<TJobSummary> jobSummary) = 0;
 
-    //! Called when jobtracker desides to abort job.
+    //! Called when jobtracker decides to abort job.
     /*!
      *  \note Invoker affinity: cancelable Controller invoker
      */

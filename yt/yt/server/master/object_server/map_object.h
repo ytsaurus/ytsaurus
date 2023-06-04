@@ -59,7 +59,7 @@ public:
     TString GetChildKey(const TSelf* child) const noexcept;
 
     //! Returns object's child key if it has a parent, the result of GetRootName()
-    //! if it's a designated root or id preceeded by a hash otherwise.
+    //! if it's a designated root or id preceded by a hash otherwise.
     TString GetName() const;
 
     void Save(NCellMaster::TSaveContext& context) const;
@@ -68,7 +68,7 @@ public:
 protected:
     bool IsRoot_ = false;
 
-    //! Returns the name of a designated root object (id preceeded by a hash by default).
+    //! Returns the name of a designated root object (id preceded by a hash by default).
     virtual TString GetRootName() const;
 
 private:

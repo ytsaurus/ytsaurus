@@ -478,20 +478,20 @@ void SetNodeTagFilter(
     int actualSlotCount = perNodeSlotCount * readyBundleNodes;
     int usedSpareSlotCount = getSpareSlotCount(spareNodesInfo.UsedByBundle);
 
-    int slotsBallance = usedSpareSlotCount  + actualSlotCount - requiredSlotCount;
+    int slotsBalance = usedSpareSlotCount  + actualSlotCount - requiredSlotCount;
 
     YT_LOG_DEBUG("Checking tablet cell slots for bundle "
-        "(Bundle: %v, SlotsBallance: %v, SpareSlotCount: %v, BundleSlotCount: %v, RequiredSlotCount: %v)",
+        "(Bundle: %v, SlotsBalance: %v, SpareSlotCount: %v, BundleSlotCount: %v, RequiredSlotCount: %v)",
         bundleName,
-        slotsBallance,
+        slotsBalance,
         usedSpareSlotCount,
         actualSlotCount,
         requiredSlotCount);
 
-    if (slotsBallance > 0) {
-        TryCreateSpareNodesReleasements(bundleName, input, slotsBallance, &spareNodesInfo, bundleState);
+    if (slotsBalance > 0) {
+        TryCreateSpareNodesReleasements(bundleName, input, slotsBalance, &spareNodesInfo, bundleState);
     } else {
-        TryCreateSpareNodesAssignment(bundleName, input, std::abs(slotsBallance), &spareNodesInfo, bundleState);
+        TryCreateSpareNodesAssignment(bundleName, input, std::abs(slotsBalance), &spareNodesInfo, bundleState);
     }
 
     ProcessNodesAssignments(bundleName, input, &bundleState->SpareNodeAssignments, mutations);

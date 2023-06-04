@@ -40,7 +40,7 @@ struct TInMemoryChunkData final
     const NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
     const NTableClient::TChunkLookupHashTablePtr LookupHashTable;
 
-    //! Guard that trackes non blocks memory usage (ChunkMeta + LookupHashTable).
+    //! Guard that trackers non blocks memory usage (ChunkMeta + LookupHashTable).
     const TMemoryUsageTrackerGuard BlockMetaMemoryTrackerGurard;
 
     //! Blocks to serve.

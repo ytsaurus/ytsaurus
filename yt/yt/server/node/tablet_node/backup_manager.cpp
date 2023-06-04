@@ -76,7 +76,7 @@ Generally we want to have only transactions committed before checkpoint timestam
 replication transactions. Description of how tables of different kinds deal with
 checkpoint timestamp follows.
 
-- Sorted tables: we are waiting for all acceptable transactions to be commited
+- Sorted tables: we are waiting for all acceptable transactions to be committed
     (this is guaranteed by barrier timestamp). Later chunk views with clip
     timestamp is added by master, so we don't care about committed rows with
     greater timestamps.
@@ -133,7 +133,7 @@ TimestampReceived:
   -> RespondedToMasterFailure: reject in feasibility check if fresh timestamp
       exceeds checkpoint timestamp.
   -> RespondedToMasterFailure: reject if transaction with greater timestamp is
-      serialized before feasibility check mutation was commited.
+      serialized before feasibility check mutation was committed.
   -> FeasibilityConfirmed: confirm feasibility check if fresh timestamp is fine.
 
 FeasibilityConfirmed:
@@ -304,7 +304,7 @@ private:
     // They are waiting for one of the events:
     //  - a transaction with commit timestamp greater than their chekpoint
     //    timestamp is serialized (commit_ordering=strong only).
-    //  - barrier timestamp overruns ther checkpoint timestamp and no transaction
+    //  - barrier timestamp overruns their checkpoint timestamp and no transaction
     //    affecting that tablet is pending serialization.
     // Persistent.
     std::set<TTabletWithCheckpoint> TabletsAwaitingCheckpointPassing_;

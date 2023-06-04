@@ -23,7 +23,7 @@ struct IAutomaton
     virtual void LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) = 0;
 
     //! Synchronously prepares an automaton state for further mutation processing
-    //! in a determenistic way.
+    //! in a deterministic way.
     //! During automaton preparation hydra context is set while mutation context is not.
     virtual void PrepareState() = 0;
 
@@ -37,7 +37,7 @@ struct IAutomaton
     //! Applies a certain deterministic mutation to the instance.
     virtual void ApplyMutation(TMutationContext* context) = 0;
 
-    //! Returns global context version, typicaly the snapshot version for the component.
+    //! Returns global context version, typically the snapshot version for the component.
     virtual TReign GetCurrentReign() = 0;
 
     //! Returns action that needs to be done after replaying changelog from a scecific reign.

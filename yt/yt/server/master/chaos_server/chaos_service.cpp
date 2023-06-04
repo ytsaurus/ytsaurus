@@ -161,9 +161,9 @@ private:
     }
 };
 
-IServicePtr CreateMasterChaosService(TBootstrap* boostrap)
+IServicePtr CreateMasterChaosService(TBootstrap* bootstrap)
 {
-    return New<TChaosService>(boostrap);
+    return New<TChaosService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

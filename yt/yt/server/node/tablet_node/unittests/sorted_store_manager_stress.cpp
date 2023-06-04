@@ -299,7 +299,7 @@ public:
     {
         TSelf* Self;
 
-        //! Tranasction owning this action.
+        //! Transaction owning this action.
         TTestTransaction* Transaction = nullptr;
 
         //! Was #ModifyRow called for this action?
@@ -530,7 +530,7 @@ public:
             return Prepared && !Aborted && !Committed && !GeneratedCommitTimestamp;
         }
 
-        void GenerateCommitTimestap()
+        void GenerateCommitTimestamp()
         {
             YT_VERIFY(CanGenerateCommitTimestamp());
             GeneratedCommitTimestamp = Self->GenerateTimestamp();
@@ -1107,7 +1107,7 @@ void TSortedStoreManagerStressTest::RunTest()
             } else if (transaction->CanPrepare()) {
                 transaction->Prepare();
             } else if (transaction->CanGenerateCommitTimestamp()) {
-                transaction->GenerateCommitTimestap();
+                transaction->GenerateCommitTimestamp();
             } else if (transaction->CanCommit()) {
                 transaction->Commit();
                 ++committedTransactions;
@@ -1242,7 +1242,7 @@ void TSortedStoreManagerStressTest::RunTest()
         Rng()) << Endl;
 }
 
-INSTANTIATE_TEST_SUITE_P(Instantation,
+INSTANTIATE_TEST_SUITE_P(Instantiation,
     TSortedStoreManagerStressTest,
     ::testing::Range(0, 100));
 

@@ -191,11 +191,11 @@ public:
     {
         if (Options_.EnableCudaGpuCoreDump && Options_.SlotCoreWatcherDirectory) {
             auto slotGpuCorePipeFile = NFS::CombinePaths(*Options_.SlotCoreWatcherDirectory, CudaGpuCoreDumpPipeName);
-            Envirnoment_.push_back("CUDA_ENABLE_COREDUMP_ON_EXCEPTION=1");
-            Envirnoment_.push_back(Format("CUDA_COREDUMP_FILE=%v", slotGpuCorePipeFile));
+            Environment_.push_back("CUDA_ENABLE_COREDUMP_ON_EXCEPTION=1");
+            Environment_.push_back(Format("CUDA_COREDUMP_FILE=%v", slotGpuCorePipeFile));
         }
         for (const auto& networkAddress : Options_.NetworkAddresses) {
-            Envirnoment_.push_back(Format("YT_IP_ADDRESS_%v=%v", to_upper(networkAddress->Name), networkAddress->Address));
+            Environment_.push_back(Format("YT_IP_ADDRESS_%v=%v", to_upper(networkAddress->Name), networkAddress->Address));
         }
     }
 
@@ -419,7 +419,7 @@ public:
 
     const std::vector<TString>& GetEnvironmentVariables() const override
     {
-        return Envirnoment_;
+        return Environment_;
     }
 
     std::vector<pid_t> GetJobPids() const override
@@ -457,7 +457,7 @@ private:
     const TString SlotContainerName_;
     const IPortoExecutorPtr PortoExecutor_;
 
-    std::vector<TString> Envirnoment_;
+    std::vector<TString> Environment_;
 
     TAtomicIntrusivePtr<IInstance> Instance_;
     TAtomicIntrusivePtr<TPortoResourceTracker> ResourceTracker_;

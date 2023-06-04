@@ -764,13 +764,13 @@ private:
     {
         const auto& hunkStorageSettings = request.hunk_storage_settings();
         return {
-            .MountConfig = DeserailizeHunkStorageMountConfig(TYsonString{hunkStorageSettings.mount_config()}, tabletId),
-            .StoreWriterConfig = DeserailizeHunkStoreWriterConfig(TYsonString{hunkStorageSettings.hunk_store_config()}, tabletId),
-            .StoreWriterOptions = DeserailizeHunkStoreWriterOptions(TYsonString{hunkStorageSettings.hunk_store_options()}, tabletId),
+            .MountConfig = DeserializeHunkStorageMountConfig(TYsonString{hunkStorageSettings.mount_config()}, tabletId),
+            .StoreWriterConfig = DeserializeHunkStoreWriterConfig(TYsonString{hunkStorageSettings.hunk_store_config()}, tabletId),
+            .StoreWriterOptions = DeserializeHunkStoreWriterOptions(TYsonString{hunkStorageSettings.hunk_store_options()}, tabletId),
         };
     }
 
-    THunkStorageMountConfigPtr DeserailizeHunkStorageMountConfig(const TYsonString& str, TTabletId tabletId)
+    THunkStorageMountConfigPtr DeserializeHunkStorageMountConfig(const TYsonString& str, TTabletId tabletId)
     {
         try {
             return ConvertTo<THunkStorageMountConfigPtr>(str);
@@ -782,7 +782,7 @@ private:
         }
     }
 
-    THunkStoreWriterConfigPtr DeserailizeHunkStoreWriterConfig(const TYsonString& str, TTabletId tabletId)
+    THunkStoreWriterConfigPtr DeserializeHunkStoreWriterConfig(const TYsonString& str, TTabletId tabletId)
     {
         try {
             return ConvertTo<THunkStoreWriterConfigPtr>(str);
@@ -794,7 +794,7 @@ private:
         }
     }
 
-    THunkStoreWriterOptionsPtr DeserailizeHunkStoreWriterOptions(const TYsonString& str, TTabletId tabletId)
+    THunkStoreWriterOptionsPtr DeserializeHunkStoreWriterOptions(const TYsonString& str, TTabletId tabletId)
     {
         try {
             return ConvertTo<THunkStoreWriterOptionsPtr>(str);

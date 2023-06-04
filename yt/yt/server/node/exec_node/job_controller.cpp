@@ -1051,7 +1051,7 @@ private:
             }
 
             YT_LOG_DEBUG(
-                "Can not report some jobs because of agent missmatch (TotalUnreportedJobCount: %v, JobSample: %v, ControllerAgentDescriptor: %v)",
+                "Can not report some jobs because of agent mismatch (TotalUnreportedJobCount: %v, JobSample: %v, ControllerAgentDescriptor: %v)",
                 std::size(agentMismatchJobs),
                 nonSentJobs,
                 agentDescriptor);
@@ -1075,7 +1075,7 @@ private:
             });
 
         const auto now = TInstant::Now();
-        int consideredRunnigJobCount = 0;
+        int consideredRunningJobCount = 0;
         int reportedRunningJobCount = 0;
         i64 runningJobsStatisticsSize = 0;
         for (const auto& job : runningJobs) {
@@ -1094,7 +1094,7 @@ private:
                 continue;
             }
 
-            ++consideredRunnigJobCount;
+            ++consideredRunningJobCount;
 
             if (auto statistics = getJobStatistics(job)) {
                 auto statisticsString = statistics.ToString();
@@ -1124,8 +1124,8 @@ private:
             runningJobsStatisticsSize,
             finishedJobsStatisticsSize,
             std::size(runningJobs),
-            std::ssize(runningJobs) - consideredRunnigJobCount,
-            consideredRunnigJobCount - reportedRunningJobCount,
+            std::ssize(runningJobs) - consideredRunningJobCount,
+            consideredRunningJobCount - reportedRunningJobCount,
             agentDescriptor);
     }
 
@@ -1249,9 +1249,9 @@ private:
                 if (job->IsFinished()) {
                     RemoveJob(job, jobToRemove.ReleaseFlags);
                 } else {
-                    YT_LOG_DEBUG("Deffer job removal since job is still running (JobId: %v, JobState: %v", jobId, job->GetState());
+                    YT_LOG_DEBUG("Defer job removal since job is still running (JobId: %v, JobState: %v", jobId, job->GetState());
                     job->SubscribeJobFinished(BIND([this, this_ = MakeStrong(this), job, releaseFlags = jobToRemove.ReleaseFlags] {
-                        YT_LOG_DEBUG("Process deffered job removal (JobId: %v, JobState: %v)", job->GetId(), job->GetState());
+                        YT_LOG_DEBUG("Process deferred job removal (JobId: %v, JobState: %v)", job->GetId(), job->GetState());
 
                         RemoveJob(job, releaseFlags);
                     }));

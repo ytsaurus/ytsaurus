@@ -73,7 +73,7 @@ TCacheLocation::TCacheLocation(
         "InThrottler",
         Logger,
         Profiler_.WithPrefix("/cache")))
-    , ChunckCache_(std::move(chunkCache))
+    , ChunkCache_(std::move(chunkCache))
 { }
 
 const IThroughputThrottlerPtr& TCacheLocation::GetInThrottler() const
@@ -175,7 +175,7 @@ TFuture<void> TCacheLocation::RemoveChunks()
     YT_LOG_INFO("Location is disabled; unregistering all the chunks in it (LocationId: %v)",
         GetId());
 
-    return ChunckCache_->RemoveChunksByLocation(MakeStrong(this));
+    return ChunkCache_->RemoveChunksByLocation(MakeStrong(this));
 }
 
 bool TCacheLocation::ScheduleDisable(const TError& reason)

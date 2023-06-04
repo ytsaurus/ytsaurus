@@ -229,7 +229,7 @@ TNodeShard::TNodeShard(
         .Counter("/node_heartbeat/request/proto_message_bytes");
     HeartbeatResponseProtoMessageBytes_ = SchedulerProfiler
         .Counter("/node_heartbeat/response/proto_message_bytes");
-    HeartbeatRegesteredControllerAgentsBytes_ = SchedulerProfiler
+    HeartbeatRegisteredControllerAgentsBytes_ = SchedulerProfiler
         .Counter("/node_heartbeat/response/proto_registered_controller_agents_bytes");
 }
 
@@ -311,7 +311,7 @@ void TNodeShard::DoCleanup()
         TLeaseManager::CloseLease(node->GetHeartbeatLease());
     }
 
-    IdToOpertionState_.clear();
+    IdToOperationState_.clear();
 
     IdToNode_.clear();
     ExecNodeCount_ = 0;
@@ -345,7 +345,7 @@ void TNodeShard::RegisterOperation(
     YT_VERIFY(Connected_);
 
     EmplaceOrCrash(
-        IdToOpertionState_,
+        IdToOperationState_,
         operationId,
         TOperationState(controller, jobsReady, ++CurrentEpoch_, controllerEpoch));
 
@@ -458,8 +458,8 @@ void TNodeShard::UnregisterOperation(TOperationId operationId)
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
 
-    auto it = IdToOpertionState_.find(operationId);
-    YT_VERIFY(it != IdToOpertionState_.end());
+    auto it = IdToOperationState_.find(operationId);
+    YT_VERIFY(it != IdToOperationState_.end());
     auto& operationState = it->second;
 
     for (const auto& job : operationState.Jobs) {
@@ -472,7 +472,7 @@ void TNodeShard::UnregisterOperation(TOperationId operationId)
 
     SetOperationJobsReleaseDeadline(&operationState);
 
-    IdToOpertionState_.erase(it);
+    IdToOperationState_.erase(it);
 
     YT_LOG_DEBUG("Operation unregistered from node shard (OperationId: %v)",
         operationId);
@@ -2236,7 +2236,7 @@ void TNodeShard::AddNodeResources(const TExecNodePtr& node)
     if (node->GetResourceLimits().GetUserSlots() > 0) {
         ExecNodeCount_ += 1;
     } else {
-        // Check that we succesfully reset all resource limits to zero for node with zero user slots.
+        // Check that we successfully reset all resource limits to zero for node with zero user slots.
         YT_VERIFY(node->GetResourceLimits() == TJobResources());
     }
 }
@@ -2615,7 +2615,7 @@ void TNodeShard::AddRegisteredControllerAgentsToResponse(auto* response)
         SetControllerAgentInfo(agentId, agentInfo.Addresses, agentInfo.IncarnationId, agentDescriptorProto);
     }
 
-    HeartbeatRegesteredControllerAgentsBytes_.Increment(
+    HeartbeatRegisteredControllerAgentsBytes_.Increment(
         response->registered_controller_agents().SpaceUsedExcludingSelfLong());
 }
 
@@ -2866,8 +2866,8 @@ TNodeShard::TOperationState* TNodeShard::FindOperationState(TOperationId operati
 
 const TNodeShard::TOperationState* TNodeShard::FindOperationState(TOperationId operationId) const noexcept
 {
-    auto it = IdToOpertionState_.find(operationId);
-    return it != IdToOpertionState_.end() ? &it->second : nullptr;
+    auto it = IdToOperationState_.find(operationId);
+    return it != IdToOperationState_.end() ? &it->second : nullptr;
 }
 
 TNodeShard::TOperationState& TNodeShard::GetOperationState(TOperationId operationId) noexcept
@@ -2877,7 +2877,7 @@ TNodeShard::TOperationState& TNodeShard::GetOperationState(TOperationId operatio
 
 const TNodeShard::TOperationState& TNodeShard::GetOperationState(TOperationId operationId) const noexcept
 {
-    return GetOrCrash(IdToOpertionState_, operationId);
+    return GetOrCrash(IdToOperationState_, operationId);
 }
 
 void TNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap fluent)

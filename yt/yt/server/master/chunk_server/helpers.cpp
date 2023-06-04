@@ -458,7 +458,7 @@ void DetachFromChunkList(
         chunkList,
         [&] (TChunkList* current, TChunkTree* child) {
             current->Statistics().Deaccumulate(statisticsDelta);
-            if (child && current->HasModifyableCumulativeStatistics()) {
+            if (child && current->HasModifiableCumulativeStatistics()) {
                 int index = GetChildIndex(current, child);
                 current->CumulativeStatistics().Update(
                     index,
@@ -645,7 +645,7 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
 
     if (chunkList->HasAppendableCumulativeStatistics()) {
         chunkList->CumulativeStatistics().DeclareAppendable();
-    } else if (chunkList->HasModifyableCumulativeStatistics()) {
+    } else if (chunkList->HasModifiableCumulativeStatistics()) {
         chunkList->CumulativeStatistics().DeclareModifiable();
     } else if (chunkList->HasTrimmableCumulativeStatistics()) {
         chunkList->CumulativeStatistics().DeclareTrimmable();

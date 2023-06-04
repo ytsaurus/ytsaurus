@@ -206,7 +206,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(SpinLock_);
-        return LastMeasuredThroughtput_;
+        return LastMeasuredThroughput_;
     }
 
     TString GetRootPath() const
@@ -247,7 +247,7 @@ private:
     std::optional<TSession> Session_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    TStoreLocation::TIOStatistics LastMeasuredThroughtput_;
+    TStoreLocation::TIOStatistics LastMeasuredThroughput_;
     TInstant LastFinishedTime_ = TInstant::Now();
 
     NProfiling::TGauge DiskReadCapacity_;
@@ -370,7 +370,7 @@ private:
         // with longer duration.
         // Due nature of congestion control algorithm (additive increase) and
         // modern flash drives (write saturation / steady state after some time)
-        // longer test duration corelate with more accurate result.
+        // longer test duration correlate with more accurate result.
         auto now = TInstant::Now();
         auto roundDuration = now - Session_->LastCongested;
 
@@ -431,7 +431,7 @@ private:
         DiskWriteCapacity_.Update(result.DiskWriteRate);
 
         auto guard = Guard(SpinLock_);
-        LastMeasuredThroughtput_ = result;
+        LastMeasuredThroughput_ = result;
         LastFinishedTime_ = TInstant::Now();
     }
 };

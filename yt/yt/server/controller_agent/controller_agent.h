@@ -221,7 +221,7 @@ public:
      */
     void EnqueueJobMonitoringAlertUpdate();
 
-    //! Raised when connection prcoess starts.
+    //! Raised when connection process starts.
     //! Subscribers may throw and yield.
     DECLARE_SIGNAL(void(), SchedulerConnecting);
 

@@ -68,7 +68,7 @@ void TCongestionDetectorConfig::Register(TRegistrar registrar)
     registrar.Parameter("user_request_heavy_overload_threshold", &TThis::UserRequestHeavyOverloadThreshold)
         .Default(TDuration::MilliSeconds(200));
 
-    registrar.Parameter("user_reques_failed_probes_threshold", &TThis::UserRequestFailedProbesThreshold)
+    registrar.Parameter("user_request_failed_probes_threshold", &TThis::UserRequestFailedProbesThreshold)
         .GreaterThan(0)
         .Default(3);
 }

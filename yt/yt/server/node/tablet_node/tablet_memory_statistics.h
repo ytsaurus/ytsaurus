@@ -23,7 +23,7 @@ struct TMemoryStatistics
     i64 DynamicPassive = 0;
     i64 DynamicBacking = 0;
 
-    // Makes sence only at top levels (total and per-bundle).
+    // Makes sense only at top levels (total and per-bundle).
     std::optional<TValue> Dynamic;
 
     TValue Static;

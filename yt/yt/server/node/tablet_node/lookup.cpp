@@ -835,7 +835,7 @@ struct TPartitionSession
     const TPartitionSnapshotPtr PartitionSnapshot;
     const TSharedRange<TLegacyKey> ChunkLookupKeys;
 
-    // TODO(akozhikhov): Proper block fetcher: Create all partition sessions at the begining of the lookup session.
+    // TODO(akozhikhov): Proper block fetcher: Create all partition sessions at the beginning of the lookup session.
     // Right know we cannot do that because chunk reader may call Open in ctor and start reading blocks.
     bool SessionStarted = false;
 

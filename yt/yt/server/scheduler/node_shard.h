@@ -245,7 +245,7 @@ private:
     NProfiling::TCounter HeartbeatCount_;
     NProfiling::TCounter HeartbeatRequestProtoMessageBytes_;
     NProfiling::TCounter HeartbeatResponseProtoMessageBytes_;
-    NProfiling::TCounter HeartbeatRegesteredControllerAgentsBytes_;
+    NProfiling::TCounter HeartbeatRegisteredControllerAgentsBytes_;
 
     THashMap<TJobId, TJobUpdate> JobsToSubmitToStrategy_;
     std::atomic<int> SubmitToStrategyJobCount_;
@@ -301,7 +301,7 @@ private:
         bool ControlJobLifetimeAtScheduler;
     };
 
-    THashMap<TOperationId, TOperationState> IdToOpertionState_;
+    THashMap<TOperationId, TOperationState> IdToOperationState_;
     THashSet<TOperationId> WaitingForRegisterOperationIds_;
     TShardEpoch CurrentEpoch_ = 0;
 

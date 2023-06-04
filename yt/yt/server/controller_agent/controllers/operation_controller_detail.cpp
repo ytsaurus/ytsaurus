@@ -7184,7 +7184,7 @@ void TOperationControllerBase::ParseInputQuery(
 
         if (!Config->UdfRegistryPath) {
             THROW_ERROR_EXCEPTION("External UDF registry is not configured")
-                << TErrorAttribute("extenal_names", externalNames);
+                << TErrorAttribute("external_names", externalNames);
         }
 
         std::vector<std::pair<TString, TString>> keys;

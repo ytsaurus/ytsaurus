@@ -2141,7 +2141,7 @@ private:
                     candidates.insert(hunkChunk);
                 } else {
                     if (finalistIds.insert(hunkChunk->GetId()).second) {
-                        // NB: GetHunkCompactionReason will produce same result for each hunk chunk occurence.
+                        // NB: GetHunkCompactionReason will produce same result for each hunk chunk occurrence.
                         ++task->HunkChunkCountByReason[compactionReason];
                         YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                             "Hunk chunk is picked for compaction (HunkChunkId: %v, Reason: %v)",

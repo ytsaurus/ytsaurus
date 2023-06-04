@@ -400,7 +400,7 @@ private:
             YT_LOG_DEBUG("Snapshot list received");
 
             auto keys = ConvertTo<std::vector<TString>>(result);
-            int lastestSnapshotId = InvalidSegmentId;
+            int latestSnapshotId = InvalidSegmentId;
             for (const auto& key : keys) {
                 int id;
                 try {
@@ -411,12 +411,12 @@ private:
                         Path_);
                     continue;
                 }
-                if (id <= maxSnapshotId && id > lastestSnapshotId) {
-                    lastestSnapshotId = id;
+                if (id <= maxSnapshotId && id > latestSnapshotId) {
+                    latestSnapshotId = id;
                 }
             }
 
-            return lastestSnapshotId;
+            return latestSnapshotId;
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error computing the latest snapshot id in remote store")
                 << TErrorAttribute("snapshot_path", Path_)

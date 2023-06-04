@@ -116,7 +116,7 @@ public:
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 
-    //! Raised when connection prcoess starts.
+    //! Raised when connection process starts.
     //! Subscribers may throw and yield.
     DECLARE_SIGNAL(void(), MasterConnecting);
 

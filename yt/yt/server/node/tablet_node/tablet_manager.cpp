@@ -4444,7 +4444,7 @@ private:
             return;
         }
 
-        auto error = TError("Errors occured while deserializing tablet config")
+        auto error = TError("Errors occurred while deserializing tablet config")
             << TErrorAttribute("tablet_id", tablet->GetId())
             << configErrors;
         tablet->RuntimeData()->Errors.ConfigError.Store(error);

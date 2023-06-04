@@ -26,7 +26,7 @@ public:
     //! and false otherwise.
     bool Unlock(TTransactionId transactionId, EObjectLockMode lockMode);
 
-    //! Checkes if object is locked by some transaction
+    //! Checks if object is locked by some transaction
     //! either by shared of exclusive lock.
     bool IsLocked() const;
 

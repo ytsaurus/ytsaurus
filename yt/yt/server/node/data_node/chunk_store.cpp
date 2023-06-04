@@ -378,7 +378,7 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
         switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk: {
-                // NB: Unfortunaly we cannot ensure size equality of duplicate chunks
+                // NB: Unfortunately we cannot ensure size equality of duplicate chunks
                 // since different replicas may have different chunk meta formats.
 
                 // Remove duplicate replica.

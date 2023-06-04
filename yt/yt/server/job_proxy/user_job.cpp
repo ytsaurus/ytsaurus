@@ -931,7 +931,7 @@ private:
                 } else {
                     auto pids = GetPidsForInterrupt();
 
-                    YT_LOG_INFO("Sending interrup signal to user job (SignalName: %v, UserJobPids: %v)",
+                    YT_LOG_INFO("Sending interrupt signal to user job (SignalName: %v, UserJobPids: %v)",
                         signal,
                         pids);
 
@@ -1516,7 +1516,7 @@ private:
         YT_LOG_INFO("Error actions finished");
 
         // Then, wait for job process to finish.
-        // Theoretically, process could have explicitely closed its output pipes
+        // Theoretically, process could have explicitly closed its output pipes
         // but still be doing some computations.
         YT_VERIFY(WaitFor(processFinished).IsOK());
         YT_LOG_INFO("Job process finished (Error: %v)", JobErrorPromise_.ToFuture().TryGet());

@@ -282,7 +282,7 @@ public:
                     // These are two slices of the same unversioned chunk or versioned data slice.
                     //
                     // Note that our current implementation meets the following formal property.
-                    // Consider some "initial" data slice (one from chunk slice fetcher or intial
+                    // Consider some "initial" data slice (one from chunk slice fetcher or initial
                     // dynamic table slice). We claim that all resulting subslices are obtained from
                     // it by repeatedly splitting some subslice into two parts by either key bound or
                     // row limit.
@@ -669,7 +669,7 @@ private:
         ++JobIndex_;
     }
 
-    //! Decide if range of slices defned by their left endpoints must be added as a whole, or if it
+    //! Decide if range of slices defined by their left endpoints must be added as a whole, or if it
     //! May be added one by one with row slicing.
     ERowSliceabilityDecision DecideRowSliceability(TRange<TPrimaryEndpoint> endpoints, TKeyBound nextPrimaryLowerBound)
     {

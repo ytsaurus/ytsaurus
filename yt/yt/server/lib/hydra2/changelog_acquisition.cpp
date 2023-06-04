@@ -135,7 +135,7 @@ private:
     void OnRemoteChangelogAcquired(TPeerId id, const TInternalHydraServiceProxy::TErrorOrRspAcquireChangelogPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            YT_LOG_INFO(rspOrError, "Error aqcuiring changelog at follower (PeerId: %v)", id);
+            YT_LOG_INFO(rspOrError, "Error acquiring changelog at follower (PeerId: %v)", id);
             return;
         }
 

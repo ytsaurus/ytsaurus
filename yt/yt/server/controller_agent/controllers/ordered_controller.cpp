@@ -282,7 +282,7 @@ protected:
                 return false;
             }
 
-            // Remote copy jobs works with chunks as blobs and therfore are unsplittable.
+            // Remote copy jobs works with chunks as blobs and therefore are unsplittable.
             if (Controller_->GetOperationType() == EOperationType::RemoteCopy) {
                 return false;
             }

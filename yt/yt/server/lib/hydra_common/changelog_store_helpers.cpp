@@ -49,7 +49,7 @@ TChangelogStoreScanResult ScanChangelogStore(
         DeserializeMutationRecord(record, &header, &requestData);
 
         // All mutations have the same term in one changelog.
-        // (Of course I am not actualy sure in anything at this point, but this actually should be true.)
+        // (Of course I am not actually sure in anything at this point, but this actually should be true.)
         result.LastMutationTerm = header.term();
         result.LastMutationSequenceNumber = header.sequence_number();
     }

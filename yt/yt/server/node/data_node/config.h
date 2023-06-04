@@ -247,7 +247,7 @@ public:
     i64 MaxDataSize;
 
     //! Interval between automatic changelog rotation (to avoid keeping too many non-clean records
-    //! and speed up starup).
+    //! and speed up startup).
     TDuration AutoRotationPeriod;
 
     //! Maximum bytes of multiplexed changelog to read during
@@ -851,7 +851,7 @@ public:
     //! The enable_early_exit field has to be set to true in the request options for this option to have any effect.
     double ColumnarStatisticsReadTimeoutFraction;
 
-    //! Delay between node initializatin and start of background artifact validation.
+    //! Delay between node initialization and start of background artifact validation.
     TDuration BackgroundArtifactValidationDelay;
 
     //! Master connector config.

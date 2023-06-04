@@ -53,7 +53,7 @@ public:
 
 private:
     const NConcurrency::IThroughputThrottlerPtr InThrottler_;
-    const TChunkCachePtr ChunckCache_;
+    const TChunkCachePtr ChunkCache_;
 
     TFuture<void> RemoveChunks();
 

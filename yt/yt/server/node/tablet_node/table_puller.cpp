@@ -551,13 +551,13 @@ private:
                     : row.DeleteTimestamps()[0];
                 auto progressTimestamp = FindReplicationProgressTimestampForKey(*replicationProgress, row.Keys());
                 if (!progressTimestamp || progressTimestamp >= rowTimestamp) {
-                    YT_LOG_ALERT("Received inaproppriate row timestamp in pull rows response (RowTimestamp: %v, ProgressTimestamp: %v, Row: %v, Progress: %v)",
+                    YT_LOG_ALERT("Received inappropriate row timestamp in pull rows response (RowTimestamp: %v, ProgressTimestamp: %v, Row: %v, Progress: %v)",
                         rowTimestamp,
                         progressTimestamp,
                         row,
                         static_cast<TReplicationProgress>(*replicationProgress));
 
-                    THROW_ERROR_EXCEPTION("Inaproppriate row timestamp in pull rows response")
+                    THROW_ERROR_EXCEPTION("Inappropriate row timestamp in pull rows response")
                         << TErrorAttribute("row_timestamp", rowTimestamp)
                         << TErrorAttribute("progress_timestamp", progressTimestamp)
                         << HardErrorAttribute;
@@ -587,7 +587,7 @@ private:
                         row,
                         static_cast<TReplicationProgress>(*replicationProgress));
 
-                    THROW_ERROR_EXCEPTION("Inaproppriate row timestamp in pull rows response")
+                    THROW_ERROR_EXCEPTION("Inappropriate row timestamp in pull rows response")
                         << TErrorAttribute("row_timestamp", rowTimestamp)
                         << TErrorAttribute("progress_timestamp", progressTimestamp)
                         << HardErrorAttribute;
@@ -642,7 +642,7 @@ private:
                 localTransaction->AddAction(Slot_->GetCellId(), MakeTransactionActionData(req));
             }
 
-            YT_LOG_DEBUG("Commiting pull rows write transaction (TransactionId: %v, ReplicationRound: %v)",
+            YT_LOG_DEBUG("Committing pull rows write transaction (TransactionId: %v, ReplicationRound: %v)",
                 localTransaction->GetId(),
                 ReplicationRound_);
 
@@ -708,7 +708,7 @@ private:
         auto oldestTimestamp = GetReplicationProgressMinTimestamp(*progress);
         auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
 
-        YT_LOG_DEBUG("Replica is in pulling mode, consider jumping (ReplicaMode: %v, OldestTimestmap: %v, HistoryItemIndex: %v)",
+        YT_LOG_DEBUG("Replica is in pulling mode, consider jumping (ReplicaMode: %v, OldestTimestamp: %v, HistoryItemIndex: %v)",
             ETabletWriteMode::Pull,
             oldestTimestamp,
             historyItemIndex);

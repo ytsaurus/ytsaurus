@@ -267,7 +267,7 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Cell janitor cleanup completed (CellCount: %v, RemainingSnapshotBudget: %v, RemaingingChangelogBudget: %v)",
+        YT_LOG_DEBUG("Cell janitor cleanup completed (CellCount: %v, RemainingSnapshotBudget: %v, RemainingChangelogBudget: %v)",
             cellIds.size(),
             snapshotBudget,
             changelogBudget);

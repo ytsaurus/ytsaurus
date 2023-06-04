@@ -14,7 +14,7 @@ class TClockAutomaton
     : public NHydra::TCompositeAutomaton
 {
 public:
-    explicit TClockAutomaton(TBootstrap* boostrap);
+    explicit TClockAutomaton(TBootstrap* bootstrap);
 
 private:
     TBootstrap* const Bootstrap_;

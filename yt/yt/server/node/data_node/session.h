@@ -66,7 +66,7 @@ struct ISession
     //! Starts the session.
     /*!
      *  Returns the flag indicating that the session is persistently started.
-     *  For blob chunks this happens immediately (and the actually opening happens in backgound).
+     *  For blob chunks this happens immediately (and the actually opening happens in background).
      *  For journal chunks this happens when append record is flushed into the multiplexed changelog.
      */
     virtual TFuture<void> Start() = 0;

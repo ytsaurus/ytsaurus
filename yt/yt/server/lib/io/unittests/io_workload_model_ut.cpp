@@ -15,7 +15,7 @@ TEST(THistogramTest, Compute)
 
     hist.RecordValue(4);
     hist.RecordValue(0);
-    
+
     hist.RecordValue(8);
     hist.RecordValue(5);
     hist.RecordValue(6);
@@ -45,12 +45,12 @@ TEST(THistogramTest, Quantiles)
         hist.RecordValue(i, LargeValue);
     }
 
-    THistogramSummary sumary = ComputeHistogramSummary(hist);
+    auto summary = ComputeHistogramSummary(hist);
 
-    EXPECT_EQ(sumary.TotalCount, std::ssize(hist.GetBins()) * LargeValue);
-    EXPECT_EQ(sumary.P90, 900);
-    EXPECT_EQ(sumary.P99, 990);
-    EXPECT_EQ(sumary.P99_9, 999);
+    EXPECT_EQ(summary.TotalCount, std::ssize(hist.GetBins()) * LargeValue);
+    EXPECT_EQ(summary.P90, 900);
+    EXPECT_EQ(summary.P99, 990);
+    EXPECT_EQ(summary.P99_9, 999);
 }
 
 TEST(THistogramTest, QuantileBoundaryConditions)
@@ -58,20 +58,20 @@ TEST(THistogramTest, QuantileBoundaryConditions)
     TFixedBinsHistogramBase hist({4, 8, 16});
 
     {
-        THistogramSummary sumary = ComputeHistogramSummary(hist);
-        EXPECT_EQ(sumary.TotalCount, 0);
-        EXPECT_EQ(sumary.P90, 4);
-        EXPECT_EQ(sumary.P99, 4);
-        EXPECT_EQ(sumary.P99_9, 4);
+        auto summary = ComputeHistogramSummary(hist);
+        EXPECT_EQ(summary.TotalCount, 0);
+        EXPECT_EQ(summary.P90, 4);
+        EXPECT_EQ(summary.P99, 4);
+        EXPECT_EQ(summary.P99_9, 4);
     }
 
     hist.RecordValue(17);
     {
-        auto sumary = ComputeHistogramSummary(hist);
-        EXPECT_EQ(sumary.TotalCount, 1);
-        EXPECT_EQ(sumary.P90, 16);
-        EXPECT_EQ(sumary.P99, 16);
-        EXPECT_EQ(sumary.P99_9, 16);
+        auto summary = ComputeHistogramSummary(hist);
+        EXPECT_EQ(summary.TotalCount, 1);
+        EXPECT_EQ(summary.P90, 16);
+        EXPECT_EQ(summary.P99, 16);
+        EXPECT_EQ(summary.P99_9, 16);
     }
 }
 

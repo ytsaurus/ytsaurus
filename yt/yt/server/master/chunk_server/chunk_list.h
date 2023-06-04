@@ -97,7 +97,7 @@ public:
 
     bool HasCumulativeStatistics() const;
     bool HasAppendableCumulativeStatistics() const;
-    bool HasModifyableCumulativeStatistics() const;
+    bool HasModifiableCumulativeStatistics() const;
     bool HasTrimmableCumulativeStatistics() const;
     bool HasChildToIndexMapping() const;
 

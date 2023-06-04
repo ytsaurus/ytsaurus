@@ -96,7 +96,7 @@ public:
     //! Returns the vertex descriptor associated with a particular joblet of the task.
     virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptorForJoblet(const TJobletPtr& joblet) const;
 
-    //! Returns the list of all possible vertex desciptors for the task.
+    //! Returns the list of all possible vertex descriptors for the task.
     virtual TVertexDescriptorList GetAllVertexDescriptors() const;
 
     const std::vector<TOutputStreamDescriptorPtr>& GetOutputStreamDescriptors() const;
@@ -358,7 +358,7 @@ protected:
     //! Default implementation simply drops key bounds which is perfectly OK for non-sorted chunk pools.
     virtual void AdjustDataSliceForPool(const NChunkClient::TLegacyDataSlicePtr& dataSlice) const;
 
-    //! This method is called for each ouput data slice before serializing it to the job spec.
+    //! This method is called for each output data slice before serializing it to the job spec.
     //! It applies data slice input read limits from the InputChunkToReadBounds_ mapping.
     //! It is overridden only in the legacy version of sorted controller.
     void AdjustOutputKeyBounds(const NChunkClient::TLegacyDataSlicePtr& dataSlice) const;
@@ -469,7 +469,7 @@ private:
 
     void UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics);
 
-    void OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitonType) override;
+    void OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType) override;
 
     void AbortJobViaScheduler(TJobId jobId, NScheduler::EAbortReason abortReason) override;
     void AbortJobByController(TJobId jobId, NScheduler::EAbortReason abortReason) override;

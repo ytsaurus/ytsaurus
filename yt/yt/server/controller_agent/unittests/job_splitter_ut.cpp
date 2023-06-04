@@ -103,7 +103,7 @@ TJobId MakeResidualSplittableJob(const std::unique_ptr<IJobSplitter>& jobSplitte
     return residualJobId;
 }
 
-TEST(TJobSplitterTest, SplitLongAmongRunningInterruptableJob)
+TEST(TJobSplitterTest, SplitLongAmongRunningInterruptibleJob)
 {
     auto jobSplittingHost = New<TTestJobSplittingBase>();
     auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), jobSplittingHost.Get(), Logger);
@@ -118,7 +118,7 @@ TEST(TJobSplitterTest, SplitLongAmongRunningInterruptableJob)
     EXPECT_EQ(EJobSplitterVerdict::Split, jobSplitter->ExamineJob(slowJobId));
 }
 
-TEST(TJobSplitterTest, SpeculateLongAmongRunningNonInterruptableJob)
+TEST(TJobSplitterTest, SpeculateLongAmongRunningNonInterruptibleJob)
 {
     auto jobSplittingHost = New<TChunkPoolJobSplittingHostMock>();
     auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), jobSplittingHost.Get(), Logger);
@@ -138,7 +138,7 @@ TEST(TJobSplitterTest, SpeculateLongAmongRunningNonInterruptableJob)
     EXPECT_EQ(EJobSplitterVerdict::LaunchSpeculative, jobSplitter->ExamineJob(slowJobId));
 }
 
-TEST(TJobSplitterTest, SpeculateLongAmongRunningInterruptableJobWithTooSmallTotalDataWeight)
+TEST(TJobSplitterTest, SpeculateLongAmongRunningInterruptibleJobWithTooSmallTotalDataWeight)
 {
     auto jobSplittingHost = New<TTestJobSplittingBase>();
     auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), jobSplittingHost.Get(), Logger);
@@ -154,7 +154,7 @@ TEST(TJobSplitterTest, SpeculateLongAmongRunningInterruptableJobWithTooSmallTota
     EXPECT_EQ(EJobSplitterVerdict::LaunchSpeculative, jobSplitter->ExamineJob(slowJobId));
 }
 
-TEST(TJobSplitterTest, SplitResidualInterruptableJob)
+TEST(TJobSplitterTest, SplitResidualInterruptibleJob)
 {
     auto jobSplittingHost = New<TTestJobSplittingBase>();
     auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), jobSplittingHost.Get(), Logger);
@@ -170,7 +170,7 @@ TEST(TJobSplitterTest, SplitResidualInterruptableJob)
     EXPECT_EQ(EJobSplitterVerdict::Split, jobSplitter->ExamineJob(residualJobId));
 }
 
-TEST(TJobSplitterTest, SpeculateResidualNonInterruptableJob)
+TEST(TJobSplitterTest, SpeculateResidualNonInterruptibleJob)
 {
     auto jobSplittingHost = New<TChunkPoolJobSplittingHostMock>();
     auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), jobSplittingHost.Get(), Logger);
@@ -261,7 +261,7 @@ TEST(TJobSplitterTest, JobSpeculationIsDisabled)
     EXPECT_EQ(EJobSplitterVerdict::Split, jobSplitter->ExamineJob(residualJobId));
 }
 
-TEST(TJobSplitterTest, EverythingIsDiabled)
+TEST(TJobSplitterTest, EverythingIsDisabled)
 {
     auto jobSplittingHost = New<TTestJobSplittingBase>();
 

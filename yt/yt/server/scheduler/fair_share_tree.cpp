@@ -147,7 +147,7 @@ private:
     const bool AccumulateUsageForPools_;
     const bool AccumulateUsageForOperations_;
 
-    // This maps is updated regularly from some thread pool, no paralell updates are possible.
+    // This maps is updated regularly from some thread pool, no parallel updates are possible.
     THashMap<TString, TResourceVolume> LocalPoolToAccumulatedResourceUsage_;
     THashMap<TOperationId, TResourceVolume> LocalOperationIdToAccumulatedResourceUsage_;
     TInstant LastLocalUpdateTime_;
@@ -197,7 +197,7 @@ THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParameters
 //!
 //! We maintain following entities:
 //!
-//!   * Actual tree, it contains the latest and consistent stucture of pools and operations.
+//!   * Actual tree, it contains the latest and consistent structure of pools and operations.
 //!     This tree represented by fields #RootElement_, #OperationIdToElement_, #Pools_.
 //!     Update of this tree performed in sequentual manner from #Control thread.
 //!

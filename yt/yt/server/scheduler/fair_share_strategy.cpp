@@ -321,7 +321,7 @@ public:
         LastPoolTreesYson_ = {};
         LastTemplatePoolTreeConfigMapYson_ = {};
 
-        auto tempatePoolTreeConfigMap = Config_->TemplatePoolTreeConfigMap;
+        auto templatePoolTreeConfigMap = Config_->TemplatePoolTreeConfigMap;
 
         INodePtr poolTreesNode;
         try {
@@ -376,7 +376,7 @@ public:
                 poolsMap,
                 treeIdsToAdd,
                 treeIdsToRemove,
-                tempatePoolTreeConfigMap,
+                templatePoolTreeConfigMap,
                 &errors);
 
             // Check default tree pointer. It should point to some valid tree,
@@ -406,7 +406,7 @@ public:
             UpdateTreesConfigs(
                 poolsMap,
                 idToTree,
-                tempatePoolTreeConfigMap,
+                templatePoolTreeConfigMap,
                 &errors,
                 &updatedTreeIds);
 
@@ -450,7 +450,7 @@ public:
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
 
         LastPoolTreesYson_ = poolTreesYson;
-        LastTemplatePoolTreeConfigMapYson_ = ConvertToYsonString(tempatePoolTreeConfigMap);
+        LastTemplatePoolTreeConfigMapYson_ = ConvertToYsonString(templatePoolTreeConfigMap);
     }
 
     TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override

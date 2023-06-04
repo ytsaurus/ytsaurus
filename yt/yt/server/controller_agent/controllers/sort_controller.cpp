@@ -546,7 +546,7 @@ protected:
     //! i-th element is a multi chunk pool built over the inputs of i-th level partitions' shuffle chunk pools.
     std::vector<IMultiChunkPoolInputPtr> ShuffleMultiChunkPoolInputs;
 
-    //! i-th elemet is a input chunk mapping for i-th shuffle multi chunk pool input.
+    //! i-th element is a input chunk mapping for i-th shuffle multi chunk pool input.
     std::vector<TInputChunkMappingPtr> ShuffleMultiInputChunkMappings;
 
     //! i-th element is a partition task of i-th level.
@@ -2835,7 +2835,7 @@ protected:
     struct TPartitionProgress
     {
         std::vector<i64> Total;
-        std::vector<i64> Runnning;
+        std::vector<i64> Running;
         std::vector<i64> Completed;
     };
 
@@ -2883,7 +2883,7 @@ protected:
                     sizes[i] = 0;
                 }
             }
-            result.Runnning = AggregateValues(sizes, MaxProgressBuckets);
+            result.Running = AggregateValues(sizes, MaxProgressBuckets);
         }
         {
             for (int i = 0; i < std::ssize(finalPartitions); ++i) {
@@ -2930,7 +2930,7 @@ protected:
             .EndMap()
             .Item("partition_sizes").BeginMap()
                 .Item("total").Value(progress.Total)
-                .Item("running").Value(progress.Runnning)
+                .Item("running").Value(progress.Running)
                 .Item("completed").Value(progress.Completed)
             .EndMap()
             .Item("partition_size_histogram").Value(*sizeHistogram);
@@ -3539,7 +3539,7 @@ private:
         SortedMergeJobIOConfig = CloneYsonStruct(Spec->MergeJobIO);
 
         UnorderedMergeJobIOConfig = CloneYsonStruct(Spec->MergeJobIO);
-        // Since we're reading from huge number of paritition chunks, we must use larger buffers,
+        // Since we're reading from huge number of partition chunks, we must use larger buffers,
         // as we do for sort jobs.
         UnorderedMergeJobIOConfig->TableReader = CloneYsonStruct(Spec->SortJobIO->TableReader);
     }
