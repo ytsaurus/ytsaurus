@@ -116,7 +116,7 @@ TEST(FilterIntrospection, DefinedReference)
         "[/spec/year]>1990 OR ([/spec/publisher]=\"O'Relly\" AND [/spec/year]<=2000)",
          "/spec/year"));
 
-    // Not defined simle.
+    // Not defined simple.
     EXPECT_FALSE(RunIntrospectFilterForDefinedReference(
         "[/spec/year]=1",
         "/spec/name"));
