@@ -53,8 +53,9 @@ private:
     const IYPathServiceContextPtr UnderlyingContext_;
 };
 
-////////////////////////////////////////////////////////////////////////////////
+DEFINE_REFCOUNTED_TYPE(TYPathServiceContextWrapper)
 
+////////////////////////////////////////////////////////////////////////////////
 
 #define DECLARE_YPATH_SERVICE_METHOD(ns, method) \
     using TCtx##method = ::NYT::NYTree::TTypedYPathServiceContext<ns::TReq##method, ns::TRsp##method>; \
