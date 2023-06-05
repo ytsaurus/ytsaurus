@@ -19,6 +19,7 @@ from flaky import flaky
 import pytest
 import builtins
 import datetime
+import time
 from copy import deepcopy
 
 JOB_ARCHIVE_TABLE = "//sys/operations_archive/jobs"
@@ -384,6 +385,7 @@ class TestGetJob(_TestGetJobCommon):
     @authors("omgronny")
     def test_abort_unknown_jobs_in_archive(self):
         update_controller_agent_config("snapshot_period", 1000 * 1000)
+        time.sleep(1.0)
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
 
