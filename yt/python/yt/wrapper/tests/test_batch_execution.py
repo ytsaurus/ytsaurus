@@ -18,6 +18,7 @@ import datetime
 import tempfile
 import time
 import os
+import weakref
 
 
 @pytest.mark.usefixtures("yt_env")
@@ -381,6 +382,17 @@ class TestBatchExecution(object):
         client.commit_batch()
 
         assert [attrs.get_result() for attrs in nodes_attrs] == [user_attrs] * (len(supported_formats) + 1)
+
+    @authors("denvr")
+    def test_socket_hang(self):
+        def hang_socket():
+            client = yt.YtClient(config=yt.config.config)
+            client.list("/")
+            batch_client = create_batch_client(client=client)
+            return weakref.ref(batch_client), weakref.ref(client)
+        batch_client_ref, client_ref = hang_socket()
+
+        assert not batch_client_ref() and not client_ref(), "client not destroyed"
 
 
 @authors("levysotsky")
