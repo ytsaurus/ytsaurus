@@ -310,7 +310,6 @@ TChunkLocation::TChunkLocation(
     DynamicIOEngine_ = CreateDynamicIOEngine(
         StaticConfig_->IOEngineType,
         StaticConfig_->IOConfig,
-        StaticConfig_->EnableUring,
         Id_,
         Profiler_,
         DataNodeLogger.WithTag("LocationId: %v", Id_));
@@ -373,8 +372,7 @@ void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
 
     TDiskLocation::Reconfigure(config);
 
-    DynamicIOEngine_->SetType(config->IOEngineType);
-    DynamicIOEngine_->Reconfigure(config->IOConfig);
+    DynamicIOEngine_->SetType(config->IOEngineType, config->IOConfig);
 
     for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
         ReconfigurableThrottlers_[kind]->Reconfigure(config->Throttlers[kind]);

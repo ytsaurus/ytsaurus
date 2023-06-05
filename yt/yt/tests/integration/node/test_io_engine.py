@@ -116,11 +116,12 @@ class TestIoEngine(YTEnvSetup):
 
         use_engine("thread_pool")
         use_engine("fair_share_thread_pool")
+
         if not is_uring_supported() or is_uring_disabled():
             return
 
-        return  # uring is broken in CI
-        use_engine("uring")
+        # uring is broken in CI
+        # use_engine("uring")
 
 
 def parse_version(vstring):

@@ -13,32 +13,23 @@ class TDynamicIOEngine
 public:
     TDynamicIOEngine(
         EIOEngineType defaultEngineType,
-        NYTree::INodePtr ioConfig,
-        bool enableUring,
+        NYTree::INodePtr defaultIOConfig,
         TString locationId,
         NProfiling::TProfiler profiler,
         NLogging::TLogger logger)
-        : State_(New<TEngineState>(defaultEngineType))
-        , ProxyInvoker_(New<TProxyInvoker>(State_))
-        , AuxPoolInvoker_(ProxyInvoker_)
+        : LocationId_(std::move(locationId))
+        , Profiler_(std::move(profiler))
+        , Logger(std::move(logger))
     {
+        SetType(defaultEngineType, defaultIOConfig);
+        YT_LOG_INFO("Dynamic IO engine initialized (Type: %v)",
+            defaultEngineType);
+
         for (auto engineType : GetSupportedIOEngineTypes()) {
-            // We have to check available system resources each time we create new io_uring engine.
-            if (IsUringBasedIOEngine(engineType) && !enableUring) {
-                continue;
-            }
-
-            State_->Engines[engineType] = CreateIOEngine(
-                engineType,
-                ioConfig,
-                locationId,
-                profiler,
-                logger);
-
-            profiler
+            Profiler_
                 .WithRequiredTag("engine_type", FormatEnum(engineType))
                 .AddFuncGauge("/engine_enabled", MakeStrong(this), [this, engineType] {
-                    return State_->CurrentType == engineType;
+                    return CurrentType_.load(std::memory_order::relaxed) == engineType ? 1.0 : 0.0;
                 });
         }
     }
@@ -50,7 +41,7 @@ public:
         TSessionId sessionId,
         bool useDedicatedAllocations) override
     {
-        return GetEngine()->Read(std::move(requests), category, tagCookie, sessionId, useDedicatedAllocations);
+        return GetCurrentEngine()->Read(std::move(requests), category, tagCookie, sessionId, useDedicatedAllocations);
     }
 
     TFuture<void> Write(
@@ -58,14 +49,14 @@ public:
         EWorkloadCategory category,
         TSessionId sessionId) override
     {
-        return GetEngine()->Write(std::move(request), category, sessionId);
+        return GetCurrentEngine()->Write(std::move(request), category, sessionId);
     }
 
     TFuture<void> FlushFile(
         TFlushFileRequest request,
         EWorkloadCategory category) override
     {
-        return GetEngine()->FlushFile(std::move(request), category);
+        return GetCurrentEngine()->FlushFile(std::move(request), category);
     }
 
     TFuture<void> FlushFileRange(
@@ -73,71 +64,101 @@ public:
         EWorkloadCategory category,
         TSessionId sessionId) override
     {
-        return GetEngine()->FlushFileRange(std::move(request), category, sessionId);
+        return GetCurrentEngine()->FlushFileRange(std::move(request), category, sessionId);
     }
 
     TFuture<void> FlushDirectory(
         TFlushDirectoryRequest request,
         EWorkloadCategory category) override
     {
-        return GetEngine()->FlushDirectory(std::move(request), category);
+        return GetCurrentEngine()->FlushDirectory(std::move(request), category);
     }
 
     TFuture<TIOEngineHandlePtr> Open(
         TOpenRequest request,
         EWorkloadCategory category) override
     {
-        return GetEngine()->Open(std::move(request), category);
+        return GetCurrentEngine()->Open(std::move(request), category);
     }
 
     TFuture<void> Close(
         TCloseRequest request,
         EWorkloadCategory category) override
     {
-        return GetEngine()->Close(std::move(request), category);
+        return GetCurrentEngine()->Close(std::move(request), category);
     }
 
     TFuture<void> Allocate(
         TAllocateRequest request,
         EWorkloadCategory category) override
     {
-        return GetEngine()->Allocate(std::move(request), category);
+        return GetCurrentEngine()->Allocate(std::move(request), category);
     }
 
     TFuture<void> Lock(
         TLockRequest request,
         EWorkloadCategory category) override
     {
-        return GetEngine()->Lock(std::move(request), category);
+        return GetCurrentEngine()->Lock(std::move(request), category);
     }
 
     TFuture<void> Resize(
         TResizeRequest request,
         EWorkloadCategory category) override
     {
-        return GetEngine()->Resize(std::move(request), category);
+        return GetCurrentEngine()->Resize(std::move(request), category);
     }
 
     bool IsSick() const override
     {
-        return GetEngine()->IsSick();
+        return GetCurrentEngine()->IsSick();
     }
 
-    void SetType(EIOEngineType type) override
+    void SetType(
+        EIOEngineType type,
+        const NYTree::INodePtr& ioConfig) override
     {
-        State_->CurrentType = type;
+        auto guard = Guard(Lock_);
+
+        auto& entry = TypeToEntry_[type];
+        if (entry.Initialized.load()) {
+            try {
+                entry.Engine->Reconfigure(ioConfig);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error reconfiguring %Qlv IO engine",
+                    type)
+                    << ex;
+            }
+        } else {
+            try {
+                entry.Engine = CreateIOEngine(
+                    type,
+                    ioConfig,
+                    LocationId_,
+                    Profiler_,
+                    Logger);
+                entry.Initialized.store(true);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error creating %Qlv IO engine",
+                    type)
+                    << ex;
+            }
+        }
+
+        CurrentType_.store(type);
+
+        YT_LOG_INFO("Dynamic IO engine reconfigured (Type: %v)",
+            type);
     }
 
     void Reconfigure(const NYTree::INodePtr& dynamicIOConfig) override
     {
-        ForAllEngines([dynamicIOConfig] (const IIOEnginePtr& engine) {
-            return engine->Reconfigure(dynamicIOConfig);
-        });
+        GetCurrentEngine()->Reconfigure(dynamicIOConfig);
     }
 
     const IInvokerPtr& GetAuxPoolInvoker() override
     {
-        return AuxPoolInvoker_;
+        return GetCurrentEngine()->GetAuxPoolInvoker();
     }
 
     i64 GetTotalReadBytes() const override
@@ -160,92 +181,37 @@ public:
 
     EDirectIOPolicy UseDirectIOForReads() const override
     {
-        return GetEngine()->UseDirectIOForReads();
+        return GetCurrentEngine()->UseDirectIOForReads();
     }
 
 private:
-    struct TEngineState final
-    {
-        explicit TEngineState(EIOEngineType type)
-            : CurrentType(type)
-        { }
+    const TString LocationId_;
+    const NProfiling::TProfiler Profiler_;
+    const NLogging::TLogger Logger;
 
-        std::atomic<EIOEngineType> CurrentType;
-        TEnumIndexedVector<EIOEngineType, IIOEnginePtr> Engines;
+    YT_DECLARE_SPIN_LOCK(mutable NThreading::TSpinLock, Lock_);
+
+    struct TEngineEntry
+    {
+        std::atomic<bool> Initialized = false;
+        IIOEnginePtr Engine;
     };
 
-    struct TProxyInvoker
-        : public IInvoker
+    std::atomic<EIOEngineType> CurrentType_;
+    mutable TEnumIndexedVector<EIOEngineType, TEngineEntry> TypeToEntry_;
+
+    const IIOEnginePtr& GetCurrentEngine() const
     {
-        explicit TProxyInvoker(TIntrusivePtr<TEngineState> state)
-            : State(state)
-        { }
-
-        TIntrusivePtr<TEngineState> State;
-
-        void Invoke(TClosure callback) override
-        {
-            return State->Engines[State->CurrentType.load()]->GetAuxPoolInvoker()->Invoke(callback);
-        }
-
-        void Invoke(TMutableRange<TClosure> callbacks) override
-        {
-            for (auto& callback : callbacks) {
-                Invoke(std::move(callback));
-            }
-        }
-
-        NThreading::TThreadId GetThreadId() const override
-        {
-            return NThreading::InvalidThreadId;
-        }
-
-        bool CheckAffinity(const IInvokerPtr& invoker) const override
-        {
-            if (this == invoker) {
-                return true;
-            }
-
-            for (auto engine : State->Engines) {
-                if (!engine) {
-                    continue;
-                }
-
-                if (engine->GetAuxPoolInvoker()->CheckAffinity(invoker)) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        bool IsSerialized() const override
-        {
-            for (auto engine : State->Engines) {
-                if (engine && !engine->GetAuxPoolInvoker()->IsSerialized()) {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-    };
-
-    TIntrusivePtr<TEngineState> State_;
-    TIntrusivePtr<TProxyInvoker> ProxyInvoker_;
-    IInvokerPtr AuxPoolInvoker_;
-
-    const IIOEnginePtr& GetEngine() const
-    {
-        return State_->Engines[State_->CurrentType.load()];
+        auto type = CurrentType_.load(std::memory_order::relaxed);
+        return TypeToEntry_[type].Engine;
     }
 
     template <class TFn>
     void ForAllEngines(const TFn& cb) const
     {
-        for (const auto& engine : State_->Engines) {
-            if (engine) {
-                cb(engine);
+        for (const auto& entry : TypeToEntry_) {
+            if (entry.Initialized.load()) {
+                cb(entry.Engine);
             }
         }
     }
@@ -258,18 +224,16 @@ DEFINE_REFCOUNTED_TYPE(TDynamicIOEngine)
 IDynamicIOEnginePtr CreateDynamicIOEngine(
     EIOEngineType defaultEngineType,
     NYTree::INodePtr ioConfig,
-    bool enableUring,
     TString locationId,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger)
 {
     return New<TDynamicIOEngine>(
         defaultEngineType,
-        ioConfig,
-        enableUring,
-        locationId,
-        profiler,
-        logger);
+        std::move(ioConfig),
+        std::move(locationId),
+        std::move(profiler),
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
