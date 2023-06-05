@@ -510,8 +510,8 @@ private:
         {"table_chunk_format_statistics", std::make_shared<DB::DataTypeString>()}, // YSON.
         {"hunk_statistics",         std::make_shared<DB::DataTypeString>()}, // YSON.
 
-        {"tablet_count",            std::make_shared<DB::DataTypeInt64>()}, // From resources_usage.
-        {"master_memory",           std::make_shared<DB::DataTypeInt64>()}, // From resources_usage.
+        {"tablet_count",            std::make_shared<DB::DataTypeInt64>()}, // From resource_usage.
+        {"master_memory",           std::make_shared<DB::DataTypeInt64>()}, // From resource_usage.
     });
 };
 
