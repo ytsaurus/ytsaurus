@@ -173,9 +173,9 @@ public:
         return Tid_;
     }
 
-    const TString& GetThreadName() const
+    TStringBuf GetThreadName() const
     {
-        return ThreadName_;
+        return ThreadName_.ToStringBuf();
     }
 
     NConcurrency::TFiberId GetFid() const
@@ -264,7 +264,7 @@ private:
     TInstant Datetime_;
     TProcessId Pid_ = 0;
     NThreading::TThreadId Tid_ = NThreading::InvalidThreadId;
-    TString ThreadName_;
+    TThreadName ThreadName_;
     NConcurrency::TFiberId Fid_ = NConcurrency::InvalidFiberId;
     NTracing::TTraceId TraceId_ = NTracing::InvalidTraceId;
     NTracing::TSpanId SpanId_ = NTracing::InvalidSpanId;
@@ -283,7 +283,7 @@ private:
         Datetime_ = TInstant::Now();
         Pid_ = GetPID();
         Tid_ = TThread::CurrentThreadId();
-        ThreadName_ = GetCurrentThreadName().ToString();
+        ThreadName_ = GetCurrentThreadName();
         Fid_ = NConcurrency::GetCurrentFiberId();
         if (const auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
             TraceId_ = traceContext->GetTraceId();
@@ -513,7 +513,7 @@ NThreading::TThreadId TError::GetTid() const
     return Impl_->GetTid();
 }
 
-const TString& TError::GetThreadName() const
+TStringBuf TError::GetThreadName() const
 {
     if (!Impl_) {
         static TString empty;
