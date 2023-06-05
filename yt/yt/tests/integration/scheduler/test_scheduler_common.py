@@ -984,6 +984,7 @@ class TestSchedulerCommonMulticell(TestSchedulerCommon):
 ##################################################################
 
 
+@pytest.mark.opensource
 class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
     NUM_NODES = 3
