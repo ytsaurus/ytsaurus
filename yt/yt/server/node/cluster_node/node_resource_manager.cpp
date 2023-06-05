@@ -526,8 +526,19 @@ void TNodeResourceManager::UpdateMemoryLimits()
 
     auto limits = GetMemoryLimits();
 
-    // TODO(gritukan): Subtract watermark?
-    memoryUsageTracker->SetTotalLimit(Limits_.Load().Memory);
+    auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
+    i64 freeMemoryWatermark = dynamicConfig->FreeMemoryWatermark.value_or(*config->FreeMemoryWatermark);
+    i64 totalMemory = Limits_.Load().Memory;
+
+    if (totalMemory >= freeMemoryWatermark) {
+        totalMemory -= freeMemoryWatermark;
+    } else {
+        YT_LOG_WARNING("Free memory watermark more than total memory (FreeMemoryWatermark: %v, TotalMemory: %v)",
+            freeMemoryWatermark,
+            totalMemory);
+    }
+
+    memoryUsageTracker->SetTotalLimit(totalMemory);
 
     for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
         const auto& limit = limits[category];
@@ -552,7 +563,7 @@ void TNodeResourceManager::UpdateMemoryLimits()
         memoryUsageTracker->GetUsed(EMemoryCategory::UserJobs));
     auto selfMemoryGuarantee = std::max(
         static_cast<i64>(0),
-        Limits_.Load().Memory - externalMemory - config->MemoryAccountingGap);
+        totalMemory - externalMemory - config->MemoryAccountingGap);
     if (std::abs(selfMemoryGuarantee - SelfMemoryGuarantee_) > config->MemoryAccountingTolerance) {
         SelfMemoryGuarantee_ = selfMemoryGuarantee;
         SelfMemoryGuaranteeUpdated_.Fire(SelfMemoryGuarantee_);
