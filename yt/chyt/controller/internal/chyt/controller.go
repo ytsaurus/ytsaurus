@@ -106,12 +106,12 @@ func (c *Controller) buildCommand(speclet *Speclet) string {
 
 	var args []string
 	args = append(args, trampolinePath, chytPath)
-	args = append(args, "--monitoring-port", "10142", "--log-tailer-monitoring-port", "10242")
+	args = append(args, "--monitoring-port", "10142")
 	if speclet.EnableGeoDataOrDefault() {
 		args = append(args, "--prepare-geodata")
 	}
 	if c.config.EnableLogTailerOrDefault() {
-		args = append(args, "--log-tailer-bin", logTailerPath)
+		args = append(args, "--log-tailer-bin", logTailerPath, "--log-tailer-monitoring-port", "10242")
 	}
 	return strings.Join(args, " ")
 }
