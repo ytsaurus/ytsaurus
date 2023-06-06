@@ -6972,7 +6972,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
     }
 
 
-    auto proxy = CreateObjectServiceWriteProxy(OutputClient);
+    auto proxy = CreateObjectServiceReadProxy(OutputClient, EMasterChannelKind::Follower);
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& files : GetValues(UserJobFiles_)) {
