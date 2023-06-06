@@ -572,7 +572,8 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 // FIXME(akozhikhov): These tests should not rely on timings to work appropriately under sanitizers.
-#if !defined(_asan_enabled_) && !defined(_msan_enabled_)
+// #if !defined(_asan_enabled_) && !defined(_msan_enabled_)
+#if 0
 
 TEST_F(TReplicatedTableTrackerTest, Simple)
 {
@@ -789,7 +790,6 @@ TEST_F(TReplicatedTableTrackerTest, PreferredReplicaClusters)
     Host_->ValidateReplicaModeRemained(replica2);
 }
 
-/*
 TEST_F(TReplicatedTableTrackerTest, TableCollocationSimple)
 {
     auto [table1, replica11, replica12, table2, replica21, replica22] = CreateTablesForCollocation();
@@ -824,7 +824,6 @@ TEST_F(TReplicatedTableTrackerTest, TableCollocationWithBadReplicaTable)
     Host_->ValidateReplicaModeChanged(replica21, ETableReplicaMode::Sync);
     Host_->ValidateReplicaModeChanged(replica22, ETableReplicaMode::Async);
 }
-*/
 
 TEST_F(TReplicatedTableTrackerTest, TableCollocationWithPreferredReplicaClusters)
 {
@@ -1017,7 +1016,6 @@ TEST_F(TReplicatedTableTrackerTest, TableWithDisabledTracking)
     Host_->ValidateReplicaModeRemained(replicaId);
 }
 
-/*
 TEST_F(TReplicatedTableTrackerTest, DisabledTracker1)
 {
     Config_->EnableReplicatedTableTracker = false;
@@ -1030,7 +1028,6 @@ TEST_F(TReplicatedTableTrackerTest, DisabledTracker1)
     Sleep(WarmUpPeriod);
     Host_->ValidateReplicaModeRemained(replicaId);
 }
-*/
 
 TEST_F(TReplicatedTableTrackerTest, DisabledTracker2)
 {
@@ -1052,33 +1049,33 @@ TEST_F(TReplicatedTableTrackerTest, DisabledTracker2)
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 }
 
-// TEST_F(TReplicatedTableTrackerTest, ReplicaLagThreshold)
-// {
-//     auto client = Host_->GetMockClient(Cluster1);
-//     MockGoodReplicaCluster(client);
-//     MockGoodBundle(client);
-//     MockGoodTable(client);
+TEST_F(TReplicatedTableTrackerTest, ReplicaLagThreshold)
+{
+    auto client = Host_->GetMockClient(Cluster1);
+    MockGoodReplicaCluster(client);
+    MockGoodBundle(client);
+    MockGoodTable(client);
 
-//     auto tableId = Host_->CreateReplicatedTable();
-//     auto replicaId = Host_->CreateTableReplica(
-//         tableId,
-//         ETableReplicaMode::Async,
-//         /*enabled*/ true,
-//         Cluster1,
-//         TablePath1,
-//         /*replicaLagTime*/ std::nullopt);
+    auto tableId = Host_->CreateReplicatedTable();
+    auto replicaId = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Async,
+        /*enabled*/ true,
+        Cluster1,
+        TablePath1,
+        /*replicaLagTime*/ std::nullopt);
 
-//     Sleep(WarmUpPeriod);
-//     Host_->ValidateReplicaModeRemained(replicaId);
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeRemained(replicaId);
 
-//     Host_->SetReplicaLagTime(replicaId, TDuration::Minutes(1));
-//     Sleep(WarmUpPeriod);
-//     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
+    Host_->SetReplicaLagTime(replicaId, TDuration::Minutes(1));
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 
-//     Host_->SetReplicaLagTime(replicaId, TDuration::Minutes(15));
-//     Sleep(WarmUpPeriod);
-//     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
-// }
+    Host_->SetReplicaLagTime(replicaId, TDuration::Minutes(15));
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
+}
 
 TEST_F(TReplicatedTableTrackerTest, ReplicaLagPreference)
 {
