@@ -1024,7 +1024,7 @@ private:
                 YT_VERIFY(Volumes_.erase(volumeId));
 
                 if (Volumes_.size() == 0) {
-                    VolumesReleaseEvent_ = MakePromise(TError());
+                    VolumesReleaseEvent_.Set();
                 }
             }
         } catch (const std::exception& ex) {
