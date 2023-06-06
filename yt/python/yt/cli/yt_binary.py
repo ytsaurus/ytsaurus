@@ -1175,6 +1175,48 @@ def add_list_queue_consumer_registrations_parser(add_parser):
     add_structured_format_argument(parser)
 
 
+@copy_docstring_from(yt.pull_queue)
+def pull_queue(print_statistics=None, **kwargs):
+    result = yt.pull_queue(raw=True, **kwargs)
+    write_silently(chunk_iter_stream(result, yt.config["read_buffer_size"]))
+
+
+def add_pull_queue_parser(add_parser):
+    parser = add_parser("pull-queue", pull_queue)
+    add_ypath_argument(parser, "queue_path", hybrid=True)
+    parser.add_argument("--offset", type=int, required=True)
+    parser.add_argument("--partition-index", type=int, required=True)
+    parser.add_argument("--max-row-count", type=int)
+    parser.add_argument("--max-data-weight", type=int)
+    add_structured_format_argument(parser)
+
+
+@copy_docstring_from(yt.pull_consumer)
+def pull_consumer(print_statistics=None, **kwargs):
+    result = yt.pull_consumer(raw=True, **kwargs)
+    write_silently(chunk_iter_stream(result, yt.config["read_buffer_size"]))
+
+
+def add_pull_consumer_parser(add_parser):
+    parser = add_parser("pull-consumer", pull_consumer)
+    add_ypath_argument(parser, "consumer_path", hybrid=True)
+    add_ypath_argument(parser, "queue_path", hybrid=True)
+    parser.add_argument("--offset", type=int, required=True)
+    parser.add_argument("--partition-index", type=int, required=True)
+    parser.add_argument("--max-row-count", type=int)
+    parser.add_argument("--max-data-weight", type=int)
+    add_structured_format_argument(parser)
+
+
+def add_advance_consumer_parser(add_parser):
+    parser = add_parser("advance-consumer", yt.advance_consumer)
+    add_ypath_argument(parser, "consumer_path", hybrid=True)
+    add_ypath_argument(parser, "queue_path", hybrid=True)
+    parser.add_argument("--partition-index", type=int, required=True)
+    parser.add_argument("--old-offset", type=int)
+    parser.add_argument("--new-offset", type=int, required=True)
+
+
 @copy_docstring_from(yt.start_query)
 def start_query(*args, **kwargs):
     query_id = yt.start_query(*args, **kwargs)
@@ -2552,6 +2594,9 @@ def main_func():
     add_register_queue_consumer_parser(add_parser)
     add_unregister_queue_consumer_parser(add_parser)
     add_list_queue_consumer_registrations_parser(add_parser)
+    add_pull_queue_parser(add_parser)
+    add_pull_consumer_parser(add_parser)
+    add_advance_consumer_parser(add_parser)
 
     add_start_query_parser(add_parser)
     add_abort_query_parser(add_parser)

@@ -900,6 +900,30 @@ def list_queue_consumer_registrations(queue_path=None, consumer_path=None,  **kw
     return execute_command("list_queue_consumer_registrations", kwargs, parse_yson=True)
 
 
+def pull_queue(queue_path, offset, partition_index, **kwargs):
+    kwargs["queue_path"] = queue_path
+    kwargs["offset"] = offset
+    kwargs["partition_index"] = partition_index
+    return execute_command_with_output_format("pull_queue", kwargs)
+
+
+def pull_consumer(consumer_path, queue_path, offset, partition_index, **kwargs):
+    kwargs["consumer_path"] = consumer_path
+    kwargs["queue_path"] = queue_path
+    kwargs["offset"] = offset
+    kwargs["partition_index"] = partition_index
+    return execute_command_with_output_format("pull_consumer", kwargs)
+
+
+def advance_consumer(consumer_path, queue_path, partition_index, old_offset, new_offset, **kwargs):
+    kwargs["consumer_path"] = consumer_path
+    kwargs["queue_path"] = queue_path
+    kwargs["partition_index"] = partition_index
+    kwargs["old_offset"] = old_offset
+    kwargs["new_offset"] = new_offset
+    return execute_command("advance_consumer", kwargs)
+
+
 def start_transaction(**kwargs):
     return execute_command("start_tx", kwargs, parse_yson=True)
 

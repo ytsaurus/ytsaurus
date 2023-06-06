@@ -43,6 +43,13 @@ REGISTRATION_TABLE_SCHEMA = [
 DEFAULT_ROOT = "//sys/queue_agents"
 DEFAULT_REGISTRATION_TABLE_PATH = DEFAULT_ROOT + "/consumer_registrations"
 
+CONSUMER_OBJECT_TABLE_SCHEMA = [
+    {"name": "queue_cluster", "type": "string", "sort_order": "ascending", "required": True},
+    {"name": "queue_path", "type": "string", "sort_order": "ascending", "required": True},
+    {"name": "partition_index", "type": "uint64", "sort_order": "ascending", "required": True},
+    {"name": "offset", "type": "uint64", "required": True},
+]
+
 
 def create_table(client, path, schema, **kwargs):
     client.create("table", path, attributes={"dynamic": True, "schema": schema}, **kwargs)

@@ -3,7 +3,8 @@ from yt_chaos_test_base import ChaosTestBase
 from yt_commands import (authors, wait, get, set, create, sync_mount_table, create_table_replica, get_driver,
                          sync_enable_table_replica, select_rows, print_debug, check_permission, register_queue_consumer,
                          unregister_queue_consumer, list_queue_consumer_registrations, raises_yt_error, create_user,
-                         sync_create_cells, remove)
+                         sync_create_cells, remove, pull_queue, pull_consumer, advance_consumer, insert_rows,
+                         start_transaction, commit_transaction)
 
 from yt_env_setup import (
     Restarter,
@@ -64,9 +65,7 @@ class QueueConsumerRegistration:
                    r["vital"], cls._normalize_partitions(r["partitions"]))
 
 
-class TestConsumerRegistrations(ChaosTestBase):
-    NUM_TEST_PARTITIONS = 3
-
+class TestQueueConsumerApiBase(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 2
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -85,7 +84,7 @@ class TestConsumerRegistrations(ChaosTestBase):
         return [get_driver(cluster=cluster) for cluster in clusters]
 
     def setup_method(self, method):
-        super(TestConsumerRegistrations, self).setup_method(method)
+        super(TestQueueConsumerApiBase, self).setup_method(method)
 
         primary_cell_tag = get("//sys/@primary_cell_tag")
         for driver in self._get_drivers():
@@ -222,6 +221,22 @@ class TestConsumerRegistrations(ChaosTestBase):
 
         wait(config_updated)
 
+    def _apply_registration_table_config(self, config):
+        config_patch = {
+            "state_write_path": config["state_write_path"],
+            "state_read_path": config["state_read_path"],
+            "bypass_caching": config.get("bypass_caching", False),
+            "cache_refresh_period": 250,
+            "configuration_refresh_period": 500,
+        }
+
+        for cluster in self.get_cluster_names():
+            self._apply_dynamic_config_patch(config_patch, cluster)
+
+
+class TestConsumerRegistrations(TestQueueConsumerApiBase):
+    NUM_TEST_PARTITIONS = 3
+
     @staticmethod
     def _replica_registrations_are(local_replica_path, expected_registrations, driver):
         registrations = {QueueConsumerRegistration.from_select(r)
@@ -268,18 +283,6 @@ class TestConsumerRegistrations(ChaosTestBase):
                                    for driver in self._get_drivers())
         return replica_registrations and cached_registrations
 
-    def _apply_registration_table_config(self, config):
-        config_patch = {
-            "state_write_path": config["state_write_path"],
-            "state_read_path": config["state_read_path"],
-            "bypass_caching": False,
-            "cache_refresh_period": 250,
-            "configuration_refresh_period": 500,
-        }
-
-        for cluster in self.get_cluster_names():
-            self._apply_dynamic_config_patch(config_patch, cluster)
-
     # The tests below are parametrized with a function that creates a registration table.
     # It returns a dict with the resulting configuration options:
     #     local_replica_path: path to local registration table on clusters where it exists
@@ -291,9 +294,9 @@ class TestConsumerRegistrations(ChaosTestBase):
 
     @authors("achulkov2")
     @pytest.mark.parametrize("create_registration_table", [
-        _create_simple_registration_table,
-        _create_replicated_registration_table,
-        _create_chaos_registration_table,
+        TestQueueConsumerApiBase._create_simple_registration_table,
+        TestQueueConsumerApiBase._create_replicated_registration_table,
+        TestQueueConsumerApiBase._create_chaos_registration_table,
     ])
     def test_api_and_permissions(self, create_registration_table):
         config = create_registration_table(self)
@@ -381,7 +384,7 @@ class TestConsumerRegistrations(ChaosTestBase):
 
     @authors("achulkov2")
     @pytest.mark.parametrize("create_registration_table", [
-        _create_simple_registration_table,
+        TestQueueConsumerApiBase._create_simple_registration_table,
     ])
     def test_list_registrations(self, create_registration_table):
         config = create_registration_table(self)
@@ -466,9 +469,9 @@ class TestConsumerRegistrations(ChaosTestBase):
 
     @authors("achulkov2")
     @pytest.mark.parametrize("create_registration_table", [
-        _create_simple_registration_table,
-        _create_replicated_registration_table,
-        _create_chaos_registration_table,
+        TestQueueConsumerApiBase._create_simple_registration_table,
+        TestQueueConsumerApiBase._create_replicated_registration_table,
+        TestQueueConsumerApiBase._create_chaos_registration_table,
     ])
     def test_write_availability(self, create_registration_table):
         config = create_registration_table(self)
@@ -511,9 +514,9 @@ class TestConsumerRegistrations(ChaosTestBase):
 
     @authors("achulkov2")
     @pytest.mark.parametrize("create_registration_table", [
-        _create_simple_registration_table,
-        _create_replicated_registration_table,
-        _create_chaos_registration_table,
+        TestQueueConsumerApiBase._create_simple_registration_table,
+        TestQueueConsumerApiBase._create_replicated_registration_table,
+        TestQueueConsumerApiBase._create_chaos_registration_table,
     ])
     def test_read_availability(self, create_registration_table):
         config = create_registration_table(self)
@@ -546,3 +549,137 @@ class TestConsumerRegistrations(ChaosTestBase):
                 wait(lambda: self._registrations_are(local_replica_path, replica_clusters - {cluster}, {
                     (queue_cluster, "//tmp/q", consumer_cluster, "//tmp/c", True),
                 }), ignore_exceptions=True)
+
+
+class TestDataApi(TestQueueConsumerApiBase):
+    NUM_TEST_PARTITIONS = 2
+
+    def setup_method(self, method):
+        super().setup_method(method)
+
+        config = self._create_simple_registration_table()
+        config["bypass_caching"] = True
+        self._apply_registration_table_config(config)
+
+    # No tear down, since //tmp is cleared automatically.
+
+    DEFAULT_QUEUE_SCHEMA = [
+        {"name": "data", "type": "string"}
+    ]
+
+    @staticmethod
+    def _create_queue(path, schema=None, mount=True, **kwargs):
+        attributes = {
+            "dynamic": True,
+            "schema": schema if schema is not None else TestDataApi.DEFAULT_QUEUE_SCHEMA,
+        }
+        attributes.update(kwargs)
+        create("table", path, attributes=attributes)
+        if mount:
+            sync_mount_table(path)
+
+    @staticmethod
+    def _create_consumer(path, mount=True, **kwargs):
+        attributes = {
+            "dynamic": True,
+            "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+            "treat_as_queue_consumer": True,
+        }
+        attributes.update(kwargs)
+        create("table", path, attributes=attributes)
+        if mount:
+            sync_mount_table(path)
+
+    @authors("achulkov2")
+    def test_pull_queue(self):
+        self._create_queue("//tmp/q")
+
+        insert_rows("//tmp/q", [{"data": "foo"}])
+        insert_rows("//tmp/q", [{"data": "bar"}])
+
+        assert pull_queue("//tmp/q", offset=1, partition_index=0) == [
+            {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
+        ]
+
+        assert pull_queue("//tmp/q", offset=0, partition_index=0, max_row_count=1) == [
+            {"$tablet_index": 0, "$row_index": 0, "data": "foo"},
+        ]
+
+        assert pull_queue("//tmp/q", offset=0, partition_index=0) == [
+            {"$tablet_index": 0, "$row_index": 0, "data": "foo"},
+            {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
+        ]
+
+        assert pull_queue("//tmp/q", offset=0, partition_index=0, max_data_weight=5) == [
+            {"$tablet_index": 0, "$row_index": 0, "data": "foo"},
+        ]
+
+    @authors("achulkov2")
+    def test_pull_consumer(self):
+        self._create_queue("//tmp/q")
+        self._create_consumer("//tmp/c")
+
+        insert_rows("//tmp/q", [{"data": "foo"}])
+        insert_rows("//tmp/q", [{"data": "bar"}])
+
+        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
+            pull_consumer("//tmp/c", "//tmp/q", offset=1, partition_index=0)
+
+        register_queue_consumer("//tmp/q", "//tmp/c", vital=False)
+
+        assert pull_consumer("//tmp/c", "//tmp/q", offset=1, partition_index=0) == [
+            {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
+        ]
+
+        assert pull_consumer("//tmp/c", "//tmp/q", offset=0, partition_index=0, max_row_count=1) == [
+            {"$tablet_index": 0, "$row_index": 0, "data": "foo"},
+        ]
+
+        assert pull_consumer("//tmp/c", "//tmp/q", offset=0, partition_index=0) == [
+            {"$tablet_index": 0, "$row_index": 0, "data": "foo"},
+            {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
+        ]
+
+        assert pull_consumer("//tmp/c", "//tmp/q", offset=0, partition_index=0, max_data_weight=5) == [
+            {"$tablet_index": 0, "$row_index": 0, "data": "foo"},
+        ]
+
+    @authors("achulkov2")
+    def test_advance_consumer(self):
+        self._create_consumer("//tmp/c")
+
+        def get_offset(queue, partition_index=0):
+            rows = select_rows(
+                f"* from [//tmp/c] where [queue_path] = \"{queue}\" and [partition_index] = {partition_index}")
+            assert len(rows) <= 1
+            if rows:
+                return rows[0]["offset"]
+            return None
+
+        assert get_offset("//tmp/q1") is None
+
+        advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=None, new_offset=3)
+        assert get_offset("//tmp/q1") == 3
+
+        with raises_yt_error(yt_error_codes.ConsumerOffsetConflict):
+            advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=4, new_offset=5)
+
+        advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=3, new_offset=5)
+        assert get_offset("//tmp/q1") == 5
+
+        advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=None, new_offset=7)
+        assert get_offset("//tmp/q1") == 7
+
+        advance_consumer("//tmp/c", "//tmp/q2", partition_index=0, old_offset=0, new_offset=42)
+        assert get_offset("//tmp/q2") == 42
+
+        tx = start_transaction(type="tablet")
+        advance_consumer("//tmp/c", "//tmp/q3", partition_index=0, old_offset=None, new_offset=1543, transaction_id=tx)
+        advance_consumer("//tmp/c", "//tmp/q4", partition_index=0, old_offset=None, new_offset=1543, transaction_id=tx)
+
+        assert get_offset("//tmp/q3") is None
+        assert get_offset("//tmp/q4") is None
+
+        commit_transaction(tx)
+        assert get_offset("//tmp/q3") == 1543
+        assert get_offset("//tmp/q4") == 1543
