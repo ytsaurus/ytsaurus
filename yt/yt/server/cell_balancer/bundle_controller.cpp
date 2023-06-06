@@ -273,7 +273,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Setting new remote address for orchid node (OldValue: %Qv, NewValue: %Qv)",
+        YT_LOG_INFO("Setting new remote address for orchid node (OldValue: %v, NewValue: %v)",
             ConvertToYsonString(currentRemoteAddress, EYsonFormat::Text),
             ConvertToYsonString(addresses, EYsonFormat::Text));
 

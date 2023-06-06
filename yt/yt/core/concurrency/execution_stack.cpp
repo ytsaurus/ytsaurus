@@ -199,7 +199,7 @@ int GetFiberStackPoolSize(EExecutionStackKind stackKind)
 void SetFiberStackPoolSize(EExecutionStackKind stackKind, int poolSize)
 {
     if (poolSize < 0) {
-        YT_LOG_FATAL("Invalid fiber stack pool size (Size: %v, Kind: %Qlv)",
+        YT_LOG_FATAL("Invalid fiber stack pool size (Size: %v, Kind: %v)",
             poolSize,
             stackKind);
     }

@@ -556,12 +556,12 @@ private:
                         !error.FindMatching(EPortoErrorCode::ContainerDoesNotExist))
                     {
                         destroyed = false;
-                        YT_LOG_WARNING(error, "Failed to destroy subcontainers of %Qv",
+                        YT_LOG_WARNING(error, "Failed to destroy subcontainers (Container: %v)",
                             rootContainer);
                     }
                 }
             } else {
-                YT_LOG_WARNING(result, "Failed to destroy subcontainers of %Qv",
+                YT_LOG_WARNING(result, "Failed to destroy subcontainers (Container: %v)",
                     rootContainer);
             }
 

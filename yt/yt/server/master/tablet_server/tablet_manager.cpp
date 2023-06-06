@@ -4957,9 +4957,9 @@ private:
                 // - TRspFreezeTablet finally arrives while the tablet is in mounting state
                 // However, forced unmount should be done for this to happen, and only superusers
                 // have the permission for it.
-                YT_LOG_ALERT("Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
-                    state,
-                    tabletId);
+                YT_LOG_ALERT("Mounted notification received for a tablet in wrong state, ignored (TabletId: %v, State: %v)",
+                    tabletId,
+                    state);
             }
             return;
         }
@@ -5064,9 +5064,9 @@ private:
         auto state = tablet->GetState();
         if (state != ETabletState::Freezing) {
             if (!tablet->GetWasForcefullyUnmounted()) {
-                YT_LOG_ALERT("Frozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
-                    state,
-                    tabletId);
+                YT_LOG_ALERT("Frozen notification received for a tablet in wrong state, ignored (TabletId: %v, State: %v)",
+                    tabletId,
+                    state);
             }
             return;
         }
@@ -5112,9 +5112,9 @@ private:
         auto state = tablet->GetState();
         if (state != ETabletState::Unfreezing) {
             if (!tablet->GetWasForcefullyUnmounted()) {
-                YT_LOG_ALERT("Unfrozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
-                    state,
-                    tabletId);
+                YT_LOG_ALERT("Unfrozen notification received for a tablet in wrong state, ignored (TabletId: %v, State: %v)",
+                    tabletId,
+                    state);
             }
             return;
         }

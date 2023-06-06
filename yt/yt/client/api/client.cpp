@@ -556,13 +556,12 @@ std::optional<TStringBuf> TClusterAwareClientBase::GetClusterName(bool fetchIfNu
 
 std::optional<TString> TClusterAwareClientBase::FetchClusterNameFromMasterCache()
 {
-    constexpr auto clusterNamePath = "//sys/@cluster_name";
-
     TGetNodeOptions options;
     options.ReadFrom = EMasterChannelKind::MasterCache;
-    auto clusterNameYsonOrError = WaitFor(GetNode(clusterNamePath, options));
+    auto clusterNameYsonOrError = WaitFor(GetNode(ClusterNamePath, options));
     if (!clusterNameYsonOrError.IsOK()) {
-        YT_LOG_WARNING(clusterNameYsonOrError, "Could not fetch cluster name from %Qv from master cache", clusterNamePath);
+        YT_LOG_WARNING(clusterNameYsonOrError, "Could not fetch cluster name from from master cache (Path: %v)",
+            ClusterNamePath);
         return {};
     }
     return ConvertTo<TString>(clusterNameYsonOrError.Value());

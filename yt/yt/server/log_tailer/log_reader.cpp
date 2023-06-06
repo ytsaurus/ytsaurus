@@ -245,7 +245,7 @@ void TLogFileReader::DoReadBuffer()
                     try {
                         record = ParseLogRecord(Buffer_);
                     } catch (const std::exception& ex) {
-                        YT_LOG_DEBUG(ex, "Cannot parse log record (Offset: %v, RecordPrefix: %Qv)",
+                        YT_LOG_DEBUG(ex, "Cannot parse log record (Offset: %v, RecordPrefix: %v)",
                             FileOffset_ + index - Buffer_.size(),
                             Buffer_.substr(20));
                         TotalUnparsedRows_.Increment();

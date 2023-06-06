@@ -585,7 +585,7 @@ private:
         if (!inserted) {
             YT_ASSERT(mappingIt->second->PoolName == poolName);
         } else {
-            YT_LOG_TRACE("Creating pool (PoolName: %Qv)", poolName);
+            YT_LOG_TRACE("Creating pool (PoolName: %v)", poolName);
             mappingIt->second = std::make_unique<TExecutionPool>(
                 poolName,
                 Profiler_.WithTags(GetBucketTags(ThreadNamePrefix_, poolName)));
