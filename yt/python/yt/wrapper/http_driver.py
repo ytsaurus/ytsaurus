@@ -7,7 +7,7 @@ from .errors import (YtError, YtProxyUnavailable, YtConcurrentOperationsLimitExc
                      create_http_response_error)
 from .format import JsonFormat
 from .http_helpers import (make_request_with_retries, get_token, get_http_api_version, get_http_api_commands,
-                           get_proxy_url, get_error_from_headers, get_header_format, ProxyProvider, TVM_ONLY_HTTP_PROXY_PORT)
+                           get_proxy_address_url, get_error_from_headers, get_header_format, ProxyProvider, TVM_ONLY_HTTP_PROXY_PORT)
 from .response_stream import ResponseStream
 
 import yt.logger as logger
@@ -54,7 +54,7 @@ class HeavyProxyProvider(ProxyProvider):
         self.ban_errors = (ConnectionError, BadStatusLine, SocketError, YtRequestTimedOut, YtProxyUnavailable)
 
     def _get_light_proxy(self):
-        return get_proxy_url(client=self.client)
+        return get_proxy_address_url(client=self.client)
 
     def __call__(self):
         now = datetime.now()
@@ -97,23 +97,22 @@ class HeavyProxyProvider(ProxyProvider):
             logger.info("Proxy %s banned", proxy)
             self.state.banned_proxies[proxy] = datetime.now()
 
-    def _configure_proxy_port(self, proxy):
+    def _configure_proxy(self, proxy):
+        # set up port for TVM and add schema
         tvm_only = get_config(self.client)["proxy"]["tvm_only"]
-        if not tvm_only:
-            return proxy
-
-        if ":" in proxy:
-            raise YtError('Cannot create TVM-only proxy for {}'.format(proxy))
-
-        return "{}:{}".format(proxy, TVM_ONLY_HTTP_PROXY_PORT)
+        if tvm_only:
+            if ":" in proxy:
+                raise YtError('Cannot create TVM-only proxy for {}'.format(proxy))
+            proxy = "{}:{}".format(proxy, TVM_ONLY_HTTP_PROXY_PORT)
+        return get_proxy_address_url(client=self.client, replace_host=proxy)
 
     def _discover_heavy_proxies(self):
         discovery_url = get_config(self.client)["proxy"]["proxy_discovery_url"]
         heavy_proxies = make_request_with_retries(
             "get",
-            "http://{0}/{1}".format(self._get_light_proxy(), discovery_url),
+            "{0}/{1}".format(self._get_light_proxy(), discovery_url),
             client=self.client).json()
-        return list(map(self._configure_proxy_port, heavy_proxies))
+        return list(map(self._configure_proxy, heavy_proxies))
 
 
 class TokenAuth(AuthBase):
@@ -210,7 +209,7 @@ def make_request(command_name,
         retry_action = None
 
     # prepare url.
-    url_pattern = "http://{proxy}/{api}/{command}"
+    url_pattern = "{proxy}/{api}/{command}"
     if use_heavy_proxy:
         proxy_provider_state = get_option("_heavy_proxy_provider_state", client)
         if proxy_provider_state is None:
@@ -220,7 +219,7 @@ def make_request(command_name,
         url = url_pattern.format(proxy="{proxy}", api=api_path, command=command_name)
     else:
         proxy_provider = None
-        url = url_pattern.format(proxy=get_proxy_url(client=client), api=api_path, command=command_name)
+        url = url_pattern.format(proxy=get_proxy_address_url(client=client), api=api_path, command=command_name)
 
     # prepare params, format and headers
     header_format = get_header_format(client)

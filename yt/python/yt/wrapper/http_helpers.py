@@ -17,9 +17,11 @@ from yt.common import _pretty_format_for_logging, get_fqdn as _get_fqdn
 try:
     from yt.packages.six import reraise, add_metaclass, PY3, iterbytes, iteritems
     from yt.packages.six.moves import xrange, map as imap
+    from yt.packages.six.moves.urllib.parse import urlparse
 except ImportError:
     from six import reraise, add_metaclass, PY3, iterbytes, iteritems
     from six.moves import xrange, map as imap
+    from six.moves.urllib.parse import urlparse
 
 import os
 import sys
@@ -119,6 +121,16 @@ def _setup_new_session(client):
     configure_ip(session,
                  get_config(client)["proxy"]["force_ipv4"],
                  get_config(client)["proxy"]["force_ipv6"])
+
+    ca_bundle_path = get_config(client)["proxy"]["ca_bundle_path"]
+    if ca_bundle_path:
+        if os.path.exists(ca_bundle_path):
+            if os.environ.get("REQUESTS_CA_BUNDLE"):
+                logger.warning("CA override (%s -> %s)", ca_bundle_path, os.environ.get("REQUESTS_CA_BUNDLE"))
+            os.environ["REQUESTS_CA_BUNDLE"] = ca_bundle_path
+        else:
+            logger.error("CA file is absent (%s)", ca_bundle_path)
+
     return session
 
 
@@ -157,6 +169,7 @@ def configure_ip(session, force_ipv4=False, force_ipv6=False):
                                                                  socket_af=protocol,
                                                                  **kwargs)
         session.mount("http://", HTTPAdapter())
+        session.mount("https://", HTTPAdapter())
 
 
 def get_error_from_headers(headers):
@@ -454,29 +467,67 @@ def make_request_with_retries(method, url=None, **kwargs):
     return RequestRetrier(method=method, url=url, **kwargs).run()
 
 
-def get_proxy_url(required=True, client=None):
-    """Extracts proxy url from client and checks that url is specified."""
-    proxy = get_config(client=client)["proxy"]["url"]
+def _get_proxy_url_parts(required=True, client=None, replace_host=None):
+    """Get proxy url parts from config or params (try to guess scheme from config)
+    """
+    proxy = replace_host if replace_host else get_config(client=client)["proxy"]["url"]
 
-    if proxy is not None and "." not in proxy and "localhost" not in proxy and ":" not in proxy:
-        proxy = proxy + get_config(client=client)["proxy"]["default_suffix"]
+    if proxy is None:
+        if required:
+            require(proxy, lambda: YtError("You should specify proxy"))
+        return None, None
 
+    if "//" not in proxy:
+        proxy = "//" + proxy
+    parts = urlparse(proxy)
+    scheme, hostname, port = parts.scheme, parts.hostname, parts.port
+
+    # tyr get scheme from config
+    if replace_host and not scheme and get_config(client=client)["proxy"]["url"].startswith("https://"):
+        scheme = "https"
+
+    # expand aliases
+    if "." not in hostname and "localhost" not in hostname and not port and not scheme:
+        hostname = hostname + get_config(client=client)["proxy"]["default_suffix"]
+
+    # tvm host
     tvm_only = get_config(client=client)["proxy"]["tvm_only"]
-    if tvm_only and ":" not in proxy:
-        proxy = "tvm.{}:{}".format(proxy, TVM_ONLY_HTTP_PROXY_PORT)
+    if tvm_only and not port:
+        hostname = "tvm." + hostname
+        port = TVM_ONLY_HTTP_PROXY_PORT
 
-    if required:
-        require(proxy, lambda: YtError("You should specify proxy"))
+    # force scheme
+    prefer_https = get_config(client=client)["proxy"]["prefer_https"]
+    if not scheme:
+        scheme = "https" if prefer_https else "http"
 
-    return proxy
+    return (scheme, hostname + (":" + str(port) if port else ""))
+
+
+def get_proxy_address_netloc(required=True, client=None, replace_host=None):
+    scheme, netloc = _get_proxy_url_parts(required=required, client=client, replace_host=replace_host)
+    return netloc
+
+
+def get_proxy_address_url(required=True, client=None, add_path=None, replace_host=None):
+    scheme, netloc = _get_proxy_url_parts(required=required, client=client, replace_host=replace_host)
+    if not netloc:
+        return None
+    if add_path and not add_path.startswith("/"):
+        add_path = "/" + add_path
+    return "{}://{}{}".format(scheme, netloc, add_path if add_path else "")
+
+
+def get_proxy_url(required=True, client=None):
+    # legacy
+    return get_proxy_address_netloc(required=required, client=client)
 
 
 def _request_api(version=None, client=None):
-    proxy = get_proxy_url(client=client)
     location = "api" if version is None else "api/" + version
     return make_request_with_retries(
         "get",
-        "http://{0}/{1}".format(proxy, location),
+        get_proxy_address_url(client=client, add_path=location),
         response_format="json",
         client=client
     ).json()
@@ -650,7 +701,6 @@ def get_user_name(token=None, headers=None, client=None):
         token = get_token(client=client)
 
     version = get_http_api_version(client=client)
-    proxy = get_proxy_url(client=client)
 
     if version in ("v3", "v4"):
         if headers is None:
@@ -667,7 +717,7 @@ def get_user_name(token=None, headers=None, client=None):
 
     response = make_request_with_retries(
         "post",
-        "http://{0}/auth/{1}".format(proxy, verb),
+        get_proxy_address_url(client=client, add_path="/auth/{}".format(verb)),
         headers=headers,
         data=data,
         client=client)
@@ -678,8 +728,8 @@ def get_user_name(token=None, headers=None, client=None):
 
 
 def get_cluster_name(client=None):
-    proxy_url = get_proxy_url(required=False, client=client)
+    proxy_url = get_proxy_address_netloc(required=False, client=client)
     default_suffix = get_config(client)["proxy"]["default_suffix"]
-    if proxy_url is not None and proxy_url.endswith(default_suffix):
+    if proxy_url is not None and default_suffix and proxy_url.endswith(default_suffix.lower()):
         return proxy_url[:-len(default_suffix)]
     return None
