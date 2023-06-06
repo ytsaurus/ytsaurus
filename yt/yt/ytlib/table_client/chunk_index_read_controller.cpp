@@ -6,7 +6,8 @@
 
 #include <yt/yt/client/table_client/comparator.h>
 
-#include <yt/yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/library/numeric/algorithm_helpers.h>
+
 #include <yt/yt/core/misc/checksum.h>
 
 namespace NYT::NTableClient {

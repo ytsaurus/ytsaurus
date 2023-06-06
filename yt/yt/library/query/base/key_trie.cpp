@@ -1,7 +1,7 @@
 #include "key_trie.h"
 #include "query_helpers.h"
 
-#include <yt/yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <deque>
 #include <tuple>

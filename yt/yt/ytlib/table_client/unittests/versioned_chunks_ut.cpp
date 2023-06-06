@@ -35,10 +35,11 @@
 
 #include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
+#include <yt/yt/library/numeric/algorithm_helpers.h>
+
 #include <yt/yt/core/compression/public.h>
 
 #include <yt/yt/core/misc/random.h>
-#include <yt/yt/core/misc/algorithm_helpers.h>
 
 #include <yt/yt/core/misc/range_formatters.h>
 

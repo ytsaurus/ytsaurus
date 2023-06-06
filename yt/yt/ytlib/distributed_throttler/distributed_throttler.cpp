@@ -7,7 +7,6 @@
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/misc/algorithm_helpers.h>
 #include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/historic_usage_aggregator.h>
 
@@ -17,6 +16,7 @@
 #include <yt/yt/ytlib/discovery_client/member_client.h>
 
 #include <yt/yt/library/numeric/binary_search.h>
+#include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 

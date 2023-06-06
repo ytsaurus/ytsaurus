@@ -120,10 +120,10 @@
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/yt/core/misc/algorithm_helpers.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/error.h>

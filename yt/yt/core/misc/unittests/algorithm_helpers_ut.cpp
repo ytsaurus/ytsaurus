@@ -1,6 +1,6 @@
-#include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/library/numeric/algorithm_helpers.h>
 
-#include <yt/yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT {
 namespace {
