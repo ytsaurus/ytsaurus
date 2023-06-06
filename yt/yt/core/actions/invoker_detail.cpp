@@ -45,7 +45,7 @@ bool TInvokerWrapper::IsSerialized() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProfileWrapper::TProfileWrapper(NProfiling::IRegistryImplPtr registry, const TString& invokerFamily, const TString& invokerName)
+TInvokerProfileWrapper::TInvokerProfileWrapper(NProfiling::IRegistryImplPtr registry, const TString& invokerFamily, const TString& invokerName)
 {
     NProfiling::TTagSet tagSet;
     tagSet.AddTag(std::pair<TString, TString>("invoker", invokerName));
@@ -53,15 +53,15 @@ TProfileWrapper::TProfileWrapper(NProfiling::IRegistryImplPtr registry, const TS
     WaitTimer_ = profiler.Timer(invokerFamily + "/wait");
 }
 
-TClosure TProfileWrapper::WrapCallback(TClosure callback)
+TClosure TInvokerProfileWrapper::WrapCallback(TClosure callback)
 {
     auto invokedAt = GetCpuInstant();
 
     return BIND([invokedAt, waitTimer = WaitTimer_, callback = std::move(callback)] {
-        // Measure the time from WrapCallback() to callback.Run().
+        // Measure the time from WrapCallback() to callback().
         auto waitTime = CpuDurationToDuration(GetCpuInstant() - invokedAt);
         waitTimer.Record(waitTime);
-        callback.Run();
+        callback();
     });
 }
 
