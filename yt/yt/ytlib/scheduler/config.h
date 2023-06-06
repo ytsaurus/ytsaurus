@@ -821,7 +821,7 @@ class TColumnarStatisticsConfig
     : public NYTree::TYsonStruct
 {
 public:
-    bool Enabled;
+    std::optional<bool> Enabled;
 
     NTableClient::EColumnarStatisticsFetcherMode Mode;
 
