@@ -14,15 +14,17 @@ import scala.util.control.NonFatal
 
 object SpytSnapshot {
   lazy val clientSnapshotProcess: Seq[ReleaseStep] = Seq(
+    ReleaseStep(releaseStepTask(prepareBuildDirectory)),
     clientSnapshotVersions,
     setSnapshotClientVersion,
     releaseStepTask(spytUpdatePythonVersion),
     releaseStepTask(spytPublishClient),
-    dumpClientVersion,
+    dumpVersions,
     logClientVersion
   )
 
   lazy val clusterSnapshotProcess: Seq[ReleaseStep] = Seq(
+    ReleaseStep(releaseStepTask(prepareBuildDirectory)),
     clusterSnapshotVersions,
     setClusterSnapshotVersion,
     clientSnapshotVersions,
@@ -30,11 +32,11 @@ object SpytSnapshot {
     releaseStepTask(spytUpdatePythonVersion),
     releaseStepTask(spytPublishCluster),
     releaseStepTask(spytPublishClient),
-    dumpClusterVersion,
-    dumpClientVersion,
+    dumpVersions
   )
 
   lazy val sparkForkSnapshotProcess: Seq[ReleaseStep] = Seq(
+    ReleaseStep(releaseStepTask(prepareBuildDirectory)),
     sparkForkSnapshotVersions,
     setSparkForkSnapshotVersion,
     clusterSnapshotVersions,
@@ -46,9 +48,7 @@ object SpytSnapshot {
     ReleaseStep(releaseStepTask(spytPublishSparkFork)),
     ReleaseStep(releaseStepTask(spytPublishCluster)),
     ReleaseStep(releaseStepTask(spytPublishClient)),
-    dumpSparkForkVersion,
-    dumpClusterVersion,
-    dumpClientVersion
+    dumpVersions
   )
 
   case class SnapshotVersion(main: String,

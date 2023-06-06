@@ -12,13 +12,14 @@ import java.io.File
 
 object SpytRelease {
   lazy val clientReleaseProcess: Seq[ReleaseStep] = testProcess ++ Seq(
+    ReleaseStep(releaseStepTask(prepareBuildDirectory)),
     clientReleaseVersions,
     setReleaseClientVersion,
     setYtProxies,
     ReleaseStep(releaseStepTask(spytUpdatePythonVersion)),
     ReleaseStep(releaseStepTask(spytPublishClient)),
     ReleaseStep(releaseStepTask(spytPublishLibraries)),
-    dumpClientVersion,
+    dumpVersions,
     commitReleaseClientVersion,  // TODO(alex-shishkin): Fix vcs auto-commit
     setNextClientVersion,
     ReleaseStep(releaseStepTask(spytUpdatePythonVersion)),
@@ -28,6 +29,7 @@ object SpytRelease {
   )
 
   lazy val clusterReleaseProcess: Seq[ReleaseStep] = testProcess ++ Seq(
+    ReleaseStep(releaseStepTask(prepareBuildDirectory)),
     minorReleaseVersions,
     setReleaseClusterVersion,
     setReleaseClientVersion,
@@ -35,8 +37,7 @@ object SpytRelease {
     ReleaseStep(releaseStepTask(spytUpdatePythonVersion)),
     ReleaseStep(releaseStepTask(spytPublishCluster)),
     ReleaseStep(releaseStepTask(spytPublishClient)),
-    dumpClusterVersion,
-    dumpClientVersion,
+    dumpVersions,
     commitReleaseClusterVersion,
     setNextClientVersion,
     setNextClusterVersion,
@@ -48,6 +49,7 @@ object SpytRelease {
   )
 
   lazy val sparkForkReleaseProcess: Seq[ReleaseStep] = testProcess ++ Seq(
+    ReleaseStep(releaseStepTask(prepareBuildDirectory)),
     minorReleaseVersions,
     setReleaseClusterVersion,
     setReleaseClientVersion,
@@ -59,9 +61,7 @@ object SpytRelease {
     ReleaseStep(releaseStepTask(spytPublishSparkFork)),
     ReleaseStep(releaseStepTask(spytPublishCluster)),
     ReleaseStep(releaseStepTask(spytPublishClient)),
-    dumpSparkForkVersion,
-    dumpClusterVersion,
-    dumpClientVersion,
+    dumpVersions,
     commitReleaseClusterVersion,
     commitReleaseSparkForkVersion,
     setNextClientVersion,
