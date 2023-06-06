@@ -210,6 +210,8 @@ public:
 
     bool RetryRequestQueueSizeLimitExceeded;
 
+    TString Role;
+
     TCoordinatorConfigPtr Coordinator;
     TApiConfigPtr Api;
 

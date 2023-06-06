@@ -120,6 +120,9 @@ public:
                 .OrchidRemoteAddresses = localAddresses,
                 .CreateAliveChild = true,
                 .EnableImplicitInitialization = false,
+                .AttributesOnCreation = BuildAttributeDictionaryFluently()
+                    .Item(RoleAttributeName).Value(Config_->Role)
+                    .Finish(),
                 .AttributesOnStart = BuildAttributeDictionaryFluently()
                     .Item(VersionAttributeName).Value(GetVersion())
                     .Item(StartTimeAttributeName).Value(TInstant::Now())
