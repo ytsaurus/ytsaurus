@@ -3,7 +3,7 @@ package yson
 import (
 	"fmt"
 
-	"golang.org/x/xerrors"
+	"go.ytsaurus.tech/library/go/core/xerrors"
 )
 
 // SliceYPathAttrs splits ypath into attributes and path.

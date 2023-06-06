@@ -3,7 +3,7 @@ package yson
 import (
 	"reflect"
 
-	"golang.org/x/xerrors"
+	"go.ytsaurus.tech/library/go/core/xerrors"
 )
 
 // InferAttrs infers attribute names from struct.

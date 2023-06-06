@@ -13,8 +13,8 @@ import (
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/nop"
 	zaplog "go.ytsaurus.tech/library/go/core/log/zap"
+	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/guid"
-	"golang.org/x/xerrors"
 )
 
 type Config struct {

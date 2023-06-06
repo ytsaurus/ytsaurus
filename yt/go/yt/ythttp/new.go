@@ -4,10 +4,10 @@ package ythttp
 import (
 	"testing"
 
+	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/mapreduce"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/internal/httpclient"
-	"golang.org/x/xerrors"
 )
 
 func checkNotInsideJob(c *yt.Config) error {

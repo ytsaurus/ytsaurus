@@ -9,8 +9,8 @@ import (
 	"fmt"
 
 	"github.com/gofrs/uuid"
+	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/yson"
-	"golang.org/x/xerrors"
 )
 
 // GUID is 16-byte value.
