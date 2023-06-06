@@ -900,7 +900,7 @@ private:
 
         const auto& identity = context->GetAuthenticationIdentity();
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(AccessChecker_->ValidateAccess(identity.User));
+        THROW_ERROR_EXCEPTION_IF_FAILED(AccessChecker_->CheckAccess(identity.User));
 
         SecurityManager_->ValidateUser(identity.User);
 
