@@ -661,7 +661,7 @@ public:
         } catch (const std::exception& ex) {
             BIND(&IJobResourceManager::TImpl::OnResourcesAcquisitionFailed,
                 MakeStrong(this),
-                Passed(std::move(resourceHolder)),
+                resourceHolder,
                 Passed(std::move(userSlot)),
                 Passed(std::move(gpuSlots)),
                 Passed(std::move(ports)),
