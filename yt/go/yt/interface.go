@@ -43,7 +43,7 @@ import (
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
-//go:generate yt-gen-client -interface interface.go -output internal/params.go
+//go:generate yt-gen-client -interface interface.go -output internal/params_gen.go
 
 // TransactionOptions control transactional context of cypress command.
 //
@@ -758,15 +758,15 @@ type AddMemberOptions struct {
 }
 
 type BuildMasterSnapshotsOptions struct {
-	SetReadOnly               *bool `yson:"set_read_only,omitnil"`
-	WaitForSnapshotCompletion *bool `yson:"wait_for_snapshot_completion,omitnil"`
-	Retry                     *bool `yson:"retry,omitnil"`
+	SetReadOnly               *bool `http:"set_read_only,omitnil"`
+	WaitForSnapshotCompletion *bool `http:"wait_for_snapshot_completion,omitnil"`
+	Retry                     *bool `http:"retry,omitnil"`
 }
 
 type BuildSnapshotOptions struct {
-	CellID                    *guid.GUID `yson:"cell_id,omitnil"`
-	SetReadOnly               *bool      `yson:"set_read_only,omitnil"`
-	WaitForSnapshotCompletion *bool      `yson:"wait_for_snapshot_completion,omitnil"`
+	CellID                    *guid.GUID `http:"cell_id,omitnil"`
+	SetReadOnly               *bool      `http:"set_read_only,omitnil"`
+	WaitForSnapshotCompletion *bool      `http:"wait_for_snapshot_completion,omitnil"`
 }
 
 type RemoveMemberOptions struct {
@@ -780,6 +780,15 @@ type CheckPermissionOptions struct {
 	*MasterReadOptions
 
 	Columns []string `http:"columns,omitnil"`
+}
+
+type DisableChunkLocationsOptions struct {
+}
+
+type DestroyChunkLocationsOptions struct {
+}
+
+type ResurrectChunkLocationsOptions struct {
 }
 
 type CheckPermissionResult struct {
@@ -808,15 +817,15 @@ type BuildSnapshotResponse struct {
 }
 
 type DisableChunkLocationsResponse struct {
-	LocationUuids []guid.GUID
+	LocationUUIDs []guid.GUID
 }
 
 type DestroyChunkLocationsResponse struct {
-	LocationUuids []guid.GUID
+	LocationUUIDs []guid.GUID
 }
 
 type ResurrectChunkLocationsResponse struct {
-	LocationUuids []guid.GUID
+	LocationUUIDs []guid.GUID
 }
 
 type AdminClient interface {
@@ -886,7 +895,8 @@ type AdminClient interface {
 	DisableChunkLocations(
 		ctx context.Context,
 		nodeAddress string,
-		locationUuids []guid.GUID,
+		locationUUIDs []guid.GUID,
+		options *DisableChunkLocationsOptions,
 	) (result *DisableChunkLocationsResponse, err error)
 
 	// http:verb:"destroy_chunk_locations"
@@ -894,7 +904,8 @@ type AdminClient interface {
 	DestroyChunkLocations(
 		ctx context.Context,
 		nodeAddress string,
-		locationUuids []guid.GUID,
+		locationUUIDs []guid.GUID,
+		options *DestroyChunkLocationsOptions,
 	) (result *DestroyChunkLocationsResponse, err error)
 
 	// http:verb:"resurrect_chunk_locations"
@@ -902,7 +913,8 @@ type AdminClient interface {
 	ResurrectChunkLocations(
 		ctx context.Context,
 		nodeAddress string,
-		locationUuids []guid.GUID,
+		locationUUIDs []guid.GUID,
+		options *ResurrectChunkLocationsOptions,
 	) (result *ResurrectChunkLocationsResponse, err error)
 }
 

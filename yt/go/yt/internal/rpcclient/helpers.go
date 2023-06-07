@@ -357,7 +357,7 @@ func makeDisableChunkLocationsResponse(response *rpc_proxy.TRspDisableChunkLocat
 	}
 
 	ret := &yt.DisableChunkLocationsResponse{
-		LocationUuids: makeGUIDs(response.LocationUuids),
+		LocationUUIDs: makeGUIDs(response.LocationUuids),
 	}
 
 	return ret, nil
@@ -369,7 +369,7 @@ func makeDestroyChunkLocationsResponse(response *rpc_proxy.TRspDestroyChunkLocat
 	}
 
 	ret := &yt.DestroyChunkLocationsResponse{
-		LocationUuids: makeGUIDs(response.LocationUuids),
+		LocationUUIDs: makeGUIDs(response.LocationUuids),
 	}
 
 	return ret, nil
@@ -381,7 +381,7 @@ func makeResurrectChunkLocationsResponse(response *rpc_proxy.TRspResurrectChunkL
 	}
 
 	ret := &yt.ResurrectChunkLocationsResponse{
-		LocationUuids: makeGUIDs(response.LocationUuids),
+		LocationUUIDs: makeGUIDs(response.LocationUuids),
 	}
 
 	return ret, nil

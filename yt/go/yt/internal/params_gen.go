@@ -604,15 +604,7 @@ func writeAddMemberOptions(w *yson.Writer, o *yt.AddMemberOptions) {
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
-func writeRemoveMemberOptions(w *yson.Writer, o *yt.RemoveMemberOptions) {
-	if o == nil {
-		return
-	}
-	writeMutatingOptions(w, o.MutatingOptions)
-	writePrerequisiteOptions(w, o.PrerequisiteOptions)
-}
-
-func writeBuildMasterSnapshots(w *yson.Writer, o *yt.BuildMasterSnapshotsOptions) {
+func writeBuildMasterSnapshotsOptions(w *yson.Writer, o *yt.BuildMasterSnapshotsOptions) {
 	if o == nil {
 		return
 	}
@@ -630,7 +622,7 @@ func writeBuildMasterSnapshots(w *yson.Writer, o *yt.BuildMasterSnapshotsOptions
 	}
 }
 
-func writeBuildSnapshot(w *yson.Writer, o *yt.BuildSnapshotOptions) {
+func writeBuildSnapshotOptions(w *yson.Writer, o *yt.BuildSnapshotOptions) {
 	if o == nil {
 		return
 	}
@@ -648,6 +640,14 @@ func writeBuildSnapshot(w *yson.Writer, o *yt.BuildSnapshotOptions) {
 	}
 }
 
+func writeRemoveMemberOptions(w *yson.Writer, o *yt.RemoveMemberOptions) {
+	if o == nil {
+		return
+	}
+	writeMutatingOptions(w, o.MutatingOptions)
+	writePrerequisiteOptions(w, o.PrerequisiteOptions)
+}
+
 func writeCheckPermissionOptions(w *yson.Writer, o *yt.CheckPermissionOptions) {
 	if o == nil {
 		return
@@ -659,6 +659,24 @@ func writeCheckPermissionOptions(w *yson.Writer, o *yt.CheckPermissionOptions) {
 	writeTransactionOptions(w, o.TransactionOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 	writeMasterReadOptions(w, o.MasterReadOptions)
+}
+
+func writeDisableChunkLocationsOptions(w *yson.Writer, o *yt.DisableChunkLocationsOptions) {
+	if o == nil {
+		return
+	}
+}
+
+func writeDestroyChunkLocationsOptions(w *yson.Writer, o *yt.DestroyChunkLocationsOptions) {
+	if o == nil {
+		return
+	}
+}
+
+func writeResurrectChunkLocationsOptions(w *yson.Writer, o *yt.ResurrectChunkLocationsOptions) {
+	if o == nil {
+		return
+	}
 }
 
 func writeLockNodeOptions(w *yson.Writer, o *yt.LockNodeOptions) {
@@ -2490,6 +2508,68 @@ func (p *AddMemberParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 	return &p.options.PrerequisiteOptions
 }
 
+type BuildMasterSnapshotsParams struct {
+	verb    Verb
+	options *yt.BuildMasterSnapshotsOptions
+}
+
+func NewBuildMasterSnapshotsParams(
+	options *yt.BuildMasterSnapshotsOptions,
+) *BuildMasterSnapshotsParams {
+	if options == nil {
+		options = &yt.BuildMasterSnapshotsOptions{}
+	}
+	return &BuildMasterSnapshotsParams{
+		Verb("build_master_snapshots"),
+		options,
+	}
+}
+
+func (p *BuildMasterSnapshotsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *BuildMasterSnapshotsParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *BuildMasterSnapshotsParams) Log() []log.Field {
+	return []log.Field{}
+}
+
+func (p *BuildMasterSnapshotsParams) MarshalHTTP(w *yson.Writer) {
+	writeBuildMasterSnapshotsOptions(w, p.options)
+}
+
+type BuildSnapshotParams struct {
+	verb    Verb
+	options *yt.BuildSnapshotOptions
+}
+
+func NewBuildSnapshotParams(
+	options *yt.BuildSnapshotOptions,
+) *BuildSnapshotParams {
+	if options == nil {
+		options = &yt.BuildSnapshotOptions{}
+	}
+	return &BuildSnapshotParams{
+		Verb("build_snapshot"),
+		options,
+	}
+}
+
+func (p *BuildSnapshotParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *BuildSnapshotParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *BuildSnapshotParams) Log() []log.Field {
+	return []log.Field{}
+}
+
+func (p *BuildSnapshotParams) MarshalHTTP(w *yson.Writer) {
+	writeBuildSnapshotOptions(w, p.options)
+}
+
 type RemoveMemberParams struct {
 	verb    Verb
 	group   string
@@ -2540,184 +2620,6 @@ func (p *RemoveMemberParams) MutatingOptions() **yt.MutatingOptions {
 
 func (p *RemoveMemberParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 	return &p.options.PrerequisiteOptions
-}
-
-type BuildMasterSnapshotsParams struct {
-	verb Verb
-	options *yt.BuildMasterSnapshotsOptions
-}
-
-func NewBuildMasterSnapshotsParams(
-	options *yt.BuildMasterSnapshotsOptions,
-) *BuildMasterSnapshotsParams {
-	if options == nil {
-		options = &yt.BuildMasterSnapshotsOptions{}
-	}
-	return &BuildMasterSnapshotsParams{
-		VerbBuildMasterSnapshots,
-		options,
-	}
-}
-
-func (p* BuildMasterSnapshotsParams) HTTPVerb() Verb {
-	return p.verb
-}
-
-func (p *BuildMasterSnapshotsParams) YPath() (ypath.YPath, bool) {
-	return nil, false
-}
-
-func (p *BuildMasterSnapshotsParams) Log() []log.Field {
-	return []log.Field{}
-}
-
-func (p *BuildMasterSnapshotsParams) MarshalHTTP(w *yson.Writer) {
-	writeBuildMasterSnapshots(w, p.options)
-}
-
-
-type BuildSnapshotParams struct {
-	verb Verb
-	options *yt.BuildSnapshotOptions
-}
-
-func NewBuildSnapshotParams(
-	options *yt.BuildSnapshotOptions,
-) *BuildSnapshotParams {
-	if options == nil {
-		options = &yt.BuildSnapshotOptions{}
-	}
-	return &BuildSnapshotParams{
-		VerbBuildSnapshot,
-		options,
-	}
-}
-
-func (p* BuildSnapshotParams) HTTPVerb() Verb {
-	return p.verb
-}
-
-func (p *BuildSnapshotParams) YPath() (ypath.YPath, bool) {
-	return nil, false
-}
-
-func (p *BuildSnapshotParams) Log() []log.Field {
-	return []log.Field{}
-}
-
-func (p *BuildSnapshotParams) MarshalHTTP(w *yson.Writer) {
-	writeBuildSnapshot(w, p.options)
-}
-
-type DisableChunkLocationsParams struct {
-	verb          Verb
-	nodeAddress   string
-	locationUuids []guid.GUID
-}
-
-func NewDisableChunkLocationsParams(
-	nodeAddress string,
-	locationUuids []guid.GUID,
-) *DisableChunkLocationsParams {
-	return &DisableChunkLocationsParams{
-		Verb("disable_chunk_locations"),
-		nodeAddress,
-		locationUuids,
-	}
-}
-
-func (p *DisableChunkLocationsParams) HTTPVerb() Verb {
-	return p.verb
-}
-func (p *DisableChunkLocationsParams) YPath() (ypath.YPath, bool) {
-	return nil, false
-}
-func (p *DisableChunkLocationsParams) Log() []log.Field {
-	return []log.Field{
-		log.Any("nodeAddress", p.nodeAddress),
-		log.Any("locationUuids", p.locationUuids),
-	}
-}
-
-func (p *DisableChunkLocationsParams) MarshalHTTP(w *yson.Writer) {
-	w.MapKeyString("node_address")
-	w.Any(p.nodeAddress)
-	w.MapKeyString("location_uuids")
-	w.Any(p.locationUuids)
-}
-
-type DestroyChunkLocationsParams struct {
-	verb          Verb
-	nodeAddress   string
-	locationUuids []guid.GUID
-}
-
-func NewDestroyChunkLocationsParams(
-	nodeAddress string,
-	locationUuids []guid.GUID,
-) *DestroyChunkLocationsParams {
-	return &DestroyChunkLocationsParams{
-		Verb("disable_chunk_locations"),
-		nodeAddress,
-		locationUuids,
-	}
-}
-
-func (p *DestroyChunkLocationsParams) HTTPVerb() Verb {
-	return p.verb
-}
-func (p *DestroyChunkLocationsParams) YPath() (ypath.YPath, bool) {
-	return nil, false
-}
-func (p *DestroyChunkLocationsParams) Log() []log.Field {
-	return []log.Field{
-		log.Any("nodeAddress", p.nodeAddress),
-		log.Any("locationUuids", p.locationUuids),
-	}
-}
-
-func (p *DestroyChunkLocationsParams) MarshalHTTP(w *yson.Writer) {
-	w.MapKeyString("node_address")
-	w.Any(p.nodeAddress)
-	w.MapKeyString("location_uuids")
-	w.Any(p.locationUuids)
-}
-
-type ResurrectChunkLocationsParams struct {
-	verb          Verb
-	nodeAddress   string
-	locationUuids []guid.GUID
-}
-
-func NewResurrectChunkLocationsParams(
-	nodeAddress string,
-	locationUuids []guid.GUID,
-) *ResurrectChunkLocationsParams {
-	return &ResurrectChunkLocationsParams{
-		Verb("disable_chunk_locations"),
-		nodeAddress,
-		locationUuids,
-	}
-}
-
-func (p *ResurrectChunkLocationsParams) HTTPVerb() Verb {
-	return p.verb
-}
-func (p *ResurrectChunkLocationsParams) YPath() (ypath.YPath, bool) {
-	return nil, false
-}
-func (p *ResurrectChunkLocationsParams) Log() []log.Field {
-	return []log.Field{
-		log.Any("nodeAddress", p.nodeAddress),
-		log.Any("locationUuids", p.locationUuids),
-	}
-}
-
-func (p *ResurrectChunkLocationsParams) MarshalHTTP(w *yson.Writer) {
-	w.MapKeyString("node_address")
-	w.Any(p.nodeAddress)
-	w.MapKeyString("location_uuids")
-	w.Any(p.locationUuids)
 }
 
 type TransferAccountResourcesParams struct {
@@ -2894,6 +2796,138 @@ func (p *CheckPermissionParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 
 func (p *CheckPermissionParams) MasterReadOptions() **yt.MasterReadOptions {
 	return &p.options.MasterReadOptions
+}
+
+type DisableChunkLocationsParams struct {
+	verb          Verb
+	nodeAddress   string
+	locationUUIDs []guid.GUID
+	options       *yt.DisableChunkLocationsOptions
+}
+
+func NewDisableChunkLocationsParams(
+	nodeAddress string,
+	locationUUIDs []guid.GUID,
+	options *yt.DisableChunkLocationsOptions,
+) *DisableChunkLocationsParams {
+	if options == nil {
+		options = &yt.DisableChunkLocationsOptions{}
+	}
+	return &DisableChunkLocationsParams{
+		Verb("disable_chunk_locations"),
+		nodeAddress,
+		locationUUIDs,
+		options,
+	}
+}
+
+func (p *DisableChunkLocationsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *DisableChunkLocationsParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *DisableChunkLocationsParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("nodeAddress", p.nodeAddress),
+		log.Any("locationUUIDs", p.locationUUIDs),
+	}
+}
+
+func (p *DisableChunkLocationsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("node_address")
+	w.Any(p.nodeAddress)
+	w.MapKeyString("location_uuids")
+	w.Any(p.locationUUIDs)
+	writeDisableChunkLocationsOptions(w, p.options)
+}
+
+type DestroyChunkLocationsParams struct {
+	verb          Verb
+	nodeAddress   string
+	locationUUIDs []guid.GUID
+	options       *yt.DestroyChunkLocationsOptions
+}
+
+func NewDestroyChunkLocationsParams(
+	nodeAddress string,
+	locationUUIDs []guid.GUID,
+	options *yt.DestroyChunkLocationsOptions,
+) *DestroyChunkLocationsParams {
+	if options == nil {
+		options = &yt.DestroyChunkLocationsOptions{}
+	}
+	return &DestroyChunkLocationsParams{
+		Verb("destroy_chunk_locations"),
+		nodeAddress,
+		locationUUIDs,
+		options,
+	}
+}
+
+func (p *DestroyChunkLocationsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *DestroyChunkLocationsParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *DestroyChunkLocationsParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("nodeAddress", p.nodeAddress),
+		log.Any("locationUUIDs", p.locationUUIDs),
+	}
+}
+
+func (p *DestroyChunkLocationsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("node_address")
+	w.Any(p.nodeAddress)
+	w.MapKeyString("location_uuids")
+	w.Any(p.locationUUIDs)
+	writeDestroyChunkLocationsOptions(w, p.options)
+}
+
+type ResurrectChunkLocationsParams struct {
+	verb          Verb
+	nodeAddress   string
+	locationUUIDs []guid.GUID
+	options       *yt.ResurrectChunkLocationsOptions
+}
+
+func NewResurrectChunkLocationsParams(
+	nodeAddress string,
+	locationUUIDs []guid.GUID,
+	options *yt.ResurrectChunkLocationsOptions,
+) *ResurrectChunkLocationsParams {
+	if options == nil {
+		options = &yt.ResurrectChunkLocationsOptions{}
+	}
+	return &ResurrectChunkLocationsParams{
+		Verb("resurrect_chunk_locations"),
+		nodeAddress,
+		locationUUIDs,
+		options,
+	}
+}
+
+func (p *ResurrectChunkLocationsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *ResurrectChunkLocationsParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *ResurrectChunkLocationsParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("nodeAddress", p.nodeAddress),
+		log.Any("locationUUIDs", p.locationUUIDs),
+	}
+}
+
+func (p *ResurrectChunkLocationsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("node_address")
+	w.Any(p.nodeAddress)
+	w.MapKeyString("location_uuids")
+	w.Any(p.locationUUIDs)
+	writeResurrectChunkLocationsOptions(w, p.options)
 }
 
 type LockNodeParams struct {
