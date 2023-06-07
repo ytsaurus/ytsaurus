@@ -1,7 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <benchmark/benchmark.h>
-
 #include <library/cpp/testing/common/env.h>
 
 #include <yt/yt/library/ytprof/spinlock_profiler.h>
@@ -14,15 +12,11 @@
 #include <library/cpp/yt/threading/spin_lock.h>
 
 #include <util/string/cast.h>
-
 #include <util/stream/file.h>
-
 #include <util/datetime/base.h>
-
+#include <util/system/compiler.h>
 #include <util/system/shellcommand.h>
-
 #include <util/thread/lfstack.h>
-
 #include <util/generic/size_literals.h>
 
 namespace NYT::NYTProf {
@@ -95,7 +89,7 @@ TEST_F(TSpinlockProfilerTest, PageHeapLock)
             allocators.emplace_back([&] {
                 while (!Stop) {
                     auto ptr = malloc(4_MB);
-                    benchmark::DoNotOptimize(ptr);
+                    DoNotOptimizeAway(ptr);
                     free(ptr);
                 }
             });
