@@ -28,6 +28,7 @@ target_link_libraries(yt-server-http_proxy PUBLIC
   server-lib-chunk_pools
   server-lib-cypress_registrar
   server-lib-zookeeper_proxy
+  server-lib-logging
   cpp-streams-brotli
   cpp-string_utils-base64
   library-cpp-getopt
@@ -35,6 +36,7 @@ target_link_libraries(yt-server-http_proxy PUBLIC
 )
 target_sources(yt-server-http_proxy PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/public.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/private.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/bootstrap.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/coordinator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/context.cpp

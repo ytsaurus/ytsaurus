@@ -13,7 +13,7 @@ namespace NYT::NHttpProxy {
 inline const NLogging::TLogger HttpProxyLogger("HttpProxy");
 inline const NProfiling::TProfiler HttpProxyProfiler("/http_proxy");
 
-inline const NLogging::TLogger HttpStructuredProxyLogger("HttpStructuredProxy");
+extern const NLogging::TLogger HttpStructuredProxyLogger;
 
 DECLARE_REFCOUNTED_CLASS(TFramingAsyncOutputStream)
 
