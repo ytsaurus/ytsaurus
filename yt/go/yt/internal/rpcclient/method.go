@@ -22,7 +22,7 @@ const (
 	MethodMountTable                Method = "MountTable"
 	MethodUnmountTable              Method = "UnmountTable"
 	MethodRemountTable              Method = "RemountTable"
-	MethodResshardTable             Method = "ReshardTable"
+	MethodReshardTable              Method = "ReshardTable"
 	MethodAlterTable                Method = "AlterTable"
 	MethodFreezeTable               Method = "FreezeTable"
 	MethodUnfreezeTable             Method = "UnfreezeTable"
