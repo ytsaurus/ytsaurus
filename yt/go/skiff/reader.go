@@ -5,7 +5,7 @@ import (
 	"io"
 	"math"
 
-	"golang.org/x/xerrors"
+	"go.ytsaurus.tech/library/go/core/xerrors"
 )
 
 const (

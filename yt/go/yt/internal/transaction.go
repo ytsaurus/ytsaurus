@@ -5,11 +5,11 @@ import (
 	"io"
 
 	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/internal/smartreader"
-	"golang.org/x/xerrors"
 )
 
 type TxInterceptor struct {

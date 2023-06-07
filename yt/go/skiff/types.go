@@ -3,8 +3,8 @@ package skiff
 import (
 	"reflect"
 
+	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/yson"
-	"golang.org/x/xerrors"
 )
 
 var (

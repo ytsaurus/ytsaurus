@@ -1,6 +1,6 @@
 package yt
 
-import "golang.org/x/xerrors"
+import "go.ytsaurus.tech/library/go/core/xerrors"
 
 // TODO(dakovalkov): create a different type for Permission
 type Permission = string

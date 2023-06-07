@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/yson"
-	"golang.org/x/xerrors"
 )
 
 func isHex(b byte) bool {

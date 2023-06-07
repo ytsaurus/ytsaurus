@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
+	"go.ytsaurus.tech/library/go/core/xerrors"
 )
 
 func TestNewError(t *testing.T) {
