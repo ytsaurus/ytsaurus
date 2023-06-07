@@ -146,7 +146,7 @@ func (s *ProxySet) updateProxies(updateDone chan struct{}) {
 	proxyList, err := s.UpdateFn()
 
 	var cleanBan []string
-	s.banned.Range(func(key, value interface{}) bool {
+	s.banned.Range(func(key, value any) bool {
 		proxy := key.(string)
 		ban := value.(proxyBan)
 

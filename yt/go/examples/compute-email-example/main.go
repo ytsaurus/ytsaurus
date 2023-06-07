@@ -29,12 +29,12 @@ type EmailRow struct {
 	Email string `yson:"email"`
 }
 
-func (*ComputeEmailJob) InputTypes() []interface{} {
-	return []interface{}{&LoginRow{}}
+func (*ComputeEmailJob) InputTypes() []any {
+	return []any{&LoginRow{}}
 }
 
-func (*ComputeEmailJob) OutputTypes() []interface{} {
-	return []interface{}{&EmailRow{}}
+func (*ComputeEmailJob) OutputTypes() []any {
+	return []any{&EmailRow{}}
 }
 
 func (*ComputeEmailJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) error {

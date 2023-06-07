@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testRoundtrip(t *testing.T, value interface{}) {
+func testRoundtrip(t *testing.T, value any) {
 	t.Helper()
 	t.Logf("checking value: %v", value)
 
@@ -92,7 +92,7 @@ func TestRoundtripSlices(t *testing.T) {
 
 func TestRoundtripArrays(t *testing.T) {
 	testRoundtrip(t, [4]int{1, 2, 3, 4})
-	testRoundtrip(t, [3]interface{}{uint64(1), 2.3, "4"})
+	testRoundtrip(t, [3]any{uint64(1), 2.3, "4"})
 	testRoundtrip(t, [4]byte{1, 2, 3, 4})
 	testRoundtrip(t, [4]uint8{1, 2, 3, 4})
 	testRoundtrip(t, [4]int8{1, 2, 3, 4})
@@ -108,7 +108,7 @@ func TestMarshalStruct(t *testing.T) {
 }
 
 type structWithMaps struct {
-	M1 map[string]interface{}
+	M1 map[string]any
 	M2 map[string]int
 	M3 map[string]int8
 	M4 map[string]uint8
@@ -116,7 +116,7 @@ type structWithMaps struct {
 
 func TestMarshalMaps(t *testing.T) {
 	s := structWithMaps{
-		M1: map[string]interface{}{
+		M1: map[string]any{
 			"a": "c",
 		},
 		M2: map[string]int{

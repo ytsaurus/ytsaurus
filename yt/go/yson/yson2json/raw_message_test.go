@@ -89,7 +89,7 @@ func Benchmark(b *testing.B) {
 		b.ReportAllocs()
 
 		for i := 0; i < b.N; i++ {
-			var v interface{}
+			var v any
 
 			err := json.Unmarshal(testInput, &v)
 			require.NoError(b, err)

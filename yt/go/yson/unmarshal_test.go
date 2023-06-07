@@ -14,7 +14,7 @@ func TestInvalidInput(t *testing.T) {
 }
 
 func TestInvalidSyntax(t *testing.T) {
-	var v interface{}
+	var v any
 	require.Error(t, Unmarshal([]byte("0>0"), &v))
 }
 
@@ -29,7 +29,7 @@ func TestRawField(t *testing.T) {
 	require.Equal(t, []byte("abc"), []byte(s.A))
 	require.Equal(t, []byte("[1;2;3]"), []byte(s.B))
 
-	buf, err := MarshalFormat(map[string]interface{}{"A": "abc", "B": []int{1, 2, 3}}, FormatBinary)
+	buf, err := MarshalFormat(map[string]any{"A": "abc", "B": []int{1, 2, 3}}, FormatBinary)
 	require.NoError(t, err)
 	require.NoError(t, Unmarshal(buf, &s))
 }
@@ -49,7 +49,7 @@ func TestUnmarshalZeroInitializes(t *testing.T) {
 func TestUnmarshalRecursionLimit(t *testing.T) {
 	in := strings.Repeat("[", 512) + strings.Repeat("]", 512)
 
-	var value interface{}
+	var value any
 	require.Error(t, Unmarshal([]byte(in), &value))
 }
 

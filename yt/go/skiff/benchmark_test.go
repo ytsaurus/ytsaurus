@@ -8,7 +8,7 @@ import (
 	"go.ytsaurus.tech/yt/go/schema"
 )
 
-func benchmarkEncode(b *testing.B, value interface{}) {
+func benchmarkEncode(b *testing.B, value any) {
 	ytSchema := schema.MustInfer(value)
 	skiffSchema := FromTableSchema(ytSchema)
 
@@ -25,7 +25,7 @@ func benchmarkEncode(b *testing.B, value interface{}) {
 	b.ReportAllocs()
 }
 
-func benchmarkDecode(b *testing.B, value interface{}) {
+func benchmarkDecode(b *testing.B, value any) {
 	ytSchema := schema.MustInfer(value)
 	skiffSchema := FromTableSchema(ytSchema)
 
@@ -39,7 +39,7 @@ func benchmarkDecode(b *testing.B, value interface{}) {
 	require.NoError(b, encoder.Flush())
 	testFormat = Format{
 		Name:           "skiff",
-		TableSchemas:   []interface{}{&skiffSchema},
+		TableSchemas:   []any{&skiffSchema},
 		SchemaRegistry: nil,
 	}
 	b.ResetTimer()
@@ -48,9 +48,9 @@ func benchmarkDecode(b *testing.B, value interface{}) {
 		rb := bytes.NewBuffer(data)
 		decoder, err := NewDecoder(rb, testFormat)
 		require.NoError(b, err)
-		res := make([]interface{}, 0)
+		res := make([]any, 0)
 		for decoder.Next() {
-			var v map[string]interface{}
+			var v map[string]any
 			require.NoError(b, decoder.Scan(&v))
 			res = append(res, v)
 		}

@@ -8,7 +8,7 @@ import (
 
 type MyStruct struct {
 	IntColumn    int
-	AnyValue     interface{}
+	AnyValue     any
 	Optional     *int
 	StringColumn string `yson:"custom_column_name"`
 	SkipMe       int    `yson:"-"`

@@ -20,7 +20,7 @@ func (Variant) isType()  {}
 func (Dict) isType()     {}
 func (Tagged) isType()   {}
 
-func decodeComplexType(r *yson.Reader, tt interface{}) error {
+func decodeComplexType(r *yson.Reader, tt any) error {
 	t := tt.(*ComplexType)
 
 	e, err := r.Next(true)
@@ -180,7 +180,7 @@ const (
 	TypeNameTagged   TypeName = "tagged"
 )
 
-type Any interface{}
+type Any any
 
 func fixV3type(t ComplexType) ComplexType {
 	switch t {

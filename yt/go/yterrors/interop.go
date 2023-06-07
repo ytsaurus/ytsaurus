@@ -61,7 +61,7 @@ func (yt *Error) Is(target error) bool {
 	return errors.Is(yt.origError, target)
 }
 
-func (yt *Error) As(target interface{}) bool {
+func (yt *Error) As(target any) bool {
 	if yt.origError == nil {
 		return false
 	}

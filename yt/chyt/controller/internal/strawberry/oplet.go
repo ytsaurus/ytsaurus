@@ -703,7 +703,7 @@ func (oplet *Oplet) updateOpParameters(ctx context.Context, reason string) error
 	err := oplet.systemClient.UpdateOperationParameters(
 		ctx,
 		oplet.persistentState.YTOpID,
-		map[string]interface{}{
+		map[string]any{
 			"acl":  opACL,
 			"pool": oplet.strawberrySpeclet.Pool,
 		},
@@ -732,7 +732,7 @@ func (oplet *Oplet) flushPersistentState(ctx context.Context) error {
 	err := oplet.systemClient.MultisetAttributes(
 		ctx,
 		oplet.cypressNode.Attrs(),
-		map[string]interface{}{
+		map[string]any{
 			"strawberry_persistent_state": oplet.persistentState,
 			"strawberry_info_state":       oplet.infoState,
 			"annotation":                  annotation,

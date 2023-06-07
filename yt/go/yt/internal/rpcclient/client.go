@@ -256,7 +256,7 @@ func (c *client) LockRows(
 	path ypath.Path,
 	locks []string,
 	lockType yt.LockType,
-	keys []interface{},
+	keys []any,
 	opts *yt.LockRowsOptions,
 ) (err error) {
 	if opts == nil {
@@ -292,13 +292,13 @@ func (c *client) LockRows(
 }
 
 type rowBatch struct {
-	rows        []interface{}
+	rows        []any
 	rowCount    int
 	attachments [][]byte
 	descriptor  *rpc_proxy.TRowsetDescriptor
 }
 
-func (b *rowBatch) Write(row interface{}) error {
+func (b *rowBatch) Write(row any) error {
 	b.rows = append(b.rows, row)
 	b.rowCount++
 	return nil
@@ -339,7 +339,7 @@ func (c *client) NewRowBatchWriter() yt.RowBatchWriter {
 	return &rowBatch{}
 }
 
-func buildBatch(rows []interface{}) (yt.RowBatch, error) {
+func buildBatch(rows []any) (yt.RowBatch, error) {
 	var b rowBatch
 	if len(rows) == 0 {
 		return &b, nil
@@ -355,7 +355,7 @@ func buildBatch(rows []interface{}) (yt.RowBatch, error) {
 func (c *client) InsertRows(
 	ctx context.Context,
 	path ypath.Path,
-	rows []interface{},
+	rows []any,
 	opts *yt.InsertRowsOptions,
 ) (err error) {
 	if len(rows) == 0 {
@@ -408,7 +408,7 @@ func (c *client) InsertRowBatch(
 func (c *client) DeleteRows(
 	ctx context.Context,
 	path ypath.Path,
-	keys []interface{},
+	keys []any,
 	opts *yt.DeleteRowsOptions,
 ) (err error) {
 	if opts == nil {

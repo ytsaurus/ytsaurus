@@ -51,7 +51,7 @@ func RegisterName(name string, job Job) {
 }
 
 // RegisterJobPart registers type that might be used as part of the job state.
-func RegisterJobPart(state interface{}) {
+func RegisterJobPart(state any) {
 	gob.Register(state)
 }
 

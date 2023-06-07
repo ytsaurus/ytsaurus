@@ -19,9 +19,9 @@ func appendArtifactDescription(ctx context.Context, description *map[string]yson
 	return
 }
 
-func buildDescription(cluster string, alias string, enableYandexSpecificLinks bool) map[string]interface{} {
+func buildDescription(cluster string, alias string, enableYandexSpecificLinks bool) map[string]any {
 	if enableYandexSpecificLinks {
-		return map[string]interface{}{
+		return map[string]any{
 			"yql_url": strawberry.ToYsonURL(
 				"https://yql.yandex-team.ru/?query=use%20chyt." + cluster + "/" + alias +
 					"%3B%0A%0Aselect%201%3B&query_type=CLICKHOUSE"),
@@ -33,6 +33,6 @@ func buildDescription(cluster string, alias string, enableYandexSpecificLinks bo
 					"&dashboard=chyt_v2&l.operation_alias=" + alias),
 		}
 	} else {
-		return map[string]interface{}{}
+		return map[string]any{}
 	}
 }

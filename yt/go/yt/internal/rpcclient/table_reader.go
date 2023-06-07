@@ -36,7 +36,7 @@ func newTableReader(rows []wire.Row, d *rpc_proxy.TRowsetDescriptor) (*tableRead
 	return r, nil
 }
 
-func (r *tableReader) Scan(value interface{}) error {
+func (r *tableReader) Scan(value any) error {
 	if r.err != nil {
 		return r.err
 	}
@@ -87,7 +87,7 @@ func (r *tableReader) Close() error {
 	return r.err
 }
 
-func zeroInitialize(v interface{}) {
+func zeroInitialize(v any) {
 	value := reflect.ValueOf(v)
 	if value.Kind() != reflect.Ptr {
 		return

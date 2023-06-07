@@ -14,7 +14,7 @@ var (
 	flagOutput    = flag.String("output", "", "path to output file")
 )
 
-func fatalf(msg string, args ...interface{}) {
+func fatalf(msg string, args ...any) {
 	line := fmt.Sprintf(msg, args...)
 	if line[len(line)-1] != '\n' {
 		line += "\n"

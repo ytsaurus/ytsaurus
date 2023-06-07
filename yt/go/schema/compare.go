@@ -6,7 +6,7 @@ import (
 	"reflect"
 )
 
-func typeOrder(v interface{}) int {
+func typeOrder(v any) int {
 	switch v.(type) {
 	case nil:
 		return 0x2
@@ -47,7 +47,7 @@ func typeOrder(v interface{}) int {
 // Currently, this function does not handle NaN-s correctly.
 //
 // The result will be 0 if a==b, -1 if a < b, and +1 if a > b.
-func CompareRows(a, b []interface{}, s *Schema) int {
+func CompareRows(a, b []any, s *Schema) int {
 	for i := 0; i < len(a) || i < len(b); i++ {
 		if i >= len(a) {
 			return -1
@@ -110,7 +110,7 @@ func CompareRows(a, b []interface{}, s *Schema) int {
 			}
 
 		case 0x10:
-			asBytes := func(v interface{}) []byte {
+			asBytes := func(v any) []byte {
 				switch v := v.(type) {
 				case string:
 					return []byte(v)

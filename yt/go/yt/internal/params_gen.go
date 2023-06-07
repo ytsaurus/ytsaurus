@@ -2045,13 +2045,13 @@ func (p *ReadTableParams) AccessTrackingOptions() **yt.AccessTrackingOptions {
 type StartOperationParams struct {
 	verb    Verb
 	opType  yt.OperationType
-	spec    interface{}
+	spec    any
 	options *yt.StartOperationOptions
 }
 
 func NewStartOperationParams(
 	opType yt.OperationType,
-	spec interface{},
+	spec any,
 	options *yt.StartOperationOptions,
 ) *StartOperationParams {
 	if options == nil {
@@ -2248,13 +2248,13 @@ func (p *CompleteOperationParams) MarshalHTTP(w *yson.Writer) {
 type UpdateOperationParametersParams struct {
 	verb    Verb
 	opID    yt.OperationID
-	params  interface{}
+	params  any
 	options *yt.UpdateOperationParametersOptions
 }
 
 func NewUpdateOperationParametersParams(
 	opID yt.OperationID,
-	params interface{},
+	params any,
 	options *yt.UpdateOperationParametersOptions,
 ) *UpdateOperationParametersParams {
 	if options == nil {
@@ -2626,14 +2626,14 @@ type TransferAccountResourcesParams struct {
 	verb          Verb
 	srcAccount    string
 	dstAccount    string
-	resourceDelta interface{}
+	resourceDelta any
 	options       *yt.TransferAccountResourcesOptions
 }
 
 func NewTransferAccountResourcesParams(
 	srcAccount string,
 	dstAccount string,
-	resourceDelta interface{},
+	resourceDelta any,
 	options *yt.TransferAccountResourcesOptions,
 ) *TransferAccountResourcesParams {
 	if options == nil {
@@ -2681,7 +2681,7 @@ type TransferPoolResourcesParams struct {
 	srcPool       string
 	dstPool       string
 	poolTree      string
-	resourceDelta interface{}
+	resourceDelta any
 	options       *yt.TransferPoolResourcesOptions
 }
 
@@ -2689,7 +2689,7 @@ func NewTransferPoolResourcesParams(
 	srcPool string,
 	dstPool string,
 	poolTree string,
-	resourceDelta interface{},
+	resourceDelta any,
 	options *yt.TransferPoolResourcesOptions,
 ) *TransferPoolResourcesParams {
 	if options == nil {

@@ -182,9 +182,9 @@ var (
 	ifaceDecoders sync.Map
 )
 
-type DecoderFn func(*Reader, interface{}) error
+type DecoderFn func(*Reader, any) error
 
-func RegisterInterfaceDecoder(iface interface{}, decoder DecoderFn) {
+func RegisterInterfaceDecoder(iface any, decoder DecoderFn) {
 	_, loaded := ifaceDecoders.LoadOrStore(reflect.TypeOf(iface), decoder)
 	if loaded {
 		panic(fmt.Sprintf("decode for type %s is already registered", iface))

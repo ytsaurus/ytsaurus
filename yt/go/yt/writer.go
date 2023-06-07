@@ -32,7 +32,7 @@ func WithCreateOptions(opts ...CreateTableOption) WriteTableOption {
 	}
 }
 
-func WithTableWriterConfig(config map[string]interface{}) WriteTableOption {
+func WithTableWriterConfig(config map[string]any) WriteTableOption {
 	return func(w *tableWriter) {
 		w.tableWriterConfig = config
 	}
@@ -67,7 +67,7 @@ type (
 		createOptions           []CreateTableOption
 		batchSize               int
 		lazyCreate, eagerCreate bool
-		tableWriterConfig       map[string]interface{}
+		tableWriterConfig       map[string]any
 
 		encoder *yson.Writer
 		buffer  *bytes.Buffer
@@ -75,7 +75,7 @@ type (
 	}
 )
 
-func (w *tableWriter) Write(value interface{}) error {
+func (w *tableWriter) Write(value any) error {
 	if w.err != nil {
 		return w.err
 	}

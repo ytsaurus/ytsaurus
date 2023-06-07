@@ -179,7 +179,7 @@ func fieldByIndex(v reflect.Value, index []int, initPtr bool) (reflect.Value, bo
 	return v, true
 }
 
-func (d *Decoder) decodeStruct(ops []fieldOp, value interface{}) error {
+func (d *Decoder) decodeStruct(ops []fieldOp, value any) error {
 	v := reflect.ValueOf(value).Elem()
 	v.Set(reflect.New(v.Type()).Elem())
 
@@ -247,7 +247,7 @@ func (d *Decoder) decodeStruct(ops []fieldOp, value interface{}) error {
 	return d.r.err
 }
 
-func (d *Decoder) decodeMap(ops []fieldOp, value interface{}) error {
+func (d *Decoder) decodeMap(ops []fieldOp, value any) error {
 	v := reflect.ValueOf(value).Elem()
 
 	if v.IsNil() || v.Len() != 0 {
@@ -265,7 +265,7 @@ func (d *Decoder) decodeMap(ops []fieldOp, value interface{}) error {
 		}
 
 		if generic {
-			var field interface{}
+			var field any
 			switch op.wt {
 			case TypeBoolean:
 				field = d.r.readUint8() != 0
@@ -362,7 +362,7 @@ func (d *Decoder) getTranscoder(typ reflect.Type) (ops []fieldOp, err error) {
 }
 
 // Scan unmarshals current record into the value.
-func (d *Decoder) Scan(value interface{}) (err error) {
+func (d *Decoder) Scan(value any) (err error) {
 	if !d.hasValue {
 		panic("Scan() called out of sequence")
 	}
@@ -382,10 +382,10 @@ func (d *Decoder) Scan(value interface{}) (err error) {
 	}
 	typ = typ.Elem()
 
-	if out, ok := value.(*interface{}); ok {
+	if out, ok := value.(*any); ok {
 		typ = genericMapType
 
-		genericMap := map[string]interface{}{}
+		genericMap := map[string]any{}
 		*out = genericMap
 		value = &genericMap
 	}

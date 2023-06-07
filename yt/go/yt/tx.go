@@ -52,7 +52,7 @@ func ExecTx(ctx context.Context, yc Client, f TxFunc, opts *ExecTxOptions) (err 
 
 	return backoff.Retry(func() error {
 		b := newMasterTxBeginner(yc, opts.StartTxOptions)
-		return execTx(ctx, b, func(ctx context.Context, tx interface{}) error {
+		return execTx(ctx, b, func(ctx context.Context, tx any) error {
 			return f(ctx, tx.(Tx))
 		})
 	}, opts.RetryOptions)
@@ -85,7 +85,7 @@ func ExecTabletTx(ctx context.Context, yc Client, f TabletTxFunc, opts *ExecTabl
 
 	return backoff.Retry(func() error {
 		b := newTabletTxBeginner(yc, opts.StartTabletTxOptions)
-		return execTx(ctx, b, func(ctx context.Context, tx interface{}) error {
+		return execTx(ctx, b, func(ctx context.Context, tx any) error {
 			return f(ctx, tx.(TabletTx))
 		})
 	}, opts.RetryOptions)
@@ -126,7 +126,7 @@ func (b *tabletTxBeginner) BeginTx(ctx context.Context) (tx, error) {
 	return b.yc.BeginTabletTx(ctx, b.opts)
 }
 
-type txFunc func(ctx context.Context, tx interface{}) error
+type txFunc func(ctx context.Context, tx any) error
 
 // execTx starts transaction and executes commit/abort based on the
 // error returned by the callback function.

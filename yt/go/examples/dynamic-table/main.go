@@ -43,7 +43,7 @@ func Example() error {
 		return err
 	}
 
-	fakeContacts := make([]interface{}, 0, numberOfRows)
+	fakeContacts := make([]any, 0, numberOfRows)
 	for i := 0; i < numberOfRows; i++ {
 		var contact Contact
 		contact.Init()

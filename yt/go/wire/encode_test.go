@@ -80,13 +80,13 @@ type testItem struct {
 func TestEncode(t *testing.T) {
 	for _, tc := range []struct {
 		name              string
-		items             []interface{}
+		items             []any
 		expectedNameTable NameTable
 		expectedRows      []Row
 	}{
 		{
 			name: "struct",
-			items: []interface{}{
+			items: []any{
 				&testItem{
 					I:        -1,
 					I64:      -64,
@@ -199,8 +199,8 @@ func TestEncode(t *testing.T) {
 		},
 		{
 			name: "map",
-			items: []interface{}{
-				map[string]interface{}{
+			items: []any{
+				map[string]any{
 					"i":         -1,
 					"i64":       int64(-64),
 					"i32":       int32(-32),
@@ -287,11 +287,11 @@ func TestEncode(t *testing.T) {
 }
 
 func TestEncodePivotKeys(t *testing.T) {
-	keys := []interface{}{
-		[]interface{}{},
+	keys := []any{
+		[]any{},
 		[]string{"a", "b"},
 		[]uint64{13, 37},
-		[]interface{}{"a", 42},
+		[]any{"a", 42},
 	}
 
 	expectedRows := []Row{
