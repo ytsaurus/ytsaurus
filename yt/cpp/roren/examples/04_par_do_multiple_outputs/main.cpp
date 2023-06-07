@@ -22,7 +22,7 @@ struct TRobotLoginInfo
 {
     TString Login;
 
-    Y_SAVELOAD_DEFINE(Login)
+    Y_SAVELOAD_DEFINE(Login);
 };
 
 const auto HumanTag = TTypeTag<TUserLoginInfo>("humans");

@@ -154,7 +154,7 @@ public:
 
     bool IsEnabled() const override
     {
-        return Enabled_;
+        return Enabled_.load();
     }
 
     void UpdateCpuLimit(double /*cpuLimit*/) override
@@ -206,7 +206,7 @@ protected:
 
     TFuture<void> JobProxyResult_;
 
-    bool Enabled_ = true;
+    std::atomic<bool> Enabled_ = true;
 
     TAtomicObject<TError> Alert_;
 
@@ -221,7 +221,7 @@ protected:
 
     void ValidateEnabled() const
     {
-        if (!Enabled_) {
+        if (!Enabled_.load()) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::JobEnvironmentDisabled,
                 "Job environment %Qlv is disabled",
@@ -252,10 +252,9 @@ protected:
 
     void Disable(const TError& error)
     {
-        if (!Enabled_)
+        if (!Enabled_.exchange(false)) {
             return;
-
-        Enabled_ = false;
+        }
 
         auto alert = TError(EErrorCode::JobEnvironmentDisabled, "Job environment is disabled") << error;
         YT_LOG_ERROR(alert);
@@ -556,12 +555,12 @@ private:
                         !error.FindMatching(EPortoErrorCode::ContainerDoesNotExist))
                     {
                         destroyed = false;
-                        YT_LOG_WARNING(error, "Failed to destroy subcontainers of %Qv",
+                        YT_LOG_WARNING(error, "Failed to destroy subcontainers (Container: %v)",
                             rootContainer);
                     }
                 }
             } else {
-                YT_LOG_WARNING(result, "Failed to destroy subcontainers of %Qv",
+                YT_LOG_WARNING(result, "Failed to destroy subcontainers (Container: %v)",
                     rootContainer);
             }
 

@@ -25,7 +25,7 @@ func DeleteDataAfterTTL(ttl time.Duration) RetentionConfig {
 	}
 }
 
-func (c RetentionConfig) FillAttrs(attrs map[string]interface{}) {
+func (c RetentionConfig) FillAttrs(attrs map[string]any) {
 	if c.MinDataVersions != nil {
 		attrs["min_data_versions"] = *c.MinDataVersions
 	}

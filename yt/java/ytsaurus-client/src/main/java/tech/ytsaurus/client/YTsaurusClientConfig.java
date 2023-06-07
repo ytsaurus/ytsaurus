@@ -155,7 +155,7 @@ public class YTsaurusClientConfig {
         @Nullable
         private JarsProcessor jarsProcessor;
         private boolean isLocalMode = false;
-        private String javaBinary = "/usr/lib/jvm/java-8-oracle/bin/java";
+        private String javaBinary = "/usr/bin/java";
         private JavaOptions javaOptions = JavaOptions.empty();
         private Duration jarsUploadTimeout = Duration.ofMinutes(10);
         private int fileCacheReplicationFactor = 10;

@@ -22,11 +22,12 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
+#include <yt/yt/library/numeric/algorithm_helpers.h>
+
 #include <yt/yt/core/concurrency/async_rw_lock.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
-#include <yt/yt/core/misc/algorithm_helpers.h>
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/profiling/timing.h>

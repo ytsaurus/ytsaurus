@@ -377,7 +377,7 @@ void TChunkReplicator::OnEpochStarted()
     EnabledCheckExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
         BIND(&TChunkReplicator::OnCheckEnabled, MakeWeak(this)),
-        Config_->ReplicatorEnabledCheckPeriod);
+        GetDynamicConfig()->ReplicatorEnabledCheckPeriod);
     EnabledCheckExecutor_->Start();
 
     // Just in case.
@@ -3243,6 +3243,9 @@ void TChunkReplicator::OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig
 {
     if (RefreshExecutor_) {
         RefreshExecutor_->SetPeriod(GetDynamicConfig()->ChunkRefreshPeriod);
+    }
+    if (EnabledCheckExecutor_) {
+        EnabledCheckExecutor_->SetPeriod(GetDynamicConfig()->ReplicatorEnabledCheckPeriod);
     }
     if (RequisitionUpdateExecutor_) {
         RequisitionUpdateExecutor_->SetPeriod(GetDynamicConfig()->ChunkRequisitionUpdatePeriod);

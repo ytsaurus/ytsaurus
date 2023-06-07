@@ -121,11 +121,15 @@ public:
 
     void ReleaseCumulativeResources();
 
-    const NClusterNode::TJobResources& GetResourceUsage() const noexcept;
+    NClusterNode::TJobResources GetResourceUsage() const noexcept;
 
     const NClusterNode::TJobResourceAttributes& GetResourceAttributes() const noexcept;
 
     const NLogging::TLogger& GetLogger() const noexcept;
+
+    NClusterNode::TJobResources ChangeCumulativeResourceUsage(NClusterNode::TJobResources resourceUsageDelta);
+
+    NClusterNode::TJobResources GetResourceLimits() const noexcept;
 
 protected:
     NLogging::TLogger Logger;
@@ -141,6 +145,9 @@ private:
     IJobResourceManager::TImpl* const ResourceManagerImpl_;
 
     const int PortCount_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ResourcesLock_);
+
     NClusterNode::TJobResources Resources_;
     NClusterNode::TJobResourceAttributes ResourceAttributes_;
 

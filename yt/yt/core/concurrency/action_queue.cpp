@@ -115,12 +115,12 @@ const IInvokerPtr& TActionQueue::GetInvoker()
 
 class TSerializedInvoker
     : public TInvokerWrapper
-    , public TProfileWrapper
+    , public TInvokerProfileWrapper
 {
 public:
     TSerializedInvoker(IInvokerPtr underlyingInvoker, const TString& invokerName, NProfiling::IRegistryImplPtr registry)
         : TInvokerWrapper(std::move(underlyingInvoker))
-        , TProfileWrapper(std::move(registry), "/serialized_invoker", invokerName)
+        , TInvokerProfileWrapper(std::move(registry), "/serialized_invoker", invokerName)
     { }
 
     void Invoke(TClosure callback) override
@@ -258,13 +258,13 @@ IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker, const TString
 
 class TPrioritizedInvoker
     : public TInvokerWrapper
-    , public TProfileWrapper
+    , public TInvokerProfileWrapper
     , public virtual IPrioritizedInvoker
 {
 public:
     TPrioritizedInvoker(IInvokerPtr underlyingInvoker, const TString& invokerName, NProfiling::IRegistryImplPtr registry)
         : TInvokerWrapper(std::move(underlyingInvoker))
-        , TProfileWrapper(std::move(registry), "/prioritized_invoker", invokerName)
+        , TInvokerProfileWrapper(std::move(registry), "/prioritized_invoker", invokerName)
     { }
 
     using TInvokerWrapper::Invoke;

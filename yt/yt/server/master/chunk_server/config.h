@@ -39,9 +39,6 @@ public:
     //! Should only be used in local mode to enable writing erasure chunks in a cluster with just one node.
     bool AllowMultipleErasurePartsPerNode;
 
-    //! Interval between consequent replicator state checks.
-    TDuration ReplicatorEnabledCheckPeriod;
-
     //! When balancing chunk repair queues for multiple media, how often do
     //! their weights decay. (Weights are essentially repaired data sizes.)
     TDuration RepairQueueBalancerWeightDecayInterval;
@@ -452,6 +449,9 @@ public:
     int MaxJournalChunksPerRefresh;
     //! Maximum amount of time allowed to spend during a refresh iteration.
     TDuration MaxTimePerJournalChunkRefresh;
+
+    //! Interval between consequent replicator state checks.
+    TDuration ReplicatorEnabledCheckPeriod;
 
     //! If set to false, fully disables background chunk requisition updates;
     //! see #EnableChunkRefresh for a rationale.

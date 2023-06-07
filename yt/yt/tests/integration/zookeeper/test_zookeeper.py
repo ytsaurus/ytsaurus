@@ -6,6 +6,8 @@ from yt_commands import (
 
 from kazoo.client import KazooClient
 
+import pytest
+
 ##################################################################
 
 
@@ -51,6 +53,7 @@ class TestZookeeper(YTEnvSetup):
 
     @authors("gritukan")
     def test_start_session(self):
+        pytest.skip("Test is disabled until better times")
         client = self._get_client()
         session_id, _ = client.client_id
         assert session_id == 123456

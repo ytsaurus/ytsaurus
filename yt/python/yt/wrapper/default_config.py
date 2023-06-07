@@ -89,6 +89,12 @@ default_config = {
     # Configuration of proxy connection.
     "proxy": {
         "url": None,
+
+        # use https for proxy.url (if no schema in proxy.url)
+        "prefer_https": False,
+
+        "ca_bundle_path": None,
+
         # Suffix appended to url if it is short.
         "default_suffix": DEFAULT_HOST_SUFFIX,
 
@@ -128,7 +134,7 @@ default_config = {
         # !!! It is not proxy specific !!!
         "request_backoff_time": None,
 
-        # use proxies if and only if your have no direct access to yt balancer
+        # String, requests.session.proxies. Use this proxies if and only if your have no direct access to yt balancer
         "http_proxy": None,
         "https_proxy": None,
 
@@ -152,7 +158,7 @@ default_config = {
         "proxy_ban_timeout": 120 * 1000,
 
         # Link to operation in web interface.
-        "operation_link_pattern": "http://{proxy}/{cluster_path}?page=operation&mode=detail&id={id}&tab=details",
+        "operation_link_pattern": "{proxy}/{cluster_path}?page=operation&mode=detail&id={id}&tab=details",
 
         # Sometimes proxy can return incorrect or incomplete response.
         # This option enables checking response format for light requests.

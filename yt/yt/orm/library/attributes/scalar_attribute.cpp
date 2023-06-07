@@ -555,7 +555,7 @@ public:
         TStringBuf path) const final
     {
         const auto* reflection = message->GetReflection();
-        // HasField does not work for repeated field, becase there is no difference between empty list and unset list.
+        // HasField does not work for repeated field, because there is no difference between empty list and unset list.
         THROW_ERROR_EXCEPTION_UNLESS(SkipMissing_ || field->is_repeated() || reflection->HasField(*message, field),
             "Attribute %Qv is missing",
             path);

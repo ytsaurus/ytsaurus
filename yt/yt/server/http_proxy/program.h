@@ -1,6 +1,8 @@
 #include "bootstrap.h"
 #include "config.h"
 
+#include <yt/yt/server/lib/logging/program_describe_structured_logs_mixin.h>
+
 #include <yt/yt/server/lib/misc/cluster_connection.h>
 
 #include <yt/yt/library/auth_server/config.h>
@@ -39,12 +41,14 @@ class THttpProxyProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramConfigMixin<NHttpProxy::TProxyConfig>
+    , public NLogging::TProgramDescribeStructuredLogsMixin
 {
 public:
     THttpProxyProgram()
         : TProgramPdeathsigMixin(Opts_)
         , TProgramSetsidMixin(Opts_)
         , TProgramConfigMixin(Opts_, false)
+        , TProgramDescribeStructuredLogsMixin(Opts_)
     {
         Opts_
             .AddLongOption(
@@ -79,6 +83,10 @@ protected:
         }
 
         if (HandleConfigOptions()) {
+            return;
+        }
+
+        if (HandleDescribeStructuredLogsOptions()) {
             return;
         }
 

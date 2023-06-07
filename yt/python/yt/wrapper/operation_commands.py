@@ -3,7 +3,7 @@ from .config import get_config
 from .errors import YtOperationFailedError, YtResponseError, YtRetriableArchiveError
 from .constants import LOCAL_MODE_URL_PATTERN
 from .driver import make_request, make_formatted_request, get_api_version
-from .http_helpers import get_proxy_url, get_retriable_errors
+from .http_helpers import get_proxy_address_url, get_retriable_errors
 from .exceptions_catcher import ExceptionCatcher
 from .job_commands import list_jobs, get_job_stderr
 from .local_mode import is_local_mode, get_local_mode_proxy_address
@@ -585,21 +585,21 @@ def process_operation_unsuccesful_finish_state(operation, error):
 
 
 def get_operation_url(operation, client=None):
-    proxy_url = get_proxy_url(required=False, client=client)
+    proxy_url = get_proxy_address_url(required=False, client=client)
     if not proxy_url:
         return None
 
     local_mode_proxy_address = get_local_mode_proxy_address(client=client)
     if local_mode_proxy_address is None and not is_local_mode(client=client):
         cluster_path = ""
-        proxy = get_proxy_url(client=client)
+        proxy = get_proxy_address_url(client=client)
     else:
         if local_mode_proxy_address is not None and local_mode_proxy_address.split(":")[0] != "localhost":
             cluster_path = ""
-            proxy = LOCAL_MODE_URL_PATTERN.format(local_mode_address=local_mode_proxy_address)
+            proxy = "http://" + LOCAL_MODE_URL_PATTERN.format(local_mode_address=local_mode_proxy_address)
         else:
             cluster_path = "ui/"
-            proxy = get_proxy_url(client=client)
+            proxy = get_proxy_address_url(client=client)
 
     return get_config(client)["proxy"]["operation_link_pattern"].format(
         proxy=proxy,

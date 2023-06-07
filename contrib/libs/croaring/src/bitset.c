@@ -13,7 +13,7 @@ extern "C" { namespace roaring { namespace internal {
 #endif
 
 /* Create a new bitset. Return NULL in case of failure. */
-bitset_t *bitset_create() {
+bitset_t *bitset_create(void) {
     bitset_t *bitset = NULL;
     /* Allocate the bitset itself. */
     if ((bitset = (bitset_t *)roaring_malloc(sizeof(bitset_t))) == NULL) {

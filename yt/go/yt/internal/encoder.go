@@ -93,7 +93,7 @@ func (e *Encoder) RemoveNode(
 func (e *Encoder) GetNode(
 	ctx context.Context,
 	path ypath.YPath,
-	result interface{},
+	result any,
 	options *yt.GetNodeOptions,
 ) (err error) {
 	call := e.newCall(NewGetNodeParams(path, options))
@@ -106,7 +106,7 @@ func (e *Encoder) GetNode(
 func (e *Encoder) SetNode(
 	ctx context.Context,
 	path ypath.YPath,
-	value interface{},
+	value any,
 	options *yt.SetNodeOptions,
 ) (err error) {
 	call := e.newCall(NewSetNodeParams(path, options))
@@ -123,7 +123,7 @@ func (e *Encoder) SetNode(
 func (e *Encoder) MultisetAttributes(
 	ctx context.Context,
 	path ypath.YPath,
-	attributes map[string]interface{},
+	attributes map[string]any,
 	options *yt.MultisetAttributesOptions,
 ) (err error) {
 	call := e.newCall(NewMultisetAttributesParams(path, options))
@@ -140,7 +140,7 @@ func (e *Encoder) MultisetAttributes(
 func (e *Encoder) ListNode(
 	ctx context.Context,
 	path ypath.YPath,
-	result interface{},
+	result any,
 	options *yt.ListNodeOptions,
 ) (err error) {
 	call := e.newCall(NewListNodeParams(path, options))
@@ -271,7 +271,7 @@ func (e *Encoder) TransferPoolResources(
 	srcPool string,
 	dstPool string,
 	poolTree string,
-	resourceDelta interface{},
+	resourceDelta any,
 	options *yt.TransferPoolResourcesOptions,
 ) (err error) {
 	call := e.newCall(NewTransferPoolResourcesParams(srcPool, dstPool, poolTree, resourceDelta, options))
@@ -283,7 +283,7 @@ func (e *Encoder) TransferAccountResources(
 	ctx context.Context,
 	srcAccount string,
 	dstAccount string,
-	resourceDelta interface{},
+	resourceDelta any,
 	options *yt.TransferAccountResourcesOptions,
 ) (err error) {
 	call := e.newCall(NewTransferAccountResourcesParams(srcAccount, dstAccount, resourceDelta, options))
@@ -368,7 +368,7 @@ func (e *Encoder) CommitTx(
 func (e *Encoder) StartOperation(
 	ctx context.Context,
 	opType yt.OperationType,
-	spec interface{},
+	spec any,
 	options *yt.StartOperationOptions,
 ) (opID yt.OperationID, err error) {
 	call := e.newCall(NewStartOperationParams(opType, spec, options))
@@ -414,7 +414,7 @@ func (e *Encoder) CompleteOperation(
 func (e *Encoder) UpdateOperationParameters(
 	ctx context.Context,
 	opID yt.OperationID,
-	params interface{},
+	params any,
 	options *yt.UpdateOperationParametersOptions,
 ) (err error) {
 	return e.do(ctx, e.newCall(NewUpdateOperationParametersParams(opID, params, options)), func(res *CallResult) error { return nil })
@@ -545,7 +545,7 @@ func (e *Encoder) ReadTable(
 	return e.InvokeReadRow(ctx, call)
 }
 
-func marshalKeys(keys []interface{}) ([]byte, error) {
+func marshalKeys(keys []any) ([]byte, error) {
 	var rows bytes.Buffer
 
 	ys := yson.NewWriterConfig(&rows, yson.WriterConfig{Kind: yson.StreamListFragment, Format: yson.FormatBinary})
@@ -562,7 +562,7 @@ func marshalKeys(keys []interface{}) ([]byte, error) {
 func (e *Encoder) LookupRows(
 	ctx context.Context,
 	path ypath.Path,
-	keys []interface{},
+	keys []any,
 	options *yt.LookupRowsOptions,
 ) (r yt.TableReader, err error) {
 	call := e.newCall(NewLookupRowsParams(path, options))
@@ -584,7 +584,7 @@ func (e *Encoder) SelectRows(
 	return e.InvokeReadRow(ctx, call)
 }
 
-func (e *Encoder) writeRows(w yt.TableWriter, rows []interface{}) error {
+func (e *Encoder) writeRows(w yt.TableWriter, rows []any) error {
 	for _, row := range rows {
 		if err := w.Write(row); err != nil {
 			return err
@@ -597,7 +597,7 @@ func (e *Encoder) writeRows(w yt.TableWriter, rows []interface{}) error {
 func (e *Encoder) InsertRows(
 	ctx context.Context,
 	path ypath.Path,
-	rows []interface{},
+	rows []any,
 	options *yt.InsertRowsOptions,
 ) (err error) {
 	call := e.newCall(NewInsertRowsParams(path, options))
@@ -631,7 +631,7 @@ func (e *Encoder) LockRows(
 	path ypath.Path,
 	locks []string,
 	lockType yt.LockType,
-	keys []interface{},
+	keys []any,
 	options *yt.LockRowsOptions,
 ) (err error) {
 	if len(locks) == 0 {
@@ -652,7 +652,7 @@ func (e *Encoder) LockRows(
 func (e *Encoder) DeleteRows(
 	ctx context.Context,
 	path ypath.Path,
-	keys []interface{},
+	keys []any,
 	options *yt.DeleteRowsOptions,
 ) (err error) {
 	call := e.newCall(NewDeleteRowsParams(path, options))
@@ -667,9 +667,10 @@ func (e *Encoder) DeleteRows(
 func (e *Encoder) DisableChunkLocations(
 	ctx context.Context,
 	nodeAddress string,
-	locationUuids []guid.GUID,
+	locationUUIDs []guid.GUID,
+	options *yt.DisableChunkLocationsOptions,
 ) (response *yt.DisableChunkLocationsResponse, err error) {
-	call := e.newCall(NewDisableChunkLocationsParams(nodeAddress, locationUuids))
+	call := e.newCall(NewDisableChunkLocationsParams(nodeAddress, locationUUIDs, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
 		return res.decode(&response)
 	})
@@ -679,9 +680,10 @@ func (e *Encoder) DisableChunkLocations(
 func (e *Encoder) DestroyChunkLocations(
 	ctx context.Context,
 	nodeAddress string,
-	locationUuids []guid.GUID,
+	locationUUIDs []guid.GUID,
+	options *yt.DestroyChunkLocationsOptions,
 ) (response *yt.DestroyChunkLocationsResponse, err error) {
-	call := e.newCall(NewDestroyChunkLocationsParams(nodeAddress, locationUuids))
+	call := e.newCall(NewDestroyChunkLocationsParams(nodeAddress, locationUUIDs, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
 		return res.decode(&response)
 	})
@@ -691,9 +693,10 @@ func (e *Encoder) DestroyChunkLocations(
 func (e *Encoder) ResurrectChunkLocations(
 	ctx context.Context,
 	nodeAddress string,
-	locationUuids []guid.GUID,
+	locationUUIDs []guid.GUID,
+	options *yt.ResurrectChunkLocationsOptions,
 ) (response *yt.ResurrectChunkLocationsResponse, err error) {
-	call := e.newCall(NewResurrectChunkLocationsParams(nodeAddress, locationUuids))
+	call := e.newCall(NewResurrectChunkLocationsParams(nodeAddress, locationUUIDs, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
 		return res.decode(&response)
 	})
@@ -795,7 +798,7 @@ func (e *Encoder) GetInSyncReplicas(
 	ctx context.Context,
 	path ypath.Path,
 	ts yt.Timestamp,
-	keys []interface{},
+	keys []any,
 	options *yt.GetInSyncReplicasOptions,
 ) (ids []yt.NodeID, err error) {
 	call := e.newCall(NewGetInSyncReplicasParams(path, ts, options))

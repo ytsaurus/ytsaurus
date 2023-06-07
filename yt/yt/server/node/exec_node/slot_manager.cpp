@@ -373,7 +373,7 @@ std::unique_ptr<TSlotManager::TSlotGuard> TSlotManager::AcquireSlot(
 
 int TSlotManager::GetSlotCount() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     return SlotCount_;
 }

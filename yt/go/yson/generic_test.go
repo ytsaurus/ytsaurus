@@ -18,7 +18,7 @@ func runGenericTests(t *testing.T, tests []testCase) {
 }
 
 func TestDecodeInterface(t *testing.T) {
-	var v1 interface{} = map[string]interface{}{
+	var v1 any = map[string]any{
 		"a": int64(1),
 		"b": "c",
 	}
@@ -29,7 +29,7 @@ func TestDecodeInterface(t *testing.T) {
 }
 
 func TestDecodeGenericList(t *testing.T) {
-	var v1 interface{} = []interface{}{
+	var v1 any = []any{
 		int64(1),
 		"foo",
 		nil,
@@ -42,8 +42,8 @@ func TestDecodeGenericList(t *testing.T) {
 }
 
 func TestDecodeGenericAttrs(t *testing.T) {
-	var v1 interface{} = &ValueWithAttrs{
-		Attrs: map[string]interface{}{
+	var v1 any = &ValueWithAttrs{
+		Attrs: map[string]any{
 			"foo": int64(1),
 			"bar": "zog",
 		},

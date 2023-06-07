@@ -414,7 +414,7 @@ private:
         TProtocolVersion ProtocolVersion_ = DefaultProtocolVersion;
         TGrpcByteBufferPtr ResponseBodyBuffer_;
         TString ErrorMessage_;
-        grpc_slice ErrorMessageSlice_ = grpc_empty_slice();
+        TGrpcSlice ErrorMessageSlice_;
         int RawCanceled_ = 0;
 
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TraceContextSpinLock_);
@@ -984,7 +984,7 @@ private:
             if (responseHeader.has_error() && responseHeader.error().code() != static_cast<int>(NYT::EErrorCode::OK)) {
                 FromProto(&error, responseHeader.error());
                 ErrorMessage_ = ToString(error);
-                ErrorMessageSlice_ = grpc_slice_from_static_string(ErrorMessage_.c_str());
+                ErrorMessageSlice_.Reset(grpc_slice_from_static_string(ErrorMessage_.c_str()));
                 TrailingMetadataBuilder_.Add(ErrorMetadataKey, SerializeError(error));
             } else {
                 YT_VERIFY(ResponseMessage_.Size() >= 2);
@@ -1013,7 +1013,7 @@ private:
             ops.back().flags = 0;
             ops.back().reserved = nullptr;
             ops.back().data.send_status_from_server.status = error.IsOK() ? GRPC_STATUS_OK : grpc_status_code(GenericErrorStatusCode);
-            ops.back().data.send_status_from_server.status_details = error.IsOK() ? nullptr : &ErrorMessageSlice_;
+            ops.back().data.send_status_from_server.status_details = error.IsOK() ? nullptr : ErrorMessageSlice_.Unwrap();
             ops.back().data.send_status_from_server.trailing_metadata_count = TrailingMetadataBuilder_.GetSize();
             ops.back().data.send_status_from_server.trailing_metadata = TrailingMetadataBuilder_.Unwrap();
 

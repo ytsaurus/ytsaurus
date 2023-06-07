@@ -290,9 +290,9 @@ bool TJob::IsStarted() const
 
 void TJob::OnResourcesAcquired()
 {
-    BIND(&TJob::Start, MakeWeak(this))
-        .AsyncVia(Bootstrap_->GetJobInvoker())
-        .Run();
+    Bootstrap_
+        ->GetJobInvoker()
+        ->Invoke(BIND(&TJob::Start, MakeStrong(this)));
 }
 
 void TJob::Abort(TError error)
@@ -768,7 +768,7 @@ int TJob::GetSlotIndex() const
     return slot->GetSlotIndex();
 }
 
-const NClusterNode::TJobResources& TJob::GetResourceUsage() const
+NClusterNode::TJobResources TJob::GetResourceUsage() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1624,7 +1624,7 @@ void TJob::FinishPrepare(const TErrorOr<TJobWorkspaceBuildResult>& resultOrError
     GuardedAction([&] {
         auto& holder = resultOrError.Value();
         TmpfsPaths_ = holder.TmpfsPaths;
-        RootVolume_ = std::move(holder.RootVolume);
+        RootVolume_ = holder.RootVolume;
         SetupCommandCount_ = holder.SetupCommandCount;
 
         THROW_ERROR_EXCEPTION_IF_FAILED(

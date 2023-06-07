@@ -118,19 +118,19 @@ class TMaxBlockSizeInputStream
 {
 public:
     TMaxBlockSizeInputStream(IInputStream* inputStream, size_t maxBlockSize)
-        : InputStream(inputStream)
-        , MaxBlockSize(maxBlockSize)
+        : InputStream_(inputStream)
+        , MaxBlockSize_(maxBlockSize)
     { }
 
 protected:
     virtual size_t DoRead(void* buf, size_t len) override
     {
-        return InputStream->Read(buf, std::min(len, MaxBlockSize));
+        return InputStream_->Read(buf, std::min(len, MaxBlockSize_));
     }
 
 private:
-    IInputStream* InputStream = nullptr;
-    size_t MaxBlockSize = 0;
+    IInputStream* InputStream_;
+    size_t MaxBlockSize_;
 };
 
 //! This test creates a big block size async zero copy input stream

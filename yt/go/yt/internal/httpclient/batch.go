@@ -28,7 +28,7 @@ type errTableWriter struct {
 	err error
 }
 
-func (ew errTableWriter) Write(row interface{}) error {
+func (ew errTableWriter) Write(row any) error {
 	return ew.err
 }
 

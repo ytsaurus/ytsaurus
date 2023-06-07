@@ -11,7 +11,7 @@ import (
 
 const CurrentWireFormatVersion = 1
 
-func encodeToWire(items []interface{}) ([][]byte, *rpc_proxy.TRowsetDescriptor, error) {
+func encodeToWire(items []any) ([][]byte, *rpc_proxy.TRowsetDescriptor, error) {
 	nameTable, rows, err := wire.Encode(items)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("unable to encode keys: %w", err)
@@ -41,7 +41,7 @@ func encodeToWire(items []interface{}) ([][]byte, *rpc_proxy.TRowsetDescriptor, 
 	return attachments, descriptor, nil
 }
 
-func encodePivotKeys(keys interface{}) ([][]byte, error) {
+func encodePivotKeys(keys any) ([][]byte, error) {
 	if keys == nil {
 		return nil, nil
 	}
@@ -51,7 +51,7 @@ func encodePivotKeys(keys interface{}) ([][]byte, error) {
 		return nil, xerrors.Errorf("unsupported keys type: %v", vv.Kind())
 	}
 
-	items := make([]interface{}, 0, vv.Len())
+	items := make([]any, 0, vv.Len())
 	for i := 0; i < vv.Len(); i++ {
 		items = append(items, vv.Index(i).Interface())
 	}

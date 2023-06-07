@@ -950,6 +950,8 @@ public:
     //! Enables job interrupts, both for job splitting and preemption.
     bool EnableJobInterrupts;
 
+    bool UseColumnarStatisticsDefault;
+
     double UserJobMemoryDigestPrecision;
     double UserJobMemoryReserveQuantile;
     double JobProxyMemoryReserveQuantile;

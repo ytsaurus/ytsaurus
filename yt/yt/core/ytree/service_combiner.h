@@ -27,6 +27,8 @@ private:
     const TIntrusivePtr<TImpl> Impl_;
 };
 
+DEFINE_REFCOUNTED_TYPE(TServiceCombiner)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTree

@@ -158,6 +158,23 @@ void TMemoryUsageTrackerGuard::IncrementSize(i64 sizeDelta)
     SetSize(Size_ + sizeDelta);
 }
 
+TMemoryUsageTrackerGuard TMemoryUsageTrackerGuard::TransferMemory(i64 size)
+{
+    YT_VERIFY(Size_ >= size);
+
+    auto acquiredDelta = std::min(AcquiredSize_, size);
+
+    Size_ -= size;
+    AcquiredSize_ -= acquiredDelta;
+
+    TMemoryUsageTrackerGuard guard;
+    guard.Tracker_ = Tracker_;
+    guard.Size_ = size;
+    guard.AcquiredSize_ = acquiredDelta;
+    guard.Granularity_ = Granularity_;
+    return std::move(guard);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

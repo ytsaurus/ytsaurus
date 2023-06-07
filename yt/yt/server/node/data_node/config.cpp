@@ -130,9 +130,6 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
     registrar.Parameter("reset_uuid", &TThis::ResetUuid)
         .Default(false);
 
-    registrar.Parameter("enable_uring", &TThis::EnableUring)
-        .Default(false);
-
     registrar.Postprocessor([] (TThis* config) {
         for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
             if (!config->Throttlers[kind]) {
@@ -538,6 +535,9 @@ void TChunkMergerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("fail_shallow_merge_validation", &TThis::FailShallowMergeValidation)
         .Default(false);
+
+    registrar.Parameter("read_window_size", &TThis::ReadWindowSize)
+        .Default(256_MBs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -144,10 +144,8 @@ public:
     TGrpcObject();
     ~TGrpcObject();
 
-    TGrpcObject(const TGrpcObject&) = delete;
     TGrpcObject(TGrpcObject&&) = delete;
-    TGrpcObject& operator =(const TGrpcObject& other) = delete;
-    TGrpcObject& operator =(TGrpcObject&& other) = delete;
+    TGrpcObject& operator=(TGrpcObject&&) = delete;
 
     T* Unwrap();
     T* operator->();
@@ -170,6 +168,30 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 using TGrpcCallDetails = TGrpcObject<grpc_call_details, grpc_call_details_init, grpc_call_details_destroy>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGrpcSlice
+{
+public:
+    TGrpcSlice() = default;
+    ~TGrpcSlice();
+
+    TGrpcSlice(TGrpcSlice&&) = delete;
+    TGrpcSlice& operator=(TGrpcSlice&&) = delete;
+
+    void Reset(grpc_slice&& other);
+
+    grpc_slice* Unwrap();
+
+    const ui8* Data() const;
+    size_t Size() const;
+
+    TString AsString() const;
+
+private:
+    grpc_slice Native_ = grpc_empty_slice();
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -215,7 +237,7 @@ public:
 private:
     grpc_byte_buffer_reader Reader_;
 
-    grpc_slice CurrentSlice_;
+    TGrpcSlice CurrentSlice_;
     size_t AvailableBytes_ = 0;
     size_t RemainingBytes_;
 

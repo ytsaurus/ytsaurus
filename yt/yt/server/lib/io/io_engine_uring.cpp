@@ -1847,7 +1847,6 @@ IIOEnginePtr CreateIOEngineUring(
 bool IsUringIOEngineSupported()
 {
 #ifdef _linux_
-
     io_uring uring;
     auto result = io_uring_queue_init(MaxUringConcurrentRequestsPerThread, &uring, /* flags */ 0);
     if (result < 0) {
@@ -1858,20 +1857,6 @@ bool IsUringIOEngineSupported()
 
 #endif
     return false;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsUringBasedIOEngine(EIOEngineType engineType)
-{
-    switch (engineType) {
-        case EIOEngineType::FairShareUring:
-        case EIOEngineType::Uring:
-            return true;
-
-        default:
-            return false;
-    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -22,7 +22,7 @@ func NewDecoderFromBytes(b []byte) *Decoder {
 	return &Decoder{R: NewReaderFromBytes(b)}
 }
 
-func (d *Decoder) Decode(v interface{}) error {
+func (d *Decoder) Decode(v any) error {
 	return decodeAny(d.R, v, d.opts)
 }
 

@@ -60,23 +60,25 @@ class TTypedYPathRequest;
 template <class TRequestMessage, class TResponseMessage>
 class TTypedYPathResponse;
 
+DECLARE_REFCOUNTED_CLASS(TServiceCombiner)
+
 using NYPath::TYPath;
 
 //! Default limit for List and Get requests to virtual nodes.
-const i64 DefaultVirtualChildLimit = 1000;
+constexpr i64 DefaultVirtualChildLimit = 1000;
 
 //! The global limit for the number of resolve iterations in #ResolveYPath.
 //! This effectively bounds the maximum depth of YPath the system can handle.
 //! Also this protects us from infinite cycles in resolution (which can be caused,
 //! e.g., by cyclic symlinks in Cypress).
 //! NB: Changing this value will invalidate all changelogs!
-static const int MaxYPathResolveIterations = 256;
+constexpr int MaxYPathResolveIterations = 256;
 
 DECLARE_REFCOUNTED_CLASS(TYsonSerializable)
 DECLARE_REFCOUNTED_CLASS(TYsonStruct)
 DECLARE_REFCOUNTED_CLASS(TYsonStructBase)
 
-class TYPathServiceContextWrapper;
+DECLARE_REFCOUNTED_CLASS(TYPathServiceContextWrapper)
 
 template <class TRequestMessage, class TResponseMessage>
 using TTypedYPathServiceContext = NRpc::TGenericTypedServiceContext<

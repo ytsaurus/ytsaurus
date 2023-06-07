@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .cypress_commands import list as yt_list, create, exists, get
-from .http_helpers import get_token, get_user_name, get_proxy_url
+from .http_helpers import get_token, get_user_name, get_proxy_address_url
 from .operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
 from .run_operation_commands import run_operation
 from .spec_builders import VanillaSpecBuilder
@@ -137,7 +137,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, dynamic_config,
     history_command = launcher_command("HistoryServer") + "--log-path yt:/{}".format(spark_discovery.event_log())
 
     environment = dynamic_config["environment"]
-    environment["YT_PROXY"] = get_proxy_url(required=True, client=client)
+    environment["YT_PROXY"] = get_proxy_address_url(required=True, client=client)
     environment["SPARK_DISCOVERY_PATH"] = str(spark_discovery.discovery())
 
     user = get_user_name(client=client)

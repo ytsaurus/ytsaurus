@@ -27,6 +27,11 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCachedObjectServiceResponseTag
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
 TObjectServiceCacheKey::TObjectServiceCacheKey(
     TCellTag cellTag,
     TString user,
@@ -309,7 +314,7 @@ void TObjectServiceCache::EndLookup(
         success,
         revision,
         TInstant::Now(),
-        responseMessage,
+        TSharedRefArray::MakeCopy(responseMessage, GetRefCountedTypeCookie<TCachedObjectServiceResponseTag>()),
         rate,
         lastUpdateTime);
     TouchEntry(entry, /*forceRenewTop*/ true);

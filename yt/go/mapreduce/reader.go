@@ -32,10 +32,10 @@ type Reader interface {
 	//
 	// Returns error, only if current row can't be decoded into value.
 	// All other errors will terminate current process immediately.
-	Scan(value interface{}) error
+	Scan(value any) error
 
 	// MustScan works like Scan, but terminates current process in case of an error.
-	MustScan(value interface{})
+	MustScan(value any)
 
 	// Advances input stream to the next record.
 	Next() bool
@@ -99,7 +99,7 @@ func (r *reader) RangeIndex() int {
 	return r.lastRangeIndex
 }
 
-func (r *reader) Scan(value interface{}) error {
+func (r *reader) Scan(value any) error {
 	if !r.hasValue {
 		panic("Scan() called out of sequence")
 	}
@@ -107,7 +107,7 @@ func (r *reader) Scan(value interface{}) error {
 	return yson.Unmarshal(r.value.Value, value)
 }
 
-func (r *reader) MustScan(value interface{}) {
+func (r *reader) MustScan(value any) {
 	err := r.Scan(value)
 	if err != nil {
 		r.ctx.onError(err)
@@ -181,7 +181,7 @@ func newReader(r io.Reader, ctx *jobContext) *reader {
 	}
 }
 
-func zeroInitialize(v interface{}) {
+func zeroInitialize(v any) {
 	value := reflect.ValueOf(v)
 	if value.Kind() != reflect.Ptr {
 		return

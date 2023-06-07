@@ -87,7 +87,7 @@ func makeNodeID(g *misc.TGuid) yt.NodeID {
 	return yt.NodeID(makeGUID(g))
 }
 
-func convertAttributes(attrs map[string]interface{}) (*ytree.TAttributeDictionary, error) {
+func convertAttributes(attrs map[string]any) (*ytree.TAttributeDictionary, error) {
 	if attrs == nil {
 		return nil, nil
 	}
@@ -357,7 +357,7 @@ func makeDisableChunkLocationsResponse(response *rpc_proxy.TRspDisableChunkLocat
 	}
 
 	ret := &yt.DisableChunkLocationsResponse{
-		LocationUuids: makeGUIDs(response.LocationUuids),
+		LocationUUIDs: makeGUIDs(response.LocationUuids),
 	}
 
 	return ret, nil
@@ -369,7 +369,7 @@ func makeDestroyChunkLocationsResponse(response *rpc_proxy.TRspDestroyChunkLocat
 	}
 
 	ret := &yt.DestroyChunkLocationsResponse{
-		LocationUuids: makeGUIDs(response.LocationUuids),
+		LocationUUIDs: makeGUIDs(response.LocationUuids),
 	}
 
 	return ret, nil
@@ -381,7 +381,7 @@ func makeResurrectChunkLocationsResponse(response *rpc_proxy.TRspResurrectChunkL
 	}
 
 	ret := &yt.ResurrectChunkLocationsResponse{
-		LocationUuids: makeGUIDs(response.LocationUuids),
+		LocationUUIDs: makeGUIDs(response.LocationUuids),
 	}
 
 	return ret, nil
@@ -558,7 +558,7 @@ func makeListOperationsResult(result *rpc_proxy.TListOperationsResult) (*yt.List
 			return nil, xerrors.Errorf("unable to convert operation type of operation %q: %w", opID, err)
 		}
 
-		var briefSpec map[string]interface{}
+		var briefSpec map[string]any
 		if err := yson.Unmarshal(op.BriefSpec, &briefSpec); err != nil {
 			return nil, xerrors.Errorf("unable to deserialize brief spec of operation %q: %w", opID, err)
 		}
@@ -1030,7 +1030,7 @@ func makeLockNodeResult(r *rpc_proxy.TRspLockNode) (yt.LockResult, error) {
 	return ret, nil
 }
 
-func convertPlaceHolderValues(placeholderValues interface{}) ([]byte, error) {
+func convertPlaceHolderValues(placeholderValues any) ([]byte, error) {
 	if placeholderValues == nil {
 		return nil, nil
 	}

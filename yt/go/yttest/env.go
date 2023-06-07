@@ -75,7 +75,7 @@ func (e *Env) TmpPath() ypath.Path {
 	return ypath.Path("//tmp").Child(uid.String())
 }
 
-func UploadSlice(ctx context.Context, c yt.Client, path ypath.YPath, slice interface{}) error {
+func UploadSlice(ctx context.Context, c yt.Client, path ypath.YPath, slice any) error {
 	sliceType := reflect.TypeOf(slice)
 	if sliceType.Kind() != reflect.Slice {
 		return xerrors.Errorf("type %T is not a slice", slice)
@@ -87,7 +87,7 @@ func UploadSlice(ctx context.Context, c yt.Client, path ypath.YPath, slice inter
 	}
 
 	_, err = c.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
-		Attributes: map[string]interface{}{"schema": tableSchema},
+		Attributes: map[string]any{"schema": tableSchema},
 	})
 	if err != nil && !yterrors.ContainsAlreadyExistsError(err) {
 		return err
@@ -108,11 +108,11 @@ func UploadSlice(ctx context.Context, c yt.Client, path ypath.YPath, slice inter
 	return w.Commit()
 }
 
-func (e *Env) UploadSlice(path ypath.YPath, slice interface{}) error {
+func (e *Env) UploadSlice(path ypath.YPath, slice any) error {
 	return UploadSlice(e.Ctx, e.YT, path, slice)
 }
 
-func DownloadSlice(ctx context.Context, c yt.TableClient, path ypath.YPath, value interface{}) error {
+func DownloadSlice(ctx context.Context, c yt.TableClient, path ypath.YPath, value any) error {
 	sliceValue := reflect.ValueOf(value).Elem()
 
 	r, err := c.ReadTable(ctx, path, nil)
@@ -139,6 +139,6 @@ func DownloadSlice(ctx context.Context, c yt.TableClient, path ypath.YPath, valu
 	return nil
 }
 
-func (e *Env) DownloadSlice(path ypath.YPath, value interface{}) error {
+func (e *Env) DownloadSlice(path ypath.YPath, value any) error {
 	return DownloadSlice(e.Ctx, e.YT, path, value)
 }

@@ -222,7 +222,7 @@ private:
     {
         auto connection = NNative::FindRemoteConnection(Bootstrap_->GetClusterConnection(), clusterName);
         if (!connection) {
-            YT_LOG_WARNING("Could not find native connection config to alien cluster (ClusterName: %Qv)",
+            YT_LOG_WARNING("Could not find native connection config to alien cluster (ClusterName: %v)",
                 clusterName);
             return {};
         }

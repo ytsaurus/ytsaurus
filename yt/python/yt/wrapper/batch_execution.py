@@ -1,3 +1,4 @@
+import weakref
 from .batch_client import BatchClient
 from .batch_response import BatchResponse
 from .common import chunk_iter_list, get_value
@@ -74,8 +75,11 @@ class BatchExecutor(object):
 
     def get_client(self):
         config = deepcopy(get_config(self._client))
-        self._batch_client = BatchClient(self, client_state=get_client_state(self._client), config=config)
-        return self._batch_client
+        batch_client = BatchClient(self, client_state=get_client_state(self._client), config=config)
+        # circular reference: BatchClient._batch_executor <-> BatchExecutor._batch_client
+        # object can live up to 1 minute (and hold opened socket) after "destruction". So make ref weak.
+        self._batch_client = weakref.proxy(batch_client)
+        return batch_client
 
     def add_task(self, command, parameters, input=None):
         task = {"command": command, "parameters": parameters}

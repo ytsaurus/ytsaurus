@@ -181,6 +181,9 @@ void TProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("retry_request_queue_size_limit_exceeded", &TThis::RetryRequestQueueSizeLimitExceeded)
         .Default(true);
 
+    registrar.Parameter("role", &TThis::Role)
+        .Default("data");
+
     registrar.Parameter("coordinator", &TThis::Coordinator)
         .DefaultNew();
     registrar.Parameter("api", &TThis::Api)

@@ -31,6 +31,8 @@
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
+#include <yt/yt/library/numeric/algorithm_helpers.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/compression/codec.h>
@@ -39,7 +41,6 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/algorithm_helpers.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/core/rpc/helpers.h>

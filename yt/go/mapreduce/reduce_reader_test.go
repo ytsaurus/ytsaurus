@@ -9,7 +9,7 @@ import (
 
 type fakeRow struct {
 	keySwitch bool
-	value     interface{}
+	value     any
 }
 
 type fakeReader []fakeRow
@@ -30,7 +30,7 @@ func (*fakeReader) RangeIndex() int {
 	panic("implement me")
 }
 
-func (r *fakeReader) Scan(value interface{}) error {
+func (r *fakeReader) Scan(value any) error {
 	v := reflect.ValueOf(value)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -40,7 +40,7 @@ func (r *fakeReader) Scan(value interface{}) error {
 	return nil
 }
 
-func (*fakeReader) MustScan(value interface{}) {
+func (*fakeReader) MustScan(value any) {
 	panic("implement me")
 }
 

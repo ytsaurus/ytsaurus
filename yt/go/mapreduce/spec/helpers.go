@@ -10,7 +10,7 @@ func ConfigureJobIOForDynamicTable(spec *Spec) {
 			*io = new(JobIO)
 		}
 
-		(*io).TableWriter = map[string]interface{}{
+		(*io).TableWriter = map[string]any{
 			"desired_chunk_size": 100 * 1024 * 1024,
 			"block_size":         256 * 1024,
 		}

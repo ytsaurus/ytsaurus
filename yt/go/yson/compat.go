@@ -6,7 +6,7 @@ package yson
 //
 // Early versions of YSON was missing separate wire type for bool. Instead, string "true" was used to specify true value.
 // C++ code still accepts string value where bool is expected, for compatibility reasons.
-func IsTrue(value interface{}) bool {
+func IsTrue(value any) bool {
 	switch v := value.(type) {
 	case bool:
 		return v

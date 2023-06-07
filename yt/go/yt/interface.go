@@ -43,7 +43,7 @@ import (
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
-//go:generate yt-gen-client -interface interface.go -output internal/params.go
+//go:generate yt-gen-client -interface interface.go -output internal/params_gen.go
 
 // TransactionOptions control transactional context of cypress command.
 //
@@ -117,7 +117,7 @@ type CreateNodeOptions struct {
 	IgnoreExisting bool `http:"ignore_existing"`
 	Force          bool `http:"force"`
 
-	Attributes map[string]interface{} `http:"attributes,omitnil"`
+	Attributes map[string]any `http:"attributes,omitnil"`
 
 	*TransactionOptions
 	*AccessTrackingOptions
@@ -130,7 +130,7 @@ type CreateObjectOptions struct {
 	IgnoreExisting bool `http:"ignore_existing"`
 	Force          bool `http:"force"`
 
-	Attributes map[string]interface{} `http:"attributes,omitnil"`
+	Attributes map[string]any `http:"attributes,omitnil"`
 
 	*PrerequisiteOptions
 	*AccessTrackingOptions
@@ -232,7 +232,7 @@ type LinkNodeOptions struct {
 	IgnoreExisting bool `http:"ignore_existing"`
 	Force          bool `http:"force"`
 
-	Attributes map[string]interface{} `http:"attributes,omitnil"`
+	Attributes map[string]any `http:"attributes,omitnil"`
 
 	*TransactionOptions
 	// *AccessTrackingOptions
@@ -280,7 +280,7 @@ type CypressClient interface {
 	GetNode(
 		ctx context.Context,
 		path ypath.YPath,
-		result interface{},
+		result any,
 		options *GetNodeOptions,
 	) (err error)
 
@@ -290,7 +290,7 @@ type CypressClient interface {
 	SetNode(
 		ctx context.Context,
 		path ypath.YPath,
-		value interface{},
+		value any,
 		options *SetNodeOptions,
 	) (err error)
 
@@ -300,7 +300,7 @@ type CypressClient interface {
 	MultisetAttributes(
 		ctx context.Context,
 		path ypath.YPath,
-		attributes map[string]interface{},
+		attributes map[string]any,
 		options *MultisetAttributesOptions,
 	) (err error)
 
@@ -310,7 +310,7 @@ type CypressClient interface {
 	ListNode(
 		ctx context.Context,
 		path ypath.YPath,
-		result interface{},
+		result any,
 		options *ListNodeOptions,
 	) (err error)
 
@@ -349,8 +349,8 @@ type StartTxOptions struct {
 	Type   *TxType `http:"type,omitnil"`
 	Sticky bool    `http:"sticky"`
 
-	PrerequisiteTransactionIDs []TxID                 `http:"prerequisite_transaction_ids,omitnil"`
-	Attributes                 map[string]interface{} `http:"attributes,omitnil"`
+	PrerequisiteTransactionIDs []TxID         `http:"prerequisite_transaction_ids,omitnil"`
+	Attributes                 map[string]any `http:"attributes,omitnil"`
 
 	*TransactionOptions
 	*ReadRetryOptions
@@ -418,17 +418,17 @@ type LowLevelTxClient interface {
 }
 
 type WriteFileOptions struct {
-	ComputeMD5 bool        `http:"compute_md5"`
-	FileWriter interface{} `http:"file_writer"`
+	ComputeMD5 bool `http:"compute_md5"`
+	FileWriter any  `http:"file_writer"`
 
 	*TransactionOptions
 	*PrerequisiteOptions
 }
 
 type ReadFileOptions struct {
-	Offset     *int64      `http:"offset,omitnil"`
-	Length     *int64      `http:"length,omitnil"`
-	FileReader interface{} `http:"file_reader"`
+	Offset     *int64 `http:"offset,omitnil"`
+	Length     *int64 `http:"length,omitnil"`
+	FileReader any    `http:"file_reader"`
 
 	*TransactionOptions
 	*AccessTrackingOptions
@@ -485,18 +485,18 @@ type FileClient interface {
 }
 
 type WriteTableOptions struct {
-	TableWriter interface{} `http:"table_writer"`
+	TableWriter any `http:"table_writer"`
 
 	*TransactionOptions
 	*AccessTrackingOptions
 }
 
 type ReadTableOptions struct {
-	Unordered   bool        `http:"unordered"`
-	TableReader interface{} `http:"table_reader"`
+	Unordered   bool `http:"unordered"`
+	TableReader any  `http:"table_reader"`
 
-	ControlAttributes interface{} `http:"control_attributes,omitnil"`
-	StartRowIndexOnly *bool       `http:"start_row_index_only,omitnil"`
+	ControlAttributes any   `http:"control_attributes,omitnil"`
+	StartRowIndexOnly *bool `http:"start_row_index_only,omitnil"`
 
 	// Smart flag enables client side retries.
 	//
@@ -643,10 +643,10 @@ type OperationResult struct {
 }
 
 type OperationRuntimeParameters struct {
-	ACL                          []ACE                  `yson:"acl"`
-	SchedulingOptionsPerPoolTree map[string]interface{} `yson:"scheduling_options_per_pool_tree"`
-	Annotations                  map[string]interface{} `yson:"annotations"`
-	ErasedTrees                  []string               `yson:"erased_trees"`
+	ACL                          []ACE          `yson:"acl"`
+	SchedulingOptionsPerPoolTree map[string]any `yson:"scheduling_options_per_pool_tree"`
+	Annotations                  map[string]any `yson:"annotations"`
+	ErasedTrees                  []string       `yson:"erased_trees"`
 }
 
 type OperationStatus struct {
@@ -654,7 +654,7 @@ type OperationStatus struct {
 	State             OperationState             `yson:"state"`
 	Result            *OperationResult           `yson:"result"`
 	Type              OperationType              `yson:"type"`
-	BriefSpec         map[string]interface{}     `yson:"brief_spec"`
+	BriefSpec         map[string]any             `yson:"brief_spec"`
 	FullSpec          yson.RawValue              `yson:"full_spec"`
 	StartTime         yson.Time                  `yson:"start_time"`
 	Suspend           bool                       `yson:"suspend"`
@@ -668,7 +668,7 @@ type OperationStartClient interface {
 	StartOperation(
 		ctx context.Context,
 		opType OperationType,
-		spec interface{},
+		spec any,
 		options *StartOperationOptions,
 	) (opID OperationID, err error)
 }
@@ -716,7 +716,7 @@ type LowLevelSchedulerClient interface {
 	UpdateOperationParameters(
 		ctx context.Context,
 		opID OperationID,
-		params interface{},
+		params any,
 		options *UpdateOperationParametersOptions,
 	) (err error)
 
@@ -758,15 +758,15 @@ type AddMemberOptions struct {
 }
 
 type BuildMasterSnapshotsOptions struct {
-	SetReadOnly               *bool `yson:"set_read_only,omitnil"`
-	WaitForSnapshotCompletion *bool `yson:"wait_for_snapshot_completion,omitnil"`
-	Retry                     *bool `yson:"retry,omitnil"`
+	SetReadOnly               *bool `http:"set_read_only,omitnil"`
+	WaitForSnapshotCompletion *bool `http:"wait_for_snapshot_completion,omitnil"`
+	Retry                     *bool `http:"retry,omitnil"`
 }
 
 type BuildSnapshotOptions struct {
-	CellID                    *guid.GUID `yson:"cell_id,omitnil"`
-	SetReadOnly               *bool      `yson:"set_read_only,omitnil"`
-	WaitForSnapshotCompletion *bool      `yson:"wait_for_snapshot_completion,omitnil"`
+	CellID                    *guid.GUID `http:"cell_id,omitnil"`
+	SetReadOnly               *bool      `http:"set_read_only,omitnil"`
+	WaitForSnapshotCompletion *bool      `http:"wait_for_snapshot_completion,omitnil"`
 }
 
 type RemoveMemberOptions struct {
@@ -780,6 +780,15 @@ type CheckPermissionOptions struct {
 	*MasterReadOptions
 
 	Columns []string `http:"columns,omitnil"`
+}
+
+type DisableChunkLocationsOptions struct {
+}
+
+type DestroyChunkLocationsOptions struct {
+}
+
+type ResurrectChunkLocationsOptions struct {
 }
 
 type CheckPermissionResult struct {
@@ -808,15 +817,15 @@ type BuildSnapshotResponse struct {
 }
 
 type DisableChunkLocationsResponse struct {
-	LocationUuids []guid.GUID
+	LocationUUIDs []guid.GUID
 }
 
 type DestroyChunkLocationsResponse struct {
-	LocationUuids []guid.GUID
+	LocationUUIDs []guid.GUID
 }
 
 type ResurrectChunkLocationsResponse struct {
-	LocationUuids []guid.GUID
+	LocationUUIDs []guid.GUID
 }
 
 type AdminClient interface {
@@ -856,7 +865,7 @@ type AdminClient interface {
 		ctx context.Context,
 		srcAccount string,
 		dstAccount string,
-		resourceDelta interface{},
+		resourceDelta any,
 		options *TransferAccountResourcesOptions,
 	) (err error)
 
@@ -867,7 +876,7 @@ type AdminClient interface {
 		srcPool string,
 		dstPool string,
 		poolTree string,
-		resourceDelta interface{},
+		resourceDelta any,
 		options *TransferPoolResourcesOptions,
 	) (err error)
 
@@ -886,7 +895,8 @@ type AdminClient interface {
 	DisableChunkLocations(
 		ctx context.Context,
 		nodeAddress string,
-		locationUuids []guid.GUID,
+		locationUUIDs []guid.GUID,
+		options *DisableChunkLocationsOptions,
 	) (result *DisableChunkLocationsResponse, err error)
 
 	// http:verb:"destroy_chunk_locations"
@@ -894,7 +904,8 @@ type AdminClient interface {
 	DestroyChunkLocations(
 		ctx context.Context,
 		nodeAddress string,
-		locationUuids []guid.GUID,
+		locationUUIDs []guid.GUID,
+		options *DestroyChunkLocationsOptions,
 	) (result *DestroyChunkLocationsResponse, err error)
 
 	// http:verb:"resurrect_chunk_locations"
@@ -902,7 +913,8 @@ type AdminClient interface {
 	ResurrectChunkLocations(
 		ctx context.Context,
 		nodeAddress string,
-		locationUuids []guid.GUID,
+		locationUUIDs []guid.GUID,
+		options *ResurrectChunkLocationsOptions,
 	) (result *ResurrectChunkLocationsResponse, err error)
 }
 
@@ -984,8 +996,8 @@ type ReshardTableOptions struct {
 	*TabletRangeOptions
 	*MutatingOptions
 
-	PivotKeys   interface{} `http:"pivot_keys,omitnil"`
-	TabletCount *int        `http:"tablet_count,omitnil"`
+	PivotKeys   any  `http:"pivot_keys,omitnil"`
+	TabletCount *int `http:"tablet_count,omitnil"`
 }
 
 type AlterTableOptions struct {
@@ -1072,7 +1084,7 @@ type SelectRowsOptions struct {
 
 	Timestamp *Timestamp `http:"timestamp,omitnil"`
 
-	PlaceholderValues interface{} `http:"placeholder_values,omitnil"`
+	PlaceholderValues any `http:"placeholder_values,omitnil"`
 
 	*TransactionOptions
 	*TimeoutOptions
@@ -1114,7 +1126,7 @@ type TabletClient interface {
 	LookupRows(
 		ctx context.Context,
 		path ypath.Path,
-		keys []interface{},
+		keys []any,
 		options *LookupRowsOptions,
 	) (r TableReader, err error)
 
@@ -1128,7 +1140,7 @@ type TabletClient interface {
 		path ypath.Path,
 		locks []string,
 		lockType LockType,
-		keys []interface{},
+		keys []any,
 		options *LockRowsOptions,
 	) (err error)
 
@@ -1138,7 +1150,7 @@ type TabletClient interface {
 	InsertRows(
 		ctx context.Context,
 		path ypath.Path,
-		rows []interface{},
+		rows []any,
 		options *InsertRowsOptions,
 	) (err error)
 
@@ -1158,7 +1170,7 @@ type TabletClient interface {
 	DeleteRows(
 		ctx context.Context,
 		path ypath.Path,
-		keys []interface{},
+		keys []any,
 		options *DeleteRowsOptions,
 	) (err error)
 }
@@ -1290,7 +1302,7 @@ type Client interface {
 		ctx context.Context,
 		path ypath.Path,
 		ts Timestamp,
-		keys []interface{},
+		keys []any,
 		options *GetInSyncReplicasOptions,
 	) (ids []NodeID, err error)
 

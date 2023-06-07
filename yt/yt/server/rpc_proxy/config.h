@@ -126,6 +126,8 @@ public:
     TString DynamicConfigPath;
     bool UseTaggedDynamicConfig;
 
+    TString Role;
+
     REGISTER_YSON_STRUCT(TProxyConfig);
 
     static void Register(TRegistrar registrar);

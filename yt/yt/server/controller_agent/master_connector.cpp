@@ -1052,7 +1052,7 @@ private:
 
     TOperationSnapshot DoDownloadSnapshot(TOperationId operationId)
     {
-        auto batchReq = StartObjectBatchRequest();
+        auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
 
         {
             auto req = TYPathProxy::Get(GetSnapshotPath(operationId) + "/@version");

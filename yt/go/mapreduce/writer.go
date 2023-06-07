@@ -12,10 +12,10 @@ type Writer interface {
 	//
 	// Returns error, only if current row can't be decoded into value.
 	// All other errors will terminate current process immediately.
-	Write(value interface{}) error
+	Write(value any) error
 
 	// MustWrite works like Write, terminates current process in case of an error.
-	MustWrite(value interface{})
+	MustWrite(value any)
 }
 
 type writer struct {
@@ -26,7 +26,7 @@ type writer struct {
 	err error
 }
 
-func (w *writer) Write(value interface{}) error {
+func (w *writer) Write(value any) error {
 	if w.err != nil {
 		return w.err
 	}
@@ -35,7 +35,7 @@ func (w *writer) Write(value interface{}) error {
 	return w.writer.Err()
 }
 
-func (w *writer) MustWrite(value interface{}) {
+func (w *writer) MustWrite(value any) {
 	err := w.Write(value)
 	if err != nil {
 		w.ctx.onError(err)

@@ -228,7 +228,7 @@ func (c *Controller) createArtifactDirIfNotExists(ctx context.Context, alias str
 	return err
 }
 
-func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) (err error) {
+func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
 	r := speclet.Resources
 
 	clickhouseConfig, err := getPatchedClickHouseConfig(speclet)
@@ -342,95 +342,99 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 	}
 	ytServerClickHouseConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "config.yson", ytServerClickHouseConfig)
 	if err != nil {
-		return
+		return err
+	}
+	*filePaths = append(*filePaths, ytServerClickHouseConfigPath)
+
+	if c.config.EnableLogTailerOrDefault() {
+		logRotationConfig, err := getPatchedLogRotationConfig(speclet)
+		if err != nil {
+			return err
+		}
+
+		logTailerConfig := map[string]any{
+			// TODO(dakovalkov): "profile_manager" is a compat for older CHYT versions.
+			// Remove it after updating log tailer to new version.
+			"profile_manager": map[string]any{
+				"global_tags": map[string]any{
+					"operation_alias": oplet.Alias(),
+					"cookie":          "$YT_JOB_COOKIE",
+				},
+			},
+			"solomon_exporter": map[string]any{
+				// NOTE(dakovalkov): override host, otherwise metric count will bloat.
+				"host": "",
+				"instance_tags": map[string]any{
+					"operation_alias": oplet.Alias(),
+					"cookie":          "$YT_JOB_COOKIE",
+				},
+			},
+			"cluster_connection": c.cachedClusterConnection,
+			"log_tailer": map[string]any{
+				"log_rotation": logRotationConfig,
+				"log_files": [2](map[string]any){
+					{
+						"path": "clickhouse.debug.log",
+					},
+					{
+						"path": "clickhouse.log",
+					},
+				},
+				"log_writer_liveness_checker": map[string]any{
+					"enable":                true,
+					"liveness_check_period": 5000,
+				},
+			},
+			"logging": map[string]any{
+				"writers": map[string]any{
+					"error": map[string]any{
+						"file_name": "./log_tailer.error.log",
+						"type":      "file",
+					},
+					"stderr": map[string]any{
+						"type": "stderr",
+					},
+					"debug": map[string]any{
+						"file_name": "./log_tailer.debug.log",
+						"type":      "file",
+					},
+					"info": map[string]any{
+						"file_name": "./log_tailer.log",
+						"type":      "file",
+					},
+				},
+				"rules": [3](map[string]any){
+					{
+						"min_level": "trace",
+						"writers": [1]string{
+							"debug",
+						},
+					},
+					{
+						"min_level": "info",
+						"writers": [1]string{
+							"info",
+						},
+					},
+					{
+						"min_level": "error",
+						"writers": [2]string{
+							"error",
+							"stderr",
+						},
+					},
+				},
+			},
+		}
+		if nativeAuthenticatorConfig != nil {
+			logTailerConfig["native_authentication_manager"] = nativeAuthenticatorConfig
+		}
+		logTailerConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "log_tailer_config.yson", logTailerConfig)
+		if err != nil {
+			return err
+		}
+		*filePaths = append(*filePaths, logTailerConfigPath)
 	}
 
-	logRotationConfig, err := getPatchedLogRotationConfig(speclet)
-	if err != nil {
-		return
-	}
-	logTailerConfig := map[string]any{
-		// TODO(dakovalkov): "profile_manager" is a compat for older CHYT versions.
-		// Remove it after updating log tailer to new version.
-		"profile_manager": map[string]any{
-			"global_tags": map[string]any{
-				"operation_alias": oplet.Alias(),
-				"cookie":          "$YT_JOB_COOKIE",
-			},
-		},
-		"solomon_exporter": map[string]any{
-			// NOTE(dakovalkov): override host, otherwise metric count will bloat.
-			"host": "",
-			"instance_tags": map[string]any{
-				"operation_alias": oplet.Alias(),
-				"cookie":          "$YT_JOB_COOKIE",
-			},
-		},
-		"cluster_connection": c.cachedClusterConnection,
-		"log_tailer": map[string]any{
-			"log_rotation": logRotationConfig,
-			"log_files": [2](map[string]any){
-				{
-					"path": "clickhouse.debug.log",
-				},
-				{
-					"path": "clickhouse.log",
-				},
-			},
-			"log_writer_liveness_checker": map[string]any{
-				"enable":                true,
-				"liveness_check_period": 5000,
-			},
-		},
-		"logging": map[string]any{
-			"writers": map[string]any{
-				"error": map[string]any{
-					"file_name": "./log_tailer.error.log",
-					"type":      "file",
-				},
-				"stderr": map[string]any{
-					"type": "stderr",
-				},
-				"debug": map[string]any{
-					"file_name": "./log_tailer.debug.log",
-					"type":      "file",
-				},
-				"info": map[string]any{
-					"file_name": "./log_tailer.log",
-					"type":      "file",
-				},
-			},
-			"rules": [3](map[string]any){
-				{
-					"min_level": "trace",
-					"writers": [1]string{
-						"debug",
-					},
-				},
-				{
-					"min_level": "info",
-					"writers": [1]string{
-						"info",
-					},
-				},
-				{
-					"min_level": "error",
-					"writers": [2]string{
-						"error",
-						"stderr",
-					},
-				},
-			},
-		},
-	}
-	if nativeAuthenticatorConfig != nil {
-		logTailerConfig["native_authentication_manager"] = nativeAuthenticatorConfig
-	}
-	logTailerConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "log_tailer_config.yson", logTailerConfig)
-	if err != nil {
-		return
-	}
-	*filePaths = append(*filePaths, ytServerClickHouseConfigPath, logTailerConfigPath)
-
-	return
+	return nil
 }

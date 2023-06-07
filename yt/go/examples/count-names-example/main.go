@@ -29,12 +29,12 @@ type CountRow struct {
 	Count int    `yson:"count"`
 }
 
-func (*CountNames) InputTypes() []interface{} {
-	return []interface{}{&LoginRow{}}
+func (*CountNames) InputTypes() []any {
+	return []any{&LoginRow{}}
 }
 
-func (*CountNames) OutputTypes() []interface{} {
-	return []interface{}{&CountRow{}}
+func (*CountNames) OutputTypes() []any {
+	return []any{&CountRow{}}
 }
 
 func (*CountNames) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) error {

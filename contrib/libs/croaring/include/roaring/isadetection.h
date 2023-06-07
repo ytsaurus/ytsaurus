@@ -34,7 +34,7 @@ enum {
   ROARING_SUPPORTS_AVX2 = 1,
   ROARING_SUPPORTS_AVX512 = 2,
 };
-int croaring_hardware_support();
+int croaring_hardware_support(void);
 #ifdef __cplusplus
 } } }  // extern "C" { namespace roaring { namespace internal {
 #endif

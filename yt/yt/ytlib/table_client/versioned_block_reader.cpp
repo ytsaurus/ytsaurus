@@ -9,9 +9,10 @@
 
 #include <yt/yt/client/table_client/schema.h>
 
+#include <yt/yt/library/numeric/algorithm_helpers.h>
+
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/serialize.h>
-#include <yt/yt/core/misc/algorithm_helpers.h>
 
 namespace NYT::NTableClient {
 

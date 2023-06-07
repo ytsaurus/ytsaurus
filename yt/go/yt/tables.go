@@ -12,7 +12,7 @@ type TableWriter interface {
 	// Write writes single row.
 	//
 	// Error returned from write indicates that the whole write operation has failed.
-	Write(value interface{}) error
+	Write(value any) error
 
 	// Commit closes table writer.
 	Commit() error
@@ -56,7 +56,7 @@ type TableReader interface {
 	// Scan unmarshals current row into value.
 	//
 	// It is safe to call Scan multiple times for a single row.
-	Scan(value interface{}) error
+	Scan(value any) error
 
 	// Next prepares the next result row for reading with the Scan method.
 	//
@@ -80,17 +80,17 @@ type CreateTableOption func(options *CreateNodeOptions)
 func WithSchema(schema schema.Schema) CreateTableOption {
 	return func(options *CreateNodeOptions) {
 		if options.Attributes == nil {
-			options.Attributes = map[string]interface{}{}
+			options.Attributes = map[string]any{}
 		}
 
 		options.Attributes["schema"] = schema
 	}
 }
 
-func WithInferredSchema(row interface{}) CreateTableOption {
+func WithInferredSchema(row any) CreateTableOption {
 	return func(options *CreateNodeOptions) {
 		if options.Attributes == nil {
-			options.Attributes = map[string]interface{}{}
+			options.Attributes = map[string]any{}
 		}
 
 		options.Attributes["schema"] = schema.MustInfer(row)
@@ -103,22 +103,16 @@ func WithForce() CreateTableOption {
 	}
 }
 
-func WithIgnoreExisting() CreateTableOption {
-	return func(options *CreateNodeOptions) {
-		options.IgnoreExisting = true
-	}
-}
-
 func WithRecursive() CreateTableOption {
 	return func(options *CreateNodeOptions) {
 		options.Recursive = true
 	}
 }
 
-func WithAttributes(attrs map[string]interface{}) CreateTableOption {
+func WithAttributes(attrs map[string]any) CreateTableOption {
 	return func(options *CreateNodeOptions) {
 		if options.Attributes == nil {
-			options.Attributes = map[string]interface{}{}
+			options.Attributes = map[string]any{}
 		}
 
 		for k, v := range attrs {

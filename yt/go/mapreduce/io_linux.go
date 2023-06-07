@@ -18,7 +18,7 @@ type skiffReader struct {
 	ctx *jobContext
 }
 
-func (r *skiffReader) MustScan(value interface{}) {
+func (r *skiffReader) MustScan(value any) {
 	if err := r.Scan(value); err != nil {
 		r.ctx.onError(err)
 	}

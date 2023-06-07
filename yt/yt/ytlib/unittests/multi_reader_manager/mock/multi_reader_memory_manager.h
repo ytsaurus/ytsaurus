@@ -62,8 +62,10 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void Finalize() override
-    { }
+    TFuture<void> Finalize() override
+    {
+        return VoidFuture;
+    }
 
     const NProfiling::TTagList& GetProfilingTagList() const override
     {

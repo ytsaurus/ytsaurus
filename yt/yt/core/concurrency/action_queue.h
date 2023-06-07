@@ -39,7 +39,10 @@ DEFINE_REFCOUNTED_TYPE(TActionQueue)
 //! in the proper order and no two callbacks are executed in parallel).
 //! #invokerName is used as a profiling tag.
 //! #registry is needed for testing purposes only.
-IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker, const TString& invokerName = "default", NProfiling::IRegistryImplPtr registry = nullptr);
+IInvokerPtr CreateSerializedInvoker(
+    IInvokerPtr underlyingInvoker,
+    const TString& invokerName = "default",
+    NProfiling::IRegistryImplPtr registry = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +50,10 @@ IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker, const TString
 //! Callbacks with the highest priority are executed first.
 //! #invokerName is used as a profiling tag.
 //! #registry is needed for testing purposes only.
-IPrioritizedInvokerPtr CreatePrioritizedInvoker(IInvokerPtr underlyingInvoker, const TString& invokerName = "default", NProfiling::IRegistryImplPtr registry = nullptr);
+IPrioritizedInvokerPtr CreatePrioritizedInvoker(
+    IInvokerPtr underlyingInvoker,
+    const TString& invokerName = "default",
+    NProfiling::IRegistryImplPtr registry = nullptr);
 
 //! Creates a wrapper around IInvoker that implements IPrioritizedInvoker but
 //! does not perform any actual reordering. Priorities passed to #IPrioritizedInvoker::Invoke

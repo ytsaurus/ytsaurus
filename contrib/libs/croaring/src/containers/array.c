@@ -59,7 +59,7 @@ array_container_t *array_container_create_given_capacity(int32_t size) {
 }
 
 /* Create a new array. Return NULL in case of failure. */
-array_container_t *array_container_create() {
+array_container_t *array_container_create(void) {
     return array_container_create_given_capacity(ARRAY_DEFAULT_INIT_SIZE);
 }
 

@@ -512,7 +512,7 @@ void FromProto(TJobProfilerSpec* jobProfilerSpec, const NProto::TJobProfilerSpec
 void TColumnarStatisticsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enabled", &TThis::Enabled)
-        .Default(false);
+        .Default();
 
     registrar.Parameter("mode", &TThis::Mode)
         .Default(EColumnarStatisticsFetcherMode::Fallback);

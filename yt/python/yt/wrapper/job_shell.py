@@ -5,7 +5,7 @@ from .common import generate_uuid, get_user_agent, YtError, get_binary_std_strea
 from .errors import YtResponseError
 from .config import get_backend_type
 from .driver import get_api_version
-from .http_helpers import get_proxy_url, get_token, make_request_with_retries
+from .http_helpers import get_proxy_address_url, get_token, make_request_with_retries
 
 try:
     from yt.packages.six import b, PY3
@@ -74,7 +74,7 @@ class JobShell(object):
         self.terminal_mode = True
         self.output = FileIO(sys.stdout.fileno(), mode='w', closefd=False)
 
-        self.proxy_url = get_proxy_url(client=client)
+        self.proxy_url = get_proxy_address_url(client=client)
         self.api_version = get_api_version(client=client)
 
         self.environment = [b"YT_PROXY=" + b(self.proxy_url)]
@@ -97,7 +97,7 @@ class JobShell(object):
         if self.current_proxy is None:
             control_proxies = make_request_with_retries(
                 "get",
-                "http://{0}/hosts?role=control".format(self.proxy_url),
+                "{0}/hosts?role=control".format(self.proxy_url),
                 client=self.yt_client).json()
             if control_proxies:
                 self.current_proxy = random.choice(control_proxies)
@@ -112,7 +112,7 @@ class JobShell(object):
         headers["X-YT-Output-Format"] = "yson"
 
         req = HTTPRequest(
-            "http://{0}/api/{1}/poll_job_shell".format(self.current_proxy, self.api_version),
+            "{0}/api/{1}/poll_job_shell".format(self.current_proxy, self.api_version),
             method="POST",
             headers=headers,
             body="",

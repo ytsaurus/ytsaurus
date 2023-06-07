@@ -19,31 +19,8 @@ object ReleaseUtils {
     st.log.info(s"Client python version: ${st.extract.get(spytClientPythonVersion)}")
     st
   }
-  lazy val dumpClientVersion: ReleaseStep = { st: State =>
-    val clientScalaVersion = st.extract.get(spytClientVersion)
-    val clientPythonVersion = st.extract.get(spytClientPythonVersion)
-    st.log.info(s"Client scala version dump: $clientScalaVersion")
-    st.log.info(s"Client python version dump: $clientPythonVersion")
-    if (!publishYtEnabled) {
-      dumpVersionsToBuildDirectory(
-        Map("scala" -> clientScalaVersion, "python" -> clientPythonVersion),
-        st.extract.get(baseDirectory), "client_version.json"
-      )
-    }
-    st
-  }
   lazy val logClusterVersion: ReleaseStep = { st: State =>
     st.log.info(s"Cluster version: ${st.extract.get(spytClusterVersion)}")
-    st
-  }
-  lazy val dumpClusterVersion: ReleaseStep = { st: State =>
-    val clusterVersion = st.extract.get(spytClusterVersion)
-    st.log.info(s"Cluster version dump: $clusterVersion")
-    if (!publishYtEnabled) {
-      dumpVersionsToBuildDirectory(
-        Map("scala" -> clusterVersion), st.extract.get(baseDirectory), "cluster_version.json"
-      )
-    }
     st
   }
   lazy val logSparkForkVersion: ReleaseStep = { st: State =>
@@ -51,12 +28,26 @@ object ReleaseUtils {
     st.log.info(s"Spark fork python version: ${st.extract.get(spytSparkPythonVersion)}")
     st
   }
-  lazy val dumpSparkForkVersion: ReleaseStep = { st: State =>
+  lazy val dumpVersions: ReleaseStep = { st: State =>
+    val clientScalaVersion = st.extract.get(spytClientVersion)
+    val clientPythonVersion = st.extract.get(spytClientPythonVersion)
+    val clusterVersion = st.extract.get(spytClusterVersion)
     val sparkScalaVersion = st.extract.get(spytSparkVersion)
     val sparkPythonVersion = st.extract.get(spytSparkPythonVersion)
+    st.log.info(s"Client scala version dump: $clientScalaVersion")
+    st.log.info(s"Client python version dump: $clientPythonVersion")
+    st.log.info(s"Cluster version dump: $clusterVersion")
     st.log.info(s"Spark fork scala version dump: $sparkScalaVersion")
     st.log.info(s"Spark fork python version dump: $sparkPythonVersion")
     if (!publishYtEnabled) {
+      dumpVersionsToBuildDirectory(
+        Map("scala" -> clientScalaVersion, "python" -> clientPythonVersion),
+        st.extract.get(baseDirectory), "client_version.json"
+      )
+      dumpVersionsToBuildDirectory(
+        Map("scala" -> clusterVersion),
+        st.extract.get(baseDirectory), "cluster_version.json"
+      )
       dumpVersionsToBuildDirectory(
         Map("scala" -> sparkScalaVersion, "python" -> sparkPythonVersion),
         st.extract.get(baseDirectory), "spark_version.json"

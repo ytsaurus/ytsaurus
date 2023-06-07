@@ -140,7 +140,7 @@ std::optional<TChunkDescriptor> TCacheLocation::RepairChunk(TChunkId chunkId)
             break;
 
         default:
-            YT_LOG_WARNING("Invalid type %Qlv of chunk %v, skipped",
+            YT_LOG_WARNING("Invalid chunk type (Type: %v, ChunkId: %v)",
                 chunkType,
                 chunkId);
             break;

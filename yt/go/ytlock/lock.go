@@ -42,7 +42,7 @@ type Options struct {
 	LockMode        yt.LockMode
 	LockChild       string
 
-	TxAttributes map[string]interface{}
+	TxAttributes map[string]any
 }
 
 // NewLock creates Lock object using default Options.

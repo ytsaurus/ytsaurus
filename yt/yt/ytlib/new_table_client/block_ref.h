@@ -2,7 +2,7 @@
 
 // TODO(lukyan): Rename this file to column_base.h
 
-#include <yt/yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <library/cpp/yt/memory/ref.h>
 

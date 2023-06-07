@@ -216,7 +216,7 @@ func decodeString(r *Reader) (b []byte, err error) {
 	return
 }
 
-func decodeAny(r *Reader, v interface{}, opts *DecoderOptions) (err error) {
+func decodeAny(r *Reader, v any, opts *DecoderOptions) (err error) {
 	var i int64
 	var u uint64
 	var f float64
@@ -316,10 +316,10 @@ func decodeAny(r *Reader, v interface{}, opts *DecoderOptions) (err error) {
 		}
 		err = vv.UnmarshalBinary(b)
 
-	case *map[string]interface{}:
+	case *map[string]any:
 		err = decodeMap(r, vv)
 
-	case *interface{}:
+	case *any:
 		err = decodeGeneric(r, vv)
 
 	default:
@@ -335,7 +335,7 @@ func decodeAny(r *Reader, v interface{}, opts *DecoderOptions) (err error) {
 // Unmarshal works similar to encoding/json package.
 //
 // Mapping between YSON types and go objects is the same as in Marshal().
-func Unmarshal(data []byte, v interface{}) error {
+func Unmarshal(data []byte, v any) error {
 	d := NewDecoderFromBytes(data)
 	if err := d.Decode(v); err != nil {
 		return err
@@ -343,7 +343,7 @@ func Unmarshal(data []byte, v interface{}) error {
 	return d.CheckFinish()
 }
 
-func UnmarshalOptions(data []byte, v interface{}, opts *DecoderOptions) error {
+func UnmarshalOptions(data []byte, v any, opts *DecoderOptions) error {
 	d := NewDecoderFromBytes(data)
 	d.opts = opts
 	if err := d.Decode(v); err != nil {

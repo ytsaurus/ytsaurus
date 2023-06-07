@@ -175,7 +175,7 @@ func (e *Encoder) RemoveNode(
 func (e *Encoder) GetNode(
 	ctx context.Context,
 	path ypath.YPath,
-	result interface{},
+	result any,
 	opts *yt.GetNodeOptions,
 ) (err error) {
 	if opts == nil {
@@ -212,7 +212,7 @@ func (e *Encoder) GetNode(
 func (e *Encoder) SetNode(
 	ctx context.Context,
 	path ypath.YPath,
-	value interface{},
+	value any,
 	opts *yt.SetNodeOptions,
 ) (err error) {
 	if opts == nil {
@@ -250,7 +250,7 @@ func (e *Encoder) SetNode(
 func (e *Encoder) MultisetAttributes(
 	ctx context.Context,
 	path ypath.YPath,
-	attrs map[string]interface{},
+	attrs map[string]any,
 	opts *yt.MultisetAttributesOptions,
 ) (err error) {
 	if opts == nil {
@@ -293,7 +293,7 @@ func (e *Encoder) MultisetAttributes(
 func (e *Encoder) ListNode(
 	ctx context.Context,
 	path ypath.YPath,
-	result interface{},
+	result any,
 	opts *yt.ListNodeOptions,
 ) (err error) {
 	if opts == nil {
@@ -545,7 +545,7 @@ func (e *Encoder) SelectRows(
 func (e *Encoder) LookupRows(
 	ctx context.Context,
 	path ypath.Path,
-	keys []interface{},
+	keys []any,
 	opts *yt.LookupRowsOptions,
 ) (r yt.TableReader, err error) {
 	if opts == nil {
@@ -580,7 +580,7 @@ func (e *Encoder) LockRows(
 	path ypath.Path,
 	locks []string,
 	lockType yt.LockType,
-	keys []interface{},
+	keys []any,
 	opts *yt.LockRowsOptions,
 ) (err error) {
 	if len(keys) == 0 {
@@ -633,7 +633,7 @@ func (e *Encoder) InsertRowBatch(
 func (e *Encoder) InsertRows(
 	ctx context.Context,
 	path ypath.Path,
-	rows []interface{},
+	rows []any,
 	opts *yt.InsertRowsOptions,
 ) (err error) {
 	batch, err := buildBatch(rows)
@@ -647,7 +647,7 @@ func (e *Encoder) InsertRows(
 func (e *Encoder) DeleteRows(
 	ctx context.Context,
 	path ypath.Path,
-	keys []interface{},
+	keys []any,
 	opts *yt.DeleteRowsOptions,
 ) (err error) {
 	if opts == nil {
@@ -1170,7 +1170,7 @@ func (e *Encoder) TransferAccountResources(
 	ctx context.Context,
 	srcAccount string,
 	dstAccount string,
-	resourceDelta interface{},
+	resourceDelta any,
 	opts *yt.TransferAccountResourcesOptions,
 ) (err error) {
 	if opts == nil {
@@ -1206,7 +1206,7 @@ func (e *Encoder) TransferPoolResources(
 	srcPool string,
 	dstPool string,
 	poolTree string,
-	resourceDelta interface{},
+	resourceDelta any,
 	opts *yt.TransferPoolResourcesOptions,
 ) (err error) {
 	if opts == nil {
@@ -1297,11 +1297,12 @@ func (e *Encoder) CheckPermission(
 func (e *Encoder) DisableChunkLocations(
 	ctx context.Context,
 	nodeAddress string,
-	locationUuids []guid.GUID,
+	locationUUIDs []guid.GUID,
+	opts *yt.DisableChunkLocationsOptions,
 ) (response *yt.DisableChunkLocationsResponse, err error) {
 	req := &rpc_proxy.TReqDisableChunkLocations{
 		NodeAddress:   &nodeAddress,
-		LocationUuids: convertGUIDs(locationUuids),
+		LocationUuids: convertGUIDs(locationUUIDs),
 	}
 
 	call := e.newCall(MethodDisableChunkLocations, NewDisableChunkLocationsRequest(req), nil)
@@ -1314,7 +1315,7 @@ func (e *Encoder) DisableChunkLocations(
 
 	response, err = makeDisableChunkLocationsResponse(&rsp)
 	if err != nil {
-		return nil, xerrors.Errorf("unable to deserializer response: %w", err)
+		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
 	}
 
 	return
@@ -1323,11 +1324,12 @@ func (e *Encoder) DisableChunkLocations(
 func (e *Encoder) DestroyChunkLocations(
 	ctx context.Context,
 	nodeAddress string,
-	locationUuids []guid.GUID,
+	locationUUIDs []guid.GUID,
+	opts *yt.DestroyChunkLocationsOptions,
 ) (response *yt.DestroyChunkLocationsResponse, err error) {
 	req := &rpc_proxy.TReqDestroyChunkLocations{
 		NodeAddress:   &nodeAddress,
-		LocationUuids: convertGUIDs(locationUuids),
+		LocationUuids: convertGUIDs(locationUUIDs),
 	}
 
 	call := e.newCall(MethodDestroyChunkLocations, NewDestroyChunkLocationsRequest(req), nil)
@@ -1340,7 +1342,7 @@ func (e *Encoder) DestroyChunkLocations(
 
 	response, err = makeDestroyChunkLocationsResponse(&rsp)
 	if err != nil {
-		return nil, xerrors.Errorf("unable to deserializer response: %w", err)
+		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
 	}
 
 	return
@@ -1349,11 +1351,12 @@ func (e *Encoder) DestroyChunkLocations(
 func (e *Encoder) ResurrectChunkLocations(
 	ctx context.Context,
 	nodeAddress string,
-	locationUuids []guid.GUID,
+	locationUUIDs []guid.GUID,
+	opts *yt.ResurrectChunkLocationsOptions,
 ) (response *yt.ResurrectChunkLocationsResponse, err error) {
 	req := &rpc_proxy.TReqResurrectChunkLocations{
 		NodeAddress:   &nodeAddress,
-		LocationUuids: convertGUIDs(locationUuids),
+		LocationUuids: convertGUIDs(locationUUIDs),
 	}
 
 	call := e.newCall(MethodResurrectChunkLocations, NewResurrectChunkLocationsRequest(req), nil)
@@ -1366,7 +1369,7 @@ func (e *Encoder) ResurrectChunkLocations(
 
 	response, err = makeResurrectChunkLocationsResponse(&rsp)
 	if err != nil {
-		return nil, xerrors.Errorf("unable to deserializer response: %w", err)
+		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
 	}
 
 	return
@@ -1375,7 +1378,7 @@ func (e *Encoder) ResurrectChunkLocations(
 func (e *Encoder) StartOperation(
 	ctx context.Context,
 	opType yt.OperationType,
-	spec interface{},
+	spec any,
 	opts *yt.StartOperationOptions,
 ) (opID yt.OperationID, err error) {
 	if opts == nil {
@@ -1513,7 +1516,7 @@ func (e *Encoder) CompleteOperation(
 func (e *Encoder) UpdateOperationParameters(
 	ctx context.Context,
 	opID yt.OperationID,
-	params interface{},
+	params any,
 	opts *yt.UpdateOperationParametersOptions,
 ) (err error) {
 	paramsBytes, err := yson.Marshal(params)
@@ -1825,7 +1828,7 @@ func (e *Encoder) GetInSyncReplicas(
 	ctx context.Context,
 	path ypath.Path,
 	ts yt.Timestamp,
-	keys []interface{},
+	keys []any,
 	opts *yt.GetInSyncReplicasOptions,
 ) (ids []yt.NodeID, err error) {
 	attachments, descriptor, err := encodeToWire(keys)

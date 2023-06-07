@@ -376,11 +376,6 @@ private:
             }
         }
 
-        ~TCallHandler()
-        {
-            grpc_slice_unref(ResponseStatusDetails_);
-        }
-
         // TCompletionQueueTag overrides
         void Run(bool success, int /*cookie*/) override
         {
@@ -452,7 +447,7 @@ private:
         TGrpcByteBufferPtr ResponseBodyBuffer_;
         TGrpcMetadataArray ResponseFinalMetadata_;
         grpc_status_code ResponseStatusCode_ = GRPC_STATUS_UNKNOWN;
-        grpc_slice ResponseStatusDetails_ = grpc_empty_slice();
+        TGrpcSlice ResponseStatusDetails_;
 
         EClientCallStage Stage_;
 
@@ -558,7 +553,7 @@ private:
             ops[1].reserved = nullptr;
             ops[1].data.recv_status_on_client.trailing_metadata = ResponseFinalMetadata_.Unwrap();
             ops[1].data.recv_status_on_client.status = &ResponseStatusCode_;
-            ops[1].data.recv_status_on_client.status_details = &ResponseStatusDetails_;
+            ops[1].data.recv_status_on_client.status_details = ResponseStatusDetails_.Unwrap();
             ops[1].data.recv_status_on_client.error_string = nullptr;
 
             if (!TryStartBatch(ops)) {
@@ -581,7 +576,7 @@ private:
                 if (serializedError) {
                     error = DeserializeError(serializedError);
                 } else {
-                    error = TError(StatusCodeToErrorCode(ResponseStatusCode_), NGrpc::ToString(ResponseStatusDetails_))
+                    error = TError(StatusCodeToErrorCode(ResponseStatusCode_), ResponseStatusDetails_.AsString())
                         << TErrorAttribute("status_code", ResponseStatusCode_);
                 }
                 NotifyError(TStringBuf("Request failed"), error);

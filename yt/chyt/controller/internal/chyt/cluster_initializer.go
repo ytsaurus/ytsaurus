@@ -41,7 +41,7 @@ func (initializer *ClusterInitializer) createYTClickHouseUserIfNotExists(ctx con
 	initializer.l.Info("creating user yt-clickhouse")
 
 	_, err = initializer.ytc.CreateObject(ctx, yt.NodeUser, &yt.CreateObjectOptions{
-		Attributes: map[string]interface{}{
+		Attributes: map[string]any{
 			"name": YTClickHouseUser,
 		},
 	})

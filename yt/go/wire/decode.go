@@ -198,11 +198,11 @@ func (d *WireDecoder) getNameTableEntry(value Value) (*NameTableEntry, error) {
 	return &d.NameTable[int(value.ID)], nil
 }
 
-func (d *WireDecoder) UnmarshalRow(row Row, v interface{}) error {
+func (d *WireDecoder) UnmarshalRow(row Row, v any) error {
 	return d.decodeAny(row, v)
 }
 
-func (d *WireDecoder) decodeAny(row Row, v interface{}) (err error) {
+func (d *WireDecoder) decodeAny(row Row, v any) (err error) {
 	if v == nil {
 		return &UnsupportedTypeError{}
 	}
@@ -212,7 +212,7 @@ func (d *WireDecoder) decodeAny(row Row, v interface{}) (err error) {
 	}
 
 	switch vv := v.(type) {
-	case *interface{}:
+	case *any:
 		err = d.decodeRowGeneric(row, vv)
 	default:
 		err = d.decodeRowReflect(row, reflect.ValueOf(v))
@@ -221,8 +221,8 @@ func (d *WireDecoder) decodeAny(row Row, v interface{}) (err error) {
 	return
 }
 
-func (d *WireDecoder) decodeRowGeneric(row Row, v *interface{}) error {
-	m := make(map[string]interface{})
+func (d *WireDecoder) decodeRowGeneric(row Row, v *any) error {
+	m := make(map[string]any)
 	*v = m
 
 	for _, value := range row {
@@ -231,7 +231,7 @@ func (d *WireDecoder) decodeRowGeneric(row Row, v *interface{}) error {
 			return err
 		}
 
-		var mapValue interface{}
+		var mapValue any
 		if err := d.decodeValueGeneric(value, &mapValue); err != nil {
 			return err
 		}
@@ -251,7 +251,7 @@ func (e *TypesMismatchError) Error() string {
 	return fmt.Sprintf("wire: unable to decode wire type %q into YT type %q", e.WireType, e.SchemaType)
 }
 
-func (d *WireDecoder) decodeValueGeneric(value Value, v *interface{}) (err error) {
+func (d *WireDecoder) decodeValueGeneric(value Value, v *any) (err error) {
 	switch value.Type {
 	case TypeNull:
 		*v = nil
@@ -387,7 +387,7 @@ func (d *WireDecoder) decodeRowReflectMap(row Row, v reflect.Value) error {
 	return nil
 }
 
-func (d *WireDecoder) decodeValueAny(value Value, v interface{}) (err error) {
+func (d *WireDecoder) decodeValueAny(value Value, v any) (err error) {
 	if v == nil {
 		return &UnsupportedTypeError{}
 	}
@@ -480,7 +480,7 @@ func (d *WireDecoder) decodeValueAny(value Value, v interface{}) (err error) {
 	case encoding.BinaryUnmarshaler:
 		err = vv.UnmarshalBinary(value.Bytes())
 
-	case *interface{}:
+	case *any:
 		err = d.decodeValueGeneric(value, vv)
 
 	default:
