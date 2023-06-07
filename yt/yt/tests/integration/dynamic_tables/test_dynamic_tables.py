@@ -1775,8 +1775,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         # After reshard all errors should be gone.
         assert get("//tmp/t/@tablet_error_count") == 0
 
-    @authors("savrus", "babenko")
+    @authors("savrus", "babenko", "h0pless")
     def test_disallowed_dynamic_table_alter(self):
+        sync_create_cells(1)
         sorted_schema = make_schema(
             [
                 {"name": "key", "type": "string", "sort_order": "ascending"},
@@ -1795,10 +1796,17 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         create("table", "//tmp/t1", attributes={"schema": ordered_schema, "dynamic": True})
         create("table", "//tmp/t2", attributes={"schema": sorted_schema, "dynamic": True})
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Cannot change dynamic table type from sorted to ordered or vice versa"):
             alter_table("//tmp/t1", schema=sorted_schema)
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Cannot change dynamic table type from sorted to ordered or vice versa"):
             alter_table("//tmp/t2", schema=ordered_schema)
+
+        sorted_schema_id = get("//tmp/t2/@schema_id")
+        sync_mount_table("//tmp/t1")
+        with pytest.raises(YtError, match="Cannot change table schema"):
+            alter_table("//tmp/t1", schema=sorted_schema)
+        with pytest.raises(YtError, match="Cannot change table schema"):
+            alter_table("//tmp/t1", schema_id=sorted_schema_id)
 
     @authors("savrus")
     def test_disable_tablet_cells(self):

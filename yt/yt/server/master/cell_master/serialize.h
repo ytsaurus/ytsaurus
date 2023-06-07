@@ -147,6 +147,7 @@ DEFINE_ENUM(EMasterReign,
     ((PerUserReadRequestComplexityLimits)                           (2332))  // kvk1920
     ((SimplerChunkExportDataSaveLoad)                               (2333))  // shakurov
     ((MoveReplicatorEnabledCheckPeriodToDynamicConfig)              (2334))  // danilalexeev
+    ((FixAlterWithSchemaId)                                         (2335))  // h0pless
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan

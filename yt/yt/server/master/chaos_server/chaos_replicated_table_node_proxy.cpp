@@ -320,23 +320,33 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
 
     const auto& tableManager = Bootstrap_->GetTableManager();
     // NB: Chaos replicated table is always native.
-    if (schemaId || schema) {
+    auto schemaReceived = schemaId || schema;
+    if (schemaReceived) {
         tableManager->ValidateTableSchemaCorrespondence(
             table->GetVersionedId(),
             schema,
             schemaId);
     }
 
-    // NB: Sorted dynamic tables contain unique keys, set this for user.
-    if (schema && schema->IsSorted() && !schema->GetUniqueKeys()) {
-        schema = schema->ToUniqueKeys();
+    TTableSchemaPtr effectiveSchema;
+    if (schema) {
+        effectiveSchema = schema;
+    } else if (schemaId) {
+        effectiveSchema = tableManager->GetMasterTableSchemaOrThrow(schemaId)->AsTableSchema();
+    } else {
+        effectiveSchema = table->GetSchema()->AsTableSchema();
     }
 
-    if (schema) {
+    // NB: Sorted dynamic tables contain unique keys, set this for user.
+    if (schemaReceived && effectiveSchema->IsSorted() && !effectiveSchema->GetUniqueKeys()) {
+        effectiveSchema = effectiveSchema->ToUniqueKeys();
+    }
+
+    if (schemaReceived) {
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
 
         if (!config->EnableDescendingSortOrder || !config->EnableDescendingSortOrderDynamic) {
-            ValidateNoDescendingSortOrder(*schema);
+            ValidateNoDescendingSortOrder(*effectiveSchema);
         }
     }
 
@@ -346,11 +356,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
         GetPath(),
         Transaction_);
 
-    if (schemaId) {
-        tableManager->SetTableSchemaOrThrow(table, schemaId);
-    } else if (schema) {
-        tableManager->GetOrCreateNativeMasterTableSchema(*schema, table);
-    }
+    tableManager->GetOrCreateNativeMasterTableSchema(*effectiveSchema, table);
 
     context->Reply();
 }

@@ -1873,7 +1873,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     const auto& tableManager = Bootstrap_->GetTableManager();
     auto* table = LockThisImpl();
     auto dynamic = options.Dynamic.value_or(table->IsDynamic());
-    bool schemaReceived = options.SchemaId || options.Schema;
+    auto schemaReceived = options.SchemaId || options.Schema;
 
     // If nothing was received on the native cell - nothing will be received on the external.
     if (schemaReceived) {
@@ -1913,12 +1913,12 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             THROW_ERROR_EXCEPTION("Cannot alter table with nontrivial schema modification");
         }
 
-        if (options.Schema && options.Schema->HasNontrivialSchemaModification()) {
+        if (schemaReceived && schema->HasNontrivialSchemaModification()) {
             THROW_ERROR_EXCEPTION("Schema modification cannot be specified as schema attribute");
         }
 
         if (table->IsPhysicallyLog()) {
-            if (options.Schema && table->GetType() != EObjectType::ReplicatedTable) {
+            if (schemaReceived && table->GetType() != EObjectType::ReplicatedTable) {
                 THROW_ERROR_EXCEPTION("Cannot change schema of a table of type %Qlv",
                     table->GetType());
             }
@@ -1936,7 +1936,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             THROW_ERROR_EXCEPTION("Cannot alter table with a hunk storage node to static");
         }
 
-        if (options.Schema && table->IsDynamic()) {
+        if (schemaReceived && table->IsDynamic()) {
             table->ValidateAllTabletsUnmounted("Cannot change table schema");
         }
 
