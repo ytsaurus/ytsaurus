@@ -604,6 +604,8 @@ public:
     // Testing options.
     bool FailShallowMergeValidation;
 
+    i64 ReadWindowSize;
+
     REGISTER_YSON_STRUCT(TChunkMergerConfig);
 
     static void Register(TRegistrar registrar);

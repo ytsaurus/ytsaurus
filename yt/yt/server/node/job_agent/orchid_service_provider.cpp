@@ -61,7 +61,7 @@ private:
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("resource_limits").Value(Bootstrap_->GetJobResourceManager()->GetResourceLimits())
-                .Item("resource_usage").Value(Bootstrap_->GetJobResourceManager()->GetResourceUsage())
+                .Item("resource_usage").Value(ToNodeResources(Bootstrap_->GetJobResourceManager()->GetResourceUsage()))
                 .Item("active_job_count").BeginMap()
                     .DoIf(Bootstrap_->IsExecNode(), [&] (auto fluent) {
                         fluent.Item(FormatEnum(EJobOrigin::Scheduler))

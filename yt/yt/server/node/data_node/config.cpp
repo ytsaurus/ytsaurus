@@ -535,6 +535,9 @@ void TChunkMergerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("fail_shallow_merge_validation", &TThis::FailShallowMergeValidation)
         .Default(false);
+
+    registrar.Parameter("read_window_size", &TThis::ReadWindowSize)
+        .Default(256_MBs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

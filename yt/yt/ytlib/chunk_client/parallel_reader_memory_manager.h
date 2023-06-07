@@ -68,6 +68,8 @@ struct TParallelReaderMemoryManagerOptions
     TDuration ProfilingPeriod = TDuration::Seconds(5);
 
     bool EnableDetailedLogging = false;
+
+    const ITypedNodeMemoryTrackerPtr MemoryUsageTracker = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

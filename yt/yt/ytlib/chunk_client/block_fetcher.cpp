@@ -425,13 +425,10 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
                 continue;
             }
 
-            auto transferred = underlyingGuard->TransferSlots(
-                std::min(
-                    static_cast<i64>(blockInfo.UncompressedDataSize),
-                    underlyingGuard->GetSlots()));
-            Window_[FirstUnfetchedWindowIndex_].MemoryUsageGuard = New<TMemoryUsageGuard>(
-                std::move(transferred),
-                memoryUsageGuard->GetMemoryManager());
+            auto memoryToTransfer = std::min(
+                static_cast<i64>(blockInfo.UncompressedDataSize),
+                underlyingGuard->GetSlots());
+            Window_[FirstUnfetchedWindowIndex_].MemoryUsageGuard = memoryUsageGuard->TransferMemory(memoryToTransfer);
 
             TBlockId blockId(chunkId, blockIndex);
             auto cachedBlock = Config_->UseUncompressedBlockCache
